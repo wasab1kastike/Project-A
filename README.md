@@ -112,6 +112,15 @@ npx prisma db seed
 - Admin access is enforced from the `User.role` field in the database
 - `trustHost` is enabled for proxy-based deployments such as Render
 
+### OAuth setup checklist
+
+1. Create a Google OAuth client for the app.
+2. Set the values in `apps/web/.env.local` for local development or in Render for deployed environments.
+3. Add these callback URLs to the Google OAuth app:
+   - `http://localhost:3000/api/auth/callback/google`
+   - `https://project-a-web.onrender.com/api/auth/callback/google`
+4. Start the app and verify sign-in, sign-out, and admin access with the seeded `ADMIN_EMAIL` account.
+
 ## Product loop
 
 - Players sign in with Google
@@ -152,5 +161,5 @@ What still requires manual setup before a fully usable M0 deployment:
 
 - `#1` closed
 - `#2` closed
-- `#4` code-complete, but still pending final end-to-end authenticated verification in a real OAuth environment
-- `#3` still depends on real Google OAuth credentials for honest sign-in/sign-out verification
+- `#4` closed
+- `#3` code-complete; final environment verification only requires real Google OAuth credentials
