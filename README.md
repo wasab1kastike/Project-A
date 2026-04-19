@@ -72,6 +72,8 @@ npm run dev
 - `npm run build`
 - `npm run lint`
 - `npm run typecheck`
+- `npm run game:tick`
+- `npm run test:game`
 - `npm run db:generate`
 - `npm run db:deploy`
 - `npm run db:migrate`
@@ -129,6 +131,33 @@ npx prisma db seed
 - Winner is resolved in `RESOLUTION`
 - The next season begins with a fresh registration phase
 
+## M1 season bootstrap
+
+Milestone 2 is implemented as a backend-first playable core:
+
+- `seedProjectA` bootstraps the first unresolved `REGISTRATION` cycle if one does not exist
+- joining registration immediately creates a fortress and assigns one of 30 fixed map slots
+- fortresses can rename for free during `REGISTRATION`
+- fortresses can switch between `GROW` and `ATTACK` during `ACTIVE`
+- active renames cost 10 points
+- `npm run game:tick` transitions expired registration windows and applies due minute ticks transactionally
+
+The home page is intentionally minimal in M1:
+
+- signed out: read-only spectator status
+- signed in during `REGISTRATION`: join or rename your fortress
+- signed in during `ACTIVE`: choose `GROW` or `ATTACK`, pick a target, and spend points on renames
+
+## Testing the game loop
+
+Game-domain integration coverage lives in `apps/web/src/lib/game/game.test.ts`.
+
+- `npm run test:game` expects a reachable PostgreSQL database
+- it uses `TEST_DATABASE_URL` when provided, otherwise falls back to `DATABASE_URL`
+- each run creates an isolated schema, applies checked-in migrations, and drops the schema after the suite
+
+If PostgreSQL is not running locally, the game test suite is skipped instead of failing the rest of the repo validation.
+
 ## Render baseline
 
 The repo now includes a minimal Render Blueprint at `render.yaml` for:
@@ -157,9 +186,7 @@ What still requires manual setup before a fully usable M0 deployment:
 - Run the one-time seed flow with `npm run db:seed`
 - Add the deployed Render callback URL to the Google OAuth app
 
-## M0 status
+## Milestone status
 
-- `#1` closed
-- `#2` closed
-- `#4` closed
-- `#3` code-complete; final environment verification only requires real Google OAuth credentials
+- M0 foundation: complete
+- M1 season bootstrap: implemented locally with Prisma-backed registration, action persistence, tick processing, and minimal gameplay UI

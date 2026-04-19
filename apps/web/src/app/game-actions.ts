@@ -1,0 +1,121 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
+import { GameError } from "@/lib/game/errors";
+import { FortressAction } from "@/lib/prisma-client";
+import {
+  editRegistrationFortressName,
+  joinRegistrationCycle,
+  renameActiveFortress,
+  setFortressAction,
+} from "@/lib/game/service";
+
+function getString(formData: FormData, key: string) {
+  const value = formData.get(key);
+
+  return typeof value === "string" ? value : "";
+}
+
+function redirectToHome(
+  kind: "error" | "notice",
+  message: string,
+  details?: Record<string, string>
+): never {
+  const params = new URLSearchParams(details);
+  params.set(kind, message);
+  redirect(`/?${params.toString()}`);
+}
+
+async function requireUserId() {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    redirectToHome("error", "You need to sign in before changing season state.");
+  }
+
+  return userId;
+}
+
+function getActionErrorMessage(error: unknown) {
+  if (error instanceof GameError) {
+    return error.message;
+  }
+
+  return "Something went wrong while updating the season.";
+}
+
+function finishAction(notice: string): never {
+  revalidatePath("/");
+  redirectToHome("notice", notice);
+}
+
+export async function joinFortressAction(formData: FormData) {
+  const userId = await requireUserId();
+
+  try {
+    await joinRegistrationCycle({
+      userId,
+      fortressName: getString(formData, "fortressName"),
+    });
+  } catch (error) {
+    redirectToHome("error", getActionErrorMessage(error));
+  }
+
+  finishAction("You joined the registration cycle.");
+}
+
+export async function editRegistrationFortressNameAction(formData: FormData) {
+  const userId = await requireUserId();
+
+  try {
+    await editRegistrationFortressName({
+      userId,
+      fortressName: getString(formData, "fortressName"),
+    });
+  } catch (error) {
+    redirectToHome("error", getActionErrorMessage(error));
+  }
+
+  finishAction("Registration fortress name updated.");
+}
+
+export async function renameFortressAction(formData: FormData) {
+  const userId = await requireUserId();
+
+  try {
+    await renameActiveFortress({
+      userId,
+      fortressName: getString(formData, "fortressName"),
+    });
+  } catch (error) {
+    redirectToHome("error", getActionErrorMessage(error));
+  }
+
+  finishAction("Fortress renamed and 10 points spent.");
+}
+
+export async function setFortressActionAction(formData: FormData) {
+  const userId = await requireUserId();
+  const actionInput = getString(formData, "action");
+  const targetFortressId = getString(formData, "targetFortressId");
+
+  try {
+    const action =
+      actionInput === FortressAction.ATTACK
+        ? FortressAction.ATTACK
+        : FortressAction.GROW;
+
+    await setFortressAction({
+      userId,
+      action,
+      targetFortressId: targetFortressId || undefined,
+    });
+  } catch (error) {
+    redirectToHome("error", getActionErrorMessage(error));
+  }
+
+  finishAction("Fortress action updated.");
+}

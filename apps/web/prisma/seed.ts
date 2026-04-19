@@ -1,4 +1,5 @@
-import { PrismaClient } from "@prisma/client";
+import { seedProjectA } from "../src/lib/game/bootstrap";
+import { PrismaClient } from "../src/lib/prisma-client";
 
 const prisma = new PrismaClient({
   datasources: process.env.DATABASE_URL
@@ -11,24 +12,19 @@ const prisma = new PrismaClient({
 });
 
 async function main() {
-  const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
-
-  if (!adminEmail) {
-    console.warn("Skipping admin bootstrap because ADMIN_EMAIL is not set.");
-    return;
-  }
-
-  const admin = await prisma.user.upsert({
-    where: { email: adminEmail },
-    update: { role: "ADMIN" },
-    create: {
-      email: adminEmail,
-      name: "Project-A Admin",
-      role: "ADMIN",
-    },
+  const result = await seedProjectA(prisma, {
+    adminEmail: process.env.ADMIN_EMAIL,
   });
 
-  console.log(`Admin bootstrap complete for ${admin.email}`);
+  if (result.adminEmail) {
+    console.log(`Admin bootstrap complete for ${result.adminEmail}`);
+  } else {
+    console.warn("Skipping admin bootstrap because ADMIN_EMAIL is not set.");
+  }
+
+  console.log(
+    `Open registration cycle ready: ${result.cycleId} until ${result.registrationEndsAt.toISOString()}`
+  );
 }
 
 main()

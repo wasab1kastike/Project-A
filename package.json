@@ -14,6 +14,8 @@
     "build": "npm run build --workspace web",
     "start": "npm run start --workspace web",
     "lint": "npm run lint --workspace web",
+    "game:tick": "npm run game:tick --workspace web",
+    "test:game": "npm run test:game --workspace web",
     "typecheck": "npm run typecheck --workspace web",
     "db:dev": "npm run db:dev --workspace web",
     "db:deploy": "npm run db:deploy --workspace web",

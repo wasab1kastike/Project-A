@@ -116,6 +116,7 @@ model Cycle {
   fortresses            Fortress[]
   chatMessages          ChatMessage[]
   scoreEvents           ScoreEvent[]
+  gameTicks             GameTick[]
   winnerRequests        WinnerRequest[]
   history               CycleHistory?
 
@@ -180,6 +181,17 @@ model ScoreEvent {
   @@index([cycleId, createdAt])
   @@index([fortressId, createdAt])
   @@index([actorId])
+}
+
+model GameTick {
+  id        String   @id @default(cuid())
+  cycleId   String
+  tickAt    DateTime
+  createdAt DateTime @default(now())
+  cycle     Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+
+  @@unique([cycleId, tickAt])
+  @@index([tickAt])
 }
 
 model WinnerRequest {

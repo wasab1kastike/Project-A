@@ -51,8 +51,8 @@ export function SessionActions({
         </Link>
       ) : null}
       <p className={styles.hint}>
-        Authenticated users can browse the app as spectators until gameplay
-        actions are added.
+        Signed-in users can join the open registration window and control their
+        fortress during the active cycle.
       </p>
     </div>
   );
