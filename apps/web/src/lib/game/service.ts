@@ -1,0 +1,385 @@
+import {
+  CycleStatus,
+  FortressAction,
+  ScoreEventType,
+  Prisma,
+  PrismaClient,
+} from "@/lib/prisma-client";
+import { prisma } from "@/lib/prisma";
+import {
+  ACTIVE_PLAYER_CAP,
+  ACTIVE_RENAME_COST,
+  MAP_POSITIONS,
+} from "./constants";
+import { GameError } from "./errors";
+
+type DatabaseClient = PrismaClient | Prisma.TransactionClient;
+
+function normalizeFortressName(input: string) {
+  const normalized = input.trim().replace(/\s+/g, " ");
+
+  if (!normalized) {
+    throw new GameError("Fortress name cannot be empty.");
+  }
+
+  return normalized;
+}
+
+function getCurrentCycle(db: DatabaseClient = prisma) {
+  return db.cycle.findFirst({
+    where: {
+      resolvedAt: null,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+}
+
+function isRegistrationJoinOpen(
+  cycle: {
+    status: CycleStatus;
+    registrationEndsAt: Date;
+  },
+  now: Date
+) {
+  return cycle.status === CycleStatus.REGISTRATION && cycle.registrationEndsAt > now;
+}
+
+function isActiveWindowOpen(
+  cycle: {
+    status: CycleStatus;
+    activeEndsAt: Date | null;
+  },
+  now: Date
+) {
+  return (
+    cycle.status === CycleStatus.ACTIVE &&
+    cycle.activeEndsAt !== null &&
+    cycle.activeEndsAt > now
+  );
+}
+
+function findOpenMapPosition(
+  fortresses: Array<{
+    mapX: number;
+    mapY: number;
+  }>
+) {
+  const occupied = new Set(fortresses.map((fortress) => `${fortress.mapX}:${fortress.mapY}`));
+
+  return MAP_POSITIONS.find((position) => {
+    return !occupied.has(`${position.x}:${position.y}`);
+  });
+}
+
+function isUniqueConstraintError(
+  error: unknown,
+  targetField?: string | string[]
+): error is Prisma.PrismaClientKnownRequestError {
+  if (
+    !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+    error.code !== "P2002"
+  ) {
+    return false;
+  }
+
+  if (!targetField) {
+    return true;
+  }
+
+  const targets = Array.isArray(targetField) ? targetField : [targetField];
+  const metaTarget = error.meta?.target;
+
+  if (!Array.isArray(metaTarget)) {
+    return false;
+  }
+
+  return targets.every((target) => metaTarget.includes(target));
+}
+
+export async function joinRegistrationCycle({
+  userId,
+  fortressName,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  fortressName: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  const normalizedName = normalizeFortressName(fortressName);
+
+  try {
+    return await db.$transaction(
+      async (tx) => {
+        const cycle = await tx.cycle.findFirst({
+          where: {
+            resolvedAt: null,
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          include: {
+            fortresses: {
+              orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
+              select: {
+                id: true,
+                ownerId: true,
+                name: true,
+                mapX: true,
+                mapY: true,
+              },
+            },
+          },
+        });
+
+        if (!cycle || !isRegistrationJoinOpen(cycle, now)) {
+          throw new GameError("Registration is closed for this cycle.");
+        }
+
+        if (cycle.fortresses.some((fortress) => fortress.ownerId === userId)) {
+          throw new GameError("You already joined this registration cycle.");
+        }
+
+        if (cycle.fortresses.length >= ACTIVE_PLAYER_CAP) {
+          throw new GameError("This registration cycle is already full.");
+        }
+
+        if (
+          cycle.fortresses.some((fortress) => fortress.name === normalizedName)
+        ) {
+          throw new GameError("That fortress name is already taken this cycle.");
+        }
+
+        const openPosition = findOpenMapPosition(cycle.fortresses);
+
+        if (!openPosition) {
+          throw new GameError("No map position is available for a new fortress.");
+        }
+
+        return tx.fortress.create({
+          data: {
+            cycleId: cycle.id,
+            ownerId: userId,
+            name: normalizedName,
+            mapX: openPosition.x,
+            mapY: openPosition.y,
+            currentAction: FortressAction.GROW,
+          },
+        });
+      },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      }
+    );
+  } catch (error) {
+    if (isUniqueConstraintError(error, ["cycleId", "ownerId"])) {
+      throw new GameError("You already joined this registration cycle.");
+    }
+
+    if (isUniqueConstraintError(error, ["cycleId", "name"])) {
+      throw new GameError("That fortress name is already taken this cycle.");
+    }
+
+    throw error;
+  }
+}
+
+export async function editRegistrationFortressName({
+  userId,
+  fortressName,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  fortressName: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  const normalizedName = normalizeFortressName(fortressName);
+
+  try {
+    return await db.$transaction(async (tx) => {
+      const cycle = await getCurrentCycle(tx);
+
+      if (!cycle || !isRegistrationJoinOpen(cycle, now)) {
+        throw new GameError("Registration editing is closed for this cycle.");
+      }
+
+      const fortress = await tx.fortress.findUnique({
+        where: {
+          cycleId_ownerId: {
+            cycleId: cycle.id,
+            ownerId: userId,
+          },
+        },
+      });
+
+      if (!fortress) {
+        throw new GameError("Join the current registration cycle before editing.");
+      }
+
+      return tx.fortress.update({
+        where: {
+          id: fortress.id,
+        },
+        data: {
+          name: normalizedName,
+        },
+      });
+    });
+  } catch (error) {
+    if (isUniqueConstraintError(error, ["cycleId", "name"])) {
+      throw new GameError("That fortress name is already taken this cycle.");
+    }
+
+    throw error;
+  }
+}
+
+export async function setFortressAction({
+  userId,
+  action,
+  targetFortressId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  action: FortressAction;
+  targetFortressId?: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isActiveWindowOpen(cycle, now)) {
+      throw new GameError("The current cycle is not accepting active actions.");
+    }
+
+    const fortress = await tx.fortress.findUnique({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: userId,
+        },
+      },
+    });
+
+    if (!fortress) {
+      throw new GameError("You are not participating in the active cycle.");
+    }
+
+    if (action === FortressAction.GROW) {
+      return tx.fortress.update({
+        where: {
+          id: fortress.id,
+        },
+        data: {
+          currentAction: FortressAction.GROW,
+          targetFortressId: null,
+        },
+      });
+    }
+
+    if (!targetFortressId) {
+      throw new GameError("Choose a target fortress before attacking.");
+    }
+
+    if (targetFortressId === fortress.id) {
+      throw new GameError("Your fortress cannot target itself.");
+    }
+
+    const target = await tx.fortress.findFirst({
+      where: {
+        id: targetFortressId,
+        cycleId: cycle.id,
+      },
+    });
+
+    if (!target) {
+      throw new GameError("That attack target is not part of the active cycle.");
+    }
+
+    return tx.fortress.update({
+      where: {
+        id: fortress.id,
+      },
+      data: {
+        currentAction: FortressAction.ATTACK,
+        targetFortressId,
+      },
+    });
+  });
+}
+
+export async function renameActiveFortress({
+  userId,
+  fortressName,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  fortressName: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  const normalizedName = normalizeFortressName(fortressName);
+
+  try {
+    return await db.$transaction(async (tx) => {
+      const cycle = await getCurrentCycle(tx);
+
+      if (!cycle || !isActiveWindowOpen(cycle, now)) {
+        throw new GameError("Fortress renaming is only available during ACTIVE.");
+      }
+
+      const fortress = await tx.fortress.findUnique({
+        where: {
+          cycleId_ownerId: {
+            cycleId: cycle.id,
+            ownerId: userId,
+          },
+        },
+      });
+
+      if (!fortress) {
+        throw new GameError("You are not participating in the active cycle.");
+      }
+
+      if (fortress.points < ACTIVE_RENAME_COST) {
+        throw new GameError("You need at least 10 points to rename your fortress.");
+      }
+
+      const updatedFortress = await tx.fortress.update({
+        where: {
+          id: fortress.id,
+        },
+        data: {
+          name: normalizedName,
+          points: fortress.points - ACTIVE_RENAME_COST,
+        },
+      });
+
+      await tx.scoreEvent.create({
+        data: {
+          cycleId: cycle.id,
+          fortressId: fortress.id,
+          actorId: userId,
+          eventType: ScoreEventType.RENAME_COST,
+          delta: -ACTIVE_RENAME_COST,
+        },
+      });
+
+      return updatedFortress;
+    });
+  } catch (error) {
+    if (isUniqueConstraintError(error, ["cycleId", "name"])) {
+      throw new GameError("That fortress name is already taken this cycle.");
+    }
+
+    throw error;
+  }
+}

@@ -1,0 +1,4 @@
+node_modules
+.next
+package-lock.json
+apps/web/package-lock.json

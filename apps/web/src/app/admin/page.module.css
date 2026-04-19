@@ -1,0 +1,42 @@
+.page {
+  width: min(880px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 72px 0 96px;
+}
+
+.card {
+  display: grid;
+  gap: 18px;
+  padding: 28px;
+  border: 1px solid var(--border-soft);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0)),
+    var(--surface);
+  box-shadow: 0 18px 50px rgba(10, 17, 26, 0.18);
+}
+
+.eyebrow {
+  color: var(--accent-strong);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.card h1 {
+  font-size: clamp(2rem, 5vw, 3rem);
+  line-height: 1;
+}
+
+.card p,
+.list {
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+
+.list {
+  display: grid;
+  gap: 10px;
+  padding-left: 20px;
+}
