@@ -1,0 +1,220 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  PLAYER
+  ADMIN
+}
+
+enum CycleStatus {
+  REGISTRATION
+  ACTIVE
+  RESOLUTION
+}
+
+enum FortressAction {
+  GROW
+  ATTACK
+}
+
+enum ScoreEventType {
+  GROW_TICK
+  ATTACK_SELF
+  ATTACK_TARGET
+  RENAME_COST
+  MANUAL_ADJUST
+}
+
+enum WinnerRequestStatus {
+  SUBMITTED
+  NEEDS_SIMPLIFICATION
+  ACCEPTED
+  REJECTED
+  UNDER_ADMIN_REVIEW
+}
+
+model User {
+  id                 String          @id @default(cuid())
+  name               String?
+  email              String?         @unique
+  emailVerified      DateTime?
+  image              String?
+  role               UserRole        @default(PLAYER)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  accounts           Account[]
+  sessions           Session[]
+  fortresses         Fortress[]
+  chatMessages       ChatMessage[]
+  scoreEventsAsActor ScoreEvent[]    @relation("ScoreEventActor")
+  winnerRequests     WinnerRequest[] @relation("WinnerRequestAuthor")
+  reviewedRequests   WinnerRequest[] @relation("WinnerRequestReviewer")
+  wonCycles          Cycle[]         @relation("CycleWinner")
+  cycleHistoriesWon  CycleHistory[]  @relation("CycleHistoryWinner")
+}
+
+model Account {
+  id                       String   @id @default(cuid())
+  userId                   String
+  type                     String
+  provider                 String
+  providerAccountId        String
+  refresh_token            String?  @db.Text
+  access_token             String?  @db.Text
+  expires_at               Int?
+  token_type               String?
+  scope                    String?
+  id_token                 String?  @db.Text
+  session_state            String?
+  refresh_token_expires_in Int?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  user                     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Cycle {
+  id                    String          @id @default(cuid())
+  status                CycleStatus     @default(REGISTRATION)
+  registrationStartedAt DateTime
+  registrationEndsAt    DateTime
+  activeStartedAt       DateTime?
+  activeEndsAt          DateTime?
+  resolvedAt            DateTime?
+  winnerId              String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  winner                User?           @relation("CycleWinner", fields: [winnerId], references: [id], onDelete: SetNull)
+  fortresses            Fortress[]
+  chatMessages          ChatMessage[]
+  scoreEvents           ScoreEvent[]
+  winnerRequests        WinnerRequest[]
+  history               CycleHistory?
+
+  @@index([status])
+  @@index([winnerId])
+}
+
+model Fortress {
+  id                    String          @id @default(cuid())
+  cycleId               String
+  ownerId               String
+  name                  String
+  points                Int             @default(0)
+  currentAction         FortressAction  @default(GROW)
+  targetFortressId      String?
+  mapX                  Int
+  mapY                  Int
+  joinedAt              DateTime        @default(now())
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  cycle                 Cycle           @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  owner                 User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  targetFortress        Fortress?       @relation("FortressTarget", fields: [targetFortressId], references: [id], onDelete: SetNull)
+  attackers             Fortress[]      @relation("FortressTarget")
+  scoreEventsAsFortress ScoreEvent[]    @relation("ScoreEventFortress")
+  scoreEventsAsTarget   ScoreEvent[]    @relation("ScoreEventTargetFortress")
+
+  @@unique([cycleId, ownerId])
+  @@unique([cycleId, name])
+  @@index([cycleId])
+  @@index([ownerId])
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  cycleId   String
+  authorId  String
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  cycle     Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([cycleId, createdAt])
+  @@index([authorId, createdAt])
+}
+
+model ScoreEvent {
+  id               String         @id @default(cuid())
+  cycleId          String
+  fortressId       String
+  actorId          String?
+  targetFortressId String?
+  eventType        ScoreEventType
+  delta            Int
+  createdAt        DateTime       @default(now())
+  cycle            Cycle          @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress         Fortress       @relation("ScoreEventFortress", fields: [fortressId], references: [id], onDelete: Cascade)
+  actor            User?          @relation("ScoreEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+  targetFortress   Fortress?      @relation("ScoreEventTargetFortress", fields: [targetFortressId], references: [id], onDelete: SetNull)
+
+  @@index([cycleId, createdAt])
+  @@index([fortressId, createdAt])
+  @@index([actorId])
+}
+
+model WinnerRequest {
+  id                    String              @id @default(cuid())
+  cycleId               String
+  authorId              String
+  reviewedById          String?
+  requestText           String              @db.Text
+  status                WinnerRequestStatus @default(SUBMITTED)
+  reviewNotes           String?             @db.Text
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  reviewedAt            DateTime?
+  cycle                 Cycle               @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  author                User                @relation("WinnerRequestAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  reviewedBy            User?               @relation("WinnerRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  cycleHistoryReference CycleHistory?       @relation("CycleHistoryWinnerRequest")
+
+  @@unique([cycleId, authorId])
+  @@index([cycleId, status])
+}
+
+model CycleHistory {
+  id                    String         @id @default(cuid())
+  cycleId               String         @unique
+  winnerId              String
+  winnerRequestId       String?        @unique
+  winningScore          Int
+  endedAt               DateTime
+  winnerRequestSnapshot String?        @db.Text
+  createdAt             DateTime       @default(now())
+  cycle                 Cycle          @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  winner                User           @relation("CycleHistoryWinner", fields: [winnerId], references: [id], onDelete: Restrict)
+  winnerRequest         WinnerRequest? @relation("CycleHistoryWinnerRequest", fields: [winnerRequestId], references: [id], onDelete: SetNull)
+
+  @@index([winnerId])
+  @@index([endedAt])
+}

@@ -1,0 +1,32 @@
+{
+  "name": "project-a",
+  "private": true,
+  "packageManager": "npm@11.11.0",
+  "workspaces": [
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22.22.0 <25",
+    "npm": ">=11.0.0"
+  },
+  "scripts": {
+    "dev": "npm run dev --workspace web",
+    "build": "npm run build --workspace web",
+    "start": "npm run start --workspace web",
+    "lint": "npm run lint --workspace web",
+    "typecheck": "npm run typecheck --workspace web",
+    "db:dev": "npm run db:dev --workspace web",
+    "db:deploy": "npm run db:deploy --workspace web",
+    "db:generate": "npm run db:generate --workspace web",
+    "db:migrate": "npm run db:migrate --workspace web",
+    "db:seed": "npm run db:seed --workspace web",
+    "db:studio": "npm run db:studio --workspace web",
+    "db:compose:up": "docker compose up -d postgres",
+    "db:compose:down": "docker compose down",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2"
+  }
+}
