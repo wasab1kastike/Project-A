@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { CycleStatus, type PrismaClient } from "@/lib/prisma-client";
 import { ACTIVE_PLAYER_CAP } from "./constants";
+import { getChatLimits } from "./chat";
 
 export type HomePageState = Awaited<ReturnType<typeof getHomePageState>>;
 
@@ -60,6 +61,24 @@ export async function getHomePageState({
           joinedAt: true,
         },
       },
+      chatMessages: {
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: getChatLimits().limit,
+        select: {
+          id: true,
+          body: true,
+          createdAt: true,
+          author: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      },
     },
   });
 
@@ -72,6 +91,12 @@ export async function getHomePageState({
       playerSummary: null,
       leaderboard: [],
       mapFortresses: [],
+      chat: {
+        messages: [],
+        canPost: false,
+        maxLength: getChatLimits().maxLength,
+        postHint: "Chat unlocks once the next unresolved cycle exists.",
+      },
       availableTargets: [],
       canJoinRegistration: false,
       canEditRegistrationName: false,
@@ -112,6 +137,16 @@ export async function getHomePageState({
       activeOpen &&
       fortress.id !== playerFortressId,
   }));
+  const chatMessages = [...cycle.chatMessages]
+    .reverse()
+    .map((message) => ({
+      id: message.id,
+      body: message.body,
+      createdAt: message.createdAt,
+      authorName:
+        message.author.name ?? message.author.email ?? "Unknown commander",
+      isCurrentUser: message.author.id === userId,
+    }));
 
   return {
     isSpectator: !playerFortress,
@@ -187,6 +222,14 @@ export async function getHomePageState({
       isCurrentUser: fortress.ownerId === userId,
     })),
     mapFortresses,
+    chat: {
+      messages: chatMessages,
+      canPost: Boolean(userId),
+      maxLength: getChatLimits().maxLength,
+      postHint: userId
+        ? null
+        : "Sign in with Google to post in chat. You can still watch the conversation in read-only mode.",
+    },
     availableTargets:
       activeOpen && playerFortress
         ? cycle.fortresses

@@ -1,0 +1,85 @@
+import { sendChatMessageAction } from "@/app/game-actions";
+import styles from "./chat-panel.module.css";
+
+const messageFormatter = new Intl.DateTimeFormat("en-US", {
+  hour: "2-digit",
+  minute: "2-digit",
+  month: "short",
+  day: "numeric",
+});
+
+type ChatPanelProps = {
+  messages: Array<{
+    id: string;
+    body: string;
+    createdAt: Date;
+    authorName: string;
+    isCurrentUser: boolean;
+  }>;
+  canPost: boolean;
+  maxLength: number;
+  postHint: string | null;
+};
+
+export function ChatPanel({
+  messages,
+  canPost,
+  maxLength,
+  postHint,
+}: ChatPanelProps) {
+  return (
+    <div className={styles.panel}>
+      <div className={styles.header}>
+        <span className={styles.label}>Global chat</span>
+        <h2>Cycle comms</h2>
+        <p>
+          Authenticated players and authenticated spectators can post. Unauthenticated visitors remain read-only.
+        </p>
+      </div>
+
+      <div className={styles.messages}>
+        {messages.length === 0 ? (
+          <p className={styles.emptyState}>
+            No messages yet. The first callout will appear here.
+          </p>
+        ) : (
+          messages.map((message) => (
+            <article
+              key={message.id}
+              className={message.isCurrentUser ? styles.ownMessage : styles.message}
+            >
+              <div className={styles.messageMeta}>
+                <strong>{message.authorName}</strong>
+                <span>{messageFormatter.format(message.createdAt)}</span>
+              </div>
+              <p>{message.body}</p>
+            </article>
+          ))
+        )}
+      </div>
+
+      {canPost ? (
+        <form action={sendChatMessageAction} className={styles.form}>
+          <label className={styles.field}>
+            <span>Message</span>
+            <textarea
+              name="body"
+              rows={3}
+              maxLength={maxLength}
+              placeholder="Broadcast to the whole cycle"
+              required
+            />
+          </label>
+          <div className={styles.formFooter}>
+            <p>{maxLength} characters max. Rate limited to 6 messages per minute.</p>
+            <button className={styles.primaryButton} type="submit">
+              Send message
+            </button>
+          </div>
+        </form>
+      ) : (
+        <p className={styles.readOnlyHint}>{postHint}</p>
+      )}
+    </div>
+  );
+}

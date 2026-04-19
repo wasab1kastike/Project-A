@@ -10,6 +10,7 @@ import {
   ScoreEventType,
 } from "@/lib/prisma-client";
 import { seedProjectA } from "./bootstrap";
+import { sendChatMessage } from "./chat";
 import { getHomePageState } from "./read-model";
 import { editRegistrationFortressName, joinRegistrationCycle, renameActiveFortress, setFortressAction } from "./service";
 import { runGameTick } from "./tick";
@@ -866,4 +867,67 @@ test("read model exposes only valid targetable fortresses during active play", a
     assert.equal(targetableMarkers[0]?.name, "Beta");
     assert.equal(state.availableTargets.length, 1);
     assert.equal(state.availableTargets[0]?.name, "Beta");
+});
+
+test("chat messages are visible to spectators in read-only mode", async (context) => {
+    const prisma = getPrismaOrSkip(context);
+
+    if (!prisma) {
+      return;
+    }
+
+    await seedOpenCycle(prisma);
+    const sender = await createUser(prisma, "chatter@example.com");
+
+    await sendChatMessage({
+      db: prisma,
+      userId: sender.id,
+      body: "Season lobby is live.",
+      now: new Date("2026-04-19T12:03:00.000Z"),
+    });
+
+    const signedOutState = await getHomePageState({
+      db: prisma,
+    });
+
+    assert.equal(signedOutState.isSpectator, true);
+    assert.equal(signedOutState.chat.canPost, false);
+    assert.equal(signedOutState.chat.messages.length, 1);
+    assert.equal(signedOutState.chat.messages[0]?.body, "Season lobby is live.");
+    assert.equal(
+      signedOutState.chat.messages[0]?.authorName,
+      "chatter@example.com"
+    );
+});
+
+test("chat sending is rate limited to six messages per minute", async (context) => {
+    const prisma = getPrismaOrSkip(context);
+
+    if (!prisma) {
+      return;
+    }
+
+    await seedOpenCycle(prisma);
+    const sender = await createUser(prisma, "limit@example.com");
+    const now = new Date("2026-04-19T12:00:00.000Z");
+
+    for (let index = 0; index < 6; index += 1) {
+      await sendChatMessage({
+        db: prisma,
+        userId: sender.id,
+        body: `Message ${index + 1}`,
+        now: new Date(now.getTime() + index * 1000),
+      });
+    }
+
+    await assert.rejects(
+      () =>
+        sendChatMessage({
+          db: prisma,
+          userId: sender.id,
+          body: "Message 7",
+          now: new Date(now.getTime() + 10_000),
+        }),
+      /6 messages per minute/
+    );
 });
