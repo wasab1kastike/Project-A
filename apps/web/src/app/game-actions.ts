@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { sendChatMessage } from "@/lib/game/chat";
 import { GameError } from "@/lib/game/errors";
 import { FortressAction } from "@/lib/prisma-client";
+import { emitProjectARefresh } from "@/lib/realtime";
 import {
   editRegistrationFortressName,
   joinRegistrationCycle,
@@ -60,6 +62,7 @@ export async function joinFortressAction(formData: FormData) {
       userId,
       fortressName: getString(formData, "fortressName"),
     });
+    emitProjectARefresh("join");
   } catch (error) {
     redirectToHome("error", getActionErrorMessage(error));
   }
@@ -75,6 +78,7 @@ export async function editRegistrationFortressNameAction(formData: FormData) {
       userId,
       fortressName: getString(formData, "fortressName"),
     });
+    emitProjectARefresh("registration-rename");
   } catch (error) {
     redirectToHome("error", getActionErrorMessage(error));
   }
@@ -90,6 +94,7 @@ export async function renameFortressAction(formData: FormData) {
       userId,
       fortressName: getString(formData, "fortressName"),
     });
+    emitProjectARefresh("active-rename");
   } catch (error) {
     redirectToHome("error", getActionErrorMessage(error));
   }
@@ -113,9 +118,27 @@ export async function setFortressActionAction(formData: FormData) {
       action,
       targetFortressId: targetFortressId || undefined,
     });
+    emitProjectARefresh("action-update");
   } catch (error) {
     redirectToHome("error", getActionErrorMessage(error));
   }
 
   finishAction("Fortress action updated.");
+}
+
+export async function sendChatMessageAction(formData: FormData) {
+  const userId = await requireUserId();
+
+  try {
+    await sendChatMessage({
+      userId,
+      body: getString(formData, "body"),
+    });
+    emitProjectARefresh("chat-message");
+  } catch (error) {
+    redirectToHome("error", getActionErrorMessage(error));
+  }
+
+  revalidatePath("/");
+  redirect("/");
 }

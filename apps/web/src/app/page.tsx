@@ -2,8 +2,10 @@ import styles from "./page.module.css";
 import { auth, isAuthConfigured } from "@/auth";
 import { SessionActions } from "@/components/session-actions";
 import { ActiveCommandCenter } from "@/components/active-command-center";
+import { ChatPanel } from "@/components/chat-panel";
 import { FortressMap } from "@/components/fortress-map";
 import { LeaderboardPanel } from "@/components/leaderboard-panel";
+import { RealtimeBridge } from "@/components/realtime-bridge";
 import { SeasonTimer } from "@/components/season-timer";
 import {
   editRegistrationFortressNameAction,
@@ -62,9 +64,10 @@ export default async function Home({
 
   return (
     <main className={styles.page}>
+      <RealtimeBridge />
       <section className={phaseClassName}>
         <div className={styles.heroCopy}>
-          <p className={styles.kicker}>Milestone 3 UI Sprint</p>
+          <p className={styles.kicker}>Milestone 3 Live Layer</p>
           <div className={styles.phaseHeading}>
             <span className={styles.phaseBadge}>
               {state.phase?.label ?? "Waiting for a cycle"}
@@ -79,9 +82,9 @@ export default async function Home({
           </div>
           <p className={styles.lead}>
             {state.phase?.status === "REGISTRATION"
-              ? "Track the countdown, see the joined roster on the battlefield, and join the upcoming season before scoring begins."
+              ? "Track the countdown, see the joined roster on the battlefield, and use global chat while waiting for scoring to begin."
               : state.phase?.status === "ACTIVE"
-                ? "The active cycle now surfaces a live timer, top leaderboard, and an interactive fortress map for selecting targets."
+                ? "The active cycle now surfaces a live timer, top leaderboard, global chat, and an interactive fortress map for selecting targets."
                 : "Bootstrap the next unresolved cycle to restore the registration lobby and active battlefield views."}
           </p>
         </div>
@@ -191,7 +194,7 @@ export default async function Home({
               {session?.user
                 ? state.playerFortress
                   ? "Your fortress is attached to the current unresolved cycle."
-                  : "You are signed in but not yet participating in this season."
+                  : "You are signed in but not yet participating in this season. You still have spectator chat access."
                 : "Signed-out visitors can inspect season state, but only authenticated users can join and submit actions."}
             </p>
 
@@ -261,7 +264,7 @@ export default async function Home({
             !state.playerFortress ? (
               <p className={styles.inlineHint}>
                 This cycle is already active. You are observing as a spectator
-                until the next registration window opens.
+                until the next registration window opens, but you can still post in global chat.
               </p>
             ) : null}
           </article>
@@ -303,6 +306,15 @@ export default async function Home({
                 isAdmin={isAdmin}
               />
             ) : null}
+          </article>
+
+          <article className={styles.panel}>
+            <ChatPanel
+              messages={state.chat.messages}
+              canPost={state.chat.canPost}
+              maxLength={state.chat.maxLength}
+              postHint={state.chat.postHint}
+            />
           </article>
         </aside>
       </section>

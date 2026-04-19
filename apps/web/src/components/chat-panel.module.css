@@ -1,0 +1,139 @@
+.panel {
+  display: grid;
+  gap: 16px;
+}
+
+.header {
+  display: grid;
+  gap: 8px;
+}
+
+.label {
+  color: var(--accent-strong);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.header p,
+.emptyState,
+.readOnlyHint,
+.formFooter p,
+.message p,
+.ownMessage p {
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.messages {
+  display: grid;
+  gap: 10px;
+  max-height: 420px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.message,
+.ownMessage {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-soft);
+  border-radius: 18px;
+  background: rgba(8, 15, 24, 0.52);
+}
+
+.ownMessage {
+  border-color: var(--border-strong);
+  background: rgba(247, 196, 95, 0.12);
+}
+
+.messageMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  font-size: 0.8rem;
+}
+
+.messageMeta span {
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+}
+
+.form {
+  display: grid;
+  gap: 12px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+}
+
+.field span {
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.82rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.field textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 96px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: rgba(7, 13, 20, 0.58);
+  color: var(--foreground);
+  font: inherit;
+}
+
+.field textarea:focus {
+  outline: 2px solid rgba(247, 196, 95, 0.24);
+  border-color: var(--border-strong);
+}
+
+.formFooter {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+
+.primaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: var(--accent-strong);
+  color: #14202f;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 160ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .primaryButton:hover {
+    transform: translateY(-1px);
+  }
+}
+
+@media (max-width: 640px) {
+  .formFooter {
+    display: grid;
+  }
+
+  .primaryButton {
+    width: 100%;
+  }
+}
