@@ -1,0 +1,109 @@
+.layout {
+  display: grid;
+  gap: 18px;
+}
+
+.mapPanel,
+.form {
+  display: grid;
+  gap: 14px;
+}
+
+.mapHeader {
+  display: grid;
+  gap: 6px;
+}
+
+.label {
+  color: var(--accent-strong);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mapHeader p,
+.helper {
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.forms {
+  display: grid;
+  gap: 18px;
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+}
+
+.field span {
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.82rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.field input,
+.field select {
+  min-height: 48px;
+  width: 100%;
+  padding: 0 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: rgba(7, 13, 20, 0.58);
+  color: var(--foreground);
+  font: inherit;
+}
+
+.field input:focus,
+.field select:focus {
+  outline: 2px solid rgba(247, 196, 95, 0.24);
+  border-color: var(--border-strong);
+}
+
+.primaryButton,
+.secondaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  width: fit-content;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.primaryButton {
+  background: var(--accent-strong);
+  color: #14202f;
+}
+
+.secondaryButton {
+  background: transparent;
+  border-color: var(--border-soft);
+  color: var(--foreground);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .primaryButton:hover,
+  .secondaryButton:hover {
+    transform: translateY(-1px);
+  }
+}
+
+@media (max-width: 640px) {
+  .primaryButton,
+  .secondaryButton {
+    width: 100%;
+  }
+}
