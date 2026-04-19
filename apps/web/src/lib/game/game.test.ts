@@ -10,6 +10,7 @@ import {
   ScoreEventType,
 } from "@/lib/prisma-client";
 import { seedProjectA } from "./bootstrap";
+import { getHomePageState } from "./read-model";
 import { editRegistrationFortressName, joinRegistrationCycle, renameActiveFortress, setFortressAction } from "./service";
 import { runGameTick } from "./tick";
 
@@ -709,4 +710,160 @@ test("delayed ticks catch up and never drive scores below zero", async (context)
     assert.equal(refreshedTarget.points, 0);
     assert.ok(refreshedAttacker.points >= 0);
     assert.ok(refreshedTarget.points >= 0);
+});
+
+test("read model orders leaderboard by points then joined time then name", async (context) => {
+    const prisma = getPrismaOrSkip(context);
+
+    if (!prisma) {
+      return;
+    }
+
+    const cycle = await seedOpenCycle(prisma);
+    const alpha = await createUser(prisma, "leader-alpha@example.com");
+    const beta = await createUser(prisma, "leader-beta@example.com");
+    const gamma = await createUser(prisma, "leader-gamma@example.com");
+
+    await joinRegistrationCycle({
+      db: prisma,
+      userId: alpha.id,
+      fortressName: "Alpha",
+    });
+    await joinRegistrationCycle({
+      db: prisma,
+      userId: beta.id,
+      fortressName: "Beta",
+    });
+    await joinRegistrationCycle({
+      db: prisma,
+      userId: gamma.id,
+      fortressName: "Gamma",
+    });
+
+    const sharedJoinedAt = new Date("2026-04-19T12:10:00.000Z");
+
+    await prisma.fortress.updateMany({
+      where: {
+        cycleId: cycle.id,
+        ownerId: {
+          in: [alpha.id, beta.id],
+        },
+      },
+      data: {
+        joinedAt: sharedJoinedAt,
+        points: 10,
+      },
+    });
+    await prisma.fortress.update({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: gamma.id,
+        },
+      },
+      data: {
+        points: 7,
+      },
+    });
+
+    const state = await getHomePageState({
+      userId: alpha.id,
+      db: prisma,
+    });
+
+    assert.deepEqual(
+      state.leaderboard.map((entry) => entry.name),
+      ["Alpha", "Beta", "Gamma"]
+    );
+});
+
+test("read model marks spectators and participants correctly", async (context) => {
+    const prisma = getPrismaOrSkip(context);
+
+    if (!prisma) {
+      return;
+    }
+
+    await seedOpenCycle(prisma);
+    const observer = await createUser(prisma, "observer@example.com");
+    const participant = await createUser(prisma, "participant@example.com");
+
+    await joinRegistrationCycle({
+      db: prisma,
+      userId: participant.id,
+      fortressName: "Participant",
+    });
+
+    const signedOutState = await getHomePageState({
+      db: prisma,
+    });
+    const observerState = await getHomePageState({
+      userId: observer.id,
+      db: prisma,
+    });
+    const participantState = await getHomePageState({
+      userId: participant.id,
+      db: prisma,
+    });
+
+    assert.equal(signedOutState.isSpectator, true);
+    assert.equal(observerState.isSpectator, true);
+    assert.equal(participantState.isSpectator, false);
+});
+
+test("read model exposes only valid targetable fortresses during active play", async (context) => {
+    const prisma = getPrismaOrSkip(context);
+
+    if (!prisma) {
+      return;
+    }
+
+    const cycle = await seedOpenCycle(prisma);
+    const alpha = await createUser(prisma, "map-alpha@example.com");
+    const beta = await createUser(prisma, "map-beta@example.com");
+
+    await joinRegistrationCycle({
+      db: prisma,
+      userId: alpha.id,
+      fortressName: "Alpha",
+    });
+    await joinRegistrationCycle({
+      db: prisma,
+      userId: beta.id,
+      fortressName: "Beta",
+    });
+    await runGameTick({
+      db: prisma,
+      now: new Date("2026-04-20T12:00:00.000Z"),
+    });
+
+    const alphaFortress = await prisma.fortress.findUniqueOrThrow({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: alpha.id,
+        },
+      },
+    });
+
+    const state = await getHomePageState({
+      userId: alpha.id,
+      now: new Date("2026-04-20T12:05:00.000Z"),
+      db: prisma,
+    });
+
+    const currentUserMarker = state.mapFortresses.find(
+      (fortress) => fortress.id === alphaFortress.id
+    );
+    const targetableMarkers = state.mapFortresses.filter(
+      (fortress) => fortress.isTargetable
+    );
+
+    assert.ok(currentUserMarker);
+    assert.equal(currentUserMarker.isCurrentUser, true);
+    assert.equal(currentUserMarker.isTargetable, false);
+    assert.equal(targetableMarkers.length, 1);
+    assert.equal(targetableMarkers[0]?.name, "Beta");
+    assert.equal(state.availableTargets.length, 1);
+    assert.equal(state.availableTargets[0]?.name, "Beta");
 });

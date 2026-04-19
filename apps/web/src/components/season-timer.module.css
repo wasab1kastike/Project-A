@@ -1,0 +1,24 @@
+.timerCard {
+  display: grid;
+  gap: 10px;
+  padding: 18px 20px;
+  border: 1px solid var(--border-soft);
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0)),
+    rgba(6, 12, 18, 0.4);
+}
+
+.timerLabel {
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.timerValue {
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  line-height: 1;
+  letter-spacing: -0.05em;
+}

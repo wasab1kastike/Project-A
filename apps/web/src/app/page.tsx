@@ -1,11 +1,13 @@
 import styles from "./page.module.css";
 import { auth, isAuthConfigured } from "@/auth";
 import { SessionActions } from "@/components/session-actions";
+import { ActiveCommandCenter } from "@/components/active-command-center";
+import { FortressMap } from "@/components/fortress-map";
+import { LeaderboardPanel } from "@/components/leaderboard-panel";
+import { SeasonTimer } from "@/components/season-timer";
 import {
   editRegistrationFortressNameAction,
   joinFortressAction,
-  renameFortressAction,
-  setFortressActionAction,
 } from "@/app/game-actions";
 import { getHomePageState } from "@/lib/game/read-model";
 
@@ -51,23 +53,50 @@ export default async function Home({
   const state = await getHomePageState({
     userId: session?.user?.id,
   });
-  const currentTargetName =
-    state.playerFortress?.targetFortress?.name ?? "No target selected";
+  const phaseClassName = [
+    styles.hero,
+    state.phase?.status === "REGISTRATION" ? styles.registrationHero : styles.activeHero,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <main className={styles.page}>
-      <section className={styles.hero}>
+      <section className={phaseClassName}>
         <div className={styles.heroCopy}>
-          <p className={styles.kicker}>Milestone 2</p>
-          <h1>Season bootstrap is live.</h1>
+          <p className={styles.kicker}>Milestone 3 UI Sprint</p>
+          <div className={styles.phaseHeading}>
+            <span className={styles.phaseBadge}>
+              {state.phase?.label ?? "Waiting for a cycle"}
+            </span>
+            <h1>
+              {state.phase?.status === "REGISTRATION"
+                ? "Registration now has a real season lobby."
+                : state.phase?.status === "ACTIVE"
+                  ? "The battlefield now has a live command view."
+                  : "Project-A is waiting for its next cycle."}
+            </h1>
+          </div>
           <p className={styles.lead}>
-            Registration, fortress onboarding, action selection, rename costs,
-            and minute ticks now share the same database-backed season model.
+            {state.phase?.status === "REGISTRATION"
+              ? "Track the countdown, see the joined roster on the battlefield, and join the upcoming season before scoring begins."
+              : state.phase?.status === "ACTIVE"
+                ? "The active cycle now surfaces a live timer, top leaderboard, and an interactive fortress map for selecting targets."
+                : "Bootstrap the next unresolved cycle to restore the registration lobby and active battlefield views."}
           </p>
         </div>
         <article className={styles.heroPanel}>
-          <span className={styles.sectionLabel}>Current cycle</span>
-          <h2>{state.cycle?.status ?? "No open cycle"}</h2>
+          <span className={styles.sectionLabel}>Phase timer</span>
+          <SeasonTimer
+            deadline={state.phase?.deadline?.toISOString() ?? null}
+            label={
+              state.phase?.status === "REGISTRATION"
+                ? "Registration ends in"
+                : state.phase?.status === "ACTIVE"
+                  ? "Active cycle ends in"
+                  : "Current cycle"
+            }
+          />
           <p>{state.cycle?.phaseDescription ?? state.emptyStateMessage}</p>
           <dl className={styles.statsList}>
             <div className={styles.statRow}>
@@ -81,8 +110,8 @@ export default async function Home({
               <dd>{state.cycle?.remainingSlots ?? 30}</dd>
             </div>
             <div className={styles.statRow}>
-              <dt>Deadline</dt>
-              <dd>{formatDeadline(state.cycle?.deadline ?? null)}</dd>
+              <dt>Current phase</dt>
+              <dd>{state.phase?.label ?? "Unavailable"}</dd>
             </div>
           </dl>
         </article>
@@ -96,8 +125,8 @@ export default async function Home({
           <article className={styles.panel}>
             <span className={styles.sectionLabel}>Game state</span>
             <h2>
-              {state.cycle
-                ? `Phase: ${state.cycle.status}`
+              {state.phase
+                ? `Phase: ${state.phase.status}`
                 : "Waiting for the first seed cycle"}
             </h2>
             <p>{state.cycle?.statusMessage ?? state.emptyStateMessage}</p>
@@ -111,11 +140,46 @@ export default async function Home({
                   Active deadline: {formatDeadline(state.cycle.activeEndsAt)}
                 </li>
                 <li>
+                  Spectator status:{" "}
+                  {state.isSpectator
+                    ? "Read-only until you join the current cycle."
+                    : "You currently control a fortress in this cycle."}
+                </li>
+                <li>
                   Tick runner status: run `npm run game:tick` to transition
                   expired registration windows and process score updates.
                 </li>
               </ul>
             ) : null}
+          </article>
+
+          <article className={styles.panel}>
+            <span className={styles.sectionLabel}>Battlefield</span>
+            <h2>
+              {state.phase?.status === "REGISTRATION"
+                ? "Upcoming season map"
+                : "Current cycle battlefield"}
+            </h2>
+            <p>
+              {state.phase?.status === "REGISTRATION"
+                ? "Fortresses appear here as players join. Scoring and attacks remain disabled until registration ends."
+                : state.phase?.status === "ACTIVE"
+                  ? "All current-cycle fortresses are rendered here. Attack targets are visual only and never range-limited in v1."
+                  : "No unresolved cycle is available to render on the battlefield."}
+            </p>
+
+            {state.phase?.status === "ACTIVE" && state.playerSummary ? (
+              <ActiveCommandCenter
+                currentAction={state.playerSummary.currentAction}
+                currentTargetId={state.playerSummary.currentTargetId}
+                currentTargetName={state.playerSummary.currentTargetName}
+                fortressName={state.playerSummary.name}
+                mapFortresses={state.mapFortresses}
+                targets={state.availableTargets}
+              />
+            ) : (
+              <FortressMap fortresses={state.mapFortresses} />
+            )}
           </article>
 
           <article className={styles.panel}>
@@ -178,61 +242,18 @@ export default async function Home({
             !state.canJoinRegistration &&
             !state.canEditRegistrationName ? (
               <p className={styles.inlineHint}>
-                Registration is currently closed for new joins. If the deadline
-                has passed, the next tick run will either restart registration
-                or move the season into ACTIVE.
+                {state.playerSummary
+                  ? "Your fortress is already locked into the upcoming season. You can still edit its name while registration remains open."
+                  : "Registration is currently closed for new joins. If the deadline has passed, the next tick run will either restart registration or move the season into ACTIVE."}
               </p>
             ) : null}
 
             {session?.user &&
             state.cycle?.status === "ACTIVE" &&
-            state.playerFortress ? (
-              <div className={styles.stack}>
-                <form action={setFortressActionAction} className={styles.form}>
-                  <label className={styles.field}>
-                    <span>Current action</span>
-                    <select
-                      name="action"
-                      defaultValue={state.playerFortress.currentAction}
-                    >
-                      <option value="GROW">Grow</option>
-                      <option value="ATTACK">Attack</option>
-                    </select>
-                  </label>
-                  <label className={styles.field}>
-                    <span>Attack target</span>
-                    <select
-                      name="targetFortressId"
-                      defaultValue={state.playerFortress.targetFortress?.id ?? ""}
-                    >
-                      <option value="">No target</option>
-                      {state.availableTargets.map((target) => (
-                        <option key={target.id} value={target.id}>
-                          {target.name} ({target.points} pts)
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <button className={styles.primaryButton} type="submit">
-                    Save action
-                  </button>
-                </form>
-
-                <form action={renameFortressAction} className={styles.form}>
-                  <label className={styles.field}>
-                    <span>Rename fortress (costs 10 points)</span>
-                    <input
-                      name="fortressName"
-                      type="text"
-                      defaultValue={state.playerFortress.name}
-                      required
-                    />
-                  </label>
-                  <button className={styles.secondaryButton} type="submit">
-                    Spend 10 points to rename
-                  </button>
-                </form>
-              </div>
+            state.playerSummary ? (
+              <p className={styles.inlineHint}>
+                Use the battlefield panel to choose targets from the map or the fallback selector, then submit your action. Rename remains available there as well.
+              </p>
             ) : null}
 
             {session?.user &&
@@ -248,32 +269,11 @@ export default async function Home({
 
         <aside className={styles.sidebar}>
           <article className={styles.panel}>
-            <span className={styles.sectionLabel}>Fortress</span>
-            <h2>
-              {state.playerFortress ? state.playerFortress.name : "No fortress yet"}
-            </h2>
-            <dl className={styles.statsList}>
-              <div className={styles.statRow}>
-                <dt>Points</dt>
-                <dd>{state.playerFortress?.points ?? 0}</dd>
-              </div>
-              <div className={styles.statRow}>
-                <dt>Action</dt>
-                <dd>{state.playerFortress?.currentAction ?? "None"}</dd>
-              </div>
-              <div className={styles.statRow}>
-                <dt>Target</dt>
-                <dd>{currentTargetName}</dd>
-              </div>
-              <div className={styles.statRow}>
-                <dt>Map slot</dt>
-                <dd>
-                  {state.playerFortress
-                    ? `${state.playerFortress.mapX}, ${state.playerFortress.mapY}`
-                    : "Unassigned"}
-                </dd>
-              </div>
-            </dl>
+            <LeaderboardPanel
+              leaderboard={state.leaderboard}
+              playerSummary={state.playerSummary}
+              isSpectator={state.isSpectator}
+            />
           </article>
 
           <article className={styles.panel}>
@@ -286,6 +286,10 @@ export default async function Home({
               <div className={styles.statRow}>
                 <dt>Role</dt>
                 <dd>{session?.user?.role ?? "SPECTATOR"}</dd>
+              </div>
+              <div className={styles.statRow}>
+                <dt>Mode</dt>
+                <dd>{state.isSpectator ? "Read-only" : "Participant"}</dd>
               </div>
               <div className={styles.statRow}>
                 <dt>Admin nav</dt>

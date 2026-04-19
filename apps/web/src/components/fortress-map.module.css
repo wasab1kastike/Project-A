@@ -1,0 +1,121 @@
+.shell {
+  position: relative;
+  min-height: 420px;
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at top, rgba(247, 196, 95, 0.12), transparent 30%),
+    linear-gradient(180deg, rgba(12, 26, 39, 0.92), rgba(7, 14, 22, 0.98));
+}
+
+.gridBackdrop {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 52px 52px;
+  mask-image: radial-gradient(circle at center, black 62%, transparent 100%);
+}
+
+.emptyState {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.marker {
+  position: absolute;
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  transform: translate(-50%, -50%);
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  cursor: default;
+}
+
+.dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  background: #7ca7ff;
+  box-shadow: 0 0 0 8px rgba(124, 167, 255, 0.14);
+}
+
+.tooltip {
+  display: grid;
+  gap: 4px;
+  min-width: 112px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  border: 1px solid var(--border-soft);
+  background: rgba(7, 13, 20, 0.88);
+  font-size: 0.76rem;
+  line-height: 1.4;
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
+  pointer-events: none;
+}
+
+.tooltip span {
+  color: var(--text-muted);
+}
+
+.marker:hover .tooltip,
+.marker:focus-visible .tooltip,
+.selected .tooltip,
+.currentUser .tooltip {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.targetable {
+  cursor: pointer;
+}
+
+.targetable .dot {
+  background: #88e0a6;
+  box-shadow: 0 0 0 8px rgba(136, 224, 166, 0.12);
+}
+
+.currentUser .dot {
+  background: var(--accent-strong);
+  box-shadow: 0 0 0 10px rgba(247, 196, 95, 0.16);
+}
+
+.selected .dot {
+  background: #ff7c7c;
+  box-shadow: 0 0 0 12px rgba(255, 124, 124, 0.18);
+}
+
+.marker:focus-visible {
+  outline: none;
+}
+
+.marker:focus-visible .dot {
+  outline: 2px solid rgba(255, 255, 255, 0.42);
+  outline-offset: 4px;
+}
+
+@media (max-width: 640px) {
+  .shell {
+    min-height: 340px;
+    border-radius: 24px;
+  }
+
+  .tooltip {
+    min-width: 92px;
+    font-size: 0.7rem;
+  }
+}

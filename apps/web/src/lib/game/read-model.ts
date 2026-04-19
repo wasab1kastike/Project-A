@@ -1,17 +1,44 @@
 import { prisma } from "@/lib/prisma";
-import { CycleStatus } from "@/lib/prisma-client";
+import { CycleStatus, type PrismaClient } from "@/lib/prisma-client";
 import { ACTIVE_PLAYER_CAP } from "./constants";
 
 export type HomePageState = Awaited<ReturnType<typeof getHomePageState>>;
 
+function compareByLeaderboardOrder(
+  left: {
+    points: number;
+    joinedAt: Date;
+    name: string;
+  },
+  right: {
+    points: number;
+    joinedAt: Date;
+    name: string;
+  }
+) {
+  if (left.points !== right.points) {
+    return right.points - left.points;
+  }
+
+  const joinedDelta = left.joinedAt.getTime() - right.joinedAt.getTime();
+
+  if (joinedDelta !== 0) {
+    return joinedDelta;
+  }
+
+  return left.name.localeCompare(right.name);
+}
+
 export async function getHomePageState({
   userId,
   now = new Date(),
+  db = prisma,
 }: {
   userId?: string;
   now?: Date;
+  db?: PrismaClient;
 }) {
-  const cycle = await prisma.cycle.findFirst({
+  const cycle = await db.cycle.findFirst({
     where: {
       resolvedAt: null,
     },
@@ -38,8 +65,13 @@ export async function getHomePageState({
 
   if (!cycle) {
     return {
+      isSpectator: true,
       cycle: null,
+      phase: null,
       playerFortress: null,
+      playerSummary: null,
+      leaderboard: [],
+      mapFortresses: [],
       availableTargets: [],
       canJoinRegistration: false,
       canEditRegistrationName: false,
@@ -58,8 +90,31 @@ export async function getHomePageState({
     cycle.status === CycleStatus.ACTIVE &&
     cycle.activeEndsAt !== null &&
     cycle.activeEndsAt > now;
+  const deadline =
+    cycle.status === CycleStatus.REGISTRATION
+      ? cycle.registrationEndsAt
+      : cycle.activeEndsAt;
+  const sortedFortresses = [...cycle.fortresses].sort(compareByLeaderboardOrder);
+  const targetLookup = new Map(
+    cycle.fortresses.map((fortress) => [fortress.id, fortress])
+  );
+  const playerFortressId = playerFortress?.id ?? null;
+  const mapFortresses = cycle.fortresses.map((fortress) => ({
+    id: fortress.id,
+    name: fortress.name,
+    points: fortress.points,
+    currentAction: fortress.currentAction,
+    mapX: fortress.mapX,
+    mapY: fortress.mapY,
+    isCurrentUser: fortress.ownerId === userId,
+    isTargetable:
+      playerFortressId !== null &&
+      activeOpen &&
+      fortress.id !== playerFortressId,
+  }));
 
   return {
+    isSpectator: !playerFortress,
     cycle: {
       id: cycle.id,
       status: cycle.status,
@@ -67,10 +122,7 @@ export async function getHomePageState({
       activeEndsAt: cycle.activeEndsAt,
       joinedCount,
       remainingSlots,
-      deadline:
-        cycle.status === CycleStatus.REGISTRATION
-          ? cycle.registrationEndsAt
-          : cycle.activeEndsAt,
+      deadline,
       phaseDescription:
         cycle.status === CycleStatus.REGISTRATION
           ? "Players can join the upcoming season and set their fortress name."
@@ -83,6 +135,19 @@ export async function getHomePageState({
           : activeOpen
             ? "The active season is running. Action changes persist until you change them again."
             : "The ACTIVE deadline has passed. M1 stops scoring here until later milestone winner resolution is added.",
+    },
+    phase: {
+      status: cycle.status,
+      deadline,
+      isOpen: cycle.status === CycleStatus.REGISTRATION ? registrationOpen : activeOpen,
+      label:
+        cycle.status === CycleStatus.REGISTRATION
+          ? registrationOpen
+            ? "Registration open"
+            : "Registration expired"
+          : activeOpen
+            ? "Active season"
+            : "Awaiting next tick",
     },
     playerFortress: playerFortress
       ? {
@@ -100,6 +165,28 @@ export async function getHomePageState({
               : null,
         }
       : null,
+    playerSummary: playerFortress
+      ? {
+          id: playerFortress.id,
+          name: playerFortress.name,
+          points: playerFortress.points,
+          currentAction: playerFortress.currentAction,
+          currentTargetId: playerFortress.targetFortressId,
+          currentTargetName: playerFortress.targetFortressId
+            ? targetLookup.get(playerFortress.targetFortressId)?.name ?? null
+            : null,
+          canRename: activeOpen && playerFortress.points >= 10,
+          canSetAction: activeOpen,
+        }
+      : null,
+    leaderboard: sortedFortresses.slice(0, 3).map((fortress, index) => ({
+      id: fortress.id,
+      name: fortress.name,
+      points: fortress.points,
+      rank: index + 1,
+      isCurrentUser: fortress.ownerId === userId,
+    })),
+    mapFortresses,
     availableTargets:
       activeOpen && playerFortress
         ? cycle.fortresses
@@ -108,6 +195,7 @@ export async function getHomePageState({
               id: fortress.id,
               name: fortress.name,
               points: fortress.points,
+              currentAction: fortress.currentAction,
             }))
         : [],
     canJoinRegistration:
