@@ -7,6 +7,8 @@ async function main() {
     [
       `Registration restarted: ${summary.restartedRegistrationCycles}`,
       `Cycles activated: ${summary.activatedCycles}`,
+      `Cycles resolved: ${summary.resolvedCycles}`,
+      `Next registration cycles created: ${summary.nextRegistrationCyclesCreated}`,
       `Minutes processed: ${summary.processedMinutes}`,
       `Score events created: ${summary.scoreEventsCreated}`,
     ].join("\n")

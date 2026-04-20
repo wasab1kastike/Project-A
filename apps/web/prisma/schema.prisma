@@ -106,6 +106,7 @@ model Cycle {
   status                CycleStatus     @default(REGISTRATION)
   registrationStartedAt DateTime
   registrationEndsAt    DateTime
+  joiningLockedAt       DateTime?
   activeStartedAt       DateTime?
   activeEndsAt          DateTime?
   resolvedAt            DateTime?
@@ -221,6 +222,7 @@ model CycleHistory {
   winnerRequestId       String?        @unique
   winningScore          Int
   endedAt               DateTime
+  tieBreakSummary       String?        @db.Text
   winnerRequestSnapshot String?        @db.Text
   createdAt             DateTime       @default(now())
   cycle                 Cycle          @relation(fields: [cycleId], references: [id], onDelete: Cascade)

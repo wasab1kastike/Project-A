@@ -111,6 +111,7 @@ export async function getHomePageState({
     cycle.fortresses.find((fortress) => fortress.ownerId === userId) ?? null;
   const registrationOpen =
     cycle.status === CycleStatus.REGISTRATION && cycle.registrationEndsAt > now;
+  const joiningLocked = Boolean(cycle.joiningLockedAt);
   const activeOpen =
     cycle.status === CycleStatus.ACTIVE &&
     cycle.activeEndsAt !== null &&
@@ -154,22 +155,27 @@ export async function getHomePageState({
       id: cycle.id,
       status: cycle.status,
       registrationEndsAt: cycle.registrationEndsAt,
+      joiningLockedAt: cycle.joiningLockedAt,
       activeEndsAt: cycle.activeEndsAt,
       joinedCount,
       remainingSlots,
       deadline,
       phaseDescription:
         cycle.status === CycleStatus.REGISTRATION
-          ? "Players can join the upcoming season and set their fortress name."
+          ? joiningLocked
+            ? "Registration time is still running, but an admin has temporarily locked new joins. Existing participants can still review the lobby and edit their fortress name."
+            : "Players can join the upcoming season and set their fortress name."
           : "Joined fortresses can grow, attack, and spend points on renames.",
       statusMessage:
         cycle.status === CycleStatus.REGISTRATION
-          ? registrationOpen
+          ? registrationOpen && joiningLocked
+            ? "Registration remains open on the clock, but new joins are currently locked by admin action."
+            : registrationOpen
             ? "Registration is open. Joining creates your fortress immediately and reserves one of the 30 season slots."
             : "Registration has expired. The next game tick will either restart registration or move the cycle into ACTIVE."
           : activeOpen
             ? "The active season is running. Action changes persist until you change them again."
-            : "The ACTIVE deadline has passed. M1 stops scoring here until later milestone winner resolution is added.",
+            : "The ACTIVE deadline has passed. The next game tick will resolve the winner and open the next registration cycle.",
     },
     phase: {
       status: cycle.status,
@@ -177,7 +183,9 @@ export async function getHomePageState({
       isOpen: cycle.status === CycleStatus.REGISTRATION ? registrationOpen : activeOpen,
       label:
         cycle.status === CycleStatus.REGISTRATION
-          ? registrationOpen
+          ? registrationOpen && joiningLocked
+            ? "Registration locked"
+            : registrationOpen
             ? "Registration open"
             : "Registration expired"
           : activeOpen
@@ -244,6 +252,7 @@ export async function getHomePageState({
     canJoinRegistration:
       Boolean(userId) &&
       registrationOpen &&
+      !joiningLocked &&
       !playerFortress &&
       remainingSlots > 0,
     canEditRegistrationName:

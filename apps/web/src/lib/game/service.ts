@@ -40,6 +40,21 @@ function isRegistrationJoinOpen(
   cycle: {
     status: CycleStatus;
     registrationEndsAt: Date;
+    joiningLockedAt?: Date | null;
+  },
+  now: Date
+) {
+  return (
+    cycle.status === CycleStatus.REGISTRATION &&
+    cycle.registrationEndsAt > now &&
+    !cycle.joiningLockedAt
+  );
+}
+
+function isRegistrationWindowOpen(
+  cycle: {
+    status: CycleStatus;
+    registrationEndsAt: Date;
   },
   now: Date
 ) {
@@ -135,7 +150,19 @@ export async function joinRegistrationCycle({
           },
         });
 
-        if (!cycle || !isRegistrationJoinOpen(cycle, now)) {
+        if (!cycle) {
+          throw new GameError("Registration is closed for this cycle.");
+        }
+
+        if (
+          cycle.status === CycleStatus.REGISTRATION &&
+          cycle.registrationEndsAt > now &&
+          cycle.joiningLockedAt
+        ) {
+          throw new GameError("Registration joining is locked by an admin.");
+        }
+
+        if (!isRegistrationJoinOpen(cycle, now)) {
           throw new GameError("Registration is closed for this cycle.");
         }
 
@@ -204,7 +231,7 @@ export async function editRegistrationFortressName({
     return await db.$transaction(async (tx) => {
       const cycle = await getCurrentCycle(tx);
 
-      if (!cycle || !isRegistrationJoinOpen(cycle, now)) {
+      if (!cycle || !isRegistrationWindowOpen(cycle, now)) {
         throw new GameError("Registration editing is closed for this cycle.");
       }
 

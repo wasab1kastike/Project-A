@@ -93,6 +93,12 @@
   gap: 18px;
 }
 
+.linkRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
 .panel h2,
 .heroPanel h2 {
   font-size: 1.45rem;
@@ -260,5 +266,9 @@
   .primaryButton,
   .secondaryButton {
     width: 100%;
+  }
+
+  .linkRow {
+    flex-direction: column;
   }
 }

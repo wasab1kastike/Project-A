@@ -1,3 +1,4 @@
+import Link from "next/link";
 import styles from "./page.module.css";
 import { auth, isAuthConfigured } from "@/auth";
 import { SessionActions } from "@/components/session-actions";
@@ -306,6 +307,16 @@ export default async function Home({
                 isAdmin={isAdmin}
               />
             ) : null}
+            <div className={styles.linkRow}>
+              <Link className={styles.secondaryButton} href="/history">
+                Open cycle history
+              </Link>
+              {isAdmin ? (
+                <Link className={styles.secondaryButton} href="/admin">
+                  Admin dashboard
+                </Link>
+              ) : null}
+            </div>
           </article>
 
           <article className={styles.panel}>

@@ -6,14 +6,26 @@ import {
   ScoreEventType,
 } from "@/lib/prisma-client";
 import { prisma } from "@/lib/prisma";
+import { ensureOpenRegistrationCycle } from "./bootstrap";
 import { ACTIVE_DURATION_HOURS, REGISTRATION_DURATION_HOURS } from "./constants";
 import { addHours, addMinutes, floorToMinute } from "./time";
 
 type TickSummary = {
   restartedRegistrationCycles: number;
   activatedCycles: number;
+  resolvedCycles: number;
+  nextRegistrationCyclesCreated: number;
   processedMinutes: number;
   scoreEventsCreated: number;
+};
+
+type TieBreakCandidate = {
+  fortressId: string;
+  ownerId: string;
+  fortressName: string;
+  finalScore: number;
+  reachedFinalScoreAt: Date;
+  joinedAt: Date;
 };
 
 function isUniqueTickError(error: unknown) {
@@ -151,6 +163,245 @@ async function activateRegistrationCycle(
     });
 
     return true;
+  });
+}
+
+function compareTieBreakCandidates(
+  left: TieBreakCandidate,
+  right: TieBreakCandidate
+) {
+  if (left.finalScore !== right.finalScore) {
+    return right.finalScore - left.finalScore;
+  }
+
+  const reachDelta =
+    left.reachedFinalScoreAt.getTime() - right.reachedFinalScoreAt.getTime();
+
+  if (reachDelta !== 0) {
+    return reachDelta;
+  }
+
+  const joinedDelta = left.joinedAt.getTime() - right.joinedAt.getTime();
+
+  if (joinedDelta !== 0) {
+    return joinedDelta;
+  }
+
+  return left.fortressId.localeCompare(right.fortressId);
+}
+
+function formatTieBreakSummary(
+  winner: TieBreakCandidate,
+  tiedCandidates: TieBreakCandidate[]
+) {
+  if (tiedCandidates.length <= 1) {
+    return `No tie-break needed. ${winner.fortressName} won outright with ${winner.finalScore} points.`;
+  }
+
+  const summary = tiedCandidates
+    .map((candidate) => {
+      return `${candidate.fortressName} reached ${candidate.finalScore} at ${candidate.reachedFinalScoreAt.toISOString()}`;
+    })
+    .join("; ");
+
+  return `Tie on ${winner.finalScore} points resolved by earliest reach time. ${summary}. Winner: ${winner.fortressName}.`;
+}
+
+async function resolveExpiredActiveCycle(
+  cycleId: string,
+  now: Date,
+  db: PrismaClient
+) {
+  return db.$transaction(async (tx) => {
+    const cycle = await tx.cycle.findUnique({
+      where: {
+        id: cycleId,
+      },
+      include: {
+        fortresses: {
+          orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
+          select: {
+            id: true,
+            ownerId: true,
+            name: true,
+            points: true,
+            joinedAt: true,
+          },
+        },
+        winnerRequests: {
+          orderBy: {
+            createdAt: "asc",
+          },
+          select: {
+            id: true,
+            authorId: true,
+            requestText: true,
+            status: true,
+          },
+        },
+        history: {
+          select: {
+            id: true,
+          },
+        },
+      },
+    });
+
+    if (
+      !cycle ||
+      cycle.status !== CycleStatus.ACTIVE ||
+      !cycle.activeStartedAt ||
+      !cycle.activeEndsAt ||
+      cycle.activeEndsAt > now ||
+      cycle.history
+    ) {
+      return { resolved: false, createdNextCycle: false };
+    }
+
+    const resolutionEndedAt = cycle.activeEndsAt;
+
+    if (cycle.fortresses.length === 0) {
+      await tx.cycle.update({
+        where: {
+          id: cycle.id,
+        },
+        data: {
+          status: CycleStatus.RESOLUTION,
+          resolvedAt: resolutionEndedAt,
+          joiningLockedAt: null,
+        },
+      });
+
+      await ensureOpenRegistrationCycle(tx, resolutionEndedAt);
+
+      return { resolved: true, createdNextCycle: true };
+    }
+
+    const scoreEvents = await tx.scoreEvent.findMany({
+      where: {
+        cycleId: cycle.id,
+      },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      select: {
+        fortressId: true,
+        delta: true,
+        createdAt: true,
+      },
+    });
+
+    const finalScores = new Map(
+      cycle.fortresses.map((fortress) => [fortress.id, fortress.points])
+    );
+    const currentScores = new Map(
+      cycle.fortresses.map((fortress) => [fortress.id, 0])
+    );
+    const reachedFinalScoreAt = new Map<string, Date>();
+
+    for (const fortress of cycle.fortresses) {
+      if (fortress.points === 0) {
+        reachedFinalScoreAt.set(fortress.id, cycle.activeStartedAt);
+      }
+    }
+
+    let eventIndex = 0;
+
+    while (eventIndex < scoreEvents.length) {
+      const tickAt = scoreEvents[eventIndex]?.createdAt;
+
+      if (!tickAt) {
+        break;
+      }
+
+      const deltas = new Map<string, number>();
+
+      while (
+        eventIndex < scoreEvents.length &&
+        scoreEvents[eventIndex]?.createdAt.getTime() === tickAt.getTime()
+      ) {
+        const event = scoreEvents[eventIndex];
+
+        if (event) {
+          deltas.set(
+            event.fortressId,
+            (deltas.get(event.fortressId) ?? 0) + event.delta
+          );
+        }
+
+        eventIndex += 1;
+      }
+
+      for (const [fortressId, delta] of deltas) {
+        currentScores.set(
+          fortressId,
+          (currentScores.get(fortressId) ?? 0) + delta
+        );
+      }
+
+      for (const fortress of cycle.fortresses) {
+        if (reachedFinalScoreAt.has(fortress.id)) {
+          continue;
+        }
+
+        if ((currentScores.get(fortress.id) ?? 0) === (finalScores.get(fortress.id) ?? 0)) {
+          reachedFinalScoreAt.set(fortress.id, tickAt);
+        }
+      }
+    }
+
+    const rankedFortresses = cycle.fortresses
+      .map((fortress) => ({
+        fortressId: fortress.id,
+        ownerId: fortress.ownerId,
+        fortressName: fortress.name,
+        finalScore: fortress.points,
+        reachedFinalScoreAt:
+          reachedFinalScoreAt.get(fortress.id) ?? resolutionEndedAt,
+        joinedAt: fortress.joinedAt,
+      }))
+      .sort(compareTieBreakCandidates);
+
+    const winner = rankedFortresses[0];
+
+    if (!winner) {
+      return { resolved: false, createdNextCycle: false };
+    }
+
+    const tiedCandidates = rankedFortresses.filter(
+      (candidate) => candidate.finalScore === winner.finalScore
+    );
+    const winnerRequest =
+      cycle.winnerRequests.find((request) => request.authorId === winner.ownerId) ??
+      null;
+
+    await tx.cycle.update({
+      where: {
+        id: cycle.id,
+      },
+        data: {
+          status: CycleStatus.RESOLUTION,
+          winnerId: winner.ownerId,
+          resolvedAt: resolutionEndedAt,
+          joiningLockedAt: null,
+        },
+      });
+
+    await tx.cycleHistory.create({
+      data: {
+        cycleId: cycle.id,
+        winnerId: winner.ownerId,
+        winnerRequestId: winnerRequest?.id ?? null,
+        winningScore: winner.finalScore,
+        endedAt: resolutionEndedAt,
+        tieBreakSummary: formatTieBreakSummary(winner, tiedCandidates),
+        winnerRequestSnapshot: winnerRequest
+          ? `[${winnerRequest.status}] ${winnerRequest.requestText}`
+          : null,
+      },
+    });
+
+    await ensureOpenRegistrationCycle(tx, resolutionEndedAt);
+
+    return { resolved: true, createdNextCycle: true };
   });
 }
 
@@ -305,6 +556,8 @@ export async function runGameTick({
   const summary: TickSummary = {
     restartedRegistrationCycles: 0,
     activatedCycles: 0,
+    resolvedCycles: 0,
+    nextRegistrationCyclesCreated: 0,
     processedMinutes: 0,
     scoreEventsCreated: 0,
   };
@@ -374,21 +627,29 @@ export async function runGameTick({
       : getFirstTickAt(cycle.activeStartedAt);
     const lastDueTickAt = getLastDueTickAt(cycle, now);
 
-    if (!lastDueTickAt || nextTickAt > lastDueTickAt) {
-      continue;
+    if (lastDueTickAt && nextTickAt <= lastDueTickAt) {
+      for (
+        let tickAt = nextTickAt;
+        tickAt <= lastDueTickAt;
+        tickAt = addMinutes(tickAt, 1)
+      ) {
+        const result = await processCycleTick(cycle.id, tickAt, now, db);
+
+        if (result.processed) {
+          summary.processedMinutes += 1;
+          summary.scoreEventsCreated += result.scoreEventsCreated;
+        }
+      }
     }
 
-    for (
-      let tickAt = nextTickAt;
-      tickAt <= lastDueTickAt;
-      tickAt = addMinutes(tickAt, 1)
-    ) {
-      const result = await processCycleTick(cycle.id, tickAt, now, db);
+    const resolution = await resolveExpiredActiveCycle(cycle.id, now, db);
 
-      if (result.processed) {
-        summary.processedMinutes += 1;
-        summary.scoreEventsCreated += result.scoreEventsCreated;
-      }
+    if (resolution.resolved) {
+      summary.resolvedCycles += 1;
+    }
+
+    if (resolution.createdNextCycle) {
+      summary.nextRegistrationCyclesCreated += 1;
     }
   }
 
