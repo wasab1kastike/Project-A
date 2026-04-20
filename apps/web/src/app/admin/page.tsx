@@ -1,25 +1,313 @@
+import Link from "next/link";
 import styles from "./page.module.css";
 import { requireAdminSession } from "@/lib/admin";
+import { getAdminDashboardState } from "@/lib/game/admin-dashboard";
+import {
+  emergencyResetCycleAction,
+  forceEndCycleAction,
+  toggleJoiningLockAction,
+} from "./actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminPage() {
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+const dateTimeFormatter = new Intl.DateTimeFormat("en-US", {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+
+function getSearchValue(
+  value: string | string[] | undefined
+): string | undefined {
+  if (Array.isArray(value)) {
+    return value[0];
+  }
+
+  return value;
+}
+
+function formatDateTime(value: Date | null) {
+  if (!value) {
+    return "Not set";
+  }
+
+  return dateTimeFormatter.format(value);
+}
+
+export default async function AdminPage({
+  searchParams,
+}: {
+  searchParams?: SearchParams;
+}) {
   const session = await requireAdminSession();
+  const params = (await searchParams) ?? {};
+  const error = getSearchValue(params.error);
+  const notice = getSearchValue(params.notice);
+  const state = await getAdminDashboardState();
 
   return (
     <main className={styles.page}>
-      <section className={styles.card}>
-        <p className={styles.eyebrow}>Admin only</p>
-        <h1>Project-A admin shell</h1>
-        <p>
-          This route is protected server-side and only available to users whose
-          `User.role` is `ADMIN`.
-        </p>
-        <ul className={styles.list}>
-          <li>Signed in as: {session.user.email ?? session.user.name}</li>
-          <li>Role: {session.user.role}</li>
-          <li>Foundation status: auth, sessions, and admin guards are wired.</li>
-        </ul>
+      <section className={styles.hero}>
+        <div className={styles.heroCopy}>
+          <p className={styles.eyebrow}>Admin control room</p>
+          <h1>Run the season without leaving the repo.</h1>
+          <p>
+            Inspect players, audit fortress state, force deadlines forward, and
+            keep cycle history moving when something goes sideways.
+          </p>
+          <div className={styles.navRow}>
+            <Link className={styles.linkButton} href="/">
+              Back to battlefield
+            </Link>
+            <Link className={styles.linkButton} href="/history">
+              Open cycle history
+            </Link>
+          </div>
+        </div>
+
+        <article className={styles.heroCard}>
+          <span className={styles.sectionLabel}>Signed in as</span>
+          <h2>{session.user.email ?? session.user.name}</h2>
+          <dl className={styles.statsList}>
+            <div className={styles.statRow}>
+              <dt>Role</dt>
+              <dd>{session.user.role}</dd>
+            </div>
+            <div className={styles.statRow}>
+              <dt>Current cycle</dt>
+              <dd>{state.currentCycle?.status ?? "No unresolved cycle"}</dd>
+            </div>
+            <div className={styles.statRow}>
+              <dt>Joined fortresses</dt>
+              <dd>{state.currentCycle?.joinedCount ?? 0}</dd>
+            </div>
+            <div className={styles.statRow}>
+              <dt>Joining lock</dt>
+              <dd>
+                {state.currentCycle?.joiningLockedAt
+                  ? "Locked"
+                  : "Open if registration is live"}
+              </dd>
+            </div>
+          </dl>
+        </article>
+      </section>
+
+      {error ? <p className={styles.errorBanner}>{error}</p> : null}
+      {notice ? <p className={styles.noticeBanner}>{notice}</p> : null}
+
+      <section className={styles.grid}>
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>Cycle operations</span>
+          <h2>Manual controls</h2>
+          <p>
+            Force the current cycle to its next state, pause new joins during
+            registration, or archive a broken cycle and boot a clean one.
+          </p>
+
+          <div className={styles.actionStack}>
+            <form action={toggleJoiningLockAction} className={styles.inlineForm}>
+              <input
+                type="hidden"
+                name="intent"
+                value={state.currentCycle?.joiningLockedAt ? "unlock" : "lock"}
+              />
+              <button
+                className={styles.secondaryButton}
+                type="submit"
+                disabled={state.currentCycle?.status !== "REGISTRATION"}
+              >
+                {state.currentCycle?.joiningLockedAt
+                  ? "Unlock joining"
+                  : "Lock joining"}
+              </button>
+            </form>
+
+            <form action={forceEndCycleAction} className={styles.inlineForm}>
+              <button
+                className={styles.primaryButton}
+                type="submit"
+                disabled={!state.currentCycle}
+              >
+                Force end current cycle
+              </button>
+            </form>
+
+            <form action={emergencyResetCycleAction} className={styles.inlineForm}>
+              <button
+                className={styles.dangerButton}
+                type="submit"
+                disabled={!state.currentCycle}
+              >
+                Emergency reset
+              </button>
+            </form>
+          </div>
+        </article>
+
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>Current cycle</span>
+          <h2>
+            {state.currentCycle
+              ? `Cycle ${state.currentCycle.id.slice(0, 8)}`
+              : "No unresolved cycle"}
+          </h2>
+          {state.currentCycle ? (
+            <>
+              <dl className={styles.statsList}>
+                <div className={styles.statRow}>
+                  <dt>Registration ends</dt>
+                  <dd>{formatDateTime(state.currentCycle.registrationEndsAt)}</dd>
+                </div>
+                <div className={styles.statRow}>
+                  <dt>Active starts</dt>
+                  <dd>{formatDateTime(state.currentCycle.activeStartedAt)}</dd>
+                </div>
+                <div className={styles.statRow}>
+                  <dt>Active ends</dt>
+                  <dd>{formatDateTime(state.currentCycle.activeEndsAt)}</dd>
+                </div>
+                <div className={styles.statRow}>
+                  <dt>Last tick</dt>
+                  <dd>{formatDateTime(state.currentCycle.lastProcessedTickAt)}</dd>
+                </div>
+                <div className={styles.statRow}>
+                  <dt>Score events</dt>
+                  <dd>{state.currentCycle.scoreEventCount}</dd>
+                </div>
+                <div className={styles.statRow}>
+                  <dt>Chat messages</dt>
+                  <dd>{state.currentCycle.chatMessageCount}</dd>
+                </div>
+                <div className={styles.statRow}>
+                  <dt>Winner requests</dt>
+                  <dd>{state.currentCycle.winnerRequestCount}</dd>
+                </div>
+              </dl>
+
+              {state.currentCycle.latestWinnerRequests.length > 0 ? (
+                <div className={styles.subsection}>
+                  <h3>Latest winner requests</h3>
+                  <ul className={styles.requestList}>
+                    {state.currentCycle.latestWinnerRequests.map((request) => (
+                      <li key={request.id}>
+                        <strong>{request.authorLabel}</strong>
+                        <span>{request.status}</span>
+                        <small>{formatDateTime(request.createdAt)}</small>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <p>No unresolved cycle is currently available to inspect.</p>
+          )}
+        </article>
+      </section>
+
+      <section className={styles.grid}>
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>Players</span>
+          <h2>User inspection</h2>
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Player</th>
+                  <th>Role</th>
+                  <th>Current fortress</th>
+                  <th>Points</th>
+                  <th>Joined</th>
+                </tr>
+              </thead>
+              <tbody>
+                {state.players.map((player) => (
+                  <tr key={player.id}>
+                    <td>
+                      <strong>{player.label}</strong>
+                      <small>{player.email ?? "No email"}</small>
+                    </td>
+                    <td>{player.role}</td>
+                    <td>{player.currentFortress?.name ?? "Spectator"}</td>
+                    <td>{player.currentFortress?.points ?? "-"}</td>
+                    <td>{formatDateTime(player.currentFortress?.joinedAt ?? null)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>Fortresses</span>
+          <h2>Cycle fortress inspection</h2>
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Fortress</th>
+                  <th>Owner</th>
+                  <th>Points</th>
+                  <th>Action</th>
+                  <th>Target</th>
+                  <th>Map</th>
+                </tr>
+              </thead>
+              <tbody>
+                {state.fortresses.length > 0 ? (
+                  state.fortresses.map((fortress) => (
+                    <tr key={fortress.id}>
+                      <td>
+                        <strong>{fortress.name}</strong>
+                        <small>{formatDateTime(fortress.joinedAt)}</small>
+                      </td>
+                      <td>
+                        {fortress.ownerLabel}
+                        <small>{fortress.ownerRole}</small>
+                      </td>
+                      <td>{fortress.points}</td>
+                      <td>{fortress.currentAction}</td>
+                      <td>{fortress.targetName ?? "None"}</td>
+                      <td>{fortress.mapLabel}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={6}>No fortresses are attached to the current cycle.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section className={styles.grid}>
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>Recent history</span>
+          <h2>Last resolved cycles</h2>
+          <div className={styles.historyList}>
+            {state.recentHistory.length > 0 ? (
+              state.recentHistory.map((entry) => (
+                <div className={styles.historyItem} key={entry.id}>
+                  <div>
+                    <strong>{entry.winnerFortressName}</strong>
+                    <p>{entry.winnerLabel}</p>
+                  </div>
+                  <div>
+                    <strong>{entry.winningScore} pts</strong>
+                    <p>{formatDateTime(entry.endedAt)}</p>
+                  </div>
+                  <p>{entry.tieBreakSummary ?? "No tie-break summary stored."}</p>
+                </div>
+              ))
+            ) : (
+              <p>No cycle history has been written yet.</p>
+            )}
+          </div>
+        </article>
       </section>
     </main>
   );

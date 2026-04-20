@@ -5,4 +5,5 @@ export {
   PrismaClient,
   ScoreEventType,
   UserRole,
-} from "../../node_modules/.prisma/client";
+  WinnerRequestStatus,
+} from "@prisma/client";

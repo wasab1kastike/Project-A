@@ -9,6 +9,10 @@ import {
   PrismaClient,
   ScoreEventType,
 } from "@/lib/prisma-client";
+import {
+  forceEndCurrentCycle,
+  setRegistrationJoiningLock,
+} from "./admin-operations";
 import { seedProjectA } from "./bootstrap";
 import { sendChatMessage } from "./chat";
 import { getHomePageState } from "./read-model";
@@ -311,6 +315,34 @@ test("registration enforces the 30 player cap", async (context) => {
           fortressName: "Overflow",
         }),
       /already full/
+    );
+});
+
+test("admin joining lock blocks new registration joins", async (context) => {
+    const prisma = getPrismaOrSkip(context);
+
+    if (!prisma) {
+      return;
+    }
+
+    await seedOpenCycle(prisma);
+    const user = await createUser(prisma, "locked@example.com");
+
+    await setRegistrationJoiningLock({
+      db: prisma,
+      locked: true,
+      now: new Date("2026-04-19T12:10:00.000Z"),
+    });
+
+    await assert.rejects(
+      () =>
+        joinRegistrationCycle({
+          db: prisma,
+          userId: user.id,
+          fortressName: "Locked Keep",
+          now: new Date("2026-04-19T12:11:00.000Z"),
+        }),
+      /locked by an admin/
     );
 });
 
@@ -712,6 +744,352 @@ test("delayed ticks catch up and never drive scores below zero", async (context)
     assert.ok(refreshedAttacker.points >= 0);
     assert.ok(refreshedTarget.points >= 0);
 });
+
+test("expired active cycle resolves a winner, writes history, and opens the next registration cycle", async (context) => {
+    const prisma = getPrismaOrSkip(context);
+
+    if (!prisma) {
+      return;
+    }
+
+    const cycle = await seedOpenCycle(prisma);
+    const alpha = await createUser(prisma, "winner-alpha@example.com");
+    const beta = await createUser(prisma, "winner-beta@example.com");
+
+    await joinRegistrationCycle({
+      db: prisma,
+      userId: alpha.id,
+      fortressName: "Alpha",
+    });
+    await joinRegistrationCycle({
+      db: prisma,
+      userId: beta.id,
+      fortressName: "Beta",
+    });
+    await runGameTick({
+      db: prisma,
+      now: new Date("2026-04-20T12:00:00.000Z"),
+    });
+
+    await prisma.cycle.update({
+      where: {
+        id: cycle.id,
+      },
+      data: {
+        activeEndsAt: new Date("2026-04-20T12:02:00.000Z"),
+      },
+    });
+    await prisma.fortress.update({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: alpha.id,
+        },
+      },
+      data: {
+        points: 5,
+      },
+    });
+    await prisma.fortress.update({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: beta.id,
+        },
+      },
+      data: {
+        points: 3,
+      },
+    });
+
+    const summary = await runGameTick({
+      db: prisma,
+      now: new Date("2026-04-20T12:02:00.000Z"),
+    });
+    const resolvedCycle = await prisma.cycle.findUniqueOrThrow({
+      where: {
+        id: cycle.id,
+      },
+    });
+    const history = await prisma.cycleHistory.findUniqueOrThrow({
+      where: {
+        cycleId: cycle.id,
+      },
+    });
+    const nextCycle = await prisma.cycle.findFirstOrThrow({
+      where: {
+        resolvedAt: null,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    assert.equal(summary.processedMinutes, 2);
+    assert.equal(summary.resolvedCycles, 1);
+    assert.equal(summary.nextRegistrationCyclesCreated, 1);
+    assert.equal(resolvedCycle.status, "RESOLUTION");
+    assert.equal(resolvedCycle.winnerId, alpha.id);
+    assert.equal(
+      resolvedCycle.resolvedAt?.toISOString(),
+      "2026-04-20T12:02:00.000Z"
+    );
+    assert.equal(history.winnerId, alpha.id);
+    assert.equal(history.winningScore, 7);
+    assert.match(history.tieBreakSummary ?? "", /Alpha/);
+    assert.notEqual(nextCycle.id, cycle.id);
+    assert.equal(nextCycle.status, "REGISTRATION");
+    assert.equal(
+      nextCycle.registrationStartedAt.toISOString(),
+      "2026-04-20T12:02:00.000Z"
+    );
+});
+
+test("winner tie-break picks the fortress that reached the final score first", async (context) => {
+    const prisma = getPrismaOrSkip(context);
+
+    if (!prisma) {
+      return;
+    }
+
+    const cycle = await seedOpenCycle(prisma);
+    const alpha = await createUser(prisma, "tie-alpha@example.com");
+    const beta = await createUser(prisma, "tie-beta@example.com");
+
+    await joinRegistrationCycle({
+      db: prisma,
+      userId: alpha.id,
+      fortressName: "Alpha",
+    });
+    await joinRegistrationCycle({
+      db: prisma,
+      userId: beta.id,
+      fortressName: "Beta",
+    });
+    await runGameTick({
+      db: prisma,
+      now: new Date("2026-04-20T12:00:00.000Z"),
+    });
+
+    const alphaFortress = await prisma.fortress.findUniqueOrThrow({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: alpha.id,
+        },
+      },
+    });
+    const betaFortress = await prisma.fortress.findUniqueOrThrow({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: beta.id,
+        },
+      },
+    });
+
+    await prisma.cycle.update({
+      where: {
+        id: cycle.id,
+      },
+      data: {
+        activeEndsAt: new Date("2026-04-20T12:02:00.000Z"),
+      },
+    });
+    await prisma.fortress.updateMany({
+      where: {
+        cycleId: cycle.id,
+      },
+      data: {
+        points: 2,
+      },
+    });
+    await prisma.gameTick.createMany({
+      data: [
+        {
+          cycleId: cycle.id,
+          tickAt: new Date("2026-04-20T12:01:00.000Z"),
+        },
+        {
+          cycleId: cycle.id,
+          tickAt: new Date("2026-04-20T12:02:00.000Z"),
+        },
+      ],
+    });
+    await prisma.scoreEvent.createMany({
+      data: [
+        {
+          cycleId: cycle.id,
+          fortressId: alphaFortress.id,
+          actorId: alpha.id,
+          eventType: ScoreEventType.MANUAL_ADJUST,
+          delta: 2,
+          createdAt: new Date("2026-04-20T12:01:00.000Z"),
+        },
+        {
+          cycleId: cycle.id,
+          fortressId: betaFortress.id,
+          actorId: beta.id,
+          eventType: ScoreEventType.MANUAL_ADJUST,
+          delta: 1,
+          createdAt: new Date("2026-04-20T12:01:00.000Z"),
+        },
+        {
+          cycleId: cycle.id,
+          fortressId: betaFortress.id,
+          actorId: beta.id,
+          eventType: ScoreEventType.MANUAL_ADJUST,
+          delta: 1,
+          createdAt: new Date("2026-04-20T12:02:00.000Z"),
+        },
+      ],
+    });
+
+    const summary = await runGameTick({
+      db: prisma,
+      now: new Date("2026-04-20T12:02:00.000Z"),
+    });
+    const resolvedCycle = await prisma.cycle.findUniqueOrThrow({
+      where: {
+        id: cycle.id,
+      },
+    });
+    const history = await prisma.cycleHistory.findUniqueOrThrow({
+      where: {
+        cycleId: cycle.id,
+      },
+    });
+
+    assert.equal(summary.processedMinutes, 0);
+    assert.equal(summary.resolvedCycles, 1);
+    assert.equal(resolvedCycle.winnerId, alpha.id);
+    assert.match(history.tieBreakSummary ?? "", /earliest reach time/);
+    assert.match(history.tieBreakSummary ?? "", /Alpha/);
+    assert.match(history.tieBreakSummary ?? "", /Beta/);
+});
+
+test("resolved cycles are not resolved twice when the tick runner is re-run", async (context) => {
+    const prisma = getPrismaOrSkip(context);
+
+    if (!prisma) {
+      return;
+    }
+
+    const cycle = await seedOpenCycle(prisma);
+    const user = await createUser(prisma, "rerun-winner@example.com");
+
+    await joinRegistrationCycle({
+      db: prisma,
+      userId: user.id,
+      fortressName: "Solo",
+    });
+    await runGameTick({
+      db: prisma,
+      now: new Date("2026-04-20T12:00:00.000Z"),
+    });
+
+    const firstRun = await runGameTick({
+      db: prisma,
+      now: new Date("2026-04-23T12:05:00.000Z"),
+    });
+    const secondRun = await runGameTick({
+      db: prisma,
+      now: new Date("2026-04-23T12:05:00.000Z"),
+    });
+    const historyCount = await prisma.cycleHistory.count({
+      where: {
+        cycleId: cycle.id,
+      },
+    });
+
+    assert.equal(firstRun.resolvedCycles, 1);
+    assert.equal(secondRun.resolvedCycles, 0);
+    assert.equal(historyCount, 1);
+});
+
+test("force end during registration advances the cycle through the normal tick flow", async (context) => {
+    const prisma = getPrismaOrSkip(context);
+
+    if (!prisma) {
+      return;
+    }
+
+    const cycle = await seedOpenCycle(prisma);
+    const user = await createUser(prisma, "force-registration@example.com");
+
+    await joinRegistrationCycle({
+      db: prisma,
+      userId: user.id,
+      fortressName: "Fast Start",
+    });
+
+    const summary = await forceEndCurrentCycle({
+      db: prisma,
+      now: new Date("2026-04-19T12:10:00.000Z"),
+    });
+    const updatedCycle = await prisma.cycle.findUniqueOrThrow({
+      where: {
+        id: cycle.id,
+      },
+    });
+
+    assert.equal(summary?.activatedCycles, 1);
+    assert.equal(updatedCycle.status, "ACTIVE");
+    assert.equal(
+      updatedCycle.registrationEndsAt.toISOString(),
+      "2026-04-19T12:10:00.000Z"
+    );
+  });
+
+test("force end during active resolves immediately and opens the next cycle", async (context) => {
+    const prisma = getPrismaOrSkip(context);
+
+    if (!prisma) {
+      return;
+    }
+
+    const cycle = await seedOpenCycle(prisma);
+    const user = await createUser(prisma, "force-active@example.com");
+
+    await joinRegistrationCycle({
+      db: prisma,
+      userId: user.id,
+      fortressName: "Fast Finish",
+    });
+    await runGameTick({
+      db: prisma,
+      now: new Date("2026-04-20T12:00:00.000Z"),
+    });
+
+    const summary = await forceEndCurrentCycle({
+      db: prisma,
+      now: new Date("2026-04-20T12:03:00.000Z"),
+    });
+    const resolvedCycle = await prisma.cycle.findUniqueOrThrow({
+      where: {
+        id: cycle.id,
+      },
+    });
+    const history = await prisma.cycleHistory.findUniqueOrThrow({
+      where: {
+        cycleId: cycle.id,
+      },
+    });
+    const nextCycle = await prisma.cycle.findFirstOrThrow({
+      where: {
+        resolvedAt: null,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    assert.equal(summary?.resolvedCycles, 1);
+    assert.equal(resolvedCycle.status, "RESOLUTION");
+    assert.equal(history.cycleId, cycle.id);
+    assert.notEqual(nextCycle.id, cycle.id);
+    assert.equal(nextCycle.status, "REGISTRATION");
+  });
 
 test("read model orders leaderboard by points then joined time then name", async (context) => {
     const prisma = getPrismaOrSkip(context);
