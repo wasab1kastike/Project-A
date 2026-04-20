@@ -145,7 +145,7 @@ export async function getHomePageState({
       body: message.body,
       createdAt: message.createdAt,
       authorName:
-        message.author.name ?? message.author.email ?? "Unknown commander",
+        message.author.name ?? "Unknown commander",
       isCurrentUser: message.author.id === userId,
     }));
 

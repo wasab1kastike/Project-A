@@ -48,7 +48,7 @@ export async function getCycleHistoryPageState({
       id: entry.id,
       cycleId: entry.cycleId,
       winnerId: entry.winner.id,
-      winnerLabel: entry.winner.name ?? entry.winner.email ?? "Unknown winner",
+      winnerLabel: entry.winner.name ?? "Unknown winner",
       winnerFortressName:
         entry.cycle.fortresses.find(
           (fortress) => fortress.ownerId === entry.winner.id

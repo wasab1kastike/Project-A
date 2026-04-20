@@ -5,10 +5,18 @@ import { useRouter } from "next/navigation";
 import { io } from "socket.io-client";
 import { PROJECT_A_REFRESH_EVENT } from "@/lib/realtime";
 
-export function RealtimeBridge() {
+type RealtimeBridgeProps = {
+  enabled: boolean;
+};
+
+export function RealtimeBridge({ enabled }: RealtimeBridgeProps) {
   const router = useRouter();
 
   useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
     const socket = io({
       path: "/socket.io",
     });
@@ -26,7 +34,7 @@ export function RealtimeBridge() {
     return () => {
       socket.disconnect();
     };
-  }, [router]);
+  }, [enabled, router]);
 
   return null;
 }

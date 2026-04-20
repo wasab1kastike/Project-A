@@ -65,7 +65,7 @@ export default async function Home({
 
   return (
     <main className={styles.page}>
-      <RealtimeBridge />
+      <RealtimeBridge enabled={Boolean(session?.user)} />
       <section className={phaseClassName}>
         <div className={styles.heroCopy}>
           <p className={styles.kicker}>Milestone 3 Live Layer</p>

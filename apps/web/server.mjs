@@ -4,9 +4,20 @@ import { PrismaClient } from "@prisma/client";
 import { Server } from "socket.io";
 
 const dev = process.argv.includes("--dev");
+const isProduction = process.env.NODE_ENV === "production";
 const host = process.env.HOST ?? "0.0.0.0";
 const port = Number(process.env.PORT ?? 3000);
 const REFRESH_EVENT = "project-a:refresh";
+const SESSION_COOKIE_NAMES = [
+  "__Secure-authjs.session-token",
+  "authjs.session-token",
+];
+const LOCAL_ALLOWED_ORIGINS = [
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+];
+const CONNECTION_WINDOW_MS = 60_000;
+const MAX_CONNECTIONS_PER_WINDOW = isProduction ? 20 : 60;
 const prisma = new PrismaClient(
   process.env.DATABASE_URL
     ? {
@@ -18,6 +29,171 @@ const prisma = new PrismaClient(
       }
     : undefined
 );
+const connectionAttemptsByIp = new Map();
+
+function parseOrigin(origin) {
+  if (!origin) {
+    return null;
+  }
+
+  try {
+    return new URL(origin).origin;
+  } catch {
+    return null;
+  }
+}
+
+function getAllowedOrigins() {
+  const values = [
+    process.env.AUTH_URL,
+    process.env.NEXTAUTH_URL,
+    process.env.RENDER_EXTERNAL_URL,
+    ...(process.env.ALLOWED_ORIGINS
+      ? process.env.ALLOWED_ORIGINS.split(",")
+      : []),
+  ];
+  const origins = new Set();
+
+  for (const value of values) {
+    const origin = parseOrigin(value?.trim());
+
+    if (origin) {
+      origins.add(origin);
+    }
+  }
+
+  if (!isProduction) {
+    for (const origin of LOCAL_ALLOWED_ORIGINS) {
+      origins.add(origin);
+    }
+  }
+
+  return origins;
+}
+
+const allowedOrigins = getAllowedOrigins();
+
+function isAllowedOrigin(originHeader) {
+  if (!originHeader) {
+    return !isProduction;
+  }
+
+  const normalizedOrigin = parseOrigin(originHeader);
+
+  return normalizedOrigin !== null && allowedOrigins.has(normalizedOrigin);
+}
+
+function parseCookies(cookieHeader) {
+  if (!cookieHeader) {
+    return {};
+  }
+
+  return cookieHeader.split(";").reduce((cookies, cookiePart) => {
+    const separatorIndex = cookiePart.indexOf("=");
+
+    if (separatorIndex === -1) {
+      return cookies;
+    }
+
+    const name = cookiePart.slice(0, separatorIndex).trim();
+    const value = cookiePart.slice(separatorIndex + 1).trim();
+
+    if (!name) {
+      return cookies;
+    }
+
+    cookies[name] = decodeURIComponent(value);
+    return cookies;
+  }, {});
+}
+
+function getChunkedCookieValue(cookies, baseName) {
+  if (cookies[baseName]) {
+    return cookies[baseName];
+  }
+
+  const chunkEntries = Object.entries(cookies)
+    .filter(([name]) => name.startsWith(`${baseName}.`))
+    .sort(([leftName], [rightName]) => {
+      const leftSuffix = Number(leftName.split(".").pop() ?? "0");
+      const rightSuffix = Number(rightName.split(".").pop() ?? "0");
+
+      return leftSuffix - rightSuffix;
+    });
+
+  if (chunkEntries.length === 0) {
+    return null;
+  }
+
+  return chunkEntries.map(([, value]) => value).join("");
+}
+
+function getSessionToken(cookieHeader) {
+  const cookies = parseCookies(cookieHeader);
+
+  for (const baseName of SESSION_COOKIE_NAMES) {
+    const sessionToken = getChunkedCookieValue(cookies, baseName);
+
+    if (sessionToken) {
+      return sessionToken;
+    }
+  }
+
+  return null;
+}
+
+async function getSocketUser(request) {
+  const sessionToken = getSessionToken(request.headers.cookie);
+
+  if (!sessionToken) {
+    return null;
+  }
+
+  const session = await prisma.session.findUnique({
+    where: {
+      sessionToken,
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          role: true,
+        },
+      },
+    },
+  });
+
+  if (!session || session.expires <= new Date()) {
+    return null;
+  }
+
+  return session.user;
+}
+
+function getClientIp(request) {
+  const forwardedFor = request.headers["x-forwarded-for"];
+
+  if (typeof forwardedFor === "string" && forwardedFor.length > 0) {
+    return forwardedFor.split(",")[0]?.trim() ?? "unknown";
+  }
+
+  return request.socket.remoteAddress ?? "unknown";
+}
+
+function recordConnectionAttempt(ipAddress, now = Date.now()) {
+  const recentAttempts = (connectionAttemptsByIp.get(ipAddress) ?? []).filter(
+    (timestamp) => now - timestamp < CONNECTION_WINDOW_MS
+  );
+
+  if (recentAttempts.length >= MAX_CONNECTIONS_PER_WINDOW) {
+    connectionAttemptsByIp.set(ipAddress, recentAttempts);
+    return false;
+  }
+
+  recentAttempts.push(now);
+  connectionAttemptsByIp.set(ipAddress, recentAttempts);
+  return true;
+}
 
 function emitRefresh(io, reason = "server") {
   io.emit(REFRESH_EVENT, {
@@ -74,6 +250,10 @@ async function startWatcher(io) {
   let running = false;
 
   setInterval(async () => {
+    if (io.of("/").sockets.size === 0) {
+      return;
+    }
+
     if (running) {
       return;
     }
@@ -112,9 +292,43 @@ async function main() {
   const io = new Server(server, {
     path: "/socket.io",
     cors: {
-      origin: true,
+      origin(origin, callback) {
+        callback(null, isAllowedOrigin(origin));
+      },
       credentials: true,
     },
+    allowRequest(request, callback) {
+      if (!isAllowedOrigin(request.headers.origin)) {
+        callback("Origin not allowed.", false);
+        return;
+      }
+
+      const ipAddress = getClientIp(request);
+
+      if (!recordConnectionAttempt(ipAddress)) {
+        callback("Too many socket connection attempts.", false);
+        return;
+      }
+
+      callback(null, true);
+    },
+  });
+
+  io.use(async (socket, next) => {
+    try {
+      const user = await getSocketUser(socket.request);
+
+      if (!user) {
+        next(new Error("Authentication required."));
+        return;
+      }
+
+      socket.data.userId = user.id;
+      socket.data.userRole = user.role;
+      next();
+    } catch (error) {
+      next(error instanceof Error ? error : new Error("Socket authentication failed."));
+    }
   });
 
   globalThis.__projectARealtime = {
@@ -122,9 +336,20 @@ async function main() {
   };
 
   io.on("connection", (socket) => {
+    const userId = socket.data.userId;
+
+    if (!userId) {
+      socket.disconnect(true);
+      return;
+    }
+
     socket.emit(REFRESH_EVENT, {
       reason: "connected",
       at: new Date().toISOString(),
+    });
+
+    socket.on("disconnect", () => {
+      socket.data.userId = undefined;
     });
   });
 
