@@ -1,22 +1,113 @@
 .shell {
   position: relative;
-  min-height: 420px;
+  min-height: 440px;
   overflow: hidden;
   border: 1px solid var(--border-soft);
   border-radius: 28px;
   background:
-    radial-gradient(circle at top, rgba(247, 196, 95, 0.12), transparent 30%),
-    linear-gradient(180deg, rgba(12, 26, 39, 0.92), rgba(7, 14, 22, 0.98));
+    radial-gradient(circle at 15% 12%, rgba(247, 196, 95, 0.14), transparent 22%),
+    radial-gradient(circle at 82% 18%, rgba(84, 157, 255, 0.18), transparent 24%),
+    radial-gradient(circle at 45% 78%, rgba(122, 206, 135, 0.14), transparent 26%),
+    linear-gradient(180deg, rgba(13, 30, 46, 0.98), rgba(7, 14, 22, 0.98));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 22px 56px rgba(2, 9, 15, 0.32);
+}
+
+.gridBackdrop,
+.scanlines,
+.terrainPatch,
+.energyVein {
+  position: absolute;
+  pointer-events: none;
 }
 
 .gridBackdrop {
-  position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-  background-size: 52px 52px;
-  mask-image: radial-gradient(circle at center, black 62%, transparent 100%);
+    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(circle at center, black 72%, transparent 100%);
+}
+
+.scanlines {
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 12%),
+    repeating-linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.02) 0,
+      rgba(255, 255, 255, 0.02) 1px,
+      transparent 1px,
+      transparent 10px
+    );
+  mix-blend-mode: screen;
+  opacity: 0.42;
+}
+
+.terrainPatch {
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(152, 220, 154, 0.16), rgba(37, 80, 55, 0.1)),
+    rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(152, 220, 154, 0.08);
+  filter: blur(0.5px);
+}
+
+.patchNorth {
+  top: 10%;
+  left: 12%;
+  width: 150px;
+  height: 90px;
+  transform: rotate(-12deg);
+}
+
+.patchWest {
+  top: 36%;
+  left: -2%;
+  width: 168px;
+  height: 108px;
+  transform: rotate(18deg);
+}
+
+.patchCenter {
+  top: 38%;
+  left: 34%;
+  width: 190px;
+  height: 120px;
+  transform: rotate(-8deg);
+}
+
+.patchSouth {
+  right: 14%;
+  bottom: 8%;
+  width: 176px;
+  height: 116px;
+  transform: rotate(14deg);
+}
+
+.patchEast {
+  top: 18%;
+  right: 3%;
+  width: 160px;
+  height: 96px;
+  transform: rotate(-24deg);
+}
+
+.energyVein {
+  inset: auto 10% 22% 12%;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(103, 196, 207, 0.16) 18%,
+    rgba(255, 255, 255, 0.06) 50%,
+    rgba(247, 196, 95, 0.16) 82%,
+    transparent
+  );
+  transform: rotate(-8deg);
+  box-shadow: 0 0 18px rgba(103, 196, 207, 0.16);
 }
 
 .emptyState {
@@ -27,37 +118,102 @@
   padding: 24px;
   color: var(--text-muted);
   text-align: center;
+  z-index: 2;
 }
 
 .marker {
   position: absolute;
   display: grid;
-  gap: 10px;
+  gap: 6px;
   justify-items: center;
   transform: translate(-50%, -50%);
   border: 0;
   background: transparent;
   color: var(--foreground);
   cursor: default;
+  z-index: 2;
 }
 
-.dot {
-  width: 18px;
-  height: 18px;
+.selectionPulse {
+  position: absolute;
+  top: 19px;
+  width: 66px;
+  height: 66px;
   border-radius: 999px;
-  border: 2px solid rgba(255, 255, 255, 0.4);
-  background: #7ca7ff;
-  box-shadow: 0 0 0 8px rgba(124, 167, 255, 0.14);
+  background: radial-gradient(circle, rgba(124, 167, 255, 0.18), transparent 72%);
+  opacity: 0.7;
+  transform: scale(0.92);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.spriteFrame {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 74px;
+  height: 74px;
+  padding: 6px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.01)),
+    rgba(5, 12, 20, 0.72);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 10px 22px rgba(0, 0, 0, 0.24);
+}
+
+.sprite {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.28));
+}
+
+.pointsBadge {
+  position: absolute;
+  top: -3px;
+  right: -6px;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(7, 13, 20, 0.94);
+  color: var(--foreground);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.74rem;
+  line-height: 1;
+}
+
+.nameplate {
+  max-width: 120px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(7, 13, 20, 0.76);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tooltip {
   display: grid;
   gap: 4px;
-  min-width: 112px;
-  padding: 8px 10px;
+  min-width: 128px;
+  padding: 9px 11px;
   border-radius: 14px;
   border: 1px solid var(--border-soft);
-  background: rgba(7, 13, 20, 0.88);
+  background: rgba(7, 13, 20, 0.92);
   font-size: 0.76rem;
   line-height: 1.4;
   opacity: 0;
@@ -80,42 +236,83 @@
   transform: translateY(0);
 }
 
+.marker:hover .selectionPulse,
+.marker:focus-visible .selectionPulse,
+.selected .selectionPulse {
+  opacity: 1;
+  transform: scale(1.06);
+}
+
 .targetable {
   cursor: pointer;
 }
 
-.targetable .dot {
-  background: #88e0a6;
-  box-shadow: 0 0 0 8px rgba(136, 224, 166, 0.12);
+.targetable .spriteFrame {
+  border-color: rgba(122, 206, 135, 0.18);
 }
 
-.currentUser .dot {
-  background: var(--accent-strong);
-  box-shadow: 0 0 0 10px rgba(247, 196, 95, 0.16);
+.targetable .selectionPulse {
+  background: radial-gradient(circle, rgba(122, 206, 135, 0.16), transparent 72%);
 }
 
-.selected .dot {
-  background: #ff7c7c;
-  box-shadow: 0 0 0 12px rgba(255, 124, 124, 0.18);
+.currentUser .spriteFrame {
+  border-color: rgba(247, 196, 95, 0.26);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 0 0 1px rgba(247, 196, 95, 0.14),
+    0 14px 26px rgba(247, 196, 95, 0.14);
+}
+
+.currentUser .selectionPulse {
+  background: radial-gradient(circle, rgba(247, 196, 95, 0.24), transparent 72%);
+}
+
+.selected .spriteFrame {
+  border-color: rgba(255, 124, 124, 0.34);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 0 0 1px rgba(255, 124, 124, 0.18),
+    0 14px 28px rgba(255, 124, 124, 0.18);
+}
+
+.selected .selectionPulse {
+  background: radial-gradient(circle, rgba(255, 124, 124, 0.26), transparent 72%);
 }
 
 .marker:focus-visible {
   outline: none;
 }
 
-.marker:focus-visible .dot {
+.marker:focus-visible .spriteFrame {
   outline: 2px solid rgba(255, 255, 255, 0.42);
   outline-offset: 4px;
 }
 
 @media (max-width: 640px) {
   .shell {
-    min-height: 340px;
+    min-height: 360px;
     border-radius: 24px;
   }
 
+  .spriteFrame {
+    width: 64px;
+    height: 64px;
+    border-radius: 20px;
+  }
+
+  .selectionPulse {
+    top: 15px;
+    width: 56px;
+    height: 56px;
+  }
+
+  .nameplate {
+    max-width: 94px;
+    font-size: 0.62rem;
+  }
+
   .tooltip {
-    min-width: 92px;
+    min-width: 112px;
     font-size: 0.7rem;
   }
 }

@@ -13,6 +13,204 @@ type MapFortress = {
   isTargetable: boolean;
 };
 
+const SPRITE_VARIANTS = [
+  "citadel",
+  "forge",
+  "spire",
+  "garden",
+  "vault",
+  "watchtower",
+] as const;
+
+type SpriteVariant = (typeof SPRITE_VARIANTS)[number];
+
+const SPRITE_PALETTES: Record<
+  SpriteVariant,
+  {
+    shell: string;
+    shellDark: string;
+    roof: string;
+    glow: string;
+    lawn: string;
+  }
+> = {
+  citadel: {
+    shell: "#d9e4f2",
+    shellDark: "#8a98ab",
+    roof: "#6fa4ff",
+    glow: "rgba(111, 164, 255, 0.32)",
+    lawn: "#456f5b",
+  },
+  forge: {
+    shell: "#f0d9be",
+    shellDark: "#9a7a62",
+    roof: "#ff8a5c",
+    glow: "rgba(255, 138, 92, 0.3)",
+    lawn: "#586447",
+  },
+  spire: {
+    shell: "#e6def6",
+    shellDark: "#9386ab",
+    roof: "#b49dff",
+    glow: "rgba(180, 157, 255, 0.3)",
+    lawn: "#4b5d78",
+  },
+  garden: {
+    shell: "#d7f0d9",
+    shellDark: "#75946f",
+    roof: "#7ace87",
+    glow: "rgba(122, 206, 135, 0.28)",
+    lawn: "#3f7454",
+  },
+  vault: {
+    shell: "#efe3b7",
+    shellDark: "#9b8b58",
+    roof: "#e0ba4f",
+    glow: "rgba(224, 186, 79, 0.28)",
+    lawn: "#556246",
+  },
+  watchtower: {
+    shell: "#d4ebef",
+    shellDark: "#70909a",
+    roof: "#67c4cf",
+    glow: "rgba(103, 196, 207, 0.3)",
+    lawn: "#3f6870",
+  },
+};
+
+function hashString(value: string) {
+  let hash = 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+
+  return hash;
+}
+
+function getSpriteVariant(fortress: MapFortress): SpriteVariant {
+  return SPRITE_VARIANTS[hashString(fortress.id) % SPRITE_VARIANTS.length];
+}
+
+function FortressSprite({
+  variant,
+  action,
+}: {
+  variant: SpriteVariant;
+  action: "GROW" | "ATTACK";
+}) {
+  const palette = SPRITE_PALETTES[variant];
+  const bannerColor = action === "ATTACK" ? "#ff7c7c" : "#89de8e";
+  const actionLabel = action === "ATTACK" ? "assaulting" : "growing";
+
+  return (
+    <svg
+      viewBox="0 0 64 64"
+      className={styles.sprite}
+      aria-hidden="true"
+      role="presentation"
+    >
+      <ellipse cx="32" cy="52" rx="19" ry="7" fill="rgba(0, 0, 0, 0.28)" />
+      <ellipse cx="32" cy="48" rx="20" ry="9" fill={palette.lawn} />
+      <ellipse cx="32" cy="50" rx="14" ry="5" fill="rgba(255, 255, 255, 0.08)" />
+      <circle cx="32" cy="28" r="20" fill={palette.glow} />
+
+      {variant === "citadel" ? (
+        <>
+          <rect x="18" y="27" width="28" height="16" rx="4" fill={palette.shell} />
+          <rect x="23" y="18" width="9" height="15" rx="2" fill={palette.shellDark} />
+          <rect x="32" y="16" width="9" height="17" rx="2" fill={palette.shell} />
+          <path d="M22 27h10l-2-6h-6z" fill={palette.roof} />
+          <path d="M32 25h9l-2-7h-5z" fill={palette.roof} />
+          <rect x="28" y="33" width="8" height="10" rx="2" fill={palette.shellDark} />
+          <rect x="21" y="32" width="4" height="5" rx="1" fill="#13202d" />
+          <rect x="39" y="32" width="4" height="5" rx="1" fill="#13202d" />
+        </>
+      ) : null}
+
+      {variant === "forge" ? (
+        <>
+          <rect x="18" y="28" width="28" height="15" rx="4" fill={palette.shell} />
+          <rect x="21" y="22" width="10" height="21" rx="2" fill={palette.shellDark} />
+          <rect x="33" y="20" width="8" height="23" rx="2" fill={palette.shell} />
+          <path d="M18 28h28l-4-7H23z" fill={palette.roof} />
+          <rect x="25" y="33" width="6" height="10" rx="2" fill="#40271d" />
+          <rect x="35" y="31" width="6" height="6" rx="1.5" fill="#13202d" />
+          <circle cx="26" cy="19" r="3" fill="#ffc77a" />
+        </>
+      ) : null}
+
+      {variant === "spire" ? (
+        <>
+          <rect x="22" y="29" width="20" height="14" rx="4" fill={palette.shell} />
+          <path d="M27 29h10l-5-16z" fill={palette.roof} />
+          <rect x="29" y="18" width="6" height="22" rx="2" fill={palette.shellDark} />
+          <rect x="18" y="34" width="6" height="9" rx="2" fill={palette.shellDark} />
+          <rect x="40" y="34" width="6" height="9" rx="2" fill={palette.shellDark} />
+          <rect x="29" y="33" width="6" height="10" rx="2" fill="#223142" />
+          <circle cx="32" cy="13" r="2" fill="#fff1a8" />
+        </>
+      ) : null}
+
+      {variant === "garden" ? (
+        <>
+          <rect x="19" y="29" width="26" height="14" rx="5" fill={palette.shell} />
+          <rect x="24" y="20" width="8" height="14" rx="2" fill={palette.shellDark} />
+          <rect x="33" y="22" width="7" height="12" rx="2" fill={palette.shell} />
+          <path d="M21 29h22l-3-6H24z" fill={palette.roof} />
+          <circle cx="18" cy="29" r="4" fill="#7bcf91" />
+          <circle cx="46" cy="31" r="4" fill="#7bcf91" />
+          <rect x="29" y="34" width="6" height="9" rx="2" fill="#284331" />
+        </>
+      ) : null}
+
+      {variant === "vault" ? (
+        <>
+          <rect x="18" y="28" width="28" height="15" rx="4" fill={palette.shellDark} />
+          <rect x="23" y="22" width="18" height="12" rx="4" fill={palette.shell} />
+          <path d="M21 28h22l-3-7H24z" fill={palette.roof} />
+          <rect x="28" y="31" width="8" height="12" rx="2" fill="#3e3217" />
+          <circle cx="32" cy="37" r="1.5" fill="#f9df88" />
+          <rect x="18" y="40" width="6" height="3" rx="1.5" fill={palette.shell} />
+          <rect x="40" y="40" width="6" height="3" rx="1.5" fill={palette.shell} />
+        </>
+      ) : null}
+
+      {variant === "watchtower" ? (
+        <>
+          <rect x="24" y="18" width="16" height="25" rx="4" fill={palette.shell} />
+          <path d="M22 22h20l-3-6H25z" fill={palette.roof} />
+          <rect x="27" y="28" width="10" height="15" rx="2" fill={palette.shellDark} />
+          <rect x="21" y="37" width="6" height="6" rx="2" fill={palette.shellDark} />
+          <rect x="37" y="37" width="6" height="6" rx="2" fill={palette.shellDark} />
+          <rect x="30" y="32" width="4" height="7" rx="1.5" fill="#15212d" />
+          <rect x="28" y="24" width="8" height="4" rx="1.5" fill="#15212d" />
+        </>
+      ) : null}
+
+      <path
+        d="M34 12v13h7c-2-3-4-4-7-5z"
+        fill={bannerColor}
+        aria-label={`Fortress is currently ${actionLabel}`}
+      />
+      <rect x="33" y="12" width="2" height="18" rx="1" fill="#e8edf3" />
+    </svg>
+  );
+}
+
+function BattlefieldDecor() {
+  return (
+    <>
+      <div className={`${styles.terrainPatch} ${styles.patchNorth}`} />
+      <div className={`${styles.terrainPatch} ${styles.patchWest}`} />
+      <div className={`${styles.terrainPatch} ${styles.patchCenter}`} />
+      <div className={`${styles.terrainPatch} ${styles.patchSouth}`} />
+      <div className={`${styles.terrainPatch} ${styles.patchEast}`} />
+      <div className={styles.energyVein} />
+    </>
+  );
+}
+
 export function FortressMap({
   fortresses,
   selectedTargetId,
@@ -24,7 +222,9 @@ export function FortressMap({
 }) {
   return (
     <div className={styles.shell}>
+      <BattlefieldDecor />
       <div className={styles.gridBackdrop} />
+      <div className={styles.scanlines} />
       {fortresses.length === 0 ? (
         <div className={styles.emptyState}>
           No fortresses on the battlefield yet.
@@ -32,6 +232,7 @@ export function FortressMap({
       ) : (
         fortresses.map((fortress) => {
           const selectable = Boolean(onSelectTarget) && fortress.isTargetable;
+          const variant = getSpriteVariant(fortress);
           const className = [
             styles.marker,
             fortress.isCurrentUser ? styles.currentUser : "",
@@ -58,10 +259,18 @@ export function FortressMap({
               aria-pressed={selectedTargetId === fortress.id}
               aria-label={`${fortress.name}, ${fortress.points} points`}
             >
-              <span className={styles.dot} />
+              <span className={styles.selectionPulse} />
+              <span className={styles.spriteFrame}>
+                <FortressSprite
+                  variant={variant}
+                  action={fortress.currentAction}
+                />
+              </span>
+              <span className={styles.pointsBadge}>{fortress.points}</span>
+              <span className={styles.nameplate}>{fortress.name}</span>
               <span className={styles.tooltip}>
                 <strong>{fortress.name}</strong>
-                <span>{fortress.points} pts · {fortress.currentAction}</span>
+                <span>{fortress.points} pts - {fortress.currentAction}</span>
               </span>
             </button>
           );

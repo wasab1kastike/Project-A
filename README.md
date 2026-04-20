@@ -111,6 +111,7 @@ npx prisma db seed
 - Google login is configured with `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET`
 - Session signing uses `AUTH_SECRET`
 - Set `AUTH_URL` for any deployment where the public URL should be explicit
+- Production boot now fails fast if `AUTH_SECRET`, Google OAuth credentials, or a server-side auth origin are missing
 - The first admin is bootstrapped via `ADMIN_EMAIL`
 - Admin access is enforced from the `User.role` field in the database
 - `trustHost` is enabled for proxy-based deployments such as Render
@@ -119,8 +120,10 @@ npx prisma db seed
 
 1. Create a Google OAuth client for the app.
 2. Set the values in `apps/web/.env.local` for local development or in Render for deployed environments.
-   - For Render, the app now falls back to Render's runtime `RENDER_EXTERNAL_URL` if `AUTH_URL` is unset.
+   - For Render, set `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, and `ADMIN_EMAIL` explicitly.
+   - For Render, the app falls back to Render's runtime `RENDER_EXTERNAL_URL` if `AUTH_URL` is unset.
    - If you later add a custom domain, set `AUTH_URL` to that public HTTPS origin explicitly.
+   - `ALLOWED_ORIGINS` is optional and only needed if you want websocket access from additional trusted origins beyond the auth/render URL set.
 3. Add these callback URLs to the Google OAuth app:
    - `http://localhost:3000/api/auth/callback/google`
    - `https://project-a-web.onrender.com/api/auth/callback/google`
@@ -182,9 +185,34 @@ Render pre-deploy command:
 npm run db:deploy
 ```
 
+### GitHub secret management
+
+If you want production maintenance flows to run from GitHub instead of a local shell, the repo now includes two manual GitHub Actions workflows:
+
+- `.github/workflows/seed-production.yml`
+- `.github/workflows/redeploy-render.yml`
+
+Recommended repository secrets:
+
+- `PRODUCTION_DATABASE_URL`
+  Use the full production PostgreSQL connection string, including `sslmode=require` when needed for external connections.
+- `PRODUCTION_ADMIN_EMAIL`
+  Optional. When set, the seed flow also bootstraps the admin account.
+- `RENDER_DEPLOY_HOOK_URL`
+  The Render deploy hook for `project-a-web`, used to trigger a safe manual redeploy from GitHub Actions.
+
+Suggested usage:
+
+1. Store the secrets in GitHub repository settings.
+2. Run `Seed Production Database` from the Actions tab when you need to bootstrap or re-run the seed flow.
+3. Run `Redeploy Render Web` after rotating credentials or updating Render-managed environment variables.
+
+Important: GitHub Secrets are excellent for workflows, but the running Render app still needs its own runtime environment variables in Render. Do not commit real secrets into `render.yaml`, `.env.example`, or source files.
+
 What still requires manual setup before a fully usable M0 deployment:
 
 - Add real Google OAuth credentials
+- Set `AUTH_SECRET`
 - Set `ADMIN_EMAIL`
 - Run the one-time seed flow with `npm run db:seed`
 - Add the deployed Render callback URL to the Google OAuth app
