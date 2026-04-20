@@ -8,6 +8,7 @@ import {
   FortressAction,
   PrismaClient,
   ScoreEventType,
+  WinnerRequestStatus,
 } from "@/lib/prisma-client";
 import {
   forceEndCurrentCycle,
@@ -15,9 +16,16 @@ import {
 } from "./admin-operations";
 import { seedProjectA } from "./bootstrap";
 import { sendChatMessage } from "./chat";
+import { getAdminDashboardState } from "./admin-dashboard";
+import { getCycleHistoryPageState } from "./history";
 import { getHomePageState } from "./read-model";
 import { editRegistrationFortressName, joinRegistrationCycle, renameActiveFortress, setFortressAction } from "./service";
 import { runGameTick } from "./tick";
+import {
+  classifyWinnerRequest,
+  reviewWinnerRequest,
+  submitWinnerRequest,
+} from "./winner-requests";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = resolve(__dirname, "../../..");
@@ -1309,3 +1317,281 @@ test("chat sending is rate limited to six messages per minute", async (context) 
       /6 messages per minute/
     );
 });
+
+test("only the resolved cycle winner can submit a winner request", async (context) => {
+    const prisma = getPrismaOrSkip(context);
+
+    if (!prisma) {
+      return;
+    }
+
+    const cycle = await seedOpenCycle(prisma);
+    const winner = await createUser(prisma, "request-winner@example.com");
+    const loser = await createUser(prisma, "request-loser@example.com");
+
+    await joinRegistrationCycle({
+      db: prisma,
+      userId: winner.id,
+      fortressName: "Winner Keep",
+    });
+    await joinRegistrationCycle({
+      db: prisma,
+      userId: loser.id,
+      fortressName: "Loser Keep",
+    });
+    await runGameTick({
+      db: prisma,
+      now: new Date("2026-04-20T12:00:00.000Z"),
+    });
+    await prisma.fortress.update({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: winner.id,
+        },
+      },
+      data: {
+        points: 9,
+      },
+    });
+    await forceEndCurrentCycle({
+      db: prisma,
+      now: new Date("2026-04-20T12:03:00.000Z"),
+    });
+
+    await assert.rejects(
+      () =>
+        submitWinnerRequest({
+          db: prisma,
+          cycleId: cycle.id,
+          userId: loser.id,
+          requestText: "Add a new spectator banner.",
+        }),
+      /Only the recorded cycle winner/
+    );
+
+    const created = await submitWinnerRequest({
+      db: prisma,
+      cycleId: cycle.id,
+      userId: winner.id,
+      requestText: "Add a small winner banner to the history page.",
+    });
+
+    assert.equal(created.authorId, winner.id);
+    assert.equal(created.status, WinnerRequestStatus.SUBMITTED);
+
+    const unresolvedCycle = await prisma.cycle.findFirstOrThrow({
+      where: {
+        resolvedAt: null,
+      },
+    });
+
+    await assert.rejects(
+      () =>
+        submitWinnerRequest({
+          db: prisma,
+          cycleId: unresolvedCycle.id,
+          userId: winner.id,
+          requestText: "This should not be allowed yet.",
+        }),
+      /open only after a cycle is resolved/
+    );
+});
+
+test("winner request validation classifies allowed, simplifiable, and rejected inputs", () => {
+    const allowed = classifyWinnerRequest("Add a tiny countdown pulse when registration has under one minute left.");
+    const simplifiable = classifyWinnerRequest(
+      "1. Add a post-win badge. 2. Add a new summary panel. 3. Add another notification card."
+    );
+    const rejected = classifyWinnerRequest(
+      "Buff my fortress with extra points and open the PR automatically."
+    );
+
+    assert.equal(allowed.status, WinnerRequestStatus.SUBMITTED);
+    assert.equal(simplifiable.status, WinnerRequestStatus.NEEDS_SIMPLIFICATION);
+    assert.equal(rejected.status, WinnerRequestStatus.REJECTED);
+});
+
+test("only one winner request may exist per winner and cycle", async (context) => {
+    const prisma = getPrismaOrSkip(context);
+
+    if (!prisma) {
+      return;
+    }
+
+    const cycle = await seedOpenCycle(prisma);
+    const winner = await createUser(prisma, "single-request@example.com");
+
+    await joinRegistrationCycle({
+      db: prisma,
+      userId: winner.id,
+      fortressName: "Solo Winner",
+    });
+    await runGameTick({
+      db: prisma,
+      now: new Date("2026-04-20T12:00:00.000Z"),
+    });
+    await forceEndCurrentCycle({
+      db: prisma,
+      now: new Date("2026-04-20T12:03:00.000Z"),
+    });
+
+    await submitWinnerRequest({
+      db: prisma,
+      cycleId: cycle.id,
+      userId: winner.id,
+      requestText: "Add a compact winner summary tile.",
+    });
+
+    await assert.rejects(
+      () =>
+        submitWinnerRequest({
+          db: prisma,
+          cycleId: cycle.id,
+          userId: winner.id,
+          requestText: "Try a second request.",
+        }),
+      /already has a stored winner request/
+    );
+});
+
+test("admin review rejects invalid transitions and persists valid status updates", async (context) => {
+    const prisma = getPrismaOrSkip(context);
+
+    if (!prisma) {
+      return;
+    }
+
+    const cycle = await seedOpenCycle(prisma);
+    const winner = await createUser(prisma, "review-winner@example.com");
+    const admin = await prisma.user.create({
+      data: {
+        email: "review-admin@example.com",
+        name: "review-admin@example.com",
+        role: "ADMIN",
+      },
+    });
+
+    await joinRegistrationCycle({
+      db: prisma,
+      userId: winner.id,
+      fortressName: "Review Fort",
+    });
+    await runGameTick({
+      db: prisma,
+      now: new Date("2026-04-20T12:00:00.000Z"),
+    });
+    await forceEndCurrentCycle({
+      db: prisma,
+      now: new Date("2026-04-20T12:03:00.000Z"),
+    });
+
+    const request = await submitWinnerRequest({
+      db: prisma,
+      cycleId: cycle.id,
+      userId: winner.id,
+      requestText: "Add a small winner highlight card to history.",
+    });
+
+    await reviewWinnerRequest({
+      db: prisma,
+      requestId: request.id,
+      reviewedById: admin.id,
+      status: WinnerRequestStatus.UNDER_ADMIN_REVIEW,
+      reviewNotes: "Queued for manual review.",
+      now: new Date("2026-04-20T12:10:00.000Z"),
+    });
+
+    const reviewed = await reviewWinnerRequest({
+      db: prisma,
+      requestId: request.id,
+      reviewedById: admin.id,
+      status: WinnerRequestStatus.ACCEPTED,
+      reviewNotes: "Accepted as a bounded MVP-safe UI enhancement.",
+      now: new Date("2026-04-20T12:12:00.000Z"),
+    });
+
+    assert.equal(reviewed.status, WinnerRequestStatus.ACCEPTED);
+    assert.equal(reviewed.reviewNotes, "Accepted as a bounded MVP-safe UI enhancement.");
+
+    await assert.rejects(
+      () =>
+        reviewWinnerRequest({
+          db: prisma,
+          requestId: request.id,
+          reviewedById: admin.id,
+          status: WinnerRequestStatus.REJECTED,
+          reviewNotes: "Too late after acceptance.",
+          now: new Date("2026-04-20T12:13:00.000Z"),
+        }),
+      /Cannot move/
+    );
+});
+
+test("history and admin read models expose stored winner request state", async (context) => {
+    const prisma = getPrismaOrSkip(context);
+
+    if (!prisma) {
+      return;
+    }
+
+    const cycle = await seedOpenCycle(prisma);
+    const winner = await createUser(prisma, "history-winner@example.com");
+    const admin = await prisma.user.create({
+      data: {
+        email: "history-admin@example.com",
+        name: "history-admin@example.com",
+        role: "ADMIN",
+      },
+    });
+
+    await joinRegistrationCycle({
+      db: prisma,
+      userId: winner.id,
+      fortressName: "Archive Fort",
+    });
+    await runGameTick({
+      db: prisma,
+      now: new Date("2026-04-20T12:00:00.000Z"),
+    });
+    await forceEndCurrentCycle({
+      db: prisma,
+      now: new Date("2026-04-20T12:03:00.000Z"),
+    });
+
+    const created = await submitWinnerRequest({
+      db: prisma,
+      cycleId: cycle.id,
+      userId: winner.id,
+      requestText: "Add a tiny winner seal next to the archived result.",
+    });
+
+    await reviewWinnerRequest({
+      db: prisma,
+      requestId: created.id,
+      reviewedById: admin.id,
+      status: WinnerRequestStatus.NEEDS_SIMPLIFICATION,
+      reviewNotes: "Keep it to one small badge and no extra summary blocks.",
+      now: new Date("2026-04-20T12:08:00.000Z"),
+    });
+
+    const historyState = await getCycleHistoryPageState({
+      userId: winner.id,
+      db: prisma,
+    });
+    const adminState = await getAdminDashboardState({
+      db: prisma,
+    });
+
+    assert.equal(historyState.entries[0]?.winnerRequestStatus, WinnerRequestStatus.NEEDS_SIMPLIFICATION);
+    assert.equal(
+      historyState.entries[0]?.winnerRequestSnapshot,
+      "Add a tiny winner seal next to the archived result."
+    );
+    assert.equal(historyState.entries[0]?.canSubmitWinnerRequest, false);
+    assert.equal(adminState.winnerRequests[0]?.status, WinnerRequestStatus.NEEDS_SIMPLIFICATION);
+    assert.equal(
+      adminState.winnerRequests[0]?.reviewNotes,
+      "Keep it to one small badge and no extra summary blocks."
+    );
+  });

@@ -2,8 +2,11 @@ import Link from "next/link";
 import styles from "./page.module.css";
 import { auth } from "@/auth";
 import { getCycleHistoryPageState } from "@/lib/game/history";
+import { submitWinnerRequestAction } from "./actions";
 
 export const dynamic = "force-dynamic";
+
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 const dateTimeFormatter = new Intl.DateTimeFormat("en-US", {
   dateStyle: "medium",
@@ -14,9 +17,28 @@ function formatDateTime(value: Date) {
   return dateTimeFormatter.format(value);
 }
 
-export default async function HistoryPage() {
+function getSearchValue(
+  value: string | string[] | undefined
+): string | undefined {
+  if (Array.isArray(value)) {
+    return value[0];
+  }
+
+  return value;
+}
+
+export default async function HistoryPage({
+  searchParams,
+}: {
+  searchParams?: SearchParams;
+}) {
   const session = await auth();
-  const state = await getCycleHistoryPageState();
+  const params = (await searchParams) ?? {};
+  const error = getSearchValue(params.error);
+  const notice = getSearchValue(params.notice);
+  const state = await getCycleHistoryPageState({
+    userId: session?.user?.id,
+  });
 
   return (
     <main className={styles.page}>
@@ -27,6 +49,18 @@ export default async function HistoryPage() {
           <p>
             Review who won, when the cycle ended, what winner request was on
             file, and whether the finish required tie-break logic.
+          </p>
+          <p>
+            Winners may submit one bounded request per resolved cycle under the{" "}
+            <a
+              className={styles.inlineLink}
+              href={state.policyUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              v1 change policy
+            </a>
+            .
           </p>
         </div>
 
@@ -41,6 +75,9 @@ export default async function HistoryPage() {
           ) : null}
         </div>
       </section>
+
+      {error ? <p className={styles.errorBanner}>{error}</p> : null}
+      {notice ? <p className={styles.noticeBanner}>{notice}</p> : null}
 
       <section className={styles.stack}>
         {state.entries.length > 0 ? (
@@ -81,6 +118,44 @@ export default async function HistoryPage() {
                   <dd>{entry.winnerRequestReviewNotes ?? "No review notes."}</dd>
                 </div>
               </dl>
+
+              {entry.canSubmitWinnerRequest ? (
+                <form action={submitWinnerRequestAction} className={styles.formStack}>
+                  <input type="hidden" name="cycleId" value={entry.cycleId} />
+                  <label className={styles.fieldStack} htmlFor={`request-${entry.id}`}>
+                    <span className={styles.sectionLabel}>Winner request</span>
+                    <textarea
+                      id={`request-${entry.id}`}
+                      name="requestText"
+                      rows={5}
+                      maxLength={600}
+                      placeholder="Describe one bounded gameplay-safe change for a future update."
+                      required
+                    />
+                  </label>
+                  <p className={styles.helperText}>
+                    One request only. Keep it to one bounded change, avoid
+                    direct self-buffs or player-targeted nerfs, and do not ask
+                    for automatic code, PR, or deploy work.{" "}
+                    <a
+                      className={styles.inlineLink}
+                      href={state.policyUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Read the full policy
+                    </a>
+                    .
+                  </p>
+                  <button className={styles.primaryButton} type="submit">
+                    Submit request
+                  </button>
+                </form>
+              ) : (
+                <p className={styles.helperText}>
+                  {entry.submissionEligibilityMessage}
+                </p>
+              )}
             </article>
           ))
         ) : (

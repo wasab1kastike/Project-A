@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { type PrismaClient } from "@/lib/prisma-client";
+import { WINNER_REQUEST_POLICY_URL } from "./winner-requests";
 
 export async function getAdminDashboardState({
   db = prisma,
@@ -126,6 +127,38 @@ export async function getAdminDashboardState({
     },
   });
 
+  const recentWinnerRequests = await db.winnerRequest.findMany({
+    orderBy: {
+      createdAt: "desc",
+    },
+    take: 8,
+    include: {
+      author: {
+        select: {
+          name: true,
+          email: true,
+        },
+      },
+      reviewedBy: {
+        select: {
+          name: true,
+          email: true,
+        },
+      },
+      cycle: {
+        select: {
+          resolvedAt: true,
+          fortresses: {
+            select: {
+              ownerId: true,
+              name: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
   return {
     currentCycle: currentCycle
       ? {
@@ -193,5 +226,23 @@ export async function getAdminDashboardState({
       endedAt: entry.endedAt,
       tieBreakSummary: entry.tieBreakSummary,
     })),
+    winnerRequests: recentWinnerRequests.map((request) => ({
+      id: request.id,
+      cycleId: request.cycleId,
+      authorLabel: request.author.name ?? request.author.email ?? "Unknown player",
+      winnerFortressName:
+        request.cycle.fortresses.find(
+          (fortress) => fortress.ownerId === request.authorId
+        )?.name ?? "Unknown fortress",
+      requestText: request.requestText,
+      status: request.status,
+      reviewNotes: request.reviewNotes,
+      createdAt: request.createdAt,
+      reviewedAt: request.reviewedAt,
+      reviewedByLabel:
+        request.reviewedBy?.name ?? request.reviewedBy?.email ?? null,
+      resolvedAt: request.cycle.resolvedAt,
+    })),
+    policyUrl: WINNER_REQUEST_POLICY_URL,
   };
 }
