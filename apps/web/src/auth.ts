@@ -4,6 +4,17 @@ import Google from "next-auth/providers/google";
 import { prisma } from "@/lib/prisma";
 
 const authSecret = process.env.AUTH_SECRET ?? "project-a-dev-secret-change-me";
+const authUrl =
+  process.env.AUTH_URL ??
+  process.env.NEXTAUTH_URL ??
+  process.env.NEXT_PUBLIC_APP_URL ??
+  process.env.RENDER_EXTERNAL_URL;
+
+if (authUrl) {
+  // The custom Node server listens on 0.0.0.0 inside Render, so pin Auth.js
+  // to the public origin before it builds OAuth callback URLs.
+  process.env.AUTH_URL ??= authUrl;
+}
 
 export const isAuthConfigured = Boolean(
   process.env.AUTH_SECRET &&

@@ -110,6 +110,7 @@ npx prisma db seed
 
 - Google login is configured with `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET`
 - Session signing uses `AUTH_SECRET`
+- Set `AUTH_URL` for any deployment where the public URL should be explicit
 - The first admin is bootstrapped via `ADMIN_EMAIL`
 - Admin access is enforced from the `User.role` field in the database
 - `trustHost` is enabled for proxy-based deployments such as Render
@@ -118,6 +119,8 @@ npx prisma db seed
 
 1. Create a Google OAuth client for the app.
 2. Set the values in `apps/web/.env.local` for local development or in Render for deployed environments.
+   - For Render, the app now falls back to Render's runtime `RENDER_EXTERNAL_URL` if `AUTH_URL` is unset.
+   - If you later add a custom domain, set `AUTH_URL` to that public HTTPS origin explicitly.
 3. Add these callback URLs to the Google OAuth app:
    - `http://localhost:3000/api/auth/callback/google`
    - `https://project-a-web.onrender.com/api/auth/callback/google`
