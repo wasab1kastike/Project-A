@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Session } from "next-auth";
 import styles from "./page.module.css";
 import { auth, isAuthConfigured } from "@/auth";
 import { SessionActions } from "@/components/session-actions";
@@ -12,7 +13,7 @@ import {
   editRegistrationFortressNameAction,
   joinFortressAction,
 } from "@/app/game-actions";
-import { getHomePageState } from "@/lib/game/read-model";
+import { getHomePageState, type HomePageState } from "@/lib/game/read-model";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,30 @@ function formatDeadline(deadline: Date | null) {
   return dateTimeFormatter.format(deadline);
 }
 
+function getDegradedHomePageState(): HomePageState {
+  return {
+    isSpectator: true,
+    cycle: null,
+    phase: null,
+    playerFortress: null,
+    playerSummary: null,
+    leaderboard: [],
+    mapFortresses: [],
+    chat: {
+      messages: [],
+      canPost: false,
+      maxLength: 280,
+      postHint:
+        "Gameplay is temporarily unavailable while the production database connection is being restored.",
+    },
+    availableTargets: [],
+    canJoinRegistration: false,
+    canEditRegistrationName: false,
+    emptyStateMessage:
+      "The battlefield is temporarily offline while the server reconnects to the database.",
+  };
+}
+
 export default async function Home({
   searchParams,
 }: {
@@ -50,12 +75,23 @@ export default async function Home({
   const error = getSearchValue(params.error);
   const notice = getSearchValue(params.notice);
 
-  const session = await auth();
+  let session: Session | null = null;
+  let state: HomePageState = getDegradedHomePageState();
+  let runtimeError: string | null =
+    "Production database access is currently unavailable. Check the Render DATABASE_URL / credential sync and redeploy the service.";
+
+  try {
+    session = await auth();
+    state = await getHomePageState({
+      userId: session?.user?.id,
+    });
+    runtimeError = null;
+  } catch (caughtError) {
+    console.error("Failed to load homepage state", caughtError);
+  }
+
   const isAdmin = session?.user?.role === "ADMIN";
   const userLabel = session?.user?.name ?? session?.user?.email ?? "Commander";
-  const state = await getHomePageState({
-    userId: session?.user?.id,
-  });
   const phaseClassName = [
     styles.hero,
     state.phase?.status === "REGISTRATION" ? styles.registrationHero : styles.activeHero,
@@ -121,6 +157,7 @@ export default async function Home({
         </article>
       </section>
 
+      {runtimeError ? <p className={styles.errorBanner}>{runtimeError}</p> : null}
       {error ? <p className={styles.errorBanner}>{error}</p> : null}
       {notice ? <p className={styles.noticeBanner}>{notice}</p> : null}
 

@@ -246,8 +246,17 @@ async function getRealtimeSnapshot() {
 }
 
 async function startWatcher(io) {
-  let previousSnapshot = await getRealtimeSnapshot();
+  let previousSnapshot = null;
   let running = false;
+
+  try {
+    previousSnapshot = await getRealtimeSnapshot();
+  } catch (error) {
+    console.error(
+      "Project-A realtime watcher could not read the initial database snapshot. Continuing without realtime polling until the database becomes available.",
+      error
+    );
+  }
 
   setInterval(async () => {
     if (io.of("/").sockets.size === 0) {
@@ -262,6 +271,11 @@ async function startWatcher(io) {
 
     try {
       const nextSnapshot = await getRealtimeSnapshot();
+
+      if (previousSnapshot === null) {
+        previousSnapshot = nextSnapshot;
+        return;
+      }
 
       if (nextSnapshot !== previousSnapshot) {
         previousSnapshot = nextSnapshot;
