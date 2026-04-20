@@ -5,11 +5,13 @@ import { redirect } from "next/navigation";
 import { emitProjectARefresh } from "@/lib/realtime";
 import { requireAdminSession } from "@/lib/admin";
 import { GameError } from "@/lib/game/errors";
+import { WinnerRequestStatus } from "@/lib/prisma-client";
 import {
   emergencyResetCurrentCycle,
   forceEndCurrentCycle,
   setRegistrationJoiningLock,
 } from "@/lib/game/admin-operations";
+import { reviewWinnerRequest } from "@/lib/game/winner-requests";
 
 function getString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -85,4 +87,35 @@ export async function emergencyResetCycleAction() {
   }
 
   finishAction("Emergency reset completed and a fresh registration cycle was created.");
+}
+
+export async function reviewWinnerRequestAction(formData: FormData) {
+  const session = await requireAdminSession();
+  const requestId = getString(formData, "requestId");
+  const statusInput = getString(formData, "status");
+  const reviewNotes = getString(formData, "reviewNotes");
+
+  const status = Object.values(WinnerRequestStatus).includes(
+    statusInput as WinnerRequestStatus
+  )
+    ? (statusInput as WinnerRequestStatus)
+    : null;
+
+  if (!requestId || !status) {
+    redirectToAdmin("error", "Choose a valid winner request and review state.");
+  }
+
+  try {
+    await reviewWinnerRequest({
+      requestId,
+      reviewedById: session.user.id,
+      status,
+      reviewNotes,
+    });
+    emitProjectARefresh("winner-request-review");
+  } catch (error) {
+    redirectToAdmin("error", getActionErrorMessage(error));
+  }
+
+  finishAction("Winner request review updated.");
 }

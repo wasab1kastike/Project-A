@@ -5,6 +5,7 @@ import { getAdminDashboardState } from "@/lib/game/admin-dashboard";
 import {
   emergencyResetCycleAction,
   forceEndCycleAction,
+  reviewWinnerRequestAction,
   toggleJoiningLockAction,
 } from "./actions";
 
@@ -55,6 +56,18 @@ export default async function AdminPage({
           <p>
             Inspect players, audit fortress state, force deadlines forward, and
             keep cycle history moving when something goes sideways.
+          </p>
+          <p>
+            Winner request review follows the{" "}
+            <a
+              className={styles.inlineLink}
+              href={state.policyUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              v1 change policy
+            </a>
+            .
           </p>
           <div className={styles.navRow}>
             <Link className={styles.linkButton} href="/">
@@ -285,6 +298,66 @@ export default async function AdminPage({
       </section>
 
       <section className={styles.grid}>
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>Winner requests</span>
+          <h2>Review queue</h2>
+          <div className={styles.historyList}>
+            {state.winnerRequests.length > 0 ? (
+              state.winnerRequests.map((request) => (
+                <div className={styles.historyItem} key={request.id}>
+                  <div className={styles.reviewHeader}>
+                    <div>
+                      <strong>{request.winnerFortressName}</strong>
+                      <p>
+                        {request.authorLabel} · Cycle {request.cycleId.slice(0, 8)}
+                      </p>
+                    </div>
+                    <div>
+                      <strong>{request.status}</strong>
+                      <p>{formatDateTime(request.createdAt)}</p>
+                    </div>
+                  </div>
+                  <p>{request.requestText}</p>
+                  <p>
+                    Reviewed by: {request.reviewedByLabel ?? "Not reviewed yet"}
+                    {request.reviewedAt
+                      ? ` · ${formatDateTime(request.reviewedAt)}`
+                      : ""}
+                  </p>
+                  <p>{request.reviewNotes ?? "No review notes yet."}</p>
+                  <form action={reviewWinnerRequestAction} className={styles.reviewForm}>
+                    <input type="hidden" name="requestId" value={request.id} />
+                    <label className={styles.fieldStack}>
+                      <span>Review state</span>
+                      <select name="status" defaultValue={request.status}>
+                        <option value="SUBMITTED">SUBMITTED</option>
+                        <option value="UNDER_ADMIN_REVIEW">UNDER_ADMIN_REVIEW</option>
+                        <option value="NEEDS_SIMPLIFICATION">NEEDS_SIMPLIFICATION</option>
+                        <option value="ACCEPTED">ACCEPTED</option>
+                        <option value="REJECTED">REJECTED</option>
+                      </select>
+                    </label>
+                    <label className={styles.fieldStack}>
+                      <span>Review notes</span>
+                      <textarea
+                        name="reviewNotes"
+                        rows={4}
+                        defaultValue={request.reviewNotes ?? ""}
+                        placeholder="Explain the decision or the simplification needed."
+                      />
+                    </label>
+                    <button className={styles.primaryButton} type="submit">
+                      Save review
+                    </button>
+                  </form>
+                </div>
+              ))
+            ) : (
+              <p>No winner requests have been submitted yet.</p>
+            )}
+          </div>
+        </article>
+
         <article className={styles.card}>
           <span className={styles.sectionLabel}>Recent history</span>
           <h2>Last resolved cycles</h2>

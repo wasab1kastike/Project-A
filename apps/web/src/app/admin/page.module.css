@@ -58,6 +58,10 @@
   line-height: 1.7;
 }
 
+.inlineLink {
+  color: var(--accent-strong);
+}
+
 .navRow,
 .actionStack {
   display: flex;
@@ -166,7 +170,9 @@
 }
 
 .requestList,
-.historyList {
+.historyList,
+.reviewForm,
+.fieldStack {
   display: grid;
   gap: 12px;
 }
@@ -188,6 +194,17 @@
 .requestList li span,
 .requestList li small {
   color: var(--text-muted);
+}
+
+.reviewHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.reviewHeader strong,
+.reviewHeader p {
+  display: block;
 }
 
 .tableWrap {
@@ -222,6 +239,29 @@
 .table strong,
 .table small {
   display: block;
+}
+
+.fieldStack span {
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.fieldStack select,
+.fieldStack textarea {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--border-soft);
+  border-radius: 18px;
+  background: rgba(7, 13, 20, 0.48);
+  color: var(--foreground);
+  font: inherit;
+}
+
+.fieldStack textarea {
+  resize: vertical;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -263,5 +303,9 @@
   .secondaryButton,
   .dangerButton {
     width: 100%;
+  }
+
+  .reviewHeader {
+    flex-direction: column;
   }
 }

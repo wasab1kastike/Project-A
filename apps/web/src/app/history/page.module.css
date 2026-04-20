@@ -8,7 +8,9 @@
 .stack,
 .card,
 .cardHeader,
-.metaList {
+.metaList,
+.formStack,
+.fieldStack {
   display: grid;
   gap: 16px;
 }
@@ -48,9 +50,14 @@
 .heroCopy p,
 .card p,
 .metaList dd,
-.scoreBlock span {
+.scoreBlock span,
+.helperText {
   color: var(--text-muted);
   line-height: 1.7;
+}
+
+.inlineLink {
+  color: var(--accent-strong);
 }
 
 .navRow {
@@ -74,6 +81,21 @@
     transform 160ms ease,
     border-color 160ms ease,
     background-color 160ms ease;
+}
+
+.primaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--accent-strong);
+  color: #14202f;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .cardHeader {
@@ -103,8 +125,45 @@
   border-top: 1px solid var(--border-soft);
 }
 
+.fieldStack span {
+  margin-bottom: -6px;
+}
+
+.fieldStack textarea {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--border-soft);
+  border-radius: 18px;
+  background: rgba(7, 13, 20, 0.48);
+  color: var(--foreground);
+  font: inherit;
+  resize: vertical;
+}
+
+.errorBanner,
+.noticeBanner {
+  margin-bottom: 18px;
+  padding: 14px 18px;
+  border-radius: 18px;
+  border: 1px solid var(--border-soft);
+  font-weight: 600;
+}
+
+.errorBanner {
+  background: rgba(191, 73, 73, 0.14);
+  border-color: rgba(255, 124, 124, 0.26);
+  color: #ffd6d6;
+}
+
+.noticeBanner {
+  background: rgba(101, 178, 123, 0.12);
+  border-color: rgba(131, 216, 154, 0.26);
+  color: #d7f4df;
+}
+
 @media (hover: hover) and (pointer: fine) {
-  .linkButton:hover {
+  .linkButton:hover,
+  .primaryButton:hover {
     transform: translateY(-1px);
   }
 }
@@ -133,7 +192,8 @@
     flex-direction: column;
   }
 
-  .linkButton {
+  .linkButton,
+  .primaryButton {
     width: 100%;
   }
 }
