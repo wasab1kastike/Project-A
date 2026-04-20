@@ -1,0 +1,20 @@
+name: Redeploy Render Web
+
+on:
+  workflow_dispatch:
+
+jobs:
+  redeploy:
+    runs-on: ubuntu-latest
+    env:
+      RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+    steps:
+      - name: Validate required secrets
+        run: |
+          if [ -z "${RENDER_DEPLOY_HOOK_URL}" ]; then
+            echo "::error::Missing required GitHub secret RENDER_DEPLOY_HOOK_URL"
+            exit 1
+          fi
+
+      - name: Trigger Render deploy hook
+        run: curl --fail --silent --show-error --request POST "${RENDER_DEPLOY_HOOK_URL}"

@@ -185,6 +185,30 @@ Render pre-deploy command:
 npm run db:deploy
 ```
 
+### GitHub secret management
+
+If you want production maintenance flows to run from GitHub instead of a local shell, the repo now includes two manual GitHub Actions workflows:
+
+- `.github/workflows/seed-production.yml`
+- `.github/workflows/redeploy-render.yml`
+
+Recommended repository secrets:
+
+- `PRODUCTION_DATABASE_URL`
+  Use the full production PostgreSQL connection string, including `sslmode=require` when needed for external connections.
+- `PRODUCTION_ADMIN_EMAIL`
+  Optional. When set, the seed flow also bootstraps the admin account.
+- `RENDER_DEPLOY_HOOK_URL`
+  The Render deploy hook for `project-a-web`, used to trigger a safe manual redeploy from GitHub Actions.
+
+Suggested usage:
+
+1. Store the secrets in GitHub repository settings.
+2. Run `Seed Production Database` from the Actions tab when you need to bootstrap or re-run the seed flow.
+3. Run `Redeploy Render Web` after rotating credentials or updating Render-managed environment variables.
+
+Important: GitHub Secrets are excellent for workflows, but the running Render app still needs its own runtime environment variables in Render. Do not commit real secrets into `render.yaml`, `.env.example`, or source files.
+
 What still requires manual setup before a fully usable M0 deployment:
 
 - Add real Google OAuth credentials
