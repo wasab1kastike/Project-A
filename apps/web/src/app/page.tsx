@@ -55,14 +55,13 @@ function getDegradedHomePageState(): HomePageState {
       messages: [],
       canPost: false,
       maxLength: 280,
-      postHint:
-        "Gameplay is temporarily unavailable while the production database connection is being restored.",
+      postHint: "Palvelussa on tilapäinen häiriö. Yritä hetken kuluttua uudelleen.",
     },
     availableTargets: [],
     canJoinRegistration: false,
     canEditRegistrationName: false,
     emptyStateMessage:
-      "The battlefield is temporarily offline while the server reconnects to the database.",
+      "Palvelussa on tilapäinen häiriö. Yritä hetken kuluttua uudelleen.",
   };
 }
 
@@ -78,7 +77,7 @@ export default async function Home({
   let session: Session | null = null;
   let state: HomePageState = getDegradedHomePageState();
   let runtimeError: string | null =
-    "Production database access is currently unavailable. Check the Render DATABASE_URL / credential sync and redeploy the service.";
+    "Palvelussa on tilapäinen häiriö. Yritä hetken kuluttua uudelleen.";
 
   try {
     session = await auth();
