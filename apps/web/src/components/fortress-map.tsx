@@ -224,12 +224,21 @@ function FortressSprite({
 function BattlefieldDecor() {
   return (
     <>
-      <div className={`${styles.terrainPatch} ${styles.patchNorth}`} />
-      <div className={`${styles.terrainPatch} ${styles.patchWest}`} />
-      <div className={`${styles.terrainPatch} ${styles.patchCenter}`} />
-      <div className={`${styles.terrainPatch} ${styles.patchSouth}`} />
-      <div className={`${styles.terrainPatch} ${styles.patchEast}`} />
-      <div className={styles.energyVein} />
+      <div className={styles.terrainLayer}>
+        <div className={`${styles.lakeRegion} ${styles.lakeNorth}`} />
+        <div className={`${styles.lakeRegion} ${styles.lakeSouth}`} />
+        <div className={`${styles.forestRegion} ${styles.forestWest}`}>
+          <span className={styles.treeCluster} />
+        </div>
+        <div className={`${styles.forestRegion} ${styles.forestEast}`}>
+          <span className={styles.treeCluster} />
+        </div>
+      </div>
+      <div className={styles.roadLayer}>
+        <div className={`${styles.roadRoute} ${styles.roadArcPrimary}`} />
+        <div className={`${styles.roadRoute} ${styles.roadArcSecondary}`} />
+        <div className={`${styles.roadRoute} ${styles.roadSpur}`} />
+      </div>
     </>
   );
 }
