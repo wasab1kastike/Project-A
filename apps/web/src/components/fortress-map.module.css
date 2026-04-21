@@ -14,6 +14,71 @@
     0 22px 56px rgba(2, 9, 15, 0.32);
 }
 
+.shell:focus-visible {
+  outline: 2px solid rgba(103, 196, 207, 0.55);
+  outline-offset: 3px;
+}
+
+.controls {
+  position: absolute;
+  z-index: 8;
+  top: 14px;
+  right: 14px;
+  display: inline-flex;
+  gap: 8px;
+}
+
+.controlButton {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(8, 16, 25, 0.88);
+  color: var(--foreground);
+  border-radius: 12px;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 10px;
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.88rem;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    transform 120ms ease,
+    background-color 120ms ease,
+    border-color 120ms ease;
+}
+
+.resetButton {
+  min-width: 92px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.controlButton:hover,
+.controlButton:focus-visible {
+  transform: translateY(-1px);
+  background: rgba(13, 30, 46, 0.95);
+  border-color: rgba(103, 196, 207, 0.5);
+  outline: none;
+}
+
+.viewport {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+  cursor: grab;
+}
+
+.dragging {
+  cursor: grabbing;
+}
+
+.viewportContent {
+  position: absolute;
+  inset: 0;
+  transform-origin: center;
+  will-change: transform;
+}
+
 .gridBackdrop,
 .scanlines,
 .terrainPatch,
@@ -292,6 +357,23 @@
   .shell {
     min-height: 360px;
     border-radius: 24px;
+  }
+
+  .controls {
+    top: 10px;
+    right: 10px;
+    gap: 6px;
+  }
+
+  .controlButton {
+    min-width: 32px;
+    height: 32px;
+    border-radius: 10px;
+  }
+
+  .resetButton {
+    min-width: 84px;
+    font-size: 0.64rem;
   }
 
   .spriteFrame {
