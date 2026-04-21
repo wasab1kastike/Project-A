@@ -4,17 +4,5 @@ export const ACTIVE_PLAYER_CAP = 30;
 export const ACTIVE_RENAME_COST = 10;
 export const REGISTRATION_DURATION_HOURS = 24;
 export const ACTIVE_DURATION_HOURS = 72;
-export const ATTACK_UNIT_SPEED_PER_MINUTE = 12;
-
-export const UNIT_SPRITE_VARIANTS = [
-  "unit-1",
-  "unit-2",
-  "unit-3",
-  "unit-4",
-  "unit-5",
-  "unit-6",
-] as const;
-
-export type UnitSpriteVariant = (typeof UNIT_SPRITE_VARIANTS)[number];
 
 export const MAP_POSITIONS = getStrategicSpawnPositions(ACTIVE_PLAYER_CAP);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import {
   HEX_RADIUS,
@@ -11,7 +11,6 @@ import {
   snapMapPointToHex,
   type HexBiome,
 } from "@/lib/game/map-hex";
-import type { UnitSpriteVariant } from "@/lib/game/constants";
 import styles from "./fortress-map.module.css";
 
 type MapFortress = {
@@ -21,28 +20,8 @@ type MapFortress = {
   currentAction: "GROW" | "ATTACK";
   mapX: number;
   mapY: number;
-  unitSpriteVariant: UnitSpriteVariant;
   isCurrentUser: boolean;
   isTargetable: boolean;
-};
-
-type AttackUnitMarker = {
-  id: string;
-  launchedAt: Date;
-  arrivesAt: Date;
-  attacker: {
-    id: string;
-    name: string;
-    mapX: number;
-    mapY: number;
-    unitSpriteVariant: UnitSpriteVariant;
-  };
-  target: {
-    id: string;
-    name: string;
-    mapX: number;
-    mapY: number;
-  };
 };
 
 type Point = {
@@ -57,7 +36,7 @@ type DragStart = {
   translateY: number;
 };
 
-export type { AttackUnitMarker, MapFortress };
+export type { MapFortress };
 
 const MIN_SCALE = 0.42;
 const MAX_SCALE = 2.1;
@@ -178,17 +157,51 @@ function FortressSprite({
     >
       <ellipse cx="32" cy="52" rx="19" ry="7" fill="rgba(0, 0, 0, 0.28)" />
       <ellipse cx="32" cy="48" rx="20" ry="9" fill={palette.lawn} />
-      <ellipse cx="32" cy="50" rx="14" ry="5" fill="rgba(255, 255, 255, 0.08)" />
+      <ellipse
+        cx="32"
+        cy="50"
+        rx="14"
+        ry="5"
+        fill="rgba(255, 255, 255, 0.08)"
+      />
       <circle cx="32" cy="28" r="20" fill={palette.glow} />
 
       {variant === "citadel" ? (
         <>
-          <rect x="18" y="27" width="28" height="16" rx="4" fill={palette.shell} />
-          <rect x="23" y="18" width="9" height="15" rx="2" fill={palette.shellDark} />
-          <rect x="32" y="16" width="9" height="17" rx="2" fill={palette.shell} />
+          <rect
+            x="18"
+            y="27"
+            width="28"
+            height="16"
+            rx="4"
+            fill={palette.shell}
+          />
+          <rect
+            x="23"
+            y="18"
+            width="9"
+            height="15"
+            rx="2"
+            fill={palette.shellDark}
+          />
+          <rect
+            x="32"
+            y="16"
+            width="9"
+            height="17"
+            rx="2"
+            fill={palette.shell}
+          />
           <path d="M22 27h10l-2-6h-6z" fill={palette.roof} />
           <path d="M32 25h9l-2-7h-5z" fill={palette.roof} />
-          <rect x="28" y="33" width="8" height="10" rx="2" fill={palette.shellDark} />
+          <rect
+            x="28"
+            y="33"
+            width="8"
+            height="10"
+            rx="2"
+            fill={palette.shellDark}
+          />
           <rect x="21" y="32" width="4" height="5" rx="1" fill="#13202d" />
           <rect x="39" y="32" width="4" height="5" rx="1" fill="#13202d" />
         </>
@@ -196,9 +209,30 @@ function FortressSprite({
 
       {variant === "forge" ? (
         <>
-          <rect x="18" y="28" width="28" height="15" rx="4" fill={palette.shell} />
-          <rect x="21" y="22" width="10" height="21" rx="2" fill={palette.shellDark} />
-          <rect x="33" y="20" width="8" height="23" rx="2" fill={palette.shell} />
+          <rect
+            x="18"
+            y="28"
+            width="28"
+            height="15"
+            rx="4"
+            fill={palette.shell}
+          />
+          <rect
+            x="21"
+            y="22"
+            width="10"
+            height="21"
+            rx="2"
+            fill={palette.shellDark}
+          />
+          <rect
+            x="33"
+            y="20"
+            width="8"
+            height="23"
+            rx="2"
+            fill={palette.shell}
+          />
           <path d="M18 28h28l-4-7H23z" fill={palette.roof} />
           <rect x="25" y="33" width="6" height="10" rx="2" fill="#40271d" />
           <rect x="35" y="31" width="6" height="6" rx="1.5" fill="#13202d" />
@@ -208,11 +242,39 @@ function FortressSprite({
 
       {variant === "spire" ? (
         <>
-          <rect x="22" y="29" width="20" height="14" rx="4" fill={palette.shell} />
+          <rect
+            x="22"
+            y="29"
+            width="20"
+            height="14"
+            rx="4"
+            fill={palette.shell}
+          />
           <path d="M27 29h10l-5-16z" fill={palette.roof} />
-          <rect x="29" y="18" width="6" height="22" rx="2" fill={palette.shellDark} />
-          <rect x="18" y="34" width="6" height="9" rx="2" fill={palette.shellDark} />
-          <rect x="40" y="34" width="6" height="9" rx="2" fill={palette.shellDark} />
+          <rect
+            x="29"
+            y="18"
+            width="6"
+            height="22"
+            rx="2"
+            fill={palette.shellDark}
+          />
+          <rect
+            x="18"
+            y="34"
+            width="6"
+            height="9"
+            rx="2"
+            fill={palette.shellDark}
+          />
+          <rect
+            x="40"
+            y="34"
+            width="6"
+            height="9"
+            rx="2"
+            fill={palette.shellDark}
+          />
           <rect x="29" y="33" width="6" height="10" rx="2" fill="#223142" />
           <circle cx="32" cy="13" r="2" fill="#fff1a8" />
         </>
@@ -220,9 +282,30 @@ function FortressSprite({
 
       {variant === "garden" ? (
         <>
-          <rect x="19" y="29" width="26" height="14" rx="5" fill={palette.shell} />
-          <rect x="24" y="20" width="8" height="14" rx="2" fill={palette.shellDark} />
-          <rect x="33" y="22" width="7" height="12" rx="2" fill={palette.shell} />
+          <rect
+            x="19"
+            y="29"
+            width="26"
+            height="14"
+            rx="5"
+            fill={palette.shell}
+          />
+          <rect
+            x="24"
+            y="20"
+            width="8"
+            height="14"
+            rx="2"
+            fill={palette.shellDark}
+          />
+          <rect
+            x="33"
+            y="22"
+            width="7"
+            height="12"
+            rx="2"
+            fill={palette.shell}
+          />
           <path d="M21 29h22l-3-6H24z" fill={palette.roof} />
           <circle cx="18" cy="29" r="4" fill="#7bcf91" />
           <circle cx="46" cy="31" r="4" fill="#7bcf91" />
@@ -232,23 +315,79 @@ function FortressSprite({
 
       {variant === "vault" ? (
         <>
-          <rect x="18" y="28" width="28" height="15" rx="4" fill={palette.shellDark} />
-          <rect x="23" y="22" width="18" height="12" rx="4" fill={palette.shell} />
+          <rect
+            x="18"
+            y="28"
+            width="28"
+            height="15"
+            rx="4"
+            fill={palette.shellDark}
+          />
+          <rect
+            x="23"
+            y="22"
+            width="18"
+            height="12"
+            rx="4"
+            fill={palette.shell}
+          />
           <path d="M21 28h22l-3-7H24z" fill={palette.roof} />
           <rect x="28" y="31" width="8" height="12" rx="2" fill="#3e3217" />
           <circle cx="32" cy="37" r="1.5" fill="#f9df88" />
-          <rect x="18" y="40" width="6" height="3" rx="1.5" fill={palette.shell} />
-          <rect x="40" y="40" width="6" height="3" rx="1.5" fill={palette.shell} />
+          <rect
+            x="18"
+            y="40"
+            width="6"
+            height="3"
+            rx="1.5"
+            fill={palette.shell}
+          />
+          <rect
+            x="40"
+            y="40"
+            width="6"
+            height="3"
+            rx="1.5"
+            fill={palette.shell}
+          />
         </>
       ) : null}
 
       {variant === "watchtower" ? (
         <>
-          <rect x="24" y="18" width="16" height="25" rx="4" fill={palette.shell} />
+          <rect
+            x="24"
+            y="18"
+            width="16"
+            height="25"
+            rx="4"
+            fill={palette.shell}
+          />
           <path d="M22 22h20l-3-6H25z" fill={palette.roof} />
-          <rect x="27" y="28" width="10" height="15" rx="2" fill={palette.shellDark} />
-          <rect x="21" y="37" width="6" height="6" rx="2" fill={palette.shellDark} />
-          <rect x="37" y="37" width="6" height="6" rx="2" fill={palette.shellDark} />
+          <rect
+            x="27"
+            y="28"
+            width="10"
+            height="15"
+            rx="2"
+            fill={palette.shellDark}
+          />
+          <rect
+            x="21"
+            y="37"
+            width="6"
+            height="6"
+            rx="2"
+            fill={palette.shellDark}
+          />
+          <rect
+            x="37"
+            y="37"
+            width="6"
+            height="6"
+            rx="2"
+            fill={palette.shellDark}
+          />
           <rect x="30" y="32" width="4" height="7" rx="1.5" fill="#15212d" />
           <rect x="28" y="24" width="8" height="4" rx="1.5" fill="#15212d" />
         </>
@@ -272,7 +411,11 @@ function HexTileMap() {
       aria-hidden="true"
       role="presentation"
     >
-      <rect width={MAP_WORLD_WIDTH} height={MAP_WORLD_HEIGHT} className={styles.mapBase} />
+      <rect
+        width={MAP_WORLD_WIDTH}
+        height={MAP_WORLD_HEIGHT}
+        className={styles.mapBase}
+      />
       {HEX_TILES.map((tile) => {
         const tileClassName = [
           styles.hexTile,
@@ -324,129 +467,13 @@ function HexTileMap() {
   );
 }
 
-function getAttackProgress(unit: AttackUnitMarker, nowMs: number) {
-  const launchedAt = new Date(unit.launchedAt).getTime();
-  const arrivesAt = new Date(unit.arrivesAt).getTime();
-  const duration = arrivesAt - launchedAt;
-
-  if (duration <= 0) {
-    return 1;
-  }
-
-  return clampValue((nowMs - launchedAt) / duration, 0, 1);
-}
-
-function getInterpolatedPoint(
-  origin: Point,
-  target: Point,
-  progress: number
-) {
-  return {
-    x: origin.x + (target.x - origin.x) * progress,
-    y: origin.y + (target.y - origin.y) * progress,
-  };
-}
-
-function AttackUnitsLayer({
-  attackUnits,
-}: {
-  attackUnits: AttackUnitMarker[];
-}) {
-  const [nowMs, setNowMs] = useState(() => Date.now());
-
-  useEffect(() => {
-    if (attackUnits.length === 0) {
-      return;
-    }
-
-    const interval = window.setInterval(() => {
-      setNowMs(Date.now());
-    }, 1000);
-
-    return () => window.clearInterval(interval);
-  }, [attackUnits.length]);
-
-  if (attackUnits.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className={styles.attackLayer} aria-label="Active attacks">
-      <svg
-        className={styles.attackRoutes}
-        viewBox={`0 0 ${MAP_WORLD_WIDTH} ${MAP_WORLD_HEIGHT}`}
-        aria-hidden="true"
-        role="presentation"
-      >
-        {attackUnits.map((unit) => {
-          const origin = snapMapPointToHex({
-            x: unit.attacker.mapX,
-            y: unit.attacker.mapY,
-          });
-          const target = snapMapPointToHex({
-            x: unit.target.mapX,
-            y: unit.target.mapY,
-          });
-
-          return (
-            <line
-              key={unit.id}
-              className={styles.attackRoute}
-              x1={(origin.x / 100) * MAP_WORLD_WIDTH}
-              y1={(origin.y / 100) * MAP_WORLD_HEIGHT}
-              x2={(target.x / 100) * MAP_WORLD_WIDTH}
-              y2={(target.y / 100) * MAP_WORLD_HEIGHT}
-            />
-          );
-        })}
-      </svg>
-
-      {attackUnits.map((unit) => {
-        const origin = snapMapPointToHex({
-          x: unit.attacker.mapX,
-          y: unit.attacker.mapY,
-        });
-        const target = snapMapPointToHex({
-          x: unit.target.mapX,
-          y: unit.target.mapY,
-        });
-        const progress = getAttackProgress(unit, nowMs);
-        const currentPoint = getInterpolatedPoint(origin, target, progress);
-        const secondsRemaining = Math.max(
-          0,
-          Math.ceil((new Date(unit.arrivesAt).getTime() - nowMs) / 1000)
-        );
-
-        return (
-          <div
-            key={unit.id}
-            className={styles.attackUnit}
-            style={{
-              left: `${currentPoint.x}%`,
-              top: `${currentPoint.y}%`,
-            }}
-            aria-label={`${unit.attacker.name} unit attacking ${unit.target.name}. ${secondsRemaining} seconds until impact.`}
-          >
-            <span
-              className={styles.attackUnitSprite}
-              data-variant={unit.attacker.unitSpriteVariant}
-            />
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 export function FortressMap({
   fortresses,
-  attackUnits = [],
   selectedFortressId,
   selectedTargetId,
   onSelectFortress,
 }: {
   fortresses: MapFortress[];
-  attackUnits?: AttackUnitMarker[];
   selectedFortressId?: string | null;
   selectedTargetId?: string | null;
   onSelectFortress?: (fortress: MapFortress) => void;
@@ -468,30 +495,34 @@ export function FortressMap({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState<DragStart | null>(null);
 
-  const clampTranslation = useCallback((nextX: number, nextY: number, nextScale: number) => {
-    const shellBounds = shellRef.current?.getBoundingClientRect();
+  const clampTranslation = useCallback(
+    (nextX: number, nextY: number, nextScale: number) => {
+      const shellBounds = shellRef.current?.getBoundingClientRect();
 
-    if (!shellBounds) {
-      return { x: nextX, y: nextY };
-    }
+      if (!shellBounds) {
+        return { x: nextX, y: nextY };
+      }
 
-    const visiblePaddingX = Math.min(shellBounds.width * 0.3, 180);
-    const visiblePaddingY = Math.min(shellBounds.height * 0.3, 150);
+      const visiblePaddingX = Math.min(shellBounds.width * 0.3, 180);
+      const visiblePaddingY = Math.min(shellBounds.height * 0.3, 150);
 
-    const maxX = Math.max(
-      0,
-      (MAP_WORLD_WIDTH * nextScale - shellBounds.width) / 2 + visiblePaddingX,
-    );
-    const maxY = Math.max(
-      0,
-      (MAP_WORLD_HEIGHT * nextScale - shellBounds.height) / 2 + visiblePaddingY,
-    );
+      const maxX = Math.max(
+        0,
+        (MAP_WORLD_WIDTH * nextScale - shellBounds.width) / 2 + visiblePaddingX
+      );
+      const maxY = Math.max(
+        0,
+        (MAP_WORLD_HEIGHT * nextScale - shellBounds.height) / 2 +
+          visiblePaddingY
+      );
 
-    return {
-      x: clampValue(nextX, -maxX, maxX),
-      y: clampValue(nextY, -maxY, maxY),
-    };
-  }, []);
+      return {
+        x: clampValue(nextX, -maxX, maxX),
+        y: clampValue(nextY, -maxY, maxY),
+      };
+    },
+    []
+  );
 
   const applyView = useCallback(
     (nextScale: number, nextX: number, nextY: number) => {
@@ -501,7 +532,7 @@ export function FortressMap({
       setTranslateX(clampedTranslate.x);
       setTranslateY(clampedTranslate.y);
     },
-    [clampTranslation],
+    [clampTranslation]
   );
 
   const resetView = useCallback(() => {
@@ -533,12 +564,14 @@ export function FortressMap({
       const clampedNextScale = clampValue(nextScale, MIN_SCALE, MAX_SCALE);
       const ratio = clampedNextScale / scale;
 
-      const nextTranslateX = anchorCenteredX - (anchorCenteredX - translateX) * ratio;
-      const nextTranslateY = anchorCenteredY - (anchorCenteredY - translateY) * ratio;
+      const nextTranslateX =
+        anchorCenteredX - (anchorCenteredX - translateX) * ratio;
+      const nextTranslateY =
+        anchorCenteredY - (anchorCenteredY - translateY) * ratio;
 
       applyView(clampedNextScale, nextTranslateX, nextTranslateY);
     },
-    [applyView, scale, translateX, translateY],
+    [applyView, scale, translateX, translateY]
   );
 
   const updatePinch = useCallback(() => {
@@ -553,7 +586,10 @@ export function FortressMap({
       x: (pointerA.x + pointerB.x) / 2,
       y: (pointerA.y + pointerB.y) / 2,
     };
-    const distance = Math.hypot(pointerB.x - pointerA.x, pointerB.y - pointerA.y);
+    const distance = Math.hypot(
+      pointerB.x - pointerA.x,
+      pointerB.y - pointerA.y
+    );
 
     if (!pinchStateRef.current || pinchStateRef.current.distance === 0) {
       pinchStateRef.current = {
@@ -573,7 +609,11 @@ export function FortressMap({
     }
 
     const ratio = distance / pinchState.distance;
-    const nextScale = clampValue(pinchState.startScale * ratio, MIN_SCALE, MAX_SCALE);
+    const nextScale = clampValue(
+      pinchState.startScale * ratio,
+      MIN_SCALE,
+      MAX_SCALE
+    );
     const scaleRatio = nextScale / pinchState.startScale;
 
     const anchorCenteredX = midpoint.x - shellBounds.width / 2;
@@ -582,9 +622,11 @@ export function FortressMap({
     const startAnchorCenteredY = pinchState.midpoint.y - shellBounds.height / 2;
 
     const nextTranslateX =
-      anchorCenteredX - (startAnchorCenteredX - pinchState.startTranslateX) * scaleRatio;
+      anchorCenteredX -
+      (startAnchorCenteredX - pinchState.startTranslateX) * scaleRatio;
     const nextTranslateY =
-      anchorCenteredY - (startAnchorCenteredY - pinchState.startTranslateY) * scaleRatio;
+      anchorCenteredY -
+      (startAnchorCenteredY - pinchState.startTranslateY) * scaleRatio;
 
     applyView(nextScale, nextTranslateX, nextTranslateY);
   }, [applyView, scale, translateX, translateY]);
@@ -593,7 +635,7 @@ export function FortressMap({
     () => ({
       transform: `translate(-50%, -50%) translate(${translateX}px, ${translateY}px) scale(${scale})`,
     }),
-    [scale, translateX, translateY],
+    [scale, translateX, translateY]
   );
 
   return (
@@ -603,7 +645,11 @@ export function FortressMap({
       role="application"
       aria-label="Battlefield map"
       onKeyDown={(event) => {
-        if (event.key === "+" || event.key === "=" || event.key === "NumpadAdd") {
+        if (
+          event.key === "+" ||
+          event.key === "=" ||
+          event.key === "NumpadAdd"
+        ) {
           event.preventDefault();
           zoomFromViewportPoint(scale + ZOOM_STEP);
         }
@@ -695,7 +741,9 @@ export function FortressMap({
             updatePinch();
           }
 
-          (event.currentTarget as HTMLDivElement).setPointerCapture(event.pointerId);
+          (event.currentTarget as HTMLDivElement).setPointerCapture(
+            event.pointerId
+          );
         }}
         onPointerMove={(event) => {
           const shellBounds = shellRef.current?.getBoundingClientRect();
@@ -732,7 +780,7 @@ export function FortressMap({
           const nextTranslate = clampTranslation(
             dragStart.translateX + deltaX,
             dragStart.translateY + deltaY,
-            scale,
+            scale
           );
           setTranslateX(nextTranslate.x);
           setTranslateY(nextTranslate.y);
@@ -759,9 +807,10 @@ export function FortressMap({
       >
         <div className={styles.viewportContent} style={viewTransform}>
           <HexTileMap />
-          <AttackUnitsLayer attackUnits={attackUnits} />
           {fortresses.length === 0 ? (
-            <div className={styles.emptyState}>No fortresses on the battlefield yet.</div>
+            <div className={styles.emptyState}>
+              No fortresses on the battlefield yet.
+            </div>
           ) : (
             fortresses.map((fortress) => {
               const snappedPosition = snapMapPointToHex({
@@ -803,13 +852,17 @@ export function FortressMap({
                     }
                   }}
                   aria-pressed={
-                    selectedTargetId === fortress.id || selectedFortressId === fortress.id
+                    selectedTargetId === fortress.id ||
+                    selectedFortressId === fortress.id
                   }
                   aria-label={`${fortress.name}, ${fortress.points} points`}
                 >
                   <span className={styles.selectionPulse} />
                   <span className={styles.spriteFrame}>
-                    <FortressSprite variant={variant} action={fortress.currentAction} />
+                    <FortressSprite
+                      variant={variant}
+                      action={fortress.currentAction}
+                    />
                   </span>
                   <span className={styles.pointsBadge}>{fortress.points}</span>
                   <span className={styles.nameplate}>{fortress.name}</span>
