@@ -246,14 +246,20 @@
 
 .selectionPulse {
   position: absolute;
-  top: -7px;
+  top: 45px;
   left: 50%;
-  width: 78px;
-  height: 68px;
-  clip-path: polygon(50% 0, 94% 25%, 94% 75%, 50% 100%, 6% 75%, 6% 25%);
-  background: rgba(124, 167, 255, 0.18);
-  opacity: 0.7;
-  transform: translateX(-50%) scale(0.92);
+  width: 88px;
+  height: 38px;
+  border-radius: 999px;
+  background: radial-gradient(
+    ellipse,
+    rgba(124, 167, 255, 0.22),
+    rgba(124, 167, 255, 0.08) 46%,
+    transparent 72%
+  );
+  opacity: 0.62;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0.92);
   transition:
     opacity 180ms ease,
     transform 180ms ease;
@@ -263,30 +269,108 @@
   position: relative;
   display: grid;
   place-items: center;
-  width: 58px;
-  height: 58px;
-  padding: 4px;
-  border-radius: 8px;
-  border: 2px solid rgba(255, 255, 255, 0.12);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.1)),
-    rgba(8, 16, 18, 0.9);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    0 0 0 2px rgba(2, 6, 10, 0.48),
-    0 8px 0 rgba(0, 0, 0, 0.22);
+  width: 78px;
+  height: 78px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  filter: drop-shadow(0 15px 12px rgba(0, 0, 0, 0.22));
+  overflow: visible;
 }
 
-.sprite {
+.spriteFrame::before {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  width: 72px;
+  height: 22px;
+  border-radius: 999px;
+  background: radial-gradient(
+    ellipse,
+    rgba(0, 0, 0, 0.32),
+    rgba(0, 0, 0, 0.14) 52%,
+    transparent 76%
+  );
+  content: "";
+  transform: translateX(-50%);
+}
+
+.fortressSprite,
+.megaFortressSprite {
+  position: relative;
+  display: block;
   width: 100%;
   height: 100%;
-  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.28));
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+}
+
+.fortressSprite {
+  width: 84px;
+  height: 84px;
+  background-image: url("/assets/fortress-sprites.png");
+  background-size: 300% 200%;
+}
+
+.fortressSprite[data-variant="citadel"] {
+  background-position: 0% 0%;
+}
+
+.fortressSprite[data-variant="forge"] {
+  background-position: 50% 0%;
+}
+
+.fortressSprite[data-variant="spire"] {
+  background-position: 100% 0%;
+}
+
+.fortressSprite[data-variant="garden"] {
+  background-position: 0% 100%;
+}
+
+.fortressSprite[data-variant="vault"] {
+  background-position: 50% 100%;
+}
+
+.fortressSprite[data-variant="watchtower"] {
+  background-position: 100% 100%;
+}
+
+.fortressActionFlag {
+  position: absolute;
+  top: 15px;
+  right: 6px;
+  width: 26px;
+  height: 20px;
+  border: 3px solid #14212b;
+  border-left-width: 6px;
+  border-radius: 2px 8px 8px 2px;
+  background: #89de8e;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.2);
+  transform: rotate(6deg);
+}
+
+.fortressActionFlag::before {
+  position: absolute;
+  top: -4px;
+  left: -10px;
+  width: 4px;
+  height: 34px;
+  border-radius: 999px;
+  background: #dce8ef;
+  box-shadow: 0 0 0 3px #14212b;
+  content: "";
+}
+
+.fortressActionFlag[data-action="ATTACK"] {
+  background: #ff7c7c;
 }
 
 .pointsBadge {
   position: absolute;
-  top: -3px;
-  right: -6px;
+  top: 2px;
+  right: -7px;
   min-width: 24px;
   height: 24px;
   padding: 0 7px;
@@ -307,31 +391,45 @@
 }
 
 .megaMarker .spriteFrame {
-  width: 116px;
-  height: 116px;
-  border-color: rgba(245, 214, 108, 0.34);
-  background:
-    linear-gradient(180deg, rgba(245, 214, 108, 0.12), rgba(0, 0, 0, 0.12)),
-    rgba(14, 21, 25, 0.96);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 0 0 2px rgba(2, 6, 10, 0.5),
-    0 18px 34px rgba(245, 214, 108, 0.18);
+  width: 136px;
+  height: 136px;
+  filter: drop-shadow(0 22px 18px rgba(0, 0, 0, 0.28))
+    drop-shadow(0 0 18px rgba(245, 214, 108, 0.14));
+}
+
+.megaMarker .spriteFrame::before {
+  bottom: 12px;
+  width: 124px;
+  height: 34px;
+  background: radial-gradient(
+    ellipse,
+    rgba(0, 0, 0, 0.38),
+    rgba(0, 0, 0, 0.16) 54%,
+    transparent 78%
+  );
+}
+
+.megaFortressSprite {
+  width: 146px;
+  height: 146px;
+  background-image: url("/assets/mega-fortress.png");
 }
 
 .megaMarker .selectionPulse {
-  top: -14px;
-  width: 146px;
-  height: 126px;
+  top: 78px;
+  width: 170px;
+  height: 78px;
   background: radial-gradient(
-    circle,
-    rgba(245, 214, 108, 0.28),
-    transparent 70%
+    ellipse,
+    rgba(245, 214, 108, 0.32),
+    rgba(245, 214, 108, 0.12) 48%,
+    transparent 72%
   );
 }
 
 .megaMarker .pointsBadge {
-  right: -26px;
+  top: 8px;
+  right: -34px;
   min-width: 78px;
   color: #ffe48b;
 }
@@ -396,7 +494,7 @@
 .marker:focus-visible .selectionPulse,
 .selected .selectionPulse {
   opacity: 1;
-  transform: translateX(-50%) scale(1.06);
+  transform: translate(-50%, -50%) scale(1.06);
 }
 
 .targetable {
@@ -407,61 +505,51 @@
   cursor: pointer;
 }
 
-.targetable .spriteFrame {
-  border-color: rgba(122, 206, 135, 0.18);
-}
-
 .targetable .selectionPulse {
   background: radial-gradient(
-    circle,
-    rgba(122, 206, 135, 0.16),
+    ellipse,
+    rgba(122, 206, 135, 0.24),
+    rgba(122, 206, 135, 0.08) 48%,
     transparent 72%
   );
 }
 
 .currentUser .spriteFrame {
-  border-color: rgba(247, 196, 95, 0.26);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    0 0 0 1px rgba(247, 196, 95, 0.14),
-    0 14px 26px rgba(247, 196, 95, 0.14);
+  filter: drop-shadow(0 15px 12px rgba(0, 0, 0, 0.22))
+    drop-shadow(0 0 12px rgba(247, 196, 95, 0.24));
 }
 
 .currentUser .selectionPulse {
   background: radial-gradient(
-    circle,
-    rgba(247, 196, 95, 0.24),
+    ellipse,
+    rgba(247, 196, 95, 0.32),
+    rgba(247, 196, 95, 0.1) 48%,
     transparent 72%
   );
 }
 
 .selected .spriteFrame {
-  border-color: rgba(255, 124, 124, 0.34);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    0 0 0 1px rgba(255, 124, 124, 0.18),
-    0 14px 28px rgba(255, 124, 124, 0.18);
+  filter: drop-shadow(0 15px 12px rgba(0, 0, 0, 0.22))
+    drop-shadow(0 0 14px rgba(255, 124, 124, 0.26));
 }
 
 .selected .selectionPulse {
   background: radial-gradient(
-    circle,
-    rgba(255, 124, 124, 0.26),
+    ellipse,
+    rgba(255, 124, 124, 0.34),
+    rgba(255, 124, 124, 0.11) 48%,
     transparent 72%
   );
 }
 
 .activeFortress .spriteFrame {
-  border-color: rgba(247, 196, 95, 0.48);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    0 0 0 1px rgba(247, 196, 95, 0.24),
-    0 16px 30px rgba(247, 196, 95, 0.2);
+  filter: drop-shadow(0 16px 12px rgba(0, 0, 0, 0.24))
+    drop-shadow(0 0 16px rgba(247, 196, 95, 0.32));
 }
 
 .activeFortress .selectionPulse {
   opacity: 1;
-  transform: translateX(-50%) scale(1.12);
+  transform: translate(-50%, -50%) scale(1.12);
 }
 
 .marker:focus-visible {
@@ -470,7 +558,7 @@
 
 .marker:focus-visible .spriteFrame {
   outline: 2px solid rgba(255, 255, 255, 0.42);
-  outline-offset: 4px;
+  outline-offset: 8px;
 }
 
 @media (max-width: 640px) {
@@ -497,30 +585,48 @@
   }
 
   .spriteFrame {
-    width: 52px;
-    height: 52px;
-    border-radius: 8px;
+    width: 68px;
+    height: 68px;
+  }
+
+  .fortressSprite {
+    width: 74px;
+    height: 74px;
+  }
+
+  .fortressActionFlag {
+    top: 13px;
+    right: 4px;
+    width: 23px;
+    height: 18px;
   }
 
   .megaMarker .spriteFrame {
-    width: 92px;
-    height: 92px;
+    width: 112px;
+    height: 112px;
+  }
+
+  .megaFortressSprite {
+    width: 120px;
+    height: 120px;
   }
 
   .megaMarker .selectionPulse {
-    width: 118px;
-    height: 104px;
+    top: 66px;
+    width: 140px;
+    height: 62px;
   }
 
   .megaMarker .pointsBadge {
     min-width: 66px;
     font-size: 0.64rem;
+    right: -28px;
   }
 
   .selectionPulse {
-    top: -6px;
-    width: 70px;
-    height: 60px;
+    top: 40px;
+    width: 76px;
+    height: 34px;
   }
 
   .nameplate {
