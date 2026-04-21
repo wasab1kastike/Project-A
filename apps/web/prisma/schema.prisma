@@ -114,6 +114,7 @@ model Cycle {
   resolvedAt            DateTime?
   winnerId              String?
   crownedFortressId     String?
+  mapLayoutVersion      Int             @default(1)
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
   winner                User?           @relation("CycleWinner", fields: [winnerId], references: [id], onDelete: SetNull)

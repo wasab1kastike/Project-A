@@ -10,6 +10,7 @@ import {
   snapMapPointToHex,
 } from "./map-hex";
 import {
+  CURRENT_MAP_LAYOUT_VERSION,
   MEGA_FORTRESS_HEALTH,
   MEGA_FORTRESS_ICON_LABEL,
   MEGA_FORTRESS_NAME,
@@ -210,4 +211,50 @@ export async function reshuffleActiveFortressPositions({
       });
     })
   );
+}
+
+export async function ensureCurrentMapLayout({
+  db,
+  cycleId,
+  seed,
+}: {
+  db: DatabaseClient;
+  cycleId: string;
+  seed: string;
+}) {
+  const cycle = await db.cycle.findUnique({
+    where: {
+      id: cycleId,
+    },
+    select: {
+      id: true,
+      status: true,
+      mapLayoutVersion: true,
+    },
+  });
+
+  if (
+    !cycle ||
+    cycle.status !== CycleStatus.ACTIVE ||
+    cycle.mapLayoutVersion >= CURRENT_MAP_LAYOUT_VERSION
+  ) {
+    return false;
+  }
+
+  await reshuffleActiveFortressPositions({
+    db,
+    cycleId,
+    seed,
+  });
+
+  await db.cycle.update({
+    where: {
+      id: cycleId,
+    },
+    data: {
+      mapLayoutVersion: CURRENT_MAP_LAYOUT_VERSION,
+    },
+  });
+
+  return true;
 }

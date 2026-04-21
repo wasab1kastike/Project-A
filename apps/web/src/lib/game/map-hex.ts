@@ -1,5 +1,5 @@
-export const MAP_WORLD_WIDTH = 2200;
-export const MAP_WORLD_HEIGHT = 1400;
+export const MAP_WORLD_WIDTH = 3810;
+export const MAP_WORLD_HEIGHT = 2425;
 export const HEX_RADIUS = 52;
 export const HEX_WIDTH = Math.sqrt(3) * HEX_RADIUS;
 export const HEX_VERTICAL_STEP = HEX_RADIUS * 1.5;
@@ -208,38 +208,22 @@ export function isPointNearSpawnHex(point: MapPoint, maxDistancePx = HEX_RADIUS 
 }
 
 export function getStrategicSpawnPositions(count: number) {
-  const preferredTargets: MapPoint[] = [
-    { x: 8, y: 11 },
-    { x: 23, y: 10 },
-    { x: 40, y: 13 },
-    { x: 61, y: 12 },
-    { x: 76, y: 18 },
-    { x: 14, y: 26 },
-    { x: 31, y: 27 },
-    { x: 49, y: 25 },
-    { x: 68, y: 30 },
-    { x: 82, y: 32 },
-    { x: 9, y: 43 },
-    { x: 25, y: 46 },
-    { x: 43, y: 42 },
-    { x: 62, y: 48 },
-    { x: 78, y: 45 },
-    { x: 16, y: 62 },
-    { x: 34, y: 65 },
-    { x: 53, y: 61 },
-    { x: 70, y: 67 },
-    { x: 84, y: 64 },
-    { x: 8, y: 80 },
-    { x: 25, y: 84 },
-    { x: 44, y: 80 },
-    { x: 62, y: 84 },
-    { x: 80, y: 82 },
-    { x: 16, y: 93 },
-    { x: 36, y: 94 },
-    { x: 55, y: 94 },
-    { x: 72, y: 93 },
-    { x: 86, y: 92 },
-  ];
+  if (count <= 0) {
+    return [];
+  }
+
+  const columns = Math.ceil(Math.sqrt(count * 1.2));
+  const rows = Math.ceil(count / columns);
+  const preferredTargets: MapPoint[] = [];
+
+  for (let row = 0; row < rows; row += 1) {
+    for (let col = 0; col < columns; col += 1) {
+      preferredTargets.push({
+        x: roundPercent(7 + ((col + 0.5) / columns) * 86),
+        y: roundPercent(7 + ((row + 0.5) / rows) * 86),
+      });
+    }
+  }
   const chosen: HexTile[] = [];
 
   for (const target of preferredTargets) {

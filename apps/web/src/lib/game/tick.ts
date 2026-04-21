@@ -15,6 +15,7 @@ import {
 } from "./constants";
 import { launchAttackUnit } from "./attack-units";
 import {
+  ensureCurrentMapLayout,
   ensureActiveCycleMegaFortress,
   ensureMegaFortress,
   reshuffleActiveFortressPositions,
@@ -493,6 +494,12 @@ async function processCycleTick(
 
       throw error;
     }
+
+    await ensureCurrentMapLayout({
+      db: tx,
+      cycleId,
+      seed: `${cycleId}:${tickAt.toISOString()}:layout-v2`,
+    });
 
     let fortresses = await tx.fortress.findMany({
       where: {

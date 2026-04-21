@@ -4,10 +4,18 @@ services:
     runtime: node
     plan: starter
     autoDeployTrigger: commit
-    buildCommand: npm ci && npm run db:generate && npm run build
+    buildCommand: node scripts/render-build.mjs web
     preDeployCommand: npm run db:deploy
     startCommand: npm run start
     healthCheckPath: /
+    buildFilter:
+      paths:
+        - .node-version
+        - package.json
+        - package-lock.json
+        - render.yaml
+        - scripts/**
+        - apps/web/**
     envVars:
       - key: NEXT_PUBLIC_APP_NAME
         value: Project-A
@@ -29,9 +37,17 @@ services:
     runtime: node
     plan: starter
     autoDeployTrigger: commit
-    buildCommand: npm ci && npm run db:generate && npm run build
+    buildCommand: node scripts/render-build.mjs cron
     startCommand: npm run game:tick
     schedule: "* * * * *"
+    buildFilter:
+      paths:
+        - .node-version
+        - package.json
+        - package-lock.json
+        - render.yaml
+        - scripts/**
+        - apps/web/**
     envVars:
       - key: DATABASE_URL
         fromDatabase:

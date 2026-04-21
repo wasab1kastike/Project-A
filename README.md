@@ -190,9 +190,7 @@ The repo now includes a Render Blueprint at `render.yaml` for:
 Suggested first deploy flow:
 
 ```bash
-npm ci
-npm run db:generate
-npm run build
+node scripts/render-build.mjs web
 ```
 
 Render pre-deploy command:
@@ -202,6 +200,10 @@ npm run db:deploy
 ```
 
 Production minute ticks are handled by the `project-a-game-tick` Render Cron Job. It runs `npm run game:tick` every minute, uses the same `project-a-db` connection, and relies on the tick processor's idempotency to safely catch up delayed runs.
+
+Render build optimization is handled by `scripts/render-build.mjs`. The web build restores and saves the Next.js `.next/cache` directory through Render's build cache and uses Render's cache directory for npm downloads. The cron build installs dependencies and generates the Prisma client without running a full Next.js production build.
+
+Use Render's `Clear build cache & deploy` option only when build artifacts appear stale or after changing the build-cache flow itself.
 
 For local debugging or manual catch-up, run:
 

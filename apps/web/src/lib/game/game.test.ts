@@ -18,13 +18,19 @@ import { seedProjectA } from "./bootstrap";
 import { sendChatMessage } from "./chat";
 import {
   ACTIVE_PLAYER_CAP,
+  CURRENT_MAP_LAYOUT_VERSION,
   MAP_POSITIONS,
   MEGA_FORTRESS_DESTROY_BONUS,
   MEGA_FORTRESS_HEALTH,
   UNIT_SPRITE_VARIANTS,
 } from "./constants";
 import { getAttackArrivalAt } from "./attacks";
-import { isPointNearSpawnHex, snapMapPointToHex } from "./map-hex";
+import {
+  MAP_WORLD_HEIGHT,
+  MAP_WORLD_WIDTH,
+  isPointNearSpawnHex,
+  snapMapPointToHex,
+} from "./map-hex";
 import { getAdminDashboardState } from "./admin-dashboard";
 import { getCycleHistoryPageState } from "./history";
 import { getHomePageState } from "./read-model";
@@ -50,7 +56,11 @@ const defaultDatabaseUrl =
 
 test("map positions are unique and spread across the battlefield bounds", () => {
   const occupied = new Set<string>();
+  const originalArea = 2200 * 1400;
+  const currentArea = MAP_WORLD_WIDTH * MAP_WORLD_HEIGHT;
 
+  assert.ok(currentArea / originalArea > 2.95);
+  assert.ok(currentArea / originalArea < 3.05);
   assert.equal(MAP_POSITIONS.length, ACTIVE_PLAYER_CAP);
 
   for (const position of MAP_POSITIONS) {
@@ -568,6 +578,112 @@ test("activation creates one mega fortress without consuming player slots", asyn
     state.availableTargets.some((target) => target.id === megaFortresses[0]?.id),
     true
   );
+});
+
+test("old active map layouts reshuffle once on the next tick", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const alpha = await createUser(prisma, "layout-alpha@example.com");
+  const beta = await createUser(prisma, "layout-beta@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: alpha.id,
+    fortressName: "Layout Alpha",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: beta.id,
+    fortressName: "Layout Beta",
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  await prisma.cycle.update({
+    where: {
+      id: cycle.id,
+    },
+    data: {
+      mapLayoutVersion: 1,
+    },
+  });
+
+  const positionsBefore = await prisma.fortress.findMany({
+    where: {
+      cycleId: cycle.id,
+    },
+    orderBy: {
+      id: "asc",
+    },
+    select: {
+      id: true,
+      mapX: true,
+      mapY: true,
+    },
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+  });
+
+  const refreshedCycle = await prisma.cycle.findUniqueOrThrow({
+    where: {
+      id: cycle.id,
+    },
+  });
+  const positionsAfterFirstTick = await prisma.fortress.findMany({
+    where: {
+      cycleId: cycle.id,
+    },
+    orderBy: {
+      id: "asc",
+    },
+    select: {
+      id: true,
+      mapX: true,
+      mapY: true,
+    },
+  });
+  const uniquePositionKeys = new Set(
+    positionsAfterFirstTick.map((position) => `${position.mapX}:${position.mapY}`)
+  );
+
+  assert.equal(refreshedCycle.mapLayoutVersion, CURRENT_MAP_LAYOUT_VERSION);
+  assert.notDeepEqual(positionsAfterFirstTick, positionsBefore);
+  assert.equal(uniquePositionKeys.size, positionsAfterFirstTick.length);
+
+  for (const position of positionsAfterFirstTick) {
+    assert.ok(isPointNearSpawnHex({ x: position.mapX, y: position.mapY }));
+  }
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:02:00.000Z"),
+  });
+
+  const positionsAfterSecondTick = await prisma.fortress.findMany({
+    where: {
+      cycleId: cycle.id,
+    },
+    orderBy: {
+      id: "asc",
+    },
+    select: {
+      id: true,
+      mapX: true,
+      mapY: true,
+    },
+  });
+
+  assert.deepEqual(positionsAfterSecondTick, positionsAfterFirstTick);
 });
 
 test("action updates persist and self-targeting is rejected", async (context) => {
