@@ -38,6 +38,13 @@ Project-A is a browser-based multiplayer strategy game where each season evolves
 `-- README.md
 ```
 
+## Documentation
+
+- [Changelog policy](docs/changelog-policy.md#required-entry-format)
+- [Map overhaul changelog entry](docs/changelog-policy.md#map-overhaul-log)
+- [Known hosting constraints for GitHub Pages](docs/github-pages-hosting.md#constraints-to-account-for)
+
+
 ## Getting started
 
 1. Install dependencies:
@@ -153,6 +160,12 @@ The home page is intentionally minimal in M1:
 - signed out: read-only spectator status
 - signed in during `REGISTRATION`: join or rename your fortress
 - signed in during `ACTIVE`: choose `GROW` or `ATTACK`, pick a target, and spend points on renames
+
+## Battlefield map controls
+
+- **Zoom:** mouse wheel, trackpad pinch, or on-screen zoom buttons
+- **Panning:** mouse drag on desktop, touch drag on mobile/tablet
+- **Reset view:** use the reset control to return to the default battlefield framing
 
 ## Testing the game loop
 
