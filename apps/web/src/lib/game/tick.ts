@@ -9,9 +9,16 @@ import { prisma } from "@/lib/prisma";
 import { ensureOpenRegistrationCycle } from "./bootstrap";
 import {
   ACTIVE_DURATION_HOURS,
+  MEGA_FORTRESS_DESTROY_BONUS,
+  MEGA_FORTRESS_HEALTH,
   REGISTRATION_DURATION_HOURS,
 } from "./constants";
 import { launchAttackUnit } from "./attack-units";
+import {
+  ensureActiveCycleMegaFortress,
+  ensureMegaFortress,
+  reshuffleActiveFortressPositions,
+} from "./mega-fortress";
 import { addHours, addMinutes, floorToMinute } from "./time";
 
 type TickSummary = {
@@ -169,11 +176,18 @@ async function activateRegistrationCycle(
     await tx.fortress.updateMany({
       where: {
         cycleId: cycle.id,
+        isNpc: false,
       },
       data: {
         currentAction: FortressAction.GROW,
         targetFortressId: null,
       },
+    });
+
+    await ensureMegaFortress({
+      db: tx,
+      cycleId: cycle.id,
+      seed: `${cycle.id}:${activeStartedAt.toISOString()}`,
     });
 
     return true;
@@ -233,6 +247,9 @@ async function resolveExpiredActiveCycle(
       },
       include: {
         fortresses: {
+          where: {
+            isNpc: false,
+          },
           orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
           select: {
             id: true,
@@ -450,6 +467,11 @@ async function processCycleTick(
       return { processed: false, scoreEventsCreated: 0 };
     }
 
+    await ensureActiveCycleMegaFortress({
+      db: tx,
+      cycleId,
+    });
+
     const firstTickAt = getFirstTickAt(cycle.activeStartedAt);
     const lastDueTickAt = getLastDueTickAt(cycle, now);
 
@@ -472,7 +494,7 @@ async function processCycleTick(
       throw error;
     }
 
-    const fortresses = await tx.fortress.findMany({
+    let fortresses = await tx.fortress.findMany({
       where: {
         cycleId,
       },
@@ -483,6 +505,9 @@ async function processCycleTick(
         points: true,
         currentAction: true,
         targetFortressId: true,
+        isNpc: true,
+        health: true,
+        maxHealth: true,
         mapX: true,
         mapY: true,
         joinedAt: true,
@@ -492,11 +517,15 @@ async function processCycleTick(
     const currentPoints = new Map(
       fortresses.map((fortress) => [fortress.id, fortress.points])
     );
-    const fortressLookup = new Map(
+    const currentHealth = new Map(
+      fortresses.map((fortress) => [fortress.id, fortress.health])
+    );
+    let fortressLookup = new Map(
       fortresses.map((fortress) => [fortress.id, fortress])
     );
     const scoreEvents: Prisma.ScoreEventCreateManyInput[] = [];
     const resolvedAttackers = new Set<string>();
+    const destroyedMegaTargets = new Set<string>();
 
     const dueAttackUnits = await tx.attackUnit.findMany({
       where: {
@@ -517,7 +546,7 @@ async function processCycleTick(
 
     for (const unit of dueAttackUnits) {
       const attacker = fortressLookup.get(unit.attackerFortressId);
-      const targetPoints = currentPoints.get(unit.targetFortressId);
+      const target = fortressLookup.get(unit.targetFortressId);
 
       await tx.attackUnit.update({
         where: {
@@ -530,7 +559,76 @@ async function processCycleTick(
 
       resolvedAttackers.add(unit.attackerFortressId);
 
-      if (!attacker || targetPoints === undefined) {
+      if (!attacker || !target) {
+        continue;
+      }
+
+      if (target?.isNpc) {
+        if (destroyedMegaTargets.has(target.id)) {
+          continue;
+        }
+
+        const targetHealth = currentHealth.get(target.id) ?? target.health;
+        const targetLoss = Math.min(targetHealth, 2);
+
+        if (targetLoss <= 0) {
+          continue;
+        }
+
+        const nextHealth = targetHealth - targetLoss;
+        currentHealth.set(target.id, nextHealth);
+
+        scoreEvents.push({
+          cycleId,
+          fortressId: target.id,
+          actorId: attacker.ownerId,
+          targetFortressId: target.id,
+          eventType: ScoreEventType.MEGA_DAMAGE,
+          delta: -targetLoss,
+          createdAt: tickAt,
+        });
+
+        if (nextHealth <= 0) {
+          const attackerPoints =
+            (currentPoints.get(attacker.id) ?? attacker.points) +
+            MEGA_FORTRESS_DESTROY_BONUS;
+
+          currentPoints.set(attacker.id, attackerPoints);
+          currentHealth.set(target.id, target.maxHealth || MEGA_FORTRESS_HEALTH);
+          destroyedMegaTargets.add(target.id);
+
+          scoreEvents.push({
+            cycleId,
+            fortressId: attacker.id,
+            actorId: attacker.ownerId,
+            targetFortressId: target.id,
+            eventType: ScoreEventType.MEGA_DESTROY_BONUS,
+            delta: MEGA_FORTRESS_DESTROY_BONUS,
+            createdAt: tickAt,
+          });
+
+          await tx.cycle.update({
+            where: {
+              id: cycleId,
+            },
+            data: {
+              crownedFortressId: attacker.id,
+            },
+          });
+
+          await reshuffleActiveFortressPositions({
+            db: tx,
+            cycleId,
+            seed: `${cycleId}:${tickAt.toISOString()}:${unit.id}`,
+          });
+        }
+
+        continue;
+      }
+
+      const targetPoints = currentPoints.get(unit.targetFortressId);
+
+      if (targetPoints === undefined) {
         continue;
       }
 
@@ -549,6 +647,10 @@ async function processCycleTick(
     }
 
     for (const fortress of fortresses) {
+      if (fortress.isNpc) {
+        continue;
+      }
+
       if (fortress.currentAction === FortressAction.GROW) {
         currentPoints.set(
           fortress.id,
@@ -568,14 +670,16 @@ async function processCycleTick(
 
     for (const fortress of fortresses) {
       const nextPoints = currentPoints.get(fortress.id) ?? fortress.points;
+      const nextHealth = currentHealth.get(fortress.id) ?? fortress.health;
 
-      if (nextPoints !== fortress.points) {
+      if (nextPoints !== fortress.points || nextHealth !== fortress.health) {
         await tx.fortress.update({
           where: {
             id: fortress.id,
           },
           data: {
             points: nextPoints,
+            health: nextHealth,
           },
         });
       }
@@ -589,9 +693,35 @@ async function processCycleTick(
 
     let launchedAttackUnits = 0;
 
+    if (destroyedMegaTargets.size > 0) {
+      fortresses = await tx.fortress.findMany({
+        where: {
+          cycleId,
+        },
+        orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
+        select: {
+          id: true,
+          ownerId: true,
+          points: true,
+          currentAction: true,
+          targetFortressId: true,
+          isNpc: true,
+          health: true,
+          maxHealth: true,
+          mapX: true,
+          mapY: true,
+          joinedAt: true,
+        },
+      });
+      fortressLookup = new Map(
+        fortresses.map((fortress) => [fortress.id, fortress])
+      );
+    }
+
     for (const fortress of fortresses) {
       if (
         fortress.currentAction !== FortressAction.ATTACK ||
+        fortress.isNpc ||
         !fortress.targetFortressId ||
         fortress.targetFortressId === fortress.id ||
         resolvedAttackers.has(fortress.id)

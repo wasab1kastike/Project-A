@@ -4,6 +4,10 @@
   gap: 12px;
 }
 
+.compactActions {
+  gap: 8px;
+}
+
 .primaryButton,
 .linkButton {
   display: inline-flex;
@@ -45,6 +49,14 @@
   color: var(--text-muted);
   font-size: 0.9rem;
   line-height: 1.6;
+}
+
+.compactActions .primaryButton,
+.compactActions .linkButton {
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 0.84rem;
 }
 
 @media (hover: hover) and (pointer: fine) {

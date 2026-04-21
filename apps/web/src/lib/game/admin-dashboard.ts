@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { type PrismaClient } from "@/lib/prisma-client";
+import { NPC_SYSTEM_USER_EMAIL } from "./constants";
 import { WINNER_REQUEST_POLICY_URL } from "./winner-requests";
 
 export async function getAdminDashboardState({
@@ -21,6 +22,11 @@ export async function getAdminDashboardState({
           id: true,
           name: true,
           points: true,
+          isNpc: true,
+          health: true,
+          maxHealth: true,
+          sizeTiles: true,
+          iconLabel: true,
           currentAction: true,
           mapX: true,
           mapY: true,
@@ -78,6 +84,11 @@ export async function getAdminDashboardState({
   });
 
   const users = await db.user.findMany({
+    where: {
+      email: {
+        not: NPC_SYSTEM_USER_EMAIL,
+      },
+    },
     orderBy: [{ role: "desc" }, { createdAt: "asc" }],
     select: {
       id: true,
@@ -93,8 +104,9 @@ export async function getAdminDashboardState({
         select: {
           id: true,
           name: true,
-          points: true,
-          currentAction: true,
+              points: true,
+              isNpc: true,
+              currentAction: true,
           joinedAt: true,
         },
       },
@@ -209,6 +221,11 @@ export async function getAdminDashboardState({
         fortress.owner.name ?? fortress.owner.email ?? "Unknown player",
       ownerRole: fortress.owner.role,
       points: fortress.points,
+      isNpc: fortress.isNpc,
+      health: fortress.health,
+      maxHealth: fortress.maxHealth,
+      sizeTiles: fortress.sizeTiles,
+      iconLabel: fortress.iconLabel,
       currentAction: fortress.currentAction,
       targetName: fortress.targetFortress?.name ?? null,
       joinedAt: fortress.joinedAt,

@@ -19,6 +19,9 @@ type CommandTarget = {
   id: string;
   name: string;
   points: number;
+  isNpc: boolean;
+  health: number;
+  maxHealth: number;
   currentAction: "GROW" | "ATTACK";
 };
 
@@ -66,6 +69,7 @@ export function BattlefieldExperience({
   targets,
   chat,
   canEditRegistrationName,
+  immersive = false,
 }: {
   title: string;
   description: string;
@@ -77,6 +81,7 @@ export function BattlefieldExperience({
   targets: CommandTarget[];
   chat: ChatProps;
   canEditRegistrationName: boolean;
+  immersive?: boolean;
 }) {
   const [chatOpen, setChatOpen] = useState(false);
   const [actionOpen, setActionOpen] = useState(false);
@@ -118,39 +123,52 @@ export function BattlefieldExperience({
       setTargetFortressId("");
     }
   }
+
+  const actionButtons = (
+    <div
+      className={immersive ? styles.floatingActions : styles.headerActions}
+      aria-label="Battlefield overlays"
+    >
+      <button
+        type="button"
+        className={styles.overlayButton}
+        aria-expanded={chatOpen}
+        onClick={() => setChatOpen((isOpen) => !isOpen)}
+      >
+        {chatOpen ? "Hide chat" : "Open chat"}
+      </button>
+      {ownFortress ? (
+        <button
+          type="button"
+          className={styles.overlayButton}
+          aria-expanded={actionOpen}
+          disabled={!canOpenActions}
+          onClick={() => openOwnActions(ownFortress.id)}
+        >
+          Orders
+        </button>
+      ) : null}
+    </div>
+  );
+
   return (
-    <section className={styles.experience} aria-labelledby="battlefield-title">
-      <div className={styles.header}>
+    <section
+      className={`${styles.experience} ${immersive ? styles.immersive : ""}`}
+      aria-labelledby="battlefield-title"
+    >
+      <div className={immersive ? styles.headerHidden : styles.header}>
         <div>
           <span className={styles.label}>Battlefield</span>
           <h2 id="battlefield-title">{title}</h2>
           <p>{description}</p>
         </div>
-        <div className={styles.headerActions}>
-          <button
-            type="button"
-            className={styles.overlayButton}
-            aria-expanded={chatOpen}
-            onClick={() => setChatOpen((isOpen) => !isOpen)}
-          >
-            {chatOpen ? "Hide chat" : "Open chat"}
-          </button>
-          {ownFortress ? (
-            <button
-              type="button"
-              className={styles.overlayButton}
-              aria-expanded={actionOpen}
-              disabled={!canOpenActions}
-              onClick={() => openOwnActions(ownFortress.id)}
-            >
-              Orders
-            </button>
-          ) : null}
-        </div>
+        {!immersive ? actionButtons : null}
       </div>
 
       <div className={styles.mapStage}>
+        {immersive ? actionButtons : null}
         <FortressMap
+          className={immersive ? styles.fullMap : undefined}
           fortresses={mapFortresses}
           attackUnits={attackUnits}
           selectedFortressId={selectedFortressId}
@@ -254,7 +272,11 @@ export function BattlefieldExperience({
                         <option value="">Choose target</option>
                         {targets.map((target) => (
                           <option key={target.id} value={target.id}>
-                            {target.name} ({target.points} pts)
+                            {target.name} (
+                            {target.isNpc
+                              ? `${target.health}/${target.maxHealth} HP`
+                              : `${target.points} pts`}
+                            )
                           </option>
                         ))}
                       </select>
@@ -267,7 +289,10 @@ export function BattlefieldExperience({
                 </form>
 
                 {playerSummary.canRename ? (
-                  <form action={renameFortressAction} className={styles.renamePanel}>
+                  <form
+                    action={renameFortressAction}
+                    className={styles.renamePanel}
+                  >
                     <label className={styles.field}>
                       <span>Rename</span>
                       <input

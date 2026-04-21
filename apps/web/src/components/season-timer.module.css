@@ -22,3 +22,23 @@
   line-height: 1;
   letter-spacing: -0.05em;
 }
+
+.compactTimer {
+  min-height: 48px;
+  align-content: center;
+  gap: 3px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(6, 12, 18, 0.68);
+  box-shadow: none;
+}
+
+.compactTimer .timerLabel {
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+}
+
+.compactTimer .timerValue {
+  font-size: 1rem;
+  letter-spacing: 0;
+}

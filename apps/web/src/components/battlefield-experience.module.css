@@ -4,11 +4,28 @@
   margin-bottom: 24px;
 }
 
+.immersive {
+  position: absolute;
+  inset: 0;
+  display: block;
+  margin: 0;
+}
+
 .header {
   display: flex;
   justify-content: space-between;
   gap: 18px;
   align-items: end;
+}
+
+.headerHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .header h2 {
@@ -37,6 +54,18 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.floatingActions {
+  position: absolute;
+  z-index: 14;
+  top: 88px;
+  right: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  max-width: min(360px, calc(100% - 36px));
 }
 
 .overlayButton,
@@ -73,6 +102,20 @@
   position: relative;
   overflow: hidden;
   border-radius: 8px;
+}
+
+.immersive .mapStage {
+  height: 100%;
+  border-radius: 0;
+}
+
+.fullMap {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .drawer {
@@ -277,6 +320,13 @@
 
   .overlayButton {
     flex: 1;
+  }
+
+  .floatingActions {
+    top: 78px;
+    right: 12px;
+    left: 12px;
+    max-width: none;
   }
 
   .drawer {

@@ -4,7 +4,6 @@ import styles from "./page.module.css";
 import { auth, isAuthConfigured } from "@/auth";
 import { SessionActions } from "@/components/session-actions";
 import { BattlefieldExperience } from "@/components/battlefield-experience";
-import { LeaderboardPanel } from "@/components/leaderboard-panel";
 import { RealtimeBridge } from "@/components/realtime-bridge";
 import { SeasonTimer } from "@/components/season-timer";
 import { joinFortressAction } from "@/app/game-actions";
@@ -52,13 +51,13 @@ function getDegradedHomePageState(): HomePageState {
       canPost: false,
       maxLength: 280,
       postHint:
-        "Palvelussa on tilapäinen häiriö. Yritä hetken kuluttua uudelleen.",
+        "Palvelussa on tilapainen hairio. Yrita hetken kuluttua uudelleen.",
     },
     availableTargets: [],
     canJoinRegistration: false,
     canEditRegistrationName: false,
     emptyStateMessage:
-      "Palvelussa on tilapäinen häiriö. Yritä hetken kuluttua uudelleen.",
+      "Palvelussa on tilapainen hairio. Yrita hetken kuluttua uudelleen.",
   };
 }
 
@@ -74,7 +73,7 @@ export default async function Home({
   let session: Session | null = null;
   let state: HomePageState = getDegradedHomePageState();
   let runtimeError: string | null =
-    "Palvelussa on tilapäinen häiriö. Yritä hetken kuluttua uudelleen.";
+    "Palvelussa on tilapainen hairio. Yrita hetken kuluttua uudelleen.";
 
   try {
     session = await auth();
@@ -88,22 +87,27 @@ export default async function Home({
 
   const isAdmin = session?.user?.role === "ADMIN";
   const userLabel = session?.user?.name ?? session?.user?.email ?? "Commander";
-  const phaseClassName = [
-    styles.hero,
-    state.phase?.status === "REGISTRATION"
-      ? styles.registrationHero
-      : styles.activeHero,
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const blockingMessage = runtimeError ?? error ?? null;
+  const joinedText = state.cycle ? `${state.cycle.joinedCount} / 30` : "0 / 30";
+  const remainingText = `${state.cycle?.remainingSlots ?? 30} slots`;
+  const leaderboard = state.leaderboard.slice(0, 3);
+  const showLoginCard = !session?.user;
+  const showJoinCard = Boolean(session?.user && state.canJoinRegistration);
+  const isWaitingForSeason =
+    !state.phase || state.phase.status === "RESOLUTION" || !state.cycle;
+  const showCenterCard = Boolean(
+    blockingMessage || showLoginCard || showJoinCard || isWaitingForSeason
+  );
 
   const phaseCopy =
     state.phase?.status === "REGISTRATION"
       ? {
           title: "Registration is open.",
           description: "Claim a fortress before the timer ends.",
-          nextAction: "Next: join now or update your fortress name.",
-          timerLabel: "Registration ends in",
+          nextAction: state.playerFortress
+            ? "You are locked in. Select your fortress on the map to edit it."
+            : "Join this season before the registration window closes.",
+          timerLabel: "Registration ends",
           battlefieldTitle: "Season map preview",
           battlefieldDescription: "Fortresses appear as players register.",
         }
@@ -112,216 +116,210 @@ export default async function Home({
             title: "Season is live.",
             description: "Moves are being resolved in real time.",
             nextAction: state.playerSummary
-              ? "Next: pick a target in Battlefield and submit your move."
-              : "Next: follow the map and wait for the next registration.",
-            timerLabel: "Active cycle ends in",
+              ? "Pick a target on the map or open Orders to submit your move."
+              : "Follow the live map and wait for the next registration.",
+            timerLabel: "Cycle ends",
             battlefieldTitle: "Live battlefield",
             battlefieldDescription: "Choose a target and lock your next move.",
           }
         : {
             title: "Next season is not live yet.",
             description: "The current cycle is closed.",
-            nextAction:
-              "Next: check history and return when registration opens.",
+            nextAction: "Check history and return when registration opens.",
             timerLabel: "Current cycle",
             battlefieldTitle: "Battlefield",
             battlefieldDescription:
               "The map updates when the next season starts.",
           };
 
+  const centerTitle = blockingMessage
+    ? "Something needs attention."
+    : showLoginCard
+      ? "Join the battlefield."
+      : showJoinCard
+        ? "Claim your fortress."
+        : phaseCopy.title;
+
+  const centerDescription = blockingMessage
+    ? blockingMessage
+    : showLoginCard
+      ? "Sign in to join a fortress, chat, and submit orders when the season is active."
+      : showJoinCard
+        ? "Registration is open. Name your fortress now and it will appear on the map."
+        : state.cycle?.statusMessage ?? state.emptyStateMessage;
+
+  const playerSummaryText = state.playerSummary
+    ? `${state.playerSummary.points} pts - ${state.playerSummary.currentAction}${
+        state.playerSummary.currentTargetName
+          ? ` -> ${state.playerSummary.currentTargetName}`
+          : ""
+      }`
+    : state.isSpectator
+      ? "Spectating this cycle"
+      : "No fortress yet";
+
   return (
     <main className={styles.page}>
       <RealtimeBridge enabled={Boolean(session?.user)} />
-      <section className={phaseClassName}>
-        <div className={styles.heroCopy}>
-          <p className={styles.kicker}>Season Status</p>
-          <div className={styles.phaseHeading}>
-            <span className={styles.phaseBadge}>
-              {state.phase?.label ?? "Waiting for a cycle"}
-            </span>
-            <h1>{phaseCopy.title}</h1>
-          </div>
-          <p className={styles.lead}>{phaseCopy.description}</p>
-          <p className={styles.inlineHint}>{phaseCopy.nextAction}</p>
-        </div>
-        <article className={styles.heroPanel}>
-          <span className={styles.sectionLabel}>Phase timer</span>
+
+      <div className={styles.mapLayer}>
+        <BattlefieldExperience
+          immersive
+          title={phaseCopy.battlefieldTitle}
+          description={phaseCopy.battlefieldDescription}
+          phaseStatus={state.phase?.status ?? null}
+          playerSummary={state.playerSummary}
+          playerFortress={state.playerFortress}
+          mapFortresses={state.mapFortresses}
+          attackUnits={state.attackUnits}
+          targets={state.availableTargets}
+          chat={state.chat}
+          canEditRegistrationName={state.canEditRegistrationName}
+        />
+      </div>
+      <div className={styles.mapScrim} />
+
+      <header className={styles.topHud} aria-label="Season status">
+        <div className={styles.statusCluster}>
+          <span className={styles.phaseBadge}>
+            {state.phase?.label ?? "Waiting for a cycle"}
+          </span>
           <SeasonTimer
             deadline={state.phase?.deadline?.toISOString() ?? null}
             label={phaseCopy.timerLabel}
+            variant="compact"
           />
-          <p>{state.cycle?.phaseDescription ?? state.emptyStateMessage}</p>
-          <dl className={styles.statsList}>
-            <div className={styles.statRow}>
+          <dl className={styles.hudStats}>
+            <div>
               <dt>Joined</dt>
-              <dd>
-                {state.cycle ? `${state.cycle.joinedCount} / 30` : "0 / 30"}
-              </dd>
+              <dd>{joinedText}</dd>
             </div>
-            <div className={styles.statRow}>
-              <dt>Remaining slots</dt>
-              <dd>{state.cycle?.remainingSlots ?? 30}</dd>
-            </div>
-            <div className={styles.statRow}>
-              <dt>Current phase</dt>
-              <dd>{state.phase?.label ?? "Unavailable"}</dd>
+            <div>
+              <dt>Open</dt>
+              <dd>{remainingText}</dd>
             </div>
           </dl>
-        </article>
-      </section>
-
-      {runtimeError ? (
-        <p className={styles.errorBanner}>{runtimeError}</p>
-      ) : null}
-      {error ? <p className={styles.errorBanner}>{error}</p> : null}
-      {notice ? <p className={styles.noticeBanner}>{notice}</p> : null}
-
-      <BattlefieldExperience
-        title={phaseCopy.battlefieldTitle}
-        description={phaseCopy.battlefieldDescription}
-        phaseStatus={state.phase?.status ?? null}
-        playerSummary={state.playerSummary}
-        playerFortress={state.playerFortress}
-        mapFortresses={state.mapFortresses}
-        attackUnits={state.attackUnits}
-        targets={state.availableTargets}
-        chat={state.chat}
-        canEditRegistrationName={state.canEditRegistrationName}
-      />
-
-      <section className={styles.layout}>
-        <div className={styles.mainColumn}>
-          <article className={styles.panel}>
-            <span className={styles.sectionLabel}>Game state</span>
-            <h2>
-              {state.phase
-                ? `Vaihe: ${state.phase.label}`
-                : "Uusi kausi ilmoitetaan pian"}
-            </h2>
-            <p>{state.cycle?.statusMessage ?? state.emptyStateMessage}</p>
-            {state.cycle ? (
-              <ul className={styles.detailList}>
-                <li>
-                  Registration window:{" "}
-                  {formatDeadline(state.cycle.registrationEndsAt)}
-                </li>
-                <li>
-                  Active deadline: {formatDeadline(state.cycle.activeEndsAt)}
-                </li>
-              </ul>
-            ) : null}
-          </article>
-
-          <article className={styles.panel}>
-            <span className={styles.sectionLabel}>Season control</span>
-            <h2>
-              {session?.user ? `Signed in as ${userLabel}` : "Join to play"}
-            </h2>
-            <p>
-              {session?.user
-                ? state.playerFortress
-                  ? "You are in this season."
-                  : "You are signed in but not registered for this season."
-                : "Sign in to join a fortress and submit moves."}
-            </p>
-
-            {!session?.user ? (
-              <SessionActions
-                authConfigured={isAuthConfigured}
-                isAuthenticated={false}
-                isAdmin={false}
-              />
-            ) : null}
-
-            {session?.user && state.canJoinRegistration ? (
-              <form action={joinFortressAction} className={styles.form}>
-                <label className={styles.field}>
-                  <span>Fortress name</span>
-                  <input
-                    name="fortressName"
-                    type="text"
-                    placeholder="Name your fortress"
-                    required
-                  />
-                </label>
-                <button className={styles.primaryButton} type="submit">
-                  Join season
-                </button>
-              </form>
-            ) : null}
-
-            {session?.user &&
-            state.cycle?.status === "REGISTRATION" &&
-            !state.canJoinRegistration &&
-            !state.canEditRegistrationName ? (
-              <p className={styles.inlineHint}>
-                {state.playerSummary
-                  ? "You are locked in for this season."
-                  : "Registration is currently full."}
-              </p>
-            ) : null}
-
-            {session?.user && state.canEditRegistrationName ? (
-              <p className={styles.inlineHint}>
-                Select your castle on the map to update its registration name.
-              </p>
-            ) : null}
-
-            {session?.user &&
-            state.cycle?.status === "ACTIVE" &&
-            state.playerSummary ? (
-              <p className={styles.inlineHint}>
-                Use Battlefield to manage your action.
-              </p>
-            ) : null}
-
-            {session?.user &&
-            state.cycle?.status === "ACTIVE" &&
-            !state.playerFortress ? (
-              <p className={styles.inlineHint}>
-                You are spectating this cycle and can still chat.
-              </p>
-            ) : null}
-          </article>
         </div>
 
-        <aside className={styles.sidebar}>
-          <article className={styles.panel}>
-            <LeaderboardPanel
-              leaderboard={state.leaderboard}
-              playerSummary={state.playerSummary}
-              isSpectator={state.isSpectator}
+        <nav className={styles.topLinks} aria-label="Account and pages">
+          <span className={styles.accountChip}>
+            {session?.user ? userLabel : "Guest"}
+          </span>
+          <Link className={styles.hudButton} href="/history">
+            History
+          </Link>
+          {isAdmin ? (
+            <Link className={styles.hudButton} href="/admin">
+              Admin
+            </Link>
+          ) : null}
+          {session?.user ? (
+            <SessionActions
+              authConfigured={isAuthConfigured}
+              isAuthenticated
+              isAdmin={isAdmin}
+              variant="compact"
             />
-          </article>
+          ) : null}
+        </nav>
+      </header>
 
-          <article className={styles.panel}>
-            <span className={styles.sectionLabel}>Session</span>
-            <h2>{session?.user ? "Account" : "Guest"}</h2>
-            <p>
-              {session?.user
-                ? `Role: ${session.user.role ?? "SPECTATOR"}. ${state.isSpectator ? "Read-only now." : "You can act now."}`
-                : "Read-only mode until you sign in."}
-            </p>
-            {session?.user ? (
-              <SessionActions
-                authConfigured={isAuthConfigured}
-                isAuthenticated
-                isAdmin={isAdmin}
-              />
-            ) : null}
-            <div className={styles.linkRow}>
+      {notice ? <p className={styles.noticeToast}>{notice}</p> : null}
+
+      {showCenterCard ? (
+        <section className={styles.centerCard} aria-live="polite">
+          <span className={styles.sectionLabel}>
+            {blockingMessage
+              ? "Status"
+              : showJoinCard
+                ? "Registration"
+                : "Season control"}
+          </span>
+          <h1>{centerTitle}</h1>
+          <p>{centerDescription}</p>
+
+          {showLoginCard && !blockingMessage ? (
+            <SessionActions
+              authConfigured={isAuthConfigured}
+              isAuthenticated={false}
+              isAdmin={false}
+            />
+          ) : null}
+
+          {showJoinCard && !blockingMessage ? (
+            <form action={joinFortressAction} className={styles.form}>
+              <label className={styles.field}>
+                <span>Fortress name</span>
+                <input
+                  name="fortressName"
+                  type="text"
+                  placeholder="Name your fortress"
+                  required
+                />
+              </label>
+              <button className={styles.primaryButton} type="submit">
+                Join season
+              </button>
+            </form>
+          ) : null}
+
+          {isWaitingForSeason && !showLoginCard && !showJoinCard ? (
+            <div className={styles.cardActions}>
               <Link className={styles.secondaryButton} href="/history">
                 Open cycle history
               </Link>
-              {isAdmin ? (
-                <Link className={styles.secondaryButton} href="/admin">
-                  Admin dashboard
-                </Link>
-              ) : null}
             </div>
-          </article>
-        </aside>
-      </section>
+          ) : null}
+
+          {state.cycle ? (
+            <dl className={styles.deadlineList}>
+              <div>
+                <dt>Registration</dt>
+                <dd>{formatDeadline(state.cycle.registrationEndsAt)}</dd>
+              </div>
+              <div>
+                <dt>Active deadline</dt>
+                <dd>{formatDeadline(state.cycle.activeEndsAt)}</dd>
+              </div>
+            </dl>
+          ) : null}
+        </section>
+      ) : null}
+
+      <footer className={styles.bottomHud} aria-label="Battlefield summary">
+        <section className={styles.playerStrip}>
+          <span className={styles.sectionLabel}>
+            {state.isSpectator ? "Session" : "Your fortress"}
+          </span>
+          <strong>{state.playerSummary?.name ?? "Spectator"}</strong>
+          <p>{playerSummaryText}</p>
+        </section>
+
+        <section className={styles.hintStrip}>
+          <span className={styles.sectionLabel}>Next</span>
+          <p>{phaseCopy.nextAction}</p>
+        </section>
+
+        <section className={styles.leaderboardStrip}>
+          <span className={styles.sectionLabel}>Top 3</span>
+          {leaderboard.length > 0 ? (
+            <ol className={styles.leaderboardList}>
+              {leaderboard.map((entry) => (
+                <li
+                  key={entry.id}
+                  className={entry.isCurrentUser ? styles.currentLeader : ""}
+                >
+                  <span>#{entry.rank}</span>
+                  <strong>{entry.name}</strong>
+                  <em>{entry.points} pts</em>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p>No fortresses yet.</p>
+          )}
+        </section>
+      </footer>
     </main>
   );
 }

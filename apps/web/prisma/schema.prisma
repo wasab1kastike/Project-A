@@ -27,6 +27,8 @@ enum ScoreEventType {
   GROW_TICK
   ATTACK_SELF
   ATTACK_TARGET
+  MEGA_DAMAGE
+  MEGA_DESTROY_BONUS
   RENAME_COST
   MANUAL_ADJUST
 }
@@ -111,9 +113,11 @@ model Cycle {
   activeEndsAt          DateTime?
   resolvedAt            DateTime?
   winnerId              String?
+  crownedFortressId     String?
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
   winner                User?           @relation("CycleWinner", fields: [winnerId], references: [id], onDelete: SetNull)
+  crownedFortress       Fortress?       @relation("CycleCrownedFortress", fields: [crownedFortressId], references: [id], onDelete: SetNull)
   fortresses            Fortress[]
   chatMessages          ChatMessage[]
   scoreEvents           ScoreEvent[]
@@ -124,6 +128,7 @@ model Cycle {
 
   @@index([status])
   @@index([winnerId])
+  @@index([crownedFortressId])
 }
 
 model Fortress {
@@ -132,6 +137,11 @@ model Fortress {
   ownerId               String
   name                  String
   points                Int            @default(0)
+  isNpc                 Boolean        @default(false)
+  health                Int            @default(0)
+  maxHealth             Int            @default(0)
+  sizeTiles             Int            @default(1)
+  iconLabel             String?
   currentAction         FortressAction @default(GROW)
   targetFortressId      String?
   unitSpriteVariant     String         @default("unit-1")
@@ -146,12 +156,14 @@ model Fortress {
   attackers             Fortress[]     @relation("FortressTarget")
   outboundAttackUnits   AttackUnit[]   @relation("AttackUnitAttacker")
   inboundAttackUnits    AttackUnit[]   @relation("AttackUnitTarget")
+  crownedCycles         Cycle[]        @relation("CycleCrownedFortress")
   scoreEventsAsFortress ScoreEvent[]   @relation("ScoreEventFortress")
   scoreEventsAsTarget   ScoreEvent[]   @relation("ScoreEventTargetFortress")
 
   @@unique([cycleId, ownerId])
   @@unique([cycleId, name])
   @@index([cycleId])
+  @@index([cycleId, isNpc])
   @@index([ownerId])
 }
 

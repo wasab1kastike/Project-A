@@ -262,7 +262,9 @@ export default async function AdminPage({
                 <tr>
                   <th>Fortress</th>
                   <th>Owner</th>
+                  <th>Type</th>
                   <th>Points</th>
+                  <th>HP</th>
                   <th>Action</th>
                   <th>Target</th>
                   <th>Map</th>
@@ -280,7 +282,20 @@ export default async function AdminPage({
                         {fortress.ownerLabel}
                         <small>{fortress.ownerRole}</small>
                       </td>
+                      <td>
+                        {fortress.isNpc ? "NPC" : "Player"}
+                        <small>
+                          {fortress.isNpc
+                            ? `${fortress.iconLabel ?? "A-"} · ${fortress.sizeTiles} tiles`
+                            : "1 tile"}
+                        </small>
+                      </td>
                       <td>{fortress.points}</td>
+                      <td>
+                        {fortress.isNpc
+                          ? `${fortress.health} / ${fortress.maxHealth}`
+                          : "-"}
+                      </td>
                       <td>{fortress.currentAction}</td>
                       <td>{fortress.targetName ?? "None"}</td>
                       <td>{fortress.mapLabel}</td>
@@ -288,7 +303,7 @@ export default async function AdminPage({
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6}>No fortresses are attached to the current cycle.</td>
+                    <td colSpan={8}>No fortresses are attached to the current cycle.</td>
                   </tr>
                 )}
               </tbody>

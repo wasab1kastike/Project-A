@@ -17,7 +17,14 @@ import styles from "./fortress-map.module.css";
 type MapFortress = {
   id: string;
   name: string;
+  rawName: string;
   points: number;
+  isNpc: boolean;
+  health: number;
+  maxHealth: number;
+  sizeTiles: number;
+  iconLabel: string | null;
+  isCrowned: boolean;
   currentAction: "GROW" | "ATTACK";
   mapX: number;
   mapY: number;
@@ -424,6 +431,40 @@ function FortressSprite({
   );
 }
 
+function MegaFortressSprite({ iconLabel }: { iconLabel: string }) {
+  return (
+    <svg
+      viewBox="0 0 96 96"
+      className={styles.sprite}
+      aria-hidden="true"
+      role="presentation"
+    >
+      <ellipse cx="48" cy="78" rx="34" ry="10" fill="rgba(0, 0, 0, 0.32)" />
+      <rect x="18" y="42" width="60" height="31" rx="7" fill="#b8c7d5" />
+      <rect x="24" y="31" width="13" height="42" rx="4" fill="#8d9ead" />
+      <rect x="42" y="22" width="14" height="51" rx="4" fill="#d4e0ea" />
+      <rect x="60" y="31" width="13" height="42" rx="4" fill="#8d9ead" />
+      <path d="M18 43h60l-8-14H26z" fill="#dd4c4c" />
+      <path d="M42 23h14l-7-13z" fill="#f1c75a" />
+      <rect x="39" y="52" width="18" height="21" rx="5" fill="#26323e" />
+      <rect x="28" y="49" width="8" height="10" rx="2" fill="#26323e" />
+      <rect x="62" y="49" width="8" height="10" rx="2" fill="#26323e" />
+      <circle cx="49" cy="43" r="12" fill="#111c26" />
+      <text
+        x="49"
+        y="47"
+        textAnchor="middle"
+        dominantBaseline="middle"
+        fontSize="15"
+        fontWeight="800"
+        fill="#f5d66c"
+      >
+        {iconLabel}
+      </text>
+    </svg>
+  );
+}
+
 function HexTileMap() {
   return (
     <svg
@@ -604,12 +645,14 @@ export function FortressMap({
   selectedFortressId,
   selectedTargetId,
   onSelectFortress,
+  className,
 }: {
   fortresses: MapFortress[];
   attackUnits?: AttackUnitMarker[];
   selectedFortressId?: string | null;
   selectedTargetId?: string | null;
   onSelectFortress?: (fortress: MapFortress) => void;
+  className?: string;
 }) {
   const shellRef = useRef<HTMLDivElement | null>(null);
   const pointerCacheRef = useRef<Map<number, Point>>(new Map());
@@ -774,7 +817,7 @@ export function FortressMap({
   return (
     <div
       ref={shellRef}
-      className={styles.shell}
+      className={className ? `${styles.shell} ${className}` : styles.shell}
       role="application"
       aria-label="Battlefield map"
       onKeyDown={(event) => {
@@ -955,8 +998,11 @@ export function FortressMap({
                 Boolean(onSelectFortress) &&
                 (fortress.isTargetable || fortress.isCurrentUser);
               const variant = getSpriteVariant(fortress);
+              const isMega = fortress.isNpc;
               const className = [
                 styles.marker,
+                isMega ? styles.megaMarker : "",
+                fortress.isCrowned ? styles.crownedMarker : "",
                 fortress.isCurrentUser ? styles.currentUser : "",
                 selectedFortressId === fortress.id ? styles.activeFortress : "",
                 selectedTargetId === fortress.id ? styles.selected : "",
@@ -989,21 +1035,37 @@ export function FortressMap({
                     selectedTargetId === fortress.id ||
                     selectedFortressId === fortress.id
                   }
-                  aria-label={`${fortress.name}, ${fortress.points} points`}
+                  aria-label={
+                    isMega
+                      ? `${fortress.name}, ${fortress.health} of ${fortress.maxHealth} health`
+                      : `${fortress.name}, ${fortress.points} points`
+                  }
                 >
                   <span className={styles.selectionPulse} />
                   <span className={styles.spriteFrame}>
-                    <FortressSprite
-                      variant={variant}
-                      action={fortress.currentAction}
-                    />
+                    {isMega ? (
+                      <MegaFortressSprite
+                        iconLabel={fortress.iconLabel ?? "A-"}
+                      />
+                    ) : (
+                      <FortressSprite
+                        variant={variant}
+                        action={fortress.currentAction}
+                      />
+                    )}
                   </span>
-                  <span className={styles.pointsBadge}>{fortress.points}</span>
+                  <span className={styles.pointsBadge}>
+                    {isMega
+                      ? `${fortress.health}/${fortress.maxHealth}`
+                      : fortress.points}
+                  </span>
                   <span className={styles.nameplate}>{fortress.name}</span>
                   <span className={styles.tooltip}>
                     <strong>{fortress.name}</strong>
                     <span>
-                      {fortress.points} pts - {fortress.currentAction}
+                      {isMega
+                        ? `${fortress.health}/${fortress.maxHealth} HP`
+                        : `${fortress.points} pts - ${fortress.currentAction}`}
                     </span>
                   </span>
                 </button>

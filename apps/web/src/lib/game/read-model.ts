@@ -31,6 +31,10 @@ function compareByLeaderboardOrder(
   return left.name.localeCompare(right.name);
 }
 
+function getDisplayName(name: string, isCrowned: boolean) {
+  return isCrowned ? `👑 ${name}` : name;
+}
+
 export async function getHomePageState({
   userId,
   now = new Date(),
@@ -58,6 +62,11 @@ export async function getHomePageState({
           currentAction: true,
           targetFortressId: true,
           unitSpriteVariant: true,
+          isNpc: true,
+          health: true,
+          maxHealth: true,
+          sizeTiles: true,
+          iconLabel: true,
           mapX: true,
           mapY: true,
           joinedAt: true,
@@ -137,10 +146,13 @@ export async function getHomePageState({
     };
   }
 
-  const joinedCount = cycle.fortresses.length;
+  const playerFortresses = cycle.fortresses.filter(
+    (fortress) => !fortress.isNpc
+  );
+  const joinedCount = playerFortresses.length;
   const remainingSlots = Math.max(0, ACTIVE_PLAYER_CAP - joinedCount);
   const playerFortress =
-    cycle.fortresses.find((fortress) => fortress.ownerId === userId) ?? null;
+    playerFortresses.find((fortress) => fortress.ownerId === userId) ?? null;
   const registrationOpen =
     cycle.status === CycleStatus.REGISTRATION && cycle.registrationEndsAt > now;
   const joiningLocked = Boolean(cycle.joiningLockedAt);
@@ -152,7 +164,7 @@ export async function getHomePageState({
     cycle.status === CycleStatus.REGISTRATION
       ? cycle.registrationEndsAt
       : cycle.activeEndsAt;
-  const sortedFortresses = [...cycle.fortresses].sort(
+  const sortedFortresses = [...playerFortresses].sort(
     compareByLeaderboardOrder
   );
   const targetLookup = new Map(
@@ -161,8 +173,18 @@ export async function getHomePageState({
   const playerFortressId = playerFortress?.id ?? null;
   const mapFortresses = cycle.fortresses.map((fortress) => ({
     id: fortress.id,
-    name: fortress.name,
+    name: getDisplayName(
+      fortress.name,
+      fortress.id === cycle.crownedFortressId && !fortress.isNpc
+    ),
+    rawName: fortress.name,
     points: fortress.points,
+    isNpc: fortress.isNpc,
+    health: fortress.health,
+    maxHealth: fortress.maxHealth,
+    sizeTiles: fortress.sizeTiles,
+    iconLabel: fortress.iconLabel,
+    isCrowned: fortress.id === cycle.crownedFortressId && !fortress.isNpc,
     currentAction: fortress.currentAction,
     mapX: fortress.mapX,
     mapY: fortress.mapY,
@@ -230,7 +252,11 @@ export async function getHomePageState({
     playerFortress: playerFortress
       ? {
           id: playerFortress.id,
-          name: playerFortress.name,
+          name: getDisplayName(
+            playerFortress.name,
+            playerFortress.id === cycle.crownedFortressId
+          ),
+          rawName: playerFortress.name,
           points: playerFortress.points,
           currentAction: playerFortress.currentAction,
           mapX: playerFortress.mapX,
@@ -245,12 +271,25 @@ export async function getHomePageState({
     playerSummary: playerFortress
       ? {
           id: playerFortress.id,
-          name: playerFortress.name,
+          name: getDisplayName(
+            playerFortress.name,
+            playerFortress.id === cycle.crownedFortressId
+          ),
+          rawName: playerFortress.name,
           points: playerFortress.points,
           currentAction: playerFortress.currentAction,
           currentTargetId: playerFortress.targetFortressId,
           currentTargetName: playerFortress.targetFortressId
-            ? (targetLookup.get(playerFortress.targetFortressId)?.name ?? null)
+            ? (() => {
+                const target = targetLookup.get(playerFortress.targetFortressId);
+
+                return target
+                  ? getDisplayName(
+                      target.name,
+                      target.id === cycle.crownedFortressId && !target.isNpc
+                    )
+                  : null;
+              })()
             : null,
           canRename: activeOpen && playerFortress.points >= 10,
           canSetAction: activeOpen,
@@ -258,7 +297,8 @@ export async function getHomePageState({
       : null,
     leaderboard: sortedFortresses.slice(0, 3).map((fortress, index) => ({
       id: fortress.id,
-      name: fortress.name,
+      name: getDisplayName(fortress.name, fortress.id === cycle.crownedFortressId),
+      rawName: fortress.name,
       points: fortress.points,
       rank: index + 1,
       isCurrentUser: fortress.ownerId === userId,
@@ -298,8 +338,15 @@ export async function getHomePageState({
             .filter((fortress) => fortress.id !== playerFortress.id)
             .map((fortress) => ({
               id: fortress.id,
-              name: fortress.name,
+              name: getDisplayName(
+                fortress.name,
+                fortress.id === cycle.crownedFortressId && !fortress.isNpc
+              ),
+              rawName: fortress.name,
               points: fortress.points,
+              isNpc: fortress.isNpc,
+              health: fortress.health,
+              maxHealth: fortress.maxHealth,
               currentAction: fortress.currentAction,
             }))
         : [],

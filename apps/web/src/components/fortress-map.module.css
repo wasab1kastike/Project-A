@@ -302,6 +302,50 @@
   line-height: 1;
 }
 
+.megaMarker {
+  z-index: 5;
+}
+
+.megaMarker .spriteFrame {
+  width: 116px;
+  height: 116px;
+  border-color: rgba(245, 214, 108, 0.34);
+  background:
+    linear-gradient(180deg, rgba(245, 214, 108, 0.12), rgba(0, 0, 0, 0.12)),
+    rgba(14, 21, 25, 0.96);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 0 2px rgba(2, 6, 10, 0.5),
+    0 18px 34px rgba(245, 214, 108, 0.18);
+}
+
+.megaMarker .selectionPulse {
+  top: -14px;
+  width: 146px;
+  height: 126px;
+  background: radial-gradient(
+    circle,
+    rgba(245, 214, 108, 0.28),
+    transparent 70%
+  );
+}
+
+.megaMarker .pointsBadge {
+  right: -26px;
+  min-width: 78px;
+  color: #ffe48b;
+}
+
+.megaMarker .nameplate {
+  max-width: 160px;
+  color: #ffe48b;
+}
+
+.crownedMarker .nameplate {
+  color: #ffe48b;
+  border-color: rgba(245, 214, 108, 0.22);
+}
+
 .nameplate {
   max-width: 110px;
   padding: 4px 8px;
@@ -456,6 +500,21 @@
     width: 52px;
     height: 52px;
     border-radius: 8px;
+  }
+
+  .megaMarker .spriteFrame {
+    width: 92px;
+    height: 92px;
+  }
+
+  .megaMarker .selectionPulse {
+    width: 118px;
+    height: 104px;
+  }
+
+  .megaMarker .pointsBadge {
+    min-width: 66px;
+    font-size: 0.64rem;
   }
 
   .selectionPulse {

@@ -20,11 +20,17 @@ function formatCountdown(milliseconds: number) {
 export function SeasonTimer({
   deadline,
   label,
+  variant = "card",
 }: {
   deadline: string | null;
   label: string;
+  variant?: "card" | "compact";
 }) {
   const [now, setNow] = useState(() => Date.now());
+  const className =
+    variant === "compact"
+      ? `${styles.timerCard} ${styles.compactTimer}`
+      : styles.timerCard;
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -38,7 +44,7 @@ export function SeasonTimer({
 
   if (!deadline) {
     return (
-      <div className={styles.timerCard}>
+      <div className={className}>
         <span className={styles.timerLabel}>{label}</span>
         <strong className={styles.timerValue}>No active countdown</strong>
       </div>
@@ -49,7 +55,7 @@ export function SeasonTimer({
   const isExpired = deadlineTime <= now;
 
   return (
-    <div className={styles.timerCard}>
+    <div className={className}>
       <span className={styles.timerLabel}>{label}</span>
       <strong className={styles.timerValue}>
         {isExpired ? "Awaiting next tick" : formatCountdown(deadlineTime - now)}

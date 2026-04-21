@@ -19,6 +19,8 @@ import { sendChatMessage } from "./chat";
 import {
   ACTIVE_PLAYER_CAP,
   MAP_POSITIONS,
+  MEGA_FORTRESS_DESTROY_BONUS,
+  MEGA_FORTRESS_HEALTH,
   UNIT_SPRITE_VARIANTS,
 } from "./constants";
 import { getAttackArrivalAt } from "./attacks";
@@ -513,6 +515,61 @@ test("non-empty registration transitions to active exactly once", async (context
   );
 });
 
+test("activation creates one mega fortress without consuming player slots", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+
+  for (let index = 0; index < ACTIVE_PLAYER_CAP; index += 1) {
+    const user = await createUser(prisma, `mega-cap-${index}@example.com`);
+
+    await joinRegistrationCycle({
+      db: prisma,
+      userId: user.id,
+      fortressName: `Mega Cap ${index}`,
+    });
+  }
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const fortresses = await prisma.fortress.findMany({
+    where: {
+      cycleId: cycle.id,
+    },
+  });
+  const megaFortresses = fortresses.filter((fortress) => fortress.isNpc);
+  const playerFortresses = fortresses.filter((fortress) => !fortress.isNpc);
+
+  assert.equal(playerFortresses.length, ACTIVE_PLAYER_CAP);
+  assert.equal(megaFortresses.length, 1);
+  assert.equal(megaFortresses[0]?.health, MEGA_FORTRESS_HEALTH);
+  assert.equal(megaFortresses[0]?.maxHealth, MEGA_FORTRESS_HEALTH);
+  assert.equal(megaFortresses[0]?.sizeTiles, 4);
+  assert.equal(megaFortresses[0]?.iconLabel, "A-");
+
+  const state = await getHomePageState({
+    userId: playerFortresses[0]?.ownerId,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+    db: prisma,
+  });
+
+  assert.equal(state.cycle?.joinedCount, ACTIVE_PLAYER_CAP);
+  assert.equal(state.cycle?.remainingSlots, 0);
+  assert.equal(state.mapFortresses.filter((fortress) => fortress.isNpc).length, 1);
+  assert.equal(state.leaderboard.some((entry) => entry.id === megaFortresses[0]?.id), false);
+  assert.equal(
+    state.availableTargets.some((target) => target.id === megaFortresses[0]?.id),
+    true
+  );
+});
+
 test("action updates persist and self-targeting is rejected", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
@@ -918,6 +975,154 @@ test("attack units charge on launch and damage on arrival", async (context) => {
   });
 
   assert.equal(nextOutbound.length, 1);
+});
+
+test("destroying the mega fortress awards points, crown, and reshuffles map positions", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const attacker = await createUser(prisma, "mega-attacker@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: attacker.id,
+    fortressName: "Alpha",
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const attackerFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: attacker.id,
+      },
+    },
+  });
+  const megaFortress = await prisma.fortress.findFirstOrThrow({
+    where: {
+      cycleId: cycle.id,
+      isNpc: true,
+    },
+  });
+  const positionsBefore = await prisma.fortress.findMany({
+    where: {
+      cycleId: cycle.id,
+    },
+    orderBy: {
+      id: "asc",
+    },
+    select: {
+      id: true,
+      mapX: true,
+      mapY: true,
+    },
+  });
+
+  await prisma.fortress.update({
+    where: {
+      id: attackerFortress.id,
+    },
+    data: {
+      points: 3,
+    },
+  });
+  await prisma.fortress.update({
+    where: {
+      id: megaFortress.id,
+    },
+    data: {
+      health: 2,
+    },
+  });
+
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.ATTACK,
+    targetFortressId: megaFortress.id,
+    now: new Date("2026-04-20T12:05:00.000Z"),
+  });
+
+  const attackUnit = await prisma.attackUnit.findFirstOrThrow({
+    where: {
+      attackerFortressId: attackerFortress.id,
+      targetFortressId: megaFortress.id,
+      cancelledAt: null,
+    },
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: attackUnit.arrivesAt,
+  });
+
+  const refreshedCycle = await prisma.cycle.findUniqueOrThrow({
+    where: {
+      id: cycle.id,
+    },
+  });
+  const refreshedAttacker = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: attackerFortress.id,
+    },
+  });
+  const refreshedMega = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: megaFortress.id,
+    },
+  });
+  const positionsAfter = await prisma.fortress.findMany({
+    where: {
+      cycleId: cycle.id,
+    },
+    orderBy: {
+      id: "asc",
+    },
+    select: {
+      id: true,
+      mapX: true,
+      mapY: true,
+    },
+  });
+  const positionKeys = new Set(
+    positionsAfter.map((position) => `${position.mapX}:${position.mapY}`)
+  );
+  const state = await getHomePageState({
+    userId: attacker.id,
+    now: new Date(attackUnit.arrivesAt.getTime() + 1_000),
+    db: prisma,
+  });
+  const damageEvent = await prisma.scoreEvent.findFirst({
+    where: {
+      cycleId: cycle.id,
+      eventType: ScoreEventType.MEGA_DAMAGE,
+    },
+  });
+  const bonusEvent = await prisma.scoreEvent.findFirst({
+    where: {
+      cycleId: cycle.id,
+      eventType: ScoreEventType.MEGA_DESTROY_BONUS,
+    },
+  });
+
+  assert.equal(refreshedCycle.crownedFortressId, attackerFortress.id);
+  assert.equal(refreshedAttacker.points, 2 + MEGA_FORTRESS_DESTROY_BONUS);
+  assert.equal(refreshedMega.health, MEGA_FORTRESS_HEALTH);
+  assert.equal(refreshedMega.points, 0);
+  assert.equal(positionKeys.size, positionsAfter.length);
+  assert.notDeepEqual(positionsAfter, positionsBefore);
+  assert.ok(damageEvent);
+  assert.ok(bonusEvent);
+  assert.equal(state.playerSummary?.name.startsWith("👑 "), true);
+  assert.equal(state.leaderboard[0]?.name.startsWith("👑 "), true);
+  assert.equal(state.leaderboard.some((entry) => entry.id === megaFortress.id), false);
 });
 
 test("switching to grow cancels in-flight attacks without refunding launch cost", async (context) => {
@@ -1518,10 +1723,11 @@ test("read model exposes only valid targetable fortresses during active play", a
   assert.ok(currentUserMarker);
   assert.equal(currentUserMarker.isCurrentUser, true);
   assert.equal(currentUserMarker.isTargetable, false);
-  assert.equal(targetableMarkers.length, 1);
+  assert.equal(targetableMarkers.length, 2);
   assert.equal(targetableMarkers[0]?.name, "Beta");
-  assert.equal(state.availableTargets.length, 1);
+  assert.equal(state.availableTargets.length, 2);
   assert.equal(state.availableTargets[0]?.name, "Beta");
+  assert.equal(state.availableTargets.some((target) => target.isNpc), true);
   assert.equal(state.attackUnits.length, 1);
   assert.equal(state.attackUnits[0]?.attacker.id, alphaFortress.id);
   assert.equal(state.attackUnits[0]?.target.id, betaFortress.id);

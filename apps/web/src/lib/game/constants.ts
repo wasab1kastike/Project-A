@@ -5,6 +5,12 @@ export const ACTIVE_RENAME_COST = 10;
 export const REGISTRATION_DURATION_HOURS = 24;
 export const ACTIVE_DURATION_HOURS = 72;
 export const ATTACK_UNIT_SPEED_PER_MINUTE = 12;
+export const MEGA_FORTRESS_NAME = "A- Megalinnake";
+export const MEGA_FORTRESS_ICON_LABEL = "A-";
+export const MEGA_FORTRESS_HEALTH = 1000;
+export const MEGA_FORTRESS_SIZE_TILES = 4;
+export const MEGA_FORTRESS_DESTROY_BONUS = 2000;
+export const NPC_SYSTEM_USER_EMAIL = "npc@project-a.local";
 
 export const UNIT_SPRITE_VARIANTS = [
   "unit-1",

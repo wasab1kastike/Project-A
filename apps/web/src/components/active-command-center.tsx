@@ -12,6 +12,9 @@ type CommandTarget = {
   id: string;
   name: string;
   points: number;
+  isNpc: boolean;
+  health: number;
+  maxHealth: number;
   currentAction: "GROW" | "ATTACK";
 };
 
@@ -92,7 +95,11 @@ export function ActiveCommandCenter({
               <option value="">No target</option>
               {targets.map((target) => (
                 <option key={target.id} value={target.id}>
-                  {target.name} ({target.points} pts)
+                  {target.name} (
+                  {target.isNpc
+                    ? `${target.health}/${target.maxHealth} HP`
+                    : `${target.points} pts`}
+                  )
                 </option>
               ))}
             </select>
