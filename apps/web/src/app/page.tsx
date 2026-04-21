@@ -104,25 +104,25 @@ export default async function Home({
       <RealtimeBridge enabled={Boolean(session?.user)} />
       <section className={phaseClassName}>
         <div className={styles.heroCopy}>
-          <p className={styles.kicker}>Milestone 3 Live Layer</p>
+          <p className={styles.kicker}>Season Status</p>
           <div className={styles.phaseHeading}>
             <span className={styles.phaseBadge}>
               {state.phase?.label ?? "Waiting for a cycle"}
             </span>
             <h1>
               {state.phase?.status === "REGISTRATION"
-                ? "Registration now has a real season lobby."
+                ? "Registration is open."
                 : state.phase?.status === "ACTIVE"
-                  ? "The battlefield now has a live command view."
-                  : "Project-A is waiting for its next cycle."}
+                  ? "Season is in progress."
+                  : "Waiting for the next season."}
             </h1>
           </div>
           <p className={styles.lead}>
             {state.phase?.status === "REGISTRATION"
-              ? "Track the countdown, see the joined roster on the battlefield, and use global chat while waiting for scoring to begin."
+              ? "Claim your fortress, review the current roster, and get ready before the season begins."
               : state.phase?.status === "ACTIVE"
-                ? "The active cycle now surfaces a live timer, top leaderboard, global chat, and an interactive fortress map for selecting targets."
-                : "Bootstrap the next unresolved cycle to restore the registration lobby and active battlefield views."}
+                ? "Follow the live timer, coordinate in chat, and manage your next move on the battlefield."
+                : "You can review the latest results and check back soon when registration opens again."}
           </p>
         </div>
         <article className={styles.heroPanel}>
