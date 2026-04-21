@@ -111,6 +111,13 @@ export function BattlefieldExperience({
     setActionOpen(true);
   }
 
+  function chooseAction(nextAction: "GROW" | "ATTACK") {
+    setAction(nextAction);
+
+    if (nextAction === "GROW") {
+      setTargetFortressId("");
+    }
+  }
   return (
     <section className={styles.experience} aria-labelledby="battlefield-title">
       <div className={styles.header}>
@@ -201,61 +208,68 @@ export function BattlefieldExperience({
 
             {phaseStatus === "ACTIVE" && playerSummary ? (
               <div className={styles.drawerContent}>
-                <span className={styles.label}>Selected castle</span>
-                <h3>{playerSummary.name}</h3>
-                <p>
-                  {playerSummary.currentTargetName
-                    ? `Saved target: ${playerSummary.currentTargetName}`
-                    : "Grow steadily or launch a unit toward another castle."}
-                </p>
+                <div className={styles.ordersHeader}>
+                  <div>
+                    <span className={styles.label}>Orders</span>
+                    <h3>{playerSummary.name}</h3>
+                  </div>
+                  <strong>{playerSummary.points} pts</strong>
+                </div>
 
                 <form action={setFortressActionAction} className={styles.form}>
-                  <label className={styles.field}>
-                    <span>Current action</span>
-                    <select
-                      name="action"
-                      value={action}
-                      onChange={(event) => {
-                        const nextAction =
-                          event.target.value === "ATTACK" ? "ATTACK" : "GROW";
-                        setAction(nextAction);
+                  <input name="action" type="hidden" value={action} />
+                  <div className={styles.segmentGroup} aria-label="Current action">
+                    <button
+                      type="button"
+                      className={`${styles.segmentButton} ${
+                        action === "GROW" ? styles.segmentButtonActive : ""
+                      }`}
+                      aria-pressed={action === "GROW"}
+                      onClick={() => chooseAction("GROW")}
+                    >
+                      Grow
+                    </button>
+                    <button
+                      type="button"
+                      className={`${styles.segmentButton} ${
+                        action === "ATTACK" ? styles.segmentButtonActive : ""
+                      }`}
+                      aria-pressed={action === "ATTACK"}
+                      onClick={() => chooseAction("ATTACK")}
+                    >
+                      Attack
+                    </button>
+                  </div>
 
-                        if (nextAction === "GROW") {
-                          setTargetFortressId("");
-                        }
-                      }}
-                    >
-                      <option value="GROW">Grow</option>
-                      <option value="ATTACK">Attack</option>
-                    </select>
-                  </label>
-                  <label className={styles.field}>
-                    <span>Attack target</span>
-                    <select
-                      name="targetFortressId"
-                      value={targetFortressId}
-                      onChange={(event) => {
-                        setAction("ATTACK");
-                        setTargetFortressId(event.target.value);
-                      }}
-                    >
-                      <option value="">No target</option>
-                      {targets.map((target) => (
-                        <option key={target.id} value={target.id}>
-                          {target.name} ({target.points} pts)
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  {action === "ATTACK" ? (
+                    <label className={styles.field}>
+                      <span>Target</span>
+                      <select
+                        name="targetFortressId"
+                        value={targetFortressId}
+                        onChange={(event) => {
+                          setTargetFortressId(event.target.value);
+                        }}
+                      >
+                        <option value="">Choose target</option>
+                        {targets.map((target) => (
+                          <option key={target.id} value={target.id}>
+                            {target.name} ({target.points} pts)
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+
                   <button className={styles.primaryButton} type="submit">
-                    Save action
+                    Save orders
                   </button>
                 </form>
 
                 {playerSummary.canRename ? (
-                  <form action={renameFortressAction} className={styles.form}>
+                  <form action={renameFortressAction} className={styles.renamePanel}>
                     <label className={styles.field}>
-                      <span>Fortress name</span>
+                      <span>Rename</span>
                       <input
                         name="fortressName"
                         type="text"
@@ -264,13 +278,11 @@ export function BattlefieldExperience({
                       />
                     </label>
                     <button className={styles.secondaryButton} type="submit">
-                      Spend 10 points to rename
+                      Spend 10 pts
                     </button>
                   </form>
                 ) : (
-                  <p className={styles.helper}>
-                    Renaming during ACTIVE costs 10 points.
-                  </p>
+                  <p className={styles.helper}>Rename unlocks at 10 points.</p>
                 )}
               </div>
             ) : null}
@@ -279,11 +291,13 @@ export function BattlefieldExperience({
             canEditRegistrationName &&
             playerFortress ? (
               <div className={styles.drawerContent}>
-                <span className={styles.label}>Registration</span>
-                <h3>{playerFortress.name}</h3>
-                <p>
-                  You can still rename your castle before the season starts.
-                </p>
+                <div className={styles.ordersHeader}>
+                  <div>
+                    <span className={styles.label}>Registration</span>
+                    <h3>{playerFortress.name}</h3>
+                  </div>
+                  <strong>{playerFortress.points} pts</strong>
+                </div>
                 <form
                   action={editRegistrationFortressNameAction}
                   className={styles.form}
