@@ -23,7 +23,7 @@ Project-A is a browser-based multiplayer strategy game where each season evolves
 - Database: PostgreSQL
 - ORM: Prisma
 - Realtime: Socket.IO
-- Background processing: server-side cron/background worker for minute ticks
+- Background processing: Render Cron runs server-side minute ticks
 - Deployment target: Node.js server runtime
 
 ## Repository layout
@@ -153,7 +153,8 @@ Milestone 2 is implemented as a backend-first playable core:
 - fortresses can rename for free during `REGISTRATION`
 - fortresses can switch between `GROW` and `ATTACK` during `ACTIVE`
 - active renames cost 10 points
-- `npm run game:tick` transitions expired registration windows and applies due minute ticks transactionally
+- Render Cron runs `npm run game:tick` once per minute in production
+- `npm run game:tick` transitions expired registration windows and applies due minute ticks transactionally, and can be run manually for local/debug catch-up
 
 The home page is intentionally minimal in M1:
 
@@ -179,9 +180,10 @@ If PostgreSQL is not running locally, the game test suite is skipped instead of 
 
 ## Render baseline
 
-The repo now includes a minimal Render Blueprint at `render.yaml` for:
+The repo now includes a Render Blueprint at `render.yaml` for:
 
 - `project-a-web`
+- `project-a-game-tick`
 - `project-a-db`
 
 Suggested first deploy flow:
@@ -196,6 +198,14 @@ Render pre-deploy command:
 
 ```bash
 npm run db:deploy
+```
+
+Production minute ticks are handled by the `project-a-game-tick` Render Cron Job. It runs `npm run game:tick` every minute, uses the same `project-a-db` connection, and relies on the tick processor's idempotency to safely catch up delayed runs.
+
+For local debugging or manual catch-up, run:
+
+```bash
+npm run game:tick
 ```
 
 ### GitHub secret management
