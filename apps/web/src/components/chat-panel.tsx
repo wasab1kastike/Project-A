@@ -33,14 +33,14 @@ export function ChatPanel({
         <span className={styles.label}>Global chat</span>
         <h2>Cycle comms</h2>
         <p>
-          Authenticated players and authenticated spectators can post. Unauthenticated visitors remain read-only.
+          Signed-in users can post. Guests are read-only.
         </p>
       </div>
 
       <div className={styles.messages}>
         {messages.length === 0 ? (
           <p className={styles.emptyState}>
-            No messages yet. The first callout will appear here.
+            No messages yet. Start the channel.
           </p>
         ) : (
           messages.map((message) => (
@@ -71,7 +71,7 @@ export function ChatPanel({
             />
           </label>
           <div className={styles.formFooter}>
-            <p>{maxLength} characters max. Rate limited to 6 messages per minute.</p>
+            <p>Max {maxLength} characters. Limit: 6 messages/min.</p>
             <button className={styles.primaryButton} type="submit">
               Send message
             </button>

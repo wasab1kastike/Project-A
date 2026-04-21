@@ -98,6 +98,36 @@ export default async function Home({
     .filter(Boolean)
     .join(" ");
 
+  const phaseCopy =
+    state.phase?.status === "REGISTRATION"
+      ? {
+          title: "Registration is open.",
+          description: "Claim a fortress before the timer ends.",
+          nextAction: "Next: join now or update your fortress name.",
+          timerLabel: "Registration ends in",
+          battlefieldTitle: "Season map preview",
+          battlefieldDescription: "Fortresses appear as players register.",
+        }
+      : state.phase?.status === "ACTIVE"
+        ? {
+            title: "Season is live.",
+            description: "Moves are being resolved in real time.",
+            nextAction: state.playerSummary
+              ? "Next: pick a target in Battlefield and submit your move."
+              : "Next: follow the map and wait for the next registration.",
+            timerLabel: "Active cycle ends in",
+            battlefieldTitle: "Live battlefield",
+            battlefieldDescription: "Choose a target and lock your next move.",
+          }
+        : {
+            title: "Next season is not live yet.",
+            description: "The current cycle is closed.",
+            nextAction: "Next: check history and return when registration opens.",
+            timerLabel: "Current cycle",
+            battlefieldTitle: "Battlefield",
+            battlefieldDescription: "The map updates when the next season starts.",
+          };
+
   return (
     <main className={styles.page}>
       <RealtimeBridge enabled={Boolean(session?.user)} />
@@ -108,33 +138,16 @@ export default async function Home({
             <span className={styles.phaseBadge}>
               {state.phase?.label ?? "Waiting for a cycle"}
             </span>
-            <h1>
-              {state.phase?.status === "REGISTRATION"
-                ? "Registration is open."
-                : state.phase?.status === "ACTIVE"
-                  ? "Season is in progress."
-                  : "Waiting for the next season."}
-            </h1>
+            <h1>{phaseCopy.title}</h1>
           </div>
-          <p className={styles.lead}>
-            {state.phase?.status === "REGISTRATION"
-              ? "Claim your fortress, review the current roster, and get ready before the season begins."
-              : state.phase?.status === "ACTIVE"
-                ? "Follow the live timer, coordinate in chat, and manage your next move on the battlefield."
-                : "You can review the latest results and check back soon when registration opens again."}
-          </p>
+          <p className={styles.lead}>{phaseCopy.description}</p>
+          <p className={styles.inlineHint}>{phaseCopy.nextAction}</p>
         </div>
         <article className={styles.heroPanel}>
           <span className={styles.sectionLabel}>Phase timer</span>
           <SeasonTimer
             deadline={state.phase?.deadline?.toISOString() ?? null}
-            label={
-              state.phase?.status === "REGISTRATION"
-                ? "Registration ends in"
-                : state.phase?.status === "ACTIVE"
-                  ? "Active cycle ends in"
-                  : "Current cycle"
-            }
+            label={phaseCopy.timerLabel}
           />
           <p>{state.cycle?.phaseDescription ?? state.emptyStateMessage}</p>
           <dl className={styles.statsList}>
@@ -179,33 +192,14 @@ export default async function Home({
                 <li>
                   Active deadline: {formatDeadline(state.cycle.activeEndsAt)}
                 </li>
-                <li>
-                  Spectator status:{" "}
-                  {state.isSpectator
-                    ? "Seuraat peliä katsojana, kunnes liityt mukaan kaudelle."
-                    : "Johdat omaa linnoitustasi tällä kaudella."}
-                </li>
-                <li>
-                  Kierroksen päivitykset käsitellään automaattisesti.
-                </li>
               </ul>
             ) : null}
           </article>
 
           <article className={styles.panel}>
             <span className={styles.sectionLabel}>Battlefield</span>
-            <h2>
-              {state.phase?.status === "REGISTRATION"
-                ? "Upcoming season map"
-                : "Current cycle battlefield"}
-            </h2>
-            <p>
-              {state.phase?.status === "REGISTRATION"
-                ? "Linnoitukset ilmestyvät kartalle pelaajien liittyessä mukaan. Toiminnot avautuvat, kun ilmoittautuminen päättyy."
-                : state.phase?.status === "ACTIVE"
-                  ? "Kaikki aktiivisen kauden linnoitukset näkyvät täällä. Valitse kohteesi ja suunnittele seuraava siirtosi."
-                  : "Taistelukenttä päivittyy, kun seuraava kausi käynnistyy."}
-            </p>
+            <h2>{phaseCopy.battlefieldTitle}</h2>
+            <p>{phaseCopy.battlefieldDescription}</p>
 
             {state.phase?.status === "ACTIVE" && state.playerSummary ? (
               <ActiveCommandCenter
@@ -224,14 +218,14 @@ export default async function Home({
           <article className={styles.panel}>
             <span className={styles.sectionLabel}>Season control</span>
             <h2>
-              {session?.user ? `Signed in as ${userLabel}` : "Spectator mode"}
+              {session?.user ? `Signed in as ${userLabel}` : "Join to play"}
             </h2>
             <p>
               {session?.user
                 ? state.playerFortress
-                  ? "Linnoituksesi on mukana tällä kaudella."
-                  : "Olet kirjautunut sisään, mutta et ole vielä liittynyt tälle kaudelle. Voit silti keskustella chatissa."
-                : "Kirjautumalla sisään voit liittyä kaudelle ja tehdä omia siirtoja."}
+                  ? "You are in this season."
+                  : "You are signed in but not registered for this season."
+                : "Sign in to join a fortress and submit moves."}
             </p>
 
             {!session?.user ? (
@@ -282,8 +276,8 @@ export default async function Home({
             !state.canEditRegistrationName ? (
               <p className={styles.inlineHint}>
                 {state.playerSummary
-                  ? "Your fortress is already locked into the upcoming season. You can still edit its name while registration remains open."
-                  : "Ilmoittautuminen on tällä hetkellä suljettu uusilta liittymisiltä. Tarkista tilanne hetken kuluttua uudelleen."}
+                  ? "You are locked in for this season."
+                  : "Registration is currently full."}
               </p>
             ) : null}
 
@@ -291,7 +285,7 @@ export default async function Home({
             state.cycle?.status === "ACTIVE" &&
             state.playerSummary ? (
               <p className={styles.inlineHint}>
-                Use the battlefield panel to choose targets from the map or the fallback selector, then submit your action. Rename remains available there as well.
+                Use Battlefield to manage your action.
               </p>
             ) : null}
 
@@ -299,8 +293,7 @@ export default async function Home({
             state.cycle?.status === "ACTIVE" &&
             !state.playerFortress ? (
               <p className={styles.inlineHint}>
-                This cycle is already active. You are observing as a spectator
-                until the next registration window opens, but you can still post in global chat.
+                You are spectating this cycle and can still chat.
               </p>
             ) : null}
           </article>
@@ -317,24 +310,12 @@ export default async function Home({
 
           <article className={styles.panel}>
             <span className={styles.sectionLabel}>Session</span>
-            <dl className={styles.statsList}>
-              <div className={styles.statRow}>
-                <dt>Auth configured</dt>
-                <dd>{isAuthConfigured ? "Yes" : "No"}</dd>
-              </div>
-              <div className={styles.statRow}>
-                <dt>Role</dt>
-                <dd>{session?.user?.role ?? "SPECTATOR"}</dd>
-              </div>
-              <div className={styles.statRow}>
-                <dt>Mode</dt>
-                <dd>{state.isSpectator ? "Read-only" : "Participant"}</dd>
-              </div>
-              <div className={styles.statRow}>
-                <dt>Admin nav</dt>
-                <dd>{isAdmin ? "Visible" : "Hidden"}</dd>
-              </div>
-            </dl>
+            <h2>{session?.user ? "Account" : "Guest"}</h2>
+            <p>
+              {session?.user
+                ? `Role: ${session.user.role ?? "SPECTATOR"}. ${state.isSpectator ? "Read-only now." : "You can act now."}`
+                : "Read-only mode until you sign in."}
+            </p>
             {session?.user ? (
               <SessionActions
                 authConfigured={isAuthConfigured}
