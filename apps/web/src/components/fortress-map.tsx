@@ -353,21 +353,24 @@ export function FortressMap({
     }
 
     const pinchState = pinchStateRef.current;
+    const shellBounds = shellRef.current?.getBoundingClientRect();
+    if (!shellBounds) {
+      return;
+    }
+
     const ratio = distance / pinchState.distance;
     const nextScale = clampValue(pinchState.startScale * ratio, MIN_SCALE, MAX_SCALE);
     const scaleRatio = nextScale / pinchState.startScale;
 
-    const anchorCenteredX = midpoint.x - pinchState.midpoint.x;
-    const anchorCenteredY = midpoint.y - pinchState.midpoint.y;
+    const anchorCenteredX = midpoint.x - shellBounds.width / 2;
+    const anchorCenteredY = midpoint.y - shellBounds.height / 2;
+    const startAnchorCenteredX = pinchState.midpoint.x - shellBounds.width / 2;
+    const startAnchorCenteredY = pinchState.midpoint.y - shellBounds.height / 2;
 
     const nextTranslateX =
-      pinchState.startTranslateX +
-      anchorCenteredX -
-      (anchorCenteredX - pinchState.startTranslateX) * scaleRatio;
+      anchorCenteredX - (startAnchorCenteredX - pinchState.startTranslateX) * scaleRatio;
     const nextTranslateY =
-      pinchState.startTranslateY +
-      anchorCenteredY -
-      (anchorCenteredY - pinchState.startTranslateY) * scaleRatio;
+      anchorCenteredY - (startAnchorCenteredY - pinchState.startTranslateY) * scaleRatio;
 
     applyView(nextScale, nextTranslateX, nextTranslateY);
   }, [applyView, scale, translateX, translateY]);
