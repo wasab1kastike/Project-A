@@ -55,13 +55,12 @@ function getDegradedHomePageState(): HomePageState {
       messages: [],
       canPost: false,
       maxLength: 280,
-      postHint: "Palvelussa on tilapäinen häiriö. Yritä hetken kuluttua uudelleen.",
+      postHint: "Service is temporarily unavailable. Please try again shortly.",
     },
     availableTargets: [],
     canJoinRegistration: false,
     canEditRegistrationName: false,
-    emptyStateMessage:
-      "Palvelussa on tilapäinen häiriö. Yritä hetken kuluttua uudelleen.",
+    emptyStateMessage: "Service is temporarily unavailable. Please try again shortly.",
   };
 }
 
@@ -77,7 +76,7 @@ export default async function Home({
   let session: Session | null = null;
   let state: HomePageState = getDegradedHomePageState();
   let runtimeError: string | null =
-    "Palvelussa on tilapäinen häiriö. Yritä hetken kuluttua uudelleen.";
+    "Service is temporarily unavailable. Please try again shortly.";
 
   try {
     session = await auth();
@@ -179,8 +178,8 @@ export default async function Home({
             <span className={styles.sectionLabel}>Game state</span>
             <h2>
               {state.phase
-                ? `Vaihe: ${state.phase.label}`
-                : "Uusi kausi ilmoitetaan pian"}
+                ? `Phase: ${state.phase.label}`
+                : "A new season will be announced soon"}
             </h2>
             <p>{state.cycle?.statusMessage ?? state.emptyStateMessage}</p>
             {state.cycle ? (
