@@ -7,7 +7,11 @@ import {
 } from "@/lib/prisma-client";
 import { prisma } from "@/lib/prisma";
 import { ensureOpenRegistrationCycle } from "./bootstrap";
-import { ACTIVE_DURATION_HOURS, REGISTRATION_DURATION_HOURS } from "./constants";
+import {
+  ACTIVE_DURATION_HOURS,
+  REGISTRATION_DURATION_HOURS,
+} from "./constants";
+import { launchAttackUnit } from "./attack-units";
 import { addHours, addMinutes, floorToMinute } from "./time";
 
 type TickSummary = {
@@ -51,7 +55,9 @@ function getLastDueTickAt(
   }
 
   const nowTick = floorToMinute(now);
-  const activeEndTick = cycle.activeEndsAt ? floorToMinute(cycle.activeEndsAt) : nowTick;
+  const activeEndTick = cycle.activeEndsAt
+    ? floorToMinute(cycle.activeEndsAt)
+    : nowTick;
   const lastDueTickAt = nowTick < activeEndTick ? nowTick : activeEndTick;
 
   if (lastDueTickAt < getFirstTickAt(cycle.activeStartedAt)) {
@@ -80,7 +86,11 @@ async function restartEmptyRegistrationCycle(
       },
     });
 
-    if (!cycle || cycle.status !== CycleStatus.REGISTRATION || cycle.registrationEndsAt > now) {
+    if (
+      !cycle ||
+      cycle.status !== CycleStatus.REGISTRATION ||
+      cycle.registrationEndsAt > now
+    ) {
       return false;
     }
 
@@ -130,7 +140,11 @@ async function activateRegistrationCycle(
       },
     });
 
-    if (!cycle || cycle.status !== CycleStatus.REGISTRATION || cycle.registrationEndsAt > now) {
+    if (
+      !cycle ||
+      cycle.status !== CycleStatus.REGISTRATION ||
+      cycle.registrationEndsAt > now
+    ) {
       return false;
     }
 
@@ -342,7 +356,10 @@ async function resolveExpiredActiveCycle(
           continue;
         }
 
-        if ((currentScores.get(fortress.id) ?? 0) === (finalScores.get(fortress.id) ?? 0)) {
+        if (
+          (currentScores.get(fortress.id) ?? 0) ===
+          (finalScores.get(fortress.id) ?? 0)
+        ) {
           reachedFinalScoreAt.set(fortress.id, tickAt);
         }
       }
@@ -370,20 +387,21 @@ async function resolveExpiredActiveCycle(
       (candidate) => candidate.finalScore === winner.finalScore
     );
     const winnerRequest =
-      cycle.winnerRequests.find((request) => request.authorId === winner.ownerId) ??
-      null;
+      cycle.winnerRequests.find(
+        (request) => request.authorId === winner.ownerId
+      ) ?? null;
 
     await tx.cycle.update({
       where: {
         id: cycle.id,
       },
-        data: {
-          status: CycleStatus.RESOLUTION,
-          winnerId: winner.ownerId,
-          resolvedAt: resolutionEndedAt,
-          joiningLockedAt: null,
-        },
-      });
+      data: {
+        status: CycleStatus.RESOLUTION,
+        winnerId: winner.ownerId,
+        resolvedAt: resolutionEndedAt,
+        joiningLockedAt: null,
+      },
+    });
 
     await tx.cycleHistory.create({
       data: {
@@ -424,7 +442,11 @@ async function processCycleTick(
       },
     });
 
-    if (!cycle || cycle.status !== CycleStatus.ACTIVE || !cycle.activeStartedAt) {
+    if (
+      !cycle ||
+      cycle.status !== CycleStatus.ACTIVE ||
+      !cycle.activeStartedAt
+    ) {
       return { processed: false, scoreEventsCreated: 0 };
     }
 
@@ -461,6 +483,8 @@ async function processCycleTick(
         points: true,
         currentAction: true,
         targetFortressId: true,
+        mapX: true,
+        mapY: true,
         joinedAt: true,
       },
     });
@@ -468,11 +492,68 @@ async function processCycleTick(
     const currentPoints = new Map(
       fortresses.map((fortress) => [fortress.id, fortress.points])
     );
+    const fortressLookup = new Map(
+      fortresses.map((fortress) => [fortress.id, fortress])
+    );
     const scoreEvents: Prisma.ScoreEventCreateManyInput[] = [];
+    const resolvedAttackers = new Set<string>();
+
+    const dueAttackUnits = await tx.attackUnit.findMany({
+      where: {
+        cycleId,
+        resolvedAt: null,
+        cancelledAt: null,
+        arrivesAt: {
+          lte: tickAt,
+        },
+      },
+      orderBy: [{ arrivesAt: "asc" }, { id: "asc" }],
+      select: {
+        id: true,
+        attackerFortressId: true,
+        targetFortressId: true,
+      },
+    });
+
+    for (const unit of dueAttackUnits) {
+      const attacker = fortressLookup.get(unit.attackerFortressId);
+      const targetPoints = currentPoints.get(unit.targetFortressId);
+
+      await tx.attackUnit.update({
+        where: {
+          id: unit.id,
+        },
+        data: {
+          resolvedAt: tickAt,
+        },
+      });
+
+      resolvedAttackers.add(unit.attackerFortressId);
+
+      if (!attacker || targetPoints === undefined) {
+        continue;
+      }
+
+      const targetLoss = Math.min(targetPoints, 2);
+      currentPoints.set(unit.targetFortressId, targetPoints - targetLoss);
+
+      scoreEvents.push({
+        cycleId,
+        fortressId: unit.targetFortressId,
+        actorId: attacker.ownerId,
+        targetFortressId: unit.targetFortressId,
+        eventType: ScoreEventType.ATTACK_TARGET,
+        delta: -targetLoss,
+        createdAt: tickAt,
+      });
+    }
 
     for (const fortress of fortresses) {
       if (fortress.currentAction === FortressAction.GROW) {
-        currentPoints.set(fortress.id, (currentPoints.get(fortress.id) ?? 0) + 1);
+        currentPoints.set(
+          fortress.id,
+          (currentPoints.get(fortress.id) ?? 0) + 1
+        );
         scoreEvents.push({
           cycleId,
           fortressId: fortress.id,
@@ -483,39 +564,6 @@ async function processCycleTick(
         });
         continue;
       }
-
-      const targetId = fortress.targetFortressId;
-
-      if (!targetId || targetId === fortress.id || !currentPoints.has(targetId)) {
-        continue;
-      }
-
-      const attackerPoints = currentPoints.get(fortress.id) ?? 0;
-      const targetPoints = currentPoints.get(targetId) ?? 0;
-      const attackerLoss = Math.min(attackerPoints, 1);
-      const targetLoss = Math.min(targetPoints, 2);
-
-      currentPoints.set(fortress.id, attackerPoints - attackerLoss);
-      currentPoints.set(targetId, targetPoints - targetLoss);
-
-      scoreEvents.push({
-        cycleId,
-        fortressId: fortress.id,
-        actorId: fortress.ownerId,
-        targetFortressId: fortress.id,
-        eventType: ScoreEventType.ATTACK_SELF,
-        delta: -attackerLoss,
-        createdAt: tickAt,
-      });
-      scoreEvents.push({
-        cycleId,
-        fortressId: targetId,
-        actorId: fortress.ownerId,
-        targetFortressId: targetId,
-        eventType: ScoreEventType.ATTACK_TARGET,
-        delta: -targetLoss,
-        createdAt: tickAt,
-      });
     }
 
     for (const fortress of fortresses) {
@@ -539,9 +587,46 @@ async function processCycleTick(
       });
     }
 
+    let launchedAttackUnits = 0;
+
+    for (const fortress of fortresses) {
+      if (
+        fortress.currentAction !== FortressAction.ATTACK ||
+        !fortress.targetFortressId ||
+        fortress.targetFortressId === fortress.id ||
+        resolvedAttackers.has(fortress.id)
+      ) {
+        continue;
+      }
+
+      const target = fortressLookup.get(fortress.targetFortressId);
+
+      if (!target) {
+        continue;
+      }
+
+      const launchedUnit = await launchAttackUnit({
+        db: tx,
+        cycle,
+        attacker: {
+          ...fortress,
+          points: currentPoints.get(fortress.id) ?? fortress.points,
+        },
+        target: {
+          ...target,
+          points: currentPoints.get(target.id) ?? target.points,
+        },
+        launchedAt: tickAt,
+      });
+
+      if (launchedUnit) {
+        launchedAttackUnits += 1;
+      }
+    }
+
     return {
       processed: true,
-      scoreEventsCreated: scoreEvents.length,
+      scoreEventsCreated: scoreEvents.length + launchedAttackUnits,
     };
   });
 }

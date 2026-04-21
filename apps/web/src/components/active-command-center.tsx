@@ -1,8 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { renameFortressAction, setFortressActionAction } from "@/app/game-actions";
-import { FortressMap } from "./fortress-map";
+import {
+  renameFortressAction,
+  setFortressActionAction,
+} from "@/app/game-actions";
+import { FortressMap, type MapFortress } from "./fortress-map";
 import styles from "./active-command-center.module.css";
 
 type CommandTarget = {
@@ -10,17 +13,6 @@ type CommandTarget = {
   name: string;
   points: number;
   currentAction: "GROW" | "ATTACK";
-};
-
-type MapFortress = {
-  id: string;
-  name: string;
-  points: number;
-  currentAction: "GROW" | "ATTACK";
-  mapX: number;
-  mapY: number;
-  isCurrentUser: boolean;
-  isTargetable: boolean;
 };
 
 export function ActiveCommandCenter({
@@ -39,7 +31,9 @@ export function ActiveCommandCenter({
   targets: CommandTarget[];
 }) {
   const [action, setAction] = useState<"GROW" | "ATTACK">(currentAction);
-  const [targetFortressId, setTargetFortressId] = useState(currentTargetId ?? "");
+  const [targetFortressId, setTargetFortressId] = useState(
+    currentTargetId ?? ""
+  );
 
   return (
     <div className={styles.layout}>
@@ -73,7 +67,8 @@ export function ActiveCommandCenter({
               name="action"
               value={action}
               onChange={(event) => {
-                const nextAction = event.target.value === "ATTACK" ? "ATTACK" : "GROW";
+                const nextAction =
+                  event.target.value === "ATTACK" ? "ATTACK" : "GROW";
                 setAction(nextAction);
 
                 if (nextAction === "GROW") {
@@ -105,7 +100,7 @@ export function ActiveCommandCenter({
           <p className={styles.helper}>
             {action === "ATTACK" && currentTargetName
               ? `Saved target: ${currentTargetName}`
-              : "Grow adds 1 point per minute tick. Attack spends 1 point from you and 2 from the target."}
+              : "Grow adds 1 point per minute tick. Attack spends 1 point at launch and damages the target on impact."}
           </p>
           <button className={styles.primaryButton} type="submit">
             Save action
@@ -124,7 +119,8 @@ export function ActiveCommandCenter({
             />
           </label>
           <p className={styles.helper}>
-            Renaming during ACTIVE costs 10 points and still requires a unique name.
+            Renaming during ACTIVE costs 10 points and still requires a unique
+            name.
           </p>
           <button className={styles.secondaryButton} type="submit">
             Spend 10 points to rename

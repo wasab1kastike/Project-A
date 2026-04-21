@@ -118,6 +118,7 @@ model Cycle {
   chatMessages          ChatMessage[]
   scoreEvents           ScoreEvent[]
   gameTicks             GameTick[]
+  attackUnits           AttackUnit[]
   winnerRequests        WinnerRequest[]
   history               CycleHistory?
 
@@ -126,29 +127,52 @@ model Cycle {
 }
 
 model Fortress {
-  id                    String          @id @default(cuid())
+  id                    String         @id @default(cuid())
   cycleId               String
   ownerId               String
   name                  String
-  points                Int             @default(0)
-  currentAction         FortressAction  @default(GROW)
+  points                Int            @default(0)
+  currentAction         FortressAction @default(GROW)
   targetFortressId      String?
+  unitSpriteVariant     String         @default("unit-1")
   mapX                  Int
   mapY                  Int
-  joinedAt              DateTime        @default(now())
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
-  cycle                 Cycle           @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  owner                 User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  targetFortress        Fortress?       @relation("FortressTarget", fields: [targetFortressId], references: [id], onDelete: SetNull)
-  attackers             Fortress[]      @relation("FortressTarget")
-  scoreEventsAsFortress ScoreEvent[]    @relation("ScoreEventFortress")
-  scoreEventsAsTarget   ScoreEvent[]    @relation("ScoreEventTargetFortress")
+  joinedAt              DateTime       @default(now())
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  cycle                 Cycle          @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  owner                 User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  targetFortress        Fortress?      @relation("FortressTarget", fields: [targetFortressId], references: [id], onDelete: SetNull)
+  attackers             Fortress[]     @relation("FortressTarget")
+  outboundAttackUnits   AttackUnit[]   @relation("AttackUnitAttacker")
+  inboundAttackUnits    AttackUnit[]   @relation("AttackUnitTarget")
+  scoreEventsAsFortress ScoreEvent[]   @relation("ScoreEventFortress")
+  scoreEventsAsTarget   ScoreEvent[]   @relation("ScoreEventTargetFortress")
 
   @@unique([cycleId, ownerId])
   @@unique([cycleId, name])
   @@index([cycleId])
   @@index([ownerId])
+}
+
+model AttackUnit {
+  id                 String    @id @default(cuid())
+  cycleId            String
+  attackerFortressId String
+  targetFortressId   String
+  launchedAt         DateTime
+  arrivesAt          DateTime
+  resolvedAt         DateTime?
+  cancelledAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  cycle              Cycle     @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  attackerFortress   Fortress  @relation("AttackUnitAttacker", fields: [attackerFortressId], references: [id], onDelete: Cascade)
+  targetFortress     Fortress  @relation("AttackUnitTarget", fields: [targetFortressId], references: [id], onDelete: Cascade)
+
+  @@index([cycleId, arrivesAt])
+  @@index([attackerFortressId, resolvedAt, cancelledAt])
+  @@index([targetFortressId])
 }
 
 model ChatMessage {

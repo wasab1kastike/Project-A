@@ -11,6 +11,12 @@ import {
   ACTIVE_RENAME_COST,
   MAP_POSITIONS,
 } from "./constants";
+import { getRandomUnitSpriteVariant } from "./attacks";
+import {
+  cancelActiveAttackUnits,
+  getActiveAttackUnit,
+  launchAttackUnit,
+} from "./attack-units";
 import { GameError } from "./errors";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
@@ -58,7 +64,9 @@ function isRegistrationWindowOpen(
   },
   now: Date
 ) {
-  return cycle.status === CycleStatus.REGISTRATION && cycle.registrationEndsAt > now;
+  return (
+    cycle.status === CycleStatus.REGISTRATION && cycle.registrationEndsAt > now
+  );
 }
 
 function isActiveWindowOpen(
@@ -81,7 +89,9 @@ function findOpenMapPosition(
     mapY: number;
   }>
 ) {
-  const occupied = new Set(fortresses.map((fortress) => `${fortress.mapX}:${fortress.mapY}`));
+  const occupied = new Set(
+    fortresses.map((fortress) => `${fortress.mapX}:${fortress.mapY}`)
+  );
 
   return MAP_POSITIONS.find((position) => {
     return !occupied.has(`${position.x}:${position.y}`);
@@ -177,13 +187,17 @@ export async function joinRegistrationCycle({
         if (
           cycle.fortresses.some((fortress) => fortress.name === normalizedName)
         ) {
-          throw new GameError("That fortress name is already taken this cycle.");
+          throw new GameError(
+            "That fortress name is already taken this cycle."
+          );
         }
 
         const openPosition = findOpenMapPosition(cycle.fortresses);
 
         if (!openPosition) {
-          throw new GameError("No map position is available for a new fortress.");
+          throw new GameError(
+            "No map position is available for a new fortress."
+          );
         }
 
         return tx.fortress.create({
@@ -193,6 +207,7 @@ export async function joinRegistrationCycle({
             name: normalizedName,
             mapX: openPosition.x,
             mapY: openPosition.y,
+            unitSpriteVariant: getRandomUnitSpriteVariant(),
             currentAction: FortressAction.GROW,
           },
         });
@@ -245,7 +260,9 @@ export async function editRegistrationFortressName({
       });
 
       if (!fortress) {
-        throw new GameError("Join the current registration cycle before editing.");
+        throw new GameError(
+          "Join the current registration cycle before editing."
+        );
       }
 
       return tx.fortress.update({
@@ -300,6 +317,12 @@ export async function setFortressAction({
     }
 
     if (action === FortressAction.GROW) {
+      await cancelActiveAttackUnits({
+        db: tx,
+        attackerFortressId: fortress.id,
+        cancelledAt: now,
+      });
+
       return tx.fortress.update({
         where: {
           id: fortress.id,
@@ -327,10 +350,22 @@ export async function setFortressAction({
     });
 
     if (!target) {
-      throw new GameError("That attack target is not part of the active cycle.");
+      throw new GameError(
+        "That attack target is not part of the active cycle."
+      );
     }
 
-    return tx.fortress.update({
+    const activeUnit = await getActiveAttackUnit(tx, fortress.id);
+
+    if (activeUnit && activeUnit.targetFortressId !== target.id) {
+      await cancelActiveAttackUnits({
+        db: tx,
+        attackerFortressId: fortress.id,
+        cancelledAt: now,
+      });
+    }
+
+    const updatedFortress = await tx.fortress.update({
       where: {
         id: fortress.id,
       },
@@ -339,6 +374,18 @@ export async function setFortressAction({
         targetFortressId,
       },
     });
+
+    if (!activeUnit || activeUnit.targetFortressId !== target.id) {
+      await launchAttackUnit({
+        db: tx,
+        cycle,
+        attacker: updatedFortress,
+        target,
+        launchedAt: now,
+      });
+    }
+
+    return updatedFortress;
   });
 }
 
@@ -360,7 +407,9 @@ export async function renameActiveFortress({
       const cycle = await getCurrentCycle(tx);
 
       if (!cycle || !isActiveWindowOpen(cycle, now)) {
-        throw new GameError("Fortress renaming is only available during ACTIVE.");
+        throw new GameError(
+          "Fortress renaming is only available during ACTIVE."
+        );
       }
 
       const fortress = await tx.fortress.findUnique({
@@ -377,7 +426,9 @@ export async function renameActiveFortress({
       }
 
       if (fortress.points < ACTIVE_RENAME_COST) {
-        throw new GameError("You need at least 10 points to rename your fortress.");
+        throw new GameError(
+          "You need at least 10 points to rename your fortress."
+        );
       }
 
       const updatedFortress = await tx.fortress.update({

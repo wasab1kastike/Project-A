@@ -12,6 +12,11 @@
   - points
   - target
   - map position
+  - unit sprite variant
+- Attack launches one visible unit at a time
+- Attack costs up to 1 point from the attacker at launch
+- Attack deals up to 2 points of target damage on impact
+- Attack travel time is distance-based, using the default unit speed
 - Rename costs 10 points
 - Points never go below zero
 - Global chat with timestamps

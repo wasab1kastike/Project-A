@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   HEX_RADIUS,
@@ -11,6 +11,7 @@ import {
   snapMapPointToHex,
   type HexBiome,
 } from "@/lib/game/map-hex";
+import type { UnitSpriteVariant } from "@/lib/game/constants";
 import styles from "./fortress-map.module.css";
 
 type MapFortress = {
@@ -20,8 +21,28 @@ type MapFortress = {
   currentAction: "GROW" | "ATTACK";
   mapX: number;
   mapY: number;
+  unitSpriteVariant: UnitSpriteVariant;
   isCurrentUser: boolean;
   isTargetable: boolean;
+};
+
+type AttackUnitMarker = {
+  id: string;
+  launchedAt: Date;
+  arrivesAt: Date;
+  attacker: {
+    id: string;
+    name: string;
+    mapX: number;
+    mapY: number;
+    unitSpriteVariant: UnitSpriteVariant;
+  };
+  target: {
+    id: string;
+    name: string;
+    mapX: number;
+    mapY: number;
+  };
 };
 
 type Point = {
@@ -36,7 +57,7 @@ type DragStart = {
   translateY: number;
 };
 
-export type { MapFortress };
+export type { AttackUnitMarker, MapFortress };
 
 const MIN_SCALE = 0.42;
 const MAX_SCALE = 2.1;
@@ -467,13 +488,125 @@ function HexTileMap() {
   );
 }
 
+function getAttackProgress(unit: AttackUnitMarker, nowMs: number) {
+  const launchedAt = new Date(unit.launchedAt).getTime();
+  const arrivesAt = new Date(unit.arrivesAt).getTime();
+  const duration = arrivesAt - launchedAt;
+
+  if (duration <= 0) {
+    return 1;
+  }
+
+  return clampValue((nowMs - launchedAt) / duration, 0, 1);
+}
+
+function getInterpolatedPoint(origin: Point, target: Point, progress: number) {
+  return {
+    x: origin.x + (target.x - origin.x) * progress,
+    y: origin.y + (target.y - origin.y) * progress,
+  };
+}
+
+function AttackUnitsLayer({
+  attackUnits,
+}: {
+  attackUnits: AttackUnitMarker[];
+}) {
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (attackUnits.length === 0) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [attackUnits.length]);
+
+  if (attackUnits.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className={styles.attackLayer} aria-label="Active attacks">
+      <svg
+        className={styles.attackRoutes}
+        viewBox={`0 0 ${MAP_WORLD_WIDTH} ${MAP_WORLD_HEIGHT}`}
+        aria-hidden="true"
+        role="presentation"
+      >
+        {attackUnits.map((unit) => {
+          const origin = snapMapPointToHex({
+            x: unit.attacker.mapX,
+            y: unit.attacker.mapY,
+          });
+          const target = snapMapPointToHex({
+            x: unit.target.mapX,
+            y: unit.target.mapY,
+          });
+
+          return (
+            <line
+              key={unit.id}
+              className={styles.attackRoute}
+              x1={(origin.x / 100) * MAP_WORLD_WIDTH}
+              y1={(origin.y / 100) * MAP_WORLD_HEIGHT}
+              x2={(target.x / 100) * MAP_WORLD_WIDTH}
+              y2={(target.y / 100) * MAP_WORLD_HEIGHT}
+            />
+          );
+        })}
+      </svg>
+
+      {attackUnits.map((unit) => {
+        const origin = snapMapPointToHex({
+          x: unit.attacker.mapX,
+          y: unit.attacker.mapY,
+        });
+        const target = snapMapPointToHex({
+          x: unit.target.mapX,
+          y: unit.target.mapY,
+        });
+        const progress = getAttackProgress(unit, nowMs);
+        const currentPoint = getInterpolatedPoint(origin, target, progress);
+        const secondsRemaining = Math.max(
+          0,
+          Math.ceil((new Date(unit.arrivesAt).getTime() - nowMs) / 1000)
+        );
+
+        return (
+          <div
+            key={unit.id}
+            className={styles.attackUnit}
+            style={{
+              left: `${currentPoint.x}%`,
+              top: `${currentPoint.y}%`,
+            }}
+            aria-label={`${unit.attacker.name} unit attacking ${unit.target.name}. ${secondsRemaining} seconds until impact.`}
+          >
+            <span
+              className={styles.attackUnitSprite}
+              data-variant={unit.attacker.unitSpriteVariant}
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function FortressMap({
   fortresses,
+  attackUnits = [],
   selectedFortressId,
   selectedTargetId,
   onSelectFortress,
 }: {
   fortresses: MapFortress[];
+  attackUnits?: AttackUnitMarker[];
   selectedFortressId?: string | null;
   selectedTargetId?: string | null;
   onSelectFortress?: (fortress: MapFortress) => void;
@@ -807,6 +940,7 @@ export function FortressMap({
       >
         <div className={styles.viewportContent} style={viewTransform}>
           <HexTileMap />
+          <AttackUnitsLayer attackUnits={attackUnits} />
           {fortresses.length === 0 ? (
             <div className={styles.emptyState}>
               No fortresses on the battlefield yet.

@@ -161,6 +161,76 @@
   z-index: 2;
 }
 
+.attackLayer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.attackRoutes {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.attackRoute {
+  stroke: rgba(255, 124, 124, 0.6);
+  stroke-width: 5px;
+  stroke-linecap: square;
+  stroke-dasharray: 14 12;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 8px rgba(255, 86, 86, 0.28));
+}
+
+.attackUnit {
+  position: absolute;
+  width: 52px;
+  height: 52px;
+  transform: translate(-50%, -50%);
+  transition:
+    left 900ms linear,
+    top 900ms linear;
+  filter: drop-shadow(0 9px 0 rgba(0, 0, 0, 0.28))
+    drop-shadow(0 0 10px rgba(255, 196, 95, 0.2));
+}
+
+.attackUnitSprite {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background-image: url("/assets/unit-sprites.png");
+  background-repeat: no-repeat;
+  background-size: 300% 200%;
+  image-rendering: pixelated;
+}
+
+.attackUnitSprite[data-variant="unit-1"] {
+  background-position: 0% 0%;
+}
+
+.attackUnitSprite[data-variant="unit-2"] {
+  background-position: 50% 0%;
+}
+
+.attackUnitSprite[data-variant="unit-3"] {
+  background-position: 100% 0%;
+}
+
+.attackUnitSprite[data-variant="unit-4"] {
+  background-position: 0% 100%;
+}
+
+.attackUnitSprite[data-variant="unit-5"] {
+  background-position: 50% 100%;
+}
+
+.attackUnitSprite[data-variant="unit-6"] {
+  background-position: 100% 100%;
+}
+
 .marker {
   position: absolute;
   display: grid;
@@ -298,7 +368,11 @@
 }
 
 .targetable .selectionPulse {
-  background: radial-gradient(circle, rgba(122, 206, 135, 0.16), transparent 72%);
+  background: radial-gradient(
+    circle,
+    rgba(122, 206, 135, 0.16),
+    transparent 72%
+  );
 }
 
 .currentUser .spriteFrame {
@@ -310,7 +384,11 @@
 }
 
 .currentUser .selectionPulse {
-  background: radial-gradient(circle, rgba(247, 196, 95, 0.24), transparent 72%);
+  background: radial-gradient(
+    circle,
+    rgba(247, 196, 95, 0.24),
+    transparent 72%
+  );
 }
 
 .selected .spriteFrame {
@@ -322,7 +400,11 @@
 }
 
 .selected .selectionPulse {
-  background: radial-gradient(circle, rgba(255, 124, 124, 0.26), transparent 72%);
+  background: radial-gradient(
+    circle,
+    rgba(255, 124, 124, 0.26),
+    transparent 72%
+  );
 }
 
 .activeFortress .spriteFrame {

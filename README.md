@@ -44,7 +44,6 @@ Project-A is a browser-based multiplayer strategy game where each season evolves
 - [Map overhaul changelog entry](docs/changelog-policy.md#map-overhaul-log)
 - [Known hosting constraints for GitHub Pages](docs/github-pages-hosting.md#constraints-to-account-for)
 
-
 ## Getting started
 
 1. Install dependencies:
@@ -150,8 +149,10 @@ Milestone 2 is implemented as a backend-first playable core:
 
 - `seedProjectA` bootstraps the first unresolved `REGISTRATION` cycle if one does not exist
 - joining registration immediately creates a fortress and assigns one of 30 fixed map slots
+- each fortress receives a randomly assigned retro pixel-art unit sprite for attacks
 - fortresses can rename for free during `REGISTRATION`
 - fortresses can switch between `GROW` and `ATTACK` during `ACTIVE`
+- attacks launch visible units across the battlefield; the attacker pays up to 1 point at launch and the target loses up to 2 points on impact
 - active renames cost 10 points
 - Render Cron runs `npm run game:tick` once per minute in production
 - `npm run game:tick` transitions expired registration windows and applies due minute ticks transactionally, and can be run manually for local/debug catch-up

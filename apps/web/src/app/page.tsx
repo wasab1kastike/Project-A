@@ -46,11 +46,13 @@ function getDegradedHomePageState(): HomePageState {
     playerSummary: null,
     leaderboard: [],
     mapFortresses: [],
+    attackUnits: [],
     chat: {
       messages: [],
       canPost: false,
       maxLength: 280,
-      postHint: "Palvelussa on tilapäinen häiriö. Yritä hetken kuluttua uudelleen.",
+      postHint:
+        "Palvelussa on tilapäinen häiriö. Yritä hetken kuluttua uudelleen.",
     },
     availableTargets: [],
     canJoinRegistration: false,
@@ -88,7 +90,9 @@ export default async function Home({
   const userLabel = session?.user?.name ?? session?.user?.email ?? "Commander";
   const phaseClassName = [
     styles.hero,
-    state.phase?.status === "REGISTRATION" ? styles.registrationHero : styles.activeHero,
+    state.phase?.status === "REGISTRATION"
+      ? styles.registrationHero
+      : styles.activeHero,
   ]
     .filter(Boolean)
     .join(" ");
@@ -117,10 +121,12 @@ export default async function Home({
         : {
             title: "Next season is not live yet.",
             description: "The current cycle is closed.",
-            nextAction: "Next: check history and return when registration opens.",
+            nextAction:
+              "Next: check history and return when registration opens.",
             timerLabel: "Current cycle",
             battlefieldTitle: "Battlefield",
-            battlefieldDescription: "The map updates when the next season starts.",
+            battlefieldDescription:
+              "The map updates when the next season starts.",
           };
 
   return (
@@ -164,7 +170,9 @@ export default async function Home({
         </article>
       </section>
 
-      {runtimeError ? <p className={styles.errorBanner}>{runtimeError}</p> : null}
+      {runtimeError ? (
+        <p className={styles.errorBanner}>{runtimeError}</p>
+      ) : null}
       {error ? <p className={styles.errorBanner}>{error}</p> : null}
       {notice ? <p className={styles.noticeBanner}>{notice}</p> : null}
 
@@ -175,6 +183,7 @@ export default async function Home({
         playerSummary={state.playerSummary}
         playerFortress={state.playerFortress}
         mapFortresses={state.mapFortresses}
+        attackUnits={state.attackUnits}
         targets={state.availableTargets}
         chat={state.chat}
         canEditRegistrationName={state.canEditRegistrationName}

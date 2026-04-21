@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { CycleStatus, type PrismaClient } from "@/lib/prisma-client";
 import { ACTIVE_PLAYER_CAP } from "./constants";
 import { getChatLimits } from "./chat";
+import { normalizeUnitSpriteVariant } from "./attacks";
 
 export type HomePageState = Awaited<ReturnType<typeof getHomePageState>>;
 
@@ -56,9 +57,39 @@ export async function getHomePageState({
           points: true,
           currentAction: true,
           targetFortressId: true,
+          unitSpriteVariant: true,
           mapX: true,
           mapY: true,
           joinedAt: true,
+        },
+      },
+      attackUnits: {
+        where: {
+          resolvedAt: null,
+          cancelledAt: null,
+        },
+        orderBy: [{ launchedAt: "asc" }, { id: "asc" }],
+        select: {
+          id: true,
+          launchedAt: true,
+          arrivesAt: true,
+          attackerFortress: {
+            select: {
+              id: true,
+              name: true,
+              mapX: true,
+              mapY: true,
+              unitSpriteVariant: true,
+            },
+          },
+          targetFortress: {
+            select: {
+              id: true,
+              name: true,
+              mapX: true,
+              mapY: true,
+            },
+          },
         },
       },
       chatMessages: {
@@ -91,6 +122,7 @@ export async function getHomePageState({
       playerSummary: null,
       leaderboard: [],
       mapFortresses: [],
+      attackUnits: [],
       chat: {
         messages: [],
         canPost: false,
@@ -120,7 +152,9 @@ export async function getHomePageState({
     cycle.status === CycleStatus.REGISTRATION
       ? cycle.registrationEndsAt
       : cycle.activeEndsAt;
-  const sortedFortresses = [...cycle.fortresses].sort(compareByLeaderboardOrder);
+  const sortedFortresses = [...cycle.fortresses].sort(
+    compareByLeaderboardOrder
+  );
   const targetLookup = new Map(
     cycle.fortresses.map((fortress) => [fortress.id, fortress])
   );
@@ -132,22 +166,20 @@ export async function getHomePageState({
     currentAction: fortress.currentAction,
     mapX: fortress.mapX,
     mapY: fortress.mapY,
+    unitSpriteVariant: normalizeUnitSpriteVariant(fortress.unitSpriteVariant),
     isCurrentUser: fortress.ownerId === userId,
     isTargetable:
       playerFortressId !== null &&
       activeOpen &&
       fortress.id !== playerFortressId,
   }));
-  const chatMessages = [...cycle.chatMessages]
-    .reverse()
-    .map((message) => ({
-      id: message.id,
-      body: message.body,
-      createdAt: message.createdAt,
-      authorName:
-        message.author.name ?? "Unknown commander",
-      isCurrentUser: message.author.id === userId,
-    }));
+  const chatMessages = [...cycle.chatMessages].reverse().map((message) => ({
+    id: message.id,
+    body: message.body,
+    createdAt: message.createdAt,
+    authorName: message.author.name ?? "Unknown commander",
+    isCurrentUser: message.author.id === userId,
+  }));
 
   return {
     isSpectator: !playerFortress,
@@ -171,8 +203,8 @@ export async function getHomePageState({
           ? registrationOpen && joiningLocked
             ? "Registration remains open on the clock, but new joins are currently locked by admin action."
             : registrationOpen
-            ? "Registration is open. Joining creates your fortress immediately and reserves one of the 30 season slots."
-            : "Registration has expired. The next game tick will either restart registration or move the cycle into ACTIVE."
+              ? "Registration is open. Joining creates your fortress immediately and reserves one of the 30 season slots."
+              : "Registration has expired. The next game tick will either restart registration or move the cycle into ACTIVE."
           : activeOpen
             ? "The active season is running. Action changes persist until you change them again."
             : "The ACTIVE deadline has passed. The next game tick will resolve the winner and open the next registration cycle.",
@@ -180,14 +212,17 @@ export async function getHomePageState({
     phase: {
       status: cycle.status,
       deadline,
-      isOpen: cycle.status === CycleStatus.REGISTRATION ? registrationOpen : activeOpen,
+      isOpen:
+        cycle.status === CycleStatus.REGISTRATION
+          ? registrationOpen
+          : activeOpen,
       label:
         cycle.status === CycleStatus.REGISTRATION
           ? registrationOpen && joiningLocked
             ? "Registration locked"
             : registrationOpen
-            ? "Registration open"
-            : "Registration expired"
+              ? "Registration open"
+              : "Registration expired"
           : activeOpen
             ? "Active season"
             : "Awaiting next tick",
@@ -200,12 +235,11 @@ export async function getHomePageState({
           currentAction: playerFortress.currentAction,
           mapX: playerFortress.mapX,
           mapY: playerFortress.mapY,
-          targetFortress:
-            playerFortress.targetFortressId
-              ? cycle.fortresses.find(
-                  (fortress) => fortress.id === playerFortress.targetFortressId
-                ) ?? null
-              : null,
+          targetFortress: playerFortress.targetFortressId
+            ? (cycle.fortresses.find(
+                (fortress) => fortress.id === playerFortress.targetFortressId
+              ) ?? null)
+            : null,
         }
       : null,
     playerSummary: playerFortress
@@ -216,7 +250,7 @@ export async function getHomePageState({
           currentAction: playerFortress.currentAction,
           currentTargetId: playerFortress.targetFortressId,
           currentTargetName: playerFortress.targetFortressId
-            ? targetLookup.get(playerFortress.targetFortressId)?.name ?? null
+            ? (targetLookup.get(playerFortress.targetFortressId)?.name ?? null)
             : null,
           canRename: activeOpen && playerFortress.points >= 10,
           canSetAction: activeOpen,
@@ -230,6 +264,26 @@ export async function getHomePageState({
       isCurrentUser: fortress.ownerId === userId,
     })),
     mapFortresses,
+    attackUnits: cycle.attackUnits.map((unit) => ({
+      id: unit.id,
+      launchedAt: unit.launchedAt,
+      arrivesAt: unit.arrivesAt,
+      attacker: {
+        id: unit.attackerFortress.id,
+        name: unit.attackerFortress.name,
+        mapX: unit.attackerFortress.mapX,
+        mapY: unit.attackerFortress.mapY,
+        unitSpriteVariant: normalizeUnitSpriteVariant(
+          unit.attackerFortress.unitSpriteVariant
+        ),
+      },
+      target: {
+        id: unit.targetFortress.id,
+        name: unit.targetFortress.name,
+        mapX: unit.targetFortress.mapX,
+        mapY: unit.targetFortress.mapY,
+      },
+    })),
     chat: {
       messages: chatMessages,
       canPost: Boolean(userId),
