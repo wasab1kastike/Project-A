@@ -166,8 +166,8 @@ export default async function Home({
             <span className={styles.sectionLabel}>Game state</span>
             <h2>
               {state.phase
-                ? `Phase: ${state.phase.status}`
-                : "Waiting for the first seed cycle"}
+                ? `Vaihe: ${state.phase.label}`
+                : "Uusi kausi ilmoitetaan pian"}
             </h2>
             <p>{state.cycle?.statusMessage ?? state.emptyStateMessage}</p>
             {state.cycle ? (
@@ -182,12 +182,11 @@ export default async function Home({
                 <li>
                   Spectator status:{" "}
                   {state.isSpectator
-                    ? "Read-only until you join the current cycle."
-                    : "You currently control a fortress in this cycle."}
+                    ? "Seuraat peliä katsojana, kunnes liityt mukaan kaudelle."
+                    : "Johdat omaa linnoitustasi tällä kaudella."}
                 </li>
                 <li>
-                  Tick runner status: run `npm run game:tick` to transition
-                  expired registration windows and process score updates.
+                  Kierroksen päivitykset käsitellään automaattisesti.
                 </li>
               </ul>
             ) : null}
@@ -202,10 +201,10 @@ export default async function Home({
             </h2>
             <p>
               {state.phase?.status === "REGISTRATION"
-                ? "Fortresses appear here as players join. Scoring and attacks remain disabled until registration ends."
+                ? "Linnoitukset ilmestyvät kartalle pelaajien liittyessä mukaan. Toiminnot avautuvat, kun ilmoittautuminen päättyy."
                 : state.phase?.status === "ACTIVE"
-                  ? "All current-cycle fortresses are rendered here. Attack targets are visual only and never range-limited in v1."
-                  : "No unresolved cycle is available to render on the battlefield."}
+                  ? "Kaikki aktiivisen kauden linnoitukset näkyvät täällä. Valitse kohteesi ja suunnittele seuraava siirtosi."
+                  : "Taistelukenttä päivittyy, kun seuraava kausi käynnistyy."}
             </p>
 
             {state.phase?.status === "ACTIVE" && state.playerSummary ? (
@@ -230,9 +229,9 @@ export default async function Home({
             <p>
               {session?.user
                 ? state.playerFortress
-                  ? "Your fortress is attached to the current unresolved cycle."
-                  : "You are signed in but not yet participating in this season. You still have spectator chat access."
-                : "Signed-out visitors can inspect season state, but only authenticated users can join and submit actions."}
+                  ? "Linnoituksesi on mukana tällä kaudella."
+                  : "Olet kirjautunut sisään, mutta et ole vielä liittynyt tälle kaudelle. Voit silti keskustella chatissa."
+                : "Kirjautumalla sisään voit liittyä kaudelle ja tehdä omia siirtoja."}
             </p>
 
             {!session?.user ? (
@@ -284,7 +283,7 @@ export default async function Home({
               <p className={styles.inlineHint}>
                 {state.playerSummary
                   ? "Your fortress is already locked into the upcoming season. You can still edit its name while registration remains open."
-                  : "Registration is currently closed for new joins. If the deadline has passed, the next tick run will either restart registration or move the season into ACTIVE."}
+                  : "Ilmoittautuminen on tällä hetkellä suljettu uusilta liittymisiltä. Tarkista tilanne hetken kuluttua uudelleen."}
               </p>
             ) : null}
 
