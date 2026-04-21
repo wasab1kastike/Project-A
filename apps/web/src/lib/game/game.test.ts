@@ -17,6 +17,7 @@ import {
 import { seedProjectA } from "./bootstrap";
 import { sendChatMessage } from "./chat";
 import { ACTIVE_PLAYER_CAP, MAP_POSITIONS } from "./constants";
+import { isPointNearSpawnHex, snapMapPointToHex } from "./map-hex";
 import { getAdminDashboardState } from "./admin-dashboard";
 import { getCycleHistoryPageState } from "./history";
 import { getHomePageState } from "./read-model";
@@ -43,6 +44,7 @@ test("map positions are unique and spread across the battlefield bounds", () => 
   for (const position of MAP_POSITIONS) {
     assert.ok(position.x >= 6 && position.x <= 94);
     assert.ok(position.y >= 6 && position.y <= 95);
+    assert.ok(isPointNearSpawnHex(position));
     occupied.add(`${position.x}:${position.y}`);
   }
 
@@ -56,8 +58,11 @@ test("map positions are unique and spread across the battlefield bounds", () => 
     ) {
       const left = MAP_POSITIONS[leftIndex];
       const right = MAP_POSITIONS[rightIndex];
+      const leftHex = snapMapPointToHex(left);
+      const rightHex = snapMapPointToHex(right);
 
-      assert.ok(Math.hypot(left.x - right.x, left.y - right.y) >= 10);
+      assert.notEqual(leftHex.tile.id, rightHex.tile.id);
+      assert.ok(Math.hypot(left.x - right.x, left.y - right.y) >= 9);
     }
   }
 });

@@ -4,10 +4,7 @@
   overflow: hidden;
   border: 1px solid var(--border-soft);
   border-radius: 8px;
-  background:
-    radial-gradient(circle at 22% 16%, rgba(247, 196, 95, 0.12), transparent 24%),
-    radial-gradient(circle at 84% 22%, rgba(84, 157, 255, 0.14), transparent 26%),
-    linear-gradient(180deg, rgba(11, 21, 25, 0.98), rgba(6, 12, 18, 0.98));
+  background: #071018;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.04),
     0 22px 56px rgba(2, 9, 15, 0.32);
@@ -79,283 +76,78 @@
   height: 1400px;
   transform-origin: center;
   will-change: transform;
-  background:
-    radial-gradient(circle at 18% 18%, rgba(178, 163, 96, 0.14), transparent 20%),
-    radial-gradient(circle at 56% 48%, rgba(87, 134, 80, 0.22), transparent 28%),
-    radial-gradient(circle at 74% 72%, rgba(66, 110, 94, 0.22), transparent 26%),
-    linear-gradient(135deg, #213f31 0%, #254934 34%, #2c4d3a 58%, #1d3a34 100%);
+  background: #1f3329;
 }
 
-.gridBackdrop,
-.scanlines,
-.terrainLayer,
-.biomeRegion,
-.seaRegion,
-.lakeRegion,
-.forestRegion,
-.riverLayer,
-.roadLayer,
-.roadRoute {
+.hexMap {
   position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
+  shape-rendering: crispEdges;
 }
 
-.terrainLayer {
-  inset: 0;
-  z-index: 0;
+.mapBase {
+  fill: #102a34;
 }
 
-.gridBackdrop {
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
-  background-size: 80px 80px;
-  mask-image: radial-gradient(circle at center, black 64%, transparent 100%);
-  z-index: 1;
+.hexTile polygon {
+  stroke: rgba(8, 18, 20, 0.72);
+  stroke-width: 3px;
+  vector-effect: non-scaling-stroke;
 }
 
-.scanlines {
-  inset: 0;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 12%),
-    repeating-linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.02) 0,
-      rgba(255, 255, 255, 0.02) 1px,
-      transparent 1px,
-      transparent 10px
-  );
-  mix-blend-mode: screen;
-  opacity: 0.42;
-  z-index: 1;
-}
-
-.seaRegion {
-  top: -8%;
-  right: -8%;
-  bottom: -10%;
-  width: 35%;
-  background:
-    radial-gradient(circle at 15% 22%, rgba(217, 246, 255, 0.24), transparent 32%),
-    repeating-linear-gradient(
-      155deg,
-      rgba(255, 255, 255, 0.06) 0,
-      rgba(255, 255, 255, 0.06) 2px,
-      transparent 2px,
-      transparent 22px
-    ),
-    linear-gradient(135deg, rgba(34, 108, 143, 0.78), rgba(18, 60, 93, 0.88));
-  border-left: 2px solid rgba(171, 226, 240, 0.18);
-  border-radius: 50% 0 0 50% / 36% 0 0 64%;
-  box-shadow: inset 24px 0 40px rgba(238, 231, 179, 0.08);
-}
-
-.biomeRegion {
-  z-index: 0;
-  opacity: 0.9;
-}
-
-.highlandsNorth {
-  top: 3%;
-  left: 24%;
-  width: 30%;
-  height: 20%;
-  border-radius: 46% 54% 51% 49% / 54% 38% 62% 46%;
-  background:
-    radial-gradient(circle at 20% 40%, rgba(232, 216, 158, 0.18), transparent 34%),
-    radial-gradient(circle at 72% 35%, rgba(109, 103, 88, 0.3), transparent 38%),
-    linear-gradient(145deg, rgba(79, 86, 72, 0.36), rgba(64, 76, 66, 0.18));
-}
-
-.plainsCenter {
-  top: 25%;
-  left: 32%;
-  width: 34%;
-  height: 36%;
-  border-radius: 54% 46% 44% 56% / 50% 60% 40% 50%;
-  background:
-    radial-gradient(circle at 40% 45%, rgba(197, 222, 126, 0.17), transparent 46%),
-    linear-gradient(165deg, rgba(100, 139, 72, 0.18), rgba(91, 126, 77, 0.1));
-}
-
-.marshSouth {
-  right: 21%;
-  bottom: 9%;
-  width: 28%;
-  height: 24%;
-  border-radius: 42% 58% 48% 52% / 55% 42% 58% 45%;
-  background:
-    radial-gradient(circle at 25% 34%, rgba(138, 190, 126, 0.2), transparent 36%),
-    radial-gradient(circle at 68% 65%, rgba(56, 103, 92, 0.26), transparent 42%),
-    linear-gradient(150deg, rgba(45, 94, 73, 0.32), rgba(42, 72, 66, 0.18));
-}
-
-.lakeRegion {
-  border-radius: 48% 52% 62% 38% / 44% 38% 62% 56%;
-  background:
-    radial-gradient(circle at 28% 30%, rgba(190, 234, 255, 0.34), transparent 42%),
-    radial-gradient(circle at 72% 74%, rgba(70, 147, 213, 0.28), transparent 50%),
-    linear-gradient(145deg, rgba(34, 95, 145, 0.4), rgba(20, 61, 97, 0.28));
-  border: 1px solid rgba(131, 201, 255, 0.2);
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
-    0 10px 24px rgba(14, 44, 70, 0.26);
-}
-
-.lakeNorth {
-  top: 9%;
-  left: 7%;
-  width: 17%;
-  height: 15%;
-  transform: rotate(-10deg);
-}
-
-.lakeCentral {
-  top: 39%;
-  left: 52%;
-  width: 13%;
-  height: 12%;
-  transform: rotate(22deg);
-}
-
-.lakeSouth {
-  left: 12%;
-  bottom: 8%;
-  width: 20%;
-  height: 16%;
-  transform: rotate(14deg);
-}
-
-.riverLayer {
-  inset: 0;
-  z-index: 1;
-  overflow: visible;
-}
-
-.riverWide,
-.riverNarrow {
+.hexInner {
   fill: none;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
 }
 
-.riverWide {
-  stroke: rgba(76, 154, 202, 0.5);
-  stroke-width: 42;
-  filter: drop-shadow(0 0 16px rgba(46, 122, 180, 0.18));
+.hexFeature {
+  fill: none;
+  stroke: rgba(13, 24, 20, 0.42);
+  stroke-width: 5px;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  vector-effect: non-scaling-stroke;
 }
 
-.riverNarrow {
-  stroke: rgba(72, 145, 190, 0.38);
-  stroke-width: 24;
+.waterTile polygon {
+  fill: #1f6780;
 }
 
-.forestRegion {
-  border-radius: 40% 60% 44% 56% / 52% 36% 64% 48%;
-  background:
-    radial-gradient(circle at 22% 26%, rgba(168, 220, 138, 0.2), transparent 40%),
-    radial-gradient(circle at 65% 72%, rgba(72, 142, 91, 0.24), transparent 42%),
-    linear-gradient(165deg, rgba(43, 91, 64, 0.34), rgba(24, 52, 40, 0.28));
-  border: 1px solid rgba(120, 191, 128, 0.16);
-  overflow: hidden;
+.coastTile polygon {
+  fill: #4a9095;
 }
 
-.forestWest {
-  top: 31%;
-  left: 4%;
-  width: 18%;
-  height: 26%;
-  transform: rotate(7deg);
+.plainsTile polygon {
+  fill: #6f9443;
 }
 
-.forestNorth {
-  top: 8%;
-  left: 58%;
-  width: 18%;
-  height: 21%;
-  transform: rotate(12deg);
+.forestTile polygon {
+  fill: #2f7445;
 }
 
-.forestEast {
-  top: 30%;
-  right: 16%;
-  width: 16%;
-  height: 25%;
-  transform: rotate(-16deg);
+.hillsTile polygon {
+  fill: #8a7d4b;
 }
 
-.forestSouth {
-  left: 38%;
-  bottom: 7%;
-  width: 23%;
-  height: 22%;
-  transform: rotate(-5deg);
+.mountainsTile polygon {
+  fill: #6d6f68;
 }
 
-.treeCluster {
-  position: absolute;
-  inset: 8% 10%;
-  background-image:
-    radial-gradient(circle at 50% 90%, rgba(8, 16, 20, 0.22) 0 24%, transparent 26%),
-    radial-gradient(circle at 50% 58%, rgba(78, 170, 105, 0.55) 0 28%, transparent 30%),
-    radial-gradient(circle at 50% 24%, rgba(119, 209, 132, 0.58) 0 20%, transparent 23%);
-  background-size: 34px 30px;
-  background-position:
-    0 6px,
-    0 0,
-    16px 10px;
-  opacity: 0.72;
+.marshTile polygon {
+  fill: #4f8061;
 }
 
-.roadLayer {
-  inset: 0;
-  z-index: 2;
+.lakeTile polygon {
+  fill: #2b7aa0;
 }
 
-.roadRoute {
-  height: 6px;
-  border-radius: 999px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 219, 158, 0.3) 12%,
-    rgba(238, 176, 94, 0.34) 52%,
-    rgba(255, 224, 176, 0.24) 88%,
-    transparent
-  );
-  border: 1px dashed rgba(255, 231, 192, 0.18);
-  box-shadow:
-    0 0 0 1px rgba(48, 30, 12, 0.16),
-    0 0 22px rgba(255, 190, 108, 0.08);
-}
-
-.roadArcPrimary {
-  top: 25%;
-  left: 10%;
-  width: 52%;
-  transform: rotate(12deg);
-}
-
-.roadArcSecondary {
-  top: 55%;
-  left: 18%;
-  width: 50%;
-  transform: rotate(-16deg);
-}
-
-.roadSpur {
-  top: 44%;
-  right: 20%;
-  width: 26%;
-  transform: rotate(32deg);
-}
-
-.roadCoast {
-  right: 10%;
-  bottom: 24%;
-  width: 31%;
-  transform: rotate(-34deg);
+.spawnableTile polygon {
+  stroke: rgba(6, 16, 18, 0.82);
 }
 
 .emptyState {
@@ -384,13 +176,14 @@
 
 .selectionPulse {
   position: absolute;
-  top: 19px;
-  width: 66px;
-  height: 66px;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(124, 167, 255, 0.18), transparent 72%);
+  top: -7px;
+  left: 50%;
+  width: 78px;
+  height: 68px;
+  clip-path: polygon(50% 0, 94% 25%, 94% 75%, 50% 100%, 6% 75%, 6% 25%);
+  background: rgba(124, 167, 255, 0.18);
   opacity: 0.7;
-  transform: scale(0.92);
+  transform: translateX(-50%) scale(0.92);
   transition:
     opacity 180ms ease,
     transform 180ms ease;
@@ -400,18 +193,18 @@
   position: relative;
   display: grid;
   place-items: center;
-  width: 74px;
-  height: 74px;
-  padding: 6px;
-  border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  width: 58px;
+  height: 58px;
+  padding: 4px;
+  border-radius: 8px;
+  border: 2px solid rgba(255, 255, 255, 0.12);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.01)),
-    rgba(4, 10, 16, 0.84);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.1)),
+    rgba(8, 16, 18, 0.9);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    0 0 0 1px rgba(2, 6, 10, 0.44),
-    0 12px 24px rgba(0, 0, 0, 0.34);
+    0 0 0 2px rgba(2, 6, 10, 0.48),
+    0 8px 0 rgba(0, 0, 0, 0.22);
 }
 
 .sprite {
@@ -424,15 +217,15 @@
   position: absolute;
   top: -3px;
   right: -6px;
-  min-width: 26px;
-  height: 26px;
-  padding: 0 8px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(7, 13, 20, 0.94);
+  border-radius: 6px;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  background: rgba(7, 13, 20, 0.96);
   color: var(--foreground);
   font-family: var(--font-ibm-plex-mono);
   font-size: 0.74rem;
@@ -440,11 +233,11 @@
 }
 
 .nameplate {
-  max-width: 120px;
-  padding: 5px 10px;
-  border-radius: 999px;
-  background: rgba(6, 11, 18, 0.88);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  max-width: 110px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(6, 11, 18, 0.92);
+  border: 2px solid rgba(255, 255, 255, 0.08);
   font-family: var(--font-ibm-plex-mono);
   font-size: 0.68rem;
   letter-spacing: 0.05em;
@@ -489,7 +282,7 @@
 .marker:focus-visible .selectionPulse,
 .selected .selectionPulse {
   opacity: 1;
-  transform: scale(1.06);
+  transform: translateX(-50%) scale(1.06);
 }
 
 .targetable {
@@ -542,7 +335,7 @@
 
 .activeFortress .selectionPulse {
   opacity: 1;
-  transform: scale(1.12);
+  transform: translateX(-50%) scale(1.12);
 }
 
 .marker:focus-visible {
@@ -578,15 +371,15 @@
   }
 
   .spriteFrame {
-    width: 64px;
-    height: 64px;
-    border-radius: 20px;
+    width: 52px;
+    height: 52px;
+    border-radius: 8px;
   }
 
   .selectionPulse {
-    top: 15px;
-    width: 56px;
-    height: 56px;
+    top: -6px;
+    width: 70px;
+    height: 60px;
   }
 
   .nameplate {
@@ -597,14 +390,5 @@
   .tooltip {
     min-width: 112px;
     font-size: 0.7rem;
-  }
-
-  .treeCluster {
-    background-size: 28px 24px;
-    opacity: 0.56;
-  }
-
-  .roadRoute {
-    height: 4px;
   }
 }

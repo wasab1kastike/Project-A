@@ -1,7 +1,17 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import {
+  HEX_RADIUS,
+  HEX_TILES,
+  MAP_WORLD_HEIGHT,
+  MAP_WORLD_WIDTH,
+  getHexPolygonPoints,
+  snapMapPointToHex,
+  type HexBiome,
+} from "@/lib/game/map-hex";
+import type { UnitSpriteVariant } from "@/lib/game/constants";
 import styles from "./fortress-map.module.css";
 
 type MapFortress = {
@@ -11,8 +21,28 @@ type MapFortress = {
   currentAction: "GROW" | "ATTACK";
   mapX: number;
   mapY: number;
+  unitSpriteVariant: UnitSpriteVariant;
   isCurrentUser: boolean;
   isTargetable: boolean;
+};
+
+type AttackUnitMarker = {
+  id: string;
+  launchedAt: Date;
+  arrivesAt: Date;
+  attacker: {
+    id: string;
+    name: string;
+    mapX: number;
+    mapY: number;
+    unitSpriteVariant: UnitSpriteVariant;
+  };
+  target: {
+    id: string;
+    name: string;
+    mapX: number;
+    mapY: number;
+  };
 };
 
 type Point = {
@@ -27,14 +57,23 @@ type DragStart = {
   translateY: number;
 };
 
-export type { MapFortress };
+export type { AttackUnitMarker, MapFortress };
 
-const WORLD_WIDTH = 2200;
-const WORLD_HEIGHT = 1400;
 const MIN_SCALE = 0.42;
 const MAX_SCALE = 2.1;
 const ZOOM_STEP = 0.14;
 const CLICK_DRAG_THRESHOLD = 6;
+
+const BIOME_LABELS: Record<HexBiome, string> = {
+  water: "Sea",
+  coast: "Coast",
+  plains: "Plains",
+  forest: "Forest",
+  hills: "Hills",
+  mountains: "Mountains",
+  marsh: "Marsh",
+  lake: "Lake",
+};
 
 const SPRITE_VARIANTS = [
   "citadel",
@@ -225,62 +264,189 @@ function FortressSprite({
   );
 }
 
-function BattlefieldDecor() {
+function HexTileMap() {
   return (
-    <>
-      <div className={styles.terrainLayer}>
-        <div className={styles.seaRegion} />
-        <div className={`${styles.biomeRegion} ${styles.highlandsNorth}`} />
-        <div className={`${styles.biomeRegion} ${styles.plainsCenter}`} />
-        <div className={`${styles.biomeRegion} ${styles.marshSouth}`} />
-        <div className={`${styles.lakeRegion} ${styles.lakeNorth}`} />
-        <div className={`${styles.lakeRegion} ${styles.lakeCentral}`} />
-        <div className={`${styles.lakeRegion} ${styles.lakeSouth}`} />
-        <svg
-          className={styles.riverLayer}
-          viewBox={`0 0 ${WORLD_WIDTH} ${WORLD_HEIGHT}`}
-          aria-hidden="true"
-          role="presentation"
-        >
-          <path
-            className={styles.riverWide}
-            d="M168 0 C230 190 505 230 542 400 C588 615 320 650 420 850 C532 1075 890 1052 1000 1260 C1045 1345 1042 1390 1038 1400"
-          />
-          <path
-            className={styles.riverNarrow}
-            d="M1428 0 C1396 160 1258 225 1320 374 C1382 524 1616 528 1632 692 C1652 894 1368 918 1378 1110 C1384 1230 1535 1300 1588 1400"
-          />
-        </svg>
-        <div className={`${styles.forestRegion} ${styles.forestWest}`}>
-          <span className={styles.treeCluster} />
-        </div>
-        <div className={`${styles.forestRegion} ${styles.forestNorth}`}>
-          <span className={styles.treeCluster} />
-        </div>
-        <div className={`${styles.forestRegion} ${styles.forestEast}`}>
-          <span className={styles.treeCluster} />
-        </div>
-        <div className={`${styles.forestRegion} ${styles.forestSouth}`}>
-          <span className={styles.treeCluster} />
-        </div>
-      </div>
-      <div className={styles.roadLayer}>
-        <div className={`${styles.roadRoute} ${styles.roadArcPrimary}`} />
-        <div className={`${styles.roadRoute} ${styles.roadArcSecondary}`} />
-        <div className={`${styles.roadRoute} ${styles.roadSpur}`} />
-        <div className={`${styles.roadRoute} ${styles.roadCoast}`} />
-      </div>
-    </>
+    <svg
+      className={styles.hexMap}
+      viewBox={`0 0 ${MAP_WORLD_WIDTH} ${MAP_WORLD_HEIGHT}`}
+      aria-hidden="true"
+      role="presentation"
+    >
+      <rect width={MAP_WORLD_WIDTH} height={MAP_WORLD_HEIGHT} className={styles.mapBase} />
+      {HEX_TILES.map((tile) => {
+        const tileClassName = [
+          styles.hexTile,
+          styles[`${tile.biome}Tile`],
+          tile.spawnable ? styles.spawnableTile : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
+
+        return (
+          <g
+            key={tile.id}
+            className={tileClassName}
+            aria-label={BIOME_LABELS[tile.biome]}
+          >
+            <polygon points={getHexPolygonPoints(tile.x, tile.y)} />
+            <polyline
+              points={getHexPolygonPoints(tile.x, tile.y, HEX_RADIUS * 0.72)}
+              className={styles.hexInner}
+            />
+            {tile.biome === "forest" ? (
+              <path
+                className={styles.hexFeature}
+                d={`M ${tile.x - 15} ${tile.y + 12} h 30 l -15 -28 z M ${tile.x - 4} ${
+                  tile.y + 16
+                } h 8 v 10 h -8 z`}
+              />
+            ) : null}
+            {tile.biome === "hills" || tile.biome === "mountains" ? (
+              <path
+                className={styles.hexFeature}
+                d={`M ${tile.x - 25} ${tile.y + 16} l 19 -32 l 20 32 z M ${tile.x - 3} ${
+                  tile.y + 16
+                } l 18 -25 l 20 25 z`}
+              />
+            ) : null}
+            {tile.biome === "marsh" ? (
+              <path
+                className={styles.hexFeature}
+                d={`M ${tile.x - 25} ${tile.y + 11} q 12 -10 24 0 t 24 0 M ${tile.x - 18} ${
+                  tile.y - 3
+                } v 22 M ${tile.x + 11} ${tile.y - 6} v 24`}
+              />
+            ) : null}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+function getAttackProgress(unit: AttackUnitMarker, nowMs: number) {
+  const launchedAt = new Date(unit.launchedAt).getTime();
+  const arrivesAt = new Date(unit.arrivesAt).getTime();
+  const duration = arrivesAt - launchedAt;
+
+  if (duration <= 0) {
+    return 1;
+  }
+
+  return clampValue((nowMs - launchedAt) / duration, 0, 1);
+}
+
+function getInterpolatedPoint(
+  origin: Point,
+  target: Point,
+  progress: number
+) {
+  return {
+    x: origin.x + (target.x - origin.x) * progress,
+    y: origin.y + (target.y - origin.y) * progress,
+  };
+}
+
+function AttackUnitsLayer({
+  attackUnits,
+}: {
+  attackUnits: AttackUnitMarker[];
+}) {
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (attackUnits.length === 0) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [attackUnits.length]);
+
+  if (attackUnits.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className={styles.attackLayer} aria-label="Active attacks">
+      <svg
+        className={styles.attackRoutes}
+        viewBox={`0 0 ${MAP_WORLD_WIDTH} ${MAP_WORLD_HEIGHT}`}
+        aria-hidden="true"
+        role="presentation"
+      >
+        {attackUnits.map((unit) => {
+          const origin = snapMapPointToHex({
+            x: unit.attacker.mapX,
+            y: unit.attacker.mapY,
+          });
+          const target = snapMapPointToHex({
+            x: unit.target.mapX,
+            y: unit.target.mapY,
+          });
+
+          return (
+            <line
+              key={unit.id}
+              className={styles.attackRoute}
+              x1={(origin.x / 100) * MAP_WORLD_WIDTH}
+              y1={(origin.y / 100) * MAP_WORLD_HEIGHT}
+              x2={(target.x / 100) * MAP_WORLD_WIDTH}
+              y2={(target.y / 100) * MAP_WORLD_HEIGHT}
+            />
+          );
+        })}
+      </svg>
+
+      {attackUnits.map((unit) => {
+        const origin = snapMapPointToHex({
+          x: unit.attacker.mapX,
+          y: unit.attacker.mapY,
+        });
+        const target = snapMapPointToHex({
+          x: unit.target.mapX,
+          y: unit.target.mapY,
+        });
+        const progress = getAttackProgress(unit, nowMs);
+        const currentPoint = getInterpolatedPoint(origin, target, progress);
+        const secondsRemaining = Math.max(
+          0,
+          Math.ceil((new Date(unit.arrivesAt).getTime() - nowMs) / 1000)
+        );
+
+        return (
+          <div
+            key={unit.id}
+            className={styles.attackUnit}
+            style={{
+              left: `${currentPoint.x}%`,
+              top: `${currentPoint.y}%`,
+            }}
+            aria-label={`${unit.attacker.name} unit attacking ${unit.target.name}. ${secondsRemaining} seconds until impact.`}
+          >
+            <span
+              className={styles.attackUnitSprite}
+              data-variant={unit.attacker.unitSpriteVariant}
+            />
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
 export function FortressMap({
   fortresses,
+  attackUnits = [],
   selectedFortressId,
   selectedTargetId,
   onSelectFortress,
 }: {
   fortresses: MapFortress[];
+  attackUnits?: AttackUnitMarker[];
   selectedFortressId?: string | null;
   selectedTargetId?: string | null;
   onSelectFortress?: (fortress: MapFortress) => void;
@@ -314,11 +480,11 @@ export function FortressMap({
 
     const maxX = Math.max(
       0,
-      (WORLD_WIDTH * nextScale - shellBounds.width) / 2 + visiblePaddingX,
+      (MAP_WORLD_WIDTH * nextScale - shellBounds.width) / 2 + visiblePaddingX,
     );
     const maxY = Math.max(
       0,
-      (WORLD_HEIGHT * nextScale - shellBounds.height) / 2 + visiblePaddingY,
+      (MAP_WORLD_HEIGHT * nextScale - shellBounds.height) / 2 + visiblePaddingY,
     );
 
     return {
@@ -592,13 +758,16 @@ export function FortressMap({
         }}
       >
         <div className={styles.viewportContent} style={viewTransform}>
-          <BattlefieldDecor />
-          <div className={styles.gridBackdrop} />
-          <div className={styles.scanlines} />
+          <HexTileMap />
+          <AttackUnitsLayer attackUnits={attackUnits} />
           {fortresses.length === 0 ? (
             <div className={styles.emptyState}>No fortresses on the battlefield yet.</div>
           ) : (
             fortresses.map((fortress) => {
+              const snappedPosition = snapMapPointToHex({
+                x: fortress.mapX,
+                y: fortress.mapY,
+              });
               const selectable =
                 Boolean(onSelectFortress) &&
                 (fortress.isTargetable || fortress.isCurrentUser);
@@ -620,8 +789,8 @@ export function FortressMap({
                   type="button"
                   className={className}
                   style={{
-                    left: `${fortress.mapX}%`,
-                    top: `${fortress.mapY}%`,
+                    left: `${snappedPosition.x}%`,
+                    top: `${snappedPosition.y}%`,
                   }}
                   onClick={(event) => {
                     if (suppressClickRef.current) {
