@@ -81,10 +81,18 @@
 
 .gridBackdrop,
 .scanlines,
-.terrainPatch,
-.energyVein {
+.terrainLayer,
+.lakeRegion,
+.forestRegion,
+.roadLayer,
+.roadRoute {
   position: absolute;
   pointer-events: none;
+}
+
+.terrainLayer {
+  inset: 0;
+  z-index: 0;
 }
 
 .gridBackdrop {
@@ -94,6 +102,7 @@
     linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
   background-size: 48px 48px;
   mask-image: radial-gradient(circle at center, black 72%, transparent 100%);
+  z-index: 1;
 }
 
 .scanlines {
@@ -106,73 +115,122 @@
       rgba(255, 255, 255, 0.02) 1px,
       transparent 1px,
       transparent 10px
-    );
+  );
   mix-blend-mode: screen;
   opacity: 0.42;
+  z-index: 1;
 }
 
-.terrainPatch {
-  border-radius: 999px;
+.lakeRegion {
+  border-radius: 48% 52% 62% 38% / 44% 38% 62% 56%;
   background:
-    linear-gradient(180deg, rgba(152, 220, 154, 0.16), rgba(37, 80, 55, 0.1)),
-    rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(152, 220, 154, 0.08);
-  filter: blur(0.5px);
+    radial-gradient(circle at 28% 30%, rgba(190, 234, 255, 0.34), transparent 42%),
+    radial-gradient(circle at 72% 74%, rgba(70, 147, 213, 0.28), transparent 50%),
+    linear-gradient(145deg, rgba(34, 95, 145, 0.4), rgba(20, 61, 97, 0.28));
+  border: 1px solid rgba(131, 201, 255, 0.2);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 10px 24px rgba(14, 44, 70, 0.26);
 }
 
-.patchNorth {
-  top: 10%;
-  left: 12%;
-  width: 150px;
-  height: 90px;
-  transform: rotate(-12deg);
+.lakeNorth {
+  top: 13%;
+  left: 8%;
+  width: 24%;
+  height: 20%;
+  transform: rotate(-10deg);
 }
 
-.patchWest {
-  top: 36%;
-  left: -2%;
-  width: 168px;
-  height: 108px;
-  transform: rotate(18deg);
-}
-
-.patchCenter {
-  top: 38%;
-  left: 34%;
-  width: 190px;
-  height: 120px;
-  transform: rotate(-8deg);
-}
-
-.patchSouth {
-  right: 14%;
-  bottom: 8%;
-  width: 176px;
-  height: 116px;
+.lakeSouth {
+  right: 9%;
+  bottom: 11%;
+  width: 28%;
+  height: 23%;
   transform: rotate(14deg);
 }
 
-.patchEast {
-  top: 18%;
-  right: 3%;
-  width: 160px;
-  height: 96px;
-  transform: rotate(-24deg);
+.forestRegion {
+  border-radius: 40% 60% 44% 56% / 52% 36% 64% 48%;
+  background:
+    radial-gradient(circle at 22% 26%, rgba(168, 220, 138, 0.2), transparent 40%),
+    radial-gradient(circle at 65% 72%, rgba(72, 142, 91, 0.24), transparent 42%),
+    linear-gradient(165deg, rgba(43, 91, 64, 0.34), rgba(24, 52, 40, 0.28));
+  border: 1px solid rgba(120, 191, 128, 0.16);
+  overflow: hidden;
 }
 
-.energyVein {
-  inset: auto 10% 22% 12%;
-  height: 2px;
+.forestWest {
+  top: 40%;
+  left: 4%;
+  width: 25%;
+  height: 28%;
+  transform: rotate(7deg);
+}
+
+.forestEast {
+  top: 19%;
+  right: 6%;
+  width: 22%;
+  height: 25%;
+  transform: rotate(-16deg);
+}
+
+.treeCluster {
+  position: absolute;
+  inset: 8% 10%;
+  background-image:
+    radial-gradient(circle at 50% 90%, rgba(8, 16, 20, 0.22) 0 24%, transparent 26%),
+    radial-gradient(circle at 50% 58%, rgba(78, 170, 105, 0.55) 0 28%, transparent 30%),
+    radial-gradient(circle at 50% 24%, rgba(119, 209, 132, 0.58) 0 20%, transparent 23%);
+  background-size: 34px 30px;
+  background-position:
+    0 6px,
+    0 0,
+    16px 10px;
+  opacity: 0.72;
+}
+
+.roadLayer {
+  inset: 0;
+  z-index: 2;
+}
+
+.roadRoute {
+  height: 6px;
+  border-radius: 999px;
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(103, 196, 207, 0.16) 18%,
-    rgba(255, 255, 255, 0.06) 50%,
-    rgba(247, 196, 95, 0.16) 82%,
+    rgba(255, 219, 158, 0.3) 12%,
+    rgba(238, 176, 94, 0.34) 52%,
+    rgba(255, 224, 176, 0.24) 88%,
     transparent
   );
-  transform: rotate(-8deg);
-  box-shadow: 0 0 18px rgba(103, 196, 207, 0.16);
+  border: 1px dashed rgba(255, 231, 192, 0.18);
+  box-shadow:
+    0 0 0 1px rgba(48, 30, 12, 0.16),
+    0 0 22px rgba(255, 190, 108, 0.08);
+}
+
+.roadArcPrimary {
+  top: 28%;
+  left: 13%;
+  width: 56%;
+  transform: rotate(12deg);
+}
+
+.roadArcSecondary {
+  top: 54%;
+  left: 18%;
+  width: 44%;
+  transform: rotate(-16deg);
+}
+
+.roadSpur {
+  top: 47%;
+  right: 14%;
+  width: 30%;
+  transform: rotate(32deg);
 }
 
 .emptyState {
@@ -196,7 +254,7 @@
   background: transparent;
   color: var(--foreground);
   cursor: default;
-  z-index: 2;
+  z-index: 4;
 }
 
 .selectionPulse {
@@ -224,10 +282,11 @@
   border: 1px solid rgba(255, 255, 255, 0.08);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.01)),
-    rgba(5, 12, 20, 0.72);
+    rgba(4, 10, 16, 0.84);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    0 10px 22px rgba(0, 0, 0, 0.24);
+    0 0 0 1px rgba(2, 6, 10, 0.44),
+    0 12px 24px rgba(0, 0, 0, 0.34);
 }
 
 .sprite {
@@ -259,7 +318,7 @@
   max-width: 120px;
   padding: 5px 10px;
   border-radius: 999px;
-  background: rgba(7, 13, 20, 0.76);
+  background: rgba(6, 11, 18, 0.88);
   border: 1px solid rgba(255, 255, 255, 0.06);
   font-family: var(--font-ibm-plex-mono);
   font-size: 0.68rem;
@@ -396,5 +455,19 @@
   .tooltip {
     min-width: 112px;
     font-size: 0.7rem;
+  }
+
+  .forestEast,
+  .roadSpur {
+    display: none;
+  }
+
+  .treeCluster {
+    background-size: 28px 24px;
+    opacity: 0.56;
+  }
+
+  .roadRoute {
+    height: 4px;
   }
 }
