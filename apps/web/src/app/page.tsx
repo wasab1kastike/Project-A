@@ -3,16 +3,11 @@ import type { Session } from "next-auth";
 import styles from "./page.module.css";
 import { auth, isAuthConfigured } from "@/auth";
 import { SessionActions } from "@/components/session-actions";
-import { ActiveCommandCenter } from "@/components/active-command-center";
-import { ChatPanel } from "@/components/chat-panel";
-import { FortressMap } from "@/components/fortress-map";
+import { BattlefieldExperience } from "@/components/battlefield-experience";
 import { LeaderboardPanel } from "@/components/leaderboard-panel";
 import { RealtimeBridge } from "@/components/realtime-bridge";
 import { SeasonTimer } from "@/components/season-timer";
-import {
-  editRegistrationFortressNameAction,
-  joinFortressAction,
-} from "@/app/game-actions";
+import { joinFortressAction } from "@/app/game-actions";
 import { getHomePageState, type HomePageState } from "@/lib/game/read-model";
 
 export const dynamic = "force-dynamic";
@@ -173,6 +168,18 @@ export default async function Home({
       {error ? <p className={styles.errorBanner}>{error}</p> : null}
       {notice ? <p className={styles.noticeBanner}>{notice}</p> : null}
 
+      <BattlefieldExperience
+        title={phaseCopy.battlefieldTitle}
+        description={phaseCopy.battlefieldDescription}
+        phaseStatus={state.phase?.status ?? null}
+        playerSummary={state.playerSummary}
+        playerFortress={state.playerFortress}
+        mapFortresses={state.mapFortresses}
+        targets={state.availableTargets}
+        chat={state.chat}
+        canEditRegistrationName={state.canEditRegistrationName}
+      />
+
       <section className={styles.layout}>
         <div className={styles.mainColumn}>
           <article className={styles.panel}>
@@ -194,25 +201,6 @@ export default async function Home({
                 </li>
               </ul>
             ) : null}
-          </article>
-
-          <article className={styles.panel}>
-            <span className={styles.sectionLabel}>Battlefield</span>
-            <h2>{phaseCopy.battlefieldTitle}</h2>
-            <p>{phaseCopy.battlefieldDescription}</p>
-
-            {state.phase?.status === "ACTIVE" && state.playerSummary ? (
-              <ActiveCommandCenter
-                currentAction={state.playerSummary.currentAction}
-                currentTargetId={state.playerSummary.currentTargetId}
-                currentTargetName={state.playerSummary.currentTargetName}
-                fortressName={state.playerSummary.name}
-                mapFortresses={state.mapFortresses}
-                targets={state.availableTargets}
-              />
-            ) : (
-              <FortressMap fortresses={state.mapFortresses} />
-            )}
           </article>
 
           <article className={styles.panel}>
@@ -253,23 +241,6 @@ export default async function Home({
               </form>
             ) : null}
 
-            {session?.user && state.canEditRegistrationName && state.playerFortress ? (
-              <form action={editRegistrationFortressNameAction} className={styles.form}>
-                <label className={styles.field}>
-                  <span>Fortress name</span>
-                  <input
-                    name="fortressName"
-                    type="text"
-                    defaultValue={state.playerFortress.name}
-                    required
-                  />
-                </label>
-                <button className={styles.primaryButton} type="submit">
-                  Update registration name
-                </button>
-              </form>
-            ) : null}
-
             {session?.user &&
             state.cycle?.status === "REGISTRATION" &&
             !state.canJoinRegistration &&
@@ -278,6 +249,12 @@ export default async function Home({
                 {state.playerSummary
                   ? "You are locked in for this season."
                   : "Registration is currently full."}
+              </p>
+            ) : null}
+
+            {session?.user && state.canEditRegistrationName ? (
+              <p className={styles.inlineHint}>
+                Select your castle on the map to update its registration name.
               </p>
             ) : null}
 
@@ -333,15 +310,6 @@ export default async function Home({
                 </Link>
               ) : null}
             </div>
-          </article>
-
-          <article className={styles.panel}>
-            <ChatPanel
-              messages={state.chat.messages}
-              canPost={state.chat.canPost}
-              maxLength={state.chat.maxLength}
-              postHint={state.chat.postHint}
-            />
           </article>
         </aside>
       </section>

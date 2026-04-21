@@ -1,0 +1,236 @@
+.experience {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: end;
+}
+
+.header h2 {
+  margin-top: 6px;
+  font-size: clamp(1.8rem, 4vw, 3.1rem);
+  line-height: 1;
+}
+
+.header p,
+.drawerContent p,
+.helper {
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.label {
+  color: var(--accent-strong);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.headerActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.overlayButton,
+.closeButton,
+.primaryButton,
+.secondaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: rgba(7, 13, 20, 0.78);
+  color: var(--foreground);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.overlayButton {
+  padding: 0 16px;
+}
+
+.overlayButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.mapStage {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.drawer {
+  position: absolute;
+  z-index: 12;
+  display: grid;
+  gap: 14px;
+  max-height: calc(100% - 32px);
+  overflow: auto;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(6, 12, 18, 0.92);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.36);
+  opacity: 0;
+  pointer-events: none;
+  backdrop-filter: blur(18px);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.drawerOpen {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(0, 0);
+}
+
+.chatDrawer {
+  top: 16px;
+  right: 16px;
+  width: min(390px, calc(100% - 32px));
+  transform: translateX(24px);
+}
+
+.actionDrawer {
+  left: 16px;
+  bottom: 16px;
+  width: min(420px, calc(100% - 32px));
+  transform: translateY(24px);
+}
+
+.closeButton {
+  justify-self: end;
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 0.78rem;
+}
+
+.drawerContent {
+  display: grid;
+  gap: 14px;
+}
+
+.drawerContent h3 {
+  font-size: 1.35rem;
+  line-height: 1.15;
+}
+
+.form {
+  display: grid;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+}
+
+.field span {
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.field input,
+.field select {
+  min-height: 46px;
+  width: 100%;
+  padding: 0 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(7, 13, 20, 0.7);
+  color: var(--foreground);
+  font: inherit;
+}
+
+.field input:focus,
+.field select:focus {
+  outline: 2px solid rgba(247, 196, 95, 0.24);
+  border-color: var(--border-strong);
+}
+
+.primaryButton,
+.secondaryButton {
+  width: fit-content;
+  min-height: 44px;
+  padding: 0 16px;
+}
+
+.primaryButton {
+  border-color: transparent;
+  background: var(--accent-strong);
+  color: #14202f;
+}
+
+.secondaryButton {
+  background: transparent;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .overlayButton:hover,
+  .closeButton:hover,
+  .primaryButton:hover,
+  .secondaryButton:hover {
+    transform: translateY(-1px);
+    border-color: var(--border-strong);
+  }
+}
+
+@media (max-width: 720px) {
+  .header {
+    display: grid;
+    align-items: start;
+  }
+
+  .headerActions {
+    justify-content: stretch;
+  }
+
+  .overlayButton {
+    flex: 1;
+  }
+
+  .drawer {
+    left: 10px;
+    right: 10px;
+    width: auto;
+    max-height: 76%;
+  }
+
+  .chatDrawer,
+  .actionDrawer {
+    top: auto;
+    bottom: 10px;
+    transform: translateY(26px);
+  }
+
+  .actionDrawer.drawerOpen {
+    transform: translateY(0);
+  }
+
+  .primaryButton,
+  .secondaryButton {
+    width: 100%;
+  }
+}

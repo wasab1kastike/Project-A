@@ -27,8 +27,12 @@ type DragStart = {
   translateY: number;
 };
 
-const MIN_SCALE = 0.8;
-const MAX_SCALE = 2.5;
+export type { MapFortress };
+
+const WORLD_WIDTH = 2200;
+const WORLD_HEIGHT = 1400;
+const MIN_SCALE = 0.42;
+const MAX_SCALE = 2.1;
 const ZOOM_STEP = 0.14;
 const CLICK_DRAG_THRESHOLD = 6;
 
@@ -225,12 +229,38 @@ function BattlefieldDecor() {
   return (
     <>
       <div className={styles.terrainLayer}>
+        <div className={styles.seaRegion} />
+        <div className={`${styles.biomeRegion} ${styles.highlandsNorth}`} />
+        <div className={`${styles.biomeRegion} ${styles.plainsCenter}`} />
+        <div className={`${styles.biomeRegion} ${styles.marshSouth}`} />
         <div className={`${styles.lakeRegion} ${styles.lakeNorth}`} />
+        <div className={`${styles.lakeRegion} ${styles.lakeCentral}`} />
         <div className={`${styles.lakeRegion} ${styles.lakeSouth}`} />
+        <svg
+          className={styles.riverLayer}
+          viewBox={`0 0 ${WORLD_WIDTH} ${WORLD_HEIGHT}`}
+          aria-hidden="true"
+          role="presentation"
+        >
+          <path
+            className={styles.riverWide}
+            d="M168 0 C230 190 505 230 542 400 C588 615 320 650 420 850 C532 1075 890 1052 1000 1260 C1045 1345 1042 1390 1038 1400"
+          />
+          <path
+            className={styles.riverNarrow}
+            d="M1428 0 C1396 160 1258 225 1320 374 C1382 524 1616 528 1632 692 C1652 894 1368 918 1378 1110 C1384 1230 1535 1300 1588 1400"
+          />
+        </svg>
         <div className={`${styles.forestRegion} ${styles.forestWest}`}>
           <span className={styles.treeCluster} />
         </div>
+        <div className={`${styles.forestRegion} ${styles.forestNorth}`}>
+          <span className={styles.treeCluster} />
+        </div>
         <div className={`${styles.forestRegion} ${styles.forestEast}`}>
+          <span className={styles.treeCluster} />
+        </div>
+        <div className={`${styles.forestRegion} ${styles.forestSouth}`}>
           <span className={styles.treeCluster} />
         </div>
       </div>
@@ -238,6 +268,7 @@ function BattlefieldDecor() {
         <div className={`${styles.roadRoute} ${styles.roadArcPrimary}`} />
         <div className={`${styles.roadRoute} ${styles.roadArcSecondary}`} />
         <div className={`${styles.roadRoute} ${styles.roadSpur}`} />
+        <div className={`${styles.roadRoute} ${styles.roadCoast}`} />
       </div>
     </>
   );
@@ -245,12 +276,14 @@ function BattlefieldDecor() {
 
 export function FortressMap({
   fortresses,
+  selectedFortressId,
   selectedTargetId,
-  onSelectTarget,
+  onSelectFortress,
 }: {
   fortresses: MapFortress[];
+  selectedFortressId?: string | null;
   selectedTargetId?: string | null;
-  onSelectTarget?: (fortressId: string) => void;
+  onSelectFortress?: (fortress: MapFortress) => void;
 }) {
   const shellRef = useRef<HTMLDivElement | null>(null);
   const pointerCacheRef = useRef<Map<number, Point>>(new Map());
@@ -276,11 +309,17 @@ export function FortressMap({
       return { x: nextX, y: nextY };
     }
 
-    const visiblePaddingX = Math.min(shellBounds.width * 0.22, 120);
-    const visiblePaddingY = Math.min(shellBounds.height * 0.22, 120);
+    const visiblePaddingX = Math.min(shellBounds.width * 0.3, 180);
+    const visiblePaddingY = Math.min(shellBounds.height * 0.3, 150);
 
-    const maxX = (shellBounds.width * (1 + nextScale)) / 2 - visiblePaddingX;
-    const maxY = (shellBounds.height * (1 + nextScale)) / 2 - visiblePaddingY;
+    const maxX = Math.max(
+      0,
+      (WORLD_WIDTH * nextScale - shellBounds.width) / 2 + visiblePaddingX,
+    );
+    const maxY = Math.max(
+      0,
+      (WORLD_HEIGHT * nextScale - shellBounds.height) / 2 + visiblePaddingY,
+    );
 
     return {
       x: clampValue(nextX, -maxX, maxX),
@@ -386,7 +425,7 @@ export function FortressMap({
 
   const viewTransform = useMemo(
     () => ({
-      transform: `translate(${translateX}px, ${translateY}px) scale(${scale})`,
+      transform: `translate(-50%, -50%) translate(${translateX}px, ${translateY}px) scale(${scale})`,
     }),
     [scale, translateX, translateY],
   );
@@ -430,7 +469,7 @@ export function FortressMap({
           aria-label="Zoom out"
           onClick={() => zoomFromViewportPoint(scale - ZOOM_STEP)}
         >
-          −
+          -
         </button>
         <button
           type="button"
@@ -560,12 +599,16 @@ export function FortressMap({
             <div className={styles.emptyState}>No fortresses on the battlefield yet.</div>
           ) : (
             fortresses.map((fortress) => {
-              const selectable = Boolean(onSelectTarget) && fortress.isTargetable;
+              const selectable =
+                Boolean(onSelectFortress) &&
+                (fortress.isTargetable || fortress.isCurrentUser);
               const variant = getSpriteVariant(fortress);
               const className = [
                 styles.marker,
                 fortress.isCurrentUser ? styles.currentUser : "",
+                selectedFortressId === fortress.id ? styles.activeFortress : "",
                 selectedTargetId === fortress.id ? styles.selected : "",
+                selectable ? styles.selectable : "",
                 fortress.isTargetable ? styles.targetable : "",
               ]
                 .filter(Boolean)
@@ -587,10 +630,12 @@ export function FortressMap({
                     }
 
                     if (selectable) {
-                      onSelectTarget?.(fortress.id);
+                      onSelectFortress?.(fortress);
                     }
                   }}
-                  aria-pressed={selectedTargetId === fortress.id}
+                  aria-pressed={
+                    selectedTargetId === fortress.id || selectedFortressId === fortress.id
+                  }
                   aria-label={`${fortress.name}, ${fortress.points} points`}
                 >
                   <span className={styles.selectionPulse} />

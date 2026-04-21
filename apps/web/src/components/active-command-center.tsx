@@ -53,9 +53,13 @@ export function ActiveCommandCenter({
         <FortressMap
           fortresses={mapFortresses}
           selectedTargetId={action === "ATTACK" ? targetFortressId : null}
-          onSelectTarget={(fortressId) => {
+          onSelectFortress={(fortress) => {
+            if (!fortress.isTargetable) {
+              return;
+            }
+
             setAction("ATTACK");
-            setTargetFortressId(fortressId);
+            setTargetFortressId(fortress.id);
           }}
         />
       </div>

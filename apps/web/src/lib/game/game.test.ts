@@ -16,6 +16,7 @@ import {
 } from "./admin-operations";
 import { seedProjectA } from "./bootstrap";
 import { sendChatMessage } from "./chat";
+import { ACTIVE_PLAYER_CAP, MAP_POSITIONS } from "./constants";
 import { getAdminDashboardState } from "./admin-dashboard";
 import { getCycleHistoryPageState } from "./history";
 import { getHomePageState } from "./read-model";
@@ -33,6 +34,33 @@ const defaultDatabaseUrl =
   process.env.TEST_DATABASE_URL ??
   process.env.DATABASE_URL ??
   "postgresql://postgres:postgres@localhost:5432/project_a?schema=public";
+
+test("map positions are unique and spread across the battlefield bounds", () => {
+  const occupied = new Set<string>();
+
+  assert.equal(MAP_POSITIONS.length, ACTIVE_PLAYER_CAP);
+
+  for (const position of MAP_POSITIONS) {
+    assert.ok(position.x >= 6 && position.x <= 94);
+    assert.ok(position.y >= 6 && position.y <= 95);
+    occupied.add(`${position.x}:${position.y}`);
+  }
+
+  assert.equal(occupied.size, MAP_POSITIONS.length);
+
+  for (let leftIndex = 0; leftIndex < MAP_POSITIONS.length; leftIndex += 1) {
+    for (
+      let rightIndex = leftIndex + 1;
+      rightIndex < MAP_POSITIONS.length;
+      rightIndex += 1
+    ) {
+      const left = MAP_POSITIONS[leftIndex];
+      const right = MAP_POSITIONS[rightIndex];
+
+      assert.ok(Math.hypot(left.x - right.x, left.y - right.y) >= 10);
+    }
+  }
+});
 
 type ReadyDatabaseSetup = {
   client: PrismaClient;

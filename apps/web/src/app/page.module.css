@@ -1,5 +1,5 @@
 .page {
-  width: min(1120px, calc(100% - 32px));
+  width: min(1440px, calc(100% - 32px));
   margin: 0 auto;
   padding: 56px 0 96px;
 }
@@ -31,7 +31,7 @@
   gap: 14px;
   padding: 24px;
   border: 1px solid var(--border-soft);
-  border-radius: 24px;
+  border-radius: 8px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0)),
     var(--surface);
@@ -81,7 +81,7 @@
 
 .layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(300px, 0.9fr);
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.72fr);
   gap: 18px;
   align-items: start;
 }
@@ -260,7 +260,7 @@
   .heroPanel,
   .panel {
     padding: 20px;
-    border-radius: 20px;
+    border-radius: 8px;
   }
 
   .primaryButton,
