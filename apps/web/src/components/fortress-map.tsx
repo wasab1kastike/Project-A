@@ -498,6 +498,8 @@ export function FortressMap({
   const viewTransform = useMemo(
     () => ({
       transform: `translate(-50%, -50%) translate(${translateX}px, ${translateY}px) scale(${scale})`,
+      width: `${MAP_WORLD_WIDTH}px`,
+      height: `${MAP_WORLD_HEIGHT}px`,
     }),
     [scale, translateX, translateY]
   );
@@ -579,7 +581,7 @@ export function FortressMap({
           aria-label="Reset view"
           onClick={resetView}
         >
-          Reset view
+          0
         </button>
         {ownFortress ? (
           <button
@@ -591,7 +593,7 @@ export function FortressMap({
               focusFortress(ownFortress);
             }}
           >
-            My fortress
+            Me
           </button>
         ) : null}
       </div>

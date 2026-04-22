@@ -328,33 +328,58 @@
   }
 
   .floatingActions {
-    top: 78px;
-    right: 12px;
-    left: 12px;
-    max-width: none;
+    top: 126px;
+    right: 10px;
+    left: auto;
+    max-width: min(188px, calc(100% - 20px));
+    gap: 5px;
+  }
+
+  .floatingActions .overlayButton {
+    flex: 0 0 auto;
+    min-height: 32px;
+    padding: 0 10px;
+    border-radius: 8px;
+    font-size: 0.76rem;
   }
 
   .drawer {
-    left: 10px;
-    right: 10px;
+    left: 0;
+    right: 0;
     width: auto;
-    max-height: 66%;
+    max-height: min(68dvh, 520px);
+    padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 14px 14px 0 0;
   }
 
   .chatDrawer,
   .actionDrawer {
     top: auto;
-    bottom: 10px;
+    bottom: 0;
     transform: translateY(26px);
   }
 
+  .chatDrawer.drawerOpen,
   .actionDrawer.drawerOpen {
     transform: translateY(0);
   }
 
+  .immersive .chatDrawer,
   .immersive .actionDrawer {
     bottom: var(--battlefield-bottom-clearance, 10px);
-    max-height: calc(100% - var(--battlefield-bottom-clearance, 10px) - 88px);
+    max-height: min(
+      62dvh,
+      calc(100% - var(--battlefield-bottom-clearance, 10px) - 98px)
+    );
+  }
+
+  .closeButton {
+    min-height: 36px;
+    padding: 0 12px;
+    border-radius: 8px;
   }
 
   .primaryButton,

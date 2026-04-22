@@ -21,7 +21,10 @@
   top: 14px;
   right: 14px;
   display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
+  max-width: min(320px, calc(100% - 28px));
 }
 
 .controlButton {
@@ -79,8 +82,6 @@
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 2200px;
-  height: 1400px;
   transform-origin: center;
   will-change: transform;
   background: #1f3329;
@@ -621,25 +622,30 @@
   }
 
   .controls {
-    top: 10px;
+    top: 88px;
     right: 10px;
-    gap: 6px;
+    max-width: 128px;
+    gap: 5px;
   }
 
   .controlButton {
-    min-width: 32px;
-    height: 32px;
-    border-radius: 10px;
+    min-width: 30px;
+    height: 30px;
+    padding: 0 8px;
+    border-radius: 8px;
+    font-size: 0.78rem;
   }
 
   .resetButton {
-    min-width: 84px;
-    font-size: 0.64rem;
+    min-width: 30px;
+    font-size: 0.72rem;
+    letter-spacing: 0;
   }
 
   .focusButton {
-    min-width: 94px;
-    font-size: 0.62rem;
+    min-width: 40px;
+    font-size: 0.66rem;
+    letter-spacing: 0;
   }
 
   .spriteFrame {

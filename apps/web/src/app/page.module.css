@@ -403,14 +403,14 @@
 
 @media (max-width: 640px) {
   .page {
-    --battlefield-bottom-clearance: calc(34dvh + 24px);
+    --battlefield-bottom-clearance: calc(112px + env(safe-area-inset-bottom));
   }
 
   .topHud {
     top: 10px;
     left: 10px;
     right: 10px;
-    gap: 8px;
+    gap: 6px;
   }
 
   .statusCluster,
@@ -418,7 +418,7 @@
     flex-wrap: nowrap;
     justify-content: flex-start;
     overflow-x: auto;
-    padding: 6px;
+    padding: 5px;
     scrollbar-width: none;
   }
 
@@ -429,21 +429,41 @@
 
   .hudStats {
     flex: 0 0 auto;
+    gap: 5px;
   }
 
   .hudStats div {
-    min-width: 84px;
+    min-height: 40px;
+    min-width: 72px;
+    padding: 5px 8px;
+  }
+
+  .phaseBadge,
+  .accountChip,
+  .hudButton {
+    min-height: 32px;
+    border-radius: 7px;
+    font-size: 0.68rem;
+  }
+
+  .phaseBadge,
+  .hudButton {
+    padding: 0 9px;
+  }
+
+  .accountChip {
+    max-width: 138px;
   }
 
   .sidePanel {
     top: auto;
     left: 10px;
     right: 10px;
-    bottom: calc(34dvh + 24px);
+    bottom: calc(var(--battlefield-bottom-clearance) + 10px);
     width: auto;
-    max-height: calc(100dvh - 190px);
+    max-height: calc(100dvh - 178px);
     overflow: auto;
-    padding: 18px;
+    padding: 16px;
     transform: none;
   }
 
@@ -464,15 +484,31 @@
   .bottomHud {
     left: 10px;
     right: 10px;
-    bottom: 10px;
-    gap: 10px;
-    max-height: 34dvh;
-    overflow: auto;
-    padding: 10px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    gap: 0;
+    max-height: 92px;
+    overflow: hidden;
+    padding: 9px 10px;
   }
 
-  .hintStrip {
+  .hintStrip,
+  .leaderboardStrip {
     display: none;
+  }
+
+  .playerStrip {
+    gap: 3px;
+  }
+
+  .playerStrip strong {
+    font-size: 0.98rem;
+  }
+
+  .playerStrip p {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.25;
   }
 
   .primaryButton,
