@@ -166,7 +166,7 @@ export default async function Home({
 
   return (
     <main className={styles.page}>
-      <RealtimeBridge enabled={Boolean(session?.user)} />
+      <RealtimeBridge enabled={Boolean(state.cycle)} />
 
       <div className={styles.mapLayer}>
         <BattlefieldExperience

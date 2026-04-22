@@ -2,6 +2,9 @@
 
 ## 2026-04-22
 
+- Change: Decoupled homepage realtime bridge activation from authenticated sessions and now enable live refreshes whenever a cycle exists.
+- Change: Added a graceful realtime fallback that switches to periodic `router.refresh()` polling when socket auth/connection fails (for example in spectator mode).
+- User impact: Spectators now see score/HP changes update automatically during active cycles without manually refreshing the page.
 - Change: Added a regression test to verify ATTACK mode launches exactly one unit per minute while earlier units are still in transit, with long-distance travel timing and per-launch ATTACK_SELF score deductions.
 - User impact: Prevents silent regressions where queued attack launches or launch-cost accounting could stop working before the first unit arrives.
 - Change: Updated join-cycle eligibility to allow joining during both open REGISTRATION and open ACTIVE windows.

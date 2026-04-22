@@ -17,8 +17,38 @@ export function RealtimeBridge({ enabled }: RealtimeBridgeProps) {
       return;
     }
 
+    let pollingInterval: ReturnType<typeof setInterval> | null = null;
+    let refreshPending = false;
+
+    const refreshView = () => {
+      if (refreshPending) {
+        return;
+      }
+
+      refreshPending = true;
+      startTransition(() => {
+        router.refresh();
+        refreshPending = false;
+      });
+    };
+
+    const startPollingFallback = () => {
+      if (pollingInterval !== null) {
+        return;
+      }
+
+      pollingInterval = setInterval(() => {
+        refreshView();
+      }, 5000);
+    };
+
     const socket = io({
       path: "/socket.io",
+      withCredentials: true,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
     });
 
     socket.on(PROJECT_A_REFRESH_EVENT, (payload?: { reason?: string }) => {
@@ -26,12 +56,18 @@ export function RealtimeBridge({ enabled }: RealtimeBridgeProps) {
         return;
       }
 
-      startTransition(() => {
-        router.refresh();
-      });
+      refreshView();
+    });
+
+    socket.on("connect_error", () => {
+      startPollingFallback();
     });
 
     return () => {
+      if (pollingInterval !== null) {
+        clearInterval(pollingInterval);
+      }
+
       socket.disconnect();
     };
   }, [enabled, router]);
