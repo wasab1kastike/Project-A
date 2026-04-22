@@ -60,6 +60,7 @@ export async function joinFortressAction(formData: FormData) {
   try {
     await joinRegistrationCycle({
       userId,
+      commanderName: getString(formData, "commanderName"),
       fortressName: getString(formData, "fortressName"),
     });
     emitProjectARefresh("join");
@@ -76,6 +77,7 @@ export async function editRegistrationFortressNameAction(formData: FormData) {
   try {
     await editRegistrationFortressName({
       userId,
+      commanderName: getString(formData, "commanderName"),
       fortressName: getString(formData, "fortressName"),
     });
     emitProjectARefresh("registration-rename");

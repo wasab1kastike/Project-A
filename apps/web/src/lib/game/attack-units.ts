@@ -1,4 +1,4 @@
-import { Prisma, PrismaClient, ScoreEventType } from "@/lib/prisma-client";
+import { Prisma, PrismaClient } from "@/lib/prisma-client";
 import { getAttackArrivalAt } from "./attacks";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
@@ -76,31 +76,6 @@ export async function launchAttackUnit({
   if (cycle.activeEndsAt && arrivesAt > cycle.activeEndsAt) {
     return null;
   }
-
-  const attackerLoss = Math.min(attacker.points, 1);
-
-  if (attackerLoss > 0) {
-    await db.fortress.update({
-      where: {
-        id: attacker.id,
-      },
-      data: {
-        points: attacker.points - attackerLoss,
-      },
-    });
-  }
-
-  await db.scoreEvent.create({
-    data: {
-      cycleId: cycle.id,
-      fortressId: attacker.id,
-      actorId: attacker.ownerId,
-      targetFortressId: attacker.id,
-      eventType: ScoreEventType.ATTACK_SELF,
-      delta: -attackerLoss,
-      createdAt: launchedAt,
-    },
-  });
 
   return db.attackUnit.create({
     data: {

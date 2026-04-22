@@ -5,6 +5,7 @@ import { after, before, beforeEach, test, type TestContext } from "node:test";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  CycleStatus,
   FortressAction,
   PrismaClient,
   ScoreEventType,
@@ -419,6 +420,7 @@ test("one fortress per user per cycle and duplicate names are rejected", async (
   await joinRegistrationCycle({
     db: prisma,
     userId: alpha.id,
+    commanderName: "Alpha Commander",
     fortressName: "Stonegate",
   });
 
@@ -441,6 +443,86 @@ test("one fortress per user per cycle and duplicate names are rejected", async (
       }),
     /already taken/
   );
+});
+
+test("season commander names are stored and unique per cycle", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const firstCycle = await seedOpenCycle(prisma);
+  const alpha = await createUser(prisma, "nick-alpha@example.com");
+  const beta = await createUser(prisma, "nick-beta@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: alpha.id,
+    commanderName: "Night Fox",
+    fortressName: "Moon Gate",
+  });
+
+  const alphaFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: firstCycle.id,
+        ownerId: alpha.id,
+      },
+    },
+  });
+
+  assert.equal(alphaFortress.commanderName, "Night Fox");
+  assert.equal(alphaFortress.name, "Moon Gate");
+
+  await assert.rejects(
+    () =>
+      joinRegistrationCycle({
+        db: prisma,
+        userId: beta.id,
+        commanderName: "Night Fox",
+        fortressName: "Sun Gate",
+      }),
+    /in-game nick is already taken/
+  );
+
+  await prisma.cycle.update({
+    where: {
+      id: firstCycle.id,
+    },
+    data: {
+      status: CycleStatus.RESOLUTION,
+      resolvedAt: new Date("2026-04-20T12:00:00.000Z"),
+    },
+  });
+
+  const secondCycle = await prisma.cycle.create({
+    data: {
+      status: CycleStatus.REGISTRATION,
+      registrationStartedAt: new Date("2026-04-20T12:00:00.000Z"),
+      registrationEndsAt: new Date("2026-04-21T12:00:00.000Z"),
+      activeEndsAt: new Date("2026-04-24T12:00:00.000Z"),
+    },
+  });
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: beta.id,
+    commanderName: "Night Fox",
+    fortressName: "Sun Gate",
+    now: new Date("2026-04-20T12:01:00.000Z"),
+  });
+
+  const betaFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: secondCycle.id,
+        ownerId: beta.id,
+      },
+    },
+  });
+
+  assert.equal(betaFortress.commanderName, "Night Fox");
 });
 
 test("registration enforces the 30 player cap", async (context) => {
@@ -515,12 +597,14 @@ test("registration-time name editing works without charging points", async (cont
   await joinRegistrationCycle({
     db: prisma,
     userId: user.id,
+    commanderName: "Old Commander",
     fortressName: "Old Name",
   });
 
   await editRegistrationFortressName({
     db: prisma,
     userId: user.id,
+    commanderName: "New Commander",
     fortressName: "New Name",
   });
 
@@ -539,9 +623,23 @@ test("registration-time name editing works without charging points", async (cont
     },
   });
 
+  assert.equal(fortress.commanderName, "New Commander");
   assert.equal(fortress.name, "New Name");
   assert.equal(fortress.points, 0);
   assert.equal(renameEvents.length, 0);
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const activeState = await getHomePageState({
+    db: prisma,
+    userId: user.id,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+  });
+
+  assert.equal(activeState.canEditRegistrationName, false);
 });
 
 test("expired empty registration restarts with a fresh 24 hour window", async (context) => {
@@ -1018,7 +1116,7 @@ test("tick processing is idempotent for the same minute", async (context) => {
   assert.equal(fortress.points, 2);
 });
 
-test("attack units charge on launch and damage on arrival", async (context) => {
+test("attack units launch for free and damage on arrival", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -1106,7 +1204,7 @@ test("attack units charge on launch and damage on arrival", async (context) => {
     },
   });
 
-  assert.equal(launchedAttacker.points, 2);
+  assert.equal(launchedAttacker.points, 3);
   assert.equal(launchedTarget.points, 1);
   assert.equal(
     attackUnit.arrivesAt.toISOString(),
@@ -1337,12 +1435,8 @@ test("attack mode launches one unit per tick even while previous units are in tr
     },
   });
 
-  assert.equal(attackLaunchEvents.length, unresolvedBeforeArrival.length);
-  assert.equal(
-    attackLaunchEvents.reduce((total, event) => total + event.delta, 0),
-    -unresolvedBeforeArrival.length
-  );
-  assert.equal(attackerBeforeFirstArrival.points, 8 - unresolvedBeforeArrival.length);
+  assert.equal(attackLaunchEvents.length, 0);
+  assert.equal(attackerBeforeFirstArrival.points, 8);
 
   await runGameTick({
     db: prisma,
@@ -1513,7 +1607,7 @@ test("destroying the mega fortress awards points, crown, and reshuffles map posi
   });
 
   assert.equal(refreshedCycle.crownedFortressId, attackerFortress.id);
-  assert.equal(refreshedAttacker.points, 2 + MEGA_FORTRESS_DESTROY_BONUS);
+  assert.equal(refreshedAttacker.points, 3 + MEGA_FORTRESS_DESTROY_BONUS);
   assert.equal(refreshedMega.health, MEGA_FORTRESS_HEALTH);
   assert.equal(refreshedMega.points, 0);
   assert.equal(positionKeys.size, positionsAfter.length);
@@ -1525,7 +1619,7 @@ test("destroying the mega fortress awards points, crown, and reshuffles map posi
   assert.equal(state.leaderboard.some((entry) => entry.id === megaFortress.id), false);
 });
 
-test("switching to grow cancels in-flight attacks without refunding launch cost", async (context) => {
+test("switching to grow cancels in-flight attacks without refunding points", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -1603,7 +1697,7 @@ test("switching to grow cancels in-flight attacks without refunding launch cost"
     },
   });
 
-  assert.equal(refreshedAttacker.points, 3);
+  assert.equal(refreshedAttacker.points, 4);
   assert.equal(refreshedAttacker.currentAction, FortressAction.GROW);
   assert.equal(
     cancelledUnit.cancelledAt?.toISOString(),
@@ -2148,6 +2242,13 @@ test("chat messages are visible to spectators in read-only mode", async (context
   await seedOpenCycle(prisma);
   const sender = await createUser(prisma, "chatter@example.com");
 
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: sender.id,
+    commanderName: "Lobby Hawk",
+    fortressName: "Signal Keep",
+  });
+
   await sendChatMessage({
     db: prisma,
     userId: sender.id,
@@ -2163,10 +2264,7 @@ test("chat messages are visible to spectators in read-only mode", async (context
   assert.equal(signedOutState.chat.canPost, false);
   assert.equal(signedOutState.chat.messages.length, 1);
   assert.equal(signedOutState.chat.messages[0]?.body, "Season lobby is live.");
-  assert.equal(
-    signedOutState.chat.messages[0]?.authorName,
-    "chatter@example.com"
-  );
+  assert.equal(signedOutState.chat.messages[0]?.authorName, "Lobby Hawk");
 });
 
 test("chat sending is rate limited to six messages per minute", async (context) => {
@@ -2436,6 +2534,7 @@ test("history and admin read models expose stored winner request state", async (
   await joinRegistrationCycle({
     db: prisma,
     userId: winner.id,
+    commanderName: "Archive Commander",
     fortressName: "Archive Fort",
   });
   await runGameTick({
@@ -2480,12 +2579,16 @@ test("history and admin read models expose stored winner request state", async (
     "Add a tiny winner seal next to the archived result."
   );
   assert.equal(historyState.entries[0]?.canSubmitWinnerRequest, false);
+  assert.equal(historyState.entries[0]?.winnerLabel, "Archive Commander");
   assert.equal(
     adminState.winnerRequests[0]?.status,
     WinnerRequestStatus.NEEDS_SIMPLIFICATION
   );
+  assert.equal(adminState.winnerRequests[0]?.authorLabel, "Archive Commander");
+  assert.equal(adminState.recentHistory[0]?.winnerLabel, "Archive Commander");
   assert.equal(
     adminState.winnerRequests[0]?.reviewNotes,
     "Keep it to one small badge and no extra summary blocks."
   );
+  assert.equal(adminState.winnerRequests[0]?.reviewedByLabel, "Admin reviewer");
 });

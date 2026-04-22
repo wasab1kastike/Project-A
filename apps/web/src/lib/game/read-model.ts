@@ -58,6 +58,7 @@ export async function getHomePageState({
         select: {
           id: true,
           ownerId: true,
+          commanderName: true,
           name: true,
           points: true,
           currentAction: true,
@@ -114,8 +115,6 @@ export async function getHomePageState({
           author: {
             select: {
               id: true,
-              name: true,
-              email: true,
             },
           },
         },
@@ -172,8 +171,21 @@ export async function getHomePageState({
     cycle.fortresses.map((fortress) => [fortress.id, fortress])
   );
   const playerFortressId = playerFortress?.id ?? null;
+  const commanderNameByOwnerId = new Map(
+    playerFortresses.map((fortress) => [
+      fortress.ownerId,
+      getDisplayName(
+        fortress.commanderName,
+        fortress.id === cycle.crownedFortressId
+      ),
+    ])
+  );
   const mapFortresses = cycle.fortresses.map((fortress) => ({
     id: fortress.id,
+    commanderName: getDisplayName(
+      fortress.commanderName,
+      fortress.id === cycle.crownedFortressId && !fortress.isNpc
+    ),
     name: getDisplayName(
       fortress.name,
       fortress.id === cycle.crownedFortressId && !fortress.isNpc
@@ -200,7 +212,7 @@ export async function getHomePageState({
     id: message.id,
     body: message.body,
     createdAt: message.createdAt,
-    authorName: message.author.name ?? "Unknown commander",
+    authorName: commanderNameByOwnerId.get(message.author.id) ?? "Spectator",
     isCurrentUser: message.author.id === userId,
   }));
 
@@ -259,6 +271,10 @@ export async function getHomePageState({
     playerFortress: playerFortress
       ? {
           id: playerFortress.id,
+          commanderName: getDisplayName(
+            playerFortress.commanderName,
+            playerFortress.id === cycle.crownedFortressId
+          ),
           name: getDisplayName(
             playerFortress.name,
             playerFortress.id === cycle.crownedFortressId
@@ -278,6 +294,10 @@ export async function getHomePageState({
     playerSummary: playerFortress
       ? {
           id: playerFortress.id,
+          commanderName: getDisplayName(
+            playerFortress.commanderName,
+            playerFortress.id === cycle.crownedFortressId
+          ),
           name: getDisplayName(
             playerFortress.name,
             playerFortress.id === cycle.crownedFortressId
@@ -300,6 +320,10 @@ export async function getHomePageState({
       : null,
     leaderboard: sortedFortresses.slice(0, 3).map((fortress, index) => ({
       id: fortress.id,
+      commanderName: getDisplayName(
+        fortress.commanderName,
+        fortress.id === cycle.crownedFortressId
+      ),
       name: getDisplayName(fortress.name, fortress.id === cycle.crownedFortressId),
       rawName: fortress.name,
       points: fortress.points,
@@ -342,6 +366,10 @@ export async function getHomePageState({
             .filter((fortress) => fortress.id !== playerFortress.id)
             .map((fortress) => ({
               id: fortress.id,
+              commanderName: getDisplayName(
+                fortress.commanderName,
+                fortress.id === cycle.crownedFortressId && !fortress.isNpc
+              ),
               name: getDisplayName(
                 fortress.name,
                 fortress.id === cycle.crownedFortressId && !fortress.isNpc

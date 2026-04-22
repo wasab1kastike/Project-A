@@ -20,6 +20,8 @@ export async function getAdminDashboardState({
         orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
         select: {
           id: true,
+          ownerId: true,
+          commanderName: true,
           name: true,
           points: true,
           isNpc: true,
@@ -34,8 +36,6 @@ export async function getAdminDashboardState({
           owner: {
             select: {
               id: true,
-              name: true,
-              email: true,
               role: true,
             },
           },
@@ -56,12 +56,7 @@ export async function getAdminDashboardState({
           id: true,
           status: true,
           createdAt: true,
-          author: {
-            select: {
-              name: true,
-              email: true,
-            },
-          },
+          authorId: true,
         },
       },
       gameTicks: {
@@ -92,8 +87,6 @@ export async function getAdminDashboardState({
     orderBy: [{ role: "desc" }, { createdAt: "asc" }],
     select: {
       id: true,
-      name: true,
-      email: true,
       role: true,
       createdAt: true,
       fortresses: {
@@ -103,10 +96,12 @@ export async function getAdminDashboardState({
         take: 1,
         select: {
           id: true,
+          ownerId: true,
+          commanderName: true,
           name: true,
-              points: true,
-              isNpc: true,
-              currentAction: true,
+          points: true,
+          isNpc: true,
+          currentAction: true,
           joinedAt: true,
         },
       },
@@ -122,8 +117,6 @@ export async function getAdminDashboardState({
       winner: {
         select: {
           id: true,
-          name: true,
-          email: true,
         },
       },
       cycle: {
@@ -131,6 +124,7 @@ export async function getAdminDashboardState({
           fortresses: {
             select: {
               ownerId: true,
+              commanderName: true,
               name: true,
             },
           },
@@ -144,17 +138,18 @@ export async function getAdminDashboardState({
       createdAt: "desc",
     },
     take: 8,
-    include: {
-      author: {
-        select: {
-          name: true,
-          email: true,
-        },
-      },
+    select: {
+      id: true,
+      cycleId: true,
+      authorId: true,
+      requestText: true,
+      status: true,
+      reviewNotes: true,
+      createdAt: true,
+      reviewedAt: true,
       reviewedBy: {
         select: {
-          name: true,
-          email: true,
+          id: true,
         },
       },
       cycle: {
@@ -163,6 +158,7 @@ export async function getAdminDashboardState({
           fortresses: {
             select: {
               ownerId: true,
+              commanderName: true,
               name: true,
             },
           },
@@ -190,7 +186,9 @@ export async function getAdminDashboardState({
             status: request.status,
             createdAt: request.createdAt,
             authorLabel:
-              request.author.name ?? request.author.email ?? "Unknown player",
+              currentCycle.fortresses.find(
+                (fortress) => fortress.ownerId === request.authorId
+              )?.commanderName ?? "Unknown player",
           })),
         }
       : null,
@@ -199,13 +197,13 @@ export async function getAdminDashboardState({
 
       return {
         id: user.id,
-        label: user.name ?? user.email ?? "Unnamed user",
-        email: user.email,
+        label: fortress?.commanderName ?? "Signed in user",
         role: user.role,
         createdAt: user.createdAt,
         currentFortress: fortress
           ? {
               id: fortress.id,
+              commanderName: fortress.commanderName,
               name: fortress.name,
               points: fortress.points,
               currentAction: fortress.currentAction,
@@ -217,8 +215,7 @@ export async function getAdminDashboardState({
     fortresses: currentCycle?.fortresses.map((fortress) => ({
       id: fortress.id,
       name: fortress.name,
-      ownerLabel:
-        fortress.owner.name ?? fortress.owner.email ?? "Unknown player",
+      ownerLabel: fortress.commanderName,
       ownerRole: fortress.owner.role,
       points: fortress.points,
       isNpc: fortress.isNpc,
@@ -234,7 +231,10 @@ export async function getAdminDashboardState({
     recentHistory: recentHistory.map((entry) => ({
       id: entry.id,
       cycleId: entry.cycleId,
-      winnerLabel: entry.winner.name ?? entry.winner.email ?? "Unknown winner",
+      winnerLabel:
+        entry.cycle.fortresses.find(
+          (fortress) => fortress.ownerId === entry.winner.id
+        )?.commanderName ?? "Unknown winner",
       winnerFortressName:
         entry.cycle.fortresses.find(
           (fortress) => fortress.ownerId === entry.winner.id
@@ -246,7 +246,10 @@ export async function getAdminDashboardState({
     winnerRequests: recentWinnerRequests.map((request) => ({
       id: request.id,
       cycleId: request.cycleId,
-      authorLabel: request.author.name ?? request.author.email ?? "Unknown player",
+      authorLabel:
+        request.cycle.fortresses.find(
+          (fortress) => fortress.ownerId === request.authorId
+        )?.commanderName ?? "Unknown player",
       winnerFortressName:
         request.cycle.fortresses.find(
           (fortress) => fortress.ownerId === request.authorId
@@ -256,8 +259,7 @@ export async function getAdminDashboardState({
       reviewNotes: request.reviewNotes,
       createdAt: request.createdAt,
       reviewedAt: request.reviewedAt,
-      reviewedByLabel:
-        request.reviewedBy?.name ?? request.reviewedBy?.email ?? null,
+      reviewedByLabel: request.reviewedBy ? "Admin reviewer" : null,
       resolvedAt: request.cycle.resolvedAt,
     })),
     policyUrl: WINNER_REQUEST_POLICY_URL,

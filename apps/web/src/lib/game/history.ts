@@ -17,8 +17,6 @@ export async function getCycleHistoryPageState({
       winner: {
         select: {
           id: true,
-          name: true,
-          email: true,
         },
       },
       winnerRequest: {
@@ -35,6 +33,7 @@ export async function getCycleHistoryPageState({
           fortresses: {
             select: {
               ownerId: true,
+              commanderName: true,
               name: true,
             },
           },
@@ -48,7 +47,10 @@ export async function getCycleHistoryPageState({
       id: entry.id,
       cycleId: entry.cycleId,
       winnerId: entry.winner.id,
-      winnerLabel: entry.winner.name ?? "Unknown winner",
+      winnerLabel:
+        entry.cycle.fortresses.find(
+          (fortress) => fortress.ownerId === entry.winner.id
+        )?.commanderName ?? "Unknown winner",
       winnerFortressName:
         entry.cycle.fortresses.find(
           (fortress) => fortress.ownerId === entry.winner.id

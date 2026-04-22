@@ -17,6 +17,7 @@ import styles from "./battlefield-experience.module.css";
 
 type CommandTarget = {
   id: string;
+  commanderName: string;
   name: string;
   points: number;
   isNpc: boolean;
@@ -40,6 +41,7 @@ type ChatProps = {
 
 type PlayerSummary = {
   id: string;
+  commanderName: string;
   name: string;
   points: number;
   currentAction: "GROW" | "ATTACK";
@@ -52,6 +54,7 @@ type PlayerSummary = {
 
 type PlayerFortress = {
   id: string;
+  commanderName: string;
   name: string;
   points: number;
   currentAction: "GROW" | "ATTACK";
@@ -305,6 +308,7 @@ export function BattlefieldExperience({
                         name="fortressName"
                         type="text"
                         defaultValue={playerSummary.name}
+                        maxLength={32}
                         required
                       />
                     </label>
@@ -325,7 +329,7 @@ export function BattlefieldExperience({
                 <div className={styles.ordersHeader}>
                   <div>
                     <span className={styles.label}>Registration</span>
-                    <h3>{playerFortress.name}</h3>
+                    <h3>{playerFortress.commanderName}</h3>
                   </div>
                   <strong>{playerFortress.points} pts</strong>
                 </div>
@@ -334,16 +338,27 @@ export function BattlefieldExperience({
                   className={styles.form}
                 >
                   <label className={styles.field}>
+                    <span>In-game nick</span>
+                    <input
+                      name="commanderName"
+                      type="text"
+                      defaultValue={playerFortress.commanderName}
+                      maxLength={32}
+                      required
+                    />
+                  </label>
+                  <label className={styles.field}>
                     <span>Fortress name</span>
                     <input
                       name="fortressName"
                       type="text"
                       defaultValue={playerFortress.name}
+                      maxLength={32}
                       required
                     />
                   </label>
                   <button className={styles.primaryButton} type="submit">
-                    Update registration name
+                    Update registration
                   </button>
                 </form>
               </div>

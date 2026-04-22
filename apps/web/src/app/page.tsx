@@ -86,7 +86,9 @@ export default async function Home({
   }
 
   const isAdmin = session?.user?.role === "ADMIN";
-  const userLabel = session?.user?.name ?? session?.user?.email ?? "Commander";
+  const userLabel = session?.user
+    ? (state.playerSummary?.commanderName ?? "Signed in")
+    : "Guest";
   const blockingMessage = runtimeError ?? error ?? null;
   const joinedText = state.cycle ? `${state.cycle.joinedCount} / 30` : "0 / 30";
   const remainingText = `${state.cycle?.remainingSlots ?? 30} slots`;
@@ -260,10 +262,21 @@ export default async function Home({
           {showJoinCard && !blockingMessage ? (
             <form action={joinFortressAction} className={styles.form}>
               <label className={styles.field}>
+                <span>In-game nick</span>
+                <input
+                  name="commanderName"
+                  type="text"
+                  maxLength={32}
+                  placeholder="Name your commander"
+                  required
+                />
+              </label>
+              <label className={styles.field}>
                 <span>Fortress name</span>
                 <input
                   name="fortressName"
                   type="text"
+                  maxLength={32}
                   placeholder="Name your fortress"
                   required
                 />

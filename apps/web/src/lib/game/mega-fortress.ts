@@ -20,6 +20,10 @@ import {
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
+function getNpcCommanderName(cycleId: string) {
+  return `NPC ${cycleId}`;
+}
+
 function hashString(value: string) {
   let hash = 2166136261;
 
@@ -115,6 +119,7 @@ export async function ensureMegaFortress({
         },
         data: {
           name: MEGA_FORTRESS_NAME,
+          commanderName: getNpcCommanderName(cycleId),
           iconLabel: MEGA_FORTRESS_ICON_LABEL,
         },
       });
@@ -148,6 +153,7 @@ export async function ensureMegaFortress({
     data: {
       cycleId,
       ownerId: npcUser.id,
+      commanderName: getNpcCommanderName(cycleId),
       name: MEGA_FORTRESS_NAME,
       isNpc: true,
       health: MEGA_FORTRESS_HEALTH,

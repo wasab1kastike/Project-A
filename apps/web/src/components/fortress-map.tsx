@@ -24,6 +24,7 @@ import styles from "./fortress-map.module.css";
 
 type MapFortress = {
   id: string;
+  commanderName: string;
   name: string;
   rawName: string;
   points: number;

@@ -81,7 +81,7 @@ export default async function AdminPage({
 
         <article className={styles.heroCard}>
           <span className={styles.sectionLabel}>Signed in as</span>
-          <h2>{session.user.email ?? session.user.name}</h2>
+          <h2>Admin session</h2>
           <dl className={styles.statsList}>
             <div className={styles.statRow}>
               <dt>Role</dt>
@@ -240,7 +240,7 @@ export default async function AdminPage({
                   <tr key={player.id}>
                     <td>
                       <strong>{player.label}</strong>
-                      <small>{player.email ?? "No email"}</small>
+                      <small>{player.currentFortress ? "Participant" : "Spectator"}</small>
                     </td>
                     <td>{player.role}</td>
                     <td>{player.currentFortress?.name ?? "Spectator"}</td>

@@ -136,6 +136,7 @@ model Fortress {
   id                    String         @id @default(cuid())
   cycleId               String
   ownerId               String
+  commanderName         String
   name                  String
   points                Int            @default(0)
   isNpc                 Boolean        @default(false)
@@ -162,6 +163,7 @@ model Fortress {
   scoreEventsAsTarget   ScoreEvent[]   @relation("ScoreEventTargetFortress")
 
   @@unique([cycleId, ownerId])
+  @@unique([cycleId, commanderName])
   @@unique([cycleId, name])
   @@index([cycleId])
   @@index([cycleId, isNpc])

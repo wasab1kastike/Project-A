@@ -21,14 +21,30 @@ import { GameError } from "./errors";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
-function normalizeFortressName(input: string) {
+const PUBLIC_NAME_MAX_LENGTH = 32;
+
+function normalizePublicName(input: string, label: string) {
   const normalized = input.trim().replace(/\s+/g, " ");
 
   if (!normalized) {
-    throw new GameError("Fortress name cannot be empty.");
+    throw new GameError(`${label} cannot be empty.`);
+  }
+
+  if (normalized.length > PUBLIC_NAME_MAX_LENGTH) {
+    throw new GameError(
+      `${label} must be ${PUBLIC_NAME_MAX_LENGTH} characters or fewer.`
+    );
   }
 
   return normalized;
+}
+
+function normalizeCommanderName(input: string) {
+  return normalizePublicName(input, "In-game nick");
+}
+
+function normalizeFortressName(input: string) {
+  return normalizePublicName(input, "Fortress name");
 }
 
 function getCurrentCycle(db: DatabaseClient = prisma) {
@@ -129,16 +145,21 @@ function isUniqueConstraintError(
 
 export async function joinRegistrationCycle({
   userId,
+  commanderName,
   fortressName,
   now = new Date(),
   db = prisma,
 }: {
   userId: string;
+  commanderName?: string;
   fortressName: string;
   now?: Date;
   db?: PrismaClient;
 }) {
   const normalizedName = normalizeFortressName(fortressName);
+  const normalizedCommanderName = normalizeCommanderName(
+    commanderName ?? fortressName
+  );
 
   try {
     return await db.$transaction(
@@ -156,6 +177,7 @@ export async function joinRegistrationCycle({
               select: {
                 id: true,
                 ownerId: true,
+                commanderName: true,
                 name: true,
                 mapX: true,
                 mapY: true,
@@ -196,6 +218,14 @@ export async function joinRegistrationCycle({
           );
         }
 
+        if (
+          cycle.fortresses.some(
+            (fortress) => fortress.commanderName === normalizedCommanderName
+          )
+        ) {
+          throw new GameError("That in-game nick is already taken this cycle.");
+        }
+
         const openPosition = findOpenMapPosition(cycle.fortresses);
 
         if (!openPosition) {
@@ -208,6 +238,7 @@ export async function joinRegistrationCycle({
           data: {
             cycleId: cycle.id,
             ownerId: userId,
+            commanderName: normalizedCommanderName,
             name: normalizedName,
             mapX: openPosition.x,
             mapY: openPosition.y,
@@ -229,22 +260,31 @@ export async function joinRegistrationCycle({
       throw new GameError("That fortress name is already taken this cycle.");
     }
 
+    if (isUniqueConstraintError(error, ["cycleId", "commanderName"])) {
+      throw new GameError("That in-game nick is already taken this cycle.");
+    }
+
     throw error;
   }
 }
 
 export async function editRegistrationFortressName({
   userId,
+  commanderName,
   fortressName,
   now = new Date(),
   db = prisma,
 }: {
   userId: string;
+  commanderName?: string;
   fortressName: string;
   now?: Date;
   db?: PrismaClient;
 }) {
   const normalizedName = normalizeFortressName(fortressName);
+  const normalizedCommanderName = commanderName !== undefined
+    ? normalizeCommanderName(commanderName)
+    : null;
 
   try {
     return await db.$transaction(async (tx) => {
@@ -274,6 +314,9 @@ export async function editRegistrationFortressName({
           id: fortress.id,
         },
         data: {
+          ...(normalizedCommanderName
+            ? { commanderName: normalizedCommanderName }
+            : {}),
           name: normalizedName,
         },
       });
@@ -281,6 +324,10 @@ export async function editRegistrationFortressName({
   } catch (error) {
     if (isUniqueConstraintError(error, ["cycleId", "name"])) {
       throw new GameError("That fortress name is already taken this cycle.");
+    }
+
+    if (isUniqueConstraintError(error, ["cycleId", "commanderName"])) {
+      throw new GameError("That in-game nick is already taken this cycle.");
     }
 
     throw error;
