@@ -42,18 +42,22 @@ function getCurrentCycle(db: DatabaseClient = prisma) {
   });
 }
 
-function isRegistrationJoinOpen(
+function isJoinOpen(
   cycle: {
     status: CycleStatus;
     registrationEndsAt: Date;
+    activeEndsAt: Date | null;
     joiningLockedAt?: Date | null;
   },
   now: Date
 ) {
   return (
-    cycle.status === CycleStatus.REGISTRATION &&
-    cycle.registrationEndsAt > now &&
-    !cycle.joiningLockedAt
+    (cycle.status === CycleStatus.REGISTRATION &&
+      cycle.registrationEndsAt > now &&
+      !cycle.joiningLockedAt) ||
+    (cycle.status === CycleStatus.ACTIVE &&
+      cycle.activeEndsAt !== null &&
+      cycle.activeEndsAt > now)
   );
 }
 
@@ -161,7 +165,7 @@ export async function joinRegistrationCycle({
         });
 
         if (!cycle) {
-          throw new GameError("Registration is closed for this cycle.");
+          throw new GameError("Joining is closed for this cycle.");
         }
 
         if (
@@ -172,16 +176,16 @@ export async function joinRegistrationCycle({
           throw new GameError("Registration joining is locked by an admin.");
         }
 
-        if (!isRegistrationJoinOpen(cycle, now)) {
-          throw new GameError("Registration is closed for this cycle.");
+        if (!isJoinOpen(cycle, now)) {
+          throw new GameError("Joining is closed for this cycle.");
         }
 
         if (cycle.fortresses.some((fortress) => fortress.ownerId === userId)) {
-          throw new GameError("You already joined this registration cycle.");
+          throw new GameError("You already joined this cycle.");
         }
 
         if (cycle.fortresses.length >= ACTIVE_PLAYER_CAP) {
-          throw new GameError("This registration cycle is already full.");
+          throw new GameError("This cycle is already full.");
         }
 
         if (
@@ -218,7 +222,7 @@ export async function joinRegistrationCycle({
     );
   } catch (error) {
     if (isUniqueConstraintError(error, ["cycleId", "ownerId"])) {
-      throw new GameError("You already joined this registration cycle.");
+      throw new GameError("You already joined this cycle.");
     }
 
     if (isUniqueConstraintError(error, ["cycleId", "name"])) {
