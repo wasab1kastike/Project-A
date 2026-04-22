@@ -59,6 +59,7 @@ export async function getHomePageState({
           id: true,
           ownerId: true,
           commanderName: true,
+          commanderNameRegisteredAt: true,
           name: true,
           points: true,
           currentAction: true,
@@ -275,6 +276,8 @@ export async function getHomePageState({
             playerFortress.commanderName,
             playerFortress.id === cycle.crownedFortressId
           ),
+          canRegisterCommanderName:
+            playerFortress.commanderNameRegisteredAt === null,
           name: getDisplayName(
             playerFortress.name,
             playerFortress.id === cycle.crownedFortressId
@@ -298,6 +301,8 @@ export async function getHomePageState({
             playerFortress.commanderName,
             playerFortress.id === cycle.crownedFortressId
           ),
+          canRegisterCommanderName:
+            playerFortress.commanderNameRegisteredAt === null,
           name: getDisplayName(
             playerFortress.name,
             playerFortress.id === cycle.crownedFortressId

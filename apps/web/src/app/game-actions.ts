@@ -10,6 +10,7 @@ import { emitProjectARefresh } from "@/lib/realtime";
 import {
   editRegistrationFortressName,
   joinRegistrationCycle,
+  registerCommanderName,
   renameActiveFortress,
   setFortressAction,
 } from "@/lib/game/service";
@@ -102,6 +103,22 @@ export async function renameFortressAction(formData: FormData) {
   }
 
   finishAction("Fortress renamed and 10 points spent.");
+}
+
+export async function registerCommanderNameAction(formData: FormData) {
+  const userId = await requireUserId();
+
+  try {
+    await registerCommanderName({
+      userId,
+      commanderName: getString(formData, "commanderName"),
+    });
+    emitProjectARefresh("commander-name");
+  } catch (error) {
+    redirectToHome("error", getActionErrorMessage(error));
+  }
+
+  finishAction("In-game nick registered.");
 }
 
 export async function setFortressActionAction(formData: FormData) {

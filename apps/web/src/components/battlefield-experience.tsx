@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 import {
   editRegistrationFortressNameAction,
+  registerCommanderNameAction,
   renameFortressAction,
   setFortressActionAction,
 } from "@/app/game-actions";
@@ -42,6 +43,7 @@ type ChatProps = {
 type PlayerSummary = {
   id: string;
   commanderName: string;
+  canRegisterCommanderName: boolean;
   name: string;
   points: number;
   currentAction: "GROW" | "ATTACK";
@@ -55,6 +57,7 @@ type PlayerSummary = {
 type PlayerFortress = {
   id: string;
   commanderName: string;
+  canRegisterCommanderName: boolean;
   name: string;
   points: number;
   currentAction: "GROW" | "ATTACK";
@@ -153,7 +156,7 @@ export function BattlefieldExperience({
         aria-expanded={chatOpen}
         onClick={() => setChatOpen((isOpen) => !isOpen)}
       >
-        {chatOpen ? "Hide chat" : "Open chat"}
+        Chat
       </button>
       {ownFortress ? (
         <button
@@ -296,6 +299,27 @@ export function BattlefieldExperience({
                     Save orders
                   </button>
                 </form>
+
+                {playerSummary.canRegisterCommanderName ? (
+                  <form
+                    action={registerCommanderNameAction}
+                    className={styles.renamePanel}
+                  >
+                    <label className={styles.field}>
+                      <span>In-game nick</span>
+                      <input
+                        name="commanderName"
+                        type="text"
+                        defaultValue={playerSummary.commanderName}
+                        maxLength={32}
+                        required
+                      />
+                    </label>
+                    <button className={styles.secondaryButton} type="submit">
+                      Register nick
+                    </button>
+                  </form>
+                ) : null}
 
                 {playerSummary.canRename ? (
                   <form

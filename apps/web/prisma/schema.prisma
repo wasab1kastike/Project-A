@@ -137,6 +137,7 @@ model Fortress {
   cycleId               String
   ownerId               String
   commanderName         String
+  commanderNameRegisteredAt DateTime?
   name                  String
   points                Int            @default(0)
   isNpc                 Boolean        @default(false)

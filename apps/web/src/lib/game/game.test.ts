@@ -38,6 +38,7 @@ import { getHomePageState } from "./read-model";
 import {
   editRegistrationFortressName,
   joinRegistrationCycle,
+  registerCommanderName,
   renameActiveFortress,
   setFortressAction,
 } from "./service";
@@ -473,6 +474,7 @@ test("season commander names are stored and unique per cycle", async (context) =
   });
 
   assert.equal(alphaFortress.commanderName, "Night Fox");
+  assert.ok(alphaFortress.commanderNameRegisteredAt);
   assert.equal(alphaFortress.name, "Moon Gate");
 
   await assert.rejects(
@@ -624,6 +626,7 @@ test("registration-time name editing works without charging points", async (cont
   });
 
   assert.equal(fortress.commanderName, "New Commander");
+  assert.ok(fortress.commanderNameRegisteredAt);
   assert.equal(fortress.name, "New Name");
   assert.equal(fortress.points, 0);
   assert.equal(renameEvents.length, 0);
@@ -640,6 +643,87 @@ test("registration-time name editing works without charging points", async (cont
   });
 
   assert.equal(activeState.canEditRegistrationName, false);
+});
+
+test("existing cycle players can register an in-game nick once", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const alpha = await createUser(prisma, "existing-alpha@example.com");
+  const beta = await createUser(prisma, "existing-beta@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: alpha.id,
+    commanderName: "Alpha Default",
+    fortressName: "Alpha Keep",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: beta.id,
+    commanderName: "Beta Default",
+    fortressName: "Beta Keep",
+  });
+  await prisma.fortress.updateMany({
+    where: {
+      cycleId: cycle.id,
+    },
+    data: {
+      commanderNameRegisteredAt: null,
+    },
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const pendingState = await getHomePageState({
+    db: prisma,
+    userId: alpha.id,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+  });
+
+  assert.equal(pendingState.playerSummary?.canRegisterCommanderName, true);
+
+  await registerCommanderName({
+    db: prisma,
+    userId: alpha.id,
+    commanderName: "Alpha Nick",
+    now: new Date("2026-04-20T12:02:00.000Z"),
+  });
+
+  const registeredState = await getHomePageState({
+    db: prisma,
+    userId: alpha.id,
+    now: new Date("2026-04-20T12:03:00.000Z"),
+  });
+
+  assert.equal(registeredState.playerSummary?.commanderName, "Alpha Nick");
+  assert.equal(registeredState.playerSummary?.canRegisterCommanderName, false);
+
+  await assert.rejects(
+    () =>
+      registerCommanderName({
+        db: prisma,
+        userId: alpha.id,
+        commanderName: "Second Nick",
+      }),
+    /already registered/
+  );
+
+  await assert.rejects(
+    () =>
+      registerCommanderName({
+        db: prisma,
+        userId: beta.id,
+        commanderName: "Alpha Nick",
+      }),
+    /in-game nick is already taken/
+  );
 });
 
 test("expired empty registration restarts with a fresh 24 hour window", async (context) => {

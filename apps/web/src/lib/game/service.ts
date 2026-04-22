@@ -239,6 +239,7 @@ export async function joinRegistrationCycle({
             cycleId: cycle.id,
             ownerId: userId,
             commanderName: normalizedCommanderName,
+            commanderNameRegisteredAt: now,
             name: normalizedName,
             mapX: openPosition.x,
             mapY: openPosition.y,
@@ -315,7 +316,10 @@ export async function editRegistrationFortressName({
         },
         data: {
           ...(normalizedCommanderName
-            ? { commanderName: normalizedCommanderName }
+            ? {
+                commanderName: normalizedCommanderName,
+                commanderNameRegisteredAt: now,
+              }
             : {}),
           name: normalizedName,
         },
@@ -326,6 +330,63 @@ export async function editRegistrationFortressName({
       throw new GameError("That fortress name is already taken this cycle.");
     }
 
+    if (isUniqueConstraintError(error, ["cycleId", "commanderName"])) {
+      throw new GameError("That in-game nick is already taken this cycle.");
+    }
+
+    throw error;
+  }
+}
+
+export async function registerCommanderName({
+  userId,
+  commanderName,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  commanderName: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  const normalizedCommanderName = normalizeCommanderName(commanderName);
+
+  try {
+    return await db.$transaction(async (tx) => {
+      const cycle = await getCurrentCycle(tx);
+
+      if (!cycle) {
+        throw new GameError("No current cycle is available for nick registration.");
+      }
+
+      const fortress = await tx.fortress.findUnique({
+        where: {
+          cycleId_ownerId: {
+            cycleId: cycle.id,
+            ownerId: userId,
+          },
+        },
+      });
+
+      if (!fortress) {
+        throw new GameError("Join the current cycle before registering a nick.");
+      }
+
+      if (fortress.commanderNameRegisteredAt) {
+        throw new GameError("Your in-game nick is already registered.");
+      }
+
+      return tx.fortress.update({
+        where: {
+          id: fortress.id,
+        },
+        data: {
+          commanderName: normalizedCommanderName,
+          commanderNameRegisteredAt: now,
+        },
+      });
+    });
+  } catch (error) {
     if (isUniqueConstraintError(error, ["cycleId", "commanderName"])) {
       throw new GameError("That in-game nick is already taken this cycle.");
     }

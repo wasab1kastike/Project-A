@@ -120,6 +120,7 @@ export async function ensureMegaFortress({
         data: {
           name: MEGA_FORTRESS_NAME,
           commanderName: getNpcCommanderName(cycleId),
+          commanderNameRegisteredAt: new Date(),
           iconLabel: MEGA_FORTRESS_ICON_LABEL,
         },
       });
@@ -154,6 +155,7 @@ export async function ensureMegaFortress({
       cycleId,
       ownerId: npcUser.id,
       commanderName: getNpcCommanderName(cycleId),
+      commanderNameRegisteredAt: new Date(),
       name: MEGA_FORTRESS_NAME,
       isNpc: true,
       health: MEGA_FORTRESS_HEALTH,
