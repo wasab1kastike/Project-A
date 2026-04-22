@@ -24,6 +24,18 @@ jobs:
 
           node -e "const d = new Date(process.env.ACTIVE_STARTS_AT); if (!Number.isFinite(d.getTime())) { console.error('Invalid ACTIVE_STARTS_AT'); process.exit(1); } if (d <= new Date()) { console.error('ACTIVE_STARTS_AT must be in the future'); process.exit(1); }"
 
+      - name: Normalize database URL
+        run: |
+          node --input-type=module <<'EOF' >> "$GITHUB_ENV"
+          const url = new URL(process.env.DATABASE_URL);
+
+          if (!url.searchParams.has("sslmode")) {
+            url.searchParams.set("sslmode", "require");
+          }
+
+          console.log(`DATABASE_URL=${url.toString()}`);
+          EOF
+
       - name: Check out repository
         uses: actions/checkout@v4
 
