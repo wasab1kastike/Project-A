@@ -139,7 +139,7 @@ export async function getHomePageState({
         postHint: "Chat unlocks once the next unresolved cycle exists.",
       },
       availableTargets: [],
-      canJoinRegistration: false,
+      canJoinCycle: false,
       canEditRegistrationName: false,
       emptyStateMessage:
         "No unresolved cycle exists yet. Run the seed flow to bootstrap registration.",
@@ -217,9 +217,11 @@ export async function getHomePageState({
       phaseDescription:
         cycle.status === CycleStatus.REGISTRATION
           ? joiningLocked
-            ? "Registration time is still running, but an admin has temporarily locked new joins. Existing participants can still review the lobby and edit their fortress name."
+            ? "Registration time is still running, but joins are currently locked by admin action."
             : "Players can join the upcoming season and set their fortress name."
-          : "Joined fortresses can grow, attack, and spend points on renames.",
+          : activeOpen
+            ? "The season is live. New players can still join this cycle while slots remain."
+            : "The active season is closing. New joins are blocked until the next cycle opens.",
       statusMessage:
         cycle.status === CycleStatus.REGISTRATION
           ? registrationOpen && joiningLocked
@@ -227,9 +229,13 @@ export async function getHomePageState({
             : registrationOpen
               ? "Registration is open. Joining creates your fortress immediately and reserves one of the 30 season slots."
               : "Registration has expired. The next game tick will either restart registration or move the cycle into ACTIVE."
-          : activeOpen
-            ? "The active season is running. Action changes persist until you change them again."
-            : "The ACTIVE deadline has passed. The next game tick will resolve the winner and open the next registration cycle.",
+          : joiningLocked
+            ? "The season is active, but joining is currently locked by admin action."
+            : activeOpen && remainingSlots > 0
+              ? "The active season is running. New commanders can still join this season while slots are available."
+              : activeOpen
+                ? "The active season is running, but all player slots are filled. Joining is closed for this cycle."
+                : "The ACTIVE deadline has passed. Joining is closed until the next registration cycle opens.",
     },
     phase: {
       status: cycle.status,
@@ -350,9 +356,9 @@ export async function getHomePageState({
               currentAction: fortress.currentAction,
             }))
         : [],
-    canJoinRegistration:
+    canJoinCycle:
       Boolean(userId) &&
-      registrationOpen &&
+      (registrationOpen || activeOpen) &&
       !joiningLocked &&
       !playerFortress &&
       remainingSlots > 0,
