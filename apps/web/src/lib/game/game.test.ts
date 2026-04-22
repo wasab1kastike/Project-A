@@ -561,6 +561,7 @@ test("activation creates one mega fortress without consuming player slots", asyn
   assert.equal(megaFortresses.length, 1);
   assert.equal(megaFortresses[0]?.health, MEGA_FORTRESS_HEALTH);
   assert.equal(megaFortresses[0]?.maxHealth, MEGA_FORTRESS_HEALTH);
+  assert.equal(megaFortresses[0]?.name, "Home of A");
   assert.equal(megaFortresses[0]?.sizeTiles, 4);
   assert.equal(megaFortresses[0]?.iconLabel, "A-");
 
