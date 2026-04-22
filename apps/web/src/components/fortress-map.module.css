@@ -309,7 +309,7 @@
 .fortressSprite {
   width: 84px;
   height: 84px;
-  background-image: url("/assets/fortress-sprites.png");
+  background-image: url("/assets/fortress-sprites-generated.png");
   background-size: 300% 200%;
 }
 
@@ -412,7 +412,7 @@
 .megaFortressSprite {
   width: 146px;
   height: 146px;
-  background-image: url("/assets/mega-fortress.png");
+  background-image: url("/assets/mega-fortress-generated.png");
 }
 
 .megaMarker .selectionPulse {

@@ -105,6 +105,21 @@ export async function ensureMegaFortress({
   });
 
   if (existingMega) {
+    if (
+      existingMega.name !== MEGA_FORTRESS_NAME ||
+      existingMega.iconLabel !== MEGA_FORTRESS_ICON_LABEL
+    ) {
+      return db.fortress.update({
+        where: {
+          id: existingMega.id,
+        },
+        data: {
+          name: MEGA_FORTRESS_NAME,
+          iconLabel: MEGA_FORTRESS_ICON_LABEL,
+        },
+      });
+    }
+
     return existingMega;
   }
 
