@@ -29,6 +29,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
+  "overrides": {
+    "@hono/node-server": "1.19.14"
+  },
   "devDependencies": {
     "prettier": "^3.6.2"
   }
