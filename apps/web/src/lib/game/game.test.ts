@@ -1162,7 +1162,7 @@ test("attack units charge on launch and damage on arrival", async (context) => {
   assert.equal(nextOutbound.length, 1);
 });
 
-test("attack mode spawns one new in-flight unit per tick until first arrival", async (context) => {
+test("attack mode launches one unit per tick even while previous units are in transit", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -1210,7 +1210,7 @@ test("attack mode spawns one new in-flight unit per tick until first arrival", a
       id: attackerFortress.id,
     },
     data: {
-      points: 6,
+      points: 8,
       mapX: 6,
       mapY: 6,
     },
@@ -1244,8 +1244,22 @@ test("attack mode spawns one new in-flight unit per tick until first arrival", a
       launchedAt: "asc",
     },
   });
+  const expectedArrival = getAttackArrivalAt({
+    launchedAt: launchTime,
+    origin: {
+      ...attackerFortress,
+      mapX: 6,
+      mapY: 6,
+    },
+    target: {
+      ...targetFortress,
+      mapX: 94,
+      mapY: 95,
+    },
+  });
 
-  assert.ok(firstUnit.arrivesAt.getTime() - launchTime.getTime() > 60_000);
+  assert.equal(firstUnit.arrivesAt.toISOString(), expectedArrival.toISOString());
+  assert.ok(firstUnit.arrivesAt.getTime() - launchTime.getTime() >= 4 * 60_000);
 
   await runGameTick({
     db: prisma,
@@ -1254,6 +1268,14 @@ test("attack mode spawns one new in-flight unit per tick until first arrival", a
   await runGameTick({
     db: prisma,
     now: new Date("2026-04-20T12:07:00.000Z"),
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:08:00.000Z"),
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:09:00.000Z"),
   });
 
   const unresolvedBeforeArrival = await prisma.attackUnit.findMany({
@@ -1272,11 +1294,36 @@ test("attack mode spawns one new in-flight unit per tick until first arrival", a
     },
   });
 
-  assert.equal(unresolvedBeforeArrival.length, 3);
+  assert.equal(unresolvedBeforeArrival.length, 5);
   assert.equal(
     unresolvedBeforeArrival[0]?.arrivesAt.toISOString(),
     firstUnit.arrivesAt.toISOString()
   );
+  assert.ok(
+    unresolvedBeforeArrival.every(
+      (unit) => unit.launchedAt.getTime() < firstUnit.arrivesAt.getTime()
+    )
+  );
+
+  const attackLaunchEvents = await prisma.scoreEvent.findMany({
+    where: {
+      cycleId: cycle.id,
+      fortressId: attackerFortress.id,
+      eventType: ScoreEventType.ATTACK_SELF,
+    },
+  });
+  const attackerBeforeFirstArrival = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: attackerFortress.id,
+    },
+  });
+
+  assert.equal(attackLaunchEvents.length, unresolvedBeforeArrival.length);
+  assert.equal(
+    attackLaunchEvents.reduce((total, event) => total + event.delta, 0),
+    -unresolvedBeforeArrival.length
+  );
+  assert.equal(attackerBeforeFirstArrival.points, 8 - unresolvedBeforeArrival.length);
 
   await runGameTick({
     db: prisma,
