@@ -2,6 +2,8 @@
 
 ## 2026-04-22
 
+- Change: Added a regression test to verify ATTACK mode launches exactly one unit per minute while earlier units are still in transit, with long-distance travel timing and per-launch ATTACK_SELF score deductions.
+- User impact: Prevents silent regressions where queued attack launches or launch-cost accounting could stop working before the first unit arrives.
 - Change: Updated join-cycle eligibility to allow joining during both open REGISTRATION and open ACTIVE windows.
 - User impact: Mid-season join enabled when slots remain.
 - Change: Kept admin join lock behavior scoped to REGISTRATION only, preserving existing product behavior outside the registration window.
