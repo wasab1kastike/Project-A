@@ -3,6 +3,7 @@ import { CycleStatus, type PrismaClient } from "@/lib/prisma-client";
 import { ACTIVE_PLAYER_CAP } from "./constants";
 import { getChatLimits } from "./chat";
 import { normalizeUnitSpriteVariant } from "./attacks";
+import { ensureCommanderRegistrationColumn } from "./schema-guards";
 
 export type HomePageState = Awaited<ReturnType<typeof getHomePageState>>;
 
@@ -45,6 +46,8 @@ export async function getHomePageState({
   now?: Date;
   db?: PrismaClient;
 }) {
+  await ensureCommanderRegistrationColumn(db);
+
   const cycle = await db.cycle.findFirst({
     where: {
       resolvedAt: null,

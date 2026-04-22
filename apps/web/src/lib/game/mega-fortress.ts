@@ -17,6 +17,7 @@ import {
   MEGA_FORTRESS_SIZE_TILES,
   NPC_SYSTEM_USER_EMAIL,
 } from "./constants";
+import { ensureCommanderRegistrationColumn } from "./schema-guards";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -101,6 +102,8 @@ export async function ensureMegaFortress({
   cycleId: string;
   seed: string;
 }) {
+  await ensureCommanderRegistrationColumn(db);
+
   const existingMega = await db.fortress.findFirst({
     where: {
       cycleId,

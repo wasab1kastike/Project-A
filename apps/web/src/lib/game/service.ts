@@ -18,6 +18,7 @@ import {
   launchAttackUnit,
 } from "./attack-units";
 import { GameError } from "./errors";
+import { ensureCommanderRegistrationColumn } from "./schema-guards";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -156,6 +157,8 @@ export async function joinRegistrationCycle({
   now?: Date;
   db?: PrismaClient;
 }) {
+  await ensureCommanderRegistrationColumn(db);
+
   const normalizedName = normalizeFortressName(fortressName);
   const normalizedCommanderName = normalizeCommanderName(
     commanderName ?? fortressName
@@ -282,6 +285,8 @@ export async function editRegistrationFortressName({
   now?: Date;
   db?: PrismaClient;
 }) {
+  await ensureCommanderRegistrationColumn(db);
+
   const normalizedName = normalizeFortressName(fortressName);
   const normalizedCommanderName = commanderName !== undefined
     ? normalizeCommanderName(commanderName)
@@ -349,6 +354,8 @@ export async function registerCommanderName({
   now?: Date;
   db?: PrismaClient;
 }) {
+  await ensureCommanderRegistrationColumn(db);
+
   const normalizedCommanderName = normalizeCommanderName(commanderName);
 
   try {
