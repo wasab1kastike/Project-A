@@ -1162,6 +1162,155 @@ test("attack units charge on launch and damage on arrival", async (context) => {
   assert.equal(nextOutbound.length, 1);
 });
 
+test("attack mode spawns one new in-flight unit per tick until first arrival", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const attacker = await createUser(prisma, "queue-attacker@example.com");
+  const target = await createUser(prisma, "queue-target@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: attacker.id,
+    fortressName: "Queue Attacker",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: target.id,
+    fortressName: "Queue Target",
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const attackerFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: attacker.id,
+      },
+    },
+  });
+  const targetFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: target.id,
+      },
+    },
+  });
+
+  await prisma.fortress.update({
+    where: {
+      id: attackerFortress.id,
+    },
+    data: {
+      points: 6,
+      mapX: 6,
+      mapY: 6,
+    },
+  });
+  await prisma.fortress.update({
+    where: {
+      id: targetFortress.id,
+    },
+    data: {
+      mapX: 94,
+      mapY: 95,
+    },
+  });
+
+  const launchTime = new Date("2026-04-20T12:05:00.000Z");
+
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.ATTACK,
+    targetFortressId: targetFortress.id,
+    now: launchTime,
+  });
+
+  const firstUnit = await prisma.attackUnit.findFirstOrThrow({
+    where: {
+      attackerFortressId: attackerFortress.id,
+      cancelledAt: null,
+    },
+    orderBy: {
+      launchedAt: "asc",
+    },
+  });
+
+  assert.ok(firstUnit.arrivesAt.getTime() - launchTime.getTime() > 60_000);
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:06:00.000Z"),
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:07:00.000Z"),
+  });
+
+  const unresolvedBeforeArrival = await prisma.attackUnit.findMany({
+    where: {
+      attackerFortressId: attackerFortress.id,
+      resolvedAt: null,
+      cancelledAt: null,
+    },
+    orderBy: {
+      launchedAt: "asc",
+    },
+    select: {
+      id: true,
+      launchedAt: true,
+      arrivesAt: true,
+    },
+  });
+
+  assert.equal(unresolvedBeforeArrival.length, 3);
+  assert.equal(
+    unresolvedBeforeArrival[0]?.arrivesAt.toISOString(),
+    firstUnit.arrivesAt.toISOString()
+  );
+
+  await runGameTick({
+    db: prisma,
+    now: firstUnit.arrivesAt,
+  });
+
+  const unitsAfterFirstArrivalTick = await prisma.attackUnit.findMany({
+    where: {
+      attackerFortressId: attackerFortress.id,
+      cancelledAt: null,
+    },
+    orderBy: {
+      launchedAt: "asc",
+    },
+    select: {
+      id: true,
+      launchedAt: true,
+      resolvedAt: true,
+    },
+  });
+  const unresolvedAfterFirstArrivalTick = unitsAfterFirstArrivalTick.filter(
+    (unit) => unit.resolvedAt === null
+  );
+  const launchedOnArrivalTick = unitsAfterFirstArrivalTick.filter((unit) => {
+    return unit.launchedAt.getTime() === firstUnit.arrivesAt.getTime();
+  });
+
+  assert.equal(launchedOnArrivalTick.length, 0);
+  assert.equal(
+    unresolvedAfterFirstArrivalTick.length,
+    unresolvedBeforeArrival.length - 1
+  );
+});
+
 test("destroying the mega fortress awards points, crown, and reshuffles map positions", async (context) => {
   const prisma = getPrismaOrSkip(context);
 

@@ -67,12 +67,6 @@ export async function launchAttackUnit({
   target: AttackFortress;
   launchedAt: Date;
 }) {
-  const activeUnit = await getActiveAttackUnit(db, attacker.id);
-
-  if (activeUnit) {
-    return null;
-  }
-
   const arrivesAt = getAttackArrivalAt({
     launchedAt,
     origin: attacker,
