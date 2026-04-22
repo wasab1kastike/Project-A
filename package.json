@@ -22,6 +22,7 @@
     "db:generate": "npm run db:generate --workspace web",
     "db:migrate": "npm run db:migrate --workspace web",
     "db:seed": "npm run db:seed --workspace web",
+    "db:reset-season-one": "npm run db:reset-season-one --workspace web",
     "db:studio": "npm run db:studio --workspace web",
     "db:compose:up": "docker compose up -d postgres",
     "db:compose:down": "docker compose down",
