@@ -27,7 +27,7 @@
 
 .topHud,
 .bottomHud,
-.centerCard,
+.sidePanel,
 .noticeToast {
   position: absolute;
   z-index: 20;
@@ -47,7 +47,7 @@
 .statusCluster,
 .topLinks,
 .bottomHud,
-.centerCard,
+.sidePanel,
 .noticeToast {
   border: 1px solid rgba(255, 255, 255, 0.12);
   background:
@@ -161,23 +161,29 @@
   transform: translateX(-50%);
 }
 
-.centerCard {
-  top: 50%;
-  left: 50%;
+.sidePanel {
+  top: 112px;
+  left: 16px;
   width: min(440px, calc(100% - 32px));
   display: grid;
   gap: 14px;
   padding: 22px;
   border-radius: 8px;
+  pointer-events: auto;
+}
+
+.statusPanel {
+  top: 50%;
+  left: 50%;
   transform: translate(-50%, -50%);
 }
 
-.centerCard h1 {
+.sidePanel h1 {
   font-size: clamp(1.9rem, 5vw, 2.9rem);
   line-height: 0.98;
 }
 
-.centerCard p,
+.sidePanel p,
 .bottomHud p,
 .leaderboardStrip p {
   color: var(--text-muted);
@@ -296,11 +302,33 @@
   gap: 5px;
 }
 
+.fortressTitle {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .playerStrip strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 1.05rem;
+}
+
+.crownBadge {
+  width: fit-content;
+  flex: 0 0 auto;
+  padding: 3px 6px;
+  border: 1px solid rgba(245, 214, 108, 0.34);
+  border-radius: 6px;
+  background: rgba(245, 214, 108, 0.12);
+  color: #ffe48b;
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
 }
 
 .leaderboardList {
@@ -311,7 +339,7 @@
 
 .leaderboardList li {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   gap: 8px;
   align-items: center;
   min-height: 30px;
@@ -322,6 +350,7 @@
 }
 
 .leaderboardList span,
+.leaderboardList small,
 .leaderboardList em {
   color: var(--text-muted);
   font-family: var(--font-ibm-plex-mono);
@@ -406,11 +435,25 @@
     min-width: 84px;
   }
 
-  .centerCard {
-    top: 48%;
+  .sidePanel {
+    top: auto;
+    left: 10px;
+    right: 10px;
+    bottom: calc(34dvh + 24px);
+    width: auto;
     max-height: calc(100dvh - 190px);
     overflow: auto;
     padding: 18px;
+    transform: none;
+  }
+
+  .statusPanel {
+    top: 48%;
+    left: 50%;
+    right: auto;
+    bottom: auto;
+    width: min(440px, calc(100% - 32px));
+    transform: translate(-50%, -50%);
   }
 
   .deadlineList,

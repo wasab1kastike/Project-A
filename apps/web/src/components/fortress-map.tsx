@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import {
   HEX_RADIUS,
@@ -11,6 +18,7 @@ import {
   snapMapPointToHex,
   type HexBiome,
 } from "@/lib/game/map-hex";
+import { getAttackTravelMinutes } from "@/lib/game/attacks";
 import type { UnitSpriteVariant } from "@/lib/game/constants";
 import styles from "./fortress-map.module.css";
 
@@ -254,35 +262,6 @@ function AttackUnitsLayer({
 
   return (
     <div className={styles.attackLayer} aria-label="Active attacks">
-      <svg
-        className={styles.attackRoutes}
-        viewBox={`0 0 ${MAP_WORLD_WIDTH} ${MAP_WORLD_HEIGHT}`}
-        aria-hidden="true"
-        role="presentation"
-      >
-        {attackUnits.map((unit) => {
-          const origin = snapMapPointToHex({
-            x: unit.attacker.mapX,
-            y: unit.attacker.mapY,
-          });
-          const target = snapMapPointToHex({
-            x: unit.target.mapX,
-            y: unit.target.mapY,
-          });
-
-          return (
-            <line
-              key={unit.id}
-              className={styles.attackRoute}
-              x1={(origin.x / 100) * MAP_WORLD_WIDTH}
-              y1={(origin.y / 100) * MAP_WORLD_HEIGHT}
-              x2={(target.x / 100) * MAP_WORLD_WIDTH}
-              y2={(target.y / 100) * MAP_WORLD_HEIGHT}
-            />
-          );
-        })}
-      </svg>
-
       {attackUnits.map((unit) => {
         const origin = snapMapPointToHex({
           x: unit.attacker.mapX,
@@ -326,6 +305,7 @@ export function FortressMap({
   selectedFortressId,
   selectedTargetId,
   onSelectFortress,
+  onAttackTarget,
   className,
 }: {
   fortresses: MapFortress[];
@@ -333,9 +313,12 @@ export function FortressMap({
   selectedFortressId?: string | null;
   selectedTargetId?: string | null;
   onSelectFortress?: (fortress: MapFortress) => void;
+  onAttackTarget?: (fortress: MapFortress) => void;
   className?: string;
 }) {
   const shellRef = useRef<HTMLDivElement | null>(null);
+  const lastAutoFocusKeyRef = useRef<string | null>(null);
+  const userAdjustedViewRef = useRef(false);
   const pointerCacheRef = useRef<Map<number, Point>>(new Map());
   const pinchStateRef = useRef<{
     startScale: number;
@@ -351,6 +334,10 @@ export function FortressMap({
   const [translateY, setTranslateY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState<DragStart | null>(null);
+  const [pendingTargetId, setPendingTargetId] = useState<string | null>(null);
+
+  const ownFortress =
+    fortresses.find((fortress) => fortress.isCurrentUser) ?? null;
 
   const clampTranslation = useCallback(
     (nextX: number, nextY: number, nextScale: number) => {
@@ -393,6 +380,7 @@ export function FortressMap({
   );
 
   const resetView = useCallback(() => {
+    userAdjustedViewRef.current = true;
     setScale(1);
     setTranslateX(0);
     setTranslateY(0);
@@ -402,6 +390,24 @@ export function FortressMap({
     pointerCacheRef.current.clear();
     pinchStateRef.current = null;
   }, []);
+
+  const focusFortress = useCallback(
+    (fortress: Pick<MapFortress, "id" | "mapX" | "mapY">) => {
+      const snappedPosition = snapMapPointToHex({
+        x: fortress.mapX,
+        y: fortress.mapY,
+      });
+      const focusScale = clampValue(1.08, MIN_SCALE, MAX_SCALE);
+      const worldX = (snappedPosition.x / 100) * MAP_WORLD_WIDTH;
+      const worldY = (snappedPosition.y / 100) * MAP_WORLD_HEIGHT;
+      const nextTranslateX = -(worldX - MAP_WORLD_WIDTH / 2) * focusScale;
+      const nextTranslateY = -(worldY - MAP_WORLD_HEIGHT / 2) * focusScale;
+
+      lastAutoFocusKeyRef.current = `${fortress.id}:${fortress.mapX}:${fortress.mapY}`;
+      applyView(focusScale, nextTranslateX, nextTranslateY);
+    },
+    [applyView]
+  );
 
   const zoomFromViewportPoint = useCallback(
     (nextScale: number, pointInShell?: Point) => {
@@ -495,6 +501,24 @@ export function FortressMap({
     [scale, translateX, translateY]
   );
 
+  useEffect(() => {
+    if (!ownFortress) {
+      return;
+    }
+
+    const focusKey = `${ownFortress.id}:${ownFortress.mapX}:${ownFortress.mapY}`;
+    const lastFocusId = lastAutoFocusKeyRef.current?.split(":")[0] ?? null;
+    const shouldFocus =
+      lastAutoFocusKeyRef.current === null ||
+      lastFocusId !== ownFortress.id ||
+      (!userAdjustedViewRef.current &&
+        lastAutoFocusKeyRef.current !== focusKey);
+
+    if (shouldFocus) {
+      focusFortress(ownFortress);
+    }
+  }, [focusFortress, ownFortress]);
+
   return (
     <div
       ref={shellRef}
@@ -508,11 +532,13 @@ export function FortressMap({
           event.key === "NumpadAdd"
         ) {
           event.preventDefault();
+          userAdjustedViewRef.current = true;
           zoomFromViewportPoint(scale + ZOOM_STEP);
         }
 
         if (event.key === "-" || event.key === "NumpadSubtract") {
           event.preventDefault();
+          userAdjustedViewRef.current = true;
           zoomFromViewportPoint(scale - ZOOM_STEP);
         }
 
@@ -528,7 +554,10 @@ export function FortressMap({
           type="button"
           className={styles.controlButton}
           aria-label="Zoom in"
-          onClick={() => zoomFromViewportPoint(scale + ZOOM_STEP)}
+          onClick={() => {
+            userAdjustedViewRef.current = true;
+            zoomFromViewportPoint(scale + ZOOM_STEP);
+          }}
         >
           +
         </button>
@@ -536,7 +565,10 @@ export function FortressMap({
           type="button"
           className={styles.controlButton}
           aria-label="Zoom out"
-          onClick={() => zoomFromViewportPoint(scale - ZOOM_STEP)}
+          onClick={() => {
+            userAdjustedViewRef.current = true;
+            zoomFromViewportPoint(scale - ZOOM_STEP);
+          }}
         >
           -
         </button>
@@ -548,12 +580,26 @@ export function FortressMap({
         >
           Reset view
         </button>
+        {ownFortress ? (
+          <button
+            type="button"
+            className={`${styles.controlButton} ${styles.focusButton}`}
+            aria-label="Focus my fortress"
+            onClick={() => {
+              userAdjustedViewRef.current = false;
+              focusFortress(ownFortress);
+            }}
+          >
+            My fortress
+          </button>
+        ) : null}
       </div>
 
       <div
         className={`${styles.viewport} ${isDragging ? styles.dragging : ""}`}
         onWheel={(event) => {
           event.preventDefault();
+          userAdjustedViewRef.current = true;
           const shellBounds = shellRef.current?.getBoundingClientRect();
           if (!shellBounds) {
             return;
@@ -632,6 +678,7 @@ export function FortressMap({
 
           if (Math.hypot(deltaX, deltaY) > CLICK_DRAG_THRESHOLD) {
             suppressClickRef.current = true;
+            userAdjustedViewRef.current = true;
           }
 
           const nextTranslate = clampTranslation(
@@ -676,8 +723,8 @@ export function FortressMap({
                 y: fortress.mapY,
               });
               const selectable =
-                Boolean(onSelectFortress) &&
-                (fortress.isTargetable || fortress.isCurrentUser);
+                (Boolean(onSelectFortress) && fortress.isCurrentUser) ||
+                (Boolean(onAttackTarget) && fortress.isTargetable);
               const variant = getSpriteVariant(fortress);
               const isMega = fortress.isNpc;
               const className = [
@@ -693,63 +740,106 @@ export function FortressMap({
                 .filter(Boolean)
                 .join(" ");
 
-              return (
-                <button
-                  key={fortress.id}
-                  type="button"
-                  className={className}
-                  style={{
-                    left: `${snappedPosition.x}%`,
-                    top: `${snappedPosition.y}%`,
-                  }}
-                  onClick={(event) => {
-                    if (suppressClickRef.current) {
-                      event.preventDefault();
-                      return;
-                    }
+              const showTargetPopover =
+                pendingTargetId === fortress.id && fortress.isTargetable;
+              const travelMinutes = ownFortress
+                ? getAttackTravelMinutes(ownFortress, fortress)
+                : null;
 
-                    if (selectable) {
-                      onSelectFortress?.(fortress);
+              return (
+                <Fragment key={fortress.id}>
+                  <button
+                    type="button"
+                    className={className}
+                    style={{
+                      left: `${snappedPosition.x}%`,
+                      top: `${snappedPosition.y}%`,
+                    }}
+                    onClick={(event) => {
+                      if (suppressClickRef.current) {
+                        event.preventDefault();
+                        return;
+                      }
+
+                      if (fortress.isCurrentUser) {
+                        onSelectFortress?.(fortress);
+                        return;
+                      }
+
+                      if (fortress.isTargetable) {
+                        setPendingTargetId(fortress.id);
+                      }
+                    }}
+                    aria-pressed={
+                      selectedTargetId === fortress.id ||
+                      selectedFortressId === fortress.id
                     }
-                  }}
-                  aria-pressed={
-                    selectedTargetId === fortress.id ||
-                    selectedFortressId === fortress.id
-                  }
-                  aria-label={
-                    isMega
-                      ? `${fortress.name}, ${fortress.health} of ${fortress.maxHealth} health`
-                      : `${fortress.name}, ${fortress.points} points`
-                  }
-                >
-                  <span className={styles.selectionPulse} />
-                  <span className={styles.spriteFrame}>
-                    {isMega ? (
-                      <MegaFortressSprite
-                        iconLabel={fortress.iconLabel ?? "A-"}
-                      />
-                    ) : (
-                      <FortressSprite
-                        variant={variant}
-                        action={fortress.currentAction}
-                      />
-                    )}
-                  </span>
-                  <span className={styles.pointsBadge}>
-                    {isMega
-                      ? `${fortress.health}/${fortress.maxHealth}`
-                      : fortress.points}
-                  </span>
-                  <span className={styles.nameplate}>{fortress.name}</span>
-                  <span className={styles.tooltip}>
-                    <strong>{fortress.name}</strong>
-                    <span>
-                      {isMega
-                        ? `${fortress.health}/${fortress.maxHealth} HP`
-                        : `${fortress.points} pts - ${fortress.currentAction}`}
+                    aria-label={
+                      isMega
+                        ? `${fortress.name}, ${fortress.health} of ${fortress.maxHealth} health`
+                        : `${fortress.name}, ${fortress.points} points`
+                    }
+                  >
+                    <span className={styles.selectionPulse} />
+                    <span className={styles.spriteFrame}>
+                      {isMega ? (
+                        <MegaFortressSprite
+                          iconLabel={fortress.iconLabel ?? "A-"}
+                        />
+                      ) : (
+                        <FortressSprite
+                          variant={variant}
+                          action={fortress.currentAction}
+                        />
+                      )}
                     </span>
-                  </span>
-                </button>
+                    <span className={styles.pointsBadge}>
+                      {isMega
+                        ? `${fortress.health}/${fortress.maxHealth}`
+                        : fortress.points}
+                    </span>
+                    <span className={styles.nameplate}>{fortress.name}</span>
+                    {fortress.isCrowned ? (
+                      <span className={styles.crownBadge}>Crown</span>
+                    ) : null}
+                    <span className={styles.tooltip}>
+                      <strong>{fortress.name}</strong>
+                      <span>
+                        {isMega
+                          ? `${fortress.health}/${fortress.maxHealth} HP`
+                          : `${fortress.points} pts - ${fortress.currentAction}`}
+                      </span>
+                    </span>
+                  </button>
+
+                  {showTargetPopover ? (
+                    <div
+                      className={styles.targetPopover}
+                      style={{
+                        left: `${snappedPosition.x}%`,
+                        top: `${snappedPosition.y}%`,
+                      }}
+                      onPointerDown={(event) => event.stopPropagation()}
+                    >
+                      <strong>{fortress.name}</strong>
+                      <span>
+                        {isMega
+                          ? `${fortress.health}/${fortress.maxHealth} HP`
+                          : `${fortress.points} pts`}
+                      </span>
+                      {travelMinutes ? <em>{travelMinutes} min ETA</em> : null}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPendingTargetId(null);
+                          onAttackTarget?.(fortress);
+                        }}
+                      >
+                        Attack
+                      </button>
+                    </div>
+                  ) : null}
+                </Fragment>
               );
             })
           )}

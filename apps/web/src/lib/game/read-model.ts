@@ -32,7 +32,8 @@ function compareByLeaderboardOrder(
 }
 
 function getDisplayName(name: string, isCrowned: boolean) {
-  return isCrowned ? `👑 ${name}` : name;
+  void isCrowned;
+  return name;
 }
 
 export async function getHomePageState({
@@ -289,14 +290,10 @@ export async function getHomePageState({
             ? (() => {
                 const target = targetLookup.get(playerFortress.targetFortressId);
 
-                return target
-                  ? getDisplayName(
-                      target.name,
-                      target.id === cycle.crownedFortressId && !target.isNpc
-                    )
-                  : null;
+                return target ? target.name : null;
               })()
             : null,
+          isCrowned: playerFortress.id === cycle.crownedFortressId,
           canRename: activeOpen && playerFortress.points >= 10,
           canSetAction: activeOpen,
         }
@@ -307,6 +304,7 @@ export async function getHomePageState({
       rawName: fortress.name,
       points: fortress.points,
       rank: index + 1,
+      isCrowned: fortress.id === cycle.crownedFortressId,
       isCurrentUser: fortress.ownerId === userId,
     })),
     mapFortresses,

@@ -306,12 +306,31 @@ test("join succeeds during registration and open active windows", async (context
 
   assert.ok(fortress);
 
+  await setRegistrationJoiningLock({
+    db: prisma,
+    locked: true,
+    now: new Date("2026-04-19T12:10:00.000Z"),
+  });
+
   await runGameTick({
     db: prisma,
     now: new Date("2026-04-20T12:00:00.000Z"),
   });
 
   const activeUser = await createUser(prisma, "active-joiner@example.com");
+  const activatedCycle = await prisma.cycle.findUniqueOrThrow({
+    where: {
+      id: cycle.id,
+    },
+  });
+  const activeState = await getHomePageState({
+    db: prisma,
+    userId: activeUser.id,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+  });
+
+  assert.equal(activatedCycle.joiningLockedAt, null);
+  assert.equal(activeState.canJoinCycle, true);
 
   await joinRegistrationCycle({
     db: prisma,

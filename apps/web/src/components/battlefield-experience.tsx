@@ -45,6 +45,7 @@ type PlayerSummary = {
   currentAction: "GROW" | "ATTACK";
   currentTargetId?: string | null;
   currentTargetName?: string | null;
+  isCrowned?: boolean;
   canRename: boolean;
   canSetAction: boolean;
 };
@@ -124,6 +125,20 @@ export function BattlefieldExperience({
     }
   }
 
+  function prepareAttackTarget(fortress: MapFortress) {
+    if (!fortress.isTargetable || !playerSummary?.canSetAction) {
+      return;
+    }
+
+    setAction("ATTACK");
+    setTargetFortressId(fortress.id);
+
+    if (ownFortress) {
+      setSelectedFortressId(ownFortress.id);
+      setActionOpen(true);
+    }
+  }
+
   const actionButtons = (
     <div
       className={immersive ? styles.floatingActions : styles.headerActions}
@@ -176,18 +191,9 @@ export function BattlefieldExperience({
           onSelectFortress={(fortress) => {
             if (fortress.isCurrentUser) {
               openOwnActions(fortress.id);
-              return;
-            }
-
-            if (fortress.isTargetable && playerSummary?.canSetAction) {
-              setAction("ATTACK");
-              setTargetFortressId(fortress.id);
-              if (ownFortress) {
-                setSelectedFortressId(ownFortress.id);
-                setActionOpen(true);
-              }
             }
           }}
+          onAttackTarget={prepareAttackTarget}
         />
 
         {chatOpen ? (

@@ -1,0 +1,84 @@
+name: Reset Production Game State
+
+on:
+  workflow_dispatch:
+    inputs:
+      active_starts_at:
+        description: "Season active start in UTC ISO format"
+        required: true
+        default: "2026-04-23T09:00:00.000Z"
+
+jobs:
+  reset-production-game-state:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+      ACTIVE_STARTS_AT: ${{ inputs.active_starts_at }}
+    steps:
+      - name: Validate required inputs
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "::error::Missing required GitHub secret PRODUCTION_DATABASE_URL"
+            exit 1
+          fi
+
+          node -e "const d = new Date(process.env.ACTIVE_STARTS_AT); if (!Number.isFinite(d.getTime())) { console.error('Invalid ACTIVE_STARTS_AT'); process.exit(1); } if (d <= new Date()) { console.error('ACTIVE_STARTS_AT must be in the future'); process.exit(1); }"
+
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply migrations
+        run: npm run db:deploy
+
+      - name: Reset game state and open registration
+        run: |
+          node --input-type=module <<'EOF'
+          import { PrismaClient, CycleStatus } from "@prisma/client";
+
+          const prisma = new PrismaClient();
+          const activeStartsAt = new Date(process.env.ACTIVE_STARTS_AT);
+          const registrationStartedAt = new Date();
+          registrationStartedAt.setSeconds(0, 0);
+          const activeEndsAt = new Date(activeStartsAt.getTime() + 72 * 60 * 60 * 1000);
+
+          await prisma.$transaction(async (tx) => {
+            await tx.attackUnit.deleteMany();
+            await tx.scoreEvent.deleteMany();
+            await tx.gameTick.deleteMany();
+            await tx.chatMessage.deleteMany();
+            await tx.cycleHistory.deleteMany();
+            await tx.winnerRequest.deleteMany();
+            await tx.fortress.deleteMany();
+            await tx.cycle.deleteMany();
+
+            await tx.cycle.create({
+              data: {
+                status: CycleStatus.REGISTRATION,
+                registrationStartedAt,
+                registrationEndsAt: activeStartsAt,
+                activeStartedAt: null,
+                activeEndsAt,
+                joiningLockedAt: null,
+                winnerId: null,
+                crownedFortressId: null,
+                mapLayoutVersion: 2,
+              },
+            });
+          });
+
+          console.log(`Production game state reset.`);
+          console.log(`Registration started: ${registrationStartedAt.toISOString()}`);
+          console.log(`Season active starts: ${activeStartsAt.toISOString()}`);
+          console.log(`Season active ends: ${activeEndsAt.toISOString()}`);
+
+          await prisma.$disconnect();
+          EOF

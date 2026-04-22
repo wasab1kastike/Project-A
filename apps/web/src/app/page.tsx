@@ -95,7 +95,7 @@ export default async function Home({
   const showJoinCard = Boolean(session?.user && state.canJoinCycle);
   const isWaitingForSeason =
     !state.phase || state.phase.status === "RESOLUTION" || !state.cycle;
-  const showCenterCard = Boolean(
+  const showSidePanel = Boolean(
     blockingMessage || showLoginCard || showJoinCard || isWaitingForSeason
   );
 
@@ -232,8 +232,13 @@ export default async function Home({
 
       {notice ? <p className={styles.noticeToast}>{notice}</p> : null}
 
-      {showCenterCard ? (
-        <section className={styles.centerCard} aria-live="polite">
+      {showSidePanel ? (
+        <section
+          className={`${styles.sidePanel} ${
+            blockingMessage ? styles.statusPanel : ""
+          }`}
+          aria-live="polite"
+        >
           <span className={styles.sectionLabel}>
             {blockingMessage
               ? "Status"
@@ -297,7 +302,12 @@ export default async function Home({
           <span className={styles.sectionLabel}>
             {state.isSpectator ? "Session" : "Your fortress"}
           </span>
-          <strong>{state.playerSummary?.name ?? "Spectator"}</strong>
+          <div className={styles.fortressTitle}>
+            <strong>{state.playerSummary?.name ?? "Spectator"}</strong>
+            {state.playerSummary?.isCrowned ? (
+              <span className={styles.crownBadge}>Crowned</span>
+            ) : null}
+          </div>
           <p>{playerSummaryText}</p>
         </section>
 
@@ -317,6 +327,9 @@ export default async function Home({
                 >
                   <span>#{entry.rank}</span>
                   <strong>{entry.name}</strong>
+                  {entry.isCrowned ? (
+                    <small className={styles.crownBadge}>Crowned</small>
+                  ) : null}
                   <em>{entry.points} pts</em>
                 </li>
               ))}

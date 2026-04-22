@@ -171,6 +171,7 @@ async function activateRegistrationCycle(
         status: CycleStatus.ACTIVE,
         activeStartedAt,
         activeEndsAt,
+        joiningLockedAt: null,
       },
     });
 
