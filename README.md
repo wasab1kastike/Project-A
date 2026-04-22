@@ -139,6 +139,7 @@ npx prisma db seed
 
 - Players sign in with Google
 - Each season begins with `REGISTRATION (24h)`
+- Joining is open during `REGISTRATION`, and remains open in `ACTIVE` while player slots remain before the active deadline
 - Active play runs for `ACTIVE (72h)`
 - Winner is resolved in `RESOLUTION`
 - The next season begins with a fresh registration phase
@@ -148,7 +149,7 @@ npx prisma db seed
 Milestone 2 is implemented as a backend-first playable core:
 
 - `seedProjectA` bootstraps the first unresolved `REGISTRATION` cycle if one does not exist
-- joining registration immediately creates a fortress and assigns one of 30 fixed map slots
+- joining during `REGISTRATION` or during an open `ACTIVE` window immediately creates a fortress and assigns one of 30 fixed map slots
 - each fortress receives a randomly assigned retro pixel-art unit sprite for attacks
 - fortresses can rename for free during `REGISTRATION`
 - fortresses can switch between `GROW` and `ATTACK` during `ACTIVE`

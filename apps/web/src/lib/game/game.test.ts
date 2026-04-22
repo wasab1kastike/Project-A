@@ -278,7 +278,7 @@ test("seed bootstraps one open registration cycle", async (context) => {
   assert.equal(cycle.status, "REGISTRATION");
 });
 
-test("join succeeds only during registration", async (context) => {
+test("join succeeds during registration and open active windows", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -306,15 +306,83 @@ test("join succeeds only during registration", async (context) => {
 
   assert.ok(fortress);
 
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const activeUser = await createUser(prisma, "active-joiner@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: activeUser.id,
+    fortressName: "Active Join",
+    now: new Date("2026-04-20T12:01:00.000Z"),
+  });
+});
+
+test("join fails after the active deadline", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  await seedOpenCycle(prisma);
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const lateUser = await createUser(prisma, "too-late@example.com");
+
   await assert.rejects(
     () =>
       joinRegistrationCycle({
         db: prisma,
-        userId: user.id,
-        fortressName: "Late Join",
-        now: new Date("2026-04-20T12:00:00.000Z"),
+        userId: lateUser.id,
+        fortressName: "After Deadline",
+        now: new Date("2026-04-23T12:00:00.000Z"),
       }),
-    /Registration is closed/
+    /Joining is closed for this cycle/
+  );
+});
+
+test("ACTIVE_PLAYER_CAP blocks joins during an active cycle", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  await seedOpenCycle(prisma);
+
+  for (let index = 0; index < ACTIVE_PLAYER_CAP; index += 1) {
+    const user = await createUser(prisma, `active-cap-${index}@example.com`);
+    await joinRegistrationCycle({
+      db: prisma,
+      userId: user.id,
+      fortressName: `Active Cap ${index}`,
+      now: new Date("2026-04-19T12:10:00.000Z"),
+    });
+  }
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const overflowUser = await createUser(prisma, "active-overflow@example.com");
+
+  await assert.rejects(
+    () =>
+      joinRegistrationCycle({
+        db: prisma,
+        userId: overflowUser.id,
+        fortressName: "Overflow Active",
+        now: new Date("2026-04-20T12:01:00.000Z"),
+      }),
+    /already full/
   );
 });
 
