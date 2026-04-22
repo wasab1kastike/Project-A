@@ -796,11 +796,11 @@ export function FortressMap({
                         />
                       )}
                     </span>
-                    <span className={styles.pointsBadge}>
-                      {isMega
-                        ? `${fortress.health}/${fortress.maxHealth}`
-                        : fortress.points}
-                    </span>
+                    {isMega ? (
+                      <span className={styles.pointsBadge}>
+                        {fortress.health}/{fortress.maxHealth}
+                      </span>
+                    ) : null}
                     <span className={styles.nameplate}>{fortress.name}</span>
                     {fortress.isCrowned ? (
                       <span className={styles.crownBadge}>Crown</span>
