@@ -1,6 +1,5 @@
 -- Add season-scoped public commander names without exposing auth profile names.
 ALTER TABLE "Fortress" ADD COLUMN "commanderName" TEXT;
-ALTER TABLE "Fortress" ADD COLUMN "commanderNameRegisteredAt" TIMESTAMP(3);
 
 UPDATE "Fortress"
 SET "commanderName" = CASE

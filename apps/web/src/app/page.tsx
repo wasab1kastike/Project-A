@@ -6,7 +6,10 @@ import { SessionActions } from "@/components/session-actions";
 import { BattlefieldExperience } from "@/components/battlefield-experience";
 import { RealtimeBridge } from "@/components/realtime-bridge";
 import { SeasonTimer } from "@/components/season-timer";
-import { joinFortressAction } from "@/app/game-actions";
+import {
+  joinFortressAction,
+  registerCommanderNameAction,
+} from "@/app/game-actions";
 import { getHomePageState, type HomePageState } from "@/lib/game/read-model";
 
 export const dynamic = "force-dynamic";
@@ -95,10 +98,17 @@ export default async function Home({
   const leaderboard = state.leaderboard.slice(0, 3);
   const showLoginCard = !session?.user;
   const showJoinCard = Boolean(session?.user && state.canJoinCycle);
+  const showCommanderNameCard = Boolean(
+    session?.user && state.playerSummary?.canRegisterCommanderName
+  );
   const isWaitingForSeason =
     !state.phase || state.phase.status === "RESOLUTION" || !state.cycle;
   const showSidePanel = Boolean(
-    blockingMessage || showLoginCard || showJoinCard || isWaitingForSeason
+    blockingMessage ||
+      showLoginCard ||
+      showJoinCard ||
+      showCommanderNameCard ||
+      isWaitingForSeason
   );
 
   const phaseCopy =
@@ -140,6 +150,8 @@ export default async function Home({
     ? "Something needs attention."
     : showLoginCard
       ? "Join the battlefield."
+      : showCommanderNameCard
+        ? "Choose your in-game nick."
       : showJoinCard
         ? state.phase?.status === "ACTIVE"
           ? "Join the running season."
@@ -150,6 +162,8 @@ export default async function Home({
     ? blockingMessage
     : showLoginCard
       ? "Sign in to join a fortress, chat, and submit orders when the season is active."
+      : showCommanderNameCard
+        ? "Set the commander name other players will see this season. Your account name stays private."
       : showJoinCard
         ? state.phase?.status === "ACTIVE"
           ? "This season is already running. Join now to enter immediately if slots are still available."
@@ -244,6 +258,8 @@ export default async function Home({
           <span className={styles.sectionLabel}>
             {blockingMessage
               ? "Status"
+              : showCommanderNameCard
+                ? "Nick registration"
               : showJoinCard
                 ? "Join season"
                 : "Season control"}
@@ -283,6 +299,25 @@ export default async function Home({
               </label>
               <button className={styles.primaryButton} type="submit">
                 Join this season
+              </button>
+            </form>
+          ) : null}
+
+          {showCommanderNameCard && !blockingMessage ? (
+            <form action={registerCommanderNameAction} className={styles.form}>
+              <label className={styles.field}>
+                <span>In-game nick</span>
+                <input
+                  name="commanderName"
+                  type="text"
+                  maxLength={32}
+                  defaultValue={state.playerSummary?.commanderName}
+                  placeholder="Name your commander"
+                  required
+                />
+              </label>
+              <button className={styles.primaryButton} type="submit">
+                Register nick
               </button>
             </form>
           ) : null}
