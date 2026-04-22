@@ -54,7 +54,7 @@ function getDegradedHomePageState(): HomePageState {
         "Palvelussa on tilapainen hairio. Yrita hetken kuluttua uudelleen.",
     },
     availableTargets: [],
-    canJoinRegistration: false,
+    canJoinCycle: false,
     canEditRegistrationName: false,
     emptyStateMessage:
       "Palvelussa on tilapainen hairio. Yrita hetken kuluttua uudelleen.",
@@ -92,7 +92,7 @@ export default async function Home({
   const remainingText = `${state.cycle?.remainingSlots ?? 30} slots`;
   const leaderboard = state.leaderboard.slice(0, 3);
   const showLoginCard = !session?.user;
-  const showJoinCard = Boolean(session?.user && state.canJoinRegistration);
+  const showJoinCard = Boolean(session?.user && state.canJoinCycle);
   const isWaitingForSeason =
     !state.phase || state.phase.status === "RESOLUTION" || !state.cycle;
   const showCenterCard = Boolean(
@@ -117,7 +117,9 @@ export default async function Home({
             description: "Moves are being resolved in real time.",
             nextAction: state.playerSummary
               ? "Pick a target on the map or open Orders to submit your move."
-              : "Follow the live map and wait for the next registration.",
+              : state.canJoinCycle
+                ? "You can still join this running season while slots are available."
+                : "Follow the live map and wait for the next registration.",
             timerLabel: "Cycle ends",
             battlefieldTitle: "Live battlefield",
             battlefieldDescription: "Choose a target and lock your next move.",
@@ -137,7 +139,9 @@ export default async function Home({
     : showLoginCard
       ? "Join the battlefield."
       : showJoinCard
-        ? "Claim your fortress."
+        ? state.phase?.status === "ACTIVE"
+          ? "Join the running season."
+          : "Claim your fortress."
         : phaseCopy.title;
 
   const centerDescription = blockingMessage
@@ -145,7 +149,9 @@ export default async function Home({
     : showLoginCard
       ? "Sign in to join a fortress, chat, and submit orders when the season is active."
       : showJoinCard
-        ? "Registration is open. Name your fortress now and it will appear on the map."
+        ? state.phase?.status === "ACTIVE"
+          ? "This season is already running. Join now to enter immediately if slots are still available."
+          : "Registration is open. Name your fortress now and it will appear on the map."
         : state.cycle?.statusMessage ?? state.emptyStateMessage;
 
   const playerSummaryText = state.playerSummary
@@ -232,7 +238,7 @@ export default async function Home({
             {blockingMessage
               ? "Status"
               : showJoinCard
-                ? "Registration"
+                ? "Join season"
                 : "Season control"}
           </span>
           <h1>{centerTitle}</h1>
@@ -258,7 +264,7 @@ export default async function Home({
                 />
               </label>
               <button className={styles.primaryButton} type="submit">
-                Join season
+                Join this season
               </button>
             </form>
           ) : null}

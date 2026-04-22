@@ -6,6 +6,10 @@
 - Change: Kept admin join lock behavior scoped to REGISTRATION only, preserving existing product behavior outside the registration window.
 - Change: Updated join error messaging to phase-neutral wording (for example, "Joining is closed for this cycle.").
 - User impact: Players can join a cycle while it is active (until `activeEndsAt`), and error messages now accurately reflect the expanded join window.
+- Change: Renamed homepage read-model join flag from `canJoinRegistration` to `canJoinCycle` to reflect registration and active-season joins.
+- Change: Refined season phase and status helper copy to clearly explain when joins are open during ACTIVE and why joining is blocked when locks, deadlines, or capacity limits apply.
+- Change: Updated home CTA copy to clarify that users can join an already-running season when eligible.
+- User impact: Players get clearer guidance about joining behavior across cycle phases and can understand lockout reasons without guessing.
 
 ## 2026-04-21
 
