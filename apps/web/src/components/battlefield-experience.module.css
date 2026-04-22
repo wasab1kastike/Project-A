@@ -162,6 +162,11 @@
   transform: translateY(24px);
 }
 
+.immersive .actionDrawer {
+  bottom: var(--battlefield-bottom-clearance, 16px);
+  max-height: calc(100% - var(--battlefield-bottom-clearance, 16px) - 104px);
+}
+
 .closeButton {
   justify-self: end;
   min-height: 30px;
@@ -345,6 +350,11 @@
 
   .actionDrawer.drawerOpen {
     transform: translateY(0);
+  }
+
+  .immersive .actionDrawer {
+    bottom: var(--battlefield-bottom-clearance, 10px);
+    max-height: calc(100% - var(--battlefield-bottom-clearance, 10px) - 88px);
   }
 
   .primaryButton,
