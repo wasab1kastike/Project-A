@@ -167,6 +167,18 @@
   max-height: calc(100% - var(--battlefield-bottom-clearance, 16px) - 104px);
 }
 
+.immersive .drawer {
+  z-index: 22;
+}
+
+.immersive .chatDrawer {
+  z-index: 23;
+}
+
+.immersive .actionDrawer {
+  z-index: 24;
+}
+
 .closeButton {
   justify-self: end;
   min-height: 30px;
