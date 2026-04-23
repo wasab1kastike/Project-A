@@ -39,6 +39,14 @@ function formatDeadline(deadline: Date | null) {
   return dateTimeFormatter.format(deadline);
 }
 
+function formatLastUpdate(lastProcessedTickAt: Date | null) {
+  if (!lastProcessedTickAt) {
+    return null;
+  }
+
+  return dateTimeFormatter.format(lastProcessedTickAt);
+}
+
 function getDegradedHomePageState(): HomePageState {
   return {
     isSpectator: true,
@@ -96,6 +104,18 @@ export default async function Home({
   const joinedText = state.cycle ? `${state.cycle.joinedCount} / 30` : "0 / 30";
   const remainingText = `${state.cycle?.remainingSlots ?? 30} slots`;
   const leaderboard = state.leaderboard.slice(0, 3);
+  const isActivePhase = state.phase?.status === "ACTIVE";
+  const tickDelayMinutes = state.cycle?.tickDelayMinutes ?? null;
+  const showTickStatus =
+    isActivePhase &&
+    state.cycle?.lastProcessedTickAt &&
+    tickDelayMinutes !== null;
+  const hasTickDelayWarning = (tickDelayMinutes ?? 0) >= 2;
+  const tickStatusText = showTickStatus
+    ? `Last update: ${formatLastUpdate(
+        state.cycle?.lastProcessedTickAt ?? null
+      )} (delay: ${tickDelayMinutes} min)`
+    : null;
   const showLoginCard = !session?.user;
   const showJoinCard = Boolean(session?.user && state.canJoinCycle);
   const showCommanderNameCard = Boolean(
@@ -211,6 +231,15 @@ export default async function Home({
             label={phaseCopy.timerLabel}
             variant="compact"
           />
+          {tickStatusText ? (
+            <span
+              className={`${styles.tickStatus} ${
+                hasTickDelayWarning ? styles.tickStatusWarning : ""
+              }`}
+            >
+              {tickStatusText}
+            </span>
+          ) : null}
           <dl className={styles.hudStats}>
             <div>
               <dt>Joined</dt>
