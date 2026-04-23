@@ -7,17 +7,26 @@ import {
 } from "@/lib/prisma-client";
 import { prisma } from "@/lib/prisma";
 import {
+  ACTIVE_LOCATION_SHUFFLE_COST,
   ACTIVE_PLAYER_CAP,
   ACTIVE_RENAME_COST,
 } from "./constants";
 import { getRandomUnitSpriteVariant } from "./attacks";
 import { canFortressLevelUp, getFortressUpgradeCost } from "./upgrades";
 import {
+  cancelActiveAttackUnits,
   launchAttackUnit,
 } from "./attack-units";
 import { GameError } from "./errors";
-import { ensureCommanderRegistrationColumn } from "./schema-guards";
-import { getFortressSpawnLayout } from "./spawn-layout";
+import {
+  ensureCommanderRegistrationColumn,
+  ensureLocationShuffleSupport,
+} from "./schema-guards";
+import {
+  buildFortressSpawnSeed,
+  getFortressSpawnLayout,
+  takeOpenSpawnPoint,
+} from "./spawn-layout";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -151,6 +160,22 @@ function isUniqueConstraintError(
   }
 
   return targets.every((target) => metaTarget.includes(target));
+}
+
+async function getFortressLocationShuffleCount(
+  db: DatabaseClient,
+  fortressId: string
+) {
+  const rows = await db.$queryRaw<Array<{ locationShuffleCount: number }>>(
+    Prisma.sql`
+      SELECT "locationShuffleCount"
+      FROM "Fortress"
+      WHERE "id" = ${fortressId}
+      LIMIT 1
+    `
+  );
+
+  return rows[0]?.locationShuffleCount ?? 0;
 }
 
 export async function joinRegistrationCycle({
@@ -572,6 +597,155 @@ export async function renameActiveFortress({
 
     throw error;
   }
+}
+
+export async function shuffleFortressLocation({
+  userId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  await ensureLocationShuffleSupport(db);
+
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isActiveWindowOpen(cycle, now)) {
+      throw new GameError(
+        "Fortress location shuffle is only available during ACTIVE."
+      );
+    }
+
+    const fortress = await tx.fortress.findUnique({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: userId,
+        },
+      },
+      select: {
+        id: true,
+        points: true,
+        currentAction: true,
+        mapX: true,
+        mapY: true,
+      },
+    });
+
+    if (!fortress) {
+      throw new GameError("You are not participating in the active cycle.");
+    }
+
+    if (fortress.currentAction !== FortressAction.GROW) {
+      throw new GameError(
+        "Switch your fortress to Grow before shuffling its location."
+      );
+    }
+
+    const locationShuffleCount = await getFortressLocationShuffleCount(
+      tx,
+      fortress.id
+    );
+    const shuffleCost =
+      locationShuffleCount === 0 ? 0 : ACTIVE_LOCATION_SHUFFLE_COST;
+
+    if (shuffleCost > 0 && fortress.points < shuffleCost) {
+      throw new GameError(
+        `You need at least ${ACTIVE_LOCATION_SHUFFLE_COST} points to shuffle fortress location again.`
+      );
+    }
+
+    const otherFortresses = await tx.fortress.findMany({
+      where: {
+        cycleId: cycle.id,
+        id: {
+          not: fortress.id,
+        },
+      },
+      select: {
+        mapX: true,
+        mapY: true,
+      },
+    });
+    const excludedKeys = new Set(
+      otherFortresses.map((otherFortress) => {
+        return `${otherFortress.mapX}:${otherFortress.mapY}`;
+      })
+    );
+    excludedKeys.add(`${fortress.mapX}:${fortress.mapY}`);
+
+    let nextPosition;
+
+    try {
+      nextPosition = takeOpenSpawnPoint(
+        buildFortressSpawnSeed({
+          cycleId: cycle.id,
+          purpose: "active:player-location-shuffle",
+          activeStartedAt: cycle.activeStartedAt,
+          tickAt: now,
+          entropy: `${fortress.id}:${locationShuffleCount + 1}`,
+        }),
+        {
+          excludedKeys,
+          referencePoints: otherFortresses.map((otherFortress) => ({
+            x: otherFortress.mapX,
+            y: otherFortress.mapY,
+          })),
+          minSeparationDistance: 9,
+        }
+      );
+    } catch {
+      throw new GameError(
+        "No alternate fortress location is available right now."
+      );
+    }
+
+    const cancelledAttackUnitCount = await cancelActiveAttackUnits({
+      db: tx,
+      attackerFortressId: fortress.id,
+      cancelledAt: now,
+    });
+
+    await tx.$executeRaw(
+      Prisma.sql`
+        UPDATE "Fortress"
+        SET
+          "mapX" = ${Math.round(nextPosition.x)},
+          "mapY" = ${Math.round(nextPosition.y)},
+          "locationShuffleCount" = ${locationShuffleCount + 1},
+          "points" = ${fortress.points - shuffleCost}
+        WHERE "id" = ${fortress.id}
+      `
+    );
+
+    if (shuffleCost > 0) {
+      await tx.scoreEvent.create({
+        data: {
+          cycleId: cycle.id,
+          fortressId: fortress.id,
+          actorId: userId,
+          eventType: "FORTRESS_LOCATION_SHUFFLE_COST" as ScoreEventType,
+          delta: -shuffleCost,
+          createdAt: now,
+        },
+      });
+    }
+
+    const updatedFortress = await tx.fortress.findUniqueOrThrow({
+      where: {
+        id: fortress.id,
+      },
+    });
+
+    return {
+      fortress: updatedFortress,
+      shuffleCost,
+      cancelledAttackUnitCount,
+    };
+  });
 }
 
 export async function purchaseFortressUpgrade({

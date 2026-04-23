@@ -41,6 +41,10 @@
   line-height: 1.6;
 }
 
+.warningText {
+  color: var(--accent-strong);
+}
+
 .label {
   color: var(--accent-strong);
   font-family: var(--font-ibm-plex-mono);

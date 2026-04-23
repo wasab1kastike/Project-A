@@ -14,6 +14,7 @@ import {
   registerCommanderName,
   renameActiveFortress,
   setFortressAction,
+  shuffleFortressLocation,
 } from "@/lib/game/service";
 
 function getString(formData: FormData, key: string) {
@@ -158,6 +159,30 @@ export async function purchaseFortressUpgradeAction() {
   }
 
   finishAction("Castle upgraded.");
+}
+
+export async function shuffleFortressLocationAction() {
+  const userId = await requireUserId();
+
+  try {
+    const result = await shuffleFortressLocation({
+      userId,
+    });
+    emitProjectARefresh("location-shuffle");
+
+    const notice =
+      result.shuffleCost === 0
+        ? result.cancelledAttackUnitCount > 0
+          ? "Fortress location shuffled for free. Outgoing attacks were canceled."
+          : "Fortress location shuffled for free."
+        : result.cancelledAttackUnitCount > 0
+          ? "Fortress location shuffled and 50 points spent. Outgoing attacks were canceled."
+          : "Fortress location shuffled and 50 points spent.";
+
+    finishAction(notice);
+  } catch (error) {
+    redirectToHome("error", getActionErrorMessage(error));
+  }
 }
 
 export async function registerCommanderNameAction(formData: FormData) {

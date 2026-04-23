@@ -1,15 +1,17 @@
 import { prisma } from "@/lib/prisma";
 import {
   CycleStatus,
+  Prisma,
   ScoreEventType,
   type PrismaClient,
 } from "@/lib/prisma-client";
-import { ACTIVE_PLAYER_CAP } from "./constants";
+import { ACTIVE_LOCATION_SHUFFLE_COST, ACTIVE_PLAYER_CAP } from "./constants";
 import { getChatLimits } from "./chat";
 import { normalizeUnitSpriteVariant } from "./attacks";
 import {
   ensureCommanderRegistrationColumn,
   ensureLastReadChatColumn,
+  ensureLocationShuffleSupport,
 } from "./schema-guards";
 import { classifyTickHealth, getActiveCycleMinutesBehind } from "./tick";
 import {
@@ -50,6 +52,22 @@ function getDisplayName(name: string, isCrowned: boolean) {
   return name;
 }
 
+async function getFortressLocationShuffleCount(
+  db: PrismaClient,
+  fortressId: string
+) {
+  const rows = await db.$queryRaw<Array<{ locationShuffleCount: number }>>(
+    Prisma.sql`
+      SELECT "locationShuffleCount"
+      FROM "Fortress"
+      WHERE "id" = ${fortressId}
+      LIMIT 1
+    `
+  );
+
+  return rows[0]?.locationShuffleCount ?? 0;
+}
+
 export async function getHomePageState({
   userId,
   now = new Date(),
@@ -62,6 +80,7 @@ export async function getHomePageState({
   await Promise.all([
     ensureCommanderRegistrationColumn(db),
     ensureLastReadChatColumn(db),
+    ensureLocationShuffleSupport(db),
   ]);
 
   const cycle = await db.cycle.findFirst({
@@ -264,6 +283,19 @@ export async function getHomePageState({
           },
         })
       : null;
+  const locationShuffleCount = playerFortress
+    ? await getFortressLocationShuffleCount(db, playerFortress.id)
+    : 0;
+  const locationShuffleCost = playerFortress
+    ? locationShuffleCount === 0
+      ? 0
+      : ACTIVE_LOCATION_SHUFFLE_COST
+    : null;
+  const hasOutgoingAttackUnits = playerFortress
+    ? cycle.attackUnits.some(
+        (unit) => unit.attackerFortress.id === playerFortress.id
+      )
+    : false;
   const mapFortresses = cycle.fortresses.map((fortress) => ({
     id: fortress.id,
     commanderName: getDisplayName(
@@ -429,6 +461,14 @@ export async function getHomePageState({
           isCrowned: playerFortress.id === cycle.crownedFortressId,
           canRename: activeOpen && playerFortress.points >= 10,
           canSetAction: activeOpen,
+          locationShuffleCost,
+          freeLocationShuffleAvailable: locationShuffleCount === 0,
+          hasOutgoingAttackUnits,
+          canShuffleLocation:
+            activeOpen &&
+            playerFortress.currentAction === "GROW" &&
+            locationShuffleCost !== null &&
+            playerFortress.points >= locationShuffleCost,
           upgradesUnlocked,
           nextUpgradeCost,
           canAffordUpgrade,

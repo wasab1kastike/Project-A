@@ -83,18 +83,10 @@ function shuffleInPlace<T>(items: T[], random: () => number) {
   }
 }
 
-export function takeUniqueSpawnPoints(
-  seed: string,
-  count: number,
-  options?: {
-    minSeparationDistance?: number;
-    excludedKeys?: Set<string>;
-  }
+function getUniqueSpawnCandidates(
+  random: () => number,
+  excludedKeys: Set<string>
 ) {
-  const minSeparationDistance =
-    options?.minSeparationDistance ?? DEFAULT_MIN_SPAWN_SEPARATION;
-  const random = createSeededPrng(seed);
-  const excludedKeys = options?.excludedKeys ?? new Set<string>();
   const uniqueCandidates = new Map<string, SpawnPoint>();
   const candidates = HEX_SPAWN_TILES.map((tile) => ({
     x: tile.xPercent,
@@ -113,7 +105,22 @@ export function takeUniqueSpawnPoints(
     uniqueCandidates.set(key, point);
   }
 
-  const remaining = [...uniqueCandidates.values()];
+  return [...uniqueCandidates.values()];
+}
+
+export function takeUniqueSpawnPoints(
+  seed: string,
+  count: number,
+  options?: {
+    minSeparationDistance?: number;
+    excludedKeys?: Set<string>;
+  }
+) {
+  const minSeparationDistance =
+    options?.minSeparationDistance ?? DEFAULT_MIN_SPAWN_SEPARATION;
+  const random = createSeededPrng(seed);
+  const excludedKeys = options?.excludedKeys ?? new Set<string>();
+  const remaining = getUniqueSpawnCandidates(random, excludedKeys);
   const selected: SpawnPoint[] = [];
 
   while (selected.length < count) {
@@ -169,6 +176,64 @@ export function takeUniqueSpawnPoints(
   }
 
   return selected;
+}
+
+export function takeOpenSpawnPoint(
+  seed: string,
+  options?: {
+    excludedKeys?: Set<string>;
+    referencePoints?: SpawnPoint[];
+    minSeparationDistance?: number;
+  }
+) {
+  const random = createSeededPrng(seed);
+  const excludedKeys = options?.excludedKeys ?? new Set<string>();
+  const referencePoints = options?.referencePoints ?? [];
+  const minSeparationDistance =
+    options?.minSeparationDistance ?? DEFAULT_LAYOUT_MIN_SPAWN_SEPARATION;
+  const candidates = getUniqueSpawnCandidates(random, excludedKeys);
+
+  if (candidates.length === 0) {
+    throw new Error("No open spawn points are available.");
+  }
+
+  if (referencePoints.length === 0) {
+    return candidates[0] as SpawnPoint;
+  }
+
+  let bestCandidate = candidates[0] as SpawnPoint;
+  let bestNearestDistance = -1;
+  let bestMeetsMinimum = false;
+
+  for (const candidate of candidates) {
+    const nearestDistance = Math.min(
+      ...referencePoints.map((point) => distanceBetweenPoints(candidate, point))
+    );
+    const meetsMinimum = nearestDistance >= minSeparationDistance;
+
+    if (meetsMinimum && !bestMeetsMinimum) {
+      bestCandidate = candidate;
+      bestNearestDistance = nearestDistance;
+      bestMeetsMinimum = true;
+      continue;
+    }
+
+    if (meetsMinimum === bestMeetsMinimum && nearestDistance > bestNearestDistance) {
+      bestCandidate = candidate;
+      bestNearestDistance = nearestDistance;
+      continue;
+    }
+
+    if (
+      meetsMinimum === bestMeetsMinimum &&
+      nearestDistance === bestNearestDistance &&
+      random() > 0.5
+    ) {
+      bestCandidate = candidate;
+    }
+  }
+
+  return bestCandidate;
 }
 
 export function getFortressSpawnLayout(parts: {

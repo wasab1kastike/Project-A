@@ -19,6 +19,7 @@ import {
 import { seedProjectA } from "./bootstrap";
 import { markChatRead, sendChatMessage } from "./chat";
 import {
+  ACTIVE_LOCATION_SHUFFLE_COST,
   ACTIVE_PLAYER_CAP,
   CURRENT_MAP_LAYOUT_VERSION,
   MEGA_FORTRESS_DESTROY_BONUS,
@@ -45,6 +46,7 @@ import {
   registerCommanderName,
   renameActiveFortress,
   setFortressAction,
+  shuffleFortressLocation,
 } from "./service";
 import {
   TickRunnerError,
@@ -66,6 +68,20 @@ const defaultDatabaseUrl =
   process.env.TEST_DATABASE_URL ??
   process.env.DATABASE_URL ??
   "postgresql://postgres:postgres@localhost:5432/project_a?schema=public";
+
+async function getFortressLocationShuffleCount(
+  prisma: PrismaClient,
+  fortressId: string
+) {
+  const rows = await prisma.$queryRaw<Array<{ locationShuffleCount: number }>>`
+    SELECT "locationShuffleCount"
+    FROM "Fortress"
+    WHERE "id" = ${fortressId}
+    LIMIT 1
+  `;
+
+  return rows[0]?.locationShuffleCount ?? 0;
+}
 
 test("fortress spawn layout is unique and spread across the battlefield bounds", () => {
   const positions = getFortressSpawnLayout({
@@ -1402,6 +1418,230 @@ test("active rename costs 10 points and rejects insufficient points or duplicate
 
   assert.equal(renamed.name, "Gamma");
   assert.equal(renamed.points, 0);
+});
+
+test("location shuffle is free once, then costs 50 points and cancels outgoing attacks", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const attacker = await createUser(prisma, "shuffle-attacker@example.com");
+  const target = await createUser(prisma, "shuffle-target@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: attacker.id,
+    fortressName: "Shuffle Alpha",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: target.id,
+    fortressName: "Shuffle Beta",
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const attackerFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: attacker.id,
+      },
+    },
+  });
+  const targetFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: target.id,
+      },
+    },
+  });
+
+  await prisma.fortress.update({
+    where: {
+      id: attackerFortress.id,
+    },
+    data: {
+      points: 100,
+    },
+  });
+
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.ATTACK,
+    targetFortressId: targetFortress.id,
+    now: new Date("2026-04-20T12:05:00.000Z"),
+  });
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.GROW,
+    now: new Date("2026-04-20T12:05:10.000Z"),
+  });
+
+  const beforeFreeShuffle = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: attackerFortress.id,
+    },
+  });
+  const freeShuffle = await shuffleFortressLocation({
+    db: prisma,
+    userId: attacker.id,
+    now: new Date("2026-04-20T12:06:00.000Z"),
+  });
+  const afterFreeShuffle = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: attackerFortress.id,
+    },
+  });
+  const cancelledUnits = await prisma.attackUnit.findMany({
+    where: {
+      attackerFortressId: attackerFortress.id,
+      cancelledAt: {
+        not: null,
+      },
+    },
+  });
+
+  assert.equal(freeShuffle.shuffleCost, 0);
+  assert.equal(freeShuffle.cancelledAttackUnitCount, 1);
+  assert.equal(afterFreeShuffle.points, beforeFreeShuffle.points);
+  assert.equal(
+    await getFortressLocationShuffleCount(prisma, attackerFortress.id),
+    1
+  );
+  assert.notDeepEqual(
+    { x: afterFreeShuffle.mapX, y: afterFreeShuffle.mapY },
+    { x: beforeFreeShuffle.mapX, y: beforeFreeShuffle.mapY }
+  );
+  assert.equal(cancelledUnits.length, 1);
+
+  const secondShuffle = await shuffleFortressLocation({
+    db: prisma,
+    userId: attacker.id,
+    now: new Date("2026-04-20T12:07:00.000Z"),
+  });
+  const afterSecondShuffle = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: attackerFortress.id,
+    },
+  });
+  const shuffleCostEvents = await prisma.scoreEvent.findMany({
+    where: {
+      cycleId: cycle.id,
+      fortressId: attackerFortress.id,
+      eventType: "FORTRESS_LOCATION_SHUFFLE_COST" as ScoreEventType,
+    },
+  });
+
+  assert.equal(secondShuffle.shuffleCost, ACTIVE_LOCATION_SHUFFLE_COST);
+  assert.equal(
+    afterSecondShuffle.points,
+    beforeFreeShuffle.points - ACTIVE_LOCATION_SHUFFLE_COST
+  );
+  assert.equal(
+    await getFortressLocationShuffleCount(prisma, attackerFortress.id),
+    2
+  );
+  assert.notDeepEqual(
+    { x: afterSecondShuffle.mapX, y: afterSecondShuffle.mapY },
+    { x: afterFreeShuffle.mapX, y: afterFreeShuffle.mapY }
+  );
+  assert.equal(shuffleCostEvents.length, 1);
+  assert.equal(
+    shuffleCostEvents[0]?.delta,
+    -ACTIVE_LOCATION_SHUFFLE_COST
+  );
+});
+
+test("location shuffle rejects attack stance and insufficient paid points", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const attacker = await createUser(prisma, "shuffle-rule-attacker@example.com");
+  const target = await createUser(prisma, "shuffle-rule-target@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: attacker.id,
+    fortressName: "Rule Alpha",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: target.id,
+    fortressName: "Rule Beta",
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const targetFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: target.id,
+      },
+    },
+  });
+
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.ATTACK,
+    targetFortressId: targetFortress.id,
+    now: new Date("2026-04-20T12:05:00.000Z"),
+  });
+
+  await assert.rejects(
+    () =>
+      shuffleFortressLocation({
+        db: prisma,
+        userId: attacker.id,
+        now: new Date("2026-04-20T12:05:30.000Z"),
+      }),
+    /Switch your fortress to Grow/
+  );
+
+  await prisma.fortress.update({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: attacker.id,
+      },
+    },
+    data: {
+      currentAction: FortressAction.GROW,
+      targetFortressId: null,
+      points: ACTIVE_LOCATION_SHUFFLE_COST - 1,
+    },
+  });
+  await prisma.$executeRaw`
+    UPDATE "Fortress"
+    SET "locationShuffleCount" = 1
+    WHERE "cycleId" = ${cycle.id} AND "ownerId" = ${attacker.id}
+  `;
+
+  await assert.rejects(
+    () =>
+      shuffleFortressLocation({
+        db: prisma,
+        userId: attacker.id,
+        now: new Date("2026-04-20T12:06:00.000Z"),
+      }),
+    /at least 50 points/
+  );
 });
 
 test("castle upgrades reject locked, unaffordable, and max-level purchases", async (context) => {
@@ -3308,6 +3548,111 @@ test("read model orders leaderboard by points then joined time then name", async
     state.leaderboard.map((entry) => entry.name),
     ["Alpha", "Beta", "Gamma"]
   );
+});
+
+test("read model exposes location shuffle cost and outgoing warning state", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const attacker = await createUser(prisma, "shuffle-read-attacker@example.com");
+  const target = await createUser(prisma, "shuffle-read-target@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: attacker.id,
+    fortressName: "Read Alpha",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: target.id,
+    fortressName: "Read Beta",
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const targetFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: target.id,
+      },
+    },
+  });
+
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.ATTACK,
+    targetFortressId: targetFortress.id,
+    now: new Date("2026-04-20T12:05:00.000Z"),
+  });
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.GROW,
+    now: new Date("2026-04-20T12:05:10.000Z"),
+  });
+
+  const freeState = await getHomePageState({
+    userId: attacker.id,
+    db: prisma,
+    now: new Date("2026-04-20T12:05:30.000Z"),
+  });
+
+  assert.equal(freeState.playerSummary?.locationShuffleCost, 0);
+  assert.equal(freeState.playerSummary?.freeLocationShuffleAvailable, true);
+  assert.equal(freeState.playerSummary?.hasOutgoingAttackUnits, true);
+  assert.equal(freeState.playerSummary?.canShuffleLocation, true);
+
+  await prisma.fortress.update({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: attacker.id,
+      },
+    },
+    data: {
+      points: ACTIVE_LOCATION_SHUFFLE_COST - 1,
+      currentAction: FortressAction.GROW,
+      targetFortressId: null,
+    },
+  });
+  await prisma.$executeRaw`
+    UPDATE "Fortress"
+    SET "locationShuffleCount" = 1
+    WHERE "cycleId" = ${cycle.id} AND "ownerId" = ${attacker.id}
+  `;
+  await prisma.attackUnit.updateMany({
+    where: {
+      cycleId: cycle.id,
+      attackerFortressId: freeState.playerSummary?.id,
+      resolvedAt: null,
+      cancelledAt: null,
+    },
+    data: {
+      cancelledAt: new Date("2026-04-20T12:05:40.000Z"),
+    },
+  });
+
+  const paidState = await getHomePageState({
+    userId: attacker.id,
+    db: prisma,
+    now: new Date("2026-04-20T12:06:00.000Z"),
+  });
+
+  assert.equal(
+    paidState.playerSummary?.locationShuffleCost,
+    ACTIVE_LOCATION_SHUFFLE_COST
+  );
+  assert.equal(paidState.playerSummary?.freeLocationShuffleAvailable, false);
+  assert.equal(paidState.playerSummary?.hasOutgoingAttackUnits, false);
+  assert.equal(paidState.playerSummary?.canShuffleLocation, false);
 });
 
 test("read model marks spectators and participants correctly", async (context) => {

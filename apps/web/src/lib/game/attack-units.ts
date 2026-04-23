@@ -25,7 +25,7 @@ export async function cancelActiveAttackUnits({
   attackerFortressId: string;
   cancelledAt: Date;
 }) {
-  await db.attackUnit.updateMany({
+  const result = await db.attackUnit.updateMany({
     where: {
       attackerFortressId,
       resolvedAt: null,
@@ -35,6 +35,8 @@ export async function cancelActiveAttackUnits({
       cancelledAt,
     },
   });
+
+  return result.count;
 }
 
 export async function getActiveAttackUnit(

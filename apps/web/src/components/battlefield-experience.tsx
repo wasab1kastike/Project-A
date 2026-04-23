@@ -11,6 +11,7 @@ import {
   registerCommanderNameAction,
   renameFortressAction,
   setFortressActionAction,
+  shuffleFortressLocationAction,
 } from "@/app/game-actions";
 import { ChatPanel } from "./chat-panel";
 import {
@@ -61,6 +62,10 @@ type PlayerSummary = {
   isCrowned?: boolean;
   canRename: boolean;
   canSetAction: boolean;
+  locationShuffleCost: number | null;
+  freeLocationShuffleAvailable: boolean;
+  hasOutgoingAttackUnits: boolean;
+  canShuffleLocation: boolean;
   upgradesUnlocked: boolean;
   nextUpgradeCost: number | null;
   canAffordUpgrade: boolean;
@@ -416,6 +421,54 @@ export function BattlefieldExperience({
                   Tap a target on the map, then confirm Attack. Orders and map
                   targeting now update the same attack state.
                 </p>
+
+                <div className={styles.upgradePanel}>
+                  <div className={styles.upgradeHeader}>
+                    <div>
+                      <span className={styles.label}>Location shuffle</span>
+                      <h4>Reposition fortress</h4>
+                    </div>
+                    <strong>
+                      {playerSummary.locationShuffleCost === 0
+                        ? "Free"
+                        : `${playerSummary.locationShuffleCost} pts`}
+                    </strong>
+                  </div>
+                  <p className={styles.helper}>
+                    {playerSummary.freeLocationShuffleAvailable
+                      ? "Your first location shuffle this season is free. Later shuffles cost 50 points."
+                      : "This fortress already used its free location shuffle. The next one costs 50 points."}
+                  </p>
+                  {playerSummary.currentAction !== "GROW" ? (
+                    <p className={`${styles.helper} ${styles.warningText}`}>
+                      Switch to Grow before shuffling fortress location.
+                    </p>
+                  ) : null}
+                  {playerSummary.hasOutgoingAttackUnits ? (
+                    <p className={`${styles.helper} ${styles.warningText}`}>
+                      Outgoing attack units already in flight will be canceled when you shuffle.
+                    </p>
+                  ) : null}
+                  {!playerSummary.canShuffleLocation &&
+                  playerSummary.currentAction === "GROW" &&
+                  playerSummary.locationShuffleCost !== null &&
+                  playerSummary.points < playerSummary.locationShuffleCost ? (
+                    <p className={styles.helper}>
+                      You need {playerSummary.locationShuffleCost} points for the next location shuffle.
+                    </p>
+                  ) : null}
+                  <form action={shuffleFortressLocationAction}>
+                    <button
+                      className={styles.secondaryButton}
+                      type="submit"
+                      disabled={!playerSummary.canShuffleLocation}
+                    >
+                      {playerSummary.locationShuffleCost === 0
+                        ? "Shuffle location for free"
+                        : `Shuffle location for ${playerSummary.locationShuffleCost} pts`}
+                    </button>
+                  </form>
+                </div>
 
                 <div className={styles.upgradePanel}>
                   <div className={styles.upgradeHeader}>

@@ -31,6 +31,7 @@ enum ScoreEventType {
   MEGA_DESTROY_BONUS
   FORTRESS_UPGRADE_PURCHASE
   FORTRESS_UPGRADE_SLAYER_BONUS
+  FORTRESS_LOCATION_SHUFFLE_COST
   RENAME_COST
   MANUAL_ADJUST
 }
@@ -154,6 +155,7 @@ model Fortress {
   currentAction         FortressAction @default(GROW)
   targetFortressId      String?
   unitSpriteVariant     String         @default("unit-1")
+  locationShuffleCount  Int            @default(0)
   mapX                  Int
   mapY                  Int
   joinedAt              DateTime       @default(now())
