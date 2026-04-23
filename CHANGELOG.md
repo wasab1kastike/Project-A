@@ -2,6 +2,8 @@
 
 ## 2026-04-22
 
+- Change: Removed the decorative action flag overlay from player fortress sprites on the battlefield map.
+- User impact: Fortress markers now render without the pole-and-flag icon above the castle art.
 - Change: Decoupled homepage realtime bridge activation from authenticated sessions and now enable live refreshes whenever a cycle exists.
 - Change: Added a graceful realtime fallback that switches to periodic `router.refresh()` polling when socket auth/connection fails (for example in spectator mode).
 - User impact: Spectators now see score/HP changes update automatically during active cycles without manually refreshing the page.
