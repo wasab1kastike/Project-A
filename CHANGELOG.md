@@ -2,6 +2,8 @@
 
 ## 2026-04-23
 
+- Change: Raised immersive battlefield drawer layering with scoped z-index overrides for shared drawer chrome plus ordered chat/orders stack levels.
+- User impact: Chat and Orders panels now stay above immersive HUD overlays and map controls while preserving their relative stacking order on desktop and mobile.
 - Change: Replaced spawn-point hash ordering with a seeded pseudo-random sampler that shuffles valid spawn hex candidates, enforces unique `mapX:mapY` assignments, and applies distance-aware selection.
 - User impact: Fortress and mega-fortress spawns now vary more naturally between cycles and reshuffles while still staying on valid spawn hexes and avoiding clustered placements.
 - Change: Kept deterministic replay by requiring explicit seeds, and upgraded seed composition to deterministic SHA-256 derived values that incorporate cycle and tick context for higher per-cycle/per-event entropy.
