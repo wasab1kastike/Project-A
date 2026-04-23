@@ -1,5 +1,3 @@
-import { getStrategicSpawnPositions } from "./map-hex";
-
 export const ACTIVE_PLAYER_CAP = 30;
 export const ACTIVE_RENAME_COST = 10;
 export const CURRENT_MAP_LAYOUT_VERSION = 2;
@@ -29,5 +27,3 @@ export const UNIT_SPRITE_VARIANTS = [
 ] as const;
 
 export type UnitSpriteVariant = (typeof UNIT_SPRITE_VARIANTS)[number];
-
-export const MAP_POSITIONS = getStrategicSpawnPositions(ACTIVE_PLAYER_CAP);

@@ -5,7 +5,6 @@ import {
   PrismaClient,
   ScoreEventType,
 } from "@/lib/prisma-client";
-import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { ensureOpenRegistrationCycle } from "./bootstrap";
 import {
@@ -21,6 +20,7 @@ import {
   ensureMegaFortress,
   reshuffleActiveFortressPositions,
 } from "./mega-fortress";
+import { buildFortressSpawnSeed } from "./spawn-layout";
 import { addHours, addMinutes, floorToMinute } from "./time";
 import {
   canFortressLevelUp,
@@ -56,24 +56,6 @@ type TieBreakCandidate = {
   reachedFinalScoreAt: Date;
   joinedAt: Date;
 };
-
-function buildDeterministicCycleSeed(parts: {
-  cycleId: string;
-  tickAt?: Date;
-  activeStartedAt?: Date | null;
-  purpose: string;
-  entropy?: string;
-}) {
-  const payload = [
-    `purpose=${parts.purpose}`,
-    `cycle=${parts.cycleId}`,
-    `active-started-at=${parts.activeStartedAt?.toISOString() ?? "none"}`,
-    `tick-at=${parts.tickAt?.toISOString() ?? "none"}`,
-    `entropy=${parts.entropy ?? "none"}`,
-  ].join("|");
-
-  return createHash("sha256").update(payload).digest("hex");
-}
 
 function isUniqueTickError(error: unknown) {
   return (
@@ -207,7 +189,7 @@ function getLastDueTickAt(
   return lastDueTickAt;
 }
 
-function hasAttackLaunchCooldownElapsed(
+function canLaunchAttackOnTick(
   lastLaunchedAt: Date | null,
   tickAt: Date
 ) {
@@ -215,7 +197,7 @@ function hasAttackLaunchCooldownElapsed(
     return true;
   }
 
-  return tickAt.getTime() - lastLaunchedAt.getTime() >= 60_000;
+  return floorToMinute(lastLaunchedAt) < tickAt;
 }
 
 function getMegaFortressDestroyReward(destroyCount: number) {
@@ -340,7 +322,7 @@ async function activateRegistrationCycle(
     await ensureMegaFortress({
       db: tx,
       cycleId: cycle.id,
-      seed: buildDeterministicCycleSeed({
+      seed: buildFortressSpawnSeed({
         cycleId: cycle.id,
         activeStartedAt,
         tickAt: activeStartedAt,
@@ -674,7 +656,7 @@ async function processCycleTick(
     await ensureCurrentMapLayout({
       db: tx,
       cycleId,
-      seed: buildDeterministicCycleSeed({
+      seed: buildFortressSpawnSeed({
         cycleId,
         activeStartedAt: cycle.activeStartedAt,
         tickAt,
@@ -714,7 +696,6 @@ async function processCycleTick(
     );
     const attackLaunchLookup = new Map<string, Date>();
     const scoreEvents: Prisma.ScoreEventCreateManyInput[] = [];
-    const resolvedAttackers = new Set<string>();
     const destroyedMegaTargets = new Set<string>();
     let resolvedAttackUnits = 0;
 
@@ -780,7 +761,6 @@ async function processCycleTick(
         },
       });
 
-      resolvedAttackers.add(unit.attackerFortressId);
       resolvedAttackUnits += 1;
 
       if (!attacker || !target) {
@@ -888,7 +868,7 @@ async function processCycleTick(
           await reshuffleActiveFortressPositions({
             db: tx,
             cycleId,
-            seed: buildDeterministicCycleSeed({
+            seed: buildFortressSpawnSeed({
               cycleId,
               activeStartedAt: cycle.activeStartedAt,
               tickAt,
@@ -1004,8 +984,7 @@ async function processCycleTick(
         fortress.isNpc ||
         !fortress.targetFortressId ||
         fortress.targetFortressId === fortress.id ||
-        resolvedAttackers.has(fortress.id) ||
-        !hasAttackLaunchCooldownElapsed(
+        !canLaunchAttackOnTick(
           attackLaunchLookup.get(fortress.id) ?? null,
           tickAt
         )

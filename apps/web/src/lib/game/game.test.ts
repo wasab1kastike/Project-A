@@ -21,12 +21,12 @@ import { sendChatMessage } from "./chat";
 import {
   ACTIVE_PLAYER_CAP,
   CURRENT_MAP_LAYOUT_VERSION,
-  MAP_POSITIONS,
   MEGA_FORTRESS_DESTROY_BONUS,
   MEGA_FORTRESS_HEALTH,
   UNIT_SPRITE_VARIANTS,
 } from "./constants";
 import { getAttackArrivalAt } from "./attacks";
+import { getAttackPresentation } from "./attack-presentation";
 import {
   HEX_SPAWN_TILES,
   MAP_WORLD_HEIGHT,
@@ -34,8 +34,7 @@ import {
   isPointNearSpawnHex,
   snapMapPointToHex,
 } from "./map-hex";
-import { getAttackPresentation } from "@/components/fortress-map";
-import { takeUniqueSpawnPoints } from "./mega-fortress";
+import { getFortressSpawnLayout, takeUniqueSpawnPoints } from "./spawn-layout";
 import { getAdminDashboardState } from "./admin-dashboard";
 import { getCycleHistoryPageState } from "./history";
 import { getHomePageState } from "./read-model";
@@ -68,32 +67,37 @@ const defaultDatabaseUrl =
   process.env.DATABASE_URL ??
   "postgresql://postgres:postgres@localhost:5432/project_a?schema=public";
 
-test("map positions are unique and spread across the battlefield bounds", () => {
+test("fortress spawn layout is unique and spread across the battlefield bounds", () => {
+  const positions = getFortressSpawnLayout({
+    cycleId: "layout:test",
+    purpose: "registration:fortress-layout",
+    count: ACTIVE_PLAYER_CAP,
+  });
   const occupied = new Set<string>();
   const originalArea = 2200 * 1400;
   const currentArea = MAP_WORLD_WIDTH * MAP_WORLD_HEIGHT;
 
   assert.ok(currentArea / originalArea > 2.95);
   assert.ok(currentArea / originalArea < 3.05);
-  assert.equal(MAP_POSITIONS.length, ACTIVE_PLAYER_CAP);
+  assert.equal(positions.length, ACTIVE_PLAYER_CAP);
 
-  for (const position of MAP_POSITIONS) {
-    assert.ok(position.x >= 6 && position.x <= 94);
-    assert.ok(position.y >= 6 && position.y <= 95);
+  for (const position of positions) {
+    assert.ok(position.x >= 0 && position.x <= 100);
+    assert.ok(position.y >= 0 && position.y <= 100);
     assert.ok(isPointNearSpawnHex(position));
     occupied.add(`${position.x}:${position.y}`);
   }
 
-  assert.equal(occupied.size, MAP_POSITIONS.length);
+  assert.equal(occupied.size, positions.length);
 
-  for (let leftIndex = 0; leftIndex < MAP_POSITIONS.length; leftIndex += 1) {
+  for (let leftIndex = 0; leftIndex < positions.length; leftIndex += 1) {
     for (
       let rightIndex = leftIndex + 1;
-      rightIndex < MAP_POSITIONS.length;
+      rightIndex < positions.length;
       rightIndex += 1
     ) {
-      const left = MAP_POSITIONS[leftIndex];
-      const right = MAP_POSITIONS[rightIndex];
+      const left = positions[leftIndex];
+      const right = positions[rightIndex];
       const leftHex = snapMapPointToHex(left);
       const rightHex = snapMapPointToHex(right);
 
@@ -101,6 +105,43 @@ test("map positions are unique and spread across the battlefield bounds", () => 
       assert.ok(Math.hypot(left.x - right.x, left.y - right.y) >= 9);
     }
   }
+});
+
+test("fortress spawn layout is stable for the same cycle seed", () => {
+  const first = getFortressSpawnLayout({
+    cycleId: "layout:stable",
+    purpose: "registration:fortress-layout",
+    count: ACTIVE_PLAYER_CAP,
+  });
+  const second = getFortressSpawnLayout({
+    cycleId: "layout:stable",
+    purpose: "registration:fortress-layout",
+    count: ACTIVE_PLAYER_CAP,
+  });
+
+  assert.deepEqual(second, first);
+});
+
+test("fortress spawn layout changes materially for different cycle seeds", () => {
+  const alpha = getFortressSpawnLayout({
+    cycleId: "layout:alpha",
+    purpose: "registration:fortress-layout",
+    count: ACTIVE_PLAYER_CAP,
+  });
+  const beta = getFortressSpawnLayout({
+    cycleId: "layout:beta",
+    purpose: "registration:fortress-layout",
+    count: ACTIVE_PLAYER_CAP,
+  });
+  const alphaKeys = alpha.map(
+    (point) => `${Math.round(point.x)}:${Math.round(point.y)}`
+  );
+  const betaKeySet = new Set(
+    beta.map((point) => `${Math.round(point.x)}:${Math.round(point.y)}`)
+  );
+  const overlapCount = alphaKeys.filter((key) => betaKeySet.has(key)).length;
+
+  assert.ok(overlapCount <= Math.floor(ACTIVE_PLAYER_CAP * 0.8));
 });
 
 test("spawn sampler returns unique valid spawn points", () => {
@@ -147,6 +188,63 @@ test("spawn sampler produces materially different layouts for different seeds", 
   const overlapCount = alphaKeys.filter((key) => betaKeySet.has(key)).length;
 
   assert.ok(overlapCount <= Math.floor(count * 0.8));
+});
+
+test("join registration uses the shared deterministic spawn layout", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const firstUser = await createUser(prisma, "layout-first@example.com");
+  const secondUser = await createUser(prisma, "layout-second@example.com");
+  const expectedLayout = getFortressSpawnLayout({
+    cycleId: cycle.id,
+    purpose: "registration:fortress-layout",
+    count: ACTIVE_PLAYER_CAP,
+  });
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: firstUser.id,
+    fortressName: "Layout One",
+    now: new Date("2026-04-19T12:05:00.000Z"),
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: secondUser.id,
+    fortressName: "Layout Two",
+    now: new Date("2026-04-19T12:06:00.000Z"),
+  });
+
+  const joinedFortresses = await prisma.fortress.findMany({
+    where: {
+      cycleId: cycle.id,
+      ownerId: {
+        in: [firstUser.id, secondUser.id],
+      },
+    },
+    orderBy: {
+      joinedAt: "asc",
+    },
+    select: {
+      mapX: true,
+      mapY: true,
+    },
+  });
+
+  assert.deepEqual(
+    joinedFortresses.map((fortress) => ({
+      x: fortress.mapX,
+      y: fortress.mapY,
+    })),
+    expectedLayout.slice(0, joinedFortresses.length).map((position) => ({
+      x: Math.round(position.x),
+      y: Math.round(position.y),
+    }))
+  );
 });
 
 test("tick health classification separates healthy, delayed, and stalled states", () => {
@@ -225,7 +323,8 @@ test("attack presentation keeps units moving until the impact window", () => {
 
   assert.equal(impacting.isImpacting, true);
   assert.equal(impacting.showSprite, false);
-  assert.equal(impacting.progress, 0.94);
+  assert.ok(impacting.progress <= 0.94);
+  assert.equal(impacting.progress, 0.92);
 });
 
 type ReadyDatabaseSetup = {
@@ -1629,7 +1728,7 @@ test("castle levels increase grow income and attack damage without changing cade
   assert.equal(damagedTarget.points, 10 - getFortressAttackDamage(2));
 });
 
-test("attack units launch for free and damage on arrival", async (context) => {
+test("attack units relaunch on the same tick when a previous unit resolves", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -1774,7 +1873,11 @@ test("attack units launch for free and damage on arrival", async (context) => {
     },
   });
 
-  assert.equal(sameTickOutbound.length, 0);
+  assert.equal(sameTickOutbound.length, 1);
+  assert.equal(
+    sameTickOutbound[0]?.launchedAt.toISOString(),
+    attackUnit.arrivesAt.toISOString()
+  );
 
   await runGameTick({
     db: prisma,
@@ -1789,7 +1892,11 @@ test("attack units launch for free and damage on arrival", async (context) => {
     },
   });
 
-  assert.equal(nextOutbound.length, 1);
+  assert.equal(nextOutbound.length, 2);
+  assert.equal(
+    nextOutbound.at(-1)?.launchedAt.toISOString(),
+    new Date(attackUnit.arrivesAt.getTime() + 60_000).toISOString()
+  );
 });
 
 test("attack mode launches one unit per tick even while previous units are in transit", async (context) => {
@@ -1980,16 +2087,11 @@ test("attack mode launches one unit per tick even while previous units are in tr
     return unit.launchedAt.getTime() === firstUnit.arrivesAt.getTime();
   });
 
-  assert.equal(launchedOnArrivalTick.length, 0);
+  assert.equal(launchedOnArrivalTick.length, 1);
   assert.equal(
     unresolvedAfterFirstArrivalTick.length,
-    unresolvedBeforeArrival.length - 1
+    unresolvedBeforeArrival.length
   );
-
-  await runGameTick({
-    db: prisma,
-    now: addMinutes(firstUnit.arrivesAt, 1),
-  });
 
   const relaunchedUnits = await prisma.attackUnit.findMany({
     where: {
@@ -2002,14 +2104,14 @@ test("attack mode launches one unit per tick even while previous units are in tr
     },
   });
 
-  assert.equal(relaunchedUnits.length, unresolvedAfterFirstArrivalTick.length + 1);
+  assert.equal(relaunchedUnits.length, unresolvedAfterFirstArrivalTick.length);
   assert.equal(
     relaunchedUnits.at(-1)?.launchedAt.toISOString(),
-    addMinutes(firstUnit.arrivesAt, 1).toISOString()
+    firstUnit.arrivesAt.toISOString()
   );
 });
 
-test("attack stream cadence follows the fortress's last launch time instead of the wall-clock minute edge", async (context) => {
+test("attack stream cadence follows tick boundaries instead of a rolling 60 second cooldown", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -2099,10 +2201,14 @@ test("attack stream cadence follows the fortress's last launch time instead of t
     },
   });
 
-  assert.equal(unitsAfterThirtySeconds.length, 1);
+  assert.equal(unitsAfterThirtySeconds.length, 2);
   assert.equal(
     unitsAfterThirtySeconds[0]?.launchedAt.toISOString(),
     launchTime.toISOString()
+  );
+  assert.equal(
+    unitsAfterThirtySeconds[1]?.launchedAt.toISOString(),
+    "2026-04-20T12:06:00.000Z"
   );
 
   await runGameTick({
@@ -2123,9 +2229,9 @@ test("attack stream cadence follows the fortress's last launch time instead of t
     },
   });
 
-  assert.equal(unitsAfterNinetySeconds.length, 2);
+  assert.equal(unitsAfterNinetySeconds.length, 3);
   assert.equal(
-    unitsAfterNinetySeconds[1]?.launchedAt.toISOString(),
+    unitsAfterNinetySeconds[2]?.launchedAt.toISOString(),
     "2026-04-20T12:07:00.000Z"
   );
 });

@@ -56,8 +56,25 @@ function finishAction(notice: string): never {
   redirectToHome("notice", notice);
 }
 
+type InlineActionResult =
+  | {
+      ok: true;
+    }
+  | {
+      ok: false;
+      error: string;
+    };
+
 export async function attackFromMapAction(targetFortressId: string) {
-  const userId = await requireUserId();
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
 
   try {
     await setFortressAction({
@@ -66,11 +83,16 @@ export async function attackFromMapAction(targetFortressId: string) {
       targetFortressId,
     });
     emitProjectARefresh("map-attack");
+    revalidatePath("/");
+    return {
+      ok: true,
+    } satisfies InlineActionResult;
   } catch (error) {
-    redirectToHome("error", getActionErrorMessage(error));
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
   }
-
-  finishAction("Attack target updated from the battlefield map.");
 }
 
 export async function joinFortressAction(formData: FormData) {

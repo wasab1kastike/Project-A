@@ -9,7 +9,6 @@ import { prisma } from "@/lib/prisma";
 import {
   ACTIVE_PLAYER_CAP,
   ACTIVE_RENAME_COST,
-  MAP_POSITIONS,
 } from "./constants";
 import { getRandomUnitSpriteVariant } from "./attacks";
 import { canFortressLevelUp, getFortressUpgradeCost } from "./upgrades";
@@ -18,6 +17,7 @@ import {
 } from "./attack-units";
 import { GameError } from "./errors";
 import { ensureCommanderRegistrationColumn } from "./schema-guards";
+import { getFortressSpawnLayout } from "./spawn-layout";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -104,6 +104,10 @@ function isActiveWindowOpen(
 }
 
 function findOpenMapPosition(
+  cycle: {
+    id: string;
+    activeStartedAt?: Date | null;
+  },
   fortresses: Array<{
     mapX: number;
     mapY: number;
@@ -112,8 +116,14 @@ function findOpenMapPosition(
   const occupied = new Set(
     fortresses.map((fortress) => `${fortress.mapX}:${fortress.mapY}`)
   );
+  const layout = getFortressSpawnLayout({
+    cycleId: cycle.id,
+    purpose: "registration:fortress-layout",
+    activeStartedAt: cycle.activeStartedAt,
+    count: ACTIVE_PLAYER_CAP,
+  });
 
-  return MAP_POSITIONS.find((position) => {
+  return layout.find((position) => {
     return !occupied.has(`${position.x}:${position.y}`);
   });
 }
@@ -228,7 +238,7 @@ export async function joinRegistrationCycle({
           throw new GameError("That in-game nick is already taken this cycle.");
         }
 
-        const openPosition = findOpenMapPosition(cycle.fortresses);
+        const openPosition = findOpenMapPosition(cycle, cycle.fortresses);
 
         if (!openPosition) {
           throw new GameError(

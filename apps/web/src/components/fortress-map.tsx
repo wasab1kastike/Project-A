@@ -2,6 +2,7 @@
 
 import {
   Fragment,
+  type PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -19,6 +20,7 @@ import {
   type HexBiome,
 } from "@/lib/game/map-hex";
 import { getAttackTravelMinutes } from "@/lib/game/attacks";
+import { getAttackPresentation } from "@/lib/game/attack-presentation";
 import type { UnitSpriteVariant } from "@/lib/game/constants";
 import styles from "./fortress-map.module.css";
 
@@ -73,15 +75,20 @@ type DragStart = {
   translateY: number;
 };
 
+type MarkerTapState = {
+  fortressId: string;
+  pointerId: number;
+  startX: number;
+  startY: number;
+  cancelled: boolean;
+};
+
 export type { AttackUnitMarker, MapFortress };
 
 const MIN_SCALE = 0.42;
 const MAX_SCALE = 2.1;
 const ZOOM_STEP = 0.14;
 const CLICK_DRAG_THRESHOLD = 6;
-const ATTACK_IMPACT_WINDOW_MS = 1_200;
-const ATTACK_IMPACT_PROGRESS = 0.94;
-
 const BIOME_LABELS: Record<HexBiome, string> = {
   water: "Sea",
   coast: "Coast",
@@ -212,38 +219,6 @@ function HexTileMap() {
   );
 }
 
-function getAttackProgress(unit: AttackUnitMarker, nowMs: number) {
-  const launchedAt = new Date(unit.launchedAt).getTime();
-  const arrivesAt = new Date(unit.arrivesAt).getTime();
-  const duration = arrivesAt - launchedAt;
-
-  if (duration <= 0) {
-    return 1;
-  }
-
-  return clampValue((nowMs - launchedAt) / duration, 0, 1);
-}
-
-export function getAttackPresentation(unit: AttackUnitMarker, nowMs: number) {
-  const arrivesAt = new Date(unit.arrivesAt).getTime();
-  const rawProgress = getAttackProgress(unit, nowMs);
-  const isImpacting = nowMs >= arrivesAt - ATTACK_IMPACT_WINDOW_MS;
-
-  if (!isImpacting) {
-    return {
-      isImpacting: false,
-      showSprite: true,
-      progress: rawProgress,
-    };
-  }
-
-  return {
-    isImpacting: true,
-    showSprite: false,
-    progress: Math.min(rawProgress, ATTACK_IMPACT_PROGRESS),
-  };
-}
-
 function getInterpolatedPoint(origin: Point, target: Point, progress: number) {
   return {
     x: origin.x + (target.x - origin.x) * progress,
@@ -335,13 +310,14 @@ export function FortressMap({
   selectedFortressId?: string | null;
   selectedTargetId?: string | null;
   onSelectFortress?: (fortress: MapFortress) => void;
-  onConfirmAttackTarget?: (fortress: MapFortress) => void;
+  onConfirmAttackTarget?: (fortress: MapFortress) => void | Promise<void>;
   className?: string;
 }) {
   const shellRef = useRef<HTMLDivElement | null>(null);
   const lastAutoFocusKeyRef = useRef<string | null>(null);
   const userAdjustedViewRef = useRef(false);
   const pointerCacheRef = useRef<Map<number, Point>>(new Map());
+  const markerTapStateRef = useRef<MarkerTapState | null>(null);
   const pinchStateRef = useRef<{
     startScale: number;
     startTranslateX: number;
@@ -408,8 +384,10 @@ export function FortressMap({
     setTranslateY(0);
     setIsDragging(false);
     setDragStart(null);
+    setPendingTargetId(null);
     suppressClickRef.current = false;
     pointerCacheRef.current.clear();
+    markerTapStateRef.current = null;
     pinchStateRef.current = null;
   }, []);
 
@@ -525,6 +503,110 @@ export function FortressMap({
     [scale, translateX, translateY]
   );
 
+  const activateFortress = useCallback(
+    (fortress: MapFortress) => {
+      if (fortress.isCurrentUser) {
+        setPendingTargetId(null);
+        onSelectFortress?.(fortress);
+        return;
+      }
+
+      if (fortress.isTargetable) {
+        setPendingTargetId((currentId) =>
+          currentId === fortress.id ? null : fortress.id
+        );
+      }
+    },
+    [onSelectFortress]
+  );
+
+  const handleMarkerPointerDown = useCallback(
+    (
+      event: ReactPointerEvent<HTMLButtonElement>,
+      fortress: MapFortress,
+      selectable: boolean
+    ) => {
+      if (!selectable) {
+        return;
+      }
+
+      if (event.pointerType === "mouse" && event.button !== 0) {
+        return;
+      }
+
+      event.stopPropagation();
+      markerTapStateRef.current = {
+        fortressId: fortress.id,
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        cancelled: false,
+      };
+    },
+    []
+  );
+
+  const handleMarkerPointerMove = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>, fortressId: string) => {
+      const tapState = markerTapStateRef.current;
+
+      if (
+        !tapState ||
+        tapState.pointerId !== event.pointerId ||
+        tapState.fortressId !== fortressId
+      ) {
+        return;
+      }
+
+      if (
+        Math.hypot(
+          event.clientX - tapState.startX,
+          event.clientY - tapState.startY
+        ) > CLICK_DRAG_THRESHOLD
+      ) {
+        tapState.cancelled = true;
+      }
+    },
+    []
+  );
+
+  const clearMarkerTap = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>, fortressId: string) => {
+      const tapState = markerTapStateRef.current;
+
+      if (
+        tapState &&
+        tapState.pointerId === event.pointerId &&
+        tapState.fortressId === fortressId
+      ) {
+        markerTapStateRef.current = null;
+      }
+    },
+    []
+  );
+
+  const handleMarkerPointerUp = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>, fortress: MapFortress) => {
+      const tapState = markerTapStateRef.current;
+
+      if (
+        !tapState ||
+        tapState.pointerId !== event.pointerId ||
+        tapState.fortressId !== fortress.id
+      ) {
+        return;
+      }
+
+      event.stopPropagation();
+      markerTapStateRef.current = null;
+
+      if (!tapState.cancelled) {
+        activateFortress(fortress);
+      }
+    },
+    [activateFortress]
+  );
+
   useEffect(() => {
     if (!ownFortress) {
       return;
@@ -624,6 +706,7 @@ export function FortressMap({
         onWheel={(event) => {
           event.preventDefault();
           userAdjustedViewRef.current = true;
+          setPendingTargetId(null);
           const shellBounds = shellRef.current?.getBoundingClientRect();
           if (!shellBounds) {
             return;
@@ -641,6 +724,9 @@ export function FortressMap({
           if (!shellBounds) {
             return;
           }
+
+          setPendingTargetId(null);
+          markerTapStateRef.current = null;
 
           const point = {
             x: event.clientX - shellBounds.left,
@@ -779,20 +865,23 @@ export function FortressMap({
                       left: `${snappedPosition.x}%`,
                       top: `${snappedPosition.y}%`,
                     }}
+                    onPointerDown={(event) =>
+                      handleMarkerPointerDown(event, fortress, selectable)
+                    }
+                    onPointerMove={(event) =>
+                      handleMarkerPointerMove(event, fortress.id)
+                    }
+                    onPointerUp={(event) =>
+                      handleMarkerPointerUp(event, fortress)
+                    }
+                    onPointerCancel={(event) => clearMarkerTap(event, fortress.id)}
                     onClick={(event) => {
-                      if (suppressClickRef.current) {
+                      if (event.detail !== 0 || suppressClickRef.current) {
                         event.preventDefault();
                         return;
                       }
 
-                      if (fortress.isCurrentUser) {
-                        onSelectFortress?.(fortress);
-                        return;
-                      }
-
-                      if (fortress.isTargetable) {
-                        setPendingTargetId(fortress.id);
-                      }
+                      activateFortress(fortress);
                     }}
                     aria-pressed={
                       selectedTargetId === fortress.id ||
@@ -853,9 +942,10 @@ export function FortressMap({
                       {travelMinutes ? <em>{travelMinutes} min ETA</em> : null}
                       <button
                         type="button"
-                        onClick={() => {
+                        onPointerDown={(event) => event.stopPropagation()}
+                        onClick={async () => {
                           setPendingTargetId(null);
-                          onConfirmAttackTarget?.(fortress);
+                          await onConfirmAttackTarget?.(fortress);
                         }}
                       >
                         Attack

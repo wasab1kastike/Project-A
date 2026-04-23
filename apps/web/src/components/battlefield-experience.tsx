@@ -130,23 +130,21 @@ export function BattlefieldExperience({
     });
 
     if (chatOpen) {
-      setUnreadChatCount(0);
+      queueMicrotask(() => {
+        setUnreadChatCount(0);
+      });
     } else if (unseenIncomingMessages.length > 0) {
-      setUnreadChatCount((currentCount) => currentCount + unseenIncomingMessages.length);
+      queueMicrotask(() => {
+        setUnreadChatCount(
+          (currentCount) => currentCount + unseenIncomingMessages.length
+        );
+      });
     }
 
     knownChatMessageIdsRef.current = new Set(
       chat.messages.map((message) => message.id)
     );
   }, [chat.messages, chatOpen]);
-
-  useEffect(() => {
-    if (!chatOpen) {
-      return;
-    }
-
-    setUnreadChatCount(0);
-  }, [chatOpen]);
 
   const canOpenActions = Boolean(
     ownFortress &&
@@ -189,8 +187,11 @@ export function BattlefieldExperience({
     setMapAttackPending(true);
 
     try {
-      await attackFromMapAction(fortress.id);
-      router.refresh();
+      const result = await attackFromMapAction(fortress.id);
+
+      if (result.ok) {
+        router.refresh();
+      }
     } finally {
       setMapAttackPending(false);
     }
@@ -356,8 +357,8 @@ export function BattlefieldExperience({
                   </button>
                 </form>
                 <p className={styles.helper}>
-                  Map Attack fires immediately. Use Orders to switch targets or
-                  return to Grow manually.
+                  Tap a target on the map, then confirm Attack. Orders and map
+                  targeting now update the same attack state.
                 </p>
 
                 <div className={styles.upgradePanel}>
