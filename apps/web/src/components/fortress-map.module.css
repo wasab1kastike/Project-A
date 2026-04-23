@@ -328,36 +328,6 @@
   background-position: 100% 100%;
 }
 
-.fortressActionFlag {
-  position: absolute;
-  top: 15px;
-  right: 6px;
-  width: 26px;
-  height: 20px;
-  border: 3px solid #14212b;
-  border-left-width: 6px;
-  border-radius: 2px 8px 8px 2px;
-  background: #89de8e;
-  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.2);
-  transform: rotate(6deg);
-}
-
-.fortressActionFlag::before {
-  position: absolute;
-  top: -4px;
-  left: -10px;
-  width: 4px;
-  height: 34px;
-  border-radius: 999px;
-  background: #dce8ef;
-  box-shadow: 0 0 0 3px #14212b;
-  content: "";
-}
-
-.fortressActionFlag[data-action="ATTACK"] {
-  background: #ff7c7c;
-}
-
 .pointsBadge {
   position: absolute;
   top: 2px;
@@ -656,13 +626,6 @@
   .fortressSprite {
     width: 74px;
     height: 74px;
-  }
-
-  .fortressActionFlag {
-    top: 13px;
-    right: 4px;
-    width: 23px;
-    height: 18px;
   }
 
   .megaMarker .spriteFrame {

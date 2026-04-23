@@ -122,24 +122,15 @@ function getSpriteVariant(fortress: MapFortress): SpriteVariant {
 
 function FortressSprite({
   variant,
-  action,
 }: {
   variant: SpriteVariant;
-  action: "GROW" | "ATTACK";
 }) {
-  const actionLabel = action === "ATTACK" ? "assaulting" : "growing";
-
   return (
     <>
       <span
         className={styles.fortressSprite}
         data-variant={variant}
         aria-hidden="true"
-      />
-      <span
-        className={styles.fortressActionFlag}
-        data-action={action}
-        aria-label={`Fortress is currently ${actionLabel}`}
       />
     </>
   );
@@ -792,7 +783,6 @@ export function FortressMap({
                       ) : (
                         <FortressSprite
                           variant={variant}
-                          action={fortress.currentAction}
                         />
                       )}
                     </span>
