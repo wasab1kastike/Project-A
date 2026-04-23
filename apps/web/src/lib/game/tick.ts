@@ -202,6 +202,17 @@ function getLastDueTickAt(
   return lastDueTickAt;
 }
 
+function hasAttackLaunchCooldownElapsed(
+  lastLaunchedAt: Date | null,
+  tickAt: Date
+) {
+  if (!lastLaunchedAt) {
+    return true;
+  }
+
+  return tickAt.getTime() - lastLaunchedAt.getTime() >= 60_000;
+}
+
 async function restartEmptyRegistrationCycle(
   cycleId: string,
   now: Date,
@@ -684,10 +695,43 @@ async function processCycleTick(
     let fortressLookup = new Map(
       fortresses.map((fortress) => [fortress.id, fortress])
     );
+    const attackLaunchLookup = new Map<string, Date>();
     const scoreEvents: Prisma.ScoreEventCreateManyInput[] = [];
     const resolvedAttackers = new Set<string>();
     const destroyedMegaTargets = new Set<string>();
     let resolvedAttackUnits = 0;
+
+    const attackingFortressIds = fortresses
+      .filter(
+        (fortress) =>
+          !fortress.isNpc &&
+          fortress.currentAction === FortressAction.ATTACK &&
+          fortress.targetFortressId &&
+          fortress.targetFortressId !== fortress.id
+      )
+      .map((fortress) => fortress.id);
+
+    if (attackingFortressIds.length > 0) {
+      const attackLaunches = await tx.attackUnit.findMany({
+        where: {
+          cycleId,
+          attackerFortressId: {
+            in: attackingFortressIds,
+          },
+        },
+        orderBy: [{ launchedAt: "desc" }, { id: "desc" }],
+        select: {
+          attackerFortressId: true,
+          launchedAt: true,
+        },
+      });
+
+      for (const launch of attackLaunches) {
+        if (!attackLaunchLookup.has(launch.attackerFortressId)) {
+          attackLaunchLookup.set(launch.attackerFortressId, launch.launchedAt);
+        }
+      }
+    }
 
     const dueAttackUnits = await tx.attackUnit.findMany({
       where: {
@@ -896,7 +940,11 @@ async function processCycleTick(
         fortress.isNpc ||
         !fortress.targetFortressId ||
         fortress.targetFortressId === fortress.id ||
-        resolvedAttackers.has(fortress.id)
+        resolvedAttackers.has(fortress.id) ||
+        !hasAttackLaunchCooldownElapsed(
+          attackLaunchLookup.get(fortress.id) ?? null,
+          tickAt
+        )
       ) {
         continue;
       }
@@ -923,6 +971,7 @@ async function processCycleTick(
 
       if (launchedUnit) {
         launchedAttackUnits += 1;
+        attackLaunchLookup.set(fortress.id, tickAt);
       }
     }
 
