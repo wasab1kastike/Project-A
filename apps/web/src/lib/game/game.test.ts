@@ -2300,6 +2300,67 @@ test("read model marks spectators and participants correctly", async (context) =
   assert.equal(participantState.isSpectator, false);
 });
 
+test("read model reports healthy ACTIVE tick metadata", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  await seedOpenCycle(prisma);
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const healthyState = await getHomePageState({
+    db: prisma,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+  });
+
+  assert.equal(healthyState.phase?.status, CycleStatus.ACTIVE);
+  assert.equal(
+    healthyState.cycle?.lastProcessedTickAt?.toISOString(),
+    "2026-04-20T12:00:00.000Z"
+  );
+  assert.equal(healthyState.cycle?.tickDelayMinutes, 1);
+});
+
+test("read model reports delayed ACTIVE tick metadata and hides it outside ACTIVE", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  await seedOpenCycle(prisma);
+  const registrationState = await getHomePageState({
+    db: prisma,
+    now: new Date("2026-04-19T12:10:00.000Z"),
+  });
+
+  assert.equal(registrationState.phase?.status, CycleStatus.REGISTRATION);
+  assert.equal(registrationState.cycle?.lastProcessedTickAt, null);
+  assert.equal(registrationState.cycle?.tickDelayMinutes, null);
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const delayedState = await getHomePageState({
+    db: prisma,
+    now: new Date("2026-04-20T12:05:00.000Z"),
+  });
+
+  assert.equal(delayedState.phase?.status, CycleStatus.ACTIVE);
+  assert.equal(
+    delayedState.cycle?.lastProcessedTickAt?.toISOString(),
+    "2026-04-20T12:00:00.000Z"
+  );
+  assert.equal(delayedState.cycle?.tickDelayMinutes, 5);
+});
+
 test("read model exposes only valid targetable fortresses during active play", async (context) => {
   const prisma = getPrismaOrSkip(context);
 

@@ -107,6 +107,13 @@ export async function getHomePageState({
           },
         },
       },
+      gameTicks: {
+        orderBy: [{ tickAt: "desc" }, { id: "desc" }],
+        take: 1,
+        select: {
+          tickAt: true,
+        },
+      },
       chatMessages: {
         orderBy: {
           createdAt: "desc",
@@ -164,6 +171,15 @@ export async function getHomePageState({
     cycle.status === CycleStatus.ACTIVE &&
     cycle.activeEndsAt !== null &&
     cycle.activeEndsAt > now;
+  const lastProcessedTickAt =
+    cycle.status === CycleStatus.ACTIVE ? cycle.gameTicks[0]?.tickAt ?? null : null;
+  const tickDelayMinutes =
+    cycle.status === CycleStatus.ACTIVE && lastProcessedTickAt
+      ? Math.max(
+          0,
+          Math.floor((now.getTime() - lastProcessedTickAt.getTime()) / 60_000)
+        )
+      : null;
   const deadline =
     cycle.status === CycleStatus.REGISTRATION
       ? cycle.registrationEndsAt
@@ -228,6 +244,8 @@ export async function getHomePageState({
       registrationEndsAt: cycle.registrationEndsAt,
       joiningLockedAt: cycle.joiningLockedAt,
       activeEndsAt: cycle.activeEndsAt,
+      lastProcessedTickAt,
+      tickDelayMinutes,
       joinedCount,
       remainingSlots,
       deadline,

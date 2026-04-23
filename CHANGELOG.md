@@ -2,6 +2,10 @@
 
 ## 2026-04-23
 
+- Change: Extended homepage read-model cycle metadata with ACTIVE-only `lastProcessedTickAt` and computed `tickDelayMinutes` from the latest processed game tick.
+- Change: Added ACTIVE HUD status text showing last update time and current tick delay, with an elevated warning style when delay reaches 2+ minutes.
+- Change: Added read-model integration tests covering healthy ACTIVE delay, delayed ACTIVE delay, and null tick metadata during REGISTRATION.
+- User impact: Players now get subtle but immediate visibility into live-tick freshness during active seasons, while non-active phases stay uncluttered.
 - Change: Added ACTIVE cycle tick-lag diagnostics (`tickHealth`, `minutesBehind`, `lastProcessedTickAt`) to the admin dashboard read model using cycle start time, latest processed tick, and current minute.
 - User impact: Admins can now quickly see whether the tick runner is healthy, lagging, or stalled and how far behind processing is.
 - Change: Added a manual admin catch-up tick operation and wired it to a new admin action that revalidates `/`, `/admin`, and `/history`.

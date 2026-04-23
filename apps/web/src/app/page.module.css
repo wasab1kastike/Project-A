@@ -98,6 +98,26 @@
   gap: 8px;
 }
 
+.tickStatus {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 11px;
+  border: 1px solid rgba(118, 190, 255, 0.3);
+  border-radius: 8px;
+  background: rgba(8, 20, 31, 0.76);
+  color: #a7dfff;
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.01em;
+}
+
+.tickStatusWarning {
+  border-color: rgba(247, 134, 95, 0.5);
+  background: rgba(34, 13, 10, 0.78);
+  color: #ffc2a7;
+}
+
 .hudStats div {
   min-height: 48px;
   display: grid;
