@@ -34,6 +34,7 @@ import {
   isPointNearSpawnHex,
   snapMapPointToHex,
 } from "./map-hex";
+import { getAttackPresentation } from "@/components/fortress-map";
 import { takeUniqueSpawnPoints } from "./mega-fortress";
 import { getAdminDashboardState } from "./admin-dashboard";
 import { getCycleHistoryPageState } from "./history";
@@ -185,6 +186,44 @@ test("tick CLI formats structured runner errors with stage context", () => {
   assert.match(formatted, /"stage":"process-minute"/);
   assert.match(formatted, /"cycleId":"cycle-123"/);
   assert.match(formatted, /Unique constraint failed/);
+});
+
+test("attack presentation keeps units moving until the impact window", () => {
+  const unit = {
+    id: "unit-1",
+    launchedAt: new Date("2026-04-23T12:00:00.000Z"),
+    arrivesAt: new Date("2026-04-23T12:00:10.000Z"),
+    attacker: {
+      id: "attacker",
+      name: "Alpha",
+      mapX: 10,
+      mapY: 10,
+      unitSpriteVariant: "unit-1" as const,
+    },
+    target: {
+      id: "target",
+      name: "Beta",
+      mapX: 20,
+      mapY: 20,
+    },
+  };
+
+  const traveling = getAttackPresentation(
+    unit,
+    new Date("2026-04-23T12:00:08.000Z").getTime()
+  );
+  const impacting = getAttackPresentation(
+    unit,
+    new Date("2026-04-23T12:00:09.200Z").getTime()
+  );
+
+  assert.equal(traveling.isImpacting, false);
+  assert.equal(traveling.showSprite, true);
+  assert.ok(traveling.progress < 0.94);
+
+  assert.equal(impacting.isImpacting, true);
+  assert.equal(impacting.showSprite, false);
+  assert.equal(impacting.progress, 0.94);
 });
 
 type ReadyDatabaseSetup = {

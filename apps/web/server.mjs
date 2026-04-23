@@ -18,6 +18,7 @@ const LOCAL_ALLOWED_ORIGINS = [
 ];
 const CONNECTION_WINDOW_MS = 60_000;
 const MAX_CONNECTIONS_PER_WINDOW = isProduction ? 20 : 60;
+const REALTIME_WATCHER_INTERVAL_MS = 1_000;
 const prisma = new PrismaClient(
   process.env.DATABASE_URL
     ? {
@@ -203,7 +204,7 @@ function emitRefresh(io, reason = "server") {
 }
 
 async function getRealtimeSnapshot() {
-  const [cycle, fortress, chatMessage] = await Promise.all([
+  const [cycle, fortress, attackUnit, chatMessage] = await Promise.all([
     prisma.cycle.findFirst({
       orderBy: { updatedAt: "desc" },
       select: {
@@ -220,6 +221,17 @@ async function getRealtimeSnapshot() {
         points: true,
         currentAction: true,
         targetFortressId: true,
+      },
+    }),
+    prisma.attackUnit.findFirst({
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+      select: {
+        id: true,
+        updatedAt: true,
+        attackerFortressId: true,
+        targetFortressId: true,
+        resolvedAt: true,
+        cancelledAt: true,
       },
     }),
     prisma.chatMessage.findFirst({
@@ -240,6 +252,12 @@ async function getRealtimeSnapshot() {
     fortressPoints: fortress?.points ?? null,
     fortressAction: fortress?.currentAction ?? null,
     fortressTargetId: fortress?.targetFortressId ?? null,
+    attackUnitId: attackUnit?.id ?? null,
+    attackUnitUpdatedAt: attackUnit?.updatedAt.toISOString() ?? null,
+    attackUnitAttackerId: attackUnit?.attackerFortressId ?? null,
+    attackUnitTargetId: attackUnit?.targetFortressId ?? null,
+    attackUnitResolvedAt: attackUnit?.resolvedAt?.toISOString() ?? null,
+    attackUnitCancelledAt: attackUnit?.cancelledAt?.toISOString() ?? null,
     chatId: chatMessage?.id ?? null,
     chatCreatedAt: chatMessage?.createdAt.toISOString() ?? null,
   });
@@ -286,7 +304,7 @@ async function startWatcher(io) {
     } finally {
       running = false;
     }
-  }, 3000);
+  }, REALTIME_WATCHER_INTERVAL_MS);
 }
 
 async function main() {

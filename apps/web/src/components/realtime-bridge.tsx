@@ -39,7 +39,7 @@ export function RealtimeBridge({ enabled }: RealtimeBridgeProps) {
 
       pollingInterval = setInterval(() => {
         refreshView();
-      }, 5000);
+      }, 2000);
     };
 
     const socket = io({

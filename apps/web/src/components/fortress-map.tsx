@@ -79,6 +79,8 @@ const MIN_SCALE = 0.42;
 const MAX_SCALE = 2.1;
 const ZOOM_STEP = 0.14;
 const CLICK_DRAG_THRESHOLD = 6;
+const ATTACK_IMPACT_WINDOW_MS = 1_200;
+const ATTACK_IMPACT_PROGRESS = 0.94;
 
 const BIOME_LABELS: Record<HexBiome, string> = {
   water: "Sea",
@@ -222,6 +224,26 @@ function getAttackProgress(unit: AttackUnitMarker, nowMs: number) {
   return clampValue((nowMs - launchedAt) / duration, 0, 1);
 }
 
+export function getAttackPresentation(unit: AttackUnitMarker, nowMs: number) {
+  const arrivesAt = new Date(unit.arrivesAt).getTime();
+  const rawProgress = getAttackProgress(unit, nowMs);
+  const isImpacting = nowMs >= arrivesAt - ATTACK_IMPACT_WINDOW_MS;
+
+  if (!isImpacting) {
+    return {
+      isImpacting: false,
+      showSprite: true,
+      progress: rawProgress,
+    };
+  }
+
+  return {
+    isImpacting: true,
+    showSprite: false,
+    progress: Math.min(rawProgress, ATTACK_IMPACT_PROGRESS),
+  };
+}
+
 function getInterpolatedPoint(origin: Point, target: Point, progress: number) {
   return {
     x: origin.x + (target.x - origin.x) * progress,
@@ -243,7 +265,7 @@ function AttackUnitsLayer({
 
     const interval = window.setInterval(() => {
       setNowMs(Date.now());
-    }, 1000);
+    }, 250);
 
     return () => window.clearInterval(interval);
   }, [attackUnits.length]);
@@ -263,27 +285,35 @@ function AttackUnitsLayer({
           x: unit.target.mapX,
           y: unit.target.mapY,
         });
-        const progress = getAttackProgress(unit, nowMs);
+        const presentation = getAttackPresentation(unit, nowMs);
+        const progress = presentation.progress;
         const currentPoint = getInterpolatedPoint(origin, target, progress);
         const secondsRemaining = Math.max(
           0,
           Math.ceil((new Date(unit.arrivesAt).getTime() - nowMs) / 1000)
         );
+        const anchorPoint = presentation.isImpacting ? target : currentPoint;
 
         return (
           <div
             key={unit.id}
-            className={styles.attackUnit}
+            className={`${styles.attackUnit} ${
+              presentation.isImpacting ? styles.attackUnitImpacting : ""
+            }`}
             style={{
-              left: `${currentPoint.x}%`,
-              top: `${currentPoint.y}%`,
+              left: `${anchorPoint.x}%`,
+              top: `${anchorPoint.y}%`,
             }}
             aria-label={`${unit.attacker.name} unit attacking ${unit.target.name}. ${secondsRemaining} seconds until impact.`}
           >
-            <span
-              className={styles.attackUnitSprite}
-              data-variant={unit.attacker.unitSpriteVariant}
-            />
+            {presentation.showSprite ? (
+              <span
+                className={styles.attackUnitSprite}
+                data-variant={unit.attacker.unitSpriteVariant}
+              />
+            ) : (
+              <span className={styles.attackImpactPulse} aria-hidden="true" />
+            )}
           </div>
         );
       })}
