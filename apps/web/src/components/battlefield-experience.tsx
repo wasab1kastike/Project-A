@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -105,10 +105,12 @@ export function BattlefieldExperience({
   const router = useRouter();
   const [chatOpen, setChatOpen] = useState(false);
   const [actionOpen, setActionOpen] = useState(false);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [mapAttackPending, setMapAttackPending] = useState(false);
   const [selectedFortressId, setSelectedFortressId] = useState<string | null>(
     null
   );
+  const knownChatMessageIdsRef = useRef(new Set(chat.messages.map((message) => message.id)));
   const [action, setAction] = useState<"GROW" | "ATTACK">(
     playerSummary?.currentAction ?? "GROW"
   );
@@ -120,6 +122,32 @@ export function BattlefieldExperience({
     () => mapFortresses.find((fortress) => fortress.isCurrentUser) ?? null,
     [mapFortresses]
   );
+
+  useEffect(() => {
+    const knownMessageIds = knownChatMessageIdsRef.current;
+    const unseenIncomingMessages = chat.messages.filter((message) => {
+      return !knownMessageIds.has(message.id) && !message.isCurrentUser;
+    });
+
+    if (chatOpen) {
+      setUnreadChatCount(0);
+    } else if (unseenIncomingMessages.length > 0) {
+      setUnreadChatCount((currentCount) => currentCount + unseenIncomingMessages.length);
+    }
+
+    knownChatMessageIdsRef.current = new Set(
+      chat.messages.map((message) => message.id)
+    );
+  }, [chat.messages, chatOpen]);
+
+  useEffect(() => {
+    if (!chatOpen) {
+      return;
+    }
+
+    setUnreadChatCount(0);
+  }, [chatOpen]);
+
   const canOpenActions = Boolean(
     ownFortress &&
     ((phaseStatus === "ACTIVE" && playerSummary?.canSetAction) ||
@@ -180,6 +208,11 @@ export function BattlefieldExperience({
         onClick={() => setChatOpen((isOpen) => !isOpen)}
       >
         Chat
+        {unreadChatCount > 0 ? (
+          <span className={styles.unreadBadge} aria-label={`${unreadChatCount} unread chat messages`}>
+            {unreadChatCount > 99 ? "99+" : unreadChatCount}
+          </span>
+        ) : null}
       </button>
       {ownFortress ? (
         <button

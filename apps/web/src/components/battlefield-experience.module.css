@@ -90,12 +90,29 @@
 }
 
 .overlayButton {
+  position: relative;
   padding: 0 16px;
 }
 
 .overlayButton:disabled {
   cursor: not-allowed;
   opacity: 0.48;
+}
+
+.unreadBadge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #f7c45f;
+  color: #14202f;
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .primaryButton:disabled,
@@ -180,6 +197,8 @@
 
 .immersive .chatDrawer {
   z-index: 23;
+  top: max(92px, calc(env(safe-area-inset-top) + 76px));
+  max-height: calc(100% - max(108px, calc(env(safe-area-inset-top) + 92px)));
 }
 
 .immersive .actionDrawer {
@@ -191,6 +210,13 @@
   min-height: 30px;
   padding: 0 10px;
   font-size: 0.72rem;
+}
+
+.chatDrawer .closeButton {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: rgba(5, 12, 18, 0.96);
 }
 
 .drawerContent {
@@ -392,6 +418,13 @@
     padding: 0 10px;
     border-radius: 8px;
     font-size: 0.76rem;
+  }
+
+  .unreadBadge {
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    font-size: 0.56rem;
   }
 
   .drawer {
