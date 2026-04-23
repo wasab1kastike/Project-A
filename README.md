@@ -41,6 +41,7 @@ Project-A is a browser-based multiplayer strategy game where each season evolves
 ## Documentation
 
 - [Changelog policy](docs/changelog-policy.md#required-entry-format)
+- [Patch notes policy](docs/patch-notes-policy.md)
 - [Map overhaul changelog entry](docs/changelog-policy.md#map-overhaul-log)
 - [Known hosting constraints for GitHub Pages](docs/github-pages-hosting.md#constraints-to-account-for)
 

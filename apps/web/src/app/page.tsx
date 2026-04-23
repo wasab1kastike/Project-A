@@ -11,6 +11,7 @@ import {
   registerCommanderNameAction,
 } from "@/app/game-actions";
 import { getHomePageState, type HomePageState } from "@/lib/game/read-model";
+import { PRIMARY_GAME_NAV_LINKS } from "@/lib/game/site-navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -269,9 +270,11 @@ export default async function Home({
           <span className={styles.accountChip}>
             {session?.user ? userLabel : "Guest"}
           </span>
-          <Link className={styles.hudButton} href="/history">
-            History
-          </Link>
+          {PRIMARY_GAME_NAV_LINKS.map((link) => (
+            <Link className={styles.hudButton} href={link.href} key={link.href}>
+              {link.label}
+            </Link>
+          ))}
           {isAdmin ? (
             <Link className={styles.hudButton} href="/admin">
               Admin

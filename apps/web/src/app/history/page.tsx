@@ -3,6 +3,7 @@ import styles from "./page.module.css";
 import { auth } from "@/auth";
 import { getCycleHistoryPageState } from "@/lib/game/history";
 import { submitWinnerRequestAction } from "./actions";
+import { PATCH_NOTES_PAGE_HREF } from "@/lib/game/site-navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +68,9 @@ export default async function HistoryPage({
         <div className={styles.navRow}>
           <Link className={styles.linkButton} href="/">
             Back to battlefield
+          </Link>
+          <Link className={styles.linkButton} href={PATCH_NOTES_PAGE_HREF}>
+            Open patch notes
           </Link>
           {session?.user?.role === "ADMIN" ? (
             <Link className={styles.linkButton} href="/admin">
