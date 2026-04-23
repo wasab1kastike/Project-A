@@ -74,7 +74,7 @@ export function MegaFortressNotice({
         <p id="mega-fortress-notice-description">
           Castle upgrades are now unlocked for everyone. The fortress that dealt
           the final blow got one free castle level, and Home of A will return
-          stronger after each fall.
+          stronger after each fall. Future kills also pay bigger point rewards.
         </p>
         <div className={styles.actions}>
           <button className={styles.button} onClick={dismissNotice} type="button">
@@ -85,4 +85,3 @@ export function MegaFortressNotice({
     </div>
   );
 }
-
