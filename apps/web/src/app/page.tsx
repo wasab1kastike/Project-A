@@ -4,6 +4,7 @@ import styles from "./page.module.css";
 import { auth, isAuthConfigured } from "@/auth";
 import { SessionActions } from "@/components/session-actions";
 import { BattlefieldExperience } from "@/components/battlefield-experience";
+import { MegaFortressNotice } from "@/components/mega-fortress-notice";
 import { RealtimeBridge } from "@/components/realtime-bridge";
 import { SeasonTimer } from "@/components/season-timer";
 import {
@@ -217,6 +218,10 @@ export default async function Home({
   return (
     <main className={styles.page}>
       <RealtimeBridge enabled={Boolean(state.cycle)} />
+      <MegaFortressNotice
+        cycleId={state.cycle?.id ?? null}
+        megaFortressDestroyCount={state.cycle?.megaFortressDestroyCount ?? 0}
+      />
 
       <div className={styles.mapLayer}>
         <BattlefieldExperience
