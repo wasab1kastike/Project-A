@@ -2,6 +2,12 @@
 
 ## 2026-04-23
 
+- Change: Added ACTIVE cycle tick-lag diagnostics (`tickHealth`, `minutesBehind`, `lastProcessedTickAt`) to the admin dashboard read model using cycle start time, latest processed tick, and current minute.
+- User impact: Admins can now quickly see whether the tick runner is healthy, lagging, or stalled and how far behind processing is.
+- Change: Added a manual admin catch-up tick operation and wired it to a new admin action that revalidates `/`, `/admin`, and `/history`.
+- User impact: When tick processing falls behind, admins can manually unfreeze scoreboard progression without waiting for the next automatic runner pass.
+- Change: Added a prominent admin warning banner when tick lag reaches two or more minutes, plus integration coverage for stalled detection and manual catch-up recovery.
+- User impact: Stalled tick states are now surfaced clearly in the UI and protected by regression tests to prevent frozen-score incidents.
 - Change: Raised immersive battlefield drawer layering with scoped z-index overrides for shared drawer chrome plus ordered chat/orders stack levels.
 - User impact: Chat and Orders panels now stay above immersive HUD overlays and map controls while preserving their relative stacking order on desktop and mobile.
 - Change: Replaced spawn-point hash ordering with a seeded pseudo-random sampler that shuffles valid spawn hex candidates, enforces unique `mapX:mapY` assignments, and applies distance-aware selection.

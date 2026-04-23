@@ -13,6 +13,7 @@ import {
 } from "@/lib/prisma-client";
 import {
   forceEndCurrentCycle,
+  runManualCatchUpTick,
   setRegistrationJoiningLock,
 } from "./admin-operations";
 import { seedProjectA } from "./bootstrap";
@@ -45,6 +46,7 @@ import {
   setFortressAction,
 } from "./service";
 import { runGameTick } from "./tick";
+import { addMinutes } from "./time";
 import {
   classifyWinnerRequest,
   reviewWinnerRequest,
@@ -2742,4 +2744,120 @@ test("history and admin read models expose stored winner request state", async (
     "Keep it to one small badge and no extra summary blocks."
   );
   assert.equal(adminState.winnerRequests[0]?.reviewedByLabel, "Admin reviewer");
+});
+
+test("active cycle with missing ticks is detected as stalled", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const user = await createUser(prisma, "stalled@example.com");
+  const cycle = await seedOpenCycle(prisma);
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: user.id,
+    commanderName: "Stalled Commander",
+    fortressName: "Frozen Keep",
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: cycle.registrationEndsAt,
+  });
+
+  const activeCycle = await prisma.cycle.findFirstOrThrow({
+    where: {
+      id: cycle.id,
+    },
+    select: {
+      activeStartedAt: true,
+    },
+  });
+  assert.ok(activeCycle.activeStartedAt);
+
+  const stalledAt = addMinutes(activeCycle.activeStartedAt, 3);
+  const adminState = await getAdminDashboardState({
+    db: prisma,
+    now: stalledAt,
+  });
+
+  assert.equal(adminState.currentCycle?.status, CycleStatus.ACTIVE);
+  assert.equal(adminState.currentCycle?.tickHealth, "stalled");
+  assert.equal(adminState.currentCycle?.minutesBehind, 3);
+  assert.equal(adminState.currentCycle?.lastProcessedTickAt, null);
+});
+
+test("manual catch-up unfreezes points", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const user = await createUser(prisma, "unfreeze@example.com");
+  const cycle = await seedOpenCycle(prisma);
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: user.id,
+    commanderName: "Catch Up Commander",
+    fortressName: "Warm Keep",
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: cycle.registrationEndsAt,
+  });
+
+  const activeCycle = await prisma.cycle.findFirstOrThrow({
+    where: {
+      id: cycle.id,
+    },
+    select: {
+      activeStartedAt: true,
+    },
+  });
+  assert.ok(activeCycle.activeStartedAt);
+  const catchUpAt = addMinutes(activeCycle.activeStartedAt, 3);
+
+  const beforeCatchUp = await prisma.fortress.findFirstOrThrow({
+    where: {
+      cycleId: cycle.id,
+      ownerId: user.id,
+    },
+    select: {
+      points: true,
+    },
+  });
+  const stalledState = await getAdminDashboardState({
+    db: prisma,
+    now: catchUpAt,
+  });
+  assert.equal(stalledState.currentCycle?.tickHealth, "stalled");
+
+  await runManualCatchUpTick({
+    db: prisma,
+    now: catchUpAt,
+  });
+
+  const afterCatchUp = await prisma.fortress.findFirstOrThrow({
+    where: {
+      cycleId: cycle.id,
+      ownerId: user.id,
+    },
+    select: {
+      points: true,
+    },
+  });
+  const recoveredState = await getAdminDashboardState({
+    db: prisma,
+    now: catchUpAt,
+  });
+
+  assert.ok(afterCatchUp.points > beforeCatchUp.points);
+  assert.equal(recoveredState.currentCycle?.tickHealth, "ok");
+  assert.equal(recoveredState.currentCycle?.minutesBehind, 0);
 });

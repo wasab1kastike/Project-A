@@ -1,12 +1,15 @@
 import { prisma } from "@/lib/prisma";
 import { type PrismaClient } from "@/lib/prisma-client";
 import { NPC_SYSTEM_USER_EMAIL } from "./constants";
+import { getActiveCycleMinutesBehind } from "./tick";
 import { WINNER_REQUEST_POLICY_URL } from "./winner-requests";
 
 export async function getAdminDashboardState({
   db = prisma,
+  now = new Date(),
 }: {
   db?: PrismaClient;
+  now?: Date;
 } = {}) {
   const currentCycle = await db.cycle.findFirst({
     where: {
@@ -167,9 +170,25 @@ export async function getAdminDashboardState({
     },
   });
 
+  const activeMinutesBehind =
+    currentCycle?.status === "ACTIVE"
+      ? getActiveCycleMinutesBehind({
+          activeStartedAt: currentCycle.activeStartedAt,
+          lastProcessedTickAt: currentCycle.gameTicks[0]?.tickAt ?? null,
+          now,
+        })
+      : 0;
+
   return {
     currentCycle: currentCycle
       ? {
+          tickHealth:
+            activeMinutesBehind >= 2
+              ? "stalled"
+              : activeMinutesBehind >= 1
+                ? "lagging"
+                : "ok",
+          minutesBehind: activeMinutesBehind,
           id: currentCycle.id,
           status: currentCycle.status,
           registrationEndsAt: currentCycle.registrationEndsAt,

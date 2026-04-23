@@ -149,3 +149,16 @@ export async function emergencyResetCurrentCycle({
     };
   });
 }
+
+export async function runManualCatchUpTick({
+  now = new Date(),
+  db = prisma,
+}: {
+  now?: Date;
+  db?: PrismaClient;
+} = {}) {
+  return runGameTick({
+    now: floorToMinute(now),
+    db,
+  });
+}

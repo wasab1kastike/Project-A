@@ -9,6 +9,7 @@ import { WinnerRequestStatus } from "@/lib/prisma-client";
 import {
   emergencyResetCurrentCycle,
   forceEndCurrentCycle,
+  runManualCatchUpTick,
   setRegistrationJoiningLock,
 } from "@/lib/game/admin-operations";
 import { reviewWinnerRequest } from "@/lib/game/winner-requests";
@@ -87,6 +88,19 @@ export async function emergencyResetCycleAction() {
   }
 
   finishAction("Emergency reset completed and a fresh registration cycle was created.");
+}
+
+export async function runManualCatchUpTickAction() {
+  await requireAdminSession();
+
+  try {
+    await runManualCatchUpTick();
+    emitProjectARefresh("admin-manual-catch-up");
+  } catch (error) {
+    redirectToAdmin("error", getActionErrorMessage(error));
+  }
+
+  finishAction("Manual catch-up tick complete.");
 }
 
 export async function reviewWinnerRequestAction(formData: FormData) {
