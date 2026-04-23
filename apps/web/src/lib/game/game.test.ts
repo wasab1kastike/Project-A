@@ -27,11 +27,13 @@ import {
 } from "./constants";
 import { getAttackArrivalAt } from "./attacks";
 import {
+  HEX_SPAWN_TILES,
   MAP_WORLD_HEIGHT,
   MAP_WORLD_WIDTH,
   isPointNearSpawnHex,
   snapMapPointToHex,
 } from "./map-hex";
+import { takeUniqueSpawnPoints } from "./mega-fortress";
 import { getAdminDashboardState } from "./admin-dashboard";
 import { getCycleHistoryPageState } from "./history";
 import { getHomePageState } from "./read-model";
@@ -89,6 +91,52 @@ test("map positions are unique and spread across the battlefield bounds", () => 
       assert.ok(Math.hypot(left.x - right.x, left.y - right.y) >= 9);
     }
   }
+});
+
+test("spawn sampler returns unique valid spawn points", () => {
+  const points = takeUniqueSpawnPoints("sampler:unique", 18, {
+    minSeparationDistance: 9,
+  });
+  const uniqueKeys = new Set(
+    points.map((point) => `${Math.round(point.x)}:${Math.round(point.y)}`)
+  );
+
+  assert.equal(points.length, 18);
+  assert.equal(uniqueKeys.size, points.length);
+
+  for (const point of points) {
+    assert.ok(isPointNearSpawnHex(point));
+  }
+});
+
+test("spawn sampler is stable for the same seed", () => {
+  const first = takeUniqueSpawnPoints("sampler:stable", 14, {
+    minSeparationDistance: 9,
+  });
+  const second = takeUniqueSpawnPoints("sampler:stable", 14, {
+    minSeparationDistance: 9,
+  });
+
+  assert.deepEqual(second, first);
+});
+
+test("spawn sampler produces materially different layouts for different seeds", () => {
+  const count = Math.min(HEX_SPAWN_TILES.length, 16);
+  const alpha = takeUniqueSpawnPoints("sampler:alpha", count, {
+    minSeparationDistance: 9,
+  });
+  const beta = takeUniqueSpawnPoints("sampler:beta", count, {
+    minSeparationDistance: 9,
+  });
+  const alphaKeys = alpha.map(
+    (point) => `${Math.round(point.x)}:${Math.round(point.y)}`
+  );
+  const betaKeySet = new Set(
+    beta.map((point) => `${Math.round(point.x)}:${Math.round(point.y)}`)
+  );
+  const overlapCount = alphaKeys.filter((key) => betaKeySet.has(key)).length;
+
+  assert.ok(overlapCount <= Math.floor(count * 0.8));
 });
 
 type ReadyDatabaseSetup = {
@@ -842,10 +890,18 @@ test("activation creates one mega fortress without consuming player slots", asyn
 
   assert.equal(state.cycle?.joinedCount, ACTIVE_PLAYER_CAP);
   assert.equal(state.cycle?.remainingSlots, 0);
-  assert.equal(state.mapFortresses.filter((fortress) => fortress.isNpc).length, 1);
-  assert.equal(state.leaderboard.some((entry) => entry.id === megaFortresses[0]?.id), false);
   assert.equal(
-    state.availableTargets.some((target) => target.id === megaFortresses[0]?.id),
+    state.mapFortresses.filter((fortress) => fortress.isNpc).length,
+    1
+  );
+  assert.equal(
+    state.leaderboard.some((entry) => entry.id === megaFortresses[0]?.id),
+    false
+  );
+  assert.equal(
+    state.availableTargets.some(
+      (target) => target.id === megaFortresses[0]?.id
+    ),
     true
   );
 });
@@ -923,7 +979,9 @@ test("old active map layouts reshuffle once on the next tick", async (context) =
     },
   });
   const uniquePositionKeys = new Set(
-    positionsAfterFirstTick.map((position) => `${position.mapX}:${position.mapY}`)
+    positionsAfterFirstTick.map(
+      (position) => `${position.mapX}:${position.mapY}`
+    )
   );
 
   assert.equal(refreshedCycle.mapLayoutVersion, CURRENT_MAP_LAYOUT_VERSION);
@@ -1459,7 +1517,10 @@ test("attack mode launches one unit per tick even while previous units are in tr
     },
   });
 
-  assert.equal(firstUnit.arrivesAt.toISOString(), expectedArrival.toISOString());
+  assert.equal(
+    firstUnit.arrivesAt.toISOString(),
+    expectedArrival.toISOString()
+  );
   assert.ok(firstUnit.arrivesAt.getTime() - launchTime.getTime() >= 4 * 60_000);
 
   await runGameTick({
@@ -1700,7 +1761,10 @@ test("destroying the mega fortress awards points, crown, and reshuffles map posi
   assert.ok(bonusEvent);
   assert.equal(state.playerSummary?.name.startsWith("👑 "), true);
   assert.equal(state.leaderboard[0]?.name.startsWith("👑 "), true);
-  assert.equal(state.leaderboard.some((entry) => entry.id === megaFortress.id), false);
+  assert.equal(
+    state.leaderboard.some((entry) => entry.id === megaFortress.id),
+    false
+  );
 });
 
 test("switching to grow cancels in-flight attacks without refunding points", async (context) => {
@@ -2305,7 +2369,10 @@ test("read model exposes only valid targetable fortresses during active play", a
   assert.equal(targetableMarkers[0]?.name, "Beta");
   assert.equal(state.availableTargets.length, 2);
   assert.equal(state.availableTargets[0]?.name, "Beta");
-  assert.equal(state.availableTargets.some((target) => target.isNpc), true);
+  assert.equal(
+    state.availableTargets.some((target) => target.isNpc),
+    true
+  );
   assert.equal(state.attackUnits.length, 1);
   assert.equal(state.attackUnits[0]?.attacker.id, alphaFortress.id);
   assert.equal(state.attackUnits[0]?.target.id, betaFortress.id);
