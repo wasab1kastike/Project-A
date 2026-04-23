@@ -13,8 +13,6 @@ import {
 } from "./constants";
 import { getRandomUnitSpriteVariant } from "./attacks";
 import {
-  cancelActiveAttackUnits,
-  getActiveAttackUnit,
   launchAttackUnit,
 } from "./attack-units";
 import { GameError } from "./errors";
@@ -436,12 +434,6 @@ export async function setFortressAction({
     }
 
     if (action === FortressAction.GROW) {
-      await cancelActiveAttackUnits({
-        db: tx,
-        attackerFortressId: fortress.id,
-        cancelledAt: now,
-      });
-
       return tx.fortress.update({
         where: {
           id: fortress.id,
@@ -474,16 +466,6 @@ export async function setFortressAction({
       );
     }
 
-    const activeUnit = await getActiveAttackUnit(tx, fortress.id);
-
-    if (activeUnit && activeUnit.targetFortressId !== target.id) {
-      await cancelActiveAttackUnits({
-        db: tx,
-        attackerFortressId: fortress.id,
-        cancelledAt: now,
-      });
-    }
-
     const updatedFortress = await tx.fortress.update({
       where: {
         id: fortress.id,
@@ -494,7 +476,7 @@ export async function setFortressAction({
       },
     });
 
-    if (!activeUnit || activeUnit.targetFortressId !== target.id) {
+    if (fortress.currentAction !== FortressAction.ATTACK) {
       await launchAttackUnit({
         db: tx,
         cycle,

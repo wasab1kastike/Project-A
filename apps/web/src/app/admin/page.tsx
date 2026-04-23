@@ -110,7 +110,7 @@ export default async function AdminPage({
 
       {error ? <p className={styles.errorBanner}>{error}</p> : null}
       {notice ? <p className={styles.noticeBanner}>{notice}</p> : null}
-      {(state.currentCycle?.minutesBehind ?? 0) >= 2 ? (
+      {state.currentCycle?.tickHealth === "stalled" ? (
         <p className={styles.stalledBanner}>
           Tick runner stalled. Scores, impacts, and new attack launches may be frozen until you replay the missed minutes.
         </p>

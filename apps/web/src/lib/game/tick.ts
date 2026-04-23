@@ -82,11 +82,11 @@ function getFirstTickAt(activeStartedAt: Date) {
 }
 
 export function classifyTickHealth(minutesBehind: number): TickHealth {
-  if (minutesBehind >= 2) {
+  if (minutesBehind >= 5) {
     return "stalled";
   }
 
-  if (minutesBehind >= 1) {
+  if (minutesBehind >= 2) {
     return "lagging";
   }
 
@@ -890,29 +890,13 @@ async function processCycleTick(
       );
     }
 
-    const activeAttackers = new Set(
-      (
-        await tx.attackUnit.findMany({
-          where: {
-            cycleId,
-            resolvedAt: null,
-            cancelledAt: null,
-          },
-          select: {
-            attackerFortressId: true,
-          },
-        })
-      ).map((unit) => unit.attackerFortressId)
-    );
-
     for (const fortress of fortresses) {
       if (
         fortress.currentAction !== FortressAction.ATTACK ||
         fortress.isNpc ||
         !fortress.targetFortressId ||
         fortress.targetFortressId === fortress.id ||
-        resolvedAttackers.has(fortress.id) ||
-        activeAttackers.has(fortress.id)
+        resolvedAttackers.has(fortress.id)
       ) {
         continue;
       }

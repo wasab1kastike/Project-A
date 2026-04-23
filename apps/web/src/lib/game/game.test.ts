@@ -148,8 +148,9 @@ test("spawn sampler produces materially different layouts for different seeds", 
 
 test("tick health classification separates healthy, delayed, and stalled states", () => {
   assert.equal(classifyTickHealth(0), "ok");
-  assert.equal(classifyTickHealth(1), "lagging");
-  assert.equal(classifyTickHealth(2), "stalled");
+  assert.equal(classifyTickHealth(1), "ok");
+  assert.equal(classifyTickHealth(2), "lagging");
+  assert.equal(classifyTickHealth(5), "stalled");
 });
 
 test("tick CLI summary includes attack launch and resolution counts", () => {
@@ -1468,7 +1469,7 @@ test("attack units launch for free and damage on arrival", async (context) => {
   assert.equal(nextOutbound.length, 1);
 });
 
-test("attack mode keeps only one outbound unit active until the current unit resolves", async (context) => {
+test("attack mode launches one unit per tick even while previous units are in transit", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -1603,14 +1604,14 @@ test("attack mode keeps only one outbound unit active until the current unit res
     },
   });
 
-  assert.equal(unresolvedBeforeArrival.length, 1);
+  assert.equal(unresolvedBeforeArrival.length, 5);
   assert.equal(
     unresolvedBeforeArrival[0]?.arrivesAt.toISOString(),
     firstUnit.arrivesAt.toISOString()
   );
   assert.ok(
     unresolvedBeforeArrival.every(
-      (unit) => unit.launchedAt.getTime() === firstUnit.launchedAt.getTime()
+      (unit) => unit.launchedAt.getTime() < firstUnit.arrivesAt.getTime()
     )
   );
 
@@ -1678,9 +1679,9 @@ test("attack mode keeps only one outbound unit active until the current unit res
     },
   });
 
-  assert.equal(relaunchedUnits.length, 1);
+  assert.equal(relaunchedUnits.length, unresolvedAfterFirstArrivalTick.length + 1);
   assert.equal(
-    relaunchedUnits[0]?.launchedAt.toISOString(),
+    relaunchedUnits.at(-1)?.launchedAt.toISOString(),
     addMinutes(firstUnit.arrivesAt, 1).toISOString()
   );
 });
@@ -1836,7 +1837,7 @@ test("destroying the mega fortress awards points, crown, and reshuffles map posi
   );
 });
 
-test("switching to grow cancels in-flight attacks without refunding points", async (context) => {
+test("switching to grow preserves in-flight attacks but stops future launches", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -1903,7 +1904,7 @@ test("switching to grow cancels in-flight attacks without refunding points", asy
     now: new Date("2026-04-20T12:06:00.000Z"),
   });
 
-  const cancelledUnit = await prisma.attackUnit.findFirstOrThrow({
+  const preservedUnit = await prisma.attackUnit.findFirstOrThrow({
     where: {
       attackerFortressId: attackerFortress.id,
     },
@@ -1916,10 +1917,154 @@ test("switching to grow cancels in-flight attacks without refunding points", asy
 
   assert.equal(refreshedAttacker.points, 4);
   assert.equal(refreshedAttacker.currentAction, FortressAction.GROW);
-  assert.equal(
-    cancelledUnit.cancelledAt?.toISOString(),
-    "2026-04-20T12:06:00.000Z"
-  );
+  assert.equal(preservedUnit.cancelledAt, null);
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:07:00.000Z"),
+  });
+
+  const unresolvedAfterGrow = await prisma.attackUnit.findMany({
+    where: {
+      attackerFortressId: attackerFortress.id,
+      resolvedAt: null,
+      cancelledAt: null,
+    },
+  });
+
+  assert.equal(unresolvedAfterGrow.length, 1);
+});
+
+test("retargeting keeps in-flight units on the old target and sends future launches to the new target", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const attacker = await createUser(prisma, "retarget-attacker@example.com");
+  const firstTarget = await createUser(prisma, "retarget-first@example.com");
+  const secondTarget = await createUser(prisma, "retarget-second@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: attacker.id,
+    fortressName: "Attacker",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: firstTarget.id,
+    fortressName: "First Target",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: secondTarget.id,
+    fortressName: "Second Target",
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const attackerFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: attacker.id,
+      },
+    },
+  });
+  const firstTargetFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: firstTarget.id,
+      },
+    },
+  });
+  const secondTargetFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: secondTarget.id,
+      },
+    },
+  });
+
+  await prisma.fortress.update({
+    where: {
+      id: attackerFortress.id,
+    },
+    data: {
+      mapX: 6,
+      mapY: 6,
+    },
+  });
+  await prisma.fortress.update({
+    where: {
+      id: firstTargetFortress.id,
+    },
+    data: {
+      mapX: 94,
+      mapY: 95,
+    },
+  });
+  await prisma.fortress.update({
+    where: {
+      id: secondTargetFortress.id,
+    },
+    data: {
+      mapX: 84,
+      mapY: 84,
+    },
+  });
+
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.ATTACK,
+    targetFortressId: firstTargetFortress.id,
+    now: new Date("2026-04-20T12:05:00.000Z"),
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:06:00.000Z"),
+  });
+
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.ATTACK,
+    targetFortressId: secondTargetFortress.id,
+    now: new Date("2026-04-20T12:06:30.000Z"),
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:07:00.000Z"),
+  });
+
+  const unresolvedUnits = await prisma.attackUnit.findMany({
+    where: {
+      attackerFortressId: attackerFortress.id,
+      resolvedAt: null,
+      cancelledAt: null,
+    },
+    orderBy: {
+      launchedAt: "asc",
+    },
+    select: {
+      launchedAt: true,
+      targetFortressId: true,
+    },
+  });
+
+  assert.equal(unresolvedUnits.length, 3);
+  assert.equal(unresolvedUnits[0]?.targetFortressId, firstTargetFortress.id);
+  assert.equal(unresolvedUnits[1]?.targetFortressId, firstTargetFortress.id);
+  assert.equal(unresolvedUnits[2]?.targetFortressId, secondTargetFortress.id);
 });
 
 test("expired active cycle resolves a winner, writes history, and opens the next registration cycle", async (context) => {
@@ -2391,7 +2536,7 @@ test("read model reports healthy ACTIVE tick metadata", async (context) => {
     "2026-04-20T12:00:00.000Z"
   );
   assert.equal(healthyState.cycle?.tickDelayMinutes, 1);
-  assert.equal(healthyState.cycle?.tickHealth, "lagging");
+  assert.equal(healthyState.cycle?.tickHealth, "ok");
 });
 
 test("read model reports delayed ACTIVE tick metadata and hides it outside ACTIVE", async (context) => {
@@ -2415,6 +2560,15 @@ test("read model reports delayed ACTIVE tick metadata and hides it outside ACTIV
     db: prisma,
     now: new Date("2026-04-20T12:00:00.000Z"),
   });
+
+  const laggingState = await getHomePageState({
+    db: prisma,
+    now: new Date("2026-04-20T12:02:00.000Z"),
+  });
+
+  assert.equal(laggingState.phase?.status, CycleStatus.ACTIVE);
+  assert.equal(laggingState.cycle?.tickDelayMinutes, 2);
+  assert.equal(laggingState.cycle?.tickHealth, "lagging");
 
   const delayedState = await getHomePageState({
     db: prisma,
@@ -3040,9 +3194,20 @@ test("manual catch-up resolves due attacks and relaunches on the next eligible m
 
   await prisma.fortress.update({
     where: {
+      id: attackerFortress.id,
+    },
+    data: {
+      mapX: 6,
+      mapY: 6,
+    },
+  });
+  await prisma.fortress.update({
+    where: {
       id: targetFortress.id,
     },
     data: {
+      mapX: 94,
+      mapY: 95,
       points: 5,
     },
   });
@@ -3107,11 +3272,11 @@ test("manual catch-up resolves due attacks and relaunches on the next eligible m
 
   assert.ok(summary.processedMinutes >= 1);
   assert.equal(summary.resolvedAttackUnits, 1);
-  assert.equal(summary.launchedAttackUnits, 1);
+  assert.ok(summary.launchedAttackUnits >= 2);
   assert.equal(afterCatchUpTarget.points, beforeCatchUpTarget.points - 2);
-  assert.equal(unresolvedAfterCatchUp.length, 1);
+  assert.ok(unresolvedAfterCatchUp.length >= 2);
   assert.equal(
-    unresolvedAfterCatchUp[0]?.launchedAt.toISOString(),
+    unresolvedAfterCatchUp.at(-1)?.launchedAt.toISOString(),
     catchUpAt.toISOString()
   );
 });
