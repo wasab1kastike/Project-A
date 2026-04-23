@@ -6,6 +6,7 @@ import {
   emergencyResetCycleAction,
   forceEndCycleAction,
   reviewWinnerRequestAction,
+  runManualCatchUpTickAction,
   toggleJoiningLockAction,
 } from "./actions";
 
@@ -109,6 +110,11 @@ export default async function AdminPage({
 
       {error ? <p className={styles.errorBanner}>{error}</p> : null}
       {notice ? <p className={styles.noticeBanner}>{notice}</p> : null}
+      {(state.currentCycle?.minutesBehind ?? 0) >= 2 ? (
+        <p className={styles.stalledBanner}>
+          Tick runner stalled; scores may be frozen.
+        </p>
+      ) : null}
 
       <section className={styles.grid}>
         <article className={styles.card}>
@@ -156,6 +162,16 @@ export default async function AdminPage({
                 Emergency reset
               </button>
             </form>
+
+            <form action={runManualCatchUpTickAction} className={styles.inlineForm}>
+              <button
+                className={styles.warningButton}
+                type="submit"
+                disabled={!state.currentCycle}
+              >
+                Run catch-up tick
+              </button>
+            </form>
           </div>
         </article>
 
@@ -184,6 +200,14 @@ export default async function AdminPage({
                 <div className={styles.statRow}>
                   <dt>Last tick</dt>
                   <dd>{formatDateTime(state.currentCycle.lastProcessedTickAt)}</dd>
+                </div>
+                <div className={styles.statRow}>
+                  <dt>Tick health</dt>
+                  <dd>{state.currentCycle.tickHealth}</dd>
+                </div>
+                <div className={styles.statRow}>
+                  <dt>Minutes behind</dt>
+                  <dd>{state.currentCycle.minutesBehind}</dd>
                 </div>
                 <div className={styles.statRow}>
                   <dt>Score events</dt>

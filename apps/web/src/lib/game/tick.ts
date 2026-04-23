@@ -70,6 +70,36 @@ function getFirstTickAt(activeStartedAt: Date) {
   return addMinutes(floorToMinute(activeStartedAt), 1);
 }
 
+export function getActiveCycleMinutesBehind({
+  activeStartedAt,
+  lastProcessedTickAt,
+  now,
+}: {
+  activeStartedAt: Date | null;
+  lastProcessedTickAt: Date | null;
+  now: Date;
+}) {
+  if (!activeStartedAt) {
+    return 0;
+  }
+
+  const firstDueTickAt = getFirstTickAt(activeStartedAt);
+  const dueTickAt = floorToMinute(now);
+
+  if (dueTickAt < firstDueTickAt) {
+    return 0;
+  }
+
+  const latestProcessedTickAt = lastProcessedTickAt ?? addMinutes(firstDueTickAt, -1);
+
+  if (latestProcessedTickAt >= dueTickAt) {
+    return 0;
+  }
+
+  const diffMilliseconds = dueTickAt.getTime() - latestProcessedTickAt.getTime();
+  return Math.floor(diffMilliseconds / (60 * 1000));
+}
+
 function getLastDueTickAt(
   cycle: {
     activeStartedAt: Date | null;

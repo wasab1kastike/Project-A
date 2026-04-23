@@ -72,6 +72,7 @@
 .linkButton,
 .primaryButton,
 .secondaryButton,
+.warningButton,
 .dangerButton {
   display: inline-flex;
   align-items: center;
@@ -108,6 +109,12 @@
   color: #ffd6d6;
 }
 
+.warningButton {
+  border-color: rgba(255, 183, 77, 0.4);
+  background: rgba(255, 183, 77, 0.16);
+  color: #ffe7b7;
+}
+
 .inlineForm {
   display: contents;
 }
@@ -139,7 +146,8 @@
 }
 
 .errorBanner,
-.noticeBanner {
+.noticeBanner,
+.stalledBanner {
   margin-bottom: 18px;
   padding: 14px 18px;
   border-radius: 18px;
@@ -157,6 +165,12 @@
   background: rgba(101, 178, 123, 0.12);
   border-color: rgba(131, 216, 154, 0.26);
   color: #d7f4df;
+}
+
+.stalledBanner {
+  background: rgba(255, 183, 77, 0.14);
+  border-color: rgba(255, 183, 77, 0.36);
+  color: #ffe7b7;
 }
 
 .subsection {
