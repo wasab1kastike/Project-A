@@ -2,6 +2,8 @@
 
 ## 2026-04-23
 
+- Change: Replaced fragile fixed battlefield drawer clearance with explicit bottom HUD height/gap design tokens scoped per responsive breakpoint.
+- User impact: Immersive chat and orders drawers now anchor above the HUD using a shared clearance formula (including safe-area inset), improving visibility and scrollability on desktop/tablet/mobile.
 - Change: Raised immersive battlefield drawer layering with scoped z-index overrides for shared drawer chrome plus ordered chat/orders stack levels.
 - User impact: Chat and Orders panels now stay above immersive HUD overlays and map controls while preserving their relative stacking order on desktop and mobile.
 - Change: Replaced spawn-point hash ordering with a seeded pseudo-random sampler that shuffles valid spawn hex candidates, enforces unique `mapX:mapY` assignments, and applies distance-aware selection.

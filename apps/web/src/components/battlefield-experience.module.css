@@ -167,6 +167,12 @@
   max-height: calc(100% - var(--battlefield-bottom-clearance, 16px) - 104px);
 }
 
+.immersive .chatDrawer {
+  top: auto;
+  bottom: var(--battlefield-bottom-clearance, 16px);
+  max-height: calc(100% - var(--battlefield-bottom-clearance, 16px) - 104px);
+}
+
 .immersive .drawer {
   z-index: 22;
 }

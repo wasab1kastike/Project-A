@@ -1,6 +1,10 @@
 .page {
   position: relative;
-  --battlefield-bottom-clearance: 150px;
+  --bottom-hud-height: 134px;
+  --bottom-hud-gap: 16px;
+  --battlefield-bottom-clearance: calc(
+    var(--bottom-hud-height) + var(--bottom-hud-gap) + env(safe-area-inset-bottom)
+  );
   min-height: 100vh;
   min-height: 100dvh;
   overflow: hidden;
@@ -287,6 +291,8 @@
   bottom: 16px;
   display: grid;
   grid-template-columns: minmax(220px, 0.75fr) minmax(260px, 1fr) minmax(280px, 0.95fr);
+  min-height: var(--bottom-hud-height);
+  height: var(--bottom-hud-height);
   gap: 12px;
   padding: 12px;
   border-radius: 8px;
@@ -380,7 +386,8 @@
 
 @media (max-width: 980px) {
   .page {
-    --battlefield-bottom-clearance: 210px;
+    --bottom-hud-height: 194px;
+    --bottom-hud-gap: 16px;
   }
 
   .topHud {
@@ -403,7 +410,8 @@
 
 @media (max-width: 640px) {
   .page {
-    --battlefield-bottom-clearance: calc(112px + env(safe-area-inset-bottom));
+    --bottom-hud-height: 92px;
+    --bottom-hud-gap: 10px;
   }
 
   .topHud {
@@ -486,7 +494,7 @@
     right: 10px;
     bottom: calc(10px + env(safe-area-inset-bottom));
     gap: 0;
-    max-height: 92px;
+    max-height: var(--bottom-hud-height);
     overflow: hidden;
     padding: 9px 10px;
   }
