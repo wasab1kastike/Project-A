@@ -23,14 +23,25 @@ import {
 } from "./mega-fortress";
 import { addHours, addMinutes, floorToMinute } from "./time";
 
-type TickSummary = {
+export type TickSummary = {
   restartedRegistrationCycles: number;
   activatedCycles: number;
   resolvedCycles: number;
   nextRegistrationCyclesCreated: number;
   processedMinutes: number;
   scoreEventsCreated: number;
+  launchedAttackUnits: number;
+  resolvedAttackUnits: number;
 };
+
+type ProcessCycleTickResult = {
+  processed: boolean;
+  scoreEventsCreated: number;
+  launchedAttackUnits: number;
+  resolvedAttackUnits: number;
+};
+
+export type TickHealth = "ok" | "lagging" | "stalled";
 
 type TieBreakCandidate = {
   fortressId: string;
@@ -68,6 +79,73 @@ function isUniqueTickError(error: unknown) {
 
 function getFirstTickAt(activeStartedAt: Date) {
   return addMinutes(floorToMinute(activeStartedAt), 1);
+}
+
+export function classifyTickHealth(minutesBehind: number): TickHealth {
+  if (minutesBehind >= 2) {
+    return "stalled";
+  }
+
+  if (minutesBehind >= 1) {
+    return "lagging";
+  }
+
+  return "ok";
+}
+
+type TickRunnerStage =
+  | "restart-registration"
+  | "activate-registration"
+  | "load-last-processed-tick"
+  | "process-minute"
+  | "resolve-active-cycle";
+
+export class TickRunnerError extends Error {
+  readonly stage: TickRunnerStage;
+  readonly cycleId?: string;
+  readonly tickAt?: Date;
+  readonly now: Date;
+
+  constructor({
+    stage,
+    cycleId,
+    tickAt,
+    now,
+    cause,
+  }: {
+    stage: TickRunnerStage;
+    cycleId?: string;
+    tickAt?: Date;
+    now: Date;
+    cause: unknown;
+  }) {
+    const parts = [`Tick runner failed during ${stage}.`];
+
+    if (cycleId) {
+      parts.push(`cycle=${cycleId}`);
+    }
+
+    if (tickAt) {
+      parts.push(`tickAt=${tickAt.toISOString()}`);
+    }
+
+    parts.push(`now=${now.toISOString()}`);
+
+    super(parts.join(" "));
+    this.name = "TickRunnerError";
+    this.stage = stage;
+    this.cycleId = cycleId;
+    this.tickAt = tickAt;
+    this.now = now;
+
+    if (cause !== undefined) {
+      Object.defineProperty(this, "cause", {
+        value: cause,
+        enumerable: false,
+        configurable: true,
+      });
+    }
+  }
 }
 
 export function getActiveCycleMinutesBehind({
@@ -521,7 +599,12 @@ async function processCycleTick(
       cycle.status !== CycleStatus.ACTIVE ||
       !cycle.activeStartedAt
     ) {
-      return { processed: false, scoreEventsCreated: 0 };
+      return {
+        processed: false,
+        scoreEventsCreated: 0,
+        launchedAttackUnits: 0,
+        resolvedAttackUnits: 0,
+      };
     }
 
     await ensureActiveCycleMegaFortress({
@@ -533,7 +616,12 @@ async function processCycleTick(
     const lastDueTickAt = getLastDueTickAt(cycle, now);
 
     if (!lastDueTickAt || tickAt < firstTickAt || tickAt > lastDueTickAt) {
-      return { processed: false, scoreEventsCreated: 0 };
+      return {
+        processed: false,
+        scoreEventsCreated: 0,
+        launchedAttackUnits: 0,
+        resolvedAttackUnits: 0,
+      };
     }
 
     try {
@@ -545,7 +633,12 @@ async function processCycleTick(
       });
     } catch (error) {
       if (isUniqueTickError(error)) {
-        return { processed: false, scoreEventsCreated: 0 };
+        return {
+          processed: false,
+          scoreEventsCreated: 0,
+          launchedAttackUnits: 0,
+          resolvedAttackUnits: 0,
+        };
       }
 
       throw error;
@@ -594,6 +687,7 @@ async function processCycleTick(
     const scoreEvents: Prisma.ScoreEventCreateManyInput[] = [];
     const resolvedAttackers = new Set<string>();
     const destroyedMegaTargets = new Set<string>();
+    let resolvedAttackUnits = 0;
 
     const dueAttackUnits = await tx.attackUnit.findMany({
       where: {
@@ -626,6 +720,7 @@ async function processCycleTick(
       });
 
       resolvedAttackers.add(unit.attackerFortressId);
+      resolvedAttackUnits += 1;
 
       if (!attacker || !target) {
         continue;
@@ -795,13 +890,29 @@ async function processCycleTick(
       );
     }
 
+    const activeAttackers = new Set(
+      (
+        await tx.attackUnit.findMany({
+          where: {
+            cycleId,
+            resolvedAt: null,
+            cancelledAt: null,
+          },
+          select: {
+            attackerFortressId: true,
+          },
+        })
+      ).map((unit) => unit.attackerFortressId)
+    );
+
     for (const fortress of fortresses) {
       if (
         fortress.currentAction !== FortressAction.ATTACK ||
         fortress.isNpc ||
         !fortress.targetFortressId ||
         fortress.targetFortressId === fortress.id ||
-        resolvedAttackers.has(fortress.id)
+        resolvedAttackers.has(fortress.id) ||
+        activeAttackers.has(fortress.id)
       ) {
         continue;
       }
@@ -834,6 +945,8 @@ async function processCycleTick(
     return {
       processed: true,
       scoreEventsCreated: scoreEvents.length + launchedAttackUnits,
+      launchedAttackUnits,
+      resolvedAttackUnits,
     };
   });
 }
@@ -852,6 +965,8 @@ export async function runGameTick({
     nextRegistrationCyclesCreated: 0,
     processedMinutes: 0,
     scoreEventsCreated: 0,
+    launchedAttackUnits: 0,
+    resolvedAttackUnits: 0,
   };
 
   const expiredRegistrationCycles = await db.cycle.findMany({
@@ -870,13 +985,31 @@ export async function runGameTick({
   });
 
   for (const cycle of expiredRegistrationCycles) {
-    if (await restartEmptyRegistrationCycle(cycle.id, now, db)) {
-      summary.restartedRegistrationCycles += 1;
-      continue;
+    try {
+      if (await restartEmptyRegistrationCycle(cycle.id, now, db)) {
+        summary.restartedRegistrationCycles += 1;
+        continue;
+      }
+    } catch (error) {
+      throw new TickRunnerError({
+        stage: "restart-registration",
+        cycleId: cycle.id,
+        now,
+        cause: error,
+      });
     }
 
-    if (await activateRegistrationCycle(cycle.id, now, db)) {
-      summary.activatedCycles += 1;
+    try {
+      if (await activateRegistrationCycle(cycle.id, now, db)) {
+        summary.activatedCycles += 1;
+      }
+    } catch (error) {
+      throw new TickRunnerError({
+        stage: "activate-registration",
+        cycleId: cycle.id,
+        now,
+        cause: error,
+      });
     }
   }
 
@@ -902,17 +1035,28 @@ export async function runGameTick({
       continue;
     }
 
-    const lastProcessedTick = await db.gameTick.findFirst({
-      where: {
+    let lastProcessedTick: { tickAt: Date } | null;
+
+    try {
+      lastProcessedTick = await db.gameTick.findFirst({
+        where: {
+          cycleId: cycle.id,
+        },
+        orderBy: {
+          tickAt: "desc",
+        },
+        select: {
+          tickAt: true,
+        },
+      });
+    } catch (error) {
+      throw new TickRunnerError({
+        stage: "load-last-processed-tick",
         cycleId: cycle.id,
-      },
-      orderBy: {
-        tickAt: "desc",
-      },
-      select: {
-        tickAt: true,
-      },
-    });
+        now,
+        cause: error,
+      });
+    }
 
     const nextTickAt = lastProcessedTick
       ? addMinutes(lastProcessedTick.tickAt, 1)
@@ -925,16 +1069,44 @@ export async function runGameTick({
         tickAt <= lastDueTickAt;
         tickAt = addMinutes(tickAt, 1)
       ) {
-        const result = await processCycleTick(cycle.id, tickAt, now, db);
+        let result: ProcessCycleTickResult;
+
+        try {
+          result = await processCycleTick(cycle.id, tickAt, now, db);
+        } catch (error) {
+          throw new TickRunnerError({
+            stage: "process-minute",
+            cycleId: cycle.id,
+            tickAt,
+            now,
+            cause: error,
+          });
+        }
 
         if (result.processed) {
           summary.processedMinutes += 1;
           summary.scoreEventsCreated += result.scoreEventsCreated;
+          summary.launchedAttackUnits += result.launchedAttackUnits;
+          summary.resolvedAttackUnits += result.resolvedAttackUnits;
         }
       }
     }
 
-    const resolution = await resolveExpiredActiveCycle(cycle.id, now, db);
+    let resolution: {
+      resolved: boolean;
+      createdNextCycle: boolean;
+    };
+
+    try {
+      resolution = await resolveExpiredActiveCycle(cycle.id, now, db);
+    } catch (error) {
+      throw new TickRunnerError({
+        stage: "resolve-active-cycle",
+        cycleId: cycle.id,
+        now,
+        cause: error,
+      });
+    }
 
     if (resolution.resolved) {
       summary.resolvedCycles += 1;

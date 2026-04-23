@@ -202,6 +202,8 @@ npm run db:deploy
 
 Production minute ticks are handled by the `project-a-game-tick` Render Cron Job. It runs `npm run game:tick` every minute, uses the same `project-a-db` connection, and relies on the tick processor's idempotency to safely catch up delayed runs.
 
+Do not run `npm run db:reset-season-one` as part of the normal web deploy path. That reset is only for intentional season bootstrap work before the first live launch.
+
 Render build optimization is handled by `scripts/render-build.mjs`. The web build restores and saves the Next.js `.next/cache` directory through Render's build cache and uses Render's cache directory for npm downloads. The cron build installs dependencies and generates the Prisma client without running a full Next.js production build.
 
 Use Render's `Clear build cache & deploy` option only when build artifacts appear stale or after changing the build-cache flow itself.
@@ -211,6 +213,13 @@ For local debugging or manual catch-up, run:
 ```bash
 npm run game:tick
 ```
+
+### Tick stall runbook
+
+- Check the home HUD or admin dashboard for `Last tick`, `Tick health`, and `Minutes behind`.
+- Treat `Tick health: stalled` or a delay of 2+ minutes during `ACTIVE` as a production incident.
+- Use the admin control room action `Replay missed ticks now` to reprocess every due minute. This should restore point growth, attack impacts, and the next outbound launches.
+- If the cycle does not recover after a replay, inspect the `project-a-game-tick` cron logs for the structured `tick-run-failed` entry and confirm the cron service is still deploying with the same `DATABASE_URL` as the web service.
 
 ### GitHub secret management
 

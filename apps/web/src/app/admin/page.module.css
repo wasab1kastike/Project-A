@@ -173,6 +173,14 @@
   color: #ffe7b7;
 }
 
+.recoveryHint {
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 183, 77, 0.32);
+  border-radius: 16px;
+  background: rgba(255, 183, 77, 0.08);
+  color: #ffe7b7;
+}
+
 .subsection {
   display: grid;
   gap: 12px;

@@ -100,7 +100,9 @@ export async function runManualCatchUpTickAction() {
     redirectToAdmin("error", getActionErrorMessage(error));
   }
 
-  finishAction("Manual catch-up tick complete.");
+  finishAction(
+    "Catch-up tick replay complete. Due minutes were reprocessed and the battlefield was refreshed."
+  );
 }
 
 export async function reviewWinnerRequestAction(formData: FormData) {

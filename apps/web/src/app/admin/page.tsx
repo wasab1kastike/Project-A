@@ -112,7 +112,7 @@ export default async function AdminPage({
       {notice ? <p className={styles.noticeBanner}>{notice}</p> : null}
       {(state.currentCycle?.minutesBehind ?? 0) >= 2 ? (
         <p className={styles.stalledBanner}>
-          Tick runner stalled; scores may be frozen.
+          Tick runner stalled. Scores, impacts, and new attack launches may be frozen until you replay the missed minutes.
         </p>
       ) : null}
 
@@ -123,6 +123,11 @@ export default async function AdminPage({
           <p>
             Force the current cycle to its next state, pause new joins during
             registration, or archive a broken cycle and boot a clean one.
+          </p>
+          <p>
+            Use catch-up replay when the ACTIVE cycle falls behind. It reprocesses
+            every missed minute and refreshes the battlefield, leaderboard, and
+            history views.
           </p>
 
           <div className={styles.actionStack}>
@@ -169,7 +174,7 @@ export default async function AdminPage({
                 type="submit"
                 disabled={!state.currentCycle}
               >
-                Run catch-up tick
+                Replay missed ticks now
               </button>
             </form>
           </div>
@@ -222,6 +227,14 @@ export default async function AdminPage({
                   <dd>{state.currentCycle.winnerRequestCount}</dd>
                 </div>
               </dl>
+
+              {state.currentCycle.tickHealth === "stalled" ? (
+                <p className={styles.recoveryHint}>
+                  Tick processing is stalled. Replay the missed minutes from the
+                  manual controls panel to restore point growth, attack impacts,
+                  and the next outbound launches.
+                </p>
+              ) : null}
 
               {state.currentCycle.latestWinnerRequests.length > 0 ? (
                 <div className={styles.subsection}>

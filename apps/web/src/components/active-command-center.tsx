@@ -107,7 +107,7 @@ export function ActiveCommandCenter({
           <p className={styles.helper}>
             {action === "ATTACK" && currentTargetName
               ? `Saved target: ${currentTargetName}`
-              : "Grow adds 1 point per minute tick. Attack spends 1 point at launch and damages the target on impact."}
+              : "Grow adds 1 point per minute tick. Attack keeps one outbound unit in flight at a time and damages the target on impact."}
           </p>
           <button className={styles.primaryButton} type="submit">
             Save action

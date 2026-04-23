@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { type PrismaClient } from "@/lib/prisma-client";
 import { NPC_SYSTEM_USER_EMAIL } from "./constants";
-import { getActiveCycleMinutesBehind } from "./tick";
+import { classifyTickHealth, getActiveCycleMinutesBehind } from "./tick";
 import { WINNER_REQUEST_POLICY_URL } from "./winner-requests";
 
 export async function getAdminDashboardState({
@@ -182,12 +182,7 @@ export async function getAdminDashboardState({
   return {
     currentCycle: currentCycle
       ? {
-          tickHealth:
-            activeMinutesBehind >= 2
-              ? "stalled"
-              : activeMinutesBehind >= 1
-                ? "lagging"
-                : "ok",
+          tickHealth: classifyTickHealth(activeMinutesBehind),
           minutesBehind: activeMinutesBehind,
           id: currentCycle.id,
           status: currentCycle.status,

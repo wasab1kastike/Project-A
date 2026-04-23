@@ -4,6 +4,7 @@ import { ACTIVE_PLAYER_CAP } from "./constants";
 import { getChatLimits } from "./chat";
 import { normalizeUnitSpriteVariant } from "./attacks";
 import { ensureCommanderRegistrationColumn } from "./schema-guards";
+import { classifyTickHealth, getActiveCycleMinutesBehind } from "./tick";
 
 export type HomePageState = Awaited<ReturnType<typeof getHomePageState>>;
 
@@ -173,12 +174,21 @@ export async function getHomePageState({
     cycle.activeEndsAt > now;
   const lastProcessedTickAt =
     cycle.status === CycleStatus.ACTIVE ? cycle.gameTicks[0]?.tickAt ?? null : null;
+  const activeMinutesBehind =
+    cycle.status === CycleStatus.ACTIVE
+      ? getActiveCycleMinutesBehind({
+          activeStartedAt: cycle.activeStartedAt,
+          lastProcessedTickAt,
+          now,
+        })
+      : 0;
   const tickDelayMinutes =
-    cycle.status === CycleStatus.ACTIVE && lastProcessedTickAt
-      ? Math.max(
-          0,
-          Math.floor((now.getTime() - lastProcessedTickAt.getTime()) / 60_000)
-        )
+    cycle.status === CycleStatus.ACTIVE
+      ? activeMinutesBehind
+      : null;
+  const tickHealth =
+    cycle.status === CycleStatus.ACTIVE
+      ? classifyTickHealth(activeMinutesBehind)
       : null;
   const deadline =
     cycle.status === CycleStatus.REGISTRATION
@@ -246,6 +256,7 @@ export async function getHomePageState({
       activeEndsAt: cycle.activeEndsAt,
       lastProcessedTickAt,
       tickDelayMinutes,
+      tickHealth,
       joinedCount,
       remainingSlots,
       deadline,

@@ -45,8 +45,13 @@ import {
   renameActiveFortress,
   setFortressAction,
 } from "./service";
-import { runGameTick } from "./tick";
+import {
+  TickRunnerError,
+  classifyTickHealth,
+  runGameTick,
+} from "./tick";
 import { addMinutes } from "./time";
+import { formatTickRunnerError, formatTickSummary } from "./tick-cli";
 import {
   classifyWinnerRequest,
   reviewWinnerRequest,
@@ -139,6 +144,46 @@ test("spawn sampler produces materially different layouts for different seeds", 
   const overlapCount = alphaKeys.filter((key) => betaKeySet.has(key)).length;
 
   assert.ok(overlapCount <= Math.floor(count * 0.8));
+});
+
+test("tick health classification separates healthy, delayed, and stalled states", () => {
+  assert.equal(classifyTickHealth(0), "ok");
+  assert.equal(classifyTickHealth(1), "lagging");
+  assert.equal(classifyTickHealth(2), "stalled");
+});
+
+test("tick CLI summary includes attack launch and resolution counts", () => {
+  const formatted = formatTickSummary({
+    restartedRegistrationCycles: 1,
+    activatedCycles: 2,
+    resolvedCycles: 3,
+    nextRegistrationCyclesCreated: 4,
+    processedMinutes: 5,
+    scoreEventsCreated: 6,
+    launchedAttackUnits: 7,
+    resolvedAttackUnits: 8,
+  });
+
+  assert.match(formatted, /Registration restarted: 1/);
+  assert.match(formatted, /Attack units launched: 7/);
+  assert.match(formatted, /Attack units resolved: 8/);
+});
+
+test("tick CLI formats structured runner errors with stage context", () => {
+  const formatted = formatTickRunnerError(
+    new TickRunnerError({
+      stage: "process-minute",
+      cycleId: "cycle-123",
+      tickAt: new Date("2026-04-23T12:02:00.000Z"),
+      now: new Date("2026-04-23T12:05:00.000Z"),
+      cause: new Error("Unique constraint failed"),
+    })
+  );
+
+  assert.match(formatted, /"event":"tick-run-failed"/);
+  assert.match(formatted, /"stage":"process-minute"/);
+  assert.match(formatted, /"cycleId":"cycle-123"/);
+  assert.match(formatted, /Unique constraint failed/);
 });
 
 type ReadyDatabaseSetup = {
@@ -1423,7 +1468,7 @@ test("attack units launch for free and damage on arrival", async (context) => {
   assert.equal(nextOutbound.length, 1);
 });
 
-test("attack mode launches one unit per tick even while previous units are in transit", async (context) => {
+test("attack mode keeps only one outbound unit active until the current unit resolves", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -1558,14 +1603,14 @@ test("attack mode launches one unit per tick even while previous units are in tr
     },
   });
 
-  assert.equal(unresolvedBeforeArrival.length, 5);
+  assert.equal(unresolvedBeforeArrival.length, 1);
   assert.equal(
     unresolvedBeforeArrival[0]?.arrivesAt.toISOString(),
     firstUnit.arrivesAt.toISOString()
   );
   assert.ok(
     unresolvedBeforeArrival.every(
-      (unit) => unit.launchedAt.getTime() < firstUnit.arrivesAt.getTime()
+      (unit) => unit.launchedAt.getTime() === firstUnit.launchedAt.getTime()
     )
   );
 
@@ -1615,6 +1660,28 @@ test("attack mode launches one unit per tick even while previous units are in tr
   assert.equal(
     unresolvedAfterFirstArrivalTick.length,
     unresolvedBeforeArrival.length - 1
+  );
+
+  await runGameTick({
+    db: prisma,
+    now: addMinutes(firstUnit.arrivesAt, 1),
+  });
+
+  const relaunchedUnits = await prisma.attackUnit.findMany({
+    where: {
+      attackerFortressId: attackerFortress.id,
+      resolvedAt: null,
+      cancelledAt: null,
+    },
+    orderBy: {
+      launchedAt: "asc",
+    },
+  });
+
+  assert.equal(relaunchedUnits.length, 1);
+  assert.equal(
+    relaunchedUnits[0]?.launchedAt.toISOString(),
+    addMinutes(firstUnit.arrivesAt, 1).toISOString()
   );
 });
 
@@ -2324,6 +2391,7 @@ test("read model reports healthy ACTIVE tick metadata", async (context) => {
     "2026-04-20T12:00:00.000Z"
   );
   assert.equal(healthyState.cycle?.tickDelayMinutes, 1);
+  assert.equal(healthyState.cycle?.tickHealth, "lagging");
 });
 
 test("read model reports delayed ACTIVE tick metadata and hides it outside ACTIVE", async (context) => {
@@ -2359,6 +2427,7 @@ test("read model reports delayed ACTIVE tick metadata and hides it outside ACTIV
     "2026-04-20T12:00:00.000Z"
   );
   assert.equal(delayedState.cycle?.tickDelayMinutes, 5);
+  assert.equal(delayedState.cycle?.tickHealth, "stalled");
 });
 
 test("read model exposes only valid targetable fortresses during active play", async (context) => {
@@ -2921,4 +2990,128 @@ test("manual catch-up unfreezes points", async (context) => {
   assert.ok(afterCatchUp.points > beforeCatchUp.points);
   assert.equal(recoveredState.currentCycle?.tickHealth, "ok");
   assert.equal(recoveredState.currentCycle?.minutesBehind, 0);
+});
+
+test("manual catch-up resolves due attacks and relaunches on the next eligible minute", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const attacker = await createUser(prisma, "catchup-attacker@example.com");
+  const target = await createUser(prisma, "catchup-target@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: attacker.id,
+    commanderName: "Replay Attacker",
+    fortressName: "Replay Keep",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: target.id,
+    commanderName: "Replay Target",
+    fortressName: "Target Keep",
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: cycle.registrationEndsAt,
+  });
+
+  const attackerFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: attacker.id,
+      },
+    },
+  });
+  const targetFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: target.id,
+      },
+    },
+  });
+
+  await prisma.fortress.update({
+    where: {
+      id: targetFortress.id,
+    },
+    data: {
+      points: 5,
+    },
+  });
+
+  const launchTime = addMinutes(cycle.registrationEndsAt, 5);
+
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.ATTACK,
+    targetFortressId: targetFortress.id,
+    now: launchTime,
+  });
+
+  const firstUnit = await prisma.attackUnit.findFirstOrThrow({
+    where: {
+      attackerFortressId: attackerFortress.id,
+      resolvedAt: null,
+      cancelledAt: null,
+    },
+    orderBy: {
+      launchedAt: "asc",
+    },
+  });
+  const catchUpAt = addMinutes(firstUnit.arrivesAt, 1);
+
+  const beforeCatchUpTarget = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: targetFortress.id,
+    },
+    select: {
+      points: true,
+    },
+  });
+
+  const summary = await runManualCatchUpTick({
+    db: prisma,
+    now: catchUpAt,
+  });
+
+  const afterCatchUpTarget = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: targetFortress.id,
+    },
+    select: {
+      points: true,
+    },
+  });
+  const unresolvedAfterCatchUp = await prisma.attackUnit.findMany({
+    where: {
+      attackerFortressId: attackerFortress.id,
+      resolvedAt: null,
+      cancelledAt: null,
+    },
+    orderBy: {
+      launchedAt: "asc",
+    },
+    select: {
+      launchedAt: true,
+    },
+  });
+
+  assert.ok(summary.processedMinutes >= 1);
+  assert.equal(summary.resolvedAttackUnits, 1);
+  assert.equal(summary.launchedAttackUnits, 1);
+  assert.equal(afterCatchUpTarget.points, beforeCatchUpTarget.points - 2);
+  assert.equal(unresolvedAfterCatchUp.length, 1);
+  assert.equal(
+    unresolvedAfterCatchUp[0]?.launchedAt.toISOString(),
+    catchUpAt.toISOString()
+  );
 });

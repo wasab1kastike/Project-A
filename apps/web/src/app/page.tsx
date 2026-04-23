@@ -106,15 +106,24 @@ export default async function Home({
   const leaderboard = state.leaderboard.slice(0, 3);
   const isActivePhase = state.phase?.status === "ACTIVE";
   const tickDelayMinutes = state.cycle?.tickDelayMinutes ?? null;
+  const tickHealth = state.cycle?.tickHealth ?? null;
   const showTickStatus =
     isActivePhase &&
     state.cycle?.lastProcessedTickAt &&
     tickDelayMinutes !== null;
-  const hasTickDelayWarning = (tickDelayMinutes ?? 0) >= 2;
+  const hasTickDelayWarning = tickHealth === "stalled";
   const tickStatusText = showTickStatus
-    ? `Last update: ${formatLastUpdate(
-        state.cycle?.lastProcessedTickAt ?? null
-      )} (delay: ${tickDelayMinutes} min)`
+    ? tickHealth === "stalled"
+      ? `Tick stalled: last update ${formatLastUpdate(
+          state.cycle?.lastProcessedTickAt ?? null
+        )} (${tickDelayMinutes} min behind)`
+      : tickHealth === "lagging"
+        ? `Tick delay: last update ${formatLastUpdate(
+            state.cycle?.lastProcessedTickAt ?? null
+          )} (${tickDelayMinutes} min behind)`
+        : `Last update: ${formatLastUpdate(
+            state.cycle?.lastProcessedTickAt ?? null
+          )} (live)`
     : null;
   const showLoginCard = !session?.user;
   const showJoinCard = Boolean(session?.user && state.canJoinCycle);
