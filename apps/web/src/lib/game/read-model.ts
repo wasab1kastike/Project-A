@@ -11,7 +11,6 @@ import { normalizeUnitSpriteVariant } from "./attacks";
 import {
   ensureCommanderRegistrationColumn,
   ensureLastReadChatColumn,
-  ensureLocationShuffleSupport,
 } from "./schema-guards";
 import { classifyTickHealth, getActiveCycleMinutesBehind } from "./tick";
 import {
@@ -80,7 +79,6 @@ export async function getHomePageState({
   await Promise.all([
     ensureCommanderRegistrationColumn(db),
     ensureLastReadChatColumn(db),
-    ensureLocationShuffleSupport(db),
   ]);
 
   const cycle = await db.cycle.findFirst({

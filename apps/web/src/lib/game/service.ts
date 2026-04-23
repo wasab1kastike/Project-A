@@ -20,7 +20,6 @@ import {
 import { GameError } from "./errors";
 import {
   ensureCommanderRegistrationColumn,
-  ensureLocationShuffleSupport,
 } from "./schema-guards";
 import {
   buildFortressSpawnSeed,
@@ -608,8 +607,6 @@ export async function shuffleFortressLocation({
   now?: Date;
   db?: PrismaClient;
 }) {
-  await ensureLocationShuffleSupport(db);
-
   return db.$transaction(async (tx) => {
     const cycle = await getCurrentCycle(tx);
 
