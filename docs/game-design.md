@@ -24,3 +24,11 @@
 - Top 3 leaderboard visible
 - Cycle timer: 72h
 - Player action persists while offline
+
+## Spawn & map fairness
+
+- Spawn selection only uses valid spawn hexes (`HEX_SPAWN_TILES` plus runtime `isPointNearSpawnHex` checks).
+- Spawn placement is deterministic for a given explicit seed (for replay and server reconciliation).
+- Candidate spawn pools are shuffled with a seeded PRNG, then selected with distance-aware acceptance to reduce clustering.
+- Spawn assignments enforce uniqueness by persisted `mapX:mapY` coordinates.
+- Spawn math keeps tile precision during selection and rounds only when positions are persisted to storage.

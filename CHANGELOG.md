@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-04-23
+
+- Change: Replaced spawn-point hash ordering with a seeded pseudo-random sampler that shuffles valid spawn hex candidates, enforces unique `mapX:mapY` assignments, and applies distance-aware selection.
+- User impact: Fortress and mega-fortress spawns now vary more naturally between cycles and reshuffles while still staying on valid spawn hexes and avoiding clustered placements.
+- Change: Kept deterministic replay by requiring explicit seeds, and upgraded seed composition to deterministic SHA-256 derived values that incorporate cycle and tick context for higher per-cycle/per-event entropy.
+- User impact: Same seed + cycle state reproduces the same spawn layout for server reconciliation; different seeds now produce meaningfully different layouts more consistently.
+
 ## 2026-04-22
 
 - Change: Removed the decorative action flag overlay from player fortress sprites on the battlefield map.

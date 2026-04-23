@@ -5,6 +5,7 @@ import {
   PrismaClient,
   ScoreEventType,
 } from "@/lib/prisma-client";
+import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { ensureOpenRegistrationCycle } from "./bootstrap";
 import {
@@ -39,6 +40,24 @@ type TieBreakCandidate = {
   reachedFinalScoreAt: Date;
   joinedAt: Date;
 };
+
+function buildDeterministicCycleSeed(parts: {
+  cycleId: string;
+  tickAt?: Date;
+  activeStartedAt?: Date | null;
+  purpose: string;
+  entropy?: string;
+}) {
+  const payload = [
+    `purpose=${parts.purpose}`,
+    `cycle=${parts.cycleId}`,
+    `active-started-at=${parts.activeStartedAt?.toISOString() ?? "none"}`,
+    `tick-at=${parts.tickAt?.toISOString() ?? "none"}`,
+    `entropy=${parts.entropy ?? "none"}`,
+  ].join("|");
+
+  return createHash("sha256").update(payload).digest("hex");
+}
 
 function isUniqueTickError(error: unknown) {
   return (
@@ -189,7 +208,13 @@ async function activateRegistrationCycle(
     await ensureMegaFortress({
       db: tx,
       cycleId: cycle.id,
-      seed: `${cycle.id}:${activeStartedAt.toISOString()}`,
+      seed: buildDeterministicCycleSeed({
+        cycleId: cycle.id,
+        activeStartedAt,
+        tickAt: activeStartedAt,
+        purpose: "activate:mega-fortress",
+        entropy: cycle.registrationEndsAt.toISOString(),
+      }),
     });
 
     return true;
@@ -499,7 +524,12 @@ async function processCycleTick(
     await ensureCurrentMapLayout({
       db: tx,
       cycleId,
-      seed: `${cycleId}:${tickAt.toISOString()}:layout-v2`,
+      seed: buildDeterministicCycleSeed({
+        cycleId,
+        activeStartedAt: cycle.activeStartedAt,
+        tickAt,
+        purpose: "tick:layout-v3",
+      }),
     });
 
     let fortresses = await tx.fortress.findMany({
@@ -602,7 +632,10 @@ async function processCycleTick(
             MEGA_FORTRESS_DESTROY_BONUS;
 
           currentPoints.set(attacker.id, attackerPoints);
-          currentHealth.set(target.id, target.maxHealth || MEGA_FORTRESS_HEALTH);
+          currentHealth.set(
+            target.id,
+            target.maxHealth || MEGA_FORTRESS_HEALTH
+          );
           destroyedMegaTargets.add(target.id);
 
           scoreEvents.push({
@@ -627,7 +660,13 @@ async function processCycleTick(
           await reshuffleActiveFortressPositions({
             db: tx,
             cycleId,
-            seed: `${cycleId}:${tickAt.toISOString()}:${unit.id}`,
+            seed: buildDeterministicCycleSeed({
+              cycleId,
+              activeStartedAt: cycle.activeStartedAt,
+              tickAt,
+              purpose: "tick:mega-destroy-reshuffle",
+              entropy: unit.id,
+            }),
           });
         }
 
