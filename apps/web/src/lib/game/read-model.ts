@@ -7,7 +7,10 @@ import {
 import { ACTIVE_PLAYER_CAP } from "./constants";
 import { getChatLimits } from "./chat";
 import { normalizeUnitSpriteVariant } from "./attacks";
-import { ensureCommanderRegistrationColumn } from "./schema-guards";
+import {
+  ensureCommanderRegistrationColumn,
+  ensureLastReadChatColumn,
+} from "./schema-guards";
 import { classifyTickHealth, getActiveCycleMinutesBehind } from "./tick";
 import {
   getFortressAttackDamage,
@@ -56,7 +59,10 @@ export async function getHomePageState({
   now?: Date;
   db?: PrismaClient;
 }) {
-  await ensureCommanderRegistrationColumn(db);
+  await Promise.all([
+    ensureCommanderRegistrationColumn(db),
+    ensureLastReadChatColumn(db),
+  ]);
 
   const cycle = await db.cycle.findFirst({
     where: {
@@ -159,6 +165,10 @@ export async function getHomePageState({
         canPost: false,
         maxLength: getChatLimits().maxLength,
         postHint: "Chat unlocks once the next unresolved cycle exists.",
+        unreadCount: 0,
+        hasUnread: false,
+        latestMessageAt: null,
+        persistsUnread: false,
       },
       availableTargets: [],
       canJoinCycle: false,
@@ -171,6 +181,16 @@ export async function getHomePageState({
   const playerFortresses = cycle.fortresses.filter(
     (fortress) => !fortress.isNpc
   );
+  const currentUser = userId
+    ? await db.user.findUnique({
+        where: {
+          id: userId,
+        },
+        select: {
+          lastReadChatAt: true,
+        },
+      })
+    : null;
   const joinedCount = playerFortresses.length;
   const remainingSlots = Math.max(0, ACTIVE_PLAYER_CAP - joinedCount);
   const playerFortress =
@@ -272,6 +292,7 @@ export async function getHomePageState({
       activeOpen &&
       fortress.id !== playerFortressId,
   }));
+  const latestMessageAt = cycle.chatMessages[0]?.createdAt ?? null;
   const chatMessages = [...cycle.chatMessages].reverse().map((message) => ({
     id: message.id,
     body: message.body,
@@ -279,6 +300,23 @@ export async function getHomePageState({
     authorName: commanderNameByOwnerId.get(message.author.id) ?? "Spectator",
     isCurrentUser: message.author.id === userId,
   }));
+  const unreadCount = currentUser
+    ? await db.chatMessage.count({
+        where: {
+          cycleId: cycle.id,
+          authorId: {
+            not: userId,
+          },
+          ...(currentUser.lastReadChatAt
+            ? {
+                createdAt: {
+                  gt: currentUser.lastReadChatAt,
+                },
+              }
+            : {}),
+        },
+      })
+    : 0;
 
   return {
     isSpectator: !playerFortress,
@@ -445,6 +483,10 @@ export async function getHomePageState({
       postHint: userId
         ? null
         : "Sign in with Google to post in chat. You can still watch the conversation in read-only mode.",
+      unreadCount,
+      hasUnread: unreadCount > 0,
+      latestMessageAt,
+      persistsUnread: Boolean(currentUser),
     },
     availableTargets:
       activeOpen && playerFortress

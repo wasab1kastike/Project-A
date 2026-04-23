@@ -17,7 +17,7 @@ import {
   setRegistrationJoiningLock,
 } from "./admin-operations";
 import { seedProjectA } from "./bootstrap";
-import { sendChatMessage } from "./chat";
+import { markChatRead, sendChatMessage } from "./chat";
 import {
   ACTIVE_PLAYER_CAP,
   CURRENT_MAP_LAYOUT_VERSION,
@@ -3534,6 +3534,13 @@ test("chat messages are visible to spectators in read-only mode", async (context
   assert.equal(signedOutState.chat.messages.length, 1);
   assert.equal(signedOutState.chat.messages[0]?.body, "Season lobby is live.");
   assert.equal(signedOutState.chat.messages[0]?.authorName, "Lobby Hawk");
+  assert.equal(signedOutState.chat.unreadCount, 0);
+  assert.equal(signedOutState.chat.hasUnread, false);
+  assert.equal(signedOutState.chat.persistsUnread, false);
+  assert.equal(
+    signedOutState.chat.latestMessageAt?.toISOString(),
+    "2026-04-19T12:03:00.000Z"
+  );
 });
 
 test("chat sending is rate limited to six messages per minute", async (context) => {
@@ -3566,6 +3573,178 @@ test("chat sending is rate limited to six messages per minute", async (context) 
       }),
     /6 messages per minute/
   );
+});
+
+test("chat unread count includes only other users' messages", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  await seedOpenCycle(prisma);
+  const currentUser = await createUser(prisma, "unread-self@example.com");
+  const otherUser = await createUser(prisma, "unread-other@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: currentUser.id,
+    commanderName: "Signal One",
+    fortressName: "Signal One",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: otherUser.id,
+    commanderName: "Signal Two",
+    fortressName: "Signal Two",
+  });
+
+  await sendChatMessage({
+    db: prisma,
+    userId: otherUser.id,
+    body: "Enemy scouts sighted.",
+    now: new Date("2026-04-19T12:03:00.000Z"),
+  });
+  await sendChatMessage({
+    db: prisma,
+    userId: currentUser.id,
+    body: "Holding the east gate.",
+    now: new Date("2026-04-19T12:04:00.000Z"),
+  });
+  await sendChatMessage({
+    db: prisma,
+    userId: otherUser.id,
+    body: "Reinforcements are coming.",
+    now: new Date("2026-04-19T12:05:00.000Z"),
+  });
+
+  const state = await getHomePageState({
+    db: prisma,
+    userId: currentUser.id,
+  });
+
+  assert.equal(state.chat.unreadCount, 2);
+  assert.equal(state.chat.hasUnread, true);
+  assert.equal(state.chat.persistsUnread, true);
+  assert.equal(
+    state.chat.latestMessageAt?.toISOString(),
+    "2026-04-19T12:05:00.000Z"
+  );
+});
+
+test("chat unread count respects the last read timestamp", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  await seedOpenCycle(prisma);
+  const currentUser = await createUser(prisma, "unread-window@example.com");
+  const otherUser = await createUser(prisma, "unread-window-other@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: currentUser.id,
+    commanderName: "Northwatch",
+    fortressName: "Northwatch",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: otherUser.id,
+    commanderName: "Southwall",
+    fortressName: "Southwall",
+  });
+
+  await sendChatMessage({
+    db: prisma,
+    userId: otherUser.id,
+    body: "First signal.",
+    now: new Date("2026-04-19T12:03:00.000Z"),
+  });
+  await sendChatMessage({
+    db: prisma,
+    userId: currentUser.id,
+    body: "Acknowledged.",
+    now: new Date("2026-04-19T12:04:00.000Z"),
+  });
+  await sendChatMessage({
+    db: prisma,
+    userId: otherUser.id,
+    body: "Second signal.",
+    now: new Date("2026-04-19T12:05:00.000Z"),
+  });
+
+  await prisma.user.update({
+    where: {
+      id: currentUser.id,
+    },
+    data: {
+      lastReadChatAt: new Date("2026-04-19T12:03:30.000Z"),
+    },
+  });
+
+  const state = await getHomePageState({
+    db: prisma,
+    userId: currentUser.id,
+  });
+
+  assert.equal(state.chat.unreadCount, 1);
+  assert.equal(state.chat.hasUnread, true);
+});
+
+test("marking chat as read clears unread state on the next read", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  await seedOpenCycle(prisma);
+  const currentUser = await createUser(prisma, "mark-read@example.com");
+  const otherUser = await createUser(prisma, "mark-read-other@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: currentUser.id,
+    commanderName: "Beacon",
+    fortressName: "Beacon",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: otherUser.id,
+    commanderName: "Harbor",
+    fortressName: "Harbor",
+  });
+
+  await sendChatMessage({
+    db: prisma,
+    userId: otherUser.id,
+    body: "Unread message.",
+    now: new Date("2026-04-19T12:03:00.000Z"),
+  });
+
+  const beforeRead = await getHomePageState({
+    db: prisma,
+    userId: currentUser.id,
+  });
+
+  assert.equal(beforeRead.chat.unreadCount, 1);
+  assert.equal(beforeRead.chat.hasUnread, true);
+
+  await markChatRead({
+    db: prisma,
+    userId: currentUser.id,
+    now: new Date("2026-04-19T12:06:00.000Z"),
+  });
+
+  const afterRead = await getHomePageState({
+    db: prisma,
+    userId: currentUser.id,
+  });
+
+  assert.equal(afterRead.chat.unreadCount, 0);
+  assert.equal(afterRead.chat.hasUnread, false);
 });
 
 test("only the resolved cycle winner can submit a winner request", async (context) => {

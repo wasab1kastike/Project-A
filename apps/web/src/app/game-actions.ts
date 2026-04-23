@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { sendChatMessage } from "@/lib/game/chat";
+import { markChatRead, sendChatMessage } from "@/lib/game/chat";
 import { GameError } from "@/lib/game/errors";
 import { FortressAction } from "@/lib/prisma-client";
 import { emitProjectARefresh } from "@/lib/realtime";
@@ -215,4 +215,29 @@ export async function sendChatMessageAction(formData: FormData) {
 
   revalidatePath("/");
   redirect("/");
+}
+
+export async function markChatReadAction() {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: true,
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await markChatRead({
+      userId,
+    });
+    return {
+      ok: true,
+    } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
 }

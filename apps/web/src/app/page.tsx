@@ -63,6 +63,10 @@ function getDegradedHomePageState(): HomePageState {
       maxLength: 280,
       postHint:
         "Palvelussa on tilapainen hairio. Yrita hetken kuluttua uudelleen.",
+      unreadCount: 0,
+      hasUnread: false,
+      latestMessageAt: null,
+      persistsUnread: false,
     },
     availableTargets: [],
     canJoinCycle: false,

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { type Prisma, type PrismaClient } from "@/lib/prisma-client";
 import { GameError } from "./errors";
+import { ensureLastReadChatColumn } from "./schema-guards";
 
 const CHAT_MESSAGE_MAX_LENGTH = 280;
 const CHAT_MESSAGES_LIMIT = 40;
@@ -91,6 +92,27 @@ export async function sendChatMessage({
         },
       },
     });
+  });
+}
+
+export async function markChatRead({
+  userId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  await ensureLastReadChatColumn(db);
+
+  return db.user.updateMany({
+    where: {
+      id: userId,
+    },
+    data: {
+      lastReadChatAt: now,
+    },
   });
 }
 

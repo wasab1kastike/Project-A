@@ -92,6 +92,7 @@
 .overlayButton {
   position: relative;
   padding: 0 16px;
+  overflow: visible;
 }
 
 .overlayButton:disabled {
@@ -99,18 +100,41 @@
   opacity: 0.48;
 }
 
-.unreadBadge {
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
+.overlayButtonLabel {
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.overlayButtonAttention {
+  border-color: rgba(247, 196, 95, 0.58);
+  background:
+    linear-gradient(180deg, rgba(37, 29, 7, 0.92), rgba(20, 16, 5, 0.84)),
+    rgba(7, 13, 20, 0.88);
+  box-shadow:
+    0 0 0 1px rgba(247, 196, 95, 0.18),
+    0 0 20px rgba(247, 196, 95, 0.18);
+}
+
+.unreadBadge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
   background: #f7c45f;
+  border: 1px solid rgba(20, 32, 47, 0.28);
+  box-shadow:
+    0 4px 14px rgba(247, 196, 95, 0.32),
+    0 0 0 2px rgba(8, 14, 20, 0.9);
   color: #14202f;
   font-family: var(--font-ibm-plex-mono);
-  font-size: 0.62rem;
+  font-size: 0.66rem;
   font-weight: 700;
   line-height: 1;
 }
@@ -390,6 +414,12 @@
   }
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  .overlayButtonAttention {
+    animation: unreadGlow 2.6s ease-in-out infinite;
+  }
+}
+
 @media (max-width: 720px) {
   .header {
     display: grid;
@@ -421,8 +451,10 @@
   }
 
   .unreadBadge {
-    min-width: 16px;
-    height: 16px;
+    top: -4px;
+    right: -4px;
+    min-width: 18px;
+    height: 18px;
     padding: 0 4px;
     font-size: 0.56rem;
   }
@@ -473,5 +505,20 @@
 
   .renamePanel {
     grid-template-columns: 1fr;
+  }
+}
+
+@keyframes unreadGlow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(247, 196, 95, 0.18),
+      0 0 18px rgba(247, 196, 95, 0.12);
+  }
+
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(247, 196, 95, 0.24),
+      0 0 24px rgba(247, 196, 95, 0.22);
   }
 }

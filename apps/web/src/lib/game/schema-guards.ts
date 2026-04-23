@@ -4,6 +4,7 @@ import { type Prisma, type PrismaClient } from "@/lib/prisma-client";
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
 let commanderRegistrationColumnPromise: Promise<void> | null = null;
+let lastReadChatColumnPromise: Promise<void> | null = null;
 
 async function addCommanderRegistrationColumn(db: DatabaseClient) {
   await db.$executeRawUnsafe(
@@ -11,6 +12,12 @@ async function addCommanderRegistrationColumn(db: DatabaseClient) {
   );
   await db.$executeRawUnsafe(
     'UPDATE "Fortress" SET "commanderNameRegisteredAt" = CURRENT_TIMESTAMP WHERE "isNpc" = true AND "commanderNameRegisteredAt" IS NULL'
+  );
+}
+
+async function addLastReadChatColumn(db: DatabaseClient) {
+  await db.$executeRawUnsafe(
+    'ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "lastReadChatAt" TIMESTAMP(3)'
   );
 }
 
@@ -24,4 +31,16 @@ export async function ensureCommanderRegistrationColumn(
 
   commanderRegistrationColumnPromise ??= addCommanderRegistrationColumn(db);
   await commanderRegistrationColumnPromise;
+}
+
+export async function ensureLastReadChatColumn(
+  db: DatabaseClient = prisma
+) {
+  if (db !== prisma) {
+    await addLastReadChatColumn(db);
+    return;
+  }
+
+  lastReadChatColumnPromise ??= addLastReadChatColumn(db);
+  await lastReadChatColumnPromise;
 }

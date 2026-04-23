@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   attackFromMapAction,
   editRegistrationFortressNameAction,
+  markChatReadAction,
   purchaseFortressUpgradeAction,
   registerCommanderNameAction,
   renameFortressAction,
@@ -41,6 +42,10 @@ type ChatProps = {
   canPost: boolean;
   maxLength: number;
   postHint: string | null;
+  unreadCount: number;
+  hasUnread: boolean;
+  latestMessageAt: Date | null;
+  persistsUnread: boolean;
 };
 
 type PlayerSummary = {
@@ -105,12 +110,15 @@ export function BattlefieldExperience({
   const router = useRouter();
   const [chatOpen, setChatOpen] = useState(false);
   const [actionOpen, setActionOpen] = useState(false);
-  const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [unreadChatCount, setUnreadChatCount] = useState(chat.unreadCount);
   const [mapAttackPending, setMapAttackPending] = useState(false);
   const [selectedFortressId, setSelectedFortressId] = useState<string | null>(
     null
   );
-  const knownChatMessageIdsRef = useRef(new Set(chat.messages.map((message) => message.id)));
+  const knownChatMessageIdsRef = useRef(
+    new Set(chat.messages.map((message) => message.id))
+  );
+  const markChatReadPendingRef = useRef(false);
   const [action, setAction] = useState<"GROW" | "ATTACK">(
     playerSummary?.currentAction ?? "GROW"
   );
@@ -124,6 +132,16 @@ export function BattlefieldExperience({
   );
 
   useEffect(() => {
+    if (chatOpen || !chat.persistsUnread) {
+      return;
+    }
+
+    queueMicrotask(() => {
+      setUnreadChatCount(chat.unreadCount);
+    });
+  }, [chat.unreadCount, chat.persistsUnread, chatOpen]);
+
+  useEffect(() => {
     const knownMessageIds = knownChatMessageIdsRef.current;
     const unseenIncomingMessages = chat.messages.filter((message) => {
       return !knownMessageIds.has(message.id) && !message.isCurrentUser;
@@ -133,7 +151,17 @@ export function BattlefieldExperience({
       queueMicrotask(() => {
         setUnreadChatCount(0);
       });
-    } else if (unseenIncomingMessages.length > 0) {
+      if (
+        unseenIncomingMessages.length > 0 &&
+        chat.persistsUnread &&
+        !markChatReadPendingRef.current
+      ) {
+        markChatReadPendingRef.current = true;
+        void markChatReadAction().finally(() => {
+          markChatReadPendingRef.current = false;
+        });
+      }
+    } else if (!chat.persistsUnread && unseenIncomingMessages.length > 0) {
       queueMicrotask(() => {
         setUnreadChatCount(
           (currentCount) => currentCount + unseenIncomingMessages.length
@@ -144,7 +172,7 @@ export function BattlefieldExperience({
     knownChatMessageIdsRef.current = new Set(
       chat.messages.map((message) => message.id)
     );
-  }, [chat.messages, chatOpen]);
+  }, [chat.messages, chat.persistsUnread, chatOpen]);
 
   const canOpenActions = Boolean(
     ownFortress &&
@@ -197,6 +225,27 @@ export function BattlefieldExperience({
     }
   }
 
+  function handleChatToggle() {
+    if (chatOpen) {
+      setChatOpen(false);
+      return;
+    }
+
+    setChatOpen(true);
+    setUnreadChatCount(0);
+
+    if (chat.persistsUnread && !markChatReadPendingRef.current) {
+      markChatReadPendingRef.current = true;
+      void markChatReadAction().finally(() => {
+        markChatReadPendingRef.current = false;
+      });
+    }
+  }
+
+  const hasUnreadChat = unreadChatCount > 0;
+  const unreadBadgeLabel =
+    unreadChatCount > 99 ? "99+" : unreadChatCount.toString();
+
   const actionButtons = (
     <div
       className={immersive ? styles.floatingActions : styles.headerActions}
@@ -204,14 +253,21 @@ export function BattlefieldExperience({
     >
       <button
         type="button"
-        className={styles.overlayButton}
+        className={`${styles.overlayButton} ${
+          hasUnreadChat ? styles.overlayButtonAttention : ""
+        }`}
+        aria-label={
+          hasUnreadChat
+            ? `Chat, ${unreadChatCount} unread messages`
+            : "Chat"
+        }
         aria-expanded={chatOpen}
-        onClick={() => setChatOpen((isOpen) => !isOpen)}
+        onClick={handleChatToggle}
       >
-        Chat
-        {unreadChatCount > 0 ? (
-          <span className={styles.unreadBadge} aria-label={`${unreadChatCount} unread chat messages`}>
-            {unreadChatCount > 99 ? "99+" : unreadChatCount}
+        <span className={styles.overlayButtonLabel}>Chat</span>
+        {hasUnreadChat ? (
+          <span className={styles.unreadBadge} aria-hidden="true">
+            {unreadBadgeLabel}
           </span>
         ) : null}
       </button>
