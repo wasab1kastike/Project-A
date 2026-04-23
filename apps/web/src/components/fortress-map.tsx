@@ -327,7 +327,7 @@ export function FortressMap({
   selectedFortressId,
   selectedTargetId,
   onSelectFortress,
-  onAttackTarget,
+  onConfirmAttackTarget,
   className,
 }: {
   fortresses: MapFortress[];
@@ -335,7 +335,7 @@ export function FortressMap({
   selectedFortressId?: string | null;
   selectedTargetId?: string | null;
   onSelectFortress?: (fortress: MapFortress) => void;
-  onAttackTarget?: (fortress: MapFortress) => void;
+  onConfirmAttackTarget?: (fortress: MapFortress) => void;
   className?: string;
 }) {
   const shellRef = useRef<HTMLDivElement | null>(null);
@@ -748,7 +748,7 @@ export function FortressMap({
               });
               const selectable =
                 (Boolean(onSelectFortress) && fortress.isCurrentUser) ||
-                (Boolean(onAttackTarget) && fortress.isTargetable);
+                (Boolean(onConfirmAttackTarget) && fortress.isTargetable);
               const variant = getSpriteVariant(fortress);
               const isMega = fortress.isNpc;
               const className = [
@@ -855,7 +855,7 @@ export function FortressMap({
                         type="button"
                         onClick={() => {
                           setPendingTargetId(null);
-                          onAttackTarget?.(fortress);
+                          onConfirmAttackTarget?.(fortress);
                         }}
                       >
                         Attack

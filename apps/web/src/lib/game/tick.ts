@@ -22,6 +22,11 @@ import {
   reshuffleActiveFortressPositions,
 } from "./mega-fortress";
 import { addHours, addMinutes, floorToMinute } from "./time";
+import {
+  canFortressLevelUp,
+  getFortressAttackDamage,
+  getFortressGrowGain,
+} from "./upgrades";
 
 export type TickSummary = {
   restartedRegistrationCycles: number;
@@ -82,7 +87,7 @@ function getFirstTickAt(activeStartedAt: Date) {
 }
 
 export function classifyTickHealth(minutesBehind: number): TickHealth {
-  if (minutesBehind >= 5) {
+  if (minutesBehind >= 3) {
     return "stalled";
   }
 
@@ -211,6 +216,14 @@ function hasAttackLaunchCooldownElapsed(
   }
 
   return tickAt.getTime() - lastLaunchedAt.getTime() >= 60_000;
+}
+
+function getMegaFortressDestroyReward(destroyCount: number) {
+  return MEGA_FORTRESS_DESTROY_BONUS * (destroyCount + 1);
+}
+
+function getNextMegaFortressHealth(destroyCount: number) {
+  return MEGA_FORTRESS_HEALTH * (destroyCount + 2);
 }
 
 async function restartEmptyRegistrationCycle(
@@ -602,6 +615,9 @@ async function processCycleTick(
         status: true,
         activeStartedAt: true,
         activeEndsAt: true,
+        upgradesUnlockedAt: true,
+        crownedFortressId: true,
+        megaFortressDestroyCount: true,
       },
     });
 
@@ -675,6 +691,7 @@ async function processCycleTick(
         id: true,
         ownerId: true,
         points: true,
+        level: true,
         currentAction: true,
         targetFortressId: true,
         isNpc: true,
@@ -776,7 +793,10 @@ async function processCycleTick(
         }
 
         const targetHealth = currentHealth.get(target.id) ?? target.health;
-        const targetLoss = Math.min(targetHealth, 2);
+        const targetLoss = Math.min(
+          targetHealth,
+          getFortressAttackDamage(attacker.level)
+        );
 
         if (targetLoss <= 0) {
           continue;
@@ -796,15 +816,16 @@ async function processCycleTick(
         });
 
         if (nextHealth <= 0) {
+          const destroyCount = cycle.megaFortressDestroyCount;
+          const destroyReward = getMegaFortressDestroyReward(destroyCount);
+          const nextMegaHealth = getNextMegaFortressHealth(destroyCount);
+          const unlocksUpgrades = !cycle.upgradesUnlockedAt;
           const attackerPoints =
             (currentPoints.get(attacker.id) ?? attacker.points) +
-            MEGA_FORTRESS_DESTROY_BONUS;
+            destroyReward;
 
           currentPoints.set(attacker.id, attackerPoints);
-          currentHealth.set(
-            target.id,
-            target.maxHealth || MEGA_FORTRESS_HEALTH
-          );
+          currentHealth.set(target.id, nextMegaHealth);
           destroyedMegaTargets.add(target.id);
 
           scoreEvents.push({
@@ -813,16 +834,54 @@ async function processCycleTick(
             actorId: attacker.ownerId,
             targetFortressId: target.id,
             eventType: ScoreEventType.MEGA_DESTROY_BONUS,
-            delta: MEGA_FORTRESS_DESTROY_BONUS,
+            delta: destroyReward,
             createdAt: tickAt,
           });
+
+          const upgradeData: Prisma.FortressUpdateInput = {};
+
+          if (unlocksUpgrades && canFortressLevelUp(attacker.level)) {
+            upgradeData.level = attacker.level + 1;
+            scoreEvents.push({
+              cycleId,
+              fortressId: attacker.id,
+              actorId: attacker.ownerId,
+              targetFortressId: target.id,
+              eventType: ScoreEventType.FORTRESS_UPGRADE_SLAYER_BONUS,
+              delta: 0,
+              createdAt: tickAt,
+            });
+          }
 
           await tx.cycle.update({
             where: {
               id: cycleId,
             },
             data: {
-              crownedFortressId: attacker.id,
+              crownedFortressId: cycle.crownedFortressId ?? attacker.id,
+              upgradesUnlockedAt: cycle.upgradesUnlockedAt ?? tickAt,
+              megaFortressDestroyCount: {
+                increment: 1,
+              },
+            },
+          });
+
+          if (Object.keys(upgradeData).length > 0) {
+            await tx.fortress.update({
+              where: {
+                id: attacker.id,
+              },
+              data: upgradeData,
+            });
+          }
+
+          await tx.fortress.update({
+            where: {
+              id: target.id,
+            },
+            data: {
+              health: nextMegaHealth,
+              maxHealth: nextMegaHealth,
             },
           });
 
@@ -848,7 +907,10 @@ async function processCycleTick(
         continue;
       }
 
-      const targetLoss = Math.min(targetPoints, 2);
+      const targetLoss = Math.min(
+        targetPoints,
+        getFortressAttackDamage(attacker.level)
+      );
       currentPoints.set(unit.targetFortressId, targetPoints - targetLoss);
 
       scoreEvents.push({
@@ -868,16 +930,17 @@ async function processCycleTick(
       }
 
       if (fortress.currentAction === FortressAction.GROW) {
+        const growGain = getFortressGrowGain(fortress.level);
         currentPoints.set(
           fortress.id,
-          (currentPoints.get(fortress.id) ?? 0) + 1
+          (currentPoints.get(fortress.id) ?? 0) + growGain
         );
         scoreEvents.push({
           cycleId,
           fortressId: fortress.id,
           actorId: fortress.ownerId,
           eventType: ScoreEventType.GROW_TICK,
-          delta: 1,
+          delta: growGain,
           createdAt: tickAt,
         });
         continue;
@@ -919,6 +982,7 @@ async function processCycleTick(
           id: true,
           ownerId: true,
           points: true,
+          level: true,
           currentAction: true,
           targetFortressId: true,
           isNpc: true,

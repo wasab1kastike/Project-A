@@ -42,6 +42,7 @@ import { getHomePageState } from "./read-model";
 import {
   editRegistrationFortressName,
   joinRegistrationCycle,
+  purchaseFortressUpgrade,
   registerCommanderName,
   renameActiveFortress,
   setFortressAction,
@@ -53,6 +54,7 @@ import {
 } from "./tick";
 import { addMinutes } from "./time";
 import { formatTickRunnerError, formatTickSummary } from "./tick-cli";
+import { getFortressAttackDamage, getFortressGrowGain } from "./upgrades";
 import {
   classifyWinnerRequest,
   reviewWinnerRequest,
@@ -151,7 +153,7 @@ test("tick health classification separates healthy, delayed, and stalled states"
   assert.equal(classifyTickHealth(0), "ok");
   assert.equal(classifyTickHealth(1), "ok");
   assert.equal(classifyTickHealth(2), "lagging");
-  assert.equal(classifyTickHealth(5), "stalled");
+  assert.equal(classifyTickHealth(3), "stalled");
 });
 
 test("tick CLI summary includes attack launch and resolution counts", () => {
@@ -1303,6 +1305,162 @@ test("active rename costs 10 points and rejects insufficient points or duplicate
   assert.equal(renamed.points, 0);
 });
 
+test("castle upgrades reject locked, unaffordable, and max-level purchases", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const user = await createUser(prisma, "upgrades@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: user.id,
+    fortressName: "Upgrade Keep",
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  await assert.rejects(
+    () =>
+      purchaseFortressUpgrade({
+        db: prisma,
+        userId: user.id,
+        now: new Date("2026-04-20T12:03:00.000Z"),
+      }),
+    /unlock after Home of A has fallen/
+  );
+
+  await prisma.cycle.update({
+    where: {
+      id: cycle.id,
+    },
+    data: {
+      upgradesUnlockedAt: new Date("2026-04-20T12:04:00.000Z"),
+    },
+  });
+
+  await prisma.fortress.update({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: user.id,
+      },
+    },
+    data: {
+      points: 99,
+    },
+  });
+
+  await assert.rejects(
+    () =>
+      purchaseFortressUpgrade({
+        db: prisma,
+        userId: user.id,
+        now: new Date("2026-04-20T12:05:00.000Z"),
+      }),
+    /at least 100 points/
+  );
+
+  let fortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: user.id,
+      },
+    },
+  });
+
+  assert.equal(fortress.level, 0);
+  assert.equal(fortress.points, 99);
+
+  const unaffordableState = await getHomePageState({
+    userId: user.id,
+    now: new Date("2026-04-20T12:05:30.000Z"),
+    db: prisma,
+  });
+
+  assert.equal(unaffordableState.playerSummary?.nextUpgradeCost, 100);
+  assert.equal(unaffordableState.playerSummary?.canAffordUpgrade, false);
+  assert.equal(unaffordableState.playerSummary?.canPurchaseUpgrade, false);
+
+  await prisma.fortress.update({
+    where: {
+      id: fortress.id,
+    },
+    data: {
+      points: 2000,
+    },
+  });
+
+  await purchaseFortressUpgrade({
+    db: prisma,
+    userId: user.id,
+    now: new Date("2026-04-20T12:06:00.000Z"),
+  });
+  await purchaseFortressUpgrade({
+    db: prisma,
+    userId: user.id,
+    now: new Date("2026-04-20T12:07:00.000Z"),
+  });
+  await purchaseFortressUpgrade({
+    db: prisma,
+    userId: user.id,
+    now: new Date("2026-04-20T12:08:00.000Z"),
+  });
+  await purchaseFortressUpgrade({
+    db: prisma,
+    userId: user.id,
+    now: new Date("2026-04-20T12:09:00.000Z"),
+  });
+
+  fortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: fortress.id,
+    },
+  });
+
+  const purchaseEvents = await prisma.scoreEvent.findMany({
+    where: {
+      cycleId: cycle.id,
+      fortressId: fortress.id,
+      eventType: ScoreEventType.FORTRESS_UPGRADE_PURCHASE,
+    },
+    orderBy: {
+      createdAt: "asc",
+    },
+  });
+  const state = await getHomePageState({
+    userId: user.id,
+    now: new Date("2026-04-20T12:09:30.000Z"),
+    db: prisma,
+  });
+
+  assert.deepEqual(
+    purchaseEvents.map((event) => event.delta),
+    [-100, -300, -600, -1000]
+  );
+  assert.equal(fortress.level, 4);
+  assert.equal(fortress.points, 0);
+  assert.equal(state.playerSummary?.level, 4);
+  assert.equal(state.playerSummary?.nextUpgradeCost, null);
+  assert.equal(state.playerSummary?.canPurchaseUpgrade, false);
+
+  await assert.rejects(
+    () =>
+      purchaseFortressUpgrade({
+        db: prisma,
+        userId: user.id,
+        now: new Date("2026-04-20T12:10:00.000Z"),
+      }),
+    /maximum level/
+  );
+});
+
 test("tick processing is idempotent for the same minute", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
@@ -1343,6 +1501,132 @@ test("tick processing is idempotent for the same minute", async (context) => {
   assert.equal(firstRun.processedMinutes, 2);
   assert.equal(secondRun.processedMinutes, 0);
   assert.equal(fortress.points, 2);
+});
+
+test("castle levels increase grow income and attack damage without changing cadence", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const attacker = await createUser(prisma, "upgrade-attacker@example.com");
+  const target = await createUser(prisma, "upgrade-target@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: attacker.id,
+    fortressName: "Upgrade Attacker",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: target.id,
+    fortressName: "Upgrade Target",
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const attackerFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: attacker.id,
+      },
+    },
+  });
+  const targetFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: target.id,
+      },
+    },
+  });
+
+  await prisma.cycle.update({
+    where: {
+      id: cycle.id,
+    },
+    data: {
+      upgradesUnlockedAt: new Date("2026-04-20T12:01:00.000Z"),
+    },
+  });
+  await prisma.fortress.update({
+    where: {
+      id: attackerFortress.id,
+    },
+    data: {
+      level: 2,
+      points: 0,
+      mapX: 6,
+      mapY: 6,
+    },
+  });
+  await prisma.fortress.update({
+    where: {
+      id: targetFortress.id,
+    },
+    data: {
+      points: 10,
+      mapX: 94,
+      mapY: 95,
+    },
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:02:00.000Z"),
+  });
+
+  const grownAttacker = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: attackerFortress.id,
+    },
+    select: {
+      points: true,
+    },
+  });
+
+  assert.equal(grownAttacker.points, getFortressGrowGain(2));
+
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.ATTACK,
+    targetFortressId: targetFortress.id,
+    now: new Date("2026-04-20T12:03:00.000Z"),
+  });
+
+  const attackUnit = await prisma.attackUnit.findFirstOrThrow({
+    where: {
+      attackerFortressId: attackerFortress.id,
+      targetFortressId: targetFortress.id,
+      resolvedAt: null,
+      cancelledAt: null,
+    },
+    orderBy: {
+      launchedAt: "asc",
+    },
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: attackUnit.arrivesAt,
+  });
+
+  const damagedTarget = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: targetFortress.id,
+    },
+    select: {
+      points: true,
+    },
+  });
+
+  assert.equal(damagedTarget.points, 10 - getFortressAttackDamage(2));
 });
 
 test("attack units launch for free and damage on arrival", async (context) => {
@@ -1846,7 +2130,88 @@ test("attack stream cadence follows the fortress's last launch time instead of t
   );
 });
 
-test("destroying the mega fortress awards points, crown, and reshuffles map positions", async (context) => {
+test("setting an attack target immediately updates the fortress target like the map attack flow expects", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const attacker = await createUser(prisma, "map-flow-attacker@example.com");
+  const firstTarget = await createUser(prisma, "map-flow-first@example.com");
+  const secondTarget = await createUser(prisma, "map-flow-second@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: attacker.id,
+    fortressName: "Map Attacker",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: firstTarget.id,
+    fortressName: "First Target",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: secondTarget.id,
+    fortressName: "Second Target",
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const firstTargetFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: firstTarget.id,
+      },
+    },
+  });
+  const secondTargetFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: secondTarget.id,
+      },
+    },
+  });
+
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.ATTACK,
+    targetFortressId: firstTargetFortress.id,
+    now: new Date("2026-04-20T12:05:00.000Z"),
+  });
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.ATTACK,
+    targetFortressId: secondTargetFortress.id,
+    now: new Date("2026-04-20T12:05:10.000Z"),
+  });
+
+  const attackerFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: attacker.id,
+      },
+    },
+    select: {
+      currentAction: true,
+      targetFortressId: true,
+    },
+  });
+
+  assert.equal(attackerFortress.currentAction, FortressAction.ATTACK);
+  assert.equal(attackerFortress.targetFortressId, secondTargetFortress.id);
+});
+
+test("first mega fortress destroy unlocks upgrades, grants a free level, and respawns stronger", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -1980,21 +2345,222 @@ test("destroying the mega fortress awards points, crown, and reshuffles map posi
       eventType: ScoreEventType.MEGA_DESTROY_BONUS,
     },
   });
+  const freeUpgradeEvent = await prisma.scoreEvent.findFirst({
+    where: {
+      cycleId: cycle.id,
+      eventType: ScoreEventType.FORTRESS_UPGRADE_SLAYER_BONUS,
+    },
+  });
 
   assert.equal(refreshedCycle.crownedFortressId, attackerFortress.id);
+  assert.ok(refreshedCycle.upgradesUnlockedAt);
+  assert.equal(refreshedCycle.megaFortressDestroyCount, 1);
   assert.equal(refreshedAttacker.points, 3 + MEGA_FORTRESS_DESTROY_BONUS);
-  assert.equal(refreshedMega.health, MEGA_FORTRESS_HEALTH);
+  assert.equal(refreshedAttacker.level, 1);
+  assert.equal(refreshedMega.health, MEGA_FORTRESS_HEALTH * 2);
+  assert.equal(refreshedMega.maxHealth, MEGA_FORTRESS_HEALTH * 2);
   assert.equal(refreshedMega.points, 0);
   assert.equal(positionKeys.size, positionsAfter.length);
   assert.notDeepEqual(positionsAfter, positionsBefore);
   assert.ok(damageEvent);
   assert.ok(bonusEvent);
+  assert.ok(freeUpgradeEvent);
+  assert.equal(state.playerSummary?.level, 1);
+  assert.equal(state.playerSummary?.nextUpgradeCost, 300);
+  assert.equal(state.playerSummary?.receivedSlayerUpgrade, true);
   assert.equal(state.playerSummary?.name.startsWith("👑 "), true);
   assert.equal(state.leaderboard[0]?.name.startsWith("👑 "), true);
   assert.equal(
     state.leaderboard.some((entry) => entry.id === megaFortress.id),
     false
   );
+});
+
+test("later mega fortress destroys scale reward and health without changing crown or free upgrade count", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const attacker = await createUser(prisma, "mega-repeat-attacker@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: attacker.id,
+    fortressName: "Repeat Alpha",
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const attackerFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: attacker.id,
+      },
+    },
+  });
+  const megaFortress = await prisma.fortress.findFirstOrThrow({
+    where: {
+      cycleId: cycle.id,
+      isNpc: true,
+    },
+  });
+
+  await prisma.fortress.update({
+    where: {
+      id: attackerFortress.id,
+    },
+    data: {
+      points: 3,
+    },
+  });
+  await prisma.fortress.update({
+    where: {
+      id: megaFortress.id,
+    },
+    data: {
+      health: 2,
+    },
+  });
+
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.ATTACK,
+    targetFortressId: megaFortress.id,
+    now: new Date("2026-04-20T12:05:00.000Z"),
+  });
+
+  const firstAttackUnit = await prisma.attackUnit.findFirstOrThrow({
+    where: {
+      attackerFortressId: attackerFortress.id,
+      targetFortressId: megaFortress.id,
+      cancelledAt: null,
+    },
+    orderBy: {
+      launchedAt: "asc",
+    },
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: firstAttackUnit.arrivesAt,
+  });
+
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.GROW,
+    now: new Date("2026-04-20T12:06:00.000Z"),
+  });
+  await prisma.fortress.update({
+    where: {
+      id: attackerFortress.id,
+    },
+    data: {
+      mapX: 6,
+      mapY: 6,
+    },
+  });
+  await prisma.fortress.update({
+    where: {
+      id: megaFortress.id,
+    },
+    data: {
+      mapX: 7,
+      mapY: 6,
+      health: 4,
+      maxHealth: MEGA_FORTRESS_HEALTH * 2,
+    },
+  });
+
+  const pointsBeforeSecondKill = (
+    await prisma.fortress.findUniqueOrThrow({
+      where: {
+        id: attackerFortress.id,
+      },
+      select: {
+        points: true,
+      },
+    })
+  ).points;
+
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.ATTACK,
+    targetFortressId: megaFortress.id,
+    now: new Date("2026-04-20T12:06:00.000Z"),
+  });
+
+  const secondAttackUnit = await prisma.attackUnit.findFirstOrThrow({
+    where: {
+      attackerFortressId: attackerFortress.id,
+      targetFortressId: megaFortress.id,
+      launchedAt: {
+        gte: new Date("2026-04-20T12:06:00.000Z"),
+      },
+      cancelledAt: null,
+    },
+    orderBy: {
+      launchedAt: "asc",
+    },
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: secondAttackUnit.arrivesAt,
+  });
+
+  const refreshedCycle = await prisma.cycle.findUniqueOrThrow({
+    where: {
+      id: cycle.id,
+    },
+  });
+  const refreshedAttacker = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: attackerFortress.id,
+    },
+  });
+  const refreshedMega = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: megaFortress.id,
+    },
+  });
+  const freeUpgradeEvents = await prisma.scoreEvent.findMany({
+    where: {
+      cycleId: cycle.id,
+      fortressId: attackerFortress.id,
+      eventType: ScoreEventType.FORTRESS_UPGRADE_SLAYER_BONUS,
+    },
+  });
+  const destroyBonusEvents = await prisma.scoreEvent.findMany({
+    where: {
+      cycleId: cycle.id,
+      fortressId: attackerFortress.id,
+      eventType: ScoreEventType.MEGA_DESTROY_BONUS,
+    },
+    orderBy: {
+      createdAt: "asc",
+    },
+  });
+
+  assert.equal(refreshedCycle.megaFortressDestroyCount, 2);
+  assert.equal(refreshedCycle.crownedFortressId, attackerFortress.id);
+  assert.equal(freeUpgradeEvents.length, 1);
+  assert.equal(refreshedAttacker.level, 1);
+  assert.equal(refreshedAttacker.points, pointsBeforeSecondKill + 1000);
+  assert.deepEqual(
+    destroyBonusEvents.map((event) => event.delta),
+    [500, 1000]
+  );
+  assert.equal(refreshedMega.health, MEGA_FORTRESS_HEALTH * 3);
+  assert.equal(refreshedMega.maxHealth, MEGA_FORTRESS_HEALTH * 3);
 });
 
 test("switching to grow preserves in-flight attacks but stops future launches", async (context) => {

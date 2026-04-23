@@ -1,10 +1,19 @@
 import { prisma } from "@/lib/prisma";
-import { CycleStatus, type PrismaClient } from "@/lib/prisma-client";
+import {
+  CycleStatus,
+  ScoreEventType,
+  type PrismaClient,
+} from "@/lib/prisma-client";
 import { ACTIVE_PLAYER_CAP } from "./constants";
 import { getChatLimits } from "./chat";
 import { normalizeUnitSpriteVariant } from "./attacks";
 import { ensureCommanderRegistrationColumn } from "./schema-guards";
 import { classifyTickHealth, getActiveCycleMinutesBehind } from "./tick";
+import {
+  getFortressAttackDamage,
+  getFortressGrowGain,
+  getFortressUpgradeCost,
+} from "./upgrades";
 
 export type HomePageState = Awaited<ReturnType<typeof getHomePageState>>;
 
@@ -66,6 +75,7 @@ export async function getHomePageState({
           commanderNameRegisteredAt: true,
           name: true,
           points: true,
+          level: true,
           currentAction: true,
           targetFortressId: true,
           unitSpriteVariant: true,
@@ -210,6 +220,30 @@ export async function getHomePageState({
       ),
     ])
   );
+  const upgradesUnlocked = Boolean(cycle.upgradesUnlockedAt);
+  const nextUpgradeCost = playerFortress
+    ? getFortressUpgradeCost(playerFortress.level)
+    : null;
+  const canAffordUpgrade =
+    playerFortress !== null &&
+    nextUpgradeCost !== null &&
+    playerFortress.points >= nextUpgradeCost;
+  const receivedSlayerUpgrade =
+    playerFortress && cycle.upgradesUnlockedAt
+      ? await db.scoreEvent.findFirst({
+          where: {
+            cycleId: cycle.id,
+            fortressId: playerFortress.id,
+            eventType: ScoreEventType.FORTRESS_UPGRADE_SLAYER_BONUS,
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          select: {
+            id: true,
+          },
+        })
+      : null;
   const mapFortresses = cycle.fortresses.map((fortress) => ({
     id: fortress.id,
     commanderName: getDisplayName(
@@ -254,6 +288,8 @@ export async function getHomePageState({
       registrationEndsAt: cycle.registrationEndsAt,
       joiningLockedAt: cycle.joiningLockedAt,
       activeEndsAt: cycle.activeEndsAt,
+      upgradesUnlockedAt: cycle.upgradesUnlockedAt,
+      megaFortressDestroyCount: cycle.megaFortressDestroyCount,
       lastProcessedTickAt,
       tickDelayMinutes,
       tickHealth,
@@ -316,6 +352,7 @@ export async function getHomePageState({
           ),
           rawName: playerFortress.name,
           points: playerFortress.points,
+          level: playerFortress.level,
           currentAction: playerFortress.currentAction,
           mapX: playerFortress.mapX,
           mapY: playerFortress.mapY,
@@ -341,6 +378,7 @@ export async function getHomePageState({
           ),
           rawName: playerFortress.name,
           points: playerFortress.points,
+          level: playerFortress.level,
           currentAction: playerFortress.currentAction,
           currentTargetId: playerFortress.targetFortressId,
           currentTargetName: playerFortress.targetFortressId
@@ -353,6 +391,17 @@ export async function getHomePageState({
           isCrowned: playerFortress.id === cycle.crownedFortressId,
           canRename: activeOpen && playerFortress.points >= 10,
           canSetAction: activeOpen,
+          upgradesUnlocked,
+          nextUpgradeCost,
+          canAffordUpgrade,
+          canPurchaseUpgrade:
+            activeOpen &&
+            upgradesUnlocked &&
+            nextUpgradeCost !== null &&
+            canAffordUpgrade,
+          receivedSlayerUpgrade: Boolean(receivedSlayerUpgrade),
+          growPerTick: getFortressGrowGain(playerFortress.level),
+          attackDamage: getFortressAttackDamage(playerFortress.level),
         }
       : null,
     leaderboard: sortedFortresses.slice(0, 3).map((fortress, index) => ({

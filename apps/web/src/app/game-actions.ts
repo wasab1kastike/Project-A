@@ -10,6 +10,7 @@ import { emitProjectARefresh } from "@/lib/realtime";
 import {
   editRegistrationFortressName,
   joinRegistrationCycle,
+  purchaseFortressUpgrade,
   registerCommanderName,
   renameActiveFortress,
   setFortressAction,
@@ -53,6 +54,23 @@ function getActionErrorMessage(error: unknown) {
 function finishAction(notice: string): never {
   revalidatePath("/");
   redirectToHome("notice", notice);
+}
+
+export async function attackFromMapAction(targetFortressId: string) {
+  const userId = await requireUserId();
+
+  try {
+    await setFortressAction({
+      userId,
+      action: FortressAction.ATTACK,
+      targetFortressId,
+    });
+    emitProjectARefresh("map-attack");
+  } catch (error) {
+    redirectToHome("error", getActionErrorMessage(error));
+  }
+
+  finishAction("Attack target updated from the battlefield map.");
 }
 
 export async function joinFortressAction(formData: FormData) {
@@ -103,6 +121,21 @@ export async function renameFortressAction(formData: FormData) {
   }
 
   finishAction("Fortress renamed and 10 points spent.");
+}
+
+export async function purchaseFortressUpgradeAction() {
+  const userId = await requireUserId();
+
+  try {
+    await purchaseFortressUpgrade({
+      userId,
+    });
+    emitProjectARefresh("castle-upgrade");
+  } catch (error) {
+    redirectToHome("error", getActionErrorMessage(error));
+  }
+
+  finishAction("Castle upgraded.");
 }
 
 export async function registerCommanderNameAction(formData: FormData) {

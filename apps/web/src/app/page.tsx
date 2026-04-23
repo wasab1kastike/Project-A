@@ -200,7 +200,7 @@ export default async function Home({
         : state.cycle?.statusMessage ?? state.emptyStateMessage;
 
   const playerSummaryText = state.playerSummary
-    ? `${state.playerSummary.points} pts - ${state.playerSummary.currentAction}${
+    ? `Lvl ${state.playerSummary.level} - ${state.playerSummary.points} pts - ${state.playerSummary.currentAction}${
         state.playerSummary.currentTargetName
           ? ` -> ${state.playerSummary.currentTargetName}`
           : ""

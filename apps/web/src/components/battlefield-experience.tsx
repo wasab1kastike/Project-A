@@ -1,9 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import {
+  attackFromMapAction,
   editRegistrationFortressNameAction,
+  purchaseFortressUpgradeAction,
   registerCommanderNameAction,
   renameFortressAction,
   setFortressActionAction,
@@ -46,12 +49,20 @@ type PlayerSummary = {
   canRegisterCommanderName: boolean;
   name: string;
   points: number;
+  level: number;
   currentAction: "GROW" | "ATTACK";
   currentTargetId?: string | null;
   currentTargetName?: string | null;
   isCrowned?: boolean;
   canRename: boolean;
   canSetAction: boolean;
+  upgradesUnlocked: boolean;
+  nextUpgradeCost: number | null;
+  canAffordUpgrade: boolean;
+  canPurchaseUpgrade: boolean;
+  receivedSlayerUpgrade: boolean;
+  growPerTick: number;
+  attackDamage: number;
 };
 
 type PlayerFortress = {
@@ -60,6 +71,7 @@ type PlayerFortress = {
   canRegisterCommanderName: boolean;
   name: string;
   points: number;
+  level: number;
   currentAction: "GROW" | "ATTACK";
   mapX: number;
   mapY: number;
@@ -90,8 +102,10 @@ export function BattlefieldExperience({
   canEditRegistrationName: boolean;
   immersive?: boolean;
 }) {
+  const router = useRouter();
   const [chatOpen, setChatOpen] = useState(false);
   const [actionOpen, setActionOpen] = useState(false);
+  const [mapAttackPending, setMapAttackPending] = useState(false);
   const [selectedFortressId, setSelectedFortressId] = useState<string | null>(
     null
   );
@@ -131,7 +145,7 @@ export function BattlefieldExperience({
     }
   }
 
-  function prepareAttackTarget(fortress: MapFortress) {
+  async function prepareAttackTarget(fortress: MapFortress) {
     if (!fortress.isTargetable || !playerSummary?.canSetAction) {
       return;
     }
@@ -139,9 +153,18 @@ export function BattlefieldExperience({
     setAction("ATTACK");
     setTargetFortressId(fortress.id);
 
-    if (ownFortress) {
-      setSelectedFortressId(ownFortress.id);
-      setActionOpen(true);
+    if (!ownFortress || mapAttackPending) {
+      return;
+    }
+
+    setSelectedFortressId(ownFortress.id);
+    setMapAttackPending(true);
+
+    try {
+      await attackFromMapAction(fortress.id);
+      router.refresh();
+    } finally {
+      setMapAttackPending(false);
     }
   }
 
@@ -199,7 +222,7 @@ export function BattlefieldExperience({
               openOwnActions(fortress.id);
             }
           }}
-          onAttackTarget={prepareAttackTarget}
+          onConfirmAttackTarget={prepareAttackTarget}
         />
 
         {chatOpen ? (
@@ -299,6 +322,48 @@ export function BattlefieldExperience({
                     Save orders
                   </button>
                 </form>
+                <p className={styles.helper}>
+                  Map Attack fires immediately. Use Orders to switch targets or
+                  return to Grow manually.
+                </p>
+
+                <div className={styles.upgradePanel}>
+                  <div className={styles.upgradeHeader}>
+                    <div>
+                      <span className={styles.label}>Castle level</span>
+                      <h4>Level {playerSummary.level}</h4>
+                    </div>
+                    <strong>
+                      +{playerSummary.growPerTick} grow / {playerSummary.attackDamage} dmg
+                    </strong>
+                  </div>
+                  <p className={styles.helper}>
+                    {playerSummary.upgradesUnlocked
+                      ? playerSummary.nextUpgradeCost === null
+                        ? "Your castle is maxed out. Growth and attack damage are fully upgraded."
+                        : playerSummary.canAffordUpgrade
+                          ? `Upgrade now for ${playerSummary.nextUpgradeCost} points. Each level adds +1 growth and +2 attack damage. Home of A keeps returning stronger after each fall.`
+                          : `Next upgrade costs ${playerSummary.nextUpgradeCost} points. Earn more before buying while Home of A escalates each time it falls.`
+                      : "Castle upgrades unlock for everyone after Home of A falls for the first time."}
+                  </p>
+                  {playerSummary.receivedSlayerUpgrade ? (
+                    <p className={styles.helper}>
+                      Home of A slayer bonus claimed: you received one free castle upgrade.
+                    </p>
+                  ) : null}
+                  {playerSummary.upgradesUnlocked &&
+                  playerSummary.nextUpgradeCost !== null ? (
+                    <form action={purchaseFortressUpgradeAction}>
+                      <button
+                        className={styles.secondaryButton}
+                        type="submit"
+                        disabled={!playerSummary.canPurchaseUpgrade}
+                      >
+                        Buy upgrade for {playerSummary.nextUpgradeCost} pts
+                      </button>
+                    </form>
+                  ) : null}
+                </div>
 
                 {playerSummary.canRegisterCommanderName ? (
                   <form

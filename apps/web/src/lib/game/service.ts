@@ -12,6 +12,7 @@ import {
   MAP_POSITIONS,
 } from "./constants";
 import { getRandomUnitSpriteVariant } from "./attacks";
+import { canFortressLevelUp, getFortressUpgradeCost } from "./upgrades";
 import {
   launchAttackUnit,
 } from "./attack-units";
@@ -561,4 +562,80 @@ export async function renameActiveFortress({
 
     throw error;
   }
+}
+
+export async function purchaseFortressUpgrade({
+  userId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isActiveWindowOpen(cycle, now)) {
+      throw new GameError("Castle upgrades are only available during ACTIVE.");
+    }
+
+    if (!cycle.upgradesUnlockedAt) {
+      throw new GameError(
+        "Castle upgrades unlock after Home of A has fallen."
+      );
+    }
+
+    const fortress = await tx.fortress.findUnique({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: userId,
+        },
+      },
+    });
+
+    if (!fortress || fortress.isNpc) {
+      throw new GameError("You are not participating in the active cycle.");
+    }
+
+    if (!canFortressLevelUp(fortress.level)) {
+      throw new GameError("Your castle is already at the maximum level.");
+    }
+
+    const upgradeCost = getFortressUpgradeCost(fortress.level);
+
+    if (upgradeCost === null) {
+      throw new GameError("Your castle is already at the maximum level.");
+    }
+
+    if (fortress.points < upgradeCost) {
+      throw new GameError(
+        `You need at least ${upgradeCost} points for the next castle upgrade.`
+      );
+    }
+
+    const updatedFortress = await tx.fortress.update({
+      where: {
+        id: fortress.id,
+      },
+      data: {
+        level: fortress.level + 1,
+        points: fortress.points - upgradeCost,
+      },
+    });
+
+    await tx.scoreEvent.create({
+      data: {
+        cycleId: cycle.id,
+        fortressId: fortress.id,
+        actorId: userId,
+        eventType: ScoreEventType.FORTRESS_UPGRADE_PURCHASE,
+        delta: -upgradeCost,
+        createdAt: now,
+      },
+    });
+
+    return updatedFortress;
+  });
 }

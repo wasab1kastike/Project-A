@@ -1,0 +1,2 @@
+ALTER TABLE "Cycle"
+ADD COLUMN "megaFortressDestroyCount" INTEGER NOT NULL DEFAULT 0;

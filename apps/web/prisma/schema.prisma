@@ -29,6 +29,8 @@ enum ScoreEventType {
   ATTACK_TARGET
   MEGA_DAMAGE
   MEGA_DESTROY_BONUS
+  FORTRESS_UPGRADE_PURCHASE
+  FORTRESS_UPGRADE_SLAYER_BONUS
   RENAME_COST
   MANUAL_ADJUST
 }
@@ -114,6 +116,8 @@ model Cycle {
   resolvedAt            DateTime?
   winnerId              String?
   crownedFortressId     String?
+  upgradesUnlockedAt    DateTime?
+  megaFortressDestroyCount Int          @default(0)
   mapLayoutVersion      Int             @default(1)
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
@@ -140,6 +144,7 @@ model Fortress {
   commanderNameRegisteredAt DateTime?
   name                  String
   points                Int            @default(0)
+  level                 Int            @default(0)
   isNpc                 Boolean        @default(false)
   health                Int            @default(0)
   maxHealth             Int            @default(0)

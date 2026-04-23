@@ -58,6 +58,14 @@ export function ActiveCommandCenter({
             setAction("ATTACK");
             setTargetFortressId(fortress.id);
           }}
+          onConfirmAttackTarget={(fortress) => {
+            if (!fortress.isTargetable) {
+              return;
+            }
+
+            setAction("ATTACK");
+            setTargetFortressId(fortress.id);
+          }}
         />
       </div>
 
