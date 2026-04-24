@@ -152,52 +152,59 @@ export default async function HistoryPage({
                 </div>
               </dl>
 
-              {entry.communityWishProposals.length > 0 ? (
-                <form
-                  action={saveCommunityWishVotesAction}
-                  className={styles.formStack}
-                >
-                  <input type="hidden" name="cycleId" value={entry.cycleId} />
-                  <span className={styles.sectionLabel}>Community vote</span>
-                  <p className={styles.helperText}>
-                    {entry.communityWishCanVote
-                      ? `You have ${entry.communityWishVoteBudget} votes. ${entry.communityWishUsedVotes} currently allocated. You can change them until voting ends.`
-                      : entry.communityWishVotingMessage}
-                  </p>
-                  <div className={styles.voteList}>
-                    {entry.communityWishProposals.map((proposal) => (
-                      <label className={styles.voteRow} key={proposal.id}>
-                        <span>
-                          <strong>{proposal.authorLabel}</strong>
-                          <small>
-                            {proposal.voteCount} votes - {proposal.status}
-                          </small>
-                          <em>{proposal.requestText}</em>
-                        </span>
-                        <input
-                          name={`proposalVotes:${proposal.id}`}
-                          type="number"
-                          min={0}
-                          max={
-                            proposal.isVoteEligible
-                              ? entry.communityWishVoteBudget
-                              : 0
-                          }
-                          defaultValue={proposal.currentUserVotes}
-                          disabled={
-                            !entry.communityWishCanVote ||
-                            !proposal.isVoteEligible
-                          }
-                        />
-                      </label>
-                    ))}
-                  </div>
-                  {entry.communityWishCanVote ? (
-                    <button className={styles.primaryButton} type="submit">
-                      Save community votes
-                    </button>
-                  ) : null}
-                </form>
+              {entry.communityWishStatus === "OPEN" &&
+              entry.communityWishProposals.length > 0 ? (
+                <details className={styles.voteDisclosure}>
+                  <summary className={styles.disclosureButton}>
+                    Open community vote
+                    <span>{entry.communityWishProposals.length} wishes</span>
+                  </summary>
+                  <form
+                    action={saveCommunityWishVotesAction}
+                    className={styles.formStack}
+                  >
+                    <input type="hidden" name="cycleId" value={entry.cycleId} />
+                    <span className={styles.sectionLabel}>Community vote</span>
+                    <p className={styles.helperText}>
+                      {entry.communityWishCanVote
+                        ? `You have ${entry.communityWishVoteBudget} votes. ${entry.communityWishUsedVotes} currently allocated. You can change them until voting ends.`
+                        : entry.communityWishVotingMessage}
+                    </p>
+                    <div className={styles.voteList}>
+                      {entry.communityWishProposals.map((proposal) => (
+                        <label className={styles.voteRow} key={proposal.id}>
+                          <span>
+                            <strong>{proposal.authorLabel}</strong>
+                            <small>
+                              {proposal.voteCount} votes - {proposal.status}
+                            </small>
+                            <em>{proposal.requestText}</em>
+                          </span>
+                          <input
+                            name={`proposalVotes:${proposal.id}`}
+                            type="number"
+                            min={0}
+                            max={
+                              proposal.isVoteEligible
+                                ? entry.communityWishVoteBudget
+                                : 0
+                            }
+                            defaultValue={proposal.currentUserVotes}
+                            disabled={
+                              !entry.communityWishCanVote ||
+                              !proposal.isVoteEligible
+                            }
+                          />
+                        </label>
+                      ))}
+                    </div>
+                    {entry.communityWishCanVote ? (
+                      <button className={styles.primaryButton} type="submit">
+                        Save community votes
+                      </button>
+                    ) : null}
+                  </form>
+                </details>
               ) : null}
 
               {entry.canSubmitWinnerRequest ? (

@@ -5122,17 +5122,17 @@ test("community wish proposals open to active players during the season", async 
 
   assert.equal(rejectedProposal.status, WinnerRequestStatus.REJECTED);
 
-  await assert.rejects(
-    () =>
-      submitCommunityWishProposal({
-        db: prisma,
-        cycleId: cycle.id,
-        userId: alpha.id,
-        requestText: "Add a second idea.",
-        now: new Date("2026-04-20T12:03:00.000Z"),
-      }),
-    /already submitted/
-  );
+  const updatedProposal = await submitCommunityWishProposal({
+    db: prisma,
+    cycleId: cycle.id,
+    userId: alpha.id,
+    requestText: "Add a cleaner endgame badge.",
+    now: new Date("2026-04-20T12:03:00.000Z"),
+  });
+
+  assert.equal(updatedProposal.id, proposal.id);
+  assert.equal(updatedProposal.requestText, "Add a cleaner endgame badge.");
+  assert.equal(updatedProposal.status, WinnerRequestStatus.SUBMITTED);
 
   await assert.rejects(
     () =>

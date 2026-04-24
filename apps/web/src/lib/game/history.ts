@@ -32,6 +32,7 @@ export async function getCycleHistoryPageState({
       communityWishProposal: {
         select: {
           id: true,
+          authorId: true,
           requestText: true,
           status: true,
         },
@@ -115,6 +116,12 @@ export async function getCycleHistoryPageState({
             .reduce((sum, vote) => sum + vote.votes, 0),
         ])
       );
+      const communityWishWinnerAuthorLabel = entry.communityWishProposal
+        ? (entry.cycle.fortresses.find(
+            (fortress) =>
+              fortress.ownerId === entry.communityWishProposal?.authorId
+          )?.commanderName ?? "Unknown player")
+        : null;
 
       return {
       id: entry.id,
@@ -141,7 +148,9 @@ export async function getCycleHistoryPageState({
       communityWishResolvedAt: entry.communityWishResolvedAt,
       communityWishSnapshot:
         entry.communityWishSnapshot ??
-        entry.communityWishProposal?.requestText ??
+        (entry.communityWishProposal
+          ? `${communityWishWinnerAuthorLabel}: ${entry.communityWishProposal.requestText}`
+          : null) ??
         null,
       communityWishVoteCount: entry.communityWishVoteCount,
       communityWishCanVote:
@@ -170,9 +179,7 @@ export async function getCycleHistoryPageState({
           status: proposal.status,
           reviewNotes: proposal.reviewNotes,
           authorLabel:
-            entry.cycle.fortresses.find(
-              (fortress) => fortress.ownerId === proposal.authorId
-            )?.commanderName ?? "Unknown player",
+            proposal.authorId === userId ? "Your wish" : "Community wish",
           voteCount: proposal.votes.reduce((sum, vote) => sum + vote.votes, 0),
           currentUserVotes: userVotes.get(proposal.id) ?? 0,
           isVoteEligible: proposal.status !== "REJECTED",

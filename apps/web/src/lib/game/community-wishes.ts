@@ -59,6 +59,48 @@ async function getPlayerFortress({
   });
 }
 
+async function getCommunityWishAuthorLabels({
+  cycleId,
+  authorIds,
+  db,
+}: {
+  cycleId: string;
+  authorIds: string[];
+  db: DatabaseClient;
+}) {
+  const fortresses = await db.fortress.findMany({
+    where: {
+      cycleId,
+      ownerId: {
+        in: authorIds,
+      },
+      isNpc: false,
+    },
+    select: {
+      ownerId: true,
+      commanderName: true,
+      name: true,
+    },
+  });
+
+  return new Map(
+    fortresses.map((fortress) => [
+      fortress.ownerId,
+      fortress.commanderName ?? fortress.name,
+    ])
+  );
+}
+
+function formatCommunityWishSnapshot({
+  authorLabel,
+  requestText,
+}: {
+  authorLabel: string | undefined;
+  requestText: string;
+}) {
+  return `${authorLabel ?? "Unknown player"}: ${requestText}`;
+}
+
 export async function createCommunityWishVoteEntitlements({
   cycleId,
   rankedFortresses,
@@ -116,15 +158,6 @@ export async function getCommunityWishEligibility({
     select: {
       status: true,
       activeEndsAt: true,
-      communityWishProposals: {
-        where: {
-          authorId: userId,
-        },
-        take: 1,
-        select: {
-          id: true,
-        },
-      },
     },
   });
 
@@ -148,13 +181,6 @@ export async function getCommunityWishEligibility({
     return {
       canSubmit: false,
       reason: "Only players in this active cycle can submit a community wish.",
-    };
-  }
-
-  if (cycle.communityWishProposals.length > 0) {
-    return {
-      canSubmit: false,
-      reason: "You already submitted a community wish for this cycle.",
     };
   }
 
@@ -196,10 +222,21 @@ export async function submitCommunityWishProposal({
           );
         }
 
-        return tx.communityWishProposal.create({
-          data: {
+        return tx.communityWishProposal.upsert({
+          where: {
+            cycleId_authorId: {
+              cycleId,
+              authorId: userId,
+            },
+          },
+          create: {
             cycleId,
             authorId: userId,
+            requestText: normalizedRequestText,
+            status: validation.status,
+            reviewNotes: validation.reviewNotes,
+          },
+          update: {
             requestText: normalizedRequestText,
             status: validation.status,
             reviewNotes: validation.reviewNotes,
@@ -215,7 +252,7 @@ export async function submitCommunityWishProposal({
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
-      throw new GameError("You already submitted a community wish for this cycle.");
+      throw new GameError("Community wish could not be saved. Try again.");
     }
 
     throw error;
@@ -430,6 +467,7 @@ async function resolveCommunityWishHistory({
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     select: {
       id: true,
+      authorId: true,
       requestText: true,
       status: true,
       createdAt: true,
@@ -473,6 +511,12 @@ async function resolveCommunityWishHistory({
     return null;
   }
 
+  const authorLabels = await getCommunityWishAuthorLabels({
+    cycleId,
+    authorIds: proposals.map((proposal) => proposal.authorId),
+    db,
+  });
+
   if (tied.length > 1) {
     return db.cycleHistory.update({
       where: {
@@ -489,12 +533,15 @@ async function resolveCommunityWishHistory({
     where: {
       cycleId,
     },
-    data: {
-      communityWishProposalId: winner.id,
-      communityWishSnapshot: `[${winner.status}] ${winner.requestText}`,
-      communityWishVoteCount: winner.voteCount,
-      communityWishStatus: CommunityWishStatus.RESOLVED,
-      communityWishResolvedAt: now,
+      data: {
+        communityWishProposalId: winner.id,
+        communityWishSnapshot: formatCommunityWishSnapshot({
+          authorLabel: authorLabels.get(winner.authorId),
+          requestText: winner.requestText,
+        }),
+        communityWishVoteCount: winner.voteCount,
+        communityWishStatus: CommunityWishStatus.RESOLVED,
+        communityWishResolvedAt: now,
     },
   });
 }
@@ -623,6 +670,7 @@ export async function adminResolveCommunityWishTie({
       },
       select: {
         id: true,
+        authorId: true,
         requestText: true,
         status: true,
         votes: {
@@ -638,6 +686,11 @@ export async function adminResolveCommunityWishTie({
     }
 
     const voteCount = proposal.votes.reduce((sum, vote) => sum + vote.votes, 0);
+    const authorLabels = await getCommunityWishAuthorLabels({
+      cycleId,
+      authorIds: [proposal.authorId],
+      db: tx,
+    });
 
     return tx.cycleHistory.update({
       where: {
@@ -645,7 +698,10 @@ export async function adminResolveCommunityWishTie({
       },
       data: {
         communityWishProposalId: proposal.id,
-        communityWishSnapshot: `[${proposal.status}] ${proposal.requestText}`,
+        communityWishSnapshot: formatCommunityWishSnapshot({
+          authorLabel: authorLabels.get(proposal.authorId),
+          requestText: proposal.requestText,
+        }),
         communityWishVoteCount: voteCount,
         communityWishStatus: CommunityWishStatus.RESOLVED,
         communityWishResolvedAt: now,

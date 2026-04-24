@@ -599,8 +599,7 @@ export async function getHomePageState({
       canSubmit:
         Boolean(userId) &&
         Boolean(playerFortress) &&
-        communityWishOpen &&
-        !currentUserCommunityWish,
+        communityWishOpen,
       submissionHint: !userId
         ? "Sign in and join this cycle to suggest a community wish."
         : !playerFortress
@@ -608,7 +607,7 @@ export async function getHomePageState({
           : !communityWishOpen
             ? "Community wishes open during the active season."
             : currentUserCommunityWish
-              ? "You already submitted a community wish for this cycle."
+              ? "You can edit your community wish until the season ends. Voting starts after final ranks are locked."
               : "Submit one bounded community wish before the cycle ends. Voting starts after final ranks are locked.",
       proposals: cycle.communityWishProposals.map((proposal) => ({
         id: proposal.id,
@@ -617,7 +616,7 @@ export async function getHomePageState({
         reviewNotes: proposal.reviewNotes,
         createdAt: proposal.createdAt,
         authorLabel:
-          commanderNameByOwnerId.get(proposal.authorId) ?? "Unknown player",
+          proposal.authorId === userId ? "Your wish" : "Community wish",
         isCurrentUser: proposal.authorId === userId,
       })),
     },

@@ -145,6 +145,51 @@
   gap: 10px;
 }
 
+.voteDisclosure {
+  display: grid;
+  gap: 16px;
+}
+
+.disclosureButton {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 46px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 18px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  color: var(--foreground);
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.disclosureButton::-webkit-details-marker {
+  display: none;
+}
+
+.disclosureButton::before {
+  content: "+";
+  color: var(--accent-strong);
+  font-family: var(--font-ibm-plex-mono);
+}
+
+.voteDisclosure[open] .disclosureButton::before {
+  content: "-";
+}
+
+.disclosureButton span {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
 .voteRow {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 88px;
@@ -232,7 +277,8 @@
   }
 
   .linkButton,
-  .primaryButton {
+  .primaryButton,
+  .disclosureButton {
     width: 100%;
   }
 }

@@ -141,6 +141,9 @@ export default async function Home({
             state.cycle?.lastProcessedTickAt ?? null
           )} (live)`
     : null;
+  const currentUserCommunityWish =
+    state.communityWish.proposals.find((proposal) => proposal.isCurrentUser) ??
+    null;
   const showLoginCard = !session?.user;
   const showJoinCard = Boolean(session?.user && state.canJoinCycle);
   const showCommanderNameCard = Boolean(
@@ -320,11 +323,12 @@ export default async function Home({
                   rows={4}
                   maxLength={600}
                   placeholder="Suggest one bounded gameplay-safe change."
+                  defaultValue={currentUserCommunityWish?.requestText ?? ""}
                   required
                 />
               </label>
               <button className={styles.primaryButton} type="submit">
-                Submit wish
+                {currentUserCommunityWish ? "Update wish" : "Submit wish"}
               </button>
             </form>
           ) : null}
@@ -332,7 +336,9 @@ export default async function Home({
             <ol className={styles.wishList}>
               {state.communityWish.proposals.slice(0, 4).map((proposal) => (
                 <li key={proposal.id}>
-                  <strong>{proposal.authorLabel}</strong>
+                  <strong>
+                    {proposal.isCurrentUser ? "Your wish" : "Community wish"}
+                  </strong>
                   <span>{proposal.status}</span>
                   <p>{proposal.requestText}</p>
                 </li>

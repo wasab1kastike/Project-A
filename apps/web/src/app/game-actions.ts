@@ -254,7 +254,7 @@ export async function submitCommunityWishProposalAction(formData: FormData) {
     redirectToHome("error", getActionErrorMessage(error));
   }
 
-  finishAction("Community wish proposal submitted.");
+  finishAction("Community wish proposal saved.");
 }
 
 export async function sendChatMessageAction(formData: FormData) {
