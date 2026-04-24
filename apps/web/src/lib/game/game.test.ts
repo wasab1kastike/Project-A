@@ -35,7 +35,12 @@ import {
   isPointNearSpawnHex,
   snapMapPointToHex,
 } from "./map-hex";
-import { getFortressSpawnLayout, takeUniqueSpawnPoints } from "./spawn-layout";
+import {
+  getFortressSpawnLayout,
+  takeOpenSpawnPoint,
+  takeUniqueSpawnPoints,
+  type SpawnPoint,
+} from "./spawn-layout";
 import { getAdminDashboardState } from "./admin-dashboard";
 import { getCycleHistoryPageState } from "./history";
 import { getHomePageState } from "./read-model";
@@ -68,6 +73,7 @@ const defaultDatabaseUrl =
   process.env.TEST_DATABASE_URL ??
   process.env.DATABASE_URL ??
   "postgresql://postgres:postgres@localhost:5432/project_a?schema=public";
+const ACTIVE_EDGE_PADDING = 15;
 
 async function getFortressLocationShuffleCount(
   prisma: PrismaClient,
@@ -81,6 +87,86 @@ async function getFortressLocationShuffleCount(
   `;
 
   return rows[0]?.locationShuffleCount ?? 0;
+}
+
+function toPointKey(point: SpawnPoint) {
+  return `${Math.round(point.x)}:${Math.round(point.y)}`;
+}
+
+function getEdgeDistance(point: SpawnPoint) {
+  return Math.min(point.x, 100 - point.x, point.y, 100 - point.y);
+}
+
+function isOuterBand(point: SpawnPoint, padding = ACTIVE_EDGE_PADDING) {
+  return getEdgeDistance(point) < padding;
+}
+
+function getUniqueSpawnCandidates() {
+  const candidates = new Map<string, SpawnPoint>();
+
+  for (const tile of HEX_SPAWN_TILES) {
+    const point = {
+      x: tile.xPercent,
+      y: tile.yPercent,
+    };
+    const key = toPointKey(point);
+
+    if (candidates.has(key) || !isPointNearSpawnHex(point)) {
+      continue;
+    }
+
+    candidates.set(key, point);
+  }
+
+  return [...candidates.values()];
+}
+
+function createExcludedKeys(
+  candidates: SpawnPoint[],
+  allowedKeys: Set<string>
+) {
+  return new Set(
+    candidates
+      .map((candidate) => toPointKey(candidate))
+      .filter((key) => !allowedKeys.has(key))
+  );
+}
+
+function findEdgePreferenceScenario() {
+  const candidates = getUniqueSpawnCandidates();
+  const innerCandidates = candidates.filter((candidate) => !isOuterBand(candidate));
+  const edgeCandidates = candidates.filter((candidate) => isOuterBand(candidate));
+
+  for (const reference of innerCandidates) {
+    for (const inner of innerCandidates) {
+      if (toPointKey(inner) === toPointKey(reference)) {
+        continue;
+      }
+
+      const innerDistance = Math.hypot(inner.x - reference.x, inner.y - reference.y);
+
+      if (innerDistance < 9) {
+        continue;
+      }
+
+      for (const edge of edgeCandidates) {
+        const edgeDistance = Math.hypot(edge.x - reference.x, edge.y - reference.y);
+
+        if (edgeDistance < 9 || edgeDistance <= innerDistance) {
+          continue;
+        }
+
+        return {
+          reference,
+          inner,
+          edge,
+          candidates,
+        };
+      }
+    }
+  }
+
+  throw new Error("Could not find a spawn edge preference test scenario.");
 }
 
 test("fortress spawn layout is unique and spread across the battlefield bounds", () => {
@@ -204,6 +290,106 @@ test("spawn sampler produces materially different layouts for different seeds", 
   const overlapCount = alphaKeys.filter((key) => betaKeySet.has(key)).length;
 
   assert.ok(overlapCount <= Math.floor(count * 0.8));
+});
+
+test("open spawn point prefers inner candidates over outer-band candidates", () => {
+  const scenario = findEdgePreferenceScenario();
+  const allowedKeys = new Set([
+    toPointKey(scenario.inner),
+    toPointKey(scenario.edge),
+  ]);
+  const excludedKeys = createExcludedKeys(scenario.candidates, allowedKeys);
+  excludedKeys.add(toPointKey(scenario.reference));
+
+  const unbiased = takeOpenSpawnPoint("open:unbiased", {
+    excludedKeys,
+    referencePoints: [scenario.reference],
+    minSeparationDistance: 9,
+  });
+  const biased = takeOpenSpawnPoint("open:biased", {
+    excludedKeys,
+    referencePoints: [scenario.reference],
+    minSeparationDistance: 9,
+    preferredEdgePadding: ACTIVE_EDGE_PADDING,
+  });
+
+  assert.deepEqual(unbiased, scenario.edge);
+  assert.deepEqual(biased, scenario.inner);
+});
+
+test("open spawn point falls back to outer-band candidates when inner ones are unavailable", () => {
+  const candidates = getUniqueSpawnCandidates();
+  const edgeCandidate = candidates.find((candidate) => isOuterBand(candidate));
+
+  assert.ok(edgeCandidate);
+
+  const excludedKeys = createExcludedKeys(candidates, new Set([toPointKey(edgeCandidate)]));
+  const chosen = takeOpenSpawnPoint("open:fallback", {
+    excludedKeys,
+    preferredEdgePadding: ACTIVE_EDGE_PADDING,
+  });
+
+  assert.deepEqual(chosen, edgeCandidate);
+  assert.equal(isOuterBand(chosen), true);
+});
+
+test("active reshuffle sampler keeps valid spacing while preferring inner tiles", () => {
+  const count = 18;
+  const points = takeUniqueSpawnPoints("sampler:active-reshuffle", count, {
+    minSeparationDistance: 9,
+    preferredEdgePadding: ACTIVE_EDGE_PADDING,
+  });
+  const uniqueKeys = new Set(points.map((point) => toPointKey(point)));
+
+  assert.equal(points.length, count);
+  assert.equal(uniqueKeys.size, points.length);
+
+  for (const point of points) {
+    assert.ok(isPointNearSpawnHex(point));
+  }
+
+  for (let leftIndex = 0; leftIndex < points.length; leftIndex += 1) {
+    for (
+      let rightIndex = leftIndex + 1;
+      rightIndex < points.length;
+      rightIndex += 1
+    ) {
+      const left = points[leftIndex]!;
+      const right = points[rightIndex]!;
+
+      assert.ok(Math.hypot(left.x - right.x, left.y - right.y) >= 9);
+    }
+  }
+});
+
+test("active reshuffle sampler uses fewer outer-band spawns than registration layout", () => {
+  let registrationOuterBandCount = 0;
+  let reshuffleOuterBandCount = 0;
+
+  for (let index = 0; index < 24; index += 1) {
+    const registrationLayout = getFortressSpawnLayout({
+      cycleId: `layout-vs-reshuffle:${index}`,
+      purpose: "registration:fortress-layout",
+      count: ACTIVE_PLAYER_CAP,
+    });
+    const reshuffleLayout = takeUniqueSpawnPoints(
+      `layout-vs-reshuffle:${index}`,
+      ACTIVE_PLAYER_CAP,
+      {
+        minSeparationDistance: 9,
+        preferredEdgePadding: ACTIVE_EDGE_PADDING,
+      }
+    );
+
+    registrationOuterBandCount += registrationLayout.filter((point) =>
+      isOuterBand(point)
+    ).length;
+    reshuffleOuterBandCount += reshuffleLayout.filter((point) =>
+      isOuterBand(point)
+    ).length;
+  }
+
+  assert.ok(reshuffleOuterBandCount < registrationOuterBandCount);
 });
 
 test("join registration uses the shared deterministic spawn layout", async (context) => {
@@ -1641,6 +1827,46 @@ test("location shuffle rejects attack stance and insufficient paid points", asyn
         now: new Date("2026-04-20T12:06:00.000Z"),
       }),
     /at least 50 points/
+  );
+});
+
+test("location shuffle prefers an inner-map position when one is available", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  await seedOpenCycle(prisma);
+  const alpha = await createUser(prisma, "shuffle-inner-alpha@example.com");
+  const beta = await createUser(prisma, "shuffle-inner-beta@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: alpha.id,
+    fortressName: "Inner Alpha",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: beta.id,
+    fortressName: "Inner Beta",
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const shuffleResult = await shuffleFortressLocation({
+    db: prisma,
+    userId: alpha.id,
+    now: new Date("2026-04-20T12:03:00.000Z"),
+  });
+
+  assert.ok(
+    getEdgeDistance({
+      x: shuffleResult.fortress.mapX,
+      y: shuffleResult.fortress.mapY,
+    }) >= ACTIVE_EDGE_PADDING
   );
 });
 

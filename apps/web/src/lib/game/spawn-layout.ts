@@ -74,6 +74,25 @@ function distanceBetweenPoints(left: SpawnPoint, right: SpawnPoint) {
   return Math.hypot(left.x - right.x, left.y - right.y);
 }
 
+function getEdgeDistance(point: SpawnPoint) {
+  return Math.min(point.x, 100 - point.x, point.y, 100 - point.y);
+}
+
+function getPreferredEdgeCandidates(
+  candidates: SpawnPoint[],
+  preferredEdgePadding?: number
+) {
+  if (preferredEdgePadding === undefined) {
+    return candidates;
+  }
+
+  const preferred = candidates.filter((candidate) => {
+    return getEdgeDistance(candidate) >= preferredEdgePadding;
+  });
+
+  return preferred.length > 0 ? preferred : candidates;
+}
+
 function shuffleInPlace<T>(items: T[], random: () => number) {
   for (let index = items.length - 1; index > 0; index -= 1) {
     const swapIndex = Math.floor(random() * (index + 1));
@@ -114,10 +133,12 @@ export function takeUniqueSpawnPoints(
   options?: {
     minSeparationDistance?: number;
     excludedKeys?: Set<string>;
+    preferredEdgePadding?: number;
   }
 ) {
   const minSeparationDistance =
     options?.minSeparationDistance ?? DEFAULT_MIN_SPAWN_SEPARATION;
+  const preferredEdgePadding = options?.preferredEdgePadding;
   const random = createSeededPrng(seed);
   const excludedKeys = options?.excludedKeys ?? new Set<string>();
   const remaining = getUniqueSpawnCandidates(random, excludedKeys);
@@ -136,10 +157,14 @@ export function takeUniqueSpawnPoints(
       break;
     }
 
-    let chosen = viable[0];
+    const weightedViable = getPreferredEdgeCandidates(
+      viable,
+      preferredEdgePadding
+    );
+    let chosen = weightedViable[0];
     let bestNearestDistance = -1;
 
-    for (const candidate of viable) {
+    for (const candidate of weightedViable) {
       const nearestDistance =
         selected.length === 0
           ? Number.POSITIVE_INFINITY
@@ -184,6 +209,7 @@ export function takeOpenSpawnPoint(
     excludedKeys?: Set<string>;
     referencePoints?: SpawnPoint[];
     minSeparationDistance?: number;
+    preferredEdgePadding?: number;
   }
 ) {
   const random = createSeededPrng(seed);
@@ -191,6 +217,7 @@ export function takeOpenSpawnPoint(
   const referencePoints = options?.referencePoints ?? [];
   const minSeparationDistance =
     options?.minSeparationDistance ?? DEFAULT_LAYOUT_MIN_SPAWN_SEPARATION;
+  const preferredEdgePadding = options?.preferredEdgePadding;
   const candidates = getUniqueSpawnCandidates(random, excludedKeys);
 
   if (candidates.length === 0) {
@@ -198,38 +225,56 @@ export function takeOpenSpawnPoint(
   }
 
   if (referencePoints.length === 0) {
-    return candidates[0] as SpawnPoint;
+    return getPreferredEdgeCandidates(
+      candidates,
+      preferredEdgePadding
+    )[0] as SpawnPoint;
   }
 
-  let bestCandidate = candidates[0] as SpawnPoint;
-  let bestNearestDistance = -1;
-  let bestMeetsMinimum = false;
-
-  for (const candidate of candidates) {
+  const scoredCandidates = candidates.map((candidate) => {
     const nearestDistance = Math.min(
       ...referencePoints.map((point) => distanceBetweenPoints(candidate, point))
     );
-    const meetsMinimum = nearestDistance >= minSeparationDistance;
 
-    if (meetsMinimum && !bestMeetsMinimum) {
-      bestCandidate = candidate;
-      bestNearestDistance = nearestDistance;
-      bestMeetsMinimum = true;
-      continue;
-    }
+    return {
+      candidate,
+      nearestDistance,
+      meetsMinimum: nearestDistance >= minSeparationDistance,
+    };
+  });
+  const hasMinimumCandidate = scoredCandidates.some((candidate) => {
+    return candidate.meetsMinimum;
+  });
+  const minimumTier = scoredCandidates.filter((candidate) => {
+    return candidate.meetsMinimum === hasMinimumCandidate;
+  });
+  const weightedCandidates = getPreferredEdgeCandidates(
+    minimumTier.map((entry) => entry.candidate),
+    preferredEdgePadding
+  );
+  const weightedKeys = new Set(
+    weightedCandidates.map((candidate) => toPointKey(candidate))
+  );
+  const eligibleCandidates = minimumTier.filter((candidate) => {
+    return weightedKeys.has(toPointKey(candidate.candidate));
+  });
+  let bestCandidate =
+    (eligibleCandidates[0]?.candidate ?? candidates[0]) as SpawnPoint;
+  let bestNearestDistance = eligibleCandidates[0]?.nearestDistance ?? -1;
 
-    if (meetsMinimum === bestMeetsMinimum && nearestDistance > bestNearestDistance) {
-      bestCandidate = candidate;
-      bestNearestDistance = nearestDistance;
+  for (const candidate of eligibleCandidates) {
+    if (candidate.nearestDistance > bestNearestDistance) {
+      bestCandidate = candidate.candidate;
+      bestNearestDistance = candidate.nearestDistance;
       continue;
     }
 
     if (
-      meetsMinimum === bestMeetsMinimum &&
-      nearestDistance === bestNearestDistance &&
+      candidate.nearestDistance === bestNearestDistance &&
       random() > 0.5
     ) {
-      bestCandidate = candidate;
+      bestCandidate = candidate.candidate;
+      bestNearestDistance = candidate.nearestDistance;
     }
   }
 

@@ -30,6 +30,7 @@ import {
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
 const PUBLIC_NAME_MAX_LENGTH = 32;
+const ACTIVE_EDGE_PADDING = 15;
 
 function normalizePublicName(input: string, label: string) {
   const normalized = input.trim().replace(/\s+/g, " ");
@@ -692,6 +693,7 @@ export async function shuffleFortressLocation({
             y: otherFortress.mapY,
           })),
           minSeparationDistance: 9,
+          preferredEdgePadding: ACTIVE_EDGE_PADDING,
         }
       );
     } catch {

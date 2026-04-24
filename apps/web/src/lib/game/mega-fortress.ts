@@ -24,6 +24,7 @@ import {
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
 const DEFAULT_MIN_SPAWN_SEPARATION = 0;
+const ACTIVE_EDGE_PADDING = 15;
 
 function getNpcCommanderName(cycleId: string) {
   return `NPC ${cycleId}`;
@@ -178,6 +179,7 @@ export async function reshuffleActiveFortressPositions({
   });
   const positions = takeUniqueSpawnPoints(seed, fortresses.length, {
     minSeparationDistance: 9,
+    preferredEdgePadding: ACTIVE_EDGE_PADDING,
   });
 
   await Promise.all(
