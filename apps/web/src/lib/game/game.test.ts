@@ -53,11 +53,7 @@ import {
   setFortressAction,
   shuffleFortressLocation,
 } from "./service";
-import {
-  TickRunnerError,
-  classifyTickHealth,
-  runGameTick,
-} from "./tick";
+import { TickRunnerError, classifyTickHealth, runGameTick } from "./tick";
 import { addMinutes } from "./time";
 import { formatTickRunnerError, formatTickSummary } from "./tick-cli";
 import { getFortressAttackDamage, getFortressGrowGain } from "./upgrades";
@@ -134,8 +130,12 @@ function createExcludedKeys(
 
 function findEdgePreferenceScenario() {
   const candidates = getUniqueSpawnCandidates();
-  const innerCandidates = candidates.filter((candidate) => !isOuterBand(candidate));
-  const edgeCandidates = candidates.filter((candidate) => isOuterBand(candidate));
+  const innerCandidates = candidates.filter(
+    (candidate) => !isOuterBand(candidate)
+  );
+  const edgeCandidates = candidates.filter((candidate) =>
+    isOuterBand(candidate)
+  );
 
   for (const reference of innerCandidates) {
     for (const inner of innerCandidates) {
@@ -143,14 +143,20 @@ function findEdgePreferenceScenario() {
         continue;
       }
 
-      const innerDistance = Math.hypot(inner.x - reference.x, inner.y - reference.y);
+      const innerDistance = Math.hypot(
+        inner.x - reference.x,
+        inner.y - reference.y
+      );
 
       if (innerDistance < 9) {
         continue;
       }
 
       for (const edge of edgeCandidates) {
-        const edgeDistance = Math.hypot(edge.x - reference.x, edge.y - reference.y);
+        const edgeDistance = Math.hypot(
+          edge.x - reference.x,
+          edge.y - reference.y
+        );
 
         if (edgeDistance < 9 || edgeDistance <= innerDistance) {
           continue;
@@ -323,7 +329,10 @@ test("open spawn point falls back to outer-band candidates when inner ones are u
 
   assert.ok(edgeCandidate);
 
-  const excludedKeys = createExcludedKeys(candidates, new Set([toPointKey(edgeCandidate)]));
+  const excludedKeys = createExcludedKeys(
+    candidates,
+    new Set([toPointKey(edgeCandidate)])
+  );
   const chosen = takeOpenSpawnPoint("open:fallback", {
     excludedKeys,
     preferredEdgePadding: ACTIVE_EDGE_PADDING,
@@ -1741,10 +1750,7 @@ test("location shuffle is free once, then costs 50 points and cancels outgoing a
     { x: afterFreeShuffle.mapX, y: afterFreeShuffle.mapY }
   );
   assert.equal(shuffleCostEvents.length, 1);
-  assert.equal(
-    shuffleCostEvents[0]?.delta,
-    -ACTIVE_LOCATION_SHUFFLE_COST
-  );
+  assert.equal(shuffleCostEvents[0]?.delta, -ACTIVE_LOCATION_SHUFFLE_COST);
 });
 
 test("location shuffle rejects attack stance and insufficient paid points", async (context) => {
@@ -1755,7 +1761,10 @@ test("location shuffle rejects attack stance and insufficient paid points", asyn
   }
 
   const cycle = await seedOpenCycle(prisma);
-  const attacker = await createUser(prisma, "shuffle-rule-attacker@example.com");
+  const attacker = await createUser(
+    prisma,
+    "shuffle-rule-attacker@example.com"
+  );
   const target = await createUser(prisma, "shuffle-rule-target@example.com");
 
   await joinRegistrationCycle({
@@ -2700,6 +2709,187 @@ test("attack stream cadence follows tick boundaries instead of a rolling 60 seco
     unitsAfterNinetySeconds[2]?.launchedAt.toISOString(),
     "2026-04-20T12:07:00.000Z"
   );
+});
+
+test("attack toggle cannot spawn extra units within the same minute", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const attacker = await createUser(
+    prisma,
+    "toggle-same-minute-attacker@example.com"
+  );
+  const target = await createUser(
+    prisma,
+    "toggle-same-minute-target@example.com"
+  );
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: attacker.id,
+    fortressName: "Toggle Attacker",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: target.id,
+    fortressName: "Toggle Target",
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const attackerFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: attacker.id,
+      },
+    },
+  });
+  const targetFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: target.id,
+      },
+    },
+  });
+
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.ATTACK,
+    targetFortressId: targetFortress.id,
+    now: new Date("2026-04-20T12:05:10.000Z"),
+  });
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.GROW,
+    now: new Date("2026-04-20T12:05:20.000Z"),
+  });
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.ATTACK,
+    targetFortressId: targetFortress.id,
+    now: new Date("2026-04-20T12:05:40.000Z"),
+  });
+
+  const units = await prisma.attackUnit.findMany({
+    where: {
+      attackerFortressId: attackerFortress.id,
+      resolvedAt: null,
+      cancelledAt: null,
+    },
+    orderBy: {
+      launchedAt: "asc",
+    },
+    select: {
+      launchedAt: true,
+      targetFortressId: true,
+    },
+  });
+
+  assert.equal(units.length, 1);
+  assert.equal(units[0]?.launchedAt.toISOString(), "2026-04-20T12:05:10.000Z");
+  assert.equal(units[0]?.targetFortressId, targetFortress.id);
+});
+
+test("attack toggle can launch again after the next minute boundary", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const attacker = await createUser(
+    prisma,
+    "toggle-next-minute-attacker@example.com"
+  );
+  const target = await createUser(
+    prisma,
+    "toggle-next-minute-target@example.com"
+  );
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: attacker.id,
+    fortressName: "Boundary Attacker",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: target.id,
+    fortressName: "Boundary Target",
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const attackerFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: attacker.id,
+      },
+    },
+  });
+  const targetFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: target.id,
+      },
+    },
+  });
+
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.ATTACK,
+    targetFortressId: targetFortress.id,
+    now: new Date("2026-04-20T12:05:30.000Z"),
+  });
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.GROW,
+    now: new Date("2026-04-20T12:05:45.000Z"),
+  });
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.ATTACK,
+    targetFortressId: targetFortress.id,
+    now: new Date("2026-04-20T12:06:00.000Z"),
+  });
+
+  const units = await prisma.attackUnit.findMany({
+    where: {
+      attackerFortressId: attackerFortress.id,
+      resolvedAt: null,
+      cancelledAt: null,
+    },
+    orderBy: {
+      launchedAt: "asc",
+    },
+    select: {
+      launchedAt: true,
+      targetFortressId: true,
+    },
+  });
+
+  assert.equal(units.length, 2);
+  assert.equal(units[0]?.launchedAt.toISOString(), "2026-04-20T12:05:30.000Z");
+  assert.equal(units[1]?.launchedAt.toISOString(), "2026-04-20T12:06:00.000Z");
+  assert.ok(units.every((unit) => unit.targetFortressId === targetFortress.id));
 });
 
 test("setting an attack target immediately updates the fortress target like the map attack flow expects", async (context) => {
@@ -3891,7 +4081,10 @@ test("read model exposes location shuffle cost and outgoing warning state", asyn
   }
 
   const cycle = await seedOpenCycle(prisma);
-  const attacker = await createUser(prisma, "shuffle-read-attacker@example.com");
+  const attacker = await createUser(
+    prisma,
+    "shuffle-read-attacker@example.com"
+  );
   const target = await createUser(prisma, "shuffle-read-target@example.com");
 
   await joinRegistrationCycle({

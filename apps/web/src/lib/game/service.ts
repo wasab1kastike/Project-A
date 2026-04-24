@@ -13,19 +13,15 @@ import {
 } from "./constants";
 import { getRandomUnitSpriteVariant } from "./attacks";
 import { canFortressLevelUp, getFortressUpgradeCost } from "./upgrades";
-import {
-  cancelActiveAttackUnits,
-  launchAttackUnit,
-} from "./attack-units";
+import { cancelActiveAttackUnits, launchAttackUnit } from "./attack-units";
 import { GameError } from "./errors";
-import {
-  ensureCommanderRegistrationColumn,
-} from "./schema-guards";
+import { ensureCommanderRegistrationColumn } from "./schema-guards";
 import {
   buildFortressSpawnSeed,
   getFortressSpawnLayout,
   takeOpenSpawnPoint,
 } from "./spawn-layout";
+import { floorToMinute } from "./time";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -135,6 +131,17 @@ function findOpenMapPosition(
   return layout.find((position) => {
     return !occupied.has(`${position.x}:${position.y}`);
   });
+}
+
+function canLaunchImmediateAttackUnit(
+  lastLaunchedAt: Date | null,
+  launchedAt: Date
+) {
+  if (!lastLaunchedAt) {
+    return true;
+  }
+
+  return floorToMinute(lastLaunchedAt) < floorToMinute(launchedAt);
 }
 
 function isUniqueConstraintError(
@@ -322,9 +329,8 @@ export async function editRegistrationFortressName({
   await ensureCommanderRegistrationColumn(db);
 
   const normalizedName = normalizeFortressName(fortressName);
-  const normalizedCommanderName = commanderName !== undefined
-    ? normalizeCommanderName(commanderName)
-    : null;
+  const normalizedCommanderName =
+    commanderName !== undefined ? normalizeCommanderName(commanderName) : null;
 
   try {
     return await db.$transaction(async (tx) => {
@@ -397,7 +403,9 @@ export async function registerCommanderName({
       const cycle = await getCurrentCycle(tx);
 
       if (!cycle) {
-        throw new GameError("No current cycle is available for nick registration.");
+        throw new GameError(
+          "No current cycle is available for nick registration."
+        );
       }
 
       const fortress = await tx.fortress.findUnique({
@@ -410,7 +418,9 @@ export async function registerCommanderName({
       });
 
       if (!fortress) {
-        throw new GameError("Join the current cycle before registering a nick.");
+        throw new GameError(
+          "Join the current cycle before registering a nick."
+        );
       }
 
       if (fortress.commanderNameRegisteredAt) {
@@ -513,6 +523,24 @@ export async function setFortressAction({
     });
 
     if (fortress.currentAction !== FortressAction.ATTACK) {
+      const latestAttackUnit = await tx.attackUnit.findFirst({
+        where: {
+          cycleId: cycle.id,
+          attackerFortressId: fortress.id,
+          cancelledAt: null,
+        },
+        orderBy: [{ launchedAt: "desc" }, { id: "desc" }],
+        select: {
+          launchedAt: true,
+        },
+      });
+
+      if (
+        !canLaunchImmediateAttackUnit(latestAttackUnit?.launchedAt ?? null, now)
+      ) {
+        return updatedFortress;
+      }
+
       await launchAttackUnit({
         db: tx,
         cycle,
@@ -612,9 +640,7 @@ export async function shuffleFortressLocation({
     const cycle = await getCurrentCycle(tx);
 
     if (!cycle || !isActiveWindowOpen(cycle, now)) {
-      throw new GameError(
-        "Castle Yeet is only available during ACTIVE."
-      );
+      throw new GameError("Castle Yeet is only available during ACTIVE.");
     }
 
     const fortress = await tx.fortress.findUnique({
@@ -764,9 +790,7 @@ export async function purchaseFortressUpgrade({
     }
 
     if (!cycle.upgradesUnlockedAt) {
-      throw new GameError(
-        "Castle upgrades unlock after Home of A has fallen."
-      );
+      throw new GameError("Castle upgrades unlock after Home of A has fallen.");
     }
 
     const fortress = await tx.fortress.findUnique({
