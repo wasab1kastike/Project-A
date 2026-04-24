@@ -72,6 +72,18 @@
   max-width: min(360px, calc(100% - 36px));
 }
 
+.immersiveOverlayUi {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+.immersiveOverlayUi .floatingActions,
+.immersiveOverlayUi .drawer {
+  position: fixed;
+  pointer-events: auto;
+}
+
 .overlayButton,
 .closeButton,
 .primaryButton,
@@ -215,23 +227,20 @@
   transform: translateY(24px);
 }
 
-.immersive .actionDrawer {
-  bottom: var(--battlefield-bottom-clearance, 16px);
-  max-height: calc(100% - var(--battlefield-bottom-clearance, 16px) - 104px);
-}
-
-.immersive .drawer {
+.immersiveOverlayUi .drawer {
   z-index: 22;
 }
 
-.immersive .chatDrawer {
+.immersiveOverlayUi .chatDrawer {
   z-index: 23;
   top: max(92px, calc(env(safe-area-inset-top) + 76px));
-  max-height: calc(100% - max(108px, calc(env(safe-area-inset-top) + 92px)));
+  max-height: calc(100dvh - max(108px, calc(env(safe-area-inset-top) + 92px)));
 }
 
-.immersive .actionDrawer {
+.immersiveOverlayUi .actionDrawer {
   z-index: 24;
+  bottom: 16px;
+  max-height: calc(100dvh - 120px);
 }
 
 .closeButton {
@@ -584,12 +593,17 @@
     transform: translateY(0);
   }
 
-  .immersive .chatDrawer,
-  .immersive .actionDrawer {
-    bottom: calc(var(--battlefield-bottom-clearance, 10px) + 10px);
+  .immersiveOverlayUi .floatingActions {
+    top: max(126px, calc(env(safe-area-inset-top) + 110px));
+    right: 10px;
+  }
+
+  .immersiveOverlayUi .chatDrawer,
+  .immersiveOverlayUi .actionDrawer {
+    bottom: max(10px, calc(env(safe-area-inset-bottom) + 10px));
     max-height: min(
-      62dvh,
-      calc(100% - var(--battlefield-bottom-clearance, 10px) - 112px)
+      72dvh,
+      calc(100dvh - max(24px, calc(env(safe-area-inset-bottom) + 24px)))
     );
   }
 

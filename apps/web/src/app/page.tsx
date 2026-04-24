@@ -228,6 +228,10 @@ export default async function Home({
           canEditRegistrationName={state.canEditRegistrationName}
         />
       </div>
+      <div
+        id="battlefield-overlay-root"
+        className={styles.battlefieldOverlayRoot}
+      />
       <div className={styles.mapScrim} />
 
       <header className={styles.topHud} aria-label="Season status">
