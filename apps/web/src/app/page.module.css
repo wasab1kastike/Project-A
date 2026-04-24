@@ -39,6 +39,7 @@
 .topHud,
 .bottomHud,
 .sidePanel,
+.wishPanel,
 .noticeToast {
   position: absolute;
   z-index: 20;
@@ -59,6 +60,7 @@
 .topLinks,
 .bottomHud,
 .sidePanel,
+.wishPanel,
 .noticeToast {
   border: 1px solid rgba(255, 255, 255, 0.12);
   background:
@@ -203,6 +205,23 @@
   pointer-events: auto;
 }
 
+.wishPanel {
+  top: 112px;
+  right: 16px;
+  display: grid;
+  gap: 12px;
+  width: min(360px, calc(100% - 32px));
+  max-height: calc(100dvh - var(--battlefield-bottom-clearance) - 132px);
+  overflow: auto;
+  padding: 18px;
+  border-radius: 8px;
+  pointer-events: auto;
+}
+
+.wishPanel h2 {
+  font-size: 1.15rem;
+}
+
 .statusPanel {
   top: 50%;
   left: 50%;
@@ -239,10 +258,11 @@
   text-transform: uppercase;
 }
 
-.field input {
+.field input,
+.field textarea {
   min-height: 46px;
   width: 100%;
-  padding: 0 14px;
+  padding: 12px 14px;
   border: 1px solid var(--border-soft);
   border-radius: 8px;
   background: rgba(7, 13, 20, 0.72);
@@ -250,7 +270,12 @@
   font: inherit;
 }
 
-.field input:focus {
+.field textarea {
+  resize: vertical;
+}
+
+.field input:focus,
+.field textarea:focus {
   outline: 2px solid rgba(247, 196, 95, 0.24);
   border-color: var(--border-strong);
 }
@@ -444,6 +469,28 @@
   background: rgba(247, 196, 95, 0.12);
 }
 
+.wishList {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+}
+
+.wishList li {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(7, 13, 20, 0.45);
+}
+
+.wishList span {
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
 @media (hover: hover) and (pointer: fine) {
   .hudButton:hover,
   .primaryButton:hover,
@@ -549,6 +596,17 @@
     bottom: auto;
     width: min(440px, calc(100% - 32px));
     transform: translate(-50%, -50%);
+  }
+
+  .wishPanel {
+    top: auto;
+    right: 10px;
+    bottom: calc(var(--battlefield-bottom-clearance) + 10px);
+    left: 10px;
+    width: auto;
+    max-height: 190px;
+    overflow: auto;
+    padding: 16px;
   }
 
   .deadlineList,

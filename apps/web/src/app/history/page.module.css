@@ -10,7 +10,8 @@
 .cardHeader,
 .metaList,
 .formStack,
-.fieldStack {
+.fieldStack,
+.voteList {
   display: grid;
   gap: 16px;
 }
@@ -138,6 +139,44 @@
   color: var(--foreground);
   font: inherit;
   resize: vertical;
+}
+
+.voteList {
+  gap: 10px;
+}
+
+.voteRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 88px;
+  gap: 12px;
+  align-items: start;
+  padding: 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: rgba(7, 13, 20, 0.38);
+}
+
+.voteRow span {
+  display: grid;
+  gap: 4px;
+}
+
+.voteRow small,
+.voteRow em {
+  color: var(--text-muted);
+  font-style: normal;
+  line-height: 1.5;
+}
+
+.voteRow input {
+  min-height: 42px;
+  width: 100%;
+  padding: 0 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(7, 13, 20, 0.62);
+  color: var(--foreground);
+  font: inherit;
 }
 
 .errorBanner,

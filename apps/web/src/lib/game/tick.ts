@@ -15,6 +15,11 @@ import {
 } from "./constants";
 import { launchAttackUnit } from "./attack-units";
 import {
+  COMMUNITY_WISH_VOTING_WINDOW_HOURS,
+  createCommunityWishVoteEntitlements,
+  resolveExpiredCommunityWishVotes,
+} from "./community-wishes";
+import {
   ensureCurrentMapLayout,
   ensureActiveCycleMegaFortress,
   ensureMegaFortress,
@@ -32,6 +37,7 @@ export type TickSummary = {
   restartedRegistrationCycles: number;
   activatedCycles: number;
   resolvedCycles: number;
+  resolvedCommunityWishVotes: number;
   nextRegistrationCyclesCreated: number;
   processedMinutes: number;
   scoreEventsCreated: number;
@@ -579,7 +585,18 @@ async function resolveExpiredActiveCycle(
         winnerRequestSnapshot: winnerRequest
           ? `[${winnerRequest.status}] ${winnerRequest.requestText}`
           : null,
+        communityWishVotingEndsAt: addHours(
+          resolutionEndedAt,
+          COMMUNITY_WISH_VOTING_WINDOW_HOURS
+        ),
+        communityWishStatus: "OPEN",
       },
+    });
+
+    await createCommunityWishVoteEntitlements({
+      cycleId: cycle.id,
+      rankedFortresses,
+      db: tx,
     });
 
     await ensureOpenRegistrationCycle(tx, resolutionEndedAt);
@@ -1098,6 +1115,7 @@ export async function runGameTick({
     restartedRegistrationCycles: 0,
     activatedCycles: 0,
     resolvedCycles: 0,
+    resolvedCommunityWishVotes: 0,
     nextRegistrationCyclesCreated: 0,
     processedMinutes: 0,
     scoreEventsCreated: 0,
@@ -1119,6 +1137,12 @@ export async function runGameTick({
       id: true,
     },
   });
+
+  const communityWishResolution = await resolveExpiredCommunityWishVotes({
+    now,
+    db,
+  });
+  summary.resolvedCommunityWishVotes = communityWishResolution.resolved;
 
   for (const cycle of expiredRegistrationCycles) {
     try {

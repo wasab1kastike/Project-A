@@ -44,25 +44,41 @@ enum WinnerRequestStatus {
   UNDER_ADMIN_REVIEW
 }
 
+enum CommunityWishStatus {
+  OPEN
+  RESOLVED
+  TIE_REQUIRES_ADMIN
+  NO_PROPOSALS
+}
+
+enum ChatMessageType {
+  TEXT
+  GIF
+}
+
 model User {
-  id                 String          @id @default(cuid())
-  name               String?
-  email              String?         @unique
-  emailVerified      DateTime?
-  image              String?
-  role               UserRole        @default(PLAYER)
-  lastReadChatAt     DateTime?
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
-  accounts           Account[]
-  sessions           Session[]
-  fortresses         Fortress[]
-  chatMessages       ChatMessage[]
-  scoreEventsAsActor ScoreEvent[]    @relation("ScoreEventActor")
-  winnerRequests     WinnerRequest[] @relation("WinnerRequestAuthor")
-  reviewedRequests   WinnerRequest[] @relation("WinnerRequestReviewer")
-  wonCycles          Cycle[]         @relation("CycleWinner")
-  cycleHistoriesWon  CycleHistory[]  @relation("CycleHistoryWinner")
+  id                        String                  @id @default(cuid())
+  name                      String?
+  email                     String?                 @unique
+  emailVerified             DateTime?
+  image                     String?
+  role                      UserRole                @default(PLAYER)
+  lastReadChatAt            DateTime?
+  createdAt                 DateTime                @default(now())
+  updatedAt                 DateTime                @updatedAt
+  accounts                  Account[]
+  sessions                  Session[]
+  fortresses                Fortress[]
+  chatMessages              ChatMessage[]
+  scoreEventsAsActor        ScoreEvent[]            @relation("ScoreEventActor")
+  winnerRequests            WinnerRequest[]         @relation("WinnerRequestAuthor")
+  reviewedRequests          WinnerRequest[]         @relation("WinnerRequestReviewer")
+  communityWishProposals    CommunityWishProposal[] @relation("CommunityWishProposalAuthor")
+  communityWishVotes        CommunityWishVote[]     @relation("CommunityWishVoteVoter")
+  communityWishEntitlements CommunityWishVoteEntitlement[] @relation("CommunityWishVoteEntitlementUser")
+  resolvedCommunityWishTies CycleHistory[]          @relation("CommunityWishAdminResolver")
+  wonCycles                 Cycle[]                 @relation("CycleWinner")
+  cycleHistoriesWon         CycleHistory[]          @relation("CycleHistoryWinner")
 }
 
 model Account {
@@ -108,30 +124,32 @@ model VerificationToken {
 }
 
 model Cycle {
-  id                    String          @id @default(cuid())
-  status                CycleStatus     @default(REGISTRATION)
-  registrationStartedAt DateTime
-  registrationEndsAt    DateTime
-  joiningLockedAt       DateTime?
-  activeStartedAt       DateTime?
-  activeEndsAt          DateTime?
-  resolvedAt            DateTime?
-  winnerId              String?
-  crownedFortressId     String?
-  upgradesUnlockedAt    DateTime?
-  megaFortressDestroyCount Int          @default(0)
-  mapLayoutVersion      Int             @default(1)
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
-  winner                User?           @relation("CycleWinner", fields: [winnerId], references: [id], onDelete: SetNull)
-  crownedFortress       Fortress?       @relation("CycleCrownedFortress", fields: [crownedFortressId], references: [id], onDelete: SetNull)
-  fortresses            Fortress[]
-  chatMessages          ChatMessage[]
-  scoreEvents           ScoreEvent[]
-  gameTicks             GameTick[]
-  attackUnits           AttackUnit[]
-  winnerRequests        WinnerRequest[]
-  history               CycleHistory?
+  id                       String                  @id @default(cuid())
+  status                   CycleStatus             @default(REGISTRATION)
+  registrationStartedAt    DateTime
+  registrationEndsAt       DateTime
+  joiningLockedAt          DateTime?
+  activeStartedAt          DateTime?
+  activeEndsAt             DateTime?
+  resolvedAt               DateTime?
+  winnerId                 String?
+  crownedFortressId        String?
+  upgradesUnlockedAt       DateTime?
+  megaFortressDestroyCount Int                     @default(0)
+  mapLayoutVersion         Int                     @default(1)
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
+  winner                   User?                   @relation("CycleWinner", fields: [winnerId], references: [id], onDelete: SetNull)
+  crownedFortress          Fortress?               @relation("CycleCrownedFortress", fields: [crownedFortressId], references: [id], onDelete: SetNull)
+  fortresses               Fortress[]
+  chatMessages             ChatMessage[]
+  scoreEvents              ScoreEvent[]
+  gameTicks                GameTick[]
+  attackUnits              AttackUnit[]
+  winnerRequests           WinnerRequest[]
+  communityWishProposals   CommunityWishProposal[]
+  communityWishVoteEntitlements CommunityWishVoteEntitlement[]
+  history                  CycleHistory?
 
   @@index([status])
   @@index([winnerId])
@@ -139,37 +157,37 @@ model Cycle {
 }
 
 model Fortress {
-  id                    String         @id @default(cuid())
-  cycleId               String
-  ownerId               String
-  commanderName         String
+  id                        String         @id @default(cuid())
+  cycleId                   String
+  ownerId                   String
+  commanderName             String
   commanderNameRegisteredAt DateTime?
-  name                  String
-  points                Int            @default(0)
-  level                 Int            @default(0)
-  isNpc                 Boolean        @default(false)
-  health                Int            @default(0)
-  maxHealth             Int            @default(0)
-  sizeTiles             Int            @default(1)
-  iconLabel             String?
-  currentAction         FortressAction @default(GROW)
-  targetFortressId      String?
-  unitSpriteVariant     String         @default("unit-1")
-  locationShuffleCount  Int            @default(0)
-  mapX                  Int
-  mapY                  Int
-  joinedAt              DateTime       @default(now())
-  createdAt             DateTime       @default(now())
-  updatedAt             DateTime       @updatedAt
-  cycle                 Cycle          @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  owner                 User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  targetFortress        Fortress?      @relation("FortressTarget", fields: [targetFortressId], references: [id], onDelete: SetNull)
-  attackers             Fortress[]     @relation("FortressTarget")
-  outboundAttackUnits   AttackUnit[]   @relation("AttackUnitAttacker")
-  inboundAttackUnits    AttackUnit[]   @relation("AttackUnitTarget")
-  crownedCycles         Cycle[]        @relation("CycleCrownedFortress")
-  scoreEventsAsFortress ScoreEvent[]   @relation("ScoreEventFortress")
-  scoreEventsAsTarget   ScoreEvent[]   @relation("ScoreEventTargetFortress")
+  name                      String
+  points                    Int            @default(0)
+  level                     Int            @default(0)
+  isNpc                     Boolean        @default(false)
+  health                    Int            @default(0)
+  maxHealth                 Int            @default(0)
+  sizeTiles                 Int            @default(1)
+  iconLabel                 String?
+  currentAction             FortressAction @default(GROW)
+  targetFortressId          String?
+  unitSpriteVariant         String         @default("unit-1")
+  locationShuffleCount      Int            @default(0)
+  mapX                      Int
+  mapY                      Int
+  joinedAt                  DateTime       @default(now())
+  createdAt                 DateTime       @default(now())
+  updatedAt                 DateTime       @updatedAt
+  cycle                     Cycle          @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  owner                     User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  targetFortress            Fortress?      @relation("FortressTarget", fields: [targetFortressId], references: [id], onDelete: SetNull)
+  attackers                 Fortress[]     @relation("FortressTarget")
+  outboundAttackUnits       AttackUnit[]   @relation("AttackUnitAttacker")
+  inboundAttackUnits        AttackUnit[]   @relation("AttackUnitTarget")
+  crownedCycles             Cycle[]        @relation("CycleCrownedFortress")
+  scoreEventsAsFortress     ScoreEvent[]   @relation("ScoreEventFortress")
+  scoreEventsAsTarget       ScoreEvent[]   @relation("ScoreEventTargetFortress")
 
   @@unique([cycleId, ownerId])
   @@unique([cycleId, commanderName])
@@ -200,14 +218,23 @@ model AttackUnit {
 }
 
 model ChatMessage {
-  id        String   @id @default(cuid())
-  cycleId   String
-  authorId  String
-  body      String   @db.Text
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  cycle     Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  id            String          @id @default(cuid())
+  cycleId       String
+  authorId      String
+  type          ChatMessageType @default(TEXT)
+  body          String          @db.Text
+  gifProvider   String?
+  gifProviderId String?
+  gifTitle      String?         @db.Text
+  gifPreviewUrl String?         @db.Text
+  gifDisplayUrl String?         @db.Text
+  gifWidth      Int?
+  gifHeight     Int?
+  gifSourceUrl  String?         @db.Text
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  cycle         Cycle           @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  author        User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
   @@index([cycleId, createdAt])
   @@index([authorId, createdAt])
@@ -263,22 +290,79 @@ model WinnerRequest {
   @@index([cycleId, status])
 }
 
+model CommunityWishProposal {
+  id                    String              @id @default(cuid())
+  cycleId               String
+  authorId              String
+  requestText           String              @db.Text
+  status                WinnerRequestStatus @default(SUBMITTED)
+  reviewNotes           String?             @db.Text
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  cycle                 Cycle               @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  author                User                @relation("CommunityWishProposalAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  votes                 CommunityWishVote[]
+  cycleHistoryReference CycleHistory?       @relation("CycleHistoryCommunityWish")
+
+  @@unique([cycleId, authorId])
+  @@index([cycleId, createdAt])
+}
+
+model CommunityWishVote {
+  id         String                @id @default(cuid())
+  proposalId String
+  voterId    String
+  votes      Int
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+  proposal   CommunityWishProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  voter      User                  @relation("CommunityWishVoteVoter", fields: [voterId], references: [id], onDelete: Cascade)
+
+  @@unique([proposalId, voterId])
+  @@index([voterId])
+}
+
+model CommunityWishVoteEntitlement {
+  id         String   @id @default(cuid())
+  cycleId    String
+  userId     String
+  rank       Int
+  voteBudget Int
+  createdAt  DateTime @default(now())
+  cycle      Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  user       User     @relation("CommunityWishVoteEntitlementUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([cycleId, userId])
+  @@index([userId])
+}
+
 model CycleHistory {
-  id                    String         @id @default(cuid())
-  cycleId               String         @unique
-  winnerId              String
-  winnerRequestId       String?        @unique
-  winningScore          Int
-  endedAt               DateTime
-  firstSlayerCommanderName String?     @db.Text
-  firstSlayerFortressName String?      @db.Text
-  tieBreakSummary       String?        @db.Text
-  winnerRequestSnapshot String?        @db.Text
-  createdAt             DateTime       @default(now())
-  cycle                 Cycle          @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  winner                User           @relation("CycleHistoryWinner", fields: [winnerId], references: [id], onDelete: Restrict)
-  winnerRequest         WinnerRequest? @relation("CycleHistoryWinnerRequest", fields: [winnerRequestId], references: [id], onDelete: SetNull)
+  id                        String                 @id @default(cuid())
+  cycleId                   String                 @unique
+  winnerId                  String
+  winnerRequestId           String?                @unique
+  communityWishProposalId   String?                @unique
+  winningScore              Int
+  endedAt                   DateTime
+  firstSlayerCommanderName  String?                @db.Text
+  firstSlayerFortressName   String?                @db.Text
+  tieBreakSummary           String?                @db.Text
+  winnerRequestSnapshot     String?                @db.Text
+  communityWishSnapshot     String?                @db.Text
+  communityWishVoteCount    Int                    @default(0)
+  communityWishStatus       CommunityWishStatus    @default(NO_PROPOSALS)
+  communityWishVotingEndsAt DateTime?
+  communityWishResolvedAt   DateTime?
+  communityWishResolvedById String?
+  createdAt                 DateTime               @default(now())
+  cycle                     Cycle                  @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  winner                    User                   @relation("CycleHistoryWinner", fields: [winnerId], references: [id], onDelete: Restrict)
+  winnerRequest             WinnerRequest?         @relation("CycleHistoryWinnerRequest", fields: [winnerRequestId], references: [id], onDelete: SetNull)
+  communityWishProposal     CommunityWishProposal? @relation("CycleHistoryCommunityWish", fields: [communityWishProposalId], references: [id], onDelete: SetNull)
+  communityWishResolvedBy   User?                  @relation("CommunityWishAdminResolver", fields: [communityWishResolvedById], references: [id], onDelete: SetNull)
 
   @@index([winnerId])
   @@index([endedAt])
+  @@index([communityWishStatus, communityWishVotingEndsAt])
+  @@index([communityWishResolvedById])
 }

@@ -36,7 +36,18 @@ type CommandTarget = {
 type ChatProps = {
   messages: Array<{
     id: string;
+    type: "TEXT" | "GIF";
     body: string;
+    gif: {
+      provider: string;
+      providerId: string;
+      title: string;
+      previewUrl: string;
+      displayUrl: string;
+      width: number;
+      height: number;
+      sourceUrl: string;
+    } | null;
     createdAt: Date;
     authorName: string;
     isCurrentUser: boolean;
@@ -518,7 +529,8 @@ export function BattlefieldExperience({
               ) : null}
             </section>
 
-            {playerSummary.canRegisterCommanderName || playerSummary.canRename ? (
+            {playerSummary.canRegisterCommanderName ||
+            playerSummary.canRename ? (
               <section className={styles.orderSection}>
                 <div className={styles.sectionHeading}>
                   <span className={styles.label}>Names</span>

@@ -170,6 +170,47 @@ export async function getAdminDashboardState({
     },
   });
 
+  const communityWishHistories = await db.cycleHistory.findMany({
+    orderBy: {
+      endedAt: "desc",
+    },
+    take: 8,
+    include: {
+      communityWishProposal: {
+        select: {
+          id: true,
+          requestText: true,
+          status: true,
+        },
+      },
+      cycle: {
+        select: {
+          communityWishProposals: {
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+            select: {
+              id: true,
+              authorId: true,
+              requestText: true,
+              status: true,
+              votes: {
+                select: {
+                  votes: true,
+                },
+              },
+            },
+          },
+          fortresses: {
+            select: {
+              ownerId: true,
+              commanderName: true,
+              name: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
   const activeMinutesBehind =
     currentCycle?.status === "ACTIVE"
       ? getActiveCycleMinutesBehind({
@@ -278,6 +319,60 @@ export async function getAdminDashboardState({
       reviewedByLabel: request.reviewedBy ? "Admin reviewer" : null,
       resolvedAt: request.cycle.resolvedAt,
     })),
+    communityWishes: communityWishHistories.map((entry) => {
+      const proposals = entry.cycle.communityWishProposals.map((proposal) => ({
+        id: proposal.id,
+        authorLabel:
+          entry.cycle.fortresses.find(
+            (fortress) => fortress.ownerId === proposal.authorId
+          )?.commanderName ?? "Unknown player",
+        fortressName:
+          entry.cycle.fortresses.find(
+            (fortress) => fortress.ownerId === proposal.authorId
+          )?.name ?? "Unknown fortress",
+        requestText: proposal.requestText,
+        status: proposal.status,
+        voteCount: proposal.votes.reduce((sum, vote) => sum + vote.votes, 0),
+        isTieBreakEligible: false,
+      }));
+      const eligibleVoteCounts = proposals
+        .filter((proposal) => proposal.status !== "REJECTED")
+        .map((proposal) => proposal.voteCount);
+      const topVoteCount =
+        eligibleVoteCounts.length > 0 ? Math.max(...eligibleVoteCounts) : null;
+      const tiedTopProposalIds =
+        topVoteCount === null
+          ? new Set<string>()
+          : new Set(
+              proposals
+                .filter(
+                  (proposal) =>
+                    proposal.status !== "REJECTED" &&
+                    proposal.voteCount === topVoteCount
+                )
+                .map((proposal) => proposal.id)
+            );
+      const hasTieBreakOptions = tiedTopProposalIds.size > 1;
+
+      return {
+        id: entry.id,
+        cycleId: entry.cycleId,
+        status: entry.communityWishStatus,
+        votingEndsAt: entry.communityWishVotingEndsAt,
+        resolvedAt: entry.communityWishResolvedAt,
+        winningProposalId: entry.communityWishProposalId,
+        winningSnapshot:
+          entry.communityWishSnapshot ??
+          entry.communityWishProposal?.requestText ??
+          null,
+        voteCount: entry.communityWishVoteCount,
+        proposals: proposals.map((proposal) => ({
+          ...proposal,
+          isTieBreakEligible:
+            hasTieBreakOptions && tiedTopProposalIds.has(proposal.id),
+        })),
+      };
+    }),
     policyUrl: WINNER_REQUEST_POLICY_URL,
   };
 }

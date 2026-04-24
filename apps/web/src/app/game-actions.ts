@@ -3,7 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { markChatRead, sendChatMessage } from "@/lib/game/chat";
+import {
+  markChatRead,
+  sendChatGifMessage,
+  sendChatMessage,
+} from "@/lib/game/chat";
+import { submitCommunityWishProposal } from "@/lib/game/community-wishes";
 import { GameError } from "@/lib/game/errors";
 import { FortressAction } from "@/lib/prisma-client";
 import { emitProjectARefresh } from "@/lib/realtime";
@@ -38,7 +43,10 @@ async function requireUserId() {
   const userId = session?.user?.id;
 
   if (!userId) {
-    redirectToHome("error", "You need to sign in before changing season state.");
+    redirectToHome(
+      "error",
+      "You need to sign in before changing season state."
+    );
   }
 
   return userId;
@@ -226,6 +234,29 @@ export async function setFortressActionAction(formData: FormData) {
   finishAction("Fortress action updated.");
 }
 
+export async function submitCommunityWishProposalAction(formData: FormData) {
+  const userId = await requireUserId();
+  const cycleId = getString(formData, "cycleId");
+  const requestText = getString(formData, "requestText");
+
+  if (!cycleId) {
+    redirectToHome("error", "Community wish is missing its cycle reference.");
+  }
+
+  try {
+    await submitCommunityWishProposal({
+      cycleId,
+      userId,
+      requestText,
+    });
+    emitProjectARefresh("community-wish-proposal");
+  } catch (error) {
+    redirectToHome("error", getActionErrorMessage(error));
+  }
+
+  finishAction("Community wish proposal submitted.");
+}
+
 export async function sendChatMessageAction(formData: FormData) {
   const userId = await requireUserId();
 
@@ -233,6 +264,31 @@ export async function sendChatMessageAction(formData: FormData) {
     await sendChatMessage({
       userId,
       body: getString(formData, "body"),
+    });
+    emitProjectARefresh("chat-message");
+  } catch (error) {
+    redirectToHome("error", getActionErrorMessage(error));
+  }
+
+  revalidatePath("/");
+  redirect("/");
+}
+
+export async function sendChatGifMessageAction(formData: FormData) {
+  const userId = await requireUserId();
+
+  try {
+    await sendChatGifMessage({
+      userId,
+      gif: {
+        providerId: getString(formData, "providerId"),
+        title: getString(formData, "title"),
+        previewUrl: getString(formData, "previewUrl"),
+        displayUrl: getString(formData, "displayUrl"),
+        width: Number(getString(formData, "width")),
+        height: Number(getString(formData, "height")),
+        sourceUrl: getString(formData, "sourceUrl"),
+      },
     });
     emitProjectARefresh("chat-message");
   } catch (error) {

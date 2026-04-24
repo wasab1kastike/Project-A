@@ -2,7 +2,10 @@ import Link from "next/link";
 import styles from "./page.module.css";
 import { auth } from "@/auth";
 import { getCycleHistoryPageState } from "@/lib/game/history";
-import { submitWinnerRequestAction } from "./actions";
+import {
+  saveCommunityWishVotesAction,
+  submitWinnerRequestAction,
+} from "./actions";
 import { PATCH_NOTES_PAGE_HREF } from "@/lib/game/site-navigation";
 
 export const dynamic = "force-dynamic";
@@ -129,7 +132,73 @@ export default async function HistoryPage({
                   <dt>Review notes</dt>
                   <dd>{entry.winnerRequestReviewNotes ?? "No review notes."}</dd>
                 </div>
+                <div>
+                  <dt>Community wish</dt>
+                  <dd>
+                    {entry.communityWishSnapshot ??
+                      entry.communityWishVotingMessage}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Community wish status</dt>
+                  <dd>
+                    {entry.communityWishStatus}
+                    {entry.communityWishVotingEndsAt
+                      ? ` - voting ends ${formatDateTime(
+                          entry.communityWishVotingEndsAt
+                        )}`
+                      : ""}
+                  </dd>
+                </div>
               </dl>
+
+              {entry.communityWishProposals.length > 0 ? (
+                <form
+                  action={saveCommunityWishVotesAction}
+                  className={styles.formStack}
+                >
+                  <input type="hidden" name="cycleId" value={entry.cycleId} />
+                  <span className={styles.sectionLabel}>Community vote</span>
+                  <p className={styles.helperText}>
+                    {entry.communityWishCanVote
+                      ? `You have ${entry.communityWishVoteBudget} votes. ${entry.communityWishUsedVotes} currently allocated. You can change them until voting ends.`
+                      : entry.communityWishVotingMessage}
+                  </p>
+                  <div className={styles.voteList}>
+                    {entry.communityWishProposals.map((proposal) => (
+                      <label className={styles.voteRow} key={proposal.id}>
+                        <span>
+                          <strong>{proposal.authorLabel}</strong>
+                          <small>
+                            {proposal.voteCount} votes - {proposal.status}
+                          </small>
+                          <em>{proposal.requestText}</em>
+                        </span>
+                        <input
+                          name={`proposalVotes:${proposal.id}`}
+                          type="number"
+                          min={0}
+                          max={
+                            proposal.isVoteEligible
+                              ? entry.communityWishVoteBudget
+                              : 0
+                          }
+                          defaultValue={proposal.currentUserVotes}
+                          disabled={
+                            !entry.communityWishCanVote ||
+                            !proposal.isVoteEligible
+                          }
+                        />
+                      </label>
+                    ))}
+                  </div>
+                  {entry.communityWishCanVote ? (
+                    <button className={styles.primaryButton} type="submit">
+                      Save community votes
+                    </button>
+                  ) : null}
+                </form>
+              ) : null}
 
               {entry.canSubmitWinnerRequest ? (
                 <form action={submitWinnerRequestAction} className={styles.formStack}>

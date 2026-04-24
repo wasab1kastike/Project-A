@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import { type Prisma, type PrismaClient } from "@/lib/prisma-client";
+import {
+  ChatMessageType,
+  type Prisma,
+  type PrismaClient,
+} from "@/lib/prisma-client";
 import { GameError } from "./errors";
 import { ensureLastReadChatColumn } from "./schema-guards";
 
@@ -7,14 +11,23 @@ const CHAT_MESSAGE_MAX_LENGTH = 280;
 const CHAT_MESSAGES_LIMIT = 40;
 const CHAT_RATE_LIMIT_WINDOW_MS = 60_000;
 const CHAT_RATE_LIMIT_COUNT = 6;
+const CHAT_GIF_PROVIDER = "giphy";
+const CHAT_GIF_TITLE_MAX_LENGTH = 160;
+const CHAT_GIF_ID_MAX_LENGTH = 120;
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
+type ChatGifInput = {
+  providerId: string;
+  title: string;
+  previewUrl: string;
+  displayUrl: string;
+  width: number;
+  height: number;
+  sourceUrl: string;
+};
 
 function normalizeChatBody(input: string) {
-  const normalized = input
-    .replace(/\r\n/g, "\n")
-    .replace(/\s+/g, " ")
-    .trim();
+  const normalized = input.replace(/\r\n/g, "\n").replace(/\s+/g, " ").trim();
 
   if (!normalized) {
     throw new GameError("Chat message cannot be empty.");
@@ -52,7 +65,6 @@ export async function sendChatMessage({
   db?: PrismaClient;
 }) {
   const normalizedBody = normalizeChatBody(body);
-  const rateLimitBoundary = new Date(now.getTime() - CHAT_RATE_LIMIT_WINDOW_MS);
 
   return db.$transaction(async (tx) => {
     const cycle = await getCurrentCycle(tx);
@@ -61,25 +73,65 @@ export async function sendChatMessage({
       throw new GameError("Chat is unavailable until a cycle exists.");
     }
 
-    const recentMessageCount = await tx.chatMessage.count({
-      where: {
-        cycleId: cycle.id,
-        authorId: userId,
-        createdAt: {
-          gte: rateLimitBoundary,
-        },
-      },
-    });
-
-    if (recentMessageCount >= CHAT_RATE_LIMIT_COUNT) {
-      throw new GameError("Chat is limited to 6 messages per minute.");
-    }
+    await assertWithinChatRateLimit({ tx, cycleId: cycle.id, userId, now });
 
     return tx.chatMessage.create({
       data: {
         cycleId: cycle.id,
         authorId: userId,
+        type: ChatMessageType.TEXT,
         body: normalizedBody,
+        createdAt: now,
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+  });
+}
+
+export async function sendChatGifMessage({
+  userId,
+  gif,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  gif: ChatGifInput;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  const normalizedGif = normalizeChatGif(gif);
+
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle) {
+      throw new GameError("Chat is unavailable until a cycle exists.");
+    }
+
+    await assertWithinChatRateLimit({ tx, cycleId: cycle.id, userId, now });
+
+    return tx.chatMessage.create({
+      data: {
+        cycleId: cycle.id,
+        authorId: userId,
+        type: ChatMessageType.GIF,
+        body: normalizedGif.title,
+        gifProvider: CHAT_GIF_PROVIDER,
+        gifProviderId: normalizedGif.providerId,
+        gifTitle: normalizedGif.title,
+        gifPreviewUrl: normalizedGif.previewUrl,
+        gifDisplayUrl: normalizedGif.displayUrl,
+        gifWidth: normalizedGif.width,
+        gifHeight: normalizedGif.height,
+        gifSourceUrl: normalizedGif.sourceUrl,
         createdAt: now,
       },
       include: {
@@ -114,6 +166,109 @@ export async function markChatRead({
       lastReadChatAt: now,
     },
   });
+}
+
+function normalizeGifText(input: string, fallback: string, maxLength: number) {
+  const normalized = input.replace(/\s+/g, " ").trim();
+
+  return (normalized || fallback).slice(0, maxLength);
+}
+
+function parseHttpsUrl(input: string, fieldName: string) {
+  let url: URL;
+
+  try {
+    url = new URL(input);
+  } catch {
+    throw new GameError(`${fieldName} must be a valid URL.`);
+  }
+
+  if (url.protocol !== "https:") {
+    throw new GameError(`${fieldName} must use HTTPS.`);
+  }
+
+  return url;
+}
+
+function isGiphyMediaHost(hostname: string) {
+  return /^media\d*\.giphy\.com$/.test(hostname) || hostname === "i.giphy.com";
+}
+
+function normalizeChatGif(input: ChatGifInput) {
+  const providerId = normalizeGifText(
+    input.providerId,
+    "",
+    CHAT_GIF_ID_MAX_LENGTH
+  );
+
+  if (!providerId) {
+    throw new GameError("GIF id is required.");
+  }
+
+  const previewUrl = parseHttpsUrl(input.previewUrl, "GIF preview URL");
+  const displayUrl = parseHttpsUrl(input.displayUrl, "GIF display URL");
+  const sourceUrl = parseHttpsUrl(input.sourceUrl, "GIF source URL");
+
+  if (
+    !isGiphyMediaHost(previewUrl.hostname) ||
+    !isGiphyMediaHost(displayUrl.hostname)
+  ) {
+    throw new GameError("Only GIPHY media URLs can be posted.");
+  }
+
+  if (!["giphy.com", "www.giphy.com"].includes(sourceUrl.hostname)) {
+    throw new GameError("Only GIPHY source URLs can be posted.");
+  }
+
+  const width = Math.trunc(input.width);
+  const height = Math.trunc(input.height);
+
+  if (width < 1 || height < 1 || width > 2000 || height > 2000) {
+    throw new GameError("GIF dimensions are invalid.");
+  }
+
+  const title = normalizeGifText(
+    input.title,
+    "GIPHY GIF",
+    CHAT_GIF_TITLE_MAX_LENGTH
+  );
+
+  return {
+    providerId,
+    title,
+    previewUrl: previewUrl.toString(),
+    displayUrl: displayUrl.toString(),
+    width,
+    height,
+    sourceUrl: sourceUrl.toString(),
+  };
+}
+
+async function assertWithinChatRateLimit({
+  tx,
+  cycleId,
+  userId,
+  now,
+}: {
+  tx: DatabaseClient;
+  cycleId: string;
+  userId: string;
+  now: Date;
+}) {
+  const rateLimitBoundary = new Date(now.getTime() - CHAT_RATE_LIMIT_WINDOW_MS);
+  const recentMessageCount = await tx.chatMessage.count({
+    where: {
+      cycleId,
+      authorId: userId,
+      createdAt: {
+        gte: rateLimitBoundary,
+      },
+    },
+  });
+
+  if (recentMessageCount >= CHAT_RATE_LIMIT_COUNT) {
+    throw new GameError("Chat is limited to 6 messages per minute.");
+  }
 }
 
 export function getChatLimits() {

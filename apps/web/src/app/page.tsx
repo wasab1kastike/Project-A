@@ -10,6 +10,7 @@ import { SeasonTimer } from "@/components/season-timer";
 import {
   joinFortressAction,
   registerCommanderNameAction,
+  submitCommunityWishProposalAction,
 } from "@/app/game-actions";
 import { getHomePageState, type HomePageState } from "@/lib/game/read-model";
 import { PRIMARY_GAME_NAV_LINKS } from "@/lib/game/site-navigation";
@@ -69,6 +70,15 @@ function getDegradedHomePageState(): HomePageState {
       hasUnread: false,
       latestMessageAt: null,
       persistsUnread: false,
+    },
+    communityWish: {
+      isOpen: false,
+      opensAt: null,
+      closesAt: null,
+      canSubmit: false,
+      submissionHint:
+        "Community wishes open during the final 24 hours of an active season.",
+      proposals: [],
     },
     availableTargets: [],
     canJoinCycle: false,
@@ -291,6 +301,48 @@ export default async function Home({
       </header>
 
       {notice ? <p className={styles.noticeToast}>{notice}</p> : null}
+
+      {state.cycle && state.phase?.status === "ACTIVE" ? (
+        <section className={styles.wishPanel} aria-label="Community wish pool">
+          <span className={styles.sectionLabel}>Community wish</span>
+          <h2>Final-day proposals</h2>
+          <p>{state.communityWish.submissionHint}</p>
+          {state.communityWish.canSubmit ? (
+            <form
+              action={submitCommunityWishProposalAction}
+              className={styles.form}
+            >
+              <input type="hidden" name="cycleId" value={state.cycle.id} />
+              <label className={styles.field}>
+                <span>Proposal</span>
+                <textarea
+                  name="requestText"
+                  rows={4}
+                  maxLength={600}
+                  placeholder="Suggest one bounded gameplay-safe change."
+                  required
+                />
+              </label>
+              <button className={styles.primaryButton} type="submit">
+                Submit wish
+              </button>
+            </form>
+          ) : null}
+          {state.communityWish.proposals.length > 0 ? (
+            <ol className={styles.wishList}>
+              {state.communityWish.proposals.slice(0, 4).map((proposal) => (
+                <li key={proposal.id}>
+                  <strong>{proposal.authorLabel}</strong>
+                  <span>{proposal.status}</span>
+                  <p>{proposal.requestText}</p>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p>No community wishes have been suggested yet.</p>
+          )}
+        </section>
+      ) : null}
 
       {showSidePanel ? (
         <section

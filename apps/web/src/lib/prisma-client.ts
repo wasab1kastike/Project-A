@@ -1,4 +1,6 @@
 export {
+  ChatMessageType,
+  CommunityWishStatus,
   CycleStatus,
   FortressAction,
   Prisma,

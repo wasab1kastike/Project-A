@@ -5,6 +5,7 @@ import { getAdminDashboardState } from "@/lib/game/admin-dashboard";
 import {
   emergencyResetCycleAction,
   forceEndCycleAction,
+  resolveCommunityWishTieAction,
   reviewWinnerRequestAction,
   runManualCatchUpTickAction,
   toggleJoiningLockAction,
@@ -435,6 +436,77 @@ export default async function AdminPage({
               ))
             ) : (
               <p>No cycle history has been written yet.</p>
+            )}
+          </div>
+        </article>
+      </section>
+
+      <section className={styles.grid}>
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>Community wishes</span>
+          <h2>Voting outcomes</h2>
+          <div className={styles.historyList}>
+            {state.communityWishes.length > 0 ? (
+              state.communityWishes.map((entry) => (
+                <div className={styles.historyItem} key={entry.id}>
+                  <div className={styles.reviewHeader}>
+                    <div>
+                      <strong>Cycle {entry.cycleId.slice(0, 8)}</strong>
+                      <p>{entry.status}</p>
+                    </div>
+                    <div>
+                      <strong>{entry.voteCount} votes</strong>
+                      <p>
+                        {entry.votingEndsAt
+                          ? `Ends ${formatDateTime(entry.votingEndsAt)}`
+                          : "No voting deadline"}
+                      </p>
+                    </div>
+                  </div>
+                  <p>{entry.winningSnapshot ?? "No community wish winner yet."}</p>
+                  {entry.proposals.length > 0 ? (
+                    <div className={styles.historyList}>
+                      {entry.proposals.map((proposal) => (
+                        <div className={styles.historyItem} key={proposal.id}>
+                          <div className={styles.reviewHeader}>
+                            <div>
+                              <strong>{proposal.fortressName}</strong>
+                              <p>{proposal.authorLabel}</p>
+                            </div>
+                            <div>
+                              <strong>{proposal.voteCount} votes</strong>
+                              <p>{proposal.status}</p>
+                            </div>
+                          </div>
+                          <p>{proposal.requestText}</p>
+                          {entry.status === "TIE_REQUIRES_ADMIN" &&
+                          proposal.isTieBreakEligible ? (
+                            <form action={resolveCommunityWishTieAction}>
+                              <input
+                                type="hidden"
+                                name="cycleId"
+                                value={entry.cycleId}
+                              />
+                              <input
+                                type="hidden"
+                                name="proposalId"
+                                value={proposal.id}
+                              />
+                              <button className={styles.primaryButton} type="submit">
+                                Choose this wish
+                              </button>
+                            </form>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p>No proposals were submitted for this cycle.</p>
+                  )}
+                </div>
+              ))
+            ) : (
+              <p>No community wish voting history yet.</p>
             )}
           </div>
         </article>

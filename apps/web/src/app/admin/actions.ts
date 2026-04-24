@@ -12,6 +12,7 @@ import {
   runManualCatchUpTick,
   setRegistrationJoiningLock,
 } from "@/lib/game/admin-operations";
+import { adminResolveCommunityWishTie } from "@/lib/game/community-wishes";
 import { reviewWinnerRequest } from "@/lib/game/winner-requests";
 
 function getString(formData: FormData, key: string) {
@@ -134,4 +135,27 @@ export async function reviewWinnerRequestAction(formData: FormData) {
   }
 
   finishAction("Winner request review updated.");
+}
+
+export async function resolveCommunityWishTieAction(formData: FormData) {
+  const session = await requireAdminSession();
+  const cycleId = getString(formData, "cycleId");
+  const proposalId = getString(formData, "proposalId");
+
+  if (!cycleId || !proposalId) {
+    redirectToAdmin("error", "Choose a community wish proposal to resolve.");
+  }
+
+  try {
+    await adminResolveCommunityWishTie({
+      cycleId,
+      proposalId,
+      adminId: session.user.id,
+    });
+    emitProjectARefresh("community-wish-admin-resolve");
+  } catch (error) {
+    redirectToAdmin("error", getActionErrorMessage(error));
+  }
+
+  finishAction("Community wish tie resolved.");
 }

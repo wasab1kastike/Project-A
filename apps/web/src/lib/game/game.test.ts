@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { after, before, beforeEach, test, type TestContext } from "node:test";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  ChatMessageType,
+  CommunityWishStatus,
   CycleStatus,
   FortressAction,
   PrismaClient,
@@ -17,7 +20,15 @@ import {
   setRegistrationJoiningLock,
 } from "./admin-operations";
 import { seedProjectA } from "./bootstrap";
-import { markChatRead, sendChatMessage } from "./chat";
+import { markChatRead, sendChatGifMessage, sendChatMessage } from "./chat";
+import {
+  adminResolveCommunityWishTie,
+  getCommunityWishVoteBudget,
+  getCommunityWishVoteWeight,
+  resolveExpiredCommunityWishVotes,
+  saveCommunityWishVotes,
+  submitCommunityWishProposal,
+} from "./community-wishes";
 import {
   ACTIVE_LOCATION_SHUFFLE_COST,
   ACTIVE_PLAYER_CAP,
@@ -470,6 +481,7 @@ test("tick CLI summary includes attack launch and resolution counts", () => {
     restartedRegistrationCycles: 1,
     activatedCycles: 2,
     resolvedCycles: 3,
+    resolvedCommunityWishVotes: 0,
     nextRegistrationCyclesCreated: 4,
     processedMinutes: 5,
     scoreEventsCreated: 6,
@@ -626,8 +638,11 @@ async function resetDatabase(client: PrismaClient) {
   await client.scoreEvent.deleteMany();
   await client.gameTick.deleteMany();
   await client.chatMessage.deleteMany();
+  await client.communityWishVote.deleteMany();
+  await client.communityWishVoteEntitlement.deleteMany();
   await client.cycleHistory.deleteMany();
   await client.winnerRequest.deleteMany();
+  await client.communityWishProposal.deleteMany();
   await client.fortress.deleteMany();
   await client.session.deleteMany();
   await client.account.deleteMany();
@@ -642,6 +657,51 @@ async function createUser(client: PrismaClient, email: string) {
       name: email,
     },
   });
+}
+
+async function seedActiveCommunityWishCycle(
+  client: PrismaClient,
+  players: Array<{
+    userId: string;
+    commanderName: string;
+    fortressName: string;
+    points: number;
+  }>,
+  activeEndsAt = new Date("2026-04-20T12:10:00.000Z")
+) {
+  const activeStartedAt = new Date("2026-04-20T12:00:00.000Z");
+  const cycle = await client.cycle.create({
+    data: {
+      status: CycleStatus.ACTIVE,
+      registrationStartedAt: new Date("2026-04-19T12:00:00.000Z"),
+      registrationEndsAt: activeStartedAt,
+      activeStartedAt,
+      activeEndsAt,
+      mapLayoutVersion: CURRENT_MAP_LAYOUT_VERSION,
+    },
+  });
+
+  await Promise.all(
+    players.map((player, index) =>
+      client.fortress.create({
+        data: {
+          cycleId: cycle.id,
+          ownerId: player.userId,
+          commanderName: player.commanderName,
+          commanderNameRegisteredAt: activeStartedAt,
+          name: player.fortressName,
+          points: player.points,
+          health: 100,
+          maxHealth: 100,
+          mapX: 100 + index * 20,
+          mapY: 100 + index * 20,
+          joinedAt: new Date(activeStartedAt.getTime() + index * 1000),
+        },
+      })
+    )
+  );
+
+  return cycle;
 }
 
 async function seedOpenCycle(
@@ -4582,6 +4642,157 @@ test("chat sending is rate limited to six messages per minute", async (context) 
   );
 });
 
+test("chat GIF messages are persisted and returned in page state", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  await seedOpenCycle(prisma);
+  const sender = await createUser(prisma, "gif-sender@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: sender.id,
+    commanderName: "Signal GIF",
+    fortressName: "Motion Keep",
+  });
+
+  await sendChatGifMessage({
+    db: prisma,
+    userId: sender.id,
+    gif: {
+      providerId: "abc123",
+      title: "Victory dance",
+      previewUrl: "https://media0.giphy.com/media/abc123/100.gif",
+      displayUrl: "https://media0.giphy.com/media/abc123/200.gif",
+      width: 320,
+      height: 200,
+      sourceUrl: "https://giphy.com/gifs/victory-dance-abc123",
+    },
+    now: new Date("2026-04-19T12:03:00.000Z"),
+  });
+
+  const storedMessage = await prisma.chatMessage.findFirstOrThrow({
+    where: {
+      authorId: sender.id,
+    },
+  });
+  const state = await getHomePageState({
+    db: prisma,
+    userId: sender.id,
+  });
+  const message = state.chat.messages[0];
+
+  assert.equal(storedMessage.type, ChatMessageType.GIF);
+  assert.equal(storedMessage.gifProvider, "giphy");
+  assert.equal(storedMessage.gifProviderId, "abc123");
+  assert.equal(message?.type, ChatMessageType.GIF);
+  assert.equal(message?.body, "Victory dance");
+  assert.equal(message?.gif?.provider, "giphy");
+  assert.equal(message?.gif?.providerId, "abc123");
+  assert.equal(
+    message?.gif?.displayUrl,
+    "https://media0.giphy.com/media/abc123/200.gif"
+  );
+  assert.equal(message?.authorName, "Signal GIF");
+});
+
+test("chat GIF messages share the text message rate limit", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  await seedOpenCycle(prisma);
+  const sender = await createUser(prisma, "gif-limit@example.com");
+  const now = new Date("2026-04-19T12:00:00.000Z");
+
+  for (let index = 0; index < 5; index += 1) {
+    await sendChatMessage({
+      db: prisma,
+      userId: sender.id,
+      body: `Message ${index + 1}`,
+      now: new Date(now.getTime() + index * 1000),
+    });
+  }
+
+  await sendChatGifMessage({
+    db: prisma,
+    userId: sender.id,
+    gif: {
+      providerId: "limit123",
+      title: "Limit reached",
+      previewUrl: "https://media1.giphy.com/media/limit123/100.gif",
+      displayUrl: "https://media1.giphy.com/media/limit123/200.gif",
+      width: 320,
+      height: 200,
+      sourceUrl: "https://giphy.com/gifs/limit-reached-limit123",
+    },
+    now: new Date(now.getTime() + 5000),
+  });
+
+  await assert.rejects(
+    () =>
+      sendChatMessage({
+        db: prisma,
+        userId: sender.id,
+        body: "Message 7",
+        now: new Date(now.getTime() + 10_000),
+      }),
+    /6 messages per minute/
+  );
+});
+
+test("chat GIF messages reject non-GIPHY media and missing ids", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  await seedOpenCycle(prisma);
+  const sender = await createUser(prisma, "gif-invalid@example.com");
+
+  await assert.rejects(
+    () =>
+      sendChatGifMessage({
+        db: prisma,
+        userId: sender.id,
+        gif: {
+          providerId: "",
+          title: "Missing id",
+          previewUrl: "https://media0.giphy.com/media/missing/100.gif",
+          displayUrl: "https://media0.giphy.com/media/missing/200.gif",
+          width: 320,
+          height: 200,
+          sourceUrl: "https://giphy.com/gifs/missing",
+        },
+      }),
+    /GIF id is required/
+  );
+
+  await assert.rejects(
+    () =>
+      sendChatGifMessage({
+        db: prisma,
+        userId: sender.id,
+        gif: {
+          providerId: "badhost",
+          title: "Bad host",
+          previewUrl: "https://example.com/bad.gif",
+          displayUrl: "https://media0.giphy.com/media/badhost/200.gif",
+          width: 320,
+          height: 200,
+          sourceUrl: "https://giphy.com/gifs/badhost",
+        },
+      }),
+    /Only GIPHY media URLs/
+  );
+});
+
 test("chat unread count includes only other users' messages", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
@@ -4848,6 +5059,461 @@ test("winner request validation classifies allowed, simplifiable, and rejected i
   assert.equal(allowed.status, WinnerRequestStatus.SUBMITTED);
   assert.equal(simplifiable.status, WinnerRequestStatus.NEEDS_SIMPLIFICATION);
   assert.equal(rejected.status, WinnerRequestStatus.REJECTED);
+});
+
+test("community wish proposals open only to active players in the final 24 hours", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const alpha = await createUser(prisma, "community-alpha@example.com");
+  const beta = await createUser(prisma, "community-beta@example.com");
+  const spectator = await createUser(prisma, "community-spectator@example.com");
+  const cycle = await seedActiveCommunityWishCycle(
+    prisma,
+    [
+      {
+        userId: alpha.id,
+        commanderName: "Alpha",
+        fortressName: "Alpha Keep",
+        points: 10,
+      },
+      {
+        userId: beta.id,
+        commanderName: "Beta",
+        fortressName: "Beta Keep",
+        points: 8,
+      },
+    ],
+    new Date("2026-04-23T12:00:00.000Z")
+  );
+
+  await assert.rejects(
+    () =>
+      submitCommunityWishProposal({
+        db: prisma,
+        cycleId: cycle.id,
+        userId: alpha.id,
+        requestText: "Add a new endgame badge.",
+        now: new Date("2026-04-22T11:59:00.000Z"),
+      }),
+    /final 24 hours/
+  );
+
+  await assert.rejects(
+    () =>
+      submitCommunityWishProposal({
+        db: prisma,
+        cycleId: cycle.id,
+        userId: spectator.id,
+        requestText: "Add a new endgame badge.",
+        now: new Date("2026-04-22T12:01:00.000Z"),
+      }),
+    /Only players/
+  );
+
+  const proposal = await submitCommunityWishProposal({
+    db: prisma,
+    cycleId: cycle.id,
+    userId: alpha.id,
+    requestText: "Add a new endgame badge.",
+    now: new Date("2026-04-22T12:01:00.000Z"),
+  });
+
+  assert.equal(proposal.status, WinnerRequestStatus.SUBMITTED);
+
+  const rejectedProposal = await submitCommunityWishProposal({
+    db: prisma,
+    cycleId: cycle.id,
+    userId: beta.id,
+    requestText: "Buff my fortress next season.",
+    now: new Date("2026-04-22T12:02:00.000Z"),
+  });
+
+  assert.equal(rejectedProposal.status, WinnerRequestStatus.REJECTED);
+
+  await assert.rejects(
+    () =>
+      submitCommunityWishProposal({
+        db: prisma,
+        cycleId: cycle.id,
+        userId: alpha.id,
+        requestText: "Add a second idea.",
+        now: new Date("2026-04-22T12:03:00.000Z"),
+      }),
+    /already submitted/
+  );
+});
+
+test("community wish voting uses final rank budgets and free allocations", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  assert.equal(getCommunityWishVoteWeight(1), 1);
+  assert.equal(getCommunityWishVoteWeight(2), 5);
+  assert.equal(getCommunityWishVoteWeight(3), 4);
+  assert.equal(getCommunityWishVoteWeight(4), 3);
+  assert.equal(getCommunityWishVoteWeight(5), 2);
+  assert.equal(getCommunityWishVoteWeight(6), 1);
+
+  const users = await Promise.all(
+    Array.from({ length: 6 }, (_, index) =>
+      createUser(prisma, `community-rank-${index}@example.com`)
+    )
+  );
+  const cycle = await seedActiveCommunityWishCycle(
+    prisma,
+    users.map((user, index) => ({
+      userId: user.id,
+      commanderName: `Rank ${index + 1}`,
+      fortressName: `Rank Keep ${index + 1}`,
+      points: 60 - index * 10,
+    }))
+  );
+  const [winner, second, third] = users;
+
+  const firstProposal = await submitCommunityWishProposal({
+    db: prisma,
+    cycleId: cycle.id,
+    userId: second.id,
+    requestText: "Add a compact replay summary.",
+    now: new Date("2026-04-20T12:01:00.000Z"),
+  });
+  const secondProposal = await submitCommunityWishProposal({
+    db: prisma,
+    cycleId: cycle.id,
+    userId: third.id,
+    requestText: "Add a new map marker style.",
+    now: new Date("2026-04-20T12:02:00.000Z"),
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:10:00.000Z"),
+  });
+
+  const history = await prisma.cycleHistory.findUniqueOrThrow({
+    where: {
+      cycleId: cycle.id,
+    },
+  });
+
+  assert.equal(history.communityWishStatus, CommunityWishStatus.OPEN);
+  assert.equal(
+    history.communityWishVotingEndsAt?.toISOString(),
+    "2026-04-21T12:10:00.000Z"
+  );
+
+  const winnerBudget = await getCommunityWishVoteBudget({
+    db: prisma,
+    cycleId: cycle.id,
+    userId: winner.id,
+  });
+  const secondBudget = await getCommunityWishVoteBudget({
+    db: prisma,
+    cycleId: cycle.id,
+    userId: second.id,
+  });
+
+  assert.equal(winnerBudget.voteBudget, 1);
+  assert.equal(secondBudget.voteBudget, 5);
+
+  await assert.rejects(
+    () =>
+      saveCommunityWishVotes({
+        db: prisma,
+        cycleId: cycle.id,
+        userId: second.id,
+        allocations: [
+          { proposalId: firstProposal.id, votes: 3 },
+          { proposalId: secondProposal.id, votes: 3 },
+        ],
+        now: new Date("2026-04-20T12:15:00.000Z"),
+      }),
+    /at most 5/
+  );
+
+  await saveCommunityWishVotes({
+    db: prisma,
+    cycleId: cycle.id,
+    userId: second.id,
+    allocations: [{ proposalId: firstProposal.id, votes: 5 }],
+    now: new Date("2026-04-20T12:14:00.000Z"),
+  });
+  await saveCommunityWishVotes({
+    db: prisma,
+    cycleId: cycle.id,
+    userId: second.id,
+    allocations: [
+      { proposalId: firstProposal.id, votes: 3 },
+      { proposalId: secondProposal.id, votes: 2 },
+    ],
+    now: new Date("2026-04-20T12:15:00.000Z"),
+  });
+
+  const proposalVotes = await prisma.communityWishProposal.findMany({
+    where: {
+      id: {
+        in: [firstProposal.id, secondProposal.id],
+      },
+    },
+    select: {
+      id: true,
+      votes: {
+        select: {
+          votes: true,
+        },
+      },
+    },
+  });
+  const voteCountByProposalId = new Map(
+    proposalVotes.map((proposal) => [
+      proposal.id,
+      proposal.votes.reduce((sum, vote) => sum + vote.votes, 0),
+    ])
+  );
+
+  assert.equal(voteCountByProposalId.get(firstProposal.id), 3);
+  assert.equal(voteCountByProposalId.get(secondProposal.id), 2);
+
+  const refreshedBudget = await getCommunityWishVoteBudget({
+    db: prisma,
+    cycleId: cycle.id,
+    userId: second.id,
+  });
+
+  assert.equal(refreshedBudget.usedVotes, 5);
+  assert.equal(refreshedBudget.remainingVotes, 0);
+
+  await assert.rejects(
+    () =>
+      saveCommunityWishVotes({
+        db: prisma,
+        cycleId: cycle.id,
+        userId: second.id,
+        allocations: [{ proposalId: secondProposal.id, votes: 5 }],
+        now: new Date("2026-04-21T12:10:00.000Z"),
+      }),
+    /voting has ended/
+  );
+});
+
+test("community wish voting resolves winners and leaves ties for admin", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const alpha = await createUser(prisma, "community-resolve-alpha@example.com");
+  const beta = await createUser(prisma, "community-resolve-beta@example.com");
+  const gamma = await createUser(prisma, "community-resolve-gamma@example.com");
+  const delta = await createUser(prisma, "community-resolve-delta@example.com");
+  const admin = await createUser(prisma, "community-resolve-admin@example.com");
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: alpha.id,
+      commanderName: "Alpha",
+      fortressName: "Alpha Keep",
+      points: 20,
+    },
+    {
+      userId: beta.id,
+      commanderName: "Beta",
+      fortressName: "Beta Keep",
+      points: 10,
+    },
+    {
+      userId: gamma.id,
+      commanderName: "Gamma",
+      fortressName: "Gamma Keep",
+      points: 5,
+    },
+    {
+      userId: delta.id,
+      commanderName: "Delta",
+      fortressName: "Delta Keep",
+      points: 1,
+    },
+  ]);
+  const alphaProposal = await submitCommunityWishProposal({
+    db: prisma,
+    cycleId: cycle.id,
+    userId: alpha.id,
+    requestText: "Add a quiet victory animation.",
+    now: new Date("2026-04-20T12:01:00.000Z"),
+  });
+  const betaProposal = await submitCommunityWishProposal({
+    db: prisma,
+    cycleId: cycle.id,
+    userId: beta.id,
+    requestText: "Add a scoreboard filter.",
+    now: new Date("2026-04-20T12:02:00.000Z"),
+  });
+  const lowerProposal = await submitCommunityWishProposal({
+    db: prisma,
+    cycleId: cycle.id,
+    userId: gamma.id,
+    requestText: "Add a quieter archive label.",
+    now: new Date("2026-04-20T12:03:00.000Z"),
+  });
+  const rejectedProposal = await submitCommunityWishProposal({
+    db: prisma,
+    cycleId: cycle.id,
+    userId: delta.id,
+    requestText: "Buff my fortress next season.",
+    now: new Date("2026-04-20T12:04:00.000Z"),
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:10:00.000Z"),
+  });
+  await saveCommunityWishVotes({
+    db: prisma,
+    cycleId: cycle.id,
+    userId: alpha.id,
+    allocations: [{ proposalId: alphaProposal.id, votes: 1 }],
+    now: new Date("2026-04-20T12:15:00.000Z"),
+  });
+  await saveCommunityWishVotes({
+    db: prisma,
+    cycleId: cycle.id,
+    userId: beta.id,
+    allocations: [{ proposalId: betaProposal.id, votes: 1 }],
+    now: new Date("2026-04-20T12:16:00.000Z"),
+  });
+
+  await resolveExpiredCommunityWishVotes({
+    db: prisma,
+    now: new Date("2026-04-21T12:10:00.000Z"),
+  });
+
+  const tiedHistory = await prisma.cycleHistory.findUniqueOrThrow({
+    where: {
+      cycleId: cycle.id,
+    },
+  });
+
+  assert.equal(
+    tiedHistory.communityWishStatus,
+    CommunityWishStatus.TIE_REQUIRES_ADMIN
+  );
+
+  await assert.rejects(
+    () =>
+      adminResolveCommunityWishTie({
+        db: prisma,
+        cycleId: cycle.id,
+        proposalId: lowerProposal.id,
+        adminId: admin.id,
+        now: new Date("2026-04-21T12:12:00.000Z"),
+      }),
+    /tied top/
+  );
+  await assert.rejects(
+    () =>
+      adminResolveCommunityWishTie({
+        db: prisma,
+        cycleId: cycle.id,
+        proposalId: rejectedProposal.id,
+        adminId: admin.id,
+        now: new Date("2026-04-21T12:13:00.000Z"),
+      }),
+    /tied top/
+  );
+
+  await adminResolveCommunityWishTie({
+    db: prisma,
+    cycleId: cycle.id,
+    proposalId: betaProposal.id,
+    adminId: admin.id,
+    now: new Date("2026-04-21T12:15:00.000Z"),
+  });
+
+  const resolvedTie = await prisma.cycleHistory.findUniqueOrThrow({
+    where: {
+      cycleId: cycle.id,
+    },
+  });
+
+  assert.equal(resolvedTie.communityWishStatus, CommunityWishStatus.RESOLVED);
+  assert.equal(resolvedTie.communityWishProposalId, betaProposal.id);
+
+  const secondCycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: alpha.id,
+      commanderName: "Alpha Two",
+      fortressName: "Alpha Two Keep",
+      points: 20,
+    },
+    {
+      userId: beta.id,
+      commanderName: "Beta Two",
+      fortressName: "Beta Two Keep",
+      points: 10,
+    },
+  ]);
+  const winningProposal = await submitCommunityWishProposal({
+    db: prisma,
+    cycleId: secondCycle.id,
+    userId: beta.id,
+    requestText: "Add a season-end confetti toggle.",
+    now: new Date("2026-04-20T12:01:00.000Z"),
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:10:00.000Z"),
+  });
+  await saveCommunityWishVotes({
+    db: prisma,
+    cycleId: secondCycle.id,
+    userId: beta.id,
+    allocations: [{ proposalId: winningProposal.id, votes: 5 }],
+    now: new Date("2026-04-20T12:15:00.000Z"),
+  });
+  await resolveExpiredCommunityWishVotes({
+    db: prisma,
+    now: new Date("2026-04-21T12:10:00.000Z"),
+  });
+
+  const resolvedHistory = await prisma.cycleHistory.findUniqueOrThrow({
+    where: {
+      cycleId: secondCycle.id,
+    },
+  });
+
+  assert.equal(resolvedHistory.communityWishStatus, CommunityWishStatus.RESOLVED);
+  assert.equal(resolvedHistory.communityWishProposalId, winningProposal.id);
+  assert.match(
+    resolvedHistory.communityWishSnapshot ?? "",
+    /season-end confetti/
+  );
+});
+
+test("community wish migration backfills legacy history as no proposals", () => {
+  const migrationSql = readFileSync(
+    resolve(
+      workspaceRoot,
+      "prisma/migrations/20260424194500_community_wish_pool/migration.sql"
+    ),
+    "utf8"
+  );
+
+  assert.match(
+    migrationSql,
+    /"communityWishStatus" "CommunityWishStatus" NOT NULL DEFAULT 'NO_PROPOSALS'/
+  );
+  assert.match(
+    migrationSql,
+    /UPDATE "CycleHistory"\s+SET "communityWishStatus" = 'NO_PROPOSALS'/m
+  );
 });
 
 test("only one winner request may exist per winner and cycle", async (context) => {

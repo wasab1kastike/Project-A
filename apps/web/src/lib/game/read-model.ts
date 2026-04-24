@@ -1,11 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import {
+  ChatMessageType,
   CycleStatus,
   Prisma,
   ScoreEventType,
   type PrismaClient,
 } from "@/lib/prisma-client";
 import { ACTIVE_LOCATION_SHUFFLE_COST, ACTIVE_PLAYER_CAP } from "./constants";
+import { COMMUNITY_WISH_PROPOSAL_WINDOW_HOURS } from "./community-wishes";
 import { getChatLimits } from "./chat";
 import { normalizeUnitSpriteVariant } from "./attacks";
 import {
@@ -155,7 +157,32 @@ export async function getHomePageState({
         take: getChatLimits().limit,
         select: {
           id: true,
+          type: true,
           body: true,
+          gifProvider: true,
+          gifProviderId: true,
+          gifTitle: true,
+          gifPreviewUrl: true,
+          gifDisplayUrl: true,
+          gifWidth: true,
+          gifHeight: true,
+          gifSourceUrl: true,
+          createdAt: true,
+          author: {
+            select: {
+              id: true,
+            },
+          },
+        },
+      },
+      communityWishProposals: {
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: {
+          id: true,
+          authorId: true,
+          requestText: true,
+          status: true,
+          reviewNotes: true,
           createdAt: true,
           author: {
             select: {
@@ -186,6 +213,15 @@ export async function getHomePageState({
         hasUnread: false,
         latestMessageAt: null,
         persistsUnread: false,
+      },
+      communityWish: {
+        isOpen: false,
+        opensAt: null,
+        closesAt: null,
+        canSubmit: false,
+        submissionHint:
+          "Community wishes open during the final 24 hours of an active season.",
+        proposals: [],
       },
       availableTargets: [],
       canJoinCycle: false,
@@ -220,7 +256,9 @@ export async function getHomePageState({
     cycle.activeEndsAt !== null &&
     cycle.activeEndsAt > now;
   const lastProcessedTickAt =
-    cycle.status === CycleStatus.ACTIVE ? cycle.gameTicks[0]?.tickAt ?? null : null;
+    cycle.status === CycleStatus.ACTIVE
+      ? (cycle.gameTicks[0]?.tickAt ?? null)
+      : null;
   const activeMinutesBehind =
     cycle.status === CycleStatus.ACTIVE
       ? getActiveCycleMinutesBehind({
@@ -230,9 +268,7 @@ export async function getHomePageState({
         })
       : 0;
   const tickDelayMinutes =
-    cycle.status === CycleStatus.ACTIVE
-      ? activeMinutesBehind
-      : null;
+    cycle.status === CycleStatus.ACTIVE ? activeMinutesBehind : null;
   const tickHealth =
     cycle.status === CycleStatus.ACTIVE
       ? classifyTickHealth(activeMinutesBehind)
@@ -325,7 +361,28 @@ export async function getHomePageState({
   const latestMessageAt = cycle.chatMessages[0]?.createdAt ?? null;
   const chatMessages = [...cycle.chatMessages].reverse().map((message) => ({
     id: message.id,
+    type: message.type,
     body: message.body,
+    gif:
+      message.type === ChatMessageType.GIF &&
+      message.gifProvider &&
+      message.gifProviderId &&
+      message.gifPreviewUrl &&
+      message.gifDisplayUrl &&
+      message.gifWidth &&
+      message.gifHeight &&
+      message.gifSourceUrl
+        ? {
+            provider: message.gifProvider,
+            providerId: message.gifProviderId,
+            title: message.gifTitle ?? message.body,
+            previewUrl: message.gifPreviewUrl,
+            displayUrl: message.gifDisplayUrl,
+            width: message.gifWidth,
+            height: message.gifHeight,
+            sourceUrl: message.gifSourceUrl,
+          }
+        : null,
     createdAt: message.createdAt,
     authorName: commanderNameByOwnerId.get(message.author.id) ?? "Spectator",
     isCurrentUser: message.author.id === userId,
@@ -347,6 +404,20 @@ export async function getHomePageState({
         },
       })
     : 0;
+  const communityWishWindowOpensAt = cycle.activeEndsAt
+    ? new Date(
+        cycle.activeEndsAt.getTime() -
+          COMMUNITY_WISH_PROPOSAL_WINDOW_HOURS * 60 * 60 * 1000
+      )
+    : null;
+  const communityWishOpen =
+    activeOpen &&
+    communityWishWindowOpensAt !== null &&
+    now >= communityWishWindowOpensAt;
+  const currentUserCommunityWish =
+    cycle.communityWishProposals.find(
+      (proposal) => proposal.authorId === userId
+    ) ?? null;
 
   return {
     isSpectator: !playerFortress,
@@ -451,7 +522,9 @@ export async function getHomePageState({
           currentTargetId: playerFortress.targetFortressId,
           currentTargetName: playerFortress.targetFortressId
             ? (() => {
-                const target = targetLookup.get(playerFortress.targetFortressId);
+                const target = targetLookup.get(
+                  playerFortress.targetFortressId
+                );
 
                 return target ? target.name : null;
               })()
@@ -486,7 +559,10 @@ export async function getHomePageState({
         fortress.commanderName,
         fortress.id === cycle.crownedFortressId
       ),
-      name: getDisplayName(fortress.name, fortress.id === cycle.crownedFortressId),
+      name: getDisplayName(
+        fortress.name,
+        fortress.id === cycle.crownedFortressId
+      ),
       rawName: fortress.name,
       points: fortress.points,
       rank: index + 1,
@@ -525,6 +601,35 @@ export async function getHomePageState({
       hasUnread: unreadCount > 0,
       latestMessageAt,
       persistsUnread: Boolean(currentUser),
+    },
+    communityWish: {
+      isOpen: communityWishOpen,
+      opensAt: communityWishWindowOpensAt,
+      closesAt: cycle.activeEndsAt,
+      canSubmit:
+        Boolean(userId) &&
+        Boolean(playerFortress) &&
+        communityWishOpen &&
+        !currentUserCommunityWish,
+      submissionHint: !userId
+        ? "Sign in and join this cycle to suggest a community wish."
+        : !playerFortress
+          ? "Only players in this active cycle can suggest a community wish."
+          : !communityWishOpen
+            ? "Community wishes open during the final 24 hours."
+            : currentUserCommunityWish
+              ? "You already submitted a community wish for this cycle."
+              : "Submit one bounded community wish before the cycle ends.",
+      proposals: cycle.communityWishProposals.map((proposal) => ({
+        id: proposal.id,
+        requestText: proposal.requestText,
+        status: proposal.status,
+        reviewNotes: proposal.reviewNotes,
+        createdAt: proposal.createdAt,
+        authorLabel:
+          commanderNameByOwnerId.get(proposal.authorId) ?? "Unknown player",
+        isCurrentUser: proposal.authorId === userId,
+      })),
     },
     availableTargets:
       activeOpen && playerFortress

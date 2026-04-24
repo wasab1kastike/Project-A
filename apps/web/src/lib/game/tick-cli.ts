@@ -6,6 +6,7 @@ export function formatTickSummary(summary: TickSummary) {
     `Registration restarted: ${summary.restartedRegistrationCycles}`,
     `Cycles activated: ${summary.activatedCycles}`,
     `Cycles resolved: ${summary.resolvedCycles}`,
+    `Community wish votes resolved: ${summary.resolvedCommunityWishVotes}`,
     `Next registration cycles created: ${summary.nextRegistrationCyclesCreated}`,
     `Minutes processed: ${summary.processedMinutes}`,
     `Score events created: ${summary.scoreEventsCreated}`,

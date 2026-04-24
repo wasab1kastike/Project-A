@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { type PrismaClient } from "@/lib/prisma-client";
+import { CommunityWishStatus, type PrismaClient } from "@/lib/prisma-client";
+import { getCommunityWishVoteBudget } from "./community-wishes";
 import { WINNER_REQUEST_POLICY_URL } from "./winner-requests";
 
 export async function getCycleHistoryPageState({
@@ -28,6 +29,13 @@ export async function getCycleHistoryPageState({
           reviewNotes: true,
         },
       },
+      communityWishProposal: {
+        select: {
+          id: true,
+          requestText: true,
+          status: true,
+        },
+      },
       cycle: {
         select: {
           fortresses: {
@@ -37,13 +45,78 @@ export async function getCycleHistoryPageState({
               name: true,
             },
           },
+          communityWishProposals: {
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+            select: {
+              id: true,
+              authorId: true,
+              requestText: true,
+              status: true,
+              reviewNotes: true,
+              votes: {
+                select: {
+                  voterId: true,
+                  votes: true,
+                },
+              },
+            },
+          },
         },
       },
     },
   });
 
+  const budgets = new Map<
+    string,
+    {
+      canVote: boolean;
+      voteBudget: number;
+      usedVotes: number;
+      remainingVotes: number;
+      reason: string | null;
+    }
+  >();
+
+  if (userId) {
+    await Promise.all(
+      entries.map(async (entry) => {
+        budgets.set(
+          entry.cycleId,
+          await getCommunityWishVoteBudget({
+            cycleId: entry.cycleId,
+            userId,
+            db,
+          })
+        );
+      })
+    );
+  }
+
   return {
-    entries: entries.map((entry) => ({
+    entries: entries.map((entry) => {
+      const budget = budgets.get(entry.cycleId) ?? {
+        canVote: false,
+        voteBudget: 0,
+        usedVotes: 0,
+        remainingVotes: 0,
+        reason: userId
+          ? "Only players from this resolved cycle can vote."
+          : "Sign in as a cycle player to vote on the community wish.",
+      };
+      const votingOpen =
+        entry.communityWishStatus === CommunityWishStatus.OPEN &&
+        entry.communityWishVotingEndsAt !== null &&
+        entry.communityWishVotingEndsAt > new Date();
+      const userVotes = new Map(
+        entry.cycle.communityWishProposals.map((proposal) => [
+          proposal.id,
+          proposal.votes
+            .filter((vote) => vote.voterId === userId)
+            .reduce((sum, vote) => sum + vote.votes, 0),
+        ])
+      );
+
+      return {
       id: entry.id,
       cycleId: entry.cycleId,
       winnerId: entry.winner.id,
@@ -63,6 +136,48 @@ export async function getCycleHistoryPageState({
         entry.winnerRequestSnapshot ?? entry.winnerRequest?.requestText ?? null,
       winnerRequestStatus: entry.winnerRequest?.status ?? null,
       winnerRequestReviewNotes: entry.winnerRequest?.reviewNotes ?? null,
+      communityWishStatus: entry.communityWishStatus,
+      communityWishVotingEndsAt: entry.communityWishVotingEndsAt,
+      communityWishResolvedAt: entry.communityWishResolvedAt,
+      communityWishSnapshot:
+        entry.communityWishSnapshot ??
+        entry.communityWishProposal?.requestText ??
+        null,
+      communityWishVoteCount: entry.communityWishVoteCount,
+      communityWishCanVote:
+        Boolean(userId) &&
+        votingOpen &&
+        budget.canVote &&
+        entry.cycle.communityWishProposals.length > 0,
+      communityWishVoteBudget: budget.voteBudget,
+      communityWishUsedVotes: budget.usedVotes,
+      communityWishRemainingVotes: budget.remainingVotes,
+      communityWishVotingMessage:
+        entry.communityWishStatus === CommunityWishStatus.NO_PROPOSALS
+          ? "No community wish proposals were submitted for this cycle."
+          : entry.communityWishStatus === CommunityWishStatus.RESOLVED
+            ? "Community wish voting has been resolved."
+            : entry.communityWishStatus === CommunityWishStatus.TIE_REQUIRES_ADMIN
+              ? "Community wish voting ended in a tie. Admin resolution is required."
+              : !votingOpen
+                ? "Community wish voting is closed."
+                : budget.reason ??
+                  "Allocate your community wish votes. You can change them until voting ends.",
+      communityWishProposals: entry.cycle.communityWishProposals.map(
+        (proposal) => ({
+          id: proposal.id,
+          requestText: proposal.requestText,
+          status: proposal.status,
+          reviewNotes: proposal.reviewNotes,
+          authorLabel:
+            entry.cycle.fortresses.find(
+              (fortress) => fortress.ownerId === proposal.authorId
+            )?.commanderName ?? "Unknown player",
+          voteCount: proposal.votes.reduce((sum, vote) => sum + vote.votes, 0),
+          currentUserVotes: userVotes.get(proposal.id) ?? 0,
+          isVoteEligible: proposal.status !== "REJECTED",
+        })
+      ),
       tieBreakSummary: entry.tieBreakSummary,
       canSubmitWinnerRequest:
         Boolean(userId) &&
@@ -76,7 +191,8 @@ export async function getCycleHistoryPageState({
             : entry.winnerRequest
               ? "This cycle already has a stored winner request."
               : "You may submit one bounded winner request for this cycle.",
-    })),
+      };
+    }),
     policyUrl: WINNER_REQUEST_POLICY_URL,
   };
 }
