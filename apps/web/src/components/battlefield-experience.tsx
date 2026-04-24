@@ -59,7 +59,7 @@ type PlayerSummary = {
   currentAction: "GROW" | "ATTACK";
   currentTargetId?: string | null;
   currentTargetName?: string | null;
-  isCrowned?: boolean;
+  isSlayerOfA?: boolean;
   canRename: boolean;
   canSetAction: boolean;
   locationShuffleCost: number | null;

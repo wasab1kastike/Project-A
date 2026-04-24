@@ -402,8 +402,8 @@ export default async function Home({
           </span>
           <div className={styles.fortressTitle}>
             <strong>{state.playerSummary?.name ?? "Spectator"}</strong>
-            {state.playerSummary?.isCrowned ? (
-              <span className={styles.crownBadge}>Crowned</span>
+            {state.playerSummary?.isSlayerOfA ? (
+              <span className={styles.crownBadge}>Slayer of A</span>
             ) : null}
           </div>
           <p>{playerSummaryText}</p>
@@ -425,8 +425,8 @@ export default async function Home({
                 >
                   <span>#{entry.rank}</span>
                   <strong>{entry.name}</strong>
-                  {entry.isCrowned ? (
-                    <small className={styles.crownBadge}>Crowned</small>
+                  {entry.isSlayerOfA ? (
+                    <small className={styles.crownBadge}>Slayer of A</small>
                   ) : null}
                   <em>{entry.points} pts</em>
                 </li>

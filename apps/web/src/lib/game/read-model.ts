@@ -46,8 +46,8 @@ function compareByLeaderboardOrder(
   return left.name.localeCompare(right.name);
 }
 
-function getDisplayName(name: string, isCrowned: boolean) {
-  void isCrowned;
+function getDisplayName(name: string, isSlayerOfA: boolean) {
+  void isSlayerOfA;
   return name;
 }
 
@@ -311,7 +311,7 @@ export async function getHomePageState({
     maxHealth: fortress.maxHealth,
     sizeTiles: fortress.sizeTiles,
     iconLabel: fortress.iconLabel,
-    isCrowned: fortress.id === cycle.crownedFortressId && !fortress.isNpc,
+    isSlayerOfA: fortress.id === cycle.crownedFortressId && !fortress.isNpc,
     currentAction: fortress.currentAction,
     mapX: fortress.mapX,
     mapY: fortress.mapY,
@@ -456,7 +456,7 @@ export async function getHomePageState({
                 return target ? target.name : null;
               })()
             : null,
-          isCrowned: playerFortress.id === cycle.crownedFortressId,
+          isSlayerOfA: playerFortress.id === cycle.crownedFortressId,
           canRename: activeOpen && playerFortress.points >= 10,
           canSetAction: activeOpen,
           locationShuffleCost,
@@ -490,7 +490,7 @@ export async function getHomePageState({
       rawName: fortress.name,
       points: fortress.points,
       rank: index + 1,
-      isCrowned: fortress.id === cycle.crownedFortressId,
+      isSlayerOfA: fortress.id === cycle.crownedFortressId,
       isCurrentUser: fortress.ownerId === userId,
     })),
     mapFortresses,

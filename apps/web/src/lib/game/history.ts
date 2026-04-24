@@ -55,6 +55,8 @@ export async function getCycleHistoryPageState({
         entry.cycle.fortresses.find(
           (fortress) => fortress.ownerId === entry.winner.id
       )?.name ?? "Unknown fortress",
+      firstSlayerCommanderName: entry.firstSlayerCommanderName,
+      firstSlayerFortressName: entry.firstSlayerFortressName,
       winningScore: entry.winningScore,
       endedAt: entry.endedAt,
       winnerRequestSnapshot:

@@ -2940,15 +2940,15 @@ test("first mega fortress destroy unlocks upgrades, grants a free level, and res
   assert.equal(state.playerSummary?.level, 1);
   assert.equal(state.playerSummary?.nextUpgradeCost, 300);
   assert.equal(state.playerSummary?.receivedSlayerUpgrade, true);
-  assert.equal(state.playerSummary?.name.startsWith("👑 "), true);
-  assert.equal(state.leaderboard[0]?.name.startsWith("👑 "), true);
+  assert.equal(state.playerSummary?.isSlayerOfA, true);
+  assert.equal(state.leaderboard[0]?.isSlayerOfA, true);
   assert.equal(
     state.leaderboard.some((entry) => entry.id === megaFortress.id),
     false
   );
 });
 
-test("later mega fortress destroys scale reward and health without changing crown or free upgrade count", async (context) => {
+test("later mega fortress destroys scale reward and health without changing the first slayer or free upgrade count", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -3133,6 +3133,111 @@ test("later mega fortress destroys scale reward and health without changing crow
   );
   assert.equal(refreshedMega.health, MEGA_FORTRESS_HEALTH * 3);
   assert.equal(refreshedMega.maxHealth, MEGA_FORTRESS_HEALTH * 3);
+});
+
+test("resolved history stores the first slayer of A snapshot", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const attacker = await createUser(prisma, "history-slayer@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: attacker.id,
+    commanderName: "Slayer Commander",
+    fortressName: "Alpha",
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const attackerFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: attacker.id,
+      },
+    },
+  });
+  const megaFortress = await prisma.fortress.findFirstOrThrow({
+    where: {
+      cycleId: cycle.id,
+      isNpc: true,
+    },
+  });
+
+  await prisma.fortress.update({
+    where: {
+      id: attackerFortress.id,
+    },
+    data: {
+      points: 3,
+    },
+  });
+  await prisma.fortress.update({
+    where: {
+      id: megaFortress.id,
+    },
+    data: {
+      health: 2,
+    },
+  });
+
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.ATTACK,
+    targetFortressId: megaFortress.id,
+    now: new Date("2026-04-20T12:05:00.000Z"),
+  });
+
+  const attackUnit = await prisma.attackUnit.findFirstOrThrow({
+    where: {
+      attackerFortressId: attackerFortress.id,
+      targetFortressId: megaFortress.id,
+      cancelledAt: null,
+    },
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: attackUnit.arrivesAt,
+  });
+  await forceEndCurrentCycle({
+    db: prisma,
+    now: new Date("2026-04-20T12:08:00.000Z"),
+  });
+
+  const history = await prisma.cycleHistory.findUniqueOrThrow({
+    where: {
+      cycleId: cycle.id,
+    },
+  });
+  const historyState = await getCycleHistoryPageState({
+    userId: attacker.id,
+    db: prisma,
+  });
+  const adminState = await getAdminDashboardState({
+    db: prisma,
+  });
+
+  assert.equal(history.firstSlayerCommanderName, "Slayer Commander");
+  assert.equal(history.firstSlayerFortressName, "Alpha");
+  assert.equal(
+    historyState.entries[0]?.firstSlayerCommanderName,
+    "Slayer Commander"
+  );
+  assert.equal(historyState.entries[0]?.firstSlayerFortressName, "Alpha");
+  assert.equal(
+    adminState.recentHistory[0]?.firstSlayerCommanderName,
+    "Slayer Commander"
+  );
+  assert.equal(adminState.recentHistory[0]?.firstSlayerFortressName, "Alpha");
 });
 
 test("switching to grow preserves in-flight attacks but stops future launches", async (context) => {
@@ -3456,6 +3561,8 @@ test("expired active cycle resolves a winner, writes history, and opens the next
   );
   assert.equal(history.winnerId, alpha.id);
   assert.equal(history.winningScore, 7);
+  assert.equal(history.firstSlayerCommanderName, null);
+  assert.equal(history.firstSlayerFortressName, null);
   assert.match(history.tieBreakSummary ?? "", /Alpha/);
   assert.notEqual(nextCycle.id, cycle.id);
   assert.equal(nextCycle.status, "REGISTRATION");
@@ -4599,12 +4706,16 @@ test("history and admin read models expose stored winner request state", async (
   );
   assert.equal(historyState.entries[0]?.canSubmitWinnerRequest, false);
   assert.equal(historyState.entries[0]?.winnerLabel, "Archive Commander");
+  assert.equal(historyState.entries[0]?.firstSlayerCommanderName, null);
+  assert.equal(historyState.entries[0]?.firstSlayerFortressName, null);
   assert.equal(
     adminState.winnerRequests[0]?.status,
     WinnerRequestStatus.NEEDS_SIMPLIFICATION
   );
   assert.equal(adminState.winnerRequests[0]?.authorLabel, "Archive Commander");
   assert.equal(adminState.recentHistory[0]?.winnerLabel, "Archive Commander");
+  assert.equal(adminState.recentHistory[0]?.firstSlayerCommanderName, null);
+  assert.equal(adminState.recentHistory[0]?.firstSlayerFortressName, null);
   assert.equal(
     adminState.winnerRequests[0]?.reviewNotes,
     "Keep it to one small badge and no extra summary blocks."

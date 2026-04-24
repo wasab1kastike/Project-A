@@ -103,6 +103,14 @@ export default async function HistoryPage({
 
               <dl className={styles.metaList}>
                 <div>
+                  <dt>First slayer of A</dt>
+                  <dd>
+                    {entry.firstSlayerCommanderName && entry.firstSlayerFortressName
+                      ? `${entry.firstSlayerCommanderName} - ${entry.firstSlayerFortressName}`
+                      : "No first slayer of A recorded for this cycle."}
+                  </dd>
+                </div>
+                <div>
                   <dt>Winner request</dt>
                   <dd>
                     {entry.winnerRequestSnapshot ??

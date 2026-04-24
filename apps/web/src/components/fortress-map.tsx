@@ -35,7 +35,7 @@ type MapFortress = {
   maxHealth: number;
   sizeTiles: number;
   iconLabel: string | null;
-  isCrowned: boolean;
+  isSlayerOfA: boolean;
   currentAction: "GROW" | "ATTACK";
   mapX: number;
   mapY: number;
@@ -840,7 +840,7 @@ export function FortressMap({
               const className = [
                 styles.marker,
                 isMega ? styles.megaMarker : "",
-                fortress.isCrowned ? styles.crownedMarker : "",
+                fortress.isSlayerOfA ? styles.crownedMarker : "",
                 fortress.isCurrentUser ? styles.currentUser : "",
                 selectedFortressId === fortress.id ? styles.activeFortress : "",
                 selectedTargetId === fortress.id ? styles.selected : "",
@@ -911,15 +911,17 @@ export function FortressMap({
                       </span>
                     ) : null}
                     <span className={styles.nameplate}>{fortress.name}</span>
-                    {fortress.isCrowned ? (
-                      <span className={styles.crownBadge}>Crown</span>
+                    {fortress.isSlayerOfA ? (
+                      <span className={styles.crownBadge}>Slayer of A</span>
                     ) : null}
                     <span className={styles.tooltip}>
                       <strong>{fortress.name}</strong>
                       <span>
                         {isMega
                           ? `${fortress.health}/${fortress.maxHealth} HP`
-                          : `${fortress.points} pts - ${fortress.currentAction}`}
+                          : `${fortress.points} pts - ${fortress.currentAction}${
+                              fortress.isSlayerOfA ? " - Slayer of A" : ""
+                            }`}
                       </span>
                     </span>
                   </button>

@@ -425,6 +425,11 @@ export default async function AdminPage({
                     <strong>{entry.winningScore} pts</strong>
                     <p>{formatDateTime(entry.endedAt)}</p>
                   </div>
+                  <p>
+                    {entry.firstSlayerCommanderName && entry.firstSlayerFortressName
+                      ? `First slayer of A: ${entry.firstSlayerCommanderName} - ${entry.firstSlayerFortressName}`
+                      : "No first slayer of A recorded for this cycle."}
+                  </p>
                   <p>{entry.tieBreakSummary ?? "No tie-break summary stored."}</p>
                 </div>
               ))

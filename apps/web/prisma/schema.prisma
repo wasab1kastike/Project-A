@@ -270,6 +270,8 @@ model CycleHistory {
   winnerRequestId       String?        @unique
   winningScore          Int
   endedAt               DateTime
+  firstSlayerCommanderName String?     @db.Text
+  firstSlayerFortressName String?      @db.Text
   tieBreakSummary       String?        @db.Text
   winnerRequestSnapshot String?        @db.Text
   createdAt             DateTime       @default(now())

@@ -395,6 +395,7 @@ async function resolveExpiredActiveCycle(
           select: {
             id: true,
             ownerId: true,
+            commanderName: true,
             name: true,
             points: true,
             joinedAt: true,
@@ -548,6 +549,10 @@ async function resolveExpiredActiveCycle(
       cycle.winnerRequests.find(
         (request) => request.authorId === winner.ownerId
       ) ?? null;
+    const firstSlayerFortress =
+      cycle.fortresses.find(
+        (fortress) => fortress.id === cycle.crownedFortressId
+      ) ?? null;
 
     await tx.cycle.update({
       where: {
@@ -568,6 +573,8 @@ async function resolveExpiredActiveCycle(
         winnerRequestId: winnerRequest?.id ?? null,
         winningScore: winner.finalScore,
         endedAt: resolutionEndedAt,
+        firstSlayerCommanderName: firstSlayerFortress?.commanderName ?? null,
+        firstSlayerFortressName: firstSlayerFortress?.name ?? null,
         tieBreakSummary: formatTieBreakSummary(winner, tiedCandidates),
         winnerRequestSnapshot: winnerRequest
           ? `[${winnerRequest.status}] ${winnerRequest.requestText}`
