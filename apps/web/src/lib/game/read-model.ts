@@ -219,7 +219,7 @@ export async function getHomePageState({
         closesAt: null,
         canSubmit: false,
         submissionHint:
-          "Community wishes open during the active season. Voting starts after ranks are locked.",
+          "The season winner gets one guaranteed wish. A second community wish is granted by player vote after final ranks are locked.",
         proposals: [],
       },
       availableTargets: [],
@@ -607,8 +607,8 @@ export async function getHomePageState({
           : !communityWishOpen
             ? "Community wishes open during the active season."
             : currentUserCommunityWish
-              ? "You can edit your short English wish until the season ends. Voting starts after final ranks are locked."
-              : "Submit one short English wish before the cycle ends. Voting starts after final ranks are locked.",
+              ? "You can edit your short English wish until the season ends. The winner gets one guaranteed wish; a second wish is vote-based."
+              : "Submit one short English wish before the cycle ends. The winner gets one guaranteed wish; a second wish is vote-based.",
       proposals: cycle.communityWishProposals.map((proposal) => ({
         id: proposal.id,
         requestText: proposal.requestText,

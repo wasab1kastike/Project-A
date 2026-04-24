@@ -335,6 +335,7 @@ export default async function Home({
                       <div className={styles.helpPopover}>
                         <strong>Wish limits</strong>
                         <ul>
+                          <li>Winner wish is guaranteed. Community wish is vote-based.</li>
                           <li>Write in English.</li>
                           <li>
                             Keep it short: max {COMMUNITY_WISH_MAX_LENGTH}{" "}
