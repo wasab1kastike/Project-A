@@ -1,11 +1,37 @@
+export type ExploitHallOfFameEntry = {
+  season: number;
+  exploitName: string;
+  founder: string;
+  firstExploiter: string;
+};
+
 export type PatchNotesRelease = {
   date: string;
   title?: string;
   newFeatures: string[];
   bugFixes: string[];
+  exploitHallOfFame?: ExploitHallOfFameEntry[];
 };
 
 export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
+  {
+    date: "2026-04-24",
+    title: "Attack cadence cleanup",
+    newFeatures: [
+      "Added the Exploit Hall of Fame to record the sharpest discoveries from live seasons.",
+    ],
+    bugFixes: [
+      "Fixed attack toggling so switching between Grow and Attack can no longer spawn extra same-minute attack units.",
+    ],
+    exploitHallOfFame: [
+      {
+        season: 1,
+        exploitName: "Stutterfire",
+        founder: "Giga Destroyer",
+        firstExploiter: "Giga Destroyer",
+      },
+    ],
+  },
   {
     date: "2026-04-23",
     title: "Battlefield visibility and control cleanup",
@@ -53,4 +79,3 @@ export function getPatchNotesPageState(
     isEmpty: releases.length === 0,
   };
 }
-

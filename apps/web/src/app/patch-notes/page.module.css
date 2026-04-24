@@ -80,6 +80,62 @@
   line-height: 1.1;
 }
 
+.hallOfFame {
+  display: grid;
+  gap: 14px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.hallOfFame h3 {
+  font-size: 1.15rem;
+  line-height: 1.15;
+}
+
+.exploitGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.exploitCard {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid rgba(247, 196, 95, 0.28);
+  border-radius: 14px;
+  background: rgba(247, 196, 95, 0.08);
+}
+
+.exploitCard > span,
+.exploitCard dt {
+  color: var(--accent-strong);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.exploitCard h4 {
+  font-size: 1.35rem;
+  line-height: 1.05;
+}
+
+.exploitCard dl {
+  display: grid;
+  gap: 10px;
+}
+
+.exploitCard div {
+  display: grid;
+  gap: 2px;
+}
+
+.exploitCard dd {
+  color: var(--foreground);
+  font-weight: 700;
+}
+
 .categoryGrid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -135,4 +191,3 @@
     grid-template-columns: 1fr;
   }
 }
-

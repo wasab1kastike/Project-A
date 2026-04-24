@@ -1,9 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  PATCH_NOTES_RELEASES,
-  getPatchNotesPageState,
-} from "./patch-notes";
+import { PATCH_NOTES_RELEASES, getPatchNotesPageState } from "./patch-notes";
 import {
   PATCH_NOTES_PAGE_HREF,
   PRIMARY_GAME_NAV_LINKS,
@@ -25,6 +22,20 @@ test("patch notes releases expose both player-facing categories", () => {
   }
 });
 
+test("patch notes expose exploit hall of fame credits", () => {
+  const release = PATCH_NOTES_RELEASES.find(
+    (candidate) => candidate.date === "2026-04-24"
+  );
+  const entry = release?.exploitHallOfFame?.[0];
+
+  assert.ok(release);
+  assert.ok(entry);
+  assert.equal(entry.season, 1);
+  assert.equal(entry.exploitName, "Stutterfire");
+  assert.equal(entry.founder, "Giga Destroyer");
+  assert.equal(entry.firstExploiter, "Giga Destroyer");
+});
+
 test("patch notes page state reports empty and populated release lists", () => {
   const populatedState = getPatchNotesPageState();
   const emptyState = getPatchNotesPageState([]);
@@ -42,4 +53,3 @@ test("primary navigation includes the patch notes page", () => {
     true
   );
 });
-

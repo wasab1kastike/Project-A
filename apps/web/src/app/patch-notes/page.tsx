@@ -27,8 +27,8 @@ export default function PatchNotesPage() {
             features and bug fixes.
           </p>
           <p>
-            These notes are the readable game-facing summary. The repo
-            changelog stays separate for development and audit detail.
+            These notes are the readable game-facing summary. The repo changelog
+            stays separate for development and audit detail.
           </p>
         </div>
 
@@ -46,7 +46,9 @@ export default function PatchNotesPage() {
         {state.isEmpty ? (
           <article className={styles.card}>
             <span className={styles.sectionLabel}>No patch notes yet</span>
-            <h2>The first release notes will appear here after the next update.</h2>
+            <h2>
+              The first release notes will appear here after the next update.
+            </h2>
             <p>
               Once player-facing changes are shipped, this page will list them
               under New features and Bug fixes.
@@ -84,6 +86,40 @@ export default function PatchNotesPage() {
                   </ul>
                 </section>
               </div>
+
+              {release.exploitHallOfFame &&
+              release.exploitHallOfFame.length > 0 ? (
+                <section className={styles.hallOfFame}>
+                  <div>
+                    <span className={styles.sectionLabel}>
+                      Exploit Hall of Fame
+                    </span>
+                    <h3>Discovered in the wild</h3>
+                  </div>
+
+                  <div className={styles.exploitGrid}>
+                    {release.exploitHallOfFame.map((entry) => (
+                      <article
+                        className={styles.exploitCard}
+                        key={`${entry.season}-${entry.exploitName}`}
+                      >
+                        <span>Season {entry.season}</span>
+                        <h4>{entry.exploitName}</h4>
+                        <dl>
+                          <div>
+                            <dt>Founder</dt>
+                            <dd>{entry.founder}</dd>
+                          </div>
+                          <div>
+                            <dt>First exploiter</dt>
+                            <dd>{entry.firstExploiter}</dd>
+                          </div>
+                        </dl>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
             </article>
           ))
         )}
@@ -91,4 +127,3 @@ export default function PatchNotesPage() {
     </main>
   );
 }
-
