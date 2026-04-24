@@ -364,33 +364,28 @@ export function BattlefieldExperience({
                   </div>
 
                   <section className={styles.orderSection}>
-                    <div className={styles.sectionHeading}>
-                      <span className={styles.label}>Castle status</span>
-                    </div>
                     <dl className={styles.castleStats}>
-                      <div>
-                        <dt>Level</dt>
-                        <dd>{playerSummary.level}</dd>
+                      <div className={styles.primaryStat}>
+                        <dt>Castle</dt>
+                        <dd>
+                          Lvl {playerSummary.level} / {playerSummary.points} pts
+                        </dd>
+                      </div>
+                      <div className={styles.primaryStat}>
+                        <dt>Order</dt>
+                        <dd>
+                          {playerSummary.currentAction}
+                          {playerSummary.currentTargetName
+                            ? ` -> ${playerSummary.currentTargetName}`
+                            : ""}
+                        </dd>
                       </div>
                       <div>
-                        <dt>Points</dt>
-                        <dd>{playerSummary.points}</dd>
-                      </div>
-                      <div>
-                        <dt>Action</dt>
-                        <dd>{playerSummary.currentAction}</dd>
-                      </div>
-                      <div>
-                        <dt>Target</dt>
-                        <dd>{playerSummary.currentTargetName ?? "None"}</dd>
-                      </div>
-                      <div>
-                        <dt>Grow</dt>
-                        <dd>+{playerSummary.growPerTick}/tick</dd>
-                      </div>
-                      <div>
-                        <dt>Damage</dt>
-                        <dd>{playerSummary.attackDamage}</dd>
+                        <dt>Output</dt>
+                        <dd>
+                          +{playerSummary.growPerTick}/tick /{" "}
+                          {playerSummary.attackDamage} dmg
+                        </dd>
                       </div>
                       {playerSummary.nextUpgradeCost !== null ? (
                         <div>
@@ -405,9 +400,6 @@ export function BattlefieldExperience({
                     action={setFortressActionAction}
                     className={styles.form}
                   >
-                    <div className={styles.sectionHeading}>
-                      <span className={styles.label}>Current orders</span>
-                    </div>
                     <input name="action" type="hidden" value={action} />
                     <div
                       className={styles.segmentGroup}
@@ -466,10 +458,6 @@ export function BattlefieldExperience({
                       Save orders
                     </button>
                   </form>
-                  <p className={styles.helper}>
-                    Tap a target on the map, then confirm Attack. Orders and map
-                    targeting now update the same attack state.
-                  </p>
 
                   <section className={styles.upgradePanel}>
                     <div className={styles.upgradeHeader}>
@@ -485,8 +473,8 @@ export function BattlefieldExperience({
                     </div>
                     <p className={styles.helper}>
                       {playerSummary.freeLocationShuffleAvailable
-                        ? "Your first Castle Yeet this season is free. Later yeets cost 50 points."
-                        : "This fortress already used its free Castle Yeet. The next one costs 50 points."}
+                        ? "First yeet is free; later yeets cost 50 points."
+                        : "Free yeet used. Next yeet costs 50 points."}
                     </p>
                     {playerSummary.currentAction !== "GROW" ? (
                       <p className={`${styles.helper} ${styles.warningText}`}>
@@ -537,8 +525,8 @@ export function BattlefieldExperience({
                         ? playerSummary.nextUpgradeCost === null
                           ? "Your castle is maxed out. Growth and attack damage are fully upgraded."
                           : playerSummary.canAffordUpgrade
-                            ? `Upgrade now for ${playerSummary.nextUpgradeCost} points. Each level adds +1 growth and +2 attack damage. Home of A keeps returning stronger after each fall.`
-                            : `Next upgrade costs ${playerSummary.nextUpgradeCost} points. Earn more before buying while Home of A escalates each time it falls.`
+                            ? `Upgrade now for ${playerSummary.nextUpgradeCost} points. Each level adds +1 growth and +2 attack damage.`
+                            : `Next upgrade costs ${playerSummary.nextUpgradeCost} points.`
                         : "Castle upgrades unlock for everyone after Home of A falls for the first time."}
                     </p>
                     {playerSummary.receivedSlayerUpgrade ? (

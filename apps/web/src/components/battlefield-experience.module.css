@@ -264,13 +264,13 @@
 
 .drawerContent {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .orderSection {
   display: grid;
-  gap: 8px;
-  padding-top: 10px;
+  gap: 6px;
+  padding-top: 8px;
   border-top: 1px solid var(--border-soft);
 }
 
@@ -306,37 +306,43 @@
 }
 
 .drawerContent h3 {
-  margin-top: 3px;
+  margin-top: 2px;
   font-size: 1.05rem;
   line-height: 1.15;
 }
 
 .drawerContent h4 {
-  margin-top: 3px;
-  font-size: 0.96rem;
+  margin-top: 2px;
+  font-size: 0.92rem;
   line-height: 1.15;
 }
 
 .castleStats {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
+  gap: 4px;
 }
 
 .castleStats div {
   min-width: 0;
-  display: grid;
-  gap: 3px;
-  padding: 7px 8px;
-  border: 1px solid rgba(103, 196, 207, 0.22);
-  border-radius: 6px;
-  background: rgba(3, 10, 16, 0.52);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 26px;
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: rgba(3, 10, 16, 0.36);
+}
+
+.castleStats .primaryStat {
+  background: rgba(103, 196, 207, 0.08);
 }
 
 .castleStats dt {
+  flex: 0 0 auto;
   color: var(--text-muted);
   font-family: var(--font-ibm-plex-mono);
-  font-size: 0.62rem;
+  font-size: 0.58rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
@@ -347,15 +353,16 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--foreground);
-  font-size: 0.86rem;
+  font-size: 0.78rem;
   font-weight: 700;
   line-height: 1.12;
+  text-align: right;
 }
 
 .form {
   display: grid;
-  gap: 10px;
-  padding-top: 10px;
+  gap: 8px;
+  padding-top: 8px;
   border-top: 1px solid var(--border-soft);
 }
 
@@ -364,14 +371,14 @@
   grid-template-columns: 1fr auto;
   gap: 8px;
   align-items: end;
-  padding-top: 10px;
+  padding-top: 8px;
   border-top: 1px solid var(--border-soft);
 }
 
 .upgradePanel {
   display: grid;
-  gap: 10px;
-  padding-top: 10px;
+  gap: 7px;
+  padding-top: 8px;
   border-top: 1px solid var(--border-soft);
 }
 
@@ -396,7 +403,7 @@
 
 .field {
   display: grid;
-  gap: 6px;
+  gap: 5px;
 }
 
 .field span {
@@ -409,7 +416,7 @@
 
 .field input,
 .field select {
-  min-height: 38px;
+  min-height: 36px;
   width: 100%;
   padding: 0 10px;
   border: 1px solid var(--border-soft);
@@ -429,7 +436,7 @@
 .primaryButton,
 .secondaryButton {
   width: fit-content;
-  min-height: 38px;
+  min-height: 36px;
   padding: 0 12px;
   font-size: 0.88rem;
 }
@@ -476,7 +483,7 @@
 }
 
 .segmentButton {
-  min-height: 34px;
+  min-height: 32px;
   border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
