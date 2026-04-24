@@ -14,6 +14,7 @@ export type CommunityWishRankedFortress = {
   ownerId: string;
 };
 
+export const COMMUNITY_WISH_MAX_LENGTH = 50;
 export const COMMUNITY_WISH_VOTING_WINDOW_HOURS = 24;
 
 function normalizeRequestText(input: string) {
@@ -21,6 +22,12 @@ function normalizeRequestText(input: string) {
 
   if (!normalized) {
     throw new GameError("Community wish proposal cannot be empty.");
+  }
+
+  if (normalized.length > COMMUNITY_WISH_MAX_LENGTH) {
+    throw new GameError(
+      `Community wish proposal can be at most ${COMMUNITY_WISH_MAX_LENGTH} characters.`
+    );
   }
 
   return normalized;

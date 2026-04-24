@@ -607,8 +607,8 @@ export async function getHomePageState({
           : !communityWishOpen
             ? "Community wishes open during the active season."
             : currentUserCommunityWish
-              ? "You can edit your community wish until the season ends. Voting starts after final ranks are locked."
-              : "Submit one bounded community wish before the cycle ends. Voting starts after final ranks are locked.",
+              ? "You can edit your short English wish until the season ends. Voting starts after final ranks are locked."
+              : "Submit one short English wish before the cycle ends. Voting starts after final ranks are locked.",
       proposals: cycle.communityWishProposals.map((proposal) => ({
         id: proposal.id,
         requestText: proposal.requestText,

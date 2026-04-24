@@ -209,16 +209,73 @@
   top: 112px;
   right: 16px;
   display: grid;
-  gap: 12px;
+  justify-items: end;
+  gap: 10px;
   width: min(360px, calc(100% - 32px));
-  max-height: calc(100dvh - var(--battlefield-bottom-clearance) - 132px);
-  overflow: auto;
-  padding: 18px;
-  border-radius: 8px;
+  overflow: visible;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
   pointer-events: auto;
 }
 
-.wishPanel h2 {
+.wishPanelToggle {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0)),
+    rgba(5, 12, 18, 0.78);
+  color: var(--foreground);
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 18px 44px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(14px);
+}
+
+.wishPanelToggle::-webkit-details-marker {
+  display: none;
+}
+
+.wishPanelToggle::before {
+  content: "+";
+  margin-right: 8px;
+  color: var(--accent-strong);
+  font-family: var(--font-ibm-plex-mono);
+}
+
+.wishPanel[open] .wishPanelToggle::before {
+  content: "-";
+}
+
+.wishPanelContent {
+  justify-self: stretch;
+  display: grid;
+  gap: 12px;
+  max-height: calc(100dvh - var(--battlefield-bottom-clearance) - 184px);
+  overflow: auto;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0)),
+    rgba(5, 12, 18, 0.78);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 18px 44px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(14px);
+}
+
+.wishPanelContent h2 {
   font-size: 1.15rem;
 }
 
@@ -250,12 +307,70 @@
   gap: 8px;
 }
 
-.field span {
+.field span,
+.fieldHeader {
   color: var(--text-muted);
   font-family: var(--font-ibm-plex-mono);
   font-size: 0.72rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+}
+
+.fieldHeader {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.helpDisclosure {
+  position: relative;
+}
+
+.helpButton {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  color: var(--accent-strong);
+  cursor: pointer;
+  list-style: none;
+}
+
+.helpButton::-webkit-details-marker {
+  display: none;
+}
+
+.helpPopover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 5;
+  width: min(280px, calc(100vw - 48px));
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(7, 13, 20, 0.96);
+  color: var(--foreground);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.32);
+  text-transform: none;
+}
+
+.helpPopover ul {
+  display: grid;
+  gap: 6px;
+  padding-left: 18px;
+}
+
+.helpPopover li {
+  color: var(--text-muted);
+  line-height: 1.45;
 }
 
 .field input,
@@ -604,8 +719,16 @@
     bottom: calc(var(--battlefield-bottom-clearance) + 10px);
     left: 10px;
     width: auto;
+    overflow: visible;
+    padding: 0;
+  }
+
+  .wishPanelToggle {
+    width: 100%;
+  }
+
+  .wishPanelContent {
     max-height: 190px;
-    overflow: auto;
     padding: 16px;
   }
 

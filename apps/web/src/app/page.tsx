@@ -12,6 +12,7 @@ import {
   registerCommanderNameAction,
   submitCommunityWishProposalAction,
 } from "@/app/game-actions";
+import { COMMUNITY_WISH_MAX_LENGTH } from "@/lib/game/community-wishes";
 import { getHomePageState, type HomePageState } from "@/lib/game/read-model";
 import { PRIMARY_GAME_NAV_LINKS } from "@/lib/game/site-navigation";
 
@@ -306,48 +307,76 @@ export default async function Home({
       {notice ? <p className={styles.noticeToast}>{notice}</p> : null}
 
       {state.cycle && state.phase?.status === "ACTIVE" ? (
-        <section className={styles.wishPanel} aria-label="Community wish pool">
-          <span className={styles.sectionLabel}>Community wish</span>
-          <h2>Season proposals</h2>
-          <p>{state.communityWish.submissionHint}</p>
-          {state.communityWish.canSubmit ? (
-            <form
-              action={submitCommunityWishProposalAction}
-              className={styles.form}
-            >
-              <input type="hidden" name="cycleId" value={state.cycle.id} />
-              <label className={styles.field}>
-                <span>Proposal</span>
-                <textarea
-                  name="requestText"
-                  rows={4}
-                  maxLength={600}
-                  placeholder="Suggest one bounded gameplay-safe change."
-                  defaultValue={currentUserCommunityWish?.requestText ?? ""}
-                  required
-                />
-              </label>
-              <button className={styles.primaryButton} type="submit">
-                {currentUserCommunityWish ? "Update wish" : "Submit wish"}
-              </button>
-            </form>
-          ) : null}
-          {state.communityWish.proposals.length > 0 ? (
-            <ol className={styles.wishList}>
-              {state.communityWish.proposals.slice(0, 4).map((proposal) => (
-                <li key={proposal.id}>
-                  <strong>
-                    {proposal.isCurrentUser ? "Your wish" : "Community wish"}
-                  </strong>
-                  <span>{proposal.status}</span>
-                  <p>{proposal.requestText}</p>
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <p>No community wishes have been suggested yet.</p>
-          )}
-        </section>
+        <details className={styles.wishPanel}>
+          <summary className={styles.wishPanelToggle}>Wish</summary>
+          <section
+            className={styles.wishPanelContent}
+            aria-label="Community wish pool"
+          >
+            <span className={styles.sectionLabel}>Community wish</span>
+            <h2>Season proposals</h2>
+            <p>{state.communityWish.submissionHint}</p>
+            {state.communityWish.canSubmit ? (
+              <form
+                action={submitCommunityWishProposalAction}
+                className={styles.form}
+              >
+                <input type="hidden" name="cycleId" value={state.cycle.id} />
+                <label className={styles.field}>
+                  <div className={styles.fieldHeader}>
+                    Proposal
+                    <details className={styles.helpDisclosure}>
+                      <summary
+                        aria-label="Community wish instructions"
+                        className={styles.helpButton}
+                      >
+                        ?
+                      </summary>
+                      <div className={styles.helpPopover}>
+                        <strong>Wish limits</strong>
+                        <ul>
+                          <li>Write in English.</li>
+                          <li>
+                            Keep it short: max {COMMUNITY_WISH_MAX_LENGTH}{" "}
+                            characters.
+                          </li>
+                          <li>Ask for one feature idea, not a full spec.</li>
+                          <li>No self-buffs, targeted nerfs, or deploy requests.</li>
+                        </ul>
+                      </div>
+                    </details>
+                  </div>
+                  <textarea
+                    name="requestText"
+                    rows={3}
+                    maxLength={COMMUNITY_WISH_MAX_LENGTH}
+                    placeholder="Add more troop types"
+                    defaultValue={currentUserCommunityWish?.requestText ?? ""}
+                    required
+                  />
+                </label>
+                <button className={styles.primaryButton} type="submit">
+                  {currentUserCommunityWish ? "Update wish" : "Submit wish"}
+                </button>
+              </form>
+            ) : null}
+            {state.communityWish.proposals.length > 0 ? (
+              <ol className={styles.wishList}>
+                {state.communityWish.proposals.slice(0, 4).map((proposal) => (
+                  <li key={proposal.id}>
+                    <strong>
+                      {proposal.isCurrentUser ? "Your wish" : "Community wish"}
+                    </strong>
+                    <span>{proposal.status}</span>
+                    <p>{proposal.requestText}</p>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p>No community wishes have been suggested yet.</p>
+            )}
+          </section>
+        </details>
       ) : null}
 
       {showSidePanel ? (
