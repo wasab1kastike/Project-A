@@ -22,7 +22,11 @@
   background:
     linear-gradient(180deg, rgba(4, 10, 16, 0.72), transparent 23%),
     linear-gradient(0deg, rgba(4, 10, 16, 0.78), transparent 30%),
-    radial-gradient(circle at 50% 48%, transparent 0 46%, rgba(2, 8, 13, 0.24) 76%);
+    radial-gradient(
+      circle at 50% 48%,
+      transparent 0 46%,
+      rgba(2, 8, 13, 0.24) 76%
+    );
 }
 
 .topHud,
@@ -306,7 +310,10 @@
   right: 16px;
   bottom: 16px;
   display: grid;
-  grid-template-columns: minmax(220px, 0.75fr) minmax(260px, 1fr) minmax(280px, 0.95fr);
+  grid-template-columns: minmax(220px, 0.75fr) minmax(260px, 1fr) minmax(
+      280px,
+      0.95fr
+    );
   gap: 12px;
   padding: 12px;
   border-radius: 8px;
@@ -334,6 +341,47 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 1.05rem;
+}
+
+.playerStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.playerStats div {
+  min-width: 62px;
+  display: grid;
+  gap: 2px;
+  padding: 5px 7px;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  background: rgba(8, 16, 25, 0.52);
+}
+
+.playerStats .targetStat {
+  min-width: min(150px, 100%);
+  max-width: 100%;
+}
+
+.playerStats dt {
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.playerStats dd {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--foreground);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.1;
 }
 
 .crownBadge {
@@ -529,6 +577,29 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     line-height: 1.25;
+  }
+
+  .playerStats {
+    flex-wrap: nowrap;
+    overflow: hidden;
+    gap: 5px;
+  }
+
+  .playerStats div {
+    min-width: 56px;
+    padding: 4px 6px;
+  }
+
+  .playerStats .targetStat {
+    min-width: 76px;
+  }
+
+  .playerStats dt {
+    font-size: 0.52rem;
+  }
+
+  .playerStats dd {
+    font-size: 0.72rem;
   }
 
   .primaryButton,

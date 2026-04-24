@@ -267,6 +267,25 @@
   gap: 10px;
 }
 
+.orderSection {
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.ordersHeader + .orderSection {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.sectionHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .ordersHeader {
   display: flex;
   align-items: start;
@@ -296,6 +315,41 @@
   margin-top: 3px;
   font-size: 0.96rem;
   line-height: 1.15;
+}
+
+.castleStats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.castleStats div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  padding: 7px 8px;
+  border: 1px solid rgba(103, 196, 207, 0.22);
+  border-radius: 6px;
+  background: rgba(3, 10, 16, 0.52);
+}
+
+.castleStats dt {
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.castleStats dd {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--foreground);
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.12;
 }
 
 .form {
@@ -545,6 +599,10 @@
   .primaryButton,
   .secondaryButton {
     width: 100%;
+  }
+
+  .castleStats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .renamePanel {

@@ -140,10 +140,10 @@ export default async function Home({
     !state.phase || state.phase.status === "RESOLUTION" || !state.cycle;
   const showSidePanel = Boolean(
     blockingMessage ||
-      showLoginCard ||
-      showJoinCard ||
-      showCommanderNameCard ||
-      isWaitingForSeason
+    showLoginCard ||
+    showJoinCard ||
+    showCommanderNameCard ||
+    isWaitingForSeason
   );
 
   const phaseCopy =
@@ -187,11 +187,11 @@ export default async function Home({
       ? "Join the battlefield."
       : showCommanderNameCard
         ? "Choose your in-game nick."
-      : showJoinCard
-        ? state.phase?.status === "ACTIVE"
-          ? "Join the running season."
-          : "Claim your fortress."
-        : phaseCopy.title;
+        : showJoinCard
+          ? state.phase?.status === "ACTIVE"
+            ? "Join the running season."
+            : "Claim your fortress."
+          : phaseCopy.title;
 
   const centerDescription = blockingMessage
     ? blockingMessage
@@ -199,21 +199,11 @@ export default async function Home({
       ? "Sign in to join a fortress, chat, and submit orders when the season is active."
       : showCommanderNameCard
         ? "Set the commander name other players will see this season. Your account name stays private."
-      : showJoinCard
-        ? state.phase?.status === "ACTIVE"
-          ? "This season is already running. Join now to enter immediately if slots are still available."
-          : "Registration is open. Name your fortress now and it will appear on the map."
-        : state.cycle?.statusMessage ?? state.emptyStateMessage;
-
-  const playerSummaryText = state.playerSummary
-    ? `Lvl ${state.playerSummary.level} - ${state.playerSummary.points} pts - ${state.playerSummary.currentAction}${
-        state.playerSummary.currentTargetName
-          ? ` -> ${state.playerSummary.currentTargetName}`
-          : ""
-      }`
-    : state.isSpectator
-      ? "Spectating this cycle"
-      : "No fortress yet";
+        : showJoinCard
+          ? state.phase?.status === "ACTIVE"
+            ? "This season is already running. Join now to enter immediately if slots are still available."
+            : "Registration is open. Name your fortress now and it will appear on the map."
+          : (state.cycle?.statusMessage ?? state.emptyStateMessage);
 
   return (
     <main className={styles.page}>
@@ -310,9 +300,9 @@ export default async function Home({
               ? "Status"
               : showCommanderNameCard
                 ? "Nick registration"
-              : showJoinCard
-                ? "Join season"
-                : "Season control"}
+                : showJoinCard
+                  ? "Join season"
+                  : "Season control"}
           </span>
           <h1>{centerTitle}</h1>
           <p>{centerDescription}</p>
@@ -406,7 +396,32 @@ export default async function Home({
               <span className={styles.crownBadge}>Slayer of A</span>
             ) : null}
           </div>
-          <p>{playerSummaryText}</p>
+          {state.playerSummary ? (
+            <dl className={styles.playerStats}>
+              <div>
+                <dt>Level</dt>
+                <dd>{state.playerSummary.level}</dd>
+              </div>
+              <div>
+                <dt>Points</dt>
+                <dd>{state.playerSummary.points}</dd>
+              </div>
+              <div>
+                <dt>Action</dt>
+                <dd>{state.playerSummary.currentAction}</dd>
+              </div>
+              {state.playerSummary.currentTargetName ? (
+                <div className={styles.targetStat}>
+                  <dt>Target</dt>
+                  <dd>{state.playerSummary.currentTargetName}</dd>
+                </div>
+              ) : null}
+            </dl>
+          ) : (
+            <p>
+              {state.isSpectator ? "Spectating this cycle" : "No fortress yet"}
+            </p>
+          )}
         </section>
 
         <section className={styles.hintStrip}>
