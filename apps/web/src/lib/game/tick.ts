@@ -752,73 +752,111 @@ async function processCycleTick(
         id: true,
         attackerFortressId: true,
         targetFortressId: true,
+        arrivesAt: true,
       },
     });
 
+    const resolvedBatchAttackUnitIds = new Set<string>();
+
     for (const unit of dueAttackUnits) {
-      const attacker = fortressLookup.get(unit.attackerFortressId);
-      const target = fortressLookup.get(unit.targetFortressId);
-
-      await tx.attackUnit.update({
-        where: {
-          id: unit.id,
-        },
-        data: {
-          resolvedAt: tickAt,
-        },
-      });
-
-      resolvedAttackUnits += 1;
-
-      if (!attacker || !target) {
+      if (resolvedBatchAttackUnitIds.has(unit.id)) {
         continue;
       }
 
+      const attacker = fortressLookup.get(unit.attackerFortressId);
+      const target = fortressLookup.get(unit.targetFortressId);
+
       if (target?.isNpc) {
+        const targetUnits = dueAttackUnits.filter(
+          (targetUnit) =>
+            targetUnit.targetFortressId === target.id &&
+            !resolvedBatchAttackUnitIds.has(targetUnit.id)
+        );
+
+        for (const targetUnit of targetUnits) {
+          await tx.attackUnit.update({
+            where: {
+              id: targetUnit.id,
+            },
+            data: {
+              resolvedAt: tickAt,
+            },
+          });
+
+          resolvedBatchAttackUnitIds.add(targetUnit.id);
+          resolvedAttackUnits += 1;
+        }
+
         if (destroyedMegaTargets.has(target.id)) {
           continue;
         }
 
-        const targetHealth = currentHealth.get(target.id) ?? target.health;
-        const targetLoss = Math.min(
-          targetHealth,
-          getFortressAttackDamage(attacker.level)
-        );
+        const destructionContributors: Array<{
+          unitId: string;
+          attacker: NonNullable<typeof attacker>;
+        }> = [];
 
-        if (targetLoss <= 0) {
-          continue;
+        for (const targetUnit of targetUnits) {
+          const targetAttacker = fortressLookup.get(
+            targetUnit.attackerFortressId
+          );
+
+          if (!targetAttacker) {
+            continue;
+          }
+
+          const targetHealth = currentHealth.get(target.id) ?? target.health;
+          const targetLoss = Math.min(
+            targetHealth,
+            getFortressAttackDamage(targetAttacker.level)
+          );
+
+          if (targetLoss <= 0) {
+            continue;
+          }
+
+          const nextHealth = targetHealth - targetLoss;
+          currentHealth.set(target.id, nextHealth);
+
+          destructionContributors.push({
+            unitId: targetUnit.id,
+            attacker: targetAttacker,
+          });
+
+          scoreEvents.push({
+            cycleId,
+            fortressId: target.id,
+            actorId: targetAttacker.ownerId,
+            targetFortressId: target.id,
+            eventType: ScoreEventType.MEGA_DAMAGE,
+            delta: -targetLoss,
+            createdAt: tickAt,
+          });
         }
 
-        const nextHealth = targetHealth - targetLoss;
-        currentHealth.set(target.id, nextHealth);
+        if ((currentHealth.get(target.id) ?? target.health) <= 0) {
+          const destroyer = destructionContributors[0];
 
-        scoreEvents.push({
-          cycleId,
-          fortressId: target.id,
-          actorId: attacker.ownerId,
-          targetFortressId: target.id,
-          eventType: ScoreEventType.MEGA_DAMAGE,
-          delta: -targetLoss,
-          createdAt: tickAt,
-        });
+          if (!destroyer) {
+            continue;
+          }
 
-        if (nextHealth <= 0) {
           const destroyCount = cycle.megaFortressDestroyCount;
           const destroyReward = getMegaFortressDestroyReward(destroyCount);
           const nextMegaHealth = getNextMegaFortressHealth(destroyCount);
           const unlocksUpgrades = !cycle.upgradesUnlockedAt;
           const attackerPoints =
-            (currentPoints.get(attacker.id) ?? attacker.points) +
-            destroyReward;
+            (currentPoints.get(destroyer.attacker.id) ??
+              destroyer.attacker.points) + destroyReward;
 
-          currentPoints.set(attacker.id, attackerPoints);
+          currentPoints.set(destroyer.attacker.id, attackerPoints);
           currentHealth.set(target.id, nextMegaHealth);
           destroyedMegaTargets.add(target.id);
 
           scoreEvents.push({
             cycleId,
-            fortressId: attacker.id,
-            actorId: attacker.ownerId,
+            fortressId: destroyer.attacker.id,
+            actorId: destroyer.attacker.ownerId,
             targetFortressId: target.id,
             eventType: ScoreEventType.MEGA_DESTROY_BONUS,
             delta: destroyReward,
@@ -827,12 +865,12 @@ async function processCycleTick(
 
           const upgradeData: Prisma.FortressUpdateInput = {};
 
-          if (unlocksUpgrades && canFortressLevelUp(attacker.level)) {
-            upgradeData.level = attacker.level + 1;
+          if (unlocksUpgrades && canFortressLevelUp(destroyer.attacker.level)) {
+            upgradeData.level = destroyer.attacker.level + 1;
             scoreEvents.push({
               cycleId,
-              fortressId: attacker.id,
-              actorId: attacker.ownerId,
+              fortressId: destroyer.attacker.id,
+              actorId: destroyer.attacker.ownerId,
               targetFortressId: target.id,
               eventType: ScoreEventType.FORTRESS_UPGRADE_SLAYER_BONUS,
               delta: 0,
@@ -845,7 +883,8 @@ async function processCycleTick(
               id: cycleId,
             },
             data: {
-              crownedFortressId: cycle.crownedFortressId ?? attacker.id,
+              crownedFortressId:
+                cycle.crownedFortressId ?? destroyer.attacker.id,
               upgradesUnlockedAt: cycle.upgradesUnlockedAt ?? tickAt,
               megaFortressDestroyCount: {
                 increment: 1,
@@ -856,7 +895,7 @@ async function processCycleTick(
           if (Object.keys(upgradeData).length > 0) {
             await tx.fortress.update({
               where: {
-                id: attacker.id,
+                id: destroyer.attacker.id,
               },
               data: upgradeData,
             });
@@ -880,7 +919,7 @@ async function processCycleTick(
               activeStartedAt: cycle.activeStartedAt,
               tickAt,
               purpose: "tick:mega-destroy-reshuffle",
-              entropy: unit.id,
+              entropy: destroyer.unitId,
             }),
           });
         }
@@ -888,6 +927,20 @@ async function processCycleTick(
         continue;
       }
 
+      await tx.attackUnit.update({
+        where: {
+          id: unit.id,
+        },
+        data: {
+          resolvedAt: tickAt,
+        },
+      });
+
+      resolvedAttackUnits += 1;
+
+      if (!attacker || !target) {
+        continue;
+      }
       const targetPoints = currentPoints.get(unit.targetFortressId);
 
       if (targetPoints === undefined) {

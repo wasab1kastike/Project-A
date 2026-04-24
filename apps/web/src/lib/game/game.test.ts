@@ -3138,6 +3138,142 @@ test("first mega fortress destroy unlocks upgrades, grants a free level, and res
   );
 });
 
+test("mega fortress destroy credit goes to the earliest arriving unit in the due batch", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const earlyUser = await createUser(prisma, "mega-early-arrival@example.com");
+  const lateUser = await createUser(prisma, "mega-late-arrival@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: earlyUser.id,
+    commanderName: "Early Commander",
+    fortressName: "Early Keep",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: lateUser.id,
+    commanderName: "Late Commander",
+    fortressName: "Late Keep",
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const earlyFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: earlyUser.id,
+      },
+    },
+  });
+  const lateFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: lateUser.id,
+      },
+    },
+  });
+  const megaFortress = await prisma.fortress.findFirstOrThrow({
+    where: {
+      cycleId: cycle.id,
+      isNpc: true,
+    },
+  });
+
+  await prisma.fortress.update({
+    where: {
+      id: megaFortress.id,
+    },
+    data: {
+      health: 4,
+    },
+  });
+  await prisma.gameTick.create({
+    data: {
+      cycleId: cycle.id,
+      tickAt: new Date("2026-04-20T12:06:00.000Z"),
+    },
+  });
+  await prisma.attackUnit.createMany({
+    data: [
+      {
+        cycleId: cycle.id,
+        attackerFortressId: earlyFortress.id,
+        targetFortressId: megaFortress.id,
+        launchedAt: new Date("2026-04-20T12:05:00.000Z"),
+        arrivesAt: new Date("2026-04-20T12:06:00.000Z"),
+      },
+      {
+        cycleId: cycle.id,
+        attackerFortressId: lateFortress.id,
+        targetFortressId: megaFortress.id,
+        launchedAt: new Date("2026-04-20T12:05:00.000Z"),
+        arrivesAt: new Date("2026-04-20T12:07:00.000Z"),
+      },
+    ],
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:07:00.000Z"),
+  });
+  await forceEndCurrentCycle({
+    db: prisma,
+    now: new Date("2026-04-20T12:08:00.000Z"),
+  });
+
+  const refreshedCycle = await prisma.cycle.findUniqueOrThrow({
+    where: {
+      id: cycle.id,
+    },
+  });
+  const earlyBonusEvent = await prisma.scoreEvent.findFirst({
+    where: {
+      cycleId: cycle.id,
+      fortressId: earlyFortress.id,
+      eventType: ScoreEventType.MEGA_DESTROY_BONUS,
+    },
+  });
+  const lateBonusEvent = await prisma.scoreEvent.findFirst({
+    where: {
+      cycleId: cycle.id,
+      fortressId: lateFortress.id,
+      eventType: ScoreEventType.MEGA_DESTROY_BONUS,
+    },
+  });
+  const damageEvents = await prisma.scoreEvent.findMany({
+    where: {
+      cycleId: cycle.id,
+      targetFortressId: megaFortress.id,
+      eventType: ScoreEventType.MEGA_DAMAGE,
+    },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+  });
+  const history = await prisma.cycleHistory.findUniqueOrThrow({
+    where: {
+      cycleId: cycle.id,
+    },
+  });
+
+  assert.equal(refreshedCycle.crownedFortressId, earlyFortress.id);
+  assert.equal(earlyBonusEvent?.delta, MEGA_FORTRESS_DESTROY_BONUS);
+  assert.equal(lateBonusEvent, null);
+  assert.deepEqual(
+    damageEvents.map((event) => event.actorId),
+    [earlyUser.id, lateUser.id]
+  );
+  assert.equal(history.firstSlayerCommanderName, "Early Commander");
+  assert.equal(history.firstSlayerFortressName, "Early Keep");
+});
 test("later mega fortress destroys scale reward and health without changing the first slayer or free upgrade count", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
