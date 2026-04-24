@@ -37,6 +37,10 @@
   padding-right: 4px;
 }
 
+.messagesEnd {
+  height: 1px;
+}
+
 .message,
 .ownMessage {
   display: grid;

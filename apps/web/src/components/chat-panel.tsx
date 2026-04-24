@@ -1,4 +1,5 @@
 import { sendChatMessageAction } from "@/app/game-actions";
+import { ChatMessageList } from "./chat-message-list";
 import styles from "./chat-panel.module.css";
 
 const messageFormatter = new Intl.DateTimeFormat("en-US", {
@@ -37,7 +38,7 @@ export function ChatPanel({
         </p>
       </div>
 
-      <div className={styles.messages}>
+      <ChatMessageList hasMessages={messages.length > 0}>
         {messages.length === 0 ? (
           <p className={styles.emptyState}>
             No messages yet. Start the channel.
@@ -56,7 +57,7 @@ export function ChatPanel({
             </article>
           ))
         )}
-      </div>
+      </ChatMessageList>
 
       {canPost ? (
         <form action={sendChatMessageAction} className={styles.form}>
