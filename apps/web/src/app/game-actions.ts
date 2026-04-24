@@ -163,6 +163,7 @@ export async function purchaseFortressUpgradeAction() {
 
 export async function shuffleFortressLocationAction() {
   const userId = await requireUserId();
+  let notice: string;
 
   try {
     const result = await shuffleFortressLocation({
@@ -170,7 +171,7 @@ export async function shuffleFortressLocationAction() {
     });
     emitProjectARefresh("location-shuffle");
 
-    const notice =
+    notice =
       result.shuffleCost === 0
         ? result.cancelledAttackUnitCount > 0
           ? "Castle Yeet fired for free. Outgoing attacks were canceled."
@@ -178,11 +179,11 @@ export async function shuffleFortressLocationAction() {
         : result.cancelledAttackUnitCount > 0
           ? "Castle Yeet fired and 50 points were spent. Outgoing attacks were canceled."
           : "Castle Yeet fired and 50 points were spent.";
-
-    finishAction(notice);
   } catch (error) {
     redirectToHome("error", getActionErrorMessage(error));
   }
+
+  finishAction(notice);
 }
 
 export async function registerCommanderNameAction(formData: FormData) {
