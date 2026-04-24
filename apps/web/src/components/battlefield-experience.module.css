@@ -174,9 +174,10 @@
   position: absolute;
   z-index: 12;
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 10px;
   max-height: calc(100% - 32px);
-  overflow: auto;
+  overflow: hidden;
   padding: 12px;
   border: 1px solid rgba(247, 196, 95, 0.2);
   border-radius: 8px;
@@ -245,6 +246,20 @@
   top: 0;
   z-index: 1;
   background: rgba(5, 12, 18, 0.96);
+}
+
+.drawerBody {
+  min-height: 0;
+}
+
+.actionDrawerBody {
+  overflow: auto;
+  padding-right: 2px;
+  padding-bottom: 18px;
+}
+
+.chatDrawerBody {
+  overflow: hidden;
 }
 
 .drawerContent {
@@ -369,10 +384,31 @@
   border-color: transparent;
   background: var(--accent-strong);
   color: #14202f;
+  box-shadow:
+    0 8px 24px rgba(247, 196, 95, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 .secondaryButton {
   background: transparent;
+}
+
+.emphasisButton {
+  border-color: rgba(247, 196, 95, 0.48);
+  background:
+    linear-gradient(180deg, rgba(247, 196, 95, 0.92), rgba(208, 159, 53, 0.88)),
+    rgba(247, 196, 95, 0.88);
+  box-shadow:
+    0 10px 26px rgba(247, 196, 95, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24);
+  color: #14202f;
+}
+
+.emphasisButton:disabled {
+  border-color: var(--border-soft);
+  background: rgba(7, 13, 20, 0.52);
+  box-shadow: none;
+  color: var(--text-muted);
 }
 
 .segmentGroup {
@@ -489,11 +525,15 @@
 
   .immersive .chatDrawer,
   .immersive .actionDrawer {
-    bottom: var(--battlefield-bottom-clearance, 10px);
+    bottom: calc(var(--battlefield-bottom-clearance, 10px) + 10px);
     max-height: min(
       62dvh,
-      calc(100% - var(--battlefield-bottom-clearance, 10px) - 98px)
+      calc(100% - var(--battlefield-bottom-clearance, 10px) - 112px)
     );
+  }
+
+  .actionDrawerBody {
+    padding-bottom: calc(18px + env(safe-area-inset-bottom));
   }
 
   .closeButton {

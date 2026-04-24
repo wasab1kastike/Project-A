@@ -612,7 +612,7 @@ export async function shuffleFortressLocation({
 
     if (!cycle || !isActiveWindowOpen(cycle, now)) {
       throw new GameError(
-        "Fortress location shuffle is only available during ACTIVE."
+        "Castle Yeet is only available during ACTIVE."
       );
     }
 
@@ -638,7 +638,7 @@ export async function shuffleFortressLocation({
 
     if (fortress.currentAction !== FortressAction.GROW) {
       throw new GameError(
-        "Switch your fortress to Grow before shuffling its location."
+        "Switch your fortress to Grow before triggering Castle Yeet."
       );
     }
 
@@ -651,7 +651,7 @@ export async function shuffleFortressLocation({
 
     if (shuffleCost > 0 && fortress.points < shuffleCost) {
       throw new GameError(
-        `You need at least ${ACTIVE_LOCATION_SHUFFLE_COST} points to shuffle fortress location again.`
+        `You need at least ${ACTIVE_LOCATION_SHUFFLE_COST} points to trigger Castle Yeet again.`
       );
     }
 

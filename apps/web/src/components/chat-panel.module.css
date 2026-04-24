@@ -1,6 +1,9 @@
 .panel {
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 16px;
+  min-height: 0;
+  height: 100%;
 }
 
 .header {
@@ -29,7 +32,7 @@
 .messages {
   display: grid;
   gap: 10px;
-  max-height: 420px;
+  min-height: 0;
   overflow: auto;
   padding-right: 4px;
 }
@@ -66,7 +69,11 @@
   display: grid;
   gap: 12px;
   padding-top: 6px;
+  padding-bottom: 8px;
   border-top: 1px solid var(--border-soft);
+  background:
+    linear-gradient(180deg, rgba(5, 12, 18, 0), rgba(5, 12, 18, 0.98) 26%),
+    rgba(5, 12, 18, 0.96);
 }
 
 .field {
@@ -129,8 +136,16 @@
 }
 
 @media (max-width: 640px) {
+  .panel {
+    gap: 12px;
+  }
+
   .formFooter {
     display: grid;
+  }
+
+  .form {
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
   }
 
   .primaryButton {

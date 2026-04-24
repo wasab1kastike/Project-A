@@ -332,12 +332,14 @@ export function BattlefieldExperience({
             >
               Close
             </button>
-            <ChatPanel
-              messages={chat.messages}
-              canPost={chat.canPost}
-              maxLength={chat.maxLength}
-              postHint={chat.postHint}
-            />
+            <div className={`${styles.drawerBody} ${styles.chatDrawerBody}`}>
+              <ChatPanel
+                messages={chat.messages}
+                canPost={chat.canPost}
+                maxLength={chat.maxLength}
+                postHint={chat.postHint}
+              />
+            </div>
           </aside>
         ) : null}
 
@@ -353,8 +355,9 @@ export function BattlefieldExperience({
             >
               Close
             </button>
+            <div className={`${styles.drawerBody} ${styles.actionDrawerBody}`}>
 
-            {phaseStatus === "ACTIVE" && playerSummary ? (
+              {phaseStatus === "ACTIVE" && playerSummary ? (
               <div className={styles.drawerContent}>
                 <div className={styles.ordersHeader}>
                   <div>
@@ -413,7 +416,10 @@ export function BattlefieldExperience({
                     </label>
                   ) : null}
 
-                  <button className={styles.primaryButton} type="submit">
+                  <button
+                    className={`${styles.primaryButton} ${styles.emphasisButton}`}
+                    type="submit"
+                  >
                     Save orders
                   </button>
                 </form>
@@ -425,8 +431,8 @@ export function BattlefieldExperience({
                 <div className={styles.upgradePanel}>
                   <div className={styles.upgradeHeader}>
                     <div>
-                      <span className={styles.label}>Location shuffle</span>
-                      <h4>Reposition fortress</h4>
+                      <span className={styles.label}>Castle Yeet</span>
+                      <h4>Yeet to a new hex</h4>
                     </div>
                     <strong>
                       {playerSummary.locationShuffleCost === 0
@@ -436,17 +442,17 @@ export function BattlefieldExperience({
                   </div>
                   <p className={styles.helper}>
                     {playerSummary.freeLocationShuffleAvailable
-                      ? "Your first location shuffle this season is free. Later shuffles cost 50 points."
-                      : "This fortress already used its free location shuffle. The next one costs 50 points."}
+                      ? "Your first Castle Yeet this season is free. Later yeets cost 50 points."
+                      : "This fortress already used its free Castle Yeet. The next one costs 50 points."}
                   </p>
                   {playerSummary.currentAction !== "GROW" ? (
                     <p className={`${styles.helper} ${styles.warningText}`}>
-                      Switch to Grow before shuffling fortress location.
+                      Switch to Grow before triggering Castle Yeet.
                     </p>
                   ) : null}
                   {playerSummary.hasOutgoingAttackUnits ? (
                     <p className={`${styles.helper} ${styles.warningText}`}>
-                      Outgoing attack units already in flight will be canceled when you shuffle.
+                      Outgoing attack units already in flight will be canceled when Castle Yeet triggers.
                     </p>
                   ) : null}
                   {!playerSummary.canShuffleLocation &&
@@ -454,18 +460,18 @@ export function BattlefieldExperience({
                   playerSummary.locationShuffleCost !== null &&
                   playerSummary.points < playerSummary.locationShuffleCost ? (
                     <p className={styles.helper}>
-                      You need {playerSummary.locationShuffleCost} points for the next location shuffle.
+                      You need {playerSummary.locationShuffleCost} points for the next Castle Yeet.
                     </p>
                   ) : null}
                   <form action={shuffleFortressLocationAction}>
                     <button
-                      className={styles.secondaryButton}
+                      className={`${styles.secondaryButton} ${styles.emphasisButton}`}
                       type="submit"
                       disabled={!playerSummary.canShuffleLocation}
                     >
                       {playerSummary.locationShuffleCost === 0
-                        ? "Shuffle location for free"
-                        : `Shuffle location for ${playerSummary.locationShuffleCost} pts`}
+                        ? "Castle Yeet for free"
+                        : `Castle Yeet for ${playerSummary.locationShuffleCost} pts`}
                     </button>
                   </form>
                 </div>
@@ -498,7 +504,7 @@ export function BattlefieldExperience({
                   playerSummary.nextUpgradeCost !== null ? (
                     <form action={purchaseFortressUpgradeAction}>
                       <button
-                        className={styles.secondaryButton}
+                        className={`${styles.secondaryButton} ${styles.emphasisButton}`}
                         type="submit"
                         disabled={!playerSummary.canPurchaseUpgrade}
                       >
@@ -554,9 +560,9 @@ export function BattlefieldExperience({
               </div>
             ) : null}
 
-            {phaseStatus === "REGISTRATION" &&
-            canEditRegistrationName &&
-            playerFortress ? (
+              {phaseStatus === "REGISTRATION" &&
+              canEditRegistrationName &&
+              playerFortress ? (
               <div className={styles.drawerContent}>
                 <div className={styles.ordersHeader}>
                   <div>
@@ -589,12 +595,16 @@ export function BattlefieldExperience({
                       required
                     />
                   </label>
-                  <button className={styles.primaryButton} type="submit">
+                  <button
+                    className={`${styles.primaryButton} ${styles.emphasisButton}`}
+                    type="submit"
+                  >
                     Update registration
                   </button>
                 </form>
               </div>
             ) : null}
+            </div>
           </aside>
         ) : null}
       </div>

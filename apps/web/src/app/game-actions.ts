@@ -173,11 +173,11 @@ export async function shuffleFortressLocationAction() {
     const notice =
       result.shuffleCost === 0
         ? result.cancelledAttackUnitCount > 0
-          ? "Fortress location shuffled for free. Outgoing attacks were canceled."
-          : "Fortress location shuffled for free."
+          ? "Castle Yeet fired for free. Outgoing attacks were canceled."
+          : "Castle Yeet fired for free."
         : result.cancelledAttackUnitCount > 0
-          ? "Fortress location shuffled and 50 points spent. Outgoing attacks were canceled."
-          : "Fortress location shuffled and 50 points spent.";
+          ? "Castle Yeet fired and 50 points were spent. Outgoing attacks were canceled."
+          : "Castle Yeet fired and 50 points were spent.";
 
     finishAction(notice);
   } catch (error) {
