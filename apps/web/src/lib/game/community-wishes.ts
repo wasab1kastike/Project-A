@@ -14,14 +14,7 @@ export type CommunityWishRankedFortress = {
   ownerId: string;
 };
 
-export const COMMUNITY_WISH_PROPOSAL_WINDOW_HOURS = 24;
 export const COMMUNITY_WISH_VOTING_WINDOW_HOURS = 24;
-
-function addHours(value: Date, hours: number) {
-  const next = new Date(value);
-  next.setHours(next.getHours() + hours);
-  return next;
-}
 
 function normalizeRequestText(input: string) {
   const normalized = input.trim().replace(/\r\n/g, "\n");
@@ -31,10 +24,6 @@ function normalizeRequestText(input: string) {
   }
 
   return normalized;
-}
-
-function getProposalWindowOpensAt(activeEndsAt: Date) {
-  return addHours(activeEndsAt, -COMMUNITY_WISH_PROPOSAL_WINDOW_HOURS);
 }
 
 export function getCommunityWishVoteWeight(rank: number) {
@@ -143,13 +132,6 @@ export async function getCommunityWishEligibility({
     return {
       canSubmit: false,
       reason: "Community wish proposals open only during an active cycle.",
-    };
-  }
-
-  if (now < getProposalWindowOpensAt(cycle.activeEndsAt)) {
-    return {
-      canSubmit: false,
-      reason: "Community wish proposals open during the final 24 hours.",
     };
   }
 

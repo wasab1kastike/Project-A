@@ -5061,7 +5061,7 @@ test("winner request validation classifies allowed, simplifiable, and rejected i
   assert.equal(rejected.status, WinnerRequestStatus.REJECTED);
 });
 
-test("community wish proposals open only to active players in the final 24 hours", async (context) => {
+test("community wish proposals open to active players during the season", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -5095,21 +5095,9 @@ test("community wish proposals open only to active players in the final 24 hours
       submitCommunityWishProposal({
         db: prisma,
         cycleId: cycle.id,
-        userId: alpha.id,
-        requestText: "Add a new endgame badge.",
-        now: new Date("2026-04-22T11:59:00.000Z"),
-      }),
-    /final 24 hours/
-  );
-
-  await assert.rejects(
-    () =>
-      submitCommunityWishProposal({
-        db: prisma,
-        cycleId: cycle.id,
         userId: spectator.id,
         requestText: "Add a new endgame badge.",
-        now: new Date("2026-04-22T12:01:00.000Z"),
+        now: new Date("2026-04-20T12:01:00.000Z"),
       }),
     /Only players/
   );
@@ -5119,7 +5107,7 @@ test("community wish proposals open only to active players in the final 24 hours
     cycleId: cycle.id,
     userId: alpha.id,
     requestText: "Add a new endgame badge.",
-    now: new Date("2026-04-22T12:01:00.000Z"),
+    now: new Date("2026-04-20T12:01:00.000Z"),
   });
 
   assert.equal(proposal.status, WinnerRequestStatus.SUBMITTED);
@@ -5129,7 +5117,7 @@ test("community wish proposals open only to active players in the final 24 hours
     cycleId: cycle.id,
     userId: beta.id,
     requestText: "Buff my fortress next season.",
-    now: new Date("2026-04-22T12:02:00.000Z"),
+    now: new Date("2026-04-20T12:02:00.000Z"),
   });
 
   assert.equal(rejectedProposal.status, WinnerRequestStatus.REJECTED);
@@ -5141,9 +5129,21 @@ test("community wish proposals open only to active players in the final 24 hours
         cycleId: cycle.id,
         userId: alpha.id,
         requestText: "Add a second idea.",
-        now: new Date("2026-04-22T12:03:00.000Z"),
+        now: new Date("2026-04-20T12:03:00.000Z"),
       }),
     /already submitted/
+  );
+
+  await assert.rejects(
+    () =>
+      submitCommunityWishProposal({
+        db: prisma,
+        cycleId: cycle.id,
+        userId: beta.id,
+        requestText: "Add a late idea.",
+        now: new Date("2026-04-23T12:00:00.000Z"),
+      }),
+    /close when the cycle ends/
   );
 });
 

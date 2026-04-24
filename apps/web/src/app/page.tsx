@@ -77,7 +77,7 @@ function getDegradedHomePageState(): HomePageState {
       closesAt: null,
       canSubmit: false,
       submissionHint:
-        "Community wishes open during the final 24 hours of an active season.",
+        "Community wishes open during the active season. Voting starts after ranks are locked.",
       proposals: [],
     },
     availableTargets: [],
@@ -305,7 +305,7 @@ export default async function Home({
       {state.cycle && state.phase?.status === "ACTIVE" ? (
         <section className={styles.wishPanel} aria-label="Community wish pool">
           <span className={styles.sectionLabel}>Community wish</span>
-          <h2>Final-day proposals</h2>
+          <h2>Season proposals</h2>
           <p>{state.communityWish.submissionHint}</p>
           {state.communityWish.canSubmit ? (
             <form

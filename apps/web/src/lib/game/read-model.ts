@@ -7,7 +7,6 @@ import {
   type PrismaClient,
 } from "@/lib/prisma-client";
 import { ACTIVE_LOCATION_SHUFFLE_COST, ACTIVE_PLAYER_CAP } from "./constants";
-import { COMMUNITY_WISH_PROPOSAL_WINDOW_HOURS } from "./community-wishes";
 import { getChatLimits } from "./chat";
 import { normalizeUnitSpriteVariant } from "./attacks";
 import {
@@ -220,7 +219,7 @@ export async function getHomePageState({
         closesAt: null,
         canSubmit: false,
         submissionHint:
-          "Community wishes open during the final 24 hours of an active season.",
+          "Community wishes open during the active season. Voting starts after ranks are locked.",
         proposals: [],
       },
       availableTargets: [],
@@ -404,16 +403,7 @@ export async function getHomePageState({
         },
       })
     : 0;
-  const communityWishWindowOpensAt = cycle.activeEndsAt
-    ? new Date(
-        cycle.activeEndsAt.getTime() -
-          COMMUNITY_WISH_PROPOSAL_WINDOW_HOURS * 60 * 60 * 1000
-      )
-    : null;
-  const communityWishOpen =
-    activeOpen &&
-    communityWishWindowOpensAt !== null &&
-    now >= communityWishWindowOpensAt;
+  const communityWishOpen = activeOpen && cycle.activeEndsAt !== null;
   const currentUserCommunityWish =
     cycle.communityWishProposals.find(
       (proposal) => proposal.authorId === userId
@@ -604,7 +594,7 @@ export async function getHomePageState({
     },
     communityWish: {
       isOpen: communityWishOpen,
-      opensAt: communityWishWindowOpensAt,
+      opensAt: cycle.activeStartedAt,
       closesAt: cycle.activeEndsAt,
       canSubmit:
         Boolean(userId) &&
@@ -616,10 +606,10 @@ export async function getHomePageState({
         : !playerFortress
           ? "Only players in this active cycle can suggest a community wish."
           : !communityWishOpen
-            ? "Community wishes open during the final 24 hours."
+            ? "Community wishes open during the active season."
             : currentUserCommunityWish
               ? "You already submitted a community wish for this cycle."
-              : "Submit one bounded community wish before the cycle ends.",
+              : "Submit one bounded community wish before the cycle ends. Voting starts after final ranks are locked.",
       proposals: cycle.communityWishProposals.map((proposal) => ({
         id: proposal.id,
         requestText: proposal.requestText,
