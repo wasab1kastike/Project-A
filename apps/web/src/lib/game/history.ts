@@ -177,7 +177,7 @@ export async function getCycleHistoryPageState({
       communityWishVotingMessage:
         entry.communityWishStatus === CommunityWishStatus.NO_PROPOSALS
           ? "No community wish proposals were submitted for this cycle."
-          : entry.communityWishStatus === CommunityWishStatus.PROPOSALS_OPEN
+        : entry.communityWishStatus === CommunityWishStatus.PROPOSALS_OPEN
             ? "Community wish proposals are open until Monday 12:00. Voting runs for 6 hours after proposals close."
           : entry.communityWishStatus === CommunityWishStatus.RESOLVED
             ? "Community wish voting has been resolved."

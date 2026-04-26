@@ -1,0 +1,134 @@
+name: CI - typecheck, lint & security
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Typecheck, lint and scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Generate Prisma client
+        run: npm run db:generate --workspace web
+
+      - name: Run npm audit (fail on high/critical)
+        run: |
+          npm audit --json > audit.json || true
+          node -e "const a=require('./audit.json'); const v=a.metadata && a.metadata.vulnerabilities ? a.metadata.vulnerabilities : {}; if((v.high||0)+(v.critical||0)>0){console.error('High/critical vulnerabilities found:', v); process.exit(1);} console.log('No high/critical vulnerabilities');"
+
+      - name: Typecheck (tsc)
+        run: npm run typecheck
+
+      - name: Lint (eslint)
+        run: npm run lint
+
+      - name: Security quick-scan (grep for unsafe patterns)
+        run: |
+          set -euo pipefail
+          echo 'Scanning repository for unsafe patterns: $executeRawUnsafe, dangerouslySetInnerHTML, eval'
+
+          FOUND=0
+
+          # Check for $executeRawUnsafe but allow intentional migration and test schema cleanup helpers.
+          git grep -n -- '\$executeRawUnsafe' -- . 2>/dev/null \
+            | grep -v -e '.github/workflows/ci-security.yml' \
+              -e 'apps/web/src/lib/game/schema-guards.ts' \
+              -e 'apps/web/src/lib/game/game.test.ts' \
+            | tee /tmp/unsafe-execute || true
+          if [ -s /tmp/unsafe-execute ]; then
+            echo 'Found usage of $executeRawUnsafe outside allowed files:'
+            cat /tmp/unsafe-execute
+            FOUND=1
+          else
+            echo 'No disallowed $executeRawUnsafe usage found.'
+          fi
+
+          # Check for dangerouslySetInnerHTML
+          git grep -n -- 'dangerouslySetInnerHTML' -- . 2>/dev/null \
+            | grep -v -e '.github/workflows/ci-security.yml' \
+            | tee /tmp/dangerous-html || true
+          if [ -s /tmp/dangerous-html ]; then
+            echo "Found dangerouslySetInnerHTML usage:"
+            cat /tmp/dangerous-html
+            FOUND=1
+          fi
+
+          # Check for eval( occurrences
+          git grep -n -- 'eval(' -- . 2>/dev/null \
+            | grep -v -e '.github/workflows/ci-security.yml' \
+            | tee /tmp/eval-found || true
+          if [ -s /tmp/eval-found ]; then
+            echo "Found eval() usage:"
+            cat /tmp/eval-found
+            FOUND=1
+          fi
+
+          if [ "$FOUND" -ne 0 ]; then
+            echo "Unsafe patterns detected. Failing the job." >&2
+            exit 1
+          fi
+
+          echo "Quick-scan passed."
+
+  integration-tests:
+    name: Integration tests (optional)
+    runs-on: ubuntu-latest
+    needs: build
+    if: ${{ vars.RUN_INTEGRATION == 'true' }}
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: project_a_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+
+      - name: Wait for Postgres
+        run: |
+          echo "Waiting for Postgres to be ready..."
+          for i in {1..30}; do
+            pg_isready -h localhost -p 5432 -U postgres && break
+            sleep 1
+          done
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run DB migrate & tests
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/project_a_test?schema=public
+        run: |
+          npm run db:generate --workspace web
+          npm run db:migrate --workspace web -- --name ci-integration || true
+          npm run test:game --workspace web
