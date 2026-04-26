@@ -182,7 +182,7 @@ export default async function HistoryPage({
                   </label>
                   <p className={styles.helperText}>
                     {entry.communityWishCanSubmitProposal
-                      ? `Add or edit one short English wish until proposals close. Max ${entry.communityWishMaxLength} characters.`
+                      ? `Add or edit one short English wish until Monday 12:00. Voting runs for 6 hours after proposals close. Max ${entry.communityWishMaxLength} characters.`
                       : entry.communityWishVotingMessage}
                   </p>
                   {entry.communityWishCanSubmitProposal ? (
@@ -208,7 +208,7 @@ export default async function HistoryPage({
                     <span className={styles.sectionLabel}>Community vote</span>
                     <p className={styles.helperText}>
                       {entry.communityWishCanVote
-                        ? `You have ${entry.communityWishVoteBudget} votes. ${entry.communityWishUsedVotes} currently allocated. You can change them until voting ends.`
+                        ? `You have ${entry.communityWishVoteBudget} votes for this 6 hour window. ${entry.communityWishUsedVotes} currently allocated. You can change them until voting ends.`
                         : entry.communityWishVotingMessage}
                     </p>
                     <div className={styles.voteList}>

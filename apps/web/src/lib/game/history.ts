@@ -177,8 +177,8 @@ export async function getCycleHistoryPageState({
       communityWishVotingMessage:
         entry.communityWishStatus === CommunityWishStatus.NO_PROPOSALS
           ? "No community wish proposals were submitted for this cycle."
-          : entry.communityWishStatus === CommunityWishStatus.PROPOSALS_OPEN
-            ? "Community wish proposals are open until Monday 12:00. Voting opens after proposals close."
+        : entry.communityWishStatus === CommunityWishStatus.PROPOSALS_OPEN
+            ? "Community wish proposals are open until Monday 12:00. Voting runs for 6 hours after proposals close."
           : entry.communityWishStatus === CommunityWishStatus.RESOLVED
             ? "Community wish voting has been resolved."
             : entry.communityWishStatus === CommunityWishStatus.TIE_REQUIRES_ADMIN
@@ -186,7 +186,7 @@ export async function getCycleHistoryPageState({
               : !votingOpen
                 ? "Community wish voting is closed."
                 : budget.reason ??
-                  "Allocate your community wish votes. You can change them until voting ends.",
+                  "Allocate your community wish votes during the 6 hour voting window. You can change them until voting ends.",
       communityWishProposals: entry.cycle.communityWishProposals.map(
         (proposal) => ({
           id: proposal.id,
