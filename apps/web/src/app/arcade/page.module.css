@@ -16,6 +16,11 @@
   padding: 20px;
 }
 
+.heroCopy {
+  display: grid;
+  gap: 10px;
+}
+
 .hero {
   display: flex;
   justify-content: space-between;
@@ -105,6 +110,243 @@
   color: var(--foreground);
 }
 
+.hubGrid {
+  display: grid;
+  gap: 18px;
+}
+
+.card,
+.shopCard,
+.inventoryCard,
+.gameCard {
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(7, 13, 20, 0.92);
+  padding: 18px;
+}
+
+.card {
+  display: grid;
+  gap: 16px;
+}
+
+.cardHeader {
+  display: grid;
+  gap: 10px;
+}
+
+.gameGrid,
+.shopGrid,
+.inventoryGrid {
+  display: grid;
+  gap: 16px;
+}
+
+.gameGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.shopGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.inventoryGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.catalogCard {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(7, 13, 20, 0.92);
+  padding: 18px;
+}
+
+.catalogImage {
+  width: min(100%, 280px);
+  height: auto;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(10, 16, 23, 0.92);
+}
+
+.catalogDetails {
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(10, 16, 23, 0.84);
+  padding: 12px 14px;
+}
+
+.catalogDetails summary {
+  cursor: pointer;
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--foreground);
+}
+
+.catalogColumns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.catalogColumns h4 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+
+.catalogList {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.catalogList li {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(5, 10, 16, 0.82);
+}
+
+.catalogList strong {
+  font-size: 0.92rem;
+}
+
+.catalogList span {
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.catalogList p {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.gameCard,
+.shopCard,
+.inventoryCard {
+  display: grid;
+  gap: 12px;
+}
+
+.formStack {
+  display: grid;
+  gap: 10px;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.field span,
+.subLabel {
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.field input,
+.field select {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(10, 16, 23, 0.9);
+  color: var(--foreground);
+  font: inherit;
+}
+
+.field input:focus,
+.field select:focus {
+  outline: 2px solid rgba(247, 196, 95, 0.22);
+  border-color: var(--border-strong);
+}
+
+.helperText {
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.purchaseList,
+.skinList,
+.ledgerList {
+  display: grid;
+  gap: 10px;
+}
+
+.purchaseRow,
+.skinRow,
+.ledgerList li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(10, 16, 23, 0.84);
+}
+
+.purchaseRow div,
+.skinRow span,
+.ledgerList li div {
+  min-width: 0;
+}
+
+.purchaseRow strong,
+.skinRow span,
+.ledgerList strong {
+  display: block;
+}
+
+.purchaseRow p,
+.ledgerList p {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.skinColumns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.skinColumns h4 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+
+.ledgerMeta {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.8rem;
+}
+
+.ledgerMeta span {
+  color: var(--foreground);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
 @media (max-width: 760px) {
   .page {
     padding: 18px;
@@ -117,5 +359,20 @@
   .hero h1,
   .lockedCard h2 {
     font-size: 1.6rem;
+  }
+
+  .gameGrid,
+  .shopGrid,
+  .inventoryGrid,
+  .skinColumns,
+  .catalogColumns {
+    grid-template-columns: 1fr;
+  }
+
+  .purchaseRow,
+  .skinRow,
+  .ledgerList li {
+    align-items: start;
+    flex-direction: column;
   }
 }

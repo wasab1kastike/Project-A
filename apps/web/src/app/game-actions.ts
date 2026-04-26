@@ -9,12 +9,23 @@ import {
   sendChatMessage,
 } from "@/lib/game/chat";
 import {
+  equipCosmeticUnlock,
+  openArcadeLootBox,
+  playArcadeGame,
+  purchaseArcadeLootBox,
+} from "@/lib/game/arcade";
+import {
   saveCommunityWishVotes,
   submitCommunityWishProposal,
 } from "@/lib/game/community-wishes";
 import { submitBuildArcadeScore } from "@/lib/game/build-arcade";
 import { GameError } from "@/lib/game/errors";
-import { FortressAction } from "@/lib/prisma-client";
+import {
+  ArcadeCosmeticSlot,
+  ArcadeGameType,
+  ArcadeLootBoxType,
+  FortressAction,
+} from "@/lib/prisma-client";
 import { emitProjectARefresh } from "@/lib/realtime";
 import {
   editRegistrationFortressName,
@@ -42,6 +53,16 @@ function redirectToHome(
   redirect(`/?${params.toString()}`);
 }
 
+function redirectToArcade(
+  kind: "error" | "notice",
+  message: string,
+  details?: Record<string, string>
+): never {
+  const params = new URLSearchParams(details);
+  params.set(kind, message);
+  redirect(`/arcade?${params.toString()}`);
+}
+
 async function requireUserId() {
   const session = await auth();
   const userId = session?.user?.id;
@@ -50,6 +71,20 @@ async function requireUserId() {
     redirectToHome(
       "error",
       "You need to sign in before changing season state."
+    );
+  }
+
+  return userId;
+}
+
+async function requireArcadeUserId() {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    redirectToArcade(
+      "error",
+      "You need to sign in before using the arcade."
     );
   }
 
@@ -67,6 +102,11 @@ function getActionErrorMessage(error: unknown) {
 function finishAction(notice: string): never {
   revalidatePath("/");
   redirectToHome("notice", notice);
+}
+
+function finishArcadeAction(notice: string): never {
+  revalidatePath("/arcade");
+  redirectToArcade("notice", notice);
 }
 
 type InlineActionResult =
@@ -315,6 +355,105 @@ export async function submitBuildArcadeScoreAction(formData: FormData) {
   }
 
   finishAction("Build arcade score saved.");
+}
+
+export async function playArcadeGameAction(formData: FormData) {
+  const userId = await requireArcadeUserId();
+  const cycleId = getString(formData, "cycleId");
+  const gameType = getString(formData, "gameType");
+  const stakeValue = Number(getString(formData, "stake"));
+  const choice = getString(formData, "choice") || null;
+
+  if (!cycleId) {
+    redirectToArcade("error", "Arcade game is missing its cycle reference.");
+  }
+
+  try {
+    await playArcadeGame({
+      cycleId,
+      userId,
+      gameType:
+        gameType === ArcadeGameType.DICE
+          ? ArcadeGameType.DICE
+          : gameType === ArcadeGameType.WHEEL
+            ? ArcadeGameType.WHEEL
+            : ArcadeGameType.SLOTS,
+      stake: Number.isFinite(stakeValue) ? stakeValue : 0,
+      choice,
+    });
+    emitProjectARefresh("arcade-game-play");
+  } catch (error) {
+    redirectToArcade("error", getActionErrorMessage(error));
+  }
+
+  finishArcadeAction("Arcade game resolved.");
+}
+
+export async function purchaseArcadeLootBoxAction(formData: FormData) {
+  const userId = await requireArcadeUserId();
+  const crateType = getString(formData, "crateType");
+
+  try {
+    await purchaseArcadeLootBox({
+      userId,
+      crateType:
+        crateType === ArcadeLootBoxType.FORTRESS
+          ? ArcadeLootBoxType.FORTRESS
+          : ArcadeLootBoxType.UNIT,
+    });
+    emitProjectARefresh("arcade-loot-box-purchase");
+  } catch (error) {
+    redirectToArcade("error", getActionErrorMessage(error));
+  }
+
+  finishArcadeAction("Loot box purchased.");
+}
+
+export async function openArcadeLootBoxAction(formData: FormData) {
+  const userId = await requireArcadeUserId();
+  const purchaseId = getString(formData, "purchaseId");
+
+  if (!purchaseId) {
+    redirectToArcade("error", "Loot box is missing its purchase reference.");
+  }
+
+  try {
+    await openArcadeLootBox({
+      purchaseId,
+      userId,
+    });
+    emitProjectARefresh("arcade-loot-box-open");
+  } catch (error) {
+    redirectToArcade("error", getActionErrorMessage(error));
+  }
+
+  finishArcadeAction("Loot box opened.");
+}
+
+export async function equipCosmeticUnlockAction(formData: FormData) {
+  const userId = await requireArcadeUserId();
+  const unlockId = getString(formData, "unlockId");
+  const slot = getString(formData, "slot");
+
+  if (!unlockId) {
+    redirectToArcade("error", "Cosmetic unlock is missing its reference.");
+  }
+
+  try {
+    await equipCosmeticUnlock({
+      unlockId,
+      userId,
+      slot:
+        slot === ArcadeCosmeticSlot.FORTRESS
+          ? ArcadeCosmeticSlot.FORTRESS
+          : ArcadeCosmeticSlot.UNIT,
+    });
+    emitProjectARefresh("arcade-cosmetic-equip");
+  } catch (error) {
+    redirectToArcade("error", getActionErrorMessage(error));
+  }
+
+  finishArcadeAction("Cosmetic equipped.");
 }
 
 export async function sendChatMessageAction(formData: FormData) {

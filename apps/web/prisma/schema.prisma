@@ -57,6 +57,30 @@ enum ChatMessageType {
   GIF
 }
 
+enum ArcadeGameType {
+  SLOTS
+  DICE
+  WHEEL
+}
+
+enum ArcadeTransactionKind {
+  SEASON_PAYOUT
+  GAME_RESULT
+  LOOT_BOX_PURCHASE
+  LOOT_BOX_OPEN
+  LOOT_BOX_DUPLICATE_REFUND
+}
+
+enum ArcadeLootBoxType {
+  UNIT
+  FORTRESS
+}
+
+enum ArcadeCosmeticSlot {
+  UNIT
+  FORTRESS
+}
+
 model User {
   id                        String                  @id @default(cuid())
   name                      String?
@@ -78,6 +102,10 @@ model User {
   communityWishVotes        CommunityWishVote[]     @relation("CommunityWishVoteVoter")
   communityWishEntitlements CommunityWishVoteEntitlement[] @relation("CommunityWishVoteEntitlementUser")
   buildArcadeRuns           BuildArcadeRun[]
+  arcadeWallet              ArcadeWallet?
+  arcadeTransactions        ArcadeTransaction[]
+  arcadeLootBoxPurchases    ArcadeLootBoxPurchase[]
+  arcadeCosmeticUnlocks     ArcadeCosmeticUnlock[]
   resolvedCommunityWishTies CycleHistory[]          @relation("CommunityWishAdminResolver")
   wonCycles                 Cycle[]                 @relation("CycleWinner")
   cycleHistoriesWon         CycleHistory[]          @relation("CycleHistoryWinner")
@@ -155,6 +183,7 @@ model Cycle {
   communityWishProposals   CommunityWishProposal[]
   communityWishVoteEntitlements CommunityWishVoteEntitlement[]
   buildArcadeRuns          BuildArcadeRun[]
+  arcadeTransactions       ArcadeTransaction[]
   history                  CycleHistory?
 
   @@index([status])
@@ -328,6 +357,70 @@ model BuildArcadeRun {
   @@unique([cycleId, userId])
   @@index([cycleId, score])
   @@index([userId])
+}
+
+model ArcadeWallet {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  balance   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([balance])
+}
+
+model ArcadeTransaction {
+  id         String                @id @default(cuid())
+  userId     String
+  cycleId    String?
+  kind       ArcadeTransactionKind
+  gameType   ArcadeGameType?
+  amount     Int
+  balanceAfter Int
+  summary    String                @db.Text
+  details    String?               @db.Text
+  dedupeKey  String?               @unique
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+  user       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cycle      Cycle?                @relation(fields: [cycleId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([cycleId, createdAt])
+}
+
+model ArcadeLootBoxPurchase {
+  id              String                @id @default(cuid())
+  userId          String
+  crateType       ArcadeLootBoxType
+  price           Int
+  openedAt        DateTime?
+  rewardSlot      ArcadeCosmeticSlot?
+  rewardVariant   String?
+  duplicatePayout Int                   @default(0)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unlock          ArcadeCosmeticUnlock?
+
+  @@index([userId, createdAt])
+  @@index([userId, openedAt])
+}
+
+model ArcadeCosmeticUnlock {
+  id             String                @id @default(cuid())
+  userId         String
+  slot           ArcadeCosmeticSlot
+  variant        String
+  sourcePurchaseId String?             @unique
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourcePurchase ArcadeLootBoxPurchase? @relation(fields: [sourcePurchaseId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, slot, variant])
+  @@index([userId, slot])
 }
 
 model CommunityWishVote {

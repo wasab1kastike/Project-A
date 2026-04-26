@@ -1,4 +1,8 @@
 export {
+  ArcadeCosmeticSlot,
+  ArcadeGameType,
+  ArcadeLootBoxType,
+  ArcadeTransactionKind,
   ChatMessageType,
   CommunityWishStatus,
   CycleStatus,

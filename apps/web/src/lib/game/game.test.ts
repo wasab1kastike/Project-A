@@ -6,6 +6,8 @@ import { after, before, beforeEach, test, type TestContext } from "node:test";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  ArcadeCosmeticSlot,
+  ArcadeLootBoxType,
   ChatMessageType,
   CommunityWishStatus,
   CycleStatus,
@@ -33,11 +35,21 @@ import {
 } from "./community-wishes";
 import { getBuildArcadeRewardVariant } from "./build-arcade";
 import {
+  equipCosmeticUnlock,
+  mintSeasonArcadeCoins,
+  openArcadeLootBox,
+  purchaseArcadeLootBox,
+} from "./arcade";
+import {
   ACTIVE_LOCATION_SHUFFLE_COST,
   ACTIVE_PLAYER_CAP,
+  ARCADE_SEASON_BASE_COINS,
+  ARCADE_SEASON_POINTS_BONUS_CAP,
+  ARCADE_SEASON_POINTS_BONUS_DIVISOR,
   CURRENT_MAP_LAYOUT_VERSION,
   MEGA_FORTRESS_DESTROY_BONUS,
   MEGA_FORTRESS_HEALTH,
+  ARCADE_LOOT_BOX_SKINS,
   UNIT_SPRITE_VARIANTS,
 } from "./constants";
 import { getAttackArrivalAt } from "./attacks";
@@ -560,6 +572,186 @@ test("build arcade rewards unlock cosmetics at predictable score thresholds", ()
   assert.equal(getBuildArcadeRewardVariant(10), "frost");
   assert.equal(getBuildArcadeRewardVariant(18), "jade");
   assert.equal(getBuildArcadeRewardVariant(24), "onyx");
+});
+
+test("arcade season minting grants a flat payout plus capped points bonus once", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const user = await createUser(prisma, "arcade-season@example.com");
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: user.id,
+      commanderName: "Arcade Commander",
+      fortressName: "Arcade Hold",
+      points: 265,
+    },
+  ]);
+
+  const firstMint = await mintSeasonArcadeCoins({
+    cycleId: cycle.id,
+    db: prisma,
+    now: new Date("2026-04-26T09:00:00.000Z"),
+  });
+
+  assert.equal(firstMint.mintedPlayers, 1);
+  assert.equal(
+    firstMint.mintedCoins,
+    ARCADE_SEASON_BASE_COINS +
+      Math.min(
+        ARCADE_SEASON_POINTS_BONUS_CAP,
+        Math.floor(265 / ARCADE_SEASON_POINTS_BONUS_DIVISOR)
+      )
+  );
+
+  const wallet = await prisma.arcadeWallet.findUnique({
+    where: {
+      userId: user.id,
+    },
+    select: {
+      balance: true,
+    },
+  });
+
+  assert.equal(
+    wallet?.balance,
+    ARCADE_SEASON_BASE_COINS +
+      Math.min(
+        ARCADE_SEASON_POINTS_BONUS_CAP,
+        Math.floor(265 / ARCADE_SEASON_POINTS_BONUS_DIVISOR)
+      )
+  );
+
+  const secondMint = await mintSeasonArcadeCoins({
+    cycleId: cycle.id,
+    db: prisma,
+    now: new Date("2026-04-26T09:00:00.000Z"),
+  });
+
+  assert.equal(secondMint.mintedPlayers, 0);
+  assert.equal(secondMint.mintedCoins, 0);
+});
+
+test("arcade loot box duplicate refunds coins instead of creating duplicate skins", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const user = await createUser(prisma, "arcade-loot@example.com");
+  await seedOpenCycle(prisma);
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: user.id,
+    commanderName: "Loot Commander",
+    fortressName: "Loot Hold",
+    now: new Date("2026-04-19T12:05:00.000Z"),
+  });
+
+  await prisma.arcadeWallet.create({
+    data: {
+      userId: user.id,
+      balance: 100,
+    },
+  });
+
+  const purchase = await purchaseArcadeLootBox({
+    userId: user.id,
+    crateType: ArcadeLootBoxType.UNIT,
+    db: prisma,
+    now: new Date("2026-04-19T12:06:00.000Z"),
+  });
+
+  await Promise.all(
+    ARCADE_LOOT_BOX_SKINS[ArcadeCosmeticSlot.UNIT].map((skin) =>
+      prisma.arcadeCosmeticUnlock.create({
+        data: {
+          userId: user.id,
+          slot: ArcadeCosmeticSlot.UNIT,
+          variant: skin.variant,
+        },
+      })
+    )
+  );
+
+  const opened = await openArcadeLootBox({
+    purchaseId: purchase.purchase.id,
+    userId: user.id,
+    db: prisma,
+    now: new Date("2026-04-19T12:07:00.000Z"),
+  });
+
+  assert.equal(opened.duplicatePayout, 30);
+  assert.equal(opened.unlockId, null);
+
+  const wallet = await prisma.arcadeWallet.findUnique({
+    where: {
+      userId: user.id,
+    },
+    select: {
+      balance: true,
+    },
+  });
+
+  assert.equal(wallet?.balance, 55);
+
+  const reloadedPurchase = await prisma.arcadeLootBoxPurchase.findUnique({
+    where: {
+      id: purchase.purchase.id,
+    },
+    select: {
+      openedAt: true,
+      duplicatePayout: true,
+    },
+  });
+
+  assert.ok(reloadedPurchase?.openedAt);
+  assert.equal(reloadedPurchase?.duplicatePayout, 30);
+});
+
+test("arcade cosmetic unlocks can be equipped onto the matching slot", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const user = await createUser(prisma, "arcade-equip@example.com");
+  const unlock = await prisma.arcadeCosmeticUnlock.create({
+    data: {
+      userId: user.id,
+      slot: ArcadeCosmeticSlot.FORTRESS,
+      variant: "jade",
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  const result = await equipCosmeticUnlock({
+    unlockId: unlock.id,
+    userId: user.id,
+    slot: ArcadeCosmeticSlot.FORTRESS,
+    db: prisma,
+  });
+
+  assert.equal(result.variant, "jade");
+
+  const refreshedUser = await prisma.user.findUnique({
+    where: {
+      id: user.id,
+    },
+    select: {
+      fortressCosmeticVariant: true,
+    },
+  });
+
+  assert.equal(refreshedUser?.fortressCosmeticVariant, "jade");
 });
 
 type ReadyDatabaseSetup = {

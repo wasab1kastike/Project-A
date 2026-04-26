@@ -12,6 +12,7 @@ import {
   MEGA_FORTRESS_HEALTH,
 } from "./constants";
 import { launchAttackUnit } from "./attack-units";
+import { mintSeasonArcadeCoins } from "./arcade";
 import {
   COMMUNITY_WISH_VOTING_WINDOW_HOURS,
   createCommunityWishVoteEntitlements,
@@ -601,6 +602,12 @@ async function resolveExpiredActiveCycle(
     await createCommunityWishVoteEntitlements({
       cycleId: cycle.id,
       rankedFortresses,
+      db: tx,
+    });
+
+    await mintSeasonArcadeCoins({
+      cycleId: cycle.id,
+      now: resolutionEndedAt,
       db: tx,
     });
 

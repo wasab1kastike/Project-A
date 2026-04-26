@@ -569,7 +569,7 @@ export default async function Home({
           {showArcadeCard && !blockingMessage ? (
             <div className={styles.cardActions}>
               <Link className={styles.secondaryButton} href="/arcade">
-                Play build arcade
+                Open arcade
               </Link>
             </div>
           ) : null}
