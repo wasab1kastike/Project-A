@@ -283,11 +283,13 @@ export async function getCommunityWishEligibility({
     cycle.status === CycleStatus.ACTIVE &&
     cycle.activeEndsAt !== null &&
     now < cycle.activeEndsAt;
+  const history = cycle.history;
   const historyProposalOpen =
-    cycle.history?.communityWishStatus ===
-      CommunityWishStatus.PROPOSALS_OPEN &&
-    cycle.history.communityWishProposalEndsAt !== null &&
-    now < cycle.history.communityWishProposalEndsAt;
+    history !== null &&
+    (history.communityWishStatus === CommunityWishStatus.OPEN ||
+      history.communityWishStatus === CommunityWishStatus.PROPOSALS_OPEN) &&
+    history.communityWishProposalEndsAt !== null &&
+    now < history.communityWishProposalEndsAt;
 
   if (!activeProposalOpen && !historyProposalOpen) {
     return {
@@ -667,40 +669,15 @@ async function resolveCommunityWishHistory({
   });
 }
 
-async function openCommunityWishVoting({
+async function migrateCommunityWishVotingOpen({
   cycleId,
   proposalEndsAt,
-  now,
   db,
 }: {
   cycleId: string;
   proposalEndsAt: Date;
-  now: Date;
   db: DatabaseClient;
 }) {
-  const proposalCount = await db.communityWishProposal.count({
-    where: {
-      cycleId,
-      status: {
-        not: WinnerRequestStatus.REJECTED,
-      },
-    },
-  });
-
-  if (proposalCount === 0) {
-    await db.cycleHistory.update({
-      where: {
-        cycleId,
-      },
-      data: {
-        communityWishStatus: CommunityWishStatus.NO_PROPOSALS,
-        communityWishResolvedAt: now,
-        communityWishVoteCount: 0,
-      },
-    });
-    return false;
-  }
-
   await db.cycleHistory.update({
     where: {
       cycleId,
@@ -713,8 +690,6 @@ async function openCommunityWishVoting({
       ),
     },
   });
-
-  return true;
 }
 
 export async function getCommunityWishTieBreakOptions({
@@ -769,7 +744,7 @@ export async function resolveExpiredCommunityWishVotes({
     where: {
       communityWishStatus: CommunityWishStatus.PROPOSALS_OPEN,
       communityWishProposalEndsAt: {
-        lte: now,
+        not: null,
       },
     },
     select: {
@@ -787,18 +762,14 @@ export async function resolveExpiredCommunityWishVotes({
       continue;
     }
 
-    const didOpen = await db.$transaction((tx) =>
-      openCommunityWishVoting({
+    await db.$transaction((tx) =>
+      migrateCommunityWishVotingOpen({
         cycleId: history.cycleId,
         proposalEndsAt,
-        now,
         db: tx,
       })
     );
-
-    if (didOpen) {
-      opened += 1;
-    }
+    opened += 1;
   }
 
   const histories = await db.cycleHistory.findMany({

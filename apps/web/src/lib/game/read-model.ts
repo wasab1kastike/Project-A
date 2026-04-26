@@ -219,7 +219,7 @@ export async function getHomePageState({
         closesAt: null,
         canSubmit: false,
         submissionHint:
-          "The season winner gets one guaranteed wish. Community wishes can be edited until Monday 12:00; then players vote for 6 hours.",
+          "The season winner gets one guaranteed wish. Community voting starts after the season ends. Wishes can be edited until Monday 12:00, and voting ends 6 hours later.",
         proposals: [],
       },
       availableTargets: [],
@@ -607,8 +607,8 @@ export async function getHomePageState({
           : !communityWishOpen
             ? "Community wishes open during the active season."
             : currentUserCommunityWish
-              ? "You can edit your short English wish until Monday 12:00 after the season ends. Voting runs for 6 hours after that."
-              : "Submit one short English wish by Monday 12:00 after the season ends. Voting runs for 6 hours after that.",
+              ? "You can edit your short English wish until Monday 12:00 after the season ends. Voting starts after the season ends and closes 6 hours after wishes lock."
+              : "Submit one short English wish by Monday 12:00 after the season ends. Voting starts after the season ends and closes 6 hours after wishes lock.",
       proposals: cycle.communityWishProposals.map((proposal) => ({
         id: proposal.id,
         requestText: proposal.requestText,

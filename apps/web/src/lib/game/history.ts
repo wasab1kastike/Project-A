@@ -124,6 +124,12 @@ export async function getCycleHistoryPageState({
           )?.commanderName ?? "Unknown player")
         : null;
 
+      const communityWishProposalOpen =
+        (entry.communityWishStatus === CommunityWishStatus.OPEN ||
+          entry.communityWishStatus === CommunityWishStatus.PROPOSALS_OPEN) &&
+        entry.communityWishProposalEndsAt !== null &&
+        entry.communityWishProposalEndsAt > new Date();
+
       return {
       id: entry.id,
       cycleId: entry.cycleId,
@@ -163,11 +169,10 @@ export async function getCycleHistoryPageState({
       communityWishVoteBudget: budget.voteBudget,
       communityWishUsedVotes: budget.usedVotes,
       communityWishRemainingVotes: budget.remainingVotes,
+      communityWishProposalOpen,
       communityWishCanSubmitProposal:
         Boolean(userId) &&
-        entry.communityWishStatus === CommunityWishStatus.PROPOSALS_OPEN &&
-        entry.communityWishProposalEndsAt !== null &&
-        entry.communityWishProposalEndsAt > new Date() &&
+        communityWishProposalOpen &&
         entry.cycle.fortresses.some((fortress) => fortress.ownerId === userId),
       currentUserCommunityWish:
         entry.cycle.communityWishProposals.find(
@@ -178,7 +183,7 @@ export async function getCycleHistoryPageState({
         entry.communityWishStatus === CommunityWishStatus.NO_PROPOSALS
           ? "No community wish proposals were submitted for this cycle."
         : entry.communityWishStatus === CommunityWishStatus.PROPOSALS_OPEN
-            ? "Community wish proposals are open until Monday 12:00. Voting runs for 6 hours after proposals close."
+            ? "Community wish voting starts right after the season ends. Wishes can still be edited until Monday 12:00, and voting ends 6 hours later."
           : entry.communityWishStatus === CommunityWishStatus.RESOLVED
             ? "Community wish voting has been resolved."
             : entry.communityWishStatus === CommunityWishStatus.TIE_REQUIRES_ADMIN
@@ -186,7 +191,7 @@ export async function getCycleHistoryPageState({
               : !votingOpen
                 ? "Community wish voting is closed."
                 : budget.reason ??
-                  "Allocate your community wish votes during the 6 hour voting window. You can change them until voting ends.",
+                  "Allocate your community wish votes now. You can change them until voting ends.",
       communityWishProposals: entry.cycle.communityWishProposals.map(
         (proposal) => ({
           id: proposal.id,

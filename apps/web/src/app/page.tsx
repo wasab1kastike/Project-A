@@ -78,7 +78,7 @@ function getDegradedHomePageState(): HomePageState {
       closesAt: null,
       canSubmit: false,
       submissionHint:
-        "The season winner gets one guaranteed wish. Community wishes can be edited until Monday 12:00; then players vote for 6 hours.",
+        "The season winner gets one guaranteed wish. Community voting starts after the season ends. Wishes can be edited until Monday 12:00, and voting ends 6 hours later.",
       proposals: [],
     },
     availableTargets: [],
@@ -336,16 +336,20 @@ export default async function Home({
                         <strong>Wish limits</strong>
                         <ul>
                           <li>
-                            Winner wish is guaranteed. Community wish is vote-based
-                            after Monday 12:00.
+                            Winner wish is guaranteed. Community voting starts
+                            after the season ends.
                           </li>
+                          <li>Wishes lock Monday 12:00 after the season.</li>
                           <li>Write in English.</li>
                           <li>
                             Keep it short: max {COMMUNITY_WISH_MAX_LENGTH}{" "}
                             characters.
                           </li>
                           <li>Ask for one feature idea, not a full spec.</li>
-                          <li>No self-buffs, targeted nerfs, or deploy requests.</li>
+                          <li>
+                            No self-buffs, targeted nerfs, more wishes, or deploy
+                            requests.
+                          </li>
                         </ul>
                       </div>
                     </details>

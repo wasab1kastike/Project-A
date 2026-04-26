@@ -15,6 +15,7 @@ import {
 } from "./constants";
 import { launchAttackUnit } from "./attack-units";
 import {
+  COMMUNITY_WISH_VOTING_WINDOW_HOURS,
   createCommunityWishVoteEntitlements,
   getCommunityWishProposalEndsAt,
   resolveExpiredCommunityWishVotes,
@@ -572,6 +573,9 @@ async function resolveExpiredActiveCycle(
       },
     });
 
+    const communityWishProposalEndsAt =
+      getCommunityWishProposalEndsAt(resolutionEndedAt);
+
     await tx.cycleHistory.create({
       data: {
         cycleId: cycle.id,
@@ -585,9 +589,12 @@ async function resolveExpiredActiveCycle(
         winnerRequestSnapshot: winnerRequest
           ? `[${winnerRequest.status}] ${winnerRequest.requestText}`
           : null,
-        communityWishProposalEndsAt:
-          getCommunityWishProposalEndsAt(resolutionEndedAt),
-        communityWishStatus: "PROPOSALS_OPEN",
+        communityWishProposalEndsAt,
+        communityWishVotingEndsAt: addHours(
+          communityWishProposalEndsAt,
+          COMMUNITY_WISH_VOTING_WINDOW_HOURS
+        ),
+        communityWishStatus: "OPEN",
       },
     });
 

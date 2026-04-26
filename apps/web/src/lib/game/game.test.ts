@@ -5229,28 +5229,33 @@ test("community wish voting uses final rank budgets and free allocations", async
     },
   });
 
-  assert.equal(history.communityWishStatus, CommunityWishStatus.PROPOSALS_OPEN);
+  assert.equal(history.communityWishStatus, CommunityWishStatus.OPEN);
   assert.equal(
     history.communityWishProposalEndsAt?.toISOString(),
     "2026-04-27T09:00:00.000Z"
   );
-  assert.equal(history.communityWishVotingEndsAt, null);
-
-  await resolveExpiredCommunityWishVotes({
-    db: prisma,
-    now: new Date("2026-04-27T09:00:00.000Z"),
-  });
-
-  const votingHistory = await prisma.cycleHistory.findUniqueOrThrow({
-    where: {
-      cycleId: cycle.id,
-    },
-  });
-
-  assert.equal(votingHistory.communityWishStatus, CommunityWishStatus.OPEN);
   assert.equal(
-    votingHistory.communityWishVotingEndsAt?.toISOString(),
+    history.communityWishVotingEndsAt?.toISOString(),
     "2026-04-27T15:00:00.000Z"
+  );
+
+  await submitCommunityWishProposal({
+    db: prisma,
+    cycleId: cycle.id,
+    userId: third.id,
+    requestText: "Add more terrain themes.",
+    now: new Date("2026-04-27T08:59:00.000Z"),
+  });
+  await assert.rejects(
+    () =>
+      submitCommunityWishProposal({
+        db: prisma,
+        cycleId: cycle.id,
+        userId: third.id,
+        requestText: "Add another terrain theme.",
+        now: new Date("2026-04-27T09:00:00.000Z"),
+      }),
+    /closed/
   );
 
   const winnerBudget = await getCommunityWishVoteBudget({
@@ -5277,7 +5282,7 @@ test("community wish voting uses final rank budgets and free allocations", async
           { proposalId: firstProposal.id, votes: 3 },
           { proposalId: secondProposal.id, votes: 3 },
         ],
-        now: new Date("2026-04-27T09:15:00.000Z"),
+        now: new Date("2026-04-20T12:15:00.000Z"),
       }),
     /at most 5/
   );
@@ -5287,7 +5292,7 @@ test("community wish voting uses final rank budgets and free allocations", async
     cycleId: cycle.id,
     userId: second.id,
     allocations: [{ proposalId: firstProposal.id, votes: 5 }],
-    now: new Date("2026-04-27T09:14:00.000Z"),
+    now: new Date("2026-04-20T12:14:00.000Z"),
   });
   await saveCommunityWishVotes({
     db: prisma,
@@ -5297,7 +5302,7 @@ test("community wish voting uses final rank budgets and free allocations", async
       { proposalId: firstProposal.id, votes: 3 },
       { proposalId: secondProposal.id, votes: 2 },
     ],
-    now: new Date("2026-04-27T09:15:00.000Z"),
+    now: new Date("2026-04-20T12:15:00.000Z"),
   });
 
   const proposalVotes = await prisma.communityWishProposal.findMany({
@@ -5418,23 +5423,19 @@ test("community wish voting resolves winners and leaves ties for admin", async (
     db: prisma,
     now: new Date("2026-04-20T12:10:00.000Z"),
   });
-  await resolveExpiredCommunityWishVotes({
-    db: prisma,
-    now: new Date("2026-04-27T09:00:00.000Z"),
-  });
   await saveCommunityWishVotes({
     db: prisma,
     cycleId: cycle.id,
     userId: alpha.id,
     allocations: [{ proposalId: alphaProposal.id, votes: 1 }],
-    now: new Date("2026-04-27T09:15:00.000Z"),
+    now: new Date("2026-04-20T12:15:00.000Z"),
   });
   await saveCommunityWishVotes({
     db: prisma,
     cycleId: cycle.id,
     userId: beta.id,
     allocations: [{ proposalId: betaProposal.id, votes: 1 }],
-    now: new Date("2026-04-27T09:16:00.000Z"),
+    now: new Date("2026-04-20T12:16:00.000Z"),
   });
 
   await resolveExpiredCommunityWishVotes({
@@ -5519,16 +5520,12 @@ test("community wish voting resolves winners and leaves ties for admin", async (
     db: prisma,
     now: new Date("2026-04-20T12:10:00.000Z"),
   });
-  await resolveExpiredCommunityWishVotes({
-    db: prisma,
-    now: new Date("2026-04-27T09:00:00.000Z"),
-  });
   await saveCommunityWishVotes({
     db: prisma,
     cycleId: secondCycle.id,
     userId: beta.id,
     allocations: [{ proposalId: winningProposal.id, votes: 5 }],
-    now: new Date("2026-04-27T09:15:00.000Z"),
+    now: new Date("2026-04-20T12:15:00.000Z"),
   });
   await resolveExpiredCommunityWishVotes({
     db: prisma,

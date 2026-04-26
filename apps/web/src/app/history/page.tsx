@@ -158,7 +158,7 @@ export default async function HistoryPage({
                 </div>
               </dl>
 
-              {entry.communityWishStatus === "PROPOSALS_OPEN" ? (
+              {entry.communityWishProposalOpen ? (
                 <form
                   action={submitCommunityWishProposalAction}
                   className={styles.formStack}
@@ -182,7 +182,7 @@ export default async function HistoryPage({
                   </label>
                   <p className={styles.helperText}>
                     {entry.communityWishCanSubmitProposal
-                      ? `Add or edit one short English wish until Monday 12:00. Voting runs for 6 hours after proposals close. Max ${entry.communityWishMaxLength} characters.`
+                      ? `Add or edit one short English wish until Monday 12:00. Voting is already open and ends 6 hours after wishes lock. Max ${entry.communityWishMaxLength} characters.`
                       : entry.communityWishVotingMessage}
                   </p>
                   {entry.communityWishCanSubmitProposal ? (
@@ -208,7 +208,7 @@ export default async function HistoryPage({
                     <span className={styles.sectionLabel}>Community vote</span>
                     <p className={styles.helperText}>
                       {entry.communityWishCanVote
-                        ? `You have ${entry.communityWishVoteBudget} votes for this 6 hour window. ${entry.communityWishUsedVotes} currently allocated. You can change them until voting ends.`
+                        ? `You have ${entry.communityWishVoteBudget} votes. ${entry.communityWishUsedVotes} currently allocated. You can change them until voting ends.`
                         : entry.communityWishVotingMessage}
                     </p>
                     <div className={styles.voteList}>
@@ -265,7 +265,7 @@ export default async function HistoryPage({
                   <p className={styles.helperText}>
                     One request only. Keep it to one bounded change, avoid
                     direct self-buffs or player-targeted nerfs, and do not ask
-                    for automatic code, PR, or deploy work.{" "}
+                    for more wishes, automatic code, PR, or deploy work.{" "}
                     <a
                       className={styles.inlineLink}
                       href={state.policyUrl}
