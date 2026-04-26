@@ -8,7 +8,10 @@ import {
   sendChatGifMessage,
   sendChatMessage,
 } from "@/lib/game/chat";
-import { submitCommunityWishProposal } from "@/lib/game/community-wishes";
+import {
+  saveCommunityWishVotes,
+  submitCommunityWishProposal,
+} from "@/lib/game/community-wishes";
 import { submitBuildArcadeScore } from "@/lib/game/build-arcade";
 import { GameError } from "@/lib/game/errors";
 import { FortressAction } from "@/lib/prisma-client";
@@ -255,7 +258,40 @@ export async function submitCommunityWishProposalAction(formData: FormData) {
     redirectToHome("error", getActionErrorMessage(error));
   }
 
+  revalidatePath("/history");
+  revalidatePath("/admin");
   finishAction("Community wish proposal saved.");
+}
+
+export async function saveCommunityWishVotesAction(formData: FormData) {
+  const userId = await requireUserId();
+  const cycleId = getString(formData, "cycleId");
+
+  if (!cycleId) {
+    redirectToHome("error", "Community wish vote is missing its cycle reference.");
+  }
+
+  const allocations = Array.from(formData.entries())
+    .filter(([key]) => key.startsWith("proposalVotes:"))
+    .map(([key, value]) => ({
+      proposalId: key.slice("proposalVotes:".length),
+      votes: typeof value === "string" ? Number(value) : 0,
+    }));
+
+  try {
+    await saveCommunityWishVotes({
+      cycleId,
+      userId,
+      allocations,
+    });
+    emitProjectARefresh("community-wish-vote");
+  } catch (error) {
+    redirectToHome("error", getActionErrorMessage(error));
+  }
+
+  revalidatePath("/history");
+  revalidatePath("/admin");
+  finishAction("Community wish votes saved.");
 }
 
 export async function submitBuildArcadeScoreAction(formData: FormData) {

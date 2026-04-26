@@ -1,13 +1,16 @@
 import { prisma } from "@/lib/prisma";
 import {
   ChatMessageType,
+  CommunityWishStatus,
   CycleStatus,
   Prisma,
   ScoreEventType,
+  WinnerRequestStatus,
   type PrismaClient,
 } from "@/lib/prisma-client";
 import { ACTIVE_LOCATION_SHUFFLE_COST, ACTIVE_PLAYER_CAP } from "./constants";
 import { getChatLimits } from "./chat";
+import { getCommunityWishVoteBudget } from "./community-wishes";
 import { normalizeUnitSpriteVariant } from "./attacks";
 import {
   ensureCommanderRegistrationColumn,
@@ -52,6 +55,47 @@ function getDisplayName(name: string, isSlayerOfA: boolean) {
   return name;
 }
 
+function mapCommunityWishProposals({
+  proposals,
+  userId,
+}: {
+  proposals: Array<{
+    id: string;
+    authorId: string;
+    requestText: string;
+    status: WinnerRequestStatus;
+    reviewNotes: string | null;
+    createdAt: Date;
+    votes: Array<{
+      voterId: string;
+      votes: number;
+    }>;
+  }>;
+  userId?: string;
+}) {
+  return proposals.map((proposal) => {
+    const voteCount = proposal.votes.reduce((sum, vote) => sum + vote.votes, 0);
+
+    return {
+      id: proposal.id,
+      requestText: proposal.requestText,
+      status: proposal.status,
+      reviewNotes: proposal.reviewNotes,
+      createdAt: proposal.createdAt,
+      authorLabel: proposal.authorId === userId ? "Your wish" : "Community wish",
+      isCurrentUser: proposal.authorId === userId,
+      voteCount,
+      currentUserVotes:
+        userId !== undefined
+          ? proposal.votes
+              .filter((vote) => vote.voterId === userId)
+              .reduce((sum, vote) => sum + vote.votes, 0)
+          : 0,
+      isVoteEligible: proposal.status !== WinnerRequestStatus.REJECTED,
+    };
+  });
+}
+
 async function getFortressLocationShuffleCount(
   db: PrismaClient,
   fortressId: string
@@ -89,6 +133,12 @@ export async function getHomePageState({
     select: {
       cycleId: true,
       endedAt: true,
+      communityWishStatus: true,
+      communityWishProposalEndsAt: true,
+      communityWishVotingEndsAt: true,
+      communityWishResolvedAt: true,
+      communityWishSnapshot: true,
+      communityWishVoteCount: true,
       winningScore: true,
       firstSlayerCommanderName: true,
       firstSlayerFortressName: true,
@@ -99,6 +149,23 @@ export async function getHomePageState({
               ownerId: true,
               commanderName: true,
               name: true,
+            },
+          },
+          communityWishProposals: {
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+            select: {
+              id: true,
+              authorId: true,
+              requestText: true,
+              status: true,
+              reviewNotes: true,
+              createdAt: true,
+              votes: {
+                select: {
+                  voterId: true,
+                  votes: true,
+                },
+              },
             },
           },
         },
@@ -208,6 +275,12 @@ export async function getHomePageState({
               id: true,
             },
           },
+          votes: {
+            select: {
+              voterId: true,
+              votes: true,
+            },
+          },
         },
       },
     },
@@ -257,12 +330,18 @@ export async function getHomePageState({
         persistsUnread: false,
       },
       communityWish: {
+        cycleId: "",
         isOpen: false,
         opensAt: null,
         closesAt: null,
         canSubmit: false,
+        canVote: false,
+        voteBudget: 0,
+        usedVotes: 0,
+        remainingVotes: 0,
+        currentUserCommunityWish: "",
         submissionHint:
-          "The season winner gets one guaranteed wish. Community voting starts after the season ends. Wishes can be edited until Monday 12:00, and voting ends Monday 24:00.",
+          "Winner wish is guaranteed. Community wish is vote-based. Wishes can be edited until Monday 12:00, and voting ends Monday 24:00.",
         proposals: [],
       },
       availableTargets: [],
@@ -476,11 +555,53 @@ export async function getHomePageState({
         },
       })
     : 0;
-  const communityWishOpen = activeOpen && cycle.activeEndsAt !== null;
+  const usingResolvedWishWindow =
+    cycle.status === CycleStatus.REGISTRATION && latestResolvedSeason !== null;
+  const communityWishSourceCycleId = usingResolvedWishWindow
+    ? latestResolvedSeason.cycleId
+    : cycle.id;
+  const communityWishSourceProposals = usingResolvedWishWindow
+    ? latestResolvedSeason.cycle.communityWishProposals
+    : cycle.communityWishProposals;
+  const communityWishSourcePlayerFortress = usingResolvedWishWindow
+    ? latestResolvedSeason.cycle.fortresses.find(
+        (fortress) => fortress.ownerId === userId
+      ) ?? null
+    : playerFortress;
+  const communityWishProposalOpen = usingResolvedWishWindow
+    ? latestResolvedSeason.communityWishStatus === CommunityWishStatus.OPEN ||
+      latestResolvedSeason.communityWishStatus ===
+        CommunityWishStatus.PROPOSALS_OPEN
+    : activeOpen;
+  const communityWishVotingOpen =
+    usingResolvedWishWindow &&
+    latestResolvedSeason.communityWishStatus === CommunityWishStatus.OPEN &&
+    latestResolvedSeason.communityWishVotingEndsAt !== null &&
+    latestResolvedSeason.communityWishVotingEndsAt > now;
+  const communityWishVoteBudget =
+    userId && communityWishVotingOpen
+      ? await getCommunityWishVoteBudget({
+          cycleId: communityWishSourceCycleId,
+          userId,
+          db,
+        })
+      : {
+          canVote: false,
+          voteBudget: 0,
+          usedVotes: 0,
+          remainingVotes: 0,
+          reason: userId
+            ? "Community wish voting is not open yet."
+            : "Sign in as a cycle player to vote on the community wish.",
+        };
   const currentUserCommunityWish =
-    cycle.communityWishProposals.find(
+    communityWishSourceProposals.find(
       (proposal) => proposal.authorId === userId
     ) ?? null;
+  const mappedCommunityWishProposals = mapCommunityWishProposals({
+    proposals: communityWishSourceProposals,
+    userId,
+  });
   const latestSeason = latestResolvedSeason
     ? {
         cycleId: latestResolvedSeason.cycleId,
@@ -688,32 +809,43 @@ export async function getHomePageState({
       persistsUnread: Boolean(currentUser),
     },
     communityWish: {
-      isOpen: communityWishOpen,
-      opensAt: cycle.activeStartedAt,
-      closesAt: cycle.activeEndsAt,
+      cycleId: communityWishSourceCycleId,
+      isOpen: communityWishProposalOpen || communityWishVotingOpen,
+      opensAt: usingResolvedWishWindow
+        ? latestResolvedSeason.endedAt
+        : cycle.activeStartedAt,
+      closesAt: usingResolvedWishWindow
+        ? latestResolvedSeason.communityWishVotingEndsAt ??
+          latestResolvedSeason.communityWishProposalEndsAt
+        : cycle.activeEndsAt,
       canSubmit:
         Boolean(userId) &&
-        Boolean(playerFortress) &&
-        communityWishOpen,
+        Boolean(communityWishSourcePlayerFortress) &&
+        communityWishProposalOpen,
+      canVote:
+        Boolean(userId) &&
+        communityWishVotingOpen &&
+        communityWishVoteBudget.canVote &&
+        communityWishSourceProposals.length > 0,
+      voteBudget: communityWishVoteBudget.voteBudget,
+      usedVotes: communityWishVoteBudget.usedVotes,
+      remainingVotes: communityWishVoteBudget.remainingVotes,
+      currentUserCommunityWish:
+        currentUserCommunityWish?.requestText ?? "",
       submissionHint: !userId
         ? "Sign in and join this cycle to suggest a community wish."
-        : !playerFortress
-          ? "Only players in this active cycle can suggest a community wish."
-          : !communityWishOpen
-            ? "Community wishes open during the active season."
-            : currentUserCommunityWish
-              ? "You can edit your short English wish until Monday 12:00 after the season ends. Voting starts after the season ends and closes Monday 24:00."
-              : "Submit one short English wish by Monday 12:00 after the season ends. Voting starts after the season ends and closes Monday 24:00.",
-      proposals: cycle.communityWishProposals.map((proposal) => ({
-        id: proposal.id,
-        requestText: proposal.requestText,
-        status: proposal.status,
-        reviewNotes: proposal.reviewNotes,
-        createdAt: proposal.createdAt,
-        authorLabel:
-          proposal.authorId === userId ? "Your wish" : "Community wish",
-        isCurrentUser: proposal.authorId === userId,
-      })),
+        : !communityWishSourcePlayerFortress
+          ? usingResolvedWishWindow
+            ? "Only players from the last finished season can suggest a community wish."
+            : "Only players in this cycle can suggest a community wish."
+          : communityWishVotingOpen
+            ? "Winner wish is guaranteed. Community wish is vote-based. You can edit your short English wish until Monday 12:00 and vote until Monday 24:00."
+            : communityWishProposalOpen
+              ? usingResolvedWishWindow
+                ? "Winner wish is guaranteed. Community wish is vote-based. You can edit your short English wish until Monday 12:00 and vote once voting opens."
+                : "Winner wish is guaranteed. Community wish is vote-based. Submit one short English wish while the season is live."
+              : "Community wishes are closed for this cycle.",
+      proposals: mappedCommunityWishProposals,
     },
     availableTargets:
       activeOpen && playerFortress

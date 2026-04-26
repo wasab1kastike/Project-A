@@ -331,6 +331,70 @@
   gap: 12px;
 }
 
+.voteForm {
+  display: grid;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.voteSectionLabel {
+  color: var(--accent-strong);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.voteHint {
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.voteList {
+  display: grid;
+  gap: 10px;
+}
+
+.voteRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 88px;
+  gap: 12px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(7, 13, 20, 0.38);
+}
+
+.voteRow span {
+  display: grid;
+  gap: 4px;
+}
+
+.voteRow small,
+.voteRow em {
+  color: var(--text-muted);
+  font-style: normal;
+  line-height: 1.45;
+}
+
+.voteRow input {
+  min-height: 42px;
+  width: 100%;
+  padding: 0 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(7, 13, 20, 0.72);
+  color: var(--foreground);
+  font: inherit;
+}
+
+.voteRow input:focus {
+  outline: 2px solid rgba(247, 196, 95, 0.24);
+  border-color: var(--border-strong);
+}
+
 .field {
   display: grid;
   gap: 8px;

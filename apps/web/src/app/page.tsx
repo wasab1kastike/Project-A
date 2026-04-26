@@ -9,6 +9,7 @@ import { RealtimeBridge } from "@/components/realtime-bridge";
 import { SeasonTimer } from "@/components/season-timer";
 import {
   joinFortressAction,
+  saveCommunityWishVotesAction,
   registerCommanderNameAction,
   submitCommunityWishProposalAction,
 } from "@/app/game-actions";
@@ -73,12 +74,18 @@ function getDegradedHomePageState(): HomePageState {
       persistsUnread: false,
     },
     communityWish: {
+      cycleId: "",
       isOpen: false,
       opensAt: null,
       closesAt: null,
       canSubmit: false,
+      canVote: false,
+      voteBudget: 0,
+      usedVotes: 0,
+      remainingVotes: 0,
+      currentUserCommunityWish: "",
       submissionHint:
-        "The season winner gets one guaranteed wish. Community voting starts after the season ends. Wishes can be edited until Monday 12:00, and voting ends Monday 24:00.",
+        "Winner wish is guaranteed. Community wish is vote-based. Wishes can be edited until Monday 12:00, and voting ends Monday 24:00.",
       proposals: [],
     },
     availableTargets: [],
@@ -144,8 +151,7 @@ export default async function Home({
           )} (live)`
     : null;
   const currentUserCommunityWish =
-    state.communityWish.proposals.find((proposal) => proposal.isCurrentUser) ??
-    null;
+    state.communityWish.currentUserCommunityWish ?? "";
   const showLoginCard = !session?.user;
   const showJoinCard = Boolean(session?.user && state.canJoinCycle);
   const showCommanderNameCard = Boolean(
@@ -328,7 +334,11 @@ export default async function Home({
                 action={submitCommunityWishProposalAction}
                 className={styles.form}
               >
-                <input type="hidden" name="cycleId" value={state.cycle.id} />
+                <input
+                  type="hidden"
+                  name="cycleId"
+                  value={state.communityWish.cycleId}
+                />
                 <label className={styles.field}>
                   <div className={styles.fieldHeader}>
                     Proposal
@@ -343,8 +353,8 @@ export default async function Home({
                         <strong>Wish limits</strong>
                         <ul>
                           <li>
-                            Winner wish is guaranteed. Community voting starts
-                            after the season ends.
+                            Winner wish is guaranteed. Community wish is
+                            vote-based.
                           </li>
                           <li>Wishes lock Monday 12:00 after the season.</li>
                           <li>Voting closes Monday 24:00.</li>
@@ -367,13 +377,64 @@ export default async function Home({
                     rows={3}
                     maxLength={COMMUNITY_WISH_MAX_LENGTH}
                     placeholder="Add more troop types"
-                    defaultValue={currentUserCommunityWish?.requestText ?? ""}
+                    defaultValue={currentUserCommunityWish}
                     required
                   />
                 </label>
                 <button className={styles.primaryButton} type="submit">
                   {currentUserCommunityWish ? "Update wish" : "Submit wish"}
                 </button>
+              </form>
+            ) : null}
+            {state.communityWish.canVote ? (
+              <form
+                action={saveCommunityWishVotesAction}
+                className={styles.voteForm}
+              >
+                <input
+                  type="hidden"
+                  name="cycleId"
+                  value={state.communityWish.cycleId}
+                />
+                <span className={styles.voteSectionLabel}>Community vote</span>
+                <p className={styles.voteHint}>
+                  You have {state.communityWish.voteBudget} votes.{" "}
+                  {state.communityWish.usedVotes} currently allocated. You can
+                  change them until voting ends Monday 24:00.
+                </p>
+                <div className={styles.voteList}>
+                  {state.communityWish.proposals.map((proposal) => (
+                    <label className={styles.voteRow} key={proposal.id}>
+                      <span>
+                        <strong>{proposal.authorLabel}</strong>
+                        <small>
+                          {proposal.voteCount} votes - {proposal.status}
+                        </small>
+                        <em>{proposal.requestText}</em>
+                      </span>
+                      <input
+                        name={`proposalVotes:${proposal.id}`}
+                        type="number"
+                        min={0}
+                        max={
+                          proposal.isVoteEligible
+                            ? state.communityWish.voteBudget
+                            : 0
+                        }
+                        defaultValue={proposal.currentUserVotes}
+                        disabled={
+                          !state.communityWish.canVote ||
+                          !proposal.isVoteEligible
+                        }
+                      />
+                    </label>
+                  ))}
+                </div>
+                {state.communityWish.canVote ? (
+                  <button className={styles.primaryButton} type="submit">
+                    Save community votes
+                  </button>
+                ) : null}
               </form>
             ) : null}
             {state.communityWish.proposals.length > 0 ? (
@@ -383,7 +444,9 @@ export default async function Home({
                     <strong>
                       {proposal.isCurrentUser ? "Your wish" : "Community wish"}
                     </strong>
-                    <span>{proposal.status}</span>
+                    <span>
+                      {proposal.voteCount} votes - {proposal.status}
+                    </span>
                     <p>{proposal.requestText}</p>
                   </li>
                 ))}
