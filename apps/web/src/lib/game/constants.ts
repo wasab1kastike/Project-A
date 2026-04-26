@@ -155,7 +155,7 @@ export const ARCADE_FORTRESS_LOOT_BOX_SKINS_SET_2 = [
   },
 ] as const satisfies readonly ArcadeLootBoxSkin[];
 
-export const ARCADE_UNIT_LOOT_BOX_SKINS = [
+export const ARCADE_UNIT_LOOT_BOX_SKINS_LEGACY = [
   {
     variant: "silver-knight",
     name: "Silver Knight",
@@ -270,12 +270,230 @@ export const ARCADE_UNIT_LOOT_BOX_SKINS = [
   },
 ] as const satisfies readonly ArcadeLootBoxSkin[];
 
+export const ARCADE_UNIT_LOOT_BOX_SKINS_SET_1 = [
+  {
+    variant: "samurai-knight",
+    name: "Samurai Knight",
+    rarity: "Rare",
+    description:
+      "Honorable swordsman clad in lacquered armor, swift and precise.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "plague-doctor-mage",
+    name: "Plague Doctor Mage",
+    rarity: "Epic",
+    description:
+      "Wandering alchemist who mixes healing, poison, and forbidden arts.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "thunder-berserker",
+    name: "Thunder Berserker",
+    rarity: "Epic",
+    description:
+      "Storm-fueled warrior whose rage crackles with lightning.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "cactus-ranger",
+    name: "Cactus Ranger",
+    rarity: "Common",
+    description:
+      "Desert archer hardened by heat, sand, and sarcasm.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+] as const satisfies readonly ArcadeLootBoxSkin[];
+
+export const ARCADE_UNIT_LOOT_BOX_SKINS_SET_2 = [
+  {
+    variant: "vampire-rogue",
+    name: "Vampire Rogue",
+    rarity: "Rare",
+    description:
+      "Elegant predator striking from shadow before dawn arrives.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "angel-paladin",
+    name: "Angel Paladin",
+    rarity: "Legendary",
+    description:
+      "Winged champion carrying radiant justice into battle.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "goblin-engineer",
+    name: "Goblin Engineer",
+    rarity: "Common",
+    description:
+      "Small inventor with dangerous tools and zero hesitation.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "sand-necromancer",
+    name: "Sand Necromancer",
+    rarity: "Rare",
+    description:
+      "Desert sorcerer raising what the dunes buried long ago.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+] as const satisfies readonly ArcadeLootBoxSkin[];
+
+export const ARCADE_UNIT_LOOT_BOX_SKINS_SET_3 = [
+  {
+    variant: "mushroom-druid",
+    name: "Mushroom Druid",
+    rarity: "Common",
+    description:
+      "Forest sage who commands spores, roots, and strange growth.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "neon-assassin",
+    name: "Neon Assassin",
+    rarity: "Epic",
+    description:
+      "Silent killer enhanced by glowing forbidden tech.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "frost-giant-warrior",
+    name: "Frost Giant Warrior",
+    rarity: "Legendary",
+    description:
+      "Massive northern brute carrying winter into every fight.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "lava-shaman",
+    name: "Lava Shaman",
+    rarity: "Epic",
+    description:
+      "Fire mystic channeling molten wrath through ancient rites.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+] as const satisfies readonly ArcadeLootBoxSkin[];
+
+export const ARCADE_UNIT_LOOT_BOX_SKINS_SET_4 = [
+  {
+    variant: "royal-musketeer",
+    name: "Royal Musketeer",
+    rarity: "Rare",
+    description:
+      "Noble marksman whose aim is as sharp as his manners.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "beekeeper-lancer",
+    name: "Beekeeper Lancer",
+    rarity: "Common",
+    description:
+      "Spear fighter protected by a furious royal swarm.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "steam-mech-soldier",
+    name: "Steam Mech Soldier",
+    rarity: "Rare",
+    description:
+      "Brass war machine powered by relentless engines.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "shadow-monk",
+    name: "Shadow Monk",
+    rarity: "Epic",
+    description:
+      "Silent martial artist striking with void-touched discipline.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+] as const satisfies readonly ArcadeLootBoxSkin[];
+
+export const ARCADE_UNIT_LOOT_BOX_SKINS_SET_5 = [
+  {
+    variant: "void-legionnaire",
+    name: "Void Legionnaire",
+    rarity: "Common",
+    description:
+      "Standard power-armored frontline trooper built for relentless war.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "crimson-vanguard",
+    name: "Crimson Vanguard",
+    rarity: "Rare",
+    description:
+      "Veteran shock soldier leading charges with blade and fury.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "iron-devastator",
+    name: "Iron Devastator",
+    rarity: "Epic",
+    description:
+      "Heavy weapons specialist carrying battlefield-ending firepower.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "high-marshal-aurex",
+    name: "High Marshal Aurex",
+    rarity: "Legendary",
+    description:
+      "Elite commander whose presence alone raises morale.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+] as const satisfies readonly ArcadeLootBoxSkin[];
+
+export const ARCADE_UNIT_LOOT_BOX_SKINS_SET_6 = [
+  {
+    variant: "brood-gaunt",
+    name: "Brood Gaunt",
+    rarity: "Common",
+    description:
+      "Fast swarm creature bred to overwhelm with numbers.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "venom-shrieker",
+    name: "Venom Shrieker",
+    rarity: "Rare",
+    description:
+      "Winged bio-beast spitting corrosive living ammunition.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "tunnel-ravager",
+    name: "Tunnel Ravager",
+    rarity: "Epic",
+    description:
+      "Burrowing horror erupting beneath enemy lines.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "hive-tyrant-prime",
+    name: "Hive Tyrant Prime",
+    rarity: "Legendary",
+    description:
+      "Synapse apex predator directing the swarm with brutal intelligence.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+] as const satisfies readonly ArcadeLootBoxSkin[];
+
 export const ARCADE_LOOT_BOX_SKINS = {
   [ArcadeCosmeticSlot.FORTRESS]: [
     ...ARCADE_FORTRESS_LOOT_BOX_SKINS_SET_1,
     ...ARCADE_FORTRESS_LOOT_BOX_SKINS_SET_2,
   ],
-  [ArcadeCosmeticSlot.UNIT]: ARCADE_UNIT_LOOT_BOX_SKINS,
+  [ArcadeCosmeticSlot.UNIT]: [
+    ...ARCADE_UNIT_LOOT_BOX_SKINS_LEGACY,
+    ...ARCADE_UNIT_LOOT_BOX_SKINS_SET_1,
+    ...ARCADE_UNIT_LOOT_BOX_SKINS_SET_2,
+    ...ARCADE_UNIT_LOOT_BOX_SKINS_SET_3,
+    ...ARCADE_UNIT_LOOT_BOX_SKINS_SET_4,
+    ...ARCADE_UNIT_LOOT_BOX_SKINS_SET_5,
+    ...ARCADE_UNIT_LOOT_BOX_SKINS_SET_6,
+  ],
 } as const satisfies Record<ArcadeCosmeticSlot, readonly ArcadeLootBoxSkin[]>;
 
 export function getArcadeLootBoxSkin(

@@ -177,7 +177,7 @@ export default async function Home({
           title: "Build phase is open.",
           description: "Claim a fortress and wait for the next season to begin.",
           nextAction: state.playerFortress
-            ? "You are locked in. Use the arcade while the next season is being prepared."
+            ? "You are locked in. Use the shop while the next season is being prepared."
             : "Join before Wednesday to take part in the next season.",
           timerLabel: "Build ends",
           battlefieldTitle: "Build phase map",
@@ -568,8 +568,8 @@ export default async function Home({
 
           {showArcadeCard && !blockingMessage ? (
             <div className={styles.cardActions}>
-              <Link className={styles.secondaryButton} href="/arcade">
-                Open arcade
+              <Link className={styles.secondaryButton} href="/shop">
+                Open shop
               </Link>
             </div>
           ) : null}

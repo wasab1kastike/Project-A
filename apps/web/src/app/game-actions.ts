@@ -60,7 +60,7 @@ function redirectToArcade(
 ): never {
   const params = new URLSearchParams(details);
   params.set(kind, message);
-  redirect(`/arcade?${params.toString()}`);
+  redirect(`/shop?${params.toString()}`);
 }
 
 async function requireUserId() {
@@ -105,7 +105,7 @@ function finishAction(notice: string): never {
 }
 
 function finishArcadeAction(notice: string): never {
-  revalidatePath("/arcade");
+  revalidatePath("/shop");
   redirectToArcade("notice", notice);
 }
 

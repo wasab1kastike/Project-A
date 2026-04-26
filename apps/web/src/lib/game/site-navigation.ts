@@ -6,8 +6,8 @@ export const PRIMARY_GAME_NAV_LINKS = [
     label: "History",
   },
   {
-    href: "/arcade",
-    label: "Arcade",
+    href: "/shop",
+    label: "Shop",
   },
   {
     href: PATCH_NOTES_PAGE_HREF,
