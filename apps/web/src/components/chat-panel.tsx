@@ -32,28 +32,6 @@ type ChatPanelProps = {
   canPost: boolean;
   maxLength: number;
   postHint: string | null;
-  archive: {
-    cycleId: string;
-    label: string;
-    messages: Array<{
-      id: string;
-      type: "TEXT" | "GIF";
-      body: string;
-      gif: {
-        provider: string;
-        providerId: string;
-        title: string;
-        previewUrl: string;
-        displayUrl: string;
-        width: number;
-        height: number;
-        sourceUrl: string;
-      } | null;
-      createdAt: Date;
-      authorName: string;
-      isCurrentUser: boolean;
-    }>;
-  } | null;
 };
 
 export function ChatPanel({
@@ -61,7 +39,6 @@ export function ChatPanel({
   canPost,
   maxLength,
   postHint,
-  archive,
 }: ChatPanelProps) {
   function renderMessages(
     sourceMessages: ChatPanelProps["messages"]
@@ -112,26 +89,6 @@ export function ChatPanel({
           renderMessages(messages)
         )}
       </ChatMessageList>
-
-      {archive ? (
-        <details className={styles.archiveDisclosure} open>
-          <summary className={styles.archiveSummary}>
-            <span>{archive.label}</span>
-            <strong>{archive.messages.length} messages</strong>
-          </summary>
-          <div className={styles.archiveBody}>
-            <ChatMessageList hasMessages={archive.messages.length > 0}>
-              {archive.messages.length === 0 ? (
-                <p className={styles.emptyState}>
-                  No chat history was stored for the previous season.
-                </p>
-              ) : (
-                renderMessages(archive.messages)
-              )}
-            </ChatMessageList>
-          </div>
-        </details>
-      ) : null}
 
       {canPost ? (
         <div className={styles.form}>

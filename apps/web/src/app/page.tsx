@@ -71,7 +71,6 @@ function getDegradedHomePageState(): HomePageState {
       hasUnread: false,
       latestMessageAt: null,
       persistsUnread: false,
-      archive: null,
     },
     communityWish: {
       isOpen: false,

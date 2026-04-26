@@ -52,64 +52,6 @@ function getDisplayName(name: string, isSlayerOfA: boolean) {
   return name;
 }
 
-function mapChatMessages(
-  messages: Array<{
-    id: string;
-    type: ChatMessageType;
-    body: string;
-    gifProvider: string | null;
-    gifProviderId: string | null;
-    gifTitle: string | null;
-    gifPreviewUrl: string | null;
-    gifDisplayUrl: string | null;
-    gifWidth: number | null;
-    gifHeight: number | null;
-    gifSourceUrl: string | null;
-    createdAt: Date;
-    author: {
-      id: string;
-    };
-  }>,
-  fortresses: Array<{
-    ownerId: string;
-    commanderName: string;
-  }>,
-  userId?: string
-) {
-  const commanderNameByOwnerId = new Map(
-    fortresses.map((fortress) => [fortress.ownerId, fortress.commanderName])
-  );
-
-  return [...messages].reverse().map((message) => ({
-    id: message.id,
-    type: message.type,
-    body: message.body,
-    gif:
-      message.type === ChatMessageType.GIF &&
-      message.gifProvider &&
-      message.gifProviderId &&
-      message.gifPreviewUrl &&
-      message.gifDisplayUrl &&
-      message.gifWidth &&
-      message.gifHeight &&
-      message.gifSourceUrl
-        ? {
-            provider: message.gifProvider,
-            providerId: message.gifProviderId,
-            title: message.gifTitle ?? message.body,
-            previewUrl: message.gifPreviewUrl,
-            displayUrl: message.gifDisplayUrl,
-            width: message.gifWidth,
-            height: message.gifHeight,
-            sourceUrl: message.gifSourceUrl,
-          }
-        : null,
-    createdAt: message.createdAt,
-    authorName: commanderNameByOwnerId.get(message.author.id) ?? "Spectator",
-    isCurrentUser: message.author.id === userId,
-  }));
-}
-
 async function getFortressLocationShuffleCount(
   db: PrismaClient,
   fortressId: string
@@ -152,31 +94,6 @@ export async function getHomePageState({
       firstSlayerFortressName: true,
       cycle: {
         select: {
-          chatMessages: {
-            orderBy: {
-              createdAt: "desc",
-            },
-            take: getChatLimits().limit,
-            select: {
-              id: true,
-              type: true,
-              body: true,
-              gifProvider: true,
-              gifProviderId: true,
-              gifTitle: true,
-              gifPreviewUrl: true,
-              gifDisplayUrl: true,
-              gifWidth: true,
-              gifHeight: true,
-              gifSourceUrl: true,
-              createdAt: true,
-              author: {
-                select: {
-                  id: true,
-                },
-              },
-            },
-          },
           fortresses: {
             select: {
               ownerId: true,
@@ -277,31 +194,6 @@ export async function getHomePageState({
           tickAt: true,
         },
       },
-      chatMessages: {
-        orderBy: {
-          createdAt: "desc",
-        },
-        take: getChatLimits().limit,
-        select: {
-          id: true,
-          type: true,
-          body: true,
-          gifProvider: true,
-          gifProviderId: true,
-          gifTitle: true,
-          gifPreviewUrl: true,
-          gifDisplayUrl: true,
-          gifWidth: true,
-          gifHeight: true,
-          gifSourceUrl: true,
-          createdAt: true,
-          author: {
-            select: {
-              id: true,
-            },
-          },
-        },
-      },
       communityWishProposals: {
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         select: {
@@ -363,7 +255,6 @@ export async function getHomePageState({
         hasUnread: false,
         latestMessageAt: null,
         persistsUnread: false,
-        archive: null,
       },
       communityWish: {
         isOpen: false,
@@ -399,6 +290,21 @@ export async function getHomePageState({
   const remainingSlots = Math.max(0, ACTIVE_PLAYER_CAP - joinedCount);
   const playerFortress =
     playerFortresses.find((fortress) => fortress.ownerId === userId) ?? null;
+  const globalFortresses = await db.fortress.findMany({
+    select: {
+      ownerId: true,
+      commanderName: true,
+      joinedAt: true,
+    },
+    orderBy: [{ joinedAt: "desc" }, { id: "desc" }],
+  });
+  const commanderNameByOwnerId = new Map<string, string>();
+
+  for (const fortress of globalFortresses) {
+    if (!commanderNameByOwnerId.has(fortress.ownerId)) {
+      commanderNameByOwnerId.set(fortress.ownerId, fortress.commanderName);
+    }
+  }
   const registrationOpen =
     cycle.status === CycleStatus.REGISTRATION && cycle.registrationEndsAt > now;
   const joiningLocked = Boolean(cycle.joiningLockedAt);
@@ -435,15 +341,6 @@ export async function getHomePageState({
     cycle.fortresses.map((fortress) => [fortress.id, fortress])
   );
   const playerFortressId = playerFortress?.id ?? null;
-  const commanderNameByOwnerId = new Map(
-    playerFortresses.map((fortress) => [
-      fortress.ownerId,
-      getDisplayName(
-        fortress.commanderName,
-        fortress.id === cycle.crownedFortressId
-      ),
-    ])
-  );
   const upgradesUnlocked = Boolean(cycle.upgradesUnlockedAt);
   const nextUpgradeCost = playerFortress
     ? getFortressUpgradeCost(playerFortress.level)
@@ -511,8 +408,31 @@ export async function getHomePageState({
       activeOpen &&
       fortress.id !== playerFortressId,
   }));
-  const latestMessageAt = cycle.chatMessages[0]?.createdAt ?? null;
-  const chatMessages = [...cycle.chatMessages].reverse().map((message) => ({
+  const globalChatMessages = await db.chatMessage.findMany({
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: getChatLimits().limit,
+    select: {
+      id: true,
+      type: true,
+      body: true,
+      gifProvider: true,
+      gifProviderId: true,
+      gifTitle: true,
+      gifPreviewUrl: true,
+      gifDisplayUrl: true,
+      gifWidth: true,
+      gifHeight: true,
+      gifSourceUrl: true,
+      createdAt: true,
+      author: {
+        select: {
+          id: true,
+        },
+      },
+    },
+  });
+  const latestMessageAt = globalChatMessages[0]?.createdAt ?? null;
+  const chatMessages = [...globalChatMessages].reverse().map((message) => ({
     id: message.id,
     type: message.type,
     body: message.body,
@@ -543,7 +463,6 @@ export async function getHomePageState({
   const unreadCount = currentUser
     ? await db.chatMessage.count({
         where: {
-          cycleId: cycle.id,
           authorId: {
             not: userId,
           },
@@ -582,19 +501,6 @@ export async function getHomePageState({
         firstSlayerFortressName: latestResolvedSeason.firstSlayerFortressName,
       }
     : null;
-  const chatArchive =
-    latestResolvedSeason && latestResolvedSeason.cycle.chatMessages.length > 0
-      ? {
-          cycleId: latestResolvedSeason.cycleId,
-          label: `Previous season chat`,
-          messages: mapChatMessages(
-            latestResolvedSeason.cycle.chatMessages,
-            latestResolvedSeason.cycle.fortresses,
-            userId
-          ),
-        }
-      : null;
-
   return {
     isSpectator: !playerFortress,
     cycle: {
@@ -780,7 +686,6 @@ export async function getHomePageState({
       hasUnread: unreadCount > 0,
       latestMessageAt,
       persistsUnread: Boolean(currentUser),
-      archive: chatArchive,
     },
     communityWish: {
       isOpen: communityWishOpen,
