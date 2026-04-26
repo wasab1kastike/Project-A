@@ -78,7 +78,7 @@ function getDegradedHomePageState(): HomePageState {
       closesAt: null,
       canSubmit: false,
       submissionHint:
-        "The season winner gets one guaranteed wish. Community voting starts after the season ends. Wishes can be edited until Monday 12:00, and voting ends 6 hours later.",
+        "The season winner gets one guaranteed wish. Community voting starts after the season ends. Wishes can be edited until Monday 12:00, and voting ends Monday 24:00.",
       proposals: [],
     },
     availableTargets: [],
@@ -150,6 +150,7 @@ export default async function Home({
   const showCommanderNameCard = Boolean(
     session?.user && state.playerSummary?.canRegisterCommanderName
   );
+  const showArcadeCard = state.phase?.status === "REGISTRATION";
   const isWaitingForSeason =
     !state.phase || state.phase.status === "RESOLUTION" || !state.cycle;
   const showSidePanel = Boolean(
@@ -157,20 +158,21 @@ export default async function Home({
     showLoginCard ||
     showJoinCard ||
     showCommanderNameCard ||
-    isWaitingForSeason
+    isWaitingForSeason ||
+    showArcadeCard
   );
 
   const phaseCopy =
     state.phase?.status === "REGISTRATION"
       ? {
-          title: "Registration is open.",
-          description: "Claim a fortress before the timer ends.",
+          title: "Build phase is open.",
+          description: "Claim a fortress and wait for the next season to begin.",
           nextAction: state.playerFortress
-            ? "You are locked in. Select your fortress on the map to edit it."
-            : "Join this season before the registration window closes.",
-          timerLabel: "Registration ends",
-          battlefieldTitle: "Season map preview",
-          battlefieldDescription: "Fortresses appear as players register.",
+            ? "You are locked in. Use the arcade while the next season is being prepared."
+            : "Join before Wednesday to take part in the next season.",
+          timerLabel: "Build ends",
+          battlefieldTitle: "Build phase map",
+          battlefieldDescription: "Fortresses appear as players join the build phase.",
         }
       : state.phase?.status === "ACTIVE"
         ? {
@@ -216,7 +218,7 @@ export default async function Home({
         : showJoinCard
           ? state.phase?.status === "ACTIVE"
             ? "This season is already running. Join now to enter immediately if slots are still available."
-            : "Registration is open. Name your fortress now and it will appear on the map."
+            : "Build phase is open. Name your fortress now and it will appear on the map."
           : (state.cycle?.statusMessage ?? state.emptyStateMessage);
 
   return (
@@ -340,6 +342,7 @@ export default async function Home({
                             after the season ends.
                           </li>
                           <li>Wishes lock Monday 12:00 after the season.</li>
+                          <li>Voting closes Monday 24:00.</li>
                           <li>Write in English.</li>
                           <li>
                             Keep it short: max {COMMUNITY_WISH_MAX_LENGTH}{" "}
@@ -461,6 +464,14 @@ export default async function Home({
             </form>
           ) : null}
 
+          {showArcadeCard && !blockingMessage ? (
+            <div className={styles.cardActions}>
+              <Link className={styles.secondaryButton} href="/arcade">
+                Play build arcade
+              </Link>
+            </div>
+          ) : null}
+
           {isWaitingForSeason && !showLoginCard && !showJoinCard ? (
             <div className={styles.cardActions}>
               <Link className={styles.secondaryButton} href="/history">
@@ -472,11 +483,11 @@ export default async function Home({
           {state.cycle ? (
             <dl className={styles.deadlineList}>
               <div>
-                <dt>Registration</dt>
+                <dt>Build</dt>
                 <dd>{formatDeadline(state.cycle.registrationEndsAt)}</dd>
               </div>
               <div>
-                <dt>Active deadline</dt>
+                <dt>Season end</dt>
                 <dd>{formatDeadline(state.cycle.activeEndsAt)}</dd>
               </div>
             </dl>

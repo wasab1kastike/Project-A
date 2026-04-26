@@ -1,0 +1,121 @@
+.page {
+  min-height: 100vh;
+  padding: 32px;
+  display: grid;
+  gap: 20px;
+  background:
+    radial-gradient(circle at top left, rgba(103, 196, 207, 0.16), transparent 28%),
+    linear-gradient(180deg, #081018, #05080d 60%, #04070b);
+}
+
+.hero,
+.lockedCard {
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(7, 13, 20, 0.92);
+  padding: 20px;
+}
+
+.hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: start;
+}
+
+.sectionLabel {
+  display: inline-flex;
+  margin-bottom: 8px;
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.hero h1,
+.lockedCard h2 {
+  margin: 0;
+  font-size: 2rem;
+}
+
+.hero p,
+.lockedCard p {
+  margin: 8px 0 0;
+  max-width: 56ch;
+  color: var(--text-muted);
+}
+
+.meta {
+  display: grid;
+  gap: 10px;
+  min-width: min(100%, 260px);
+}
+
+.meta div {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-soft);
+  background: rgba(10, 16, 23, 0.92);
+}
+
+.meta span {
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+}
+
+.meta strong {
+  font-size: 1rem;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+
+.primaryButton,
+.secondaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.primaryButton {
+  background: var(--accent-strong);
+  color: #14202f;
+  font-weight: 800;
+}
+
+.secondaryButton {
+  background: rgba(14, 22, 31, 0.94);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: var(--foreground);
+}
+
+@media (max-width: 760px) {
+  .page {
+    padding: 18px;
+  }
+
+  .hero {
+    flex-direction: column;
+  }
+
+  .hero h1,
+  .lockedCard h2 {
+    font-size: 1.6rem;
+  }
+}

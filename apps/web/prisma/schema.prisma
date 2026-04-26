@@ -77,9 +77,13 @@ model User {
   communityWishProposals    CommunityWishProposal[] @relation("CommunityWishProposalAuthor")
   communityWishVotes        CommunityWishVote[]     @relation("CommunityWishVoteVoter")
   communityWishEntitlements CommunityWishVoteEntitlement[] @relation("CommunityWishVoteEntitlementUser")
+  buildArcadeRuns           BuildArcadeRun[]
   resolvedCommunityWishTies CycleHistory[]          @relation("CommunityWishAdminResolver")
   wonCycles                 Cycle[]                 @relation("CycleWinner")
   cycleHistoriesWon         CycleHistory[]          @relation("CycleHistoryWinner")
+  unitCosmeticVariant       String?
+  fortressCosmeticVariant   String?
+  cosmeticUnlockedAt        DateTime?
 }
 
 model Account {
@@ -150,6 +154,7 @@ model Cycle {
   winnerRequests           WinnerRequest[]
   communityWishProposals   CommunityWishProposal[]
   communityWishVoteEntitlements CommunityWishVoteEntitlement[]
+  buildArcadeRuns          BuildArcadeRun[]
   history                  CycleHistory?
 
   @@index([status])
@@ -307,6 +312,22 @@ model CommunityWishProposal {
 
   @@unique([cycleId, authorId])
   @@index([cycleId, createdAt])
+}
+
+model BuildArcadeRun {
+  id            String   @id @default(cuid())
+  cycleId       String
+  userId        String
+  score         Int      @default(0)
+  rewardVariant String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  cycle         Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([cycleId, userId])
+  @@index([cycleId, score])
+  @@index([userId])
 }
 
 model CommunityWishVote {

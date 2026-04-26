@@ -9,6 +9,7 @@ import {
   sendChatMessage,
 } from "@/lib/game/chat";
 import { submitCommunityWishProposal } from "@/lib/game/community-wishes";
+import { submitBuildArcadeScore } from "@/lib/game/build-arcade";
 import { GameError } from "@/lib/game/errors";
 import { FortressAction } from "@/lib/prisma-client";
 import { emitProjectARefresh } from "@/lib/realtime";
@@ -255,6 +256,29 @@ export async function submitCommunityWishProposalAction(formData: FormData) {
   }
 
   finishAction("Community wish proposal saved.");
+}
+
+export async function submitBuildArcadeScoreAction(formData: FormData) {
+  const userId = await requireUserId();
+  const cycleId = getString(formData, "cycleId");
+  const scoreValue = Number(getString(formData, "score"));
+
+  if (!cycleId) {
+    redirectToHome("error", "Build arcade score is missing its cycle reference.");
+  }
+
+  try {
+    await submitBuildArcadeScore({
+      cycleId,
+      userId,
+      score: Number.isFinite(scoreValue) ? scoreValue : 0,
+    });
+    emitProjectARefresh("build-arcade-score");
+  } catch (error) {
+    redirectToHome("error", getActionErrorMessage(error));
+  }
+
+  finishAction("Build arcade score saved.");
 }
 
 export async function sendChatMessageAction(formData: FormData) {

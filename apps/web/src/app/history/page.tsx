@@ -182,7 +182,7 @@ export default async function HistoryPage({
                   </label>
                   <p className={styles.helperText}>
                     {entry.communityWishCanSubmitProposal
-                      ? `Add or edit one short English wish until Monday 12:00. Voting is already open and ends 6 hours after wishes lock. Max ${entry.communityWishMaxLength} characters.`
+                      ? `Add or edit one short English wish until Monday 12:00. Voting is already open and ends Monday 24:00. Max ${entry.communityWishMaxLength} characters.`
                       : entry.communityWishVotingMessage}
                   </p>
                   {entry.communityWishCanSubmitProposal ? (

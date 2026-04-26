@@ -31,6 +31,7 @@ import {
   saveCommunityWishVotes,
   submitCommunityWishProposal,
 } from "./community-wishes";
+import { getBuildArcadeRewardVariant } from "./build-arcade";
 import {
   ACTIVE_LOCATION_SHUFFLE_COST,
   ACTIVE_PLAYER_CAP,
@@ -550,6 +551,15 @@ test("attack presentation keeps units moving until the impact window", () => {
   assert.equal(impacting.showSprite, false);
   assert.ok(impacting.progress <= 0.94);
   assert.equal(impacting.progress, 0.92);
+});
+
+test("build arcade rewards unlock cosmetics at predictable score thresholds", () => {
+  assert.equal(getBuildArcadeRewardVariant(0), null);
+  assert.equal(getBuildArcadeRewardVariant(4), null);
+  assert.equal(getBuildArcadeRewardVariant(5), "ember");
+  assert.equal(getBuildArcadeRewardVariant(10), "frost");
+  assert.equal(getBuildArcadeRewardVariant(18), "jade");
+  assert.equal(getBuildArcadeRewardVariant(24), "onyx");
 });
 
 type ReadyDatabaseSetup = {

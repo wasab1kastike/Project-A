@@ -28,3 +28,13 @@ export const UNIT_SPRITE_VARIANTS = [
 ] as const;
 
 export type UnitSpriteVariant = (typeof UNIT_SPRITE_VARIANTS)[number];
+
+export const BUILD_ARCADE_SKIN_VARIANTS = [
+  "ember",
+  "frost",
+  "jade",
+  "onyx",
+] as const;
+
+export type BuildArcadeSkinVariant =
+  (typeof BUILD_ARCADE_SKIN_VARIANTS)[number];

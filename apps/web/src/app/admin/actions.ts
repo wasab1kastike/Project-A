@@ -88,7 +88,7 @@ export async function emergencyResetCycleAction() {
     redirectToAdmin("error", getActionErrorMessage(error));
   }
 
-  finishAction("Emergency reset completed and a fresh registration cycle was created.");
+    finishAction("Emergency reset completed and a fresh build phase was created.");
 }
 
 export async function runManualCatchUpTickAction() {

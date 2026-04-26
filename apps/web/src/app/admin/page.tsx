@@ -102,7 +102,7 @@ export default async function AdminPage({
               <dd>
                 {state.currentCycle?.joiningLockedAt
                   ? "Locked"
-                  : "Open if registration is live"}
+                  : "Open if build phase is live"}
               </dd>
             </div>
           </dl>
@@ -123,7 +123,7 @@ export default async function AdminPage({
           <h2>Manual controls</h2>
           <p>
             Force the current cycle to its next state, pause new joins during
-            registration, or archive a broken cycle and boot a clean one.
+            build phase, or archive a broken cycle and boot a clean one.
           </p>
           <p>
             Use catch-up replay when the ACTIVE cycle falls behind. It reprocesses
@@ -192,7 +192,7 @@ export default async function AdminPage({
             <>
               <dl className={styles.statsList}>
                 <div className={styles.statRow}>
-                  <dt>Registration ends</dt>
+                  <dt>Build ends</dt>
                   <dd>{formatDateTime(state.currentCycle.registrationEndsAt)}</dd>
                 </div>
                 <div className={styles.statRow}>

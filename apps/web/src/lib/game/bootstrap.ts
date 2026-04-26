@@ -1,11 +1,11 @@
-import { ACTIVE_DURATION_HOURS, REGISTRATION_DURATION_HOURS } from "./constants";
 import {
   CycleStatus,
   type Prisma,
   PrismaClient,
   UserRole,
 } from "@/lib/prisma-client";
-import { addHours, floorToMinute } from "./time";
+import { floorToMinute } from "./time";
+import { getNextHelsinkiWeekdayAtHour } from "./calendar";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -48,9 +48,10 @@ export async function ensureOpenRegistrationCycle(
   }
 
   const registrationStartedAt = floorToMinute(now);
-  const registrationEndsAt = addHours(
+  const registrationEndsAt = getNextHelsinkiWeekdayAtHour(
     registrationStartedAt,
-    REGISTRATION_DURATION_HOURS
+    3,
+    12
   );
 
   return db.cycle.create({
@@ -59,7 +60,7 @@ export async function ensureOpenRegistrationCycle(
       registrationStartedAt,
       registrationEndsAt,
       activeStartedAt: null,
-      activeEndsAt: addHours(registrationEndsAt, ACTIVE_DURATION_HOURS),
+      activeEndsAt: getNextHelsinkiWeekdayAtHour(registrationEndsAt, 0, 12),
     },
   });
 }

@@ -207,6 +207,26 @@
   image-rendering: pixelated;
 }
 
+.attackUnitSprite[data-skin="ember"],
+.fortressSprite[data-skin="ember"] {
+  filter: hue-rotate(-14deg) saturate(1.2) brightness(1.08);
+}
+
+.attackUnitSprite[data-skin="frost"],
+.fortressSprite[data-skin="frost"] {
+  filter: hue-rotate(170deg) saturate(1.1) brightness(1.16);
+}
+
+.attackUnitSprite[data-skin="jade"],
+.fortressSprite[data-skin="jade"] {
+  filter: hue-rotate(65deg) saturate(1.25) brightness(1.02);
+}
+
+.attackUnitSprite[data-skin="onyx"],
+.fortressSprite[data-skin="onyx"] {
+  filter: grayscale(0.18) contrast(1.12) brightness(1.08);
+}
+
 .attackImpactPulse {
   display: block;
   width: 100%;

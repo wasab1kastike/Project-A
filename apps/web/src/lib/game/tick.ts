@@ -8,10 +8,8 @@ import {
 import { prisma } from "@/lib/prisma";
 import { ensureOpenRegistrationCycle } from "./bootstrap";
 import {
-  ACTIVE_DURATION_HOURS,
   MEGA_FORTRESS_DESTROY_BONUS,
   MEGA_FORTRESS_HEALTH,
-  REGISTRATION_DURATION_HOURS,
 } from "./constants";
 import { launchAttackUnit } from "./attack-units";
 import {
@@ -20,6 +18,7 @@ import {
   getCommunityWishProposalEndsAt,
   resolveExpiredCommunityWishVotes,
 } from "./community-wishes";
+import { getNextHelsinkiWeekdayAtHour } from "./calendar";
 import {
   ensureCurrentMapLayout,
   ensureActiveCycleMegaFortress,
@@ -247,9 +246,10 @@ async function restartEmptyRegistrationCycle(
     }
 
     const registrationStartedAt = floorToMinute(now);
-    const registrationEndsAt = addHours(
+    const registrationEndsAt = getNextHelsinkiWeekdayAtHour(
       registrationStartedAt,
-      REGISTRATION_DURATION_HOURS
+      3,
+      12
     );
 
     await tx.cycle.update({
@@ -261,7 +261,7 @@ async function restartEmptyRegistrationCycle(
         registrationStartedAt,
         registrationEndsAt,
         activeStartedAt: null,
-        activeEndsAt: addHours(registrationEndsAt, ACTIVE_DURATION_HOURS),
+        activeEndsAt: getNextHelsinkiWeekdayAtHour(registrationEndsAt, 0, 12),
       },
     });
 
@@ -301,7 +301,7 @@ async function activateRegistrationCycle(
     }
 
     const activeStartedAt = cycle.registrationEndsAt;
-    const activeEndsAt = addHours(activeStartedAt, ACTIVE_DURATION_HOURS);
+    const activeEndsAt = getNextHelsinkiWeekdayAtHour(activeStartedAt, 0, 12);
 
     await tx.cycle.update({
       where: {

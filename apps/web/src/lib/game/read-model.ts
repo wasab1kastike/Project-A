@@ -111,6 +111,12 @@ export async function getHomePageState({
           mapX: true,
           mapY: true,
           joinedAt: true,
+          owner: {
+            select: {
+              unitCosmeticVariant: true,
+              fortressCosmeticVariant: true,
+            },
+          },
         },
       },
       attackUnits: {
@@ -130,6 +136,11 @@ export async function getHomePageState({
               mapX: true,
               mapY: true,
               unitSpriteVariant: true,
+              owner: {
+                select: {
+                  unitCosmeticVariant: true,
+                },
+              },
             },
           },
           targetFortress: {
@@ -219,7 +230,7 @@ export async function getHomePageState({
         closesAt: null,
         canSubmit: false,
         submissionHint:
-          "The season winner gets one guaranteed wish. Community voting starts after the season ends. Wishes can be edited until Monday 12:00, and voting ends 6 hours later.",
+          "The season winner gets one guaranteed wish. Community voting starts after the season ends. Wishes can be edited until Monday 12:00, and voting ends Monday 24:00.",
         proposals: [],
       },
       availableTargets: [],
@@ -351,6 +362,8 @@ export async function getHomePageState({
     mapX: fortress.mapX,
     mapY: fortress.mapY,
     unitSpriteVariant: normalizeUnitSpriteVariant(fortress.unitSpriteVariant),
+    unitCosmeticVariant: fortress.owner?.unitCosmeticVariant ?? null,
+    fortressCosmeticVariant: fortress.owner?.fortressCosmeticVariant ?? null,
     isCurrentUser: fortress.ownerId === userId,
     isTargetable:
       playerFortressId !== null &&
@@ -428,18 +441,18 @@ export async function getHomePageState({
       phaseDescription:
         cycle.status === CycleStatus.REGISTRATION
           ? joiningLocked
-            ? "Registration time is still running, but joins are currently locked by admin action."
-            : "Players can join the upcoming season and set their fortress name."
+            ? "Build time is still running, but joins are currently locked by admin action."
+            : "Build time is open. Players can join before the next season starts on Wednesday."
           : activeOpen
-            ? "The season is live. New players can still join this cycle while slots remain."
-            : "The active season is closing. New joins are blocked until the next cycle opens.",
+            ? "The season is live. Community wishes can be proposed until Sunday and voted on after it ends."
+            : "The season has ended. Build and wish resolution are in progress.",
       statusMessage:
         cycle.status === CycleStatus.REGISTRATION
           ? registrationOpen && joiningLocked
-            ? "Registration remains open on the clock, but new joins are currently locked by admin action."
+            ? "Build time remains open on the clock, but new joins are currently locked by admin action."
             : registrationOpen
-              ? "Registration is open. Joining creates your fortress immediately and reserves one of the 30 season slots."
-              : "Registration has expired. The next game tick will either restart registration or move the cycle into ACTIVE."
+              ? "Build time is open. Joining creates your fortress immediately and reserves one of the 30 season slots before Wednesday."
+              : "Build time has expired. The next game tick will either restart build time or move the cycle into ACTIVE."
           : joiningLocked
             ? "The season is active, but joining is currently locked by admin action."
             : activeOpen && remainingSlots > 0
@@ -448,24 +461,24 @@ export async function getHomePageState({
                 ? "The active season is running, but all player slots are filled. Joining is closed for this cycle."
                 : "The ACTIVE deadline has passed. Joining is closed until the next registration cycle opens.",
     },
-    phase: {
-      status: cycle.status,
-      deadline,
-      isOpen:
-        cycle.status === CycleStatus.REGISTRATION
-          ? registrationOpen
-          : activeOpen,
-      label:
-        cycle.status === CycleStatus.REGISTRATION
-          ? registrationOpen && joiningLocked
-            ? "Registration locked"
-            : registrationOpen
-              ? "Registration open"
-              : "Registration expired"
-          : activeOpen
-            ? "Active season"
-            : "Awaiting next tick",
-    },
+      phase: {
+        status: cycle.status,
+        deadline,
+        isOpen:
+          cycle.status === CycleStatus.REGISTRATION
+            ? registrationOpen
+            : activeOpen,
+        label:
+          cycle.status === CycleStatus.REGISTRATION
+            ? registrationOpen && joiningLocked
+              ? "Build locked"
+              : registrationOpen
+                ? "Build phase"
+                : "Build expired"
+            : activeOpen
+              ? "Season live"
+              : "Awaiting build start",
+      },
     playerFortress: playerFortress
       ? {
           id: playerFortress.id,
@@ -572,6 +585,8 @@ export async function getHomePageState({
         unitSpriteVariant: normalizeUnitSpriteVariant(
           unit.attackerFortress.unitSpriteVariant
         ),
+        unitCosmeticVariant:
+          unit.attackerFortress.owner?.unitCosmeticVariant ?? null,
       },
       target: {
         id: unit.targetFortress.id,
@@ -607,8 +622,8 @@ export async function getHomePageState({
           : !communityWishOpen
             ? "Community wishes open during the active season."
             : currentUserCommunityWish
-              ? "You can edit your short English wish until Monday 12:00 after the season ends. Voting starts after the season ends and closes 6 hours after wishes lock."
-              : "Submit one short English wish by Monday 12:00 after the season ends. Voting starts after the season ends and closes 6 hours after wishes lock.",
+              ? "You can edit your short English wish until Monday 12:00 after the season ends. Voting starts after the season ends and closes Monday 24:00."
+              : "Submit one short English wish by Monday 12:00 after the season ends. Voting starts after the season ends and closes Monday 24:00.",
       proposals: cycle.communityWishProposals.map((proposal) => ({
         id: proposal.id,
         requestText: proposal.requestText,

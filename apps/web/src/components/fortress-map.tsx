@@ -40,6 +40,8 @@ type MapFortress = {
   mapX: number;
   mapY: number;
   unitSpriteVariant: UnitSpriteVariant;
+  unitCosmeticVariant: string | null;
+  fortressCosmeticVariant: string | null;
   isCurrentUser: boolean;
   isTargetable: boolean;
 };
@@ -54,6 +56,7 @@ type AttackUnitMarker = {
     mapX: number;
     mapY: number;
     unitSpriteVariant: UnitSpriteVariant;
+    unitCosmeticVariant: string | null;
   };
   target: {
     id: string;
@@ -131,14 +134,17 @@ function getSpriteVariant(fortress: MapFortress): SpriteVariant {
 
 function FortressSprite({
   variant,
+  skinVariant,
 }: {
   variant: SpriteVariant;
+  skinVariant?: string | null;
 }) {
   return (
     <>
       <span
         className={styles.fortressSprite}
         data-variant={variant}
+        data-skin={skinVariant ?? undefined}
         aria-hidden="true"
       />
     </>
@@ -285,6 +291,7 @@ function AttackUnitsLayer({
               <span
                 className={styles.attackUnitSprite}
                 data-variant={unit.attacker.unitSpriteVariant}
+                data-skin={unit.attacker.unitCosmeticVariant ?? undefined}
               />
             ) : (
               <span className={styles.attackImpactPulse} aria-hidden="true" />
@@ -902,6 +909,7 @@ export function FortressMap({
                       ) : (
                         <FortressSprite
                           variant={variant}
+                          skinVariant={fortress.fortressCosmeticVariant}
                         />
                       )}
                     </span>
