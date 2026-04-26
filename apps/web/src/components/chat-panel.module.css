@@ -41,6 +41,43 @@
   height: 1px;
 }
 
+.archiveDisclosure {
+  display: grid;
+  gap: 12px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.archiveSummary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  list-style: none;
+  cursor: pointer;
+  color: var(--foreground);
+  font-weight: 700;
+}
+
+.archiveSummary::-webkit-details-marker {
+  display: none;
+}
+
+.archiveSummary span {
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.archiveBody {
+  display: grid;
+  min-height: 0;
+  max-height: 280px;
+  padding-left: 2px;
+}
+
 .message,
 .ownMessage {
   display: grid;

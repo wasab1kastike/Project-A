@@ -57,9 +57,31 @@ type ChatProps = {
   postHint: string | null;
   unreadCount: number;
   hasUnread: boolean;
-  latestMessageAt: Date | null;
-  persistsUnread: boolean;
-};
+    latestMessageAt: Date | null;
+    persistsUnread: boolean;
+    archive: {
+      cycleId: string;
+      label: string;
+      messages: Array<{
+        id: string;
+        type: "TEXT" | "GIF";
+        body: string;
+        gif: {
+          provider: string;
+          providerId: string;
+          title: string;
+          previewUrl: string;
+          displayUrl: string;
+          width: number;
+          height: number;
+          sourceUrl: string;
+        } | null;
+        createdAt: Date;
+        authorName: string;
+        isCurrentUser: boolean;
+      }>;
+    } | null;
+  };
 
 type PlayerSummary = {
   id: string;
@@ -322,6 +344,7 @@ export function BattlefieldExperience({
           canPost={chat.canPost}
           maxLength={chat.maxLength}
           postHint={chat.postHint}
+          archive={chat.archive}
         />
       </div>
     </aside>

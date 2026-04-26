@@ -52,6 +52,64 @@ function getDisplayName(name: string, isSlayerOfA: boolean) {
   return name;
 }
 
+function mapChatMessages(
+  messages: Array<{
+    id: string;
+    type: ChatMessageType;
+    body: string;
+    gifProvider: string | null;
+    gifProviderId: string | null;
+    gifTitle: string | null;
+    gifPreviewUrl: string | null;
+    gifDisplayUrl: string | null;
+    gifWidth: number | null;
+    gifHeight: number | null;
+    gifSourceUrl: string | null;
+    createdAt: Date;
+    author: {
+      id: string;
+    };
+  }>,
+  fortresses: Array<{
+    ownerId: string;
+    commanderName: string;
+  }>,
+  userId?: string
+) {
+  const commanderNameByOwnerId = new Map(
+    fortresses.map((fortress) => [fortress.ownerId, fortress.commanderName])
+  );
+
+  return [...messages].reverse().map((message) => ({
+    id: message.id,
+    type: message.type,
+    body: message.body,
+    gif:
+      message.type === ChatMessageType.GIF &&
+      message.gifProvider &&
+      message.gifProviderId &&
+      message.gifPreviewUrl &&
+      message.gifDisplayUrl &&
+      message.gifWidth &&
+      message.gifHeight &&
+      message.gifSourceUrl
+        ? {
+            provider: message.gifProvider,
+            providerId: message.gifProviderId,
+            title: message.gifTitle ?? message.body,
+            previewUrl: message.gifPreviewUrl,
+            displayUrl: message.gifDisplayUrl,
+            width: message.gifWidth,
+            height: message.gifHeight,
+            sourceUrl: message.gifSourceUrl,
+          }
+        : null,
+    createdAt: message.createdAt,
+    authorName: commanderNameByOwnerId.get(message.author.id) ?? "Spectator",
+    isCurrentUser: message.author.id === userId,
+  }));
+}
+
 async function getFortressLocationShuffleCount(
   db: PrismaClient,
   fortressId: string
@@ -92,6 +150,42 @@ export async function getHomePageState({
       winningScore: true,
       firstSlayerCommanderName: true,
       firstSlayerFortressName: true,
+      cycle: {
+        select: {
+          chatMessages: {
+            orderBy: {
+              createdAt: "desc",
+            },
+            take: getChatLimits().limit,
+            select: {
+              id: true,
+              type: true,
+              body: true,
+              gifProvider: true,
+              gifProviderId: true,
+              gifTitle: true,
+              gifPreviewUrl: true,
+              gifDisplayUrl: true,
+              gifWidth: true,
+              gifHeight: true,
+              gifSourceUrl: true,
+              createdAt: true,
+              author: {
+                select: {
+                  id: true,
+                },
+              },
+            },
+          },
+          fortresses: {
+            select: {
+              ownerId: true,
+              commanderName: true,
+              name: true,
+            },
+          },
+        },
+      },
       winner: {
         select: {
           id: true,
@@ -100,17 +194,6 @@ export async function getHomePageState({
       winnerRequest: {
         select: {
           id: true,
-        },
-      },
-      cycle: {
-        select: {
-          fortresses: {
-            select: {
-              ownerId: true,
-              commanderName: true,
-              name: true,
-            },
-          },
         },
       },
     },
@@ -280,6 +363,7 @@ export async function getHomePageState({
         hasUnread: false,
         latestMessageAt: null,
         persistsUnread: false,
+        archive: null,
       },
       communityWish: {
         isOpen: false,
@@ -498,6 +582,18 @@ export async function getHomePageState({
         firstSlayerFortressName: latestResolvedSeason.firstSlayerFortressName,
       }
     : null;
+  const chatArchive =
+    latestResolvedSeason && latestResolvedSeason.cycle.chatMessages.length > 0
+      ? {
+          cycleId: latestResolvedSeason.cycleId,
+          label: `Previous season chat`,
+          messages: mapChatMessages(
+            latestResolvedSeason.cycle.chatMessages,
+            latestResolvedSeason.cycle.fortresses,
+            userId
+          ),
+        }
+      : null;
 
   return {
     isSpectator: !playerFortress,
@@ -684,6 +780,7 @@ export async function getHomePageState({
       hasUnread: unreadCount > 0,
       latestMessageAt,
       persistsUnread: Boolean(currentUser),
+      archive: chatArchive,
     },
     communityWish: {
       isOpen: communityWishOpen,

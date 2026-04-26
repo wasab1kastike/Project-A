@@ -71,6 +71,7 @@ function getDegradedHomePageState(): HomePageState {
       hasUnread: false,
       latestMessageAt: null,
       persistsUnread: false,
+      archive: null,
     },
     communityWish: {
       isOpen: false,
@@ -311,7 +312,9 @@ export default async function Home({
 
       {notice ? <p className={styles.noticeToast}>{notice}</p> : null}
 
-      {state.cycle && state.phase?.status === "ACTIVE" ? (
+      {state.cycle &&
+      (state.phase?.status === "ACTIVE" ||
+        state.phase?.status === "REGISTRATION") ? (
         <details className={styles.wishPanel} open>
           <summary className={styles.wishPanelToggle}>Wish</summary>
           <section

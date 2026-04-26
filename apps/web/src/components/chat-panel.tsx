@@ -32,6 +32,28 @@ type ChatPanelProps = {
   canPost: boolean;
   maxLength: number;
   postHint: string | null;
+  archive: {
+    cycleId: string;
+    label: string;
+    messages: Array<{
+      id: string;
+      type: "TEXT" | "GIF";
+      body: string;
+      gif: {
+        provider: string;
+        providerId: string;
+        title: string;
+        previewUrl: string;
+        displayUrl: string;
+        width: number;
+        height: number;
+        sourceUrl: string;
+      } | null;
+      createdAt: Date;
+      authorName: string;
+      isCurrentUser: boolean;
+    }>;
+  } | null;
 };
 
 export function ChatPanel({
@@ -39,7 +61,40 @@ export function ChatPanel({
   canPost,
   maxLength,
   postHint,
+  archive,
 }: ChatPanelProps) {
+  function renderMessages(
+    sourceMessages: ChatPanelProps["messages"]
+  ) {
+    return sourceMessages.map((message) => (
+      <article
+        key={message.id}
+        className={message.isCurrentUser ? styles.ownMessage : styles.message}
+      >
+        <div className={styles.messageMeta}>
+          <strong>{message.authorName}</strong>
+          <span>{messageFormatter.format(message.createdAt)}</span>
+        </div>
+        {message.type === "GIF" && message.gif ? (
+          <div className={styles.gifMessage}>
+            <img
+              src={message.gif.displayUrl}
+              alt={message.gif.title}
+              width={message.gif.width}
+              height={message.gif.height}
+              loading="lazy"
+            />
+            <a href={message.gif.sourceUrl} target="_blank" rel="noreferrer">
+              View on GIPHY
+            </a>
+          </div>
+        ) : (
+          <p>{message.body}</p>
+        )}
+      </article>
+    ));
+  }
+
   return (
     <div className={styles.panel}>
       <div className={styles.header}>
@@ -54,41 +109,29 @@ export function ChatPanel({
             No messages yet. Start the channel.
           </p>
         ) : (
-          messages.map((message) => (
-            <article
-              key={message.id}
-              className={
-                message.isCurrentUser ? styles.ownMessage : styles.message
-              }
-            >
-              <div className={styles.messageMeta}>
-                <strong>{message.authorName}</strong>
-                <span>{messageFormatter.format(message.createdAt)}</span>
-              </div>
-              {message.type === "GIF" && message.gif ? (
-                <div className={styles.gifMessage}>
-                  <img
-                    src={message.gif.displayUrl}
-                    alt={message.gif.title}
-                    width={message.gif.width}
-                    height={message.gif.height}
-                    loading="lazy"
-                  />
-                  <a
-                    href={message.gif.sourceUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    View on GIPHY
-                  </a>
-                </div>
-              ) : (
-                <p>{message.body}</p>
-              )}
-            </article>
-          ))
+          renderMessages(messages)
         )}
       </ChatMessageList>
+
+      {archive ? (
+        <details className={styles.archiveDisclosure} open>
+          <summary className={styles.archiveSummary}>
+            <span>{archive.label}</span>
+            <strong>{archive.messages.length} messages</strong>
+          </summary>
+          <div className={styles.archiveBody}>
+            <ChatMessageList hasMessages={archive.messages.length > 0}>
+              {archive.messages.length === 0 ? (
+                <p className={styles.emptyState}>
+                  No chat history was stored for the previous season.
+                </p>
+              ) : (
+                renderMessages(archive.messages)
+              )}
+            </ChatMessageList>
+          </div>
+        </details>
+      ) : null}
 
       {canPost ? (
         <div className={styles.form}>
