@@ -24,6 +24,7 @@ import { markChatRead, sendChatGifMessage, sendChatMessage } from "./chat";
 import {
   COMMUNITY_WISH_MAX_LENGTH,
   adminResolveCommunityWishTie,
+  getCommunityWishProposalEndsAt,
   getCommunityWishVoteBudget,
   getCommunityWishVoteWeight,
   resolveExpiredCommunityWishVotes,
@@ -5156,7 +5157,7 @@ test("community wish proposals open to active players during the season", async 
         requestText: "Add a late idea.",
         now: new Date("2026-04-23T12:00:00.000Z"),
       }),
-    /close when the cycle ends/
+    /closed/
   );
 });
 
@@ -5173,6 +5174,18 @@ test("community wish voting uses final rank budgets and free allocations", async
   assert.equal(getCommunityWishVoteWeight(4), 3);
   assert.equal(getCommunityWishVoteWeight(5), 2);
   assert.equal(getCommunityWishVoteWeight(6), 1);
+  assert.equal(
+    getCommunityWishProposalEndsAt(
+      new Date("2026-04-20T08:59:00.000Z")
+    ).toISOString(),
+    "2026-04-20T09:00:00.000Z"
+  );
+  assert.equal(
+    getCommunityWishProposalEndsAt(
+      new Date("2026-04-20T12:10:00.000Z")
+    ).toISOString(),
+    "2026-04-27T09:00:00.000Z"
+  );
 
   const users = await Promise.all(
     Array.from({ length: 6 }, (_, index) =>
@@ -5216,10 +5229,28 @@ test("community wish voting uses final rank budgets and free allocations", async
     },
   });
 
-  assert.equal(history.communityWishStatus, CommunityWishStatus.OPEN);
+  assert.equal(history.communityWishStatus, CommunityWishStatus.PROPOSALS_OPEN);
   assert.equal(
-    history.communityWishVotingEndsAt?.toISOString(),
-    "2026-04-21T12:10:00.000Z"
+    history.communityWishProposalEndsAt?.toISOString(),
+    "2026-04-27T09:00:00.000Z"
+  );
+  assert.equal(history.communityWishVotingEndsAt, null);
+
+  await resolveExpiredCommunityWishVotes({
+    db: prisma,
+    now: new Date("2026-04-27T09:00:00.000Z"),
+  });
+
+  const votingHistory = await prisma.cycleHistory.findUniqueOrThrow({
+    where: {
+      cycleId: cycle.id,
+    },
+  });
+
+  assert.equal(votingHistory.communityWishStatus, CommunityWishStatus.OPEN);
+  assert.equal(
+    votingHistory.communityWishVotingEndsAt?.toISOString(),
+    "2026-04-27T15:00:00.000Z"
   );
 
   const winnerBudget = await getCommunityWishVoteBudget({
@@ -5246,7 +5277,7 @@ test("community wish voting uses final rank budgets and free allocations", async
           { proposalId: firstProposal.id, votes: 3 },
           { proposalId: secondProposal.id, votes: 3 },
         ],
-        now: new Date("2026-04-20T12:15:00.000Z"),
+        now: new Date("2026-04-27T09:15:00.000Z"),
       }),
     /at most 5/
   );
@@ -5256,7 +5287,7 @@ test("community wish voting uses final rank budgets and free allocations", async
     cycleId: cycle.id,
     userId: second.id,
     allocations: [{ proposalId: firstProposal.id, votes: 5 }],
-    now: new Date("2026-04-20T12:14:00.000Z"),
+    now: new Date("2026-04-27T09:14:00.000Z"),
   });
   await saveCommunityWishVotes({
     db: prisma,
@@ -5266,7 +5297,7 @@ test("community wish voting uses final rank budgets and free allocations", async
       { proposalId: firstProposal.id, votes: 3 },
       { proposalId: secondProposal.id, votes: 2 },
     ],
-    now: new Date("2026-04-20T12:15:00.000Z"),
+    now: new Date("2026-04-27T09:15:00.000Z"),
   });
 
   const proposalVotes = await prisma.communityWishProposal.findMany({
@@ -5310,7 +5341,7 @@ test("community wish voting uses final rank budgets and free allocations", async
         cycleId: cycle.id,
         userId: second.id,
         allocations: [{ proposalId: secondProposal.id, votes: 5 }],
-        now: new Date("2026-04-21T12:10:00.000Z"),
+        now: new Date("2026-04-27T15:00:00.000Z"),
       }),
     /voting has ended/
   );
@@ -5387,24 +5418,28 @@ test("community wish voting resolves winners and leaves ties for admin", async (
     db: prisma,
     now: new Date("2026-04-20T12:10:00.000Z"),
   });
+  await resolveExpiredCommunityWishVotes({
+    db: prisma,
+    now: new Date("2026-04-27T09:00:00.000Z"),
+  });
   await saveCommunityWishVotes({
     db: prisma,
     cycleId: cycle.id,
     userId: alpha.id,
     allocations: [{ proposalId: alphaProposal.id, votes: 1 }],
-    now: new Date("2026-04-20T12:15:00.000Z"),
+    now: new Date("2026-04-27T09:15:00.000Z"),
   });
   await saveCommunityWishVotes({
     db: prisma,
     cycleId: cycle.id,
     userId: beta.id,
     allocations: [{ proposalId: betaProposal.id, votes: 1 }],
-    now: new Date("2026-04-20T12:16:00.000Z"),
+    now: new Date("2026-04-27T09:16:00.000Z"),
   });
 
   await resolveExpiredCommunityWishVotes({
     db: prisma,
-    now: new Date("2026-04-21T12:10:00.000Z"),
+    now: new Date("2026-04-27T15:00:00.000Z"),
   });
 
   const tiedHistory = await prisma.cycleHistory.findUniqueOrThrow({
@@ -5425,7 +5460,7 @@ test("community wish voting resolves winners and leaves ties for admin", async (
         cycleId: cycle.id,
         proposalId: lowerProposal.id,
         adminId: admin.id,
-        now: new Date("2026-04-21T12:12:00.000Z"),
+        now: new Date("2026-04-27T15:12:00.000Z"),
       }),
     /tied top/
   );
@@ -5436,7 +5471,7 @@ test("community wish voting resolves winners and leaves ties for admin", async (
         cycleId: cycle.id,
         proposalId: rejectedProposal.id,
         adminId: admin.id,
-        now: new Date("2026-04-21T12:13:00.000Z"),
+        now: new Date("2026-04-27T15:13:00.000Z"),
       }),
     /tied top/
   );
@@ -5446,7 +5481,7 @@ test("community wish voting resolves winners and leaves ties for admin", async (
     cycleId: cycle.id,
     proposalId: betaProposal.id,
     adminId: admin.id,
-    now: new Date("2026-04-21T12:15:00.000Z"),
+    now: new Date("2026-04-27T15:15:00.000Z"),
   });
 
   const resolvedTie = await prisma.cycleHistory.findUniqueOrThrow({
@@ -5484,16 +5519,20 @@ test("community wish voting resolves winners and leaves ties for admin", async (
     db: prisma,
     now: new Date("2026-04-20T12:10:00.000Z"),
   });
+  await resolveExpiredCommunityWishVotes({
+    db: prisma,
+    now: new Date("2026-04-27T09:00:00.000Z"),
+  });
   await saveCommunityWishVotes({
     db: prisma,
     cycleId: secondCycle.id,
     userId: beta.id,
     allocations: [{ proposalId: winningProposal.id, votes: 5 }],
-    now: new Date("2026-04-20T12:15:00.000Z"),
+    now: new Date("2026-04-27T09:15:00.000Z"),
   });
   await resolveExpiredCommunityWishVotes({
     db: prisma,
-    now: new Date("2026-04-21T12:10:00.000Z"),
+    now: new Date("2026-04-27T15:00:00.000Z"),
   });
 
   const resolvedHistory = await prisma.cycleHistory.findUniqueOrThrow({

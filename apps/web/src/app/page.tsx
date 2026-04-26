@@ -78,7 +78,7 @@ function getDegradedHomePageState(): HomePageState {
       closesAt: null,
       canSubmit: false,
       submissionHint:
-        "Community wishes open during the active season. Voting starts after ranks are locked.",
+        "The season winner gets one guaranteed wish. Community wishes can be edited until Monday 12:00; then players vote for 6 hours.",
       proposals: [],
     },
     availableTargets: [],
@@ -335,7 +335,10 @@ export default async function Home({
                       <div className={styles.helpPopover}>
                         <strong>Wish limits</strong>
                         <ul>
-                          <li>Winner wish is guaranteed. Community wish is vote-based.</li>
+                          <li>
+                            Winner wish is guaranteed. Community wish is vote-based
+                            after Monday 12:00.
+                          </li>
                           <li>Write in English.</li>
                           <li>
                             Keep it short: max {COMMUNITY_WISH_MAX_LENGTH}{" "}

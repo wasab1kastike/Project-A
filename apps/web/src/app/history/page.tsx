@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { getCycleHistoryPageState } from "@/lib/game/history";
 import {
   saveCommunityWishVotesAction,
+  submitCommunityWishProposalAction,
   submitWinnerRequestAction,
 } from "./actions";
 import { PATCH_NOTES_PAGE_HREF } from "@/lib/game/site-navigation";
@@ -143,6 +144,11 @@ export default async function HistoryPage({
                   <dt>Community wish status</dt>
                   <dd>
                     {entry.communityWishStatus}
+                    {entry.communityWishProposalEndsAt
+                      ? ` - proposals close ${formatDateTime(
+                          entry.communityWishProposalEndsAt
+                        )}`
+                      : ""}
                     {entry.communityWishVotingEndsAt
                       ? ` - voting ends ${formatDateTime(
                           entry.communityWishVotingEndsAt
@@ -151,6 +157,41 @@ export default async function HistoryPage({
                   </dd>
                 </div>
               </dl>
+
+              {entry.communityWishStatus === "PROPOSALS_OPEN" ? (
+                <form
+                  action={submitCommunityWishProposalAction}
+                  className={styles.formStack}
+                >
+                  <input type="hidden" name="cycleId" value={entry.cycleId} />
+                  <label
+                    className={styles.fieldStack}
+                    htmlFor={`community-wish-${entry.id}`}
+                  >
+                    <span className={styles.sectionLabel}>Community wish</span>
+                    <textarea
+                      id={`community-wish-${entry.id}`}
+                      name="requestText"
+                      rows={3}
+                      maxLength={entry.communityWishMaxLength}
+                      placeholder="Add more troop types"
+                      defaultValue={entry.currentUserCommunityWish}
+                      disabled={!entry.communityWishCanSubmitProposal}
+                      required
+                    />
+                  </label>
+                  <p className={styles.helperText}>
+                    {entry.communityWishCanSubmitProposal
+                      ? `Add or edit one short English wish until Monday 12:00. Voting runs for 6 hours after proposals close. Max ${entry.communityWishMaxLength} characters.`
+                      : entry.communityWishVotingMessage}
+                  </p>
+                  {entry.communityWishCanSubmitProposal ? (
+                    <button className={styles.primaryButton} type="submit">
+                      Save community wish
+                    </button>
+                  ) : null}
+                </form>
+              ) : null}
 
               {entry.communityWishStatus === "OPEN" &&
               entry.communityWishProposals.length > 0 ? (
@@ -167,7 +208,7 @@ export default async function HistoryPage({
                     <span className={styles.sectionLabel}>Community vote</span>
                     <p className={styles.helperText}>
                       {entry.communityWishCanVote
-                        ? `You have ${entry.communityWishVoteBudget} votes. ${entry.communityWishUsedVotes} currently allocated. You can change them until voting ends.`
+                        ? `You have ${entry.communityWishVoteBudget} votes for this 6 hour window. ${entry.communityWishUsedVotes} currently allocated. You can change them until voting ends.`
                         : entry.communityWishVotingMessage}
                     </p>
                     <div className={styles.voteList}>

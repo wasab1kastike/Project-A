@@ -15,7 +15,105 @@ export type CommunityWishRankedFortress = {
 };
 
 export const COMMUNITY_WISH_MAX_LENGTH = 50;
-export const COMMUNITY_WISH_VOTING_WINDOW_HOURS = 24;
+export const COMMUNITY_WISH_PROPOSAL_DEADLINE_TIME_ZONE = "Europe/Helsinki";
+export const COMMUNITY_WISH_VOTING_WINDOW_HOURS = 6;
+
+function addHours(value: Date, hours: number) {
+  const next = new Date(value);
+  next.setHours(next.getHours() + hours);
+  return next;
+}
+
+function getTimeZoneParts(value: Date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: COMMUNITY_WISH_PROPOSAL_DEADLINE_TIME_ZONE,
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+    second: "numeric",
+    hour12: false,
+  }).formatToParts(value);
+  const getPart = (type: string) =>
+    Number(parts.find((part) => part.type === type)?.value ?? 0);
+
+  return {
+    year: getPart("year"),
+    month: getPart("month"),
+    day: getPart("day"),
+    hour: getPart("hour"),
+    minute: getPart("minute"),
+    second: getPart("second"),
+  };
+}
+
+function getTimeZoneWeekday(value: Date) {
+  const weekday = new Intl.DateTimeFormat("en-US", {
+    timeZone: COMMUNITY_WISH_PROPOSAL_DEADLINE_TIME_ZONE,
+    weekday: "short",
+  }).format(value);
+
+  return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(weekday);
+}
+
+function getTimeZoneOffsetMilliseconds(value: Date) {
+  const parts = getTimeZoneParts(value);
+  const localAsUtc = Date.UTC(
+    parts.year,
+    parts.month - 1,
+    parts.day,
+    parts.hour,
+    parts.minute,
+    parts.second
+  );
+
+  return localAsUtc - value.getTime();
+}
+
+function zonedTimeToUtc({
+  year,
+  month,
+  day,
+  hour,
+}: {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+}) {
+  const localAsUtc = Date.UTC(year, month - 1, day, hour, 0, 0, 0);
+  let utc = localAsUtc;
+
+  for (let index = 0; index < 3; index += 1) {
+    utc = localAsUtc - getTimeZoneOffsetMilliseconds(new Date(utc));
+  }
+
+  return new Date(utc);
+}
+
+export function getCommunityWishProposalEndsAt(endedAt: Date) {
+  const parts = getTimeZoneParts(endedAt);
+  const weekday = getTimeZoneWeekday(endedAt);
+  const daysUntilMonday = (1 - weekday + 7) % 7;
+  let proposalEndsAt = zonedTimeToUtc({
+    year: parts.year,
+    month: parts.month,
+    day: parts.day + daysUntilMonday,
+    hour: 12,
+  });
+
+  if (proposalEndsAt <= endedAt) {
+    proposalEndsAt = zonedTimeToUtc({
+      year: parts.year,
+      month: parts.month,
+      day: parts.day + daysUntilMonday + 7,
+      hour: 12,
+    });
+  }
+
+  return proposalEndsAt;
+}
 
 function normalizeRequestText(input: string) {
   const normalized = input.trim().replace(/\r\n/g, "\n");
@@ -165,20 +263,36 @@ export async function getCommunityWishEligibility({
     select: {
       status: true,
       activeEndsAt: true,
+      history: {
+        select: {
+          communityWishStatus: true,
+          communityWishProposalEndsAt: true,
+        },
+      },
     },
   });
 
-  if (!cycle || cycle.status !== CycleStatus.ACTIVE || !cycle.activeEndsAt) {
+  if (!cycle) {
     return {
       canSubmit: false,
-      reason: "Community wish proposals open only during an active cycle.",
+      reason: "Community wish proposals open only for a known cycle.",
     };
   }
 
-  if (now >= cycle.activeEndsAt) {
+  const activeProposalOpen =
+    cycle.status === CycleStatus.ACTIVE &&
+    cycle.activeEndsAt !== null &&
+    now < cycle.activeEndsAt;
+  const historyProposalOpen =
+    cycle.history?.communityWishStatus ===
+      CommunityWishStatus.PROPOSALS_OPEN &&
+    cycle.history.communityWishProposalEndsAt !== null &&
+    now < cycle.history.communityWishProposalEndsAt;
+
+  if (!activeProposalOpen && !historyProposalOpen) {
     return {
       canSubmit: false,
-      reason: "Community wish proposals close when the cycle ends.",
+      reason: "Community wish proposals are closed for this cycle.",
     };
   }
 
@@ -553,6 +667,56 @@ async function resolveCommunityWishHistory({
   });
 }
 
+async function openCommunityWishVoting({
+  cycleId,
+  proposalEndsAt,
+  now,
+  db,
+}: {
+  cycleId: string;
+  proposalEndsAt: Date;
+  now: Date;
+  db: DatabaseClient;
+}) {
+  const proposalCount = await db.communityWishProposal.count({
+    where: {
+      cycleId,
+      status: {
+        not: WinnerRequestStatus.REJECTED,
+      },
+    },
+  });
+
+  if (proposalCount === 0) {
+    await db.cycleHistory.update({
+      where: {
+        cycleId,
+      },
+      data: {
+        communityWishStatus: CommunityWishStatus.NO_PROPOSALS,
+        communityWishResolvedAt: now,
+        communityWishVoteCount: 0,
+      },
+    });
+    return false;
+  }
+
+  await db.cycleHistory.update({
+    where: {
+      cycleId,
+    },
+    data: {
+      communityWishStatus: CommunityWishStatus.OPEN,
+      communityWishVotingEndsAt: addHours(
+        proposalEndsAt,
+        COMMUNITY_WISH_VOTING_WINDOW_HOURS
+      ),
+    },
+  });
+
+  return true;
+}
+
 export async function getCommunityWishTieBreakOptions({
   cycleId,
   db = prisma,
@@ -601,6 +765,42 @@ export async function resolveExpiredCommunityWishVotes({
   now?: Date;
   db?: PrismaClient;
 } = {}) {
+  const proposalHistories = await db.cycleHistory.findMany({
+    where: {
+      communityWishStatus: CommunityWishStatus.PROPOSALS_OPEN,
+      communityWishProposalEndsAt: {
+        lte: now,
+      },
+    },
+    select: {
+      cycleId: true,
+      communityWishProposalEndsAt: true,
+    },
+  });
+
+  let opened = 0;
+
+  for (const history of proposalHistories) {
+    const proposalEndsAt = history.communityWishProposalEndsAt;
+
+    if (!proposalEndsAt) {
+      continue;
+    }
+
+    const didOpen = await db.$transaction((tx) =>
+      openCommunityWishVoting({
+        cycleId: history.cycleId,
+        proposalEndsAt,
+        now,
+        db: tx,
+      })
+    );
+
+    if (didOpen) {
+      opened += 1;
+    }
+  }
+
   const histories = await db.cycleHistory.findMany({
     where: {
       communityWishStatus: CommunityWishStatus.OPEN,
@@ -627,6 +827,7 @@ export async function resolveExpiredCommunityWishVotes({
   }
 
   return {
+    opened,
     resolved,
   };
 }
