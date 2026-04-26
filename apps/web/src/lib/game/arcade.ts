@@ -91,7 +91,11 @@ async function getCurrentBuildCycle(db: DatabaseClient, now: Date) {
   });
 }
 
-async function getPlayerFortress(db: DatabaseClient, cycleId: string, userId: string) {
+async function getPlayerFortress(
+  db: DatabaseClient,
+  cycleId: string,
+  userId: string
+) {
   return db.fortress.findFirst({
     where: {
       cycleId,
@@ -107,10 +111,26 @@ async function getPlayerFortress(db: DatabaseClient, cycleId: string, userId: st
   });
 }
 
-function getGameOutcome(gameType: ArcadeGameType, stake: number, choice: string | null) {
+function getGameOutcome(
+  gameType: ArcadeGameType,
+  stake: number,
+  choice: string | null
+) {
   if (gameType === ArcadeGameType.SLOTS) {
-    const symbols = ["coin", "coin", "gem", "gem", "crown", "bar", "skull"] as const;
-    const reels = [pickRandom(symbols), pickRandom(symbols), pickRandom(symbols)];
+    const symbols = [
+      "coin",
+      "coin",
+      "gem",
+      "gem",
+      "crown",
+      "bar",
+      "skull",
+    ] as const;
+    const reels = [
+      pickRandom(symbols),
+      pickRandom(symbols),
+      pickRandom(symbols),
+    ];
     const counts = reels.reduce<Record<string, number>>((acc, symbol) => {
       acc[symbol] = (acc[symbol] ?? 0) + 1;
       return acc;
@@ -286,90 +306,96 @@ export async function mintSeasonArcadeCoins({
     throw new GameError("Season arcade payout could not be minted.");
   }
 
-  return withArcadeTransaction(
-    db,
-    async (tx) => {
-      let mintedPlayers = 0;
-      let mintedCoins = 0;
-      const fortressesByOwnerId = new Map(
-        cycle.fortresses.map((fortress) => [fortress.ownerId, fortress])
-      );
-      const orderedFortresses = (
-        rankedFortresses.length > 0 ? rankedFortresses : cycle.fortresses
+  return withArcadeTransaction(db, async (tx) => {
+    let mintedPlayers = 0;
+    let mintedCoins = 0;
+    const fortressesByOwnerId = new Map(
+      cycle.fortresses.map((fortress) => [fortress.ownerId, fortress])
+    );
+    const fallbackRankedFortresses = [...cycle.fortresses]
+      .sort(
+        (left, right) =>
+          right.points - left.points ||
+          left.commanderName.localeCompare(right.commanderName)
       )
-        .map((entry, index) => {
-          const fortress = fortressesByOwnerId.get(entry.ownerId);
+      .map((fortress) => ({
+        ownerId: fortress.ownerId,
+      }));
+    const orderedFortresses = (
+      rankedFortresses.length > 0 ? rankedFortresses : fallbackRankedFortresses
+    )
+      .map((entry, index) => {
+        const fortress = fortressesByOwnerId.get(entry.ownerId);
 
-          return fortress ? { fortress, rank: index + 1 } : null;
-        })
-        .filter(
-          (
-            entry
-          ): entry is {
-            fortress: (typeof cycle.fortresses)[number];
-            rank: number;
-          } => entry !== null
-        );
+        return fortress ? { fortress, rank: index + 1 } : null;
+      })
+      .filter(
+        (
+          entry
+        ): entry is {
+          fortress: (typeof cycle.fortresses)[number];
+          rank: number;
+        } => entry !== null
+      );
 
-      for (const { fortress, rank } of orderedFortresses) {
-        const dedupeKey = `season-payout:${cycle.id}:${fortress.ownerId}`;
-        const existing = await tx.arcadeTransaction.findUnique({
-          where: {
-            dedupeKey,
-          },
-          select: {
-            id: true,
-          },
-        });
-
-        if (existing) {
-          continue;
-        }
-
-        const bonus = getSeasonBonus(fortress.points);
-        const rankBonus = getArcadeSeasonRankBonus(rank);
-        const payout = ARCADE_SEASON_BASE_COINS + bonus + rankBonus;
-        const wallet = await ensureArcadeWallet(tx, fortress.ownerId);
-        const balanceAfter = wallet.balance + payout;
-
-        await tx.arcadeWallet.update({
-          where: {
-            userId: fortress.ownerId,
-          },
-          data: {
-            balance: balanceAfter,
-          },
-        });
-
-        await createLedgerEntry({
-          db: tx,
-          userId: fortress.ownerId,
-          cycleId: cycle.id,
-          kind: ArcadeTransactionKind.SEASON_PAYOUT,
-          amount: payout,
-          balanceAfter,
-          summary: `Season payout minted for ${fortress.commanderName}.`,
-          details: {
-            points: fortress.points,
-            baseCoins: ARCADE_SEASON_BASE_COINS,
-            bonusCoins: bonus,
-            rank,
-            rankBonusCoins: rankBonus,
-            mintedAt: now.toISOString(),
-          },
+    for (const { fortress, rank } of orderedFortresses) {
+      const dedupeKey = `season-payout:${cycle.id}:${fortress.ownerId}`;
+      const existing = await tx.arcadeTransaction.findUnique({
+        where: {
           dedupeKey,
-        });
+        },
+        select: {
+          id: true,
+        },
+      });
 
-        mintedPlayers += 1;
-        mintedCoins += payout;
+      if (existing) {
+        continue;
       }
+
+      const bonus = getSeasonBonus(fortress.points);
+      const rankBonus = getArcadeSeasonRankBonus(rank);
+      const payout = ARCADE_SEASON_BASE_COINS + bonus + rankBonus;
+      const wallet = await ensureArcadeWallet(tx, fortress.ownerId);
+      const balanceAfter = wallet.balance + payout;
+
+      await tx.arcadeWallet.update({
+        where: {
+          userId: fortress.ownerId,
+        },
+        data: {
+          balance: balanceAfter,
+        },
+      });
+
+      await createLedgerEntry({
+        db: tx,
+        userId: fortress.ownerId,
+        cycleId: cycle.id,
+        kind: ArcadeTransactionKind.SEASON_PAYOUT,
+        amount: payout,
+        balanceAfter,
+        summary: `Season payout minted for ${fortress.commanderName}.`,
+        details: {
+          points: fortress.points,
+          baseCoins: ARCADE_SEASON_BASE_COINS,
+          bonusCoins: bonus,
+          rank,
+          rankBonusCoins: rankBonus,
+          mintedAt: now.toISOString(),
+        },
+        dedupeKey,
+      });
+
+      mintedPlayers += 1;
+      mintedCoins += payout;
+    }
 
     return {
       mintedPlayers,
       mintedCoins,
     };
-    }
-  );
+  });
 }
 
 export async function getArcadeHubState({
@@ -604,7 +630,10 @@ export async function playArcadeGame({
 }) {
   const normalizedStake = normalizeStake(stake);
 
-  if (normalizedStake < ARCADE_MIN_STAKE || normalizedStake > ARCADE_MAX_STAKE) {
+  if (
+    normalizedStake < ARCADE_MIN_STAKE ||
+    normalizedStake > ARCADE_MAX_STAKE
+  ) {
     throw new GameError(
       `Stake must be between ${ARCADE_MIN_STAKE} and ${ARCADE_MAX_STAKE} coins.`
     );
