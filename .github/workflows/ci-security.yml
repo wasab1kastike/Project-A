@@ -25,6 +25,9 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Generate Prisma client
+        run: npm run db:generate --workspace web
+
       - name: Run npm audit (fail on high/critical)
         run: |
           npm audit --json > audit.json || true
@@ -39,40 +42,42 @@ jobs:
       - name: Security quick-scan (grep for unsafe patterns)
         run: |
           set -euo pipefail
-          echo "Scanning repository for unsafe patterns: $executeRawUnsafe, dangerouslySetInnerHTML, eval"
+          echo 'Scanning repository for unsafe patterns: $executeRawUnsafe, dangerouslySetInnerHTML, eval'
 
           FOUND=0
 
-          # Check for $executeRawUnsafe but allow schema-guards.ts where migrations use it intentionally
-          if git grep -n -- '\$executeRawUnsafe' -- . 2>/dev/null || true; then
-            git grep -n -- '\$executeRawUnsafe' -- . 2>/dev/null | grep -v 'apps/web/src/lib/game/schema-guards.ts' | tee /tmp/unsafe-execute || true
-            if [ -s /tmp/unsafe-execute ]; then
-              echo "Found usage of $executeRawUnsafe outside allowed file:" 
-              cat /tmp/unsafe-execute
-              FOUND=1
-            else
-              echo "No disallowed $executeRawUnsafe usage found."
-            fi
+          # Check for $executeRawUnsafe but allow intentional migration and test schema cleanup helpers.
+          git grep -n -- '\$executeRawUnsafe' -- . 2>/dev/null \
+            | grep -v -e '.github/workflows/ci-security.yml' \
+              -e 'apps/web/src/lib/game/schema-guards.ts' \
+              -e 'apps/web/src/lib/game/game.test.ts' \
+            | tee /tmp/unsafe-execute || true
+          if [ -s /tmp/unsafe-execute ]; then
+            echo 'Found usage of $executeRawUnsafe outside allowed files:'
+            cat /tmp/unsafe-execute
+            FOUND=1
+          else
+            echo 'No disallowed $executeRawUnsafe usage found.'
           fi
 
           # Check for dangerouslySetInnerHTML
-          if git grep -n -- 'dangerouslySetInnerHTML' -- . 2>/dev/null || true; then
-            git grep -n -- 'dangerouslySetInnerHTML' -- . 2>/dev/null | tee /tmp/dangerous-html || true
-            if [ -s /tmp/dangerous-html ]; then
-              echo "Found dangerouslySetInnerHTML usage:" 
-              cat /tmp/dangerous-html
-              FOUND=1
-            fi
+          git grep -n -- 'dangerouslySetInnerHTML' -- . 2>/dev/null \
+            | grep -v -e '.github/workflows/ci-security.yml' \
+            | tee /tmp/dangerous-html || true
+          if [ -s /tmp/dangerous-html ]; then
+            echo "Found dangerouslySetInnerHTML usage:"
+            cat /tmp/dangerous-html
+            FOUND=1
           fi
 
           # Check for eval( occurrences
-          if git grep -n -- 'eval(' -- . 2>/dev/null || true; then
-            git grep -n -- 'eval(' -- . 2>/dev/null | tee /tmp/eval-found || true
-            if [ -s /tmp/eval-found ]; then
-              echo "Found eval() usage:" 
-              cat /tmp/eval-found
-              FOUND=1
-            fi
+          git grep -n -- 'eval(' -- . 2>/dev/null \
+            | grep -v -e '.github/workflows/ci-security.yml' \
+            | tee /tmp/eval-found || true
+          if [ -s /tmp/eval-found ]; then
+            echo "Found eval() usage:"
+            cat /tmp/eval-found
+            FOUND=1
           fi
 
           if [ "$FOUND" -ne 0 ]; then
@@ -86,7 +91,7 @@ jobs:
     name: Integration tests (optional)
     runs-on: ubuntu-latest
     needs: build
-    if: ${{ secrets.RUN_INTEGRATION == 'true' }}
+    if: ${{ vars.RUN_INTEGRATION == 'true' }}
 
     services:
       postgres:
