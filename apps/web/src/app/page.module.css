@@ -205,6 +205,38 @@
   pointer-events: auto;
 }
 
+.seasonSummary {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid rgba(247, 196, 95, 0.2);
+  border-radius: 8px;
+  background: rgba(247, 196, 95, 0.08);
+}
+
+.seasonSummary h2 {
+  font-size: clamp(1.3rem, 3.8vw, 2.1rem);
+  line-height: 0.98;
+}
+
+.slayerNote {
+  color: #ffe7aa;
+}
+
+.winnerWishPrompt {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid rgba(118, 190, 255, 0.2);
+  border-radius: 8px;
+  background: rgba(118, 190, 255, 0.08);
+}
+
+.winnerWishPrompt h2 {
+  font-size: 1.15rem;
+  line-height: 1.05;
+}
+
 .wishPanel {
   top: 88px;
   right: 190px;

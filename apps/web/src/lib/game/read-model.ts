@@ -82,6 +82,40 @@ export async function getHomePageState({
     ensureLastReadChatColumn(db),
   ]);
 
+  const latestResolvedSeason = await db.cycleHistory.findFirst({
+    orderBy: {
+      endedAt: "desc",
+    },
+    select: {
+      cycleId: true,
+      endedAt: true,
+      winningScore: true,
+      firstSlayerCommanderName: true,
+      firstSlayerFortressName: true,
+      winner: {
+        select: {
+          id: true,
+        },
+      },
+      winnerRequest: {
+        select: {
+          id: true,
+        },
+      },
+      cycle: {
+        select: {
+          fortresses: {
+            select: {
+              ownerId: true,
+              commanderName: true,
+              name: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
   const cycle = await db.cycle.findFirst({
     where: {
       resolvedAt: null,
@@ -209,6 +243,29 @@ export async function getHomePageState({
       isSpectator: true,
       cycle: null,
       phase: null,
+      latestSeason: latestResolvedSeason
+        ? {
+            cycleId: latestResolvedSeason.cycleId,
+            winnerId: latestResolvedSeason.winner.id,
+            winnerRequestId: latestResolvedSeason.winnerRequest?.id ?? null,
+            winnerLabel:
+              latestResolvedSeason.cycle.fortresses.find(
+                (fortress) =>
+                  fortress.ownerId === latestResolvedSeason.winner.id
+              )?.commanderName ?? "Unknown winner",
+            winnerFortressName:
+              latestResolvedSeason.cycle.fortresses.find(
+                (fortress) =>
+                  fortress.ownerId === latestResolvedSeason.winner.id
+              )?.name ?? "Unknown fortress",
+            winningScore: latestResolvedSeason.winningScore,
+            endedAt: latestResolvedSeason.endedAt,
+            firstSlayerCommanderName:
+              latestResolvedSeason.firstSlayerCommanderName,
+            firstSlayerFortressName:
+              latestResolvedSeason.firstSlayerFortressName,
+          }
+        : null,
       playerFortress: null,
       playerSummary: null,
       leaderboard: [],
@@ -421,6 +478,26 @@ export async function getHomePageState({
     cycle.communityWishProposals.find(
       (proposal) => proposal.authorId === userId
     ) ?? null;
+  const latestSeason = latestResolvedSeason
+    ? {
+        cycleId: latestResolvedSeason.cycleId,
+        winnerId: latestResolvedSeason.winner.id,
+        winnerRequestId: latestResolvedSeason.winnerRequest?.id ?? null,
+        winnerLabel:
+          latestResolvedSeason.cycle.fortresses.find(
+            (fortress) =>
+              fortress.ownerId === latestResolvedSeason.winner.id
+          )?.commanderName ?? "Unknown winner",
+        winnerFortressName:
+          latestResolvedSeason.cycle.fortresses.find(
+            (fortress) => fortress.ownerId === latestResolvedSeason.winner.id
+          )?.name ?? "Unknown fortress",
+        winningScore: latestResolvedSeason.winningScore,
+        endedAt: latestResolvedSeason.endedAt,
+        firstSlayerCommanderName: latestResolvedSeason.firstSlayerCommanderName,
+        firstSlayerFortressName: latestResolvedSeason.firstSlayerFortressName,
+      }
+    : null;
 
   return {
     isSpectator: !playerFortress,
@@ -478,7 +555,8 @@ export async function getHomePageState({
             : activeOpen
               ? "Season live"
               : "Awaiting build start",
-      },
+    },
+    latestSeason,
     playerFortress: playerFortress
       ? {
           id: playerFortress.id,

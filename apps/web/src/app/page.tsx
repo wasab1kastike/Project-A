@@ -84,6 +84,7 @@ function getDegradedHomePageState(): HomePageState {
     availableTargets: [],
     canJoinCycle: false,
     canEditRegistrationName: false,
+    latestSeason: null,
     emptyStateMessage:
       "Palvelussa on tilapainen hairio. Yrita hetken kuluttua uudelleen.",
   };
@@ -151,6 +152,7 @@ export default async function Home({
     session?.user && state.playerSummary?.canRegisterCommanderName
   );
   const showArcadeCard = state.phase?.status === "REGISTRATION";
+  const showSeasonBanner = Boolean(state.latestSeason);
   const isWaitingForSeason =
     !state.phase || state.phase.status === "RESOLUTION" || !state.cycle;
   const showSidePanel = Boolean(
@@ -159,7 +161,8 @@ export default async function Home({
     showJoinCard ||
     showCommanderNameCard ||
     isWaitingForSeason ||
-    showArcadeCard
+    showArcadeCard ||
+    showSeasonBanner
   );
 
   const phaseCopy =
@@ -309,7 +312,7 @@ export default async function Home({
       {notice ? <p className={styles.noticeToast}>{notice}</p> : null}
 
       {state.cycle && state.phase?.status === "ACTIVE" ? (
-        <details className={styles.wishPanel}>
+        <details className={styles.wishPanel} open>
           <summary className={styles.wishPanelToggle}>Wish</summary>
           <section
             className={styles.wishPanelContent}
@@ -397,6 +400,40 @@ export default async function Home({
           }`}
           aria-live="polite"
         >
+          {state.latestSeason ? (
+            <section className={styles.seasonSummary}>
+              <span className={styles.sectionLabel}>Previous season winner</span>
+              <h2>{state.latestSeason.winnerLabel}</h2>
+              <p>
+                {state.latestSeason.winnerFortressName} won with{" "}
+                {state.latestSeason.winningScore} points.
+              </p>
+              {state.latestSeason.firstSlayerCommanderName &&
+              state.latestSeason.firstSlayerFortressName ? (
+                <p className={styles.slayerNote}>
+                  Home of A&apos;s first slayer:{" "}
+                  {state.latestSeason.firstSlayerCommanderName} -{" "}
+                  {state.latestSeason.firstSlayerFortressName}
+                </p>
+              ) : null}
+            </section>
+          ) : null}
+          {session?.user?.id &&
+          state.latestSeason &&
+          state.latestSeason.winnerId === session.user.id &&
+          state.latestSeason.winnerRequestId === null ? (
+            <section className={styles.winnerWishPrompt}>
+              <span className={styles.sectionLabel}>Winner wish</span>
+              <h2>Your guaranteed wish is ready.</h2>
+              <p>
+                You won the last season. Open history to submit the wish that
+                will be carried forward for review.
+              </p>
+              <Link className={styles.secondaryButton} href="/history">
+                Open winner wish form
+              </Link>
+            </section>
+          ) : null}
           <span className={styles.sectionLabel}>
             {blockingMessage
               ? "Status"
