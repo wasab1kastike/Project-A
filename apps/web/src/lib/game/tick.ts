@@ -15,8 +15,8 @@ import {
 } from "./constants";
 import { launchAttackUnit } from "./attack-units";
 import {
-  COMMUNITY_WISH_VOTING_WINDOW_HOURS,
   createCommunityWishVoteEntitlements,
+  getCommunityWishProposalEndsAt,
   resolveExpiredCommunityWishVotes,
 } from "./community-wishes";
 import {
@@ -585,11 +585,9 @@ async function resolveExpiredActiveCycle(
         winnerRequestSnapshot: winnerRequest
           ? `[${winnerRequest.status}] ${winnerRequest.requestText}`
           : null,
-        communityWishVotingEndsAt: addHours(
-          resolutionEndedAt,
-          COMMUNITY_WISH_VOTING_WINDOW_HOURS
-        ),
-        communityWishStatus: "OPEN",
+        communityWishProposalEndsAt:
+          getCommunityWishProposalEndsAt(resolutionEndedAt),
+        communityWishStatus: "PROPOSALS_OPEN",
       },
     });
 

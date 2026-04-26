@@ -5,7 +5,10 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { GameError } from "@/lib/game/errors";
 import { emitProjectARefresh } from "@/lib/realtime";
-import { saveCommunityWishVotes } from "@/lib/game/community-wishes";
+import {
+  saveCommunityWishVotes,
+  submitCommunityWishProposal,
+} from "@/lib/game/community-wishes";
 import { submitWinnerRequest } from "@/lib/game/winner-requests";
 
 function getString(formData: FormData, key: string) {
@@ -33,7 +36,7 @@ async function requireUserId() {
   const userId = session?.user?.id;
 
   if (!userId) {
-    redirectToHistory("error", "Sign in as the recorded winner before submitting a request.");
+    redirectToHistory("error", "Sign in before using this history action.");
   }
 
   return userId;
@@ -93,4 +96,30 @@ export async function saveCommunityWishVotesAction(formData: FormData) {
   revalidatePath("/admin");
   revalidatePath("/history");
   redirectToHistory("notice", "Community wish votes saved.");
+}
+
+export async function submitCommunityWishProposalAction(formData: FormData) {
+  const userId = await requireUserId();
+  const cycleId = getString(formData, "cycleId");
+  const requestText = getString(formData, "requestText");
+
+  if (!cycleId) {
+    redirectToHistory("error", "Community wish is missing its cycle reference.");
+  }
+
+  try {
+    await submitCommunityWishProposal({
+      cycleId,
+      userId,
+      requestText,
+    });
+    emitProjectARefresh("community-wish-proposal");
+  } catch (error) {
+    redirectToHistory("error", getActionErrorMessage(error));
+  }
+
+  revalidatePath("/");
+  revalidatePath("/admin");
+  revalidatePath("/history");
+  redirectToHistory("notice", "Community wish saved.");
 }

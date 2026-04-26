@@ -607,8 +607,8 @@ export async function getHomePageState({
           : !communityWishOpen
             ? "Community wishes open during the active season."
             : currentUserCommunityWish
-              ? "You can edit your short English wish until the season ends. The winner gets one guaranteed wish; a second wish is vote-based."
-              : "Submit one short English wish before the cycle ends. The winner gets one guaranteed wish; a second wish is vote-based.",
+              ? "You can edit your short English wish until Monday 12:00 after the season ends. The winner gets one guaranteed wish; a second wish is vote-based."
+              : "Submit one short English wish by Monday 12:00 after the season ends. The winner gets one guaranteed wish; a second wish is vote-based.",
       proposals: cycle.communityWishProposals.map((proposal) => ({
         id: proposal.id,
         requestText: proposal.requestText,

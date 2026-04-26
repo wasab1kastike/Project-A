@@ -78,7 +78,7 @@ function getDegradedHomePageState(): HomePageState {
       closesAt: null,
       canSubmit: false,
       submissionHint:
-        "Community wishes open during the active season. Voting starts after ranks are locked.",
+        "The season winner gets one guaranteed wish. A second community wish is granted by player vote after final ranks are locked.",
       proposals: [],
     },
     availableTargets: [],

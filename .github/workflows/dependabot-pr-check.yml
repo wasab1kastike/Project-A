@@ -1,0 +1,38 @@
+name: Dependabot PR checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  dependabot-check:
+    name: Dependabot PR validation
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Typecheck (tsc)
+        run: npm run typecheck
+
+      - name: Lint (eslint)
+        run: npm run lint
+
+      - name: Run npm audit (report)
+        run: npm audit --audit-level=high || true
+
+      - name: Build web workspace
+        run: npm run build --workspace web
+
+      - name: Report success
+        run: echo "Dependabot PR checks passed."

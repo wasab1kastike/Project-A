@@ -45,6 +45,7 @@ enum WinnerRequestStatus {
 }
 
 enum CommunityWishStatus {
+  PROPOSALS_OPEN
   OPEN
   RESOLVED
   TIE_REQUIRES_ADMIN
@@ -351,6 +352,7 @@ model CycleHistory {
   communityWishSnapshot     String?                @db.Text
   communityWishVoteCount    Int                    @default(0)
   communityWishStatus       CommunityWishStatus    @default(NO_PROPOSALS)
+  communityWishProposalEndsAt DateTime?
   communityWishVotingEndsAt DateTime?
   communityWishResolvedAt   DateTime?
   communityWishResolvedById String?
@@ -363,6 +365,7 @@ model CycleHistory {
 
   @@index([winnerId])
   @@index([endedAt])
+  @@index([communityWishStatus, communityWishProposalEndsAt])
   @@index([communityWishStatus, communityWishVotingEndsAt])
   @@index([communityWishResolvedById])
 }

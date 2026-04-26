@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { CommunityWishStatus, type PrismaClient } from "@/lib/prisma-client";
 import { getCommunityWishVoteBudget } from "./community-wishes";
+import { COMMUNITY_WISH_MAX_LENGTH } from "./community-wishes";
 import { WINNER_REQUEST_POLICY_URL } from "./winner-requests";
 
 export async function getCycleHistoryPageState({
@@ -144,6 +145,7 @@ export async function getCycleHistoryPageState({
       winnerRequestStatus: entry.winnerRequest?.status ?? null,
       winnerRequestReviewNotes: entry.winnerRequest?.reviewNotes ?? null,
       communityWishStatus: entry.communityWishStatus,
+      communityWishProposalEndsAt: entry.communityWishProposalEndsAt,
       communityWishVotingEndsAt: entry.communityWishVotingEndsAt,
       communityWishResolvedAt: entry.communityWishResolvedAt,
       communityWishSnapshot:
@@ -161,9 +163,22 @@ export async function getCycleHistoryPageState({
       communityWishVoteBudget: budget.voteBudget,
       communityWishUsedVotes: budget.usedVotes,
       communityWishRemainingVotes: budget.remainingVotes,
+      communityWishCanSubmitProposal:
+        Boolean(userId) &&
+        entry.communityWishStatus === CommunityWishStatus.PROPOSALS_OPEN &&
+        entry.communityWishProposalEndsAt !== null &&
+        entry.communityWishProposalEndsAt > new Date() &&
+        entry.cycle.fortresses.some((fortress) => fortress.ownerId === userId),
+      currentUserCommunityWish:
+        entry.cycle.communityWishProposals.find(
+          (proposal) => proposal.authorId === userId
+        )?.requestText ?? "",
+      communityWishMaxLength: COMMUNITY_WISH_MAX_LENGTH,
       communityWishVotingMessage:
         entry.communityWishStatus === CommunityWishStatus.NO_PROPOSALS
           ? "No community wish proposals were submitted for this cycle."
+          : entry.communityWishStatus === CommunityWishStatus.PROPOSALS_OPEN
+            ? "Community wish proposals are open until Monday 12:00. Voting opens after proposals close."
           : entry.communityWishStatus === CommunityWishStatus.RESOLVED
             ? "Community wish voting has been resolved."
             : entry.communityWishStatus === CommunityWishStatus.TIE_REQUIRES_ADMIN

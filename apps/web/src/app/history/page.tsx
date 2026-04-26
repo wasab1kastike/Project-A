@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { getCycleHistoryPageState } from "@/lib/game/history";
 import {
   saveCommunityWishVotesAction,
+  submitCommunityWishProposalAction,
   submitWinnerRequestAction,
 } from "./actions";
 import { PATCH_NOTES_PAGE_HREF } from "@/lib/game/site-navigation";
@@ -143,6 +144,11 @@ export default async function HistoryPage({
                   <dt>Community wish status</dt>
                   <dd>
                     {entry.communityWishStatus}
+                    {entry.communityWishProposalEndsAt
+                      ? ` - proposals close ${formatDateTime(
+                          entry.communityWishProposalEndsAt
+                        )}`
+                      : ""}
                     {entry.communityWishVotingEndsAt
                       ? ` - voting ends ${formatDateTime(
                           entry.communityWishVotingEndsAt
@@ -151,6 +157,41 @@ export default async function HistoryPage({
                   </dd>
                 </div>
               </dl>
+
+              {entry.communityWishStatus === "PROPOSALS_OPEN" ? (
+                <form
+                  action={submitCommunityWishProposalAction}
+                  className={styles.formStack}
+                >
+                  <input type="hidden" name="cycleId" value={entry.cycleId} />
+                  <label
+                    className={styles.fieldStack}
+                    htmlFor={`community-wish-${entry.id}`}
+                  >
+                    <span className={styles.sectionLabel}>Community wish</span>
+                    <textarea
+                      id={`community-wish-${entry.id}`}
+                      name="requestText"
+                      rows={3}
+                      maxLength={entry.communityWishMaxLength}
+                      placeholder="Add more troop types"
+                      defaultValue={entry.currentUserCommunityWish}
+                      disabled={!entry.communityWishCanSubmitProposal}
+                      required
+                    />
+                  </label>
+                  <p className={styles.helperText}>
+                    {entry.communityWishCanSubmitProposal
+                      ? `Add or edit one short English wish until proposals close. Max ${entry.communityWishMaxLength} characters.`
+                      : entry.communityWishVotingMessage}
+                  </p>
+                  {entry.communityWishCanSubmitProposal ? (
+                    <button className={styles.primaryButton} type="submit">
+                      Save community wish
+                    </button>
+                  ) : null}
+                </form>
+              ) : null}
 
               {entry.communityWishStatus === "OPEN" &&
               entry.communityWishProposals.length > 0 ? (
