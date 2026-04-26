@@ -24,10 +24,18 @@ function formatDateTime(value: Date | null) {
   return value ? dateTimeFormatter.format(value) : "Unknown";
 }
 
-function getLootBoxSkinLabel(slot: ArcadeCosmeticSlot, variant: string) {
+function getLootBoxSkinMeta(slot: ArcadeCosmeticSlot, variant: string) {
   const skin = getArcadeLootBoxSkin(slot, variant);
 
-  return skin ? `${skin.name} (${skin.rarity})` : variant;
+  return skin
+    ? {
+        name: skin.name,
+        rarity: skin.rarity,
+      }
+    : {
+        name: variant,
+        rarity: "Common" as const,
+      };
 }
 
 function getDegradedShopState(): ArcadeHubState {
@@ -82,9 +90,14 @@ export default async function ShopPage() {
           <span className={styles.sectionLabel}>Shop</span>
           <h1>Shop</h1>
           <p>
-            Spend your coins on loot boxes, open them from your inventory, and
-            equip the skins you unlock during the build phase.
+            Browse featured crates, open them from your stash, and build out
+            your cosmetic collection during the build phase.
           </p>
+          <div className={styles.marketBanner}>
+            <span className={styles.marketPill}>Featured crates</span>
+            <span className={styles.marketPill}>Cosmetics only</span>
+            <span className={styles.marketPill}>Build phase market</span>
+          </div>
         </div>
         <div className={styles.meta}>
           <div>
@@ -107,8 +120,8 @@ export default async function ShopPage() {
           <article className={styles.card}>
             <div className={styles.cardHeader}>
               <div>
-                <span className={styles.sectionLabel}>Shop</span>
-                <h2>Loot boxes and skins</h2>
+                <span className={styles.sectionLabel}>Featured crates</span>
+                <h2>Today&apos;s market</h2>
                 <p>
                   Buy crates with coins, open them from your inventory, and equip
                   the skins you unlock.
@@ -118,20 +131,44 @@ export default async function ShopPage() {
 
             <div className={styles.shopGrid}>
               <section className={styles.shopCard}>
-                <span className={styles.subLabel}>Unit Crate</span>
-                <h3>{state.shop.unitCratePrice} coins</h3>
+                <div
+                  aria-hidden="true"
+                  className={`${styles.lootBoxArt} ${styles.lootBoxArtUnit}`}
+                />
+                <div className={styles.shopCardHeader}>
+                  <span className={styles.subLabel}>Unit Crate</span>
+                  <span className={styles.marketPill}>Unit skins</span>
+                </div>
+                <div className={styles.priceLine}>
+                  <h3>{state.shop.unitCratePrice}</h3>
+                  <span>coins</span>
+                </div>
                 <p>Unlock a random unit cosmetic skin.</p>
                 <form action={purchaseArcadeLootBoxAction}>
-                  <input type="hidden" name="crateType" value={ArcadeLootBoxType.UNIT} />
-                  <button className={styles.secondaryButton} type="submit">
+                  <input
+                    type="hidden"
+                    name="crateType"
+                    value={ArcadeLootBoxType.UNIT}
+                  />
+                  <button className={styles.primaryButton} type="submit">
                     Buy crate
                   </button>
                 </form>
               </section>
 
               <section className={styles.shopCard}>
-                <span className={styles.subLabel}>Fortress Crate</span>
-                <h3>{state.shop.fortressCratePrice} coins</h3>
+                <div
+                  aria-hidden="true"
+                  className={`${styles.lootBoxArt} ${styles.lootBoxArtFortress}`}
+                />
+                <div className={styles.shopCardHeader}>
+                  <span className={styles.subLabel}>Fortress Crate</span>
+                  <span className={styles.marketPill}>Fortress skins</span>
+                </div>
+                <div className={styles.priceLine}>
+                  <h3>{state.shop.fortressCratePrice}</h3>
+                  <span>coins</span>
+                </div>
                 <p>Unlock a random fortress cosmetic skin.</p>
                 <form action={purchaseArcadeLootBoxAction}>
                   <input
@@ -139,7 +176,7 @@ export default async function ShopPage() {
                     name="crateType"
                     value={ArcadeLootBoxType.FORTRESS}
                   />
-                  <button className={styles.secondaryButton} type="submit">
+                  <button className={styles.primaryButton} type="submit">
                     Buy crate
                   </button>
                 </form>
@@ -187,64 +224,103 @@ export default async function ShopPage() {
                     <h4>Unit</h4>
                     {state.ownedSkins.unit.length > 0 ? (
                       <div className={styles.skinList}>
-                        {state.ownedSkins.unit.map((unlock) => (
-                          <div className={styles.skinRow} key={unlock.id}>
-                            <span>
-                              {getLootBoxSkinLabel(ArcadeCosmeticSlot.UNIT, unlock.variant)}
-                              {unlock.equipped ? " (equipped)" : ""}
-                            </span>
-                            {!unlock.equipped ? (
-                              <form action={equipCosmeticUnlockAction}>
-                                <input type="hidden" name="unlockId" value={unlock.id} />
-                                <input
-                                  type="hidden"
-                                  name="slot"
-                                  value={ArcadeCosmeticSlot.UNIT}
-                                />
-                                <button className={styles.secondaryButton} type="submit">
-                                  Equip
-                                </button>
-                              </form>
-                            ) : null}
-                          </div>
-                        ))}
+                        {state.ownedSkins.unit.map((unlock) => {
+                          const skin = getLootBoxSkinMeta(
+                            ArcadeCosmeticSlot.UNIT,
+                            unlock.variant
+                          );
+
+                          return (
+                            <div className={styles.skinRow} key={unlock.id}>
+                              <div className={styles.skinInfo}>
+                                <span className={styles.skinName}>{skin.name}</span>
+                                <div className={styles.skinBadges}>
+                                  <span
+                                    className={styles.rarityChip}
+                                    data-rarity={skin.rarity}
+                                  >
+                                    {skin.rarity}
+                                  </span>
+                                  {unlock.equipped ? (
+                                    <span className={styles.equippedChip}>
+                                      Equipped
+                                    </span>
+                                  ) : null}
+                                </div>
+                              </div>
+                              {!unlock.equipped ? (
+                                <form action={equipCosmeticUnlockAction}>
+                                  <input type="hidden" name="unlockId" value={unlock.id} />
+                                  <input
+                                    type="hidden"
+                                    name="slot"
+                                    value={ArcadeCosmeticSlot.UNIT}
+                                  />
+                                  <button className={styles.secondaryButton} type="submit">
+                                    Equip
+                                  </button>
+                                </form>
+                              ) : null}
+                            </div>
+                          );
+                        })}
                       </div>
                     ) : (
-                      <p className={styles.helperText}>No unit skins unlocked yet.</p>
+                      <p className={styles.emptyState}>
+                        No unit skins unlocked yet. Open a unit crate to start your
+                        collection.
+                      </p>
                     )}
                   </div>
                   <div>
                     <h4>Fortress</h4>
                     {state.ownedSkins.fortress.length > 0 ? (
                       <div className={styles.skinList}>
-                        {state.ownedSkins.fortress.map((unlock) => (
-                          <div className={styles.skinRow} key={unlock.id}>
-                            <span>
-                              {getLootBoxSkinLabel(
-                                ArcadeCosmeticSlot.FORTRESS,
-                                unlock.variant
-                              )}
-                              {unlock.equipped ? " (equipped)" : ""}
-                            </span>
-                            {!unlock.equipped ? (
-                              <form action={equipCosmeticUnlockAction}>
-                                <input type="hidden" name="unlockId" value={unlock.id} />
-                                <input
-                                  type="hidden"
-                                  name="slot"
-                                  value={ArcadeCosmeticSlot.FORTRESS}
-                                />
-                                <button className={styles.secondaryButton} type="submit">
-                                  Equip
-                                </button>
-                              </form>
-                            ) : null}
-                          </div>
-                        ))}
+                        {state.ownedSkins.fortress.map((unlock) => {
+                          const skin = getLootBoxSkinMeta(
+                            ArcadeCosmeticSlot.FORTRESS,
+                            unlock.variant
+                          );
+
+                          return (
+                            <div className={styles.skinRow} key={unlock.id}>
+                              <div className={styles.skinInfo}>
+                                <span className={styles.skinName}>{skin.name}</span>
+                                <div className={styles.skinBadges}>
+                                  <span
+                                    className={styles.rarityChip}
+                                    data-rarity={skin.rarity}
+                                  >
+                                    {skin.rarity}
+                                  </span>
+                                  {unlock.equipped ? (
+                                    <span className={styles.equippedChip}>
+                                      Equipped
+                                    </span>
+                                  ) : null}
+                                </div>
+                              </div>
+                              {!unlock.equipped ? (
+                                <form action={equipCosmeticUnlockAction}>
+                                  <input type="hidden" name="unlockId" value={unlock.id} />
+                                  <input
+                                    type="hidden"
+                                    name="slot"
+                                    value={ArcadeCosmeticSlot.FORTRESS}
+                                  />
+                                  <button className={styles.secondaryButton} type="submit">
+                                    Equip
+                                  </button>
+                                </form>
+                              ) : null}
+                            </div>
+                          );
+                        })}
                       </div>
                     ) : (
-                      <p className={styles.helperText}>
-                        No fortress skins unlocked yet.
+                      <p className={styles.emptyState}>
+                        No fortress skins unlocked yet. Open a fortress crate to
+                        start your collection.
                       </p>
                     )}
                   </div>
@@ -255,7 +331,7 @@ export default async function ShopPage() {
 
           <article className={styles.card}>
             <span className={styles.subLabel}>Ledger</span>
-            <h2>Recent shop activity</h2>
+            <h2>Recent activity</h2>
             {state.recentTransactions.length > 0 ? (
               <ul className={styles.ledgerList}>
                 {state.recentTransactions.map((entry) => (

@@ -1,19 +1,39 @@
 .page {
+  position: relative;
   min-height: 100vh;
   padding: 32px;
   display: grid;
   gap: 20px;
   background:
-    radial-gradient(circle at top left, rgba(103, 196, 207, 0.16), transparent 28%),
-    linear-gradient(180deg, #081018, #05080d 60%, #04070b);
+    radial-gradient(circle at top left, rgba(247, 196, 95, 0.22), transparent 22%),
+    radial-gradient(circle at top right, rgba(103, 196, 207, 0.18), transparent 26%),
+    linear-gradient(180deg, #dfe8ec 0%, #cfdce3 46%, #bccbd5 100%);
+  color: #173043;
+  overflow: hidden;
+}
+
+.page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.18)),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: auto, 56px 56px, 56px 56px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.92), transparent 120%);
 }
 
 .hero,
 .lockedCard {
-  border: 1px solid var(--border-soft);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(58, 86, 102, 0.16);
   border-radius: 8px;
-  background: rgba(7, 13, 20, 0.92);
+  background: linear-gradient(180deg, rgba(251, 253, 255, 0.86), rgba(238, 244, 247, 0.82));
   padding: 20px;
+  box-shadow: 0 18px 36px rgba(40, 56, 68, 0.12);
 }
 
 .heroCopy {
@@ -28,6 +48,15 @@
   align-items: start;
 }
 
+.hero::after,
+.shopCard::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.22), transparent 42%);
+}
+
 .sectionLabel {
   display: inline-flex;
   margin-bottom: 8px;
@@ -35,20 +64,75 @@
   font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--text-muted);
+  color: #7e5d11;
 }
 
 .hero h1,
 .lockedCard h2 {
   margin: 0;
-  font-size: 2rem;
+  font-size: 2.15rem;
+  color: #102531;
 }
 
 .hero p,
 .lockedCard p {
   margin: 8px 0 0;
   max-width: 56ch;
-  color: var(--text-muted);
+  color: #516473;
+}
+
+.marketBanner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.marketPill,
+.equippedChip,
+.rarityChip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid rgba(58, 86, 102, 0.16);
+}
+
+.marketPill {
+  background: rgba(247, 196, 95, 0.16);
+  border-color: rgba(247, 196, 95, 0.34);
+  color: #6a4b0f;
+}
+
+.equippedChip {
+  background: rgba(87, 152, 103, 0.14);
+  border-color: rgba(87, 152, 103, 0.26);
+  color: #356447;
+}
+
+.rarityChip[data-rarity="Common"] {
+  background: rgba(75, 110, 131, 0.12);
+  color: #375062;
+}
+
+.rarityChip[data-rarity="Rare"] {
+  background: rgba(80, 119, 214, 0.12);
+  color: #3557a3;
+}
+
+.rarityChip[data-rarity="Epic"] {
+  background: rgba(170, 96, 214, 0.13);
+  color: #7440a7;
+}
+
+.rarityChip[data-rarity="Legendary"] {
+  background: rgba(247, 196, 95, 0.18);
+  color: #8a6310;
 }
 
 .meta {
@@ -62,12 +146,13 @@
   gap: 4px;
   padding: 12px;
   border-radius: 8px;
-  border: 1px solid var(--border-soft);
-  background: rgba(10, 16, 23, 0.92);
+  border: 1px solid rgba(58, 86, 102, 0.16);
+  background: rgba(255, 255, 255, 0.74);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
 .meta span {
-  color: var(--text-muted);
+  color: #6c7f8d;
   font-family: var(--font-ibm-plex-mono);
   font-size: 0.68rem;
   text-transform: uppercase;
@@ -75,6 +160,7 @@
 
 .meta strong {
   font-size: 1rem;
+  color: #102531;
 }
 
 .actions {
@@ -99,30 +185,53 @@
 }
 
 .primaryButton {
-  background: var(--accent-strong);
-  color: #14202f;
+  background: linear-gradient(180deg, #f8cd74, #e6ac3d);
+  color: #1e2018;
   font-weight: 800;
+  box-shadow: 0 10px 20px rgba(230, 172, 61, 0.25);
 }
 
 .secondaryButton {
-  background: rgba(14, 22, 31, 0.94);
-  border-color: rgba(255, 255, 255, 0.12);
-  color: var(--foreground);
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(58, 86, 102, 0.18);
+  color: #183244;
 }
 
 .hubGrid {
   display: grid;
   gap: 18px;
+  grid-template-columns: minmax(0, 1.55fr) minmax(290px, 0.82fr);
+  align-items: start;
 }
 
 .card,
 .shopCard,
 .inventoryCard,
 .gameCard {
-  border: 1px solid var(--border-soft);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(58, 86, 102, 0.16);
   border-radius: 8px;
-  background: rgba(7, 13, 20, 0.92);
+  background: linear-gradient(180deg, rgba(251, 253, 255, 0.84), rgba(241, 246, 249, 0.78));
   padding: 18px;
+  box-shadow: 0 14px 28px rgba(40, 56, 68, 0.11);
+}
+
+.shopCard {
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease;
+}
+
+.shopCard:hover {
+  transform: translateY(-2px);
+  border-color: rgba(230, 172, 61, 0.38);
+  box-shadow: 0 18px 34px rgba(40, 56, 68, 0.14);
+}
+
+.hubGrid > .card:last-child {
+  padding: 16px;
 }
 
 .card {
@@ -154,98 +263,88 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.catalogCard {
-  display: grid;
-  gap: 14px;
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  background: rgba(7, 13, 20, 0.92);
-  padding: 18px;
-}
-
-.catalogImage {
-  width: min(100%, 280px);
-  height: auto;
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  background: rgba(10, 16, 23, 0.92);
-}
-
-.catalogSheets {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  width: min(100%, 600px);
-}
-
-.catalogDetails {
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  background: rgba(10, 16, 23, 0.84);
-  padding: 12px 14px;
-}
-
-.catalogDetails summary {
-  cursor: pointer;
-  font-family: var(--font-ibm-plex-mono);
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--foreground);
-}
-
-.catalogColumns {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  margin-top: 12px;
-}
-
-.catalogColumns h4 {
-  margin: 0 0 8px;
-  font-size: 0.95rem;
-}
-
-.catalogList {
-  display: grid;
-  gap: 10px;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.catalogList li {
-  display: grid;
-  gap: 4px;
-  padding: 10px 12px;
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  background: rgba(5, 10, 16, 0.82);
-}
-
-.catalogList strong {
-  font-size: 0.92rem;
-}
-
-.catalogList span {
-  color: var(--text-muted);
-  font-family: var(--font-ibm-plex-mono);
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.catalogList p {
-  margin: 0;
-  color: var(--text-muted);
-  line-height: 1.45;
-}
-
 .gameCard,
 .shopCard,
 .inventoryCard {
   display: grid;
   gap: 12px;
+}
+
+.lootBoxArt {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 1px solid rgba(58, 86, 102, 0.18);
+  border-radius: 12px;
+  background-image: url("/assets/loot-box-sprites-normal.png");
+  background-repeat: no-repeat;
+  background-size: 200% 100%;
+  background-color: rgba(241, 246, 249, 0.92);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.65),
+    0 14px 24px rgba(44, 61, 74, 0.14);
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    filter 160ms ease;
+}
+
+.shopCard:hover .lootBoxArt {
+  transform: translateY(-2px) scale(1.01);
+  filter: saturate(1.04) contrast(1.02);
+}
+
+.shopCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.priceLine {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.priceLine h3 {
+  margin: 0;
+  font-size: 1.8rem;
+  line-height: 1;
+  color: #102531;
+}
+
+.priceLine span {
+  color: #6c7f8d;
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.lootBoxArtUnit {
+  background-position: 100% 50%;
+}
+
+.lootBoxArtFortress {
+  background-position: 0% 50%;
+}
+
+.skinInfo {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.skinName {
+  display: block;
+  color: #102531;
+  font-weight: 700;
+}
+
+.skinBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .formStack {
@@ -260,7 +359,7 @@
 
 .field span,
 .subLabel {
-  color: var(--text-muted);
+  color: #6c7f8d;
   font-family: var(--font-ibm-plex-mono);
   font-size: 0.68rem;
   letter-spacing: 0.08em;
@@ -271,22 +370,32 @@
 .field select {
   min-height: 40px;
   padding: 0 12px;
-  border: 1px solid var(--border-soft);
+  border: 1px solid rgba(58, 86, 102, 0.18);
   border-radius: 8px;
-  background: rgba(10, 16, 23, 0.9);
-  color: var(--foreground);
+  background: rgba(255, 255, 255, 0.76);
+  color: #102531;
   font: inherit;
 }
 
 .field input:focus,
 .field select:focus {
-  outline: 2px solid rgba(247, 196, 95, 0.22);
-  border-color: var(--border-strong);
+  outline: 2px solid rgba(247, 196, 95, 0.24);
+  border-color: rgba(230, 172, 61, 0.6);
 }
 
 .helperText {
-  color: var(--text-muted);
+  color: #6c7f8d;
   line-height: 1.55;
+}
+
+.emptyState {
+  margin: 0;
+  padding: 14px;
+  border: 1px dashed rgba(58, 86, 102, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.58);
+  color: #5d7180;
+  line-height: 1.5;
 }
 
 .purchaseList,
@@ -304,9 +413,9 @@
   justify-content: space-between;
   gap: 12px;
   padding: 12px;
-  border: 1px solid var(--border-soft);
+  border: 1px solid rgba(58, 86, 102, 0.14);
   border-radius: 8px;
-  background: rgba(10, 16, 23, 0.84);
+  background: rgba(255, 255, 255, 0.66);
 }
 
 .purchaseRow div,
@@ -316,15 +425,15 @@
 }
 
 .purchaseRow strong,
-.skinRow span,
 .ledgerList strong {
   display: block;
+  color: #102531;
 }
 
 .purchaseRow p,
 .ledgerList p {
   margin: 4px 0 0;
-  color: var(--text-muted);
+  color: #6a7e8d;
   line-height: 1.45;
 }
 
@@ -337,19 +446,20 @@
 .skinColumns h4 {
   margin: 0 0 8px;
   font-size: 0.95rem;
+  color: #102531;
 }
 
 .ledgerMeta {
   display: grid;
   justify-items: end;
   gap: 4px;
-  color: var(--text-muted);
+  color: #6c7f8d;
   font-family: var(--font-ibm-plex-mono);
   font-size: 0.8rem;
 }
 
 .ledgerMeta span {
-  color: var(--foreground);
+  color: #102531;
   font-size: 0.92rem;
   font-weight: 700;
 }
@@ -368,17 +478,13 @@
     font-size: 1.6rem;
   }
 
+  .hubGrid,
   .gameGrid,
   .shopGrid,
   .inventoryGrid,
   .skinColumns,
   .catalogColumns {
     grid-template-columns: 1fr;
-  }
-
-  .catalogSheets {
-    grid-template-columns: 1fr;
-    width: 100%;
   }
 
   .purchaseRow,
