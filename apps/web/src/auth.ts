@@ -14,6 +14,15 @@ const authUrl =
   process.env.NEXTAUTH_URL ??
   process.env.RENDER_EXTERNAL_URL ??
   null;
+const unsafePlaceholderValues = new Set([
+  "replace-me",
+  "replace-with-a-long-random-string",
+  "admin@example.com",
+]);
+
+function isUnsafePlaceholder(value: string | null | undefined) {
+  return value ? unsafePlaceholderValues.has(value.trim().toLowerCase()) : false;
+}
 
 if (authUrl) {
   // The custom Node server listens on 0.0.0.0 inside Render, so pin Auth.js
@@ -34,10 +43,22 @@ if (shouldValidateAuthEnv) {
     !googleClientSecret ? "AUTH_GOOGLE_SECRET" : null,
     !authUrl ? "AUTH_URL, NEXTAUTH_URL, or RENDER_EXTERNAL_URL" : null,
   ].filter(Boolean);
+  const placeholders = [
+    isUnsafePlaceholder(authSecret) ? "AUTH_SECRET" : null,
+    isUnsafePlaceholder(googleClientId) ? "AUTH_GOOGLE_ID" : null,
+    isUnsafePlaceholder(googleClientSecret) ? "AUTH_GOOGLE_SECRET" : null,
+  ].filter(Boolean);
 
-  if (missing.length > 0) {
+  if (missing.length > 0 || placeholders.length > 0) {
+    const details = [
+      missing.length > 0 ? `Missing: ${missing.join(", ")}` : null,
+      placeholders.length > 0
+        ? `Replace placeholder values for: ${placeholders.join(", ")}`
+        : null,
+    ].filter(Boolean);
+
     throw new Error(
-      `Project-A auth is misconfigured for production. Missing: ${missing.join(", ")}.`
+      `Project-A auth is misconfigured for production. ${details.join(" ")}.`
     );
   }
 }

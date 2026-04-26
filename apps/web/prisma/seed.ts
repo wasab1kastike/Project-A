@@ -10,10 +10,27 @@ const prisma = new PrismaClient({
       }
     : undefined,
 });
+const unsafeAdminEmailPlaceholders = new Set(["admin@example.com", "replace-me"]);
+
+function getAdminEmail() {
+  const adminEmail = process.env.ADMIN_EMAIL?.trim();
+
+  if (!adminEmail) {
+    return undefined;
+  }
+
+  if (unsafeAdminEmailPlaceholders.has(adminEmail.toLowerCase())) {
+    throw new Error(
+      "ADMIN_EMAIL is still set to a placeholder value. Use a real admin email or unset ADMIN_EMAIL."
+    );
+  }
+
+  return adminEmail;
+}
 
 async function main() {
   const result = await seedProjectA(prisma, {
-    adminEmail: process.env.ADMIN_EMAIL,
+    adminEmail: getAdminEmail(),
   });
 
   if (result.adminEmail) {
