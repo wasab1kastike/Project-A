@@ -247,37 +247,60 @@ export default async function ArcadePage() {
             <section className={styles.catalogCard}>
               <div className={styles.cardHeader}>
                 <div>
-                  <span className={styles.sectionLabel}>Loot box set 1</span>
+                  <span className={styles.sectionLabel}>Loot box catalog</span>
                   <h3>Skin catalog</h3>
                   <p>
-                    Unit crates pull from the unit pool. Fortress crates pull from
-                    the fortress pool.
+                    Unit crates pull from the unit pool. Fortress crates now pull
+                    from two fortress sheets.
                   </p>
                 </div>
-                <Image
-                  alt="Loot box set 1 sheet"
-                  className={styles.catalogImage}
-                  height={512}
-                  src="/assets/loot-box-set-1.png"
-                  width={512}
-                />
+                <div className={styles.catalogSheets}>
+                  <Image
+                    alt="Loot box set 1 sheet"
+                    className={styles.catalogImage}
+                    height={512}
+                    src="/assets/loot-box-set-1.png"
+                    width={512}
+                  />
+                  <Image
+                    alt="Loot box fortress set 2 sheet"
+                    className={styles.catalogImage}
+                    height={512}
+                    src="/assets/loot-box-fortress-set2.png"
+                    width={512}
+                  />
+                </div>
               </div>
 
               <details className={styles.catalogDetails}>
                 <summary>View full skin pool</summary>
                 <div className={styles.catalogColumns}>
                   <div>
-                    <h4>Fortress crate</h4>
+                    <h4>Fortress set 1</h4>
                     <ul className={styles.catalogList}>
-                      {ARCADE_LOOT_BOX_SKINS[ArcadeCosmeticSlot.FORTRESS].map(
-                        (skin) => (
+                      {ARCADE_LOOT_BOX_SKINS[ArcadeCosmeticSlot.FORTRESS]
+                        .slice(0, 8)
+                        .map((skin) => (
                           <li key={skin.variant}>
                             <strong>{skin.name}</strong>
                             <span>{skin.rarity}</span>
                             <p>{skin.description}</p>
                           </li>
-                        )
-                      )}
+                        ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <h4>Fortress set 2</h4>
+                    <ul className={styles.catalogList}>
+                      {ARCADE_LOOT_BOX_SKINS[ArcadeCosmeticSlot.FORTRESS]
+                        .slice(8)
+                        .map((skin) => (
+                          <li key={skin.variant}>
+                            <strong>{skin.name}</strong>
+                            <span>{skin.rarity}</span>
+                            <p>{skin.description}</p>
+                          </li>
+                        ))}
                     </ul>
                   </div>
                   <div>

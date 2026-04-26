@@ -51,186 +51,240 @@ export type ArcadeLootBoxSkin = {
   slot: ArcadeCosmeticSlot;
 };
 
+export const ARCADE_FORTRESS_LOOT_BOX_SKINS_SET_1 = [
+  {
+    variant: "ice-fortress",
+    name: "Ice Fortress",
+    rarity: "Rare",
+    description: "Frozen citadel carved from eternal glacier walls.",
+    slot: ArcadeCosmeticSlot.FORTRESS,
+  },
+  {
+    variant: "lava-citadel",
+    name: "Lava Citadel",
+    rarity: "Epic",
+    description: "Magma-fed fortress built where sanity ends.",
+    slot: ArcadeCosmeticSlot.FORTRESS,
+  },
+  {
+    variant: "forest-keep",
+    name: "Forest Keep",
+    rarity: "Rare",
+    description: "Hidden woodland stronghold defended by roots and stone.",
+    slot: ArcadeCosmeticSlot.FORTRESS,
+  },
+  {
+    variant: "void-castle",
+    name: "Void Castle",
+    rarity: "Legendary",
+    description: "Dark palace pulsing with forbidden energy.",
+    slot: ArcadeCosmeticSlot.FORTRESS,
+  },
+  {
+    variant: "frosthold-bastion",
+    name: "Frosthold Bastion",
+    rarity: "Rare",
+    description: "Northern military base hardened by endless winter.",
+    slot: ArcadeCosmeticSlot.FORTRESS,
+  },
+  {
+    variant: "molten-stronghold",
+    name: "Molten Stronghold",
+    rarity: "Epic",
+    description: "Blackrock fortress with rivers of living fire.",
+    slot: ArcadeCosmeticSlot.FORTRESS,
+  },
+  {
+    variant: "golden-capital",
+    name: "Golden Capital",
+    rarity: "Legendary",
+    description: "Wealthy imperial seat plated in gold and ego.",
+    slot: ArcadeCosmeticSlot.FORTRESS,
+  },
+  {
+    variant: "shadow-spire",
+    name: "Shadow Spire",
+    rarity: "Legendary",
+    description: "Towering bastion where light goes to die.",
+    slot: ArcadeCosmeticSlot.FORTRESS,
+  },
+] as const satisfies readonly ArcadeLootBoxSkin[];
+
+export const ARCADE_FORTRESS_LOOT_BOX_SKINS_SET_2 = [
+  {
+    variant: "desert-fortress",
+    name: "Desert Fortress",
+    rarity: "Common",
+    description: "Sun-scorched stronghold built from sandstone and stubbornness.",
+    slot: ArcadeCosmeticSlot.FORTRESS,
+  },
+  {
+    variant: "crystal-citadel",
+    name: "Crystal Citadel",
+    rarity: "Epic",
+    description: "Frozen palace of enchanted crystal radiating arcane power.",
+    slot: ArcadeCosmeticSlot.FORTRESS,
+  },
+  {
+    variant: "cyber-fortress",
+    name: "Cyber Fortress",
+    rarity: "Legendary",
+    description: "Reinforced machine citadel powered by neon cores and steel logic.",
+    slot: ArcadeCosmeticSlot.FORTRESS,
+  },
+  {
+    variant: "swamp-keep",
+    name: "Swamp Keep",
+    rarity: "Common",
+    description: "Moss-covered marsh bastion hidden beneath mist and vines.",
+    slot: ArcadeCosmeticSlot.FORTRESS,
+  },
+  {
+    variant: "mechanical-drill-fortress",
+    name: "Mechanical Drill Fortress",
+    rarity: "Legendary",
+    description: "Siege fortress equipped with a colossal tunneling engine.",
+    slot: ArcadeCosmeticSlot.FORTRESS,
+  },
+  {
+    variant: "ancient-mire-temple",
+    name: "Ancient Mire Temple",
+    rarity: "Rare",
+    description: "Forgotten jungle-water ruin reclaimed by nature and old magic.",
+    slot: ArcadeCosmeticSlot.FORTRESS,
+  },
+] as const satisfies readonly ArcadeLootBoxSkin[];
+
+export const ARCADE_UNIT_LOOT_BOX_SKINS = [
+  {
+    variant: "silver-knight",
+    name: "Silver Knight",
+    rarity: "Common",
+    description: "Reliable frontline warrior clad in polished steel.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "lava-berserker",
+    name: "Lava Berserker",
+    rarity: "Epic",
+    description: "Molten brute that fights hotter as battle drags on.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "forest-archer",
+    name: "Forest Archer",
+    rarity: "Common",
+    description: "Calm hunter with precise aim and leafy camouflage.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "apprentice-mage",
+    name: "Apprentice Mage",
+    rarity: "Common",
+    description: "Young caster with talent exceeding experience.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "shadow-rogue",
+    name: "Shadow Rogue",
+    rarity: "Rare",
+    description: "Silent infiltrator who appears behind your backline.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "void-sorcerer",
+    name: "Void Sorcerer",
+    rarity: "Epic",
+    description: "Hooded caster wielding unstable cosmic power.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "dark-vanguard",
+    name: "Dark Vanguard",
+    rarity: "Rare",
+    description: "Heavy infantry sworn to ruthless conquest.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "stone-berserker",
+    name: "Stone Berserker",
+    rarity: "Rare",
+    description: "Rocky juggernaut that shrugs off punishment.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "ranger-scout",
+    name: "Ranger Scout",
+    rarity: "Common",
+    description: "Fast-moving bowman built for flanks and picks.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "steam-engineer",
+    name: "Steam Engineer",
+    rarity: "Rare",
+    description: "Gadget specialist with too many tools.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "clockwork-smith",
+    name: "Clockwork Smith",
+    rarity: "Rare",
+    description: "Armored mechanic forging victory mid-battle.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "purple-necromancer",
+    name: "Purple Necromancer",
+    rarity: "Epic",
+    description: "Reanimator of the fallen and morale destroyer.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "gold-prospector",
+    name: "Gold Prospector",
+    rarity: "Common",
+    description: "Coin-hungry adventurer who somehow survives.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "bone-reaver",
+    name: "Bone Reaver",
+    rarity: "Epic",
+    description: "Grim executioner wrapped in deathly trophies.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "hooded-hexer",
+    name: "Hooded Hexer",
+    rarity: "Rare",
+    description: "Dark mystic with curses ready to deploy.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+  {
+    variant: "crystal-warlock",
+    name: "Crystal Warlock",
+    rarity: "Legendary",
+    description: "Ancient spellcaster empowered by glowing gems.",
+    slot: ArcadeCosmeticSlot.UNIT,
+  },
+] as const satisfies readonly ArcadeLootBoxSkin[];
+
 export const ARCADE_LOOT_BOX_SKINS = {
   [ArcadeCosmeticSlot.FORTRESS]: [
-    {
-      variant: "ice-fortress",
-      name: "Ice Fortress",
-      rarity: "Rare",
-      description: "Frozen citadel carved from eternal glacier walls.",
-      slot: ArcadeCosmeticSlot.FORTRESS,
-    },
-    {
-      variant: "lava-citadel",
-      name: "Lava Citadel",
-      rarity: "Epic",
-      description: "Magma-fed fortress built where sanity ends.",
-      slot: ArcadeCosmeticSlot.FORTRESS,
-    },
-    {
-      variant: "forest-keep",
-      name: "Forest Keep",
-      rarity: "Rare",
-      description: "Hidden woodland stronghold defended by roots and stone.",
-      slot: ArcadeCosmeticSlot.FORTRESS,
-    },
-    {
-      variant: "void-castle",
-      name: "Void Castle",
-      rarity: "Legendary",
-      description: "Dark palace pulsing with forbidden energy.",
-      slot: ArcadeCosmeticSlot.FORTRESS,
-    },
-    {
-      variant: "frosthold-bastion",
-      name: "Frosthold Bastion",
-      rarity: "Rare",
-      description: "Northern military base hardened by endless winter.",
-      slot: ArcadeCosmeticSlot.FORTRESS,
-    },
-    {
-      variant: "molten-stronghold",
-      name: "Molten Stronghold",
-      rarity: "Epic",
-      description: "Blackrock fortress with rivers of living fire.",
-      slot: ArcadeCosmeticSlot.FORTRESS,
-    },
-    {
-      variant: "golden-capital",
-      name: "Golden Capital",
-      rarity: "Legendary",
-      description: "Wealthy imperial seat plated in gold and ego.",
-      slot: ArcadeCosmeticSlot.FORTRESS,
-    },
-    {
-      variant: "shadow-spire",
-      name: "Shadow Spire",
-      rarity: "Legendary",
-      description: "Towering bastion where light goes to die.",
-      slot: ArcadeCosmeticSlot.FORTRESS,
-    },
+    ...ARCADE_FORTRESS_LOOT_BOX_SKINS_SET_1,
+    ...ARCADE_FORTRESS_LOOT_BOX_SKINS_SET_2,
   ],
-  [ArcadeCosmeticSlot.UNIT]: [
-    {
-      variant: "silver-knight",
-      name: "Silver Knight",
-      rarity: "Common",
-      description: "Reliable frontline warrior clad in polished steel.",
-      slot: ArcadeCosmeticSlot.UNIT,
-    },
-    {
-      variant: "lava-berserker",
-      name: "Lava Berserker",
-      rarity: "Epic",
-      description: "Molten brute that fights hotter as battle drags on.",
-      slot: ArcadeCosmeticSlot.UNIT,
-    },
-    {
-      variant: "forest-archer",
-      name: "Forest Archer",
-      rarity: "Common",
-      description: "Calm hunter with precise aim and leafy camouflage.",
-      slot: ArcadeCosmeticSlot.UNIT,
-    },
-    {
-      variant: "apprentice-mage",
-      name: "Apprentice Mage",
-      rarity: "Common",
-      description: "Young caster with talent exceeding experience.",
-      slot: ArcadeCosmeticSlot.UNIT,
-    },
-    {
-      variant: "shadow-rogue",
-      name: "Shadow Rogue",
-      rarity: "Rare",
-      description: "Silent infiltrator who appears behind your backline.",
-      slot: ArcadeCosmeticSlot.UNIT,
-    },
-    {
-      variant: "void-sorcerer",
-      name: "Void Sorcerer",
-      rarity: "Epic",
-      description: "Hooded caster wielding unstable cosmic power.",
-      slot: ArcadeCosmeticSlot.UNIT,
-    },
-    {
-      variant: "dark-vanguard",
-      name: "Dark Vanguard",
-      rarity: "Rare",
-      description: "Heavy infantry sworn to ruthless conquest.",
-      slot: ArcadeCosmeticSlot.UNIT,
-    },
-    {
-      variant: "stone-berserker",
-      name: "Stone Berserker",
-      rarity: "Rare",
-      description: "Rocky juggernaut that shrugs off punishment.",
-      slot: ArcadeCosmeticSlot.UNIT,
-    },
-    {
-      variant: "ranger-scout",
-      name: "Ranger Scout",
-      rarity: "Common",
-      description: "Fast-moving bowman built for flanks and picks.",
-      slot: ArcadeCosmeticSlot.UNIT,
-    },
-    {
-      variant: "steam-engineer",
-      name: "Steam Engineer",
-      rarity: "Rare",
-      description: "Gadget specialist with too many tools.",
-      slot: ArcadeCosmeticSlot.UNIT,
-    },
-    {
-      variant: "clockwork-smith",
-      name: "Clockwork Smith",
-      rarity: "Rare",
-      description: "Armored mechanic forging victory mid-battle.",
-      slot: ArcadeCosmeticSlot.UNIT,
-    },
-    {
-      variant: "purple-necromancer",
-      name: "Purple Necromancer",
-      rarity: "Epic",
-      description: "Reanimator of the fallen and morale destroyer.",
-      slot: ArcadeCosmeticSlot.UNIT,
-    },
-    {
-      variant: "gold-prospector",
-      name: "Gold Prospector",
-      rarity: "Common",
-      description: "Coin-hungry adventurer who somehow survives.",
-      slot: ArcadeCosmeticSlot.UNIT,
-    },
-    {
-      variant: "bone-reaver",
-      name: "Bone Reaver",
-      rarity: "Epic",
-      description: "Grim executioner wrapped in deathly trophies.",
-      slot: ArcadeCosmeticSlot.UNIT,
-    },
-    {
-      variant: "hooded-hexer",
-      name: "Hooded Hexer",
-      rarity: "Rare",
-      description: "Dark mystic with curses ready to deploy.",
-      slot: ArcadeCosmeticSlot.UNIT,
-    },
-    {
-      variant: "crystal-warlock",
-      name: "Crystal Warlock",
-      rarity: "Legendary",
-      description: "Ancient spellcaster empowered by glowing gems.",
-      slot: ArcadeCosmeticSlot.UNIT,
-    },
-  ],
+  [ArcadeCosmeticSlot.UNIT]: ARCADE_UNIT_LOOT_BOX_SKINS,
 } as const satisfies Record<ArcadeCosmeticSlot, readonly ArcadeLootBoxSkin[]>;
 
 export function getArcadeLootBoxSkin(
   slot: ArcadeCosmeticSlot,
   variant: string
 ) {
-  return ARCADE_LOOT_BOX_SKINS[slot].find((skin) => skin.variant === variant) ?? null;
+  return (
+    ARCADE_LOOT_BOX_SKINS[slot].find((skin) => skin.variant === variant) ?? null
+  );
 }
 
 export const ARCADE_SEASON_BASE_COINS = 100;
