@@ -505,9 +505,24 @@ export function getArcadeLootBoxSkin(
   );
 }
 
-export const ARCADE_SEASON_BASE_COINS = 100;
+export const ARCADE_SEASON_BASE_COINS = 300;
 export const ARCADE_SEASON_POINTS_BONUS_DIVISOR = 100;
 export const ARCADE_SEASON_POINTS_BONUS_CAP = 100;
+export const ARCADE_SEASON_RANK_BONUS_BY_POSITION = [
+  100,
+  80,
+  60,
+  40,
+  20,
+] as const;
+
+export function getArcadeSeasonRankBonus(rank: number) {
+  if (rank < 1 || rank > ARCADE_SEASON_RANK_BONUS_BY_POSITION.length) {
+    return 0;
+  }
+
+  return ARCADE_SEASON_RANK_BONUS_BY_POSITION[rank - 1] ?? 0;
+}
 
 export const ARCADE_UNIT_LOOT_BOX_PRICE = 75;
 export const ARCADE_FORTRESS_LOOT_BOX_PRICE = 75;

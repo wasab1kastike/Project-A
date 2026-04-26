@@ -609,6 +609,7 @@ async function resolveExpiredActiveCycle(
       cycleId: cycle.id,
       now: resolutionEndedAt,
       db: tx,
+      rankedFortresses,
     });
 
     await ensureOpenRegistrationCycle(tx, resolutionEndedAt);

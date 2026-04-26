@@ -18,6 +18,7 @@ import {
   ARCADE_SEASON_BASE_COINS,
   ARCADE_SEASON_POINTS_BONUS_CAP,
   ARCADE_SEASON_POINTS_BONUS_DIVISOR,
+  getArcadeSeasonRankBonus,
   ARCADE_UNIT_LOOT_BOX_PRICE,
   ARCADE_LOOT_BOX_SKINS,
   type ArcadeLootBoxSkin,
@@ -252,10 +253,14 @@ export async function mintSeasonArcadeCoins({
   cycleId,
   now = new Date(),
   db = prisma,
+  rankedFortresses = [],
 }: {
   cycleId: string;
   now?: Date;
   db?: DatabaseClient;
+  rankedFortresses?: Array<{
+    ownerId: string;
+  }>;
 }) {
   const cycle = await db.cycle.findUnique({
     where: {
@@ -284,58 +289,80 @@ export async function mintSeasonArcadeCoins({
   return withArcadeTransaction(
     db,
     async (tx) => {
-    let mintedPlayers = 0;
-    let mintedCoins = 0;
+      let mintedPlayers = 0;
+      let mintedCoins = 0;
+      const fortressesByOwnerId = new Map(
+        cycle.fortresses.map((fortress) => [fortress.ownerId, fortress])
+      );
+      const orderedFortresses = (
+        rankedFortresses.length > 0 ? rankedFortresses : cycle.fortresses
+      )
+        .map((entry, index) => {
+          const fortress = fortressesByOwnerId.get(entry.ownerId);
 
-    for (const fortress of cycle.fortresses) {
-      const dedupeKey = `season-payout:${cycle.id}:${fortress.ownerId}`;
-      const existing = await tx.arcadeTransaction.findUnique({
-        where: {
-          dedupeKey,
-        },
-        select: {
-          id: true,
-        },
-      });
+          return fortress ? { fortress, rank: index + 1 } : null;
+        })
+        .filter(
+          (
+            entry
+          ): entry is {
+            fortress: (typeof cycle.fortresses)[number];
+            rank: number;
+          } => entry !== null
+        );
 
-      if (existing) {
-        continue;
-      }
+      for (const { fortress, rank } of orderedFortresses) {
+        const dedupeKey = `season-payout:${cycle.id}:${fortress.ownerId}`;
+        const existing = await tx.arcadeTransaction.findUnique({
+          where: {
+            dedupeKey,
+          },
+          select: {
+            id: true,
+          },
+        });
 
-      const bonus = getSeasonBonus(fortress.points);
-      const payout = ARCADE_SEASON_BASE_COINS + bonus;
-      const wallet = await ensureArcadeWallet(tx, fortress.ownerId);
-      const balanceAfter = wallet.balance + payout;
+        if (existing) {
+          continue;
+        }
 
-      await tx.arcadeWallet.update({
-        where: {
+        const bonus = getSeasonBonus(fortress.points);
+        const rankBonus = getArcadeSeasonRankBonus(rank);
+        const payout = ARCADE_SEASON_BASE_COINS + bonus + rankBonus;
+        const wallet = await ensureArcadeWallet(tx, fortress.ownerId);
+        const balanceAfter = wallet.balance + payout;
+
+        await tx.arcadeWallet.update({
+          where: {
+            userId: fortress.ownerId,
+          },
+          data: {
+            balance: balanceAfter,
+          },
+        });
+
+        await createLedgerEntry({
+          db: tx,
           userId: fortress.ownerId,
-        },
-        data: {
-          balance: balanceAfter,
-        },
-      });
+          cycleId: cycle.id,
+          kind: ArcadeTransactionKind.SEASON_PAYOUT,
+          amount: payout,
+          balanceAfter,
+          summary: `Season payout minted for ${fortress.commanderName}.`,
+          details: {
+            points: fortress.points,
+            baseCoins: ARCADE_SEASON_BASE_COINS,
+            bonusCoins: bonus,
+            rank,
+            rankBonusCoins: rankBonus,
+            mintedAt: now.toISOString(),
+          },
+          dedupeKey,
+        });
 
-      await createLedgerEntry({
-        db: tx,
-        userId: fortress.ownerId,
-        cycleId: cycle.id,
-        kind: ArcadeTransactionKind.SEASON_PAYOUT,
-        amount: payout,
-        balanceAfter,
-        summary: `Season payout minted for ${fortress.commanderName}.`,
-        details: {
-          points: fortress.points,
-          baseCoins: ARCADE_SEASON_BASE_COINS,
-          bonusCoins: bonus,
-          mintedAt: now.toISOString(),
-        },
-        dedupeKey,
-      });
-
-      mintedPlayers += 1;
-      mintedCoins += payout;
-    }
+        mintedPlayers += 1;
+        mintedCoins += payout;
+      }
 
     return {
       mintedPlayers,

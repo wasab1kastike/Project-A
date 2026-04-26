@@ -46,6 +46,7 @@ import {
   ARCADE_SEASON_BASE_COINS,
   ARCADE_SEASON_POINTS_BONUS_CAP,
   ARCADE_SEASON_POINTS_BONUS_DIVISOR,
+  getArcadeSeasonRankBonus,
   CURRENT_MAP_LAYOUT_VERSION,
   MEGA_FORTRESS_DESTROY_BONUS,
   MEGA_FORTRESS_HEALTH,
@@ -604,7 +605,8 @@ test("arcade season minting grants a flat payout plus capped points bonus once",
       Math.min(
         ARCADE_SEASON_POINTS_BONUS_CAP,
         Math.floor(265 / ARCADE_SEASON_POINTS_BONUS_DIVISOR)
-      )
+      ) +
+      getArcadeSeasonRankBonus(1)
   );
 
   const wallet = await prisma.arcadeWallet.findUnique({
@@ -622,7 +624,8 @@ test("arcade season minting grants a flat payout plus capped points bonus once",
       Math.min(
         ARCADE_SEASON_POINTS_BONUS_CAP,
         Math.floor(265 / ARCADE_SEASON_POINTS_BONUS_DIVISOR)
-      )
+      ) +
+      getArcadeSeasonRankBonus(1)
   );
 
   const secondMint = await mintSeasonArcadeCoins({
@@ -633,6 +636,95 @@ test("arcade season minting grants a flat payout plus capped points bonus once",
 
   assert.equal(secondMint.mintedPlayers, 0);
   assert.equal(secondMint.mintedCoins, 0);
+});
+
+test("arcade season minting uses the resolved placement order for rank bonuses", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const firstUser = await createUser(prisma, "arcade-rank-1@example.com");
+  const secondUser = await createUser(prisma, "arcade-rank-2@example.com");
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: firstUser.id,
+      commanderName: "Rank One",
+      fortressName: "Rank One Hold",
+      points: 10,
+    },
+    {
+      userId: secondUser.id,
+      commanderName: "Rank Two",
+      fortressName: "Rank Two Hold",
+      points: 500,
+    },
+  ]);
+
+  const result = await mintSeasonArcadeCoins({
+    cycleId: cycle.id,
+    db: prisma,
+    now: new Date("2026-04-26T09:00:00.000Z"),
+    rankedFortresses: [
+      { ownerId: secondUser.id },
+      { ownerId: firstUser.id },
+    ],
+  });
+
+  assert.equal(result.mintedPlayers, 2);
+  assert.equal(
+    result.mintedCoins,
+    ARCADE_SEASON_BASE_COINS +
+      Math.min(
+        ARCADE_SEASON_POINTS_BONUS_CAP,
+        Math.floor(500 / ARCADE_SEASON_POINTS_BONUS_DIVISOR)
+      ) +
+      getArcadeSeasonRankBonus(1) +
+      ARCADE_SEASON_BASE_COINS +
+      Math.min(
+        ARCADE_SEASON_POINTS_BONUS_CAP,
+        Math.floor(10 / ARCADE_SEASON_POINTS_BONUS_DIVISOR)
+      ) +
+      getArcadeSeasonRankBonus(2)
+  );
+
+  const firstWallet = await prisma.arcadeWallet.findUnique({
+    where: {
+      userId: firstUser.id,
+    },
+    select: {
+      balance: true,
+    },
+  });
+
+  const secondWallet = await prisma.arcadeWallet.findUnique({
+    where: {
+      userId: secondUser.id,
+    },
+    select: {
+      balance: true,
+    },
+  });
+
+  assert.equal(
+    firstWallet?.balance,
+    ARCADE_SEASON_BASE_COINS +
+      Math.min(
+        ARCADE_SEASON_POINTS_BONUS_CAP,
+        Math.floor(10 / ARCADE_SEASON_POINTS_BONUS_DIVISOR)
+      ) +
+      getArcadeSeasonRankBonus(2)
+  );
+  assert.equal(
+    secondWallet?.balance,
+    ARCADE_SEASON_BASE_COINS +
+      Math.min(
+        ARCADE_SEASON_POINTS_BONUS_CAP,
+        Math.floor(500 / ARCADE_SEASON_POINTS_BONUS_DIVISOR)
+      ) +
+      getArcadeSeasonRankBonus(1)
+  );
 });
 
 test("arcade loot box duplicate refunds coins instead of creating duplicate skins", async (context) => {
