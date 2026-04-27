@@ -6,8 +6,8 @@
     "apps/*"
   ],
   "engines": {
-    "node": ">=22.22.0 <25",
-    "npm": ">=11.0.0"
+    "node": ">=22.21.1 <25",
+    "npm": ">=10.9.0"
   },
   "scripts": {
     "dev": "npm run dev --workspace web",
