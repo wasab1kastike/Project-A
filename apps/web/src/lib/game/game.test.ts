@@ -1687,12 +1687,25 @@ test("old active map layouts reshuffle once on the next tick", async (context) =
     now: new Date("2026-04-20T12:00:00.000Z"),
   });
 
+  await prisma.fortress.updateMany({
+    where: {
+      cycleId: cycle.id,
+      ownerId: {
+        in: [alpha.id, beta.id],
+      },
+    },
+    data: {
+      mapX: 10,
+      mapY: 10,
+    },
+  });
+
   await prisma.cycle.update({
     where: {
       id: cycle.id,
     },
     data: {
-      mapLayoutVersion: 1,
+      mapLayoutVersion: CURRENT_MAP_LAYOUT_VERSION - 1,
     },
   });
 

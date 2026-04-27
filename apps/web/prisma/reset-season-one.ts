@@ -1,4 +1,5 @@
 import { CycleStatus, PrismaClient } from "../src/lib/prisma-client";
+import { CURRENT_MAP_LAYOUT_VERSION } from "../src/lib/game/constants";
 
 const prisma = new PrismaClient({
   datasources: process.env.DATABASE_URL
@@ -68,7 +69,7 @@ async function main() {
         joiningLockedAt: null,
         winnerId: null,
         crownedFortressId: null,
-        mapLayoutVersion: 2,
+        mapLayoutVersion: CURRENT_MAP_LAYOUT_VERSION,
       },
     });
   });
