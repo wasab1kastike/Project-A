@@ -278,21 +278,52 @@
   color: var(--accent-strong);
   font-family: var(--font-ibm-plex-mono);
   font-size: 0.7rem;
+  min-width: 4ch;
+  text-align: right;
 }
 
 .promiseProgress {
-  height: 8px;
+  position: relative;
+  height: 10px;
   overflow: hidden;
-  border: 1px solid rgba(247, 196, 95, 0.22);
+  border: 1px solid rgba(118, 190, 255, 0.24);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0)),
+    rgba(255, 255, 255, 0.07);
+  box-shadow:
+    inset 0 0 0 1px rgba(7, 13, 20, 0.24),
+    0 0 18px rgba(118, 190, 255, 0.08);
 }
 
 .promiseProgress span {
+  position: relative;
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #f7c45f, #76beff);
+  background: linear-gradient(90deg, #f7c45f 0%, #76beff 58%, #7df0ba 100%);
+  box-shadow: 0 0 16px rgba(118, 190, 255, 0.34);
+}
+
+.promiseProgress span::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.42),
+    transparent
+  );
+  content: "";
+  opacity: 0.45;
+}
+
+.promiseProgressWrap[data-progress-state="complete"] .promiseProgress span {
+  background: linear-gradient(90deg, #7df0ba, #f7c45f);
+}
+
+.promiseProgressWrap[data-progress-state="empty"] .promiseProgress span {
+  box-shadow: none;
 }
 
 .winnerWishPrompt {

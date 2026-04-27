@@ -59,17 +59,40 @@ function PromiseProgress({
   label: string;
   progress: number;
 }) {
+  const normalizedProgress = normalizeProgress(progress);
+  const progressState =
+    normalizedProgress >= 100
+      ? "complete"
+      : normalizedProgress <= 0
+        ? "empty"
+        : "active";
+
   return (
-    <div className={styles.promiseProgressWrap}>
+    <div
+      className={styles.promiseProgressWrap}
+      data-progress-state={progressState}
+    >
       <div
         className={styles.promiseProgress}
-        aria-label={`${label} ${progress}% fulfilled`}
+        role="progressbar"
+        aria-label={`${label} ${normalizedProgress}% fulfilled`}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={normalizedProgress}
       >
-        <span style={{ width: `${progress}%` }} />
+        <span style={{ width: `${normalizedProgress}%` }} />
       </div>
-      <strong>{progress}%</strong>
+      <strong>{normalizedProgress}%</strong>
     </div>
   );
+}
+
+function normalizeProgress(progress: number) {
+  if (!Number.isFinite(progress)) {
+    return 0;
+  }
+
+  return Math.min(100, Math.max(0, Math.round(progress)));
 }
 
 function getDegradedHomePageState(): HomePageState {

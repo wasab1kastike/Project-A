@@ -39,17 +39,37 @@ function ProgressBar({
   label: string;
   progress: number;
 }) {
+  const normalizedProgress = normalizeProgress(progress);
+  const progressState =
+    normalizedProgress >= 100
+      ? "complete"
+      : normalizedProgress <= 0
+        ? "empty"
+        : "active";
+
   return (
-    <div className={styles.progressWrap}>
+    <div className={styles.progressWrap} data-progress-state={progressState}>
       <div
         className={styles.progressBar}
-        aria-label={`${label} ${progress}% fulfilled`}
+        role="progressbar"
+        aria-label={`${label} ${normalizedProgress}% fulfilled`}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={normalizedProgress}
       >
-        <span style={{ width: `${progress}%` }} />
+        <span style={{ width: `${normalizedProgress}%` }} />
       </div>
-      <strong>{progress}%</strong>
+      <strong>{normalizedProgress}%</strong>
     </div>
   );
+}
+
+function normalizeProgress(progress: number) {
+  if (!Number.isFinite(progress)) {
+    return 0;
+  }
+
+  return Math.min(100, Math.max(0, Math.round(progress)));
 }
 
 export default async function HistoryPage({
@@ -143,9 +163,14 @@ export default async function HistoryPage({
                 </div>
                 <div>
                   <dt>Request status</dt>
-                  <dd>
-                    {entry.winnerRequestStatus ?? "No linked request"} -{" "}
-                    {entry.winnerRequestFulfillmentProgress}% fulfilled
+                  <dd className={styles.requestStatus}>
+                    <span>
+                      {entry.winnerRequestStatus ?? "No linked request"}
+                    </span>
+                    <ProgressBar
+                      label="Winner request"
+                      progress={entry.winnerRequestFulfillmentProgress}
+                    />
                   </dd>
                 </div>
                 <div>
