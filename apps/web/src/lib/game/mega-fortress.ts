@@ -77,6 +77,11 @@ export async function ensureMegaFortress({
           commanderName: getNpcCommanderName(cycleId),
           commanderNameRegisteredAt: new Date(),
           iconLabel: MEGA_FORTRESS_ICON_LABEL,
+          food: 0,
+          army: 0,
+          minersAssigned: 0,
+          farmersAssigned: 0,
+          recruitersAssigned: 0,
         },
       });
     }
@@ -113,6 +118,11 @@ export async function ensureMegaFortress({
       commanderName: getNpcCommanderName(cycleId),
       commanderNameRegisteredAt: new Date(),
       name: MEGA_FORTRESS_NAME,
+      food: 0,
+      army: 0,
+      minersAssigned: 0,
+      farmersAssigned: 0,
+      recruitersAssigned: 0,
       isNpc: true,
       health: MEGA_FORTRESS_HEALTH,
       maxHealth: MEGA_FORTRESS_HEALTH,

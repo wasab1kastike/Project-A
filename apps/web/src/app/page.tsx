@@ -82,6 +82,7 @@ function getDegradedHomePageState(): HomePageState {
     leaderboard: [],
     mapFortresses: [],
     attackUnits: [],
+    battleReports: [],
     chat: {
       messages: [],
       canPost: false,
@@ -268,6 +269,7 @@ export default async function Home({
           playerFortress={state.playerFortress}
           mapFortresses={state.mapFortresses}
           attackUnits={state.attackUnits}
+          battleReports={state.battleReports}
           targets={state.availableTargets}
           chat={state.chat}
           canEditRegistrationName={state.canEditRegistrationName}

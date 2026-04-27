@@ -200,6 +200,11 @@ model Fortress {
   name                      String
   points                    Int            @default(0)
   level                     Int            @default(0)
+  food                      Int            @default(0)
+  army                      Int            @default(0)
+  minersAssigned            Int            @default(10)
+  farmersAssigned           Int            @default(10)
+  recruitersAssigned        Int            @default(5)
   isNpc                     Boolean        @default(false)
   health                    Int            @default(0)
   maxHealth                 Int            @default(0)
@@ -237,6 +242,16 @@ model AttackUnit {
   cycleId            String
   attackerFortressId String
   targetFortressId   String
+  armyAmount         Int       @default(1)
+  defenderArmyAtBattleStart Int?
+  resolvedAttackPower Int?
+  resolvedDefensePower Int?
+  attackerSurvivors   Int?
+  attackerRetired     Int?
+  attackerReturned    Int?
+  defenderLosses      Int?
+  pointsLooted        Int?
+  foodLooted          Int?
   launchedAt         DateTime
   arrivesAt          DateTime
   resolvedAt         DateTime?

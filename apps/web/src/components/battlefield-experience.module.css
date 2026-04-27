@@ -391,6 +391,151 @@
   border-top: 1px solid var(--border-soft);
 }
 
+.workerForm {
+  display: grid;
+  gap: 8px;
+}
+
+.attackControls {
+  display: grid;
+  gap: 6px;
+}
+
+.battlePreview {
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 1px solid rgba(103, 196, 207, 0.16);
+  border-radius: 8px;
+  background: rgba(3, 10, 15, 0.58);
+}
+
+.battlePreviewLead {
+  color: var(--foreground);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.battlePreviewLine,
+.battlePreviewTarget {
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  line-height: 1.4;
+}
+
+.battlePreviewTarget {
+  color: #9be7ef;
+}
+
+.battleReportList {
+  display: grid;
+  gap: 8px;
+}
+
+.battleReport {
+  display: grid;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid rgba(103, 196, 207, 0.16);
+  border-radius: 8px;
+  background: rgba(3, 10, 15, 0.58);
+}
+
+.battleReportHeadline {
+  color: var(--foreground);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.battleReportLine {
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  line-height: 1.4;
+}
+
+.workerGrid {
+  display: grid;
+  gap: 6px;
+}
+
+.workerRow {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 7px;
+  border-radius: 5px;
+  background: rgba(3, 10, 16, 0.36);
+}
+
+.workerRowMeta {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.workerRowLabel {
+  color: var(--foreground);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.workerRowHint {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  line-height: 1.2;
+}
+
+.workerStepper {
+  display: grid;
+  grid-template-columns: 28px 56px 28px;
+  gap: 4px;
+  align-items: center;
+}
+
+.workerStepperButton {
+  min-width: 0;
+  min-height: 28px;
+  width: 28px;
+  padding: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  background: rgba(7, 13, 20, 0.55);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.workerStepperButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.workerStepperInput {
+  min-width: 0;
+  width: 56px;
+  min-height: 28px;
+  padding: 0 6px;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  background: rgba(7, 13, 20, 0.7);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 0.86rem;
+  text-align: center;
+}
+
+.workerStepperInput:focus {
+  outline: 2px solid rgba(247, 196, 95, 0.24);
+  border-color: var(--border-strong);
+}
+
 .upgradeHeader {
   display: flex;
   align-items: start;

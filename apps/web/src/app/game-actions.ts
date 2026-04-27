@@ -34,6 +34,7 @@ import {
   registerCommanderName,
   renameActiveFortress,
   setFortressAction,
+  updateWorkerAssignment,
   shuffleFortressLocation,
 } from "@/lib/game/service";
 
@@ -41,6 +42,16 @@ function getString(formData: FormData, key: string) {
   const value = formData.get(key);
 
   return typeof value === "string" ? value : "";
+}
+
+function getNumber(formData: FormData, key: string, fallback: number) {
+  const value = getString(formData, key);
+
+  if (!value) {
+    return fallback;
+  }
+
+  return Number(value);
 }
 
 function redirectToHome(
@@ -118,7 +129,10 @@ type InlineActionResult =
       error: string;
     };
 
-export async function attackFromMapAction(targetFortressId: string) {
+export async function attackFromMapAction(
+  targetFortressId: string,
+  sentArmy = 1
+) {
   const session = await auth();
   const userId = session?.user?.id;
 
@@ -134,8 +148,44 @@ export async function attackFromMapAction(targetFortressId: string) {
       userId,
       action: FortressAction.ATTACK,
       targetFortressId,
+      sentArmy,
     });
     emitProjectARefresh("map-attack");
+    revalidatePath("/");
+    return {
+      ok: true,
+    } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
+export async function updateWorkerAssignmentAction(input: {
+  minersAssigned: number;
+  farmersAssigned: number;
+  recruitersAssigned: number;
+}) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await updateWorkerAssignment({
+      userId,
+      minersAssigned: input.minersAssigned,
+      farmersAssigned: input.farmersAssigned,
+      recruitersAssigned: input.recruitersAssigned,
+    });
+    emitProjectARefresh("worker-assignment");
     revalidatePath("/");
     return {
       ok: true,
@@ -258,6 +308,7 @@ export async function setFortressActionAction(formData: FormData) {
   const userId = await requireUserId();
   const actionInput = getString(formData, "action");
   const targetFortressId = getString(formData, "targetFortressId");
+  const sentArmy = getNumber(formData, "sentArmy", 1);
 
   try {
     const action =
@@ -269,6 +320,7 @@ export async function setFortressActionAction(formData: FormData) {
       userId,
       action,
       targetFortressId: targetFortressId || undefined,
+      sentArmy,
     });
     emitProjectARefresh("action-update");
   } catch (error) {

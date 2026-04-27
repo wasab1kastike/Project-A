@@ -958,7 +958,7 @@ export function FortressMap({
                           await onConfirmAttackTarget?.(fortress);
                         }}
                       >
-                        Attack
+                        Send army
                       </button>
                     </div>
                   ) : null}

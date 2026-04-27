@@ -15,6 +15,7 @@ import { getRandomUnitSpriteVariant } from "./attacks";
 import { canFortressLevelUp, getFortressUpgradeCost } from "./upgrades";
 import { cancelActiveAttackUnits, launchAttackUnit } from "./attack-units";
 import { GameError } from "./errors";
+import { assertWorkerAssignments } from "./balance";
 import { ensureCommanderRegistrationColumn } from "./schema-guards";
 import {
   buildFortressSpawnSeed,
@@ -450,12 +451,14 @@ export async function setFortressAction({
   userId,
   action,
   targetFortressId,
+  sentArmy = 1,
   now = new Date(),
   db = prisma,
 }: {
   userId: string;
   action: FortressAction;
   targetFortressId?: string;
+  sentArmy?: number;
   now?: Date;
   db?: PrismaClient;
 }) {
@@ -472,6 +475,15 @@ export async function setFortressAction({
           cycleId: cycle.id,
           ownerId: userId,
         },
+      },
+      select: {
+        id: true,
+        currentAction: true,
+        army: true,
+        level: true,
+        mapX: true,
+        mapY: true,
+        ownerId: true,
       },
     });
 
@@ -499,6 +511,14 @@ export async function setFortressAction({
       throw new GameError("Your fortress cannot target itself.");
     }
 
+    if (!Number.isInteger(sentArmy) || sentArmy <= 0) {
+      throw new GameError("You must send at least 1 army.");
+    }
+
+    if (sentArmy > fortress.army) {
+      throw new GameError("You do not have enough army to send that many units.");
+    }
+
     const target = await tx.fortress.findFirst({
       where: {
         id: targetFortressId,
@@ -522,36 +542,101 @@ export async function setFortressAction({
       },
     });
 
-    if (fortress.currentAction !== FortressAction.ATTACK) {
-      const latestAttackUnit = await tx.attackUnit.findFirst({
-        where: {
-          cycleId: cycle.id,
-          attackerFortressId: fortress.id,
-          cancelledAt: null,
-        },
-        orderBy: [{ launchedAt: "desc" }, { id: "desc" }],
-        select: {
-          launchedAt: true,
-        },
-      });
+    const latestAttackUnit = await tx.attackUnit.findFirst({
+      where: {
+        cycleId: cycle.id,
+        attackerFortressId: fortress.id,
+        cancelledAt: null,
+      },
+      orderBy: [{ launchedAt: "desc" }, { id: "desc" }],
+      select: {
+        launchedAt: true,
+      },
+    });
 
-      if (
-        !canLaunchImmediateAttackUnit(latestAttackUnit?.launchedAt ?? null, now)
-      ) {
-        return updatedFortress;
-      }
-
+    if (canLaunchImmediateAttackUnit(latestAttackUnit?.launchedAt ?? null, now)) {
       await launchAttackUnit({
         db: tx,
         cycle,
-        attacker: updatedFortress,
+        attacker: {
+          ...updatedFortress,
+          army: fortress.army,
+        },
         target,
         launchedAt: now,
+        armyAmount: sentArmy,
       });
     }
 
     return updatedFortress;
   });
+}
+
+export async function updateWorkerAssignment({
+  userId,
+  minersAssigned,
+  farmersAssigned,
+  recruitersAssigned,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  minersAssigned: number;
+  farmersAssigned: number;
+  recruitersAssigned: number;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(
+    async (tx) => {
+      const cycle = await getCurrentCycle(tx);
+
+      if (!cycle || !isActiveWindowOpen(cycle, now)) {
+        throw new GameError(
+          "Worker assignments are only available during ACTIVE."
+        );
+      }
+
+      const fortress = await tx.fortress.findUnique({
+        where: {
+          cycleId_ownerId: {
+            cycleId: cycle.id,
+            ownerId: userId,
+          },
+        },
+        select: {
+          id: true,
+          level: true,
+          isNpc: true,
+        },
+      });
+
+      if (!fortress || fortress.isNpc) {
+        throw new GameError("You are not participating in the active cycle.");
+      }
+
+      assertWorkerAssignments({
+        level: fortress.level,
+        minersAssigned,
+        farmersAssigned,
+        recruitersAssigned,
+      });
+
+      return tx.fortress.update({
+        where: {
+          id: fortress.id,
+        },
+        data: {
+          minersAssigned,
+          farmersAssigned,
+          recruitersAssigned,
+        },
+      });
+    },
+    {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    }
+  );
 }
 
 export async function renameActiveFortress({

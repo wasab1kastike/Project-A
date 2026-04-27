@@ -9,19 +9,23 @@ import {
   type PrismaClient,
 } from "@/lib/prisma-client";
 import { ACTIVE_LOCATION_SHUFFLE_COST, ACTIVE_PLAYER_CAP } from "./constants";
+import {
+  calculateTickProduction,
+  getDefenseBonusPercent,
+  getDisplayedCastleLevel,
+  getFortressDefenseMultiplier,
+  getFortressPopulation,
+} from "./balance";
 import { getChatLimits } from "./chat";
 import { getCommunityWishVoteBudget } from "./community-wishes";
 import { normalizeUnitSpriteVariant } from "./attacks";
+import { formatRaidBattleReport } from "./battle-report";
 import {
   ensureCommanderRegistrationColumn,
   ensureLastReadChatColumn,
 } from "./schema-guards";
 import { classifyTickHealth, getActiveCycleMinutesBehind } from "./tick";
-import {
-  getFortressAttackDamage,
-  getFortressGrowGain,
-  getFortressUpgradeCost,
-} from "./upgrades";
+import { getFortressAttackDamage, getFortressUpgradeCost } from "./upgrades";
 
 export type HomePageState = Awaited<ReturnType<typeof getHomePageState>>;
 
@@ -303,6 +307,11 @@ export async function getHomePageState({
           name: true,
           points: true,
           level: true,
+          food: true,
+          army: true,
+          minersAssigned: true,
+          farmersAssigned: true,
+          recruitersAssigned: true,
           currentAction: true,
           targetFortressId: true,
           unitSpriteVariant: true,
@@ -401,6 +410,7 @@ export async function getHomePageState({
       leaderboard: [],
       mapFortresses: [],
       attackUnits: [],
+      battleReports: [],
       chat: {
         messages: [],
         canPost: false,
@@ -539,6 +549,120 @@ export async function getHomePageState({
         (unit) => unit.attackerFortress.id === playerFortress.id
       )
     : false;
+  const battleReports = playerFortress
+    ? (
+        await db.attackUnit.findMany({
+          where: {
+            cycleId: cycle.id,
+            resolvedAt: {
+              not: null,
+            },
+            cancelledAt: null,
+            OR: [
+              {
+                attackerFortressId: playerFortress.id,
+              },
+              {
+                targetFortressId: playerFortress.id,
+              },
+            ],
+          },
+          orderBy: [
+            {
+              resolvedAt: "desc",
+            },
+            {
+              launchedAt: "desc",
+            },
+            {
+              id: "desc",
+            },
+          ],
+          take: 5,
+          select: {
+            id: true,
+            launchedAt: true,
+            resolvedAt: true,
+            armyAmount: true,
+            defenderArmyAtBattleStart: true,
+            resolvedAttackPower: true,
+            resolvedDefensePower: true,
+            attackerSurvivors: true,
+            attackerRetired: true,
+            attackerReturned: true,
+            defenderLosses: true,
+            pointsLooted: true,
+            foodLooted: true,
+            attackerFortress: {
+              select: {
+                id: true,
+                name: true,
+                commanderName: true,
+                ownerId: true,
+              },
+            },
+            targetFortress: {
+              select: {
+                id: true,
+                name: true,
+                commanderName: true,
+                ownerId: true,
+                level: true,
+              },
+            },
+          },
+        })
+      ).map((unit) => {
+        const resolvedAttackPower = unit.resolvedAttackPower ?? unit.armyAmount;
+        const resolvedDefensePower = unit.resolvedDefensePower ?? 0;
+        const defenderDbLevel = unit.targetFortress.level;
+        const outcome: "ATTACKER_WIN" | "DEFENDER_WIN" =
+          resolvedAttackPower > resolvedDefensePower
+            ? "ATTACKER_WIN"
+            : "DEFENDER_WIN";
+
+        return {
+          id: unit.id,
+          launchedAt: unit.launchedAt,
+          resolvedAt: unit.resolvedAt ?? unit.launchedAt,
+          attackerName: unit.attackerFortress.name,
+          attackerCommanderName: unit.attackerFortress.commanderName,
+          attackerOwnerId: unit.attackerFortress.ownerId,
+          defenderName: unit.targetFortress.name,
+          defenderCommanderName: unit.targetFortress.commanderName,
+          defenderOwnerId: unit.targetFortress.ownerId,
+          sentArmy: unit.armyAmount,
+          defenderArmyAtBattleStart: unit.defenderArmyAtBattleStart,
+          defenderDbLevel,
+          defenseBonusPercent: getDefenseBonusPercent(defenderDbLevel),
+          defenseMultiplier: getFortressDefenseMultiplier(defenderDbLevel),
+          resolvedAttackPower,
+          resolvedDefensePower,
+          outcome,
+          attackerSurvivors: unit.attackerSurvivors ?? 0,
+          attackerRetired: unit.attackerRetired ?? 0,
+          attackerReturned: unit.attackerReturned ?? 0,
+          defenderLosses: unit.defenderLosses ?? 0,
+          pointsLooted: unit.pointsLooted ?? 0,
+          foodLooted: unit.foodLooted ?? 0,
+          reportLines: formatRaidBattleReport({
+            attackerName: unit.attackerFortress.name,
+            defenderName: unit.targetFortress.name,
+            sentArmy: unit.armyAmount,
+            defenderArmyAtBattleStart: unit.defenderArmyAtBattleStart,
+            defenderDbLevel,
+            resolvedDefensePower,
+            outcome,
+            attackerSurvivors: unit.attackerSurvivors ?? 0,
+            attackerRetired: unit.attackerRetired ?? 0,
+            attackerReturned: unit.attackerReturned ?? 0,
+            defenderLosses: unit.defenderLosses ?? 0,
+            pointsLooted: unit.pointsLooted ?? 0,
+            foodLooted: unit.foodLooted ?? 0,
+          }),
+        };
+      })
+    : [];
   const mapFortresses = cycle.fortresses.map((fortress) => ({
     id: fortress.id,
     commanderName: getDisplayName(
@@ -556,6 +680,14 @@ export async function getHomePageState({
     maxHealth: fortress.maxHealth,
     sizeTiles: fortress.sizeTiles,
     iconLabel: fortress.iconLabel,
+    displayedCastleLevel: getDisplayedCastleLevel(fortress.level),
+    population: getFortressPopulation(fortress.level),
+    defenseMultiplier: getFortressDefenseMultiplier(fortress.level),
+    food: fortress.food,
+    army: fortress.army,
+    minersAssigned: fortress.minersAssigned,
+    farmersAssigned: fortress.farmersAssigned,
+    recruitersAssigned: fortress.recruitersAssigned,
     isSlayerOfA: fortress.id === cycle.crownedFortressId && !fortress.isNpc,
     currentAction: fortress.currentAction,
     mapX: fortress.mapX,
@@ -761,6 +893,14 @@ export async function getHomePageState({
           rawName: playerFortress.name,
           points: playerFortress.points,
           level: playerFortress.level,
+          displayedCastleLevel: getDisplayedCastleLevel(playerFortress.level),
+          population: getFortressPopulation(playerFortress.level),
+          defenseMultiplier: getFortressDefenseMultiplier(playerFortress.level),
+          food: playerFortress.food,
+          army: playerFortress.army,
+          minersAssigned: playerFortress.minersAssigned,
+          farmersAssigned: playerFortress.farmersAssigned,
+          recruitersAssigned: playerFortress.recruitersAssigned,
           currentAction: playerFortress.currentAction,
           mapX: playerFortress.mapX,
           mapY: playerFortress.mapY,
@@ -787,6 +927,14 @@ export async function getHomePageState({
           rawName: playerFortress.name,
           points: playerFortress.points,
           level: playerFortress.level,
+          displayedCastleLevel: getDisplayedCastleLevel(playerFortress.level),
+          population: getFortressPopulation(playerFortress.level),
+          defenseMultiplier: getFortressDefenseMultiplier(playerFortress.level),
+          food: playerFortress.food,
+          army: playerFortress.army,
+          minersAssigned: playerFortress.minersAssigned,
+          farmersAssigned: playerFortress.farmersAssigned,
+          recruitersAssigned: playerFortress.recruitersAssigned,
           currentAction: playerFortress.currentAction,
           currentTargetId: playerFortress.targetFortressId,
           currentTargetName: playerFortress.targetFortressId
@@ -818,7 +966,7 @@ export async function getHomePageState({
             nextUpgradeCost !== null &&
             canAffordUpgrade,
           receivedSlayerUpgrade: Boolean(receivedSlayerUpgrade),
-          growPerTick: getFortressGrowGain(playerFortress.level),
+          growPerTick: calculateTickProduction(playerFortress).pointsProduced,
           attackDamage: getFortressAttackDamage(playerFortress.level),
         }
       : null,
@@ -912,6 +1060,7 @@ export async function getHomePageState({
               : "Community wishes are closed for this cycle.",
       proposals: mappedCommunityWishProposals,
     },
+    battleReports,
     availableTargets:
       activeOpen && playerFortress
         ? cycle.fortresses
@@ -927,6 +1076,7 @@ export async function getHomePageState({
                 fortress.id === cycle.crownedFortressId && !fortress.isNpc
               ),
               rawName: fortress.name,
+              level: fortress.level,
               points: fortress.points,
               isNpc: fortress.isNpc,
               health: fortress.health,

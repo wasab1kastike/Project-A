@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 
@@ -12,8 +18,18 @@ import {
   registerCommanderNameAction,
   renameFortressAction,
   setFortressActionAction,
+  updateWorkerAssignmentAction,
   shuffleFortressLocationAction,
 } from "@/app/game-actions";
+import {
+  calculateTickProduction,
+  getDefenseBonusPercent,
+  getDisplayedCastleLevel,
+  validateWorkerAssignments,
+} from "@/lib/game/balance";
+import {
+  formatRaidAttackPreview,
+} from "@/lib/game/battle-report";
 import { ChatPanel } from "./chat-panel";
 import {
   FortressMap,
@@ -26,6 +42,7 @@ type CommandTarget = {
   id: string;
   commanderName: string;
   name: string;
+  level: number;
   points: number;
   isNpc: boolean;
   health: number;
@@ -68,6 +85,14 @@ type PlayerSummary = {
   name: string;
   points: number;
   level: number;
+  displayedCastleLevel: number;
+  population: number;
+  defenseMultiplier: number;
+  food: number;
+  army: number;
+  minersAssigned: number;
+  farmersAssigned: number;
+  recruitersAssigned: number;
   currentAction: "GROW" | "ATTACK";
   currentTargetId?: string | null;
   currentTargetName?: string | null;
@@ -99,6 +124,366 @@ type PlayerFortress = {
   mapY: number;
 };
 
+type BattleReport = {
+  id: string;
+  launchedAt: Date;
+  resolvedAt: Date;
+  attackerName: string;
+  attackerCommanderName: string;
+  attackerOwnerId: string;
+  defenderName: string;
+  defenderCommanderName: string;
+  defenderOwnerId: string;
+  sentArmy: number;
+  defenderArmyAtBattleStart: number | null;
+  defenderDbLevel: number;
+  defenseBonusPercent: number;
+  defenseMultiplier: number;
+  resolvedAttackPower: number;
+  resolvedDefensePower: number;
+  outcome: "ATTACKER_WIN" | "DEFENDER_WIN";
+  attackerSurvivors: number;
+  attackerRetired: number;
+  attackerReturned: number;
+  defenderLosses: number;
+  pointsLooted: number;
+  foodLooted: number;
+  reportLines: string[];
+};
+
+function WorkerAssignmentSection({
+  playerSummary,
+}: {
+  playerSummary: PlayerSummary;
+}) {
+  const router = useRouter();
+  const [workerAssignments, setWorkerAssignments] = useState(() => ({
+    minersAssigned: playerSummary.minersAssigned,
+    farmersAssigned: playerSummary.farmersAssigned,
+    recruitersAssigned: playerSummary.recruitersAssigned,
+  }));
+  const [workerAssignmentError, setWorkerAssignmentError] = useState<
+    string | null
+  >(null);
+  const [workerAssignmentPending, setWorkerAssignmentPending] = useState(false);
+
+  const workerAssignmentValidation = useMemo(() => {
+    return validateWorkerAssignments({
+      level: playerSummary.level,
+      minersAssigned: workerAssignments.minersAssigned,
+      farmersAssigned: workerAssignments.farmersAssigned,
+      recruitersAssigned: workerAssignments.recruitersAssigned,
+    });
+  }, [playerSummary.level, workerAssignments]);
+
+  const workerAssignmentPreview = useMemo(() => {
+    return calculateTickProduction({
+      level: playerSummary.level,
+      food: playerSummary.food,
+      minersAssigned: workerAssignments.minersAssigned,
+      farmersAssigned: workerAssignments.farmersAssigned,
+      recruitersAssigned: workerAssignments.recruitersAssigned,
+    });
+  }, [playerSummary.food, playerSummary.level, workerAssignments]);
+
+  const workerAssignmentAssignedTotal =
+    workerAssignments.minersAssigned +
+    workerAssignments.farmersAssigned +
+    workerAssignments.recruitersAssigned;
+  const workerAssignmentIdlePopulation = Math.max(
+    0,
+    playerSummary.population - workerAssignmentAssignedTotal
+  );
+  const workerAssignmentValidationError = workerAssignmentValidation.isValid
+    ? null
+    : workerAssignments.minersAssigned < 0 ||
+        workerAssignments.farmersAssigned < 0 ||
+        workerAssignments.recruitersAssigned < 0
+      ? "Worker assignments cannot be negative."
+      : workerAssignmentAssignedTotal > playerSummary.population
+        ? `Assigned workers exceed capacity (${workerAssignmentAssignedTotal}/${playerSummary.population}).`
+        : "Worker assignments must be whole numbers within the fortress population.";
+
+  function updateWorkerAssignmentRole(
+    role: keyof typeof workerAssignments,
+    nextValue: number
+  ) {
+    setWorkerAssignmentError(null);
+    setWorkerAssignments((current) => ({
+      ...current,
+      [role]: Number.isFinite(nextValue)
+        ? Math.max(0, Math.floor(nextValue))
+        : 0,
+    }));
+  }
+
+  function bumpWorkerAssignment(
+    role: keyof typeof workerAssignments,
+    delta: number
+  ) {
+    setWorkerAssignmentError(null);
+    setWorkerAssignments((current) => ({
+      ...current,
+      [role]: Math.max(0, current[role] + delta),
+    }));
+  }
+
+  function getRoleCap(role: keyof typeof workerAssignments) {
+    const otherAssignments =
+      role === "minersAssigned"
+        ? workerAssignments.farmersAssigned + workerAssignments.recruitersAssigned
+        : role === "farmersAssigned"
+          ? workerAssignments.minersAssigned +
+            workerAssignments.recruitersAssigned
+          : workerAssignments.minersAssigned + workerAssignments.farmersAssigned;
+
+    return Math.max(0, playerSummary.population - otherAssignments);
+  }
+
+  async function handleWorkerAssignmentSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (workerAssignmentPending) {
+      return;
+    }
+
+    if (workerAssignmentValidationError) {
+      setWorkerAssignmentError(workerAssignmentValidationError);
+      return;
+    }
+
+    setWorkerAssignmentPending(true);
+    setWorkerAssignmentError(null);
+
+    try {
+      const result = await updateWorkerAssignmentAction({
+        minersAssigned: workerAssignments.minersAssigned,
+        farmersAssigned: workerAssignments.farmersAssigned,
+        recruitersAssigned: workerAssignments.recruitersAssigned,
+      });
+
+      if (!result.ok) {
+        setWorkerAssignmentError(result.error);
+        return;
+      }
+
+      router.refresh();
+    } finally {
+      setWorkerAssignmentPending(false);
+    }
+  }
+
+  return (
+    <section className={styles.orderSection}>
+      <div className={styles.sectionHeading}>
+        <span className={styles.label}>Workers</span>
+        <strong>
+          {workerAssignmentAssignedTotal}/{playerSummary.population} pop
+        </strong>
+      </div>
+      <p className={styles.helper}>
+        Idle population: {workerAssignmentIdlePopulation}. Miners generate
+        points, farmers generate food, and recruiters generate army while
+        consuming food.
+      </p>
+
+      <form
+        className={styles.workerForm}
+        onSubmit={handleWorkerAssignmentSubmit}
+      >
+        <div className={styles.workerGrid}>
+          <div className={styles.workerRow}>
+            <div className={styles.workerRowMeta}>
+              <span className={styles.workerRowLabel}>Miners</span>
+              <span className={styles.workerRowHint}>
+                +{workerAssignmentPreview.pointsProduced} points / tick
+              </span>
+            </div>
+            <div className={styles.workerStepper}>
+              <button
+                type="button"
+                className={styles.workerStepperButton}
+                disabled={
+                  workerAssignmentPending || workerAssignments.minersAssigned <= 0
+                }
+                onClick={() => bumpWorkerAssignment("minersAssigned", -1)}
+                aria-label="Decrease miners"
+              >
+                -
+              </button>
+              <input
+                className={styles.workerStepperInput}
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={getRoleCap("minersAssigned")}
+                step={1}
+                value={workerAssignments.minersAssigned}
+                disabled={workerAssignmentPending}
+                onChange={(event) => {
+                  updateWorkerAssignmentRole(
+                    "minersAssigned",
+                    event.currentTarget.valueAsNumber
+                  );
+                }}
+              />
+              <button
+                type="button"
+                className={styles.workerStepperButton}
+                disabled={
+                  workerAssignmentPending ||
+                  workerAssignments.minersAssigned >= getRoleCap("minersAssigned")
+                }
+                onClick={() => bumpWorkerAssignment("minersAssigned", 1)}
+                aria-label="Increase miners"
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          <div className={styles.workerRow}>
+            <div className={styles.workerRowMeta}>
+              <span className={styles.workerRowLabel}>Farmers</span>
+              <span className={styles.workerRowHint}>
+                +{workerAssignmentPreview.foodProduced} food / tick
+              </span>
+            </div>
+            <div className={styles.workerStepper}>
+              <button
+                type="button"
+                className={styles.workerStepperButton}
+                disabled={
+                  workerAssignmentPending || workerAssignments.farmersAssigned <= 0
+                }
+                onClick={() => bumpWorkerAssignment("farmersAssigned", -1)}
+                aria-label="Decrease farmers"
+              >
+                -
+              </button>
+              <input
+                className={styles.workerStepperInput}
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={getRoleCap("farmersAssigned")}
+                step={1}
+                value={workerAssignments.farmersAssigned}
+                disabled={workerAssignmentPending}
+                onChange={(event) => {
+                  updateWorkerAssignmentRole(
+                    "farmersAssigned",
+                    event.currentTarget.valueAsNumber
+                  );
+                }}
+              />
+              <button
+                type="button"
+                className={styles.workerStepperButton}
+                disabled={
+                  workerAssignmentPending ||
+                  workerAssignments.farmersAssigned >= getRoleCap("farmersAssigned")
+                }
+                onClick={() => bumpWorkerAssignment("farmersAssigned", 1)}
+                aria-label="Increase farmers"
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          <div className={styles.workerRow}>
+            <div className={styles.workerRowMeta}>
+              <span className={styles.workerRowLabel}>Recruiters</span>
+              <span className={styles.workerRowHint}>
+                +{workerAssignmentPreview.armyRequested} army / tick, costs{" "}
+                {workerAssignmentPreview.armyRequested} food / tick
+              </span>
+            </div>
+            <div className={styles.workerStepper}>
+              <button
+                type="button"
+                className={styles.workerStepperButton}
+                disabled={
+                  workerAssignmentPending ||
+                  workerAssignments.recruitersAssigned <= 0
+                }
+                onClick={() => bumpWorkerAssignment("recruitersAssigned", -1)}
+                aria-label="Decrease recruiters"
+              >
+                -
+              </button>
+              <input
+                className={styles.workerStepperInput}
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={getRoleCap("recruitersAssigned")}
+                step={1}
+                value={workerAssignments.recruitersAssigned}
+                disabled={workerAssignmentPending}
+                onChange={(event) => {
+                  updateWorkerAssignmentRole(
+                    "recruitersAssigned",
+                    event.currentTarget.valueAsNumber
+                  );
+                }}
+              />
+              <button
+                type="button"
+                className={styles.workerStepperButton}
+                disabled={
+                  workerAssignmentPending ||
+                  workerAssignments.recruitersAssigned >=
+                    getRoleCap("recruitersAssigned")
+                }
+                onClick={() => bumpWorkerAssignment("recruitersAssigned", 1)}
+                aria-label="Increase recruiters"
+              >
+                +
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <dl className={styles.castleStats}>
+          <div>
+            <dt>Miners</dt>
+            <dd>+{workerAssignmentPreview.pointsProduced} points / tick</dd>
+          </div>
+          <div>
+            <dt>Farmers</dt>
+            <dd>+{workerAssignmentPreview.foodProduced} food / tick</dd>
+          </div>
+          <div>
+            <dt>Recruiters</dt>
+            <dd>
+              +{workerAssignmentPreview.armyRequested} army / tick, costs{" "}
+              {workerAssignmentPreview.armyRequested} food / tick
+            </dd>
+          </div>
+        </dl>
+
+        {workerAssignmentError || workerAssignmentValidationError ? (
+          <p className={`${styles.helper} ${styles.warningText}`}>
+            {workerAssignmentError ?? workerAssignmentValidationError}
+          </p>
+        ) : null}
+
+        <button
+          className={`${styles.primaryButton} ${styles.emphasisButton}`}
+          type="submit"
+          disabled={
+            workerAssignmentPending || Boolean(workerAssignmentValidationError)
+          }
+        >
+          {workerAssignmentPending ? "Saving workers..." : "Save workers"}
+        </button>
+      </form>
+    </section>
+  );
+}
+
 export function BattlefieldExperience({
   title,
   description,
@@ -107,6 +492,7 @@ export function BattlefieldExperience({
   playerFortress,
   mapFortresses,
   attackUnits,
+  battleReports,
   targets,
   chat,
   canEditRegistrationName,
@@ -119,6 +505,7 @@ export function BattlefieldExperience({
   playerFortress: PlayerFortress | null;
   mapFortresses: MapFortress[];
   attackUnits: AttackUnitMarker[];
+  battleReports: BattleReport[];
   targets: CommandTarget[];
   chat: ChatProps;
   canEditRegistrationName: boolean;
@@ -142,6 +529,21 @@ export function BattlefieldExperience({
   const [targetFortressId, setTargetFortressId] = useState(
     playerSummary?.currentTargetId ?? ""
   );
+  const [sentArmy, setSentArmy] = useState(() =>
+    playerSummary?.army && playerSummary.army > 0 ? 1 : 0
+  );
+  const selectedAttackTarget = useMemo(
+    () => targets.find((target) => target.id === targetFortressId) ?? null,
+    [targets, targetFortressId]
+  );
+  const attackPreviewLines = useMemo(() => {
+    return formatRaidAttackPreview({
+      availableArmy: playerSummary?.army ?? 0,
+      sentArmy,
+      targetName: selectedAttackTarget?.name ?? null,
+      targetDbLevel: selectedAttackTarget?.level ?? null,
+    });
+  }, [playerSummary?.army, sentArmy, selectedAttackTarget]);
 
   const ownFortress = useMemo(
     () => mapFortresses.find((fortress) => fortress.isCurrentUser) ?? null,
@@ -217,8 +619,37 @@ export function BattlefieldExperience({
 
     if (nextAction === "GROW") {
       setTargetFortressId("");
+    } else if ((playerSummary?.army ?? 0) > 0 && sentArmy <= 0) {
+      setSentArmy(1);
     }
   }
+
+  function getAttackValidationError(nextTargetFortressId = targetFortressId) {
+    if (!playerSummary) {
+      return "You need an active fortress before attacking.";
+    }
+
+    if (!nextTargetFortressId) {
+      return "Choose a target fortress before attacking.";
+    }
+
+    if (playerSummary.army <= 0) {
+      return "You need at least 1 army before attacking.";
+    }
+
+    if (!Number.isInteger(sentArmy) || sentArmy <= 0) {
+      return "Send at least 1 army.";
+    }
+
+    if (sentArmy > playerSummary.army) {
+      return `You can send at most ${playerSummary.army} army.`;
+    }
+
+    return null;
+  }
+
+  const attackValidationError =
+    action === "ATTACK" ? getAttackValidationError() : null;
 
   async function prepareAttackTarget(fortress: MapFortress) {
     if (!fortress.isTargetable || !playerSummary?.canSetAction) {
@@ -228,6 +659,12 @@ export function BattlefieldExperience({
     setAction("ATTACK");
     setTargetFortressId(fortress.id);
 
+    const validationError = getAttackValidationError(fortress.id);
+
+    if (validationError) {
+      return;
+    }
+
     if (!ownFortress || mapAttackPending) {
       return;
     }
@@ -236,7 +673,7 @@ export function BattlefieldExperience({
     setMapAttackPending(true);
 
     try {
-      const result = await attackFromMapAction(fortress.id);
+      const result = await attackFromMapAction(fortress.id, sentArmy);
 
       if (result.ok) {
         router.refresh();
@@ -354,7 +791,8 @@ export function BattlefieldExperience({
                 <div className={styles.primaryStat}>
                   <dt>Castle</dt>
                   <dd>
-                    Lvl {playerSummary.level} / {playerSummary.points} pts
+                    Lvl {playerSummary.displayedCastleLevel} /{" "}
+                    {playerSummary.population} pop
                   </dd>
                 </div>
                 <div className={styles.primaryStat}>
@@ -369,8 +807,8 @@ export function BattlefieldExperience({
                 <div>
                   <dt>Output</dt>
                   <dd>
-                    +{playerSummary.growPerTick}/tick /{" "}
-                    {playerSummary.attackDamage} dmg
+                    +{playerSummary.growPerTick}/tick / x
+                    {playerSummary.defenseMultiplier.toFixed(2)} defense
                   </dd>
                 </div>
                 {playerSummary.nextUpgradeCost !== null ? (
@@ -382,8 +820,16 @@ export function BattlefieldExperience({
               </dl>
             </section>
 
+            {playerSummary ? (
+              <WorkerAssignmentSection
+                key={`${playerSummary.id}:${playerSummary.minersAssigned}:${playerSummary.farmersAssigned}:${playerSummary.recruitersAssigned}`}
+                playerSummary={playerSummary}
+              />
+            ) : null}
+
             <form action={setFortressActionAction} className={styles.form}>
               <input name="action" type="hidden" value={action} />
+              <input name="sentArmy" type="hidden" value={sentArmy} />
               <div className={styles.segmentGroup} aria-label="Current action">
                 <button
                   type="button"
@@ -408,36 +854,118 @@ export function BattlefieldExperience({
               </div>
 
               {action === "ATTACK" ? (
-                <label className={styles.field}>
-                  <span>Target</span>
-                  <select
-                    name="targetFortressId"
-                    value={targetFortressId}
-                    onChange={(event) => {
-                      setTargetFortressId(event.target.value);
-                    }}
-                  >
-                    <option value="">Choose target</option>
-                    {targets.map((target) => (
-                      <option key={target.id} value={target.id}>
-                        {target.name} (
-                        {target.isNpc
-                          ? `${target.health}/${target.maxHealth} HP`
-                          : `${target.points} pts`}
-                        )
-                      </option>
+                <div className={styles.attackControls}>
+                  <label className={styles.field}>
+                    <span>Target</span>
+                    <select
+                      name="targetFortressId"
+                      value={targetFortressId}
+                      onChange={(event) => {
+                        setTargetFortressId(event.target.value);
+                      }}
+                      >
+                        <option value="">Choose target</option>
+                        {targets.map((target) => (
+                          <option key={target.id} value={target.id}>
+                            {target.name} (
+                            Lvl {getDisplayedCastleLevel(target.level)},{" "}
+                            {target.isNpc
+                              ? `${target.health}/${target.maxHealth} HP`
+                              : `${target.points} pts`}
+                            )
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+
+                  <label className={styles.field}>
+                    <span>Send army</span>
+                    <input
+                      name="sentArmy"
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      max={playerSummary.army}
+                      step={1}
+                      value={sentArmy}
+                      disabled={!playerSummary.canSetAction}
+                      onChange={(event) => {
+                        setSentArmy(
+                          Number.isFinite(event.currentTarget.valueAsNumber)
+                            ? Math.max(0, Math.floor(event.currentTarget.valueAsNumber))
+                            : 0
+                        );
+                      }}
+                    />
+                  </label>
+
+                  <p className={styles.helper}>
+                    Available army: {playerSummary.army}. Sent army leaves home
+                    defense immediately.
+                  </p>
+
+                  <div className={styles.sectionHeading}>
+                    <span className={styles.label}>Raid preview</span>
+                  </div>
+                  <div className={styles.battlePreview}>
+                    {attackPreviewLines.map((line, index) => (
+                      <p
+                        key={`${index}-${line}`}
+                        className={
+                          index === 0
+                            ? styles.battlePreviewLead
+                            : styles.battlePreviewLine
+                        }
+                      >
+                        {line}
+                      </p>
                     ))}
-                  </select>
-                </label>
+                  </div>
+                </div>
+              ) : null}
+
+              {attackValidationError ? (
+                <p className={`${styles.helper} ${styles.warningText}`}>
+                  {attackValidationError}
+                </p>
               ) : null}
 
               <button
                 className={`${styles.primaryButton} ${styles.emphasisButton}`}
                 type="submit"
+                disabled={
+                  action === "ATTACK" ? Boolean(attackValidationError) : false
+                }
               >
-                Save orders
+                {action === "ATTACK" ? "Send army" : "Save orders"}
               </button>
             </form>
+
+            {battleReports.length > 0 ? (
+              <section className={styles.orderSection}>
+                <div className={styles.sectionHeading}>
+                  <span className={styles.label}>Raid reports</span>
+                  <strong>{battleReports.length}</strong>
+                </div>
+                <div className={styles.battleReportList}>
+                  {battleReports.map((report) => (
+                    <article key={report.id} className={styles.battleReport}>
+                      <p className={styles.battleReportHeadline}>
+                        {report.reportLines[0]}
+                      </p>
+                      {report.reportLines.slice(1).map((line, index) => (
+                        <p
+                          key={`${report.id}-${index}`}
+                          className={styles.battleReportLine}
+                        >
+                          {line}
+                        </p>
+                      ))}
+                    </article>
+                  ))}
+                </div>
+              </section>
+            ) : null}
 
             <section className={styles.upgradePanel}>
               <div className={styles.upgradeHeader}>
@@ -453,8 +981,8 @@ export function BattlefieldExperience({
               </div>
               <p className={styles.helper}>
                 {playerSummary.freeLocationShuffleAvailable
-                  ? "First yeet is free; later yeets cost 50 points."
-                  : "Free yeet used. Next yeet costs 50 points."}
+                  ? `First yeet is free; later yeets cost ${playerSummary.locationShuffleCost} points.`
+                  : `Free yeet used. Next yeet costs ${playerSummary.locationShuffleCost} points.`}
               </p>
               {playerSummary.currentAction !== "GROW" ? (
                 <p className={`${styles.helper} ${styles.warningText}`}>
@@ -493,19 +1021,46 @@ export function BattlefieldExperience({
               <div className={styles.upgradeHeader}>
                 <div>
                   <span className={styles.label}>Castle level</span>
-                  <h4>Level {playerSummary.level}</h4>
+                  <h4>Level {playerSummary.displayedCastleLevel}</h4>
                 </div>
                 <strong>
-                  +{playerSummary.growPerTick} grow /{" "}
-                  {playerSummary.attackDamage} dmg
+                  +{Math.round(getDefenseBonusPercent(playerSummary.level) * 100)}%
                 </strong>
               </div>
+              <dl className={styles.castleStats}>
+                <div className={styles.primaryStat}>
+                  <dt>Population</dt>
+                  <dd>
+                    {playerSummary.minersAssigned +
+                      playerSummary.farmersAssigned +
+                      playerSummary.recruitersAssigned}
+                    /{playerSummary.population} assigned
+                  </dd>
+                </div>
+                <div>
+                  <dt>Idle</dt>
+                  <dd>
+                    {Math.max(
+                      0,
+                      playerSummary.population -
+                        (playerSummary.minersAssigned +
+                          playerSummary.farmersAssigned +
+                          playerSummary.recruitersAssigned)
+                    )}{" "}
+                    pop
+                  </dd>
+                </div>
+                <div>
+                  <dt>Defense</dt>
+                  <dd>x{playerSummary.defenseMultiplier.toFixed(2)}</dd>
+                </div>
+              </dl>
               <p className={styles.helper}>
                 {playerSummary.upgradesUnlocked
                   ? playerSummary.nextUpgradeCost === null
-                    ? "Your castle is maxed out. Growth and attack damage are fully upgraded."
+                    ? "Your castle is maxed out. The fortress economy is fully scaled for this version."
                     : playerSummary.canAffordUpgrade
-                      ? `Upgrade now for ${playerSummary.nextUpgradeCost} points. Each level adds +1 growth and +2 attack damage.`
+                      ? `Upgrade castle to increase population capacity and defensive army bonus. Next upgrade costs ${playerSummary.nextUpgradeCost} points.`
                       : `Next upgrade costs ${playerSummary.nextUpgradeCost} points.`
                   : "Castle upgrades unlock for everyone after Home of A falls for the first time."}
               </p>

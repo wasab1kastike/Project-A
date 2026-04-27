@@ -16,6 +16,8 @@ import {
   ScoreEventType,
   WinnerRequestStatus,
 } from "@/lib/prisma-client";
+import "./balance.test";
+import "./battle-report.test";
 import {
   forceEndCurrentCycle,
   runManualCatchUpTick,
@@ -79,12 +81,12 @@ import {
   registerCommanderName,
   renameActiveFortress,
   setFortressAction,
+  updateWorkerAssignment,
   shuffleFortressLocation,
 } from "./service";
 import { TickRunnerError, classifyTickHealth, runGameTick } from "./tick";
 import { addMinutes } from "./time";
 import { formatTickRunnerError, formatTickSummary } from "./tick-cli";
-import { getFortressAttackDamage, getFortressGrowGain } from "./upgrades";
 import {
   classifyWinnerRequest,
   reviewWinnerRequest,
@@ -1764,7 +1766,7 @@ test("old active map layouts reshuffle once on the next tick", async (context) =
 
   await runGameTick({
     db: prisma,
-    now: new Date("2026-04-20T12:02:00.000Z"),
+    now: new Date("2026-04-20T12:01:00.000Z"),
   });
 
   const positionsAfterSecondTick = await prisma.fortress.findMany({
@@ -1828,11 +1830,60 @@ test("action updates persist and self-targeting is rejected", async (context) =>
     },
   });
 
+  await prisma.fortress.update({
+    where: {
+      id: alphaFortress.id,
+    },
+    data: {
+      army: 6,
+    },
+  });
+
+  await assert.rejects(
+    () =>
+      setFortressAction({
+        db: prisma,
+        userId: alpha.id,
+        action: FortressAction.ATTACK,
+        targetFortressId: betaFortress.id,
+        sentArmy: 0,
+        now: new Date("2026-04-20T12:05:00.000Z"),
+      }),
+    /at least 1 army/
+  );
+
+  await assert.rejects(
+    () =>
+      setFortressAction({
+        db: prisma,
+        userId: alpha.id,
+        action: FortressAction.ATTACK,
+        targetFortressId: betaFortress.id,
+        sentArmy: -2,
+        now: new Date("2026-04-20T12:05:00.000Z"),
+      }),
+    /at least 1 army/
+  );
+
+  await assert.rejects(
+    () =>
+      setFortressAction({
+        db: prisma,
+        userId: alpha.id,
+        action: FortressAction.ATTACK,
+        targetFortressId: betaFortress.id,
+        sentArmy: 7,
+        now: new Date("2026-04-20T12:05:00.000Z"),
+      }),
+    /enough army/
+  );
+
   await setFortressAction({
     db: prisma,
     userId: alpha.id,
     action: FortressAction.ATTACK,
     targetFortressId: betaFortress.id,
+    sentArmy: 5,
     now: new Date("2026-04-20T12:05:00.000Z"),
   });
 
@@ -1843,6 +1894,7 @@ test("action updates persist and self-targeting is rejected", async (context) =>
         userId: alpha.id,
         action: FortressAction.ATTACK,
         targetFortressId: alphaFortress.id,
+        sentArmy: 1,
         now: new Date("2026-04-20T12:05:00.000Z"),
       }),
     /cannot target itself/
@@ -1856,6 +1908,7 @@ test("action updates persist and self-targeting is rejected", async (context) =>
 
   assert.equal(refreshedFortress.currentAction, FortressAction.ATTACK);
   assert.equal(refreshedFortress.targetFortressId, betaFortress.id);
+  assert.equal(refreshedFortress.army, 1);
 
   const activeAttackUnit = await prisma.attackUnit.findFirst({
     where: {
@@ -1864,9 +1917,170 @@ test("action updates persist and self-targeting is rejected", async (context) =>
       resolvedAt: null,
       cancelledAt: null,
     },
+    select: {
+      armyAmount: true,
+    },
   });
 
   assert.ok(activeAttackUnit);
+  assert.equal(activeAttackUnit?.armyAmount, 5);
+});
+
+test("resolved battle reports are exposed to involved players", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const attacker = await createUser(prisma, "report-attacker@example.com");
+  const defender = await createUser(prisma, "report-defender@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: attacker.id,
+    fortressName: "Report Attacker",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: defender.id,
+    fortressName: "Report Defender",
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const attackerFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: attacker.id,
+      },
+    },
+  });
+  const defenderFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: defender.id,
+      },
+    },
+  });
+
+  await prisma.fortress.update({
+    where: {
+      id: attackerFortress.id,
+    },
+    data: {
+      army: 20,
+      mapX: 10,
+      mapY: 10,
+    },
+  });
+  await prisma.fortress.update({
+    where: {
+      id: defenderFortress.id,
+    },
+    data: {
+      army: 1,
+      points: 20,
+      food: 20,
+      mapX: 90,
+      mapY: 90,
+    },
+  });
+
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.ATTACK,
+    targetFortressId: defenderFortress.id,
+    sentArmy: 10,
+    now: new Date("2026-04-20T12:05:00.000Z"),
+  });
+
+  const launch = await prisma.attackUnit.findFirstOrThrow({
+    where: {
+      attackerFortressId: attackerFortress.id,
+      targetFortressId: defenderFortress.id,
+      cancelledAt: null,
+    },
+    orderBy: {
+      launchedAt: "desc",
+    },
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: launch.arrivesAt,
+  });
+
+  const attackerState = await getHomePageState({
+    db: prisma,
+    userId: attacker.id,
+    now: new Date(launch.arrivesAt.getTime() + 60_000),
+  });
+  const defenderState = await getHomePageState({
+    db: prisma,
+    userId: defender.id,
+    now: new Date(launch.arrivesAt.getTime() + 60_000),
+  });
+
+  assert.equal(attackerState.battleReports.length, 1);
+  assert.equal(defenderState.battleReports.length, 1);
+  assert.match(attackerState.battleReports[0]?.reportLines[0] ?? "", /Raid victory!/);
+  assert.match(attackerState.battleReports[0]?.reportLines[2] ?? "", /returned/);
+  assert.match(attackerState.battleReports[0]?.reportLines[3] ?? "", /Loot gained:/);
+  assert.match(defenderState.battleReports[0]?.reportLines[2] ?? "", /Defender lost/);
+});
+
+test("attack launching is rejected outside ACTIVE cycle", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const attacker = await createUser(prisma, "inactive-attacker@example.com");
+  const target = await createUser(prisma, "inactive-target@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: attacker.id,
+    commanderName: "Inactive Attacker",
+    fortressName: "Inactive Keep",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: target.id,
+    commanderName: "Inactive Target",
+    fortressName: "Target Keep",
+  });
+
+  const targetFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: target.id,
+      },
+    },
+  });
+
+  await assert.rejects(
+    () =>
+      setFortressAction({
+        db: prisma,
+        userId: attacker.id,
+        action: FortressAction.ATTACK,
+        targetFortressId: targetFortress.id,
+        sentArmy: 1,
+        now: new Date("2026-04-20T12:04:00.000Z"),
+      }),
+    /not accepting active actions/
+  );
 });
 
 test("joining assigns a stable valid unit sprite variant", async (context) => {
@@ -1984,6 +2198,114 @@ test("active rename costs 10 points and rejects insufficient points or duplicate
 
   assert.equal(renamed.name, "Gamma");
   assert.equal(renamed.points, 0);
+});
+
+test("worker assignment updates validate cycle, ownership, capacity, and derived population", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const player = await createUser(prisma, "workers-player@example.com");
+  const outsider = await createUser(prisma, "workers-outsider@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: player.id,
+    fortressName: "Worker Keep",
+    now: new Date("2026-04-19T12:05:00.000Z"),
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const activeFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: player.id,
+      },
+    },
+  });
+
+  const updated = await updateWorkerAssignment({
+    db: prisma,
+    userId: player.id,
+    minersAssigned: 20,
+    farmersAssigned: 5,
+    recruitersAssigned: 0,
+    now: new Date("2026-04-20T12:05:00.000Z"),
+  });
+
+  assert.equal(updated.minersAssigned, 20);
+  assert.equal(updated.farmersAssigned, 5);
+  assert.equal(updated.recruitersAssigned, 0);
+
+  await assert.rejects(
+    () =>
+      updateWorkerAssignment({
+        db: prisma,
+        userId: player.id,
+        minersAssigned: -1,
+        farmersAssigned: 0,
+        recruitersAssigned: 0,
+        now: new Date("2026-04-20T12:05:30.000Z"),
+      }),
+    /population/
+  );
+
+  await assert.rejects(
+    () =>
+      updateWorkerAssignment({
+        db: prisma,
+        userId: player.id,
+        minersAssigned: 26,
+        farmersAssigned: 0,
+        recruitersAssigned: 0,
+        now: new Date("2026-04-20T12:06:00.000Z"),
+      }),
+    /capacity|population/
+  );
+
+  await assert.rejects(
+    () =>
+      updateWorkerAssignment({
+        db: prisma,
+        userId: outsider.id,
+        minersAssigned: 1,
+        farmersAssigned: 1,
+        recruitersAssigned: 1,
+        now: new Date("2026-04-20T12:06:30.000Z"),
+      }),
+    /participating in the active cycle/
+  );
+
+  await prisma.fortress.update({
+    where: {
+      id: activeFortress.id,
+    },
+    data: {
+      level: 1,
+    },
+  });
+
+  const resized = await updateWorkerAssignment({
+    db: prisma,
+    userId: player.id,
+    minersAssigned: 20,
+    farmersAssigned: 10,
+    recruitersAssigned: 5,
+    now: new Date("2026-04-20T12:07:00.000Z"),
+  });
+
+  assert.equal(resized.level, 1);
+  assert.equal(
+    resized.minersAssigned + resized.farmersAssigned + resized.recruitersAssigned,
+    35
+  );
 });
 
 test("location shuffle is free once, then costs 50 points and cancels outgoing attacks", async (context) => {
@@ -2347,6 +2669,45 @@ test("castle upgrades reject locked, unaffordable, and max-level purchases", asy
     userId: user.id,
     now: new Date("2026-04-20T12:06:00.000Z"),
   });
+  const afterFirstUpgradeState = await getHomePageState({
+    userId: user.id,
+    now: new Date("2026-04-20T12:06:30.000Z"),
+    db: prisma,
+  });
+  const afterFirstUpgradeFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: user.id,
+      },
+    },
+  });
+  const afterFirstUpgradeSummary =
+    afterFirstUpgradeState.playerSummary ??
+    (() => {
+      throw new Error("Expected player summary after first upgrade.");
+    })();
+
+  assert.equal(afterFirstUpgradeFortress.level, 1);
+  assert.equal(afterFirstUpgradeSummary.displayedCastleLevel, 2);
+  assert.equal(afterFirstUpgradeSummary.population, 35);
+  assert.equal(afterFirstUpgradeSummary.defenseMultiplier, 1.2);
+  assert.equal(afterFirstUpgradeSummary.minersAssigned, 10);
+  assert.equal(afterFirstUpgradeSummary.farmersAssigned, 10);
+  assert.equal(afterFirstUpgradeSummary.recruitersAssigned, 5);
+  assert.equal(
+    afterFirstUpgradeSummary.minersAssigned +
+      afterFirstUpgradeSummary.farmersAssigned +
+      afterFirstUpgradeSummary.recruitersAssigned,
+    25
+  );
+  assert.equal(
+    afterFirstUpgradeSummary.population -
+      afterFirstUpgradeSummary.minersAssigned -
+      afterFirstUpgradeSummary.farmersAssigned -
+      afterFirstUpgradeSummary.recruitersAssigned,
+    10
+  );
   await purchaseFortressUpgrade({
     db: prisma,
     userId: user.id,
@@ -2506,6 +2867,11 @@ test("castle levels increase grow income and attack damage without changing cade
     data: {
       level: 2,
       points: 0,
+      food: 1,
+      army: 20,
+      minersAssigned: 10,
+      farmersAssigned: 10,
+      recruitersAssigned: 5,
       mapX: 6,
       mapY: 6,
     },
@@ -2516,6 +2882,12 @@ test("castle levels increase grow income and attack damage without changing cade
     },
     data: {
       points: 10,
+      food: 4,
+      army: 4,
+      currentAction: FortressAction.ATTACK,
+      minersAssigned: 10,
+      farmersAssigned: 10,
+      recruitersAssigned: 5,
       mapX: 94,
       mapY: 95,
     },
@@ -2523,7 +2895,7 @@ test("castle levels increase grow income and attack damage without changing cade
 
   await runGameTick({
     db: prisma,
-    now: new Date("2026-04-20T12:02:00.000Z"),
+    now: new Date("2026-04-20T12:01:00.000Z"),
   });
 
   const grownAttacker = await prisma.fortress.findUniqueOrThrow({
@@ -2532,10 +2904,14 @@ test("castle levels increase grow income and attack damage without changing cade
     },
     select: {
       points: true,
+      food: true,
+      army: true,
     },
   });
 
-  assert.equal(grownAttacker.points, getFortressGrowGain(2));
+  assert.equal(grownAttacker.points, 10);
+  assert.equal(grownAttacker.food, 6);
+  assert.equal(grownAttacker.army, 25);
 
   await setFortressAction({
     db: prisma,
@@ -2568,10 +2944,224 @@ test("castle levels increase grow income and attack damage without changing cade
     },
     select: {
       points: true,
+      food: true,
+      army: true,
     },
   });
 
-  assert.equal(damagedTarget.points, 10 - getFortressAttackDamage(2));
+  assert.equal(damagedTarget.points, 9);
+  assert.equal(damagedTarget.food, 3);
+  assert.equal(damagedTarget.army, 2);
+
+  const updatedAttacker = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: attackerFortress.id,
+    },
+    select: {
+      points: true,
+      food: true,
+      army: true,
+    },
+  });
+
+  assert.equal(updatedAttacker.points, 11);
+  assert.equal(updatedAttacker.food, 7);
+  assert.equal(updatedAttacker.army, 11);
+});
+
+test("worker assignments produce points, food, and army in the same tick", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const defaultWorker = await createUser(prisma, "worker-default@example.com");
+  const foodLimitedWorker = await createUser(
+    prisma,
+    "worker-food-limited@example.com"
+  );
+  const idleWorker = await createUser(prisma, "worker-idle@example.com");
+  const minerLeader = await createUser(prisma, "worker-miner@example.com");
+
+  for (const [userId, name] of [
+    [defaultWorker.id, "Default Workers"],
+    [foodLimitedWorker.id, "Food Limited"],
+    [idleWorker.id, "Idle Fort"],
+    [minerLeader.id, "Miner Leader"],
+  ] as const) {
+    await joinRegistrationCycle({
+      db: prisma,
+      userId,
+      fortressName: name,
+      now: new Date("2026-04-19T12:05:00.000Z"),
+    });
+  }
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const defaultFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: defaultWorker.id,
+      },
+    },
+  });
+  const foodLimitedFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: foodLimitedWorker.id,
+      },
+    },
+  });
+  const idleFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: idleWorker.id,
+      },
+    },
+  });
+  const minerFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: minerLeader.id,
+      },
+    },
+  });
+
+  await prisma.fortress.update({
+    where: {
+      id: defaultFortress.id,
+    },
+    data: {
+      points: 0,
+      food: 0,
+      army: 0,
+      minersAssigned: 10,
+      farmersAssigned: 10,
+      recruitersAssigned: 5,
+    },
+  });
+  await prisma.fortress.update({
+    where: {
+      id: foodLimitedFortress.id,
+    },
+    data: {
+      points: 0,
+      food: 2,
+      army: 0,
+      minersAssigned: 0,
+      farmersAssigned: 0,
+      recruitersAssigned: 5,
+    },
+  });
+  await prisma.fortress.update({
+    where: {
+      id: idleFortress.id,
+    },
+    data: {
+      points: 0,
+      food: 0,
+      army: 0,
+      minersAssigned: 0,
+      farmersAssigned: 0,
+      recruitersAssigned: 0,
+    },
+  });
+  await prisma.fortress.update({
+    where: {
+      id: minerFortress.id,
+    },
+    data: {
+      points: 0,
+      food: 0,
+      army: 0,
+      minersAssigned: 25,
+      farmersAssigned: 0,
+      recruitersAssigned: 0,
+    },
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+  });
+
+  const refreshedDefault = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: defaultFortress.id,
+    },
+    select: {
+      points: true,
+      food: true,
+      army: true,
+    },
+  });
+  const refreshedFoodLimited = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: foodLimitedFortress.id,
+    },
+    select: {
+      points: true,
+      food: true,
+      army: true,
+    },
+  });
+  const refreshedIdle = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: idleFortress.id,
+    },
+    select: {
+      points: true,
+      food: true,
+      army: true,
+    },
+  });
+  const refreshedMiner = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: minerFortress.id,
+    },
+    select: {
+      points: true,
+      food: true,
+      army: true,
+    },
+  });
+  const minerState = await getHomePageState({
+    db: prisma,
+    userId: minerLeader.id,
+    now: new Date("2026-04-20T12:02:00.000Z"),
+  });
+
+  assert.deepEqual(refreshedDefault, {
+    points: 10,
+    food: 5,
+    army: 5,
+  });
+  assert.deepEqual(refreshedFoodLimited, {
+    points: 0,
+    food: 0,
+    army: 2,
+  });
+  assert.deepEqual(refreshedIdle, {
+    points: 0,
+    food: 0,
+    army: 0,
+  });
+  assert.deepEqual(refreshedMiner, {
+    points: 25,
+    food: 0,
+    army: 0,
+  });
+  assert.equal(minerState.leaderboard[0]?.id, minerLeader.id);
 });
 
 test("attack units relaunch on the same tick when a previous unit resolves", async (context) => {
