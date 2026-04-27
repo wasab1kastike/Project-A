@@ -16,6 +16,7 @@ import { canFortressLevelUp, getFortressUpgradeCost } from "./upgrades";
 import { cancelActiveAttackUnits, launchAttackUnit } from "./attack-units";
 import { GameError } from "./errors";
 import { assertWorkerAssignments } from "./balance";
+import { isFortressRace, type FortressRace } from "./races";
 import { ensureCommanderRegistrationColumn } from "./schema-guards";
 import {
   buildFortressSpawnSeed,
@@ -107,6 +108,17 @@ function isActiveWindowOpen(
     cycle.activeEndsAt !== null &&
     cycle.activeEndsAt > now
   );
+}
+
+function isRaceSelectionWindowOpen(
+  cycle: {
+    status: CycleStatus;
+    registrationEndsAt: Date;
+    activeEndsAt: Date | null;
+  },
+  now: Date
+) {
+  return isRegistrationWindowOpen(cycle, now) || isActiveWindowOpen(cycle, now);
 }
 
 function findOpenMapPosition(
@@ -481,6 +493,7 @@ export async function setFortressAction({
         currentAction: true,
         army: true,
         level: true,
+        race: true,
         mapX: true,
         mapY: true,
         ownerId: true,
@@ -572,6 +585,68 @@ export async function setFortressAction({
   });
 }
 
+export async function selectFortressRace({
+  userId,
+  race,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  race: FortressRace | string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  if (!isFortressRace(race)) {
+    throw new GameError("Choose a valid race for this season.");
+  }
+
+  return db.$transaction(
+    async (tx) => {
+      const cycle = await getCurrentCycle(tx);
+
+      if (!cycle || !isRaceSelectionWindowOpen(cycle, now)) {
+        throw new GameError(
+          "Race selection is only available before or during an active season."
+        );
+      }
+
+      const fortress = await tx.fortress.findUnique({
+        where: {
+          cycleId_ownerId: {
+            cycleId: cycle.id,
+            ownerId: userId,
+          },
+        },
+        select: {
+          id: true,
+          race: true,
+          isNpc: true,
+        },
+      });
+
+      if (!fortress || fortress.isNpc) {
+        throw new GameError("You are not participating in the current cycle.");
+      }
+
+      if (fortress.race) {
+        throw new GameError("Your race is locked for this season.");
+      }
+
+      return tx.fortress.update({
+        where: {
+          id: fortress.id,
+        },
+        data: {
+          race,
+        },
+      });
+    },
+    {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    }
+  );
+}
+
 export async function updateWorkerAssignment({
   userId,
   minersAssigned,
@@ -607,6 +682,7 @@ export async function updateWorkerAssignment({
         select: {
           id: true,
           level: true,
+          race: true,
           isNpc: true,
         },
       });
@@ -617,6 +693,7 @@ export async function updateWorkerAssignment({
 
       assertWorkerAssignments({
         level: fortress.level,
+        race: fortress.race,
         minersAssigned,
         farmersAssigned,
         recruitersAssigned,
@@ -738,6 +815,7 @@ export async function shuffleFortressLocation({
       select: {
         id: true,
         points: true,
+        race: true,
         currentAction: true,
         mapX: true,
         mapY: true,

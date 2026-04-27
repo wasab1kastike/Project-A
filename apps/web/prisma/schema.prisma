@@ -23,6 +23,13 @@ enum FortressAction {
   ATTACK
 }
 
+enum FortressRace {
+  DWARFS
+  UNSTABLE_UNICORNS
+  SPACE_MURINES
+  ORKS
+}
+
 enum ScoreEventType {
   GROW_TICK
   ATTACK_SELF
@@ -205,6 +212,7 @@ model Fortress {
   minersAssigned            Int            @default(10)
   farmersAssigned           Int            @default(10)
   recruitersAssigned        Int            @default(5)
+  race                      FortressRace?
   isNpc                     Boolean        @default(false)
   health                    Int            @default(0)
   maxHealth                 Int            @default(0)

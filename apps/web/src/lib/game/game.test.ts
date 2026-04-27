@@ -18,6 +18,7 @@ import {
 } from "@/lib/prisma-client";
 import "./balance.test";
 import "./battle-report.test";
+import "./season-announcement.test";
 import {
   forceEndCurrentCycle,
   runManualCatchUpTick,
@@ -54,6 +55,8 @@ import {
   MEGA_FORTRESS_DESTROY_BONUS,
   MEGA_FORTRESS_HEALTH,
   ARCADE_LOOT_BOX_SKINS,
+  FORTRESS_LEVEL_UP_COSTS,
+  MAX_FORTRESS_LEVEL,
   UNIT_SPRITE_VARIANTS,
 } from "./constants";
 import { getAttackArrivalAt } from "./attacks";
@@ -80,6 +83,7 @@ import {
   purchaseFortressUpgrade,
   registerCommanderName,
   renameActiveFortress,
+  selectFortressRace,
   setFortressAction,
   updateWorkerAssignment,
   shuffleFortressLocation,
@@ -2308,6 +2312,77 @@ test("worker assignment updates validate cycle, ownership, capacity, and derived
   );
 });
 
+test("race selection is owner-only and locked once per season", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const owner = await createUser(prisma, "race-owner@example.com");
+  const outsider = await createUser(prisma, "race-outsider@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: owner.id,
+    fortressName: "Race Keep",
+  });
+
+  await assert.rejects(
+    () =>
+      selectFortressRace({
+        db: prisma,
+        userId: outsider.id,
+        race: "DWARFS",
+        now: new Date("2026-04-20T12:00:00.000Z"),
+      }),
+    /not participating/
+  );
+
+  await assert.rejects(
+    () =>
+      selectFortressRace({
+        db: prisma,
+        userId: owner.id,
+        race: "ELVES",
+        now: new Date("2026-04-20T12:00:00.000Z"),
+      }),
+    /valid race/
+  );
+
+  const selected = await selectFortressRace({
+    db: prisma,
+    userId: owner.id,
+    race: "ORKS",
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  assert.equal(selected.race, "ORKS");
+
+  await assert.rejects(
+    () =>
+      selectFortressRace({
+        db: prisma,
+        userId: owner.id,
+        race: "SPACE_MURINES",
+        now: new Date("2026-04-20T12:01:00.000Z"),
+      }),
+    /locked/
+  );
+
+  const fortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: owner.id,
+      },
+    },
+  });
+
+  assert.equal(fortress.race, "ORKS");
+});
+
 test("location shuffle is free once, then costs 50 points and cancels outgoing attacks", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
@@ -2660,7 +2735,7 @@ test("castle upgrades reject locked, unaffordable, and max-level purchases", asy
       id: fortress.id,
     },
     data: {
-      points: 2000,
+      points: FORTRESS_LEVEL_UP_COSTS.reduce((total, cost) => total + cost, 0),
     },
   });
 
@@ -2708,21 +2783,15 @@ test("castle upgrades reject locked, unaffordable, and max-level purchases", asy
       afterFirstUpgradeSummary.recruitersAssigned,
     10
   );
-  await purchaseFortressUpgrade({
-    db: prisma,
-    userId: user.id,
-    now: new Date("2026-04-20T12:07:00.000Z"),
-  });
-  await purchaseFortressUpgrade({
-    db: prisma,
-    userId: user.id,
-    now: new Date("2026-04-20T12:08:00.000Z"),
-  });
-  await purchaseFortressUpgrade({
-    db: prisma,
-    userId: user.id,
-    now: new Date("2026-04-20T12:09:00.000Z"),
-  });
+  for (let level = 1; level < MAX_FORTRESS_LEVEL; level += 1) {
+    await purchaseFortressUpgrade({
+      db: prisma,
+      userId: user.id,
+      now: new Date(
+        `2026-04-20T12:${String(6 + level).padStart(2, "0")}:00.000Z`
+      ),
+    });
+  }
 
   fortress = await prisma.fortress.findUniqueOrThrow({
     where: {
@@ -2748,11 +2817,12 @@ test("castle upgrades reject locked, unaffordable, and max-level purchases", asy
 
   assert.deepEqual(
     purchaseEvents.map((event) => event.delta),
-    [-100, -300, -600, -1000]
+    FORTRESS_LEVEL_UP_COSTS.map((cost) => -cost)
   );
-  assert.equal(fortress.level, 4);
+  assert.equal(fortress.level, MAX_FORTRESS_LEVEL);
   assert.equal(fortress.points, 0);
-  assert.equal(state.playerSummary?.level, 4);
+  assert.equal(state.playerSummary?.level, MAX_FORTRESS_LEVEL);
+  assert.equal(state.playerSummary?.displayedCastleLevel, 10);
   assert.equal(state.playerSummary?.nextUpgradeCost, null);
   assert.equal(state.playerSummary?.canPurchaseUpgrade, false);
 

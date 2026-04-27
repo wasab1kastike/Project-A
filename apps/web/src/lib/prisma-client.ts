@@ -7,6 +7,7 @@ export {
   CommunityWishStatus,
   CycleStatus,
   FortressAction,
+  FortressRace,
   Prisma,
   PrismaClient,
   ScoreEventType,

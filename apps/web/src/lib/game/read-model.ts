@@ -312,6 +312,7 @@ export async function getHomePageState({
           minersAssigned: true,
           farmersAssigned: true,
           recruitersAssigned: true,
+          race: true,
           currentAction: true,
           targetFortressId: true,
           unitSpriteVariant: true,
@@ -608,6 +609,7 @@ export async function getHomePageState({
                 commanderName: true,
                 ownerId: true,
                 level: true,
+                race: true,
               },
             },
           },
@@ -634,8 +636,14 @@ export async function getHomePageState({
           sentArmy: unit.armyAmount,
           defenderArmyAtBattleStart: unit.defenderArmyAtBattleStart,
           defenderDbLevel,
-          defenseBonusPercent: getDefenseBonusPercent(defenderDbLevel),
-          defenseMultiplier: getFortressDefenseMultiplier(defenderDbLevel),
+          defenseBonusPercent: getDefenseBonusPercent(
+            defenderDbLevel,
+            unit.targetFortress.race
+          ),
+          defenseMultiplier: getFortressDefenseMultiplier(
+            defenderDbLevel,
+            unit.targetFortress.race
+          ),
           resolvedAttackPower,
           resolvedDefensePower,
           outcome,
@@ -651,6 +659,7 @@ export async function getHomePageState({
             sentArmy: unit.armyAmount,
             defenderArmyAtBattleStart: unit.defenderArmyAtBattleStart,
             defenderDbLevel,
+            defenderRace: unit.targetFortress.race,
             resolvedDefensePower,
             outcome,
             attackerSurvivors: unit.attackerSurvivors ?? 0,
@@ -681,13 +690,14 @@ export async function getHomePageState({
     sizeTiles: fortress.sizeTiles,
     iconLabel: fortress.iconLabel,
     displayedCastleLevel: getDisplayedCastleLevel(fortress.level),
-    population: getFortressPopulation(fortress.level),
-    defenseMultiplier: getFortressDefenseMultiplier(fortress.level),
+    population: getFortressPopulation(fortress.level, fortress.race),
+    defenseMultiplier: getFortressDefenseMultiplier(fortress.level, fortress.race),
     food: fortress.food,
     army: fortress.army,
     minersAssigned: fortress.minersAssigned,
     farmersAssigned: fortress.farmersAssigned,
     recruitersAssigned: fortress.recruitersAssigned,
+    race: fortress.race,
     isSlayerOfA: fortress.id === cycle.crownedFortressId && !fortress.isNpc,
     currentAction: fortress.currentAction,
     mapX: fortress.mapX,
@@ -894,13 +904,20 @@ export async function getHomePageState({
           points: playerFortress.points,
           level: playerFortress.level,
           displayedCastleLevel: getDisplayedCastleLevel(playerFortress.level),
-          population: getFortressPopulation(playerFortress.level),
-          defenseMultiplier: getFortressDefenseMultiplier(playerFortress.level),
+          population: getFortressPopulation(
+            playerFortress.level,
+            playerFortress.race
+          ),
+          defenseMultiplier: getFortressDefenseMultiplier(
+            playerFortress.level,
+            playerFortress.race
+          ),
           food: playerFortress.food,
           army: playerFortress.army,
           minersAssigned: playerFortress.minersAssigned,
           farmersAssigned: playerFortress.farmersAssigned,
           recruitersAssigned: playerFortress.recruitersAssigned,
+          race: playerFortress.race,
           currentAction: playerFortress.currentAction,
           mapX: playerFortress.mapX,
           mapY: playerFortress.mapY,
@@ -928,13 +945,20 @@ export async function getHomePageState({
           points: playerFortress.points,
           level: playerFortress.level,
           displayedCastleLevel: getDisplayedCastleLevel(playerFortress.level),
-          population: getFortressPopulation(playerFortress.level),
-          defenseMultiplier: getFortressDefenseMultiplier(playerFortress.level),
+          population: getFortressPopulation(
+            playerFortress.level,
+            playerFortress.race
+          ),
+          defenseMultiplier: getFortressDefenseMultiplier(
+            playerFortress.level,
+            playerFortress.race
+          ),
           food: playerFortress.food,
           army: playerFortress.army,
           minersAssigned: playerFortress.minersAssigned,
           farmersAssigned: playerFortress.farmersAssigned,
           recruitersAssigned: playerFortress.recruitersAssigned,
+          race: playerFortress.race,
           currentAction: playerFortress.currentAction,
           currentTargetId: playerFortress.targetFortressId,
           currentTargetName: playerFortress.targetFortressId
@@ -948,12 +972,13 @@ export async function getHomePageState({
             : null,
           isSlayerOfA: playerFortress.id === cycle.crownedFortressId,
           canRename: activeOpen && playerFortress.points >= 10,
-          canSetAction: activeOpen,
+          canSetAction: activeOpen && playerFortress.race !== null,
           locationShuffleCost,
           freeLocationShuffleAvailable: locationShuffleCount === 0,
           hasOutgoingAttackUnits,
           canShuffleLocation:
             activeOpen &&
+            playerFortress.race !== null &&
             playerFortress.currentAction === "GROW" &&
             locationShuffleCost !== null &&
             playerFortress.points >= locationShuffleCost,
@@ -962,6 +987,7 @@ export async function getHomePageState({
           canAffordUpgrade,
           canPurchaseUpgrade:
             activeOpen &&
+            playerFortress.race !== null &&
             upgradesUnlocked &&
             nextUpgradeCost !== null &&
             canAffordUpgrade,
@@ -1077,6 +1103,7 @@ export async function getHomePageState({
               ),
               rawName: fortress.name,
               level: fortress.level,
+              race: fortress.race,
               points: fortress.points,
               isNpc: fortress.isNpc,
               health: fortress.health,

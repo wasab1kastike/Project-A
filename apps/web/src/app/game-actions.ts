@@ -33,6 +33,7 @@ import {
   purchaseFortressUpgrade,
   registerCommanderName,
   renameActiveFortress,
+  selectFortressRace,
   setFortressAction,
   updateWorkerAssignment,
   shuffleFortressLocation,
@@ -196,6 +197,22 @@ export async function updateWorkerAssignmentAction(input: {
       error: getActionErrorMessage(error),
     } satisfies InlineActionResult;
   }
+}
+
+export async function selectFortressRaceAction(formData: FormData) {
+  const userId = await requireUserId();
+
+  try {
+    await selectFortressRace({
+      userId,
+      race: getString(formData, "race"),
+    });
+    emitProjectARefresh("race-selection");
+  } catch (error) {
+    redirectToHome("error", getActionErrorMessage(error));
+  }
+
+  finishAction("Race locked for this season.");
 }
 
 export async function joinFortressAction(formData: FormData) {

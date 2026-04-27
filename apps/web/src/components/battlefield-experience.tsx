@@ -17,6 +17,7 @@ import {
   purchaseFortressUpgradeAction,
   registerCommanderNameAction,
   renameFortressAction,
+  selectFortressRaceAction,
   setFortressActionAction,
   updateWorkerAssignmentAction,
   shuffleFortressLocationAction,
@@ -27,9 +28,12 @@ import {
   getDisplayedCastleLevel,
   validateWorkerAssignments,
 } from "@/lib/game/balance";
+import { formatRaidAttackPreview } from "@/lib/game/battle-report";
 import {
-  formatRaidAttackPreview,
-} from "@/lib/game/battle-report";
+  getRaceDefinition,
+  RACE_DEFINITIONS,
+  type FortressRace,
+} from "@/lib/game/races";
 import { ChatPanel } from "./chat-panel";
 import {
   FortressMap,
@@ -43,6 +47,7 @@ type CommandTarget = {
   commanderName: string;
   name: string;
   level: number;
+  race: FortressRace | null;
   points: number;
   isNpc: boolean;
   health: number;
@@ -93,6 +98,7 @@ type PlayerSummary = {
   minersAssigned: number;
   farmersAssigned: number;
   recruitersAssigned: number;
+  race: FortressRace | null;
   currentAction: "GROW" | "ATTACK";
   currentTargetId?: string | null;
   currentTargetName?: string | null;
@@ -119,6 +125,7 @@ type PlayerFortress = {
   name: string;
   points: number;
   level: number;
+  race: FortressRace | null;
   currentAction: "GROW" | "ATTACK";
   mapX: number;
   mapY: number;
@@ -151,6 +158,83 @@ type BattleReport = {
   reportLines: string[];
 };
 
+function RaceSelectionSection({
+  currentRace,
+}: {
+  currentRace: FortressRace | null;
+}) {
+  const selectedRace = getRaceDefinition(currentRace);
+
+  return (
+    <section className={styles.racePanel}>
+      <div className={styles.sectionHeading}>
+        <span className={styles.label}>Season race</span>
+        <strong>{selectedRace ? "Locked" : "Choose once"}</strong>
+      </div>
+      {selectedRace ? (
+        <article
+          className={`${styles.raceCard} ${styles.raceCardSelected}`}
+          data-race={selectedRace.key}
+        >
+          <div className={styles.raceBanner}>
+            <span className={styles.raceIcon} aria-hidden="true">
+              {selectedRace.iconPlaceholder}
+            </span>
+            <div>
+              <h4>{selectedRace.displayName}</h4>
+              <blockquote>{selectedRace.flavorQuote}</blockquote>
+            </div>
+          </div>
+          <p>{selectedRace.flavorText}</p>
+          <ul>
+            {selectedRace.passiveSummary.map((passive) => (
+              <li key={passive}>{passive}</li>
+            ))}
+          </ul>
+          <small>Race locked for this season.</small>
+        </article>
+      ) : (
+        <>
+          <p className={styles.helper}>
+            Choose your race before active gameplay. This choice is locked for
+            the whole season.
+          </p>
+          <div className={styles.raceGrid}>
+            {RACE_DEFINITIONS.map((race) => (
+              <form
+                key={race.key}
+                action={selectFortressRaceAction}
+                className={styles.raceCard}
+                data-race={race.key}
+              >
+                <input name="race" type="hidden" value={race.key} />
+                <div className={styles.raceBanner}>
+                  <span className={styles.raceIcon} aria-hidden="true">
+                    {race.iconPlaceholder}
+                  </span>
+                  <div>
+                    <h4>{race.displayName}</h4>
+                    <blockquote>{race.flavorQuote}</blockquote>
+                  </div>
+                </div>
+                <p>{race.flavorText}</p>
+                <ul>
+                  {race.passiveSummary.map((passive) => (
+                    <li key={passive}>{passive}</li>
+                  ))}
+                </ul>
+                <button className={styles.secondaryButton} type="submit">
+                  Lock {race.displayName}
+                </button>
+              </form>
+            ))}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
 function WorkerAssignmentSection({
   playerSummary,
 }: {
@@ -170,21 +254,28 @@ function WorkerAssignmentSection({
   const workerAssignmentValidation = useMemo(() => {
     return validateWorkerAssignments({
       level: playerSummary.level,
+      race: playerSummary.race,
       minersAssigned: workerAssignments.minersAssigned,
       farmersAssigned: workerAssignments.farmersAssigned,
       recruitersAssigned: workerAssignments.recruitersAssigned,
     });
-  }, [playerSummary.level, workerAssignments]);
+  }, [playerSummary.level, playerSummary.race, workerAssignments]);
 
   const workerAssignmentPreview = useMemo(() => {
     return calculateTickProduction({
       level: playerSummary.level,
+      race: playerSummary.race,
       food: playerSummary.food,
       minersAssigned: workerAssignments.minersAssigned,
       farmersAssigned: workerAssignments.farmersAssigned,
       recruitersAssigned: workerAssignments.recruitersAssigned,
     });
-  }, [playerSummary.food, playerSummary.level, workerAssignments]);
+  }, [
+    playerSummary.food,
+    playerSummary.level,
+    playerSummary.race,
+    workerAssignments,
+  ]);
 
   const workerAssignmentAssignedTotal =
     workerAssignments.minersAssigned +
@@ -243,7 +334,7 @@ function WorkerAssignmentSection({
   async function handleWorkerAssignmentSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (workerAssignmentPending) {
+    if (workerAssignmentPending || !playerSummary.race) {
       return;
     }
 
@@ -473,9 +564,11 @@ function WorkerAssignmentSection({
         <button
           className={`${styles.primaryButton} ${styles.emphasisButton}`}
           type="submit"
-          disabled={
-            workerAssignmentPending || Boolean(workerAssignmentValidationError)
-          }
+            disabled={
+              workerAssignmentPending ||
+              !playerSummary.race ||
+              Boolean(workerAssignmentValidationError)
+            }
         >
           {workerAssignmentPending ? "Saving workers..." : "Save workers"}
         </button>
@@ -536,12 +629,14 @@ export function BattlefieldExperience({
     () => targets.find((target) => target.id === targetFortressId) ?? null,
     [targets, targetFortressId]
   );
+  const playerRaceDefinition = getRaceDefinition(playerSummary?.race);
   const attackPreviewLines = useMemo(() => {
     return formatRaidAttackPreview({
       availableArmy: playerSummary?.army ?? 0,
       sentArmy,
       targetName: selectedAttackTarget?.name ?? null,
       targetDbLevel: selectedAttackTarget?.level ?? null,
+      targetRace: selectedAttackTarget?.race ?? null,
     });
   }, [playerSummary?.army, sentArmy, selectedAttackTarget]);
 
@@ -599,7 +694,7 @@ export function BattlefieldExperience({
 
   const canOpenActions = Boolean(
     ownFortress &&
-    ((phaseStatus === "ACTIVE" && playerSummary?.canSetAction) ||
+    ((phaseStatus === "ACTIVE" && playerSummary) ||
       (phaseStatus === "REGISTRATION" &&
         canEditRegistrationName &&
         playerFortress))
@@ -627,6 +722,10 @@ export function BattlefieldExperience({
   function getAttackValidationError(nextTargetFortressId = targetFortressId) {
     if (!playerSummary) {
       return "You need an active fortress before attacking.";
+    }
+
+    if (!playerSummary.race) {
+      return "Choose a race before attacking.";
     }
 
     if (!nextTargetFortressId) {
@@ -786,6 +885,8 @@ export function BattlefieldExperience({
               </div>
             </div>
 
+            <RaceSelectionSection currentRace={playerSummary.race} />
+
             <section className={styles.orderSection}>
               <dl className={styles.castleStats}>
                 <div className={styles.primaryStat}>
@@ -803,6 +904,10 @@ export function BattlefieldExperience({
                       ? ` -> ${playerSummary.currentTargetName}`
                       : ""}
                   </dd>
+                </div>
+                <div>
+                  <dt>Race</dt>
+                  <dd>{playerRaceDefinition?.displayName ?? "Unchosen"}</dd>
                 </div>
                 <div>
                   <dt>Output</dt>
@@ -825,6 +930,12 @@ export function BattlefieldExperience({
                 key={`${playerSummary.id}:${playerSummary.minersAssigned}:${playerSummary.farmersAssigned}:${playerSummary.recruitersAssigned}`}
                 playerSummary={playerSummary}
               />
+            ) : null}
+
+            {!playerSummary.race ? (
+              <p className={`${styles.helper} ${styles.warningText}`}>
+                Race selection is required before active orders.
+              </p>
             ) : null}
 
             <form action={setFortressActionAction} className={styles.form}>
@@ -933,8 +1044,9 @@ export function BattlefieldExperience({
               <button
                 className={`${styles.primaryButton} ${styles.emphasisButton}`}
                 type="submit"
-                disabled={
-                  action === "ATTACK" ? Boolean(attackValidationError) : false
+                  disabled={
+                  !playerSummary.race ||
+                  (action === "ATTACK" ? Boolean(attackValidationError) : false)
                 }
               >
                 {action === "ATTACK" ? "Send army" : "Save orders"}
@@ -1024,7 +1136,14 @@ export function BattlefieldExperience({
                   <h4>Level {playerSummary.displayedCastleLevel}</h4>
                 </div>
                 <strong>
-                  +{Math.round(getDefenseBonusPercent(playerSummary.level) * 100)}%
+                  +
+                  {Math.round(
+                    getDefenseBonusPercent(
+                      playerSummary.level,
+                      playerSummary.race
+                    ) * 100
+                  )}
+                  %
                 </strong>
               </div>
               <dl className={styles.castleStats}>
@@ -1149,6 +1268,7 @@ export function BattlefieldExperience({
               </div>
               <strong>{playerFortress.points} pts</strong>
             </div>
+            <RaceSelectionSection currentRace={playerFortress.race} />
             <form
               action={editRegistrationFortressNameAction}
               className={styles.form}

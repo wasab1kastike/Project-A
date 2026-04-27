@@ -3,12 +3,14 @@ import {
   getDisplayedCastleLevel,
   type RaidOutcome,
 } from "./balance";
+import type { FortressRace } from "./races";
 
 export type RaidPreviewInput = {
   availableArmy: number;
   sentArmy: number;
   targetName: string | null;
   targetDbLevel: number | null;
+  targetRace?: FortressRace | null;
   targetVisibleArmy?: number | null;
 };
 
@@ -18,6 +20,7 @@ export type RaidBattleReportInput = {
   sentArmy: number;
   defenderArmyAtBattleStart: number | null;
   defenderDbLevel: number;
+  defenderRace?: FortressRace | null;
   resolvedDefensePower: number;
   outcome: RaidOutcome["outcome"];
   attackerSurvivors: number;
@@ -39,7 +42,10 @@ export function formatRaidAttackPreview(input: RaidPreviewInput) {
 
   if (input.targetName && input.targetDbLevel !== null) {
     const displayedLevel = getDisplayedCastleLevel(input.targetDbLevel);
-    const defenseBonusPercent = getDefenseBonusPercent(input.targetDbLevel);
+    const defenseBonusPercent = getDefenseBonusPercent(
+      input.targetDbLevel,
+      input.targetRace
+    );
 
     lines.push(
       `Target: ${input.targetName}, castle level ${displayedLevel}, defense bonus +${formatPercent(defenseBonusPercent)}.`
@@ -62,7 +68,10 @@ export function formatRaidAttackPreview(input: RaidPreviewInput) {
 }
 
 export function formatRaidBattleReport(input: RaidBattleReportInput) {
-  const defenseBonusPercent = getDefenseBonusPercent(input.defenderDbLevel);
+  const defenseBonusPercent = getDefenseBonusPercent(
+    input.defenderDbLevel,
+    input.defenderRace
+  );
   const displayedCastleLevel = getDisplayedCastleLevel(input.defenderDbLevel);
   const isVictory = input.outcome === "ATTACKER_WIN";
 

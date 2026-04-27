@@ -713,6 +713,7 @@ async function processCycleTick(
         minersAssigned: true,
         farmersAssigned: true,
         recruitersAssigned: true,
+        race: true,
         currentAction: true,
         targetFortressId: true,
         isNpc: true,
@@ -989,8 +990,10 @@ async function processCycleTick(
       const defenderArmyAtBattleStart = defenderArmy;
       const outcome = calculateRaidOutcome({
         attackArmy: unit.armyAmount,
+        attackerRace: attacker.race,
         defenderArmy,
         defenderDbLevel: target.level,
+        defenderRace: target.race,
         defenderPoints,
         defenderFood,
       });
@@ -1148,6 +1151,7 @@ async function processCycleTick(
           minersAssigned: true,
           farmersAssigned: true,
           recruitersAssigned: true,
+          race: true,
           currentAction: true,
           targetFortressId: true,
           isNpc: true,

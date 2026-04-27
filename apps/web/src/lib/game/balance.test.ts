@@ -22,6 +22,79 @@ test("balance helpers derive castle level, population, and defense from db level
   assert.equal(getEffectiveDefendingArmy(10, 2), 13);
 });
 
+test("race modifiers adjust population, defense, production, and carry capacity", () => {
+  assert.equal(getFortressPopulation(0, "UNSTABLE_UNICORNS"), 27);
+  assert.equal(getDefenseBonusPercent(0, "DWARFS"), 0.2);
+  assert.equal(getFortressDefenseMultiplier(0, "SPACE_MURINES"), 1.15);
+  assert.equal(getEffectiveDefendingArmy(100, 0, "DWARFS"), 120);
+
+  const dwarfProduction = calculateTickProduction({
+    level: 0,
+    race: "DWARFS",
+    food: 0,
+    minersAssigned: 20,
+    farmersAssigned: 0,
+    recruitersAssigned: 0,
+  });
+  const unicornProduction = calculateTickProduction({
+    level: 0,
+    race: "UNSTABLE_UNICORNS",
+    food: 0,
+    minersAssigned: 0,
+    farmersAssigned: 20,
+    recruitersAssigned: 0,
+  });
+  const murineProduction = calculateTickProduction({
+    level: 0,
+    race: "SPACE_MURINES",
+    food: 50,
+    minersAssigned: 0,
+    farmersAssigned: 0,
+    recruitersAssigned: 20,
+  });
+
+  assert.equal(dwarfProduction.pointsProduced, 22);
+  assert.equal(unicornProduction.foodProduced, 22);
+  assert.equal(murineProduction.armyRequested, 22);
+
+  const baseRaid = calculateRaidOutcome({
+    attackArmy: 20,
+    defenderArmy: 4,
+    defenderDbLevel: 0,
+    defenderPoints: 100,
+    defenderFood: 100,
+  });
+  const orkRaid = calculateRaidOutcome({
+    attackArmy: 20,
+    attackerRace: "ORKS",
+    defenderArmy: 4,
+    defenderDbLevel: 0,
+    defenderPoints: 100,
+    defenderFood: 100,
+  });
+
+  assert.equal(baseRaid.pointsLooted + baseRaid.foodLooted, 32);
+  assert.equal(orkRaid.pointsLooted + orkRaid.foodLooted, 40);
+});
+
+test("null legacy race uses base economy and combat safely", () => {
+  assert.equal(getFortressPopulation(0, null), 25);
+  assert.equal(getFortressDefenseMultiplier(0, null), 1.1);
+
+  const production = calculateTickProduction({
+    level: 0,
+    race: null,
+    food: 0,
+    minersAssigned: 10,
+    farmersAssigned: 10,
+    recruitersAssigned: 5,
+  });
+
+  assert.equal(production.pointsProduced, 10);
+  assert.equal(production.foodProduced, 10);
+  assert.equal(production.armyRequested, 5);
+});
+
 test("worker assignment validation allows idle population and rejects overflow", () => {
   const valid = validateWorkerAssignments({
     level: 0,

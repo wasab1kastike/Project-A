@@ -288,6 +288,123 @@
   border-top: 0;
 }
 
+.racePanel {
+  display: grid;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid rgba(247, 196, 95, 0.18);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at top left, rgba(247, 196, 95, 0.12), transparent 48%),
+    rgba(3, 10, 16, 0.34);
+}
+
+.raceGrid {
+  display: grid;
+  gap: 8px;
+}
+
+.raceCard {
+  --race-accent: #9be7ef;
+  --race-glow: rgba(103, 196, 207, 0.18);
+  display: grid;
+  gap: 7px;
+  padding: 9px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--race-accent) 28%, transparent);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at top left, var(--race-glow), transparent 58%),
+    rgba(7, 13, 20, 0.54);
+}
+
+.raceCard[data-race="DWARFS"] {
+  --race-accent: #f7c45f;
+  --race-glow: rgba(247, 196, 95, 0.2);
+}
+
+.raceCard[data-race="UNSTABLE_UNICORNS"] {
+  --race-accent: #ff8fd6;
+  --race-glow: rgba(255, 143, 214, 0.2);
+}
+
+.raceCard[data-race="SPACE_MURINES"] {
+  --race-accent: #76beff;
+  --race-glow: rgba(118, 190, 255, 0.22);
+}
+
+.raceCard[data-race="ORKS"] {
+  --race-accent: #7df0ba;
+  --race-glow: rgba(125, 240, 186, 0.2);
+}
+
+.raceCardSelected {
+  border-color: color-mix(in srgb, var(--race-accent) 48%, transparent);
+  background:
+    linear-gradient(180deg, var(--race-glow), transparent),
+    rgba(7, 13, 20, 0.58);
+}
+
+.raceBanner {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  padding: 8px;
+  margin: -3px -3px 0;
+  border: 1px solid color-mix(in srgb, var(--race-accent) 22%, transparent);
+  border-radius: 7px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--race-accent) 16%, transparent), transparent),
+    rgba(3, 10, 16, 0.42);
+}
+
+.raceIcon {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--race-accent) 42%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--race-accent) 12%, rgba(3, 10, 16, 0.74));
+  box-shadow: 0 0 18px var(--race-glow);
+  color: var(--race-accent);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.raceCard p {
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.raceCard blockquote {
+  margin: 3px 0 0;
+  color: var(--race-accent);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.62rem;
+  line-height: 1.35;
+}
+
+.raceCard ul {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.raceCard li,
+.raceCard small {
+  color: var(--race-accent);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
 .sectionHeading {
   display: flex;
   align-items: center;

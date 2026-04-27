@@ -11,7 +11,17 @@ export const BASE_FORTRESS_ATTACK_DAMAGE = 2;
 export const BASE_FORTRESS_GROWTH = 1;
 export const FORTRESS_ATTACK_DAMAGE_PER_LEVEL = 2;
 export const FORTRESS_GROWTH_PER_LEVEL = 1;
-export const FORTRESS_LEVEL_UP_COSTS = [100, 300, 600, 1000] as const;
+export const FORTRESS_LEVEL_UP_COSTS = [
+  100,
+  300,
+  600,
+  1000,
+  1500,
+  2100,
+  2800,
+  3600,
+  4500,
+] as const;
 export const MAX_FORTRESS_LEVEL = FORTRESS_LEVEL_UP_COSTS.length;
 export const MEGA_FORTRESS_NAME = "Home of A";
 export const MEGA_FORTRESS_ICON_LABEL = "A-";

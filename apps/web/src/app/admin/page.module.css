@@ -201,12 +201,69 @@
 }
 
 .progressForm {
-  grid-template-columns: minmax(150px, 1fr) auto;
+  grid-template-columns: minmax(120px, 0.8fr) minmax(150px, 1fr) auto;
   align-items: end;
   padding: 12px;
   border: 1px solid rgba(247, 196, 95, 0.18);
   border-radius: 14px;
   background: rgba(247, 196, 95, 0.06);
+}
+
+.wishProgressWrap {
+  display: grid;
+  gap: 6px;
+  align-self: center;
+}
+
+.wishProgressWrap strong {
+  color: var(--accent-strong);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.76rem;
+  text-align: right;
+}
+
+.wishProgressBar {
+  position: relative;
+  height: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(118, 190, 255, 0.26);
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0)),
+    rgba(255, 255, 255, 0.07);
+  box-shadow:
+    inset 0 0 0 1px rgba(7, 13, 20, 0.24),
+    0 0 18px rgba(118, 190, 255, 0.08);
+}
+
+.wishProgressBar span {
+  position: relative;
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #f7c45f 0%, #76beff 58%, #7df0ba 100%);
+  box-shadow: 0 0 16px rgba(118, 190, 255, 0.34);
+}
+
+.wishProgressBar span::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.42),
+    transparent
+  );
+  content: "";
+  opacity: 0.45;
+}
+
+.wishProgressWrap[data-progress-state="complete"] .wishProgressBar span {
+  background: linear-gradient(90deg, #7df0ba, #f7c45f);
+}
+
+.wishProgressWrap[data-progress-state="empty"] .wishProgressBar span {
+  box-shadow: none;
 }
 
 .requestList {

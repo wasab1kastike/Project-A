@@ -6,6 +6,7 @@ import { SessionActions } from "@/components/session-actions";
 import { BattlefieldExperience } from "@/components/battlefield-experience";
 import { MegaFortressNotice } from "@/components/mega-fortress-notice";
 import { RealtimeBridge } from "@/components/realtime-bridge";
+import { SeasonUpdateAnnouncement } from "@/components/season-update-announcement";
 import { SeasonTimer } from "@/components/season-timer";
 import {
   joinFortressAction,
@@ -339,6 +340,7 @@ export default async function Home({
           <span className={styles.accountChip}>
             {session?.user ? userLabel : "Guest"}
           </span>
+          <SeasonUpdateAnnouncement userId={session?.user?.id ?? null} />
           {PRIMARY_GAME_NAV_LINKS.map((link) => (
             <Link className={styles.hudButton} href={link.href} key={link.href}>
               {link.label}

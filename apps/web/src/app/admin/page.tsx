@@ -40,6 +40,46 @@ function formatDateTime(value: Date | null) {
   return dateTimeFormatter.format(value);
 }
 
+function normalizeProgress(progress: number) {
+  if (!Number.isFinite(progress)) {
+    return 0;
+  }
+
+  return Math.min(100, Math.max(0, Math.round(progress)));
+}
+
+function WishProgressMeter({
+  label,
+  progress,
+}: {
+  label: string;
+  progress: number;
+}) {
+  const normalizedProgress = normalizeProgress(progress);
+  const progressState =
+    normalizedProgress >= 100
+      ? "complete"
+      : normalizedProgress <= 0
+        ? "empty"
+        : "active";
+
+  return (
+    <div className={styles.wishProgressWrap} data-progress-state={progressState}>
+      <div
+        aria-label={`${label} ${normalizedProgress}% fulfilled`}
+        aria-valuemax={100}
+        aria-valuemin={0}
+        aria-valuenow={normalizedProgress}
+        className={styles.wishProgressBar}
+        role="progressbar"
+      >
+        <span style={{ width: `${normalizedProgress}%` }} />
+      </div>
+      <strong>{normalizedProgress}%</strong>
+    </div>
+  );
+}
+
 export default async function AdminPage({
   searchParams,
 }: {
@@ -385,6 +425,10 @@ export default async function AdminPage({
                     className={styles.progressForm}
                   >
                     <input type="hidden" name="requestId" value={request.id} />
+                    <WishProgressMeter
+                      label="Winner request"
+                      progress={request.fulfillmentProgress}
+                    />
                     <label className={styles.fieldStack}>
                       <span>Fulfillment progress</span>
                       <input
@@ -494,6 +538,10 @@ export default async function AdminPage({
                         type="hidden"
                         name="cycleId"
                         value={entry.cycleId}
+                      />
+                      <WishProgressMeter
+                        label="Community wish"
+                        progress={entry.fulfillmentProgress}
                       />
                       <label className={styles.fieldStack}>
                         <span>Fulfillment progress</span>
