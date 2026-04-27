@@ -59,7 +59,9 @@ jobs:
       - name: Update latest production wish progress
         run: |
           node --input-type=module <<'EOF'
-          import { PrismaClient } from "@prisma/client";
+          import pkg from "@prisma/client";
+
+          const { PrismaClient } = pkg;
 
           const prisma = new PrismaClient();
           const winnerProgress = Number(process.env.WINNER_PROGRESS);
