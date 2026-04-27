@@ -32,6 +32,7 @@ import {
   resolveExpiredCommunityWishVotes,
   saveCommunityWishVotes,
   submitCommunityWishProposal,
+  updateCommunityWishFulfillmentProgress,
 } from "./community-wishes";
 import { getBuildArcadeRewardVariant } from "./build-arcade";
 import {
@@ -88,6 +89,7 @@ import {
   classifyWinnerRequest,
   reviewWinnerRequest,
   submitWinnerRequest,
+  updateWinnerRequestFulfillmentProgress,
 } from "./winner-requests";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -5847,10 +5849,66 @@ test("community wish voting resolves winners and leaves ties for admin", async (
 
   assert.equal(resolvedHistory.communityWishStatus, CommunityWishStatus.RESOLVED);
   assert.equal(resolvedHistory.communityWishProposalId, winningProposal.id);
+  assert.equal(resolvedHistory.communityWishFulfillmentProgress, 0);
   assert.match(
     resolvedHistory.communityWishSnapshot ?? "",
     /season-end confetti/
   );
+
+  const updatedCommunityProgress =
+    await updateCommunityWishFulfillmentProgress({
+      db: prisma,
+      cycleId: secondCycle.id,
+      progress: 125,
+    });
+
+  assert.equal(updatedCommunityProgress.communityWishFulfillmentProgress, 100);
+
+  await prisma.cycleHistory.update({
+    where: {
+      cycleId: secondCycle.id,
+    },
+    data: {
+      communityWishSnapshot: null,
+    },
+  });
+
+  const historyState = await getCycleHistoryPageState({
+    userId: beta.id,
+    db: prisma,
+  });
+  const homeState = await getHomePageState({
+    userId: beta.id,
+    db: prisma,
+    now: new Date("2026-04-28T12:00:00.000Z"),
+  });
+  const adminState = await getAdminDashboardState({
+    db: prisma,
+  });
+  const historyEntry = historyState.entries.find(
+    (entry) => entry.cycleId === secondCycle.id
+  );
+  const adminCommunityWish = adminState.communityWishes.find(
+    (entry) => entry.cycleId === secondCycle.id
+  );
+
+  assert.match(
+    historyEntry?.communityWishSnapshot ?? "",
+    /season-end confetti/
+  );
+  assert.equal(
+    historyEntry?.communityWishFulfillmentProgress,
+    100
+  );
+  assert.equal(
+    homeState.latestSeason?.wishes.community?.fulfillmentProgress,
+    100
+  );
+  assert.match(
+    homeState.latestSeason?.wishes.community?.text ?? "",
+    /season-end confetti/
+  );
+  assert.equal(adminCommunityWish?.fulfillmentProgress, 100);
 });
 
 test("community wish migration backfills legacy history as no proposals", () => {
@@ -6038,6 +6096,16 @@ test("history and admin read models expose stored winner request state", async (
     reviewNotes: "Keep it to one small badge and no extra summary blocks.",
     now: new Date("2026-04-20T12:08:00.000Z"),
   });
+  const clampedHighProgress = await updateWinnerRequestFulfillmentProgress({
+    db: prisma,
+    requestId: created.id,
+    progress: 140,
+  });
+  const persistedProgress = await updateWinnerRequestFulfillmentProgress({
+    db: prisma,
+    requestId: created.id,
+    progress: 42,
+  });
 
   const historyState = await getCycleHistoryPageState({
     userId: winner.id,
@@ -6046,7 +6114,14 @@ test("history and admin read models expose stored winner request state", async (
   const adminState = await getAdminDashboardState({
     db: prisma,
   });
+  const homeState = await getHomePageState({
+    userId: winner.id,
+    db: prisma,
+    now: new Date("2026-04-21T12:00:00.000Z"),
+  });
 
+  assert.equal(clampedHighProgress.fulfillmentProgress, 100);
+  assert.equal(persistedProgress.fulfillmentProgress, 42);
   assert.equal(
     historyState.entries[0]?.winnerRequestStatus,
     WinnerRequestStatus.NEEDS_SIMPLIFICATION
@@ -6059,6 +6134,12 @@ test("history and admin read models expose stored winner request state", async (
   assert.equal(historyState.entries[0]?.winnerLabel, "Archive Commander");
   assert.equal(historyState.entries[0]?.firstSlayerCommanderName, null);
   assert.equal(historyState.entries[0]?.firstSlayerFortressName, null);
+  assert.equal(historyState.entries[0]?.winnerRequestFulfillmentProgress, 42);
+  assert.equal(homeState.latestSeason?.wishes.winner?.fulfillmentProgress, 42);
+  assert.equal(
+    homeState.latestSeason?.wishes.winner?.text,
+    "Add a tiny winner seal next to the archived result."
+  );
   assert.equal(
     adminState.winnerRequests[0]?.status,
     WinnerRequestStatus.NEEDS_SIMPLIFICATION
@@ -6071,6 +6152,7 @@ test("history and admin read models expose stored winner request state", async (
     adminState.winnerRequests[0]?.reviewNotes,
     "Keep it to one small badge and no extra summary blocks."
   );
+  assert.equal(adminState.winnerRequests[0]?.fulfillmentProgress, 42);
   assert.equal(adminState.winnerRequests[0]?.reviewedByLabel, "Admin reviewer");
 });
 

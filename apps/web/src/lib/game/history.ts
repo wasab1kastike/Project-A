@@ -28,6 +28,7 @@ export async function getCycleHistoryPageState({
           requestText: true,
           status: true,
           reviewNotes: true,
+          fulfillmentProgress: true,
         },
       },
       communityWishProposal: {
@@ -150,6 +151,8 @@ export async function getCycleHistoryPageState({
         entry.winnerRequestSnapshot ?? entry.winnerRequest?.requestText ?? null,
       winnerRequestStatus: entry.winnerRequest?.status ?? null,
       winnerRequestReviewNotes: entry.winnerRequest?.reviewNotes ?? null,
+      winnerRequestFulfillmentProgress:
+        entry.winnerRequest?.fulfillmentProgress ?? 0,
       communityWishStatus: entry.communityWishStatus,
       communityWishProposalEndsAt: entry.communityWishProposalEndsAt,
       communityWishVotingEndsAt: entry.communityWishVotingEndsAt,
@@ -161,6 +164,8 @@ export async function getCycleHistoryPageState({
           : null) ??
         null,
       communityWishVoteCount: entry.communityWishVoteCount,
+      communityWishFulfillmentProgress:
+        entry.communityWishFulfillmentProgress,
       communityWishCanVote:
         Boolean(userId) &&
         votingOpen &&

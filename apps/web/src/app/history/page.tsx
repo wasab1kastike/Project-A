@@ -32,6 +32,26 @@ function getSearchValue(
   return value;
 }
 
+function ProgressBar({
+  label,
+  progress,
+}: {
+  label: string;
+  progress: number;
+}) {
+  return (
+    <div className={styles.progressWrap}>
+      <div
+        className={styles.progressBar}
+        aria-label={`${label} ${progress}% fulfilled`}
+      >
+        <span style={{ width: `${progress}%` }} />
+      </div>
+      <strong>{progress}%</strong>
+    </div>
+  );
+}
+
 export default async function HistoryPage({
   searchParams,
 }: {
@@ -123,7 +143,10 @@ export default async function HistoryPage({
                 </div>
                 <div>
                   <dt>Request status</dt>
-                  <dd>{entry.winnerRequestStatus ?? "No linked request"}</dd>
+                  <dd>
+                    {entry.winnerRequestStatus ?? "No linked request"} -{" "}
+                    {entry.winnerRequestFulfillmentProgress}% fulfilled
+                  </dd>
                 </div>
                 <div>
                   <dt>Tie-break</dt>
@@ -133,30 +156,41 @@ export default async function HistoryPage({
                   <dt>Review notes</dt>
                   <dd>{entry.winnerRequestReviewNotes ?? "No review notes."}</dd>
                 </div>
-                <div>
-                  <dt>Community wish</dt>
-                  <dd>
-                    {entry.communityWishSnapshot ??
-                      entry.communityWishVotingMessage}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Community wish status</dt>
-                  <dd>
-                    {entry.communityWishStatus}
-                    {entry.communityWishProposalEndsAt
-                      ? ` - proposals close ${formatDateTime(
-                          entry.communityWishProposalEndsAt
-                        )}`
-                      : ""}
-                    {entry.communityWishVotingEndsAt
-                      ? ` - voting ends ${formatDateTime(
-                          entry.communityWishVotingEndsAt
-                        )}`
-                      : ""}
-                  </dd>
-                </div>
               </dl>
+
+              <section className={styles.communityArchive}>
+                <div className={styles.archiveHeader}>
+                  <div>
+                    <span className={styles.sectionLabel}>
+                      Community voted wish
+                    </span>
+                    <h3>
+                      {entry.communityWishSnapshot ??
+                        entry.communityWishVotingMessage}
+                    </h3>
+                  </div>
+                  <div className={styles.archiveStatus}>
+                    <strong>{entry.communityWishStatus}</strong>
+                    <span>{entry.communityWishVoteCount} votes</span>
+                  </div>
+                </div>
+                <ProgressBar
+                  label="Community voted wish"
+                  progress={entry.communityWishFulfillmentProgress}
+                />
+                <p className={styles.helperText}>
+                  {entry.communityWishResolvedAt
+                    ? `Resolved ${formatDateTime(entry.communityWishResolvedAt)}`
+                    : entry.communityWishProposalEndsAt || entry.communityWishVotingEndsAt
+                      ? `${entry.communityWishProposalEndsAt ? `Proposals close ${formatDateTime(entry.communityWishProposalEndsAt)}` : ""}${
+                          entry.communityWishProposalEndsAt &&
+                          entry.communityWishVotingEndsAt
+                            ? " - "
+                            : ""
+                        }${entry.communityWishVotingEndsAt ? `Voting ends ${formatDateTime(entry.communityWishVotingEndsAt)}` : ""}`
+                      : "No community wish resolution time recorded."}
+                </p>
+              </section>
 
               {entry.communityWishProposalOpen ? (
                 <form

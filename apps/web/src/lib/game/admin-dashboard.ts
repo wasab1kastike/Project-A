@@ -148,6 +148,7 @@ export async function getAdminDashboardState({
       requestText: true,
       status: true,
       reviewNotes: true,
+      fulfillmentProgress: true,
       createdAt: true,
       reviewedAt: true,
       reviewedBy: {
@@ -314,6 +315,7 @@ export async function getAdminDashboardState({
       requestText: request.requestText,
       status: request.status,
       reviewNotes: request.reviewNotes,
+      fulfillmentProgress: request.fulfillmentProgress,
       createdAt: request.createdAt,
       reviewedAt: request.reviewedAt,
       reviewedByLabel: request.reviewedBy ? "Admin reviewer" : null,
@@ -361,6 +363,7 @@ export async function getAdminDashboardState({
         votingEndsAt: entry.communityWishVotingEndsAt,
         resolvedAt: entry.communityWishResolvedAt,
         winningProposalId: entry.communityWishProposalId,
+        fulfillmentProgress: entry.communityWishFulfillmentProgress,
         winningSnapshot:
           entry.communityWishSnapshot ??
           entry.communityWishProposal?.requestText ??

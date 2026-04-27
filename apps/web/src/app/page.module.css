@@ -223,6 +223,78 @@
   color: #ffe7aa;
 }
 
+.currentWishes,
+.promiseList,
+.promiseCard {
+  display: grid;
+  gap: 8px;
+}
+
+.currentWishes {
+  padding-top: 10px;
+  border-top: 1px solid rgba(247, 196, 95, 0.18);
+}
+
+.promiseCard {
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 8px;
+  background: rgba(7, 13, 20, 0.42);
+}
+
+.promisePlaceholder {
+  opacity: 0.72;
+}
+
+.promiseHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.promiseHeader span,
+.promiseCard small {
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+}
+
+.promiseCard p {
+  color: var(--foreground);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.promiseProgressWrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.promiseProgressWrap strong {
+  color: var(--accent-strong);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.7rem;
+}
+
+.promiseProgress {
+  height: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(247, 196, 95, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.promiseProgress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #f7c45f, #76beff);
+}
+
 .winnerWishPrompt {
   display: grid;
   gap: 8px;

@@ -12,13 +12,25 @@ import {
   runManualCatchUpTick,
   setRegistrationJoiningLock,
 } from "@/lib/game/admin-operations";
-import { adminResolveCommunityWishTie } from "@/lib/game/community-wishes";
-import { reviewWinnerRequest } from "@/lib/game/winner-requests";
+import {
+  adminResolveCommunityWishTie,
+  updateCommunityWishFulfillmentProgress,
+} from "@/lib/game/community-wishes";
+import {
+  reviewWinnerRequest,
+  updateWinnerRequestFulfillmentProgress,
+} from "@/lib/game/winner-requests";
 
 function getString(formData: FormData, key: string) {
   const value = formData.get(key);
 
   return typeof value === "string" ? value : "";
+}
+
+function getNumber(formData: FormData, key: string) {
+  const value = Number(getString(formData, key));
+
+  return Number.isFinite(value) ? value : 0;
 }
 
 function redirectToAdmin(
@@ -137,6 +149,30 @@ export async function reviewWinnerRequestAction(formData: FormData) {
   finishAction("Winner request review updated.");
 }
 
+export async function updateWinnerRequestFulfillmentProgressAction(
+  formData: FormData
+) {
+  await requireAdminSession();
+  const requestId = getString(formData, "requestId");
+  const progress = getNumber(formData, "progress");
+
+  if (!requestId) {
+    redirectToAdmin("error", "Choose a valid winner request.");
+  }
+
+  try {
+    await updateWinnerRequestFulfillmentProgress({
+      requestId,
+      progress,
+    });
+    emitProjectARefresh("winner-request-progress");
+  } catch (error) {
+    redirectToAdmin("error", getActionErrorMessage(error));
+  }
+
+  finishAction("Winner wish progress updated.");
+}
+
 export async function resolveCommunityWishTieAction(formData: FormData) {
   const session = await requireAdminSession();
   const cycleId = getString(formData, "cycleId");
@@ -158,4 +194,28 @@ export async function resolveCommunityWishTieAction(formData: FormData) {
   }
 
   finishAction("Community wish tie resolved.");
+}
+
+export async function updateCommunityWishFulfillmentProgressAction(
+  formData: FormData
+) {
+  await requireAdminSession();
+  const cycleId = getString(formData, "cycleId");
+  const progress = getNumber(formData, "progress");
+
+  if (!cycleId) {
+    redirectToAdmin("error", "Choose a resolved community wish.");
+  }
+
+  try {
+    await updateCommunityWishFulfillmentProgress({
+      cycleId,
+      progress,
+    });
+    emitProjectARefresh("community-wish-progress");
+  } catch (error) {
+    redirectToAdmin("error", getActionErrorMessage(error));
+  }
+
+  finishAction("Community wish progress updated.");
 }

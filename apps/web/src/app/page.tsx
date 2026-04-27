@@ -52,6 +52,26 @@ function formatLastUpdate(lastProcessedTickAt: Date | null) {
   return dateTimeFormatter.format(lastProcessedTickAt);
 }
 
+function PromiseProgress({
+  label,
+  progress,
+}: {
+  label: string;
+  progress: number;
+}) {
+  return (
+    <div className={styles.promiseProgressWrap}>
+      <div
+        className={styles.promiseProgress}
+        aria-label={`${label} ${progress}% fulfilled`}
+      >
+        <span style={{ width: `${progress}%` }} />
+      </div>
+      <strong>{progress}%</strong>
+    </div>
+  );
+}
+
 function getDegradedHomePageState(): HomePageState {
   return {
     isSpectator: true,
@@ -481,6 +501,71 @@ export default async function Home({
                   {state.latestSeason.firstSlayerFortressName}
                 </p>
               ) : null}
+              <div className={styles.currentWishes}>
+                <span className={styles.sectionLabel}>Current wishes</span>
+                <div className={styles.promiseList}>
+                  {state.latestSeason.wishes.winner ? (
+                    <article className={styles.promiseCard}>
+                      <div className={styles.promiseHeader}>
+                        <strong>Winner wish</strong>
+                        <span>{state.latestSeason.wishes.winner.status}</span>
+                      </div>
+                      <p>{state.latestSeason.wishes.winner.text}</p>
+                      <small>
+                        {state.latestSeason.wishes.winner.ownerLabel}
+                      </small>
+                      <PromiseProgress
+                        label="Winner wish"
+                        progress={
+                          state.latestSeason.wishes.winner.fulfillmentProgress
+                        }
+                      />
+                    </article>
+                  ) : (
+                    <article
+                      className={`${styles.promiseCard} ${styles.promisePlaceholder}`}
+                    >
+                      <div className={styles.promiseHeader}>
+                        <strong>Winner wish</strong>
+                        <span>Waiting</span>
+                      </div>
+                      <p>No winner request has been submitted yet.</p>
+                    </article>
+                  )}
+                  {state.latestSeason.wishes.community ? (
+                    <article className={styles.promiseCard}>
+                      <div className={styles.promiseHeader}>
+                        <strong>Community voted wish</strong>
+                        <span>
+                          {state.latestSeason.wishes.community.status}
+                        </span>
+                      </div>
+                      <p>{state.latestSeason.wishes.community.text}</p>
+                      <small>
+                        {state.latestSeason.wishes.community.ownerLabel} -{" "}
+                        {state.latestSeason.wishes.community.voteCount} votes
+                      </small>
+                      <PromiseProgress
+                        label="Community voted wish"
+                        progress={
+                          state.latestSeason.wishes.community
+                            .fulfillmentProgress
+                        }
+                      />
+                    </article>
+                  ) : (
+                    <article
+                      className={`${styles.promiseCard} ${styles.promisePlaceholder}`}
+                    >
+                      <div className={styles.promiseHeader}>
+                        <strong>Community voted wish</strong>
+                        <span>Waiting</span>
+                      </div>
+                      <p>No community wish has been resolved yet.</p>
+                    </article>
+                  )}
+                </div>
+              </div>
             </section>
           ) : null}
           {session?.user?.id &&

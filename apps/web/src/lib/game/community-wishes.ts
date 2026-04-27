@@ -7,7 +7,10 @@ import {
   WinnerRequestStatus,
 } from "@/lib/prisma-client";
 import { GameError } from "./errors";
-import { classifyWinnerRequest } from "./winner-requests";
+import {
+  classifyWinnerRequest,
+  normalizeFulfillmentProgress,
+} from "./winner-requests";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 export type CommunityWishRankedFortress = {
@@ -887,5 +890,46 @@ export async function adminResolveCommunityWishTie({
         communityWishResolvedById: adminId,
       },
     });
+  });
+}
+
+export async function updateCommunityWishFulfillmentProgress({
+  cycleId,
+  progress,
+  db = prisma,
+}: {
+  cycleId: string;
+  progress: number;
+  db?: PrismaClient;
+}) {
+  const normalizedProgress = normalizeFulfillmentProgress(progress);
+  const history = await db.cycleHistory.findUnique({
+    where: {
+      cycleId,
+    },
+    select: {
+      cycleId: true,
+      communityWishProposalId: true,
+      communityWishStatus: true,
+    },
+  });
+
+  if (
+    !history ||
+    history.communityWishStatus !== CommunityWishStatus.RESOLVED ||
+    !history.communityWishProposalId
+  ) {
+    throw new GameError(
+      "Community wish must be resolved before progress can be updated."
+    );
+  }
+
+  return db.cycleHistory.update({
+    where: {
+      cycleId: history.cycleId,
+    },
+    data: {
+      communityWishFulfillmentProgress: normalizedProgress,
+    },
   });
 }

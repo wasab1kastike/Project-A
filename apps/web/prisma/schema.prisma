@@ -313,6 +313,7 @@ model WinnerRequest {
   requestText           String              @db.Text
   status                WinnerRequestStatus @default(SUBMITTED)
   reviewNotes           String?             @db.Text
+  fulfillmentProgress   Int                 @default(0)
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
   reviewedAt            DateTime?
@@ -465,6 +466,7 @@ model CycleHistory {
   winnerRequestSnapshot     String?                @db.Text
   communityWishSnapshot     String?                @db.Text
   communityWishVoteCount    Int                    @default(0)
+  communityWishFulfillmentProgress Int             @default(0)
   communityWishStatus       CommunityWishStatus    @default(NO_PROPOSALS)
   communityWishProposalEndsAt DateTime?
   communityWishVotingEndsAt DateTime?

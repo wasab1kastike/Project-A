@@ -84,6 +84,14 @@ function normalizeRequestText(input: string) {
   return normalized;
 }
 
+export function normalizeFulfillmentProgress(value: number) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.min(100, Math.trunc(value)));
+}
+
 export function classifyWinnerRequest(input: string): {
   status: SubmissionStatus;
   reviewNotes: string;
@@ -311,5 +319,38 @@ export async function reviewWinnerRequest({
         reviewedAt: now,
       },
     });
+  });
+}
+
+export async function updateWinnerRequestFulfillmentProgress({
+  requestId,
+  progress,
+  db = prisma,
+}: {
+  requestId: string;
+  progress: number;
+  db?: PrismaClient;
+}) {
+  const normalizedProgress = normalizeFulfillmentProgress(progress);
+  const request = await db.winnerRequest.findUnique({
+    where: {
+      id: requestId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!request) {
+    throw new GameError("Winner request not found.");
+  }
+
+  return db.winnerRequest.update({
+    where: {
+      id: request.id,
+    },
+    data: {
+      fulfillmentProgress: normalizedProgress,
+    },
   });
 }

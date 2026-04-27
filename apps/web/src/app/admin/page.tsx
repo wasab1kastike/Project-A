@@ -9,6 +9,8 @@ import {
   reviewWinnerRequestAction,
   runManualCatchUpTickAction,
   toggleJoiningLockAction,
+  updateCommunityWishFulfillmentProgressAction,
+  updateWinnerRequestFulfillmentProgressAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -378,6 +380,25 @@ export default async function AdminPage({
                       : ""}
                   </p>
                   <p>{request.reviewNotes ?? "No review notes yet."}</p>
+                  <form
+                    action={updateWinnerRequestFulfillmentProgressAction}
+                    className={styles.progressForm}
+                  >
+                    <input type="hidden" name="requestId" value={request.id} />
+                    <label className={styles.fieldStack}>
+                      <span>Fulfillment progress</span>
+                      <input
+                        name="progress"
+                        type="number"
+                        min={0}
+                        max={100}
+                        defaultValue={request.fulfillmentProgress}
+                      />
+                    </label>
+                    <button className={styles.secondaryButton} type="submit">
+                      Save progress
+                    </button>
+                  </form>
                   <form action={reviewWinnerRequestAction} className={styles.reviewForm}>
                     <input type="hidden" name="requestId" value={request.id} />
                     <label className={styles.fieldStack}>
@@ -464,6 +485,31 @@ export default async function AdminPage({
                     </div>
                   </div>
                   <p>{entry.winningSnapshot ?? "No community wish winner yet."}</p>
+                  {entry.status === "RESOLVED" && entry.winningProposalId ? (
+                    <form
+                      action={updateCommunityWishFulfillmentProgressAction}
+                      className={styles.progressForm}
+                    >
+                      <input
+                        type="hidden"
+                        name="cycleId"
+                        value={entry.cycleId}
+                      />
+                      <label className={styles.fieldStack}>
+                        <span>Fulfillment progress</span>
+                        <input
+                          name="progress"
+                          type="number"
+                          min={0}
+                          max={100}
+                          defaultValue={entry.fulfillmentProgress}
+                        />
+                      </label>
+                      <button className={styles.secondaryButton} type="submit">
+                        Save progress
+                      </button>
+                    </form>
+                  ) : null}
                   {entry.proposals.length > 0 ? (
                     <div className={styles.historyList}>
                       {entry.proposals.map((proposal) => (

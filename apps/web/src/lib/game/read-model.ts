@@ -112,6 +112,95 @@ async function getFortressLocationShuffleCount(
   return rows[0]?.locationShuffleCount ?? 0;
 }
 
+function mapLatestSeason(
+  latestResolvedSeason: {
+    cycleId: string;
+    endedAt: Date;
+    communityWishStatus: CommunityWishStatus;
+    communityWishSnapshot: string | null;
+    communityWishVoteCount: number;
+    communityWishFulfillmentProgress: number;
+    winningScore: number;
+    firstSlayerCommanderName: string | null;
+    firstSlayerFortressName: string | null;
+    cycle: {
+      fortresses: Array<{
+        ownerId: string;
+        commanderName: string;
+        name: string;
+      }>;
+    };
+    winner: {
+      id: string;
+    };
+    winnerRequest: {
+      id: string;
+      requestText: string;
+      status: WinnerRequestStatus;
+      reviewNotes: string | null;
+      fulfillmentProgress: number;
+    } | null;
+    communityWishProposal: {
+      id: string;
+      authorId: string;
+      requestText: string;
+      status: WinnerRequestStatus;
+    } | null;
+  }
+) {
+  const winnerFortress = latestResolvedSeason.cycle.fortresses.find(
+    (fortress) => fortress.ownerId === latestResolvedSeason.winner.id
+  );
+  const communityWishAuthor = latestResolvedSeason.communityWishProposal
+    ? latestResolvedSeason.cycle.fortresses.find(
+        (fortress) =>
+          fortress.ownerId === latestResolvedSeason.communityWishProposal?.authorId
+      )
+    : null;
+  const communityWishText =
+    latestResolvedSeason.communityWishSnapshot ??
+    (latestResolvedSeason.communityWishProposal
+      ? `${communityWishAuthor?.commanderName ?? "Unknown player"}: ${
+          latestResolvedSeason.communityWishProposal.requestText
+        }`
+      : null);
+
+  return {
+    cycleId: latestResolvedSeason.cycleId,
+    winnerId: latestResolvedSeason.winner.id,
+    winnerRequestId: latestResolvedSeason.winnerRequest?.id ?? null,
+    winnerLabel: winnerFortress?.commanderName ?? "Unknown winner",
+    winnerFortressName: winnerFortress?.name ?? "Unknown fortress",
+    winningScore: latestResolvedSeason.winningScore,
+    endedAt: latestResolvedSeason.endedAt,
+    firstSlayerCommanderName: latestResolvedSeason.firstSlayerCommanderName,
+    firstSlayerFortressName: latestResolvedSeason.firstSlayerFortressName,
+    wishes: {
+      winner: latestResolvedSeason.winnerRequest
+        ? {
+            id: latestResolvedSeason.winnerRequest.id,
+            text: latestResolvedSeason.winnerRequest.requestText,
+            ownerLabel: winnerFortress?.commanderName ?? "Winner",
+            status: latestResolvedSeason.winnerRequest.status,
+            reviewNotes: latestResolvedSeason.winnerRequest.reviewNotes,
+            fulfillmentProgress:
+              latestResolvedSeason.winnerRequest.fulfillmentProgress,
+          }
+        : null,
+      community: communityWishText
+        ? {
+            text: communityWishText,
+            ownerLabel: "Community vote",
+            status: latestResolvedSeason.communityWishStatus,
+            voteCount: latestResolvedSeason.communityWishVoteCount,
+            fulfillmentProgress:
+              latestResolvedSeason.communityWishFulfillmentProgress,
+          }
+        : null,
+    },
+  };
+}
+
 export async function getHomePageState({
   userId,
   now = new Date(),
@@ -139,6 +228,7 @@ export async function getHomePageState({
       communityWishResolvedAt: true,
       communityWishSnapshot: true,
       communityWishVoteCount: true,
+      communityWishFulfillmentProgress: true,
       winningScore: true,
       firstSlayerCommanderName: true,
       firstSlayerFortressName: true,
@@ -178,6 +268,18 @@ export async function getHomePageState({
       winnerRequest: {
         select: {
           id: true,
+          requestText: true,
+          status: true,
+          reviewNotes: true,
+          fulfillmentProgress: true,
+        },
+      },
+      communityWishProposal: {
+        select: {
+          id: true,
+          authorId: true,
+          requestText: true,
+          status: true,
         },
       },
     },
@@ -292,27 +394,7 @@ export async function getHomePageState({
       cycle: null,
       phase: null,
       latestSeason: latestResolvedSeason
-        ? {
-            cycleId: latestResolvedSeason.cycleId,
-            winnerId: latestResolvedSeason.winner.id,
-            winnerRequestId: latestResolvedSeason.winnerRequest?.id ?? null,
-            winnerLabel:
-              latestResolvedSeason.cycle.fortresses.find(
-                (fortress) =>
-                  fortress.ownerId === latestResolvedSeason.winner.id
-              )?.commanderName ?? "Unknown winner",
-            winnerFortressName:
-              latestResolvedSeason.cycle.fortresses.find(
-                (fortress) =>
-                  fortress.ownerId === latestResolvedSeason.winner.id
-              )?.name ?? "Unknown fortress",
-            winningScore: latestResolvedSeason.winningScore,
-            endedAt: latestResolvedSeason.endedAt,
-            firstSlayerCommanderName:
-              latestResolvedSeason.firstSlayerCommanderName,
-            firstSlayerFortressName:
-              latestResolvedSeason.firstSlayerFortressName,
-          }
+        ? mapLatestSeason(latestResolvedSeason)
         : null,
       playerFortress: null,
       playerSummary: null,
@@ -603,24 +685,7 @@ export async function getHomePageState({
     userId,
   });
   const latestSeason = latestResolvedSeason
-    ? {
-        cycleId: latestResolvedSeason.cycleId,
-        winnerId: latestResolvedSeason.winner.id,
-        winnerRequestId: latestResolvedSeason.winnerRequest?.id ?? null,
-        winnerLabel:
-          latestResolvedSeason.cycle.fortresses.find(
-            (fortress) =>
-              fortress.ownerId === latestResolvedSeason.winner.id
-          )?.commanderName ?? "Unknown winner",
-        winnerFortressName:
-          latestResolvedSeason.cycle.fortresses.find(
-            (fortress) => fortress.ownerId === latestResolvedSeason.winner.id
-          )?.name ?? "Unknown fortress",
-        winningScore: latestResolvedSeason.winningScore,
-        endedAt: latestResolvedSeason.endedAt,
-        firstSlayerCommanderName: latestResolvedSeason.firstSlayerCommanderName,
-        firstSlayerFortressName: latestResolvedSeason.firstSlayerFortressName,
-      }
+    ? mapLatestSeason(latestResolvedSeason)
     : null;
   return {
     isSpectator: !playerFortress,

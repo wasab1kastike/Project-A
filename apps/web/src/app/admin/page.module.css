@@ -194,9 +194,19 @@
 .requestList,
 .historyList,
 .reviewForm,
-.fieldStack {
+.fieldStack,
+.progressForm {
   display: grid;
   gap: 12px;
+}
+
+.progressForm {
+  grid-template-columns: minmax(150px, 1fr) auto;
+  align-items: end;
+  padding: 12px;
+  border: 1px solid rgba(247, 196, 95, 0.18);
+  border-radius: 14px;
+  background: rgba(247, 196, 95, 0.06);
 }
 
 .requestList {
@@ -271,6 +281,7 @@
   text-transform: uppercase;
 }
 
+.fieldStack input,
 .fieldStack select,
 .fieldStack textarea {
   width: 100%;
@@ -329,5 +340,9 @@
 
   .reviewHeader {
     flex-direction: column;
+  }
+
+  .progressForm {
+    grid-template-columns: 1fr;
   }
 }
