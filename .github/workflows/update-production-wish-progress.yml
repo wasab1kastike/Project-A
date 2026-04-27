@@ -1,0 +1,123 @@
+name: Update Production Wish Progress
+
+on:
+  workflow_dispatch:
+    inputs:
+      winner_progress:
+        description: "Winner wish fulfillment progress, 0-100"
+        required: true
+        default: "100"
+      community_progress:
+        description: "Community wish fulfillment progress, 0-100"
+        required: true
+        default: "100"
+
+jobs:
+  update-production-wish-progress:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+      WINNER_PROGRESS: ${{ inputs.winner_progress }}
+      COMMUNITY_PROGRESS: ${{ inputs.community_progress }}
+    steps:
+      - name: Validate required secrets and inputs
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "::error::Missing required GitHub secret PRODUCTION_DATABASE_URL"
+            exit 1
+          fi
+
+          node -e "for (const [name, value] of Object.entries({ WINNER_PROGRESS: process.env.WINNER_PROGRESS, COMMUNITY_PROGRESS: process.env.COMMUNITY_PROGRESS })) { const n = Number(value); if (!Number.isInteger(n) || n < 0 || n > 100) { console.error(`${name} must be an integer from 0 to 100.`); process.exit(1); } }"
+
+      - name: Normalize database URL
+        run: |
+          node --input-type=module <<'EOF' >> "$GITHUB_ENV"
+          const url = new URL(process.env.DATABASE_URL);
+
+          if (!url.searchParams.has("sslmode")) {
+            url.searchParams.set("sslmode", "require");
+          }
+
+          console.log(`DATABASE_URL=${url.toString()}`);
+          EOF
+
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run db:generate --workspace web
+
+      - name: Update latest production wish progress
+        run: |
+          node --input-type=module <<'EOF'
+          import { PrismaClient } from "@prisma/client";
+
+          const prisma = new PrismaClient();
+          const winnerProgress = Number(process.env.WINNER_PROGRESS);
+          const communityProgress = Number(process.env.COMMUNITY_PROGRESS);
+
+          const latestHistory = await prisma.cycleHistory.findFirst({
+            orderBy: {
+              endedAt: "desc",
+            },
+            select: {
+              id: true,
+              cycleId: true,
+              winnerRequestId: true,
+              communityWishProposalId: true,
+              communityWishStatus: true,
+            },
+          });
+
+          if (!latestHistory) {
+            throw new Error("No cycle history rows found.");
+          }
+
+          await prisma.$transaction(async (tx) => {
+            if (latestHistory.winnerRequestId) {
+              await tx.winnerRequest.update({
+                where: {
+                  id: latestHistory.winnerRequestId,
+                },
+                data: {
+                  fulfillmentProgress: winnerProgress,
+                },
+              });
+            } else {
+              console.log("No winner request linked to latest cycle history.");
+            }
+
+            if (
+              latestHistory.communityWishProposalId &&
+              latestHistory.communityWishStatus === "RESOLVED"
+            ) {
+              await tx.cycleHistory.update({
+                where: {
+                  id: latestHistory.id,
+                },
+                data: {
+                  communityWishFulfillmentProgress: communityProgress,
+                },
+              });
+            } else {
+              console.log(
+                "Latest community wish is not resolved or has no linked proposal."
+              );
+            }
+          });
+
+          console.log(
+            `Updated latest cycle ${latestHistory.cycleId}: winner=${winnerProgress}%, community=${communityProgress}%.`
+          );
+
+          await prisma.$disconnect();
+          EOF
