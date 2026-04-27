@@ -5,20 +5,30 @@ import {
   openArcadeLootBoxAction,
   purchaseArcadeLootBoxAction,
 } from "@/app/game-actions";
-import {
-  ArcadeCosmeticSlot,
-  ArcadeLootBoxType,
-} from "@/lib/prisma-client";
+import { ArcadeCosmeticSlot, ArcadeLootBoxType } from "@/lib/prisma-client";
 import { getArcadeLootBoxSkin } from "@/lib/game/constants";
 import { getArcadeHubState, type ArcadeHubState } from "@/lib/game/arcade";
+import { ShopLootReveal } from "./shop-loot-reveal";
 import styles from "../arcade/page.module.css";
 
 export const dynamic = "force-dynamic";
+
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 const dateTimeFormatter = new Intl.DateTimeFormat("en-US", {
   dateStyle: "medium",
   timeStyle: "short",
 });
+
+function getSearchValue(
+  value: string | string[] | undefined
+): string | undefined {
+  if (Array.isArray(value)) {
+    return value[0];
+  }
+
+  return value;
+}
 
 function formatDateTime(value: Date | null) {
   return value ? dateTimeFormatter.format(value) : "Unknown";
@@ -69,7 +79,12 @@ function getDegradedShopState(): ArcadeHubState {
   };
 }
 
-export default async function ShopPage() {
+export default async function ShopPage({
+  searchParams,
+}: {
+  searchParams?: SearchParams;
+}) {
+  const params = (await searchParams) ?? {};
   const session = await auth();
   let state: ArcadeHubState = getDegradedShopState();
 
@@ -82,9 +97,32 @@ export default async function ShopPage() {
   }
 
   const hasHubAccess = state.buildOpen && Boolean(state.currentUser);
+  const revealSlot =
+    getSearchValue(params.slot) === ArcadeCosmeticSlot.FORTRESS
+      ? ArcadeCosmeticSlot.FORTRESS
+      : getSearchValue(params.slot) === ArcadeCosmeticSlot.UNIT
+        ? ArcadeCosmeticSlot.UNIT
+        : null;
+  const revealVariant = getSearchValue(params.variant);
+  const revealSkin =
+    getSearchValue(params.reveal) === "loot-box" && revealSlot && revealVariant
+      ? getArcadeLootBoxSkin(revealSlot, revealVariant)
+      : null;
 
   return (
     <main className={styles.page}>
+      {revealSkin ? (
+        <ShopLootReveal
+          duplicate={getSearchValue(params.duplicate) === "1"}
+          skin={{
+            slot: revealSkin.slot,
+            variant: revealSkin.variant,
+            name: revealSkin.name,
+            rarity: revealSkin.rarity,
+            description: revealSkin.description,
+          }}
+        />
+      ) : null}
       <header className={styles.hero}>
         <div className={styles.heroCopy}>
           <span className={styles.sectionLabel}>Shop</span>
@@ -123,8 +161,8 @@ export default async function ShopPage() {
                 <span className={styles.sectionLabel}>Featured crates</span>
                 <h2>Today&apos;s market</h2>
                 <p>
-                  Buy crates with coins, open them from your inventory, and equip
-                  the skins you unlock.
+                  Buy crates with coins, open them from your inventory, and
+                  equip the skins you unlock.
                 </p>
               </div>
             </div>
@@ -194,7 +232,11 @@ export default async function ShopPage() {
                         className={styles.purchaseRow}
                         key={purchase.id}
                       >
-                        <input type="hidden" name="purchaseId" value={purchase.id} />
+                        <input
+                          type="hidden"
+                          name="purchaseId"
+                          value={purchase.id}
+                        />
                         <div>
                           <strong>
                             {purchase.crateType === ArcadeLootBoxType.UNIT
@@ -213,7 +255,9 @@ export default async function ShopPage() {
                     ))}
                   </div>
                 ) : (
-                  <p className={styles.helperText}>No unopened crates right now.</p>
+                  <p className={styles.helperText}>
+                    No unopened crates right now.
+                  </p>
                 )}
               </section>
 
@@ -233,7 +277,9 @@ export default async function ShopPage() {
                           return (
                             <div className={styles.skinRow} key={unlock.id}>
                               <div className={styles.skinInfo}>
-                                <span className={styles.skinName}>{skin.name}</span>
+                                <span className={styles.skinName}>
+                                  {skin.name}
+                                </span>
                                 <div className={styles.skinBadges}>
                                   <span
                                     className={styles.rarityChip}
@@ -250,13 +296,20 @@ export default async function ShopPage() {
                               </div>
                               {!unlock.equipped ? (
                                 <form action={equipCosmeticUnlockAction}>
-                                  <input type="hidden" name="unlockId" value={unlock.id} />
+                                  <input
+                                    type="hidden"
+                                    name="unlockId"
+                                    value={unlock.id}
+                                  />
                                   <input
                                     type="hidden"
                                     name="slot"
                                     value={ArcadeCosmeticSlot.UNIT}
                                   />
-                                  <button className={styles.secondaryButton} type="submit">
+                                  <button
+                                    className={styles.secondaryButton}
+                                    type="submit"
+                                  >
                                     Equip
                                   </button>
                                 </form>
@@ -267,8 +320,8 @@ export default async function ShopPage() {
                       </div>
                     ) : (
                       <p className={styles.emptyState}>
-                        No unit skins unlocked yet. Open a unit crate to start your
-                        collection.
+                        No unit skins unlocked yet. Open a unit crate to start
+                        your collection.
                       </p>
                     )}
                   </div>
@@ -285,7 +338,9 @@ export default async function ShopPage() {
                           return (
                             <div className={styles.skinRow} key={unlock.id}>
                               <div className={styles.skinInfo}>
-                                <span className={styles.skinName}>{skin.name}</span>
+                                <span className={styles.skinName}>
+                                  {skin.name}
+                                </span>
                                 <div className={styles.skinBadges}>
                                   <span
                                     className={styles.rarityChip}
@@ -302,13 +357,20 @@ export default async function ShopPage() {
                               </div>
                               {!unlock.equipped ? (
                                 <form action={equipCosmeticUnlockAction}>
-                                  <input type="hidden" name="unlockId" value={unlock.id} />
+                                  <input
+                                    type="hidden"
+                                    name="unlockId"
+                                    value={unlock.id}
+                                  />
                                   <input
                                     type="hidden"
                                     name="slot"
                                     value={ArcadeCosmeticSlot.FORTRESS}
                                   />
-                                  <button className={styles.secondaryButton} type="submit">
+                                  <button
+                                    className={styles.secondaryButton}
+                                    type="submit"
+                                  >
                                     Equip
                                   </button>
                                 </form>

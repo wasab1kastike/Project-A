@@ -82,10 +82,7 @@ async function requireArcadeUserId() {
   const userId = session?.user?.id;
 
   if (!userId) {
-    redirectToArcade(
-      "error",
-      "You need to sign in before using the arcade."
-    );
+    redirectToArcade("error", "You need to sign in before using the arcade.");
   }
 
   return userId;
@@ -104,9 +101,12 @@ function finishAction(notice: string): never {
   redirectToHome("notice", notice);
 }
 
-function finishArcadeAction(notice: string): never {
+function finishArcadeAction(
+  notice: string,
+  details?: Record<string, string>
+): never {
   revalidatePath("/shop");
-  redirectToArcade("notice", notice);
+  redirectToArcade("notice", notice, details);
 }
 
 type InlineActionResult =
@@ -308,7 +308,10 @@ export async function saveCommunityWishVotesAction(formData: FormData) {
   const cycleId = getString(formData, "cycleId");
 
   if (!cycleId) {
-    redirectToHome("error", "Community wish vote is missing its cycle reference.");
+    redirectToHome(
+      "error",
+      "Community wish vote is missing its cycle reference."
+    );
   }
 
   const allocations = Array.from(formData.entries())
@@ -340,7 +343,10 @@ export async function submitBuildArcadeScoreAction(formData: FormData) {
   const scoreValue = Number(getString(formData, "score"));
 
   if (!cycleId) {
-    redirectToHome("error", "Build arcade score is missing its cycle reference.");
+    redirectToHome(
+      "error",
+      "Build arcade score is missing its cycle reference."
+    );
   }
 
   try {
@@ -418,16 +424,20 @@ export async function openArcadeLootBoxAction(formData: FormData) {
   }
 
   try {
-    await openArcadeLootBox({
+    const result = await openArcadeLootBox({
       purchaseId,
       userId,
     });
     emitProjectARefresh("arcade-loot-box-open");
+    finishArcadeAction("Loot box opened.", {
+      reveal: "loot-box",
+      slot: result.slot,
+      variant: result.variant,
+      duplicate: result.duplicatePayout > 0 ? "1" : "0",
+    });
   } catch (error) {
     redirectToArcade("error", getActionErrorMessage(error));
   }
-
-  finishArcadeAction("Loot box opened.");
 }
 
 export async function equipCosmeticUnlockAction(formData: FormData) {
