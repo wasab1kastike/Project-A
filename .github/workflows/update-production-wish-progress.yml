@@ -57,6 +57,7 @@ jobs:
         run: npm run db:generate --workspace web
 
       - name: Update latest production wish progress
+        working-directory: apps/web
         run: |
           node --input-type=module <<'EOF'
           import pkg from "@prisma/client";
