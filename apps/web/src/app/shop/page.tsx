@@ -136,6 +136,11 @@ export default async function ShopPage({
             <span className={styles.marketPill}>Cosmetics only</span>
             <span className={styles.marketPill}>Build phase market</span>
           </div>
+          <div className={styles.actions}>
+            <Link className={styles.secondaryButton} href="/">
+              Back to battlefield
+            </Link>
+          </div>
         </div>
         <div className={styles.meta}>
           <div>
