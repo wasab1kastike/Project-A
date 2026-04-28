@@ -5,7 +5,9 @@ import {
   FORTRESS_GROWTH_PER_LEVEL,
   FORTRESS_LEVEL_UP_COSTS,
   MAX_FORTRESS_LEVEL,
+  MAX_SIMULTANEOUS_ATTACKS_BASE,
 } from "./constants";
+import type { FortressRace } from "./races";
 
 export function getFortressUpgradeCost(level: number) {
   return FORTRESS_LEVEL_UP_COSTS[level] ?? null;
@@ -21,4 +23,15 @@ export function getFortressAttackDamage(level: number) {
 
 export function canFortressLevelUp(level: number) {
   return level < MAX_FORTRESS_LEVEL;
+}
+
+export function getMaxSimultaneousAttacks(
+  level: number,
+  race?: FortressRace | null
+): number {
+  if (race === "SPACE_MURINES") {
+    return MAX_SIMULTANEOUS_ATTACKS_BASE + 2 * level;
+  }
+
+  return MAX_SIMULTANEOUS_ATTACKS_BASE + level;
 }

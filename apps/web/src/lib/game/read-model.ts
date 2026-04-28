@@ -9,7 +9,11 @@ import {
   WinnerRequestStatus,
   type PrismaClient,
 } from "@/lib/prisma-client";
-import { ACTIVE_LOCATION_SHUFFLE_COST, ACTIVE_PLAYER_CAP } from "./constants";
+import {
+  ACTIVE_LOCATION_SHUFFLE_COST,
+  ACTIVE_PLAYER_CAP,
+  MAX_SIMULTANEOUS_ATTACKS_BASE,
+} from "./constants";
 import {
   calculateTickProduction,
   getDefenseBonusPercent,
@@ -26,7 +30,11 @@ import {
   ensureLastReadChatColumn,
 } from "./schema-guards";
 import { classifyTickHealth, getActiveCycleMinutesBehind } from "./tick";
-import { getFortressAttackDamage, getFortressUpgradeCost } from "./upgrades";
+import {
+  getFortressAttackDamage,
+  getFortressUpgradeCost,
+  getMaxSimultaneousAttacks,
+} from "./upgrades";
 import {
   getHelsinkiDayKey,
   getHelsinkiHourKey,
@@ -399,6 +407,7 @@ export async function getHomePageState({
                 name: true,
                 mapX: true,
                 mapY: true,
+                race: true,
               unitSpriteVariant: true,
               owner: {
                 select: {
@@ -629,6 +638,14 @@ export async function getHomePageState({
         (unit) => unit.attackerFortress.id === playerFortress.id
       )
     : false;
+  const outboundAttackUnitCount = playerFortress
+    ? cycle.attackUnits.filter(
+        (unit) => unit.attackerFortress.id === playerFortress.id
+      ).length
+    : 0;
+  const maxSimultaneousAttacks = playerFortress
+    ? getMaxSimultaneousAttacks(playerFortress.level, playerFortress.race)
+    : MAX_SIMULTANEOUS_ATTACKS_BASE;
   const latestWaaaghUse = playerFortress
     ? playerFortress.raceAbilityActivations.find(
         (activation) => activation.kind === RaceAbilityKind.ORK_WAAAGH
@@ -1115,6 +1132,8 @@ export async function getHomePageState({
           locationShuffleCost,
           freeLocationShuffleAvailable: locationShuffleCount === 0,
           hasOutgoingAttackUnits,
+          outboundAttackUnitCount,
+          maxSimultaneousAttacks,
           canShuffleLocation:
             gameplayOpen &&
             playerFortress.race !== null &&
@@ -1214,7 +1233,11 @@ export async function getHomePageState({
     mapFortresses,
     attackUnits: cycle.attackUnits.map((unit) => ({
         id: unit.id,
-        armyAmount: unit.armyAmount,
+        armyAmount:
+          unit.attackerFortress.race === "UNSTABLE_UNICORNS" &&
+          unit.attackerFortress.ownerId !== userId
+            ? null
+            : unit.armyAmount,
         launchedAt: unit.launchedAt,
         arrivesAt: unit.arrivesAt,
         recalledAt: unit.recalledAt,

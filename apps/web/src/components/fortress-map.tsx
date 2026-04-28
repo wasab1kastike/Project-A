@@ -50,7 +50,7 @@ type MapFortress = {
 
 type AttackUnitMarker = {
   id: string;
-  armyAmount: number;
+  armyAmount: number | null;
   launchedAt: Date;
   arrivesAt: Date;
   recalledAt: Date | null;
@@ -338,7 +338,7 @@ function AttackUnitsLayer({
                 );
               }}
               aria-pressed={selected}
-              aria-label={`${unit.attacker.name} army ${statusText} with ${unit.armyAmount} army. ${secondsRemaining} seconds remaining.`}
+              aria-label={`${unit.attacker.name} army ${statusText}${unit.armyAmount !== null ? ` with ${unit.armyAmount} army` : ""}. ${secondsRemaining} seconds remaining.`}
             >
               {presentation.showSprite ? (
                 <>
@@ -349,7 +349,7 @@ function AttackUnitsLayer({
                     style={skinStyle ?? undefined}
                   />
                   <span className={styles.attackUnitAmount}>
-                    {unit.armyAmount}
+                    {unit.armyAmount ?? "?"}
                   </span>
                 </>
               ) : (
@@ -367,7 +367,7 @@ function AttackUnitsLayer({
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={(event) => event.stopPropagation()}
               >
-                <strong>{unit.armyAmount} army</strong>
+                <strong>{unit.armyAmount !== null ? `${unit.armyAmount} army` : "Hidden army"}</strong>
                 <span>{statusText}</span>
                 <em>{formatSecondsRemaining(secondsRemaining)} ETA</em>
                 {unit.canRecall && onRecallAttackUnit ? (

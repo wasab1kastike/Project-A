@@ -14,7 +14,11 @@ import {
   ACTIVE_RENAME_COST,
 } from "./constants";
 import { getRandomUnitSpriteVariant } from "./attacks";
-import { canFortressLevelUp, getFortressUpgradeCost } from "./upgrades";
+import {
+  canFortressLevelUp,
+  getFortressUpgradeCost,
+  getMaxSimultaneousAttacks,
+} from "./upgrades";
 import {
   cancelActiveAttackUnits,
   launchAttackUnit,
@@ -599,6 +603,22 @@ export async function setFortressAction({
         targetFortressId: null,
       },
     });
+
+    const outboundAttackCount = await tx.attackUnit.count({
+      where: {
+        attackerFortressId: fortress.id,
+        resolvedAt: null,
+        cancelledAt: null,
+      },
+    });
+
+    const maxAttacks = getMaxSimultaneousAttacks(fortress.level, fortress.race);
+
+    if (outboundAttackCount >= maxAttacks) {
+      throw new GameError(
+        `You have reached the maximum number of simultaneous attacks (${maxAttacks}). Upgrade your castle for more slots.`
+      );
+    }
 
     const launchedUnit = await launchAttackUnit({
       db: tx,

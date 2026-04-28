@@ -120,6 +120,8 @@ type PlayerSummary = {
   locationShuffleCost: number | null;
   freeLocationShuffleAvailable: boolean;
   hasOutgoingAttackUnits: boolean;
+  outboundAttackUnitCount: number;
+  maxSimultaneousAttacks: number;
   canShuffleLocation: boolean;
   upgradesUnlocked: boolean;
   nextUpgradeCost: number | null;
@@ -877,6 +879,12 @@ export function BattlefieldExperience({
       return `You can send at most ${playerSummary.army} army.`;
     }
 
+    if (
+      playerSummary.outboundAttackUnitCount >= playerSummary.maxSimultaneousAttacks
+    ) {
+      return `Maximum attacks in flight (${playerSummary.outboundAttackUnitCount}/${playerSummary.maxSimultaneousAttacks}). Upgrade your castle for more slots.`;
+    }
+
     return null;
   }
 
@@ -1251,7 +1259,8 @@ export function BattlefieldExperience({
                     !playerSummary.race || Boolean(attackValidationError)
                   }
                 >
-                  Send attack
+                  Send attack ({playerSummary.outboundAttackUnitCount}/
+                  {playerSummary.maxSimultaneousAttacks})
                 </button>
               </form>
             ) : null}

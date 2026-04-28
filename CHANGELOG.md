@@ -2,6 +2,15 @@
 
 ## 2026-04-28
 
+- Change: Added simultaneous attack cap tied to castle level: default max is `2 + level`, raised to `2 + 2×level` for Space Murines.
+- Change: Enforced attack cap server-side in `setFortressAction` before launching a new attack unit.
+- Change: Added `outboundAttackUnitCount` and `maxSimultaneousAttacks` fields to the player summary read model.
+- Change: "Send attack" button now shows current/max slot count (e.g. `1/3`) and displays a blocking validation message when cap is reached.
+- Change: Unstable Unicorns race buff: enemies see `?` instead of army size for units in transit.
+- Change: Castle upgrade costs raised approximately 5×: 500 / 1500 / 3000 / 5000 / 7500 / 10500 / 14000 / 18000 / 22500 pts.
+- Change: Updated Space Murines and Unstable Unicorns `passiveSummary` to reflect new buffs.
+- User impact: Players can no longer spam unlimited simultaneous attacks; the cap grows as you upgrade your castle (Space Murines scale faster). Unicorn army sizes are hidden from enemies on the map. Upgrading a castle now requires significantly more points.
+
 - Change: Portaled the Season Update dialog overlay to a top-level modal root (`#modal-root` fallback to `document.body`) while keeping the trigger button in the existing top navigation flow.
 - Change: Tightened modal viewport constraints with safe-area-aware height bounds, explicit viewport-safe width caps, and vertical-only scroll containment on small screens.
 - Change: Updated Space Murines season-update copy to reflect the current race fantasy description.

@@ -58,7 +58,7 @@ export const RACE_DEFINITIONS = [
       "Everything is under control. (Everything is not under control.)",
     flavorText:
       "Glittering chaos farmers who somehow make the food stores bigger and the castle louder.",
-    passiveSummary: ["+1 food per 10 farmers", "+2 population"],
+    passiveSummary: ["+1 food per 10 farmers", "+2 population", "Enemies cannot see your army size in transit"],
     modifiers: {
       ...NO_RACE_MODIFIERS,
       populationBonus: 2,
@@ -73,7 +73,7 @@ export const RACE_DEFINITIONS = [
       "In the grim darkness of the sauna, there is only steam.",
     flavorText:
       "Disciplined orbital rodents with clean recruitment lines and reinforced bunker doctrine.",
-    passiveSummary: ["+1 army per 10 recruiters", "+5% defense bonus"],
+    passiveSummary: ["+1 army per 10 recruiters", "+5% defense bonus", "Attack slots: 2 + 2×castle level"],
     modifiers: {
       ...NO_RACE_MODIFIERS,
       defenseBonus: 0.05,
