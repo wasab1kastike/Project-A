@@ -21,6 +21,7 @@ import {
 } from "@/lib/game/map-hex";
 import { getAttackTravelMinutes } from "@/lib/game/attacks";
 import { getAttackPresentation } from "@/lib/game/attack-presentation";
+import { getCosmeticSpriteStyle } from "@/lib/game/cosmetic-sprites";
 import type { UnitSpriteVariant } from "@/lib/game/constants";
 import styles from "./fortress-map.module.css";
 
@@ -141,12 +142,15 @@ function FortressSprite({
   variant: SpriteVariant;
   skinVariant?: string | null;
 }) {
+  const skinStyle = getCosmeticSpriteStyle("FORTRESS", skinVariant);
+
   return (
     <>
       <span
         className={styles.fortressSprite}
         data-variant={variant}
         data-skin={skinVariant ?? undefined}
+        style={skinStyle ?? undefined}
         aria-hidden="true"
       />
     </>
@@ -260,6 +264,10 @@ function AttackUnitsLayer({
   return (
     <div className={styles.attackLayer} aria-label="Active attacks">
       {attackUnits.map((unit) => {
+        const skinStyle = getCosmeticSpriteStyle(
+          "UNIT",
+          unit.attacker.unitCosmeticVariant
+        );
         const origin = snapMapPointToHex({
           x: unit.attacker.mapX,
           y: unit.attacker.mapY,
@@ -295,6 +303,7 @@ function AttackUnitsLayer({
                   className={styles.attackUnitSprite}
                   data-variant={unit.attacker.unitSpriteVariant}
                   data-skin={unit.attacker.unitCosmeticVariant ?? undefined}
+                  style={skinStyle ?? undefined}
                 />
                 <span className={styles.attackUnitAmount}>
                   {unit.armyAmount}

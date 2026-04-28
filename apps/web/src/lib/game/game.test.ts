@@ -65,6 +65,7 @@ import {
 } from "./constants";
 import { getAttackArrivalAt, getAttackTravelMinutes } from "./attacks";
 import { getAttackPresentation } from "./attack-presentation";
+import { getCosmeticSpriteStyle } from "./cosmetic-sprites";
 import { getNextHelsinkiNoonAfter, getRaceBuffTier } from "./race-buffs";
 import {
   HEX_SPAWN_TILES,
@@ -709,6 +710,25 @@ test("build arcade rewards unlock cosmetics at predictable score thresholds", ()
   assert.equal(getBuildArcadeRewardVariant(10), "frost");
   assert.equal(getBuildArcadeRewardVariant(18), "jade");
   assert.equal(getBuildArcadeRewardVariant(24), "onyx");
+});
+
+test("cosmetic sprite styles resolve known shop skins", () => {
+  assert.deepEqual(getCosmeticSpriteStyle("UNIT", "silver-knight"), {
+    backgroundImage: 'url("/assets/loot-box-set-1.png")',
+    backgroundSize: "400% 400%",
+    backgroundPosition: "0% 0%",
+  });
+  assert.deepEqual(getCosmeticSpriteStyle("FORTRESS", "cyber-fortress"), {
+    backgroundImage: 'url("/assets/loot-box-fortress-set2.png")',
+    backgroundSize: "300% 200%",
+    backgroundPosition: "100% 0%",
+  });
+});
+
+test("cosmetic sprite styles leave unknown and filter skins to css fallback", () => {
+  assert.equal(getCosmeticSpriteStyle("UNIT", "ember"), null);
+  assert.equal(getCosmeticSpriteStyle("FORTRESS", "missing-skin"), null);
+  assert.equal(getCosmeticSpriteStyle("UNIT", null), null);
 });
 
 test("arcade season minting grants a flat payout plus capped points bonus once", async (context) => {
