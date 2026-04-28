@@ -30,4 +30,5 @@ App Router commonly relies on server runtime capabilities that GitHub Pages cann
 
 - Confirm page is static-only (no API/auth/database/websocket dependency).
 - Confirm links from static pages do not imply unavailable gameplay features.
+- For static UI demos, keep modal/dialog overlays viewport-anchored (for example via a portal) so mobile safe-area and small-screen behavior remains stable.
 - Document all known limitations in release notes/changelog before publishing.
