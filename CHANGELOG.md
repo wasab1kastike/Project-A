@@ -6,7 +6,6 @@
 - Change: Tightened modal viewport constraints with safe-area-aware height bounds, explicit viewport-safe width caps, and vertical-only scroll containment on small screens.
 - Change: Updated Space Murines season-update copy to reflect the current race fantasy description.
 - Change: Expanded ORKS season-update copy with lore context about following the legendary Khraal.
-- Change: Refreshed Dwarfs and Unstable Unicorns season-update copy with updated race flavor text.
 - User impact: On mobile devices, the Season Update card now stays fully anchored within the visible viewport so close and primary actions remain reachable without horizontal overflow.
 
 ## 2026-04-23
