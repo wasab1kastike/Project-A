@@ -37,6 +37,7 @@ type MapFortress = {
   iconLabel: string | null;
   isSlayerOfA: boolean;
   currentAction: "GROW" | "ATTACK";
+  army: number;
   mapX: number;
   mapY: number;
   unitSpriteVariant: UnitSpriteVariant;
@@ -323,7 +324,10 @@ export function FortressMap({
   selectedFortressId?: string | null;
   selectedTargetId?: string | null;
   onSelectFortress?: (fortress: MapFortress) => void;
-  onConfirmAttackTarget?: (fortress: MapFortress) => void | Promise<void>;
+  onConfirmAttackTarget?: (
+    fortress: MapFortress,
+    sentArmy: number
+  ) => void | Promise<void>;
   className?: string;
 }) {
   const shellRef = useRef<HTMLDivElement | null>(null);
@@ -346,9 +350,15 @@ export function FortressMap({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState<DragStart | null>(null);
   const [pendingTargetId, setPendingTargetId] = useState<string | null>(null);
+  const [targetSentArmy, setTargetSentArmy] = useState(1);
 
   const ownFortress =
     fortresses.find((fortress) => fortress.isCurrentUser) ?? null;
+  const maxTargetSentArmy = ownFortress?.army ?? 0;
+  const clampedTargetSentArmy =
+    maxTargetSentArmy > 0
+      ? Math.min(Math.max(1, targetSentArmy), maxTargetSentArmy)
+      : 0;
 
   const clampTranslation = useCallback(
     (nextX: number, nextY: number, nextScale: number) => {
@@ -956,15 +966,42 @@ export function FortressMap({
                           : `${fortress.points} pts`}
                       </span>
                       {travelMinutes ? <em>{travelMinutes} min ETA</em> : null}
+                      <label className={styles.targetArmyControl}>
+                        <span className={styles.targetArmyLabel}>
+                          Army to send: {clampedTargetSentArmy}/
+                          {maxTargetSentArmy}
+                        </span>
+                        <input
+                          type="range"
+                          min={1}
+                          max={Math.max(1, maxTargetSentArmy)}
+                          step={1}
+                          value={Math.max(1, clampedTargetSentArmy)}
+                          disabled={maxTargetSentArmy <= 0}
+                          onPointerDown={(event) => event.stopPropagation()}
+                          onChange={(event) => {
+                            const nextArmy = Number(event.currentTarget.value);
+                            setTargetSentArmy(
+                              Number.isFinite(nextArmy)
+                                ? Math.floor(nextArmy)
+                                : 1
+                            );
+                          }}
+                        />
+                      </label>
                       <button
                         type="button"
+                        disabled={maxTargetSentArmy <= 0}
                         onPointerDown={(event) => event.stopPropagation()}
                         onClick={async () => {
                           setPendingTargetId(null);
-                          await onConfirmAttackTarget?.(fortress);
+                          await onConfirmAttackTarget?.(
+                            fortress,
+                            clampedTargetSentArmy
+                          );
                         }}
                       >
-                        Send army
+                        Send {clampedTargetSentArmy || 0} army
                       </button>
                     </div>
                   ) : null}

@@ -184,6 +184,10 @@
     border-color 160ms ease;
 }
 
+.battlefieldTopActions {
+  display: inline-flex;
+}
+
 .noticeToast {
   top: 86px;
   left: 50%;

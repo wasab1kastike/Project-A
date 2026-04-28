@@ -552,6 +552,24 @@
   text-transform: uppercase;
 }
 
+.targetArmyControl {
+  display: grid;
+  gap: 5px;
+}
+
+.targetArmyLabel {
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.66rem;
+  font-style: normal;
+  text-transform: uppercase;
+}
+
+.targetArmyControl input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent-strong);
+}
+
 .targetPopover button {
   min-height: 30px;
   border: 1px solid transparent;
@@ -562,6 +580,11 @@
   font-size: 0.78rem;
   font-weight: 800;
   cursor: pointer;
+}
+
+.targetPopover button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .tooltip {

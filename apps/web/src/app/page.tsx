@@ -306,6 +306,7 @@ export default async function Home({
       <div className={styles.mapLayer}>
         <BattlefieldExperience
           immersive
+          topActionsContainerId="battlefield-top-actions"
           title={phaseCopy.battlefieldTitle}
           description={phaseCopy.battlefieldDescription}
           phaseStatus={state.phase?.status ?? null}
@@ -371,6 +372,10 @@ export default async function Home({
               Admin
             </Link>
           ) : null}
+          <div
+            id="battlefield-top-actions"
+            className={styles.battlefieldTopActions}
+          />
           {session?.user ? (
             <SessionActions
               authConfigured={isAuthConfigured}

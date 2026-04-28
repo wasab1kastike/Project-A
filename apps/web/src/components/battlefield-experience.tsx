@@ -653,6 +653,7 @@ export function BattlefieldExperience({
   chat,
   canEditRegistrationName,
   immersive = false,
+  topActionsContainerId,
 }: {
   title: string;
   description: string;
@@ -666,12 +667,16 @@ export function BattlefieldExperience({
   chat: ChatProps;
   canEditRegistrationName: boolean;
   immersive?: boolean;
+  topActionsContainerId?: string;
 }) {
   const router = useRouter();
   const [chatOpen, setChatOpen] = useState(false);
   const [actionOpen, setActionOpen] = useState(false);
   const [unreadChatCount, setUnreadChatCount] = useState(chat.unreadCount);
   const [mapAttackPending, setMapAttackPending] = useState(false);
+  const [topActionsRoot, setTopActionsRoot] = useState<HTMLElement | null>(
+    null
+  );
   const [selectedFortressId, setSelectedFortressId] = useState<string | null>(
     null
   );
@@ -711,6 +716,17 @@ export function BattlefieldExperience({
     immersive && typeof document !== "undefined"
       ? document.getElementById("battlefield-overlay-root")
       : null;
+  const shouldPortalActionButtons = Boolean(topActionsRoot);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      setTopActionsRoot(
+        topActionsContainerId
+          ? document.getElementById(topActionsContainerId)
+          : null
+      );
+    });
+  }, [topActionsContainerId]);
 
   useEffect(() => {
     if (chatOpen || !chat.persistsUnread) {
@@ -783,7 +799,10 @@ export function BattlefieldExperience({
     }
   }
 
-  function getAttackValidationError(nextTargetFortressId = targetFortressId) {
+  function getAttackValidationError(
+    nextTargetFortressId = targetFortressId,
+    nextSentArmy = sentArmy
+  ) {
     if (!playerSummary) {
       return "You need an active fortress before attacking.";
     }
@@ -800,11 +819,11 @@ export function BattlefieldExperience({
       return "You need at least 1 army before attacking.";
     }
 
-    if (!Number.isInteger(sentArmy) || sentArmy <= 0) {
+    if (!Number.isInteger(nextSentArmy) || nextSentArmy <= 0) {
       return "Send at least 1 army.";
     }
 
-    if (sentArmy > playerSummary.army) {
+    if (nextSentArmy > playerSummary.army) {
       return `You can send at most ${playerSummary.army} army.`;
     }
 
@@ -814,15 +833,19 @@ export function BattlefieldExperience({
   const attackValidationError =
     action === "ATTACK" ? getAttackValidationError() : null;
 
-  async function prepareAttackTarget(fortress: MapFortress) {
+  async function prepareAttackTarget(
+    fortress: MapFortress,
+    mapSentArmy = sentArmy
+  ) {
     if (!fortress.isTargetable || !playerSummary?.canSetAction) {
       return;
     }
 
     setAction("ATTACK");
     setTargetFortressId(fortress.id);
+    setSentArmy(mapSentArmy);
 
-    const validationError = getAttackValidationError(fortress.id);
+    const validationError = getAttackValidationError(fortress.id, mapSentArmy);
 
     if (validationError) {
       return;
@@ -836,7 +859,7 @@ export function BattlefieldExperience({
     setMapAttackPending(true);
 
     try {
-      const result = await attackFromMapAction(fortress.id, sentArmy);
+      const result = await attackFromMapAction(fortress.id, mapSentArmy);
 
       if (result.ok) {
         router.refresh();
@@ -869,7 +892,13 @@ export function BattlefieldExperience({
 
   const actionButtons = (
     <div
-      className={immersive ? styles.floatingActions : styles.headerActions}
+      className={
+        shouldPortalActionButtons
+          ? styles.topbarActions
+          : immersive
+            ? styles.floatingActions
+            : styles.headerActions
+      }
       aria-label="Battlefield overlays"
     >
       <button
@@ -1537,13 +1566,16 @@ export function BattlefieldExperience({
     immersive && overlayRoot
       ? createPortal(
           <div className={styles.immersiveOverlayUi}>
-            {actionButtons}
+            {shouldPortalActionButtons ? null : actionButtons}
             {chatDrawer}
             {actionDrawer}
           </div>,
           overlayRoot
         )
       : null;
+  const topbarActionsPortal = topActionsRoot
+    ? createPortal(actionButtons, topActionsRoot)
+    : null;
 
   return (
     <section
@@ -1556,11 +1588,11 @@ export function BattlefieldExperience({
           <h2 id="battlefield-title">{title}</h2>
           <p>{description}</p>
         </div>
-        {!immersive ? actionButtons : null}
+        {!immersive && !shouldPortalActionButtons ? actionButtons : null}
       </div>
 
       <div className={styles.mapStage}>
-        {!immersive ? actionButtons : null}
+        {!immersive && !shouldPortalActionButtons ? actionButtons : null}
         <FortressMap
           className={immersive ? styles.fullMap : undefined}
           fortresses={mapFortresses}
@@ -1579,6 +1611,7 @@ export function BattlefieldExperience({
         {!immersive ? actionDrawer : null}
       </div>
       {immersiveOverlay}
+      {topbarActionsPortal}
     </section>
   );
 }

@@ -60,6 +60,14 @@
   gap: 10px;
 }
 
+.topbarActions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .floatingActions {
   position: absolute;
   z-index: 14;
@@ -109,6 +117,17 @@
   position: relative;
   padding: 0 16px;
   overflow: visible;
+}
+
+.topbarActions .overlayButton {
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: rgba(8, 16, 25, 0.74);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.76rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .overlayButton:disabled {
@@ -869,6 +888,20 @@
     padding: 0 10px;
     border-radius: 8px;
     font-size: 0.76rem;
+  }
+
+  .topbarActions {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    gap: 5px;
+  }
+
+  .topbarActions .overlayButton {
+    flex: 0 0 auto;
+    min-height: 32px;
+    padding: 0 9px;
+    border-radius: 7px;
+    font-size: 0.68rem;
   }
 
   .unreadBadge {
