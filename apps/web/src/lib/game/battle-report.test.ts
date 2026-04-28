@@ -1,6 +1,25 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { formatRaidAttackPreview, formatRaidBattleReport } from "./battle-report";
+import {
+  formatApproximateForce,
+  formatRaidAttackPreview,
+  formatRaidBattleReport,
+} from "./battle-report";
+
+test("approximate force formatting uses nearest display buckets", () => {
+  assert.equal(formatApproximateForce(null), "unknown");
+  assert.equal(formatApproximateForce(undefined), "unknown");
+  assert.equal(formatApproximateForce(0), "0");
+  assert.equal(formatApproximateForce(8), "10+");
+  assert.equal(formatApproximateForce(75), "100+");
+  assert.equal(formatApproximateForce(250), "300+");
+  assert.equal(formatApproximateForce(347), "300+");
+  assert.equal(formatApproximateForce(400), "500+");
+  assert.equal(formatApproximateForce(1200), "1000+");
+  assert.equal(formatApproximateForce(3600), "5000+");
+  assert.equal(formatApproximateForce(8000), "10000+");
+  assert.equal(formatApproximateForce(20000), "10000+");
+});
 
 test("raid preview shows the target castle level, defense bonus, and tie warning", () => {
   const lines = formatRaidAttackPreview({
@@ -36,7 +55,9 @@ test("winning raid report includes survivors, retirement, return, and loot", () 
 
   assert.match(lines[0] ?? "", /Raid victory!/);
   assert.match(lines[0] ?? "", /North Keep/);
-  assert.match(lines[1] ?? "", /defender army 100/);
+  assert.match(lines[1] ?? "", /defender army about 100\+/);
+  assert.match(lines[1] ?? "", /power about 100\+/);
+  assert.doesNotMatch(lines[1] ?? "", /power 120/);
   assert.match(lines[2] ?? "", /28 survived/);
   assert.match(lines[2] ?? "", /14 returned/);
   assert.match(lines[2] ?? "", /14 retired/);
@@ -62,7 +83,9 @@ test("losing raid report includes defender losses and no returned army", () => {
   });
 
   assert.match(lines[0] ?? "", /Raid failed/);
-  assert.match(lines[1] ?? "", /defender army 10/);
+  assert.match(lines[1] ?? "", /defender army about 10\+/);
+  assert.match(lines[1] ?? "", /power about 10\+/);
+  assert.doesNotMatch(lines[1] ?? "", /power 11/);
   assert.match(lines[2] ?? "", /sent army was lost/);
   assert.match(lines[2] ?? "", /7 troops/);
   assert.match(lines[3] ?? "", /0 points/);

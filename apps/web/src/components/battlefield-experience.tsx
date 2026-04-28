@@ -178,12 +178,12 @@ type BattleReport = {
   defenderCommanderName: string;
   defenderOwnerId: string;
   sentArmy: number;
-  defenderArmyAtBattleStart: number | null;
+  defenderArmyEstimate: string;
   defenderDbLevel: number;
   defenseBonusPercent: number;
   defenseMultiplier: number;
   resolvedAttackPower: number;
-  resolvedDefensePower: number;
+  resolvedDefensePowerEstimate: string;
   outcome: "ATTACKER_WIN" | "DEFENDER_WIN";
   attackerSurvivors: number;
   attackerRetired: number;

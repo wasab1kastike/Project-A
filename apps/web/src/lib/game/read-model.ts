@@ -20,7 +20,7 @@ import {
 import { getChatLimits } from "./chat";
 import { getCommunityWishVoteBudget } from "./community-wishes";
 import { normalizeUnitSpriteVariant } from "./attacks";
-import { formatRaidBattleReport } from "./battle-report";
+import { formatApproximateForce, formatRaidBattleReport } from "./battle-report";
 import {
   ensureCommanderRegistrationColumn,
   ensureLastReadChatColumn,
@@ -736,7 +736,9 @@ export async function getHomePageState({
           defenderCommanderName: unit.targetFortress.commanderName,
           defenderOwnerId: unit.targetFortress.ownerId,
           sentArmy: unit.armyAmount,
-          defenderArmyAtBattleStart: unit.defenderArmyAtBattleStart,
+          defenderArmyEstimate: formatApproximateForce(
+            unit.defenderArmyAtBattleStart
+          ),
           defenderDbLevel,
           defenseBonusPercent: getDefenseBonusPercent(
             defenderDbLevel,
@@ -747,7 +749,8 @@ export async function getHomePageState({
             unit.targetFortress.race
           ),
           resolvedAttackPower,
-          resolvedDefensePower,
+          resolvedDefensePowerEstimate:
+            formatApproximateForce(resolvedDefensePower),
           outcome,
           attackerSurvivors: unit.attackerSurvivors ?? 0,
           attackerRetired: unit.attackerRetired ?? 0,
