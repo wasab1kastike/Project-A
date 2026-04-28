@@ -242,7 +242,7 @@
 .actionDrawer {
   left: 16px;
   bottom: 16px;
-  width: min(320px, calc(100% - 32px));
+  width: min(430px, calc(100% - 32px));
   transform: translateY(24px);
 }
 
@@ -436,6 +436,24 @@
   align-items: start;
   justify-content: space-between;
   gap: 12px;
+}
+
+.castleSummaryHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+}
+
+.castleSummaryHeader .secondaryButton {
+  max-width: 152px;
+  white-space: normal;
+  line-height: 1.15;
+}
+
+.castleSummaryPanel {
+  display: grid;
+  gap: 6px;
 }
 
 .ordersHeader strong {
@@ -821,6 +839,10 @@
   background: rgba(2, 8, 13, 0.56);
 }
 
+.castleTabs {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .segmentButton {
   min-height: 32px;
   border: 1px solid transparent;
@@ -930,6 +952,24 @@
     top: auto;
     bottom: 0;
     transform: translateY(26px);
+  }
+
+  .castleSummaryHeader {
+    grid-template-columns: 1fr;
+  }
+
+  .castleSummaryHeader .secondaryButton {
+    max-width: none;
+  }
+
+  .castleTabs {
+    grid-template-columns: repeat(4, minmax(78px, 1fr));
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .castleTabs::-webkit-scrollbar {
+    display: none;
   }
 
   .chatDrawer.drawerOpen,

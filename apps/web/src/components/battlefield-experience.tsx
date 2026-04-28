@@ -30,7 +30,9 @@ import {
   useUnicornTeleportAction,
 } from "@/app/game-actions";
 import {
+  CARRY_CAPACITY_PER_SURVIVOR,
   calculateTickProduction,
+  FOOD_COST_PER_ARMY,
   getDefenseBonusPercent,
   getDisplayedCastleLevel,
   validateWorkerAssignments,
@@ -38,6 +40,7 @@ import {
 import { formatRaidAttackPreview } from "@/lib/game/battle-report";
 import {
   getRaceDefinition,
+  getRaceModifiers,
   RACE_DEFINITIONS,
   type FortressRace,
 } from "@/lib/game/races";
@@ -190,6 +193,15 @@ type BattleReport = {
   foodLooted: number;
   reportLines: string[];
 };
+
+type CastleTab = "ECONOMY" | "COMBAT" | "REPORTS" | "RACE";
+
+const CASTLE_TABS = [
+  { value: "ECONOMY", label: "Economy" },
+  { value: "COMBAT", label: "Combat" },
+  { value: "REPORTS", label: "Reports" },
+  { value: "RACE", label: "Race" },
+] as const satisfies readonly { value: CastleTab; label: string }[];
 
 const CASTLE_SPECIALIZATION_OPTIONS = [
   { value: "POINTS", label: "Points", summary: "+10% point production" },
@@ -672,6 +684,7 @@ export function BattlefieldExperience({
   const router = useRouter();
   const [chatOpen, setChatOpen] = useState(false);
   const [actionOpen, setActionOpen] = useState(false);
+  const [castleTab, setCastleTab] = useState<CastleTab>("ECONOMY");
   const [unreadChatCount, setUnreadChatCount] = useState(chat.unreadCount);
   const [mapAttackPending, setMapAttackPending] = useState(false);
   const [topActionsRoot, setTopActionsRoot] = useState<HTMLElement | null>(
@@ -707,6 +720,41 @@ export function BattlefieldExperience({
       targetRace: selectedAttackTarget?.race ?? null,
     });
   }, [playerSummary?.army, sentArmy, selectedAttackTarget]);
+  const assignedPopulation = playerSummary
+    ? playerSummary.minersAssigned +
+      playerSummary.farmersAssigned +
+      playerSummary.recruitersAssigned
+    : 0;
+  const idlePopulation = playerSummary
+    ? Math.max(0, playerSummary.population - assignedPopulation)
+    : 0;
+  const storedProductionPreview = useMemo(() => {
+    if (!playerSummary) {
+      return null;
+    }
+
+    return calculateTickProduction({
+      level: playerSummary.level,
+      race: playerSummary.race,
+      castleSpecializations:
+        playerSummary.castleSpecializationCounts ?? undefined,
+      food: playerSummary.food,
+      minersAssigned: playerSummary.minersAssigned,
+      farmersAssigned: playerSummary.farmersAssigned,
+      recruitersAssigned: playerSummary.recruitersAssigned,
+    });
+  }, [playerSummary]);
+  const defenseBonusPercent = playerSummary
+    ? getDefenseBonusPercent(
+        playerSummary.level,
+        playerSummary.race,
+        playerSummary.castleSpecializationCounts ?? undefined
+      )
+    : 0;
+  const carryPerSurvivor =
+    CARRY_CAPACITY_PER_SURVIVOR +
+    getRaceModifiers(playerSummary?.race).carryCapacityPerSurvivorBonus;
+  const selectedArmyCarryCapacity = Math.max(0, sentArmy) * carryPerSurvivor;
 
   const ownFortress = useMemo(
     () => mapFortresses.find((fortress) => fortress.isCurrentUser) ?? null,
@@ -786,6 +834,7 @@ export function BattlefieldExperience({
     }
 
     setSelectedFortressId(fortressId);
+    setCastleTab(action === "ATTACK" || targetFortressId ? "COMBAT" : "ECONOMY");
     setActionOpen(true);
   }
 
@@ -842,6 +891,7 @@ export function BattlefieldExperience({
     }
 
     setAction("ATTACK");
+    setCastleTab("COMBAT");
     setTargetFortressId(fortress.id);
     setSentArmy(mapSentArmy);
 
@@ -972,17 +1022,30 @@ export function BattlefieldExperience({
         {(phaseStatus === "ACTIVE" || phaseStatus === "TESTING") &&
         playerSummary ? (
           <div className={styles.drawerContent}>
-            <div className={styles.ordersHeader}>
+            <div className={styles.castleSummaryHeader}>
               <div>
-                <span className={styles.label}>Castle</span>
                 <h3>{playerSummary.name}</h3>
+                <p className={styles.helper}>
+                  {playerRaceDefinition?.displayName ?? "Race unchosen"}
+                  {playerRaceDefinition
+                    ? ` - ${playerRaceDefinition.passiveSummary.join(", ")}`
+                    : ""}
+                </p>
               </div>
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                disabled={
+                  !playerSummary.upgradesUnlocked ||
+                  playerSummary.nextUpgradeCost === null
+                }
+                onClick={() => setCastleTab("ECONOMY")}
+              >
+                {playerSummary.nextUpgradeCost === null
+                  ? `Level ${playerSummary.displayedCastleLevel}`
+                  : `Level ${playerSummary.displayedCastleLevel} - upgrade ${playerSummary.nextUpgradeCost} pts`}
+              </button>
             </div>
-
-            <RaceSelectionSection
-              currentRace={playerSummary.race}
-              isTestingPhase={playerSummary.isTestingPhase}
-            />
 
             {playerSummary.isTestingPhase ? (
               <p className={`${styles.helper} ${styles.warningText}`}>
@@ -991,80 +1054,113 @@ export function BattlefieldExperience({
               </p>
             ) : null}
 
-            <section className={styles.orderSection}>
+            <section className={styles.castleSummaryPanel}>
               <dl className={styles.castleStats}>
                 <div className={styles.primaryStat}>
-                  <dt>Castle</dt>
-                  <dd>
-                    Lvl {playerSummary.displayedCastleLevel} /{" "}
-                    {playerSummary.population} pop
-                  </dd>
+                  <dt>Points</dt>
+                  <dd>{playerSummary.points}</dd>
                 </div>
                 <div className={styles.primaryStat}>
-                  <dt>Growth</dt>
-                  <dd>Worker-based</dd>
+                  <dt>Food</dt>
+                  <dd>{playerSummary.food}</dd>
                 </div>
                 <div>
-                  <dt>Race</dt>
-                  <dd>{playerRaceDefinition?.displayName ?? "Unchosen"}</dd>
+                  <dt>Military</dt>
+                  <dd>{playerSummary.army}</dd>
                 </div>
                 <div>
-                  <dt>Output</dt>
-                  <dd>
-                    +{playerSummary.growPerTick}/tick / x
-                    {playerSummary.defenseMultiplier.toFixed(2)} defense
-                  </dd>
+                  <dt>Defense</dt>
+                  <dd>x{playerSummary.defenseMultiplier.toFixed(2)}</dd>
                 </div>
-                {playerSummary.nextUpgradeCost !== null ? (
-                  <div>
-                    <dt>Upgrade</dt>
-                    <dd>{playerSummary.nextUpgradeCost} pts</dd>
-                  </div>
-                ) : null}
               </dl>
             </section>
 
-            {playerSummary ? (
-              <WorkerAssignmentSection
-                key={`${playerSummary.id}:${playerSummary.minersAssigned}:${playerSummary.farmersAssigned}:${playerSummary.recruitersAssigned}`}
-                playerSummary={playerSummary}
-              />
+            <div className={`${styles.segmentGroup} ${styles.castleTabs}`} aria-label="Castle tabs">
+              {CASTLE_TABS.map((tab) => (
+                <button
+                  key={tab.value}
+                  type="button"
+                  className={`${styles.segmentButton} ${
+                    castleTab === tab.value ? styles.segmentButtonActive : ""
+                  }`}
+                  aria-pressed={castleTab === tab.value}
+                  onClick={() => {
+                    setCastleTab(tab.value);
+                    if (tab.value === "COMBAT") {
+                      chooseAction("ATTACK");
+                    }
+                  }}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {castleTab === "ECONOMY" ? (
+              <>
+                <section className={styles.orderSection}>
+                  <div className={styles.sectionHeading}>
+                    <span className={styles.label}>Output</span>
+                    <strong>{assignedPopulation}/{playerSummary.population} pop</strong>
+                  </div>
+                  <dl className={styles.castleStats}>
+                    <div>
+                      <dt>Points</dt>
+                      <dd>+{storedProductionPreview?.pointsProduced ?? 0}/tick</dd>
+                    </div>
+                    <div>
+                      <dt>Food</dt>
+                      <dd>+{storedProductionPreview?.foodProduced ?? 0}/tick</dd>
+                    </div>
+                    <div>
+                      <dt>Army</dt>
+                      <dd>
+                        +{storedProductionPreview?.armyProduced ?? 0}/tick, costs{" "}
+                        {storedProductionPreview?.foodConsumed ?? 0} food
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Idle</dt>
+                      <dd>{idlePopulation} pop</dd>
+                    </div>
+                  </dl>
+                </section>
+                <WorkerAssignmentSection
+                  key={`${playerSummary.id}:${playerSummary.minersAssigned}:${playerSummary.farmersAssigned}:${playerSummary.recruitersAssigned}`}
+                  playerSummary={playerSummary}
+                />
+              </>
             ) : null}
 
-            {!playerSummary.race ? (
+            {castleTab === "COMBAT" && !playerSummary.race ? (
               <p className={`${styles.helper} ${styles.warningText}`}>
-                Race selection is required before castle actions.
+                Race selection is required before attacks.
               </p>
             ) : null}
 
-            <form action={setFortressActionAction} className={styles.form}>
-              <input name="action" type="hidden" value={action} />
-              <input name="sentArmy" type="hidden" value={sentArmy} />
-              <div className={styles.segmentGroup} aria-label="Command type">
-                <button
-                  type="button"
-                  className={`${styles.segmentButton} ${
-                    action === "GROW" ? styles.segmentButtonActive : ""
-                  }`}
-                  aria-pressed={action === "GROW"}
-                  onClick={() => chooseAction("GROW")}
-                >
-                  Economy
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.segmentButton} ${
-                    action === "ATTACK" ? styles.segmentButtonActive : ""
-                  }`}
-                  aria-pressed={action === "ATTACK"}
-                  onClick={() => chooseAction("ATTACK")}
-                >
-                  Manual attack
-                </button>
-              </div>
-
-              {action === "ATTACK" ? (
+            {castleTab === "COMBAT" ? (
+              <form action={setFortressActionAction} className={styles.form}>
+                <input name="action" type="hidden" value="ATTACK" />
+                <input name="sentArmy" type="hidden" value={sentArmy} />
                 <div className={styles.attackControls}>
+                  <dl className={styles.castleStats}>
+                    <div className={styles.primaryStat}>
+                      <dt>Military size</dt>
+                      <dd>{playerSummary.army}</dd>
+                    </div>
+                    <div>
+                      <dt>Recruit cost</dt>
+                      <dd>{FOOD_COST_PER_ARMY} food / army produced</dd>
+                    </div>
+                    <div>
+                      <dt>Carry capacity</dt>
+                      <dd>
+                        {selectedArmyCarryCapacity} max ({sentArmy || 0} x{" "}
+                        {carryPerSurvivor})
+                      </dd>
+                    </div>
+                  </dl>
+
                   <label className={styles.field}>
                     <span>Target</span>
                     <select
@@ -1110,8 +1206,8 @@ export function BattlefieldExperience({
                   </label>
 
                   <p className={styles.helper}>
-                    Available army: {playerSummary.army}. Sent army leaves home
-                    defense immediately; workers keep producing each tick.
+                    Sent army leaves home defense immediately. Loot capacity is
+                    surviving troops times {carryPerSurvivor}.
                   </p>
 
                   <div className={styles.sectionHeading}>
@@ -1132,52 +1228,58 @@ export function BattlefieldExperience({
                     ))}
                   </div>
                 </div>
-              ) : null}
 
-              {attackValidationError ? (
-                <p className={`${styles.helper} ${styles.warningText}`}>
-                  {attackValidationError}
-                </p>
-              ) : null}
+                {attackValidationError ? (
+                  <p className={`${styles.helper} ${styles.warningText}`}>
+                    {attackValidationError}
+                  </p>
+                ) : null}
 
-              <button
-                className={`${styles.primaryButton} ${styles.emphasisButton}`}
-                type="submit"
+                <button
+                  className={`${styles.primaryButton} ${styles.emphasisButton}`}
+                  type="submit"
                   disabled={
-                  !playerSummary.race ||
-                  (action === "ATTACK" ? Boolean(attackValidationError) : false)
-                }
-              >
-                {action === "ATTACK" ? "Send army" : "Keep growing"}
-              </button>
-            </form>
+                    !playerSummary.race || Boolean(attackValidationError)
+                  }
+                >
+                  Send attack
+                </button>
+              </form>
+            ) : null}
 
-            {battleReports.length > 0 ? (
+            {castleTab === "REPORTS" ? (
               <section className={styles.orderSection}>
                 <div className={styles.sectionHeading}>
-                  <span className={styles.label}>Raid reports</span>
+                  <span className={styles.label}>Reports</span>
                   <strong>{battleReports.length}</strong>
                 </div>
-                <div className={styles.battleReportList}>
-                  {battleReports.map((report) => (
-                    <article key={report.id} className={styles.battleReport}>
-                      <p className={styles.battleReportHeadline}>
-                        {report.reportLines[0]}
-                      </p>
-                      {report.reportLines.slice(1).map((line, index) => (
-                        <p
-                          key={`${report.id}-${index}`}
-                          className={styles.battleReportLine}
-                        >
-                          {line}
+                {battleReports.length > 0 ? (
+                  <div className={styles.battleReportList}>
+                    {battleReports.map((report) => (
+                      <article key={report.id} className={styles.battleReport}>
+                        <p className={styles.battleReportHeadline}>
+                          {report.reportLines[0]}
                         </p>
-                      ))}
-                    </article>
-                  ))}
-                </div>
+                        {report.reportLines.slice(1).map((line, index) => (
+                          <p
+                            key={`${report.id}-${index}`}
+                            className={styles.battleReportLine}
+                          >
+                            {line}
+                          </p>
+                        ))}
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p className={styles.helper}>
+                    No resolved attacks or defenses yet.
+                  </p>
+                )}
               </section>
             ) : null}
 
+            {castleTab === "ECONOMY" ? (
             <section className={styles.upgradePanel}>
               <div className={styles.upgradeHeader}>
                 <div>
@@ -1220,25 +1322,19 @@ export function BattlefieldExperience({
                     : `Castle Yeet for ${playerSummary.locationShuffleCost} pts`}
                 </button>
               </form>
-              {playerSummary.raceBuffs.hasUnicornTeleportToken ? (
-                <form action={useUnicornTeleportAction}>
-                  <button
-                    className={`${styles.secondaryButton} ${styles.emphasisButton}`}
-                    type="submit"
-                  >
-                    Use Unicorn free yeet
-                  </button>
-                </form>
-              ) : playerSummary.raceBuffs.canClaimUnicornTeleport ? (
-                <form action={claimUnicornTeleportAction}>
-                  <button className={styles.secondaryButton} type="submit">
-                    Claim hourly free yeet
-                  </button>
-                </form>
-              ) : null}
             </section>
+            ) : null}
 
-            {playerSummary.race && playerSummary.raceBuffs.tier >= 2 ? (
+            {castleTab === "RACE" ? (
+              <RaceSelectionSection
+                currentRace={playerSummary.race}
+                isTestingPhase={playerSummary.isTestingPhase}
+              />
+            ) : null}
+
+            {castleTab === "RACE" &&
+            playerSummary.race &&
+            playerSummary.raceBuffs.tier >= 2 ? (
               <section className={styles.upgradePanel}>
                 <div className={styles.upgradeHeader}>
                   <div>
@@ -1351,14 +1447,36 @@ export function BattlefieldExperience({
                   )
                 ) : null}
                 {playerSummary.race === "UNSTABLE_UNICORNS" ? (
-                  <p className={styles.helper}>
-                    Fast units are active. Tier 3 grants one free Castle Yeet
-                    claim per hour.
-                  </p>
+                  <>
+                    <p className={styles.helper}>
+                      Fast units are active. Tier 3 grants one free Castle Yeet
+                      claim per hour.
+                    </p>
+                    {playerSummary.raceBuffs.hasUnicornTeleportToken ? (
+                      <form action={useUnicornTeleportAction}>
+                        <button
+                          className={`${styles.secondaryButton} ${styles.emphasisButton}`}
+                          type="submit"
+                        >
+                          Use Unicorn free yeet
+                        </button>
+                      </form>
+                    ) : playerSummary.raceBuffs.canClaimUnicornTeleport ? (
+                      <form action={claimUnicornTeleportAction}>
+                        <button
+                          className={styles.secondaryButton}
+                          type="submit"
+                        >
+                          Claim hourly free yeet
+                        </button>
+                      </form>
+                    ) : null}
+                  </>
                 ) : null}
               </section>
             ) : null}
 
+            {castleTab === "ECONOMY" ? (
             <section className={styles.upgradePanel}>
               <div className={styles.upgradeHeader}>
                 <div>
@@ -1367,13 +1485,7 @@ export function BattlefieldExperience({
                 </div>
                 <strong>
                   +
-                  {Math.round(
-                    getDefenseBonusPercent(
-                      playerSummary.level,
-                      playerSummary.race,
-                      playerSummary.castleSpecializationCounts ?? undefined
-                    ) * 100
-                  )}
+                  {Math.round(defenseBonusPercent * 100)}
                   %
                 </strong>
               </div>
@@ -1381,23 +1493,13 @@ export function BattlefieldExperience({
                 <div className={styles.primaryStat}>
                   <dt>Population</dt>
                   <dd>
-                    {playerSummary.minersAssigned +
-                      playerSummary.farmersAssigned +
-                      playerSummary.recruitersAssigned}
-                    /{playerSummary.population} assigned
+                    {assignedPopulation}/{playerSummary.population} assigned
                   </dd>
                 </div>
                 <div>
                   <dt>Idle</dt>
                   <dd>
-                    {Math.max(
-                      0,
-                      playerSummary.population -
-                        (playerSummary.minersAssigned +
-                          playerSummary.farmersAssigned +
-                          playerSummary.recruitersAssigned)
-                    )}{" "}
-                    pop
+                    {idlePopulation} pop
                   </dd>
                 </div>
                 <div>
@@ -1455,9 +1557,11 @@ export function BattlefieldExperience({
                 </form>
               ) : null}
             </section>
+            ) : null}
 
-            {playerSummary.canRegisterCommanderName ||
-            playerSummary.canRename ? (
+            {castleTab === "ECONOMY" &&
+            (playerSummary.canRegisterCommanderName ||
+            playerSummary.canRename) ? (
               <section className={styles.orderSection}>
                 <div className={styles.sectionHeading}>
                   <span className={styles.label}>Names</span>
@@ -1504,9 +1608,9 @@ export function BattlefieldExperience({
                   </form>
                 ) : null}
               </section>
-            ) : (
+            ) : castleTab === "ECONOMY" ? (
               <p className={styles.helper}>Rename unlocks at 10 points.</p>
-            )}
+            ) : null}
           </div>
         ) : null}
 
