@@ -312,7 +312,9 @@ async function startTestingCycle(
     if (
       !cycle ||
       cycle.status !== CycleStatus.REGISTRATION ||
-      cycle.registrationEndsAt > now
+      !cycle.testingStartedAt ||
+      !cycle.testingEndsAt ||
+      cycle.testingStartedAt > now
     ) {
       return false;
     }
