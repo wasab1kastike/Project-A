@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   getSeasonAnnouncementStorageKey,
   shouldShowSeasonAnnouncement,
@@ -21,7 +22,7 @@ const SECTIONS = [
     items: [
       "Dwarfs: defensive miners.",
       "Unstable Unicorns: magical food chaos.",
-      "Space Murines: disciplined sauna warriors.",
+      "Space Murines: Acolytes of the Emperor A, they despise all other life forms.",
       "ORKS: loud raiders with huge loot potential.",
     ],
   },
@@ -60,6 +61,13 @@ export function SeasonUpdateAnnouncement({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const storageKey = getSeasonAnnouncementStorageKey({ userId });
+  const dialogId = "season-update-dialog";
+  const titleId = "season-update-title";
+  const descriptionId = "season-update-description";
+  const portalTarget =
+    typeof document === "undefined"
+      ? null
+      : document.getElementById("modal-root") ?? document.body;
 
   useEffect(() => {
     let isDismissed = false;
@@ -106,68 +114,73 @@ export function SeasonUpdateAnnouncement({
   return (
     <>
       <button
+        aria-controls={dialogId}
+        aria-expanded={isOpen}
+        aria-haspopup="dialog"
         className={styles.reopenButton}
         type="button"
         onClick={reopenAnnouncement}
       >
         Season Update
       </button>
-      {isOpen ? (
-        <div className={styles.backdrop}>
-          <section
-            aria-describedby="season-update-description"
-            aria-labelledby="season-update-title"
-            aria-modal="true"
-            className={styles.card}
-            role="dialog"
-          >
-            <div className={styles.header}>
-              <span className={styles.eyebrow}>What&apos;s New?</span>
-              <button
-                aria-label="Close season update"
-                className={styles.closeButton}
-                onClick={dismissAnnouncement}
-                type="button"
+      {isOpen && portalTarget
+        ? createPortal(
+            <div className={styles.backdrop}>
+              <section
+                aria-describedby={descriptionId}
+                aria-labelledby={titleId}
+                aria-modal="true"
+                className={styles.card}
+                id={dialogId}
+                role="dialog"
               >
-                Close
-              </button>
-            </div>
-            <div>
-              <h2 id="season-update-title">
-                Season Update: Castles Got Jobs
-              </h2>
-              <p id="season-update-description">
-                The season now has real fortress economy, race identity, and
-                riskier raids. Tiny workers, big consequences.
-              </p>
-            </div>
-            <div className={styles.sectionGrid}>
-              {SECTIONS.map((section) => (
-                <article className={styles.updateSection} key={section.title}>
-                  <h3>{section.title}</h3>
-                  <ul>
-                    {section.items.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                </article>
-              ))}
-            </div>
-            <p className={styles.footer}>
-              Assign workers. Feed the army. Do not trust the unicorns.
-            </p>
-            <div className={styles.actions}>
-              <button
-                className={styles.primaryButton}
-                onClick={dismissAnnouncement}
-                type="button"
-              >
-                Enter the season
-              </button>
-            </div>
-          </section>
-        </div>
-      ) : null}
+                <div className={styles.header}>
+                  <span className={styles.eyebrow}>What&apos;s New?</span>
+                  <button
+                    aria-label="Close season update"
+                    className={styles.closeButton}
+                    onClick={dismissAnnouncement}
+                    type="button"
+                  >
+                    Close
+                  </button>
+                </div>
+                <div>
+                  <h2 id={titleId}>Season Update: Castles Got Jobs</h2>
+                  <p id={descriptionId}>
+                    The season now has real fortress economy, race identity, and
+                    riskier raids. Tiny workers, big consequences.
+                  </p>
+                </div>
+                <div className={styles.sectionGrid}>
+                  {SECTIONS.map((section) => (
+                    <article className={styles.updateSection} key={section.title}>
+                      <h3>{section.title}</h3>
+                      <ul>
+                        {section.items.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    </article>
+                  ))}
+                </div>
+                <p className={styles.footer}>
+                  Assign workers. Feed the army. Do not trust the unicorns.
+                </p>
+                <div className={styles.actions}>
+                  <button
+                    className={styles.primaryButton}
+                    onClick={dismissAnnouncement}
+                    type="button"
+                  >
+                    Enter the season
+                  </button>
+                </div>
+              </section>
+            </div>,
+            portalTarget
+          )
+        : null}
     </>
   );
 }
