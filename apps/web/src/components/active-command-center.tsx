@@ -71,9 +71,9 @@ export function ActiveCommandCenter({
 
       <div className={styles.forms}>
         <form action={setFortressActionAction} className={styles.form}>
-          <span className={styles.label}>Orders</span>
+          <span className={styles.label}>Castle</span>
           <label className={styles.field}>
-            <span>Current action</span>
+            <span>Command</span>
             <select
               name="action"
               value={action}
@@ -87,8 +87,8 @@ export function ActiveCommandCenter({
                 }
               }}
             >
-              <option value="GROW">Grow</option>
-              <option value="ATTACK">Attack</option>
+              <option value="GROW">Economy</option>
+              <option value="ATTACK">Manual attack</option>
             </select>
           </label>
           <label className={styles.field}>
@@ -114,11 +114,11 @@ export function ActiveCommandCenter({
           </label>
           <p className={styles.helper}>
             {action === "ATTACK" && currentTargetName
-              ? `Saved target: ${currentTargetName}`
-              : "Grow adds 1 point per minute tick. Attack launches a new unit each tick, so long routes can show multiple units before they hit."}
+              ? `Target: ${currentTargetName}`
+              : "Economy keeps workers producing each tick. Manual attacks send the selected army once."}
           </p>
           <button className={styles.primaryButton} type="submit">
-            Save action
+            Send command
           </button>
         </form>
 

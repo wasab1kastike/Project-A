@@ -16,7 +16,7 @@ import {
 import { ensureCommanderRegistrationColumn } from "./schema-guards";
 import {
   buildFortressSpawnSeed,
-  getSpawnPointKey,
+  getRenderedMapPositionKey,
   takeUniqueSpawnPoints,
 } from "./spawn-layout";
 
@@ -31,7 +31,7 @@ export function hasDuplicateFortressMapPositions(
   const occupied = new Set<string>();
 
   for (const fortress of fortresses) {
-    const positionKey = getSpawnPointKey({ x: fortress.mapX, y: fortress.mapY });
+    const positionKey = getRenderedMapPositionKey(fortress);
 
     if (occupied.has(positionKey)) {
       return true;
@@ -117,7 +117,7 @@ export async function ensureMegaFortress({
     },
   });
   const occupied = new Set(
-    occupiedFortresses.map((fortress) => getSpawnPointKey(fortress))
+    occupiedFortresses.map((fortress) => getRenderedMapPositionKey(fortress))
   );
   const [openPosition] = takeUniqueSpawnPoints(seed, 1, {
     excludedKeys: occupied,
@@ -259,7 +259,8 @@ export async function ensureCurrentMapLayout({
 
   if (
     !cycle ||
-    cycle.status !== CycleStatus.ACTIVE ||
+    (cycle.status !== CycleStatus.ACTIVE &&
+      cycle.status !== CycleStatus.TESTING) ||
     (hasCurrentLayout && !hasDuplicatePositions)
   ) {
     return false;

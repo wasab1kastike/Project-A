@@ -3,7 +3,7 @@ import { ArcadeCosmeticSlot } from "@/lib/prisma-client";
 export const ACTIVE_PLAYER_CAP = 30;
 export const ACTIVE_RENAME_COST = 10;
 export const ACTIVE_LOCATION_SHUFFLE_COST = 50;
-export const CURRENT_MAP_LAYOUT_VERSION = 4;
+export const CURRENT_MAP_LAYOUT_VERSION = 5;
 export const REGISTRATION_DURATION_HOURS = 24;
 export const TESTING_DURATION_HOURS = 24;
 export const ACTIVE_DURATION_HOURS = 72;

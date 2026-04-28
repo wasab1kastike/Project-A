@@ -23,7 +23,7 @@ import { ensureCommanderRegistrationColumn } from "./schema-guards";
 import {
   buildFortressSpawnSeed,
   getFortressSpawnLayout,
-  getSpawnPointKey,
+  getRenderedMapPositionKey,
   takeOpenSpawnPoint,
 } from "./spawn-layout";
 import {
@@ -167,7 +167,7 @@ function findOpenMapPosition(
   }>
 ) {
   const occupied = new Set(
-    fortresses.map((fortress) => getSpawnPointKey(fortress))
+    fortresses.map((fortress) => getRenderedMapPositionKey(fortress))
   );
   const layout = getFortressSpawnLayout({
     cycleId: cycle.id,
@@ -177,7 +177,7 @@ function findOpenMapPosition(
   });
 
   return layout.find((position) => {
-    return !occupied.has(getSpawnPointKey(position));
+    return !occupied.has(getRenderedMapPositionKey(position));
   });
 }
 
@@ -900,10 +900,10 @@ export async function shuffleFortressLocation({
     });
     const excludedKeys = new Set(
       otherFortresses.map((otherFortress) => {
-        return getSpawnPointKey(otherFortress);
+        return getRenderedMapPositionKey(otherFortress);
       })
     );
-    excludedKeys.add(getSpawnPointKey(fortress));
+    excludedKeys.add(getRenderedMapPositionKey(fortress));
 
     let nextPosition;
 

@@ -933,7 +933,7 @@ export function FortressMap({
                       <span>
                         {isMega
                           ? `${fortress.health}/${fortress.maxHealth} HP`
-                          : `${fortress.points} pts - ${fortress.currentAction}${
+                          : `${fortress.points} pts${
                               fortress.isSlayerOfA ? " - Slayer of A" : ""
                             }`}
                       </span>

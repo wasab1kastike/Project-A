@@ -249,7 +249,7 @@ export default async function Home({
             title: "Season is live.",
             description: "Moves are being resolved in real time.",
             nextAction: state.playerSummary
-              ? "Pick a target on the map or open Orders to submit your move."
+              ? "Pick a target on the map or open Castle to submit your move."
               : state.canJoinCycle
                 ? "You can still join this running season while slots are available."
                 : "Follow the live map and wait for the next registration.",
@@ -284,7 +284,7 @@ export default async function Home({
   const centerDescription = blockingMessage
     ? blockingMessage
     : showLoginCard
-      ? "Sign in to join a fortress, chat, and submit orders when the season is active."
+      ? "Sign in to join a fortress, chat, and manage your castle when the season is active."
       : showCommanderNameCard
         ? "Set the commander name other players will see this season. Your account name stays private."
         : showJoinCard

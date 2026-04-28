@@ -898,7 +898,7 @@ export function BattlefieldExperience({
           disabled={!canOpenActions}
           onClick={() => openOwnActions(ownFortress.id)}
         >
-          Orders
+          Castle
         </button>
       ) : null}
     </div>
@@ -934,7 +934,7 @@ export function BattlefieldExperience({
       <button
         type="button"
         className={styles.closeButton}
-        aria-label="Close orders"
+        aria-label="Close castle"
         onClick={() => setActionOpen(false)}
       >
         Close
@@ -945,7 +945,7 @@ export function BattlefieldExperience({
           <div className={styles.drawerContent}>
             <div className={styles.ordersHeader}>
               <div>
-                <span className={styles.label}>Orders</span>
+                <span className={styles.label}>Castle</span>
                 <h3>{playerSummary.name}</h3>
               </div>
             </div>
@@ -1004,7 +1004,7 @@ export function BattlefieldExperience({
 
             {!playerSummary.race ? (
               <p className={`${styles.helper} ${styles.warningText}`}>
-                Race selection is required before active orders.
+                Race selection is required before castle actions.
               </p>
             ) : null}
 

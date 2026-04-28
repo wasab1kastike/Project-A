@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 import { ACTIVE_PLAYER_CAP } from "./constants";
-import { HEX_SPAWN_TILES, isPointNearSpawnHex } from "./map-hex";
+import {
+  HEX_SPAWN_TILES,
+  isPointNearSpawnHex,
+  snapMapPointToHex,
+} from "./map-hex";
 
 export type SpawnPoint = {
   x: number;
@@ -75,6 +79,16 @@ export function getSpawnPointKey(
   return `${Math.round(x)}:${Math.round(y)}`;
 }
 
+export function getRenderedMapPositionKey(
+  point: SpawnPoint | { mapX: number; mapY: number }
+) {
+  const x = "x" in point ? point.x : point.mapX;
+  const y = "y" in point ? point.y : point.mapY;
+  const snapped = snapMapPointToHex({ x, y });
+
+  return `${Math.round(snapped.x)}:${Math.round(snapped.y)}`;
+}
+
 function distanceBetweenPoints(left: SpawnPoint, right: SpawnPoint) {
   return Math.hypot(left.x - right.x, left.y - right.y);
 }
@@ -120,7 +134,7 @@ function getUniqueSpawnCandidates(
   shuffleInPlace(candidates, random);
 
   for (const point of candidates) {
-    const key = getSpawnPointKey(point);
+    const key = getRenderedMapPositionKey(point);
 
     if (excludedKeys.has(key) || uniqueCandidates.has(key)) {
       continue;
@@ -191,9 +205,9 @@ export function takeUniqueSpawnPoints(
     }
 
     selected.push(chosen);
-    const chosenKey = getSpawnPointKey(chosen);
+    const chosenKey = getRenderedMapPositionKey(chosen);
     const chosenIndex = remaining.findIndex(
-      (candidate) => getSpawnPointKey(candidate) === chosenKey
+      (candidate) => getRenderedMapPositionKey(candidate) === chosenKey
     );
 
     if (chosenIndex >= 0) {
@@ -258,10 +272,10 @@ export function takeOpenSpawnPoint(
     preferredEdgePadding
   );
   const weightedKeys = new Set(
-    weightedCandidates.map((candidate) => getSpawnPointKey(candidate))
+    weightedCandidates.map((candidate) => getRenderedMapPositionKey(candidate))
   );
   const eligibleCandidates = minimumTier.filter((candidate) => {
-    return weightedKeys.has(getSpawnPointKey(candidate.candidate));
+    return weightedKeys.has(getRenderedMapPositionKey(candidate.candidate));
   });
   let bestCandidate =
     (eligibleCandidates[0]?.candidate ?? candidates[0]) as SpawnPoint;

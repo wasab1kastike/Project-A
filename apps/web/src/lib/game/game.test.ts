@@ -72,6 +72,7 @@ import {
 } from "./map-hex";
 import {
   getFortressSpawnLayout,
+  getRenderedMapPositionKey,
   getSpawnPointKey,
   takeOpenSpawnPoint,
   takeUniqueSpawnPoints,
@@ -296,7 +297,7 @@ test("spawn sampler returns unique valid spawn points", () => {
     minSeparationDistance: 9,
   });
   const uniqueKeys = new Set(
-    points.map((point) => `${Math.round(point.x)}:${Math.round(point.y)}`)
+    points.map((point) => getRenderedMapPositionKey(point))
   );
 
   assert.equal(points.length, 18);
@@ -307,17 +308,32 @@ test("spawn sampler returns unique valid spawn points", () => {
   }
 });
 
-test("spawn sampler treats rounded stored coordinates as occupied", () => {
+test("spawn sampler treats rendered stored coordinates as occupied", () => {
   const first = takeUniqueSpawnPoints("sampler:rounded-occupied", 1)[0];
 
   assert.ok(first);
 
   const [next] = takeUniqueSpawnPoints("sampler:rounded-occupied", 1, {
-    excludedKeys: new Set([getSpawnPointKey(first)]),
+    excludedKeys: new Set([getRenderedMapPositionKey(first)]),
   });
 
   assert.ok(next);
-  assert.notEqual(getSpawnPointKey(next), getSpawnPointKey(first));
+  assert.notEqual(
+    getRenderedMapPositionKey(next),
+    getRenderedMapPositionKey(first)
+  );
+});
+
+test("open spawn point skips rendered occupied tiles", () => {
+  const first = takeOpenSpawnPoint("open:rendered-occupied");
+  const next = takeOpenSpawnPoint("open:rendered-occupied", {
+    excludedKeys: new Set([getRenderedMapPositionKey(first)]),
+  });
+
+  assert.notEqual(
+    getRenderedMapPositionKey(next),
+    getRenderedMapPositionKey(first)
+  );
 });
 
 test("spawn sampler is stable for the same seed", () => {
@@ -453,18 +469,36 @@ test("active reshuffle sampler uses fewer outer-band spawns than registration la
   assert.ok(reshuffleOuterBandCount < registrationOuterBandCount);
 });
 
-test("duplicate fortress map positions are detected by rounded spawn key", () => {
+test("duplicate fortress map positions are detected by rendered tile key", () => {
+  const renderedDuplicate = HEX_SPAWN_TILES.find((tile) => {
+    const shifted = { x: tile.xPercent, y: tile.yPercent + 0.8 };
+
+    return (
+      getSpawnPointKey(shifted) !==
+        getSpawnPointKey({ x: tile.xPercent, y: tile.yPercent }) &&
+      getRenderedMapPositionKey(shifted) ===
+        getRenderedMapPositionKey({ x: tile.xPercent, y: tile.yPercent })
+    );
+  });
+
+  assert.ok(renderedDuplicate);
   assert.equal(
     hasDuplicateFortressMapPositions([
-      { mapX: 12, mapY: 18 },
-      { mapX: 12.2, mapY: 18.4 },
+      { mapX: renderedDuplicate.xPercent, mapY: renderedDuplicate.yPercent },
+      {
+        mapX: renderedDuplicate.xPercent,
+        mapY: renderedDuplicate.yPercent + 0.8,
+      },
     ]),
     true
   );
+
+  const distinctPoints = takeUniqueSpawnPoints("duplicate:distinct-rendered", 2);
+
   assert.equal(
     hasDuplicateFortressMapPositions([
-      { mapX: 12, mapY: 18 },
-      { mapX: 13, mapY: 18 },
+      { mapX: distinctPoints[0]!.x, mapY: distinctPoints[0]!.y },
+      { mapX: distinctPoints[1]!.x, mapY: distinctPoints[1]!.y },
     ]),
     false
   );
@@ -2076,7 +2110,7 @@ test("old active map layouts reshuffle once on the next tick", async (context) =
   });
   const uniquePositionKeys = new Set(
     positionsAfterFirstTick.map(
-      (position) => `${position.mapX}:${position.mapY}`
+      (position) => getRenderedMapPositionKey(position)
     )
   );
 
@@ -2163,6 +2197,11 @@ test("current active map layouts reshuffle when positions are duplicated", async
     now: new Date("2026-04-20T12:01:00.000Z"),
   });
 
+  const state = await getHomePageState({
+    db: prisma,
+    userId: alpha.id,
+    now: new Date("2026-04-20T12:01:30.000Z"),
+  });
   const positionsAfterTick = await prisma.fortress.findMany({
     where: {
       cycleId: cycle.id,
@@ -2173,7 +2212,86 @@ test("current active map layouts reshuffle when positions are duplicated", async
     },
   });
   const uniquePositionKeys = new Set(
-    positionsAfterTick.map((position) => `${position.mapX}:${position.mapY}`)
+    positionsAfterTick.map((position) => getRenderedMapPositionKey(position))
+  );
+  const renderedMarkerKeys = new Set(
+    state.mapFortresses.map((fortress) => getRenderedMapPositionKey(fortress))
+  );
+
+  assert.equal(uniquePositionKeys.size, positionsAfterTick.length);
+  assert.equal(renderedMarkerKeys.size, state.mapFortresses.length);
+});
+
+test("testing map layouts reshuffle when rendered positions are duplicated", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(
+    prisma,
+    new Date("2026-04-19T11:00:00.000Z")
+  );
+  const alpha = await createUser(prisma, "testing-layout-alpha@example.com");
+  const beta = await createUser(prisma, "testing-layout-beta@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: alpha.id,
+    fortressName: "Testing Layout Alpha",
+    now: new Date("2026-04-19T11:05:00.000Z"),
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: beta.id,
+    fortressName: "Testing Layout Beta",
+    now: new Date("2026-04-19T11:06:00.000Z"),
+  });
+
+  const testingStartsAt = addHours(cycle.registrationEndsAt, -24);
+
+  await runGameTick({
+    db: prisma,
+    now: testingStartsAt,
+  });
+  await prisma.fortress.updateMany({
+    where: {
+      cycleId: cycle.id,
+      ownerId: {
+        in: [alpha.id, beta.id],
+      },
+    },
+    data: {
+      mapX: 10,
+      mapY: 10,
+    },
+  });
+  await prisma.cycle.update({
+    where: {
+      id: cycle.id,
+    },
+    data: {
+      mapLayoutVersion: CURRENT_MAP_LAYOUT_VERSION,
+    },
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: addMinutes(testingStartsAt, 1),
+  });
+
+  const positionsAfterTick = await prisma.fortress.findMany({
+    where: {
+      cycleId: cycle.id,
+    },
+    select: {
+      mapX: true,
+      mapY: true,
+    },
+  });
+  const uniquePositionKeys = new Set(
+    positionsAfterTick.map((position) => getRenderedMapPositionKey(position))
   );
 
   assert.equal(uniquePositionKeys.size, positionsAfterTick.length);
