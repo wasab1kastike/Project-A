@@ -23,7 +23,7 @@ const SECTIONS = [
       "Dwarfs: defensive miners.",
       "Unstable Unicorns: magical food chaos.",
       "Space Murines: Acolytes of the Emperor A, they despise all other life forms.",
-      "ORKS: loud raiders with huge loot potential.",
+      "ORKS: loud raiders with huge loot potential. Followers of legendary Khraal",
     ],
   },
   {
