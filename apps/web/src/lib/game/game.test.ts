@@ -2741,42 +2741,6 @@ test("location shuffle is free once, then costs 50 points and cancels outgoing a
     },
   });
 
-  await prisma.fortress.update({
-    where: {
-      id: attackerFortress.id,
-    },
-    data: {
-      army: 2,
-      race: FortressRace.DWARFS,
-    },
-  });
-
-  await prisma.fortress.update({
-    where: {
-      cycleId_ownerId: {
-        cycleId: cycle.id,
-        ownerId: attacker.id,
-      },
-    },
-    data: {
-      army: 1,
-      race: FortressRace.DWARFS,
-    },
-  });
-
-  await prisma.fortress.update({
-    where: {
-      cycleId_ownerId: {
-        cycleId: cycle.id,
-        ownerId: attacker.id,
-      },
-    },
-    data: {
-      army: 1,
-      race: FortressRace.DWARFS,
-    },
-  });
-
   await setFortressAction({
     db: prisma,
     userId: attacker.id,
