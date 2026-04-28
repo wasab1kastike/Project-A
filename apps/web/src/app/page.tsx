@@ -5,6 +5,7 @@ import { auth, isAuthConfigured } from "@/auth";
 import { SessionActions } from "@/components/session-actions";
 import { BattlefieldExperience } from "@/components/battlefield-experience";
 import { MegaFortressNotice } from "@/components/mega-fortress-notice";
+import { PreviousSeasonWinnerCard } from "@/components/previous-season-winner-card";
 import { RealtimeBridge } from "@/components/realtime-bridge";
 import { SeasonUpdateAnnouncement } from "@/components/season-update-announcement";
 import { SeasonTimer } from "@/components/season-timer";
@@ -538,8 +539,14 @@ export default async function Home({
           aria-live="polite"
         >
           {state.latestSeason ? (
-            <section className={styles.seasonSummary}>
-              <span className={styles.sectionLabel}>Previous season winner</span>
+            <PreviousSeasonWinnerCard
+              className={styles.seasonSummary}
+              closeButtonClassName={styles.seasonSummaryCloseButton}
+              cycleId={state.latestSeason.cycleId}
+            >
+              <span className={styles.sectionLabel}>
+                Previous season winner
+              </span>
               <h2>{state.latestSeason.winnerLabel}</h2>
               <p>
                 {state.latestSeason.winnerFortressName} won with{" "}
@@ -618,7 +625,7 @@ export default async function Home({
                   )}
                 </div>
               </div>
-            </section>
+            </PreviousSeasonWinnerCard>
           ) : null}
           {session?.user?.id &&
           state.latestSeason &&

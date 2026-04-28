@@ -210,12 +210,30 @@
 }
 
 .seasonSummary {
+  position: relative;
   display: grid;
   gap: 8px;
   padding: 14px;
   border: 1px solid rgba(247, 196, 95, 0.2);
   border-radius: 8px;
   background: rgba(247, 196, 95, 0.08);
+}
+
+.seasonSummaryCloseButton {
+  justify-self: end;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(247, 196, 95, 0.28);
+  border-radius: 999px;
+  background: rgba(7, 13, 20, 0.72);
+  color: var(--foreground);
+  font: inherit;
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
 }
 
 .seasonSummary h2 {
