@@ -6,16 +6,41 @@ export type CosmeticSpriteStyle = {
   backgroundPosition: string;
 };
 
+type CosmeticSpriteCell = { row: number; col: number };
+
 type CosmeticSpriteSheet = {
   src: string;
   variants: readonly string[];
+  /** Number of columns in this section of the sheet. */
   columns: number;
+  /**
+   * Total physical rows in the image file.
+   * Defaults to ceil(variants.length / columns) when the sheet is not shared.
+   */
+  totalRows?: number;
+  /**
+   * First image row where this section's sprites start.
+   * Defaults to 0.
+   */
+  rowOffset?: number;
+  /**
+   * Per-variant overrides for sprites that are not laid out in a strict grid
+   * (e.g., a partially-filled last row that is centred rather than left-aligned).
+   * Rows and columns are absolute image coordinates (rowOffset is NOT applied).
+   */
+  cells?: Partial<Record<string, CosmeticSpriteCell>>;
 };
 
 const UNIT_SKIN_SHEETS: readonly CosmeticSpriteSheet[] = [
   {
+    // loot-box-set-1.png layout (5 rows total):
+    //   row 0–1: 4 fortress skins each  (handled in FORTRESS_SKIN_SHEETS)
+    //   row 2–3: 6 unit skins each      → columns 0–5
+    //   row 4:   4 unit skins centred   → columns 1–4
     src: "/assets/loot-box-set-1.png",
-    columns: 4,
+    columns: 6,
+    totalRows: 5,
+    rowOffset: 2,
     variants: [
       "silver-knight",
       "lava-berserker",
@@ -34,6 +59,13 @@ const UNIT_SKIN_SHEETS: readonly CosmeticSpriteSheet[] = [
       "hooded-hexer",
       "crystal-warlock",
     ],
+    cells: {
+      // Row 4 has only 4 sprites, centred at columns 1–4.
+      "gold-prospector": { row: 4, col: 1 },
+      "bone-reaver": { row: 4, col: 2 },
+      "hooded-hexer": { row: 4, col: 3 },
+      "crystal-warlock": { row: 4, col: 4 },
+    },
   },
   {
     src: "/assets/loot-box-units-set1.png",
@@ -99,8 +131,13 @@ const UNIT_SKIN_SHEETS: readonly CosmeticSpriteSheet[] = [
 
 const FORTRESS_SKIN_SHEETS: readonly CosmeticSpriteSheet[] = [
   {
+    // loot-box-set-1.png layout (5 rows total):
+    //   row 0–1: 4 fortress skins each  → columns 0–3
+    //   row 2–4: unit skins             (handled in UNIT_SKIN_SHEETS)
     src: "/assets/loot-box-set-1.png",
     columns: 4,
+    totalRows: 5,
+    rowOffset: 0,
     variants: [
       "ice-fortress",
       "lava-citadel",
@@ -143,15 +180,30 @@ export function getCosmeticSpriteStyle(
       continue;
     }
 
-    const rows = Math.ceil(sheet.variants.length / sheet.columns);
-    const column = index % sheet.columns;
-    const row = Math.floor(index / sheet.columns);
-    const x = sheet.columns === 1 ? 0 : (column / (sheet.columns - 1)) * 100;
-    const y = rows === 1 ? 0 : (row / (rows - 1)) * 100;
+    const sectionRows = Math.ceil(sheet.variants.length / sheet.columns);
+    const totalRows = sheet.totalRows ?? sectionRows;
+    const rowOffset = sheet.rowOffset ?? 0;
+
+    let col: number;
+    let row: number;
+
+    const cellOverride = sheet.cells?.[variant];
+
+    if (cellOverride) {
+      // Manually specified absolute position (rowOffset already baked in).
+      col = cellOverride.col;
+      row = cellOverride.row;
+    } else {
+      col = index % sheet.columns;
+      row = Math.floor(index / sheet.columns) + rowOffset;
+    }
+
+    const x = sheet.columns === 1 ? 0 : (col / (sheet.columns - 1)) * 100;
+    const y = totalRows === 1 ? 0 : (row / (totalRows - 1)) * 100;
 
     return {
       backgroundImage: `url("${sheet.src}")`,
-      backgroundSize: `${sheet.columns * 100}% ${rows * 100}%`,
+      backgroundSize: `${sheet.columns * 100}% ${totalRows * 100}%`,
       backgroundPosition: `${x}% ${y}%`,
     };
   }
