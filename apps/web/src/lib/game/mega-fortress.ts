@@ -4,9 +4,7 @@ import {
   Prisma,
   PrismaClient,
 } from "@/lib/prisma-client";
-import {
-  snapMapPointToHex,
-} from "./map-hex";
+import { snapMapPointToHex } from "./map-hex";
 import {
   CURRENT_MAP_LAYOUT_VERSION,
   MEGA_FORTRESS_HEALTH,
@@ -26,6 +24,24 @@ type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
 const DEFAULT_MIN_SPAWN_SEPARATION = 0;
 const ACTIVE_EDGE_PADDING = 15;
+
+export function hasDuplicateFortressMapPositions(
+  fortresses: Array<{ mapX: number; mapY: number }>
+) {
+  const occupied = new Set<string>();
+
+  for (const fortress of fortresses) {
+    const positionKey = getSpawnPointKey({ x: fortress.mapX, y: fortress.mapY });
+
+    if (occupied.has(positionKey)) {
+      return true;
+    }
+
+    occupied.add(positionKey);
+  }
+
+  return false;
+}
 
 function getNpcCommanderName(cycleId: string) {
   return `NPC ${cycleId}`;
@@ -227,13 +243,24 @@ export async function ensureCurrentMapLayout({
       id: true,
       status: true,
       mapLayoutVersion: true,
+      fortresses: {
+        select: {
+          mapX: true,
+          mapY: true,
+        },
+      },
     },
   });
+
+  const hasCurrentLayout =
+    cycle && cycle.mapLayoutVersion >= CURRENT_MAP_LAYOUT_VERSION;
+  const hasDuplicatePositions =
+    cycle && hasDuplicateFortressMapPositions(cycle.fortresses);
 
   if (
     !cycle ||
     cycle.status !== CycleStatus.ACTIVE ||
-    cycle.mapLayoutVersion >= CURRENT_MAP_LAYOUT_VERSION
+    (hasCurrentLayout && !hasDuplicatePositions)
   ) {
     return false;
   }

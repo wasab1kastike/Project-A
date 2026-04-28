@@ -77,6 +77,7 @@ import {
   takeUniqueSpawnPoints,
   type SpawnPoint,
 } from "./spawn-layout";
+import { hasDuplicateFortressMapPositions } from "./mega-fortress";
 import { getAdminDashboardState } from "./admin-dashboard";
 import { getCycleHistoryPageState } from "./history";
 import { getHomePageState } from "./read-model";
@@ -450,6 +451,23 @@ test("active reshuffle sampler uses fewer outer-band spawns than registration la
   }
 
   assert.ok(reshuffleOuterBandCount < registrationOuterBandCount);
+});
+
+test("duplicate fortress map positions are detected by rounded spawn key", () => {
+  assert.equal(
+    hasDuplicateFortressMapPositions([
+      { mapX: 12, mapY: 18 },
+      { mapX: 12.2, mapY: 18.4 },
+    ]),
+    true
+  );
+  assert.equal(
+    hasDuplicateFortressMapPositions([
+      { mapX: 12, mapY: 18 },
+      { mapX: 13, mapY: 18 },
+    ]),
+    false
+  );
 });
 
 test("join registration uses the shared deterministic spawn layout", async (context) => {
@@ -2090,6 +2108,75 @@ test("old active map layouts reshuffle once on the next tick", async (context) =
   });
 
   assert.deepEqual(positionsAfterSecondTick, positionsAfterFirstTick);
+});
+
+test("current active map layouts reshuffle when positions are duplicated", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const alpha = await createUser(prisma, "duplicate-layout-alpha@example.com");
+  const beta = await createUser(prisma, "duplicate-layout-beta@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: alpha.id,
+    fortressName: "Duplicate Layout Alpha",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: beta.id,
+    fortressName: "Duplicate Layout Beta",
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  await prisma.fortress.updateMany({
+    where: {
+      cycleId: cycle.id,
+      ownerId: {
+        in: [alpha.id, beta.id],
+      },
+    },
+    data: {
+      mapX: 10,
+      mapY: 10,
+    },
+  });
+
+  await prisma.cycle.update({
+    where: {
+      id: cycle.id,
+    },
+    data: {
+      mapLayoutVersion: CURRENT_MAP_LAYOUT_VERSION,
+    },
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+  });
+
+  const positionsAfterTick = await prisma.fortress.findMany({
+    where: {
+      cycleId: cycle.id,
+    },
+    select: {
+      mapX: true,
+      mapY: true,
+    },
+  });
+  const uniquePositionKeys = new Set(
+    positionsAfterTick.map((position) => `${position.mapX}:${position.mapY}`)
+  );
+
+  assert.equal(uniquePositionKeys.size, positionsAfterTick.length);
 });
 
 test("action updates persist and self-targeting is rejected", async (context) => {
