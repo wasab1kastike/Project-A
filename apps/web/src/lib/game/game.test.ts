@@ -7,6 +7,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   ArcadeCosmeticSlot,
+  ArcadeGameType,
   ArcadeLootBoxType,
   ChatMessageType,
   CommunityWishStatus,
@@ -41,8 +42,10 @@ import {
 import { getBuildArcadeRewardVariant } from "./build-arcade";
 import {
   equipCosmeticUnlock,
+  getArcadeHubState,
   mintSeasonArcadeCoins,
   openArcadeLootBox,
+  playArcadeGame,
   purchaseArcadeLootBox,
 } from "./arcade";
 import {
@@ -937,6 +940,210 @@ test("arcade loot box duplicate refunds coins instead of creating duplicate skin
 
   assert.ok(reloadedPurchase?.openedAt);
   assert.equal(reloadedPurchase?.duplicatePayout, 30);
+});
+
+test("arcade loot boxes can be purchased during the active cycle", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const user = await createUser(prisma, "arcade-active-buy@example.com");
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: user.id,
+      commanderName: "Active Buyer",
+      fortressName: "Market Keep",
+      points: 25,
+    },
+  ]);
+
+  await prisma.arcadeWallet.create({
+    data: {
+      userId: user.id,
+      balance: 100,
+    },
+  });
+
+  const result = await purchaseArcadeLootBox({
+    userId: user.id,
+    crateType: ArcadeLootBoxType.UNIT,
+    db: prisma,
+    now: new Date("2026-04-20T12:03:00.000Z"),
+  });
+
+  assert.equal(result.purchase.crateType, ArcadeLootBoxType.UNIT);
+  assert.equal(result.balanceAfter, 25);
+
+  const ledgerEntry = await prisma.arcadeTransaction.findFirst({
+    where: {
+      userId: user.id,
+      kind: "LOOT_BOX_PURCHASE",
+    },
+    select: {
+      cycleId: true,
+    },
+  });
+
+  assert.equal(ledgerEntry?.cycleId, cycle.id);
+});
+
+test("arcade loot boxes can be opened during the active cycle", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const user = await createUser(prisma, "arcade-active-open@example.com");
+  await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: user.id,
+      commanderName: "Active Opener",
+      fortressName: "Crate Keep",
+      points: 25,
+    },
+  ]);
+
+  await prisma.arcadeWallet.create({
+    data: {
+      userId: user.id,
+      balance: 100,
+    },
+  });
+
+  const purchase = await purchaseArcadeLootBox({
+    userId: user.id,
+    crateType: ArcadeLootBoxType.FORTRESS,
+    db: prisma,
+    now: new Date("2026-04-20T12:03:00.000Z"),
+  });
+
+  const opened = await openArcadeLootBox({
+    purchaseId: purchase.purchase.id,
+    userId: user.id,
+    db: prisma,
+    now: new Date("2026-04-20T12:04:00.000Z"),
+  });
+
+  assert.equal(opened.slot, ArcadeCosmeticSlot.FORTRESS);
+
+  const reloadedPurchase = await prisma.arcadeLootBoxPurchase.findUnique({
+    where: {
+      id: purchase.purchase.id,
+    },
+    select: {
+      openedAt: true,
+      rewardSlot: true,
+      rewardVariant: true,
+    },
+  });
+
+  assert.ok(reloadedPurchase?.openedAt);
+  assert.equal(reloadedPurchase?.rewardSlot, ArcadeCosmeticSlot.FORTRESS);
+  assert.equal(reloadedPurchase?.rewardVariant, opened.variant);
+});
+
+test("arcade hub exposes owned skins and shop actions outside build phase", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const user = await createUser(prisma, "arcade-active-hub@example.com");
+  await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: user.id,
+      commanderName: "Skin Swapper",
+      fortressName: "Wardrobe Hold",
+      points: 25,
+    },
+  ]);
+
+  await prisma.user.update({
+    where: {
+      id: user.id,
+    },
+    data: {
+      unitCosmeticVariant: "emerald",
+    },
+  });
+  await prisma.arcadeWallet.create({
+    data: {
+      userId: user.id,
+      balance: 100,
+    },
+  });
+  await prisma.arcadeLootBoxPurchase.create({
+    data: {
+      userId: user.id,
+      crateType: ArcadeLootBoxType.UNIT,
+      price: 75,
+    },
+  });
+  await prisma.arcadeCosmeticUnlock.create({
+    data: {
+      userId: user.id,
+      slot: ArcadeCosmeticSlot.UNIT,
+      variant: "emerald",
+    },
+  });
+
+  const state = await getArcadeHubState({
+    userId: user.id,
+    db: prisma,
+    now: new Date("2026-04-20T12:03:00.000Z"),
+  });
+
+  assert.equal(state.buildOpen, false);
+  assert.equal(state.canBuy, true);
+  assert.equal(state.canOpen, true);
+  assert.equal(state.walletBalance, 100);
+  assert.equal(state.unopenedPurchases.length, 1);
+  assert.equal(state.equippedSkins.unit, "emerald");
+  assert.equal(state.ownedSkins.unit.length, 1);
+  assert.equal(state.ownedSkins.unit[0].equipped, true);
+});
+
+test("arcade games remain locked outside the build phase", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const user = await createUser(prisma, "arcade-active-game@example.com");
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: user.id,
+      commanderName: "Active Player",
+      fortressName: "Table Keep",
+      points: 25,
+    },
+  ]);
+
+  await prisma.arcadeWallet.create({
+    data: {
+      userId: user.id,
+      balance: 100,
+    },
+  });
+
+  await assert.rejects(
+    () =>
+      playArcadeGame({
+        cycleId: cycle.id,
+        userId: user.id,
+        gameType: ArcadeGameType.SLOTS,
+        stake: 10,
+        choice: null,
+        db: prisma,
+        now: new Date("2026-04-20T12:03:00.000Z"),
+      }),
+    /only open during the build phase/
+  );
 });
 
 test("arcade cosmetic unlocks can be equipped onto the matching slot", async (context) => {

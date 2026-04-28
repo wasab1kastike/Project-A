@@ -91,6 +91,22 @@ async function getCurrentBuildCycle(db: DatabaseClient, now: Date) {
   });
 }
 
+async function getCurrentShopCycle(db: DatabaseClient) {
+  return db.cycle.findFirst({
+    where: {
+      resolvedAt: null,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+    select: {
+      id: true,
+      registrationEndsAt: true,
+      status: true,
+    },
+  });
+}
+
 async function getPlayerFortress(
   db: DatabaseClient,
   cycleId: string,
@@ -407,70 +423,7 @@ export async function getArcadeHubState({
   now?: Date;
   db?: DatabaseClient;
 }) {
-  const cycle = await getCurrentBuildCycle(db, now);
-
-  if (!cycle) {
-    const wallet = userId
-      ? await db.arcadeWallet.findUnique({
-          where: {
-            userId,
-          },
-          select: {
-            balance: true,
-          },
-        })
-      : null;
-
-    return {
-      cycleId: null,
-      buildEndsAt: null,
-      buildOpen: false,
-      canPlay: false,
-      canBuy: false,
-      canOpen: false,
-      walletBalance: wallet?.balance ?? 0,
-      currentUser: null,
-      recentTransactions: [],
-      unopenedPurchases: [],
-      ownedSkins: {
-        unit: [],
-        fortress: [],
-      },
-      equippedSkins: {
-        unit: null,
-        fortress: null,
-      },
-      shop: {
-        unitCratePrice: ARCADE_UNIT_LOOT_BOX_PRICE,
-        fortressCratePrice: ARCADE_FORTRESS_LOOT_BOX_PRICE,
-        duplicateRefund: ARCADE_LOOT_BOX_DUPLICATE_REFUND,
-      },
-      games: [
-        {
-          type: ArcadeGameType.SLOTS,
-          label: "Slots",
-          description: "Three reels. Match symbols to win a bigger payout.",
-        },
-        {
-          type: ArcadeGameType.DICE,
-          label: "Dice table",
-          description: "Bet high or low on a two-die roll.",
-        },
-        {
-          type: ArcadeGameType.WHEEL,
-          label: "Wheel",
-          description: "Bet on a color and ride the wheel.",
-        },
-      ],
-      lockedMessage:
-        "The arcade opens during the build phase between season start and the next Wednesday.",
-    };
-  }
-
-  const buildOpen = cycle.status === CycleStatus.REGISTRATION;
-  const playerFortress = userId
-    ? await getPlayerFortress(db, cycle.id, userId)
-    : null;
+  const cycle = await getCurrentShopCycle(db);
   const user = userId
     ? await db.user.findUnique({
         where: {
@@ -548,13 +501,82 @@ export async function getArcadeHubState({
       })
     : [];
 
+  if (!cycle) {
+    return {
+      cycleId: null,
+      buildEndsAt: null,
+      buildOpen: false,
+      canPlay: false,
+      canBuy: false,
+      canOpen: false,
+      walletBalance: wallet?.balance ?? 0,
+      currentUser: null,
+      recentTransactions,
+      unopenedPurchases,
+      ownedSkins: {
+        unit: unlockedSkins
+          .filter((unlock) => unlock.slot === ArcadeCosmeticSlot.UNIT)
+          .map((unlock) => ({
+            id: unlock.id,
+            variant: unlock.variant,
+            sourcePurchaseId: unlock.sourcePurchaseId,
+            createdAt: unlock.createdAt,
+            equipped: user?.unitCosmeticVariant === unlock.variant,
+          })),
+        fortress: unlockedSkins
+          .filter((unlock) => unlock.slot === ArcadeCosmeticSlot.FORTRESS)
+          .map((unlock) => ({
+            id: unlock.id,
+            variant: unlock.variant,
+            sourcePurchaseId: unlock.sourcePurchaseId,
+            createdAt: unlock.createdAt,
+            equipped: user?.fortressCosmeticVariant === unlock.variant,
+          })),
+      },
+      equippedSkins: {
+        unit: user?.unitCosmeticVariant ?? null,
+        fortress: user?.fortressCosmeticVariant ?? null,
+      },
+      shop: {
+        unitCratePrice: ARCADE_UNIT_LOOT_BOX_PRICE,
+        fortressCratePrice: ARCADE_FORTRESS_LOOT_BOX_PRICE,
+        duplicateRefund: ARCADE_LOOT_BOX_DUPLICATE_REFUND,
+      },
+      games: [
+        {
+          type: ArcadeGameType.SLOTS,
+          label: "Slots",
+          description: "Three reels. Match symbols to win a bigger payout.",
+        },
+        {
+          type: ArcadeGameType.DICE,
+          label: "Dice table",
+          description: "Bet high or low on a two-die roll.",
+        },
+        {
+          type: ArcadeGameType.WHEEL,
+          label: "Wheel",
+          description: "Bet on a color and ride the wheel.",
+        },
+      ],
+      lockedMessage: "The shop opens when a season cycle is running.",
+    };
+  }
+
+  const buildOpen =
+    cycle.status === CycleStatus.REGISTRATION && cycle.registrationEndsAt > now;
+  const playerFortress = userId
+    ? await getPlayerFortress(db, cycle.id, userId)
+    : null;
+  const hasCurrentCycleFortress = Boolean(userId && playerFortress);
+
   return {
     cycleId: cycle.id,
     buildEndsAt: cycle.registrationEndsAt,
     buildOpen,
     canPlay: Boolean(userId && playerFortress && buildOpen),
-    canBuy: Boolean(userId && playerFortress && buildOpen),
-    canOpen: Boolean(userId && buildOpen),
+    canBuy: hasCurrentCycleFortress,
+    canOpen: hasCurrentCycleFortress,
     walletBalance: wallet?.balance ?? 0,
     currentUser: playerFortress,
     recentTransactions,
@@ -607,7 +629,7 @@ export async function getArcadeHubState({
     ],
     lockedMessage: buildOpen
       ? null
-      : "The arcade opens during the build phase between season start and the next Wednesday.",
+      : "Arcade games are locked outside the build phase, but the shop stays open for the current cycle.",
   };
 }
 
@@ -733,16 +755,18 @@ export async function purchaseArcadeLootBox({
   return withArcadeTransaction(
     db,
     async (tx) => {
-      const cycle = await getCurrentBuildCycle(tx, now);
+      const cycle = await getCurrentShopCycle(tx);
 
       if (!cycle) {
-        throw new GameError("The arcade shop opens during the build phase.");
+        throw new GameError(
+          "The arcade shop opens while a season cycle is running."
+        );
       }
 
       const playerFortress = await getPlayerFortress(tx, cycle.id, userId);
 
       if (!playerFortress) {
-        throw new GameError("Only build phase players can buy loot boxes.");
+        throw new GameError("Only current cycle players can buy loot boxes.");
       }
 
       const wallet = await ensureArcadeWallet(tx, userId);
@@ -837,16 +861,18 @@ export async function openArcadeLootBox({
         throw new GameError("That loot box has already been opened.");
       }
 
-      const cycle = await getCurrentBuildCycle(tx, now);
+      const cycle = await getCurrentShopCycle(tx);
 
       if (!cycle) {
-        throw new GameError("The arcade shop opens during the build phase.");
+        throw new GameError(
+          "The arcade shop opens while a season cycle is running."
+        );
       }
 
       const playerFortress = await getPlayerFortress(tx, cycle.id, userId);
 
       if (!playerFortress) {
-        throw new GameError("Only build phase players can open loot boxes.");
+        throw new GameError("Only current cycle players can open loot boxes.");
       }
 
       const slot =

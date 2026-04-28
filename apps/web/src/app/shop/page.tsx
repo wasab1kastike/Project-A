@@ -96,7 +96,6 @@ export default async function ShopPage({
     console.error("Failed to load shop hub", error);
   }
 
-  const hasHubAccess = state.buildOpen && Boolean(state.currentUser);
   const revealSlot =
     getSearchValue(params.slot) === ArcadeCosmeticSlot.FORTRESS
       ? ArcadeCosmeticSlot.FORTRESS
@@ -108,6 +107,19 @@ export default async function ShopPage({
     getSearchValue(params.reveal) === "loot-box" && revealSlot && revealVariant
       ? getArcadeLootBoxSkin(revealSlot, revealVariant)
       : null;
+  const hasOwnedSkins =
+    state.ownedSkins.unit.length > 0 || state.ownedSkins.fortress.length > 0;
+  const hasShopAccess =
+    state.canBuy ||
+    state.canOpen ||
+    hasOwnedSkins ||
+    state.unopenedPurchases.length > 0;
+  const shopStatus =
+    state.canBuy || state.canOpen
+      ? "Open"
+      : hasOwnedSkins
+        ? "Collection"
+        : "Locked";
 
   return (
     <main className={styles.page}>
@@ -129,12 +141,12 @@ export default async function ShopPage({
           <h1>Shop</h1>
           <p>
             Browse featured crates, open them from your stash, and build out
-            your cosmetic collection during the build phase.
+            your cosmetic collection throughout the current cycle.
           </p>
           <div className={styles.marketBanner}>
             <span className={styles.marketPill}>Featured crates</span>
             <span className={styles.marketPill}>Cosmetics only</span>
-            <span className={styles.marketPill}>Build phase market</span>
+            <span className={styles.marketPill}>Cycle market</span>
           </div>
           <div className={styles.actions}>
             <Link className={styles.secondaryButton} href="/">
@@ -153,12 +165,12 @@ export default async function ShopPage({
           </div>
           <div>
             <span>Status</span>
-            <strong>{state.buildOpen ? "Open" : "Locked"}</strong>
+            <strong>{shopStatus}</strong>
           </div>
         </div>
       </header>
 
-      {hasHubAccess ? (
+      {hasShopAccess ? (
         <section className={styles.hubGrid}>
           <article className={styles.card}>
             <div className={styles.cardHeader}>
@@ -187,16 +199,22 @@ export default async function ShopPage({
                   <span>coins</span>
                 </div>
                 <p>Unlock a random unit cosmetic skin.</p>
-                <form action={purchaseArcadeLootBoxAction}>
-                  <input
-                    type="hidden"
-                    name="crateType"
-                    value={ArcadeLootBoxType.UNIT}
-                  />
-                  <button className={styles.primaryButton} type="submit">
-                    Buy crate
-                  </button>
-                </form>
+                {state.canBuy ? (
+                  <form action={purchaseArcadeLootBoxAction}>
+                    <input
+                      type="hidden"
+                      name="crateType"
+                      value={ArcadeLootBoxType.UNIT}
+                    />
+                    <button className={styles.primaryButton} type="submit">
+                      Buy crate
+                    </button>
+                  </form>
+                ) : (
+                  <p className={styles.helperText}>
+                    Crate purchases open during the current cycle.
+                  </p>
+                )}
               </section>
 
               <section className={styles.shopCard}>
@@ -213,16 +231,22 @@ export default async function ShopPage({
                   <span>coins</span>
                 </div>
                 <p>Unlock a random fortress cosmetic skin.</p>
-                <form action={purchaseArcadeLootBoxAction}>
-                  <input
-                    type="hidden"
-                    name="crateType"
-                    value={ArcadeLootBoxType.FORTRESS}
-                  />
-                  <button className={styles.primaryButton} type="submit">
-                    Buy crate
-                  </button>
-                </form>
+                {state.canBuy ? (
+                  <form action={purchaseArcadeLootBoxAction}>
+                    <input
+                      type="hidden"
+                      name="crateType"
+                      value={ArcadeLootBoxType.FORTRESS}
+                    />
+                    <button className={styles.primaryButton} type="submit">
+                      Buy crate
+                    </button>
+                  </form>
+                ) : (
+                  <p className={styles.helperText}>
+                    Crate purchases open during the current cycle.
+                  </p>
+                )}
               </section>
             </div>
 
@@ -253,9 +277,14 @@ export default async function ShopPage({
                             {purchase.price} coins.
                           </p>
                         </div>
-                        <button className={styles.primaryButton} type="submit">
-                          Open
-                        </button>
+                        {state.canOpen ? (
+                          <button
+                            className={styles.primaryButton}
+                            type="submit"
+                          >
+                            Open
+                          </button>
+                        ) : null}
                       </form>
                     ))}
                   </div>
@@ -425,10 +454,10 @@ export default async function ShopPage({
       ) : (
         <section className={styles.lockedCard}>
           <span className={styles.sectionLabel}>Locked</span>
-          <h2>The shop opens during the build phase.</h2>
+          <h2>The shop opens when a cycle is running.</h2>
           <p>
             {state.lockedMessage ??
-              "Join the current build phase first, then come back to buy crates and open them."}
+              "Join the current cycle first, then come back to buy crates and open them."}
           </p>
           <div className={styles.actions}>
             <Link className={styles.secondaryButton} href="/">
