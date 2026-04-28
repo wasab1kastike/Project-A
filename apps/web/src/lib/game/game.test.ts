@@ -92,6 +92,7 @@ import {
   purchaseFortressUpgrade,
   registerCommanderName,
   renameActiveFortress,
+  recallAttackUnit,
   selectFortressRace,
   setFortressAction,
   updateWorkerAssignment,
@@ -693,13 +694,13 @@ test("unicorn tier 2 travel speed halves attack travel time", () => {
   const origin = { mapX: 0, mapY: 0 };
   const target = { mapX: 120, mapY: 0 };
 
-  assert.equal(getAttackTravelMinutes(origin, target), 10);
+  assert.equal(getAttackTravelMinutes(origin, target), 50);
   assert.equal(
     getAttackTravelMinutes(origin, target, {
       attackerRace: "UNSTABLE_UNICORNS",
       raceBuffTier: 2,
     }),
-    5
+    25
   );
 });
 
@@ -3987,6 +3988,235 @@ test("worker assignments produce points, food, and army in the same tick", async
     army: 0,
   });
   assert.equal(minerState.leaderboard[0]?.id, minerLeader.id);
+});
+
+test("recalled attack units return home without damaging the target", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const attacker = await createUser(prisma, "recall-attacker@example.com");
+  const defender = await createUser(prisma, "recall-defender@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: attacker.id,
+    fortressName: "Recall Attacker",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: defender.id,
+    fortressName: "Recall Defender",
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const attackerFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: attacker.id,
+      },
+    },
+  });
+  const defenderFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: defender.id,
+      },
+    },
+  });
+
+  await prisma.fortress.update({
+    where: {
+      id: attackerFortress.id,
+    },
+    data: {
+      army: 5,
+      recruitersAssigned: 0,
+      race: FortressRace.DWARFS,
+      mapX: 10,
+      mapY: 10,
+    },
+  });
+  await prisma.fortress.update({
+    where: {
+      id: defenderFortress.id,
+    },
+    data: {
+      army: 0,
+      points: 20,
+      mapX: 82,
+      mapY: 10,
+    },
+  });
+
+  const launchTime = new Date("2026-04-20T12:05:00.000Z");
+
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.ATTACK,
+    targetFortressId: defenderFortress.id,
+    sentArmy: 3,
+    now: launchTime,
+  });
+
+  const launchedUnit = await prisma.attackUnit.findFirstOrThrow({
+    where: {
+      attackerFortressId: attackerFortress.id,
+      targetFortressId: defenderFortress.id,
+      cancelledAt: null,
+    },
+  });
+  const recallTime = new Date(
+    launchTime.getTime() +
+      Math.floor((launchedUnit.arrivesAt.getTime() - launchTime.getTime()) / 2)
+  );
+
+  await assert.rejects(
+    () =>
+      recallAttackUnit({
+        db: prisma,
+        userId: defender.id,
+        attackUnitId: launchedUnit.id,
+        now: recallTime,
+      }),
+    /not available to recall/
+  );
+
+  await recallAttackUnit({
+    db: prisma,
+    userId: attacker.id,
+    attackUnitId: launchedUnit.id,
+    now: recallTime,
+  });
+
+  await assert.rejects(
+    () =>
+      recallAttackUnit({
+        db: prisma,
+        userId: attacker.id,
+        attackUnitId: launchedUnit.id,
+        now: new Date(recallTime.getTime() + 1_000),
+      }),
+    /no longer on the way/
+  );
+
+  const recalledUnit = await prisma.attackUnit.findUniqueOrThrow({
+    where: {
+      id: launchedUnit.id,
+    },
+  });
+
+  assert.equal(recalledUnit.recalledAt?.toISOString(), recallTime.toISOString());
+  assert.notEqual(recalledUnit.returnOriginMapX, null);
+  assert.notEqual(recalledUnit.returnOriginMapY, null);
+
+  await runGameTick({
+    db: prisma,
+    now: launchedUnit.arrivesAt,
+  });
+
+  const targetAfterOriginalArrival = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: defenderFortress.id,
+    },
+  });
+
+  assert.equal(targetAfterOriginalArrival.points, 20);
+
+  await runGameTick({
+    db: prisma,
+    now: recalledUnit.arrivesAt,
+  });
+
+  const resolvedUnit = await prisma.attackUnit.findUniqueOrThrow({
+    where: {
+      id: launchedUnit.id,
+    },
+  });
+  const attackerAfterReturn = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: attackerFortress.id,
+    },
+  });
+  const targetAfterReturn = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: defenderFortress.id,
+    },
+  });
+
+  assert.equal(resolvedUnit.resolvedAt?.toISOString(), recalledUnit.arrivesAt.toISOString());
+  assert.equal(resolvedUnit.defenderArmyAtBattleStart, null);
+  assert.equal(resolvedUnit.pointsLooted, null);
+  assert.equal(attackerAfterReturn.army, 5);
+  assert.equal(targetAfterReturn.points, 20);
+
+  await assert.rejects(
+    () =>
+      recallAttackUnit({
+        db: prisma,
+        userId: attacker.id,
+        attackUnitId: launchedUnit.id,
+        now: new Date(recalledUnit.arrivesAt.getTime() + 1_000),
+      }),
+    /no longer on the way/
+  );
+
+  await prisma.fortress.update({
+    where: {
+      id: attackerFortress.id,
+    },
+    data: {
+      army: 1,
+    },
+  });
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.ATTACK,
+    targetFortressId: defenderFortress.id,
+    sentArmy: 1,
+    now: new Date(recalledUnit.arrivesAt.getTime() + 60_000),
+  });
+
+  const cancelledUnit = await prisma.attackUnit.findFirstOrThrow({
+    where: {
+      attackerFortressId: attackerFortress.id,
+      resolvedAt: null,
+      cancelledAt: null,
+    },
+    orderBy: {
+      launchedAt: "desc",
+    },
+  });
+
+  await prisma.attackUnit.update({
+    where: {
+      id: cancelledUnit.id,
+    },
+    data: {
+      cancelledAt: new Date(cancelledUnit.launchedAt.getTime() + 1_000),
+    },
+  });
+
+  await assert.rejects(
+    () =>
+      recallAttackUnit({
+        db: prisma,
+        userId: attacker.id,
+        attackUnitId: cancelledUnit.id,
+        now: new Date(cancelledUnit.launchedAt.getTime() + 2_000),
+      }),
+    /no longer on the way/
+  );
 });
 
 test("manual attack units resolve without relaunching on the same tick", async (context) => {

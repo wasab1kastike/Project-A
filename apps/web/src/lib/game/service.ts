@@ -15,7 +15,11 @@ import {
 } from "./constants";
 import { getRandomUnitSpriteVariant } from "./attacks";
 import { canFortressLevelUp, getFortressUpgradeCost } from "./upgrades";
-import { cancelActiveAttackUnits, launchAttackUnit } from "./attack-units";
+import {
+  cancelActiveAttackUnits,
+  launchAttackUnit,
+  recallAttackUnit as recallAttackUnitRecord,
+} from "./attack-units";
 import { GameError } from "./errors";
 import { assertWorkerAssignments } from "./balance";
 import { isFortressRace, type FortressRace } from "./races";
@@ -614,6 +618,43 @@ export async function setFortressAction({
 
     return updatedFortress;
   });
+}
+
+export async function recallAttackUnit({
+  userId,
+  attackUnitId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  attackUnitId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(
+    async (tx) => {
+      const cycle = await getCurrentCycle(tx);
+
+      if (
+        !cycle ||
+        (cycle.status !== CycleStatus.ACTIVE &&
+          cycle.status !== CycleStatus.TESTING)
+      ) {
+        throw new GameError("The battlefield is not accepting active actions.");
+      }
+
+      return recallAttackUnitRecord({
+        db: tx,
+        cycle,
+        userId,
+        attackUnitId,
+        now,
+      });
+    },
+    {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    }
+  );
 }
 
 export async function selectFortressRace({

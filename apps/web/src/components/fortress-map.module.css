@@ -180,12 +180,25 @@
   position: absolute;
   width: 52px;
   height: 52px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
   transform: translate(-50%, -50%);
   transition:
     left 900ms linear,
     top 900ms linear;
   filter: drop-shadow(0 9px 0 rgba(0, 0, 0, 0.28))
     drop-shadow(0 0 10px rgba(255, 196, 95, 0.2));
+}
+
+.attackUnit:hover,
+.attackUnit:focus-visible,
+.attackUnitSelected {
+  outline: none;
+  filter: drop-shadow(0 9px 0 rgba(0, 0, 0, 0.28))
+    drop-shadow(0 0 14px rgba(103, 196, 207, 0.42));
 }
 
 .attackUnitImpacting {
@@ -223,6 +236,51 @@
   font-weight: 800;
   line-height: 18px;
   text-align: center;
+}
+
+.attackUnitPopover {
+  position: absolute;
+  z-index: 8;
+  min-width: 132px;
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+  border: 1px solid rgba(103, 196, 207, 0.32);
+  border-radius: 8px;
+  background: rgba(7, 13, 20, 0.94);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.3);
+  transform: translate(-50%, calc(-100% - 34px));
+  pointer-events: auto;
+}
+
+.attackUnitPopover strong {
+  font-size: 0.86rem;
+}
+
+.attackUnitPopover span,
+.attackUnitPopover em {
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.66rem;
+  font-style: normal;
+  text-transform: uppercase;
+}
+
+.attackUnitPopover button {
+  min-height: 30px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--accent-strong);
+  color: #14202f;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.attackUnitPopover button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .attackUnitSprite[data-skin="ember"],
@@ -304,15 +362,16 @@
 
 .marker {
   position: absolute;
-  display: grid;
-  gap: 6px;
-  justify-items: center;
+  display: block;
+  width: 78px;
+  height: 78px;
   transform: translate(-50%, -50%);
   border: 0;
   background: transparent;
   color: var(--foreground);
   cursor: default;
   z-index: 4;
+  overflow: visible;
 }
 
 .selectionPulse {
@@ -337,11 +396,11 @@
 }
 
 .spriteFrame {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 78px;
-  height: 78px;
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
   padding: 0;
   border: 0;
   background: transparent;
@@ -368,13 +427,14 @@
 
 .fortressSprite,
 .megaFortressSprite {
-  position: relative;
+  position: absolute;
+  left: 50%;
+  top: 50%;
   display: block;
-  width: 100%;
-  height: 100%;
   background-repeat: no-repeat;
   background-position: center;
   background-size: contain;
+  transform: translate(-50%, -50%);
 }
 
 .fortressSprite {
@@ -429,11 +489,11 @@
 
 .megaMarker {
   z-index: 5;
+  width: 136px;
+  height: 136px;
 }
 
 .megaMarker .spriteFrame {
-  width: 136px;
-  height: 136px;
   filter: drop-shadow(0 22px 18px rgba(0, 0, 0, 0.28))
     drop-shadow(0 0 18px rgba(245, 214, 108, 0.14));
 }
@@ -486,6 +546,9 @@
 }
 
 .nameplate {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 6px);
   max-width: 110px;
   padding: 4px 8px;
   border-radius: 6px;
@@ -499,6 +562,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transform: translateX(-50%);
 }
 
 .crownBadge {
@@ -588,6 +652,9 @@
 }
 
 .tooltip {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 36px);
   display: grid;
   gap: 4px;
   min-width: 128px;
@@ -598,7 +665,7 @@
   font-size: 0.76rem;
   line-height: 1.4;
   opacity: 0;
-  transform: translateY(6px);
+  transform: translate(-50%, 6px);
   transition:
     opacity 160ms ease,
     transform 160ms ease;
@@ -614,7 +681,7 @@
 .selected .tooltip,
 .currentUser .tooltip {
   opacity: 1;
-  transform: translateY(0);
+  transform: translate(-50%, 0);
 }
 
 .marker:hover .selectionPulse,
@@ -726,12 +793,22 @@
     height: 68px;
   }
 
+  .marker {
+    width: 68px;
+    height: 68px;
+  }
+
   .fortressSprite {
     width: 74px;
     height: 74px;
   }
 
   .megaMarker .spriteFrame {
+    width: 112px;
+    height: 112px;
+  }
+
+  .megaMarker {
     width: 112px;
     height: 112px;
   }

@@ -12,6 +12,7 @@ import { createPortal } from "react-dom";
 
 import {
   attackFromMapAction,
+  recallAttackUnitAction,
   activateStimAction,
   activateWaaaghAction,
   chooseDwarfGrudgeAction,
@@ -919,6 +920,14 @@ export function BattlefieldExperience({
     }
   }
 
+  async function handleRecallAttackUnit(attackUnit: AttackUnitMarker) {
+    const result = await recallAttackUnitAction(attackUnit.id);
+
+    if (result.ok) {
+      router.refresh();
+    }
+  }
+
   function handleChatToggle() {
     if (chatOpen) {
       setChatOpen(false);
@@ -1703,13 +1712,14 @@ export function BattlefieldExperience({
           attackUnits={attackUnits}
           selectedFortressId={selectedFortressId}
           selectedTargetId={action === "ATTACK" ? targetFortressId : null}
-          onSelectFortress={(fortress) => {
-            if (fortress.isCurrentUser) {
-              openOwnActions(fortress.id);
-            }
-          }}
-          onConfirmAttackTarget={prepareAttackTarget}
-        />
+            onSelectFortress={(fortress) => {
+              if (fortress.isCurrentUser) {
+                openOwnActions(fortress.id);
+              }
+            }}
+            onConfirmAttackTarget={prepareAttackTarget}
+            onRecallAttackUnit={handleRecallAttackUnit}
+          />
 
         {!immersive ? chatDrawer : null}
         {!immersive ? actionDrawer : null}

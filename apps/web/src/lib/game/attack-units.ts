@@ -64,6 +64,129 @@ export async function getActiveAttackUnit(
   });
 }
 
+function clampProgress(value: number) {
+  return Math.min(1, Math.max(0, value));
+}
+
+function getAttackUnitPosition({
+  launchedAt,
+  arrivesAt,
+  origin,
+  target,
+  now,
+}: {
+  launchedAt: Date;
+  arrivesAt: Date;
+  origin: Pick<AttackFortress, "mapX" | "mapY">;
+  target: Pick<AttackFortress, "mapX" | "mapY">;
+  now: Date;
+}) {
+  const duration = arrivesAt.getTime() - launchedAt.getTime();
+  const progress =
+    duration <= 0
+      ? 1
+      : clampProgress((now.getTime() - launchedAt.getTime()) / duration);
+
+  return {
+    mapX: Math.round(origin.mapX + (target.mapX - origin.mapX) * progress),
+    mapY: Math.round(origin.mapY + (target.mapY - origin.mapY) * progress),
+  };
+}
+
+export async function recallAttackUnit({
+  db,
+  cycle,
+  userId,
+  attackUnitId,
+  now,
+}: {
+  db: DatabaseClient;
+  cycle: AttackCycle;
+  userId: string;
+  attackUnitId: string;
+  now: Date;
+}) {
+  const attackUnit = await db.attackUnit.findUnique({
+    where: {
+      id: attackUnitId,
+    },
+    select: {
+      id: true,
+      launchedAt: true,
+      arrivesAt: true,
+      resolvedAt: true,
+      cancelledAt: true,
+      recalledAt: true,
+      attackerFortress: {
+        select: {
+          id: true,
+          ownerId: true,
+          points: true,
+          army: true,
+          mapX: true,
+          mapY: true,
+          race: true,
+        },
+      },
+      targetFortress: {
+        select: {
+          id: true,
+          ownerId: true,
+          points: true,
+          army: true,
+          mapX: true,
+          mapY: true,
+          race: true,
+        },
+      },
+    },
+  });
+
+  if (!attackUnit || attackUnit.attackerFortress.ownerId !== userId) {
+    throw new GameError("That army is not available to recall.");
+  }
+
+  if (
+    attackUnit.resolvedAt ||
+    attackUnit.cancelledAt ||
+    attackUnit.recalledAt ||
+    attackUnit.arrivesAt <= now
+  ) {
+    throw new GameError("That army is no longer on the way.");
+  }
+
+  const returnOrigin = getAttackUnitPosition({
+    launchedAt: attackUnit.launchedAt,
+    arrivesAt: attackUnit.arrivesAt,
+    origin: attackUnit.attackerFortress,
+    target: attackUnit.targetFortress,
+    now,
+  });
+  const arrivesAt = getAttackArrivalAt({
+    launchedAt: now,
+    origin: returnOrigin,
+    target: attackUnit.attackerFortress,
+    attackerRace: attackUnit.attackerFortress.race,
+    raceBuffTier: getRaceBuffTier({
+      activeStartedAt: cycle.activeStartedAt ?? null,
+      now,
+      isActiveSeason: cycle.status === "ACTIVE",
+    }),
+  });
+
+  return db.attackUnit.update({
+    where: {
+      id: attackUnit.id,
+    },
+    data: {
+      recalledAt: now,
+      returnOriginMapX: returnOrigin.mapX,
+      returnOriginMapY: returnOrigin.mapY,
+      arrivesAt,
+    },
+  });
+}
+
 export async function launchAttackUnit({
   db,
   cycle,

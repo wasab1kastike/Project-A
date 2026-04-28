@@ -326,6 +326,9 @@ model AttackUnit {
   foodLooted          Int?
   launchedAt         DateTime
   arrivesAt          DateTime
+  recalledAt         DateTime?
+  returnOriginMapX   Int?
+  returnOriginMapY   Int?
   resolvedAt         DateTime?
   cancelledAt        DateTime?
   createdAt          DateTime  @default(now())

@@ -39,6 +39,7 @@ import {
   purchaseFortressUpgrade,
   registerCommanderName,
   renameActiveFortress,
+  recallAttackUnit,
   selectFortressRace,
   setFortressAction,
   updateWorkerAssignment,
@@ -158,6 +159,35 @@ export async function attackFromMapAction(
       sentArmy,
     });
     emitProjectARefresh("map-attack");
+    revalidatePath("/");
+    return {
+      ok: true,
+    } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
+export async function recallAttackUnitAction(attackUnitId: string) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await recallAttackUnit({
+      userId,
+      attackUnitId,
+    });
+    emitProjectARefresh("map-recall");
     revalidatePath("/");
     return {
       ok: true,

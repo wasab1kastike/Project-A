@@ -386,15 +386,19 @@ export async function getHomePageState({
         orderBy: [{ launchedAt: "asc" }, { id: "asc" }],
         select: {
           id: true,
-          armyAmount: true,
-          launchedAt: true,
-          arrivesAt: true,
-          attackerFortress: {
-            select: {
-              id: true,
-              name: true,
-              mapX: true,
-              mapY: true,
+            armyAmount: true,
+            launchedAt: true,
+            arrivesAt: true,
+            recalledAt: true,
+            returnOriginMapX: true,
+            returnOriginMapY: true,
+            attackerFortress: {
+              select: {
+                id: true,
+                ownerId: true,
+                name: true,
+                mapX: true,
+                mapY: true,
               unitSpriteVariant: true,
               owner: {
                 select: {
@@ -1208,13 +1212,25 @@ export async function getHomePageState({
     })),
     mapFortresses,
     attackUnits: cycle.attackUnits.map((unit) => ({
-      id: unit.id,
-      armyAmount: unit.armyAmount,
-      launchedAt: unit.launchedAt,
-      arrivesAt: unit.arrivesAt,
-      attacker: {
-        id: unit.attackerFortress.id,
-        name: unit.attackerFortress.name,
+        id: unit.id,
+        armyAmount: unit.armyAmount,
+        launchedAt: unit.launchedAt,
+        arrivesAt: unit.arrivesAt,
+        recalledAt: unit.recalledAt,
+        returnOrigin:
+          unit.returnOriginMapX !== null && unit.returnOriginMapY !== null
+            ? {
+                mapX: unit.returnOriginMapX,
+                mapY: unit.returnOriginMapY,
+              }
+            : null,
+        canRecall:
+          Boolean(userId) &&
+          unit.attackerFortress.ownerId === userId &&
+          unit.recalledAt === null,
+        attacker: {
+          id: unit.attackerFortress.id,
+          name: unit.attackerFortress.name,
         mapX: unit.attackerFortress.mapX,
         mapY: unit.attackerFortress.mapY,
         unitSpriteVariant: normalizeUnitSpriteVariant(

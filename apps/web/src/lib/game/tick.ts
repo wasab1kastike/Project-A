@@ -946,6 +946,7 @@ async function processCycleTick(
         targetFortressId: true,
         armyAmount: true,
         arrivesAt: true,
+        recalledAt: true,
       },
     });
 
@@ -958,6 +959,27 @@ async function processCycleTick(
 
       const attacker = fortressLookup.get(unit.attackerFortressId);
       const target = fortressLookup.get(unit.targetFortressId);
+
+      if (unit.recalledAt) {
+        if (attacker) {
+          currentArmy.set(
+            attacker.id,
+            (currentArmy.get(attacker.id) ?? attacker.army) + unit.armyAmount
+          );
+        }
+
+        await tx.attackUnit.update({
+          where: {
+            id: unit.id,
+          },
+          data: {
+            resolvedAt: tickAt,
+          },
+        });
+
+        resolvedAttackUnits += 1;
+        continue;
+      }
 
       if (target?.isNpc) {
         const targetUnits = dueAttackUnits.filter(

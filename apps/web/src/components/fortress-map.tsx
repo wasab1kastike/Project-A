@@ -53,6 +53,12 @@ type AttackUnitMarker = {
   armyAmount: number;
   launchedAt: Date;
   arrivesAt: Date;
+  recalledAt: Date | null;
+  returnOrigin: {
+    mapX: number;
+    mapY: number;
+  } | null;
+  canRecall: boolean;
   attacker: {
     id: string;
     name: string;
@@ -238,12 +244,24 @@ function getInterpolatedPoint(origin: Point, target: Point, progress: number) {
   };
 }
 
+function formatSecondsRemaining(seconds: number) {
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+
+  return `${Math.ceil(seconds / 60)}m`;
+}
+
 function AttackUnitsLayer({
   attackUnits,
+  onRecallAttackUnit,
 }: {
   attackUnits: AttackUnitMarker[];
+  onRecallAttackUnit?: (attackUnit: AttackUnitMarker) => void | Promise<void>;
 }) {
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
+  const [recallPendingId, setRecallPendingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (attackUnits.length === 0) {
@@ -268,15 +286,29 @@ function AttackUnitsLayer({
           "UNIT",
           unit.attacker.unitCosmeticVariant
         );
+        const isReturning = Boolean(unit.recalledAt);
+        const routeOrigin = isReturning
+          ? (unit.returnOrigin ?? {
+              mapX: unit.attacker.mapX,
+              mapY: unit.attacker.mapY,
+            })
+          : unit.attacker;
+        const routeTarget = isReturning ? unit.attacker : unit.target;
         const origin = snapMapPointToHex({
-          x: unit.attacker.mapX,
-          y: unit.attacker.mapY,
+          x: routeOrigin.mapX,
+          y: routeOrigin.mapY,
         });
         const target = snapMapPointToHex({
-          x: unit.target.mapX,
-          y: unit.target.mapY,
+          x: routeTarget.mapX,
+          y: routeTarget.mapY,
         });
-        const presentation = getAttackPresentation(unit, nowMs);
+        const presentation = getAttackPresentation(
+          {
+            launchedAt: unit.recalledAt ?? unit.launchedAt,
+            arrivesAt: unit.arrivesAt,
+          },
+          nowMs
+        );
         const progress = presentation.progress;
         const currentPoint = getInterpolatedPoint(origin, target, progress);
         const secondsRemaining = Math.max(
@@ -284,35 +316,81 @@ function AttackUnitsLayer({
           Math.ceil((new Date(unit.arrivesAt).getTime() - nowMs) / 1000)
         );
         const anchorPoint = presentation.isImpacting ? target : currentPoint;
+        const selected = selectedUnitId === unit.id;
+        const statusText = isReturning ? "returning home" : "on the way";
 
         return (
-          <div
-            key={unit.id}
-            className={`${styles.attackUnit} ${
-              presentation.isImpacting ? styles.attackUnitImpacting : ""
-            }`}
-            style={{
-              left: `${anchorPoint.x}%`,
-              top: `${anchorPoint.y}%`,
-            }}
-            aria-label={`${unit.attacker.name} attacking ${unit.target.name} with ${unit.armyAmount} army. ${secondsRemaining} seconds until impact.`}
-          >
-            {presentation.showSprite ? (
-              <>
-                <span
-                  className={styles.attackUnitSprite}
-                  data-variant={unit.attacker.unitSpriteVariant}
-                  data-skin={unit.attacker.unitCosmeticVariant ?? undefined}
-                  style={skinStyle ?? undefined}
-                />
-                <span className={styles.attackUnitAmount}>
-                  {unit.armyAmount}
-                </span>
-              </>
-            ) : (
-              <span className={styles.attackImpactPulse} aria-hidden="true" />
-            )}
-          </div>
+          <Fragment key={unit.id}>
+            <button
+              type="button"
+              className={`${styles.attackUnit} ${
+                presentation.isImpacting ? styles.attackUnitImpacting : ""
+              } ${selected ? styles.attackUnitSelected : ""}`}
+              style={{
+                left: `${anchorPoint.x}%`,
+                top: `${anchorPoint.y}%`,
+              }}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation();
+                setSelectedUnitId((currentId) =>
+                  currentId === unit.id ? null : unit.id
+                );
+              }}
+              aria-pressed={selected}
+              aria-label={`${unit.attacker.name} army ${statusText} with ${unit.armyAmount} army. ${secondsRemaining} seconds remaining.`}
+            >
+              {presentation.showSprite ? (
+                <>
+                  <span
+                    className={styles.attackUnitSprite}
+                    data-variant={unit.attacker.unitSpriteVariant}
+                    data-skin={unit.attacker.unitCosmeticVariant ?? undefined}
+                    style={skinStyle ?? undefined}
+                  />
+                  <span className={styles.attackUnitAmount}>
+                    {unit.armyAmount}
+                  </span>
+                </>
+              ) : (
+                <span className={styles.attackImpactPulse} aria-hidden="true" />
+              )}
+            </button>
+
+            {selected ? (
+              <div
+                className={styles.attackUnitPopover}
+                style={{
+                  left: `${anchorPoint.x}%`,
+                  top: `${anchorPoint.y}%`,
+                }}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => event.stopPropagation()}
+              >
+                <strong>{unit.armyAmount} army</strong>
+                <span>{statusText}</span>
+                <em>{formatSecondsRemaining(secondsRemaining)} ETA</em>
+                {unit.canRecall && onRecallAttackUnit ? (
+                  <button
+                    type="button"
+                    disabled={recallPendingId === unit.id}
+                    onClick={async () => {
+                      setRecallPendingId(unit.id);
+
+                      try {
+                        await onRecallAttackUnit(unit);
+                        setSelectedUnitId(null);
+                      } finally {
+                        setRecallPendingId(null);
+                      }
+                    }}
+                  >
+                    {recallPendingId === unit.id ? "Recalling..." : "Recall"}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </Fragment>
         );
       })}
     </div>
@@ -326,6 +404,7 @@ export function FortressMap({
   selectedTargetId,
   onSelectFortress,
   onConfirmAttackTarget,
+  onRecallAttackUnit,
   className,
 }: {
   fortresses: MapFortress[];
@@ -337,6 +416,7 @@ export function FortressMap({
     fortress: MapFortress,
     sentArmy: number
   ) => void | Promise<void>;
+  onRecallAttackUnit?: (attackUnit: AttackUnitMarker) => void | Promise<void>;
   className?: string;
 }) {
   const shellRef = useRef<HTMLDivElement | null>(null);
@@ -853,7 +933,10 @@ export function FortressMap({
       >
         <div className={styles.viewportContent} style={viewTransform}>
           <HexTileMap />
-          <AttackUnitsLayer attackUnits={attackUnits} />
+          <AttackUnitsLayer
+            attackUnits={attackUnits}
+            onRecallAttackUnit={onRecallAttackUnit}
+          />
           {fortresses.length === 0 ? (
             <div className={styles.emptyState}>
               No fortresses on the battlefield yet.
