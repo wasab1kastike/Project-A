@@ -61,20 +61,20 @@ test("race modifiers adjust population, defense, production, and carry capacity"
     attackArmy: 20,
     defenderArmy: 4,
     defenderDbLevel: 0,
-    defenderPoints: 100,
-    defenderFood: 100,
+    defenderPoints: 2000,
+    defenderFood: 2000,
   });
   const orkRaid = calculateRaidOutcome({
     attackArmy: 20,
     attackerRace: "ORKS",
     defenderArmy: 4,
     defenderDbLevel: 0,
-    defenderPoints: 100,
-    defenderFood: 100,
+    defenderPoints: 2000,
+    defenderFood: 2000,
   });
 
-  assert.equal(baseRaid.pointsLooted + baseRaid.foodLooted, 32);
-  assert.equal(orkRaid.pointsLooted + orkRaid.foodLooted, 40);
+  assert.equal(baseRaid.pointsLooted + baseRaid.foodLooted, 128);
+  assert.equal(orkRaid.pointsLooted + orkRaid.foodLooted, 224);
 });
 
 test("null legacy race uses base economy and combat safely", () => {
@@ -276,8 +276,8 @@ test("successful raid outcome applies retirement, losses, and balanced loot", ()
   assert.equal(outcome.attackerRetired, 14);
   assert.equal(outcome.attackerReturned, 14);
   assert.equal(outcome.defenderLosses, 70);
-  assert.equal(outcome.pointsLooted, 28);
-  assert.equal(outcome.foodLooted, 28);
+  assert.equal(outcome.pointsLooted, 30);
+  assert.equal(outcome.foodLooted, 50);
 });
 
 test("loot is capped by carry capacity and by point and food caps", () => {
@@ -312,5 +312,5 @@ test("loot uses remaining capacity when one resource is capped earlier", () => {
   assert.equal(outcome.attackerReturned, 8);
   assert.equal(outcome.defenderLosses, 3);
   assert.equal(outcome.pointsLooted, 15);
-  assert.equal(outcome.foodLooted, 17);
+  assert.equal(outcome.foodLooted, 25);
 });

@@ -88,13 +88,13 @@ export const RACE_DEFINITIONS = [
     flavorText:
       "Loud, improvised, and alarmingly effective when survivors find room for extra loot.",
     passiveSummary: [
-      "+1 carry capacity per surviving attacker",
+      "+6 carry capacity per surviving attacker",
       "+1 army per 10 recruiters",
     ],
     modifiers: {
       ...NO_RACE_MODIFIERS,
       armyPerTenRecruiters: 1,
-      carryCapacityPerSurvivorBonus: 1,
+      carryCapacityPerSurvivorBonus: 6,
     },
   },
 ] as const satisfies readonly RaceDefinition[];
