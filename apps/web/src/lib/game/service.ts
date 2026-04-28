@@ -21,6 +21,7 @@ import { ensureCommanderRegistrationColumn } from "./schema-guards";
 import {
   buildFortressSpawnSeed,
   getFortressSpawnLayout,
+  getSpawnPointKey,
   takeOpenSpawnPoint,
 } from "./spawn-layout";
 import { floorToMinute } from "./time";
@@ -158,7 +159,7 @@ function findOpenMapPosition(
   }>
 ) {
   const occupied = new Set(
-    fortresses.map((fortress) => `${fortress.mapX}:${fortress.mapY}`)
+    fortresses.map((fortress) => getSpawnPointKey(fortress))
   );
   const layout = getFortressSpawnLayout({
     cycleId: cycle.id,
@@ -168,7 +169,7 @@ function findOpenMapPosition(
   });
 
   return layout.find((position) => {
-    return !occupied.has(`${position.x}:${position.y}`);
+    return !occupied.has(getSpawnPointKey(position));
   });
 }
 
@@ -324,8 +325,8 @@ export async function joinRegistrationCycle({
             commanderName: normalizedCommanderName,
             commanderNameRegisteredAt: now,
             name: normalizedName,
-            mapX: openPosition.x,
-            mapY: openPosition.y,
+            mapX: Math.round(openPosition.x),
+            mapY: Math.round(openPosition.y),
             unitSpriteVariant: getRandomUnitSpriteVariant(),
             currentAction: FortressAction.GROW,
           },
@@ -885,10 +886,10 @@ export async function shuffleFortressLocation({
     });
     const excludedKeys = new Set(
       otherFortresses.map((otherFortress) => {
-        return `${otherFortress.mapX}:${otherFortress.mapY}`;
+        return getSpawnPointKey(otherFortress);
       })
     );
-    excludedKeys.add(`${fortress.mapX}:${fortress.mapY}`);
+    excludedKeys.add(getSpawnPointKey(fortress));
 
     let nextPosition;
 

@@ -70,6 +70,7 @@ import {
 } from "./map-hex";
 import {
   getFortressSpawnLayout,
+  getSpawnPointKey,
   takeOpenSpawnPoint,
   takeUniqueSpawnPoints,
   type SpawnPoint,
@@ -301,6 +302,19 @@ test("spawn sampler returns unique valid spawn points", () => {
   for (const point of points) {
     assert.ok(isPointNearSpawnHex(point));
   }
+});
+
+test("spawn sampler treats rounded stored coordinates as occupied", () => {
+  const first = takeUniqueSpawnPoints("sampler:rounded-occupied", 1)[0];
+
+  assert.ok(first);
+
+  const [next] = takeUniqueSpawnPoints("sampler:rounded-occupied", 1, {
+    excludedKeys: new Set([getSpawnPointKey(first)]),
+  });
+
+  assert.ok(next);
+  assert.notEqual(getSpawnPointKey(next), getSpawnPointKey(first));
 });
 
 test("spawn sampler is stable for the same seed", () => {

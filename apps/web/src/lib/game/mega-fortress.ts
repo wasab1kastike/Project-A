@@ -18,6 +18,7 @@ import {
 import { ensureCommanderRegistrationColumn } from "./schema-guards";
 import {
   buildFortressSpawnSeed,
+  getSpawnPointKey,
   takeUniqueSpawnPoints,
 } from "./spawn-layout";
 
@@ -100,7 +101,7 @@ export async function ensureMegaFortress({
     },
   });
   const occupied = new Set(
-    occupiedFortresses.map((fortress) => `${fortress.mapX}:${fortress.mapY}`)
+    occupiedFortresses.map((fortress) => getSpawnPointKey(fortress))
   );
   const [openPosition] = takeUniqueSpawnPoints(seed, 1, {
     excludedKeys: occupied,

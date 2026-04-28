@@ -66,8 +66,13 @@ function createSeededPrng(seed: string) {
   return sfc32(nextSeed(), nextSeed(), nextSeed(), nextSeed());
 }
 
-function toPointKey(point: SpawnPoint) {
-  return `${Math.round(point.x)}:${Math.round(point.y)}`;
+export function getSpawnPointKey(
+  point: SpawnPoint | { mapX: number; mapY: number }
+) {
+  const x = "x" in point ? point.x : point.mapX;
+  const y = "y" in point ? point.y : point.mapY;
+
+  return `${Math.round(x)}:${Math.round(y)}`;
 }
 
 function distanceBetweenPoints(left: SpawnPoint, right: SpawnPoint) {
@@ -115,7 +120,7 @@ function getUniqueSpawnCandidates(
   shuffleInPlace(candidates, random);
 
   for (const point of candidates) {
-    const key = toPointKey(point);
+    const key = getSpawnPointKey(point);
 
     if (excludedKeys.has(key) || uniqueCandidates.has(key)) {
       continue;
@@ -186,9 +191,9 @@ export function takeUniqueSpawnPoints(
     }
 
     selected.push(chosen);
-    const chosenKey = toPointKey(chosen);
+    const chosenKey = getSpawnPointKey(chosen);
     const chosenIndex = remaining.findIndex(
-      (candidate) => toPointKey(candidate) === chosenKey
+      (candidate) => getSpawnPointKey(candidate) === chosenKey
     );
 
     if (chosenIndex >= 0) {
@@ -253,10 +258,10 @@ export function takeOpenSpawnPoint(
     preferredEdgePadding
   );
   const weightedKeys = new Set(
-    weightedCandidates.map((candidate) => toPointKey(candidate))
+    weightedCandidates.map((candidate) => getSpawnPointKey(candidate))
   );
   const eligibleCandidates = minimumTier.filter((candidate) => {
-    return weightedKeys.has(toPointKey(candidate.candidate));
+    return weightedKeys.has(getSpawnPointKey(candidate.candidate));
   });
   let bestCandidate =
     (eligibleCandidates[0]?.candidate ?? candidates[0]) as SpawnPoint;
