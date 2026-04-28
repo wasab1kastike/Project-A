@@ -10,6 +10,7 @@ import { ensureOpenRegistrationCycle } from "./bootstrap";
 import {
   MEGA_FORTRESS_DESTROY_BONUS,
   MEGA_FORTRESS_HEALTH,
+  TESTING_DURATION_HOURS,
 } from "./constants";
 import { launchAttackUnit } from "./attack-units";
 import { mintSeasonArcadeCoins } from "./arcade";
@@ -33,6 +34,8 @@ import { canFortressLevelUp, getFortressAttackDamage } from "./upgrades";
 
 export type TickSummary = {
   restartedRegistrationCycles: number;
+  testingCyclesStarted: number;
+  testingCyclesCompleted: number;
   activatedCycles: number;
   resolvedCycles: number;
   resolvedCommunityWishVotes: number;
@@ -86,7 +89,8 @@ export function classifyTickHealth(minutesBehind: number): TickHealth {
 
 type TickRunnerStage =
   | "restart-registration"
-  | "activate-registration"
+  | "start-testing-cycle"
+  | "complete-testing-cycle"
   | "load-last-processed-tick"
   | "process-minute"
   | "resolve-active-cycle";
@@ -171,6 +175,8 @@ export function getActiveCycleMinutesBehind({
 
 function getLastDueTickAt(
   cycle: {
+    status?: CycleStatus;
+    testingEndsAt?: Date | null;
     activeStartedAt: Date | null;
     activeEndsAt: Date | null;
   },
@@ -181,9 +187,11 @@ function getLastDueTickAt(
   }
 
   const nowTick = floorToMinute(now);
-  const activeEndTick = cycle.activeEndsAt
-    ? floorToMinute(cycle.activeEndsAt)
-    : nowTick;
+  const effectiveEndsAt =
+    cycle.status === CycleStatus.TESTING
+      ? cycle.testingEndsAt
+      : cycle.activeEndsAt;
+  const activeEndTick = effectiveEndsAt ? floorToMinute(effectiveEndsAt) : nowTick;
   const lastDueTickAt = nowTick < activeEndTick ? nowTick : activeEndTick;
 
   if (lastDueTickAt < getFirstTickAt(cycle.activeStartedAt)) {
@@ -234,7 +242,9 @@ async function restartEmptyRegistrationCycle(
     if (
       !cycle ||
       cycle.status !== CycleStatus.REGISTRATION ||
-      cycle.registrationEndsAt > now
+      !cycle.testingStartedAt ||
+      !cycle.testingEndsAt ||
+      cycle.testingStartedAt > now
     ) {
       return false;
     }
@@ -249,6 +259,10 @@ async function restartEmptyRegistrationCycle(
       3,
       12
     );
+    const testingStartedAt = addHours(
+      registrationEndsAt,
+      -TESTING_DURATION_HOURS
+    );
 
     await tx.cycle.update({
       where: {
@@ -258,6 +272,8 @@ async function restartEmptyRegistrationCycle(
         status: CycleStatus.REGISTRATION,
         registrationStartedAt,
         registrationEndsAt,
+        testingStartedAt,
+        testingEndsAt: registrationEndsAt,
         activeStartedAt: null,
         activeEndsAt: getNextHelsinkiWeekdayAtHour(registrationEndsAt, 0, 12),
       },
@@ -267,7 +283,7 @@ async function restartEmptyRegistrationCycle(
   });
 }
 
-async function activateRegistrationCycle(
+async function startTestingCycle(
   cycleId: string,
   now: Date,
   db: PrismaClient
@@ -298,17 +314,19 @@ async function activateRegistrationCycle(
       return false;
     }
 
-    const activeStartedAt = cycle.registrationEndsAt;
-    const activeEndsAt = getNextHelsinkiWeekdayAtHour(activeStartedAt, 0, 12);
+    const testingStartedAt = cycle.testingStartedAt!;
+    const testingEndsAt = cycle.testingEndsAt!;
 
     await tx.cycle.update({
       where: {
         id: cycle.id,
       },
       data: {
-        status: CycleStatus.ACTIVE,
-        activeStartedAt,
-        activeEndsAt,
+        status: CycleStatus.TESTING,
+        testingStartedAt,
+        testingEndsAt,
+        activeStartedAt: testingEndsAt,
+        activeEndsAt: getNextHelsinkiWeekdayAtHour(testingEndsAt, 0, 12),
         joiningLockedAt: null,
       },
     });
@@ -329,10 +347,116 @@ async function activateRegistrationCycle(
       cycleId: cycle.id,
       seed: buildFortressSpawnSeed({
         cycleId: cycle.id,
+        activeStartedAt: testingStartedAt,
+        tickAt: testingStartedAt,
+        purpose: "testing:mega-fortress",
+        entropy: cycle.registrationEndsAt.toISOString(),
+      }),
+    });
+
+    return true;
+  });
+}
+
+async function completeTestingCycle(
+  cycleId: string,
+  now: Date,
+  db: PrismaClient
+) {
+  return db.$transaction(async (tx) => {
+    const cycle = await tx.cycle.findUnique({
+      where: {
+        id: cycleId,
+      },
+      include: {
+        _count: {
+          select: {
+            fortresses: true,
+          },
+        },
+      },
+    });
+
+    if (
+      !cycle ||
+      cycle.status !== CycleStatus.TESTING ||
+      !cycle.testingEndsAt ||
+      cycle.testingEndsAt > now
+    ) {
+      return false;
+    }
+
+    const activeStartedAt = cycle.testingEndsAt;
+    const activeEndsAt = getNextHelsinkiWeekdayAtHour(activeStartedAt, 0, 12);
+
+    await tx.attackUnit.deleteMany({
+      where: {
+        cycleId,
+      },
+    });
+    await tx.scoreEvent.deleteMany({
+      where: {
+        cycleId,
+      },
+    });
+    await tx.gameTick.deleteMany({
+      where: {
+        cycleId,
+      },
+    });
+    await tx.fortress.deleteMany({
+      where: {
+        cycleId,
+        isNpc: true,
+      },
+    });
+    await tx.fortress.updateMany({
+      where: {
+        cycleId,
+        isNpc: false,
+      },
+      data: {
+        points: 0,
+        level: 0,
+        food: 0,
+        army: 0,
+        minersAssigned: 10,
+        farmersAssigned: 10,
+        recruitersAssigned: 5,
+        race: null,
+        currentAction: FortressAction.GROW,
+        targetFortressId: null,
+        health: 0,
+        maxHealth: 0,
+        sizeTiles: 1,
+        iconLabel: null,
+        locationShuffleCount: 0,
+      },
+    });
+    await tx.cycle.update({
+      where: {
+        id: cycleId,
+      },
+      data: {
+        status: CycleStatus.ACTIVE,
+        activeStartedAt,
+        activeEndsAt,
+        joiningLockedAt: null,
+        winnerId: null,
+        crownedFortressId: null,
+        upgradesUnlockedAt: null,
+        megaFortressDestroyCount: 0,
+      },
+    });
+    await ensureMegaFortress({
+      db: tx,
+      cycleId,
+      seed: buildFortressSpawnSeed({
+        cycleId,
         activeStartedAt,
         tickAt: activeStartedAt,
         purpose: "activate:mega-fortress",
-        entropy: cycle.registrationEndsAt.toISOString(),
+        entropy: cycle.testingEndsAt.toISOString(),
       }),
     });
 
@@ -629,6 +753,8 @@ async function processCycleTick(
       select: {
         id: true,
         status: true,
+        testingStartedAt: true,
+        testingEndsAt: true,
         activeStartedAt: true,
         activeEndsAt: true,
         upgradesUnlockedAt: true,
@@ -639,8 +765,11 @@ async function processCycleTick(
 
     if (
       !cycle ||
-      cycle.status !== CycleStatus.ACTIVE ||
-      !cycle.activeStartedAt
+      (cycle.status !== CycleStatus.ACTIVE &&
+        cycle.status !== CycleStatus.TESTING) ||
+      !(cycle.status === CycleStatus.TESTING
+        ? cycle.testingStartedAt
+        : cycle.activeStartedAt)
     ) {
       return {
         processed: false,
@@ -650,13 +779,24 @@ async function processCycleTick(
       };
     }
 
+    const gameplayStartedAt =
+      cycle.status === CycleStatus.TESTING
+        ? cycle.testingStartedAt!
+        : cycle.activeStartedAt!;
+
     await ensureActiveCycleMegaFortress({
       db: tx,
       cycleId,
     });
 
-    const firstTickAt = getFirstTickAt(cycle.activeStartedAt);
-    const lastDueTickAt = getLastDueTickAt(cycle, now);
+    const firstTickAt = getFirstTickAt(gameplayStartedAt);
+    const lastDueTickAt = getLastDueTickAt(
+      {
+        ...cycle,
+        activeStartedAt: gameplayStartedAt,
+      },
+      now
+    );
 
     if (!lastDueTickAt || tickAt < firstTickAt || tickAt > lastDueTickAt) {
       return {
@@ -692,7 +832,7 @@ async function processCycleTick(
       cycleId,
       seed: buildFortressSpawnSeed({
         cycleId,
-        activeStartedAt: cycle.activeStartedAt,
+        activeStartedAt: gameplayStartedAt,
         tickAt,
         purpose: "tick:layout-v3",
       }),
@@ -960,7 +1100,7 @@ async function processCycleTick(
             cycleId,
             seed: buildFortressSpawnSeed({
               cycleId,
-              activeStartedAt: cycle.activeStartedAt,
+              activeStartedAt: gameplayStartedAt,
               tickAt,
               purpose: "tick:mega-destroy-reshuffle",
               entropy: destroyer.unitId,
@@ -1239,6 +1379,8 @@ export async function runGameTick({
 } = {}): Promise<TickSummary> {
   const summary: TickSummary = {
     restartedRegistrationCycles: 0,
+    testingCyclesStarted: 0,
+    testingCyclesCompleted: 0,
     activatedCycles: 0,
     resolvedCycles: 0,
     resolvedCommunityWishVotes: 0,
@@ -1252,9 +1394,18 @@ export async function runGameTick({
   const expiredRegistrationCycles = await db.cycle.findMany({
     where: {
       status: CycleStatus.REGISTRATION,
-      registrationEndsAt: {
-        lte: now,
-      },
+      OR: [
+        {
+          testingStartedAt: {
+            lte: now,
+          },
+        },
+        {
+          registrationEndsAt: {
+            lte: now,
+          },
+        },
+      ],
     },
     orderBy: {
       registrationEndsAt: "asc",
@@ -1286,12 +1437,43 @@ export async function runGameTick({
     }
 
     try {
-      if (await activateRegistrationCycle(cycle.id, now, db)) {
+      if (await startTestingCycle(cycle.id, now, db)) {
+        summary.testingCyclesStarted += 1;
+      }
+    } catch (error) {
+      throw new TickRunnerError({
+        stage: "start-testing-cycle",
+        cycleId: cycle.id,
+        now,
+        cause: error,
+      });
+    }
+  }
+
+  const expiredTestingCycles = await db.cycle.findMany({
+    where: {
+      status: CycleStatus.TESTING,
+      testingEndsAt: {
+        lte: now,
+      },
+    },
+    orderBy: {
+      testingEndsAt: "asc",
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  for (const cycle of expiredTestingCycles) {
+    try {
+      if (await completeTestingCycle(cycle.id, now, db)) {
+        summary.testingCyclesCompleted += 1;
         summary.activatedCycles += 1;
       }
     } catch (error) {
       throw new TickRunnerError({
-        stage: "activate-registration",
+        stage: "complete-testing-cycle",
         cycleId: cycle.id,
         now,
         cause: error,
@@ -1301,7 +1483,9 @@ export async function runGameTick({
 
   const activeCycles = await db.cycle.findMany({
     where: {
-      status: CycleStatus.ACTIVE,
+      status: {
+        in: [CycleStatus.TESTING, CycleStatus.ACTIVE],
+      },
       activeStartedAt: {
         not: null,
       },
@@ -1311,13 +1495,21 @@ export async function runGameTick({
     },
     select: {
       id: true,
+      status: true,
+      testingStartedAt: true,
+      testingEndsAt: true,
       activeStartedAt: true,
       activeEndsAt: true,
     },
   });
 
   for (const cycle of activeCycles) {
-    if (!cycle.activeStartedAt) {
+    const gameplayStartedAt =
+      cycle.status === CycleStatus.TESTING
+        ? cycle.testingStartedAt
+        : cycle.activeStartedAt;
+
+    if (!gameplayStartedAt) {
       continue;
     }
 
@@ -1346,8 +1538,14 @@ export async function runGameTick({
 
     const nextTickAt = lastProcessedTick
       ? addMinutes(lastProcessedTick.tickAt, 1)
-      : getFirstTickAt(cycle.activeStartedAt);
-    const lastDueTickAt = getLastDueTickAt(cycle, now);
+      : getFirstTickAt(gameplayStartedAt);
+    const lastDueTickAt = getLastDueTickAt(
+      {
+        ...cycle,
+        activeStartedAt: gameplayStartedAt,
+      },
+      now
+    );
 
     if (lastDueTickAt && nextTickAt <= lastDueTickAt) {
       for (

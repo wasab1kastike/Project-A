@@ -479,32 +479,44 @@ export async function getHomePageState({
   }
   const registrationOpen =
     cycle.status === CycleStatus.REGISTRATION && cycle.registrationEndsAt > now;
+  const testingOpen =
+    cycle.status === CycleStatus.TESTING &&
+    cycle.testingEndsAt !== null &&
+    cycle.testingEndsAt > now;
   const joiningLocked = Boolean(cycle.joiningLockedAt);
   const activeOpen =
     cycle.status === CycleStatus.ACTIVE &&
     cycle.activeEndsAt !== null &&
     cycle.activeEndsAt > now;
+  const gameplayOpen = testingOpen || activeOpen;
   const lastProcessedTickAt =
-    cycle.status === CycleStatus.ACTIVE
+    cycle.status === CycleStatus.ACTIVE || cycle.status === CycleStatus.TESTING
       ? (cycle.gameTicks[0]?.tickAt ?? null)
       : null;
   const activeMinutesBehind =
-    cycle.status === CycleStatus.ACTIVE
+    cycle.status === CycleStatus.ACTIVE || cycle.status === CycleStatus.TESTING
       ? getActiveCycleMinutesBehind({
-          activeStartedAt: cycle.activeStartedAt,
+          activeStartedAt:
+            cycle.status === CycleStatus.TESTING
+              ? cycle.testingStartedAt
+              : cycle.activeStartedAt,
           lastProcessedTickAt,
           now,
         })
       : 0;
   const tickDelayMinutes =
-    cycle.status === CycleStatus.ACTIVE ? activeMinutesBehind : null;
+    cycle.status === CycleStatus.ACTIVE || cycle.status === CycleStatus.TESTING
+      ? activeMinutesBehind
+      : null;
   const tickHealth =
-    cycle.status === CycleStatus.ACTIVE
+    cycle.status === CycleStatus.ACTIVE || cycle.status === CycleStatus.TESTING
       ? classifyTickHealth(activeMinutesBehind)
       : null;
   const deadline =
     cycle.status === CycleStatus.REGISTRATION
-      ? cycle.registrationEndsAt
+      ? (cycle.testingStartedAt ?? cycle.registrationEndsAt)
+      : cycle.status === CycleStatus.TESTING
+        ? cycle.testingEndsAt
       : cycle.activeEndsAt;
   const sortedFortresses = [...playerFortresses].sort(
     compareByLeaderboardOrder
@@ -708,7 +720,7 @@ export async function getHomePageState({
     isCurrentUser: fortress.ownerId === userId,
     isTargetable:
       playerFortressId !== null &&
-      activeOpen &&
+      gameplayOpen &&
       fortress.id !== playerFortressId,
   }));
   const globalChatMessages = await db.chatMessage.findMany({
@@ -835,6 +847,8 @@ export async function getHomePageState({
       id: cycle.id,
       status: cycle.status,
       registrationEndsAt: cycle.registrationEndsAt,
+      testingStartedAt: cycle.testingStartedAt,
+      testingEndsAt: cycle.testingEndsAt,
       joiningLockedAt: cycle.joiningLockedAt,
       activeEndsAt: cycle.activeEndsAt,
       upgradesUnlockedAt: cycle.upgradesUnlockedAt,
@@ -850,6 +864,10 @@ export async function getHomePageState({
           ? joiningLocked
             ? "Build time is still running, but joins are currently locked by admin action."
             : "Build time is open. Players can join before the next season starts on Wednesday."
+          : cycle.status === CycleStatus.TESTING
+            ? joiningLocked
+              ? "Testing mode is live, but joins are currently locked by admin action. Sandbox progress resets before the real season."
+              : "Testing mode is live. Players can join and try the economy, races, upgrades and raids before everything resets for the real season."
           : activeOpen
             ? "The season is live. Community wishes can be proposed until Sunday and voted on after it ends."
             : "The season has ended. Build and wish resolution are in progress.",
@@ -860,6 +878,14 @@ export async function getHomePageState({
             : registrationOpen
               ? "Build time is open. Joining creates your fortress immediately and reserves one of the 30 season slots before Wednesday."
               : "Build time has expired. The next game tick will either restart build time or move the cycle into ACTIVE."
+          : cycle.status === CycleStatus.TESTING
+            ? testingOpen && joiningLocked
+              ? "Testing mode remains open on the clock, but new joins are currently locked by admin action."
+              : testingOpen && remainingSlots > 0
+                ? "Testing mode is live. You can still join before the real season starts; sandbox progress resets first."
+                : testingOpen
+                  ? "Testing mode is live, but all player slots are filled. Sandbox progress resets before the real season."
+                  : "Testing has ended. The next game tick will reset sandbox progress and start the real season."
           : joiningLocked
             ? "The season is active, but joining is currently locked by admin action."
             : activeOpen && remainingSlots > 0
@@ -874,6 +900,8 @@ export async function getHomePageState({
         isOpen:
           cycle.status === CycleStatus.REGISTRATION
             ? registrationOpen
+            : cycle.status === CycleStatus.TESTING
+              ? testingOpen
             : activeOpen,
         label:
           cycle.status === CycleStatus.REGISTRATION
@@ -882,6 +910,12 @@ export async function getHomePageState({
               : registrationOpen
                 ? "Build phase"
                 : "Build expired"
+            : cycle.status === CycleStatus.TESTING
+              ? testingOpen && joiningLocked
+                ? "Testing locked"
+                : testingOpen
+                  ? "Testing phase"
+                  : "Testing expired"
             : activeOpen
               ? "Season live"
               : "Awaiting build start",
@@ -972,12 +1006,13 @@ export async function getHomePageState({
             : null,
           isSlayerOfA: playerFortress.id === cycle.crownedFortressId,
           canRename: activeOpen && playerFortress.points >= 10,
-          canSetAction: activeOpen && playerFortress.race !== null,
+          isTestingPhase: cycle.status === CycleStatus.TESTING,
+          canSetAction: gameplayOpen && playerFortress.race !== null,
           locationShuffleCost,
           freeLocationShuffleAvailable: locationShuffleCount === 0,
           hasOutgoingAttackUnits,
           canShuffleLocation:
-            activeOpen &&
+            gameplayOpen &&
             playerFortress.race !== null &&
             playerFortress.currentAction === "GROW" &&
             locationShuffleCost !== null &&
@@ -986,7 +1021,7 @@ export async function getHomePageState({
           nextUpgradeCost,
           canAffordUpgrade,
           canPurchaseUpgrade:
-            activeOpen &&
+            gameplayOpen &&
             playerFortress.race !== null &&
             upgradesUnlocked &&
             nextUpgradeCost !== null &&
@@ -1088,7 +1123,7 @@ export async function getHomePageState({
     },
     battleReports,
     availableTargets:
-      activeOpen && playerFortress
+      gameplayOpen && playerFortress
         ? cycle.fortresses
             .filter((fortress) => fortress.id !== playerFortress.id)
             .map((fortress) => ({
@@ -1113,7 +1148,7 @@ export async function getHomePageState({
         : [],
     canJoinCycle:
       Boolean(userId) &&
-      (registrationOpen || activeOpen) &&
+      (registrationOpen || testingOpen || activeOpen) &&
       !joiningLocked &&
       !playerFortress &&
       remainingSlots > 0,

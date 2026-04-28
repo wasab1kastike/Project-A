@@ -174,11 +174,12 @@ export default async function Home({
   const joinedText = state.cycle ? `${state.cycle.joinedCount} / 30` : "0 / 30";
   const remainingText = `${state.cycle?.remainingSlots ?? 30} slots`;
   const leaderboard = state.leaderboard.slice(0, 3);
-  const isActivePhase = state.phase?.status === "ACTIVE";
+  const isGameplayPhase =
+    state.phase?.status === "ACTIVE" || state.phase?.status === "TESTING";
   const tickDelayMinutes = state.cycle?.tickDelayMinutes ?? null;
   const tickHealth = state.cycle?.tickHealth ?? null;
   const showTickStatus =
-    isActivePhase &&
+    isGameplayPhase &&
     state.cycle?.lastProcessedTickAt &&
     tickDelayMinutes !== null;
   const hasTickDelayWarning = tickHealth === "stalled";
@@ -222,12 +223,27 @@ export default async function Home({
           title: "Build phase is open.",
           description: "Claim a fortress and wait for the next season to begin.",
           nextAction: state.playerFortress
-            ? "You are locked in. Use the shop while the next season is being prepared."
-            : "Join before Wednesday to take part in the next season.",
-          timerLabel: "Build ends",
+            ? "You are locked in. Testing opens for the final 24 hours before season start."
+            : "Join before testing starts to take part in the next season.",
+          timerLabel: "Testing starts",
           battlefieldTitle: "Build phase map",
           battlefieldDescription: "Fortresses appear as players join the build phase.",
         }
+      : state.phase?.status === "TESTING"
+        ? {
+            title: "Testing phase is live.",
+            description:
+              "Try workers, races, upgrades and raids. Sandbox progress resets before the real season.",
+            nextAction: state.playerSummary
+              ? "Test your economy and attacks, then get ready to choose again when the season starts."
+              : state.canJoinCycle
+                ? "You can still join before the real season begins."
+                : "Watch the sandbox and wait for the real season start.",
+            timerLabel: "Season starts",
+            battlefieldTitle: "Testing battlefield",
+            battlefieldDescription:
+              "Sandbox combat is live. Race, resources, attacks and upgrades reset at season start.",
+          }
       : state.phase?.status === "ACTIVE"
         ? {
             title: "Season is live.",
@@ -260,6 +276,8 @@ export default async function Home({
         : showJoinCard
           ? state.phase?.status === "ACTIVE"
             ? "Join the running season."
+            : state.phase?.status === "TESTING"
+              ? "Join testing."
             : "Claim your fortress."
           : phaseCopy.title;
 
@@ -272,6 +290,8 @@ export default async function Home({
         : showJoinCard
           ? state.phase?.status === "ACTIVE"
             ? "This season is already running. Join now to enter immediately if slots are still available."
+            : state.phase?.status === "TESTING"
+              ? "Testing mode is live. Join now to test the sandbox; only your roster identity carries into the real season."
             : "Build phase is open. Name your fortress now and it will appear on the map."
           : (state.cycle?.statusMessage ?? state.emptyStateMessage);
 
@@ -699,6 +719,10 @@ export default async function Home({
               <div>
                 <dt>Build</dt>
                 <dd>{formatDeadline(state.cycle.registrationEndsAt)}</dd>
+              </div>
+              <div>
+                <dt>Testing</dt>
+                <dd>{formatDeadline(state.cycle.testingEndsAt)}</dd>
               </div>
               <div>
                 <dt>Season end</dt>

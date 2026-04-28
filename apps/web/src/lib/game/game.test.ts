@@ -89,7 +89,7 @@ import {
   shuffleFortressLocation,
 } from "./service";
 import { TickRunnerError, classifyTickHealth, runGameTick } from "./tick";
-import { addMinutes } from "./time";
+import { addHours, addMinutes } from "./time";
 import { formatTickRunnerError, formatTickSummary } from "./tick-cli";
 import {
   classifyWinnerRequest,
@@ -503,6 +503,8 @@ test("tick health classification separates healthy, delayed, and stalled states"
 test("tick CLI summary includes attack launch and resolution counts", () => {
   const formatted = formatTickSummary({
     restartedRegistrationCycles: 1,
+    testingCyclesStarted: 1,
+    testingCyclesCompleted: 1,
     activatedCycles: 2,
     resolvedCycles: 3,
     resolvedCommunityWishVotes: 0,
@@ -514,6 +516,8 @@ test("tick CLI summary includes attack launch and resolution counts", () => {
   });
 
   assert.match(formatted, /Registration restarted: 1/);
+  assert.match(formatted, /Testing cycles started: 1/);
+  assert.match(formatted, /Testing cycles completed: 1/);
   assert.match(formatted, /Attack units launched: 7/);
   assert.match(formatted, /Attack units resolved: 8/);
 });
@@ -1564,6 +1568,235 @@ test("expired empty registration restarts with a fresh 24 hour window", async (c
   assert.equal(
     refreshedCycle.registrationEndsAt.toISOString(),
     "2026-04-21T12:01:00.000Z"
+  );
+});
+
+test("non-empty registration enters testing for the final 24 hours before season start", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(
+    prisma,
+    new Date("2026-04-19T11:00:00.000Z")
+  );
+  const user = await createUser(prisma, "testing-start@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: user.id,
+    fortressName: "Test Gate",
+    now: new Date("2026-04-19T11:05:00.000Z"),
+  });
+
+  const testingStartsAt = addHours(cycle.registrationEndsAt, -24);
+  const summary = await runGameTick({
+    db: prisma,
+    now: testingStartsAt,
+  });
+  const testingCycle = await prisma.cycle.findUniqueOrThrow({
+    where: {
+      id: cycle.id,
+    },
+  });
+  const testingState = await getHomePageState({
+    db: prisma,
+    userId: user.id,
+    now: addMinutes(testingStartsAt, 1),
+  });
+
+  assert.equal(summary.testingCyclesStarted, 1);
+  assert.equal(summary.activatedCycles, 0);
+  assert.equal(testingCycle.status, CycleStatus.TESTING);
+  assert.equal(testingCycle.testingStartedAt?.toISOString(), testingStartsAt.toISOString());
+  assert.equal(testingCycle.testingEndsAt?.toISOString(), cycle.registrationEndsAt.toISOString());
+  assert.equal(testingCycle.activeStartedAt?.toISOString(), cycle.registrationEndsAt.toISOString());
+  assert.equal(testingState.phase?.status, CycleStatus.TESTING);
+  assert.equal(testingState.phase?.deadline?.toISOString(), cycle.registrationEndsAt.toISOString());
+  assert.equal(testingState.canJoinCycle, false);
+  assert.equal(testingState.playerSummary?.isTestingPhase, true);
+  assert.equal(testingState.communityWish.canSubmit, false);
+});
+
+test("testing allows joins and gameplay, then resets sandbox progress at season start", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(
+    prisma,
+    new Date("2026-04-19T11:00:00.000Z")
+  );
+  const alpha = await createUser(prisma, "testing-alpha@example.com");
+  const beta = await createUser(prisma, "testing-beta@example.com");
+  const late = await createUser(prisma, "testing-late@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: alpha.id,
+    commanderName: "Testing Alpha",
+    fortressName: "Alpha Sandbox",
+    now: new Date("2026-04-19T11:05:00.000Z"),
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: beta.id,
+    commanderName: "Testing Beta",
+    fortressName: "Beta Sandbox",
+    now: new Date("2026-04-19T11:06:00.000Z"),
+  });
+
+  const testingStartsAt = addHours(cycle.registrationEndsAt, -24);
+  await runGameTick({
+    db: prisma,
+    now: testingStartsAt,
+  });
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: late.id,
+    commanderName: "Late Tester",
+    fortressName: "Late Sandbox",
+    now: addMinutes(testingStartsAt, 2),
+  });
+  await selectFortressRace({
+    db: prisma,
+    userId: alpha.id,
+    race: "DWARFS",
+    now: addMinutes(testingStartsAt, 3),
+  });
+  await updateWorkerAssignment({
+    db: prisma,
+    userId: alpha.id,
+    minersAssigned: 20,
+    farmersAssigned: 5,
+    recruitersAssigned: 0,
+    now: addMinutes(testingStartsAt, 4),
+  });
+
+  const alphaBeforeReset = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: alpha.id,
+      },
+    },
+  });
+  const betaBeforeReset = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: beta.id,
+      },
+    },
+  });
+
+  await prisma.cycle.update({
+    where: {
+      id: cycle.id,
+    },
+    data: {
+      upgradesUnlockedAt: addMinutes(testingStartsAt, 4),
+      crownedFortressId: alphaBeforeReset.id,
+      megaFortressDestroyCount: 2,
+    },
+  });
+  await prisma.fortress.update({
+    where: {
+      id: alphaBeforeReset.id,
+    },
+    data: {
+      points: 123,
+      food: 45,
+      army: 30,
+      level: 3,
+      locationShuffleCount: 2,
+    },
+  });
+  await prisma.scoreEvent.create({
+    data: {
+      cycleId: cycle.id,
+      fortressId: alphaBeforeReset.id,
+      actorId: alpha.id,
+      eventType: ScoreEventType.GROW_TICK,
+      delta: 123,
+      createdAt: addMinutes(testingStartsAt, 5),
+    },
+  });
+  await prisma.gameTick.create({
+    data: {
+      cycleId: cycle.id,
+      tickAt: addMinutes(testingStartsAt, 5),
+    },
+  });
+  await prisma.attackUnit.create({
+    data: {
+      cycleId: cycle.id,
+      attackerFortressId: alphaBeforeReset.id,
+      targetFortressId: betaBeforeReset.id,
+      armyAmount: 5,
+      launchedAt: addMinutes(testingStartsAt, 5),
+      arrivesAt: addMinutes(testingStartsAt, 6),
+    },
+  });
+
+  const summary = await runGameTick({
+    db: prisma,
+    now: cycle.registrationEndsAt,
+  });
+  const activeCycle = await prisma.cycle.findUniqueOrThrow({
+    where: {
+      id: cycle.id,
+    },
+  });
+  const alphaAfterReset = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: alpha.id,
+      },
+    },
+  });
+  const lateAfterReset = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: late.id,
+      },
+    },
+  });
+
+  assert.equal(summary.testingCyclesCompleted, 1);
+  assert.equal(summary.activatedCycles, 1);
+  assert.equal(activeCycle.status, CycleStatus.ACTIVE);
+  assert.equal(activeCycle.activeStartedAt?.toISOString(), cycle.registrationEndsAt.toISOString());
+  assert.equal(activeCycle.upgradesUnlockedAt, null);
+  assert.equal(activeCycle.crownedFortressId, null);
+  assert.equal(activeCycle.megaFortressDestroyCount, 0);
+  assert.equal(alphaAfterReset.commanderName, "Testing Alpha");
+  assert.equal(alphaAfterReset.name, "Alpha Sandbox");
+  assert.equal(alphaAfterReset.mapX, alphaBeforeReset.mapX);
+  assert.equal(alphaAfterReset.mapY, alphaBeforeReset.mapY);
+  assert.equal(lateAfterReset.commanderName, "Late Tester");
+  assert.equal(alphaAfterReset.race, null);
+  assert.equal(alphaAfterReset.points, 0);
+  assert.equal(alphaAfterReset.food, 0);
+  assert.equal(alphaAfterReset.army, 0);
+  assert.equal(alphaAfterReset.level, 0);
+  assert.equal(alphaAfterReset.minersAssigned, 10);
+  assert.equal(alphaAfterReset.farmersAssigned, 10);
+  assert.equal(alphaAfterReset.recruitersAssigned, 5);
+  assert.equal(alphaAfterReset.locationShuffleCount, 0);
+  assert.equal(await prisma.attackUnit.count({ where: { cycleId: cycle.id } }), 0);
+  assert.equal(await prisma.scoreEvent.count({ where: { cycleId: cycle.id } }), 0);
+  assert.equal(await prisma.gameTick.count({ where: { cycleId: cycle.id } }), 0);
+  assert.equal(
+    await prisma.fortress.count({ where: { cycleId: cycle.id, isNpc: true } }),
+    1
   );
 });
 

@@ -103,6 +103,7 @@ type PlayerSummary = {
   currentTargetId?: string | null;
   currentTargetName?: string | null;
   isSlayerOfA?: boolean;
+  isTestingPhase?: boolean;
   canRename: boolean;
   canSetAction: boolean;
   locationShuffleCost: number | null;
@@ -160,8 +161,10 @@ type BattleReport = {
 
 function RaceSelectionSection({
   currentRace,
+  isTestingPhase = false,
 }: {
   currentRace: FortressRace | null;
+  isTestingPhase?: boolean;
 }) {
   const selectedRace = getRaceDefinition(currentRace);
 
@@ -191,13 +194,18 @@ function RaceSelectionSection({
               <li key={passive}>{passive}</li>
             ))}
           </ul>
-          <small>Race locked for this season.</small>
+          <small>
+            {isTestingPhase
+              ? "Testing pick only. Race resets before the real season."
+              : "Race locked for this season."}
+          </small>
         </article>
       ) : (
         <>
           <p className={styles.helper}>
-            Choose your race before active gameplay. This choice is locked for
-            the whole season.
+            {isTestingPhase
+              ? "Choose a sandbox race for testing. Race resets before the real season."
+              : "Choose your race before active gameplay. This choice is locked for the whole season."}
           </p>
           <div className={styles.raceGrid}>
             {RACE_DEFINITIONS.map((race) => (
@@ -593,7 +601,7 @@ export function BattlefieldExperience({
 }: {
   title: string;
   description: string;
-  phaseStatus?: "REGISTRATION" | "ACTIVE" | "RESOLUTION" | null;
+  phaseStatus?: "REGISTRATION" | "TESTING" | "ACTIVE" | "RESOLUTION" | null;
   playerSummary: PlayerSummary | null;
   playerFortress: PlayerFortress | null;
   mapFortresses: MapFortress[];
@@ -694,7 +702,8 @@ export function BattlefieldExperience({
 
   const canOpenActions = Boolean(
     ownFortress &&
-    ((phaseStatus === "ACTIVE" && playerSummary) ||
+    (((phaseStatus === "ACTIVE" || phaseStatus === "TESTING") &&
+      playerSummary) ||
       (phaseStatus === "REGISTRATION" &&
         canEditRegistrationName &&
         playerFortress))
@@ -876,7 +885,8 @@ export function BattlefieldExperience({
         Close
       </button>
       <div className={`${styles.drawerBody} ${styles.actionDrawerBody}`}>
-        {phaseStatus === "ACTIVE" && playerSummary ? (
+        {(phaseStatus === "ACTIVE" || phaseStatus === "TESTING") &&
+        playerSummary ? (
           <div className={styles.drawerContent}>
             <div className={styles.ordersHeader}>
               <div>
@@ -885,7 +895,17 @@ export function BattlefieldExperience({
               </div>
             </div>
 
-            <RaceSelectionSection currentRace={playerSummary.race} />
+            <RaceSelectionSection
+              currentRace={playerSummary.race}
+              isTestingPhase={playerSummary.isTestingPhase}
+            />
+
+            {playerSummary.isTestingPhase ? (
+              <p className={`${styles.helper} ${styles.warningText}`}>
+                Testing mode: resources, race, attacks and upgrades reset before
+                the real season.
+              </p>
+            ) : null}
 
             <section className={styles.orderSection}>
               <dl className={styles.castleStats}>
@@ -1268,7 +1288,10 @@ export function BattlefieldExperience({
               </div>
               <strong>{playerFortress.points} pts</strong>
             </div>
-            <RaceSelectionSection currentRace={playerFortress.race} />
+            <RaceSelectionSection
+              currentRace={playerFortress.race}
+              isTestingPhase
+            />
             <form
               action={editRegistrationFortressNameAction}
               className={styles.form}

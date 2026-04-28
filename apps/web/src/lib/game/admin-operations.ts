@@ -24,12 +24,21 @@ export async function setRegistrationJoiningLock({
       },
     });
 
-    if (!cycle || cycle.status !== CycleStatus.REGISTRATION) {
-      throw new GameError("Joining can only be locked during REGISTRATION.");
+    if (
+      !cycle ||
+      (cycle.status !== CycleStatus.REGISTRATION &&
+        cycle.status !== CycleStatus.TESTING)
+    ) {
+      throw new GameError("Joining can only be locked before ACTIVE.");
     }
 
-    if (cycle.registrationEndsAt <= now) {
-      throw new GameError("Registration already expired for the current cycle.");
+    const joiningEndsAt =
+      cycle.status === CycleStatus.TESTING
+        ? cycle.testingEndsAt
+        : cycle.registrationEndsAt;
+
+    if (!joiningEndsAt || joiningEndsAt <= now) {
+      throw new GameError("Joining already expired for the current cycle.");
     }
 
     return tx.cycle.update({
@@ -73,6 +82,23 @@ export async function forceEndCurrentCycle({
         },
         data: {
           registrationEndsAt: effectiveNow,
+          testingStartedAt: effectiveNow,
+          testingEndsAt: effectiveNow,
+          activeStartedAt: effectiveNow,
+        },
+      });
+
+      return;
+    }
+
+    if (cycle.status === CycleStatus.TESTING) {
+      await tx.cycle.update({
+        where: {
+          id: cycle.id,
+        },
+        data: {
+          testingEndsAt: effectiveNow,
+          activeStartedAt: effectiveNow,
         },
       });
 

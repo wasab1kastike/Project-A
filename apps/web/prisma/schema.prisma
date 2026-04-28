@@ -14,6 +14,7 @@ enum UserRole {
 
 enum CycleStatus {
   REGISTRATION
+  TESTING
   ACTIVE
   RESOLUTION
 }
@@ -168,6 +169,8 @@ model Cycle {
   status                   CycleStatus             @default(REGISTRATION)
   registrationStartedAt    DateTime
   registrationEndsAt       DateTime
+  testingStartedAt         DateTime?
+  testingEndsAt            DateTime?
   joiningLockedAt          DateTime?
   activeStartedAt          DateTime?
   activeEndsAt             DateTime?

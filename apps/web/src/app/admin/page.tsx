@@ -144,7 +144,7 @@ export default async function AdminPage({
               <dd>
                 {state.currentCycle?.joiningLockedAt
                   ? "Locked"
-                  : "Open if build phase is live"}
+                  : "Open if build/testing is live"}
               </dd>
             </div>
           </dl>
@@ -183,7 +183,10 @@ export default async function AdminPage({
               <button
                 className={styles.secondaryButton}
                 type="submit"
-                disabled={state.currentCycle?.status !== "REGISTRATION"}
+                disabled={
+                  state.currentCycle?.status !== "REGISTRATION" &&
+                  state.currentCycle?.status !== "TESTING"
+                }
               >
                 {state.currentCycle?.joiningLockedAt
                   ? "Unlock joining"
@@ -236,6 +239,14 @@ export default async function AdminPage({
                 <div className={styles.statRow}>
                   <dt>Build ends</dt>
                   <dd>{formatDateTime(state.currentCycle.registrationEndsAt)}</dd>
+                </div>
+                <div className={styles.statRow}>
+                  <dt>Testing starts</dt>
+                  <dd>{formatDateTime(state.currentCycle.testingStartedAt)}</dd>
+                </div>
+                <div className={styles.statRow}>
+                  <dt>Testing ends</dt>
+                  <dd>{formatDateTime(state.currentCycle.testingEndsAt)}</dd>
                 </div>
                 <div className={styles.statRow}>
                   <dt>Active starts</dt>

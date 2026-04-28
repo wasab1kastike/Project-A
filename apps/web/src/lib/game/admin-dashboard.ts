@@ -212,10 +212,15 @@ export async function getAdminDashboardState({
     },
   });
 
+  const gameplayStartedAt =
+    currentCycle?.status === "TESTING"
+      ? currentCycle.testingStartedAt
+      : currentCycle?.activeStartedAt;
   const activeMinutesBehind =
-    currentCycle?.status === "ACTIVE"
+    (currentCycle?.status === "ACTIVE" || currentCycle?.status === "TESTING") &&
+    gameplayStartedAt
       ? getActiveCycleMinutesBehind({
-          activeStartedAt: currentCycle.activeStartedAt,
+          activeStartedAt: gameplayStartedAt,
           lastProcessedTickAt: currentCycle.gameTicks[0]?.tickAt ?? null,
           now,
         })
@@ -229,6 +234,8 @@ export async function getAdminDashboardState({
           id: currentCycle.id,
           status: currentCycle.status,
           registrationEndsAt: currentCycle.registrationEndsAt,
+          testingStartedAt: currentCycle.testingStartedAt,
+          testingEndsAt: currentCycle.testingEndsAt,
           joiningLockedAt: currentCycle.joiningLockedAt,
           activeStartedAt: currentCycle.activeStartedAt,
           activeEndsAt: currentCycle.activeEndsAt,

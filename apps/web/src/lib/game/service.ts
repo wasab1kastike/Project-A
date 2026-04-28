@@ -69,6 +69,7 @@ function isJoinOpen(
   cycle: {
     status: CycleStatus;
     registrationEndsAt: Date;
+    testingEndsAt?: Date | null;
     activeEndsAt: Date | null;
     joiningLockedAt?: Date | null;
   },
@@ -77,6 +78,11 @@ function isJoinOpen(
   return (
     (cycle.status === CycleStatus.REGISTRATION &&
       cycle.registrationEndsAt > now &&
+      !cycle.joiningLockedAt) ||
+    (cycle.status === CycleStatus.TESTING &&
+      cycle.testingEndsAt !== null &&
+      cycle.testingEndsAt !== undefined &&
+      cycle.testingEndsAt > now &&
       !cycle.joiningLockedAt) ||
     (cycle.status === CycleStatus.ACTIVE &&
       cycle.activeEndsAt !== null &&
@@ -110,15 +116,35 @@ function isActiveWindowOpen(
   );
 }
 
-function isRaceSelectionWindowOpen(
+function isGameplayWindowOpen(
   cycle: {
     status: CycleStatus;
-    registrationEndsAt: Date;
+    testingEndsAt?: Date | null;
     activeEndsAt: Date | null;
   },
   now: Date
 ) {
-  return isRegistrationWindowOpen(cycle, now) || isActiveWindowOpen(cycle, now);
+  return (
+    (cycle.status === CycleStatus.TESTING &&
+      cycle.testingEndsAt !== null &&
+      cycle.testingEndsAt !== undefined &&
+      cycle.testingEndsAt > now) ||
+    isActiveWindowOpen(cycle, now)
+  );
+}
+
+function isRaceSelectionWindowOpen(
+  cycle: {
+    status: CycleStatus;
+    registrationEndsAt: Date;
+    testingEndsAt?: Date | null;
+    activeEndsAt: Date | null;
+  },
+  now: Date
+) {
+  return (
+    isRegistrationWindowOpen(cycle, now) || isGameplayWindowOpen(cycle, now)
+  );
 }
 
 function findOpenMapPosition(
@@ -477,7 +503,7 @@ export async function setFortressAction({
   return db.$transaction(async (tx) => {
     const cycle = await getCurrentCycle(tx);
 
-    if (!cycle || !isActiveWindowOpen(cycle, now)) {
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
       throw new GameError("The current cycle is not accepting active actions.");
     }
 
@@ -606,7 +632,7 @@ export async function selectFortressRace({
 
       if (!cycle || !isRaceSelectionWindowOpen(cycle, now)) {
         throw new GameError(
-          "Race selection is only available before or during an active season."
+          "Race selection is only available before or during gameplay."
         );
       }
 
@@ -666,9 +692,9 @@ export async function updateWorkerAssignment({
     async (tx) => {
       const cycle = await getCurrentCycle(tx);
 
-      if (!cycle || !isActiveWindowOpen(cycle, now)) {
+      if (!cycle || !isGameplayWindowOpen(cycle, now)) {
         throw new GameError(
-          "Worker assignments are only available during ACTIVE."
+          "Worker assignments are only available during gameplay."
         );
       }
 
@@ -801,8 +827,8 @@ export async function shuffleFortressLocation({
   return db.$transaction(async (tx) => {
     const cycle = await getCurrentCycle(tx);
 
-    if (!cycle || !isActiveWindowOpen(cycle, now)) {
-      throw new GameError("Castle Yeet is only available during ACTIVE.");
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("Castle Yeet is only available during gameplay.");
     }
 
     const fortress = await tx.fortress.findUnique({
@@ -948,8 +974,8 @@ export async function purchaseFortressUpgrade({
   return db.$transaction(async (tx) => {
     const cycle = await getCurrentCycle(tx);
 
-    if (!cycle || !isActiveWindowOpen(cycle, now)) {
-      throw new GameError("Castle upgrades are only available during ACTIVE.");
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("Castle upgrades are only available during gameplay.");
     }
 
     if (!cycle.upgradesUnlockedAt) {

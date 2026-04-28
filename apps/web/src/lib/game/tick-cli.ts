@@ -4,6 +4,8 @@ import { runGameTick, TickRunnerError, type TickSummary } from "./tick";
 export function formatTickSummary(summary: TickSummary) {
   return [
     `Registration restarted: ${summary.restartedRegistrationCycles}`,
+    `Testing cycles started: ${summary.testingCyclesStarted}`,
+    `Testing cycles completed: ${summary.testingCyclesCompleted}`,
     `Cycles activated: ${summary.activatedCycles}`,
     `Cycles resolved: ${summary.resolvedCycles}`,
     `Community wish votes resolved: ${summary.resolvedCommunityWishVotes}`,
