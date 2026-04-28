@@ -665,6 +665,7 @@ export async function getHomePageState({
               not: null,
             },
             cancelledAt: null,
+            recalledAt: null,
             OR: [
               {
                 attackerFortressId: playerFortress.id,
