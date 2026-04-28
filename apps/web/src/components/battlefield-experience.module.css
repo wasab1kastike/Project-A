@@ -508,6 +508,55 @@
   border-top: 1px solid var(--border-soft);
 }
 
+.specializationGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 8px;
+}
+
+.specializationOption {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.specializationOption span {
+  display: grid;
+  gap: 3px;
+}
+
+.specializationOption small {
+  color: rgba(226, 232, 240, 0.72);
+}
+
+.compactList {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+  color: rgba(226, 232, 240, 0.82);
+}
+
+.inlineForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.inlineForm select {
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #e5eefb;
+  background: rgba(15, 23, 42, 0.82);
+}
+
 .workerForm {
   display: grid;
   gap: 8px;

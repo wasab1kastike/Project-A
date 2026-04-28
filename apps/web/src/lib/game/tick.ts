@@ -31,6 +31,13 @@ import { buildFortressSpawnSeed } from "./spawn-layout";
 import { addHours, addMinutes, floorToMinute } from "./time";
 import { calculateRaidOutcome, calculateTickProduction } from "./balance";
 import { canFortressLevelUp, getFortressAttackDamage } from "./upgrades";
+import {
+  getDwarfGrudgeMultiplier,
+  getRaceBuffTier,
+  isRaceAbilityActive,
+} from "./race-buffs";
+import { countCastleSpecializations } from "./specializations";
+import { RaceAbilityKind } from "@/lib/prisma-client";
 
 export type TickSummary = {
   restartedRegistrationCycles: number;
@@ -392,6 +399,27 @@ async function completeTestingCycle(
     await tx.attackUnit.deleteMany({
       where: {
         cycleId,
+      },
+    });
+    await tx.castleUpgradeSpecializationChoice.deleteMany({
+      where: {
+        fortress: {
+          cycleId,
+        },
+      },
+    });
+    await tx.raceAbilityActivation.deleteMany({
+      where: {
+        fortress: {
+          cycleId,
+        },
+      },
+    });
+    await tx.dwarfGrudge.deleteMany({
+      where: {
+        fortress: {
+          cycleId,
+        },
       },
     });
     await tx.scoreEvent.deleteMany({
@@ -783,6 +811,11 @@ async function processCycleTick(
       cycle.status === CycleStatus.TESTING
         ? cycle.testingStartedAt!
         : cycle.activeStartedAt!;
+    const raceBuffTier = getRaceBuffTier({
+      activeStartedAt: cycle.activeStartedAt,
+      now: tickAt,
+      isActiveSeason: cycle.status === CycleStatus.ACTIVE,
+    });
 
     await ensureActiveCycleMegaFortress({
       db: tx,
@@ -862,6 +895,29 @@ async function processCycleTick(
         mapX: true,
         mapY: true,
         joinedAt: true,
+        castleUpgradeSpecializations: {
+          select: {
+            specialization: true,
+          },
+        },
+        raceAbilityActivations: {
+          where: {
+            activeUntil: {
+              gt: tickAt,
+            },
+          },
+          select: {
+            kind: true,
+            activeFrom: true,
+            activeUntil: true,
+          },
+        },
+        dwarfGrudges: {
+          select: {
+            targetFortressId: true,
+            bonusMultiplier: true,
+          },
+        },
       },
     });
 
@@ -1128,12 +1184,58 @@ async function processCycleTick(
       const defenderPoints = currentPoints.get(target.id) ?? target.points;
       const defenderFood = currentFood.get(target.id) ?? target.food;
       const defenderArmyAtBattleStart = defenderArmy;
+      const attackerWaaagh =
+        attacker.race === "ORKS" &&
+        raceBuffTier >= 2 &&
+        isRaceAbilityActive(
+          attacker.raceAbilityActivations,
+          RaceAbilityKind.ORK_WAAAGH,
+          tickAt
+        );
+      const defenderWaaagh =
+        target.race === "ORKS" &&
+        raceBuffTier >= 2 &&
+        isRaceAbilityActive(
+          target.raceAbilityActivations,
+          RaceAbilityKind.ORK_WAAAGH,
+          tickAt
+        );
+      const attackerStim =
+        attacker.race === "SPACE_MURINES" &&
+        raceBuffTier >= 2 &&
+        isRaceAbilityActive(
+          attacker.raceAbilityActivations,
+          RaceAbilityKind.SPACE_MURINE_STIM,
+          tickAt
+        );
+      const defenderStim =
+        target.race === "SPACE_MURINES" &&
+        raceBuffTier >= 2 &&
+        isRaceAbilityActive(
+          target.raceAbilityActivations,
+          RaceAbilityKind.SPACE_MURINE_STIM,
+          tickAt
+        );
+      const dwarfAttackMultiplier =
+        attacker.race === "DWARFS" && raceBuffTier >= 2
+          ? getDwarfGrudgeMultiplier(attacker.dwarfGrudges, target.id)
+          : 1;
+      const dwarfDefenseMultiplier =
+        target.race === "DWARFS" && raceBuffTier >= 2
+          ? getDwarfGrudgeMultiplier(target.dwarfGrudges, attacker.id)
+          : 1;
       const outcome = calculateRaidOutcome({
         attackArmy: unit.armyAmount,
         attackerRace: attacker.race,
         defenderArmy,
         defenderDbLevel: target.level,
         defenderRace: target.race,
+        attackPowerMultiplier:
+          (attackerWaaagh ? 2 : 1) * dwarfAttackMultiplier,
+        defensePowerMultiplier:
+          (defenderWaaagh ? 2 : 1) * dwarfDefenseMultiplier,
+        preventAttackerCasualties: attackerStim,
+        preventDefenderLosses: defenderStim,
         defenderPoints,
         defenderFood,
       });
@@ -1217,6 +1319,9 @@ async function processCycleTick(
         const production = calculateTickProduction({
           ...fortress,
           food: currentFood.get(fortress.id) ?? fortress.food,
+          castleSpecializations: countCastleSpecializations(
+            fortress.castleUpgradeSpecializations
+          ),
         });
         const currentArmyValue = currentArmy.get(fortress.id) ?? fortress.army;
         currentPoints.set(
@@ -1300,6 +1405,29 @@ async function processCycleTick(
           mapX: true,
           mapY: true,
           joinedAt: true,
+          castleUpgradeSpecializations: {
+            select: {
+              specialization: true,
+            },
+          },
+          raceAbilityActivations: {
+            where: {
+              activeUntil: {
+                gt: tickAt,
+              },
+            },
+            select: {
+              kind: true,
+              activeFrom: true,
+              activeUntil: true,
+            },
+          },
+          dwarfGrudges: {
+            select: {
+              targetFortressId: true,
+              bonusMultiplier: true,
+            },
+          },
         },
       });
       fortressLookup = new Map(

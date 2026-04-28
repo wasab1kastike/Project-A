@@ -147,6 +147,76 @@ test("tick production converts workers into points, food, and food-limited army"
   assert.equal(production.foodAfterProduction, 0);
 });
 
+test("castle specializations stack production and defense bonuses", () => {
+  const production = calculateTickProduction({
+    level: 0,
+    food: 100,
+    minersAssigned: 20,
+    farmersAssigned: 20,
+    recruitersAssigned: 20,
+    castleSpecializations: {
+      POINTS: 2,
+      FOOD: 1,
+      MILITARY: 3,
+      DEFENSE: 0,
+    },
+  });
+
+  assert.equal(production.pointsProduced, 24);
+  assert.equal(production.foodProduced, 22);
+  assert.equal(production.armyRequested, 26);
+  assert.equal(
+    getDefenseBonusPercent(0, null, {
+      POINTS: 0,
+      FOOD: 0,
+      MILITARY: 0,
+      DEFENSE: 2,
+    }),
+    0.30000000000000004
+  );
+  assert.equal(
+    getFortressDefenseMultiplier(0, null, {
+      POINTS: 0,
+      FOOD: 0,
+      MILITARY: 0,
+      DEFENSE: 2,
+    }),
+    1.3
+  );
+});
+
+test("race combat buffs can adjust power and casualty handling", () => {
+  const dwarfAttack = calculateRaidOutcome({
+    attackArmy: 100,
+    attackPowerMultiplier: 1.25,
+    defenderArmy: 100,
+    defenderDbLevel: 0,
+    defenderPoints: 100,
+    defenderFood: 100,
+  });
+  const stimDefense = calculateRaidOutcome({
+    attackArmy: 100,
+    defenderArmy: 10,
+    defenderDbLevel: 0,
+    preventDefenderLosses: true,
+    defenderPoints: 100,
+    defenderFood: 100,
+  });
+  const stimAttack = calculateRaidOutcome({
+    attackArmy: 10,
+    defenderArmy: 100,
+    defenderDbLevel: 0,
+    preventAttackerCasualties: true,
+    defenderPoints: 100,
+    defenderFood: 100,
+  });
+
+  assert.equal(dwarfAttack.attackPower, 125);
+  assert.equal(dwarfAttack.outcome, "ATTACKER_WIN");
+  assert.equal(stimDefense.defenderLosses, 0);
+  assert.equal(stimAttack.attackerReturned, 10);
+});
+
 test("tie goes to the defender and the attacker loses all sent army", () => {
   const outcome = calculateRaidOutcome({
     attackArmy: 11,

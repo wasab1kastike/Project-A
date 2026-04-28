@@ -4,6 +4,7 @@ import {
   CommunityWishStatus,
   CycleStatus,
   Prisma,
+  RaceAbilityKind,
   ScoreEventType,
   WinnerRequestStatus,
   type PrismaClient,
@@ -26,6 +27,13 @@ import {
 } from "./schema-guards";
 import { classifyTickHealth, getActiveCycleMinutesBehind } from "./tick";
 import { getFortressAttackDamage, getFortressUpgradeCost } from "./upgrades";
+import {
+  getHelsinkiDayKey,
+  getHelsinkiHourKey,
+  getNextHelsinkiNoonAfter,
+  getRaceBuffTier,
+} from "./race-buffs";
+import { countCastleSpecializations } from "./specializations";
 
 export type HomePageState = Awaited<ReturnType<typeof getHomePageState>>;
 
@@ -330,6 +338,44 @@ export async function getHomePageState({
               fortressCosmeticVariant: true,
             },
           },
+          castleUpgradeSpecializations: {
+            orderBy: {
+              level: "asc",
+            },
+            select: {
+              level: true,
+              specialization: true,
+            },
+          },
+          raceAbilityActivations: {
+            orderBy: [{ usedAt: "desc" }, { id: "desc" }],
+            select: {
+              id: true,
+              kind: true,
+              activeFrom: true,
+              activeUntil: true,
+              usedAt: true,
+              expiresAt: true,
+              consumedAt: true,
+            },
+          },
+          dwarfGrudges: {
+            orderBy: {
+              slot: "asc",
+            },
+            select: {
+              id: true,
+              targetFortressId: true,
+              slot: true,
+              bonusMultiplier: true,
+              targetFortress: {
+                select: {
+                  name: true,
+                  commanderName: true,
+                },
+              },
+            },
+          },
         },
       },
       attackUnits: {
@@ -526,9 +572,25 @@ export async function getHomePageState({
   );
   const playerFortressId = playerFortress?.id ?? null;
   const upgradesUnlocked = Boolean(cycle.upgradesUnlockedAt);
+  const raceBuffTier = getRaceBuffTier({
+    activeStartedAt: cycle.activeStartedAt,
+    now,
+    isActiveSeason: cycle.status === CycleStatus.ACTIVE,
+  });
+  const raceTierThreeUnlocksAt = cycle.activeStartedAt
+    ? getNextHelsinkiNoonAfter(cycle.activeStartedAt)
+    : null;
   const nextUpgradeCost = playerFortress
     ? getFortressUpgradeCost(playerFortress.level)
     : null;
+  const playerCastleSpecializationCounts = playerFortress
+    ? countCastleSpecializations(playerFortress.castleUpgradeSpecializations)
+    : null;
+  const pendingUpgradeSpecializationLevel =
+    playerFortress &&
+    playerFortress.castleUpgradeSpecializations.length < playerFortress.level
+      ? playerFortress.castleUpgradeSpecializations.length + 1
+      : null;
   const canAffordUpgrade =
     playerFortress !== null &&
     nextUpgradeCost !== null &&
@@ -562,6 +624,33 @@ export async function getHomePageState({
         (unit) => unit.attackerFortress.id === playerFortress.id
       )
     : false;
+  const latestWaaaghUse = playerFortress
+    ? playerFortress.raceAbilityActivations.find(
+        (activation) => activation.kind === RaceAbilityKind.ORK_WAAAGH
+      )
+    : null;
+  const latestStimUse = playerFortress
+    ? playerFortress.raceAbilityActivations.find(
+        (activation) => activation.kind === RaceAbilityKind.SPACE_MURINE_STIM
+      )
+    : null;
+  const activeUnicornTeleportToken = playerFortress
+    ? (playerFortress.raceAbilityActivations.find((activation) => {
+        return (
+          activation.kind === RaceAbilityKind.UNICORN_TELEPORT &&
+          activation.consumedAt === null &&
+          activation.expiresAt !== null &&
+          activation.expiresAt > now
+        );
+      }) ?? null)
+    : null;
+  const latestUnicornTeleportClaim = playerFortress
+    ? playerFortress.raceAbilityActivations.find(
+        (activation) => activation.kind === RaceAbilityKind.UNICORN_TELEPORT
+      )
+    : null;
+  const currentDayKey = getHelsinkiDayKey(now);
+  const currentHourKey = getHelsinkiHourKey(now);
   const battleReports = playerFortress
     ? (
         await db.attackUnit.findMany({
@@ -703,7 +792,11 @@ export async function getHomePageState({
     iconLabel: fortress.iconLabel,
     displayedCastleLevel: getDisplayedCastleLevel(fortress.level),
     population: getFortressPopulation(fortress.level, fortress.race),
-    defenseMultiplier: getFortressDefenseMultiplier(fortress.level, fortress.race),
+    defenseMultiplier: getFortressDefenseMultiplier(
+      fortress.level,
+      fortress.race,
+      countCastleSpecializations(fortress.castleUpgradeSpecializations)
+    ),
     food: fortress.food,
     army: fortress.army,
     minersAssigned: fortress.minersAssigned,
@@ -944,7 +1037,8 @@ export async function getHomePageState({
           ),
           defenseMultiplier: getFortressDefenseMultiplier(
             playerFortress.level,
-            playerFortress.race
+            playerFortress.race,
+            playerCastleSpecializationCounts ?? undefined
           ),
           food: playerFortress.food,
           army: playerFortress.army,
@@ -985,7 +1079,8 @@ export async function getHomePageState({
           ),
           defenseMultiplier: getFortressDefenseMultiplier(
             playerFortress.level,
-            playerFortress.race
+            playerFortress.race,
+            playerCastleSpecializationCounts ?? undefined
           ),
           food: playerFortress.food,
           army: playerFortress.army,
@@ -1025,9 +1120,70 @@ export async function getHomePageState({
             playerFortress.race !== null &&
             upgradesUnlocked &&
             nextUpgradeCost !== null &&
-            canAffordUpgrade,
+            canAffordUpgrade &&
+            pendingUpgradeSpecializationLevel === null,
+          castleSpecializationCounts: playerCastleSpecializationCounts,
+          castleUpgradeChoices: playerFortress.castleUpgradeSpecializations,
+          pendingUpgradeSpecializationLevel,
           receivedSlayerUpgrade: Boolean(receivedSlayerUpgrade),
-          growPerTick: calculateTickProduction(playerFortress).pointsProduced,
+          raceBuffs: {
+            tier: raceBuffTier,
+            tierThreeUnlocksAt: raceTierThreeUnlocksAt,
+            dwarfGrudges: playerFortress.dwarfGrudges.map((grudge) => ({
+              targetFortressId: grudge.targetFortressId,
+              targetName: grudge.targetFortress.name,
+              targetCommanderName: grudge.targetFortress.commanderName,
+              slot: grudge.slot,
+              bonusMultiplier: grudge.bonusMultiplier,
+            })),
+            canChooseDwarfGrudge:
+              playerFortress.race === "DWARFS" &&
+              raceBuffTier >= 2 &&
+              playerFortress.dwarfGrudges.length === 0,
+            canChooseDwarfTierThree:
+              playerFortress.race === "DWARFS" &&
+              raceBuffTier >= 3 &&
+              playerFortress.dwarfGrudges.length > 0 &&
+              !playerFortress.dwarfGrudges.some(
+                (grudge) => grudge.slot === 2 || grudge.bonusMultiplier >= 2
+              ),
+            canActivateWaaagh:
+              playerFortress.race === "ORKS" &&
+              raceBuffTier >= 2 &&
+              (!latestWaaaghUse ||
+                getHelsinkiDayKey(latestWaaaghUse.usedAt) !== currentDayKey),
+            waaaghActiveUntil:
+              latestWaaaghUse &&
+              latestWaaaghUse.activeFrom <= now &&
+              latestWaaaghUse.activeUntil > now
+                ? latestWaaaghUse.activeUntil
+                : null,
+            canActivateStim:
+              playerFortress.race === "SPACE_MURINES" &&
+              raceBuffTier >= 2 &&
+              (!latestStimUse ||
+                getHelsinkiDayKey(latestStimUse.usedAt) !== currentDayKey),
+            stimActiveUntil:
+              latestStimUse &&
+              latestStimUse.activeFrom <= now &&
+              latestStimUse.activeUntil > now
+                ? latestStimUse.activeUntil
+                : null,
+            canClaimUnicornTeleport:
+              playerFortress.race === "UNSTABLE_UNICORNS" &&
+              raceBuffTier >= 3 &&
+              activeUnicornTeleportToken === null &&
+              (!latestUnicornTeleportClaim ||
+                getHelsinkiHourKey(latestUnicornTeleportClaim.usedAt) !==
+                  currentHourKey),
+            hasUnicornTeleportToken: activeUnicornTeleportToken !== null,
+            unicornTeleportTokenExpiresAt:
+              activeUnicornTeleportToken?.expiresAt ?? null,
+          },
+          growPerTick: calculateTickProduction({
+            ...playerFortress,
+            castleSpecializations: playerCastleSpecializationCounts ?? undefined,
+          }).pointsProduced,
           attackDamage: getFortressAttackDamage(playerFortress.level),
         }
       : null,

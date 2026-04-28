@@ -3,6 +3,7 @@ import {
   UNIT_SPRITE_VARIANTS,
   type UnitSpriteVariant,
 } from "./constants";
+import type { FortressRace } from "./races";
 import { addMinutes } from "./time";
 
 export function getMapDistance(
@@ -14,11 +15,24 @@ export function getMapDistance(
 
 export function getAttackTravelMinutes(
   origin: { mapX: number; mapY: number },
-  target: { mapX: number; mapY: number }
+  target: { mapX: number; mapY: number },
+  options?: {
+    attackerRace?: FortressRace | null;
+    raceBuffTier?: number;
+  }
 ) {
+  const speedMultiplier =
+    options?.attackerRace === "UNSTABLE_UNICORNS" &&
+    (options.raceBuffTier ?? 0) >= 2
+      ? 2
+      : 1;
+
   return Math.max(
     1,
-    Math.ceil(getMapDistance(origin, target) / ATTACK_UNIT_SPEED_PER_MINUTE)
+    Math.ceil(
+      getMapDistance(origin, target) /
+        (ATTACK_UNIT_SPEED_PER_MINUTE * speedMultiplier)
+    )
   );
 }
 
@@ -26,12 +40,22 @@ export function getAttackArrivalAt({
   launchedAt,
   origin,
   target,
+  attackerRace,
+  raceBuffTier,
 }: {
   launchedAt: Date;
   origin: { mapX: number; mapY: number };
   target: { mapX: number; mapY: number };
+  attackerRace?: FortressRace | null;
+  raceBuffTier?: number;
 }) {
-  return addMinutes(launchedAt, getAttackTravelMinutes(origin, target));
+  return addMinutes(
+    launchedAt,
+    getAttackTravelMinutes(origin, target, {
+      attackerRace,
+      raceBuffTier,
+    })
+  );
 }
 
 export function getRandomUnitSpriteVariant(): UnitSpriteVariant {

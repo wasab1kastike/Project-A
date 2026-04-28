@@ -25,10 +25,16 @@ import {
   ArcadeGameType,
   ArcadeLootBoxType,
   FortressAction,
+  RaceAbilityKind,
 } from "@/lib/prisma-client";
 import { emitProjectARefresh } from "@/lib/realtime";
 import {
   editRegistrationFortressName,
+  activateRaceAbility,
+  chooseDwarfGrudge,
+  chooseDwarfTierThreeGrudge,
+  choosePendingUpgradeSpecialization,
+  claimUnicornTeleport,
   joinRegistrationCycle,
   purchaseFortressUpgrade,
   registerCommanderName,
@@ -265,12 +271,13 @@ export async function renameFortressAction(formData: FormData) {
   finishAction("Fortress renamed and 10 points spent.");
 }
 
-export async function purchaseFortressUpgradeAction() {
+export async function purchaseFortressUpgradeAction(formData: FormData) {
   const userId = await requireUserId();
 
   try {
     await purchaseFortressUpgrade({
       userId,
+      specialization: getString(formData, "specialization"),
     });
     emitProjectARefresh("castle-upgrade");
   } catch (error) {
@@ -278,6 +285,102 @@ export async function purchaseFortressUpgradeAction() {
   }
 
   finishAction("Castle upgraded.");
+}
+
+export async function choosePendingUpgradeSpecializationAction(formData: FormData) {
+  const userId = await requireUserId();
+
+  try {
+    await choosePendingUpgradeSpecialization({
+      userId,
+      specialization: getString(formData, "specialization"),
+    });
+    emitProjectARefresh("castle-upgrade-specialization");
+  } catch (error) {
+    redirectToHome("error", getActionErrorMessage(error));
+  }
+
+  finishAction("Castle specialization locked.");
+}
+
+export async function chooseDwarfGrudgeAction(formData: FormData) {
+  const userId = await requireUserId();
+
+  try {
+    await chooseDwarfGrudge({
+      userId,
+      targetFortressId: getString(formData, "targetFortressId"),
+    });
+    emitProjectARefresh("dwarf-grudge");
+  } catch (error) {
+    redirectToHome("error", getActionErrorMessage(error));
+  }
+
+  finishAction("Grudge Book updated.");
+}
+
+export async function chooseDwarfTierThreeGrudgeAction(formData: FormData) {
+  const userId = await requireUserId();
+
+  try {
+    await chooseDwarfTierThreeGrudge({
+      userId,
+      targetFortressId: getString(formData, "targetFortressId") || undefined,
+      doubleExisting: getString(formData, "choice") === "double",
+    });
+    emitProjectARefresh("dwarf-grudge-tier-three");
+  } catch (error) {
+    redirectToHome("error", getActionErrorMessage(error));
+  }
+
+  finishAction("Grudge Book updated.");
+}
+
+export async function activateWaaaghAction() {
+  const userId = await requireUserId();
+
+  try {
+    await activateRaceAbility({
+      userId,
+      kind: RaceAbilityKind.ORK_WAAAGH,
+    });
+    emitProjectARefresh("ork-waaagh");
+  } catch (error) {
+    redirectToHome("error", getActionErrorMessage(error));
+  }
+
+  finishAction("WAAAGH activated for one hour.");
+}
+
+export async function activateStimAction() {
+  const userId = await requireUserId();
+
+  try {
+    await activateRaceAbility({
+      userId,
+      kind: RaceAbilityKind.SPACE_MURINE_STIM,
+    });
+    emitProjectARefresh("space-murine-stim");
+  } catch (error) {
+    redirectToHome("error", getActionErrorMessage(error));
+  }
+
+  finishAction("STIM activated for one hour.");
+}
+
+export async function claimUnicornTeleportAction() {
+  const userId = await requireUserId();
+
+  try {
+    await claimUnicornTeleport({
+      userId,
+    });
+    emitProjectARefresh("unicorn-teleport-claim");
+  } catch (error) {
+    redirectToHome("error", getActionErrorMessage(error));
+  }
+
+  finishAction("Free Castle Yeet token claimed.");
 }
 
 export async function shuffleFortressLocationAction() {
@@ -298,6 +401,28 @@ export async function shuffleFortressLocationAction() {
         : result.cancelledAttackUnitCount > 0
           ? "Castle Yeet fired and 50 points were spent. Outgoing attacks were canceled."
           : "Castle Yeet fired and 50 points were spent.";
+  } catch (error) {
+    redirectToHome("error", getActionErrorMessage(error));
+  }
+
+  finishAction(notice);
+}
+
+export async function useUnicornTeleportAction() {
+  const userId = await requireUserId();
+  let notice: string;
+
+  try {
+    const result = await shuffleFortressLocation({
+      userId,
+      useFreeTeleport: true,
+    });
+    emitProjectARefresh("unicorn-teleport-use");
+
+    notice =
+      result.cancelledAttackUnitCount > 0
+        ? "Free Unicorn teleport fired. Outgoing attacks were canceled."
+        : "Free Unicorn teleport fired.";
   } catch (error) {
     redirectToHome("error", getActionErrorMessage(error));
   }

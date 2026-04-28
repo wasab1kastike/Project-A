@@ -1,9 +1,11 @@
 import {
+  CastleUpgradeSpecialization,
   CycleStatus,
   FortressAction,
   ScoreEventType,
   Prisma,
   PrismaClient,
+  RaceAbilityKind,
 } from "@/lib/prisma-client";
 import { prisma } from "@/lib/prisma";
 import {
@@ -25,6 +27,13 @@ import {
   takeOpenSpawnPoint,
 } from "./spawn-layout";
 import { floorToMinute } from "./time";
+import {
+  getHelsinkiDayKey,
+  getHelsinkiHourKey,
+  getRaceAbilityActiveUntil,
+  getRaceBuffTier,
+} from "./race-buffs";
+import { isCastleUpgradeSpecialization } from "./specializations";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -223,6 +232,19 @@ async function getFortressLocationShuffleCount(
   );
 
   return rows[0]?.locationShuffleCount ?? 0;
+}
+
+async function getPendingUpgradeSpecializationLevel(
+  db: DatabaseClient,
+  fortress: { id: string; level: number }
+) {
+  const selectedCount = await db.castleUpgradeSpecializationChoice.count({
+    where: {
+      fortressId: fortress.id,
+    },
+  });
+
+  return selectedCount < fortress.level ? selectedCount + 1 : null;
 }
 
 export async function joinRegistrationCycle({
@@ -818,10 +840,12 @@ export async function renameActiveFortress({
 
 export async function shuffleFortressLocation({
   userId,
+  useFreeTeleport = false,
   now = new Date(),
   db = prisma,
 }: {
   userId: string;
+  useFreeTeleport?: boolean;
   now?: Date;
   db?: PrismaClient;
 }) {
@@ -843,6 +867,7 @@ export async function shuffleFortressLocation({
         id: true,
         points: true,
         race: true,
+        level: true,
         currentAction: true,
         mapX: true,
         mapY: true,
@@ -863,8 +888,21 @@ export async function shuffleFortressLocation({
       tx,
       fortress.id
     );
+    const freeTeleport = useFreeTeleport
+      ? await tx.raceAbilityActivation.findFirst({
+          where: {
+            fortressId: fortress.id,
+            kind: RaceAbilityKind.UNICORN_TELEPORT,
+            consumedAt: null,
+            expiresAt: {
+              gt: now,
+            },
+          },
+          orderBy: [{ expiresAt: "asc" }, { id: "asc" }],
+        })
+      : null;
     const shuffleCost =
-      locationShuffleCount === 0 ? 0 : ACTIVE_LOCATION_SHUFFLE_COST;
+      locationShuffleCount === 0 || freeTeleport ? 0 : ACTIVE_LOCATION_SHUFFLE_COST;
 
     if (shuffleCost > 0 && fortress.points < shuffleCost) {
       throw new GameError(
@@ -949,6 +987,17 @@ export async function shuffleFortressLocation({
       });
     }
 
+    if (freeTeleport) {
+      await tx.raceAbilityActivation.update({
+        where: {
+          id: freeTeleport.id,
+        },
+        data: {
+          consumedAt: now,
+        },
+      });
+    }
+
     const updatedFortress = await tx.fortress.findUniqueOrThrow({
       where: {
         id: fortress.id,
@@ -965,13 +1014,19 @@ export async function shuffleFortressLocation({
 
 export async function purchaseFortressUpgrade({
   userId,
+  specialization,
   now = new Date(),
   db = prisma,
 }: {
   userId: string;
+  specialization: CastleUpgradeSpecialization | string;
   now?: Date;
   db?: PrismaClient;
 }) {
+  if (!isCastleUpgradeSpecialization(specialization)) {
+    throw new GameError("Choose a castle specialization for this upgrade.");
+  }
+
   return db.$transaction(async (tx) => {
     const cycle = await getCurrentCycle(tx);
 
@@ -994,6 +1049,15 @@ export async function purchaseFortressUpgrade({
 
     if (!fortress || fortress.isNpc) {
       throw new GameError("You are not participating in the active cycle.");
+    }
+
+    const pendingSpecializationLevel =
+      await getPendingUpgradeSpecializationLevel(tx, fortress);
+
+    if (pendingSpecializationLevel !== null) {
+      throw new GameError(
+        "Choose the specialization for your free castle upgrade first."
+      );
     }
 
     if (!canFortressLevelUp(fortress.level)) {
@@ -1022,6 +1086,15 @@ export async function purchaseFortressUpgrade({
       },
     });
 
+    await tx.castleUpgradeSpecializationChoice.create({
+      data: {
+        fortressId: fortress.id,
+        level: fortress.level + 1,
+        specialization,
+        createdAt: now,
+      },
+    });
+
     await tx.scoreEvent.create({
       data: {
         cycleId: cycle.id,
@@ -1034,5 +1107,427 @@ export async function purchaseFortressUpgrade({
     });
 
     return updatedFortress;
+  });
+}
+
+export async function choosePendingUpgradeSpecialization({
+  userId,
+  specialization,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  specialization: CastleUpgradeSpecialization | string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  if (!isCastleUpgradeSpecialization(specialization)) {
+    throw new GameError("Choose a castle specialization for this upgrade.");
+  }
+
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("Castle specialization is only available during gameplay.");
+    }
+
+    const fortress = await tx.fortress.findUnique({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: userId,
+        },
+      },
+    });
+
+    if (!fortress || fortress.isNpc) {
+      throw new GameError("You are not participating in the active cycle.");
+    }
+
+    const pendingLevel = await getPendingUpgradeSpecializationLevel(tx, fortress);
+
+    if (pendingLevel === null) {
+      throw new GameError("You do not have a pending castle specialization.");
+    }
+
+    return tx.castleUpgradeSpecializationChoice.create({
+      data: {
+        fortressId: fortress.id,
+        level: pendingLevel,
+        specialization,
+        createdAt: now,
+      },
+    });
+  });
+}
+
+export async function chooseDwarfGrudge({
+  userId,
+  targetFortressId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  targetFortressId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || cycle.status !== CycleStatus.ACTIVE) {
+      throw new GameError("Grudge Book is only available during the active season.");
+    }
+
+    if (
+      getRaceBuffTier({
+        activeStartedAt: cycle.activeStartedAt,
+        now,
+        isActiveSeason: true,
+      }) < 2
+    ) {
+      throw new GameError("Grudge Book has not unlocked yet.");
+    }
+
+    const fortress = await tx.fortress.findUnique({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: userId,
+        },
+      },
+      select: {
+        id: true,
+        race: true,
+        isNpc: true,
+      },
+    });
+
+    if (!fortress || fortress.isNpc || fortress.race !== "DWARFS") {
+      throw new GameError("Only Dwarfs can use the Grudge Book.");
+    }
+
+    if (targetFortressId === fortress.id) {
+      throw new GameError("You cannot add your own fortress to the Grudge Book.");
+    }
+
+    const target = await tx.fortress.findFirst({
+      where: {
+        id: targetFortressId,
+        cycleId: cycle.id,
+        isNpc: false,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!target) {
+      throw new GameError("Choose a player fortress for the Grudge Book.");
+    }
+
+    const grudgeCount = await tx.dwarfGrudge.count({
+      where: {
+        fortressId: fortress.id,
+      },
+    });
+
+    if (grudgeCount >= 1) {
+      throw new GameError("Your first Grudge Book target is already locked.");
+    }
+
+    return tx.dwarfGrudge.create({
+      data: {
+        fortressId: fortress.id,
+        targetFortressId,
+        slot: 1,
+      },
+    });
+  });
+}
+
+export async function chooseDwarfTierThreeGrudge({
+  userId,
+  targetFortressId,
+  doubleExisting = false,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  targetFortressId?: string;
+  doubleExisting?: boolean;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || cycle.status !== CycleStatus.ACTIVE) {
+      throw new GameError("Grudge Book is only available during the active season.");
+    }
+
+    if (
+      getRaceBuffTier({
+        activeStartedAt: cycle.activeStartedAt,
+        now,
+        isActiveSeason: true,
+      }) < 3
+    ) {
+      throw new GameError("The second Grudge Book entry has not unlocked yet.");
+    }
+
+    const fortress = await tx.fortress.findUnique({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: userId,
+        },
+      },
+      select: {
+        id: true,
+        race: true,
+        isNpc: true,
+        dwarfGrudges: {
+          orderBy: {
+            slot: "asc",
+          },
+          select: {
+            id: true,
+            slot: true,
+            bonusMultiplier: true,
+          },
+        },
+      },
+    });
+
+    if (!fortress || fortress.isNpc || fortress.race !== "DWARFS") {
+      throw new GameError("Only Dwarfs can use the Grudge Book.");
+    }
+
+    const firstGrudge = fortress.dwarfGrudges[0];
+
+    if (!firstGrudge) {
+      throw new GameError("Choose your first Grudge Book target first.");
+    }
+
+    if (fortress.dwarfGrudges.some((grudge) => grudge.slot === 2)) {
+      throw new GameError("Your tier 3 Grudge Book choice is already locked.");
+    }
+
+    if (doubleExisting) {
+      if (firstGrudge.bonusMultiplier >= 2) {
+        throw new GameError("Your first Grudge Book target is already doubled.");
+      }
+
+      return tx.dwarfGrudge.update({
+        where: {
+          id: firstGrudge.id,
+        },
+        data: {
+          bonusMultiplier: 2,
+        },
+      });
+    }
+
+    if (!targetFortressId || targetFortressId === fortress.id) {
+      throw new GameError("Choose a second player fortress for the Grudge Book.");
+    }
+
+    const target = await tx.fortress.findFirst({
+      where: {
+        id: targetFortressId,
+        cycleId: cycle.id,
+        isNpc: false,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!target) {
+      throw new GameError("Choose a player fortress for the Grudge Book.");
+    }
+
+    return tx.dwarfGrudge.create({
+      data: {
+        fortressId: fortress.id,
+        targetFortressId,
+        slot: 2,
+      },
+    });
+  });
+}
+
+export async function activateRaceAbility({
+  userId,
+  kind,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  kind: RaceAbilityKind;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || cycle.status !== CycleStatus.ACTIVE) {
+      throw new GameError("Race abilities are only available during the active season.");
+    }
+
+    if (
+      getRaceBuffTier({
+        activeStartedAt: cycle.activeStartedAt,
+        now,
+        isActiveSeason: true,
+      }) < 2
+    ) {
+      throw new GameError("Race abilities have not unlocked yet.");
+    }
+
+    const fortress = await tx.fortress.findUnique({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: userId,
+        },
+      },
+      select: {
+        id: true,
+        race: true,
+        isNpc: true,
+      },
+    });
+
+    if (!fortress || fortress.isNpc) {
+      throw new GameError("You are not participating in the active cycle.");
+    }
+
+    const expectedRace =
+      kind === RaceAbilityKind.ORK_WAAAGH
+        ? "ORKS"
+        : kind === RaceAbilityKind.SPACE_MURINE_STIM
+          ? "SPACE_MURINES"
+          : null;
+
+    if (!expectedRace || fortress.race !== expectedRace) {
+      throw new GameError("That race ability is not available to your race.");
+    }
+
+    const dayKey = getHelsinkiDayKey(now);
+    const previousUse = await tx.raceAbilityActivation.findFirst({
+      where: {
+        fortressId: fortress.id,
+        kind,
+      },
+      orderBy: [{ usedAt: "desc" }, { id: "desc" }],
+      select: {
+        usedAt: true,
+      },
+    });
+
+    if (previousUse && getHelsinkiDayKey(previousUse.usedAt) === dayKey) {
+      throw new GameError("That race ability has already been used today.");
+    }
+
+    return tx.raceAbilityActivation.create({
+      data: {
+        fortressId: fortress.id,
+        kind,
+        activeFrom: now,
+        activeUntil: getRaceAbilityActiveUntil(now),
+        usedAt: now,
+      },
+    });
+  });
+}
+
+export async function claimUnicornTeleport({
+  userId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || cycle.status !== CycleStatus.ACTIVE) {
+      throw new GameError("Unicorn teleport is only available during the active season.");
+    }
+
+    if (
+      getRaceBuffTier({
+        activeStartedAt: cycle.activeStartedAt,
+        now,
+        isActiveSeason: true,
+      }) < 3
+    ) {
+      throw new GameError("Free hourly teleport has not unlocked yet.");
+    }
+
+    const fortress = await tx.fortress.findUnique({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: userId,
+        },
+      },
+      select: {
+        id: true,
+        race: true,
+        isNpc: true,
+      },
+    });
+
+    if (!fortress || fortress.isNpc || fortress.race !== "UNSTABLE_UNICORNS") {
+      throw new GameError("Only Unstable Unicorns can claim free teleport.");
+    }
+
+    const existingToken = await tx.raceAbilityActivation.findFirst({
+      where: {
+        fortressId: fortress.id,
+        kind: RaceAbilityKind.UNICORN_TELEPORT,
+        consumedAt: null,
+        expiresAt: {
+          gt: now,
+        },
+      },
+    });
+
+    if (existingToken) {
+      throw new GameError("You already have an unused free teleport token.");
+    }
+
+    const hourKey = getHelsinkiHourKey(now);
+    const latestClaim = await tx.raceAbilityActivation.findFirst({
+      where: {
+        fortressId: fortress.id,
+        kind: RaceAbilityKind.UNICORN_TELEPORT,
+      },
+      orderBy: [{ usedAt: "desc" }, { id: "desc" }],
+      select: {
+        usedAt: true,
+      },
+    });
+
+    if (latestClaim && getHelsinkiHourKey(latestClaim.usedAt) === hourKey) {
+      throw new GameError("Free teleport has already been claimed this hour.");
+    }
+
+    return tx.raceAbilityActivation.create({
+      data: {
+        fortressId: fortress.id,
+        kind: RaceAbilityKind.UNICORN_TELEPORT,
+        activeFrom: now,
+        activeUntil: now,
+        usedAt: now,
+        expiresAt: getRaceAbilityActiveUntil(now),
+      },
+    });
   });
 }

@@ -1,5 +1,11 @@
 import { GameError } from "./errors";
 import { getRaceModifiers, type FortressRace } from "./races";
+import {
+  EMPTY_CASTLE_SPECIALIZATION_COUNTS,
+  getCastleSpecializationMultiplier,
+  type CastleSpecializationCounts,
+} from "./specializations";
+import { CastleUpgradeSpecialization } from "@/lib/prisma-client";
 
 export const BASE_POPULATION = 25;
 export const POPULATION_PER_DB_LEVEL = 10;
@@ -22,6 +28,7 @@ export const MAX_FOOD_LOOT_PERCENT = 0.25;
 export type WorkerAssignmentLike = {
   level: number;
   race?: FortressRace | null;
+  castleSpecializations?: Partial<CastleSpecializationCounts>;
   minersAssigned: number;
   farmersAssigned: number;
   recruitersAssigned: number;
@@ -37,6 +44,10 @@ export type RaidOutcomeInput = {
   defenderArmy: number;
   defenderDbLevel: number;
   defenderRace?: FortressRace | null;
+  attackPowerMultiplier?: number;
+  defensePowerMultiplier?: number;
+  preventAttackerCasualties?: boolean;
+  preventDefenderLosses?: boolean;
   defenderPoints: number;
   defenderFood: number;
 };
@@ -70,6 +81,13 @@ function clampNonNegative(value: number) {
 
 function clampInteger(value: number) {
   return Math.max(0, Math.floor(value));
+}
+
+function getSpecializationCount(
+  counts: Partial<CastleSpecializationCounts> | undefined,
+  specialization: CastleUpgradeSpecialization
+) {
+  return counts?.[specialization] ?? EMPTY_CASTLE_SPECIALIZATION_COUNTS[specialization];
 }
 
 function splitRaidLoot({
@@ -135,27 +153,39 @@ export function getFortressPopulation(
 
 export function getDefenseBonusPercent(
   dbLevel: number,
-  race?: FortressRace | null
+  race?: FortressRace | null,
+  castleSpecializations?: Partial<CastleSpecializationCounts>
 ) {
   return (
     getDisplayedCastleLevel(dbLevel) * DEFENSE_BONUS_PER_DISPLAYED_LEVEL +
-    getRaceModifiers(race).defenseBonus
+    getRaceModifiers(race).defenseBonus +
+    getSpecializationCount(
+      castleSpecializations,
+      CastleUpgradeSpecialization.DEFENSE
+    ) *
+      0.1
   );
 }
 
 export function getFortressDefenseMultiplier(
   dbLevel: number,
-  race?: FortressRace | null
+  race?: FortressRace | null,
+  castleSpecializations?: Partial<CastleSpecializationCounts>
 ) {
-  return 1 + getDefenseBonusPercent(dbLevel, race);
+  return 1 + getDefenseBonusPercent(dbLevel, race, castleSpecializations);
 }
 
 export function getEffectiveDefendingArmy(
   army: number,
   dbLevel: number,
-  race?: FortressRace | null
+  race?: FortressRace | null,
+  castleSpecializations?: Partial<CastleSpecializationCounts>
 ) {
-  return army * getFortressDefenseMultiplier(dbLevel, race);
+  return army * getFortressDefenseMultiplier(
+    dbLevel,
+    race,
+    castleSpecializations
+  );
 }
 
 export function validateWorkerAssignments(input: WorkerAssignmentLike) {
@@ -193,19 +223,40 @@ export function calculateTickProduction(fortressLike: FortressEconomyLike) {
   const minersAssigned = clampNonNegative(fortressLike.minersAssigned);
   const farmersAssigned = clampNonNegative(fortressLike.farmersAssigned);
   const recruitersAssigned = clampNonNegative(fortressLike.recruitersAssigned);
+  const pointMultiplier = getCastleSpecializationMultiplier(
+    getSpecializationCount(
+      fortressLike.castleSpecializations,
+      CastleUpgradeSpecialization.POINTS
+    )
+  );
+  const foodMultiplier = getCastleSpecializationMultiplier(
+    getSpecializationCount(
+      fortressLike.castleSpecializations,
+      CastleUpgradeSpecialization.FOOD
+    )
+  );
+  const armyMultiplier = getCastleSpecializationMultiplier(
+    getSpecializationCount(
+      fortressLike.castleSpecializations,
+      CastleUpgradeSpecialization.MILITARY
+    )
+  );
   const population = getFortressPopulation(
     fortressLike.level,
     fortressLike.race
   );
-  const pointsProduced =
+  const basePointsProduced =
     minersAssigned * POINTS_PER_MINER +
     Math.floor(minersAssigned / 10) * raceModifiers.pointsPerTenMiners;
-  const foodProduced =
+  const baseFoodProduced =
     farmersAssigned * FOOD_PER_FARMER +
     Math.floor(farmersAssigned / 10) * raceModifiers.foodPerTenFarmers;
-  const armyRequested =
+  const baseArmyRequested =
     recruitersAssigned * ARMY_PER_RECRUITER +
     Math.floor(recruitersAssigned / 10) * raceModifiers.armyPerTenRecruiters;
+  const pointsProduced = Math.floor(basePointsProduced * pointMultiplier);
+  const foodProduced = Math.floor(baseFoodProduced * foodMultiplier);
+  const armyRequested = Math.floor(baseArmyRequested * armyMultiplier);
   const availableFood = clampNonNegative(fortressLike.food) + foodProduced;
   const armyProduced = Math.min(
     armyRequested,
@@ -230,7 +281,9 @@ export function calculateRaidOutcome(input: RaidOutcomeInput): RaidOutcome {
   const defenderArmy = clampInteger(input.defenderArmy);
   const defenderPoints = clampInteger(input.defenderPoints);
   const defenderFood = clampInteger(input.defenderFood);
-  const attackPower = attackArmy;
+  const attackPower = Math.floor(
+    attackArmy * Math.max(0, input.attackPowerMultiplier ?? 1)
+  );
   const defenseMultiplier = getFortressDefenseMultiplier(
     input.defenderDbLevel,
     input.defenderRace
@@ -240,7 +293,7 @@ export function calculateRaidOutcome(input: RaidOutcomeInput): RaidOutcome {
       defenderArmy,
       input.defenderDbLevel,
       input.defenderRace
-    )
+    ) * Math.max(0, input.defensePowerMultiplier ?? 1)
   );
   const attackerWon = attackPower > defensePower;
   const outcome: RaidOutcome["outcome"] = attackerWon
@@ -256,22 +309,28 @@ export function calculateRaidOutcome(input: RaidOutcomeInput): RaidOutcome {
         )
       )
     : 0;
-  const attackerRetired = attackerWon
-    ? Math.ceil(attackerSurvivors * ATTACKER_RETIREMENT_RATE)
-    : 0;
-  const attackerReturned = Math.max(0, attackerSurvivors - attackerRetired);
-  const defenderLosses = attackerWon
-    ? Math.min(
-        defenderArmy,
-        Math.ceil(defenderArmy * DEFENDER_LOSS_RATE_ON_ATTACKER_WIN)
-      )
-    : Math.min(
-        defenderArmy,
-        Math.ceil(
-          (attackPower / Math.max(defenseMultiplier, 1)) *
-            FAILED_ATTACK_DEFENDER_CASUALTY_FACTOR
+  const attackerRetired = input.preventAttackerCasualties
+    ? 0
+    : attackerWon
+      ? Math.ceil(attackerSurvivors * ATTACKER_RETIREMENT_RATE)
+      : 0;
+  const attackerReturned = input.preventAttackerCasualties
+    ? attackArmy
+    : Math.max(0, attackerSurvivors - attackerRetired);
+  const defenderLosses = input.preventDefenderLosses
+    ? 0
+    : attackerWon
+      ? Math.min(
+          defenderArmy,
+          Math.ceil(defenderArmy * DEFENDER_LOSS_RATE_ON_ATTACKER_WIN)
         )
-      );
+      : Math.min(
+          defenderArmy,
+          Math.ceil(
+            (attackPower / Math.max(defenseMultiplier, 1)) *
+              FAILED_ATTACK_DEFENDER_CASUALTY_FACTOR
+          )
+        );
 
   let pointsLooted = 0;
   let foodLooted = 0;

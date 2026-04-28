@@ -59,8 +59,9 @@ import {
   MAX_FORTRESS_LEVEL,
   UNIT_SPRITE_VARIANTS,
 } from "./constants";
-import { getAttackArrivalAt } from "./attacks";
+import { getAttackArrivalAt, getAttackTravelMinutes } from "./attacks";
 import { getAttackPresentation } from "./attack-presentation";
+import { getNextHelsinkiNoonAfter, getRaceBuffTier } from "./race-buffs";
 import {
   HEX_SPAWN_TILES,
   MAP_WORLD_HEIGHT,
@@ -590,6 +591,58 @@ test("attack presentation keeps units moving until the impact window", () => {
   assert.equal(impacting.showSprite, false);
   assert.ok(impacting.progress <= 0.94);
   assert.equal(impacting.progress, 0.92);
+});
+
+test("race buff tiers unlock tier 2 at active start and tier 3 at next Helsinki noon", () => {
+  const activeStartedAt = new Date("2026-04-20T09:00:00.000Z");
+  const tierThreeAt = getNextHelsinkiNoonAfter(activeStartedAt);
+
+  assert.equal(
+    getRaceBuffTier({
+      activeStartedAt,
+      now: new Date("2026-04-20T08:59:00.000Z"),
+      isActiveSeason: true,
+    }),
+    0
+  );
+  assert.equal(
+    getRaceBuffTier({
+      activeStartedAt,
+      now: activeStartedAt,
+      isActiveSeason: true,
+    }),
+    2
+  );
+  assert.equal(
+    getRaceBuffTier({
+      activeStartedAt,
+      now: tierThreeAt,
+      isActiveSeason: true,
+    }),
+    3
+  );
+  assert.equal(
+    getRaceBuffTier({
+      activeStartedAt,
+      now: tierThreeAt,
+      isActiveSeason: false,
+    }),
+    0
+  );
+});
+
+test("unicorn tier 2 travel speed halves attack travel time", () => {
+  const origin = { mapX: 0, mapY: 0 };
+  const target = { mapX: 120, mapY: 0 };
+
+  assert.equal(getAttackTravelMinutes(origin, target), 10);
+  assert.equal(
+    getAttackTravelMinutes(origin, target, {
+      attackerRace: "UNSTABLE_UNICORNS",
+      raceBuffTier: 2,
+    }),
+    5
+  );
 });
 
 test("build arcade rewards unlock cosmetics at predictable score thresholds", () => {
@@ -2919,6 +2972,7 @@ test("castle upgrades reject locked, unaffordable, and max-level purchases", asy
       purchaseFortressUpgrade({
         db: prisma,
         userId: user.id,
+        specialization: "POINTS",
         now: new Date("2026-04-20T12:03:00.000Z"),
       }),
     /unlock after Home of A has fallen/
@@ -2950,6 +3004,7 @@ test("castle upgrades reject locked, unaffordable, and max-level purchases", asy
       purchaseFortressUpgrade({
         db: prisma,
         userId: user.id,
+        specialization: "POINTS",
         now: new Date("2026-04-20T12:05:00.000Z"),
       }),
     /at least 100 points/
@@ -2989,6 +3044,7 @@ test("castle upgrades reject locked, unaffordable, and max-level purchases", asy
   await purchaseFortressUpgrade({
     db: prisma,
     userId: user.id,
+    specialization: "POINTS",
     now: new Date("2026-04-20T12:06:00.000Z"),
   });
   const afterFirstUpgradeState = await getHomePageState({
@@ -3034,6 +3090,7 @@ test("castle upgrades reject locked, unaffordable, and max-level purchases", asy
     await purchaseFortressUpgrade({
       db: prisma,
       userId: user.id,
+      specialization: "POINTS",
       now: new Date(
         `2026-04-20T12:${String(6 + level).padStart(2, "0")}:00.000Z`
       ),
@@ -3078,6 +3135,7 @@ test("castle upgrades reject locked, unaffordable, and max-level purchases", asy
       purchaseFortressUpgrade({
         db: prisma,
         userId: user.id,
+        specialization: "POINTS",
         now: new Date("2026-04-20T12:10:00.000Z"),
       }),
     /maximum level/

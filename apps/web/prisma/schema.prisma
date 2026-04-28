@@ -31,6 +31,19 @@ enum FortressRace {
   ORKS
 }
 
+enum CastleUpgradeSpecialization {
+  POINTS
+  FOOD
+  MILITARY
+  DEFENSE
+}
+
+enum RaceAbilityKind {
+  ORK_WAAAGH
+  SPACE_MURINE_STIM
+  UNICORN_TELEPORT
+}
+
 enum ScoreEventType {
   GROW_TICK
   ATTACK_SELF
@@ -239,6 +252,10 @@ model Fortress {
   crownedCycles             Cycle[]        @relation("CycleCrownedFortress")
   scoreEventsAsFortress     ScoreEvent[]   @relation("ScoreEventFortress")
   scoreEventsAsTarget       ScoreEvent[]   @relation("ScoreEventTargetFortress")
+  castleUpgradeSpecializations CastleUpgradeSpecializationChoice[]
+  raceAbilityActivations    RaceAbilityActivation[]
+  dwarfGrudges              DwarfGrudge[]  @relation("DwarfGrudgeOwner")
+  grudgedBy                 DwarfGrudge[]  @relation("DwarfGrudgeTarget")
 
   @@unique([cycleId, ownerId])
   @@unique([cycleId, commanderName])
@@ -246,6 +263,50 @@ model Fortress {
   @@index([cycleId])
   @@index([cycleId, isNpc])
   @@index([ownerId])
+}
+
+model CastleUpgradeSpecializationChoice {
+  id             String                      @id @default(cuid())
+  fortressId     String
+  level          Int
+  specialization CastleUpgradeSpecialization
+  createdAt      DateTime                    @default(now())
+  fortress       Fortress                    @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+
+  @@unique([fortressId, level])
+  @@index([fortressId, specialization])
+}
+
+model RaceAbilityActivation {
+  id         String          @id @default(cuid())
+  fortressId String
+  kind       RaceAbilityKind
+  activeFrom DateTime
+  activeUntil DateTime
+  usedAt     DateTime       @default(now())
+  expiresAt  DateTime?
+  consumedAt DateTime?
+  createdAt  DateTime       @default(now())
+  fortress   Fortress       @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+
+  @@index([fortressId, kind, usedAt])
+  @@index([fortressId, kind, activeUntil])
+  @@index([fortressId, kind, expiresAt, consumedAt])
+}
+
+model DwarfGrudge {
+  id               String   @id @default(cuid())
+  fortressId       String
+  targetFortressId String
+  slot             Int
+  bonusMultiplier  Int      @default(1)
+  createdAt        DateTime @default(now())
+  fortress         Fortress @relation("DwarfGrudgeOwner", fields: [fortressId], references: [id], onDelete: Cascade)
+  targetFortress   Fortress @relation("DwarfGrudgeTarget", fields: [targetFortressId], references: [id], onDelete: Cascade)
+
+  @@unique([fortressId, slot])
+  @@unique([fortressId, targetFortressId])
+  @@index([targetFortressId])
 }
 
 model AttackUnit {

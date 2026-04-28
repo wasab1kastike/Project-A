@@ -1,6 +1,8 @@
 import { Prisma, PrismaClient } from "@/lib/prisma-client";
 import { getAttackArrivalAt } from "./attacks";
 import { GameError } from "./errors";
+import { getRaceBuffTier } from "./race-buffs";
+import type { FortressRace } from "./races";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -11,10 +13,13 @@ export type AttackFortress = {
   army: number;
   mapX: number;
   mapY: number;
+  race?: FortressRace | null;
 };
 
 export type AttackCycle = {
   id: string;
+  status?: string;
+  activeStartedAt?: Date | null;
   activeEndsAt: Date | null;
 };
 
@@ -86,6 +91,12 @@ export async function launchAttackUnit({
     launchedAt,
     origin: attacker,
     target,
+    attackerRace: attacker.race,
+    raceBuffTier: getRaceBuffTier({
+      activeStartedAt: cycle.activeStartedAt ?? null,
+      now: launchedAt,
+      isActiveSeason: cycle.status === "ACTIVE",
+    }),
   });
 
   if (cycle.activeEndsAt && arrivesAt > cycle.activeEndsAt) {

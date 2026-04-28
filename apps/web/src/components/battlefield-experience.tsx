@@ -12,6 +12,12 @@ import { createPortal } from "react-dom";
 
 import {
   attackFromMapAction,
+  activateStimAction,
+  activateWaaaghAction,
+  chooseDwarfGrudgeAction,
+  chooseDwarfTierThreeGrudgeAction,
+  choosePendingUpgradeSpecializationAction,
+  claimUnicornTeleportAction,
   editRegistrationFortressNameAction,
   markChatReadAction,
   purchaseFortressUpgradeAction,
@@ -21,6 +27,7 @@ import {
   setFortressActionAction,
   updateWorkerAssignmentAction,
   shuffleFortressLocationAction,
+  useUnicornTeleportAction,
 } from "@/app/game-actions";
 import {
   calculateTickProduction,
@@ -114,6 +121,31 @@ type PlayerSummary = {
   nextUpgradeCost: number | null;
   canAffordUpgrade: boolean;
   canPurchaseUpgrade: boolean;
+  castleSpecializationCounts: Record<
+    "POINTS" | "FOOD" | "MILITARY" | "DEFENSE",
+    number
+  > | null;
+  pendingUpgradeSpecializationLevel: number | null;
+  raceBuffs: {
+    tier: number;
+    tierThreeUnlocksAt: Date | null;
+    dwarfGrudges: Array<{
+      targetFortressId: string;
+      targetName: string;
+      targetCommanderName: string;
+      slot: number;
+      bonusMultiplier: number;
+    }>;
+    canChooseDwarfGrudge: boolean;
+    canChooseDwarfTierThree: boolean;
+    canActivateWaaagh: boolean;
+    waaaghActiveUntil: Date | null;
+    canActivateStim: boolean;
+    stimActiveUntil: Date | null;
+    canClaimUnicornTeleport: boolean;
+    hasUnicornTeleportToken: boolean;
+    unicornTeleportTokenExpiresAt: Date | null;
+  };
   receivedSlayerUpgrade: boolean;
   growPerTick: number;
   attackDamage: number;
@@ -158,6 +190,29 @@ type BattleReport = {
   foodLooted: number;
   reportLines: string[];
 };
+
+const CASTLE_SPECIALIZATION_OPTIONS = [
+  { value: "POINTS", label: "Points", summary: "+10% point production" },
+  { value: "FOOD", label: "Food", summary: "+10% food production" },
+  { value: "MILITARY", label: "Military", summary: "+10% army production" },
+  { value: "DEFENSE", label: "Defense", summary: "+10% defense" },
+] as const;
+
+function CastleSpecializationFields() {
+  return (
+    <div className={styles.specializationGrid}>
+      {CASTLE_SPECIALIZATION_OPTIONS.map((option) => (
+        <label key={option.value} className={styles.specializationOption}>
+          <input name="specialization" type="radio" value={option.value} required />
+          <span>
+            <strong>{option.label}</strong>
+            <small>{option.summary}</small>
+          </span>
+        </label>
+      ))}
+    </div>
+  );
+}
 
 function RaceSelectionSection({
   currentRace,
@@ -1147,7 +1202,145 @@ export function BattlefieldExperience({
                     : `Castle Yeet for ${playerSummary.locationShuffleCost} pts`}
                 </button>
               </form>
+              {playerSummary.raceBuffs.hasUnicornTeleportToken ? (
+                <form action={useUnicornTeleportAction}>
+                  <button
+                    className={`${styles.secondaryButton} ${styles.emphasisButton}`}
+                    type="submit"
+                    disabled={playerSummary.currentAction !== "GROW"}
+                  >
+                    Use Unicorn free yeet
+                  </button>
+                </form>
+              ) : playerSummary.raceBuffs.canClaimUnicornTeleport ? (
+                <form action={claimUnicornTeleportAction}>
+                  <button className={styles.secondaryButton} type="submit">
+                    Claim hourly free yeet
+                  </button>
+                </form>
+              ) : null}
             </section>
+
+            {playerSummary.race && playerSummary.raceBuffs.tier >= 2 ? (
+              <section className={styles.upgradePanel}>
+                <div className={styles.upgradeHeader}>
+                  <div>
+                    <span className={styles.label}>Race buffs</span>
+                    <h4>Tier {playerSummary.raceBuffs.tier}</h4>
+                  </div>
+                  <strong>
+                    {playerSummary.raceBuffs.tier >= 3 ? "T3" : "T2"}
+                  </strong>
+                </div>
+                {playerSummary.raceBuffs.dwarfGrudges.length > 0 ? (
+                  <ul className={styles.compactList}>
+                    {playerSummary.raceBuffs.dwarfGrudges.map((grudge) => (
+                      <li key={`${grudge.slot}-${grudge.targetFortressId}`}>
+                        Grudge {grudge.slot}: {grudge.targetName} x
+                        {grudge.bonusMultiplier}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {playerSummary.raceBuffs.canChooseDwarfGrudge ? (
+                  <form action={chooseDwarfGrudgeAction} className={styles.inlineForm}>
+                    <select name="targetFortressId" required>
+                      <option value="">Choose grudge</option>
+                      {targets
+                        .filter((target) => {
+                          return (
+                            !target.isNpc &&
+                            !playerSummary.raceBuffs.dwarfGrudges.some(
+                              (grudge) =>
+                                grudge.targetFortressId === target.id
+                            )
+                          );
+                        })
+                        .map((target) => (
+                          <option key={target.id} value={target.id}>
+                            {target.name}
+                          </option>
+                        ))}
+                    </select>
+                    <button className={styles.secondaryButton} type="submit">
+                      Add grudge
+                    </button>
+                  </form>
+                ) : null}
+                {playerSummary.raceBuffs.canChooseDwarfTierThree ? (
+                  <>
+                    <form
+                      action={chooseDwarfTierThreeGrudgeAction}
+                      className={styles.inlineForm}
+                    >
+                      <select name="targetFortressId" required>
+                        <option value="">Choose second grudge</option>
+                        {targets
+                          .filter((target) => {
+                            return (
+                              !target.isNpc &&
+                              !playerSummary.raceBuffs.dwarfGrudges.some(
+                                (grudge) =>
+                                  grudge.targetFortressId === target.id
+                              )
+                            );
+                          })
+                          .map((target) => (
+                            <option key={target.id} value={target.id}>
+                              {target.name}
+                            </option>
+                          ))}
+                      </select>
+                      <button className={styles.secondaryButton} type="submit">
+                        Add second
+                      </button>
+                    </form>
+                    <form action={chooseDwarfTierThreeGrudgeAction}>
+                      <input name="choice" type="hidden" value="double" />
+                      <button className={styles.secondaryButton} type="submit">
+                        Double first grudge
+                      </button>
+                    </form>
+                  </>
+                ) : null}
+                {playerSummary.race === "ORKS" ? (
+                  playerSummary.raceBuffs.waaaghActiveUntil ? (
+                    <p className={styles.helper}>WAAAGH active for this hour.</p>
+                  ) : (
+                    <form action={activateWaaaghAction}>
+                      <button
+                        className={styles.secondaryButton}
+                        type="submit"
+                        disabled={!playerSummary.raceBuffs.canActivateWaaagh}
+                      >
+                        Summon WAAAGH
+                      </button>
+                    </form>
+                  )
+                ) : null}
+                {playerSummary.race === "SPACE_MURINES" ? (
+                  playerSummary.raceBuffs.stimActiveUntil ? (
+                    <p className={styles.helper}>STIM active for this hour.</p>
+                  ) : (
+                    <form action={activateStimAction}>
+                      <button
+                        className={styles.secondaryButton}
+                        type="submit"
+                        disabled={!playerSummary.raceBuffs.canActivateStim}
+                      >
+                        Activate STIM
+                      </button>
+                    </form>
+                  )
+                ) : null}
+                {playerSummary.race === "UNSTABLE_UNICORNS" ? (
+                  <p className={styles.helper}>
+                    Fast units are active. Tier 3 grants one free Castle Yeet
+                    claim per hour.
+                  </p>
+                ) : null}
+              </section>
+            ) : null}
 
             <section className={styles.upgradePanel}>
               <div className={styles.upgradeHeader}>
@@ -1160,7 +1353,8 @@ export function BattlefieldExperience({
                   {Math.round(
                     getDefenseBonusPercent(
                       playerSummary.level,
-                      playerSummary.race
+                      playerSummary.race,
+                      playerSummary.castleSpecializationCounts ?? undefined
                     ) * 100
                   )}
                   %
@@ -1209,9 +1403,31 @@ export function BattlefieldExperience({
                   upgrade.
                 </p>
               ) : null}
+              {playerSummary.castleSpecializationCounts ? (
+                <p className={styles.helper}>
+                  Specs: P {playerSummary.castleSpecializationCounts.POINTS}, F{" "}
+                  {playerSummary.castleSpecializationCounts.FOOD}, M{" "}
+                  {playerSummary.castleSpecializationCounts.MILITARY}, D{" "}
+                  {playerSummary.castleSpecializationCounts.DEFENSE}
+                </p>
+              ) : null}
+              {playerSummary.pendingUpgradeSpecializationLevel !== null ? (
+                <form action={choosePendingUpgradeSpecializationAction}>
+                  <p className={styles.helper}>
+                    Choose specialization for level{" "}
+                    {playerSummary.pendingUpgradeSpecializationLevel}.
+                  </p>
+                  <CastleSpecializationFields />
+                  <button className={styles.secondaryButton} type="submit">
+                    Lock specialization
+                  </button>
+                </form>
+              ) : null}
               {playerSummary.upgradesUnlocked &&
-              playerSummary.nextUpgradeCost !== null ? (
+              playerSummary.nextUpgradeCost !== null &&
+              playerSummary.pendingUpgradeSpecializationLevel === null ? (
                 <form action={purchaseFortressUpgradeAction}>
+                  <CastleSpecializationFields />
                   <button
                     className={`${styles.secondaryButton} ${styles.emphasisButton}`}
                     type="submit"
