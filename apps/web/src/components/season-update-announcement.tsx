@@ -20,8 +20,8 @@ const SECTIONS = [
   {
     title: "Four Races",
     items: [
-      "Dwarfs: defensive miners.",
-      "Unstable Unicorns: magical food chaos.",
+      "Dwarfs: Big beards, unbreakable stone walls and beer. ps. holds a grudge like none other.",
+      "Unstable Unicorns: magic & food & explosions and ...teleportation?",
       "Space Murines: Acolytes of the Emperor A, they despise all other life forms.",
       "ORKS: loud raiders with huge loot potential. Followers of legendary Khraal",
     ],
