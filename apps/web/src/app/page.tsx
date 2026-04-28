@@ -755,8 +755,8 @@ export default async function Home({
                 <dd>{state.playerSummary.points}</dd>
               </div>
               <div>
-                <dt>Action</dt>
-                <dd>{state.playerSummary.currentAction}</dd>
+                <dt>Growth</dt>
+                <dd>Workers</dd>
               </div>
               {state.playerSummary.currentTargetName ? (
                 <div className={styles.targetStat}>

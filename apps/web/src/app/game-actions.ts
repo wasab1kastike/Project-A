@@ -469,7 +469,11 @@ export async function setFortressActionAction(formData: FormData) {
     redirectToHome("error", getActionErrorMessage(error));
   }
 
-  finishAction("Fortress action updated.");
+  finishAction(
+    actionInput === FortressAction.ATTACK
+      ? "Attack launched."
+      : "Fortress growth continues."
+  );
 }
 
 export async function submitCommunityWishProposalAction(formData: FormData) {

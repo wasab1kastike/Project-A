@@ -12,7 +12,6 @@ import {
   MEGA_FORTRESS_HEALTH,
   TESTING_DURATION_HOURS,
 } from "./constants";
-import { launchAttackUnit } from "./attack-units";
 import { mintSeasonArcadeCoins } from "./arcade";
 import {
   COMMUNITY_WISH_VOTING_WINDOW_HOURS,
@@ -206,17 +205,6 @@ function getLastDueTickAt(
   }
 
   return lastDueTickAt;
-}
-
-function canLaunchAttackOnTick(
-  lastLaunchedAt: Date | null,
-  tickAt: Date
-) {
-  if (!lastLaunchedAt) {
-    return true;
-  }
-
-  return floorToMinute(lastLaunchedAt) < tickAt;
 }
 
 function getMegaFortressDestroyReward(destroyCount: number) {
@@ -873,7 +861,7 @@ async function processCycleTick(
       }),
     });
 
-    let fortresses = await tx.fortress.findMany({
+    const fortresses = await tx.fortress.findMany({
       where: {
         cycleId,
       },
@@ -935,49 +923,12 @@ async function processCycleTick(
     const currentHealth = new Map(
       fortresses.map((fortress) => [fortress.id, fortress.health])
     );
-    let fortressLookup = new Map(
+    const fortressLookup = new Map(
       fortresses.map((fortress) => [fortress.id, fortress])
     );
-    const attackLaunchLookup = new Map<string, { launchedAt: Date; armyAmount: number }>();
     const scoreEvents: Prisma.ScoreEventCreateManyInput[] = [];
     const destroyedMegaTargets = new Set<string>();
     let resolvedAttackUnits = 0;
-
-    const attackingFortressIds = fortresses
-      .filter(
-        (fortress) =>
-          !fortress.isNpc &&
-          fortress.currentAction === FortressAction.ATTACK &&
-          fortress.targetFortressId &&
-          fortress.targetFortressId !== fortress.id
-      )
-      .map((fortress) => fortress.id);
-
-    if (attackingFortressIds.length > 0) {
-      const attackLaunches = await tx.attackUnit.findMany({
-        where: {
-          cycleId,
-          attackerFortressId: {
-            in: attackingFortressIds,
-          },
-        },
-        orderBy: [{ launchedAt: "desc" }, { id: "desc" }],
-        select: {
-          attackerFortressId: true,
-          launchedAt: true,
-          armyAmount: true,
-        },
-      });
-
-      for (const launch of attackLaunches) {
-        if (!attackLaunchLookup.has(launch.attackerFortressId)) {
-          attackLaunchLookup.set(launch.attackerFortressId, {
-            launchedAt: launch.launchedAt,
-            armyAmount: launch.armyAmount,
-          });
-        }
-      }
-    }
 
     const dueAttackUnits = await tx.attackUnit.findMany({
       where: {
@@ -1033,11 +984,12 @@ async function processCycleTick(
           continue;
         }
 
-        const destructionContributors: Array<{
-          unitId: string;
-          attacker: NonNullable<typeof attacker>;
-        }> = [];
-
+        let destroyer:
+          | {
+              unitId: string;
+              attacker: NonNullable<typeof attacker>;
+            }
+          | null = null;
         for (const targetUnit of targetUnits) {
           const targetAttacker = fortressLookup.get(
             targetUnit.attackerFortressId
@@ -1050,7 +1002,7 @@ async function processCycleTick(
           const targetHealth = currentHealth.get(target.id) ?? target.health;
           const targetLoss = Math.min(
             targetHealth,
-            getFortressAttackDamage(targetAttacker.level)
+            targetUnit.armyAmount * getFortressAttackDamage(targetAttacker.level)
           );
 
           if (targetLoss <= 0) {
@@ -1060,10 +1012,12 @@ async function processCycleTick(
           const nextHealth = targetHealth - targetLoss;
           currentHealth.set(target.id, nextHealth);
 
-          destructionContributors.push({
-            unitId: targetUnit.id,
-            attacker: targetAttacker,
-          });
+          if (nextHealth <= 0 && !destroyer) {
+            destroyer = {
+              unitId: targetUnit.id,
+              attacker: targetAttacker,
+            };
+          }
 
           scoreEvents.push({
             cycleId,
@@ -1077,8 +1031,6 @@ async function processCycleTick(
         }
 
         if ((currentHealth.get(target.id) ?? target.health) <= 0) {
-          const destroyer = destructionContributors[0];
-
           if (!destroyer) {
             continue;
           }
@@ -1090,8 +1042,12 @@ async function processCycleTick(
           const attackerPoints =
             (currentPoints.get(destroyer.attacker.id) ??
               destroyer.attacker.points) + destroyReward;
+          const attackerFood =
+            (currentFood.get(destroyer.attacker.id) ??
+              destroyer.attacker.food) + destroyReward;
 
           currentPoints.set(destroyer.attacker.id, attackerPoints);
+          currentFood.set(destroyer.attacker.id, attackerFood);
           currentHealth.set(target.id, nextMegaHealth);
           destroyedMegaTargets.add(target.id);
 
@@ -1317,35 +1273,32 @@ async function processCycleTick(
         continue;
       }
 
-      if (fortress.currentAction === FortressAction.GROW) {
-        const production = calculateTickProduction({
-          ...fortress,
-          food: currentFood.get(fortress.id) ?? fortress.food,
-          castleSpecializations: countCastleSpecializations(
-            fortress.castleUpgradeSpecializations
-          ),
-        });
-        const currentArmyValue = currentArmy.get(fortress.id) ?? fortress.army;
-        currentPoints.set(
-          fortress.id,
-          (currentPoints.get(fortress.id) ?? 0) + production.pointsProduced
-        );
-        currentFood.set(fortress.id, production.foodAfterProduction);
-        currentArmy.set(
-          fortress.id,
-          currentArmyValue + production.armyProduced
-        );
-        scoreEvents.push({
-          cycleId,
-          fortressId: fortress.id,
-          actorId: fortress.ownerId,
-          eventType: ScoreEventType.GROW_TICK,
-          delta: production.pointsProduced,
-          createdAt: tickAt,
-        });
-        // TODO: add a dedicated resource history model for food and army deltas.
-        continue;
-      }
+      const production = calculateTickProduction({
+        ...fortress,
+        food: currentFood.get(fortress.id) ?? fortress.food,
+        castleSpecializations: countCastleSpecializations(
+          fortress.castleUpgradeSpecializations
+        ),
+      });
+      const currentArmyValue = currentArmy.get(fortress.id) ?? fortress.army;
+      currentPoints.set(
+        fortress.id,
+        (currentPoints.get(fortress.id) ?? 0) + production.pointsProduced
+      );
+      currentFood.set(fortress.id, production.foodAfterProduction);
+      currentArmy.set(
+        fortress.id,
+        currentArmyValue + production.armyProduced
+      );
+      scoreEvents.push({
+        cycleId,
+        fortressId: fortress.id,
+        actorId: fortress.ownerId,
+        eventType: ScoreEventType.GROW_TICK,
+        delta: production.pointsProduced,
+        createdAt: tickAt,
+      });
+      // TODO: add a dedicated resource history model for food and army deltas.
     }
 
     for (const fortress of fortresses) {
@@ -1380,121 +1333,10 @@ async function processCycleTick(
       });
     }
 
-    let launchedAttackUnits = 0;
-
-    if (destroyedMegaTargets.size > 0) {
-      fortresses = await tx.fortress.findMany({
-        where: {
-          cycleId,
-        },
-        orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
-        select: {
-          id: true,
-          ownerId: true,
-          points: true,
-          level: true,
-          food: true,
-          army: true,
-          minersAssigned: true,
-          farmersAssigned: true,
-          recruitersAssigned: true,
-          race: true,
-          currentAction: true,
-          targetFortressId: true,
-          isNpc: true,
-          health: true,
-          maxHealth: true,
-          mapX: true,
-          mapY: true,
-          joinedAt: true,
-          castleUpgradeSpecializations: {
-            select: {
-              specialization: true,
-            },
-          },
-          raceAbilityActivations: {
-            where: {
-              activeUntil: {
-                gt: tickAt,
-              },
-            },
-            select: {
-              kind: true,
-              activeFrom: true,
-              activeUntil: true,
-            },
-          },
-          dwarfGrudges: {
-            select: {
-              targetFortressId: true,
-              bonusMultiplier: true,
-            },
-          },
-        },
-      });
-      fortressLookup = new Map(
-        fortresses.map((fortress) => [fortress.id, fortress])
-      );
-    }
-
-    for (const fortress of fortresses) {
-      if (
-        fortress.currentAction !== FortressAction.ATTACK ||
-        fortress.isNpc ||
-        !fortress.targetFortressId ||
-        fortress.targetFortressId === fortress.id ||
-        !canLaunchAttackOnTick(
-          attackLaunchLookup.get(fortress.id)?.launchedAt ?? null,
-          tickAt
-        )
-      ) {
-        continue;
-      }
-
-      const target = fortressLookup.get(fortress.targetFortressId);
-
-      if (!target) {
-        continue;
-      }
-
-      const attackArmyAmount =
-        attackLaunchLookup.get(fortress.id)?.armyAmount ?? 1;
-      const currentArmyAmount = currentArmy.get(fortress.id) ?? fortress.army;
-
-      if (currentArmyAmount < attackArmyAmount) {
-        continue;
-      }
-
-      const launchedUnit = await launchAttackUnit({
-        db: tx,
-        cycle,
-        attacker: {
-          ...fortress,
-          points: currentPoints.get(fortress.id) ?? fortress.points,
-          army: currentArmyAmount,
-        },
-        target: {
-          ...target,
-          points: currentPoints.get(target.id) ?? target.points,
-        },
-        launchedAt: tickAt,
-        armyAmount: attackArmyAmount,
-      });
-
-      if (launchedUnit) {
-        launchedAttackUnits += 1;
-        attackLaunchLookup.set(fortress.id, {
-          launchedAt: tickAt,
-          armyAmount: attackArmyAmount,
-        });
-        currentArmy.set(fortress.id, currentArmyAmount - attackArmyAmount);
-      }
-    }
-
     return {
       processed: true,
-      scoreEventsCreated: scoreEvents.length + launchedAttackUnits,
-      launchedAttackUnits,
+      scoreEventsCreated: scoreEvents.length,
+      launchedAttackUnits: 0,
       resolvedAttackUnits,
     };
   });

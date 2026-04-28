@@ -972,13 +972,8 @@ export function BattlefieldExperience({
                   </dd>
                 </div>
                 <div className={styles.primaryStat}>
-                  <dt>Order</dt>
-                  <dd>
-                    {playerSummary.currentAction}
-                    {playerSummary.currentTargetName
-                      ? ` -> ${playerSummary.currentTargetName}`
-                      : ""}
-                  </dd>
+                  <dt>Growth</dt>
+                  <dd>Worker-based</dd>
                 </div>
                 <div>
                   <dt>Race</dt>
@@ -1016,7 +1011,7 @@ export function BattlefieldExperience({
             <form action={setFortressActionAction} className={styles.form}>
               <input name="action" type="hidden" value={action} />
               <input name="sentArmy" type="hidden" value={sentArmy} />
-              <div className={styles.segmentGroup} aria-label="Current action">
+              <div className={styles.segmentGroup} aria-label="Command type">
                 <button
                   type="button"
                   className={`${styles.segmentButton} ${
@@ -1025,7 +1020,7 @@ export function BattlefieldExperience({
                   aria-pressed={action === "GROW"}
                   onClick={() => chooseAction("GROW")}
                 >
-                  Grow
+                  Economy
                 </button>
                 <button
                   type="button"
@@ -1035,7 +1030,7 @@ export function BattlefieldExperience({
                   aria-pressed={action === "ATTACK"}
                   onClick={() => chooseAction("ATTACK")}
                 >
-                  Attack
+                  Manual attack
                 </button>
               </div>
 
@@ -1087,7 +1082,7 @@ export function BattlefieldExperience({
 
                   <p className={styles.helper}>
                     Available army: {playerSummary.army}. Sent army leaves home
-                    defense immediately.
+                    defense immediately; workers keep producing each tick.
                   </p>
 
                   <div className={styles.sectionHeading}>
@@ -1124,7 +1119,7 @@ export function BattlefieldExperience({
                   (action === "ATTACK" ? Boolean(attackValidationError) : false)
                 }
               >
-                {action === "ATTACK" ? "Send army" : "Save orders"}
+                {action === "ATTACK" ? "Send army" : "Keep growing"}
               </button>
             </form>
 
@@ -1171,11 +1166,6 @@ export function BattlefieldExperience({
                   ? `First yeet is free; later yeets cost ${playerSummary.locationShuffleCost} points.`
                   : `Free yeet used. Next yeet costs ${playerSummary.locationShuffleCost} points.`}
               </p>
-              {playerSummary.currentAction !== "GROW" ? (
-                <p className={`${styles.helper} ${styles.warningText}`}>
-                  Switch to Grow before triggering Castle Yeet.
-                </p>
-              ) : null}
               {playerSummary.hasOutgoingAttackUnits ? (
                 <p className={`${styles.helper} ${styles.warningText}`}>
                   Outgoing attack units already in flight will be canceled when
@@ -1183,7 +1173,6 @@ export function BattlefieldExperience({
                 </p>
               ) : null}
               {!playerSummary.canShuffleLocation &&
-              playerSummary.currentAction === "GROW" &&
               playerSummary.locationShuffleCost !== null &&
               playerSummary.points < playerSummary.locationShuffleCost ? (
                 <p className={styles.helper}>
@@ -1207,7 +1196,6 @@ export function BattlefieldExperience({
                   <button
                     className={`${styles.secondaryButton} ${styles.emphasisButton}`}
                     type="submit"
-                    disabled={playerSummary.currentAction !== "GROW"}
                   >
                     Use Unicorn free yeet
                   </button>

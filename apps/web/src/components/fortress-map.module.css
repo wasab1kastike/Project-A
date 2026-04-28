@@ -207,6 +207,24 @@
   image-rendering: pixelated;
 }
 
+.attackUnitAmount {
+  position: absolute;
+  right: -4px;
+  bottom: -2px;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 5px;
+  border: 1px solid rgba(255, 255, 255, 0.36);
+  border-radius: 999px;
+  background: rgba(12, 18, 28, 0.88);
+  color: #fff5cf;
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+}
+
 .attackUnitSprite[data-skin="ember"],
 .fortressSprite[data-skin="ember"] {
   filter: hue-rotate(-14deg) saturate(1.2) brightness(1.08);

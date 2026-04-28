@@ -12,6 +12,7 @@ import {
   CommunityWishStatus,
   CycleStatus,
   FortressAction,
+  FortressRace,
   PrismaClient,
   ScoreEventType,
   WinnerRequestStatus,
@@ -557,6 +558,7 @@ test("tick CLI formats structured runner errors with stage context", () => {
 test("attack presentation keeps units moving until the impact window", () => {
   const unit = {
     id: "unit-1",
+    armyAmount: 1,
     launchedAt: new Date("2026-04-23T12:00:00.000Z"),
     arrivesAt: new Date("2026-04-23T12:00:10.000Z"),
     attacker: {
@@ -2140,6 +2142,7 @@ test("action updates persist and self-targeting is rejected", async (context) =>
     },
     data: {
       army: 6,
+      race: FortressRace.DWARFS,
     },
   });
 
@@ -2210,8 +2213,8 @@ test("action updates persist and self-targeting is rejected", async (context) =>
     },
   });
 
-  assert.equal(refreshedFortress.currentAction, FortressAction.ATTACK);
-  assert.equal(refreshedFortress.targetFortressId, betaFortress.id);
+  assert.equal(refreshedFortress.currentAction, FortressAction.GROW);
+  assert.equal(refreshedFortress.targetFortressId, null);
   assert.equal(refreshedFortress.army, 1);
 
   const activeAttackUnit = await prisma.attackUnit.findFirst({
@@ -2279,6 +2282,7 @@ test("resolved battle reports are exposed to involved players", async (context) 
     },
     data: {
       army: 20,
+      race: FortressRace.DWARFS,
       mapX: 10,
       mapY: 10,
     },
@@ -2732,6 +2736,44 @@ test("location shuffle is free once, then costs 50 points and cancels outgoing a
     },
     data: {
       points: 100,
+      army: 1,
+      race: FortressRace.DWARFS,
+    },
+  });
+
+  await prisma.fortress.update({
+    where: {
+      id: attackerFortress.id,
+    },
+    data: {
+      army: 2,
+      race: FortressRace.DWARFS,
+    },
+  });
+
+  await prisma.fortress.update({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: attacker.id,
+      },
+    },
+    data: {
+      army: 1,
+      race: FortressRace.DWARFS,
+    },
+  });
+
+  await prisma.fortress.update({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: attacker.id,
+      },
+    },
+    data: {
+      army: 1,
+      race: FortressRace.DWARFS,
     },
   });
 
@@ -2821,7 +2863,7 @@ test("location shuffle is free once, then costs 50 points and cancels outgoing a
   assert.equal(shuffleCostEvents[0]?.delta, -ACTIVE_LOCATION_SHUFFLE_COST);
 });
 
-test("location shuffle rejects attack stance and insufficient paid points", async (context) => {
+test("location shuffle allows manual attacks in flight and rejects insufficient paid points", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -2859,6 +2901,19 @@ test("location shuffle rejects attack stance and insufficient paid points", asyn
     },
   });
 
+  await prisma.fortress.update({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: attacker.id,
+      },
+    },
+    data: {
+      army: 1,
+      race: FortressRace.DWARFS,
+    },
+  });
+
   await setFortressAction({
     db: prisma,
     userId: attacker.id,
@@ -2867,15 +2922,14 @@ test("location shuffle rejects attack stance and insufficient paid points", asyn
     now: new Date("2026-04-20T12:05:00.000Z"),
   });
 
-  await assert.rejects(
-    () =>
-      shuffleFortressLocation({
-        db: prisma,
-        userId: attacker.id,
-        now: new Date("2026-04-20T12:05:30.000Z"),
-      }),
-    /Switch your fortress to Grow/
-  );
+  const freeShuffle = await shuffleFortressLocation({
+    db: prisma,
+    userId: attacker.id,
+    now: new Date("2026-04-20T12:05:30.000Z"),
+  });
+
+  assert.equal(freeShuffle.shuffleCost, 0);
+  assert.equal(freeShuffle.cancelledAttackUnitCount, 1);
 
   await prisma.fortress.update({
     where: {
@@ -3539,7 +3593,7 @@ test("worker assignments produce points, food, and army in the same tick", async
   assert.equal(minerState.leaderboard[0]?.id, minerLeader.id);
 });
 
-test("attack units relaunch on the same tick when a previous unit resolves", async (context) => {
+test("manual attack units resolve without relaunching on the same tick", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -3588,6 +3642,8 @@ test("attack units relaunch on the same tick when a previous unit resolves", asy
     },
     data: {
       points: 3,
+      army: 1,
+      race: FortressRace.DWARFS,
     },
   });
   await prisma.fortress.update({
@@ -3684,11 +3740,7 @@ test("attack units relaunch on the same tick when a previous unit resolves", asy
     },
   });
 
-  assert.equal(sameTickOutbound.length, 1);
-  assert.equal(
-    sameTickOutbound[0]?.launchedAt.toISOString(),
-    attackUnit.arrivesAt.toISOString()
-  );
+  assert.equal(sameTickOutbound.length, 0);
 
   await runGameTick({
     db: prisma,
@@ -3703,14 +3755,10 @@ test("attack units relaunch on the same tick when a previous unit resolves", asy
     },
   });
 
-  assert.equal(nextOutbound.length, 2);
-  assert.equal(
-    nextOutbound.at(-1)?.launchedAt.toISOString(),
-    new Date(attackUnit.arrivesAt.getTime() + 60_000).toISOString()
-  );
+  assert.equal(nextOutbound.length, 0);
 });
 
-test("attack mode launches one unit per tick even while previous units are in transit", async (context) => {
+test("manual attack launches one unit and does not queue more while in transit", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -3759,6 +3807,8 @@ test("attack mode launches one unit per tick even while previous units are in tr
     },
     data: {
       points: 8,
+      army: 1,
+      race: FortressRace.DWARFS,
       mapX: 6,
       mapY: 6,
     },
@@ -3845,7 +3895,7 @@ test("attack mode launches one unit per tick even while previous units are in tr
     },
   });
 
-  assert.equal(unresolvedBeforeArrival.length, 5);
+  assert.equal(unresolvedBeforeArrival.length, 1);
   assert.equal(
     unresolvedBeforeArrival[0]?.arrivesAt.toISOString(),
     firstUnit.arrivesAt.toISOString()
@@ -3894,15 +3944,7 @@ test("attack mode launches one unit per tick even while previous units are in tr
   const unresolvedAfterFirstArrivalTick = unitsAfterFirstArrivalTick.filter(
     (unit) => unit.resolvedAt === null
   );
-  const launchedOnArrivalTick = unitsAfterFirstArrivalTick.filter((unit) => {
-    return unit.launchedAt.getTime() === firstUnit.arrivesAt.getTime();
-  });
-
-  assert.equal(launchedOnArrivalTick.length, 1);
-  assert.equal(
-    unresolvedAfterFirstArrivalTick.length,
-    unresolvedBeforeArrival.length
-  );
+  assert.equal(unresolvedAfterFirstArrivalTick.length, 0);
 
   const relaunchedUnits = await prisma.attackUnit.findMany({
     where: {
@@ -3915,14 +3957,10 @@ test("attack mode launches one unit per tick even while previous units are in tr
     },
   });
 
-  assert.equal(relaunchedUnits.length, unresolvedAfterFirstArrivalTick.length);
-  assert.equal(
-    relaunchedUnits.at(-1)?.launchedAt.toISOString(),
-    firstUnit.arrivesAt.toISOString()
-  );
+  assert.equal(relaunchedUnits.length, 0);
 });
 
-test("attack stream cadence follows tick boundaries instead of a rolling 60 second cooldown", async (context) => {
+test("manual attacks do not recur on tick boundaries", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -3970,6 +4008,8 @@ test("attack stream cadence follows tick boundaries instead of a rolling 60 seco
       id: attackerFortress.id,
     },
     data: {
+      army: 1,
+      race: FortressRace.DWARFS,
       mapX: 6,
       mapY: 6,
     },
@@ -4012,14 +4052,10 @@ test("attack stream cadence follows tick boundaries instead of a rolling 60 seco
     },
   });
 
-  assert.equal(unitsAfterThirtySeconds.length, 2);
+  assert.equal(unitsAfterThirtySeconds.length, 1);
   assert.equal(
     unitsAfterThirtySeconds[0]?.launchedAt.toISOString(),
     launchTime.toISOString()
-  );
-  assert.equal(
-    unitsAfterThirtySeconds[1]?.launchedAt.toISOString(),
-    "2026-04-20T12:06:00.000Z"
   );
 
   await runGameTick({
@@ -4040,14 +4076,10 @@ test("attack stream cadence follows tick boundaries instead of a rolling 60 seco
     },
   });
 
-  assert.equal(unitsAfterNinetySeconds.length, 3);
-  assert.equal(
-    unitsAfterNinetySeconds[2]?.launchedAt.toISOString(),
-    "2026-04-20T12:07:00.000Z"
-  );
+  assert.equal(unitsAfterNinetySeconds.length, 1);
 });
 
-test("attack toggle cannot spawn extra units within the same minute", async (context) => {
+test("manual attack commands can launch distinct one-time units in the same minute", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -4096,6 +4128,16 @@ test("attack toggle cannot spawn extra units within the same minute", async (con
     },
   });
 
+  await prisma.fortress.update({
+    where: {
+      id: attackerFortress.id,
+    },
+    data: {
+      army: 2,
+      race: FortressRace.DWARFS,
+    },
+  });
+
   await setFortressAction({
     db: prisma,
     userId: attacker.id,
@@ -4132,9 +4174,11 @@ test("attack toggle cannot spawn extra units within the same minute", async (con
     },
   });
 
-  assert.equal(units.length, 1);
+  assert.equal(units.length, 2);
   assert.equal(units[0]?.launchedAt.toISOString(), "2026-04-20T12:05:10.000Z");
   assert.equal(units[0]?.targetFortressId, targetFortress.id);
+  assert.equal(units[1]?.launchedAt.toISOString(), "2026-04-20T12:05:40.000Z");
+  assert.equal(units[1]?.targetFortressId, targetFortress.id);
 });
 
 test("attack toggle can launch again after the next minute boundary", async (context) => {
@@ -4186,6 +4230,16 @@ test("attack toggle can launch again after the next minute boundary", async (con
     },
   });
 
+  await prisma.fortress.update({
+    where: {
+      id: attackerFortress.id,
+    },
+    data: {
+      army: 2,
+      race: FortressRace.DWARFS,
+    },
+  });
+
   await setFortressAction({
     db: prisma,
     userId: attacker.id,
@@ -4228,7 +4282,7 @@ test("attack toggle can launch again after the next minute boundary", async (con
   assert.ok(units.every((unit) => unit.targetFortressId === targetFortress.id));
 });
 
-test("setting an attack target immediately updates the fortress target like the map attack flow expects", async (context) => {
+test("manual attacks launch immediately without persisting an attack target", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -4277,6 +4331,19 @@ test("setting an attack target immediately updates the fortress target like the 
     },
   });
 
+  await prisma.fortress.update({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: attacker.id,
+      },
+    },
+    data: {
+      army: 2,
+      race: FortressRace.DWARFS,
+    },
+  });
+
   await setFortressAction({
     db: prisma,
     userId: attacker.id,
@@ -4300,13 +4367,30 @@ test("setting an attack target immediately updates the fortress target like the 
       },
     },
     select: {
+      id: true,
       currentAction: true,
       targetFortressId: true,
     },
   });
+  const launchedTargets = await prisma.attackUnit.findMany({
+    where: {
+      attackerFortressId: attackerFortress.id,
+      cancelledAt: null,
+    },
+    orderBy: {
+      launchedAt: "asc",
+    },
+    select: {
+      targetFortressId: true,
+    },
+  });
 
-  assert.equal(attackerFortress.currentAction, FortressAction.ATTACK);
-  assert.equal(attackerFortress.targetFortressId, secondTargetFortress.id);
+  assert.equal(attackerFortress.currentAction, FortressAction.GROW);
+  assert.equal(attackerFortress.targetFortressId, null);
+  assert.deepEqual(
+    launchedTargets.map((unit) => unit.targetFortressId),
+    [firstTargetFortress.id, secondTargetFortress.id]
+  );
 });
 
 test("first mega fortress destroy unlocks upgrades, grants a free level, and respawns stronger", async (context) => {
@@ -4363,6 +4447,8 @@ test("first mega fortress destroy unlocks upgrades, grants a free level, and res
     },
     data: {
       points: 3,
+      army: 2,
+      race: FortressRace.DWARFS,
     },
   });
   await prisma.fortress.update({
@@ -4453,7 +4539,8 @@ test("first mega fortress destroy unlocks upgrades, grants a free level, and res
   assert.equal(refreshedCycle.crownedFortressId, attackerFortress.id);
   assert.ok(refreshedCycle.upgradesUnlockedAt);
   assert.equal(refreshedCycle.megaFortressDestroyCount, 1);
-  assert.equal(refreshedAttacker.points, 3 + MEGA_FORTRESS_DESTROY_BONUS);
+  assert.equal(refreshedAttacker.points, 3 + MEGA_FORTRESS_DESTROY_BONUS + 10);
+  assert.equal(refreshedAttacker.food, MEGA_FORTRESS_DESTROY_BONUS + 5);
   assert.equal(refreshedAttacker.level, 1);
   assert.equal(refreshedMega.health, MEGA_FORTRESS_HEALTH * 2);
   assert.equal(refreshedMega.maxHealth, MEGA_FORTRESS_HEALTH * 2);
@@ -4474,7 +4561,7 @@ test("first mega fortress destroy unlocks upgrades, grants a free level, and res
   );
 });
 
-test("mega fortress destroy credit goes to the earliest arriving unit in the due batch", async (context) => {
+test("mega fortress destroy credit goes to the unit that drops health to zero", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -4530,7 +4617,7 @@ test("mega fortress destroy credit goes to the earliest arriving unit in the due
       id: megaFortress.id,
     },
     data: {
-      health: 4,
+      health: 2,
     },
   });
   await prisma.gameTick.create({
@@ -4600,15 +4687,15 @@ test("mega fortress destroy credit goes to the earliest arriving unit in the due
     },
   });
 
-  assert.equal(refreshedCycle.crownedFortressId, earlyFortress.id);
-  assert.equal(earlyBonusEvent?.delta, MEGA_FORTRESS_DESTROY_BONUS);
-  assert.equal(lateBonusEvent, null);
+  assert.equal(refreshedCycle.crownedFortressId, lateFortress.id);
+  assert.equal(earlyBonusEvent, null);
+  assert.equal(lateBonusEvent?.delta, MEGA_FORTRESS_DESTROY_BONUS);
   assert.deepEqual(
     damageEvents.map((event) => event.actorId),
     [earlyUser.id, lateUser.id]
   );
-  assert.equal(history.firstSlayerCommanderName, "Early Commander");
-  assert.equal(history.firstSlayerFortressName, "Early Keep");
+  assert.equal(history.firstSlayerCommanderName, "Late Commander");
+  assert.equal(history.firstSlayerFortressName, "Late Keep");
 });
 test("later mega fortress destroys scale reward and health without changing the first slayer or free upgrade count", async (context) => {
   const prisma = getPrismaOrSkip(context);
@@ -4651,6 +4738,8 @@ test("later mega fortress destroys scale reward and health without changing the 
     },
     data: {
       points: 3,
+      army: 2,
+      race: FortressRace.DWARFS,
     },
   });
   await prisma.fortress.update({
@@ -4697,6 +4786,7 @@ test("later mega fortress destroys scale reward and health without changing the 
       id: attackerFortress.id,
     },
     data: {
+      army: 2,
       mapX: 6,
       mapY: 6,
     },
@@ -4713,17 +4803,15 @@ test("later mega fortress destroys scale reward and health without changing the 
     },
   });
 
-  const pointsBeforeSecondKill = (
-    await prisma.fortress.findUniqueOrThrow({
-      where: {
-        id: attackerFortress.id,
-      },
-      select: {
-        points: true,
-      },
-    })
-  ).points;
-
+  const resourcesBeforeSecondKill = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: attackerFortress.id,
+    },
+    select: {
+      points: true,
+      food: true,
+    },
+  });
   await setFortressAction({
     db: prisma,
     userId: attacker.id,
@@ -4788,7 +4876,8 @@ test("later mega fortress destroys scale reward and health without changing the 
   assert.equal(refreshedCycle.crownedFortressId, attackerFortress.id);
   assert.equal(freeUpgradeEvents.length, 1);
   assert.equal(refreshedAttacker.level, 1);
-  assert.equal(refreshedAttacker.points, pointsBeforeSecondKill + 1000);
+  assert.equal(refreshedAttacker.points, resourcesBeforeSecondKill.points + 1000 + 10);
+  assert.equal(refreshedAttacker.food, resourcesBeforeSecondKill.food + 1000 + 5);
   assert.deepEqual(
     destroyBonusEvents.map((event) => event.delta),
     [500, 1000]
@@ -4839,6 +4928,8 @@ test("resolved history stores the first slayer of A snapshot", async (context) =
     },
     data: {
       points: 3,
+      army: 2,
+      race: FortressRace.DWARFS,
     },
   });
   await prisma.fortress.update({
@@ -4902,7 +4993,7 @@ test("resolved history stores the first slayer of A snapshot", async (context) =
   assert.equal(adminState.recentHistory[0]?.firstSlayerFortressName, "Alpha");
 });
 
-test("switching to grow preserves in-flight attacks but stops future launches", async (context) => {
+test("manual grow command preserves in-flight attacks and launches no future attacks", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -4951,6 +5042,8 @@ test("switching to grow preserves in-flight attacks but stops future launches", 
     },
     data: {
       points: 4,
+      army: 1,
+      race: FortressRace.DWARFS,
     },
   });
 
@@ -5000,7 +5093,7 @@ test("switching to grow preserves in-flight attacks but stops future launches", 
   assert.equal(unresolvedAfterGrow.length, 1);
 });
 
-test("retargeting keeps in-flight units on the old target and sends future launches to the new target", async (context) => {
+test("manual retargeting launches one-time units at each chosen target", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -5062,6 +5155,8 @@ test("retargeting keeps in-flight units on the old target and sends future launc
       id: attackerFortress.id,
     },
     data: {
+      army: 2,
+      race: FortressRace.DWARFS,
       mapX: 6,
       mapY: 6,
     },
@@ -5126,10 +5221,9 @@ test("retargeting keeps in-flight units on the old target and sends future launc
     },
   });
 
-  assert.equal(unresolvedUnits.length, 3);
+  assert.equal(unresolvedUnits.length, 2);
   assert.equal(unresolvedUnits[0]?.targetFortressId, firstTargetFortress.id);
-  assert.equal(unresolvedUnits[1]?.targetFortressId, firstTargetFortress.id);
-  assert.equal(unresolvedUnits[2]?.targetFortressId, secondTargetFortress.id);
+  assert.equal(unresolvedUnits[1]?.targetFortressId, secondTargetFortress.id);
 });
 
 test("expired active cycle resolves a winner, writes history, and opens the next registration cycle", async (context) => {
@@ -5583,6 +5677,19 @@ test("read model exposes location shuffle cost and outgoing warning state", asyn
     },
   });
 
+  await prisma.fortress.update({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: attacker.id,
+      },
+    },
+    data: {
+      army: 1,
+      race: FortressRace.DWARFS,
+    },
+  });
+
   await setFortressAction({
     db: prisma,
     userId: attacker.id,
@@ -5799,6 +5906,16 @@ test("read model exposes only valid targetable fortresses during active play", a
         cycleId: cycle.id,
         ownerId: beta.id,
       },
+    },
+  });
+
+  await prisma.fortress.update({
+    where: {
+      id: alphaFortress.id,
+    },
+    data: {
+      army: 1,
+      race: FortressRace.DWARFS,
     },
   });
 
@@ -7237,7 +7354,7 @@ test("manual catch-up unfreezes points", async (context) => {
   assert.equal(recoveredState.currentCycle?.minutesBehind, 0);
 });
 
-test("manual catch-up resolves due attacks and relaunches on the next eligible minute", async (context) => {
+test("manual catch-up resolves due attacks without relaunching", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -7288,6 +7405,8 @@ test("manual catch-up resolves due attacks and relaunches on the next eligible m
       id: attackerFortress.id,
     },
     data: {
+      army: 1,
+      race: FortressRace.DWARFS,
       mapX: 6,
       mapY: 6,
     },
@@ -7363,11 +7482,7 @@ test("manual catch-up resolves due attacks and relaunches on the next eligible m
 
   assert.ok(summary.processedMinutes >= 1);
   assert.equal(summary.resolvedAttackUnits, 1);
-  assert.ok(summary.launchedAttackUnits >= 2);
+  assert.equal(summary.launchedAttackUnits, 0);
   assert.equal(afterCatchUpTarget.points, beforeCatchUpTarget.points - 2);
-  assert.ok(unresolvedAfterCatchUp.length >= 2);
-  assert.equal(
-    unresolvedAfterCatchUp.at(-1)?.launchedAt.toISOString(),
-    catchUpAt.toISOString()
-  );
+  assert.equal(unresolvedAfterCatchUp.length, 0);
 });

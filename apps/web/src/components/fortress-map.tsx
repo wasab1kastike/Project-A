@@ -48,6 +48,7 @@ type MapFortress = {
 
 type AttackUnitMarker = {
   id: string;
+  armyAmount: number;
   launchedAt: Date;
   arrivesAt: Date;
   attacker: {
@@ -285,14 +286,19 @@ function AttackUnitsLayer({
               left: `${anchorPoint.x}%`,
               top: `${anchorPoint.y}%`,
             }}
-            aria-label={`${unit.attacker.name} unit attacking ${unit.target.name}. ${secondsRemaining} seconds until impact.`}
+            aria-label={`${unit.attacker.name} attacking ${unit.target.name} with ${unit.armyAmount} army. ${secondsRemaining} seconds until impact.`}
           >
             {presentation.showSprite ? (
-              <span
-                className={styles.attackUnitSprite}
-                data-variant={unit.attacker.unitSpriteVariant}
-                data-skin={unit.attacker.unitCosmeticVariant ?? undefined}
-              />
+              <>
+                <span
+                  className={styles.attackUnitSprite}
+                  data-variant={unit.attacker.unitSpriteVariant}
+                  data-skin={unit.attacker.unitCosmeticVariant ?? undefined}
+                />
+                <span className={styles.attackUnitAmount}>
+                  {unit.armyAmount}
+                </span>
+              </>
             ) : (
               <span className={styles.attackImpactPulse} aria-hidden="true" />
             )}

@@ -386,6 +386,7 @@ export async function getHomePageState({
         orderBy: [{ launchedAt: "asc" }, { id: "asc" }],
         select: {
           id: true,
+          armyAmount: true,
           launchedAt: true,
           arrivesAt: true,
           attackerFortress: {
@@ -1109,7 +1110,6 @@ export async function getHomePageState({
           canShuffleLocation:
             gameplayOpen &&
             playerFortress.race !== null &&
-            playerFortress.currentAction === "GROW" &&
             locationShuffleCost !== null &&
             playerFortress.points >= locationShuffleCost,
           upgradesUnlocked,
@@ -1206,6 +1206,7 @@ export async function getHomePageState({
     mapFortresses,
     attackUnits: cycle.attackUnits.map((unit) => ({
       id: unit.id,
+      armyAmount: unit.armyAmount,
       launchedAt: unit.launchedAt,
       arrivesAt: unit.arrivesAt,
       attacker: {

@@ -26,7 +26,6 @@ import {
   getSpawnPointKey,
   takeOpenSpawnPoint,
 } from "./spawn-layout";
-import { floorToMinute } from "./time";
 import {
   getHelsinkiDayKey,
   getHelsinkiHourKey,
@@ -180,17 +179,6 @@ function findOpenMapPosition(
   return layout.find((position) => {
     return !occupied.has(getSpawnPointKey(position));
   });
-}
-
-function canLaunchImmediateAttackUnit(
-  lastLaunchedAt: Date | null,
-  launchedAt: Date
-) {
-  if (!lastLaunchedAt) {
-    return true;
-  }
-
-  return floorToMinute(lastLaunchedAt) < floorToMinute(launchedAt);
 }
 
 function isUniqueConstraintError(
@@ -565,6 +553,10 @@ export async function setFortressAction({
       });
     }
 
+    if (!fortress.race) {
+      throw new GameError("Choose a race before attacking.");
+    }
+
     if (!targetFortressId) {
       throw new GameError("Choose a target fortress before attacking.");
     }
@@ -599,35 +591,25 @@ export async function setFortressAction({
         id: fortress.id,
       },
       data: {
-        currentAction: FortressAction.ATTACK,
-        targetFortressId,
+        currentAction: FortressAction.GROW,
+        targetFortressId: null,
       },
     });
 
-    const latestAttackUnit = await tx.attackUnit.findFirst({
-      where: {
-        cycleId: cycle.id,
-        attackerFortressId: fortress.id,
-        cancelledAt: null,
+    const launchedUnit = await launchAttackUnit({
+      db: tx,
+      cycle,
+      attacker: {
+        ...updatedFortress,
+        army: fortress.army,
       },
-      orderBy: [{ launchedAt: "desc" }, { id: "desc" }],
-      select: {
-        launchedAt: true,
-      },
+      target,
+      launchedAt: now,
+      armyAmount: sentArmy,
     });
 
-    if (canLaunchImmediateAttackUnit(latestAttackUnit?.launchedAt ?? null, now)) {
-      await launchAttackUnit({
-        db: tx,
-        cycle,
-        attacker: {
-          ...updatedFortress,
-          army: fortress.army,
-        },
-        target,
-        launchedAt: now,
-        armyAmount: sentArmy,
-      });
+    if (!launchedUnit) {
+      throw new GameError("That attack would arrive after the cycle ends.");
     }
 
     return updatedFortress;
@@ -876,12 +858,6 @@ export async function shuffleFortressLocation({
 
     if (!fortress) {
       throw new GameError("You are not participating in the active cycle.");
-    }
-
-    if (fortress.currentAction !== FortressAction.GROW) {
-      throw new GameError(
-        "Switch your fortress to Grow before triggering Castle Yeet."
-      );
     }
 
     const locationShuffleCount = await getFortressLocationShuffleCount(
