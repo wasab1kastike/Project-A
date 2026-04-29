@@ -1,6 +1,8 @@
 import Link from "next/link";
 import styles from "./page.module.css";
 import {
+  ACTIVE_LOCATION_SHUFFLE_COST,
+  ACTIVE_RENAME_COST,
   ATTACK_UNIT_SPEED_PER_MINUTE,
   BASE_FORTRESS_ATTACK_DAMAGE,
   BASE_FORTRESS_GROWTH,
@@ -22,6 +24,13 @@ import {
   WINNING_ATTACKER_BASE_SURVIVAL_FACTOR,
   WINNING_ATTACKER_MARGIN_SURVIVAL_FACTOR,
 } from "@/lib/game/balance";
+import {
+  LOOT_CAMP_LIFETIME_MINUTES,
+  LOOT_CAMP_MAX_SPAWNS_PER_HOUR,
+  LOOT_CAMP_MAX_STRENGTH,
+  LOOT_CAMP_MIN_SPAWNS_PER_HOUR,
+  LOOT_CAMP_MIN_STRENGTH,
+} from "@/lib/game/loot-camps";
 import { RACE_DEFINITIONS } from "@/lib/game/races";
 
 const RACE_ABILITY_NOTES: Record<string, readonly string[]> = {
@@ -33,7 +42,7 @@ const RACE_ABILITY_NOTES: Record<string, readonly string[]> = {
     "Tier 1: Enemies cannot see your army size while your units are in transit.",
     "Tier 1+: Faster attack travel from Unicorn speed tech.",
     "Tier 2+: Claim one free teleport token per hour.",
-    "Using free teleport leaves attackable decoy castles behind.",
+    "Using a free teleport leaves attackable decoy castles behind. Decoys collapse when hit and can destroy part of the attacking army.",
   ],
   SPACE_MURINES: [
     "Tier 2+: STIM unlocks (1 hour). During STIM, your attacks keep all sent troops and defenders take no losses.",
@@ -81,9 +90,24 @@ const SEASON_FLOW = [
 const QUICKSTART_STEPS = [
   "Pick a race that matches your style: stable economy, burst combat, or chaos utility.",
   "Open Castle > Economy and assign workers immediately. Idle population is wasted tempo.",
+  "Watch the map for temporary loot camps. They expire fast but can pay food, points, or army.",
   "Scout your first target before sending a huge army. Ties go to defender.",
   "Do not spend all points on one thing. Keep a reserve for rename/yeet/upgrades.",
   "When Home of A is low, decide early: race for slayer bonus or farm safer value elsewhere.",
+] as const;
+
+const LATEST_UPDATES = [
+  "Loot camps now spawn around the battlefield during gameplay. Classic camps pay food, Rich camps pay points, and Chaos camps pay army plus a race cooldown reset.",
+  "Unstable Unicorn teleport now leaves attackable decoy castles again. Hitting a decoy clears it and applies its backlash before any normal loot happens.",
+  "Castle Yeet now has clearer warnings and stronger location safeguards, including better handling when a rendered map move would not actually change your tile.",
+  "Attack recall and return reports are more explicit, so recalled armies and post-raid returning units are easier to track.",
+  "Raid loot caps are now 70% of target points and 70% of target food per raid.",
+] as const;
+
+const LOOT_CAMP_VARIANTS = [
+  "Classic Loot Camp: pays food equal to its strength when destroyed.",
+  "Rich Loot Camp: pays points equal to its strength when destroyed.",
+  "Chaos Loot Camp: pays army equal to its strength and resets the destroyer's current race ability cooldown.",
 ] as const;
 
 const FAQ_ENTRIES = [
@@ -115,6 +139,7 @@ const GLOSSARY = [
   "Returned: surviving attackers that come home after a winning raid.",
   "Retired: surviving attackers that do not return to active army after combat.",
   "Decoy: temporary attackable Unicorn teleport remnant.",
+  "Loot camp: temporary NPC target with strength-based HP and variant rewards.",
 ] as const;
 
 export default function WikiPage() {
@@ -142,6 +167,20 @@ export default function WikiPage() {
       </section>
 
       <section className={styles.stack}>
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>Latest changes</span>
+          <h2>What changed recently</h2>
+          <p>
+            These are the current rules players are most likely to notice on the
+            battlefield.
+          </p>
+          <ul className={styles.noteList}>
+            {LATEST_UPDATES.map((entry) => (
+              <li key={entry}>{entry}</li>
+            ))}
+          </ul>
+        </article>
+
         <article className={styles.card}>
           <span className={styles.sectionLabel}>Season loop</span>
           <h2>How a full cycle flows</h2>
@@ -186,7 +225,7 @@ export default function WikiPage() {
                   <strong>{race.displayName}</strong>
                   <span>{race.iconPlaceholder}</span>
                 </div>
-                <p className={styles.quote}>\"{race.flavorQuote}\"</p>
+                <p className={styles.quote}>{race.flavorQuote}</p>
                 <p>{race.flavorText}</p>
                 <ul className={styles.noteList}>
                   {race.passiveSummary.map((entry) => (
@@ -214,17 +253,16 @@ export default function WikiPage() {
               <h3>Level effects</h3>
               <ul className={styles.noteList}>
                 <li>
-                  Base growth per tick: {BASE_FORTRESS_GROWTH}, plus
-                  {" "}
+                  Base growth per tick: {BASE_FORTRESS_GROWTH}, plus{" "}
                   {FORTRESS_GROWTH_PER_LEVEL} per castle level.
                 </li>
                 <li>
-                  Base attack damage to fortress HP: {BASE_FORTRESS_ATTACK_DAMAGE},
-                  plus {FORTRESS_ATTACK_DAMAGE_PER_LEVEL} per castle level.
+                  Base attack damage to fortress HP:{" "}
+                  {BASE_FORTRESS_ATTACK_DAMAGE}, plus{" "}
+                  {FORTRESS_ATTACK_DAMAGE_PER_LEVEL} per castle level.
                 </li>
                 <li>
-                  Standard simultaneous attack slots start at
-                  {" "}
+                  Standard simultaneous attack slots start at{" "}
                   {MAX_SIMULTANEOUS_ATTACKS_BASE}.
                 </li>
               </ul>
@@ -233,7 +271,9 @@ export default function WikiPage() {
               <h3>Upgrade costs</h3>
               <ol className={styles.noteList}>
                 {FORTRESS_LEVEL_UP_COSTS.map((cost, index) => (
-                  <li key={cost}>Level {index + 2}: {cost} points</li>
+                  <li key={cost}>
+                    Level {index + 2}: {cost} points
+                  </li>
                 ))}
               </ol>
             </section>
@@ -246,6 +286,64 @@ export default function WikiPage() {
               ))}
             </ul>
           </section>
+          <section className={styles.subCard}>
+            <h3>Active-season utility costs</h3>
+            <ul className={styles.noteList}>
+              <li>Rename costs {ACTIVE_RENAME_COST} points.</li>
+              <li>
+                Castle Yeet is free the first time, then costs{" "}
+                {ACTIVE_LOCATION_SHUFFLE_COST} points unless a valid free
+                Unicorn teleport token is used.
+              </li>
+              <li>
+                Castle Yeet cancels your own outgoing armies and moves you to a
+                valid open map tile when one is available.
+              </li>
+            </ul>
+          </section>
+        </article>
+
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>Loot camps</span>
+          <h2>Temporary map targets</h2>
+          <p>
+            Loot camps are neutral NPC camps that appear during testing and
+            active gameplay. They are short-lived side objectives for players
+            who can spare an attack slot.
+          </p>
+          <div className={styles.twoCol}>
+            <section>
+              <h3>Spawn rules</h3>
+              <ul className={styles.noteList}>
+                <li>
+                  {LOOT_CAMP_MIN_SPAWNS_PER_HOUR}-
+                  {LOOT_CAMP_MAX_SPAWNS_PER_HOUR} camps are scheduled each hour
+                  and spread across that hour.
+                </li>
+                <li>
+                  Each camp stays for up to {LOOT_CAMP_LIFETIME_MINUTES}{" "}
+                  minutes.
+                </li>
+                <li>
+                  Strength is random from {LOOT_CAMP_MIN_STRENGTH} to{" "}
+                  {LOOT_CAMP_MAX_STRENGTH}; strength is both HP and reward
+                  amount.
+                </li>
+              </ul>
+            </section>
+            <section>
+              <h3>Rewards</h3>
+              <ul className={styles.noteList}>
+                {LOOT_CAMP_VARIANTS.map((entry) => (
+                  <li key={entry}>{entry}</li>
+                ))}
+                <li>
+                  Only the attack that drops the camp to 0 HP receives the
+                  reward.
+                </li>
+              </ul>
+            </section>
+          </div>
         </article>
 
         <article className={styles.card}>
@@ -254,8 +352,7 @@ export default function WikiPage() {
           <p>{homeOfALore}</p>
           <ul className={styles.noteList}>
             <li>
-              Starts at {MEGA_FORTRESS_HEALTH} HP and occupies
-              {" "}
+              Starts at {MEGA_FORTRESS_HEALTH} HP and occupies{" "}
               {MEGA_FORTRESS_SIZE_TILES} tiles.
             </li>
             <li>
@@ -281,16 +378,15 @@ export default function WikiPage() {
               <h3>Battle flow</h3>
               <ul className={styles.noteList}>
                 <li>
-                  Units travel using map distance and speed
-                  ({ATTACK_UNIT_SPEED_PER_MINUTE} tiles/min baseline).
+                  Units travel using map distance and speed (
+                  {ATTACK_UNIT_SPEED_PER_MINUTE} tiles/min baseline).
                 </li>
                 <li>
                   At impact, attacker power is compared against defender power.
                 </li>
                 <li>Ties go to the defender.</li>
                 <li>
-                  On attacker win, defender loses about
-                  {" "}
+                  On attacker win, defender loses about{" "}
                   {Math.round(DEFENDER_LOSS_RATE_ON_ATTACKER_WIN * 100)}% of
                   defending army.
                 </li>
@@ -304,9 +400,8 @@ export default function WikiPage() {
               <h3>Survivors and loot</h3>
               <ul className={styles.noteList}>
                 <li>
-                  Winner survivor model uses base + margin factors
-                  ({WINNING_ATTACKER_BASE_SURVIVAL_FACTOR} and
-                  {" "}
+                  Winner survivor model uses base + margin factors (
+                  {WINNING_ATTACKER_BASE_SURVIVAL_FACTOR} and{" "}
                   {WINNING_ATTACKER_MARGIN_SURVIVAL_FACTOR}).
                 </li>
                 <li>
@@ -315,8 +410,13 @@ export default function WikiPage() {
                 </li>
                 <li>
                   Loot caps: up to {Math.round(MAX_POINT_LOOT_PERCENT * 100)}%
-                  of target points and {Math.round(MAX_FOOD_LOOT_PERCENT * 100)}%
-                  of target food per raid.
+                  of target points and {Math.round(MAX_FOOD_LOOT_PERCENT * 100)}
+                  % of target food per raid.
+                </li>
+                <li>
+                  Armies can be recalled before impact. Recalled units travel
+                  back home and create a separate return report when they
+                  arrive.
                 </li>
               </ul>
             </section>
