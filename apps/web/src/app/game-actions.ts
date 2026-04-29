@@ -317,7 +317,9 @@ export async function purchaseFortressUpgradeAction(formData: FormData) {
   finishAction("Castle upgraded.");
 }
 
-export async function choosePendingUpgradeSpecializationAction(formData: FormData) {
+export async function choosePendingUpgradeSpecializationAction(
+  formData: FormData
+) {
   const userId = await requireUserId();
 
   try {
@@ -451,8 +453,8 @@ export async function useUnicornTeleportAction() {
 
     notice =
       result.cancelledAttackUnitCount > 0
-        ? "Free Unicorn teleport fired. Outgoing attacks were canceled."
-        : "Free Unicorn teleport fired.";
+        ? "Free Unicorn teleport fired and left a decoy behind. Outgoing attacks were canceled."
+        : "Free Unicorn teleport fired and left a decoy behind.";
   } catch (error) {
     redirectToHome("error", getActionErrorMessage(error));
   }

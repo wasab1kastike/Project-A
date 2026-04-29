@@ -1,5 +1,6 @@
 import {
   CycleStatus,
+  FortressKind,
   FortressAction,
   Prisma,
   PrismaClient,
@@ -170,13 +171,15 @@ export function getActiveCycleMinutesBehind({
     return 0;
   }
 
-  const latestProcessedTickAt = lastProcessedTickAt ?? addMinutes(firstDueTickAt, -1);
+  const latestProcessedTickAt =
+    lastProcessedTickAt ?? addMinutes(firstDueTickAt, -1);
 
   if (latestProcessedTickAt >= dueTickAt) {
     return 0;
   }
 
-  const diffMilliseconds = dueTickAt.getTime() - latestProcessedTickAt.getTime();
+  const diffMilliseconds =
+    dueTickAt.getTime() - latestProcessedTickAt.getTime();
   return Math.floor(diffMilliseconds / (60 * 1000));
 }
 
@@ -198,7 +201,9 @@ function getLastDueTickAt(
     cycle.status === CycleStatus.TESTING
       ? cycle.testingEndsAt
       : cycle.activeEndsAt;
-  const activeEndTick = effectiveEndsAt ? floorToMinute(effectiveEndsAt) : nowTick;
+  const activeEndTick = effectiveEndsAt
+    ? floorToMinute(effectiveEndsAt)
+    : nowTick;
   const lastDueTickAt = nowTick < activeEndTick ? nowTick : activeEndTick;
 
   if (lastDueTickAt < getFirstTickAt(cycle.activeStartedAt)) {
@@ -283,11 +288,7 @@ async function restartEmptyRegistrationCycle(
   });
 }
 
-async function startTestingCycle(
-  cycleId: string,
-  now: Date,
-  db: PrismaClient
-) {
+async function startTestingCycle(cycleId: string, now: Date, db: PrismaClient) {
   return db.$transaction(async (tx) => {
     const cycle = await tx.cycle.findUnique({
       where: {
@@ -450,12 +451,15 @@ async function completeTestingCycle(
         farmersAssigned: 10,
         recruitersAssigned: 5,
         race: null,
+        fortressKind: FortressKind.PLAYER,
         currentAction: FortressAction.GROW,
         targetFortressId: null,
         health: 0,
         maxHealth: 0,
         sizeTiles: 1,
         iconLabel: null,
+        unicornDecoySourceFortressId: null,
+        unicornDecoyLevel: null,
         locationShuffleCount: 0,
       },
     });
@@ -885,6 +889,8 @@ async function processCycleTick(
         farmersAssigned: true,
         recruitersAssigned: true,
         race: true,
+        fortressKind: true,
+        unicornDecoyLevel: true,
         currentAction: true,
         targetFortressId: true,
         isNpc: true,
@@ -998,6 +1004,80 @@ async function processCycleTick(
         continue;
       }
 
+      if (target?.fortressKind === FortressKind.UNICORN_DECOY) {
+        const targetUnits = dueAttackUnits.filter(
+          (targetUnit) =>
+            targetUnit.targetFortressId === target.id &&
+            !resolvedBatchAttackUnitIds.has(targetUnit.id)
+        );
+        const copiedLevel = Math.max(1, target.unicornDecoyLevel ?? 1);
+        const decoyCasualties = target.health > 0 ? 200 * copiedLevel : 0;
+
+        for (const targetUnit of targetUnits) {
+          const targetAttacker = fortressLookup.get(
+            targetUnit.attackerFortressId
+          );
+          const attackerReturned = Math.max(
+            0,
+            targetUnit.armyAmount - decoyCasualties
+          );
+          const attackerLost = targetUnit.armyAmount - attackerReturned;
+
+          await tx.attackUnit.update({
+            where: {
+              id: targetUnit.id,
+            },
+            data: {
+              resolvedAt: tickAt,
+              defenderArmyAtBattleStart: 0,
+              resolvedAttackPower: targetUnit.armyAmount,
+              resolvedDefensePower: decoyCasualties,
+              attackerSurvivors: attackerReturned,
+              attackerRetired: attackerLost,
+              attackerReturned,
+              defenderLosses: 0,
+              pointsLooted: 0,
+              foodLooted: 0,
+            },
+          });
+
+          resolvedBatchAttackUnitIds.add(targetUnit.id);
+          resolvedAttackUnits += 1;
+
+          if (targetAttacker) {
+            currentArmy.set(
+              targetAttacker.id,
+              (currentArmy.get(targetAttacker.id) ?? targetAttacker.army) +
+                attackerReturned
+            );
+
+            scoreEvents.push({
+              cycleId,
+              fortressId: targetAttacker.id,
+              actorId: targetAttacker.ownerId,
+              targetFortressId: target.id,
+              eventType: ScoreEventType.UNICORN_DECOY_DESTROY,
+              delta: 0,
+              createdAt: tickAt,
+            });
+          }
+        }
+
+        if (targetUnits.length > 0) {
+          currentHealth.set(target.id, 0);
+          await tx.fortress.update({
+            where: {
+              id: target.id,
+            },
+            data: {
+              health: 0,
+            },
+          });
+        }
+
+        continue;
+      }
+
       if (target?.isNpc) {
         const targetUnits = dueAttackUnits.filter(
           (targetUnit) =>
@@ -1023,12 +1103,10 @@ async function processCycleTick(
           continue;
         }
 
-        let destroyer:
-          | {
-              unitId: string;
-              attacker: NonNullable<typeof attacker>;
-            }
-          | null = null;
+        let destroyer: {
+          unitId: string;
+          attacker: NonNullable<typeof attacker>;
+        } | null = null;
         for (const targetUnit of targetUnits) {
           const targetAttacker = fortressLookup.get(
             targetUnit.attackerFortressId
@@ -1041,7 +1119,8 @@ async function processCycleTick(
           const targetHealth = currentHealth.get(target.id) ?? target.health;
           const targetLoss = Math.min(
             targetHealth,
-            targetUnit.armyAmount * getFortressAttackDamage(targetAttacker.level)
+            targetUnit.armyAmount *
+              getFortressAttackDamage(targetAttacker.level)
           );
 
           if (targetLoss <= 0) {
@@ -1227,8 +1306,7 @@ async function processCycleTick(
         defenderArmy,
         defenderDbLevel: target.level,
         defenderRace: target.race,
-        attackPowerMultiplier:
-          (attackerWaaagh ? 2 : 1) * dwarfAttackMultiplier,
+        attackPowerMultiplier: (attackerWaaagh ? 2 : 1) * dwarfAttackMultiplier,
         defensePowerMultiplier:
           (defenderWaaagh ? 2 : 1) * dwarfDefenseMultiplier,
         preventAttackerCasualties: attackerStim,
@@ -1259,7 +1337,8 @@ async function processCycleTick(
 
       currentArmy.set(
         attacker.id,
-        (currentArmy.get(attacker.id) ?? attacker.army) + outcome.attackerReturned
+        (currentArmy.get(attacker.id) ?? attacker.army) +
+          outcome.attackerReturned
       );
       currentArmy.set(
         target.id,
@@ -1325,10 +1404,7 @@ async function processCycleTick(
         (currentPoints.get(fortress.id) ?? 0) + production.pointsProduced
       );
       currentFood.set(fortress.id, production.foodAfterProduction);
-      currentArmy.set(
-        fortress.id,
-        currentArmyValue + production.armyProduced
-      );
+      currentArmy.set(fortress.id, currentArmyValue + production.armyProduced);
       scoreEvents.push({
         cycleId,
         fortressId: fortress.id,

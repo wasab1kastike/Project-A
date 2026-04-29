@@ -1,6 +1,7 @@
 import {
   CycleStatus,
   FortressAction,
+  FortressKind,
   Prisma,
   PrismaClient,
 } from "@/lib/prisma-client";
@@ -77,6 +78,7 @@ export async function ensureMegaFortress({
     where: {
       cycleId,
       isNpc: true,
+      fortressKind: FortressKind.MEGA,
     },
   });
 
@@ -141,6 +143,7 @@ export async function ensureMegaFortress({
       farmersAssigned: 0,
       recruitersAssigned: 0,
       isNpc: true,
+      fortressKind: FortressKind.MEGA,
       health: MEGA_FORTRESS_HEALTH,
       maxHealth: MEGA_FORTRESS_HEALTH,
       sizeTiles: MEGA_FORTRESS_SIZE_TILES,
@@ -198,6 +201,18 @@ export async function reshuffleActiveFortressPositions({
   const fortresses = await db.fortress.findMany({
     where: {
       cycleId,
+      OR: [
+        {
+          fortressKind: {
+            not: FortressKind.UNICORN_DECOY,
+          },
+        },
+        {
+          health: {
+            gt: 0,
+          },
+        },
+      ],
     },
     orderBy: [{ isNpc: "asc" }, { joinedAt: "asc" }, { id: "asc" }],
     select: {
@@ -244,6 +259,20 @@ export async function ensureCurrentMapLayout({
       status: true,
       mapLayoutVersion: true,
       fortresses: {
+        where: {
+          OR: [
+            {
+              fortressKind: {
+                not: FortressKind.UNICORN_DECOY,
+              },
+            },
+            {
+              health: {
+                gt: 0,
+              },
+            },
+          ],
+        },
         select: {
           mapX: true,
           mapY: true,
