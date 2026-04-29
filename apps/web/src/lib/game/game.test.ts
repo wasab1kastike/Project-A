@@ -82,7 +82,9 @@ import {
   snapMapPointToHex,
 } from "./map-hex";
 import {
+  buildFortressSpawnSeed,
   getFortressSpawnLayout,
+  getOpenSpawnCandidates,
   getRenderedMapPositionKey,
   getSpawnPointKey,
   takeOpenSpawnPoint,
@@ -144,6 +146,13 @@ function toPointKey(point: SpawnPoint) {
 
 function getEdgeDistance(point: SpawnPoint) {
   return Math.min(point.x, 100 - point.x, point.y, 100 - point.y);
+}
+
+function distanceBetweenPoints(
+  left: { x: number; y: number },
+  right: { x: number; y: number }
+) {
+  return Math.hypot(left.x - right.x, left.y - right.y);
 }
 
 function isOuterBand(point: SpawnPoint, padding = ACTIVE_EDGE_PADDING) {
@@ -2828,6 +2837,16 @@ test("old active map layouts reshuffle once on the next tick", async (context) =
   assert.equal(uniquePositionKeys.size, positionsAfterFirstTick.length);
 
   for (const position of positionsAfterFirstTick) {
+    const previous = positionsBefore.find((entry) => entry.id === position.id);
+
+    assert.ok(previous);
+    assert.notEqual(
+      getRenderedMapPositionKey(position),
+      getRenderedMapPositionKey(previous)
+    );
+  }
+
+  for (const position of positionsAfterFirstTick) {
     assert.ok(isPointNearSpawnHex({ x: position.mapX, y: position.mapY }));
   }
 
@@ -2901,6 +2920,17 @@ test("current active map layouts reshuffle when positions are duplicated", async
     },
   });
 
+  const positionsBeforeTick = await prisma.fortress.findMany({
+    where: {
+      cycleId: cycle.id,
+    },
+    select: {
+      id: true,
+      mapX: true,
+      mapY: true,
+    },
+  });
+
   await runGameTick({
     db: prisma,
     now: new Date("2026-04-20T12:01:00.000Z"),
@@ -2916,6 +2946,7 @@ test("current active map layouts reshuffle when positions are duplicated", async
       cycleId: cycle.id,
     },
     select: {
+      id: true,
       mapX: true,
       mapY: true,
     },
@@ -2929,6 +2960,16 @@ test("current active map layouts reshuffle when positions are duplicated", async
 
   assert.equal(uniquePositionKeys.size, positionsAfterTick.length);
   assert.equal(renderedMarkerKeys.size, state.mapFortresses.length);
+
+  for (const position of positionsAfterTick) {
+    const previous = positionsBeforeTick.find((entry) => entry.id === position.id);
+
+    assert.ok(previous);
+    assert.notEqual(
+      getRenderedMapPositionKey(position),
+      getRenderedMapPositionKey(previous)
+    );
+  }
 });
 
 test("testing map layouts reshuffle when rendered positions are duplicated", async (context) => {
@@ -2985,6 +3026,17 @@ test("testing map layouts reshuffle when rendered positions are duplicated", asy
     },
   });
 
+  const positionsBeforeTick = await prisma.fortress.findMany({
+    where: {
+      cycleId: cycle.id,
+    },
+    select: {
+      id: true,
+      mapX: true,
+      mapY: true,
+    },
+  });
+
   await runGameTick({
     db: prisma,
     now: addMinutes(testingStartsAt, 1),
@@ -2995,6 +3047,7 @@ test("testing map layouts reshuffle when rendered positions are duplicated", asy
       cycleId: cycle.id,
     },
     select: {
+      id: true,
       mapX: true,
       mapY: true,
     },
@@ -3004,6 +3057,16 @@ test("testing map layouts reshuffle when rendered positions are duplicated", asy
   );
 
   assert.equal(uniquePositionKeys.size, positionsAfterTick.length);
+
+  for (const position of positionsAfterTick) {
+    const previous = positionsBeforeTick.find((entry) => entry.id === position.id);
+
+    assert.ok(previous);
+    assert.notEqual(
+      getRenderedMapPositionKey(position),
+      getRenderedMapPositionKey(previous)
+    );
+  }
 });
 
 test("action updates persist and self-targeting is rejected", async (context) => {
@@ -3688,10 +3751,59 @@ test("location shuffle is free once, then costs 50 points and cancels outgoing a
       id: attackerFortress.id,
     },
   });
+  const freeShuffleAt = new Date("2026-04-20T12:06:00.000Z");
+  const beforeRenderedKey = getRenderedMapPositionKey(beforeFreeShuffle);
+  const otherFortressPositions = await prisma.fortress.findMany({
+    where: {
+      cycleId: cycle.id,
+      id: {
+        not: attackerFortress.id,
+      },
+    },
+    select: {
+      mapX: true,
+      mapY: true,
+    },
+  });
+  const excludedKeys = new Set(
+    otherFortressPositions.map((fortress) => getRenderedMapPositionKey(fortress))
+  );
+  const shuffleSeed = buildFortressSpawnSeed({
+    cycleId: cycle.id,
+    purpose: "active:player-location-shuffle",
+    activeStartedAt: cycle.activeStartedAt,
+    tickAt: freeShuffleAt,
+    entropy: `${attackerFortress.id}:1`,
+  });
+  const rankedCandidates = getOpenSpawnCandidates(shuffleSeed, {
+    excludedKeys,
+    preferredEdgePadding: ACTIVE_EDGE_PADDING,
+  })
+    .filter((candidate) => {
+      return getRenderedMapPositionKey(candidate) !== beforeRenderedKey;
+    })
+    .sort((left, right) => {
+      return (
+        distanceBetweenPoints(right, {
+          x: beforeFreeShuffle.mapX,
+          y: beforeFreeShuffle.mapY,
+        }) -
+        distanceBetweenPoints(left, {
+          x: beforeFreeShuffle.mapX,
+          y: beforeFreeShuffle.mapY,
+        })
+      );
+    });
+  assert.ok(rankedCandidates.length > 0);
+  const topCandidate = rankedCandidates[0] as SpawnPoint;
+  const expectedMaxDistance = distanceBetweenPoints(topCandidate, {
+    x: beforeFreeShuffle.mapX,
+    y: beforeFreeShuffle.mapY,
+  });
   const freeShuffle = await shuffleFortressLocation({
     db: prisma,
     userId: attacker.id,
-    now: new Date("2026-04-20T12:06:00.000Z"),
+    now: freeShuffleAt,
   });
   const afterFreeShuffle = await prisma.fortress.findUniqueOrThrow({
     where: {
@@ -3714,11 +3826,38 @@ test("location shuffle is free once, then costs 50 points and cancels outgoing a
     await getFortressLocationShuffleCount(prisma, attackerFortress.id),
     1
   );
+  assert.equal(
+    getRenderedMapPositionKey(afterFreeShuffle),
+    getRenderedMapPositionKey(freeShuffle.fortress)
+  );
+  assert.notEqual(getRenderedMapPositionKey(afterFreeShuffle), beforeRenderedKey);
+  assert.equal(
+    distanceBetweenPoints(
+      { x: afterFreeShuffle.mapX, y: afterFreeShuffle.mapY },
+      { x: beforeFreeShuffle.mapX, y: beforeFreeShuffle.mapY }
+    ),
+    expectedMaxDistance
+  );
   assert.notDeepEqual(
     { x: afterFreeShuffle.mapX, y: afterFreeShuffle.mapY },
     { x: beforeFreeShuffle.mapX, y: beforeFreeShuffle.mapY }
   );
   assert.equal(cancelledUnits.length, 1);
+
+  const readModelAfterFreeShuffle = await getHomePageState({
+    db: prisma,
+    userId: attacker.id,
+    now: new Date("2026-04-20T12:06:30.000Z"),
+  });
+  const readModelFortress = readModelAfterFreeShuffle.mapFortresses.find(
+    (fortress) => fortress.id === attackerFortress.id
+  );
+
+  assert.ok(readModelFortress);
+  assert.equal(
+    getRenderedMapPositionKey(readModelFortress),
+    getRenderedMapPositionKey(afterFreeShuffle)
+  );
 
   const secondShuffle = await shuffleFortressLocation({
     db: prisma,

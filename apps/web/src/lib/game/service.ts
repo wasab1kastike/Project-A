@@ -32,8 +32,8 @@ import { ensureCommanderRegistrationColumn } from "./schema-guards";
 import {
   buildFortressSpawnSeed,
   getFortressSpawnLayout,
+  getOpenSpawnCandidates,
   getRenderedMapPositionKey,
-  takeOpenSpawnPoint,
 } from "./spawn-layout";
 import {
   getHelsinkiDayKey,
@@ -49,6 +49,13 @@ const PUBLIC_NAME_MAX_LENGTH = 32;
 const ACTIVE_EDGE_PADDING = 15;
 const UNICORN_DECOY_OWNER_EMAIL_DOMAIN = "unicorn-decoy.project-a.local";
 const UNICORN_DECOY_ICON_LABEL = "UU";
+
+function distanceBetweenPoints(
+  left: { x: number; y: number },
+  right: { x: number; y: number }
+) {
+  return Math.hypot(left.x - right.x, left.y - right.y);
+}
 
 function normalizePublicName(input: string, label: string) {
   const normalized = input.trim().replace(/\s+/g, " ");
@@ -1085,98 +1092,104 @@ export async function shuffleFortressLocation({
         return getRenderedMapPositionKey(otherFortress);
       })
     );
-    excludedKeys.add(getRenderedMapPositionKey(fortress));
-
-    let nextPosition;
+    const currentRenderedKey = getRenderedMapPositionKey(fortress);
+    const shuffleSeed = buildFortressSpawnSeed({
+      cycleId: cycle.id,
+      purpose: "active:player-location-shuffle",
+      activeStartedAt: cycle.activeStartedAt,
+      tickAt: now,
+      entropy: `${fortress.id}:${locationShuffleCount + 1}`,
+    });
 
     try {
-      nextPosition = takeOpenSpawnPoint(
-        buildFortressSpawnSeed({
+      const candidates = getOpenSpawnCandidates(shuffleSeed, {
+        excludedKeys,
+        preferredEdgePadding: ACTIVE_EDGE_PADDING,
+      })
+        .filter((candidate) => {
+          return getRenderedMapPositionKey(candidate) !== currentRenderedKey;
+        })
+        .sort((left, right) => {
+          const leftDistance = distanceBetweenPoints(left, {
+            x: fortress.mapX,
+            y: fortress.mapY,
+          });
+          const rightDistance = distanceBetweenPoints(right, {
+            x: fortress.mapX,
+            y: fortress.mapY,
+          });
+
+          return rightDistance - leftDistance;
+        });
+
+      const nextPosition = candidates[0];
+
+      if (!nextPosition) {
+        throw new Error("No alternate fortress location available.");
+      }
+
+      const cancelledAttackUnitCount = await cancelActiveAttackUnits({
+        db: tx,
+        attackerFortressId: fortress.id,
+        cancelledAt: now,
+      });
+
+      if (freeTeleport) {
+        await createUnicornTeleportDecoy({
+          db: tx,
           cycleId: cycle.id,
-          purpose: "active:player-location-shuffle",
-          activeStartedAt: cycle.activeStartedAt,
-          tickAt: now,
-          entropy: `${fortress.id}:${locationShuffleCount + 1}`,
-        }),
-        {
-          excludedKeys,
-          referencePoints: otherFortresses.map((otherFortress) => ({
-            x: otherFortress.mapX,
-            y: otherFortress.mapY,
-          })),
-          minSeparationDistance: 9,
-          preferredEdgePadding: ACTIVE_EDGE_PADDING,
-        }
-      );
+          sourceFortress: fortress,
+          activationId: freeTeleport.id,
+          createdAt: now,
+        });
+      }
+
+      const updatedFortress = await tx.fortress.update({
+        where: {
+          id: fortress.id,
+        },
+        data: {
+          mapX: Math.round(nextPosition.x),
+          mapY: Math.round(nextPosition.y),
+          locationShuffleCount: locationShuffleCount + 1,
+          points: fortress.points - shuffleCost,
+        },
+      });
+
+      if (shuffleCost > 0) {
+        await tx.scoreEvent.create({
+          data: {
+            cycleId: cycle.id,
+            fortressId: fortress.id,
+            actorId: userId,
+            eventType: "FORTRESS_LOCATION_SHUFFLE_COST" as ScoreEventType,
+            delta: -shuffleCost,
+            createdAt: now,
+          },
+        });
+      }
+
+      if (freeTeleport) {
+        await tx.raceAbilityActivation.update({
+          where: {
+            id: freeTeleport.id,
+          },
+          data: {
+            consumedAt: now,
+          },
+        });
+      }
+
+      return {
+        fortress: updatedFortress,
+        shuffleCost,
+        cancelledAttackUnitCount,
+      };
     } catch {
       throw new GameError(
         "No alternate fortress location is available right now."
       );
     }
-
-    const cancelledAttackUnitCount = await cancelActiveAttackUnits({
-      db: tx,
-      attackerFortressId: fortress.id,
-      cancelledAt: now,
-    });
-
-    if (freeTeleport) {
-      await createUnicornTeleportDecoy({
-        db: tx,
-        cycleId: cycle.id,
-        sourceFortress: fortress,
-        activationId: freeTeleport.id,
-        createdAt: now,
-      });
-    }
-
-    await tx.$executeRaw(
-      Prisma.sql`
-        UPDATE "Fortress"
-        SET
-          "mapX" = ${Math.round(nextPosition.x)},
-          "mapY" = ${Math.round(nextPosition.y)},
-          "locationShuffleCount" = ${locationShuffleCount + 1},
-          "points" = ${fortress.points - shuffleCost}
-        WHERE "id" = ${fortress.id}
-      `
-    );
-
-    if (shuffleCost > 0) {
-      await tx.scoreEvent.create({
-        data: {
-          cycleId: cycle.id,
-          fortressId: fortress.id,
-          actorId: userId,
-          eventType: "FORTRESS_LOCATION_SHUFFLE_COST" as ScoreEventType,
-          delta: -shuffleCost,
-          createdAt: now,
-        },
-      });
-    }
-
-    if (freeTeleport) {
-      await tx.raceAbilityActivation.update({
-        where: {
-          id: freeTeleport.id,
-        },
-        data: {
-          consumedAt: now,
-        },
-      });
-    }
-
-    const updatedFortress = await tx.fortress.findUniqueOrThrow({
-      where: {
-        id: fortress.id,
-      },
-    });
-
-    return {
-      fortress: updatedFortress,
-      shuffleCost,
-      cancelledAttackUnitCount,
-    };
   });
 }
 

@@ -300,6 +300,21 @@ export function takeOpenSpawnPoint(
   return bestCandidate;
 }
 
+export function getOpenSpawnCandidates(
+  seed: string,
+  options?: {
+    excludedKeys?: Set<string>;
+    preferredEdgePadding?: number;
+  }
+) {
+  const random = createSeededPrng(seed);
+  const excludedKeys = options?.excludedKeys ?? new Set<string>();
+  const preferredEdgePadding = options?.preferredEdgePadding;
+  const candidates = getUniqueSpawnCandidates(random, excludedKeys);
+
+  return getPreferredEdgeCandidates(candidates, preferredEdgePadding);
+}
+
 export function getFortressSpawnLayout(parts: {
   cycleId: string;
   purpose: string;

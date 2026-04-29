@@ -5,7 +5,6 @@ import {
   Prisma,
   PrismaClient,
 } from "@/lib/prisma-client";
-import { snapMapPointToHex } from "./map-hex";
 import {
   CURRENT_MAP_LAYOUT_VERSION,
   MEGA_FORTRESS_HEALTH,
@@ -25,6 +24,58 @@ type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
 const DEFAULT_MIN_SPAWN_SEPARATION = 0;
 const ACTIVE_EDGE_PADDING = 15;
+
+function distanceBetweenPoints(
+  left: { x: number; y: number },
+  right: { x: number; y: number }
+) {
+  return Math.hypot(left.x - right.x, left.y - right.y);
+}
+
+function assignPositionsByDistance(
+  fortresses: Array<{ id: string; mapX: number; mapY: number }>,
+  positions: Array<{ x: number; y: number }>
+) {
+  const remaining = [...positions];
+
+  return fortresses.map((fortress) => {
+    const ownRenderedKey = getRenderedMapPositionKey(fortress);
+    const ranked = [...remaining].sort((left, right) => {
+      const leftDistance = distanceBetweenPoints(left, {
+        x: fortress.mapX,
+        y: fortress.mapY,
+      });
+      const rightDistance = distanceBetweenPoints(right, {
+        x: fortress.mapX,
+        y: fortress.mapY,
+      });
+
+      return rightDistance - leftDistance;
+    });
+    const preferred = ranked.find((candidate) => {
+      return getRenderedMapPositionKey(candidate) !== ownRenderedKey;
+    });
+    const chosen = preferred ?? ranked[0];
+
+    if (!chosen) {
+      throw new Error("No reshuffle position candidates remain.");
+    }
+
+    const chosenKey = getRenderedMapPositionKey(chosen);
+    const chosenIndex = remaining.findIndex((candidate) => {
+      return getRenderedMapPositionKey(candidate) === chosenKey;
+    });
+
+    if (chosenIndex >= 0) {
+      remaining.splice(chosenIndex, 1);
+    }
+
+    return {
+      fortressId: fortress.id,
+      position: chosen,
+    };
+  });
+}
 
 export function hasDuplicateFortressMapPositions(
   fortresses: Array<{ mapX: number; mapY: number }>
@@ -217,24 +268,40 @@ export async function reshuffleActiveFortressPositions({
     orderBy: [{ isNpc: "asc" }, { joinedAt: "asc" }, { id: "asc" }],
     select: {
       id: true,
+      mapX: true,
+      mapY: true,
     },
   });
-  const positions = takeUniqueSpawnPoints(seed, fortresses.length, {
-    minSeparationDistance: 9,
-    preferredEdgePadding: ACTIVE_EDGE_PADDING,
-  });
+  const currentRenderedKeys = new Set(
+    fortresses.map((fortress) => getRenderedMapPositionKey(fortress))
+  );
+
+  let positions: Array<{ x: number; y: number }>;
+
+  try {
+    positions = takeUniqueSpawnPoints(seed, fortresses.length, {
+      excludedKeys: currentRenderedKeys,
+      minSeparationDistance: 9,
+      preferredEdgePadding: ACTIVE_EDGE_PADDING,
+    });
+  } catch {
+    positions = takeUniqueSpawnPoints(seed, fortresses.length, {
+      minSeparationDistance: 9,
+      preferredEdgePadding: ACTIVE_EDGE_PADDING,
+    });
+  }
+
+  const assignments = assignPositionsByDistance(fortresses, positions);
 
   await Promise.all(
-    fortresses.map((fortress, index) => {
-      const position = positions[index] ?? snapMapPointToHex({ x: 50, y: 50 });
-
+    assignments.map((assignment) => {
       return db.fortress.update({
         where: {
-          id: fortress.id,
+          id: assignment.fortressId,
         },
         data: {
-          mapX: Math.round(position.x),
-          mapY: Math.round(position.y),
+          mapX: Math.round(assignment.position.x),
+          mapY: Math.round(assignment.position.y),
         },
       });
     })
