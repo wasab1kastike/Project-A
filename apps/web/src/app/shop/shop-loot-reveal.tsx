@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { getCosmeticSpriteStyle } from "@/lib/game/cosmetic-sprites";
+import { unequipCosmeticAction } from "@/app/game-actions";
 import styles from "../arcade/page.module.css";
 
 type RevealSkin = {
@@ -88,11 +89,21 @@ export function ShopLootReveal({
               type="button"
               onClick={() => setVisible(false)}
             >
-              Nice
+              Equip this skin
             </button>
-            <Link className={styles.secondaryButton} href="/shop">
-              Clear reveal
-            </Link>
+            <form action={unequipCosmeticAction}>
+              <input
+                type="hidden"
+                name="slot"
+                value={skin.slot}
+              />
+              <button
+                className={styles.secondaryButton}
+                type="submit"
+              >
+                Keep default skin
+              </button>
+            </form>
           </div>
         </div>
       </div>

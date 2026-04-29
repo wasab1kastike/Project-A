@@ -13,6 +13,7 @@ import {
   openArcadeLootBox,
   playArcadeGame,
   purchaseArcadeLootBox,
+  unequipCosmeticUnlock,
 } from "@/lib/game/arcade";
 import {
   saveCommunityWishVotes,
@@ -694,6 +695,30 @@ export async function equipCosmeticUnlockAction(formData: FormData) {
   }
 
   finishArcadeAction("Cosmetic equipped.");
+}
+
+export async function unequipCosmeticAction(formData: FormData) {
+  const userId = await requireArcadeUserId();
+  const slot = getString(formData, "slot");
+
+  if (!slot) {
+    redirectToArcade("error", "Cosmetic slot is missing.");
+  }
+
+  try {
+    await unequipCosmeticUnlock({
+      userId,
+      slot:
+        slot === ArcadeCosmeticSlot.FORTRESS
+          ? ArcadeCosmeticSlot.FORTRESS
+          : ArcadeCosmeticSlot.UNIT,
+    });
+    emitProjectARefresh("arcade-cosmetic-equip");
+  } catch (error) {
+    redirectToArcade("error", getActionErrorMessage(error));
+  }
+
+  finishArcadeAction("Using default skin.");
 }
 
 export async function sendChatMessageAction(formData: FormData) {

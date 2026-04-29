@@ -1037,3 +1037,34 @@ export async function equipCosmeticUnlock({
     variant: unlock.variant,
   };
 }
+
+export async function unequipCosmeticUnlock({
+  userId,
+  slot,
+  db = prisma,
+}: {
+  userId: string;
+  slot: ArcadeCosmeticSlot;
+  db?: DatabaseClient;
+}) {
+  await db.user.update({
+    where:{
+      id: userId,
+    },
+    data:
+      slot === ArcadeCosmeticSlot.UNIT
+        ? {
+            unitCosmeticVariant: null,
+            cosmeticUnlockedAt: new Date(),
+          }
+        : {
+            fortressCosmeticVariant: null,
+            cosmeticUnlockedAt: new Date(),
+          },
+  });
+
+  return {
+    slot,
+    variant: null,
+  };
+}
