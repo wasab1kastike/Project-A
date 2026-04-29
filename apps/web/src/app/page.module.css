@@ -70,28 +70,34 @@
 
 .statusCluster {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   max-width: min(760px, 100%);
-  padding: 8px;
+  padding: 6px;
   border-radius: 8px;
   pointer-events: auto;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.statusCluster::-webkit-scrollbar {
+  display: none;
 }
 
 .phaseBadge,
 .accountChip,
 .hudButton {
-  min-height: 36px;
+  min-height: 30px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border: 1px solid var(--border-soft);
-  border-radius: 8px;
+  border-radius: 7px;
   background: rgba(8, 16, 25, 0.74);
   color: var(--foreground);
   font-family: var(--font-ibm-plex-mono);
-  font-size: 0.76rem;
+  font-size: 0.68rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -108,16 +114,16 @@
 }
 
 .tickStatus {
-  min-height: 36px;
+  min-height: 30px;
   display: inline-flex;
   align-items: center;
-  padding: 0 11px;
+  padding: 0 9px;
   border: 1px solid rgba(118, 190, 255, 0.3);
-  border-radius: 8px;
+  border-radius: 7px;
   background: rgba(8, 20, 31, 0.76);
   color: #a7dfff;
   font-family: var(--font-ibm-plex-mono);
-  font-size: 0.68rem;
+  font-size: 0.6rem;
   letter-spacing: 0.01em;
 }
 
@@ -128,14 +134,14 @@
 }
 
 .hudStats div {
-  min-height: 48px;
+  min-height: 38px;
   display: grid;
   align-content: center;
-  gap: 3px;
-  min-width: 92px;
-  padding: 7px 10px;
+  gap: 2px;
+  min-width: 70px;
+  padding: 4px 8px;
   border: 1px solid var(--border-soft);
-  border-radius: 8px;
+  border-radius: 7px;
   background: rgba(6, 12, 18, 0.68);
 }
 
@@ -143,7 +149,7 @@
 .sectionLabel {
   color: var(--text-muted);
   font-family: var(--font-ibm-plex-mono);
-  font-size: 0.62rem;
+  font-size: 0.55rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
