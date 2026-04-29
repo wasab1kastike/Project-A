@@ -2,6 +2,7 @@ import {
   CastleUpgradeSpecialization,
   CycleStatus,
   FortressAction,
+  FortressKind,
   ScoreEventType,
   Prisma,
   PrismaClient,
@@ -25,7 +26,7 @@ import {
   recallAttackUnit as recallAttackUnitRecord,
 } from "./attack-units";
 import { GameError } from "./errors";
-import { assertWorkerAssignments } from "./balance";
+import { assertWorkerAssignments, getDisplayedCastleLevel } from "./balance";
 import { isFortressRace, type FortressRace } from "./races";
 import { ensureCommanderRegistrationColumn } from "./schema-guards";
 import {
@@ -912,6 +913,8 @@ export async function shuffleFortressLocation({
       },
       select: {
         id: true,
+        commanderName: true,
+        name: true,
         points: true,
         race: true,
         level: true,
@@ -1080,6 +1083,65 @@ export async function shuffleFortressLocation({
     }
 
     if (freeTeleport) {
+      const decoyOwner = await tx.user.create({
+        data: {},
+        select: {
+          id: true,
+        },
+      });
+      const displayedCastleLevel = Math.max(
+        1,
+        getDisplayedCastleLevel(fortress.level)
+      );
+
+      await tx.fortress.create({
+        data: {
+          cycleId: cycle.id,
+          ownerId: decoyOwner.id,
+          commanderName: `${fortress.commanderName} Decoy ${locationShuffleCount + 1}`,
+          name: `${fortress.name} Decoy ${locationShuffleCount + 1}`,
+          race: fortress.race,
+          fortressKind: FortressKind.UNICORN_DECOY,
+          isNpc: true,
+          health: 1,
+          maxHealth: 1,
+          unicornDecoySourceFortressId: fortress.id,
+          unicornDecoyLevel: displayedCastleLevel,
+          mapX: fortress.mapX,
+          mapY: fortress.mapY,
+          joinedAt: now,
+        },
+      });
+
+      const activeSourceDecoys = await tx.fortress.findMany({
+        where: {
+          cycleId: cycle.id,
+          fortressKind: FortressKind.UNICORN_DECOY,
+          unicornDecoySourceFortressId: fortress.id,
+          health: {
+            gt: 0,
+          },
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: {
+          id: true,
+        },
+      });
+      const decoysToDeactivate = activeSourceDecoys.slice(displayedCastleLevel);
+
+      if (decoysToDeactivate.length > 0) {
+        await tx.fortress.updateMany({
+          where: {
+            id: {
+              in: decoysToDeactivate.map((decoy) => decoy.id),
+            },
+          },
+          data: {
+            health: 0,
+          },
+        });
+      }
+
       await tx.raceAbilityActivation.update({
         where: {
           id: freeTeleport.id,
