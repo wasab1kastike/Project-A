@@ -4,6 +4,7 @@ import {
   equipCosmeticUnlockAction,
   openArcadeLootBoxAction,
   purchaseArcadeLootBoxAction,
+  unequipCosmeticAction,
 } from "@/app/game-actions";
 import { ArcadeCosmeticSlot, ArcadeLootBoxType } from "@/lib/prisma-client";
 import { getArcadeLootBoxSkin } from "@/lib/game/constants";
@@ -300,6 +301,18 @@ export default async function ShopPage({
                 <div className={styles.skinColumns}>
                   <div>
                     <h4>Unit</h4>
+                    {state.equippedSkins.unit ? (
+                      <form action={unequipCosmeticAction}>
+                        <input
+                          type="hidden"
+                          name="slot"
+                          value={ArcadeCosmeticSlot.UNIT}
+                        />
+                        <button className={styles.secondaryButton} type="submit">
+                          Use default
+                        </button>
+                      </form>
+                    ) : null}
                     {state.ownedSkins.unit.length > 0 ? (
                       <div className={styles.skinList}>
                         {state.ownedSkins.unit.map((unlock) => {
@@ -361,6 +374,18 @@ export default async function ShopPage({
                   </div>
                   <div>
                     <h4>Fortress</h4>
+                    {state.equippedSkins.fortress ? (
+                      <form action={unequipCosmeticAction}>
+                        <input
+                          type="hidden"
+                          name="slot"
+                          value={ArcadeCosmeticSlot.FORTRESS}
+                        />
+                        <button className={styles.secondaryButton} type="submit">
+                          Use default
+                        </button>
+                      </form>
+                    ) : null}
                     {state.ownedSkins.fortress.length > 0 ? (
                       <div className={styles.skinList}>
                         {state.ownedSkins.fortress.map((unlock) => {

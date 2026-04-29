@@ -1517,7 +1517,7 @@ export async function claimUnicornTeleport({
         activeStartedAt: cycle.activeStartedAt,
         now,
         isActiveSeason: true,
-      }) < 3
+      }) < 1
     ) {
       throw new GameError("Free hourly teleport has not unlocked yet.");
     }

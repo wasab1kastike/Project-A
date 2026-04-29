@@ -1265,7 +1265,7 @@ export async function getHomePageState({
                 : null,
             canClaimUnicornTeleport:
               playerFortress.race === "UNSTABLE_UNICORNS" &&
-              raceBuffTier >= 3 &&
+              raceBuffTier >= 1 &&
               activeUnicornTeleportToken === null &&
               (!latestUnicornTeleportClaim ||
                 getHelsinkiHourKey(latestUnicornTeleportClaim.usedAt) !==
