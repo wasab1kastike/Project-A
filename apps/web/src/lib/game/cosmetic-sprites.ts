@@ -70,6 +70,16 @@ const DEDICATED_FORTRESS_SKINS: Readonly<
   "molten-stronghold": {
     src: "/assets/sprite-castle-molten-stronghold.png",
   },
+  "desert-fortress": { src: "/assets/sprite-castle-Desert-Fortress.png" },
+  "crystal-citadel": { src: "/assets/sprite-castle-Crystal-Citadel.png" },
+  "cyber-fortress": { src: "/assets/sprite-fortress-Cyber-Fortress.png" },
+  "swamp-keep": { src: "/assets/sprite-fortress-Swamp-Keep.png" },
+  "mechanical-drill-fortress": {
+    src: "/assets/sprite-fortress-Mechanical-Drill-Fortress.png",
+  },
+  "ancient-mire-temple": {
+    src: "/assets/sprite-fortress-Ancient-Mire-Temple.png",
+  },
   "unstable-unicorn-1": {
     src: "/assets/sprite-castle-unstable-unicorn-1.png",
   },
@@ -178,18 +188,6 @@ const FORTRESS_SKIN_SHEETS: readonly CosmeticSpriteSheet[] = [
       "void-castle",
       "frosthold-bastion",
       "molten-stronghold",
-    ],
-  },
-  {
-    src: "/assets/loot-box-fortress-set2.png",
-    columns: 3,
-    variants: [
-      "desert-fortress",
-      "crystal-citadel",
-      "cyber-fortress",
-      "swamp-keep",
-      "mechanical-drill-fortress",
-      "ancient-mire-temple",
     ],
   },
 ];

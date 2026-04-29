@@ -752,7 +752,15 @@ export async function getHomePageState({
       ).map((unit) => {
         const attackerReturned = unit.attackerReturned ?? unit.armyAmount;
 
-        if (unit.recalledAt) {
+        if (
+          unit.recalledAt &&
+          unit.defenderArmyAtBattleStart === null &&
+          (unit.resolvedAttackPower ?? 0) === 0 &&
+          (unit.resolvedDefensePower ?? 0) === 0 &&
+          (unit.defenderLosses ?? 0) === 0 &&
+          (unit.pointsLooted ?? 0) === 0 &&
+          (unit.foodLooted ?? 0) === 0
+        ) {
           return {
             type: "RECALLED" as const,
             id: unit.id,

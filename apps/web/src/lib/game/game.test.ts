@@ -3707,7 +3707,7 @@ test("race selection is owner-only and locked once per season", async (context) 
   assert.equal(fortress.race, "ORKS");
 });
 
-test("location shuffle is free once, then costs 50 points and cancels outgoing attacks", async (context) => {
+test("location shuffle is free once, then costs 50 points", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -3741,15 +3741,6 @@ test("location shuffle is free once, then costs 50 points and cancels outgoing a
       },
     },
   });
-  const targetFortress = await prisma.fortress.findUniqueOrThrow({
-    where: {
-      cycleId_ownerId: {
-        cycleId: cycle.id,
-        ownerId: target.id,
-      },
-    },
-  });
-
   await prisma.fortress.update({
     where: {
       id: attackerFortress.id,
@@ -3759,20 +3750,6 @@ test("location shuffle is free once, then costs 50 points and cancels outgoing a
       army: 1,
       race: FortressRace.DWARFS,
     },
-  });
-
-  await setFortressAction({
-    db: prisma,
-    userId: attacker.id,
-    action: FortressAction.ATTACK,
-    targetFortressId: targetFortress.id,
-    now: new Date("2026-04-20T12:05:00.000Z"),
-  });
-  await setFortressAction({
-    db: prisma,
-    userId: attacker.id,
-    action: FortressAction.GROW,
-    now: new Date("2026-04-20T12:05:10.000Z"),
   });
 
   const beforeFreeShuffle = await prisma.fortress.findUniqueOrThrow({
@@ -3847,7 +3824,7 @@ test("location shuffle is free once, then costs 50 points and cancels outgoing a
   });
 
   assert.equal(freeShuffle.shuffleCost, 0);
-  assert.equal(freeShuffle.cancelledAttackUnitCount, 1);
+  assert.equal(freeShuffle.cancelledAttackUnitCount, 0);
   assert.equal(afterFreeShuffle.points, beforeFreeShuffle.points);
   assert.equal(
     await getFortressLocationShuffleCount(prisma, attackerFortress.id),
@@ -3865,7 +3842,7 @@ test("location shuffle is free once, then costs 50 points and cancels outgoing a
     { x: afterFreeShuffle.mapX, y: afterFreeShuffle.mapY },
     { x: beforeFreeShuffle.mapX, y: beforeFreeShuffle.mapY }
   );
-  assert.equal(cancelledUnits.length, 1);
+  assert.equal(cancelledUnits.length, 0);
 
   const readModelAfterFreeShuffle = await getHomePageState({
     db: prisma,
@@ -3917,7 +3894,7 @@ test("location shuffle is free once, then costs 50 points and cancels outgoing a
   assert.equal(shuffleCostEvents[0]?.delta, -ACTIVE_LOCATION_SHUFFLE_COST);
 });
 
-test("location shuffle allows manual attacks in flight and rejects insufficient paid points", async (context) => {
+test("location shuffle rejects own armies in flight and rejects insufficient paid points", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -3946,6 +3923,14 @@ test("location shuffle allows manual attacks in flight and rejects insufficient 
     now: new Date("2026-04-20T12:00:00.000Z"),
   });
 
+  const attackerFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: attacker.id,
+      },
+    },
+  });
   const targetFortress = await prisma.fortress.findUniqueOrThrow({
     where: {
       cycleId_ownerId: {
@@ -3976,14 +3961,27 @@ test("location shuffle allows manual attacks in flight and rejects insufficient 
     now: new Date("2026-04-20T12:05:00.000Z"),
   });
 
-  const freeShuffle = await shuffleFortressLocation({
-    db: prisma,
-    userId: attacker.id,
-    now: new Date("2026-04-20T12:05:30.000Z"),
-  });
+  await assert.rejects(
+    () =>
+      shuffleFortressLocation({
+        db: prisma,
+        userId: attacker.id,
+        now: new Date("2026-04-20T12:05:30.000Z"),
+      }),
+    /own armies are still in the field/
+  );
 
-  assert.equal(freeShuffle.shuffleCost, 0);
-  assert.equal(freeShuffle.cancelledAttackUnitCount, 1);
+  await prisma.attackUnit.updateMany({
+    where: {
+      cycleId: cycle.id,
+      attackerFortressId: attackerFortress.id,
+      resolvedAt: null,
+      cancelledAt: null,
+    },
+    data: {
+      cancelledAt: new Date("2026-04-20T12:05:45.000Z"),
+    },
+  });
 
   await prisma.fortress.update({
     where: {

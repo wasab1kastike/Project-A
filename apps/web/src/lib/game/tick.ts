@@ -28,6 +28,7 @@ import {
   ensureMegaFortress,
   reshuffleActiveFortressPositions,
 } from "./mega-fortress";
+import { getAttackArrivalAt } from "./attacks";
 import { buildFortressSpawnSeed } from "./spawn-layout";
 import { addHours, addMinutes, floorToMinute } from "./time";
 import { calculateRaidOutcome, calculateTickProduction } from "./balance";
@@ -961,6 +962,17 @@ async function processCycleTick(
         armyAmount: true,
         arrivesAt: true,
         recalledAt: true,
+        returnOriginMapX: true,
+        returnOriginMapY: true,
+        attackerReturned: true,
+        defenderArmyAtBattleStart: true,
+        resolvedAttackPower: true,
+        resolvedDefensePower: true,
+        attackerSurvivors: true,
+        attackerRetired: true,
+        defenderLosses: true,
+        pointsLooted: true,
+        foodLooted: true,
       },
     });
 
@@ -975,29 +987,46 @@ async function processCycleTick(
       const target = fortressLookup.get(unit.targetFortressId);
 
       if (unit.recalledAt) {
+        const returningArmy = unit.attackerReturned ?? unit.armyAmount;
+
         if (attacker) {
           currentArmy.set(
             attacker.id,
-            (currentArmy.get(attacker.id) ?? attacker.army) + unit.armyAmount
+            (currentArmy.get(attacker.id) ?? attacker.army) + returningArmy
           );
+        }
+
+        const pureRecallDetection =
+          unit.defenderArmyAtBattleStart === null &&
+          unit.resolvedAttackPower === null &&
+          unit.resolvedDefensePower === null &&
+          unit.attackerSurvivors === null &&
+          unit.attackerRetired === null &&
+          unit.attackerReturned === null &&
+          unit.defenderLosses === null &&
+          unit.pointsLooted === null &&
+          unit.foodLooted === null;
+        const updateData: Prisma.AttackUnitUpdateInput = {
+          resolvedAt: tickAt,
+        };
+
+        if (pureRecallDetection) {
+          updateData.defenderArmyAtBattleStart = null;
+          updateData.resolvedAttackPower = 0;
+          updateData.resolvedDefensePower = 0;
+          updateData.attackerSurvivors = returningArmy;
+          updateData.attackerRetired = 0;
+          updateData.attackerReturned = returningArmy;
+          updateData.defenderLosses = 0;
+          updateData.pointsLooted = 0;
+          updateData.foodLooted = 0;
         }
 
         await tx.attackUnit.update({
           where: {
             id: unit.id,
           },
-          data: {
-            resolvedAt: tickAt,
-            defenderArmyAtBattleStart: null,
-            resolvedAttackPower: 0,
-            resolvedDefensePower: 0,
-            attackerSurvivors: unit.armyAmount,
-            attackerRetired: 0,
-            attackerReturned: unit.armyAmount,
-            defenderLosses: 0,
-            pointsLooted: 0,
-            foodLooted: 0,
-          },
+          data: updateData,
         });
 
         resolvedAttackUnits += 1;
@@ -1023,34 +1052,65 @@ async function processCycleTick(
           );
           const attackerLost = targetUnit.armyAmount - attackerReturned;
 
-          await tx.attackUnit.update({
-            where: {
-              id: targetUnit.id,
-            },
-            data: {
-              resolvedAt: tickAt,
-              defenderArmyAtBattleStart: 0,
-              resolvedAttackPower: targetUnit.armyAmount,
-              resolvedDefensePower: decoyCasualties,
-              attackerSurvivors: attackerReturned,
-              attackerRetired: attackerLost,
-              attackerReturned,
-              defenderLosses: 0,
-              pointsLooted: 0,
-              foodLooted: 0,
-            },
-          });
+          if (targetAttacker && attackerReturned > 0) {
+            const returnArrivesAt = getAttackArrivalAt({
+              launchedAt: tickAt,
+              origin: {
+                mapX: target.mapX,
+                mapY: target.mapY,
+              },
+              target: {
+                mapX: targetAttacker.mapX,
+                mapY: targetAttacker.mapY,
+              },
+              attackerRace: targetAttacker.race,
+              raceBuffTier,
+            });
+
+            await tx.attackUnit.update({
+              where: {
+                id: targetUnit.id,
+              },
+              data: {
+                recalledAt: tickAt,
+                returnOriginMapX: target.mapX,
+                returnOriginMapY: target.mapY,
+                arrivesAt: returnArrivesAt,
+                defenderArmyAtBattleStart: 0,
+                resolvedAttackPower: targetUnit.armyAmount,
+                resolvedDefensePower: decoyCasualties,
+                attackerSurvivors: attackerReturned,
+                attackerRetired: attackerLost,
+                attackerReturned,
+                defenderLosses: 0,
+                pointsLooted: 0,
+                foodLooted: 0,
+              },
+            });
+          } else {
+            await tx.attackUnit.update({
+              where: {
+                id: targetUnit.id,
+              },
+              data: {
+                resolvedAt: tickAt,
+                defenderArmyAtBattleStart: 0,
+                resolvedAttackPower: targetUnit.armyAmount,
+                resolvedDefensePower: decoyCasualties,
+                attackerSurvivors: attackerReturned,
+                attackerRetired: attackerLost,
+                attackerReturned,
+                defenderLosses: 0,
+                pointsLooted: 0,
+                foodLooted: 0,
+              },
+            });
+            resolvedAttackUnits += 1;
+          }
 
           resolvedBatchAttackUnitIds.add(targetUnit.id);
-          resolvedAttackUnits += 1;
 
           if (targetAttacker) {
-            currentArmy.set(
-              targetAttacker.id,
-              (currentArmy.get(targetAttacker.id) ?? targetAttacker.army) +
-                attackerReturned
-            );
-
             scoreEvents.push({
               cycleId,
               fortressId: targetAttacker.id,
@@ -1089,35 +1149,65 @@ async function processCycleTick(
           const targetAttacker = fortressLookup.get(
             targetUnit.attackerFortressId
           );
+          const attackerReturned = targetUnit.armyAmount;
 
-          await tx.attackUnit.update({
-            where: {
-              id: targetUnit.id,
-            },
-            data: {
-              resolvedAt: tickAt,
-              defenderArmyAtBattleStart: null,
-              resolvedAttackPower: targetUnit.armyAmount,
-              resolvedDefensePower: 0,
-              attackerSurvivors: targetUnit.armyAmount,
-              attackerRetired: 0,
-              attackerReturned: targetUnit.armyAmount,
-              defenderLosses: 0,
-              pointsLooted: 0,
-              foodLooted: 0,
-            },
-          });
+          if (targetAttacker && attackerReturned > 0) {
+            const returnArrivesAt = getAttackArrivalAt({
+              launchedAt: tickAt,
+              origin: {
+                mapX: target.mapX,
+                mapY: target.mapY,
+              },
+              target: {
+                mapX: targetAttacker.mapX,
+                mapY: targetAttacker.mapY,
+              },
+              attackerRace: targetAttacker.race,
+              raceBuffTier,
+            });
 
-          if (targetAttacker) {
-            currentArmy.set(
-              targetAttacker.id,
-              (currentArmy.get(targetAttacker.id) ?? targetAttacker.army) +
-                targetUnit.armyAmount
-            );
+            await tx.attackUnit.update({
+              where: {
+                id: targetUnit.id,
+              },
+              data: {
+                recalledAt: tickAt,
+                returnOriginMapX: target.mapX,
+                returnOriginMapY: target.mapY,
+                arrivesAt: returnArrivesAt,
+                defenderArmyAtBattleStart: null,
+                resolvedAttackPower: targetUnit.armyAmount,
+                resolvedDefensePower: 0,
+                attackerSurvivors: targetUnit.armyAmount,
+                attackerRetired: 0,
+                attackerReturned,
+                defenderLosses: 0,
+                pointsLooted: 0,
+                foodLooted: 0,
+              },
+            });
+          } else {
+            await tx.attackUnit.update({
+              where: {
+                id: targetUnit.id,
+              },
+              data: {
+                resolvedAt: tickAt,
+                defenderArmyAtBattleStart: null,
+                resolvedAttackPower: targetUnit.armyAmount,
+                resolvedDefensePower: 0,
+                attackerSurvivors: targetUnit.armyAmount,
+                attackerRetired: 0,
+                attackerReturned,
+                defenderLosses: 0,
+                pointsLooted: 0,
+                foodLooted: 0,
+              },
+            });
+            resolvedAttackUnits += 1;
           }
 
           resolvedBatchAttackUnitIds.add(targetUnit.id);
-          resolvedAttackUnits += 1;
         }
 
         if (destroyedMegaTargets.has(target.id)) {
@@ -1336,31 +1426,62 @@ async function processCycleTick(
         defenderFood,
       });
 
-      await tx.attackUnit.update({
-        where: {
-          id: unit.id,
-        },
-        data: {
-          resolvedAt: tickAt,
-          defenderArmyAtBattleStart,
-          resolvedAttackPower: outcome.attackPower,
-          resolvedDefensePower: outcome.defensePower,
-          attackerSurvivors: outcome.attackerSurvivors,
-          attackerRetired: outcome.attackerRetired,
-          attackerReturned: outcome.attackerReturned,
-          defenderLosses: outcome.defenderLosses,
-          pointsLooted: outcome.pointsLooted,
-          foodLooted: outcome.foodLooted,
-        },
-      });
+      if (outcome.attackerReturned > 0) {
+        const returnArrivesAt = getAttackArrivalAt({
+          launchedAt: tickAt,
+          origin: {
+            mapX: target.mapX,
+            mapY: target.mapY,
+          },
+          target: {
+            mapX: attacker.mapX,
+            mapY: attacker.mapY,
+          },
+          attackerRace: attacker.race,
+          raceBuffTier,
+        });
 
-      resolvedAttackUnits += 1;
+        await tx.attackUnit.update({
+          where: {
+            id: unit.id,
+          },
+          data: {
+            recalledAt: tickAt,
+            returnOriginMapX: target.mapX,
+            returnOriginMapY: target.mapY,
+            arrivesAt: returnArrivesAt,
+            defenderArmyAtBattleStart,
+            resolvedAttackPower: outcome.attackPower,
+            resolvedDefensePower: outcome.defensePower,
+            attackerSurvivors: outcome.attackerSurvivors,
+            attackerRetired: outcome.attackerRetired,
+            attackerReturned: outcome.attackerReturned,
+            defenderLosses: outcome.defenderLosses,
+            pointsLooted: outcome.pointsLooted,
+            foodLooted: outcome.foodLooted,
+          },
+        });
+      } else {
+        await tx.attackUnit.update({
+          where: {
+            id: unit.id,
+          },
+          data: {
+            resolvedAt: tickAt,
+            defenderArmyAtBattleStart,
+            resolvedAttackPower: outcome.attackPower,
+            resolvedDefensePower: outcome.defensePower,
+            attackerSurvivors: outcome.attackerSurvivors,
+            attackerRetired: outcome.attackerRetired,
+            attackerReturned: outcome.attackerReturned,
+            defenderLosses: outcome.defenderLosses,
+            pointsLooted: outcome.pointsLooted,
+            foodLooted: outcome.foodLooted,
+          },
+        });
+        resolvedAttackUnits += 1;
+      }
 
-      currentArmy.set(
-        attacker.id,
-        (currentArmy.get(attacker.id) ?? attacker.army) +
-          outcome.attackerReturned
-      );
       currentArmy.set(
         target.id,
         Math.max(0, defenderArmy - outcome.defenderLosses)
