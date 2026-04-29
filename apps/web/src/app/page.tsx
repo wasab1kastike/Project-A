@@ -384,7 +384,7 @@ export default async function Home({
           {state.cycle &&
           (state.phase?.status === "ACTIVE" ||
             state.phase?.status === "REGISTRATION") ? (
-            <details className={styles.wishPanel} open>
+            <details className={styles.wishPanel}>
               <summary className={styles.wishPanelToggle}>Wish</summary>
               <section
                 className={styles.wishPanelContent}
