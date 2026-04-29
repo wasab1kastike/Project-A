@@ -24,7 +24,11 @@ import {
 import { getChatLimits } from "./chat";
 import { getCommunityWishVoteBudget } from "./community-wishes";
 import { normalizeUnitSpriteVariant } from "./attacks";
-import { formatApproximateForce, formatRaidBattleReport } from "./battle-report";
+import {
+  formatApproximateForce,
+  formatRaidBattleReport,
+  formatRaidRecallReport,
+} from "./battle-report";
 import {
   ensureCommanderRegistrationColumn,
   ensureLastReadChatColumn,
@@ -546,6 +550,8 @@ export async function getHomePageState({
   const joiningLocked = Boolean(cycle.joiningLockedAt);
   const activeOpen =
     cycle.status === CycleStatus.ACTIVE &&
+    cycle.activeStartedAt !== null &&
+    cycle.activeStartedAt <= now &&
     cycle.activeEndsAt !== null &&
     cycle.activeEndsAt > now;
   const gameplayOpen = testingOpen || activeOpen;
@@ -682,7 +688,6 @@ export async function getHomePageState({
               not: null,
             },
             cancelledAt: null,
-            recalledAt: null,
             OR: [
               {
                 attackerFortressId: playerFortress.id,
@@ -708,6 +713,7 @@ export async function getHomePageState({
             id: true,
             launchedAt: true,
             resolvedAt: true,
+            recalledAt: true,
             armyAmount: true,
             defenderArmyAtBattleStart: true,
             resolvedAttackPower: true,
@@ -739,6 +745,42 @@ export async function getHomePageState({
           },
         })
       ).map((unit) => {
+        const attackerReturned = unit.attackerReturned ?? unit.armyAmount;
+
+        if (unit.recalledAt) {
+          return {
+            type: "RECALLED" as const,
+            id: unit.id,
+            launchedAt: unit.launchedAt,
+            resolvedAt: unit.resolvedAt ?? unit.launchedAt,
+            attackerName: unit.attackerFortress.name,
+            attackerCommanderName: unit.attackerFortress.commanderName,
+            attackerOwnerId: unit.attackerFortress.ownerId,
+            defenderName: unit.targetFortress.name,
+            defenderCommanderName: unit.targetFortress.commanderName,
+            defenderOwnerId: unit.targetFortress.ownerId,
+            sentArmy: unit.armyAmount,
+            defenderArmyEstimate: "recalled",
+            defenderDbLevel: unit.targetFortress.level,
+            defenseBonusPercent: 0,
+            defenseMultiplier: 1,
+            resolvedAttackPower: unit.resolvedAttackPower ?? 0,
+            resolvedDefensePowerEstimate: "0",
+            outcome: "RECALLED" as const,
+            attackerSurvivors: unit.attackerSurvivors ?? attackerReturned,
+            attackerRetired: unit.attackerRetired ?? 0,
+            attackerReturned,
+            defenderLosses: unit.defenderLosses ?? 0,
+            pointsLooted: unit.pointsLooted ?? 0,
+            foodLooted: unit.foodLooted ?? 0,
+            reportLines: formatRaidRecallReport({
+              attackerName: unit.attackerFortress.name,
+              sentArmy: unit.armyAmount,
+              returnedArmy: attackerReturned,
+            }),
+          };
+        }
+
         const resolvedAttackPower = unit.resolvedAttackPower ?? unit.armyAmount;
         const resolvedDefensePower = unit.resolvedDefensePower ?? 0;
         const defenderDbLevel = unit.targetFortress.level;
@@ -748,6 +790,7 @@ export async function getHomePageState({
             : "DEFENDER_WIN";
 
         return {
+          type: "BATTLE" as const,
           id: unit.id,
           launchedAt: unit.launchedAt,
           resolvedAt: unit.resolvedAt ?? unit.launchedAt,
@@ -1001,7 +1044,7 @@ export async function getHomePageState({
             ? testingOpen && joiningLocked
               ? "Testing mode remains open on the clock, but new joins are currently locked by admin action."
               : testingOpen && remainingSlots > 0
-                ? "Testing mode is live. You can still join before the real season starts; sandbox progress resets first."
+                ? "Testing mode is live. You can still join before testing ends; sandbox progress resets before the real season."
                 : testingOpen
                   ? "Testing mode is live, but all player slots are filled. Sandbox progress resets before the real season."
                   : "Testing has ended. The next game tick will reset sandbox progress and start the real season."

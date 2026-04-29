@@ -33,6 +33,12 @@ export type RaidBattleReportInput = {
   foodLooted: number;
 };
 
+export type RaidRecallReportInput = {
+  attackerName: string;
+  sentArmy: number;
+  returnedArmy: number;
+};
+
 function formatPercent(value: number) {
   return `${Math.round(value * 100)}%`;
 }
@@ -124,5 +130,12 @@ export function formatRaidBattleReport(input: RaidBattleReportInput) {
       ? `${input.attackerSurvivors} survived, ${input.attackerReturned} returned, ${input.attackerRetired} retired. Defender lost ${input.defenderLosses} troops.`
       : `Your sent army was lost. Defender lost ${input.defenderLosses} troops.`,
     `Loot gained: ${input.pointsLooted} points and ${input.foodLooted} food.`,
+  ];
+}
+
+export function formatRaidRecallReport(input: RaidRecallReportInput) {
+  return [
+    `Army recalled. ${input.returnedArmy} troops returned home to ${input.attackerName}.`,
+    `Sent army: ${input.sentArmy}. Returned army: ${input.returnedArmy}.`,
   ];
 }

@@ -238,9 +238,9 @@ export default async function Home({
             nextAction: state.playerSummary
               ? "Test your economy and attacks, then get ready to choose again when the season starts."
               : state.canJoinCycle
-                ? "You can still join before the real season begins."
+                ? "You can still join before testing ends."
                 : "Watch the sandbox and wait for the real season start.",
-            timerLabel: "Season starts",
+            timerLabel: "Testing ends",
             battlefieldTitle: "Testing battlefield",
             battlefieldDescription:
               "Sandbox combat is live. Race, resources, attacks and upgrades reset at season start.",

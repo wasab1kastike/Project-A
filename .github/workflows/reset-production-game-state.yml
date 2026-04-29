@@ -60,6 +60,8 @@ jobs:
           const activeStartsAt = new Date(process.env.ACTIVE_STARTS_AT);
           const registrationStartedAt = new Date();
           registrationStartedAt.setSeconds(0, 0);
+          const testingStartedAt = new Date(activeStartsAt.getTime() - 24 * 60 * 60 * 1000);
+          const testingEndsAt = new Date(activeStartsAt.getTime() - 1 * 60 * 60 * 1000);
           const activeEndsAt = new Date(activeStartsAt.getTime() + 72 * 60 * 60 * 1000);
 
           await prisma.$transaction(async (tx) => {
@@ -77,6 +79,8 @@ jobs:
                 status: CycleStatus.REGISTRATION,
                 registrationStartedAt,
                 registrationEndsAt: activeStartsAt,
+                testingStartedAt,
+                testingEndsAt,
                 activeStartedAt: null,
                 activeEndsAt,
                 joiningLockedAt: null,
@@ -89,6 +93,8 @@ jobs:
 
           console.log(`Production game state reset.`);
           console.log(`Registration started: ${registrationStartedAt.toISOString()}`);
+          console.log(`Testing starts: ${testingStartedAt.toISOString()}`);
+          console.log(`Testing ends: ${testingEndsAt.toISOString()}`);
           console.log(`Season active starts: ${activeStartsAt.toISOString()}`);
           console.log(`Season active ends: ${activeEndsAt.toISOString()}`);
 

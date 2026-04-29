@@ -11,6 +11,7 @@ import {
   MEGA_FORTRESS_DESTROY_BONUS,
   MEGA_FORTRESS_HEALTH,
   TESTING_DURATION_HOURS,
+  TESTING_ENDS_BEFORE_ACTIVE_HOURS,
 } from "./constants";
 import { mintSeasonArcadeCoins } from "./arcade";
 import {
@@ -258,6 +259,10 @@ async function restartEmptyRegistrationCycle(
       registrationEndsAt,
       -TESTING_DURATION_HOURS
     );
+    const testingEndsAt = addHours(
+      registrationEndsAt,
+      -TESTING_ENDS_BEFORE_ACTIVE_HOURS
+    );
 
     await tx.cycle.update({
       where: {
@@ -268,7 +273,7 @@ async function restartEmptyRegistrationCycle(
         registrationStartedAt,
         registrationEndsAt,
         testingStartedAt,
-        testingEndsAt: registrationEndsAt,
+        testingEndsAt,
         activeStartedAt: null,
         activeEndsAt: getNextHelsinkiWeekdayAtHour(registrationEndsAt, 0, 12),
       },
@@ -313,6 +318,7 @@ async function startTestingCycle(
 
     const testingStartedAt = cycle.testingStartedAt!;
     const testingEndsAt = cycle.testingEndsAt!;
+    const activeStartedAt = cycle.registrationEndsAt;
 
     await tx.cycle.update({
       where: {
@@ -322,8 +328,8 @@ async function startTestingCycle(
         status: CycleStatus.TESTING,
         testingStartedAt,
         testingEndsAt,
-        activeStartedAt: testingEndsAt,
-        activeEndsAt: getNextHelsinkiWeekdayAtHour(testingEndsAt, 0, 12),
+        activeStartedAt,
+        activeEndsAt: getNextHelsinkiWeekdayAtHour(activeStartedAt, 0, 12),
         joiningLockedAt: null,
       },
     });
@@ -378,12 +384,14 @@ async function completeTestingCycle(
       !cycle ||
       cycle.status !== CycleStatus.TESTING ||
       !cycle.testingEndsAt ||
-      cycle.testingEndsAt > now
+      !cycle.activeStartedAt ||
+      cycle.testingEndsAt > now ||
+      cycle.activeStartedAt > now
     ) {
       return false;
     }
 
-    const activeStartedAt = cycle.testingEndsAt;
+    const activeStartedAt = cycle.activeStartedAt;
     const activeEndsAt = getNextHelsinkiWeekdayAtHour(activeStartedAt, 0, 12);
 
     await tx.attackUnit.deleteMany({
@@ -974,6 +982,15 @@ async function processCycleTick(
           },
           data: {
             resolvedAt: tickAt,
+            defenderArmyAtBattleStart: null,
+            resolvedAttackPower: 0,
+            resolvedDefensePower: 0,
+            attackerSurvivors: unit.armyAmount,
+            attackerRetired: 0,
+            attackerReturned: unit.armyAmount,
+            defenderLosses: 0,
+            pointsLooted: 0,
+            foodLooted: 0,
           },
         });
 

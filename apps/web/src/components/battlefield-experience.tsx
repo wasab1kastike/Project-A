@@ -171,6 +171,7 @@ type PlayerFortress = {
 };
 
 type BattleReport = {
+  type: "BATTLE" | "RECALLED";
   id: string;
   launchedAt: Date;
   resolvedAt: Date;
@@ -187,7 +188,7 @@ type BattleReport = {
   defenseMultiplier: number;
   resolvedAttackPower: number;
   resolvedDefensePowerEstimate: string;
-  outcome: "ATTACKER_WIN" | "DEFENDER_WIN";
+  outcome: "ATTACKER_WIN" | "DEFENDER_WIN" | "RECALLED";
   attackerSurvivors: number;
   attackerRetired: number;
   attackerReturned: number;

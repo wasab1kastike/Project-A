@@ -2023,7 +2023,7 @@ test("expired empty registration restarts with a fresh 24 hour window", async (c
   );
 });
 
-test("non-empty registration enters testing for the final 24 hours before season start", async (context) => {
+test("non-empty registration enters testing and ends it one hour before season start", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -2044,6 +2044,7 @@ test("non-empty registration enters testing for the final 24 hours before season
   });
 
   const testingStartsAt = addHours(cycle.registrationEndsAt, -24);
+  const testingEndsAt = addHours(cycle.registrationEndsAt, -1);
   const summary = await runGameTick({
     db: prisma,
     now: testingStartsAt,
@@ -2063,10 +2064,10 @@ test("non-empty registration enters testing for the final 24 hours before season
   assert.equal(summary.activatedCycles, 0);
   assert.equal(testingCycle.status, CycleStatus.TESTING);
   assert.equal(testingCycle.testingStartedAt?.toISOString(), testingStartsAt.toISOString());
-  assert.equal(testingCycle.testingEndsAt?.toISOString(), cycle.registrationEndsAt.toISOString());
+  assert.equal(testingCycle.testingEndsAt?.toISOString(), testingEndsAt.toISOString());
   assert.equal(testingCycle.activeStartedAt?.toISOString(), cycle.registrationEndsAt.toISOString());
   assert.equal(testingState.phase?.status, CycleStatus.TESTING);
-  assert.equal(testingState.phase?.deadline?.toISOString(), cycle.registrationEndsAt.toISOString());
+  assert.equal(testingState.phase?.deadline?.toISOString(), testingEndsAt.toISOString());
   assert.equal(testingState.canJoinCycle, false);
   assert.equal(testingState.playerSummary?.isTestingPhase, true);
   assert.equal(testingState.communityWish.canSubmit, false);
@@ -2103,6 +2104,7 @@ test("testing allows joins and gameplay, then resets sandbox progress at season 
   });
 
   const testingStartsAt = addHours(cycle.registrationEndsAt, -24);
+  const testingEndsAt = addHours(cycle.registrationEndsAt, -1);
   await runGameTick({
     db: prisma,
     now: testingStartsAt,
@@ -2195,6 +2197,20 @@ test("testing allows joins and gameplay, then resets sandbox progress at season 
       arrivesAt: addMinutes(testingStartsAt, 6),
     },
   });
+
+  const gapSummary = await runGameTick({
+    db: prisma,
+    now: testingEndsAt,
+  });
+  const gapCycle = await prisma.cycle.findUniqueOrThrow({
+    where: {
+      id: cycle.id,
+    },
+  });
+
+  assert.equal(gapSummary.testingCyclesCompleted, 0);
+  assert.equal(gapSummary.activatedCycles, 0);
+  assert.equal(gapCycle.status, CycleStatus.TESTING);
 
   const summary = await runGameTick({
     db: prisma,
@@ -4258,9 +4274,32 @@ test("recalled attack units return home without damaging the target", async (con
 
   assert.equal(resolvedUnit.resolvedAt?.toISOString(), recalledUnit.arrivesAt.toISOString());
   assert.equal(resolvedUnit.defenderArmyAtBattleStart, null);
-  assert.equal(resolvedUnit.pointsLooted, null);
+  assert.equal(resolvedUnit.resolvedAttackPower, 0);
+  assert.equal(resolvedUnit.resolvedDefensePower, 0);
+  assert.equal(resolvedUnit.attackerSurvivors, 3);
+  assert.equal(resolvedUnit.attackerReturned, 3);
+  assert.equal(resolvedUnit.attackerRetired, 0);
+  assert.equal(resolvedUnit.defenderLosses, 0);
+  assert.equal(resolvedUnit.pointsLooted, 0);
+  assert.equal(resolvedUnit.foodLooted, 0);
   assert.equal(attackerAfterReturn.army, 5);
   assert.equal(targetAfterReturn.points, 20);
+
+  const stateAfterReturn = await getHomePageState({
+    db: prisma,
+    userId: attacker.id,
+    now: recalledUnit.arrivesAt,
+  });
+  const recallReport = stateAfterReturn.battleReports.find(
+    (report) => report.id === launchedUnit.id
+  );
+
+  assert.equal(recallReport?.type, "RECALLED");
+  assert.equal(recallReport?.sentArmy, 3);
+  assert.equal(recallReport?.attackerReturned, 3);
+  assert.match(recallReport?.reportLines[0] ?? "", /Army recalled/);
+  assert.match(recallReport?.reportLines[0] ?? "", /3 troops returned home/);
+  assert.doesNotMatch(recallReport?.reportLines.join(" ") ?? "", /Loot|Raid failed|Raid victory/);
 
   await assert.rejects(
     () =>

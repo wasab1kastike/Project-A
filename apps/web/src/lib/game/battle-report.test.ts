@@ -4,6 +4,7 @@ import {
   formatApproximateForce,
   formatRaidAttackPreview,
   formatRaidBattleReport,
+  formatRaidRecallReport,
 } from "./battle-report";
 
 test("approximate force formatting uses nearest display buckets", () => {
@@ -90,4 +91,18 @@ test("losing raid report includes defender losses and no returned army", () => {
   assert.match(lines[2] ?? "", /7 troops/);
   assert.match(lines[3] ?? "", /0 points/);
   assert.match(lines[3] ?? "", /0 food/);
+});
+
+test("recall report includes returned army without battle details", () => {
+  const lines = formatRaidRecallReport({
+    attackerName: "North Keep",
+    sentArmy: 3,
+    returnedArmy: 3,
+  });
+
+  assert.deepEqual(lines, [
+    "Army recalled. 3 troops returned home to North Keep.",
+    "Sent army: 3. Returned army: 3.",
+  ]);
+  assert.doesNotMatch(lines.join(" "), /Loot|Defender|Raid failed|Raid victory/);
 });

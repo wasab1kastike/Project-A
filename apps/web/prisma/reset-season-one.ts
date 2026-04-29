@@ -1,5 +1,9 @@
 import { CycleStatus, PrismaClient } from "../src/lib/prisma-client";
-import { CURRENT_MAP_LAYOUT_VERSION } from "../src/lib/game/constants";
+import {
+  CURRENT_MAP_LAYOUT_VERSION,
+  TESTING_DURATION_HOURS,
+  TESTING_ENDS_BEFORE_ACTIVE_HOURS,
+} from "../src/lib/game/constants";
 
 const prisma = new PrismaClient({
   datasources: process.env.DATABASE_URL
@@ -13,6 +17,13 @@ const prisma = new PrismaClient({
 
 const activeStartsAt = new Date(
   process.env.SEASON_ONE_ACTIVE_STARTS_AT ?? "2026-04-23T09:00:00.000Z"
+);
+const testingStartedAt = new Date(
+  activeStartsAt.getTime() - TESTING_DURATION_HOURS * 60 * 60 * 1000
+);
+const testingEndsAt = new Date(
+  activeStartsAt.getTime() -
+    TESTING_ENDS_BEFORE_ACTIVE_HOURS * 60 * 60 * 1000
 );
 const activeEndsAt = new Date(activeStartsAt.getTime() + 72 * 60 * 60 * 1000);
 
@@ -64,6 +75,8 @@ async function main() {
         status: CycleStatus.REGISTRATION,
         registrationStartedAt,
         registrationEndsAt: activeStartsAt,
+        testingStartedAt,
+        testingEndsAt,
         activeStartedAt: null,
         activeEndsAt,
         joiningLockedAt: null,
@@ -76,6 +89,8 @@ async function main() {
 
   console.log("Production game state reset for Season 1.");
   console.log(`Registration started: ${registrationStartedAt.toISOString()}`);
+  console.log(`Testing starts: ${testingStartedAt.toISOString()}`);
+  console.log(`Testing ends: ${testingEndsAt.toISOString()}`);
   console.log(`Season active starts: ${activeStartsAt.toISOString()}`);
   console.log(`Season active ends: ${activeEndsAt.toISOString()}`);
 }
