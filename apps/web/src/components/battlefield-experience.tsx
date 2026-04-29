@@ -187,7 +187,7 @@ type BattleReport = {
   defenseMultiplier: number;
   resolvedAttackPower: number;
   resolvedDefensePowerEstimate: string;
-  outcome: "ATTACKER_WIN" | "DEFENDER_WIN";
+  outcome: "ATTACKER_WIN" | "DEFENDER_WIN" | "RECALLED";
   attackerSurvivors: number;
   attackerRetired: number;
   attackerReturned: number;

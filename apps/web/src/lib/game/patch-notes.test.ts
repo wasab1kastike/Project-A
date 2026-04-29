@@ -4,6 +4,7 @@ import { PATCH_NOTES_RELEASES, getPatchNotesPageState } from "./patch-notes";
 import {
   PATCH_NOTES_PAGE_HREF,
   PRIMARY_GAME_NAV_LINKS,
+  WIKI_PAGE_HREF,
 } from "./site-navigation";
 
 test("patch notes releases stay newest-first", () => {
@@ -50,6 +51,14 @@ test("primary navigation includes the patch notes page", () => {
   assert.equal(PATCH_NOTES_PAGE_HREF, "/patch-notes");
   assert.equal(
     PRIMARY_GAME_NAV_LINKS.some((link) => link.href === PATCH_NOTES_PAGE_HREF),
+    true
+  );
+});
+
+test("primary navigation includes wiki", () => {
+  assert.equal(WIKI_PAGE_HREF, "/wiki");
+  assert.equal(
+    PRIMARY_GAME_NAV_LINKS.some((link) => link.href === WIKI_PAGE_HREF),
     true
   );
 });
