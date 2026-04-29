@@ -1477,7 +1477,7 @@ export function BattlefieldExperience({
                           className={`${styles.secondaryButton} ${styles.emphasisButton}`}
                           type="submit"
                         >
-                          Use Unicorn free yeet
+                          Use pending Unicorn free yeet
                         </button>
                       </form>
                     ) : playerSummary.raceBuffs.canClaimUnicornTeleport ? (
@@ -1486,7 +1486,7 @@ export function BattlefieldExperience({
                           className={styles.secondaryButton}
                           type="submit"
                         >
-                          Claim hourly free yeet
+                          Activate hourly Unicorn free yeet
                         </button>
                       </form>
                     ) : null}

@@ -403,17 +403,27 @@ export async function activateStimAction() {
 
 export async function claimUnicornTeleportAction() {
   const userId = await requireUserId();
+  let notice: string;
 
   try {
     await claimUnicornTeleport({
       userId,
     });
-    emitProjectARefresh("unicorn-teleport-claim");
+    const result = await shuffleFortressLocation({
+      userId,
+      useFreeTeleport: true,
+    });
+    emitProjectARefresh("unicorn-teleport-activate");
+
+    notice =
+      result.cancelledAttackUnitCount > 0
+        ? "Free Unicorn teleport fired instantly and left an attackable decoy behind. Outgoing attacks were canceled."
+        : "Free Unicorn teleport fired instantly and left an attackable decoy behind.";
   } catch (error) {
     redirectToHome("error", getActionErrorMessage(error));
   }
 
-  finishAction("Free Castle Yeet token claimed.");
+  finishAction(notice);
 }
 
 export async function shuffleFortressLocationAction() {
