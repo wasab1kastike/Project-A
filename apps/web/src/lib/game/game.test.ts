@@ -3894,7 +3894,7 @@ test("location shuffle is free once, then costs 50 points", async (context) => {
   assert.equal(shuffleCostEvents[0]?.delta, -ACTIVE_LOCATION_SHUFFLE_COST);
 });
 
-test("location shuffle rejects own armies in flight and rejects insufficient paid points", async (context) => {
+test("location shuffle cancels own armies in flight and rejects insufficient paid points", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -3961,27 +3961,24 @@ test("location shuffle rejects own armies in flight and rejects insufficient pai
     now: new Date("2026-04-20T12:05:00.000Z"),
   });
 
-  await assert.rejects(
-    () =>
-      shuffleFortressLocation({
-        db: prisma,
-        userId: attacker.id,
-        now: new Date("2026-04-20T12:05:30.000Z"),
-      }),
-    /own armies are still in the field/
-  );
+  const shuffleWithOutgoingUnits = await shuffleFortressLocation({
+    db: prisma,
+    userId: attacker.id,
+    now: new Date("2026-04-20T12:05:30.000Z"),
+  });
 
-  await prisma.attackUnit.updateMany({
+  assert.ok(shuffleWithOutgoingUnits.cancelledAttackUnitCount > 0);
+
+  const activeOwnUnitsAfterShuffle = await prisma.attackUnit.count({
     where: {
       cycleId: cycle.id,
       attackerFortressId: attackerFortress.id,
       resolvedAt: null,
       cancelledAt: null,
     },
-    data: {
-      cancelledAt: new Date("2026-04-20T12:05:45.000Z"),
-    },
   });
+
+  assert.equal(activeOwnUnitsAfterShuffle, 0);
 
   await prisma.fortress.update({
     where: {

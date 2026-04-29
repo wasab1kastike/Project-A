@@ -947,20 +947,6 @@ export async function shuffleFortressLocation({
       );
     }
 
-    const activeOwnAttackUnitCount = await tx.attackUnit.count({
-      where: {
-        attackerFortressId: fortress.id,
-        resolvedAt: null,
-        cancelledAt: null,
-      },
-    });
-
-    if (activeOwnAttackUnitCount > 0) {
-      throw new GameError(
-        "You cannot trigger Castle Yeet while your own armies are still in the field."
-      );
-    }
-
     const otherFortresses = await tx.fortress.findMany({
       where: {
         cycleId: cycle.id,
