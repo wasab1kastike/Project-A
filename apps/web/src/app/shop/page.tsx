@@ -110,6 +110,12 @@ export default async function ShopPage({
       : null;
   const hasOwnedSkins =
     state.ownedSkins.unit.length > 0 || state.ownedSkins.fortress.length > 0;
+  const hasEquippedUnitSkin = state.ownedSkins.unit.some(
+    (unlock) => unlock.equipped
+  );
+  const hasEquippedFortressSkin = state.ownedSkins.fortress.some(
+    (unlock) => unlock.equipped
+  );
   const hasShopAccess =
     state.canBuy ||
     state.canOpen ||
@@ -301,7 +307,7 @@ export default async function ShopPage({
                 <div className={styles.skinColumns}>
                   <div>
                     <h4>Unit</h4>
-                    {state.equippedSkins.unit ? (
+                    {hasEquippedUnitSkin ? (
                       <form action={unequipCosmeticAction}>
                         <input
                           type="hidden"
@@ -374,7 +380,7 @@ export default async function ShopPage({
                   </div>
                   <div>
                     <h4>Fortress</h4>
-                    {state.equippedSkins.fortress ? (
+                    {hasEquippedFortressSkin ? (
                       <form action={unequipCosmeticAction}>
                         <input
                           type="hidden"
