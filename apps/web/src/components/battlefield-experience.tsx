@@ -936,6 +936,20 @@ export function BattlefieldExperience({
     }
   }
 
+  function handleCastleYeetSubmit(event: FormEvent<HTMLFormElement>) {
+    if (!playerSummary?.hasOutgoingAttackUnits) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "You have outgoing attack units in flight. Castle Yeet will sacrifice them. Continue?"
+    );
+
+    if (!confirmed) {
+      event.preventDefault();
+    }
+  }
+
   function handleChatToggle() {
     if (chatOpen) {
       setChatOpen(false);
@@ -1329,7 +1343,10 @@ export function BattlefieldExperience({
                   next Castle Yeet.
                 </p>
               ) : null}
-              <form action={shuffleFortressLocationAction}>
+              <form
+                action={shuffleFortressLocationAction}
+                onSubmit={handleCastleYeetSubmit}
+              >
                 <button
                   className={`${styles.secondaryButton} ${styles.emphasisButton}`}
                   type="submit"

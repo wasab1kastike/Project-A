@@ -46,6 +46,10 @@ type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
 const PUBLIC_NAME_MAX_LENGTH = 32;
 const ACTIVE_EDGE_PADDING = 15;
+const LOCATION_SHUFFLE_INITIAL_MIN_TRAVEL_DISTANCE = 24;
+const LOCATION_SHUFFLE_MIN_TRAVEL_DISTANCE_FLOOR = 12;
+const LOCATION_SHUFFLE_MIN_TRAVEL_DISTANCE_STEP = 2;
+const LOCATION_SHUFFLE_SCORE_RANDOMNESS = 24;
 
 function normalizePublicName(input: string, label: string) {
   const normalized = input.trim().replace(/\s+/g, " ");
@@ -971,8 +975,13 @@ export async function shuffleFortressLocation({
     let nextPersistedMapX: number | null = null;
     let nextPersistedMapY: number | null = null;
 
-    for (let attempt = 0; attempt < 8; attempt += 1) {
+    for (let attempt = 0; attempt < 12; attempt += 1) {
       let candidate: { x: number; y: number };
+      const requiredTravelDistance = Math.max(
+        LOCATION_SHUFFLE_MIN_TRAVEL_DISTANCE_FLOOR,
+        LOCATION_SHUFFLE_INITIAL_MIN_TRAVEL_DISTANCE -
+          LOCATION_SHUFFLE_MIN_TRAVEL_DISTANCE_STEP * attempt
+      );
 
       try {
         candidate = takeOpenSpawnPoint(
@@ -985,17 +994,30 @@ export async function shuffleFortressLocation({
           }),
           {
             excludedKeys,
-            referencePoints: otherFortresses.map((otherFortress) => ({
-              x: otherFortress.mapX,
-              y: otherFortress.mapY,
-            })),
+            referencePoints: [
+              { x: fortress.mapX, y: fortress.mapY },
+              ...otherFortresses.map((otherFortress) => ({
+                x: otherFortress.mapX,
+                y: otherFortress.mapY,
+              })),
+            ],
             minSeparationDistance: 9,
             preferredEdgePadding: ACTIVE_EDGE_PADDING,
-            scoreRandomness: 10,
+            scoreRandomness: LOCATION_SHUFFLE_SCORE_RANDOMNESS,
           }
         );
       } catch {
         break;
+      }
+
+      const travelDistance = Math.hypot(
+        candidate.x - fortress.mapX,
+        candidate.y - fortress.mapY
+      );
+
+      if (travelDistance < requiredTravelDistance) {
+        excludedKeys.add(getRenderedMapPositionKey(candidate));
+        continue;
       }
 
       const persistedMapX = Math.round(candidate.x);
