@@ -55,17 +55,23 @@ import {
   ARCADE_SEASON_POINTS_BONUS_CAP,
   ARCADE_SEASON_POINTS_BONUS_DIVISOR,
   getArcadeSeasonRankBonus,
+  ARCADE_FORTRESS_LOOT_BOX_SKINS_SET_1,
   CURRENT_MAP_LAYOUT_VERSION,
   MEGA_FORTRESS_DESTROY_BONUS,
   MEGA_FORTRESS_HEALTH,
   ARCADE_LOOT_BOX_SKINS,
+  ARCADE_UNIT_LOOT_BOX_SKINS_LEGACY,
   FORTRESS_LEVEL_UP_COSTS,
   MAX_FORTRESS_LEVEL,
   UNIT_SPRITE_VARIANTS,
 } from "./constants";
 import { getAttackArrivalAt, getAttackTravelMinutes } from "./attacks";
 import { getAttackPresentation } from "./attack-presentation";
-import { getCosmeticSpriteStyle } from "./cosmetic-sprites";
+import {
+  getCosmeticSpriteStyle,
+  getDedicatedCosmeticSpriteAssetGaps,
+  getDefaultRaceCosmeticVariant,
+} from "./cosmetic-sprites";
 import { getNextHelsinkiNoonAfter, getRaceBuffTier } from "./race-buffs";
 import {
   HEX_SPAWN_TILES,
@@ -715,15 +721,112 @@ test("build arcade rewards unlock cosmetics at predictable score thresholds", ()
 
 test("cosmetic sprite styles resolve known shop skins", () => {
   assert.deepEqual(getCosmeticSpriteStyle("UNIT", "silver-knight"), {
-    backgroundImage: 'url("/assets/loot-box-set-1.png")',
-    backgroundSize: "400% 400%",
-    backgroundPosition: "0% 0%",
+    backgroundImage: 'url("/assets/sprite-unit-silver-knight.png")',
+    backgroundSize: "contain",
+    backgroundPosition: "center",
+  });
+  assert.deepEqual(getCosmeticSpriteStyle("UNIT", "ranger-scout"), {
+    backgroundImage: 'url("/assets/unit-sprite-ranger-scout.png")',
+    backgroundSize: "contain",
+    backgroundPosition: "center",
+  });
+  assert.deepEqual(getCosmeticSpriteStyle("FORTRESS", "forest-keep"), {
+    backgroundImage: 'url("/assets/sprite-castle-forest-citadel.png")',
+    backgroundSize: "contain",
+    backgroundPosition: "center",
+  });
+  assert.deepEqual(getCosmeticSpriteStyle("FORTRESS", "frosthold-bastion"), {
+    backgroundImage: 'url("/assets/sprite-castle-frost-bastion.png")',
+    backgroundSize: "contain",
+    backgroundPosition: "center",
   });
   assert.deepEqual(getCosmeticSpriteStyle("FORTRESS", "cyber-fortress"), {
     backgroundImage: 'url("/assets/loot-box-fortress-set2.png")',
     backgroundSize: "300% 200%",
     backgroundPosition: "100% 0%",
   });
+});
+
+test("cosmetic sprite metadata excludes skins without dedicated replacements", () => {
+  const removedFortressVariants = ["golden-capital", "shadow-spire"];
+  const removedUnitVariants = [
+    "steam-engineer",
+    "clockwork-smith",
+    "purple-necromancer",
+    "gold-prospector",
+    "bone-reaver",
+    "hooded-hexer",
+    "crystal-warlock",
+  ];
+  const activeFortressVariants: string[] =
+    ARCADE_FORTRESS_LOOT_BOX_SKINS_SET_1.map((skin) => skin.variant);
+  const activeLegacyUnitVariants: string[] =
+    ARCADE_UNIT_LOOT_BOX_SKINS_LEGACY.map((skin) => skin.variant);
+
+  for (const variant of removedFortressVariants) {
+    assert.equal(activeFortressVariants.includes(variant), false);
+    assert.equal(getCosmeticSpriteStyle("FORTRESS", variant), null);
+  }
+
+  for (const variant of removedUnitVariants) {
+    assert.equal(activeLegacyUnitVariants.includes(variant), false);
+    assert.equal(getCosmeticSpriteStyle("UNIT", variant), null);
+  }
+
+  assert.equal(activeLegacyUnitVariants.includes("ranger-scout"), true);
+});
+
+test("dedicated cosmetic sprite asset gaps report current set status", () => {
+  assert.deepEqual(getDedicatedCosmeticSpriteAssetGaps(), {
+    fortressMissing: [],
+    unitMissing: [],
+    extraDedicatedAssets: ["sprite-unit-lich.png"],
+  });
+});
+
+test("unstable unicorn default cosmetic variants are deterministic", () => {
+  assert.equal(
+    getDefaultRaceCosmeticVariant({
+      slot: "FORTRESS",
+      race: "DWARFS",
+      seed: "fortress-a",
+    }),
+    null
+  );
+  assert.equal(
+    getDefaultRaceCosmeticVariant({
+      slot: "FORTRESS",
+      race: "UNSTABLE_UNICORNS",
+      seed: "fortress-a",
+    }),
+    getDefaultRaceCosmeticVariant({
+      slot: "FORTRESS",
+      race: "UNSTABLE_UNICORNS",
+      seed: "fortress-a",
+    })
+  );
+  assert.notEqual(
+    getCosmeticSpriteStyle(
+      "FORTRESS",
+      getDefaultRaceCosmeticVariant({
+        slot: "FORTRESS",
+        race: "UNSTABLE_UNICORNS",
+        seed: "fortress-a",
+      })
+    ),
+    null
+  );
+  assert.notEqual(
+    getCosmeticSpriteStyle(
+      "UNIT",
+      getDefaultRaceCosmeticVariant({
+        slot: "UNIT",
+        race: "UNSTABLE_UNICORNS",
+        seed: "fortress-a",
+      })
+    ),
+    null
+  );
 });
 
 test("cosmetic sprite styles leave unknown and filter skins to css fallback", () => {

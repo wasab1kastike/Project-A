@@ -1257,6 +1257,7 @@ export async function getHomePageState({
           name: unit.attackerFortress.name,
         mapX: unit.attackerFortress.mapX,
         mapY: unit.attackerFortress.mapY,
+        race: unit.attackerFortress.race,
         unitSpriteVariant: normalizeUnitSpriteVariant(
           unit.attackerFortress.unitSpriteVariant
         ),

@@ -106,20 +106,6 @@ export const ARCADE_FORTRESS_LOOT_BOX_SKINS_SET_1 = [
     description: "Blackrock fortress with rivers of living fire.",
     slot: ArcadeCosmeticSlot.FORTRESS,
   },
-  {
-    variant: "golden-capital",
-    name: "Golden Capital",
-    rarity: "Legendary",
-    description: "Wealthy imperial seat plated in gold and ego.",
-    slot: ArcadeCosmeticSlot.FORTRESS,
-  },
-  {
-    variant: "shadow-spire",
-    name: "Shadow Spire",
-    rarity: "Legendary",
-    description: "Towering bastion where light goes to die.",
-    slot: ArcadeCosmeticSlot.FORTRESS,
-  },
 ] as const satisfies readonly ArcadeLootBoxSkin[];
 
 export const ARCADE_FORTRESS_LOOT_BOX_SKINS_SET_2 = [
@@ -229,55 +215,6 @@ export const ARCADE_UNIT_LOOT_BOX_SKINS_LEGACY = [
     name: "Ranger Scout",
     rarity: "Common",
     description: "Fast-moving bowman built for flanks and picks.",
-    slot: ArcadeCosmeticSlot.UNIT,
-  },
-  {
-    variant: "steam-engineer",
-    name: "Steam Engineer",
-    rarity: "Rare",
-    description: "Gadget specialist with too many tools.",
-    slot: ArcadeCosmeticSlot.UNIT,
-  },
-  {
-    variant: "clockwork-smith",
-    name: "Clockwork Smith",
-    rarity: "Rare",
-    description: "Armored mechanic forging victory mid-battle.",
-    slot: ArcadeCosmeticSlot.UNIT,
-  },
-  {
-    variant: "purple-necromancer",
-    name: "Purple Necromancer",
-    rarity: "Epic",
-    description: "Reanimator of the fallen and morale destroyer.",
-    slot: ArcadeCosmeticSlot.UNIT,
-  },
-  {
-    variant: "gold-prospector",
-    name: "Gold Prospector",
-    rarity: "Common",
-    description: "Coin-hungry adventurer who somehow survives.",
-    slot: ArcadeCosmeticSlot.UNIT,
-  },
-  {
-    variant: "bone-reaver",
-    name: "Bone Reaver",
-    rarity: "Epic",
-    description: "Grim executioner wrapped in deathly trophies.",
-    slot: ArcadeCosmeticSlot.UNIT,
-  },
-  {
-    variant: "hooded-hexer",
-    name: "Hooded Hexer",
-    rarity: "Rare",
-    description: "Dark mystic with curses ready to deploy.",
-    slot: ArcadeCosmeticSlot.UNIT,
-  },
-  {
-    variant: "crystal-warlock",
-    name: "Crystal Warlock",
-    rarity: "Legendary",
-    description: "Ancient spellcaster empowered by glowing gems.",
     slot: ArcadeCosmeticSlot.UNIT,
   },
 ] as const satisfies readonly ArcadeLootBoxSkin[];

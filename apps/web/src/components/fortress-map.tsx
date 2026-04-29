@@ -21,8 +21,12 @@ import {
 } from "@/lib/game/map-hex";
 import { getAttackTravelMinutes } from "@/lib/game/attacks";
 import { getAttackPresentation } from "@/lib/game/attack-presentation";
-import { getCosmeticSpriteStyle } from "@/lib/game/cosmetic-sprites";
+import {
+  getCosmeticSpriteStyle,
+  getDefaultRaceCosmeticVariant,
+} from "@/lib/game/cosmetic-sprites";
 import type { UnitSpriteVariant } from "@/lib/game/constants";
+import type { FortressRace } from "@/lib/game/races";
 import styles from "./fortress-map.module.css";
 
 type MapFortress = {
@@ -39,6 +43,7 @@ type MapFortress = {
   isSlayerOfA: boolean;
   currentAction: "GROW" | "ATTACK";
   army: number;
+  race: FortressRace | null;
   mapX: number;
   mapY: number;
   unitSpriteVariant: UnitSpriteVariant;
@@ -64,6 +69,7 @@ type AttackUnitMarker = {
     name: string;
     mapX: number;
     mapY: number;
+    race: FortressRace | null;
     unitSpriteVariant: UnitSpriteVariant;
     unitCosmeticVariant: string | null;
   };
@@ -282,9 +288,16 @@ function AttackUnitsLayer({
   return (
     <div className={styles.attackLayer} aria-label="Active attacks">
       {attackUnits.map((unit) => {
+        const skinVariant =
+          unit.attacker.unitCosmeticVariant ??
+          getDefaultRaceCosmeticVariant({
+            slot: "UNIT",
+            race: unit.attacker.race,
+            seed: unit.attacker.id,
+          });
         const skinStyle = getCosmeticSpriteStyle(
           "UNIT",
-          unit.attacker.unitCosmeticVariant
+          skinVariant
         );
         const isReturning = Boolean(unit.recalledAt);
         const routeOrigin = isReturning
@@ -345,7 +358,7 @@ function AttackUnitsLayer({
                   <span
                     className={styles.attackUnitSprite}
                     data-variant={unit.attacker.unitSpriteVariant}
-                    data-skin={unit.attacker.unitCosmeticVariant ?? undefined}
+                    data-skin={skinVariant ?? undefined}
                     style={skinStyle ?? undefined}
                   />
                   <span className={styles.attackUnitAmount}>
@@ -1017,7 +1030,14 @@ export function FortressMap({
                       ) : (
                         <FortressSprite
                           variant={variant}
-                          skinVariant={fortress.fortressCosmeticVariant}
+                          skinVariant={
+                            fortress.fortressCosmeticVariant ??
+                            getDefaultRaceCosmeticVariant({
+                              slot: "FORTRESS",
+                              race: fortress.race,
+                              seed: fortress.id,
+                            })
+                          }
                         />
                       )}
                     </span>

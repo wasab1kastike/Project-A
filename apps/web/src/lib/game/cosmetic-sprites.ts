@@ -1,3 +1,9 @@
+import {
+  ARCADE_FORTRESS_LOOT_BOX_SKINS_SET_1,
+  ARCADE_UNIT_LOOT_BOX_SKINS_LEGACY,
+} from "./constants";
+import type { FortressRace } from "./races";
+
 export type CosmeticSpriteSlot = "UNIT" | "FORTRESS";
 
 export type CosmeticSpriteStyle = {
@@ -7,6 +13,10 @@ export type CosmeticSpriteStyle = {
 };
 
 type CosmeticSpriteCell = { row: number; col: number };
+
+type DedicatedCosmeticSprite = {
+  src: string;
+};
 
 type CosmeticSpriteSheet = {
   src: string;
@@ -31,6 +41,43 @@ type CosmeticSpriteSheet = {
   cells?: Partial<Record<string, CosmeticSpriteCell>>;
 };
 
+const DEDICATED_UNIT_SKINS: Readonly<Record<string, DedicatedCosmeticSprite>> = {
+  "silver-knight": { src: "/assets/sprite-unit-silver-knight.png" },
+  "lava-berserker": { src: "/assets/sprite-unit-lava-berserker.png" },
+  "forest-archer": { src: "/assets/sprite-unit-forest-archer.png" },
+  "apprentice-mage": { src: "/assets/sprite-unit-apprentice-mage.png" },
+  "shadow-rogue": { src: "/assets/sprite-unit-shadow-rogue.png" },
+  "void-sorcerer": { src: "/assets/sprite-unit-void-sorcerer.png" },
+  "dark-vanguard": { src: "/assets/sprite-unit-dark-vanguard.png" },
+  "stone-berserker": { src: "/assets/sprite-unit-stone-berserker.png" },
+  "ranger-scout": { src: "/assets/unit-sprite-ranger-scout.png" },
+  "unstable-unicorn-1": {
+    src: "/assets/unit-sprite-unstable-unicorn-1.png",
+  },
+  "unstable-unicorn-2": {
+    src: "/assets/sprite-unit-unstable-unicorn-2.png",
+  },
+};
+
+const DEDICATED_FORTRESS_SKINS: Readonly<
+  Record<string, DedicatedCosmeticSprite>
+> = {
+  "ice-fortress": { src: "/assets/sprite-castle-ice-fortress.png" },
+  "lava-citadel": { src: "/assets/sprite-castle-lava-citadel.png" },
+  "forest-keep": { src: "/assets/sprite-castle-forest-citadel.png" },
+  "void-castle": { src: "/assets/sprite-castle-void-castle.png" },
+  "frosthold-bastion": { src: "/assets/sprite-castle-frost-bastion.png" },
+  "molten-stronghold": {
+    src: "/assets/sprite-castle-molten-stronghold.png",
+  },
+  "unstable-unicorn-1": {
+    src: "/assets/sprite-castle-unstable-unicorn-1.png",
+  },
+  "unstable-unicorn-2": {
+    src: "/assets/sprite-castle-unstable-unicorn-2.png",
+  },
+};
+
 const UNIT_SKIN_SHEETS: readonly CosmeticSpriteSheet[] = [
   {
     // loot-box-set-1.png layout (5 rows total):
@@ -51,21 +98,7 @@ const UNIT_SKIN_SHEETS: readonly CosmeticSpriteSheet[] = [
       "dark-vanguard",
       "stone-berserker",
       "ranger-scout",
-      "steam-engineer",
-      "clockwork-smith",
-      "purple-necromancer",
-      "gold-prospector",
-      "bone-reaver",
-      "hooded-hexer",
-      "crystal-warlock",
     ],
-    cells: {
-      // Row 4 has only 4 sprites, centred at columns 1–4.
-      "gold-prospector": { row: 4, col: 1 },
-      "bone-reaver": { row: 4, col: 2 },
-      "hooded-hexer": { row: 4, col: 3 },
-      "crystal-warlock": { row: 4, col: 4 },
-    },
   },
   {
     src: "/assets/loot-box-units-set1.png",
@@ -145,8 +178,6 @@ const FORTRESS_SKIN_SHEETS: readonly CosmeticSpriteSheet[] = [
       "void-castle",
       "frosthold-bastion",
       "molten-stronghold",
-      "golden-capital",
-      "shadow-spire",
     ],
   },
   {
@@ -169,6 +200,12 @@ export function getCosmeticSpriteStyle(
 ): CosmeticSpriteStyle | null {
   if (!variant) {
     return null;
+  }
+
+  const dedicatedStyle = getDedicatedSpriteStyle(slot, variant);
+
+  if (dedicatedStyle) {
+    return dedicatedStyle;
   }
 
   const sheets = slot === "FORTRESS" ? FORTRESS_SKIN_SHEETS : UNIT_SKIN_SHEETS;
@@ -209,4 +246,74 @@ export function getCosmeticSpriteStyle(
   }
 
   return null;
+}
+
+function getDedicatedSprite(
+  slot: CosmeticSpriteSlot,
+  variant: string
+): DedicatedCosmeticSprite | null {
+  const sprites =
+    slot === "FORTRESS" ? DEDICATED_FORTRESS_SKINS : DEDICATED_UNIT_SKINS;
+
+  return sprites[variant] ?? null;
+}
+
+function getDedicatedSpriteStyle(
+  slot: CosmeticSpriteSlot,
+  variant: string
+): CosmeticSpriteStyle | null {
+  const sprite = getDedicatedSprite(slot, variant);
+
+  if (!sprite) {
+    return null;
+  }
+
+  return {
+    backgroundImage: `url("${sprite.src}")`,
+    backgroundSize: "contain",
+    backgroundPosition: "center",
+  };
+}
+
+export function getDefaultRaceCosmeticVariant({
+  slot,
+  race,
+  seed,
+}: {
+  slot: CosmeticSpriteSlot;
+  race: FortressRace | null | undefined;
+  seed: string;
+}): string | null {
+  if (race !== "UNSTABLE_UNICORNS") {
+    return null;
+  }
+
+  return hashString(`${slot}:${seed}`) % 2 === 0
+    ? "unstable-unicorn-1"
+    : "unstable-unicorn-2";
+}
+
+export function getDedicatedCosmeticSpriteAssetGaps() {
+  const fortressMissing = ARCADE_FORTRESS_LOOT_BOX_SKINS_SET_1.filter(
+    (skin) => !getDedicatedSprite("FORTRESS", skin.variant)
+  ).map((skin) => skin.variant);
+  const unitMissing = ARCADE_UNIT_LOOT_BOX_SKINS_LEGACY.filter(
+    (skin) => !getDedicatedSprite("UNIT", skin.variant)
+  ).map((skin) => skin.variant);
+
+  return {
+    fortressMissing,
+    unitMissing,
+    extraDedicatedAssets: ["sprite-unit-lich.png"],
+  };
+}
+
+function hashString(value: string) {
+  let hash = 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+
+  return hash;
 }
