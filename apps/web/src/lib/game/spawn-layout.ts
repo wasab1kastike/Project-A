@@ -229,6 +229,7 @@ export function takeOpenSpawnPoint(
     referencePoints?: SpawnPoint[];
     minSeparationDistance?: number;
     preferredEdgePadding?: number;
+    scoreRandomness?: number;
   }
 ) {
   const random = createSeededPrng(seed);
@@ -237,6 +238,7 @@ export function takeOpenSpawnPoint(
   const minSeparationDistance =
     options?.minSeparationDistance ?? DEFAULT_LAYOUT_MIN_SPAWN_SEPARATION;
   const preferredEdgePadding = options?.preferredEdgePadding;
+  const scoreRandomness = Math.max(0, options?.scoreRandomness ?? 0);
   const candidates = getUniqueSpawnCandidates(random, excludedKeys);
 
   if (candidates.length === 0) {
@@ -279,21 +281,22 @@ export function takeOpenSpawnPoint(
   });
   let bestCandidate =
     (eligibleCandidates[0]?.candidate ?? candidates[0]) as SpawnPoint;
-  let bestNearestDistance = eligibleCandidates[0]?.nearestDistance ?? -1;
+  let bestScore =
+    (eligibleCandidates[0]?.nearestDistance ?? -1) + random() * scoreRandomness;
 
   for (const candidate of eligibleCandidates) {
-    if (candidate.nearestDistance > bestNearestDistance) {
+    const candidateScore =
+      candidate.nearestDistance + random() * scoreRandomness;
+
+    if (candidateScore > bestScore) {
       bestCandidate = candidate.candidate;
-      bestNearestDistance = candidate.nearestDistance;
+      bestScore = candidateScore;
       continue;
     }
 
-    if (
-      candidate.nearestDistance === bestNearestDistance &&
-      random() > 0.5
-    ) {
+    if (candidateScore === bestScore && random() > 0.5) {
       bestCandidate = candidate.candidate;
-      bestNearestDistance = candidate.nearestDistance;
+      bestScore = candidateScore;
     }
   }
 

@@ -2,7 +2,6 @@ import {
   CastleUpgradeSpecialization,
   CycleStatus,
   FortressAction,
-  FortressKind,
   ScoreEventType,
   Prisma,
   PrismaClient,
@@ -26,14 +25,14 @@ import {
   recallAttackUnit as recallAttackUnitRecord,
 } from "./attack-units";
 import { GameError } from "./errors";
-import { assertWorkerAssignments, getDisplayedCastleLevel } from "./balance";
+import { assertWorkerAssignments } from "./balance";
 import { isFortressRace, type FortressRace } from "./races";
 import { ensureCommanderRegistrationColumn } from "./schema-guards";
 import {
   buildFortressSpawnSeed,
   getFortressSpawnLayout,
-  getOpenSpawnCandidates,
   getRenderedMapPositionKey,
+  takeOpenSpawnPoint,
 } from "./spawn-layout";
 import {
   getHelsinkiDayKey,
@@ -47,15 +46,6 @@ type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
 const PUBLIC_NAME_MAX_LENGTH = 32;
 const ACTIVE_EDGE_PADDING = 15;
-const UNICORN_DECOY_OWNER_EMAIL_DOMAIN = "unicorn-decoy.project-a.local";
-const UNICORN_DECOY_ICON_LABEL = "UU";
-
-function distanceBetweenPoints(
-  left: { x: number; y: number },
-  right: { x: number; y: number }
-) {
-  return Math.hypot(left.x - right.x, left.y - right.y);
-}
 
 function normalizePublicName(input: string, label: string) {
   const normalized = input.trim().replace(/\s+/g, " ");
@@ -251,110 +241,6 @@ async function getPendingUpgradeSpecializationLevel(
   });
 
   return selectedCount < fortress.level ? selectedCount + 1 : null;
-}
-
-async function ensureUnicornDecoyOwner(
-  db: DatabaseClient,
-  activationId: string
-) {
-  const email = `${activationId}@${UNICORN_DECOY_OWNER_EMAIL_DOMAIN}`;
-
-  return db.user.upsert({
-    where: {
-      email,
-    },
-    update: {
-      name: "Unicorn Decoy",
-    },
-    create: {
-      email,
-      name: "Unicorn Decoy",
-    },
-  });
-}
-
-async function createUnicornTeleportDecoy({
-  db,
-  cycleId,
-  sourceFortress,
-  activationId,
-  createdAt,
-}: {
-  db: DatabaseClient;
-  cycleId: string;
-  sourceFortress: {
-    id: string;
-    commanderName: string;
-    name: string;
-    level: number;
-    mapX: number;
-    mapY: number;
-    unitSpriteVariant: string;
-  };
-  activationId: string;
-  createdAt: Date;
-}) {
-  const displayedLevel = getDisplayedCastleLevel(sourceFortress.level);
-  const owner = await ensureUnicornDecoyOwner(db, activationId);
-
-  await db.fortress.create({
-    data: {
-      cycleId,
-      ownerId: owner.id,
-      commanderName: `${sourceFortress.commanderName} echo ${activationId.slice(-6)}`,
-      commanderNameRegisteredAt: createdAt,
-      name: `${sourceFortress.name} echo ${activationId.slice(-6)}`,
-      food: 0,
-      army: 0,
-      minersAssigned: 0,
-      farmersAssigned: 0,
-      recruitersAssigned: 0,
-      race: "UNSTABLE_UNICORNS",
-      fortressKind: FortressKind.UNICORN_DECOY,
-      isNpc: true,
-      health: 1,
-      maxHealth: 1,
-      sizeTiles: 1,
-      iconLabel: UNICORN_DECOY_ICON_LABEL,
-      unicornDecoySourceFortressId: sourceFortress.id,
-      unicornDecoyLevel: displayedLevel,
-      mapX: sourceFortress.mapX,
-      mapY: sourceFortress.mapY,
-      unitSpriteVariant: sourceFortress.unitSpriteVariant,
-      currentAction: FortressAction.GROW,
-      joinedAt: createdAt,
-      createdAt,
-    },
-  });
-
-  const activeDecoys = await db.fortress.findMany({
-    where: {
-      cycleId,
-      fortressKind: FortressKind.UNICORN_DECOY,
-      unicornDecoySourceFortressId: sourceFortress.id,
-      health: {
-        gt: 0,
-      },
-    },
-    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-    select: {
-      id: true,
-    },
-  });
-  const overflow = activeDecoys.length - displayedLevel;
-
-  if (overflow > 0) {
-    await db.fortress.updateMany({
-      where: {
-        id: {
-          in: activeDecoys.slice(0, overflow).map((decoy) => decoy.id),
-        },
-      },
-      data: {
-        health: 0,
-      },
-    });
-  }
 }
 
 export async function joinRegistrationCycle({
@@ -692,9 +578,7 @@ export async function setFortressAction({
     }
 
     if (sentArmy > fortress.army) {
-      throw new GameError(
-        "You do not have enough army to send that many units."
-      );
+      throw new GameError("You do not have enough army to send that many units.");
     }
 
     const target = await tx.fortress.findFirst({
@@ -708,13 +592,6 @@ export async function setFortressAction({
       throw new GameError(
         "That attack target is not part of the active cycle."
       );
-    }
-
-    if (
-      target.fortressKind === FortressKind.UNICORN_DECOY &&
-      target.health <= 0
-    ) {
-      throw new GameError("That Unicorn decoy has already collapsed.");
     }
 
     const updatedFortress = await tx.fortress.update({
@@ -1031,15 +908,12 @@ export async function shuffleFortressLocation({
       },
       select: {
         id: true,
-        commanderName: true,
-        name: true,
         points: true,
         race: true,
         level: true,
         currentAction: true,
         mapX: true,
         mapY: true,
-        unitSpriteVariant: true,
       },
     });
 
@@ -1065,9 +939,7 @@ export async function shuffleFortressLocation({
         })
       : null;
     const shuffleCost =
-      locationShuffleCount === 0 || freeTeleport
-        ? 0
-        : ACTIVE_LOCATION_SHUFFLE_COST;
+      locationShuffleCount === 0 || freeTeleport ? 0 : ACTIVE_LOCATION_SHUFFLE_COST;
 
     if (shuffleCost > 0 && fortress.points < shuffleCost) {
       throw new GameError(
@@ -1092,104 +964,89 @@ export async function shuffleFortressLocation({
         return getRenderedMapPositionKey(otherFortress);
       })
     );
-    const currentRenderedKey = getRenderedMapPositionKey(fortress);
-    const shuffleSeed = buildFortressSpawnSeed({
-      cycleId: cycle.id,
-      purpose: "active:player-location-shuffle",
-      activeStartedAt: cycle.activeStartedAt,
-      tickAt: now,
-      entropy: `${fortress.id}:${locationShuffleCount + 1}`,
-    });
+    excludedKeys.add(getRenderedMapPositionKey(fortress));
+
+    let nextPosition;
 
     try {
-      const candidates = getOpenSpawnCandidates(shuffleSeed, {
-        excludedKeys,
-        preferredEdgePadding: ACTIVE_EDGE_PADDING,
-      })
-        .filter((candidate) => {
-          return getRenderedMapPositionKey(candidate) !== currentRenderedKey;
-        })
-        .sort((left, right) => {
-          const leftDistance = distanceBetweenPoints(left, {
-            x: fortress.mapX,
-            y: fortress.mapY,
-          });
-          const rightDistance = distanceBetweenPoints(right, {
-            x: fortress.mapX,
-            y: fortress.mapY,
-          });
-
-          return rightDistance - leftDistance;
-        });
-
-      const nextPosition = candidates[0];
-
-      if (!nextPosition) {
-        throw new Error("No alternate fortress location available.");
-      }
-
-      const cancelledAttackUnitCount = await cancelActiveAttackUnits({
-        db: tx,
-        attackerFortressId: fortress.id,
-        cancelledAt: now,
-      });
-
-      if (freeTeleport) {
-        await createUnicornTeleportDecoy({
-          db: tx,
+      nextPosition = takeOpenSpawnPoint(
+        buildFortressSpawnSeed({
           cycleId: cycle.id,
-          sourceFortress: fortress,
-          activationId: freeTeleport.id,
-          createdAt: now,
-        });
-      }
-
-      const updatedFortress = await tx.fortress.update({
-        where: {
-          id: fortress.id,
-        },
-        data: {
-          mapX: Math.round(nextPosition.x),
-          mapY: Math.round(nextPosition.y),
-          locationShuffleCount: locationShuffleCount + 1,
-          points: fortress.points - shuffleCost,
-        },
-      });
-
-      if (shuffleCost > 0) {
-        await tx.scoreEvent.create({
-          data: {
-            cycleId: cycle.id,
-            fortressId: fortress.id,
-            actorId: userId,
-            eventType: "FORTRESS_LOCATION_SHUFFLE_COST" as ScoreEventType,
-            delta: -shuffleCost,
-            createdAt: now,
-          },
-        });
-      }
-
-      if (freeTeleport) {
-        await tx.raceAbilityActivation.update({
-          where: {
-            id: freeTeleport.id,
-          },
-          data: {
-            consumedAt: now,
-          },
-        });
-      }
-
-      return {
-        fortress: updatedFortress,
-        shuffleCost,
-        cancelledAttackUnitCount,
-      };
+          purpose: "active:player-location-shuffle",
+          activeStartedAt: cycle.activeStartedAt,
+          tickAt: now,
+          entropy: `${fortress.id}:${locationShuffleCount + 1}`,
+        }),
+        {
+          excludedKeys,
+          referencePoints: otherFortresses.map((otherFortress) => ({
+            x: otherFortress.mapX,
+            y: otherFortress.mapY,
+          })),
+          minSeparationDistance: 9,
+          preferredEdgePadding: ACTIVE_EDGE_PADDING,
+          scoreRandomness: 10,
+        }
+      );
     } catch {
       throw new GameError(
         "No alternate fortress location is available right now."
       );
     }
+
+    const cancelledAttackUnitCount = await cancelActiveAttackUnits({
+      db: tx,
+      attackerFortressId: fortress.id,
+      cancelledAt: now,
+    });
+
+    await tx.$executeRaw(
+      Prisma.sql`
+        UPDATE "Fortress"
+        SET
+          "mapX" = ${Math.round(nextPosition.x)},
+          "mapY" = ${Math.round(nextPosition.y)},
+          "locationShuffleCount" = ${locationShuffleCount + 1},
+          "points" = ${fortress.points - shuffleCost}
+        WHERE "id" = ${fortress.id}
+      `
+    );
+
+    if (shuffleCost > 0) {
+      await tx.scoreEvent.create({
+        data: {
+          cycleId: cycle.id,
+          fortressId: fortress.id,
+          actorId: userId,
+          eventType: "FORTRESS_LOCATION_SHUFFLE_COST" as ScoreEventType,
+          delta: -shuffleCost,
+          createdAt: now,
+        },
+      });
+    }
+
+    if (freeTeleport) {
+      await tx.raceAbilityActivation.update({
+        where: {
+          id: freeTeleport.id,
+        },
+        data: {
+          consumedAt: now,
+        },
+      });
+    }
+
+    const updatedFortress = await tx.fortress.findUniqueOrThrow({
+      where: {
+        id: fortress.id,
+      },
+    });
+
+    return {
+      fortress: updatedFortress,
+      shuffleCost,
+      cancelledAttackUnitCount,
+    };
   });
 }
 
@@ -1212,9 +1069,7 @@ export async function purchaseFortressUpgrade({
     const cycle = await getCurrentCycle(tx);
 
     if (!cycle || !isGameplayWindowOpen(cycle, now)) {
-      throw new GameError(
-        "Castle upgrades are only available during gameplay."
-      );
+      throw new GameError("Castle upgrades are only available during gameplay.");
     }
 
     if (!cycle.upgradesUnlockedAt) {
@@ -1312,9 +1167,7 @@ export async function choosePendingUpgradeSpecialization({
     const cycle = await getCurrentCycle(tx);
 
     if (!cycle || !isGameplayWindowOpen(cycle, now)) {
-      throw new GameError(
-        "Castle specialization is only available during gameplay."
-      );
+      throw new GameError("Castle specialization is only available during gameplay.");
     }
 
     const fortress = await tx.fortress.findUnique({
@@ -1330,10 +1183,7 @@ export async function choosePendingUpgradeSpecialization({
       throw new GameError("You are not participating in the active cycle.");
     }
 
-    const pendingLevel = await getPendingUpgradeSpecializationLevel(
-      tx,
-      fortress
-    );
+    const pendingLevel = await getPendingUpgradeSpecializationLevel(tx, fortress);
 
     if (pendingLevel === null) {
       throw new GameError("You do not have a pending castle specialization.");
@@ -1365,9 +1215,7 @@ export async function chooseDwarfGrudge({
     const cycle = await getCurrentCycle(tx);
 
     if (!cycle || cycle.status !== CycleStatus.ACTIVE) {
-      throw new GameError(
-        "Grudge Book is only available during the active season."
-      );
+      throw new GameError("Grudge Book is only available during the active season.");
     }
 
     if (
@@ -1399,9 +1247,7 @@ export async function chooseDwarfGrudge({
     }
 
     if (targetFortressId === fortress.id) {
-      throw new GameError(
-        "You cannot add your own fortress to the Grudge Book."
-      );
+      throw new GameError("You cannot add your own fortress to the Grudge Book.");
     }
 
     const target = await tx.fortress.findFirst({
@@ -1456,9 +1302,7 @@ export async function chooseDwarfTierThreeGrudge({
     const cycle = await getCurrentCycle(tx);
 
     if (!cycle || cycle.status !== CycleStatus.ACTIVE) {
-      throw new GameError(
-        "Grudge Book is only available during the active season."
-      );
+      throw new GameError("Grudge Book is only available during the active season.");
     }
 
     if (
@@ -1511,9 +1355,7 @@ export async function chooseDwarfTierThreeGrudge({
 
     if (doubleExisting) {
       if (firstGrudge.bonusMultiplier >= 2) {
-        throw new GameError(
-          "Your first Grudge Book target is already doubled."
-        );
+        throw new GameError("Your first Grudge Book target is already doubled.");
       }
 
       return tx.dwarfGrudge.update({
@@ -1527,9 +1369,7 @@ export async function chooseDwarfTierThreeGrudge({
     }
 
     if (!targetFortressId || targetFortressId === fortress.id) {
-      throw new GameError(
-        "Choose a second player fortress for the Grudge Book."
-      );
+      throw new GameError("Choose a second player fortress for the Grudge Book.");
     }
 
     const target = await tx.fortress.findFirst({
@@ -1572,9 +1412,7 @@ export async function activateRaceAbility({
     const cycle = await getCurrentCycle(tx);
 
     if (!cycle || cycle.status !== CycleStatus.ACTIVE) {
-      throw new GameError(
-        "Race abilities are only available during the active season."
-      );
+      throw new GameError("Race abilities are only available during the active season.");
     }
 
     if (
@@ -1657,9 +1495,7 @@ export async function claimUnicornTeleport({
     const cycle = await getCurrentCycle(tx);
 
     if (!cycle || cycle.status !== CycleStatus.ACTIVE) {
-      throw new GameError(
-        "Unicorn teleport is only available during the active season."
-      );
+      throw new GameError("Unicorn teleport is only available during the active season.");
     }
 
     if (

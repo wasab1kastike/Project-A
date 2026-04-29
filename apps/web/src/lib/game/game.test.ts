@@ -755,9 +755,38 @@ test("cosmetic sprite styles resolve known shop skins", () => {
     backgroundPosition: "center",
   });
   assert.deepEqual(getCosmeticSpriteStyle("FORTRESS", "cyber-fortress"), {
-    backgroundImage: 'url("/assets/loot-box-fortress-set2.png")',
-    backgroundSize: "300% 200%",
-    backgroundPosition: "100% 0%",
+    backgroundImage: 'url("/assets/sprite-fortress-Cyber-Fortress.png")',
+    backgroundSize: "contain",
+    backgroundPosition: "center",
+  });
+  assert.deepEqual(getCosmeticSpriteStyle("FORTRESS", "desert-fortress"), {
+    backgroundImage: 'url("/assets/sprite-castle-Desert-Fortress.png")',
+    backgroundSize: "contain",
+    backgroundPosition: "center",
+  });
+  assert.deepEqual(getCosmeticSpriteStyle("FORTRESS", "crystal-citadel"), {
+    backgroundImage: 'url("/assets/sprite-castle-Crystal-Citadel.png")',
+    backgroundSize: "contain",
+    backgroundPosition: "center",
+  });
+  assert.deepEqual(getCosmeticSpriteStyle("FORTRESS", "swamp-keep"), {
+    backgroundImage: 'url("/assets/sprite-fortress-Swamp-Keep.png")',
+    backgroundSize: "contain",
+    backgroundPosition: "center",
+  });
+  assert.deepEqual(
+    getCosmeticSpriteStyle("FORTRESS", "mechanical-drill-fortress"),
+    {
+      backgroundImage:
+        'url("/assets/sprite-fortress-Mechanical-Drill-Fortress.png")',
+      backgroundSize: "contain",
+      backgroundPosition: "center",
+    }
+  );
+  assert.deepEqual(getCosmeticSpriteStyle("FORTRESS", "ancient-mire-temple"), {
+    backgroundImage: 'url("/assets/sprite-fortress-Ancient-Mire-Temple.png")',
+    backgroundSize: "contain",
+    backgroundPosition: "center",
   });
 });
 
@@ -3795,11 +3824,9 @@ test("location shuffle is free once, then costs 50 points and cancels outgoing a
       );
     });
   assert.ok(rankedCandidates.length > 0);
-  const topCandidate = rankedCandidates[0] as SpawnPoint;
-  const expectedMaxDistance = distanceBetweenPoints(topCandidate, {
-    x: beforeFreeShuffle.mapX,
-    y: beforeFreeShuffle.mapY,
-  });
+  const rankedCandidateKeys = new Set(
+    rankedCandidates.map((candidate) => getRenderedMapPositionKey(candidate))
+  );
   const freeShuffle = await shuffleFortressLocation({
     db: prisma,
     userId: attacker.id,
@@ -3831,12 +3858,8 @@ test("location shuffle is free once, then costs 50 points and cancels outgoing a
     getRenderedMapPositionKey(freeShuffle.fortress)
   );
   assert.notEqual(getRenderedMapPositionKey(afterFreeShuffle), beforeRenderedKey);
-  assert.equal(
-    distanceBetweenPoints(
-      { x: afterFreeShuffle.mapX, y: afterFreeShuffle.mapY },
-      { x: beforeFreeShuffle.mapX, y: beforeFreeShuffle.mapY }
-    ),
-    expectedMaxDistance
+  assert.ok(
+    rankedCandidateKeys.has(getRenderedMapPositionKey(afterFreeShuffle))
   );
   assert.notDeepEqual(
     { x: afterFreeShuffle.mapX, y: afterFreeShuffle.mapY },
@@ -4413,6 +4436,12 @@ test("castle levels increase grow income and attack damage without changing cade
   assert.equal(damagedTarget.food, 3);
   assert.equal(damagedTarget.army, 2);
 
+  const returningUnit = await prisma.attackUnit.findUniqueOrThrow({
+    where: {
+      id: attackUnit.id,
+    },
+  });
+
   const updatedAttacker = await prisma.fortress.findUniqueOrThrow({
     where: {
       id: attackerFortress.id,
@@ -4426,7 +4455,23 @@ test("castle levels increase grow income and attack damage without changing cade
 
   assert.equal(updatedAttacker.points, 11);
   assert.equal(updatedAttacker.food, 7);
-  assert.equal(updatedAttacker.army, 11);
+  assert.equal(updatedAttacker.army, 0);
+
+  await runGameTick({
+    db: prisma,
+    now: returningUnit.arrivesAt,
+  });
+
+  const attackerAfterReturn = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: attackerFortress.id,
+    },
+    select: {
+      army: true,
+    },
+  });
+
+  assert.equal(attackerAfterReturn.army, 11);
 });
 
 test("worker assignments produce points, food, and army in the same tick", async (context) => {
@@ -6073,7 +6118,7 @@ test("attacking Home of A returns armies when mega survives", async (context) =>
     now: attackUnit.arrivesAt,
   });
 
-  const resolvedUnit = await prisma.attackUnit.findUniqueOrThrow({
+  const returningUnit = await prisma.attackUnit.findUniqueOrThrow({
     where: {
       id: attackUnit.id,
     },
@@ -6087,10 +6132,34 @@ test("attacking Home of A returns armies when mega survives", async (context) =>
     },
   });
 
-  assert.equal(resolvedUnit.attackerSurvivors, 2);
-  assert.equal(resolvedUnit.attackerRetired, 0);
-  assert.equal(resolvedUnit.attackerReturned, 2);
-  assert.equal(refreshedAttacker.army, 3);
+  assert.equal(returningUnit.resolvedAt, null);
+  assert.ok(returningUnit.recalledAt);
+  assert.equal(returningUnit.attackerSurvivors, 2);
+  assert.equal(returningUnit.attackerRetired, 0);
+  assert.equal(returningUnit.attackerReturned, 2);
+  assert.equal(refreshedAttacker.army, 1);
+
+  await runGameTick({
+    db: prisma,
+    now: returningUnit.arrivesAt,
+  });
+
+  const resolvedUnit = await prisma.attackUnit.findUniqueOrThrow({
+    where: {
+      id: attackUnit.id,
+    },
+  });
+  const attackerAfterReturn = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: attackerFortress.id,
+    },
+    select: {
+      army: true,
+    },
+  });
+
+  assert.ok(resolvedUnit.resolvedAt);
+  assert.equal(attackerAfterReturn.army, 3);
 });
 
 test("later mega fortress destroys scale reward and health without changing the first slayer or free upgrade count", async (context) => {
