@@ -8,6 +8,7 @@ export {
   CommunityWishStatus,
   CycleStatus,
   FortressAction,
+  FortressKind,
   FortressRace,
   Prisma,
   PrismaClient,

@@ -13,6 +13,7 @@ import {
   CommunityWishStatus,
   CycleStatus,
   FortressAction,
+  FortressKind,
   FortressRace,
   PrismaClient,
   ScoreEventType,
@@ -101,6 +102,7 @@ import {
   recallAttackUnit,
   selectFortressRace,
   setFortressAction,
+  claimUnicornTeleport,
   updateWorkerAssignment,
   shuffleFortressLocation,
 } from "./service";
@@ -504,7 +506,10 @@ test("duplicate fortress map positions are detected by rendered tile key", () =>
     true
   );
 
-  const distinctPoints = takeUniqueSpawnPoints("duplicate:distinct-rendered", 2);
+  const distinctPoints = takeUniqueSpawnPoints(
+    "duplicate:distinct-rendered",
+    2
+  );
 
   assert.equal(
     hasDuplicateFortressMapPositions([
@@ -829,6 +834,342 @@ test("unstable unicorn default cosmetic variants are deterministic", () => {
   );
 });
 
+test("free unicorn teleport leaves one active decoy per displayed castle level", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const unicorn = await createUser(prisma, "unicorn-decoy@example.com");
+  const murine = await createUser(prisma, "murine-no-decoy@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: unicorn.id,
+    commanderName: "Unicorn Decoy",
+    fortressName: "Glitter Keep",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: murine.id,
+    commanderName: "Murine No Decoy",
+    fortressName: "Plain Keep",
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+  await prisma.cycle.update({
+    where: {
+      id: cycle.id,
+    },
+    data: {
+      activeStartedAt: new Date("2026-04-19T08:00:00.000Z"),
+    },
+  });
+  await selectFortressRace({
+    db: prisma,
+    userId: unicorn.id,
+    race: FortressRace.UNSTABLE_UNICORNS,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+  });
+  await selectFortressRace({
+    db: prisma,
+    userId: murine.id,
+    race: FortressRace.SPACE_MURINES,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+  });
+
+  const unicornBeforeTeleport = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: unicorn.id,
+      },
+    },
+  });
+
+  await claimUnicornTeleport({
+    db: prisma,
+    userId: unicorn.id,
+    now: new Date("2026-04-20T12:02:00.000Z"),
+  });
+  await shuffleFortressLocation({
+    db: prisma,
+    userId: unicorn.id,
+    useFreeTeleport: true,
+    now: new Date("2026-04-20T12:03:00.000Z"),
+  });
+
+  const firstDecoy = await prisma.fortress.findFirstOrThrow({
+    where: {
+      cycleId: cycle.id,
+      fortressKind: FortressKind.UNICORN_DECOY,
+      health: {
+        gt: 0,
+      },
+    },
+  });
+
+  assert.equal(firstDecoy.mapX, unicornBeforeTeleport.mapX);
+  assert.equal(firstDecoy.mapY, unicornBeforeTeleport.mapY);
+  assert.equal(firstDecoy.unicornDecoyLevel, 1);
+
+  await prisma.fortress.update({
+    where: {
+      id: unicornBeforeTeleport.id,
+    },
+    data: {
+      points: 100,
+    },
+  });
+  await shuffleFortressLocation({
+    db: prisma,
+    userId: unicorn.id,
+    now: new Date("2026-04-20T12:04:00.000Z"),
+  });
+  await shuffleFortressLocation({
+    db: prisma,
+    userId: murine.id,
+    now: new Date("2026-04-20T12:04:30.000Z"),
+  });
+
+  assert.equal(
+    await prisma.fortress.count({
+      where: {
+        cycleId: cycle.id,
+        fortressKind: FortressKind.UNICORN_DECOY,
+      },
+    }),
+    1
+  );
+
+  await claimUnicornTeleport({
+    db: prisma,
+    userId: unicorn.id,
+    now: new Date("2026-04-20T13:02:00.000Z"),
+  });
+  await shuffleFortressLocation({
+    db: prisma,
+    userId: unicorn.id,
+    useFreeTeleport: true,
+    now: new Date("2026-04-20T13:03:00.000Z"),
+  });
+
+  assert.equal(
+    await prisma.fortress.count({
+      where: {
+        cycleId: cycle.id,
+        fortressKind: FortressKind.UNICORN_DECOY,
+      },
+    }),
+    2
+  );
+  assert.equal(
+    await prisma.fortress.count({
+      where: {
+        cycleId: cycle.id,
+        fortressKind: FortressKind.UNICORN_DECOY,
+        health: {
+          gt: 0,
+        },
+      },
+    }),
+    1
+  );
+
+  await prisma.fortress.update({
+    where: {
+      id: unicornBeforeTeleport.id,
+    },
+    data: {
+      level: 1,
+    },
+  });
+  await claimUnicornTeleport({
+    db: prisma,
+    userId: unicorn.id,
+    now: new Date("2026-04-20T14:02:00.000Z"),
+  });
+  await shuffleFortressLocation({
+    db: prisma,
+    userId: unicorn.id,
+    useFreeTeleport: true,
+    now: new Date("2026-04-20T14:03:00.000Z"),
+  });
+
+  assert.equal(
+    await prisma.fortress.count({
+      where: {
+        cycleId: cycle.id,
+        fortressKind: FortressKind.UNICORN_DECOY,
+        health: {
+          gt: 0,
+        },
+      },
+    }),
+    2
+  );
+});
+
+test("attacking a unicorn teleport decoy destroys it and applies backlash", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const unicorn = await createUser(prisma, "unicorn-decoy-target@example.com");
+  const attacker = await createUser(
+    prisma,
+    "unicorn-decoy-attacker@example.com"
+  );
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: unicorn.id,
+    commanderName: "Decoy Target",
+    fortressName: "Decoy Target Keep",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: attacker.id,
+    commanderName: "Decoy Attacker",
+    fortressName: "Decoy Attacker Keep",
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+  await prisma.cycle.update({
+    where: {
+      id: cycle.id,
+    },
+    data: {
+      activeStartedAt: new Date("2026-04-19T08:00:00.000Z"),
+    },
+  });
+  await selectFortressRace({
+    db: prisma,
+    userId: unicorn.id,
+    race: FortressRace.UNSTABLE_UNICORNS,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+  });
+  await selectFortressRace({
+    db: prisma,
+    userId: attacker.id,
+    race: FortressRace.DWARFS,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+  });
+
+  await claimUnicornTeleport({
+    db: prisma,
+    userId: unicorn.id,
+    now: new Date("2026-04-20T12:02:00.000Z"),
+  });
+  await shuffleFortressLocation({
+    db: prisma,
+    userId: unicorn.id,
+    useFreeTeleport: true,
+    now: new Date("2026-04-20T12:03:00.000Z"),
+  });
+
+  const decoy = await prisma.fortress.findFirstOrThrow({
+    where: {
+      cycleId: cycle.id,
+      fortressKind: FortressKind.UNICORN_DECOY,
+      health: {
+        gt: 0,
+      },
+    },
+  });
+  const unicornFortressBefore = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: unicorn.id,
+      },
+    },
+  });
+  const attackerFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: attacker.id,
+      },
+    },
+  });
+
+  await prisma.fortress.update({
+    where: {
+      id: attackerFortress.id,
+    },
+    data: {
+      army: 250,
+      food: 0,
+      farmersAssigned: 0,
+      recruitersAssigned: 0,
+    },
+  });
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.ATTACK,
+    targetFortressId: decoy.id,
+    sentArmy: 250,
+    now: new Date("2026-04-20T12:04:00.000Z"),
+  });
+
+  const attackUnit = await prisma.attackUnit.findFirstOrThrow({
+    where: {
+      attackerFortressId: attackerFortress.id,
+      targetFortressId: decoy.id,
+    },
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: attackUnit.arrivesAt,
+  });
+
+  const resolvedAttackUnit = await prisma.attackUnit.findUniqueOrThrow({
+    where: {
+      id: attackUnit.id,
+    },
+  });
+  const refreshedDecoy = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: decoy.id,
+    },
+  });
+  const unicornFortressAfter = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: unicornFortressBefore.id,
+    },
+  });
+  const decoyEvents = await prisma.scoreEvent.findMany({
+    where: {
+      cycleId: cycle.id,
+      fortressId: attackerFortress.id,
+      targetFortressId: decoy.id,
+      eventType: ScoreEventType.UNICORN_DECOY_DESTROY,
+    },
+  });
+
+  assert.equal(resolvedAttackUnit.attackerReturned, 50);
+  assert.equal(resolvedAttackUnit.attackerRetired, 200);
+  assert.equal(resolvedAttackUnit.pointsLooted, 0);
+  assert.equal(resolvedAttackUnit.foodLooted, 0);
+  assert.equal(refreshedDecoy.health, 0);
+  assert.equal(unicornFortressAfter.points, unicornFortressBefore.points);
+  assert.equal(unicornFortressAfter.food, unicornFortressBefore.food);
+  assert.equal(unicornFortressAfter.army, unicornFortressBefore.army);
+  assert.equal(decoyEvents.length, 1);
+});
+
 test("cosmetic sprite styles leave unknown and filter skins to css fallback", () => {
   assert.equal(getCosmeticSpriteStyle("UNIT", "ember"), null);
   assert.equal(getCosmeticSpriteStyle("FORTRESS", "missing-skin"), null);
@@ -926,10 +1267,7 @@ test("arcade season minting uses the resolved placement order for rank bonuses",
     cycleId: cycle.id,
     db: prisma,
     now: new Date("2026-04-26T09:00:00.000Z"),
-    rankedFortresses: [
-      { ownerId: secondUser.id },
-      { ownerId: firstUser.id },
-    ],
+    rankedFortresses: [{ ownerId: secondUser.id }, { ownerId: firstUser.id }],
   });
 
   assert.equal(result.mintedPlayers, 2);
@@ -2063,11 +2401,23 @@ test("non-empty registration enters testing and ends it one hour before season s
   assert.equal(summary.testingCyclesStarted, 1);
   assert.equal(summary.activatedCycles, 0);
   assert.equal(testingCycle.status, CycleStatus.TESTING);
-  assert.equal(testingCycle.testingStartedAt?.toISOString(), testingStartsAt.toISOString());
-  assert.equal(testingCycle.testingEndsAt?.toISOString(), testingEndsAt.toISOString());
-  assert.equal(testingCycle.activeStartedAt?.toISOString(), cycle.registrationEndsAt.toISOString());
+  assert.equal(
+    testingCycle.testingStartedAt?.toISOString(),
+    testingStartsAt.toISOString()
+  );
+  assert.equal(
+    testingCycle.testingEndsAt?.toISOString(),
+    testingEndsAt.toISOString()
+  );
+  assert.equal(
+    testingCycle.activeStartedAt?.toISOString(),
+    cycle.registrationEndsAt.toISOString()
+  );
   assert.equal(testingState.phase?.status, CycleStatus.TESTING);
-  assert.equal(testingState.phase?.deadline?.toISOString(), testingEndsAt.toISOString());
+  assert.equal(
+    testingState.phase?.deadline?.toISOString(),
+    testingEndsAt.toISOString()
+  );
   assert.equal(testingState.canJoinCycle, false);
   assert.equal(testingState.playerSummary?.isTestingPhase, true);
   assert.equal(testingState.communityWish.canSubmit, false);
@@ -2241,7 +2591,10 @@ test("testing allows joins and gameplay, then resets sandbox progress at season 
   assert.equal(summary.testingCyclesCompleted, 1);
   assert.equal(summary.activatedCycles, 1);
   assert.equal(activeCycle.status, CycleStatus.ACTIVE);
-  assert.equal(activeCycle.activeStartedAt?.toISOString(), cycle.registrationEndsAt.toISOString());
+  assert.equal(
+    activeCycle.activeStartedAt?.toISOString(),
+    cycle.registrationEndsAt.toISOString()
+  );
   assert.equal(activeCycle.upgradesUnlockedAt, null);
   assert.equal(activeCycle.crownedFortressId, null);
   assert.equal(activeCycle.megaFortressDestroyCount, 0);
@@ -2259,9 +2612,18 @@ test("testing allows joins and gameplay, then resets sandbox progress at season 
   assert.equal(alphaAfterReset.farmersAssigned, 10);
   assert.equal(alphaAfterReset.recruitersAssigned, 5);
   assert.equal(alphaAfterReset.locationShuffleCount, 0);
-  assert.equal(await prisma.attackUnit.count({ where: { cycleId: cycle.id } }), 0);
-  assert.equal(await prisma.scoreEvent.count({ where: { cycleId: cycle.id } }), 0);
-  assert.equal(await prisma.gameTick.count({ where: { cycleId: cycle.id } }), 0);
+  assert.equal(
+    await prisma.attackUnit.count({ where: { cycleId: cycle.id } }),
+    0
+  );
+  assert.equal(
+    await prisma.scoreEvent.count({ where: { cycleId: cycle.id } }),
+    0
+  );
+  assert.equal(
+    await prisma.gameTick.count({ where: { cycleId: cycle.id } }),
+    0
+  );
   assert.equal(
     await prisma.fortress.count({ where: { cycleId: cycle.id, isNpc: true } }),
     1
@@ -2456,8 +2818,8 @@ test("old active map layouts reshuffle once on the next tick", async (context) =
     },
   });
   const uniquePositionKeys = new Set(
-    positionsAfterFirstTick.map(
-      (position) => getRenderedMapPositionKey(position)
+    positionsAfterFirstTick.map((position) =>
+      getRenderedMapPositionKey(position)
     )
   );
 
@@ -2890,10 +3252,22 @@ test("resolved battle reports are exposed to involved players", async (context) 
 
   assert.equal(attackerState.battleReports.length, 1);
   assert.equal(defenderState.battleReports.length, 1);
-  assert.match(attackerState.battleReports[0]?.reportLines[0] ?? "", /Raid victory!/);
-  assert.match(attackerState.battleReports[0]?.reportLines[2] ?? "", /returned/);
-  assert.match(attackerState.battleReports[0]?.reportLines[3] ?? "", /Loot gained:/);
-  assert.match(defenderState.battleReports[0]?.reportLines[2] ?? "", /Defender lost/);
+  assert.match(
+    attackerState.battleReports[0]?.reportLines[0] ?? "",
+    /Raid victory!/
+  );
+  assert.match(
+    attackerState.battleReports[0]?.reportLines[2] ?? "",
+    /returned/
+  );
+  assert.match(
+    attackerState.battleReports[0]?.reportLines[3] ?? "",
+    /Loot gained:/
+  );
+  assert.match(
+    defenderState.battleReports[0]?.reportLines[2] ?? "",
+    /Defender lost/
+  );
 });
 
 test("attack launching is rejected outside ACTIVE cycle", async (context) => {
@@ -3163,7 +3537,9 @@ test("worker assignment updates validate cycle, ownership, capacity, and derived
 
   assert.equal(resized.level, 1);
   assert.equal(
-    resized.minersAssigned + resized.farmersAssigned + resized.recruitersAssigned,
+    resized.minersAssigned +
+      resized.farmersAssigned +
+      resized.recruitersAssigned,
     35
   );
 });
@@ -4234,7 +4610,10 @@ test("recalled attack units return home without damaging the target", async (con
     },
   });
 
-  assert.equal(recalledUnit.recalledAt?.toISOString(), recallTime.toISOString());
+  assert.equal(
+    recalledUnit.recalledAt?.toISOString(),
+    recallTime.toISOString()
+  );
   assert.notEqual(recalledUnit.returnOriginMapX, null);
   assert.notEqual(recalledUnit.returnOriginMapY, null);
 
@@ -4272,7 +4651,10 @@ test("recalled attack units return home without damaging the target", async (con
     },
   });
 
-  assert.equal(resolvedUnit.resolvedAt?.toISOString(), recalledUnit.arrivesAt.toISOString());
+  assert.equal(
+    resolvedUnit.resolvedAt?.toISOString(),
+    recalledUnit.arrivesAt.toISOString()
+  );
   assert.equal(resolvedUnit.defenderArmyAtBattleStart, null);
   assert.equal(resolvedUnit.resolvedAttackPower, 0);
   assert.equal(resolvedUnit.resolvedDefensePower, 0);
@@ -4299,7 +4681,10 @@ test("recalled attack units return home without damaging the target", async (con
   assert.equal(recallReport?.attackerReturned, 3);
   assert.match(recallReport?.reportLines[0] ?? "", /Army recalled/);
   assert.match(recallReport?.reportLines[0] ?? "", /3 troops returned home/);
-  assert.doesNotMatch(recallReport?.reportLines.join(" ") ?? "", /Loot|Raid failed|Raid victory/);
+  assert.doesNotMatch(
+    recallReport?.reportLines.join(" ") ?? "",
+    /Loot|Raid failed|Raid victory/
+  );
 
   await assert.rejects(
     () =>
@@ -5644,8 +6029,14 @@ test("later mega fortress destroys scale reward and health without changing the 
   assert.equal(refreshedCycle.crownedFortressId, attackerFortress.id);
   assert.equal(freeUpgradeEvents.length, 1);
   assert.equal(refreshedAttacker.level, 1);
-  assert.equal(refreshedAttacker.points, resourcesBeforeSecondKill.points + 1000 + 10);
-  assert.equal(refreshedAttacker.food, resourcesBeforeSecondKill.food + 1000 + 5);
+  assert.equal(
+    refreshedAttacker.points,
+    resourcesBeforeSecondKill.points + 1000 + 10
+  );
+  assert.equal(
+    refreshedAttacker.food,
+    resourcesBeforeSecondKill.food + 1000 + 5
+  );
   assert.deepEqual(
     destroyBonusEvents.map((event) => event.delta),
     [500, 1000]
@@ -7697,7 +8088,10 @@ test("community wish voting resolves winners and leaves ties for admin", async (
     },
   });
 
-  assert.equal(resolvedHistory.communityWishStatus, CommunityWishStatus.RESOLVED);
+  assert.equal(
+    resolvedHistory.communityWishStatus,
+    CommunityWishStatus.RESOLVED
+  );
   assert.equal(resolvedHistory.communityWishProposalId, winningProposal.id);
   assert.equal(resolvedHistory.communityWishFulfillmentProgress, 0);
   assert.match(
@@ -7705,12 +8099,13 @@ test("community wish voting resolves winners and leaves ties for admin", async (
     /season-end confetti/
   );
 
-  const updatedCommunityProgress =
-    await updateCommunityWishFulfillmentProgress({
+  const updatedCommunityProgress = await updateCommunityWishFulfillmentProgress(
+    {
       db: prisma,
       cycleId: secondCycle.id,
       progress: 125,
-    });
+    }
+  );
 
   assert.equal(updatedCommunityProgress.communityWishFulfillmentProgress, 100);
 
@@ -7746,10 +8141,7 @@ test("community wish voting resolves winners and leaves ties for admin", async (
     historyEntry?.communityWishSnapshot ?? "",
     /season-end confetti/
   );
-  assert.equal(
-    historyEntry?.communityWishFulfillmentProgress,
-    100
-  );
+  assert.equal(historyEntry?.communityWishFulfillmentProgress, 100);
   assert.equal(
     homeState.latestSeason?.wishes.community?.fulfillmentProgress,
     100

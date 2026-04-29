@@ -24,6 +24,12 @@ enum FortressAction {
   ATTACK
 }
 
+enum FortressKind {
+  PLAYER
+  MEGA
+  UNICORN_DECOY
+}
+
 enum FortressRace {
   DWARFS
   UNSTABLE_UNICORNS
@@ -50,6 +56,7 @@ enum ScoreEventType {
   ATTACK_TARGET
   MEGA_DAMAGE
   MEGA_DESTROY_BONUS
+  UNICORN_DECOY_DESTROY
   FORTRESS_UPGRADE_PURCHASE
   FORTRESS_UPGRADE_SLAYER_BONUS
   FORTRESS_LOCATION_SHUFFLE_COST
@@ -103,33 +110,33 @@ enum ArcadeCosmeticSlot {
 }
 
 model User {
-  id                        String                  @id @default(cuid())
+  id                        String                         @id @default(cuid())
   name                      String?
-  email                     String?                 @unique
+  email                     String?                        @unique
   emailVerified             DateTime?
   image                     String?
-  role                      UserRole                @default(PLAYER)
+  role                      UserRole                       @default(PLAYER)
   lastReadChatAt            DateTime?
-  createdAt                 DateTime                @default(now())
-  updatedAt                 DateTime                @updatedAt
+  createdAt                 DateTime                       @default(now())
+  updatedAt                 DateTime                       @updatedAt
   accounts                  Account[]
   sessions                  Session[]
   fortresses                Fortress[]
   chatMessages              ChatMessage[]
-  scoreEventsAsActor        ScoreEvent[]            @relation("ScoreEventActor")
-  winnerRequests            WinnerRequest[]         @relation("WinnerRequestAuthor")
-  reviewedRequests          WinnerRequest[]         @relation("WinnerRequestReviewer")
-  communityWishProposals    CommunityWishProposal[] @relation("CommunityWishProposalAuthor")
-  communityWishVotes        CommunityWishVote[]     @relation("CommunityWishVoteVoter")
+  scoreEventsAsActor        ScoreEvent[]                   @relation("ScoreEventActor")
+  winnerRequests            WinnerRequest[]                @relation("WinnerRequestAuthor")
+  reviewedRequests          WinnerRequest[]                @relation("WinnerRequestReviewer")
+  communityWishProposals    CommunityWishProposal[]        @relation("CommunityWishProposalAuthor")
+  communityWishVotes        CommunityWishVote[]            @relation("CommunityWishVoteVoter")
   communityWishEntitlements CommunityWishVoteEntitlement[] @relation("CommunityWishVoteEntitlementUser")
   buildArcadeRuns           BuildArcadeRun[]
   arcadeWallet              ArcadeWallet?
   arcadeTransactions        ArcadeTransaction[]
   arcadeLootBoxPurchases    ArcadeLootBoxPurchase[]
   arcadeCosmeticUnlocks     ArcadeCosmeticUnlock[]
-  resolvedCommunityWishTies CycleHistory[]          @relation("CommunityWishAdminResolver")
-  wonCycles                 Cycle[]                 @relation("CycleWinner")
-  cycleHistoriesWon         CycleHistory[]          @relation("CycleHistoryWinner")
+  resolvedCommunityWishTies CycleHistory[]                 @relation("CommunityWishAdminResolver")
+  wonCycles                 Cycle[]                        @relation("CycleWinner")
+  cycleHistoriesWon         CycleHistory[]                 @relation("CycleHistoryWinner")
   unitCosmeticVariant       String?
   fortressCosmeticVariant   String?
   cosmeticUnlockedAt        DateTime?
@@ -178,36 +185,36 @@ model VerificationToken {
 }
 
 model Cycle {
-  id                       String                  @id @default(cuid())
-  status                   CycleStatus             @default(REGISTRATION)
-  registrationStartedAt    DateTime
-  registrationEndsAt       DateTime
-  testingStartedAt         DateTime?
-  testingEndsAt            DateTime?
-  joiningLockedAt          DateTime?
-  activeStartedAt          DateTime?
-  activeEndsAt             DateTime?
-  resolvedAt               DateTime?
-  winnerId                 String?
-  crownedFortressId        String?
-  upgradesUnlockedAt       DateTime?
-  megaFortressDestroyCount Int                     @default(0)
-  mapLayoutVersion         Int                     @default(1)
-  createdAt                DateTime                @default(now())
-  updatedAt                DateTime                @updatedAt
-  winner                   User?                   @relation("CycleWinner", fields: [winnerId], references: [id], onDelete: SetNull)
-  crownedFortress          Fortress?               @relation("CycleCrownedFortress", fields: [crownedFortressId], references: [id], onDelete: SetNull)
-  fortresses               Fortress[]
-  chatMessages             ChatMessage[]
-  scoreEvents              ScoreEvent[]
-  gameTicks                GameTick[]
-  attackUnits              AttackUnit[]
-  winnerRequests           WinnerRequest[]
-  communityWishProposals   CommunityWishProposal[]
+  id                            String                         @id @default(cuid())
+  status                        CycleStatus                    @default(REGISTRATION)
+  registrationStartedAt         DateTime
+  registrationEndsAt            DateTime
+  testingStartedAt              DateTime?
+  testingEndsAt                 DateTime?
+  joiningLockedAt               DateTime?
+  activeStartedAt               DateTime?
+  activeEndsAt                  DateTime?
+  resolvedAt                    DateTime?
+  winnerId                      String?
+  crownedFortressId             String?
+  upgradesUnlockedAt            DateTime?
+  megaFortressDestroyCount      Int                            @default(0)
+  mapLayoutVersion              Int                            @default(1)
+  createdAt                     DateTime                       @default(now())
+  updatedAt                     DateTime                       @updatedAt
+  winner                        User?                          @relation("CycleWinner", fields: [winnerId], references: [id], onDelete: SetNull)
+  crownedFortress               Fortress?                      @relation("CycleCrownedFortress", fields: [crownedFortressId], references: [id], onDelete: SetNull)
+  fortresses                    Fortress[]
+  chatMessages                  ChatMessage[]
+  scoreEvents                   ScoreEvent[]
+  gameTicks                     GameTick[]
+  attackUnits                   AttackUnit[]
+  winnerRequests                WinnerRequest[]
+  communityWishProposals        CommunityWishProposal[]
   communityWishVoteEntitlements CommunityWishVoteEntitlement[]
-  buildArcadeRuns          BuildArcadeRun[]
-  arcadeTransactions       ArcadeTransaction[]
-  history                  CycleHistory?
+  buildArcadeRuns               BuildArcadeRun[]
+  arcadeTransactions            ArcadeTransaction[]
+  history                       CycleHistory?
 
   @@index([status])
   @@index([winnerId])
@@ -215,53 +222,60 @@ model Cycle {
 }
 
 model Fortress {
-  id                        String         @id @default(cuid())
-  cycleId                   String
-  ownerId                   String
-  commanderName             String
-  commanderNameRegisteredAt DateTime?
-  name                      String
-  points                    Int            @default(0)
-  level                     Int            @default(0)
-  food                      Int            @default(0)
-  army                      Int            @default(0)
-  minersAssigned            Int            @default(10)
-  farmersAssigned           Int            @default(10)
-  recruitersAssigned        Int            @default(5)
-  race                      FortressRace?
-  isNpc                     Boolean        @default(false)
-  health                    Int            @default(0)
-  maxHealth                 Int            @default(0)
-  sizeTiles                 Int            @default(1)
-  iconLabel                 String?
-  currentAction             FortressAction @default(GROW)
-  targetFortressId          String?
-  unitSpriteVariant         String         @default("unit-1")
-  locationShuffleCount      Int            @default(0)
-  mapX                      Int
-  mapY                      Int
-  joinedAt                  DateTime       @default(now())
-  createdAt                 DateTime       @default(now())
-  updatedAt                 DateTime       @updatedAt
-  cycle                     Cycle          @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  owner                     User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  targetFortress            Fortress?      @relation("FortressTarget", fields: [targetFortressId], references: [id], onDelete: SetNull)
-  attackers                 Fortress[]     @relation("FortressTarget")
-  outboundAttackUnits       AttackUnit[]   @relation("AttackUnitAttacker")
-  inboundAttackUnits        AttackUnit[]   @relation("AttackUnitTarget")
-  crownedCycles             Cycle[]        @relation("CycleCrownedFortress")
-  scoreEventsAsFortress     ScoreEvent[]   @relation("ScoreEventFortress")
-  scoreEventsAsTarget       ScoreEvent[]   @relation("ScoreEventTargetFortress")
+  id                           String                              @id @default(cuid())
+  cycleId                      String
+  ownerId                      String
+  commanderName                String
+  commanderNameRegisteredAt    DateTime?
+  name                         String
+  points                       Int                                 @default(0)
+  level                        Int                                 @default(0)
+  food                         Int                                 @default(0)
+  army                         Int                                 @default(0)
+  minersAssigned               Int                                 @default(10)
+  farmersAssigned              Int                                 @default(10)
+  recruitersAssigned           Int                                 @default(5)
+  race                         FortressRace?
+  fortressKind                 FortressKind                        @default(PLAYER)
+  isNpc                        Boolean                             @default(false)
+  health                       Int                                 @default(0)
+  maxHealth                    Int                                 @default(0)
+  sizeTiles                    Int                                 @default(1)
+  iconLabel                    String?
+  unicornDecoySourceFortressId String?
+  unicornDecoyLevel            Int?
+  currentAction                FortressAction                      @default(GROW)
+  targetFortressId             String?
+  unitSpriteVariant            String                              @default("unit-1")
+  locationShuffleCount         Int                                 @default(0)
+  mapX                         Int
+  mapY                         Int
+  joinedAt                     DateTime                            @default(now())
+  createdAt                    DateTime                            @default(now())
+  updatedAt                    DateTime                            @updatedAt
+  cycle                        Cycle                               @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  owner                        User                                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  targetFortress               Fortress?                           @relation("FortressTarget", fields: [targetFortressId], references: [id], onDelete: SetNull)
+  attackers                    Fortress[]                          @relation("FortressTarget")
+  unicornDecoySourceFortress   Fortress?                           @relation("UnicornDecoySource", fields: [unicornDecoySourceFortressId], references: [id], onDelete: Cascade)
+  unicornDecoys                Fortress[]                          @relation("UnicornDecoySource")
+  outboundAttackUnits          AttackUnit[]                        @relation("AttackUnitAttacker")
+  inboundAttackUnits           AttackUnit[]                        @relation("AttackUnitTarget")
+  crownedCycles                Cycle[]                             @relation("CycleCrownedFortress")
+  scoreEventsAsFortress        ScoreEvent[]                        @relation("ScoreEventFortress")
+  scoreEventsAsTarget          ScoreEvent[]                        @relation("ScoreEventTargetFortress")
   castleUpgradeSpecializations CastleUpgradeSpecializationChoice[]
-  raceAbilityActivations    RaceAbilityActivation[]
-  dwarfGrudges              DwarfGrudge[]  @relation("DwarfGrudgeOwner")
-  grudgedBy                 DwarfGrudge[]  @relation("DwarfGrudgeTarget")
+  raceAbilityActivations       RaceAbilityActivation[]
+  dwarfGrudges                 DwarfGrudge[]                       @relation("DwarfGrudgeOwner")
+  grudgedBy                    DwarfGrudge[]                       @relation("DwarfGrudgeTarget")
 
   @@unique([cycleId, ownerId])
   @@unique([cycleId, commanderName])
   @@unique([cycleId, name])
   @@index([cycleId])
   @@index([cycleId, isNpc])
+  @@index([cycleId, fortressKind])
+  @@index([unicornDecoySourceFortressId, createdAt])
   @@index([ownerId])
 }
 
@@ -278,16 +292,16 @@ model CastleUpgradeSpecializationChoice {
 }
 
 model RaceAbilityActivation {
-  id         String          @id @default(cuid())
-  fortressId String
-  kind       RaceAbilityKind
-  activeFrom DateTime
+  id          String          @id @default(cuid())
+  fortressId  String
+  kind        RaceAbilityKind
+  activeFrom  DateTime
   activeUntil DateTime
-  usedAt     DateTime       @default(now())
-  expiresAt  DateTime?
-  consumedAt DateTime?
-  createdAt  DateTime       @default(now())
-  fortress   Fortress       @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+  usedAt      DateTime        @default(now())
+  expiresAt   DateTime?
+  consumedAt  DateTime?
+  createdAt   DateTime        @default(now())
+  fortress    Fortress        @relation(fields: [fortressId], references: [id], onDelete: Cascade)
 
   @@index([fortressId, kind, usedAt])
   @@index([fortressId, kind, activeUntil])
@@ -310,32 +324,32 @@ model DwarfGrudge {
 }
 
 model AttackUnit {
-  id                 String    @id @default(cuid())
-  cycleId            String
-  attackerFortressId String
-  targetFortressId   String
-  armyAmount         Int       @default(1)
+  id                        String    @id @default(cuid())
+  cycleId                   String
+  attackerFortressId        String
+  targetFortressId          String
+  armyAmount                Int       @default(1)
   defenderArmyAtBattleStart Int?
-  resolvedAttackPower Int?
-  resolvedDefensePower Int?
-  attackerSurvivors   Int?
-  attackerRetired     Int?
-  attackerReturned    Int?
-  defenderLosses      Int?
-  pointsLooted        Int?
-  foodLooted          Int?
-  launchedAt         DateTime
-  arrivesAt          DateTime
-  recalledAt         DateTime?
-  returnOriginMapX   Int?
-  returnOriginMapY   Int?
-  resolvedAt         DateTime?
-  cancelledAt        DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-  cycle              Cycle     @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  attackerFortress   Fortress  @relation("AttackUnitAttacker", fields: [attackerFortressId], references: [id], onDelete: Cascade)
-  targetFortress     Fortress  @relation("AttackUnitTarget", fields: [targetFortressId], references: [id], onDelete: Cascade)
+  resolvedAttackPower       Int?
+  resolvedDefensePower      Int?
+  attackerSurvivors         Int?
+  attackerRetired           Int?
+  attackerReturned          Int?
+  defenderLosses            Int?
+  pointsLooted              Int?
+  foodLooted                Int?
+  launchedAt                DateTime
+  arrivesAt                 DateTime
+  recalledAt                DateTime?
+  returnOriginMapX          Int?
+  returnOriginMapY          Int?
+  resolvedAt                DateTime?
+  cancelledAt               DateTime?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+  cycle                     Cycle     @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  attackerFortress          Fortress  @relation("AttackUnitAttacker", fields: [attackerFortressId], references: [id], onDelete: Cascade)
+  targetFortress            Fortress  @relation("AttackUnitTarget", fields: [targetFortressId], references: [id], onDelete: Cascade)
 
   @@index([cycleId, arrivesAt])
   @@index([attackerFortressId, resolvedAt, cancelledAt])
@@ -462,20 +476,20 @@ model ArcadeWallet {
 }
 
 model ArcadeTransaction {
-  id         String                @id @default(cuid())
-  userId     String
-  cycleId    String?
-  kind       ArcadeTransactionKind
-  gameType   ArcadeGameType?
-  amount     Int
+  id           String                @id @default(cuid())
+  userId       String
+  cycleId      String?
+  kind         ArcadeTransactionKind
+  gameType     ArcadeGameType?
+  amount       Int
   balanceAfter Int
-  summary    String                @db.Text
-  details    String?               @db.Text
-  dedupeKey  String?               @unique
-  createdAt  DateTime              @default(now())
-  updatedAt  DateTime              @updatedAt
-  user       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  cycle      Cycle?                @relation(fields: [cycleId], references: [id], onDelete: SetNull)
+  summary      String                @db.Text
+  details      String?               @db.Text
+  dedupeKey    String?               @unique
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cycle        Cycle?                @relation(fields: [cycleId], references: [id], onDelete: SetNull)
 
   @@index([userId, createdAt])
   @@index([cycleId, createdAt])
@@ -500,15 +514,15 @@ model ArcadeLootBoxPurchase {
 }
 
 model ArcadeCosmeticUnlock {
-  id             String                @id @default(cuid())
-  userId         String
-  slot           ArcadeCosmeticSlot
-  variant        String
-  sourcePurchaseId String?             @unique
-  createdAt      DateTime              @default(now())
-  updatedAt      DateTime              @updatedAt
-  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sourcePurchase ArcadeLootBoxPurchase? @relation(fields: [sourcePurchaseId], references: [id], onDelete: SetNull)
+  id               String                 @id @default(cuid())
+  userId           String
+  slot             ArcadeCosmeticSlot
+  variant          String
+  sourcePurchaseId String?                @unique
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  user             User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourcePurchase   ArcadeLootBoxPurchase? @relation(fields: [sourcePurchaseId], references: [id], onDelete: SetNull)
 
   @@unique([userId, slot, variant])
   @@index([userId, slot])
@@ -543,31 +557,31 @@ model CommunityWishVoteEntitlement {
 }
 
 model CycleHistory {
-  id                        String                 @id @default(cuid())
-  cycleId                   String                 @unique
-  winnerId                  String
-  winnerRequestId           String?                @unique
-  communityWishProposalId   String?                @unique
-  winningScore              Int
-  endedAt                   DateTime
-  firstSlayerCommanderName  String?                @db.Text
-  firstSlayerFortressName   String?                @db.Text
-  tieBreakSummary           String?                @db.Text
-  winnerRequestSnapshot     String?                @db.Text
-  communityWishSnapshot     String?                @db.Text
-  communityWishVoteCount    Int                    @default(0)
-  communityWishFulfillmentProgress Int             @default(0)
-  communityWishStatus       CommunityWishStatus    @default(NO_PROPOSALS)
-  communityWishProposalEndsAt DateTime?
-  communityWishVotingEndsAt DateTime?
-  communityWishResolvedAt   DateTime?
-  communityWishResolvedById String?
-  createdAt                 DateTime               @default(now())
-  cycle                     Cycle                  @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  winner                    User                   @relation("CycleHistoryWinner", fields: [winnerId], references: [id], onDelete: Restrict)
-  winnerRequest             WinnerRequest?         @relation("CycleHistoryWinnerRequest", fields: [winnerRequestId], references: [id], onDelete: SetNull)
-  communityWishProposal     CommunityWishProposal? @relation("CycleHistoryCommunityWish", fields: [communityWishProposalId], references: [id], onDelete: SetNull)
-  communityWishResolvedBy   User?                  @relation("CommunityWishAdminResolver", fields: [communityWishResolvedById], references: [id], onDelete: SetNull)
+  id                               String                 @id @default(cuid())
+  cycleId                          String                 @unique
+  winnerId                         String
+  winnerRequestId                  String?                @unique
+  communityWishProposalId          String?                @unique
+  winningScore                     Int
+  endedAt                          DateTime
+  firstSlayerCommanderName         String?                @db.Text
+  firstSlayerFortressName          String?                @db.Text
+  tieBreakSummary                  String?                @db.Text
+  winnerRequestSnapshot            String?                @db.Text
+  communityWishSnapshot            String?                @db.Text
+  communityWishVoteCount           Int                    @default(0)
+  communityWishFulfillmentProgress Int                    @default(0)
+  communityWishStatus              CommunityWishStatus    @default(NO_PROPOSALS)
+  communityWishProposalEndsAt      DateTime?
+  communityWishVotingEndsAt        DateTime?
+  communityWishResolvedAt          DateTime?
+  communityWishResolvedById        String?
+  createdAt                        DateTime               @default(now())
+  cycle                            Cycle                  @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  winner                           User                   @relation("CycleHistoryWinner", fields: [winnerId], references: [id], onDelete: Restrict)
+  winnerRequest                    WinnerRequest?         @relation("CycleHistoryWinnerRequest", fields: [winnerRequestId], references: [id], onDelete: SetNull)
+  communityWishProposal            CommunityWishProposal? @relation("CycleHistoryCommunityWish", fields: [communityWishProposalId], references: [id], onDelete: SetNull)
+  communityWishResolvedBy          User?                  @relation("CommunityWishAdminResolver", fields: [communityWishResolvedById], references: [id], onDelete: SetNull)
 
   @@index([winnerId])
   @@index([endedAt])

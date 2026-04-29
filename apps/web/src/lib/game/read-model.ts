@@ -3,6 +3,7 @@ import {
   ChatMessageType,
   CommunityWishStatus,
   CycleStatus,
+  FortressKind,
   Prisma,
   RaceAbilityKind,
   ScoreEventType,
@@ -106,7 +107,8 @@ function mapCommunityWishProposals({
       status: proposal.status,
       reviewNotes: proposal.reviewNotes,
       createdAt: proposal.createdAt,
-      authorLabel: proposal.authorId === userId ? "Your wish" : "Community wish",
+      authorLabel:
+        proposal.authorId === userId ? "Your wish" : "Community wish",
       isCurrentUser: proposal.authorId === userId,
       voteCount,
       currentUserVotes:
@@ -136,49 +138,48 @@ async function getFortressLocationShuffleCount(
   return rows[0]?.locationShuffleCount ?? 0;
 }
 
-function mapLatestSeason(
-  latestResolvedSeason: {
-    cycleId: string;
-    endedAt: Date;
-    communityWishStatus: CommunityWishStatus;
-    communityWishSnapshot: string | null;
-    communityWishVoteCount: number;
-    communityWishFulfillmentProgress: number;
-    winningScore: number;
-    firstSlayerCommanderName: string | null;
-    firstSlayerFortressName: string | null;
-    cycle: {
-      fortresses: Array<{
-        ownerId: string;
-        commanderName: string;
-        name: string;
-      }>;
-    };
-    winner: {
-      id: string;
-    };
-    winnerRequest: {
-      id: string;
-      requestText: string;
-      status: WinnerRequestStatus;
-      reviewNotes: string | null;
-      fulfillmentProgress: number;
-    } | null;
-    communityWishProposal: {
-      id: string;
-      authorId: string;
-      requestText: string;
-      status: WinnerRequestStatus;
-    } | null;
-  }
-) {
+function mapLatestSeason(latestResolvedSeason: {
+  cycleId: string;
+  endedAt: Date;
+  communityWishStatus: CommunityWishStatus;
+  communityWishSnapshot: string | null;
+  communityWishVoteCount: number;
+  communityWishFulfillmentProgress: number;
+  winningScore: number;
+  firstSlayerCommanderName: string | null;
+  firstSlayerFortressName: string | null;
+  cycle: {
+    fortresses: Array<{
+      ownerId: string;
+      commanderName: string;
+      name: string;
+    }>;
+  };
+  winner: {
+    id: string;
+  };
+  winnerRequest: {
+    id: string;
+    requestText: string;
+    status: WinnerRequestStatus;
+    reviewNotes: string | null;
+    fulfillmentProgress: number;
+  } | null;
+  communityWishProposal: {
+    id: string;
+    authorId: string;
+    requestText: string;
+    status: WinnerRequestStatus;
+  } | null;
+}) {
   const winnerFortress = latestResolvedSeason.cycle.fortresses.find(
     (fortress) => fortress.ownerId === latestResolvedSeason.winner.id
   );
   const communityWishAuthor = latestResolvedSeason.communityWishProposal
     ? latestResolvedSeason.cycle.fortresses.find(
         (fortress) =>
-          fortress.ownerId === latestResolvedSeason.communityWishProposal?.authorId
+          fortress.ownerId ===
+          latestResolvedSeason.communityWishProposal?.authorId
       )
     : null;
   const communityWishText =
@@ -333,6 +334,8 @@ export async function getHomePageState({
           farmersAssigned: true,
           recruitersAssigned: true,
           race: true,
+          fortressKind: true,
+          unicornDecoyLevel: true,
           currentAction: true,
           targetFortressId: true,
           unitSpriteVariant: true,
@@ -398,20 +401,20 @@ export async function getHomePageState({
         orderBy: [{ launchedAt: "asc" }, { id: "asc" }],
         select: {
           id: true,
-            armyAmount: true,
-            launchedAt: true,
-            arrivesAt: true,
-            recalledAt: true,
-            returnOriginMapX: true,
-            returnOriginMapY: true,
-            attackerFortress: {
-              select: {
-                id: true,
-                ownerId: true,
-                name: true,
-                mapX: true,
-                mapY: true,
-                race: true,
+          armyAmount: true,
+          launchedAt: true,
+          arrivesAt: true,
+          recalledAt: true,
+          returnOriginMapX: true,
+          returnOriginMapY: true,
+          attackerFortress: {
+            select: {
+              id: true,
+              ownerId: true,
+              name: true,
+              mapX: true,
+              mapY: true,
+              race: true,
               unitSpriteVariant: true,
               owner: {
                 select: {
@@ -583,7 +586,7 @@ export async function getHomePageState({
       ? (cycle.testingStartedAt ?? cycle.registrationEndsAt)
       : cycle.status === CycleStatus.TESTING
         ? cycle.testingEndsAt
-      : cycle.activeEndsAt;
+        : cycle.activeEndsAt;
   const sortedFortresses = [...playerFortresses].sort(
     compareByLeaderboardOrder
   );
@@ -738,6 +741,8 @@ export async function getHomePageState({
                 name: true,
                 commanderName: true,
                 ownerId: true,
+                fortressKind: true,
+                unicornDecoyLevel: true,
                 level: true,
                 race: true,
               },
@@ -838,11 +843,20 @@ export async function getHomePageState({
             defenderLosses: unit.defenderLosses ?? 0,
             pointsLooted: unit.pointsLooted ?? 0,
             foodLooted: unit.foodLooted ?? 0,
+            defenderIsUnicornDecoy:
+              unit.targetFortress.fortressKind === FortressKind.UNICORN_DECOY,
+            defenderDecoyLevel: unit.targetFortress.unicornDecoyLevel,
           }),
         };
       })
     : [];
-  const mapFortresses = cycle.fortresses.map((fortress) => ({
+  const visibleFortresses = cycle.fortresses.filter((fortress) => {
+    return (
+      fortress.fortressKind !== FortressKind.UNICORN_DECOY ||
+      fortress.health > 0
+    );
+  });
+  const mapFortresses = visibleFortresses.map((fortress) => ({
     id: fortress.id,
     commanderName: getDisplayName(
       fortress.commanderName,
@@ -859,6 +873,8 @@ export async function getHomePageState({
     maxHealth: fortress.maxHealth,
     sizeTiles: fortress.sizeTiles,
     iconLabel: fortress.iconLabel,
+    fortressKind: fortress.fortressKind,
+    unicornDecoyLevel: fortress.unicornDecoyLevel,
     displayedCastleLevel: getDisplayedCastleLevel(fortress.level),
     population: getFortressPopulation(fortress.level, fortress.race),
     defenseMultiplier: getFortressDefenseMultiplier(
@@ -962,9 +978,9 @@ export async function getHomePageState({
     ? latestResolvedSeason.cycle.communityWishProposals
     : cycle.communityWishProposals;
   const communityWishSourcePlayerFortress = usingResolvedWishWindow
-    ? latestResolvedSeason.cycle.fortresses.find(
+    ? (latestResolvedSeason.cycle.fortresses.find(
         (fortress) => fortress.ownerId === userId
-      ) ?? null
+      ) ?? null)
     : playerFortress;
   const communityWishProposalOpen = usingResolvedWishWindow
     ? latestResolvedSeason.communityWishStatus === CommunityWishStatus.OPEN ||
@@ -1030,9 +1046,9 @@ export async function getHomePageState({
             ? joiningLocked
               ? "Testing mode is live, but joins are currently locked by admin action. Sandbox progress resets before the real season."
               : "Testing mode is live. Players can join and try the economy, races, upgrades and raids before everything resets for the real season."
-          : activeOpen
-            ? "The season is live. Community wishes can be proposed until Sunday and voted on after it ends."
-            : "The season has ended. Build and wish resolution are in progress.",
+            : activeOpen
+              ? "The season is live. Community wishes can be proposed until Sunday and voted on after it ends."
+              : "The season has ended. Build and wish resolution are in progress.",
       statusMessage:
         cycle.status === CycleStatus.REGISTRATION
           ? registrationOpen && joiningLocked
@@ -1048,36 +1064,36 @@ export async function getHomePageState({
                 : testingOpen
                   ? "Testing mode is live, but all player slots are filled. Sandbox progress resets before the real season."
                   : "Testing has ended. The next game tick will reset sandbox progress and start the real season."
-          : joiningLocked
-            ? "The season is active, but joining is currently locked by admin action."
-            : activeOpen && remainingSlots > 0
-              ? "The active season is running. New commanders can still join this season while slots are available."
-              : activeOpen
-                ? "The active season is running, but all player slots are filled. Joining is closed for this cycle."
-                : "The ACTIVE deadline has passed. Joining is closed until the next registration cycle opens.",
+            : joiningLocked
+              ? "The season is active, but joining is currently locked by admin action."
+              : activeOpen && remainingSlots > 0
+                ? "The active season is running. New commanders can still join this season while slots are available."
+                : activeOpen
+                  ? "The active season is running, but all player slots are filled. Joining is closed for this cycle."
+                  : "The ACTIVE deadline has passed. Joining is closed until the next registration cycle opens.",
     },
-      phase: {
-        status: cycle.status,
-        deadline,
-        isOpen:
-          cycle.status === CycleStatus.REGISTRATION
-            ? registrationOpen
-            : cycle.status === CycleStatus.TESTING
-              ? testingOpen
+    phase: {
+      status: cycle.status,
+      deadline,
+      isOpen:
+        cycle.status === CycleStatus.REGISTRATION
+          ? registrationOpen
+          : cycle.status === CycleStatus.TESTING
+            ? testingOpen
             : activeOpen,
-        label:
-          cycle.status === CycleStatus.REGISTRATION
-            ? registrationOpen && joiningLocked
-              ? "Build locked"
-              : registrationOpen
-                ? "Build phase"
-                : "Build expired"
-            : cycle.status === CycleStatus.TESTING
-              ? testingOpen && joiningLocked
-                ? "Testing locked"
-                : testingOpen
-                  ? "Testing phase"
-                  : "Testing expired"
+      label:
+        cycle.status === CycleStatus.REGISTRATION
+          ? registrationOpen && joiningLocked
+            ? "Build locked"
+            : registrationOpen
+              ? "Build phase"
+              : "Build expired"
+          : cycle.status === CycleStatus.TESTING
+            ? testingOpen && joiningLocked
+              ? "Testing locked"
+              : testingOpen
+                ? "Testing phase"
+                : "Testing expired"
             : activeOpen
               ? "Season live"
               : "Awaiting build start",
@@ -1252,7 +1268,8 @@ export async function getHomePageState({
           },
           growPerTick: calculateTickProduction({
             ...playerFortress,
-            castleSpecializations: playerCastleSpecializationCounts ?? undefined,
+            castleSpecializations:
+              playerCastleSpecializationCounts ?? undefined,
           }).pointsProduced,
           attackDamage: getFortressAttackDamage(playerFortress.level),
         }
@@ -1275,29 +1292,29 @@ export async function getHomePageState({
     })),
     mapFortresses,
     attackUnits: cycle.attackUnits.map((unit) => ({
-        id: unit.id,
-        armyAmount:
-          unit.attackerFortress.race === "UNSTABLE_UNICORNS" &&
-          unit.attackerFortress.ownerId !== userId
-            ? null
-            : unit.armyAmount,
-        launchedAt: unit.launchedAt,
-        arrivesAt: unit.arrivesAt,
-        recalledAt: unit.recalledAt,
-        returnOrigin:
-          unit.returnOriginMapX !== null && unit.returnOriginMapY !== null
-            ? {
-                mapX: unit.returnOriginMapX,
-                mapY: unit.returnOriginMapY,
-              }
-            : null,
-        canRecall:
-          Boolean(userId) &&
-          unit.attackerFortress.ownerId === userId &&
-          unit.recalledAt === null,
-        attacker: {
-          id: unit.attackerFortress.id,
-          name: unit.attackerFortress.name,
+      id: unit.id,
+      armyAmount:
+        unit.attackerFortress.race === "UNSTABLE_UNICORNS" &&
+        unit.attackerFortress.ownerId !== userId
+          ? null
+          : unit.armyAmount,
+      launchedAt: unit.launchedAt,
+      arrivesAt: unit.arrivesAt,
+      recalledAt: unit.recalledAt,
+      returnOrigin:
+        unit.returnOriginMapX !== null && unit.returnOriginMapY !== null
+          ? {
+              mapX: unit.returnOriginMapX,
+              mapY: unit.returnOriginMapY,
+            }
+          : null,
+      canRecall:
+        Boolean(userId) &&
+        unit.attackerFortress.ownerId === userId &&
+        unit.recalledAt === null,
+      attacker: {
+        id: unit.attackerFortress.id,
+        name: unit.attackerFortress.name,
         mapX: unit.attackerFortress.mapX,
         mapY: unit.attackerFortress.mapY,
         race: unit.attackerFortress.race,
@@ -1333,8 +1350,8 @@ export async function getHomePageState({
         ? latestResolvedSeason.endedAt
         : cycle.activeStartedAt,
       closesAt: usingResolvedWishWindow
-        ? latestResolvedSeason.communityWishVotingEndsAt ??
-          latestResolvedSeason.communityWishProposalEndsAt
+        ? (latestResolvedSeason.communityWishVotingEndsAt ??
+          latestResolvedSeason.communityWishProposalEndsAt)
         : cycle.activeEndsAt,
       canSubmit:
         Boolean(userId) &&
@@ -1348,8 +1365,7 @@ export async function getHomePageState({
       voteBudget: communityWishVoteBudget.voteBudget,
       usedVotes: communityWishVoteBudget.usedVotes,
       remainingVotes: communityWishVoteBudget.remainingVotes,
-      currentUserCommunityWish:
-        currentUserCommunityWish?.requestText ?? "",
+      currentUserCommunityWish: currentUserCommunityWish?.requestText ?? "",
       submissionHint: !userId
         ? "Sign in and join this cycle to suggest a community wish."
         : !communityWishSourcePlayerFortress
@@ -1368,7 +1384,7 @@ export async function getHomePageState({
     battleReports,
     availableTargets:
       gameplayOpen && playerFortress
-        ? cycle.fortresses
+        ? visibleFortresses
             .filter((fortress) => fortress.id !== playerFortress.id)
             .map((fortress) => ({
               id: fortress.id,
@@ -1385,6 +1401,8 @@ export async function getHomePageState({
               race: fortress.race,
               points: fortress.points,
               isNpc: fortress.isNpc,
+              fortressKind: fortress.fortressKind,
+              unicornDecoyLevel: fortress.unicornDecoyLevel,
               health: fortress.health,
               maxHealth: fortress.maxHealth,
               currentAction: fortress.currentAction,

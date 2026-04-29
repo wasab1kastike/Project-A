@@ -36,6 +36,8 @@ type MapFortress = {
   rawName: string;
   points: number;
   isNpc: boolean;
+  fortressKind: "PLAYER" | "MEGA" | "UNICORN_DECOY";
+  unicornDecoyLevel: number | null;
   health: number;
   maxHealth: number;
   sizeTiles: number;
@@ -295,10 +297,7 @@ function AttackUnitsLayer({
             race: unit.attacker.race,
             seed: unit.attacker.id,
           });
-        const skinStyle = getCosmeticSpriteStyle(
-          "UNIT",
-          skinVariant
-        );
+        const skinStyle = getCosmeticSpriteStyle("UNIT", skinVariant);
         const isReturning = Boolean(unit.recalledAt);
         const routeOrigin = isReturning
           ? (unit.returnOrigin ?? {
@@ -380,7 +379,11 @@ function AttackUnitsLayer({
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={(event) => event.stopPropagation()}
               >
-                <strong>{unit.armyAmount !== null ? `${unit.armyAmount} army` : "Hidden army"}</strong>
+                <strong>
+                  {unit.armyAmount !== null
+                    ? `${unit.armyAmount} army`
+                    : "Hidden army"}
+                </strong>
                 <span>{statusText}</span>
                 <em>{formatSecondsRemaining(secondsRemaining)} ETA</em>
                 {unit.canRecall && onRecallAttackUnit ? (
@@ -964,10 +967,12 @@ export function FortressMap({
                 (Boolean(onSelectFortress) && fortress.isCurrentUser) ||
                 (Boolean(onConfirmAttackTarget) && fortress.isTargetable);
               const variant = getSpriteVariant(fortress);
-              const isMega = fortress.isNpc;
+              const isMega = fortress.fortressKind === "MEGA";
+              const isUnicornDecoy = fortress.fortressKind === "UNICORN_DECOY";
               const className = [
                 styles.marker,
                 isMega ? styles.megaMarker : "",
+                isUnicornDecoy ? styles.unicornDecoyMarker : "",
                 fortress.isSlayerOfA ? styles.crownedMarker : "",
                 fortress.isCurrentUser ? styles.currentUser : "",
                 selectedFortressId === fortress.id ? styles.activeFortress : "",
@@ -1002,7 +1007,9 @@ export function FortressMap({
                     onPointerUp={(event) =>
                       handleMarkerPointerUp(event, fortress)
                     }
-                    onPointerCancel={(event) => clearMarkerTap(event, fortress.id)}
+                    onPointerCancel={(event) =>
+                      clearMarkerTap(event, fortress.id)
+                    }
                     onClick={(event) => {
                       if (event.detail !== 0 || suppressClickRef.current) {
                         event.preventDefault();
@@ -1018,7 +1025,9 @@ export function FortressMap({
                     aria-label={
                       isMega
                         ? `${fortress.name}, ${fortress.health} of ${fortress.maxHealth} health`
-                        : `${fortress.name}, ${fortress.points} points`
+                        : isUnicornDecoy
+                          ? `${fortress.name}, Unicorn decoy, ${200 * Math.max(1, fortress.unicornDecoyLevel ?? 1)} army backlash`
+                          : `${fortress.name}, ${fortress.points} points`
                     }
                   >
                     <span className={styles.selectionPulse} />
@@ -1041,9 +1050,11 @@ export function FortressMap({
                         />
                       )}
                     </span>
-                    {isMega ? (
+                    {isMega || isUnicornDecoy ? (
                       <span className={styles.pointsBadge}>
-                        {fortress.health}/{fortress.maxHealth}
+                        {isUnicornDecoy
+                          ? `-${200 * Math.max(1, fortress.unicornDecoyLevel ?? 1)}`
+                          : `${fortress.health}/${fortress.maxHealth}`}
                       </span>
                     ) : null}
                     <span className={styles.nameplate}>{fortress.name}</span>
@@ -1055,9 +1066,11 @@ export function FortressMap({
                       <span>
                         {isMega
                           ? `${fortress.health}/${fortress.maxHealth} HP`
-                          : `${fortress.points} pts${
-                              fortress.isSlayerOfA ? " - Slayer of A" : ""
-                            }`}
+                          : isUnicornDecoy
+                            ? `Decoy L${fortress.unicornDecoyLevel ?? 1}`
+                            : `${fortress.points} pts${
+                                fortress.isSlayerOfA ? " - Slayer of A" : ""
+                              }`}
                       </span>
                     </span>
                   </button>
@@ -1075,7 +1088,9 @@ export function FortressMap({
                       <span>
                         {isMega
                           ? `${fortress.health}/${fortress.maxHealth} HP`
-                          : `${fortress.points} pts`}
+                          : isUnicornDecoy
+                            ? `${200 * Math.max(1, fortress.unicornDecoyLevel ?? 1)} army backlash`
+                            : `${fortress.points} pts`}
                       </span>
                       {travelMinutes ? <em>{travelMinutes} min ETA</em> : null}
                       <label className={styles.targetArmyControl}>

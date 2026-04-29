@@ -14,6 +14,8 @@ export type RaidPreviewInput = {
   targetDbLevel: number | null;
   targetRace?: FortressRace | null;
   targetVisibleArmy?: number | null;
+  targetIsUnicornDecoy?: boolean;
+  targetDecoyLevel?: number | null;
 };
 
 export type RaidBattleReportInput = {
@@ -31,6 +33,8 @@ export type RaidBattleReportInput = {
   defenderLosses: number;
   pointsLooted: number;
   foodLooted: number;
+  defenderIsUnicornDecoy?: boolean;
+  defenderDecoyLevel?: number | null;
 };
 
 export type RaidRecallReportInput = {
@@ -75,6 +79,14 @@ export function formatRaidAttackPreview(input: RaidPreviewInput) {
   ];
 
   if (input.targetName && input.targetDbLevel !== null) {
+    if (input.targetIsUnicornDecoy) {
+      lines.push(
+        `Target: ${input.targetName}, unstable copy, backlash ${200 * Math.max(1, input.targetDecoyLevel ?? 1)} army.`
+      );
+      lines.push("The copy collapses when hit and cannot be looted.");
+      return lines;
+    }
+
     const displayedLevel = getDisplayedCastleLevel(input.targetDbLevel);
     const defenseBonusPercent = getDefenseBonusPercent(
       input.targetDbLevel,
@@ -85,7 +97,10 @@ export function formatRaidAttackPreview(input: RaidPreviewInput) {
       `Target: ${input.targetName}, castle level ${displayedLevel}, defense bonus +${formatPercent(defenseBonusPercent)}.`
     );
 
-    if (input.targetVisibleArmy !== null && input.targetVisibleArmy !== undefined) {
+    if (
+      input.targetVisibleArmy !== null &&
+      input.targetVisibleArmy !== undefined
+    ) {
       lines.push(
         `Target army: ${input.targetVisibleArmy}. Estimated defense power: ${Math.floor(
           input.targetVisibleArmy * (1 + defenseBonusPercent)
@@ -102,6 +117,20 @@ export function formatRaidAttackPreview(input: RaidPreviewInput) {
 }
 
 export function formatRaidBattleReport(input: RaidBattleReportInput) {
+  if (input.defenderIsUnicornDecoy) {
+    const decoyLevel = Math.max(1, input.defenderDecoyLevel ?? 1);
+    const lostArmy = input.sentArmy - input.attackerReturned;
+
+    return [
+      `Teleport decoy collapsed. ${input.attackerName} hit ${input.defenderName} with ${input.sentArmy} troops.`,
+      `The unstable copy was castle level ${decoyLevel} and dealt up to ${
+        200 * decoyLevel
+      } army backlash.`,
+      `${input.attackerReturned} returned. ${lostArmy} troops were lost to the decoy.`,
+      "Loot gained: 0 points and 0 food.",
+    ];
+  }
+
   const defenseBonusPercent = getDefenseBonusPercent(
     input.defenderDbLevel,
     input.defenderRace
