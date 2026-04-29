@@ -1,0 +1,121 @@
+.backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 26;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(3, 8, 13, 0.64);
+  backdrop-filter: blur(12px);
+}
+
+.card {
+  width: min(460px, 100%);
+  display: grid;
+  gap: 18px;
+  padding: 26px;
+  border: 1px solid rgba(247, 196, 95, 0.38);
+  border-radius: 20px;
+  background:
+    linear-gradient(160deg, rgba(247, 196, 95, 0.07) 0%, rgba(255, 255, 255, 0) 60%),
+    rgba(6, 12, 18, 0.96);
+  box-shadow:
+    inset 0 1px 0 rgba(247, 196, 95, 0.12),
+    0 28px 60px rgba(0, 0, 0, 0.44),
+    0 0 0 1px rgba(247, 196, 95, 0.06);
+}
+
+.eyebrow {
+  color: var(--accent-strong);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.title {
+  font-size: clamp(1.4rem, 4vw, 1.95rem);
+  line-height: 1.08;
+  color: var(--accent-strong);
+}
+
+.rewardBadge {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 14px 20px;
+  border: 1px solid rgba(247, 196, 95, 0.28);
+  border-radius: 12px;
+  background: rgba(247, 196, 95, 0.06);
+}
+
+.rewardAmount {
+  font-size: 2.4rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--accent-strong);
+  font-family: var(--font-ibm-plex-mono);
+}
+
+.rewardLabel {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.lore {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.65;
+}
+
+.lore em {
+  color: var(--text-base, #d4c9b0);
+  font-style: italic;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 20px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--accent-strong);
+  color: #14202f;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: transform 160ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .button:hover {
+    transform: translateY(-1px);
+  }
+}
+
+@media (max-width: 640px) {
+  .backdrop {
+    padding: 16px;
+  }
+
+  .card {
+    padding: 18px;
+    gap: 14px;
+    border-radius: 18px;
+  }
+
+  .rewardAmount {
+    font-size: 2rem;
+  }
+}
