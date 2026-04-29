@@ -55,6 +55,68 @@ const CASTLE_SPECIALIZATIONS = [
 const homeOfALore =
   "The map has one giant neutral fortress, Home of A. It is an old machine-citadel that keeps rebooting itself every time someone cracks it.";
 
+const SEASON_FLOW = [
+  {
+    phase: "Registration (24h)",
+    description:
+      "Join the cycle, pick your identity, and claim your fortress before the season machine wakes up.",
+  },
+  {
+    phase: "Testing (24h)",
+    description:
+      "Sandbox mode: test workers, race picks, and attacks. Progress resets before real combat.",
+  },
+  {
+    phase: "Active season (72h)",
+    description:
+      "Real economy, real raids, real grudges. If it explodes here, it counts.",
+  },
+  {
+    phase: "Resolution",
+    description:
+      "Winner is locked, wishes move forward, and the next cycle is prepared.",
+  },
+] as const;
+
+const QUICKSTART_STEPS = [
+  "Pick a race that matches your style: stable economy, burst combat, or chaos utility.",
+  "Open Castle > Economy and assign workers immediately. Idle population is wasted tempo.",
+  "Scout your first target before sending a huge army. Ties go to defender.",
+  "Do not spend all points on one thing. Keep a reserve for rename/yeet/upgrades.",
+  "When Home of A is low, decide early: race for slayer bonus or farm safer value elsewhere.",
+] as const;
+
+const FAQ_ENTRIES = [
+  {
+    question: "Why did my attack fail even with a big army?",
+    answer:
+      "Defender power includes castle defense multipliers. Equal power is still a defender win, so close calls usually punish the attacker.",
+  },
+  {
+    question: "Why can I not change race now?",
+    answer:
+      "Race is a once-per-season lock. The game remembers your choice even if your memory does not.",
+  },
+  {
+    question: "Why did my location suddenly change?",
+    answer:
+      "Castle Yeet or Home of A destruction can reshuffle positions. The map is not broken; it is dramatic.",
+  },
+  {
+    question: "What is the safest beginner mistake to avoid?",
+    answer:
+      "Sending everything in one heroic raid without checking defender strength. Heroic speeches are free, armies are not.",
+  },
+] as const;
+
+const GLOSSARY = [
+  "Tick: the minute-based game update that applies growth, combat, and state transitions.",
+  "Buff tier: race power stage (T2/T3) unlocked by active-season timing.",
+  "Returned: surviving attackers that come home after a winning raid.",
+  "Retired: surviving attackers that do not return to active army after combat.",
+  "Decoy: temporary attackable Unicorn teleport remnant.",
+] as const;
+
 export default function WikiPage() {
   return (
     <main className={styles.page}>
@@ -80,6 +142,35 @@ export default function WikiPage() {
       </section>
 
       <section className={styles.stack}>
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>Season loop</span>
+          <h2>How a full cycle flows</h2>
+          <p>
+            If you only remember one thing: prepare in registration/testing,
+            execute in active season, and review in resolution.
+          </p>
+          <ol className={styles.noteList}>
+            {SEASON_FLOW.map((step) => (
+              <li key={step.phase}>
+                <strong>{step.phase}</strong>: {step.description}
+              </li>
+            ))}
+          </ol>
+        </article>
+
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>Quickstart</span>
+          <h2>First 15 minutes checklist</h2>
+          <p>
+            Use this when the season starts and your brain is still loading in.
+          </p>
+          <ol className={styles.noteList}>
+            {QUICKSTART_STEPS.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+        </article>
+
         <article className={styles.card}>
           <span className={styles.sectionLabel}>Races</span>
           <h2>Identity, lore, and buffs</h2>
@@ -230,6 +321,27 @@ export default function WikiPage() {
               </ul>
             </section>
           </div>
+        </article>
+
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>FAQ</span>
+          <h2>Common battlefield confusion</h2>
+          <div className={styles.raceGrid}>
+            {FAQ_ENTRIES.map((entry) => (
+              <section className={styles.raceCard} key={entry.question}>
+                <h3>{entry.question}</h3>
+                <p>{entry.answer}</p>
+              </section>
+            ))}
+          </div>
+          <section className={styles.subCard}>
+            <h3>Mini glossary</h3>
+            <ul className={styles.noteList}>
+              {GLOSSARY.map((entry) => (
+                <li key={entry}>{entry}</li>
+              ))}
+            </ul>
+          </section>
         </article>
       </section>
     </main>
