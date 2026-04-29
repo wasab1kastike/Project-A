@@ -21,6 +21,7 @@ import { getHomePageState, type HomePageState } from "@/lib/game/read-model";
 import {
   PATCH_NOTES_PAGE_HREF,
   PRIMARY_GAME_NAV_LINKS,
+  WIKI_PAGE_HREF,
 } from "@/lib/game/site-navigation";
 
 export const dynamic = "force-dynamic";
@@ -376,12 +377,19 @@ export default async function Home({
           </span>
           <SeasonUpdateAnnouncement userId={session?.user?.id ?? null} />
           {PRIMARY_GAME_NAV_LINKS
-            .filter((link) => link.href !== PATCH_NOTES_PAGE_HREF)
+            .filter(
+              (link) =>
+                link.href !== PATCH_NOTES_PAGE_HREF &&
+                link.href !== WIKI_PAGE_HREF
+            )
             .map((link) => (
             <Link className={styles.hudButton} href={link.href} key={link.href}>
               {link.label}
             </Link>
             ))}
+          <Link className={styles.hudButton} href={WIKI_PAGE_HREF}>
+            Wiki
+          </Link>
           {state.cycle &&
           (state.phase?.status === "ACTIVE" ||
             state.phase?.status === "REGISTRATION") ? (

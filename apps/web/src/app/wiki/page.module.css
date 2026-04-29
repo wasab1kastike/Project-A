@@ -1,0 +1,179 @@
+.page {
+  width: min(1080px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 56px 0 96px;
+}
+
+.hero,
+.stack,
+.card,
+.raceGrid,
+.raceCard,
+.twoCol,
+.navRow,
+.raceHeader,
+.subCard {
+  display: grid;
+  gap: 16px;
+}
+
+.hero {
+  margin-bottom: 24px;
+}
+
+.heroCopy,
+.card,
+.subCard {
+  padding: 24px;
+  border: 1px solid var(--border-soft);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0)),
+    var(--surface);
+  box-shadow: 0 18px 50px rgba(10, 17, 26, 0.18);
+}
+
+.subCard {
+  border-radius: 18px;
+  margin-top: 8px;
+}
+
+.eyebrow,
+.sectionLabel {
+  color: var(--accent-strong);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.heroCopy h1 {
+  max-width: 16ch;
+  font-size: clamp(2rem, 5vw, 3.6rem);
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.heroCopy p,
+.card p,
+.noteList li,
+.quote {
+  color: var(--text-muted);
+  line-height: 1.65;
+}
+
+.navRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.linkButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0 18px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  color: var(--foreground);
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.raceGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.raceCard {
+  padding: 18px;
+  border: 1px solid var(--border-soft);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.raceHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.raceHeader strong {
+  font-size: 1.15rem;
+}
+
+.raceHeader span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid var(--border-soft);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  color: var(--accent-strong);
+}
+
+.quote {
+  font-style: italic;
+}
+
+.twoCol {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.twoCol h3,
+.subCard h3 {
+  font-size: 1rem;
+}
+
+.noteList {
+  display: grid;
+  gap: 10px;
+  padding-left: 18px;
+}
+
+.noteList li::marker {
+  color: var(--accent-strong);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .linkButton:hover {
+    transform: translateY(-1px);
+  }
+}
+
+@media (max-width: 840px) {
+  .raceGrid,
+  .twoCol {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .page {
+    width: min(100%, calc(100% - 24px));
+    padding: 40px 0 64px;
+  }
+
+  .heroCopy,
+  .card,
+  .subCard {
+    padding: 20px;
+    border-radius: 20px;
+  }
+
+  .navRow {
+    flex-direction: column;
+  }
+
+  .linkButton {
+    width: 100%;
+  }
+}
