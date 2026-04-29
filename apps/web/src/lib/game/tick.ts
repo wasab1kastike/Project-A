@@ -1086,14 +1086,35 @@ async function processCycleTick(
         );
 
         for (const targetUnit of targetUnits) {
+          const targetAttacker = fortressLookup.get(
+            targetUnit.attackerFortressId
+          );
+
           await tx.attackUnit.update({
             where: {
               id: targetUnit.id,
             },
             data: {
               resolvedAt: tickAt,
+              defenderArmyAtBattleStart: null,
+              resolvedAttackPower: targetUnit.armyAmount,
+              resolvedDefensePower: 0,
+              attackerSurvivors: targetUnit.armyAmount,
+              attackerRetired: 0,
+              attackerReturned: targetUnit.armyAmount,
+              defenderLosses: 0,
+              pointsLooted: 0,
+              foodLooted: 0,
             },
           });
+
+          if (targetAttacker) {
+            currentArmy.set(
+              targetAttacker.id,
+              (currentArmy.get(targetAttacker.id) ?? targetAttacker.army) +
+                targetUnit.armyAmount
+            );
+          }
 
           resolvedBatchAttackUnitIds.add(targetUnit.id);
           resolvedAttackUnits += 1;

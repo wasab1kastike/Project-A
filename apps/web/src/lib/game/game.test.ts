@@ -5989,6 +5989,110 @@ test("mega fortress destroy credit goes to the unit that drops health to zero", 
   assert.equal(history.firstSlayerCommanderName, "Late Commander");
   assert.equal(history.firstSlayerFortressName, "Late Keep");
 });
+
+test("attacking Home of A returns armies when mega survives", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const attacker = await createUser(prisma, "mega-return-attacker@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: attacker.id,
+    fortressName: "Return Alpha",
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const attackerFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: attacker.id,
+      },
+    },
+  });
+  const megaFortress = await prisma.fortress.findFirstOrThrow({
+    where: {
+      cycleId: cycle.id,
+      isNpc: true,
+    },
+  });
+
+  await prisma.fortress.update({
+    where: {
+      id: attackerFortress.id,
+    },
+    data: {
+      army: 3,
+      points: 0,
+      food: 0,
+      minersAssigned: 0,
+      farmersAssigned: 0,
+      recruitersAssigned: 0,
+    },
+  });
+  await prisma.fortress.update({
+    where: {
+      id: megaFortress.id,
+    },
+    data: {
+      health: MEGA_FORTRESS_HEALTH,
+      maxHealth: MEGA_FORTRESS_HEALTH,
+    },
+  });
+
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.ATTACK,
+    targetFortressId: megaFortress.id,
+    sentArmy: 2,
+    now: new Date("2026-04-20T12:05:00.000Z"),
+  });
+
+  const attackUnit = await prisma.attackUnit.findFirstOrThrow({
+    where: {
+      attackerFortressId: attackerFortress.id,
+      targetFortressId: megaFortress.id,
+      cancelledAt: null,
+    },
+    orderBy: {
+      launchedAt: "asc",
+    },
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: attackUnit.arrivesAt,
+  });
+
+  const resolvedUnit = await prisma.attackUnit.findUniqueOrThrow({
+    where: {
+      id: attackUnit.id,
+    },
+  });
+  const refreshedAttacker = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: attackerFortress.id,
+    },
+    select: {
+      army: true,
+    },
+  });
+
+  assert.equal(resolvedUnit.attackerSurvivors, 2);
+  assert.equal(resolvedUnit.attackerRetired, 0);
+  assert.equal(resolvedUnit.attackerReturned, 2);
+  assert.equal(refreshedAttacker.army, 3);
+});
+
 test("later mega fortress destroys scale reward and health without changing the first slayer or free upgrade count", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
