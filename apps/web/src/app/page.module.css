@@ -48,12 +48,10 @@
   left: 16px;
   right: 16px;
   display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
+  align-items: start;
   justify-content: space-between;
   gap: 12px;
   pointer-events: none;
-  overflow: hidden;
 }
 
 .statusCluster,
@@ -75,8 +73,6 @@
   flex-wrap: nowrap;
   align-items: center;
   gap: 6px;
-  flex: 1 1 auto;
-  min-width: 0;
   max-width: min(760px, 100%);
   padding: 6px;
   border-radius: 8px;
@@ -166,11 +162,9 @@
 
 .topLinks {
   display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
-  flex-shrink: 0;
   max-width: min(520px, 100%);
   padding: 8px;
   border-radius: 8px;
@@ -833,6 +827,10 @@
 @media (max-width: 980px) {
   .page {
     --battlefield-bottom-clearance: 210px;
+  }
+
+  .topHud {
+    display: grid;
   }
 
   .statusCluster,
