@@ -1342,9 +1342,10 @@ test("loot camp raids apply variant rewards without mega fortress progression", 
     return;
   }
 
-  const attacker = await createUser(prisma, "loot-attacker@example.com");
+  const db = prisma;
+  const attacker = await createUser(db, "loot-attacker@example.com");
   const cycle = await seedActiveCommunityWishCycle(
-    prisma,
+    db,
     [
       {
         userId: attacker.id,
@@ -1355,7 +1356,7 @@ test("loot camp raids apply variant rewards without mega fortress progression", 
     ],
     new Date("2026-04-20T15:00:00.000Z")
   );
-  const attackerFortress = await prisma.fortress.update({
+  const attackerFortress = await db.fortress.update({
     where: {
       cycleId_ownerId: {
         cycleId: cycle.id,
@@ -1377,7 +1378,7 @@ test("loot camp raids apply variant rewards without mega fortress progression", 
   });
   const waaaghUsedAt = new Date("2026-04-20T12:01:00.000Z");
 
-  await prisma.raceAbilityActivation.create({
+  await db.raceAbilityActivation.create({
     data: {
       fortressId: attackerFortress.id,
       kind: RaceAbilityKind.ORK_WAAAGH,
@@ -1393,7 +1394,7 @@ test("loot camp raids apply variant rewards without mega fortress progression", 
     suffix: string,
     mapY: number
   ) {
-    await prisma.fortress.update({
+    await db.fortress.update({
       where: {
         id: attackerFortress.id,
       },
@@ -1402,7 +1403,7 @@ test("loot camp raids apply variant rewards without mega fortress progression", 
       },
     });
 
-    const camp = await createLootCamp(prisma, {
+    const camp = await createLootCamp(db, {
       cycleId: cycle.id,
       variant,
       strength: 100,
@@ -1413,7 +1414,7 @@ test("loot camp raids apply variant rewards without mega fortress progression", 
     });
 
     await setFortressAction({
-      db: prisma,
+      db,
       userId: attacker.id,
       action: FortressAction.ATTACK,
       targetFortressId: camp.id,
@@ -1421,7 +1422,7 @@ test("loot camp raids apply variant rewards without mega fortress progression", 
       now,
     });
 
-    const attackUnit = await prisma.attackUnit.findFirstOrThrow({
+    const attackUnit = await db.attackUnit.findFirstOrThrow({
       where: {
         attackerFortressId: attackerFortress.id,
         targetFortressId: camp.id,
@@ -1432,13 +1433,13 @@ test("loot camp raids apply variant rewards without mega fortress progression", 
     });
 
     await runGameTick({
-      db: prisma,
+      db,
       now: attackUnit.arrivesAt,
     });
 
     return {
       camp,
-      attackUnit: await prisma.attackUnit.findUniqueOrThrow({
+      attackUnit: await db.attackUnit.findUniqueOrThrow({
         where: {
           id: attackUnit.id,
         },
@@ -1464,12 +1465,12 @@ test("loot camp raids apply variant rewards without mega fortress progression", 
     "chaos",
     53
   );
-  const refreshedAttacker = await prisma.fortress.findUniqueOrThrow({
+  const refreshedAttacker = await db.fortress.findUniqueOrThrow({
     where: {
       id: attackerFortress.id,
     },
   });
-  const richRewardEvents = await prisma.scoreEvent.findMany({
+  const richRewardEvents = await db.scoreEvent.findMany({
     where: {
       cycleId: cycle.id,
       fortressId: attackerFortress.id,
@@ -1477,7 +1478,7 @@ test("loot camp raids apply variant rewards without mega fortress progression", 
       eventType: ScoreEventType.LOOT_CAMP_REWARD,
     },
   });
-  const latestWaaagh = await prisma.raceAbilityActivation.findFirstOrThrow({
+  const latestWaaagh = await db.raceAbilityActivation.findFirstOrThrow({
     where: {
       fortressId: attackerFortress.id,
       kind: RaceAbilityKind.ORK_WAAAGH,
@@ -1486,7 +1487,7 @@ test("loot camp raids apply variant rewards without mega fortress progression", 
       usedAt: "desc",
     },
   });
-  const refreshedCycle = await prisma.cycle.findUniqueOrThrow({
+  const refreshedCycle = await db.cycle.findUniqueOrThrow({
     where: {
       id: cycle.id,
     },
