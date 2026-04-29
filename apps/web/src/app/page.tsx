@@ -5,6 +5,7 @@ import { auth, isAuthConfigured } from "@/auth";
 import { SessionActions } from "@/components/session-actions";
 import { BattlefieldExperience } from "@/components/battlefield-experience";
 import { MegaFortressNotice } from "@/components/mega-fortress-notice";
+import { NoticeToast } from "@/components/notice-toast";
 import { PreviousSeasonWinnerCard } from "@/components/previous-season-winner-card";
 import { RealtimeBridge } from "@/components/realtime-bridge";
 import { SeasonUpdateAnnouncement } from "@/components/season-update-announcement";
@@ -548,7 +549,7 @@ export default async function Home({
         </nav>
       </header>
 
-      {notice ? <p className={styles.noticeToast}>{notice}</p> : null}
+      {notice ? <NoticeToast message={notice} autoDismissMs={5000} /> : null}
 
       {showSidePanel ? (
         <section
