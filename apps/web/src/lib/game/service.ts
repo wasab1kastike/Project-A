@@ -964,31 +964,63 @@ export async function shuffleFortressLocation({
         return getRenderedMapPositionKey(otherFortress);
       })
     );
-    excludedKeys.add(getRenderedMapPositionKey(fortress));
+    const currentRenderedKey = getRenderedMapPositionKey(fortress);
+    excludedKeys.add(currentRenderedKey);
 
-    let nextPosition;
+    let nextPosition: { x: number; y: number } | null = null;
+    let nextPersistedMapX: number | null = null;
+    let nextPersistedMapY: number | null = null;
 
-    try {
-      nextPosition = takeOpenSpawnPoint(
-        buildFortressSpawnSeed({
-          cycleId: cycle.id,
-          purpose: "active:player-location-shuffle",
-          activeStartedAt: cycle.activeStartedAt,
-          tickAt: now,
-          entropy: `${fortress.id}:${locationShuffleCount + 1}`,
-        }),
-        {
-          excludedKeys,
-          referencePoints: otherFortresses.map((otherFortress) => ({
-            x: otherFortress.mapX,
-            y: otherFortress.mapY,
-          })),
-          minSeparationDistance: 9,
-          preferredEdgePadding: ACTIVE_EDGE_PADDING,
-          scoreRandomness: 10,
-        }
-      );
-    } catch {
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      let candidate: { x: number; y: number };
+
+      try {
+        candidate = takeOpenSpawnPoint(
+          buildFortressSpawnSeed({
+            cycleId: cycle.id,
+            purpose: "active:player-location-shuffle",
+            activeStartedAt: cycle.activeStartedAt,
+            tickAt: now,
+            entropy: `${fortress.id}:${locationShuffleCount + 1}:${attempt}`,
+          }),
+          {
+            excludedKeys,
+            referencePoints: otherFortresses.map((otherFortress) => ({
+              x: otherFortress.mapX,
+              y: otherFortress.mapY,
+            })),
+            minSeparationDistance: 9,
+            preferredEdgePadding: ACTIVE_EDGE_PADDING,
+            scoreRandomness: 10,
+          }
+        );
+      } catch {
+        break;
+      }
+
+      const persistedMapX = Math.round(candidate.x);
+      const persistedMapY = Math.round(candidate.y);
+      const persistedRenderedKey = getRenderedMapPositionKey({
+        mapX: persistedMapX,
+        mapY: persistedMapY,
+      });
+
+      if (
+        persistedRenderedKey === currentRenderedKey ||
+        excludedKeys.has(persistedRenderedKey)
+      ) {
+        excludedKeys.add(getRenderedMapPositionKey(candidate));
+        excludedKeys.add(persistedRenderedKey);
+        continue;
+      }
+
+      nextPosition = candidate;
+      nextPersistedMapX = persistedMapX;
+      nextPersistedMapY = persistedMapY;
+      break;
+    }
+
+    if (!nextPosition || nextPersistedMapX === null || nextPersistedMapY === null) {
       throw new GameError(
         "No alternate fortress location is available right now."
       );
@@ -1004,8 +1036,8 @@ export async function shuffleFortressLocation({
       Prisma.sql`
         UPDATE "Fortress"
         SET
-          "mapX" = ${Math.round(nextPosition.x)},
-          "mapY" = ${Math.round(nextPosition.y)},
+          "mapX" = ${nextPersistedMapX},
+          "mapY" = ${nextPersistedMapY},
           "locationShuffleCount" = ${locationShuffleCount + 1},
           "points" = ${fortress.points - shuffleCost}
         WHERE "id" = ${fortress.id}
