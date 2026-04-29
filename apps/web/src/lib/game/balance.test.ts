@@ -276,8 +276,8 @@ test("successful raid outcome applies retirement, losses, and balanced loot", ()
   assert.equal(outcome.attackerRetired, 14);
   assert.equal(outcome.attackerReturned, 14);
   assert.equal(outcome.defenderLosses, 70);
-  assert.equal(outcome.pointsLooted, 30);
-  assert.equal(outcome.foodLooted, 50);
+  assert.equal(outcome.pointsLooted, 112);
+  assert.equal(outcome.foodLooted, 112);
 });
 
 test("loot is capped by carry capacity and by point and food caps", () => {
@@ -293,11 +293,11 @@ test("loot is capped by carry capacity and by point and food caps", () => {
   assert.equal(outcome.attackerSurvivors, 9);
   assert.equal(outcome.attackerRetired, 5);
   assert.equal(outcome.attackerReturned, 4);
-  assert.equal(outcome.pointsLooted, 3);
-  assert.equal(outcome.foodLooted, 3);
+  assert.equal(outcome.pointsLooted, 14);
+  assert.equal(outcome.foodLooted, 8);
 });
 
-test("loot uses remaining capacity when one resource is capped earlier", () => {
+test("loot splits by carry capacity when resource caps do not bind", () => {
   const outcome = calculateRaidOutcome({
     attackArmy: 20,
     defenderArmy: 4,
@@ -311,6 +311,6 @@ test("loot uses remaining capacity when one resource is capped earlier", () => {
   assert.equal(outcome.attackerRetired, 8);
   assert.equal(outcome.attackerReturned, 8);
   assert.equal(outcome.defenderLosses, 3);
-  assert.equal(outcome.pointsLooted, 15);
-  assert.equal(outcome.foodLooted, 25);
+  assert.equal(outcome.pointsLooted, 64);
+  assert.equal(outcome.foodLooted, 64);
 });
