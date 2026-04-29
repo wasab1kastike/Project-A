@@ -40,6 +40,12 @@ import {
 } from "./race-buffs";
 import { countCastleSpecializations } from "./specializations";
 import { RaceAbilityKind } from "@/lib/prisma-client";
+import {
+  expireLootCamps,
+  getLootCampReward,
+  resetAttackerRaceAbilityCooldown,
+  spawnScheduledLootCamps,
+} from "./loot-camps";
 
 export type TickSummary = {
   restartedRegistrationCycles: number;
@@ -874,6 +880,18 @@ async function processCycleTick(
       }),
     });
 
+    await expireLootCamps({
+      db: tx,
+      cycleId,
+      tickAt,
+    });
+    await spawnScheduledLootCamps({
+      db: tx,
+      cycleId,
+      activeStartedAt: gameplayStartedAt,
+      tickAt,
+    });
+
     const fortresses = await tx.fortress.findMany({
       where: {
         cycleId,
@@ -891,12 +909,14 @@ async function processCycleTick(
         recruitersAssigned: true,
         race: true,
         fortressKind: true,
+        lootCampVariant: true,
         unicornDecoyLevel: true,
         currentAction: true,
         targetFortressId: true,
         isNpc: true,
         health: true,
         maxHealth: true,
+        expiresAt: true,
         mapX: true,
         mapY: true,
         joinedAt: true,
@@ -973,6 +993,7 @@ async function processCycleTick(
         defenderLosses: true,
         pointsLooted: true,
         foodLooted: true,
+        armyLooted: true,
       },
     });
 
@@ -1020,6 +1041,7 @@ async function processCycleTick(
           updateData.defenderLosses = 0;
           updateData.pointsLooted = 0;
           updateData.foodLooted = 0;
+          updateData.armyLooted = 0;
         }
 
         await tx.attackUnit.update({
@@ -1085,6 +1107,7 @@ async function processCycleTick(
                 defenderLosses: 0,
                 pointsLooted: 0,
                 foodLooted: 0,
+                armyLooted: 0,
               },
             });
           } else {
@@ -1103,6 +1126,7 @@ async function processCycleTick(
                 defenderLosses: 0,
                 pointsLooted: 0,
                 foodLooted: 0,
+                armyLooted: 0,
               },
             });
             resolvedAttackUnits += 1;
@@ -1133,6 +1157,171 @@ async function processCycleTick(
               health: 0,
             },
           });
+        }
+
+        continue;
+      }
+
+      if (target?.fortressKind === FortressKind.LOOT_CAMP) {
+        const targetUnits = dueAttackUnits.filter(
+          (targetUnit) =>
+            targetUnit.targetFortressId === target.id &&
+            !resolvedBatchAttackUnitIds.has(targetUnit.id)
+        );
+        let destroyer: {
+          unitId: string;
+          attacker: NonNullable<typeof attacker>;
+        } | null = null;
+
+        for (const targetUnit of targetUnits) {
+          const targetAttacker = fortressLookup.get(
+            targetUnit.attackerFortressId
+          );
+
+          if (!targetAttacker) {
+            continue;
+          }
+
+          const targetHealth = currentHealth.get(target.id) ?? target.health;
+          const targetLoss = Math.min(
+            targetHealth,
+            targetUnit.armyAmount *
+              getFortressAttackDamage(targetAttacker.level)
+          );
+
+          if (targetLoss <= 0) {
+            continue;
+          }
+
+          const nextHealth = targetHealth - targetLoss;
+          currentHealth.set(target.id, nextHealth);
+
+          if (nextHealth <= 0 && !destroyer) {
+            destroyer = {
+              unitId: targetUnit.id,
+              attacker: targetAttacker,
+            };
+          }
+        }
+
+        const destroyed = (currentHealth.get(target.id) ?? target.health) <= 0;
+        const reward =
+          destroyed && destroyer
+            ? getLootCampReward(target.lootCampVariant, target.maxHealth)
+            : null;
+
+        if (destroyed && destroyer && reward) {
+          currentPoints.set(
+            destroyer.attacker.id,
+            (currentPoints.get(destroyer.attacker.id) ??
+              destroyer.attacker.points) + reward.points
+          );
+          currentFood.set(
+            destroyer.attacker.id,
+            (currentFood.get(destroyer.attacker.id) ??
+              destroyer.attacker.food) + reward.food
+          );
+          currentArmy.set(
+            destroyer.attacker.id,
+            (currentArmy.get(destroyer.attacker.id) ??
+              destroyer.attacker.army) + reward.army
+          );
+
+          if (reward.points > 0) {
+            scoreEvents.push({
+              cycleId,
+              fortressId: destroyer.attacker.id,
+              actorId: destroyer.attacker.ownerId,
+              targetFortressId: target.id,
+              eventType: ScoreEventType.LOOT_CAMP_REWARD,
+              delta: reward.points,
+              createdAt: tickAt,
+            });
+          }
+
+          if (reward.resetRaceCooldown) {
+            await resetAttackerRaceAbilityCooldown({
+              db: tx,
+              fortress: destroyer.attacker,
+              now: tickAt,
+            });
+          }
+        }
+
+        for (const targetUnit of targetUnits) {
+          const targetAttacker = fortressLookup.get(
+            targetUnit.attackerFortressId
+          );
+          const attackerReturned = targetUnit.armyAmount;
+          const unitGetsReward =
+            Boolean(destroyer) && targetUnit.id === destroyer?.unitId && reward;
+          const unitReward = unitGetsReward
+            ? reward
+            : {
+                points: 0,
+                food: 0,
+                army: 0,
+              };
+
+          if (targetAttacker && attackerReturned > 0) {
+            const returnArrivesAt = getAttackArrivalAt({
+              launchedAt: tickAt,
+              origin: {
+                mapX: target.mapX,
+                mapY: target.mapY,
+              },
+              target: {
+                mapX: targetAttacker.mapX,
+                mapY: targetAttacker.mapY,
+              },
+              attackerRace: targetAttacker.race,
+              raceBuffTier,
+            });
+
+            await tx.attackUnit.update({
+              where: {
+                id: targetUnit.id,
+              },
+              data: {
+                recalledAt: tickAt,
+                returnOriginMapX: target.mapX,
+                returnOriginMapY: target.mapY,
+                arrivesAt: returnArrivesAt,
+                defenderArmyAtBattleStart: null,
+                resolvedAttackPower: targetUnit.armyAmount,
+                resolvedDefensePower: target.maxHealth,
+                attackerSurvivors: targetUnit.armyAmount,
+                attackerRetired: 0,
+                attackerReturned,
+                defenderLosses: 0,
+                pointsLooted: unitReward.points,
+                foodLooted: unitReward.food,
+                armyLooted: unitReward.army,
+              },
+            });
+          } else {
+            await tx.attackUnit.update({
+              where: {
+                id: targetUnit.id,
+              },
+              data: {
+                resolvedAt: tickAt,
+                defenderArmyAtBattleStart: null,
+                resolvedAttackPower: targetUnit.armyAmount,
+                resolvedDefensePower: target.maxHealth,
+                attackerSurvivors: targetUnit.armyAmount,
+                attackerRetired: 0,
+                attackerReturned,
+                defenderLosses: 0,
+                pointsLooted: unitReward.points,
+                foodLooted: unitReward.food,
+                armyLooted: unitReward.army,
+              },
+            });
+            resolvedAttackUnits += 1;
+          }
+
+          resolvedBatchAttackUnitIds.add(targetUnit.id);
         }
 
         continue;
@@ -1184,6 +1373,7 @@ async function processCycleTick(
                 defenderLosses: 0,
                 pointsLooted: 0,
                 foodLooted: 0,
+                armyLooted: 0,
               },
             });
           } else {
@@ -1202,6 +1392,7 @@ async function processCycleTick(
                 defenderLosses: 0,
                 pointsLooted: 0,
                 foodLooted: 0,
+                armyLooted: 0,
               },
             });
             resolvedAttackUnits += 1;
@@ -1459,6 +1650,7 @@ async function processCycleTick(
             defenderLosses: outcome.defenderLosses,
             pointsLooted: outcome.pointsLooted,
             foodLooted: outcome.foodLooted,
+            armyLooted: 0,
           },
         });
       } else {
@@ -1477,6 +1669,7 @@ async function processCycleTick(
             defenderLosses: outcome.defenderLosses,
             pointsLooted: outcome.pointsLooted,
             foodLooted: outcome.foodLooted,
+            armyLooted: 0,
           },
         });
         resolvedAttackUnits += 1;

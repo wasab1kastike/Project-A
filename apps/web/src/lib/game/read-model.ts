@@ -335,6 +335,8 @@ export async function getHomePageState({
           recruitersAssigned: true,
           race: true,
           fortressKind: true,
+          lootCampVariant: true,
+          expiresAt: true,
           unicornDecoyLevel: true,
           currentAction: true,
           targetFortressId: true,
@@ -727,6 +729,7 @@ export async function getHomePageState({
             defenderLosses: true,
             pointsLooted: true,
             foodLooted: true,
+            armyLooted: true,
             attackerFortress: {
               select: {
                 id: true,
@@ -742,9 +745,11 @@ export async function getHomePageState({
                 commanderName: true,
                 ownerId: true,
                 fortressKind: true,
+                lootCampVariant: true,
                 unicornDecoyLevel: true,
                 level: true,
                 race: true,
+                maxHealth: true,
               },
             },
           },
@@ -786,6 +791,7 @@ export async function getHomePageState({
             defenderLosses: unit.defenderLosses ?? 0,
             pointsLooted: unit.pointsLooted ?? 0,
             foodLooted: unit.foodLooted ?? 0,
+            armyLooted: unit.armyLooted ?? 0,
             reportLines: formatRaidRecallReport({
               attackerName: unit.attackerFortress.name,
               sentArmy: unit.armyAmount,
@@ -836,6 +842,7 @@ export async function getHomePageState({
           defenderLosses: unit.defenderLosses ?? 0,
           pointsLooted: unit.pointsLooted ?? 0,
           foodLooted: unit.foodLooted ?? 0,
+          armyLooted: unit.armyLooted ?? 0,
           reportLines: formatRaidBattleReport({
             attackerName: unit.attackerFortress.name,
             defenderName: unit.targetFortress.name,
@@ -851,14 +858,26 @@ export async function getHomePageState({
             defenderLosses: unit.defenderLosses ?? 0,
             pointsLooted: unit.pointsLooted ?? 0,
             foodLooted: unit.foodLooted ?? 0,
+            armyLooted: unit.armyLooted ?? 0,
             defenderIsUnicornDecoy:
               unit.targetFortress.fortressKind === FortressKind.UNICORN_DECOY,
             defenderDecoyLevel: unit.targetFortress.unicornDecoyLevel,
+            defenderIsLootCamp:
+              unit.targetFortress.fortressKind === FortressKind.LOOT_CAMP,
+            defenderLootCampVariant: unit.targetFortress.lootCampVariant,
           }),
         };
       })
     : [];
   const visibleFortresses = cycle.fortresses.filter((fortress) => {
+    if (fortress.fortressKind === FortressKind.LOOT_CAMP) {
+      return (
+        fortress.health > 0 &&
+        fortress.expiresAt !== null &&
+        fortress.expiresAt > now
+      );
+    }
+
     return (
       fortress.fortressKind !== FortressKind.UNICORN_DECOY ||
       fortress.health > 0
@@ -879,6 +898,8 @@ export async function getHomePageState({
     isNpc: fortress.isNpc,
     health: fortress.health,
     maxHealth: fortress.maxHealth,
+    lootCampVariant: fortress.lootCampVariant,
+    expiresAt: fortress.expiresAt,
     sizeTiles: fortress.sizeTiles,
     iconLabel: fortress.iconLabel,
     fortressKind: fortress.fortressKind,
@@ -907,7 +928,11 @@ export async function getHomePageState({
     isTargetable:
       playerFortressId !== null &&
       gameplayOpen &&
-      fortress.id !== playerFortressId,
+      fortress.id !== playerFortressId &&
+      (fortress.fortressKind !== FortressKind.LOOT_CAMP ||
+        (fortress.health > 0 &&
+          fortress.expiresAt !== null &&
+          fortress.expiresAt > now)),
   }));
   const globalChatMessages = await db.chatMessage.findMany({
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -1410,6 +1435,8 @@ export async function getHomePageState({
               points: fortress.points,
               isNpc: fortress.isNpc,
               fortressKind: fortress.fortressKind,
+              lootCampVariant: fortress.lootCampVariant,
+              expiresAt: fortress.expiresAt,
               unicornDecoyLevel: fortress.unicornDecoyLevel,
               health: fortress.health,
               maxHealth: fortress.maxHealth,

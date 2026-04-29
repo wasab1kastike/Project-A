@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type FormEvent,
-} from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 
@@ -61,12 +55,16 @@ type CommandTarget = {
   race: FortressRace | null;
   points: number;
   isNpc: boolean;
+  fortressKind: "PLAYER" | "MEGA" | "UNICORN_DECOY" | "LOOT_CAMP";
+  lootCampVariant: "CLASSIC" | "RICH" | "CHAOS" | null;
+  expiresAt: Date | null;
+  unicornDecoyLevel: number | null;
   health: number;
   maxHealth: number;
   currentAction: "GROW" | "ATTACK";
 };
 
-  type ChatProps = {
+type ChatProps = {
   messages: Array<{
     id: string;
     type: "TEXT" | "GIF";
@@ -90,9 +88,9 @@ type CommandTarget = {
   postHint: string | null;
   unreadCount: number;
   hasUnread: boolean;
-    latestMessageAt: Date | null;
-    persistsUnread: boolean;
-  };
+  latestMessageAt: Date | null;
+  persistsUnread: boolean;
+};
 
 type PlayerSummary = {
   id: string;
@@ -194,6 +192,7 @@ type BattleReport = {
   defenderLosses: number;
   pointsLooted: number;
   foodLooted: number;
+  armyLooted: number;
   reportLines: string[];
 };
 
@@ -218,7 +217,12 @@ function CastleSpecializationFields() {
     <div className={styles.specializationGrid}>
       {CASTLE_SPECIALIZATION_OPTIONS.map((option) => (
         <label key={option.value} className={styles.specializationOption}>
-          <input name="specialization" type="radio" value={option.value} required />
+          <input
+            name="specialization"
+            type="radio"
+            value={option.value}
+            required
+          />
           <span>
             <strong>{option.label}</strong>
             <small>{option.summary}</small>
@@ -400,16 +404,20 @@ function WorkerAssignmentSection({
   function getRoleCap(role: keyof typeof workerAssignments) {
     const otherAssignments =
       role === "minersAssigned"
-        ? workerAssignments.farmersAssigned + workerAssignments.recruitersAssigned
+        ? workerAssignments.farmersAssigned +
+          workerAssignments.recruitersAssigned
         : role === "farmersAssigned"
           ? workerAssignments.minersAssigned +
             workerAssignments.recruitersAssigned
-          : workerAssignments.minersAssigned + workerAssignments.farmersAssigned;
+          : workerAssignments.minersAssigned +
+            workerAssignments.farmersAssigned;
 
     return Math.max(0, playerSummary.population - otherAssignments);
   }
 
-  async function handleWorkerAssignmentSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleWorkerAssignmentSubmit(
+    event: FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault();
 
     if (workerAssignmentPending || !playerSummary.race) {
@@ -473,7 +481,8 @@ function WorkerAssignmentSection({
                 type="button"
                 className={styles.workerStepperButton}
                 disabled={
-                  workerAssignmentPending || workerAssignments.minersAssigned <= 0
+                  workerAssignmentPending ||
+                  workerAssignments.minersAssigned <= 0
                 }
                 onClick={() => bumpWorkerAssignment("minersAssigned", -1)}
                 aria-label="Decrease miners"
@@ -501,7 +510,8 @@ function WorkerAssignmentSection({
                 className={styles.workerStepperButton}
                 disabled={
                   workerAssignmentPending ||
-                  workerAssignments.minersAssigned >= getRoleCap("minersAssigned")
+                  workerAssignments.minersAssigned >=
+                    getRoleCap("minersAssigned")
                 }
                 onClick={() => bumpWorkerAssignment("minersAssigned", 1)}
                 aria-label="Increase miners"
@@ -523,7 +533,8 @@ function WorkerAssignmentSection({
                 type="button"
                 className={styles.workerStepperButton}
                 disabled={
-                  workerAssignmentPending || workerAssignments.farmersAssigned <= 0
+                  workerAssignmentPending ||
+                  workerAssignments.farmersAssigned <= 0
                 }
                 onClick={() => bumpWorkerAssignment("farmersAssigned", -1)}
                 aria-label="Decrease farmers"
@@ -551,7 +562,8 @@ function WorkerAssignmentSection({
                 className={styles.workerStepperButton}
                 disabled={
                   workerAssignmentPending ||
-                  workerAssignments.farmersAssigned >= getRoleCap("farmersAssigned")
+                  workerAssignments.farmersAssigned >=
+                    getRoleCap("farmersAssigned")
                 }
                 onClick={() => bumpWorkerAssignment("farmersAssigned", 1)}
                 aria-label="Increase farmers"
@@ -642,11 +654,11 @@ function WorkerAssignmentSection({
         <button
           className={`${styles.primaryButton} ${styles.emphasisButton}`}
           type="submit"
-            disabled={
-              workerAssignmentPending ||
-              !playerSummary.race ||
-              Boolean(workerAssignmentValidationError)
-            }
+          disabled={
+            workerAssignmentPending ||
+            !playerSummary.race ||
+            Boolean(workerAssignmentValidationError)
+          }
         >
           {workerAssignmentPending ? "Saving workers..." : "Save workers"}
         </button>
@@ -721,6 +733,12 @@ export function BattlefieldExperience({
       targetName: selectedAttackTarget?.name ?? null,
       targetDbLevel: selectedAttackTarget?.level ?? null,
       targetRace: selectedAttackTarget?.race ?? null,
+      targetIsUnicornDecoy:
+        selectedAttackTarget?.fortressKind === "UNICORN_DECOY",
+      targetDecoyLevel: selectedAttackTarget?.unicornDecoyLevel ?? null,
+      targetIsLootCamp: selectedAttackTarget?.fortressKind === "LOOT_CAMP",
+      targetLootCampVariant: selectedAttackTarget?.lootCampVariant ?? null,
+      targetLootCampStrength: selectedAttackTarget?.maxHealth ?? null,
     });
   }, [playerSummary?.army, sentArmy, selectedAttackTarget]);
   const assignedPopulation = playerSummary
@@ -837,7 +855,9 @@ export function BattlefieldExperience({
     }
 
     setSelectedFortressId(fortressId);
-    setCastleTab(action === "ATTACK" || targetFortressId ? "COMBAT" : "ECONOMY");
+    setCastleTab(
+      action === "ATTACK" || targetFortressId ? "COMBAT" : "ECONOMY"
+    );
     setActionOpen(true);
   }
 
@@ -880,7 +900,8 @@ export function BattlefieldExperience({
     }
 
     if (
-      playerSummary.outboundAttackUnitCount >= playerSummary.maxSimultaneousAttacks
+      playerSummary.outboundAttackUnitCount >=
+      playerSummary.maxSimultaneousAttacks
     ) {
       return `Maximum attacks in flight (${playerSummary.outboundAttackUnitCount}/${playerSummary.maxSimultaneousAttacks}). Upgrade your castle for more slots.`;
     }
@@ -1106,7 +1127,10 @@ export function BattlefieldExperience({
               </dl>
             </section>
 
-            <div className={`${styles.segmentGroup} ${styles.castleTabs}`} aria-label="Castle tabs">
+            <div
+              className={`${styles.segmentGroup} ${styles.castleTabs}`}
+              aria-label="Castle tabs"
+            >
               {CASTLE_TABS.map((tab) => (
                 <button
                   key={tab.value}
@@ -1132,22 +1156,28 @@ export function BattlefieldExperience({
                 <section className={styles.orderSection}>
                   <div className={styles.sectionHeading}>
                     <span className={styles.label}>Output</span>
-                    <strong>{assignedPopulation}/{playerSummary.population} pop</strong>
+                    <strong>
+                      {assignedPopulation}/{playerSummary.population} pop
+                    </strong>
                   </div>
                   <dl className={styles.castleStats}>
                     <div>
                       <dt>Points</dt>
-                      <dd>+{storedProductionPreview?.pointsProduced ?? 0}/tick</dd>
+                      <dd>
+                        +{storedProductionPreview?.pointsProduced ?? 0}/tick
+                      </dd>
                     </div>
                     <div>
                       <dt>Food</dt>
-                      <dd>+{storedProductionPreview?.foodProduced ?? 0}/tick</dd>
+                      <dd>
+                        +{storedProductionPreview?.foodProduced ?? 0}/tick
+                      </dd>
                     </div>
                     <div>
                       <dt>Army</dt>
                       <dd>
-                        +{storedProductionPreview?.armyProduced ?? 0}/tick, costs{" "}
-                        {storedProductionPreview?.foodConsumed ?? 0} food
+                        +{storedProductionPreview?.armyProduced ?? 0}/tick,
+                        costs {storedProductionPreview?.foodConsumed ?? 0} food
                       </dd>
                     </div>
                     <div>
@@ -1200,18 +1230,18 @@ export function BattlefieldExperience({
                       onChange={(event) => {
                         setTargetFortressId(event.target.value);
                       }}
-                      >
-                        <option value="">Choose target</option>
-                        {targets.map((target) => (
-                          <option key={target.id} value={target.id}>
-                            {target.name} (
-                            Lvl {getDisplayedCastleLevel(target.level)},{" "}
-                            {target.isNpc
-                              ? `${target.health}/${target.maxHealth} HP`
-                              : `${target.points} pts`}
-                            )
-                          </option>
-                        ))}
+                    >
+                      <option value="">Choose target</option>
+                      {targets.map((target) => (
+                        <option key={target.id} value={target.id}>
+                          {target.name} ( Lvl{" "}
+                          {getDisplayedCastleLevel(target.level)},{" "}
+                          {target.isNpc
+                            ? `${target.health}/${target.maxHealth} HP`
+                            : `${target.points} pts`}
+                          )
+                        </option>
+                      ))}
                     </select>
                   </label>
 
@@ -1229,7 +1259,10 @@ export function BattlefieldExperience({
                       onChange={(event) => {
                         setSentArmy(
                           Number.isFinite(event.currentTarget.valueAsNumber)
-                            ? Math.max(0, Math.floor(event.currentTarget.valueAsNumber))
+                            ? Math.max(
+                                0,
+                                Math.floor(event.currentTarget.valueAsNumber)
+                              )
                             : 0
                         );
                       }}
@@ -1312,52 +1345,52 @@ export function BattlefieldExperience({
             ) : null}
 
             {castleTab === "ECONOMY" ? (
-            <section className={styles.upgradePanel}>
-              <div className={styles.upgradeHeader}>
-                <div>
-                  <span className={styles.label}>Castle Yeet</span>
-                  <h4>Yeet to a new hex</h4>
+              <section className={styles.upgradePanel}>
+                <div className={styles.upgradeHeader}>
+                  <div>
+                    <span className={styles.label}>Castle Yeet</span>
+                    <h4>Yeet to a new hex</h4>
+                  </div>
+                  <strong>
+                    {playerSummary.locationShuffleCost === 0
+                      ? "Free"
+                      : `${playerSummary.locationShuffleCost} pts`}
+                  </strong>
                 </div>
-                <strong>
-                  {playerSummary.locationShuffleCost === 0
-                    ? "Free"
-                    : `${playerSummary.locationShuffleCost} pts`}
-                </strong>
-              </div>
-              <p className={styles.helper}>
-                {playerSummary.freeLocationShuffleAvailable
-                  ? `First yeet is free; later yeets cost ${playerSummary.locationShuffleCost} points.`
-                  : `Free yeet used. Next yeet costs ${playerSummary.locationShuffleCost} points.`}
-              </p>
-              {playerSummary.hasOutgoingAttackUnits ? (
-                <p className={`${styles.helper} ${styles.warningText}`}>
-                  Outgoing attack units already in flight will be canceled when
-                  Castle Yeet triggers.
-                </p>
-              ) : null}
-              {!playerSummary.canShuffleLocation &&
-              playerSummary.locationShuffleCost !== null &&
-              playerSummary.points < playerSummary.locationShuffleCost ? (
                 <p className={styles.helper}>
-                  You need {playerSummary.locationShuffleCost} points for the
-                  next Castle Yeet.
+                  {playerSummary.freeLocationShuffleAvailable
+                    ? `First yeet is free; later yeets cost ${playerSummary.locationShuffleCost} points.`
+                    : `Free yeet used. Next yeet costs ${playerSummary.locationShuffleCost} points.`}
                 </p>
-              ) : null}
-              <form
-                action={shuffleFortressLocationAction}
-                onSubmit={handleCastleYeetSubmit}
-              >
-                <button
-                  className={`${styles.secondaryButton} ${styles.emphasisButton}`}
-                  type="submit"
-                  disabled={!playerSummary.canShuffleLocation}
+                {playerSummary.hasOutgoingAttackUnits ? (
+                  <p className={`${styles.helper} ${styles.warningText}`}>
+                    Outgoing attack units already in flight will be canceled
+                    when Castle Yeet triggers.
+                  </p>
+                ) : null}
+                {!playerSummary.canShuffleLocation &&
+                playerSummary.locationShuffleCost !== null &&
+                playerSummary.points < playerSummary.locationShuffleCost ? (
+                  <p className={styles.helper}>
+                    You need {playerSummary.locationShuffleCost} points for the
+                    next Castle Yeet.
+                  </p>
+                ) : null}
+                <form
+                  action={shuffleFortressLocationAction}
+                  onSubmit={handleCastleYeetSubmit}
                 >
-                  {playerSummary.locationShuffleCost === 0
-                    ? "Castle Yeet for free"
-                    : `Castle Yeet for ${playerSummary.locationShuffleCost} pts`}
-                </button>
-              </form>
-            </section>
+                  <button
+                    className={`${styles.secondaryButton} ${styles.emphasisButton}`}
+                    type="submit"
+                    disabled={!playerSummary.canShuffleLocation}
+                  >
+                    {playerSummary.locationShuffleCost === 0
+                      ? "Castle Yeet for free"
+                      : `Castle Yeet for ${playerSummary.locationShuffleCost} pts`}
+                  </button>
+                </form>
+              </section>
             ) : null}
 
             {castleTab === "RACE" ? (
@@ -1391,7 +1424,10 @@ export function BattlefieldExperience({
                   </ul>
                 ) : null}
                 {playerSummary.raceBuffs.canChooseDwarfGrudge ? (
-                  <form action={chooseDwarfGrudgeAction} className={styles.inlineForm}>
+                  <form
+                    action={chooseDwarfGrudgeAction}
+                    className={styles.inlineForm}
+                  >
                     <select name="targetFortressId" required>
                       <option value="">Choose grudge</option>
                       {targets
@@ -1399,8 +1435,7 @@ export function BattlefieldExperience({
                           return (
                             !target.isNpc &&
                             !playerSummary.raceBuffs.dwarfGrudges.some(
-                              (grudge) =>
-                                grudge.targetFortressId === target.id
+                              (grudge) => grudge.targetFortressId === target.id
                             )
                           );
                         })
@@ -1453,7 +1488,9 @@ export function BattlefieldExperience({
                 ) : null}
                 {playerSummary.race === "ORKS" ? (
                   playerSummary.raceBuffs.waaaghActiveUntil ? (
-                    <p className={styles.helper}>WAAAGH active for this hour.</p>
+                    <p className={styles.helper}>
+                      WAAAGH active for this hour.
+                    </p>
                   ) : (
                     <form action={activateWaaaghAction}>
                       <button
@@ -1513,91 +1550,85 @@ export function BattlefieldExperience({
             ) : null}
 
             {castleTab === "ECONOMY" ? (
-            <section className={styles.upgradePanel}>
-              <div className={styles.upgradeHeader}>
-                <div>
-                  <span className={styles.label}>Castle level</span>
-                  <h4>Level {playerSummary.displayedCastleLevel}</h4>
+              <section className={styles.upgradePanel}>
+                <div className={styles.upgradeHeader}>
+                  <div>
+                    <span className={styles.label}>Castle level</span>
+                    <h4>Level {playerSummary.displayedCastleLevel}</h4>
+                  </div>
+                  <strong>+{Math.round(defenseBonusPercent * 100)}%</strong>
                 </div>
-                <strong>
-                  +
-                  {Math.round(defenseBonusPercent * 100)}
-                  %
-                </strong>
-              </div>
-              <dl className={styles.castleStats}>
-                <div className={styles.primaryStat}>
-                  <dt>Population</dt>
-                  <dd>
-                    {assignedPopulation}/{playerSummary.population} assigned
-                  </dd>
-                </div>
-                <div>
-                  <dt>Idle</dt>
-                  <dd>
-                    {idlePopulation} pop
-                  </dd>
-                </div>
-                <div>
-                  <dt>Defense</dt>
-                  <dd>x{playerSummary.defenseMultiplier.toFixed(2)}</dd>
-                </div>
-              </dl>
-              <p className={styles.helper}>
-                {playerSummary.upgradesUnlocked
-                  ? playerSummary.nextUpgradeCost === null
-                    ? "Your castle is maxed out. The fortress economy is fully scaled for this version."
-                    : playerSummary.canAffordUpgrade
-                      ? `Upgrade castle to increase population capacity and defensive army bonus. Next upgrade costs ${playerSummary.nextUpgradeCost} points.`
-                      : `Next upgrade costs ${playerSummary.nextUpgradeCost} points.`
-                  : "Castle upgrades unlock for everyone after Home of A falls for the first time."}
-              </p>
-              {playerSummary.receivedSlayerUpgrade ? (
+                <dl className={styles.castleStats}>
+                  <div className={styles.primaryStat}>
+                    <dt>Population</dt>
+                    <dd>
+                      {assignedPopulation}/{playerSummary.population} assigned
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Idle</dt>
+                    <dd>{idlePopulation} pop</dd>
+                  </div>
+                  <div>
+                    <dt>Defense</dt>
+                    <dd>x{playerSummary.defenseMultiplier.toFixed(2)}</dd>
+                  </div>
+                </dl>
                 <p className={styles.helper}>
-                  Home of A slayer bonus claimed: you received one free castle
-                  upgrade.
+                  {playerSummary.upgradesUnlocked
+                    ? playerSummary.nextUpgradeCost === null
+                      ? "Your castle is maxed out. The fortress economy is fully scaled for this version."
+                      : playerSummary.canAffordUpgrade
+                        ? `Upgrade castle to increase population capacity and defensive army bonus. Next upgrade costs ${playerSummary.nextUpgradeCost} points.`
+                        : `Next upgrade costs ${playerSummary.nextUpgradeCost} points.`
+                    : "Castle upgrades unlock for everyone after Home of A falls for the first time."}
                 </p>
-              ) : null}
-              {playerSummary.castleSpecializationCounts ? (
-                <p className={styles.helper}>
-                  Specs: P {playerSummary.castleSpecializationCounts.POINTS}, F{" "}
-                  {playerSummary.castleSpecializationCounts.FOOD}, M{" "}
-                  {playerSummary.castleSpecializationCounts.MILITARY}, D{" "}
-                  {playerSummary.castleSpecializationCounts.DEFENSE}
-                </p>
-              ) : null}
-              {playerSummary.pendingUpgradeSpecializationLevel !== null ? (
-                <form action={choosePendingUpgradeSpecializationAction}>
+                {playerSummary.receivedSlayerUpgrade ? (
                   <p className={styles.helper}>
-                    Choose specialization for level{" "}
-                    {playerSummary.pendingUpgradeSpecializationLevel}.
+                    Home of A slayer bonus claimed: you received one free castle
+                    upgrade.
                   </p>
-                  <CastleSpecializationFields />
-                  <button className={styles.secondaryButton} type="submit">
-                    Lock specialization
-                  </button>
-                </form>
-              ) : null}
-              {playerSummary.upgradesUnlocked &&
-              playerSummary.nextUpgradeCost !== null &&
-              playerSummary.pendingUpgradeSpecializationLevel === null ? (
-                <form action={purchaseFortressUpgradeAction}>
-                  <CastleSpecializationFields />
-                  <button
-                    className={`${styles.secondaryButton} ${styles.emphasisButton}`}
-                    type="submit"
-                    disabled={!playerSummary.canPurchaseUpgrade}
-                  >
-                    Buy upgrade for {playerSummary.nextUpgradeCost} pts
-                  </button>
-                </form>
-              ) : null}
-            </section>
+                ) : null}
+                {playerSummary.castleSpecializationCounts ? (
+                  <p className={styles.helper}>
+                    Specs: P {playerSummary.castleSpecializationCounts.POINTS},
+                    F {playerSummary.castleSpecializationCounts.FOOD}, M{" "}
+                    {playerSummary.castleSpecializationCounts.MILITARY}, D{" "}
+                    {playerSummary.castleSpecializationCounts.DEFENSE}
+                  </p>
+                ) : null}
+                {playerSummary.pendingUpgradeSpecializationLevel !== null ? (
+                  <form action={choosePendingUpgradeSpecializationAction}>
+                    <p className={styles.helper}>
+                      Choose specialization for level{" "}
+                      {playerSummary.pendingUpgradeSpecializationLevel}.
+                    </p>
+                    <CastleSpecializationFields />
+                    <button className={styles.secondaryButton} type="submit">
+                      Lock specialization
+                    </button>
+                  </form>
+                ) : null}
+                {playerSummary.upgradesUnlocked &&
+                playerSummary.nextUpgradeCost !== null &&
+                playerSummary.pendingUpgradeSpecializationLevel === null ? (
+                  <form action={purchaseFortressUpgradeAction}>
+                    <CastleSpecializationFields />
+                    <button
+                      className={`${styles.secondaryButton} ${styles.emphasisButton}`}
+                      type="submit"
+                      disabled={!playerSummary.canPurchaseUpgrade}
+                    >
+                      Buy upgrade for {playerSummary.nextUpgradeCost} pts
+                    </button>
+                  </form>
+                ) : null}
+              </section>
             ) : null}
 
             {castleTab === "ECONOMY" &&
             (playerSummary.canRegisterCommanderName ||
-            playerSummary.canRename) ? (
+              playerSummary.canRename) ? (
               <section className={styles.orderSection}>
                 <div className={styles.sectionHeading}>
                   <span className={styles.label}>Names</span>
@@ -1739,14 +1770,14 @@ export function BattlefieldExperience({
           attackUnits={attackUnits}
           selectedFortressId={selectedFortressId}
           selectedTargetId={action === "ATTACK" ? targetFortressId : null}
-            onSelectFortress={(fortress) => {
-              if (fortress.isCurrentUser) {
-                openOwnActions(fortress.id);
-              }
-            }}
-            onConfirmAttackTarget={prepareAttackTarget}
-            onRecallAttackUnit={handleRecallAttackUnit}
-          />
+          onSelectFortress={(fortress) => {
+            if (fortress.isCurrentUser) {
+              openOwnActions(fortress.id);
+            }
+          }}
+          onConfirmAttackTarget={prepareAttackTarget}
+          onRecallAttackUnit={handleRecallAttackUnit}
+        />
 
         {!immersive ? chatDrawer : null}
         {!immersive ? actionDrawer : null}

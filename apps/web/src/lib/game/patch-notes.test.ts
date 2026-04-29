@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { EXPLOIT_HALL_OF_FAME_ENTRIES } from "./exploit-hall-of-fame";
 import { PATCH_NOTES_RELEASES, getPatchNotesPageState } from "./patch-notes";
 import {
   PATCH_NOTES_PAGE_HREF,
@@ -23,13 +24,9 @@ test("patch notes releases expose both player-facing categories", () => {
   }
 });
 
-test("patch notes expose exploit hall of fame credits", () => {
-  const release = PATCH_NOTES_RELEASES.find(
-    (candidate) => candidate.date === "2026-04-24"
-  );
-  const entry = release?.exploitHallOfFame?.[0];
+test("exploit hall of fame credits are available for history", () => {
+  const entry = EXPLOIT_HALL_OF_FAME_ENTRIES[0];
 
-  assert.ok(release);
   assert.ok(entry);
   assert.equal(entry.season, 1);
   assert.equal(entry.exploitName, "Stutterfire");

@@ -425,7 +425,8 @@
 }
 
 .fortressSprite,
-.megaFortressSprite {
+.megaFortressSprite,
+.lootCampSprite {
   position: absolute;
   left: 50%;
   top: 50%;
@@ -513,6 +514,53 @@
   width: 146px;
   height: 146px;
   background-image: url("/assets/mega-fortress-generated.png");
+}
+
+.lootCampMarker {
+  z-index: 4;
+  width: 70px;
+  height: 70px;
+}
+
+.lootCampMarker .spriteFrame {
+  filter: drop-shadow(0 15px 12px rgba(0, 0, 0, 0.24))
+    drop-shadow(0 0 14px rgba(116, 224, 142, 0.22));
+}
+
+.lootCampMarker .selectionPulse {
+  background: radial-gradient(
+    ellipse,
+    rgba(116, 224, 142, 0.3),
+    rgba(247, 196, 95, 0.1) 48%,
+    transparent 72%
+  );
+}
+
+.lootCampMarker .pointsBadge {
+  min-width: 64px;
+  color: #d7ffbf;
+  border-color: rgba(116, 224, 142, 0.28);
+  font-size: 0.62rem;
+}
+
+.lootCampMarker .nameplate {
+  color: #d7ffbf;
+  border-color: rgba(116, 224, 142, 0.22);
+}
+
+.lootCampSprite {
+  width: 82px;
+  height: 82px;
+  image-rendering: pixelated;
+  background-image: url("/assets/sprite-goblin-standard.png");
+}
+
+.lootCampSprite[data-variant="RICH"] {
+  background-image: url("/assets/sprite-goblin-rich.png");
+}
+
+.lootCampSprite[data-variant="CHAOS"] {
+  background-image: url("/assets/sprite-goblin-chaos.png");
 }
 
 .megaMarker .selectionPulse {
@@ -845,6 +893,16 @@
   .megaFortressSprite {
     width: 120px;
     height: 120px;
+  }
+
+  .lootCampMarker {
+    width: 62px;
+    height: 62px;
+  }
+
+  .lootCampSprite {
+    width: 70px;
+    height: 70px;
   }
 
   .megaMarker .selectionPulse {

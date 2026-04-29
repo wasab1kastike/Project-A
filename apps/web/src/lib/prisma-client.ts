@@ -10,6 +10,7 @@ export {
   FortressAction,
   FortressKind,
   FortressRace,
+  LootCampVariant,
   Prisma,
   PrismaClient,
   RaceAbilityKind,

@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-04-29
+
+- Change: Restored Unstable Unicorn teleport decoy creation after teleport actions, preserving decoy ownership, combat visibility, and cleanup behavior.
+- Change: Improved Castle Yeet relocation safeguards and warning copy, including rendered-map no-move edge cases and more varied valid destination selection.
+- Change: Added attack recall and return-reporting refinements so recalled units and returning armies are handled consistently in battle logs.
+- Change: Raised raid loot caps to 70% for points and food.
+- Change: Added wiki navigation/content coverage and a special God Emperor A gift notice for Tero.
+- Change: Continued shop and cosmetic polish with default-skin handling, equipped-skin rendering, and dedicated fortress sprite support.
+- User impact: Unicorn teleports once again leave convincing decoys, Castle Yeet outcomes are clearer and less repetitive, raid rewards are larger, players have easier access to rules/context, and cosmetic choices display more reliably.
+
 ## 2026-04-28
 
 - Change: Added simultaneous attack cap tied to castle level: default max is `2 + level`, raised to `2 + 2×level` for Space Murines.

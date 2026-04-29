@@ -1,19 +1,42 @@
-export type ExploitHallOfFameEntry = {
-  season: number;
-  exploitName: string;
-  founder: string;
-  firstExploiter: string;
-};
-
 export type PatchNotesRelease = {
   date: string;
   title?: string;
   newFeatures: string[];
   bugFixes: string[];
-  exploitHallOfFame?: ExploitHallOfFameEntry[];
 };
 
 export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
+  {
+    date: "2026-04-29",
+    title: "Teleport fixes and battlefield polish",
+    newFeatures: [
+      "Added richer wiki coverage from the top navigation for players who want to check rules, race flavor, and game systems while playing.",
+      "Added a special God Emperor A gift notice for Tero.",
+      "Improved Castle Yeet warnings and relocation randomness so teleport outcomes are easier to understand and less predictable.",
+    ],
+    bugFixes: [
+      "Fixed Unstable Unicorn teleport decoys so they are created reliably again after teleporting.",
+      "Fixed Castle Yeet edge cases where a fortress could appear not to move on the rendered map.",
+      "Fixed attack return handling so recalled and returning armies are reported more clearly.",
+    ],
+  },
+  {
+    date: "2026-04-28",
+    title: "Races, raids, shop skins, and season flow",
+    newFeatures: [
+      "Added castle specializations and race buffs, including stronger Space Murines attack scaling and Unstable Unicorn hidden army sizes in transit.",
+      "Added a pre-season testing phase, season race selection, and an updated season announcement dialog.",
+      "Added attack recall, richer battle reports, higher raid loot caps, and visible limits on simultaneous outgoing attacks.",
+      "Expanded the Shop with cosmetic skins, loot box reveals, default-skin controls, dedicated fortress sprites, and render support for equipped skins.",
+      "Added community wish progress, all-season wish proposals, history voting improvements, and clearer wish progress displays.",
+    ],
+    bugFixes: [
+      "Fixed several Castle Yeet placement issues, including duplicate map positions, rendered-position mismatches, and reshuffle overlap.",
+      "Fixed Home of A combat and destroy-credit handling so attacking armies and tiebreak credit resolve correctly.",
+      "Improved mobile season update behavior so the modal stays within the visible viewport.",
+      "Cleaned up active-season UI behavior with a smaller top HUD, auto-dismissing notices, and a hidden season control panel during active play.",
+    ],
+  },
   {
     date: "2026-04-24",
     title: "Attack cadence cleanup",
@@ -22,14 +45,6 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
     ],
     bugFixes: [
       "Fixed attack toggling so switching between Grow and Attack can no longer spawn extra same-minute attack units.",
-    ],
-    exploitHallOfFame: [
-      {
-        season: 1,
-        exploitName: "Stutterfire",
-        founder: "Giga Destroyer",
-        firstExploiter: "Giga Destroyer",
-      },
     ],
   },
   {

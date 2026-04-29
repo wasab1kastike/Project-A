@@ -15,7 +15,9 @@ import {
   FortressAction,
   FortressKind,
   FortressRace,
+  LootCampVariant,
   PrismaClient,
+  RaceAbilityKind,
   ScoreEventType,
   WinnerRequestStatus,
 } from "@/lib/prisma-client";
@@ -110,6 +112,7 @@ import {
 } from "./service";
 import { TickRunnerError, classifyTickHealth, runGameTick } from "./tick";
 import { addHours, addMinutes } from "./time";
+import { getLootCampScheduleForHour } from "./loot-camps";
 import { formatTickRunnerError, formatTickSummary } from "./tick-cli";
 import {
   classifyWinnerRequest,
@@ -1208,6 +1211,393 @@ test("attacking a unicorn teleport decoy destroys it and applies backlash", asyn
   assert.equal(decoyEvents.length, 1);
 });
 
+test("loot camps spawn deterministically across each gameplay hour", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const player = await createUser(prisma, "loot-spawn-player@example.com");
+  const activeStartedAt = new Date("2026-04-20T12:00:00.000Z");
+  const cycle = await seedActiveCommunityWishCycle(
+    prisma,
+    [
+      {
+        userId: player.id,
+        commanderName: "Loot Spawn",
+        fortressName: "Loot Spawn Keep",
+        points: 0,
+      },
+    ],
+    new Date("2026-04-20T14:30:00.000Z")
+  );
+  const hourStart = new Date("2026-04-20T13:00:00.000Z");
+  const expectedSchedule = getLootCampScheduleForHour({
+    cycleId: cycle.id,
+    activeStartedAt,
+    hourStart,
+  });
+
+  assert.ok(expectedSchedule.length >= 1);
+  assert.ok(expectedSchedule.length <= 3);
+  assert.equal(
+    new Set(expectedSchedule.map((entry) => entry.minute)).size,
+    expectedSchedule.length
+  );
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T13:59:00.000Z"),
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T13:59:00.000Z"),
+  });
+
+  const spawnedThisHour = await prisma.fortress.findMany({
+    where: {
+      cycleId: cycle.id,
+      fortressKind: FortressKind.LOOT_CAMP,
+      joinedAt: {
+        gte: hourStart,
+        lt: new Date("2026-04-20T14:00:00.000Z"),
+      },
+    },
+    select: {
+      id: true,
+      lootCampVariant: true,
+      maxHealth: true,
+      expiresAt: true,
+    },
+  });
+
+  assert.equal(spawnedThisHour.length, expectedSchedule.length);
+
+  for (const camp of spawnedThisHour) {
+    assert.ok(camp.lootCampVariant);
+    assert.ok(camp.maxHealth >= 100);
+    assert.ok(camp.maxHealth <= 10000);
+    assert.ok(camp.expiresAt);
+  }
+});
+
+test("loot camps expire and disappear from the home page read model", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const player = await createUser(prisma, "loot-expiry-player@example.com");
+  const cycle = await seedActiveCommunityWishCycle(
+    prisma,
+    [
+      {
+        userId: player.id,
+        commanderName: "Loot Expiry",
+        fortressName: "Loot Expiry Keep",
+        points: 0,
+      },
+    ],
+    new Date("2026-04-20T13:00:00.000Z")
+  );
+  const camp = await createLootCamp(prisma, {
+    cycleId: cycle.id,
+    variant: LootCampVariant.CLASSIC,
+    strength: 100,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+    mapX: 45,
+    mapY: 45,
+    suffix: "expiry",
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:11:00.000Z"),
+  });
+
+  const expiredCamp = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: camp.id,
+    },
+  });
+  const state = await getHomePageState({
+    db: prisma,
+    userId: player.id,
+    now: new Date("2026-04-20T12:11:00.000Z"),
+  });
+
+  assert.equal(expiredCamp.health, 0);
+  assert.equal(
+    state.mapFortresses.some((fortress) => fortress.id === camp.id),
+    false
+  );
+});
+
+test("loot camp raids apply variant rewards without mega fortress progression", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const attacker = await createUser(prisma, "loot-attacker@example.com");
+  const cycle = await seedActiveCommunityWishCycle(
+    prisma,
+    [
+      {
+        userId: attacker.id,
+        commanderName: "Loot Attacker",
+        fortressName: "Loot Attacker Keep",
+        points: 0,
+      },
+    ],
+    new Date("2026-04-20T15:00:00.000Z")
+  );
+  const attackerFortress = await prisma.fortress.update({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: attacker.id,
+      },
+    },
+    data: {
+      race: FortressRace.ORKS,
+      army: 1000,
+      level: MAX_FORTRESS_LEVEL,
+      food: 0,
+      points: 0,
+      minersAssigned: 0,
+      farmersAssigned: 0,
+      recruitersAssigned: 0,
+      mapX: 50,
+      mapY: 50,
+    },
+  });
+  const waaaghUsedAt = new Date("2026-04-20T12:01:00.000Z");
+
+  await prisma.raceAbilityActivation.create({
+    data: {
+      fortressId: attackerFortress.id,
+      kind: RaceAbilityKind.ORK_WAAAGH,
+      activeFrom: waaaghUsedAt,
+      activeUntil: addMinutes(waaaghUsedAt, 30),
+      usedAt: waaaghUsedAt,
+    },
+  });
+
+  async function destroyCamp(
+    variant: LootCampVariant,
+    now: Date,
+    suffix: string,
+    mapY: number
+  ) {
+    await prisma.fortress.update({
+      where: {
+        id: attackerFortress.id,
+      },
+      data: {
+        army: 1000,
+      },
+    });
+
+    const camp = await createLootCamp(prisma, {
+      cycleId: cycle.id,
+      variant,
+      strength: 100,
+      now,
+      mapX: 52,
+      mapY,
+      suffix,
+    });
+
+    await setFortressAction({
+      db: prisma,
+      userId: attacker.id,
+      action: FortressAction.ATTACK,
+      targetFortressId: camp.id,
+      sentArmy: 100,
+      now,
+    });
+
+    const attackUnit = await prisma.attackUnit.findFirstOrThrow({
+      where: {
+        attackerFortressId: attackerFortress.id,
+        targetFortressId: camp.id,
+      },
+      orderBy: {
+        launchedAt: "desc",
+      },
+    });
+
+    await runGameTick({
+      db: prisma,
+      now: attackUnit.arrivesAt,
+    });
+
+    return {
+      camp,
+      attackUnit: await prisma.attackUnit.findUniqueOrThrow({
+        where: {
+          id: attackUnit.id,
+        },
+      }),
+    };
+  }
+
+  const classic = await destroyCamp(
+    LootCampVariant.CLASSIC,
+    new Date("2026-04-20T12:02:00.000Z"),
+    "classic",
+    51
+  );
+  const rich = await destroyCamp(
+    LootCampVariant.RICH,
+    new Date("2026-04-20T12:05:00.000Z"),
+    "rich",
+    52
+  );
+  const chaos = await destroyCamp(
+    LootCampVariant.CHAOS,
+    new Date("2026-04-20T12:08:00.000Z"),
+    "chaos",
+    53
+  );
+  const refreshedAttacker = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: attackerFortress.id,
+    },
+  });
+  const richRewardEvents = await prisma.scoreEvent.findMany({
+    where: {
+      cycleId: cycle.id,
+      fortressId: attackerFortress.id,
+      targetFortressId: rich.camp.id,
+      eventType: ScoreEventType.LOOT_CAMP_REWARD,
+    },
+  });
+  const latestWaaagh = await prisma.raceAbilityActivation.findFirstOrThrow({
+    where: {
+      fortressId: attackerFortress.id,
+      kind: RaceAbilityKind.ORK_WAAAGH,
+    },
+    orderBy: {
+      usedAt: "desc",
+    },
+  });
+  const refreshedCycle = await prisma.cycle.findUniqueOrThrow({
+    where: {
+      id: cycle.id,
+    },
+  });
+
+  assert.equal(classic.attackUnit.foodLooted, 100);
+  assert.equal(classic.attackUnit.pointsLooted, 0);
+  assert.equal(rich.attackUnit.pointsLooted, 100);
+  assert.equal(rich.attackUnit.foodLooted, 0);
+  assert.equal(chaos.attackUnit.armyLooted, 100);
+  assert.ok(refreshedAttacker.food >= 100);
+  assert.ok(refreshedAttacker.points >= 100);
+  assert.ok(refreshedAttacker.army >= 100);
+  assert.equal(richRewardEvents.length, 1);
+  assert.ok(latestWaaagh.usedAt < waaaghUsedAt);
+  assert.equal(refreshedCycle.megaFortressDestroyCount, 0);
+  assert.equal(refreshedCycle.upgradesUnlockedAt, null);
+  assert.equal(refreshedCycle.crownedFortressId, null);
+});
+
+test("loot camp partial damage persists without paying rewards", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const attacker = await createUser(
+    prisma,
+    "loot-partial-attacker@example.com"
+  );
+  const cycle = await seedActiveCommunityWishCycle(
+    prisma,
+    [
+      {
+        userId: attacker.id,
+        commanderName: "Loot Partial",
+        fortressName: "Loot Partial Keep",
+        points: 0,
+      },
+    ],
+    new Date("2026-04-20T13:00:00.000Z")
+  );
+  const attackerFortress = await prisma.fortress.update({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: attacker.id,
+      },
+    },
+    data: {
+      race: FortressRace.DWARFS,
+      army: 10,
+      level: 0,
+      food: 0,
+      points: 0,
+      minersAssigned: 0,
+      farmersAssigned: 0,
+      recruitersAssigned: 0,
+      mapX: 50,
+      mapY: 50,
+    },
+  });
+  const camp = await createLootCamp(prisma, {
+    cycleId: cycle.id,
+    variant: LootCampVariant.RICH,
+    strength: 10000,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+    mapX: 52,
+    mapY: 50,
+    suffix: "partial",
+  });
+
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.ATTACK,
+    targetFortressId: camp.id,
+    sentArmy: 1,
+    now: new Date("2026-04-20T12:02:00.000Z"),
+  });
+
+  const attackUnit = await prisma.attackUnit.findFirstOrThrow({
+    where: {
+      attackerFortressId: attackerFortress.id,
+      targetFortressId: camp.id,
+    },
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: attackUnit.arrivesAt,
+  });
+
+  const damagedCamp = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: camp.id,
+    },
+  });
+  const resolvedAttack = await prisma.attackUnit.findUniqueOrThrow({
+    where: {
+      id: attackUnit.id,
+    },
+  });
+
+  assert.equal(damagedCamp.health, 9998);
+  assert.equal(resolvedAttack.pointsLooted, 0);
+  assert.equal(resolvedAttack.foodLooted, 0);
+  assert.equal(resolvedAttack.armyLooted, 0);
+});
+
 test("cosmetic sprite styles leave unknown and filter skins to css fallback", () => {
   assert.equal(getCosmeticSpriteStyle("UNIT", "ember"), null);
   assert.equal(getCosmeticSpriteStyle("FORTRESS", "missing-skin"), null);
@@ -1791,6 +2181,56 @@ async function createUser(client: PrismaClient, email: string) {
     data: {
       email,
       name: email,
+    },
+  });
+}
+
+async function createLootCamp(
+  client: PrismaClient,
+  input: {
+    cycleId: string;
+    variant: LootCampVariant;
+    strength: number;
+    now: Date;
+    mapX?: number;
+    mapY?: number;
+    suffix?: string;
+  }
+) {
+  const owner = await client.user.create({
+    data: {
+      name: "Loot Camp NPC",
+    },
+  });
+  const suffix = input.suffix ?? randomUUID().slice(0, 8);
+  const variantName =
+    input.variant === LootCampVariant.CLASSIC
+      ? "Classic"
+      : input.variant === LootCampVariant.RICH
+        ? "Rich"
+        : "Chaos";
+
+  return client.fortress.create({
+    data: {
+      cycleId: input.cycleId,
+      ownerId: owner.id,
+      commanderName: `${variantName} Loot Camp ${suffix}`,
+      commanderNameRegisteredAt: input.now,
+      name: `${variantName} Loot Camp ${suffix}`,
+      fortressKind: FortressKind.LOOT_CAMP,
+      lootCampVariant: input.variant,
+      isNpc: true,
+      health: input.strength,
+      maxHealth: input.strength,
+      food: 0,
+      army: 0,
+      minersAssigned: 0,
+      farmersAssigned: 0,
+      recruitersAssigned: 0,
+      expiresAt: addMinutes(input.now, 10),
+      mapX: input.mapX ?? 50,
+      mapY: input.mapY ?? 50,
+      joinedAt: input.now,
     },
   });
 }
@@ -2991,7 +3431,9 @@ test("current active map layouts reshuffle when positions are duplicated", async
   assert.equal(renderedMarkerKeys.size, state.mapFortresses.length);
 
   for (const position of positionsAfterTick) {
-    const previous = positionsBeforeTick.find((entry) => entry.id === position.id);
+    const previous = positionsBeforeTick.find(
+      (entry) => entry.id === position.id
+    );
 
     assert.ok(previous);
     assert.notEqual(
@@ -3088,7 +3530,9 @@ test("testing map layouts reshuffle when rendered positions are duplicated", asy
   assert.equal(uniquePositionKeys.size, positionsAfterTick.length);
 
   for (const position of positionsAfterTick) {
-    const previous = positionsBeforeTick.find((entry) => entry.id === position.id);
+    const previous = positionsBeforeTick.find(
+      (entry) => entry.id === position.id
+    );
 
     assert.ok(previous);
     assert.notEqual(
@@ -3772,7 +4216,9 @@ test("location shuffle is free once, then costs 50 points", async (context) => {
     },
   });
   const excludedKeys = new Set(
-    otherFortressPositions.map((fortress) => getRenderedMapPositionKey(fortress))
+    otherFortressPositions.map((fortress) =>
+      getRenderedMapPositionKey(fortress)
+    )
   );
   const shuffleSeed = buildFortressSpawnSeed({
     cycleId: cycle.id,
@@ -3834,7 +4280,10 @@ test("location shuffle is free once, then costs 50 points", async (context) => {
     getRenderedMapPositionKey(afterFreeShuffle),
     getRenderedMapPositionKey(freeShuffle.fortress)
   );
-  assert.notEqual(getRenderedMapPositionKey(afterFreeShuffle), beforeRenderedKey);
+  assert.notEqual(
+    getRenderedMapPositionKey(afterFreeShuffle),
+    beforeRenderedKey
+  );
   assert.ok(
     rankedCandidateKeys.has(getRenderedMapPositionKey(afterFreeShuffle))
   );

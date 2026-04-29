@@ -28,6 +28,13 @@ enum FortressKind {
   PLAYER
   MEGA
   UNICORN_DECOY
+  LOOT_CAMP
+}
+
+enum LootCampVariant {
+  CLASSIC
+  RICH
+  CHAOS
 }
 
 enum FortressRace {
@@ -57,6 +64,7 @@ enum ScoreEventType {
   MEGA_DAMAGE
   MEGA_DESTROY_BONUS
   UNICORN_DECOY_DESTROY
+  LOOT_CAMP_REWARD
   FORTRESS_UPGRADE_PURCHASE
   FORTRESS_UPGRADE_SLAYER_BONUS
   FORTRESS_LOCATION_SHUFFLE_COST
@@ -237,9 +245,11 @@ model Fortress {
   recruitersAssigned           Int                                 @default(5)
   race                         FortressRace?
   fortressKind                 FortressKind                        @default(PLAYER)
+  lootCampVariant              LootCampVariant?
   isNpc                        Boolean                             @default(false)
   health                       Int                                 @default(0)
   maxHealth                    Int                                 @default(0)
+  expiresAt                    DateTime?
   sizeTiles                    Int                                 @default(1)
   iconLabel                    String?
   unicornDecoySourceFortressId String?
@@ -275,6 +285,7 @@ model Fortress {
   @@index([cycleId])
   @@index([cycleId, isNpc])
   @@index([cycleId, fortressKind])
+  @@index([cycleId, fortressKind, expiresAt])
   @@index([unicornDecoySourceFortressId, createdAt])
   @@index([ownerId])
 }
@@ -338,6 +349,7 @@ model AttackUnit {
   defenderLosses            Int?
   pointsLooted              Int?
   foodLooted                Int?
+  armyLooted                Int?
   launchedAt                DateTime
   arrivesAt                 DateTime
   recalledAt                DateTime?

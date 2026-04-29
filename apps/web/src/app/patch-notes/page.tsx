@@ -86,40 +86,6 @@ export default function PatchNotesPage() {
                   </ul>
                 </section>
               </div>
-
-              {release.exploitHallOfFame &&
-              release.exploitHallOfFame.length > 0 ? (
-                <section className={styles.hallOfFame}>
-                  <div>
-                    <span className={styles.sectionLabel}>
-                      Exploit Hall of Fame
-                    </span>
-                    <h3>Discovered in the wild</h3>
-                  </div>
-
-                  <div className={styles.exploitGrid}>
-                    {release.exploitHallOfFame.map((entry) => (
-                      <article
-                        className={styles.exploitCard}
-                        key={`${entry.season}-${entry.exploitName}`}
-                      >
-                        <span>Season {entry.season}</span>
-                        <h4>{entry.exploitName}</h4>
-                        <dl>
-                          <div>
-                            <dt>Founder</dt>
-                            <dd>{entry.founder}</dd>
-                          </div>
-                          <div>
-                            <dt>First exploiter</dt>
-                            <dd>{entry.firstExploiter}</dd>
-                          </div>
-                        </dl>
-                      </article>
-                    ))}
-                  </div>
-                </section>
-              ) : null}
             </article>
           ))
         )}

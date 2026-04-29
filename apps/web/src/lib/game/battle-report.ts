@@ -16,6 +16,9 @@ export type RaidPreviewInput = {
   targetVisibleArmy?: number | null;
   targetIsUnicornDecoy?: boolean;
   targetDecoyLevel?: number | null;
+  targetIsLootCamp?: boolean;
+  targetLootCampVariant?: string | null;
+  targetLootCampStrength?: number | null;
 };
 
 export type RaidBattleReportInput = {
@@ -25,6 +28,7 @@ export type RaidBattleReportInput = {
   defenderArmyAtBattleStart: number | null;
   defenderDbLevel: number;
   defenderRace?: FortressRace | null;
+  resolvedAttackPower?: number;
   resolvedDefensePower: number;
   outcome: RaidOutcome["outcome"];
   attackerSurvivors: number;
@@ -33,8 +37,11 @@ export type RaidBattleReportInput = {
   defenderLosses: number;
   pointsLooted: number;
   foodLooted: number;
+  armyLooted?: number;
   defenderIsUnicornDecoy?: boolean;
   defenderDecoyLevel?: number | null;
+  defenderIsLootCamp?: boolean;
+  defenderLootCampVariant?: string | null;
 };
 
 export type RaidRecallReportInput = {
@@ -79,6 +86,25 @@ export function formatRaidAttackPreview(input: RaidPreviewInput) {
   ];
 
   if (input.targetName && input.targetDbLevel !== null) {
+    if (input.targetIsLootCamp) {
+      const reward =
+        input.targetLootCampVariant === "CLASSIC"
+          ? "food"
+          : input.targetLootCampVariant === "RICH"
+            ? "points"
+            : input.targetLootCampVariant === "CHAOS"
+              ? "army and race cooldown reset"
+              : "loot";
+
+      lines.push(
+        `Target: ${input.targetName}, strength ${input.targetLootCampStrength ?? "unknown"}, rewards ${reward}.`
+      );
+      lines.push(
+        "Loot camps vanish after 10 minutes and pay only when destroyed."
+      );
+      return lines;
+    }
+
     if (input.targetIsUnicornDecoy) {
       lines.push(
         `Target: ${input.targetName}, unstable copy, backlash ${200 * Math.max(1, input.targetDecoyLevel ?? 1)} army.`
@@ -128,6 +154,24 @@ export function formatRaidBattleReport(input: RaidBattleReportInput) {
       } army backlash.`,
       `${input.attackerReturned} returned. ${lostArmy} troops were lost to the decoy.`,
       "Loot gained: 0 points and 0 food.",
+    ];
+  }
+
+  if (input.defenderIsLootCamp) {
+    const rewardLine =
+      input.defenderLootCampVariant === "CLASSIC"
+        ? `Loot gained: ${input.foodLooted} food.`
+        : input.defenderLootCampVariant === "RICH"
+          ? `Loot gained: ${input.pointsLooted} points.`
+          : input.defenderLootCampVariant === "CHAOS"
+            ? `Loot gained: ${input.armyLooted ?? 0} army and race cooldown reset.`
+            : "Loot gained: 0.";
+
+    return [
+      `Loot camp raid. ${input.attackerName} hit ${input.defenderName} with ${input.sentArmy} troops.`,
+      `Camp strength was ${input.resolvedDefensePower}.`,
+      `${input.attackerReturned} troops are returning. Camp health was reduced by ${input.resolvedAttackPower ?? input.sentArmy}.`,
+      rewardLine,
     ];
   }
 

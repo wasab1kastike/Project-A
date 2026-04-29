@@ -36,7 +36,9 @@ type MapFortress = {
   rawName: string;
   points: number;
   isNpc: boolean;
-  fortressKind: "PLAYER" | "MEGA" | "UNICORN_DECOY";
+  fortressKind: "PLAYER" | "MEGA" | "UNICORN_DECOY" | "LOOT_CAMP";
+  lootCampVariant: "CLASSIC" | "RICH" | "CHAOS" | null;
+  expiresAt: Date | null;
   unicornDecoyLevel: number | null;
   health: number;
   maxHealth: number;
@@ -179,6 +181,36 @@ function MegaFortressSprite({ iconLabel }: { iconLabel: string }) {
       role="img"
     />
   );
+}
+
+function LootCampSprite({
+  variant,
+}: {
+  variant: MapFortress["lootCampVariant"];
+}) {
+  return (
+    <span
+      className={styles.lootCampSprite}
+      data-variant={variant ?? "CLASSIC"}
+      aria-hidden="true"
+    />
+  );
+}
+
+function getLootCampRewardLabel(variant: MapFortress["lootCampVariant"]) {
+  if (variant === "CLASSIC") {
+    return "food";
+  }
+
+  if (variant === "RICH") {
+    return "points";
+  }
+
+  if (variant === "CHAOS") {
+    return "army + cooldown";
+  }
+
+  return "loot";
 }
 
 function HexTileMap() {
@@ -456,6 +488,7 @@ export function FortressMap({
   const [dragStart, setDragStart] = useState<DragStart | null>(null);
   const [pendingTargetId, setPendingTargetId] = useState<string | null>(null);
   const [targetSentArmy, setTargetSentArmy] = useState(1);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const ownFortress =
     fortresses.find((fortress) => fortress.isCurrentUser) ?? null;
@@ -464,6 +497,21 @@ export function FortressMap({
     maxTargetSentArmy > 0
       ? Math.min(Math.max(1, targetSentArmy), maxTargetSentArmy)
       : 0;
+  const hasLootCamps = fortresses.some(
+    (fortress) => fortress.fortressKind === "LOOT_CAMP"
+  );
+
+  useEffect(() => {
+    if (!hasLootCamps) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [hasLootCamps]);
 
   const clampTranslation = useCallback(
     (nextX: number, nextY: number, nextScale: number) => {
@@ -969,10 +1017,20 @@ export function FortressMap({
               const variant = getSpriteVariant(fortress);
               const isMega = fortress.fortressKind === "MEGA";
               const isUnicornDecoy = fortress.fortressKind === "UNICORN_DECOY";
+              const isLootCamp = fortress.fortressKind === "LOOT_CAMP";
+              const lootCampSecondsRemaining = fortress.expiresAt
+                ? Math.max(
+                    0,
+                    Math.ceil(
+                      (new Date(fortress.expiresAt).getTime() - nowMs) / 1000
+                    )
+                  )
+                : 0;
               const className = [
                 styles.marker,
                 isMega ? styles.megaMarker : "",
                 isUnicornDecoy ? styles.unicornDecoyMarker : "",
+                isLootCamp ? styles.lootCampMarker : "",
                 fortress.isSlayerOfA ? styles.crownedMarker : "",
                 fortress.isCurrentUser ? styles.currentUser : "",
                 selectedFortressId === fortress.id ? styles.activeFortress : "",
@@ -1025,9 +1083,15 @@ export function FortressMap({
                     aria-label={
                       isMega
                         ? `${fortress.name}, ${fortress.health} of ${fortress.maxHealth} health`
-                        : isUnicornDecoy
-                          ? `${fortress.name}, Unicorn decoy, ${200 * Math.max(1, fortress.unicornDecoyLevel ?? 1)} army backlash`
-                          : `${fortress.name}, ${fortress.points} points`
+                        : isLootCamp
+                          ? `${fortress.name}, ${fortress.health} of ${fortress.maxHealth} health, rewards ${getLootCampRewardLabel(
+                              fortress.lootCampVariant
+                            )}, ${formatSecondsRemaining(
+                              lootCampSecondsRemaining
+                            )} remaining`
+                          : isUnicornDecoy
+                            ? `${fortress.name}, Unicorn decoy, ${200 * Math.max(1, fortress.unicornDecoyLevel ?? 1)} army backlash`
+                            : `${fortress.name}, ${fortress.points} points`
                     }
                   >
                     <span className={styles.selectionPulse} />
@@ -1036,6 +1100,8 @@ export function FortressMap({
                         <MegaFortressSprite
                           iconLabel={fortress.iconLabel ?? "A-"}
                         />
+                      ) : isLootCamp ? (
+                        <LootCampSprite variant={fortress.lootCampVariant} />
                       ) : (
                         <FortressSprite
                           variant={variant}
@@ -1050,11 +1116,13 @@ export function FortressMap({
                         />
                       )}
                     </span>
-                    {isMega || isUnicornDecoy ? (
+                    {isMega || isUnicornDecoy || isLootCamp ? (
                       <span className={styles.pointsBadge}>
-                        {isUnicornDecoy
-                          ? `-${200 * Math.max(1, fortress.unicornDecoyLevel ?? 1)}`
-                          : `${fortress.health}/${fortress.maxHealth}`}
+                        {isLootCamp
+                          ? `${fortress.health}/${fortress.maxHealth}`
+                          : isUnicornDecoy
+                            ? `-${200 * Math.max(1, fortress.unicornDecoyLevel ?? 1)}`
+                            : `${fortress.health}/${fortress.maxHealth}`}
                       </span>
                     ) : null}
                     <span className={styles.nameplate}>{fortress.name}</span>
@@ -1066,11 +1134,17 @@ export function FortressMap({
                       <span>
                         {isMega
                           ? `${fortress.health}/${fortress.maxHealth} HP`
-                          : isUnicornDecoy
-                            ? `Decoy L${fortress.unicornDecoyLevel ?? 1}`
-                            : `${fortress.points} pts${
-                                fortress.isSlayerOfA ? " - Slayer of A" : ""
-                              }`}
+                          : isLootCamp
+                            ? `${getLootCampRewardLabel(
+                                fortress.lootCampVariant
+                              )} - ${formatSecondsRemaining(
+                                lootCampSecondsRemaining
+                              )}`
+                            : isUnicornDecoy
+                              ? `Decoy L${fortress.unicornDecoyLevel ?? 1}`
+                              : `${fortress.points} pts${
+                                  fortress.isSlayerOfA ? " - Slayer of A" : ""
+                                }`}
                       </span>
                     </span>
                   </button>
@@ -1088,9 +1162,15 @@ export function FortressMap({
                       <span>
                         {isMega
                           ? `${fortress.health}/${fortress.maxHealth} HP`
-                          : isUnicornDecoy
-                            ? `${200 * Math.max(1, fortress.unicornDecoyLevel ?? 1)} army backlash`
-                            : `${fortress.points} pts`}
+                          : isLootCamp
+                            ? `${fortress.health}/${fortress.maxHealth} HP - ${getLootCampRewardLabel(
+                                fortress.lootCampVariant
+                              )} - ${formatSecondsRemaining(
+                                lootCampSecondsRemaining
+                              )}`
+                            : isUnicornDecoy
+                              ? `${200 * Math.max(1, fortress.unicornDecoyLevel ?? 1)} army backlash`
+                              : `${fortress.points} pts`}
                       </span>
                       {travelMinutes ? <em>{travelMinutes} min ETA</em> : null}
                       <label className={styles.targetArmyControl}>
