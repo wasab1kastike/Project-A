@@ -17,7 +17,10 @@ import {
 } from "@/app/game-actions";
 import { COMMUNITY_WISH_MAX_LENGTH } from "@/lib/game/community-wishes";
 import { getHomePageState, type HomePageState } from "@/lib/game/read-model";
-import { PRIMARY_GAME_NAV_LINKS } from "@/lib/game/site-navigation";
+import {
+  PATCH_NOTES_PAGE_HREF,
+  PRIMARY_GAME_NAV_LINKS,
+} from "@/lib/game/site-navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -205,9 +208,17 @@ export default async function Home({
     session?.user && state.playerSummary?.canRegisterCommanderName
   );
   const showArcadeCard = state.phase?.status === "REGISTRATION";
-  const showSeasonBanner = Boolean(state.latestSeason);
   const isWaitingForSeason =
     !state.phase || state.phase.status === "RESOLUTION" || !state.cycle;
+  const showWinnerWishPrompt = Boolean(
+    session?.user?.id &&
+      state.latestSeason &&
+      state.latestSeason.winnerId === session.user.id &&
+      state.latestSeason.winnerRequestId === null
+  );
+  const showSeasonBanner = Boolean(
+    state.latestSeason && (isWaitingForSeason || showWinnerWishPrompt)
+  );
   const showSidePanel = Boolean(
     blockingMessage ||
     showLoginCard ||
@@ -363,11 +374,160 @@ export default async function Home({
             {session?.user ? userLabel : "Guest"}
           </span>
           <SeasonUpdateAnnouncement userId={session?.user?.id ?? null} />
-          {PRIMARY_GAME_NAV_LINKS.map((link) => (
+          {PRIMARY_GAME_NAV_LINKS
+            .filter((link) => link.href !== PATCH_NOTES_PAGE_HREF)
+            .map((link) => (
             <Link className={styles.hudButton} href={link.href} key={link.href}>
               {link.label}
             </Link>
-          ))}
+            ))}
+          {state.cycle &&
+          (state.phase?.status === "ACTIVE" ||
+            state.phase?.status === "REGISTRATION") ? (
+            <details className={styles.wishPanel} open>
+              <summary className={styles.wishPanelToggle}>Wish</summary>
+              <section
+                className={styles.wishPanelContent}
+                aria-label="Community wish pool"
+              >
+                <span className={styles.sectionLabel}>Community wish</span>
+                <h2>Season proposals</h2>
+                <p>{state.communityWish.submissionHint}</p>
+                {state.communityWish.canSubmit ? (
+                  <form
+                    action={submitCommunityWishProposalAction}
+                    className={styles.form}
+                  >
+                    <input
+                      type="hidden"
+                      name="cycleId"
+                      value={state.communityWish.cycleId}
+                    />
+                    <label className={styles.field}>
+                      <div className={styles.fieldHeader}>
+                        Proposal
+                        <details className={styles.helpDisclosure}>
+                          <summary
+                            aria-label="Community wish instructions"
+                            className={styles.helpButton}
+                          >
+                            ?
+                          </summary>
+                          <div className={styles.helpPopover}>
+                            <strong>Wish limits</strong>
+                            <ul>
+                              <li>
+                                Winner wish is guaranteed. Community wish is
+                                vote-based.
+                              </li>
+                              <li>Wishes lock Monday 12:00 after the season.</li>
+                              <li>Voting closes Monday 24:00.</li>
+                              <li>Write in English.</li>
+                              <li>
+                                Keep it short: max {COMMUNITY_WISH_MAX_LENGTH}{" "}
+                                characters.
+                              </li>
+                              <li>Ask for one feature idea, not a full spec.</li>
+                              <li>
+                                No self-buffs, targeted nerfs, more wishes, or
+                                deploy requests.
+                              </li>
+                            </ul>
+                          </div>
+                        </details>
+                      </div>
+                      <textarea
+                        name="requestText"
+                        rows={3}
+                        maxLength={COMMUNITY_WISH_MAX_LENGTH}
+                        placeholder="Add more troop types"
+                        defaultValue={currentUserCommunityWish}
+                        required
+                      />
+                    </label>
+                    <button className={styles.primaryButton} type="submit">
+                      {currentUserCommunityWish ? "Update wish" : "Submit wish"}
+                    </button>
+                  </form>
+                ) : null}
+                {state.communityWish.canVote ? (
+                  <form
+                    action={saveCommunityWishVotesAction}
+                    className={styles.voteForm}
+                  >
+                    <input
+                      type="hidden"
+                      name="cycleId"
+                      value={state.communityWish.cycleId}
+                    />
+                    <span className={styles.voteSectionLabel}>Community vote</span>
+                    <p className={styles.voteHint}>
+                      You have {state.communityWish.voteBudget} votes.{" "}
+                      {state.communityWish.usedVotes} currently allocated. You
+                      can change them until voting ends Monday 24:00.
+                    </p>
+                    <div className={styles.voteList}>
+                      {state.communityWish.proposals.map((proposal) => (
+                        <label className={styles.voteRow} key={proposal.id}>
+                          <span>
+                            <strong>{proposal.authorLabel}</strong>
+                            <small>
+                              {proposal.voteCount} votes - {proposal.status}
+                            </small>
+                            <em>{proposal.requestText}</em>
+                          </span>
+                          <input
+                            name={`proposalVotes:${proposal.id}`}
+                            type="number"
+                            min={0}
+                            max={
+                              proposal.isVoteEligible
+                                ? state.communityWish.voteBudget
+                                : 0
+                            }
+                            defaultValue={proposal.currentUserVotes}
+                            disabled={
+                              !state.communityWish.canVote ||
+                              !proposal.isVoteEligible
+                            }
+                          />
+                        </label>
+                      ))}
+                    </div>
+                    {state.communityWish.canVote ? (
+                      <button className={styles.primaryButton} type="submit">
+                        Save community votes
+                      </button>
+                    ) : null}
+                  </form>
+                ) : null}
+                {state.communityWish.proposals.length > 0 ? (
+                  <ol className={styles.wishList}>
+                    {state.communityWish.proposals.slice(0, 4).map((proposal) => (
+                      <li key={proposal.id}>
+                        <strong>
+                          {proposal.isCurrentUser ? "Your wish" : "Community wish"}
+                        </strong>
+                        <span>
+                          {proposal.voteCount} votes - {proposal.status}
+                        </span>
+                        <p>{proposal.requestText}</p>
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <p>No community wishes have been suggested yet.</p>
+                )}
+              </section>
+            </details>
+          ) : null}
+          {PRIMARY_GAME_NAV_LINKS
+            .filter((link) => link.href === PATCH_NOTES_PAGE_HREF)
+            .map((link) => (
+              <Link className={styles.hudButton} href={link.href} key={link.href}>
+                {link.label}
+              </Link>
+            ))}
           {isAdmin ? (
             <Link className={styles.hudButton} href="/admin">
               Admin
@@ -389,147 +549,6 @@ export default async function Home({
       </header>
 
       {notice ? <p className={styles.noticeToast}>{notice}</p> : null}
-
-      {state.cycle &&
-      (state.phase?.status === "ACTIVE" ||
-        state.phase?.status === "REGISTRATION") ? (
-        <details className={styles.wishPanel} open>
-          <summary className={styles.wishPanelToggle}>Wish</summary>
-          <section
-            className={styles.wishPanelContent}
-            aria-label="Community wish pool"
-          >
-            <span className={styles.sectionLabel}>Community wish</span>
-            <h2>Season proposals</h2>
-            <p>{state.communityWish.submissionHint}</p>
-            {state.communityWish.canSubmit ? (
-              <form
-                action={submitCommunityWishProposalAction}
-                className={styles.form}
-              >
-                <input
-                  type="hidden"
-                  name="cycleId"
-                  value={state.communityWish.cycleId}
-                />
-                <label className={styles.field}>
-                  <div className={styles.fieldHeader}>
-                    Proposal
-                    <details className={styles.helpDisclosure}>
-                      <summary
-                        aria-label="Community wish instructions"
-                        className={styles.helpButton}
-                      >
-                        ?
-                      </summary>
-                      <div className={styles.helpPopover}>
-                        <strong>Wish limits</strong>
-                        <ul>
-                          <li>
-                            Winner wish is guaranteed. Community wish is
-                            vote-based.
-                          </li>
-                          <li>Wishes lock Monday 12:00 after the season.</li>
-                          <li>Voting closes Monday 24:00.</li>
-                          <li>Write in English.</li>
-                          <li>
-                            Keep it short: max {COMMUNITY_WISH_MAX_LENGTH}{" "}
-                            characters.
-                          </li>
-                          <li>Ask for one feature idea, not a full spec.</li>
-                          <li>
-                            No self-buffs, targeted nerfs, more wishes, or deploy
-                            requests.
-                          </li>
-                        </ul>
-                      </div>
-                    </details>
-                  </div>
-                  <textarea
-                    name="requestText"
-                    rows={3}
-                    maxLength={COMMUNITY_WISH_MAX_LENGTH}
-                    placeholder="Add more troop types"
-                    defaultValue={currentUserCommunityWish}
-                    required
-                  />
-                </label>
-                <button className={styles.primaryButton} type="submit">
-                  {currentUserCommunityWish ? "Update wish" : "Submit wish"}
-                </button>
-              </form>
-            ) : null}
-            {state.communityWish.canVote ? (
-              <form
-                action={saveCommunityWishVotesAction}
-                className={styles.voteForm}
-              >
-                <input
-                  type="hidden"
-                  name="cycleId"
-                  value={state.communityWish.cycleId}
-                />
-                <span className={styles.voteSectionLabel}>Community vote</span>
-                <p className={styles.voteHint}>
-                  You have {state.communityWish.voteBudget} votes.{" "}
-                  {state.communityWish.usedVotes} currently allocated. You can
-                  change them until voting ends Monday 24:00.
-                </p>
-                <div className={styles.voteList}>
-                  {state.communityWish.proposals.map((proposal) => (
-                    <label className={styles.voteRow} key={proposal.id}>
-                      <span>
-                        <strong>{proposal.authorLabel}</strong>
-                        <small>
-                          {proposal.voteCount} votes - {proposal.status}
-                        </small>
-                        <em>{proposal.requestText}</em>
-                      </span>
-                      <input
-                        name={`proposalVotes:${proposal.id}`}
-                        type="number"
-                        min={0}
-                        max={
-                          proposal.isVoteEligible
-                            ? state.communityWish.voteBudget
-                            : 0
-                        }
-                        defaultValue={proposal.currentUserVotes}
-                        disabled={
-                          !state.communityWish.canVote ||
-                          !proposal.isVoteEligible
-                        }
-                      />
-                    </label>
-                  ))}
-                </div>
-                {state.communityWish.canVote ? (
-                  <button className={styles.primaryButton} type="submit">
-                    Save community votes
-                  </button>
-                ) : null}
-              </form>
-            ) : null}
-            {state.communityWish.proposals.length > 0 ? (
-              <ol className={styles.wishList}>
-                {state.communityWish.proposals.slice(0, 4).map((proposal) => (
-                  <li key={proposal.id}>
-                    <strong>
-                      {proposal.isCurrentUser ? "Your wish" : "Community wish"}
-                    </strong>
-                    <span>
-                      {proposal.voteCount} votes - {proposal.status}
-                    </span>
-                    <p>{proposal.requestText}</p>
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              <p>No community wishes have been suggested yet.</p>
-            )}
-          </section>
-        </details>
-      ) : null}
 
       {showSidePanel ? (
         <section
@@ -627,10 +646,7 @@ export default async function Home({
               </div>
             </PreviousSeasonWinnerCard>
           ) : null}
-          {session?.user?.id &&
-          state.latestSeason &&
-          state.latestSeason.winnerId === session.user.id &&
-          state.latestSeason.winnerRequestId === null ? (
+          {showWinnerWishPrompt ? (
             <section className={styles.winnerWishPrompt}>
               <span className={styles.sectionLabel}>Winner wish</span>
               <h2>Your guaranteed wish is ready.</h2>

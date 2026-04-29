@@ -39,7 +39,6 @@
 .topHud,
 .bottomHud,
 .sidePanel,
-.wishPanel,
 .noticeToast {
   position: absolute;
   z-index: 20;
@@ -60,7 +59,6 @@
 .topLinks,
 .bottomHud,
 .sidePanel,
-.wishPanel,
 .noticeToast {
   border: 1px solid rgba(255, 255, 255, 0.12);
   background:
@@ -363,8 +361,7 @@
 }
 
 .wishPanel {
-  top: 88px;
-  right: 190px;
+  position: relative;
   display: inline-flex;
   width: auto;
   padding: 0;
@@ -929,12 +926,6 @@
     bottom: auto;
     width: min(440px, calc(100% - 32px));
     transform: translate(-50%, -50%);
-  }
-
-  .wishPanel {
-    top: max(126px, calc(env(safe-area-inset-top) + 110px));
-    right: auto;
-    left: 10px;
   }
 
   .wishPanelToggle {
