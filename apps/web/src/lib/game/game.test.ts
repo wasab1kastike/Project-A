@@ -2491,6 +2491,66 @@ test("ACTIVE_PLAYER_CAP blocks joins during an active cycle", async (context) =>
   );
 });
 
+test("NPC fortresses do not consume player join slots", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+
+  for (let index = 0; index < ACTIVE_PLAYER_CAP - 1; index += 1) {
+    const user = await createUser(prisma, `npc-slot-${index}@example.com`);
+
+    await joinRegistrationCycle({
+      db: prisma,
+      userId: user.id,
+      fortressName: `Npc Slot ${index}`,
+      now: new Date("2026-04-19T12:10:00.000Z"),
+    });
+  }
+
+  const npcOwner = await createUser(prisma, "npc-slot-owner@example.com");
+
+  await prisma.fortress.create({
+    data: {
+      cycleId: cycle.id,
+      ownerId: npcOwner.id,
+      commanderName: "Npc Slot Camp",
+      name: "Npc Slot Camp",
+      isNpc: true,
+      fortressKind: FortressKind.LOOT_CAMP,
+      mapX: 999,
+      mapY: 999,
+    },
+  });
+
+  const finalPlayer = await createUser(prisma, "npc-slot-final@example.com");
+
+  await assert.doesNotReject(() =>
+    joinRegistrationCycle({
+      db: prisma,
+      userId: finalPlayer.id,
+      fortressName: "Npc Slot Final",
+      now: new Date("2026-04-19T12:10:00.000Z"),
+    })
+  );
+
+  const overflowUser = await createUser(prisma, "npc-slot-overflow@example.com");
+
+  await assert.rejects(
+    () =>
+      joinRegistrationCycle({
+        db: prisma,
+        userId: overflowUser.id,
+        fortressName: "Npc Slot Overflow",
+        now: new Date("2026-04-19T12:10:00.000Z"),
+      }),
+    /already full/
+  );
+});
+
 test("one fortress per user per cycle and duplicate names are rejected", async (context) => {
   const prisma = getPrismaOrSkip(context);
 

@@ -286,6 +286,7 @@ export async function joinRegistrationCycle({
                 ownerId: true,
                 commanderName: true,
                 name: true,
+                isNpc: true,
                 mapX: true,
                 mapY: true,
               },
@@ -313,7 +314,11 @@ export async function joinRegistrationCycle({
           throw new GameError("You already joined this cycle.");
         }
 
-        if (cycle.fortresses.length >= ACTIVE_PLAYER_CAP) {
+        const playerFortressCount = cycle.fortresses.filter(
+          (fortress) => !fortress.isNpc
+        ).length;
+
+        if (playerFortressCount >= ACTIVE_PLAYER_CAP) {
           throw new GameError("This cycle is already full.");
         }
 
