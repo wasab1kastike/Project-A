@@ -32,7 +32,7 @@ import {
 import { getAttackArrivalAt } from "./attacks";
 import { buildFortressSpawnSeed } from "./spawn-layout";
 import { addHours, addMinutes, floorToMinute } from "./time";
-import { calculateRaidOutcome, calculateTickProduction } from "./balance";
+import { calculateRaidOutcome, calculateTickProduction, ORK_STRONGER_TOGETHER_RATE } from "./balance";
 import { canFortressLevelUp, getFortressAttackDamage } from "./upgrades";
 import {
   getDwarfGrudgeMultiplier,
@@ -1028,6 +1028,14 @@ async function processCycleTick(
       )
         ? DWARF_DEEP_MINING_SLOW_ATTACK_MULTIPLIER
         : 1;
+    const getOrkWaaghActive = (fortress: (typeof fortresses)[number]) =>
+      getEffectiveRace(fortress) === "ORKS" &&
+      raceBuffTier >= 3 &&
+      isRaceAbilityActive(
+        fortress.raceAbilityActivations,
+        RaceAbilityKind.ORK_WAAAGH,
+        tickAt
+      );
 
     const dueAttackUnits = await tx.attackUnit.findMany({
       where: {
@@ -1152,6 +1160,7 @@ async function processCycleTick(
               attackerRace: getEffectiveRace(targetAttacker),
               raceBuffTier,
               speedMultiplier: getDwarfSpeedMultiplier(targetAttacker),
+              waaagh: getOrkWaaghActive(targetAttacker),
             });
 
             await tx.attackUnit.update({
@@ -1380,6 +1389,7 @@ async function processCycleTick(
               attackerRace: getEffectiveRace(targetAttacker),
               raceBuffTier,
               speedMultiplier: getDwarfSpeedMultiplier(targetAttacker),
+              waaagh: getOrkWaaghActive(targetAttacker),
             });
 
             await tx.attackUnit.update({
@@ -1904,7 +1914,7 @@ async function processCycleTick(
       const defenderRace = getEffectiveRace(target);
       const attackerWaaagh =
         attackerRace === "ORKS" &&
-        raceBuffTier >= 2 &&
+        raceBuffTier >= 3 &&
         isRaceAbilityActive(
           attacker.raceAbilityActivations,
           RaceAbilityKind.ORK_WAAAGH,
@@ -1912,7 +1922,7 @@ async function processCycleTick(
         );
       const defenderWaaagh =
         defenderRace === "ORKS" &&
-        raceBuffTier >= 2 &&
+        raceBuffTier >= 3 &&
         isRaceAbilityActive(
           target.raceAbilityActivations,
           RaceAbilityKind.ORK_WAAAGH,
@@ -1966,11 +1976,11 @@ async function processCycleTick(
           target.castleUpgradeSpecializations
         ),
         attackPowerMultiplier:
-          (attackerWaaagh ? 2 : 1) *
+          (attackerWaaagh ? 4 : 1) *
           dwarfAttackMultiplier *
           (attackerDeepMiningCombat ? DWARF_DEEP_MINING_COMBAT_MULTIPLIER : 1),
         defensePowerMultiplier:
-          (defenderWaaagh ? 2 : 1) *
+          (defenderWaaagh ? 4 : 1) *
           dwarfDefenseMultiplier *
           (defenderDeepMiningCombat ? DWARF_DEEP_MINING_COMBAT_MULTIPLIER : 1),
         preventAttackerCasualties: attackerStim,
@@ -1993,6 +2003,7 @@ async function processCycleTick(
           attackerRace: attackerRace,
           raceBuffTier,
           speedMultiplier: getDwarfSpeedMultiplier(attacker),
+          waaagh: getOrkWaaghActive(attacker),
         });
 
         await tx.attackUnit.update({
@@ -2051,6 +2062,12 @@ async function processCycleTick(
         target.id,
         Math.max(0, defenderPoints - outcome.pointsLooted)
       );
+      const strongerTogether =
+        attackerRace === "ORKS" &&
+        raceBuffTier >= 1 &&
+        outcome.defenderLosses > 0
+          ? Math.floor(outcome.defenderLosses * ORK_STRONGER_TOGETHER_RATE)
+          : 0;
       currentFood.set(
         attacker.id,
         (currentFood.get(attacker.id) ?? attacker.food) + outcome.foodLooted
@@ -2059,6 +2076,12 @@ async function processCycleTick(
         target.id,
         Math.max(0, defenderFood - outcome.foodLooted)
       );
+      if (strongerTogether > 0) {
+        currentArmy.set(
+          attacker.id,
+          (currentArmy.get(attacker.id) ?? attacker.army) + strongerTogether
+        );
+      }
 
       if (outcome.pointsLooted > 0) {
         scoreEvents.push(

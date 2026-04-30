@@ -963,6 +963,38 @@ test("free unicorn teleport leaves one active decoy per displayed castle level",
   assert.equal(firstDecoy.mapY, unicornBeforeTeleport.mapY);
   assert.equal(firstDecoy.unicornDecoyLevel, 1);
 
+  const otherPlayerState = await getHomePageState({
+    db: prisma,
+    userId: murine.id,
+    now: new Date("2026-04-20T12:03:30.000Z"),
+  });
+  const disguisedDecoyMarker = otherPlayerState.mapFortresses.find(
+    (fortress) => fortress.id === firstDecoy.id
+  );
+  const disguisedDecoyTarget = otherPlayerState.availableTargets.find(
+    (target) => target.id === firstDecoy.id
+  );
+
+  assert.ok(disguisedDecoyMarker);
+  assert.equal(disguisedDecoyMarker.fortressKind, FortressKind.PLAYER);
+  assert.equal(disguisedDecoyMarker.unicornDecoyLevel, null);
+  assert.equal(disguisedDecoyMarker.name, unicornBeforeTeleport.name);
+  assert.equal(
+    disguisedDecoyMarker.commanderName,
+    unicornBeforeTeleport.commanderName
+  );
+  assert.equal(disguisedDecoyMarker.race, FortressRace.UNSTABLE_UNICORNS);
+  assert.equal(disguisedDecoyMarker.isNpc, false);
+
+  assert.ok(disguisedDecoyTarget);
+  assert.equal(disguisedDecoyTarget.fortressKind, FortressKind.PLAYER);
+  assert.equal(disguisedDecoyTarget.unicornDecoyLevel, null);
+  assert.equal(disguisedDecoyTarget.name, unicornBeforeTeleport.name);
+  assert.equal(
+    disguisedDecoyTarget.commanderName,
+    unicornBeforeTeleport.commanderName
+  );
+
   await prisma.fortress.update({
     where: {
       id: unicornBeforeTeleport.id,

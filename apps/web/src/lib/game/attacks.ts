@@ -20,6 +20,7 @@ export function getAttackTravelMinutes(
     attackerRace?: FortressRace | null;
     raceBuffTier?: number;
     speedMultiplier?: number;
+    waaagh?: boolean;
   }
 ) {
   const speedMultiplier =
@@ -27,7 +28,8 @@ export function getAttackTravelMinutes(
     (options?.attackerRace === "UNSTABLE_UNICORNS" &&
     (options.raceBuffTier ?? 0) >= 2
       ? 2
-      : 1);
+      : 1) *
+    (options?.waaagh ? 2 : 1);
 
   return Math.max(
     1,
@@ -45,6 +47,7 @@ export function getAttackArrivalAt({
   attackerRace,
   raceBuffTier,
   speedMultiplier,
+  waaagh,
 }: {
   launchedAt: Date;
   origin: { mapX: number; mapY: number };
@@ -52,6 +55,7 @@ export function getAttackArrivalAt({
   attackerRace?: FortressRace | null;
   raceBuffTier?: number;
   speedMultiplier?: number;
+  waaagh?: boolean;
 }) {
   return addMinutes(
     launchedAt,
@@ -59,6 +63,7 @@ export function getAttackArrivalAt({
       attackerRace,
       raceBuffTier,
       speedMultiplier,
+      waaagh,
     })
   );
 }

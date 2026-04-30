@@ -339,6 +339,7 @@ export async function getHomePageState({
           fortressKind: true,
           lootCampVariant: true,
           expiresAt: true,
+          unicornDecoySourceFortressId: true,
           unicornDecoyLevel: true,
           currentAction: true,
           targetFortressId: true,
@@ -355,6 +356,22 @@ export async function getHomePageState({
             select: {
               unitCosmeticVariant: true,
               fortressCosmeticVariant: true,
+            },
+          },
+          unicornDecoySourceFortress: {
+            select: {
+              id: true,
+              commanderName: true,
+              name: true,
+              points: true,
+              level: true,
+              race: true,
+              owner: {
+                select: {
+                  unitCosmeticVariant: true,
+                  fortressCosmeticVariant: true,
+                },
+              },
             },
           },
           castleUpgradeSpecializations: {
@@ -1000,6 +1017,24 @@ export async function getHomePageState({
     );
   });
   const mapFortresses = visibleFortresses.map((fortress) => {
+    const canRevealUnicornDecoy =
+      fortress.fortressKind === FortressKind.UNICORN_DECOY &&
+      fortress.unicornDecoySourceFortressId === playerFortressId;
+    const disguisedSource =
+      fortress.fortressKind === FortressKind.UNICORN_DECOY &&
+      !canRevealUnicornDecoy
+        ? fortress.unicornDecoySourceFortress
+        : null;
+    const displayFortressKind = disguisedSource
+      ? FortressKind.PLAYER
+      : fortress.fortressKind;
+    const displayName = disguisedSource?.name ?? fortress.name;
+    const displayCommanderName =
+      disguisedSource?.commanderName ?? fortress.commanderName;
+    const displayPoints = disguisedSource?.points ?? fortress.points;
+    const displayRace = disguisedSource?.race ?? fortress.race;
+    const displayIsNpc = disguisedSource ? false : fortress.isNpc;
+    const displayOwner = disguisedSource?.owner ?? fortress.owner;
     const runeSuppression = activeRuneSuppressions.find(
       (suppression) => suppression.runeFortressId === fortress.id
     );
@@ -1008,24 +1043,24 @@ export async function getHomePageState({
     return {
     id: fortress.id,
     commanderName: getDisplayName(
-      fortress.commanderName,
-      fortress.id === cycle.crownedFortressId && !fortress.isNpc
+      displayCommanderName,
+      fortress.id === cycle.crownedFortressId && !displayIsNpc
     ),
     name: getDisplayName(
-      fortress.name,
-      fortress.id === cycle.crownedFortressId && !fortress.isNpc
+      displayName,
+      fortress.id === cycle.crownedFortressId && !displayIsNpc
     ),
-    rawName: fortress.name,
-    points: fortress.points,
-    isNpc: fortress.isNpc,
+    rawName: displayName,
+    points: displayPoints,
+    isNpc: displayIsNpc,
     health: fortress.health,
     maxHealth: fortress.maxHealth,
     lootCampVariant: fortress.lootCampVariant,
     expiresAt: fortress.expiresAt,
     sizeTiles: fortress.sizeTiles,
     iconLabel: fortress.iconLabel,
-    fortressKind: fortress.fortressKind,
-    unicornDecoyLevel: fortress.unicornDecoyLevel,
+    fortressKind: displayFortressKind,
+    unicornDecoyLevel: canRevealUnicornDecoy ? fortress.unicornDecoyLevel : null,
     displayedCastleLevel: getDisplayedCastleLevel(fortress.level),
     population: getFortressPopulation(fortress.level, getEffectiveRace(fortress)),
     defenseMultiplier: getFortressDefenseMultiplier(
@@ -1041,8 +1076,8 @@ export async function getHomePageState({
     minersAssigned: fortress.minersAssigned,
     farmersAssigned: fortress.farmersAssigned,
     recruitersAssigned: fortress.recruitersAssigned,
-    race: getEffectiveRace(fortress),
-    rawRace: fortress.race,
+    race: disguisedSource ? disguisedSource.race : getEffectiveRace(fortress),
+    rawRace: displayRace,
     dwarfRune: runeSuppression
       ? {
           ownerName: runeSuppression.fortress.name,
@@ -1051,13 +1086,13 @@ export async function getHomePageState({
           bounty: DWARF_DEEP_MINING_RUNE_BOUNTY,
         }
       : null,
-    isSlayerOfA: fortress.id === cycle.crownedFortressId && !fortress.isNpc,
+    isSlayerOfA: fortress.id === cycle.crownedFortressId && !displayIsNpc,
     currentAction: fortress.currentAction,
     mapX: fortress.mapX,
     mapY: fortress.mapY,
     unitSpriteVariant: normalizeUnitSpriteVariant(fortress.unitSpriteVariant),
-    unitCosmeticVariant: fortress.owner?.unitCosmeticVariant ?? null,
-    fortressCosmeticVariant: fortress.owner?.fortressCosmeticVariant ?? null,
+    unitCosmeticVariant: displayOwner?.unitCosmeticVariant ?? null,
+    fortressCosmeticVariant: displayOwner?.fortressCosmeticVariant ?? null,
     isCurrentUser: fortress.ownerId === userId,
     isTargetable:
       playerFortressId !== null &&
@@ -1436,7 +1471,7 @@ export async function getHomePageState({
               ),
             canActivateWaaagh:
               playerFortress.race === "ORKS" &&
-              raceBuffTier >= 2 &&
+              raceBuffTier >= 3 &&
               (!latestWaaaghUse ||
                 getHelsinkiDayKey(latestWaaaghUse.usedAt) !== currentDayKey),
             waaaghActiveUntil:
@@ -1458,6 +1493,7 @@ export async function getHomePageState({
                 : null,
             canInstantRecall:
               playerFortress.race === "SPACE_MURINES" &&
+              raceBuffTier >= 3 &&
               (!latestInstantRecallUse ||
                 getHelsinkiHourKey(latestInstantRecallUse.usedAt) !==
                   currentHourKey),
@@ -1604,25 +1640,41 @@ export async function getHomePageState({
                 runeSuppression?.fortress.id !== playerFortress.id
               );
             })
-            .map((fortress) => ({
+            .map((fortress) => {
+              const canRevealUnicornDecoy =
+                fortress.fortressKind === FortressKind.UNICORN_DECOY &&
+                fortress.unicornDecoySourceFortressId === playerFortress.id;
+              const disguisedSource =
+                fortress.fortressKind === FortressKind.UNICORN_DECOY &&
+                !canRevealUnicornDecoy
+                  ? fortress.unicornDecoySourceFortress
+                  : null;
+
+              return {
               id: fortress.id,
               commanderName: getDisplayName(
-                fortress.commanderName,
-                fortress.id === cycle.crownedFortressId && !fortress.isNpc
+                disguisedSource?.commanderName ?? fortress.commanderName,
+                fortress.id === cycle.crownedFortressId &&
+                  !(disguisedSource ? false : fortress.isNpc)
               ),
               name: getDisplayName(
-                fortress.name,
-                fortress.id === cycle.crownedFortressId && !fortress.isNpc
+                disguisedSource?.name ?? fortress.name,
+                fortress.id === cycle.crownedFortressId &&
+                  !(disguisedSource ? false : fortress.isNpc)
               ),
-              rawName: fortress.name,
+              rawName: disguisedSource?.name ?? fortress.name,
               level: fortress.level,
-              race: fortress.race,
-              points: fortress.points,
-              isNpc: fortress.isNpc,
-              fortressKind: fortress.fortressKind,
+              race: disguisedSource?.race ?? fortress.race,
+              points: disguisedSource?.points ?? fortress.points,
+              isNpc: disguisedSource ? false : fortress.isNpc,
+              fortressKind: disguisedSource
+                ? FortressKind.PLAYER
+                : fortress.fortressKind,
               lootCampVariant: fortress.lootCampVariant,
               expiresAt: fortress.expiresAt,
-              unicornDecoyLevel: fortress.unicornDecoyLevel,
+              unicornDecoyLevel: canRevealUnicornDecoy
+                ? fortress.unicornDecoyLevel
+                : null,
               health: fortress.health,
               maxHealth: fortress.maxHealth,
               army: fortress.army,
@@ -1630,7 +1682,8 @@ export async function getHomePageState({
                 fortress.castleUpgradeSpecializations
               ),
               currentAction: fortress.currentAction,
-            }))
+              };
+            })
         : [],
     canJoinCycle:
       Boolean(userId) &&

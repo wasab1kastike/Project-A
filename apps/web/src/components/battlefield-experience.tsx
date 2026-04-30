@@ -1600,7 +1600,7 @@ export function BattlefieldExperience({
                 {playerSummary.race === "ORKS" ? (
                   playerSummary.raceBuffs.waaaghActiveUntil ? (
                     <p className={styles.helper}>
-                      WAAAGH active for this hour.
+                      WAAAGH active — x4 attack & defense, 2× speed.
                     </p>
                   ) : (
                     <form action={activateWaaaghAction}>
@@ -1616,14 +1616,6 @@ export function BattlefieldExperience({
                 ) : null}
                 {playerSummary.race === "SPACE_MURINES" ? (
                   <>
-                    <p className={styles.helper}>
-                      Hourly instant recall{" "}
-                      {playerSummary.raceBuffs.canInstantRecall
-                        ? "available"
-                        : "spent"}
-                      . It returns one army immediately and loses 5% sent
-                      troops, minimum 1.
-                    </p>
                     {playerSummary.raceBuffs.stimActiveUntil ? (
                       <p className={styles.helper}>
                         STIM active for this hour.
@@ -1639,6 +1631,16 @@ export function BattlefieldExperience({
                         </button>
                       </form>
                     )}
+                    {playerSummary.raceBuffs.tier >= 3 ? (
+                      <p className={styles.helper}>
+                        Hourly instant recall{" "}
+                        {playerSummary.raceBuffs.canInstantRecall
+                          ? "available"
+                          : "spent"}
+                        . It returns one army immediately and loses 5% sent
+                        troops, minimum 1.
+                      </p>
+                    ) : null}
                   </>
                 ) : null}
                 {playerSummary.race === "UNSTABLE_UNICORNS" ? (

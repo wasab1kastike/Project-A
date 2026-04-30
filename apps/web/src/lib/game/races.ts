@@ -99,6 +99,8 @@ export const RACE_DEFINITIONS = [
     passiveSummary: [
       "+6 carry capacity per surviving attacker",
       "+1 army per 10 recruiters",
+      "Stronger Together (T1): 15% of killed defenders join your idle army",
+      "WAAAGH (T3): once per day — x4 attack & defense power, 2× movement speed",
     ],
     modifiers: {
       ...NO_RACE_MODIFIERS,

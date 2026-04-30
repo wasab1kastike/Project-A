@@ -58,8 +58,9 @@ const RACE_ABILITY_NOTES: Record<string, readonly string[]> = {
     `Attack slots scale as ${MAX_SIMULTANEOUS_ATTACKS_BASE} + 2 x castle level.`,
   ],
   ORKS: [
-    "Tier 2+: WAAAGH unlocks (1 hour). During WAAAGH, attack power is boosted by race buff logic.",
-    "Ork raids carry more loot per surviving unit from passive carry bonus.",
+    "Tier 1+: Stronger Together — 15% of killed defenders join your idle army after each successful raid.",
+    "Tier 3+: WAAAGH unlocks (once per day, lasts 1 hour) — x4 attack and defense power, 2x movement speed.",
+    "Ork raids carry extra loot per surviving unit from passive carry bonus.",
   ],
 };
 
@@ -72,7 +73,7 @@ const CASTLE_SPECIALIZATIONS = [
 
 const ATTACK_MULTIPLIERS = [
   "Base PvP/PvE battle power: sent army x 1.",
-  "ORKS WAAAGH: x2 attack power while active.",
+  "ORKS WAAAGH (T3): x4 attack and defense power, 2x movement speed while active.",
   "Dwarf Grudge Book: x1.25 attack power against the chosen target.",
   "Dwarf tier 3 doubled grudge: x1.5 attack power against that target.",
 ] as const;

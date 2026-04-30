@@ -29,6 +29,34 @@ export type AttackCycle = {
   activeEndsAt: Date | null;
 };
 
+async function getOrkWaaghActive({
+  db,
+  fortress,
+  now,
+  raceBuffTier,
+}: {
+  db: DatabaseClient;
+  fortress: { id: string; race?: FortressRace | null };
+  now: Date;
+  raceBuffTier: number;
+}) {
+  if (fortress.race !== "ORKS" || raceBuffTier < 3) {
+    return false;
+  }
+
+  const active = await db.raceAbilityActivation.findFirst({
+    where: {
+      fortressId: fortress.id,
+      kind: RaceAbilityKind.ORK_WAAAGH,
+      activeFrom: { lte: now },
+      activeUntil: { gt: now },
+    },
+    select: { id: true },
+  });
+
+  return Boolean(active);
+}
+
 async function getDwarfAttackSpeedMultiplier({
   db,
   fortress,
@@ -295,20 +323,27 @@ export async function recallAttackUnit({
     }
   }
 
+  const raceBuffTier = getRaceBuffTier({
+    activeStartedAt: cycle.activeStartedAt ?? null,
+    now,
+    isActiveSeason: cycle.status === "ACTIVE",
+  });
   const arrivesAt = getAttackArrivalAt({
     launchedAt: now,
     origin: returnOrigin,
     target: attackUnit.attackerFortress,
     attackerRace: attackUnit.attackerFortress.race,
-    raceBuffTier: getRaceBuffTier({
-      activeStartedAt: cycle.activeStartedAt ?? null,
-      now,
-      isActiveSeason: cycle.status === "ACTIVE",
-    }),
+    raceBuffTier,
     speedMultiplier: await getDwarfAttackSpeedMultiplier({
       db,
       fortress: attackUnit.attackerFortress,
       now,
+    }),
+    waaagh: await getOrkWaaghActive({
+      db,
+      fortress: attackUnit.attackerFortress,
+      now,
+      raceBuffTier,
     }),
   });
 
@@ -348,20 +383,27 @@ export async function launchAttackUnit({
     throw new GameError("You do not have enough army to send that many units.");
   }
 
+  const buffTier = getRaceBuffTier({
+    activeStartedAt: cycle.activeStartedAt ?? null,
+    now: launchedAt,
+    isActiveSeason: cycle.status === "ACTIVE",
+  });
   const arrivesAt = getAttackArrivalAt({
     launchedAt,
     origin: attacker,
     target,
     attackerRace: attacker.race,
-    raceBuffTier: getRaceBuffTier({
-      activeStartedAt: cycle.activeStartedAt ?? null,
-      now: launchedAt,
-      isActiveSeason: cycle.status === "ACTIVE",
-    }),
+    raceBuffTier: buffTier,
     speedMultiplier: await getDwarfAttackSpeedMultiplier({
       db,
       fortress: attacker,
       now: launchedAt,
+    }),
+    waaagh: await getOrkWaaghActive({
+      db,
+      fortress: attacker,
+      now: launchedAt,
+      raceBuffTier: buffTier,
     }),
   });
 
