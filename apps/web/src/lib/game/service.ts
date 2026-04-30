@@ -619,6 +619,25 @@ export async function setFortressAction({
       );
     }
 
+    if (target.fortressKind === FortressKind.DWARF_RUNE) {
+      const runeRoll = await tx.dwarfDeepMiningRoll.findUnique({
+        where: {
+          runeFortressId: target.id,
+        },
+        select: {
+          fortress: {
+            select: {
+              ownerId: true,
+            },
+          },
+        },
+      });
+
+      if (runeRoll?.fortress.ownerId === fortress.ownerId) {
+        throw new GameError("You cannot attack your own Dwarf rune.");
+      }
+    }
+
     const updatedFortress = await tx.fortress.update({
       where: {
         id: fortress.id,
@@ -637,7 +656,17 @@ export async function setFortressAction({
       },
     });
 
-    const maxAttacks = getMaxSimultaneousAttacks(fortress.level, fortress.race);
+    const effectiveRace = (await isFortressFactionSuppressed(
+      tx,
+      fortress.id,
+      now
+    ))
+      ? null
+      : fortress.race;
+    const maxAttacks = getMaxSimultaneousAttacks(
+      fortress.level,
+      effectiveRace
+    );
 
     if (outboundAttackCount >= maxAttacks) {
       throw new GameError(
