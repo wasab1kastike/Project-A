@@ -52,6 +52,7 @@ export type RaidRecallReportInput = {
   attackerName: string;
   sentArmy: number;
   returnedArmy: number;
+  lostArmy?: number;
 };
 
 function formatPercent(value: number) {
@@ -215,8 +216,14 @@ export function formatRaidBattleReport(input: RaidBattleReportInput) {
 }
 
 export function formatRaidRecallReport(input: RaidRecallReportInput) {
-  return [
+  const lines = [
     `Army recalled. ${input.returnedArmy} troops returned home to ${input.attackerName}.`,
     `Sent army: ${input.sentArmy}. Returned army: ${input.returnedArmy}.`,
   ];
+
+  if ((input.lostArmy ?? 0) > 0) {
+    lines.push(`Recall cost: ${input.lostArmy} troops lost.`);
+  }
+
+  return lines;
 }

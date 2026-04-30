@@ -667,6 +667,12 @@ export async function getHomePageState({
         (activation) => activation.kind === RaceAbilityKind.SPACE_MURINE_STIM
       )
     : null;
+  const latestInstantRecallUse = playerFortress
+    ? playerFortress.raceAbilityActivations.find(
+        (activation) =>
+          activation.kind === RaceAbilityKind.SPACE_MURINE_INSTANT_RECALL
+      )
+    : null;
   const activeUnicornTeleportToken = playerFortress
     ? (playerFortress.raceAbilityActivations.find((activation) => {
         return (
@@ -801,6 +807,7 @@ export async function getHomePageState({
               attackerName: unit.attackerFortress.name,
               sentArmy: unit.armyAmount,
               returnedArmy: attackerReturned,
+              lostArmy: unit.attackerRetired ?? 0,
             }),
           };
         }
@@ -817,8 +824,8 @@ export async function getHomePageState({
               ? "ATTACKER_WIN"
               : "DEFENDER_WIN"
             : resolvedAttackPower > resolvedDefensePower
-            ? "ATTACKER_WIN"
-            : "DEFENDER_WIN";
+              ? "ATTACKER_WIN"
+              : "DEFENDER_WIN";
 
         return {
           type: "BATTLE" as const,
@@ -1306,6 +1313,11 @@ export async function getHomePageState({
               latestStimUse.activeUntil > now
                 ? latestStimUse.activeUntil
                 : null,
+            canInstantRecall:
+              playerFortress.race === "SPACE_MURINES" &&
+              (!latestInstantRecallUse ||
+                getHelsinkiHourKey(latestInstantRecallUse.usedAt) !==
+                  currentHourKey),
             canClaimUnicornTeleport:
               playerFortress.race === "UNSTABLE_UNICORNS" &&
               raceBuffTier >= 1 &&

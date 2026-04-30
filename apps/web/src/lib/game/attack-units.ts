@@ -1,7 +1,7 @@
-import { Prisma, PrismaClient } from "@/lib/prisma-client";
+import { Prisma, PrismaClient, RaceAbilityKind } from "@/lib/prisma-client";
 import { getAttackArrivalAt } from "./attacks";
 import { GameError } from "./errors";
-import { getRaceBuffTier } from "./race-buffs";
+import { getHelsinkiHourKey, getRaceBuffTier } from "./race-buffs";
 import type { FortressRace } from "./races";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
@@ -112,6 +112,7 @@ export async function recallAttackUnit({
     },
     select: {
       id: true,
+      armyAmount: true,
       launchedAt: true,
       arrivesAt: true,
       resolvedAt: true,
@@ -162,6 +163,75 @@ export async function recallAttackUnit({
     target: attackUnit.targetFortress,
     now,
   });
+
+  if (attackUnit.attackerFortress.race === "SPACE_MURINES") {
+    const hourKey = getHelsinkiHourKey(now);
+    const latestInstantRecall = await db.raceAbilityActivation.findFirst({
+      where: {
+        fortressId: attackUnit.attackerFortress.id,
+        kind: RaceAbilityKind.SPACE_MURINE_INSTANT_RECALL,
+      },
+      orderBy: [{ usedAt: "desc" }, { id: "desc" }],
+      select: {
+        usedAt: true,
+      },
+    });
+
+    if (
+      !latestInstantRecall ||
+      getHelsinkiHourKey(latestInstantRecall.usedAt) !== hourKey
+    ) {
+      const lostArmy = Math.max(1, Math.ceil(attackUnit.armyAmount * 0.05));
+      const returnedArmy = Math.max(0, attackUnit.armyAmount - lostArmy);
+
+      await db.raceAbilityActivation.create({
+        data: {
+          fortressId: attackUnit.attackerFortress.id,
+          kind: RaceAbilityKind.SPACE_MURINE_INSTANT_RECALL,
+          activeFrom: now,
+          activeUntil: now,
+          usedAt: now,
+        },
+      });
+
+      if (returnedArmy > 0) {
+        await db.fortress.update({
+          where: {
+            id: attackUnit.attackerFortress.id,
+          },
+          data: {
+            army: {
+              increment: returnedArmy,
+            },
+          },
+        });
+      }
+
+      return db.attackUnit.update({
+        where: {
+          id: attackUnit.id,
+        },
+        data: {
+          recalledAt: now,
+          returnOriginMapX: returnOrigin.mapX,
+          returnOriginMapY: returnOrigin.mapY,
+          arrivesAt: now,
+          resolvedAt: now,
+          defenderArmyAtBattleStart: null,
+          resolvedAttackPower: 0,
+          resolvedDefensePower: 0,
+          attackerSurvivors: returnedArmy,
+          attackerRetired: lostArmy,
+          attackerReturned: returnedArmy,
+          defenderLosses: 0,
+          pointsLooted: 0,
+          foodLooted: 0,
+          armyLooted: 0,
+        },
+      });
+    }
+  }
+
   const arrivesAt = getAttackArrivalAt({
     launchedAt: now,
     origin: returnOrigin,

@@ -73,7 +73,12 @@ export const RACE_DEFINITIONS = [
       "In the grim darkness of the sauna, there is only steam.",
     flavorText:
       "Disciplined orbital rodents with clean recruitment lines and reinforced bunker doctrine.",
-    passiveSummary: ["+1 army per 10 recruiters", "+5% defense bonus", "Attack slots: 2 + 2×castle level"],
+    passiveSummary: [
+      "+1 army per 10 recruiters",
+      "+5% defense bonus",
+      "Attack slots: 2 + 2×castle level",
+      "First recall each hour returns instantly, losing 5% sent troops (min 1)",
+    ],
     modifiers: {
       ...NO_RACE_MODIFIERS,
       defenseBonus: 0.05,

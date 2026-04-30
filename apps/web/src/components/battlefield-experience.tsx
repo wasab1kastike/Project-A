@@ -150,6 +150,7 @@ type PlayerSummary = {
     waaaghActiveUntil: Date | null;
     canActivateStim: boolean;
     stimActiveUntil: Date | null;
+    canInstantRecall: boolean;
     canClaimUnicornTeleport: boolean;
     hasUnicornTeleportToken: boolean;
     unicornTeleportTokenExpiresAt: Date | null;
@@ -1513,19 +1514,31 @@ export function BattlefieldExperience({
                   )
                 ) : null}
                 {playerSummary.race === "SPACE_MURINES" ? (
-                  playerSummary.raceBuffs.stimActiveUntil ? (
-                    <p className={styles.helper}>STIM active for this hour.</p>
-                  ) : (
-                    <form action={activateStimAction}>
-                      <button
-                        className={styles.secondaryButton}
-                        type="submit"
-                        disabled={!playerSummary.raceBuffs.canActivateStim}
-                      >
-                        Activate STIM
-                      </button>
-                    </form>
-                  )
+                  <>
+                    <p className={styles.helper}>
+                      Hourly instant recall{" "}
+                      {playerSummary.raceBuffs.canInstantRecall
+                        ? "available"
+                        : "spent"}
+                      . It returns one army immediately and loses 5% sent
+                      troops, minimum 1.
+                    </p>
+                    {playerSummary.raceBuffs.stimActiveUntil ? (
+                      <p className={styles.helper}>
+                        STIM active for this hour.
+                      </p>
+                    ) : (
+                      <form action={activateStimAction}>
+                        <button
+                          className={styles.secondaryButton}
+                          type="submit"
+                          disabled={!playerSummary.raceBuffs.canActivateStim}
+                        >
+                          Activate STIM
+                        </button>
+                      </form>
+                    )}
+                  </>
                 ) : null}
                 {playerSummary.race === "UNSTABLE_UNICORNS" ? (
                   <>

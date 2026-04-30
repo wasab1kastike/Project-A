@@ -48,6 +48,7 @@ const RACE_ABILITY_NOTES: Record<string, readonly string[]> = {
   ],
   SPACE_MURINES: [
     "Tier 2+: STIM unlocks (1 hour). During STIM, your attacks keep all sent troops and defenders take no losses.",
+    "First recall each hour returns instantly, losing 5% of sent troops, minimum 1.",
     `Attack slots scale as ${MAX_SIMULTANEOUS_ATTACKS_BASE} + 2 x castle level.`,
   ],
   ORKS: [

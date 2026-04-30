@@ -54,6 +54,7 @@ enum CastleUpgradeSpecialization {
 enum RaceAbilityKind {
   ORK_WAAAGH
   SPACE_MURINE_STIM
+  SPACE_MURINE_INSTANT_RECALL
   UNICORN_TELEPORT
 }
 
