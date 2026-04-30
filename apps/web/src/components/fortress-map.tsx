@@ -44,6 +44,7 @@ type MapFortress = {
   mapX: number;
   mapY: number;
   spriteSeedId: string;
+  race: "DWARFS" | "UNSTABLE_UNICORNS" | "ORKS" | "SPACE_MURINES" | null;
   unitSpriteVariant: UnitSpriteVariant;
   unitCosmeticVariant: string | null;
   fortressCosmeticVariant: string | null;
@@ -126,6 +127,13 @@ const SPRITE_VARIANTS = [
 ] as const;
 
 type SpriteVariant = (typeof SPRITE_VARIANTS)[number];
+
+const RACE_TOKEN_PATHS: Record<string, string> = {
+  DWARFS: "/assets/token-dwarf.png",
+  ORKS: "/assets/token-orks.png",
+  SPACE_MURINES: "/assets/token-space-murines.png",
+  UNSTABLE_UNICORNS: "/assets/token-unstable-unicorns.png",
+};
 
 function hashString(value: string) {
   let hash = 0;
@@ -1003,6 +1011,11 @@ export function FortressMap({
               const isDwarfRune = fortress.fortressKind === "DWARF_RUNE";
               const isUnicornDecoy = fortress.fortressKind === "UNICORN_DECOY";
               const showsHealth = fortress.fortressKind !== "PLAYER";
+              const effectiveFortressSkin =
+                fortress.fortressCosmeticVariant ??
+                (fortress.race === "UNSTABLE_UNICORNS"
+                  ? `unstable-unicorn-${(hashString(fortress.spriteSeedId) % 2) + 1}`
+                  : null);
               const className = [
                 styles.marker,
                 isMega ? styles.megaMarker : "",
@@ -1063,6 +1076,14 @@ export function FortressMap({
                     }
                   >
                     <span className={styles.selectionPulse} />
+                    {fortress.race && !fortress.isNpc ? (
+                      <span
+                        className={styles.raceToken}
+                        style={{
+                          backgroundImage: `url("${RACE_TOKEN_PATHS[fortress.race]}")`,
+                        }}
+                      />
+                    ) : null}
                     <span className={styles.spriteFrame}>
                       {isMega ? (
                         <MegaFortressSprite
@@ -1075,7 +1096,7 @@ export function FortressMap({
                       ) : (
                         <FortressSprite
                           variant={variant}
-                          skinVariant={fortress.fortressCosmeticVariant}
+                          skinVariant={effectiveFortressSkin}
                         />
                       )}
                     </span>
