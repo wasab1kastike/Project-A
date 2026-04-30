@@ -3,6 +3,9 @@ import styles from "./page.module.css";
 import {
   ACTIVE_LOCATION_SHUFFLE_COST,
   ACTIVE_RENAME_COST,
+  ARCADE_SEASON_BASE_COINS,
+  ARCADE_SEASON_POINTS_BONUS_CAP,
+  ARCADE_SEASON_POINTS_BONUS_DIVISOR,
   ATTACK_UNIT_SPEED_PER_MINUTE,
   BASE_FORTRESS_ATTACK_DAMAGE,
   BASE_FORTRESS_GROWTH,
@@ -14,6 +17,7 @@ import {
   MEGA_FORTRESS_HEALTH,
   MEGA_FORTRESS_NAME,
   MEGA_FORTRESS_SIZE_TILES,
+  getArcadeSeasonRankBonus,
 } from "@/lib/game/constants";
 import {
   ATTACKER_RETIREMENT_RATE,
@@ -222,6 +226,55 @@ export default function WikiPage() {
               </li>
             ))}
           </ol>
+        </article>
+
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>Goal and victory</span>
+          <h2>How to win the season</h2>
+          <p>
+            The main goal is to end the active season with the most points.
+            Points come from your economy, raids, loot camps, and{" "}
+            {MEGA_FORTRESS_NAME} destroy rewards.
+          </p>
+          <div className={styles.twoCol}>
+            <section>
+              <h3>Victory rules</h3>
+              <ul className={styles.noteList}>
+                <li>
+                  The winner is the fortress with the highest point total when
+                  the active season resolves.
+                </li>
+                <li>
+                  If players tie on points, the winner is the tied fortress that
+                  reached that final score first.
+                </li>
+                <li>
+                  Destroying {MEGA_FORTRESS_NAME} is not required to win, but it
+                  unlocks upgrades and can swing the score race.
+                </li>
+              </ul>
+            </section>
+            <section>
+              <h3>Rewards</h3>
+              <ul className={styles.noteList}>
+                <li>
+                  The recorded winner can submit one bounded winner request
+                  after the cycle resolves.
+                </li>
+                <li>
+                  The community can also propose and vote on a community wish
+                  after the season.
+                </li>
+                <li>
+                  Season arcade coins: {ARCADE_SEASON_BASE_COINS} base, plus 1
+                  per {ARCADE_SEASON_POINTS_BONUS_DIVISOR} points up to{" "}
+                  {ARCADE_SEASON_POINTS_BONUS_CAP}, plus rank bonuses for the
+                  top finishers ({getArcadeSeasonRankBonus(1)}/
+                  {getArcadeSeasonRankBonus(2)}/{getArcadeSeasonRankBonus(3)}).
+                </li>
+              </ul>
+            </section>
+          </div>
         </article>
 
         <article className={styles.card}>
