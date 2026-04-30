@@ -27,6 +27,7 @@ import {
 } from "@/lib/game/cosmetic-sprites";
 import type { UnitSpriteVariant } from "@/lib/game/constants";
 import { getRaceDefinition, type FortressRace } from "@/lib/game/races";
+import type { CastleSpecializationCounts } from "@/lib/game/specializations";
 import styles from "./fortress-map.module.css";
 
 type MapFortress = {
@@ -48,6 +49,7 @@ type MapFortress = {
   currentAction: "GROW" | "ATTACK";
   army: number;
   race: FortressRace | null;
+  castleSpecializationCounts: CastleSpecializationCounts;
   mapX: number;
   mapY: number;
   unitSpriteVariant: UnitSpriteVariant;

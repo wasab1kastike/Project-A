@@ -4,6 +4,7 @@ import {
   type RaidOutcome,
 } from "./balance";
 import type { FortressRace } from "./races";
+import type { CastleSpecializationCounts } from "./specializations";
 
 const APPROXIMATE_FORCE_BUCKETS = [10, 100, 300, 500, 1000, 5000, 10000];
 
@@ -13,6 +14,7 @@ export type RaidPreviewInput = {
   targetName: string | null;
   targetDbLevel: number | null;
   targetRace?: FortressRace | null;
+  targetCastleSpecializations?: Partial<CastleSpecializationCounts>;
   targetVisibleArmy?: number | null;
   targetIsUnicornDecoy?: boolean;
   targetDecoyLevel?: number | null;
@@ -29,6 +31,7 @@ export type RaidBattleReportInput = {
   defenderArmyAtBattleStart: number | null;
   defenderDbLevel: number;
   defenderRace?: FortressRace | null;
+  defenderCastleSpecializations?: Partial<CastleSpecializationCounts>;
   resolvedAttackPower?: number;
   resolvedDefensePower: number;
   outcome: RaidOutcome["outcome"];
@@ -117,7 +120,8 @@ export function formatRaidAttackPreview(input: RaidPreviewInput) {
     const displayedLevel = getDisplayedCastleLevel(input.targetDbLevel);
     const defenseBonusPercent = getDefenseBonusPercent(
       input.targetDbLevel,
-      input.targetRace
+      input.targetRace,
+      input.targetCastleSpecializations
     );
 
     lines.push(
@@ -180,7 +184,8 @@ export function formatRaidBattleReport(input: RaidBattleReportInput) {
 
   const defenseBonusPercent = getDefenseBonusPercent(
     input.defenderDbLevel,
-    input.defenderRace
+    input.defenderRace,
+    input.defenderCastleSpecializations
   );
   const displayedCastleLevel = getDisplayedCastleLevel(input.defenderDbLevel);
   const isVictory = input.outcome === "ATTACKER_WIN";

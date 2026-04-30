@@ -39,6 +39,7 @@ import {
   RACE_DEFINITIONS,
   type FortressRace,
 } from "@/lib/game/races";
+import type { CastleSpecializationCounts } from "@/lib/game/specializations";
 import { ChatPanel } from "./chat-panel";
 import {
   FortressMap,
@@ -63,6 +64,7 @@ type CommandTarget = {
   health: number;
   maxHealth: number;
   army: number;
+  castleSpecializationCounts: CastleSpecializationCounts;
   currentAction: "GROW" | "ATTACK";
 };
 
@@ -737,6 +739,8 @@ export function BattlefieldExperience({
       targetName: selectedAttackTarget?.name ?? null,
       targetDbLevel: selectedAttackTarget?.level ?? null,
       targetRace: selectedAttackTarget?.race ?? null,
+      targetCastleSpecializations:
+        selectedAttackTarget?.castleSpecializationCounts,
       targetIsUnicornDecoy:
         selectedAttackTarget?.fortressKind === "UNICORN_DECOY",
       targetDecoyLevel: selectedAttackTarget?.unicornDecoyLevel ?? null,

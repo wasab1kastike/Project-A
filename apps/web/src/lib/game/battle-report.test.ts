@@ -37,6 +37,29 @@ test("raid preview shows the target castle level, defense bonus, and tie warning
   ]);
 });
 
+test("raid preview includes defender castle specialization defense", () => {
+  const lines = formatRaidAttackPreview({
+    availableArmy: 42,
+    sentArmy: 14,
+    targetName: "Iron Gate",
+    targetDbLevel: 0,
+    targetCastleSpecializations: {
+      POINTS: 0,
+      FOOD: 0,
+      MILITARY: 0,
+      DEFENSE: 2,
+    },
+    targetVisibleArmy: 10,
+  });
+
+  assert.deepEqual(lines, [
+    "Available army: 42. Sent army: 14.",
+    "Target: Iron Gate, castle level 1, defense bonus +30%.",
+    "Target army: 10. Estimated defense power: 13.",
+    "Defender wins ties. Sent army leaves your castle immediately.",
+  ]);
+});
+
 test("raid preview shows loot camp reward, timer, and defending army", () => {
   const lines = formatRaidAttackPreview({
     availableArmy: 80,

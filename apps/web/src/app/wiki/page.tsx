@@ -17,6 +17,8 @@ import {
 } from "@/lib/game/constants";
 import {
   ATTACKER_RETIREMENT_RATE,
+  CARRY_CAPACITY_PER_SURVIVOR,
+  DEFENSE_BONUS_PER_DISPLAYED_LEVEL,
   DEFENDER_LOSS_RATE_ON_ATTACKER_WIN,
   FAILED_ATTACK_DEFENDER_CASUALTY_FACTOR,
   MAX_FOOD_LOOT_PERCENT,
@@ -58,7 +60,30 @@ const CASTLE_SPECIALIZATIONS = [
   "Points: +10% point production per pick.",
   "Food: +10% food production per pick.",
   "Military: +10% army production per pick.",
-  "Defense: +10% defense per pick.",
+  "Defense: +10% PvP defending power per pick.",
+] as const;
+
+const ATTACK_MULTIPLIERS = [
+  "Base PvP/PvE battle power: sent army x 1.",
+  "ORKS WAAAGH: x2 attack power while active.",
+  "Dwarf Grudge Book: x1.25 attack power against the chosen target.",
+  "Dwarf tier 3 doubled grudge: x1.5 attack power against that target.",
+] as const;
+
+const PVP_FORMULAS = [
+  "Attack power = sent army x active attack multiplier.",
+  `Defense power = defending army x (1 + displayed castle level x ${Math.round(
+    DEFENSE_BONUS_PER_DISPLAYED_LEVEL * 100
+  )}% + race defense + Defense specialization picks x 10%) x active defense multiplier.`,
+  "Attacker wins only when attack power is greater than defense power. Equal power is a defender win.",
+  `Failed attacks lose all sent army. Defender losses on a failed attack are ceil((attack power / defense multiplier) x ${FAILED_ATTACK_DEFENDER_CASUALTY_FACTOR}).`,
+] as const;
+
+const PVE_FORMULAS = [
+  `Fortress health damage per surviving hit = sent army x (${BASE_FORTRESS_ATTACK_DAMAGE} + attacker castle level x ${FORTRESS_ATTACK_DAMAGE_PER_LEVEL}).`,
+  "Attacker castle level affects PvE health damage, not the initial army-vs-army battle power check.",
+  "Loot camps first compare attack power against the camp defending army. If the attacker wins, the camp loses health.",
+  `${MEGA_FORTRESS_NAME} has no normal defending army check; attacks directly damage its health with castle-level-scaled fortress attack damage.`,
 ] as const;
 
 const homeOfALore =
@@ -263,6 +288,10 @@ export default function WikiPage() {
                   {FORTRESS_ATTACK_DAMAGE_PER_LEVEL} per castle level.
                 </li>
                 <li>
+                  Castle level increases PvE fortress HP damage, but does not
+                  increase PvP attack power.
+                </li>
+                <li>
                   Standard simultaneous attack slots start at{" "}
                   {MAX_SIMULTANEOUS_ATTACKS_BASE}.
                 </li>
@@ -380,30 +409,51 @@ export default function WikiPage() {
           <h2>How raids resolve</h2>
           <div className={styles.twoCol}>
             <section>
-              <h3>Battle flow</h3>
+              <h3>PvP power check</h3>
               <ul className={styles.noteList}>
                 <li>
                   Units travel using map distance and speed (
                   {ATTACK_UNIT_SPEED_PER_MINUTE} tiles/min baseline).
                 </li>
+                {PVP_FORMULAS.map((entry) => (
+                  <li key={entry}>{entry}</li>
+                ))}
+              </ul>
+            </section>
+            <section>
+              <h3>Attack multipliers</h3>
+              <ul className={styles.noteList}>
+                {ATTACK_MULTIPLIERS.map((entry) => (
+                  <li key={entry}>{entry}</li>
+                ))}
                 <li>
-                  At impact, attacker power is compared against defender power.
-                </li>
-                <li>Ties go to the defender.</li>
-                <li>
-                  On attacker win, defender loses about{" "}
-                  {Math.round(DEFENDER_LOSS_RATE_ON_ATTACKER_WIN * 100)}% of
-                  defending army.
+                  Space Murine STIM changes casualties and defender losses, but
+                  does not increase attack power.
                 </li>
                 <li>
-                  On failed attack, defender losses are reduced by a failure
-                  factor ({FAILED_ATTACK_DEFENDER_CASUALTY_FACTOR}).
+                  Unstable Unicorn speed changes travel time and visibility, not
+                  attack power.
                 </li>
+              </ul>
+            </section>
+          </div>
+          <div className={styles.twoCol}>
+            <section>
+              <h3>PvE health damage</h3>
+              <ul className={styles.noteList}>
+                {PVE_FORMULAS.map((entry) => (
+                  <li key={entry}>{entry}</li>
+                ))}
               </ul>
             </section>
             <section>
               <h3>Survivors and loot</h3>
               <ul className={styles.noteList}>
+                <li>
+                  On attacker win, defender loses about{" "}
+                  {Math.round(DEFENDER_LOSS_RATE_ON_ATTACKER_WIN * 100)}% of
+                  defending army.
+                </li>
                 <li>
                   Winner survivor model uses base + margin factors (
                   {WINNING_ATTACKER_BASE_SURVIVAL_FACTOR} and{" "}
@@ -412,6 +462,10 @@ export default function WikiPage() {
                 <li>
                   {Math.round(ATTACKER_RETIREMENT_RATE * 100)}% of surviving
                   attackers retire after a win; the rest return.
+                </li>
+                <li>
+                  Survivors carry {CARRY_CAPACITY_PER_SURVIVOR} loot each before
+                  race bonuses.
                 </li>
                 <li>
                   Loot caps: up to {Math.round(MAX_POINT_LOOT_PERCENT * 100)}%

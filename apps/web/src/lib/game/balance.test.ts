@@ -183,6 +183,24 @@ test("castle specializations stack production and defense bonuses", () => {
     }),
     1.3
   );
+
+  const specializedDefense = calculateRaidOutcome({
+    attackArmy: 12,
+    defenderArmy: 10,
+    defenderDbLevel: 0,
+    defenderCastleSpecializations: {
+      POINTS: 0,
+      FOOD: 0,
+      MILITARY: 0,
+      DEFENSE: 2,
+    },
+    defenderPoints: 20,
+    defenderFood: 20,
+  });
+
+  assert.equal(specializedDefense.outcome, "DEFENDER_WIN");
+  assert.equal(specializedDefense.defenseMultiplier, 1.3);
+  assert.equal(specializedDefense.defensePower, 13);
 });
 
 test("race combat buffs can adjust power and casualty handling", () => {

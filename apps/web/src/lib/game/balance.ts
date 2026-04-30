@@ -44,6 +44,7 @@ export type RaidOutcomeInput = {
   defenderArmy: number;
   defenderDbLevel: number;
   defenderRace?: FortressRace | null;
+  defenderCastleSpecializations?: Partial<CastleSpecializationCounts>;
   attackPowerMultiplier?: number;
   defensePowerMultiplier?: number;
   preventAttackerCasualties?: boolean;
@@ -286,13 +287,15 @@ export function calculateRaidOutcome(input: RaidOutcomeInput): RaidOutcome {
   );
   const defenseMultiplier = getFortressDefenseMultiplier(
     input.defenderDbLevel,
-    input.defenderRace
+    input.defenderRace,
+    input.defenderCastleSpecializations
   );
   const defensePower = Math.floor(
     getEffectiveDefendingArmy(
       defenderArmy,
       input.defenderDbLevel,
-      input.defenderRace
+      input.defenderRace,
+      input.defenderCastleSpecializations
     ) * Math.max(0, input.defensePowerMultiplier ?? 1)
   );
   const attackerWon = attackPower > defensePower;

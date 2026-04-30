@@ -750,6 +750,11 @@ export async function getHomePageState({
                 level: true,
                 race: true,
                 maxHealth: true,
+                castleUpgradeSpecializations: {
+                  select: {
+                    specialization: true,
+                  },
+                },
               },
             },
           },
@@ -803,6 +808,9 @@ export async function getHomePageState({
         const resolvedAttackPower = unit.resolvedAttackPower ?? unit.armyAmount;
         const resolvedDefensePower = unit.resolvedDefensePower ?? 0;
         const defenderDbLevel = unit.targetFortress.level;
+        const defenderCastleSpecializationCounts = countCastleSpecializations(
+          unit.targetFortress.castleUpgradeSpecializations
+        );
         const outcome: "ATTACKER_WIN" | "DEFENDER_WIN" =
           unit.targetFortress.fortressKind === FortressKind.LOOT_CAMP
             ? resolvedAttackPower > 0
@@ -830,11 +838,13 @@ export async function getHomePageState({
           defenderDbLevel,
           defenseBonusPercent: getDefenseBonusPercent(
             defenderDbLevel,
-            unit.targetFortress.race
+            unit.targetFortress.race,
+            defenderCastleSpecializationCounts
           ),
           defenseMultiplier: getFortressDefenseMultiplier(
             defenderDbLevel,
-            unit.targetFortress.race
+            unit.targetFortress.race,
+            defenderCastleSpecializationCounts
           ),
           resolvedAttackPower,
           resolvedDefensePowerEstimate:
@@ -854,6 +864,7 @@ export async function getHomePageState({
             defenderArmyAtBattleStart: unit.defenderArmyAtBattleStart,
             defenderDbLevel,
             defenderRace: unit.targetFortress.race,
+            defenderCastleSpecializations: defenderCastleSpecializationCounts,
             resolvedDefensePower,
             outcome,
             attackerSurvivors: unit.attackerSurvivors ?? 0,
@@ -917,6 +928,9 @@ export async function getHomePageState({
     ),
     food: fortress.food,
     army: fortress.army,
+    castleSpecializationCounts: countCastleSpecializations(
+      fortress.castleUpgradeSpecializations
+    ),
     minersAssigned: fortress.minersAssigned,
     farmersAssigned: fortress.farmersAssigned,
     recruitersAssigned: fortress.recruitersAssigned,
@@ -1445,6 +1459,9 @@ export async function getHomePageState({
               health: fortress.health,
               maxHealth: fortress.maxHealth,
               army: fortress.army,
+              castleSpecializationCounts: countCastleSpecializations(
+                fortress.castleUpgradeSpecializations
+              ),
               currentAction: fortress.currentAction,
             }))
         : [],

@@ -1671,6 +1671,9 @@ async function processCycleTick(
         defenderArmy,
         defenderDbLevel: target.level,
         defenderRace: target.race,
+        defenderCastleSpecializations: countCastleSpecializations(
+          target.castleUpgradeSpecializations
+        ),
         attackPowerMultiplier: (attackerWaaagh ? 2 : 1) * dwarfAttackMultiplier,
         defensePowerMultiplier:
           (defenderWaaagh ? 2 : 1) * dwarfDefenseMultiplier,
