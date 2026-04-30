@@ -26,7 +26,7 @@ import {
   getDefaultRaceCosmeticVariant,
 } from "@/lib/game/cosmetic-sprites";
 import type { UnitSpriteVariant } from "@/lib/game/constants";
-import type { FortressRace } from "@/lib/game/races";
+import { getRaceDefinition, type FortressRace } from "@/lib/game/races";
 import styles from "./fortress-map.module.css";
 
 type MapFortress = {
@@ -122,6 +122,13 @@ const BIOME_LABELS: Record<HexBiome, string> = {
   lake: "Lake",
 };
 
+const RACE_TOKEN_PATHS: Record<FortressRace, string> = {
+  DWARFS: "/assets/token-dwarf.png",
+  ORKS: "/assets/token-orks.png",
+  SPACE_MURINES: "/assets/token-space-murines.png",
+  UNSTABLE_UNICORNS: "/assets/token-unstable-unicorns.png",
+};
+
 const SPRITE_VARIANTS = [
   "citadel",
   "forge",
@@ -149,6 +156,10 @@ function clampValue(value: number, min: number, max: number) {
 
 function getSpriteVariant(fortress: MapFortress): SpriteVariant {
   return SPRITE_VARIANTS[hashString(fortress.id) % SPRITE_VARIANTS.length];
+}
+
+function getRaceTokenPath(race: FortressRace) {
+  return RACE_TOKEN_PATHS[race];
 }
 
 function FortressSprite({
@@ -1018,6 +1029,13 @@ export function FortressMap({
               const isMega = fortress.fortressKind === "MEGA";
               const isUnicornDecoy = fortress.fortressKind === "UNICORN_DECOY";
               const isLootCamp = fortress.fortressKind === "LOOT_CAMP";
+              const raceDefinition = getRaceDefinition(fortress.race);
+              const raceLabel = raceDefinition?.displayName ?? null;
+              const showRaceToken =
+                !fortress.isNpc &&
+                fortress.fortressKind === "PLAYER" &&
+                fortress.race !== null &&
+                raceLabel !== null;
               const lootCampSecondsRemaining = fortress.expiresAt
                 ? Math.max(
                     0,
@@ -1091,7 +1109,7 @@ export function FortressMap({
                             )} remaining`
                           : isUnicornDecoy
                             ? `${fortress.name}, Unicorn decoy, ${200 * Math.max(1, fortress.unicornDecoyLevel ?? 1)} army backlash`
-                            : `${fortress.name}, ${fortress.points} points`
+                            : `${fortress.name}, ${raceLabel ? `${raceLabel}, ` : ""}${fortress.points} points`
                     }
                   >
                     <span className={styles.selectionPulse} />
@@ -1116,6 +1134,17 @@ export function FortressMap({
                         />
                       )}
                     </span>
+                    {showRaceToken && fortress.race ? (
+                      <span
+                        className={styles.raceToken}
+                        style={{
+                          backgroundImage: `url("${getRaceTokenPath(
+                            fortress.race
+                          )}")`,
+                        }}
+                        aria-hidden="true"
+                      />
+                    ) : null}
                     {isMega || isUnicornDecoy || isLootCamp ? (
                       <span className={styles.pointsBadge}>
                         {isLootCamp
@@ -1142,7 +1171,7 @@ export function FortressMap({
                               )}`
                             : isUnicornDecoy
                               ? `Decoy L${fortress.unicornDecoyLevel ?? 1}`
-                              : `${fortress.points} pts${
+                              : `${raceLabel ? `${raceLabel} - ` : ""}${fortress.points} pts${
                                   fortress.isSlayerOfA ? " - Slayer of A" : ""
                                 }`}
                       </span>

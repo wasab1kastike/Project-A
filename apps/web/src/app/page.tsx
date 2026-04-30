@@ -19,6 +19,7 @@ import {
 } from "@/app/game-actions";
 import { COMMUNITY_WISH_MAX_LENGTH } from "@/lib/game/community-wishes";
 import { getHomePageState, type HomePageState } from "@/lib/game/read-model";
+import { RACE_DEFINITIONS, type FortressRace } from "@/lib/game/races";
 import {
   PATCH_NOTES_PAGE_HREF,
   PRIMARY_GAME_NAV_LINKS,
@@ -33,6 +34,13 @@ const dateTimeFormatter = new Intl.DateTimeFormat("en-US", {
   dateStyle: "medium",
   timeStyle: "short",
 });
+
+const RACE_TOKEN_PATHS: Record<FortressRace, string> = {
+  DWARFS: "/assets/token-dwarf.png",
+  ORKS: "/assets/token-orks.png",
+  SPACE_MURINES: "/assets/token-space-murines.png",
+  UNSTABLE_UNICORNS: "/assets/token-unstable-unicorns.png",
+};
 
 function getSearchValue(
   value: string | string[] | undefined
@@ -180,6 +188,16 @@ export default async function Home({
   const blockingMessage = runtimeError ?? error ?? null;
   const joinedText = state.cycle ? `${state.cycle.joinedCount} / 30` : "0 / 30";
   const remainingText = `${state.cycle?.remainingSlots ?? 30} slots`;
+  const raceCounts = RACE_DEFINITIONS.map((race) => ({
+    key: race.key,
+    label: race.displayName,
+    count: state.mapFortresses.filter(
+      (fortress) =>
+        !fortress.isNpc &&
+        fortress.fortressKind === "PLAYER" &&
+        fortress.race === race.key
+    ).length,
+  }));
   const leaderboard = state.leaderboard.slice(0, 3);
   const isGameplayPhase =
     state.phase?.status === "ACTIVE" || state.phase?.status === "TESTING";
@@ -215,9 +233,9 @@ export default async function Home({
     !state.phase || state.phase.status === "RESOLUTION" || !state.cycle;
   const showWinnerWishPrompt = Boolean(
     session?.user?.id &&
-      state.latestSeason &&
-      state.latestSeason.winnerId === session.user.id &&
-      state.latestSeason.winnerRequestId === null
+    state.latestSeason &&
+    state.latestSeason.winnerId === session.user.id &&
+    state.latestSeason.winnerRequestId === null
   );
   const showSeasonBanner = Boolean(
     state.latestSeason && (isWaitingForSeason || showWinnerWishPrompt)
@@ -236,13 +254,15 @@ export default async function Home({
     state.phase?.status === "REGISTRATION"
       ? {
           title: "Build phase is open.",
-          description: "Claim a fortress and wait for the next season to begin.",
+          description:
+            "Claim a fortress and wait for the next season to begin.",
           nextAction: state.playerFortress
             ? "You are locked in. Testing opens for the final 24 hours before season start."
             : "Join before testing starts to take part in the next season.",
           timerLabel: "Testing starts",
           battlefieldTitle: "Build phase map",
-          battlefieldDescription: "Fortresses appear as players join the build phase.",
+          battlefieldDescription:
+            "Fortresses appear as players join the build phase.",
         }
       : state.phase?.status === "TESTING"
         ? {
@@ -259,28 +279,29 @@ export default async function Home({
             battlefieldDescription:
               "Sandbox combat is live. Race, resources, attacks and upgrades reset at season start.",
           }
-      : state.phase?.status === "ACTIVE"
-        ? {
-            title: "Season is live.",
-            description: "Moves are being resolved in real time.",
-            nextAction: state.playerSummary
-              ? "Pick a target on the map or open Castle to submit your move."
-              : state.canJoinCycle
-                ? "You can still join this running season while slots are available."
-                : "Follow the live map and wait for the next registration.",
-            timerLabel: "Cycle ends",
-            battlefieldTitle: "Live battlefield",
-            battlefieldDescription: "Choose a target and lock your next move.",
-          }
-        : {
-            title: "Next season is not live yet.",
-            description: "The current cycle is closed.",
-            nextAction: "Check history and return when registration opens.",
-            timerLabel: "Current cycle",
-            battlefieldTitle: "Battlefield",
-            battlefieldDescription:
-              "The map updates when the next season starts.",
-          };
+        : state.phase?.status === "ACTIVE"
+          ? {
+              title: "Season is live.",
+              description: "Moves are being resolved in real time.",
+              nextAction: state.playerSummary
+                ? "Pick a target on the map or open Castle to submit your move."
+                : state.canJoinCycle
+                  ? "You can still join this running season while slots are available."
+                  : "Follow the live map and wait for the next registration.",
+              timerLabel: "Cycle ends",
+              battlefieldTitle: "Live battlefield",
+              battlefieldDescription:
+                "Choose a target and lock your next move.",
+            }
+          : {
+              title: "Next season is not live yet.",
+              description: "The current cycle is closed.",
+              nextAction: "Check history and return when registration opens.",
+              timerLabel: "Current cycle",
+              battlefieldTitle: "Battlefield",
+              battlefieldDescription:
+                "The map updates when the next season starts.",
+            };
 
   const centerTitle = blockingMessage
     ? "Something needs attention."
@@ -293,7 +314,7 @@ export default async function Home({
             ? "Join the running season."
             : state.phase?.status === "TESTING"
               ? "Join testing."
-            : "Claim your fortress."
+              : "Claim your fortress."
           : phaseCopy.title;
 
   const centerDescription = blockingMessage
@@ -307,7 +328,7 @@ export default async function Home({
             ? "This season is already running. Join now to enter immediately if slots are still available."
             : state.phase?.status === "TESTING"
               ? "Testing mode is live. Join now to test the sandbox; only your roster identity carries into the real season."
-            : "Build phase is open. Name your fortress now and it will appear on the map."
+              : "Build phase is open. Name your fortress now and it will appear on the map."
           : (state.cycle?.statusMessage ?? state.emptyStateMessage);
 
   return (
@@ -317,9 +338,7 @@ export default async function Home({
         cycleId={state.cycle?.id ?? null}
         megaFortressDestroyCount={state.cycle?.megaFortressDestroyCount ?? 0}
       />
-      <GodEmperorGiftNotice
-        fortressName={state.playerSummary?.name}
-      />
+      <GodEmperorGiftNotice fortressName={state.playerSummary?.name} />
 
       <div className={styles.mapLayer}>
         <BattlefieldExperience
@@ -373,6 +392,27 @@ export default async function Home({
               <dd>{remainingText}</dd>
             </div>
           </dl>
+          <div className={styles.raceCounter} aria-label="Players by race">
+            {raceCounts.map((race) => (
+              <span
+                className={styles.raceCount}
+                title={`${race.label}: ${race.count}`}
+                key={race.key}
+              >
+                <span
+                  className={styles.raceCountToken}
+                  style={{
+                    backgroundImage: `url("${RACE_TOKEN_PATHS[race.key]}")`,
+                  }}
+                  aria-hidden="true"
+                />
+                <span className={styles.raceCountValue}>
+                  <span className={styles.raceCountLabel}>{race.label}</span>
+                  {race.count}
+                </span>
+              </span>
+            ))}
+          </div>
         </div>
 
         <nav className={styles.topLinks} aria-label="Account and pages">
@@ -380,17 +420,15 @@ export default async function Home({
             {session?.user ? userLabel : "Guest"}
           </span>
           <SeasonUpdateAnnouncement userId={session?.user?.id ?? null} />
-          {PRIMARY_GAME_NAV_LINKS
-            .filter(
-              (link) =>
-                link.href !== PATCH_NOTES_PAGE_HREF &&
-                link.href !== WIKI_PAGE_HREF
-            )
-            .map((link) => (
+          {PRIMARY_GAME_NAV_LINKS.filter(
+            (link) =>
+              link.href !== PATCH_NOTES_PAGE_HREF &&
+              link.href !== WIKI_PAGE_HREF
+          ).map((link) => (
             <Link className={styles.hudButton} href={link.href} key={link.href}>
               {link.label}
             </Link>
-            ))}
+          ))}
           <Link className={styles.hudButton} href={WIKI_PAGE_HREF}>
             Wiki
           </Link>
@@ -433,14 +471,18 @@ export default async function Home({
                                 Winner wish is guaranteed. Community wish is
                                 vote-based.
                               </li>
-                              <li>Wishes lock Monday 12:00 after the season.</li>
+                              <li>
+                                Wishes lock Monday 12:00 after the season.
+                              </li>
                               <li>Voting closes Monday 24:00.</li>
                               <li>Write in English.</li>
                               <li>
                                 Keep it short: max {COMMUNITY_WISH_MAX_LENGTH}{" "}
                                 characters.
                               </li>
-                              <li>Ask for one feature idea, not a full spec.</li>
+                              <li>
+                                Ask for one feature idea, not a full spec.
+                              </li>
                               <li>
                                 No self-buffs, targeted nerfs, more wishes, or
                                 deploy requests.
@@ -473,7 +515,9 @@ export default async function Home({
                       name="cycleId"
                       value={state.communityWish.cycleId}
                     />
-                    <span className={styles.voteSectionLabel}>Community vote</span>
+                    <span className={styles.voteSectionLabel}>
+                      Community vote
+                    </span>
                     <p className={styles.voteHint}>
                       You have {state.communityWish.voteBudget} votes.{" "}
                       {state.communityWish.usedVotes} currently allocated. You
@@ -516,17 +560,21 @@ export default async function Home({
                 ) : null}
                 {state.communityWish.proposals.length > 0 ? (
                   <ol className={styles.wishList}>
-                    {state.communityWish.proposals.slice(0, 4).map((proposal) => (
-                      <li key={proposal.id}>
-                        <strong>
-                          {proposal.isCurrentUser ? "Your wish" : "Community wish"}
-                        </strong>
-                        <span>
-                          {proposal.voteCount} votes - {proposal.status}
-                        </span>
-                        <p>{proposal.requestText}</p>
-                      </li>
-                    ))}
+                    {state.communityWish.proposals
+                      .slice(0, 4)
+                      .map((proposal) => (
+                        <li key={proposal.id}>
+                          <strong>
+                            {proposal.isCurrentUser
+                              ? "Your wish"
+                              : "Community wish"}
+                          </strong>
+                          <span>
+                            {proposal.voteCount} votes - {proposal.status}
+                          </span>
+                          <p>{proposal.requestText}</p>
+                        </li>
+                      ))}
                   </ol>
                 ) : (
                   <p>No community wishes have been suggested yet.</p>
@@ -534,13 +582,13 @@ export default async function Home({
               </section>
             </details>
           ) : null}
-          {PRIMARY_GAME_NAV_LINKS
-            .filter((link) => link.href === PATCH_NOTES_PAGE_HREF)
-            .map((link) => (
-              <Link className={styles.hudButton} href={link.href} key={link.href}>
-                {link.label}
-              </Link>
-            ))}
+          {PRIMARY_GAME_NAV_LINKS.filter(
+            (link) => link.href === PATCH_NOTES_PAGE_HREF
+          ).map((link) => (
+            <Link className={styles.hudButton} href={link.href} key={link.href}>
+              {link.label}
+            </Link>
+          ))}
           {isAdmin ? (
             <Link className={styles.hudButton} href="/admin">
               Admin

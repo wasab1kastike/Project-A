@@ -113,6 +113,56 @@
   gap: 8px;
 }
 
+.raceCounter {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 6px;
+  border: 1px solid var(--border-soft);
+  border-radius: 7px;
+  background: rgba(6, 12, 18, 0.68);
+}
+
+.raceCount {
+  min-width: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 2px 5px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.raceCountToken {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  image-rendering: pixelated;
+}
+
+.raceCountValue {
+  color: var(--foreground);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.raceCountLabel {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .tickStatus {
   min-height: 30px;
   display: inline-flex;
@@ -876,6 +926,23 @@
   .hudStats {
     flex: 0 0 auto;
     gap: 5px;
+  }
+
+  .raceCounter {
+    flex: 0 0 auto;
+    min-height: 40px;
+    gap: 4px;
+    padding: 5px;
+  }
+
+  .raceCount {
+    min-width: 38px;
+    padding: 2px 4px;
+  }
+
+  .raceCountToken {
+    width: 20px;
+    height: 20px;
   }
 
   .hudStats div {
