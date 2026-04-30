@@ -15,7 +15,7 @@ import {
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
-export const LOOT_CAMP_LIFETIME_MINUTES = 10;
+export const LOOT_CAMP_LIFETIME_MINUTES = 30;
 export const LOOT_CAMP_MIN_STRENGTH = 100;
 export const LOOT_CAMP_MAX_STRENGTH = 10000;
 export const LOOT_CAMP_MIN_SPAWNS_PER_HOUR = 1;
@@ -27,6 +27,21 @@ export type LootCampReward = {
   army: number;
   resetRaceCooldown: boolean;
 };
+
+export function getLootCampDefenseArmy(
+  variant: LootCampVariant | null,
+  strength: number
+) {
+  if (variant === LootCampVariant.CHAOS) {
+    return Math.max(12, Math.floor(strength * 0.12));
+  }
+
+  if (variant === LootCampVariant.RICH) {
+    return Math.max(8, Math.floor(strength * 0.08));
+  }
+
+  return Math.max(5, Math.floor(strength * 0.05));
+}
 
 type LootCampScheduleEntry = {
   slot: number;
@@ -357,7 +372,7 @@ export async function spawnScheduledLootCamps({
         commanderNameRegisteredAt: tickAt,
         name,
         food: 0,
-        army: 0,
+        army: getLootCampDefenseArmy(variant, strength),
         minersAssigned: 0,
         farmersAssigned: 0,
         recruitersAssigned: 0,

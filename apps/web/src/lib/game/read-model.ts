@@ -804,7 +804,11 @@ export async function getHomePageState({
         const resolvedDefensePower = unit.resolvedDefensePower ?? 0;
         const defenderDbLevel = unit.targetFortress.level;
         const outcome: "ATTACKER_WIN" | "DEFENDER_WIN" =
-          resolvedAttackPower > resolvedDefensePower
+          unit.targetFortress.fortressKind === FortressKind.LOOT_CAMP
+            ? resolvedAttackPower > 0
+              ? "ATTACKER_WIN"
+              : "DEFENDER_WIN"
+            : resolvedAttackPower > resolvedDefensePower
             ? "ATTACKER_WIN"
             : "DEFENDER_WIN";
 
@@ -1440,6 +1444,7 @@ export async function getHomePageState({
               unicornDecoyLevel: fortress.unicornDecoyLevel,
               health: fortress.health,
               maxHealth: fortress.maxHealth,
+              army: fortress.army,
               currentAction: fortress.currentAction,
             }))
         : [],

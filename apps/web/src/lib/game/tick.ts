@@ -1168,6 +1168,19 @@ async function processCycleTick(
             targetUnit.targetFortressId === target.id &&
             !resolvedBatchAttackUnitIds.has(targetUnit.id)
         );
+        const lootCampOutcomes = new Map<
+          string,
+          {
+            attackPower: number;
+            defensePower: number;
+            attackerSurvivors: number;
+            attackerRetired: number;
+            attackerReturned: number;
+            defenderLosses: number;
+            targetLoss: number;
+            defenderArmyAtBattleStart: number;
+          }
+        >();
         let destroyer: {
           unitId: string;
           attacker: NonNullable<typeof attacker>;
@@ -1183,15 +1196,40 @@ async function processCycleTick(
           }
 
           const targetHealth = currentHealth.get(target.id) ?? target.health;
+          const defenderArmy = currentArmy.get(target.id) ?? target.army;
+          const outcome = calculateRaidOutcome({
+            attackArmy: targetUnit.armyAmount,
+            attackerRace: targetAttacker.race,
+            defenderArmy,
+            defenderDbLevel: 0,
+            defenderRace: null,
+            defenderPoints: 0,
+            defenderFood: 0,
+          });
+          const attackerWon = outcome.outcome === "ATTACKER_WIN";
+          const defenderArmyAfterBattle = Math.max(
+            0,
+            defenderArmy - outcome.defenderLosses
+          );
           const targetLoss = Math.min(
             targetHealth,
-            targetUnit.armyAmount *
-              getFortressAttackDamage(targetAttacker.level)
+            attackerWon
+              ? targetUnit.armyAmount *
+                  getFortressAttackDamage(targetAttacker.level)
+              : 0
           );
 
-          if (targetLoss <= 0) {
-            continue;
-          }
+          currentArmy.set(target.id, defenderArmyAfterBattle);
+          lootCampOutcomes.set(targetUnit.id, {
+            attackPower: outcome.attackPower,
+            defensePower: outcome.defensePower,
+            attackerSurvivors: outcome.attackerSurvivors,
+            attackerRetired: outcome.attackerRetired,
+            attackerReturned: outcome.attackerReturned,
+            defenderLosses: outcome.defenderLosses,
+            targetLoss,
+            defenderArmyAtBattleStart: defenderArmy,
+          });
 
           const nextHealth = targetHealth - targetLoss;
           currentHealth.set(target.id, nextHealth);
@@ -1252,7 +1290,8 @@ async function processCycleTick(
           const targetAttacker = fortressLookup.get(
             targetUnit.attackerFortressId
           );
-          const attackerReturned = targetUnit.armyAmount;
+          const outcome = lootCampOutcomes.get(targetUnit.id);
+          const attackerReturned = outcome?.attackerReturned ?? 0;
           const unitGetsReward =
             Boolean(destroyer) && targetUnit.id === destroyer?.unitId && reward;
           const unitReward = unitGetsReward
@@ -1263,7 +1302,31 @@ async function processCycleTick(
                 army: 0,
               };
 
-          if (targetAttacker && attackerReturned > 0) {
+          if (!targetAttacker || !outcome) {
+            await tx.attackUnit.update({
+              where: {
+                id: targetUnit.id,
+              },
+              data: {
+                resolvedAt: tickAt,
+                defenderArmyAtBattleStart: null,
+                resolvedAttackPower: 0,
+                resolvedDefensePower: 0,
+                attackerSurvivors: 0,
+                attackerRetired: targetUnit.armyAmount,
+                attackerReturned: 0,
+                defenderLosses: 0,
+                pointsLooted: 0,
+                foodLooted: 0,
+                armyLooted: 0,
+              },
+            });
+            resolvedAttackUnits += 1;
+            resolvedBatchAttackUnitIds.add(targetUnit.id);
+            continue;
+          }
+
+          if (attackerReturned > 0) {
             const returnArrivesAt = getAttackArrivalAt({
               launchedAt: tickAt,
               origin: {
@@ -1287,13 +1350,13 @@ async function processCycleTick(
                 returnOriginMapX: target.mapX,
                 returnOriginMapY: target.mapY,
                 arrivesAt: returnArrivesAt,
-                defenderArmyAtBattleStart: null,
-                resolvedAttackPower: targetUnit.armyAmount,
-                resolvedDefensePower: target.maxHealth,
-                attackerSurvivors: targetUnit.armyAmount,
-                attackerRetired: 0,
+                defenderArmyAtBattleStart: outcome.defenderArmyAtBattleStart,
+                resolvedAttackPower: outcome.targetLoss,
+                resolvedDefensePower: outcome.defensePower,
+                attackerSurvivors: outcome.attackerSurvivors,
+                attackerRetired: outcome.attackerRetired,
                 attackerReturned,
-                defenderLosses: 0,
+                defenderLosses: outcome.defenderLosses,
                 pointsLooted: unitReward.points,
                 foodLooted: unitReward.food,
                 armyLooted: unitReward.army,
@@ -1306,13 +1369,13 @@ async function processCycleTick(
               },
               data: {
                 resolvedAt: tickAt,
-                defenderArmyAtBattleStart: null,
-                resolvedAttackPower: targetUnit.armyAmount,
-                resolvedDefensePower: target.maxHealth,
-                attackerSurvivors: targetUnit.armyAmount,
-                attackerRetired: 0,
+                defenderArmyAtBattleStart: outcome.defenderArmyAtBattleStart,
+                resolvedAttackPower: outcome.targetLoss,
+                resolvedDefensePower: outcome.defensePower,
+                attackerSurvivors: outcome.attackerSurvivors,
+                attackerRetired: outcome.attackerRetired,
                 attackerReturned,
-                defenderLosses: 0,
+                defenderLosses: outcome.defenderLosses,
                 pointsLooted: unitReward.points,
                 foodLooted: unitReward.food,
                 armyLooted: unitReward.army,

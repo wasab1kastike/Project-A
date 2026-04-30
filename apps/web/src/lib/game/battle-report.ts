@@ -19,6 +19,7 @@ export type RaidPreviewInput = {
   targetIsLootCamp?: boolean;
   targetLootCampVariant?: string | null;
   targetLootCampStrength?: number | null;
+  targetLootCampDefenseArmy?: number | null;
 };
 
 export type RaidBattleReportInput = {
@@ -97,10 +98,10 @@ export function formatRaidAttackPreview(input: RaidPreviewInput) {
               : "loot";
 
       lines.push(
-        `Target: ${input.targetName}, strength ${input.targetLootCampStrength ?? "unknown"}, rewards ${reward}.`
+        `Target: ${input.targetName}, strength ${input.targetLootCampStrength ?? "unknown"}, defending army ${input.targetLootCampDefenseArmy ?? "unknown"}, rewards ${reward}.`
       );
       lines.push(
-        "Loot camps vanish after 10 minutes and pay only when destroyed."
+        "Loot camps vanish after 30 minutes, fight back, and pay only when destroyed."
       );
       return lines;
     }
@@ -169,8 +170,10 @@ export function formatRaidBattleReport(input: RaidBattleReportInput) {
 
     return [
       `Loot camp raid. ${input.attackerName} hit ${input.defenderName} with ${input.sentArmy} troops.`,
-      `Camp strength was ${input.resolvedDefensePower}.`,
-      `${input.attackerReturned} troops are returning. Camp health was reduced by ${input.resolvedAttackPower ?? input.sentArmy}.`,
+      `Camp defending army was ${input.defenderArmyAtBattleStart ?? 0}, with defense power ${input.resolvedDefensePower}.`,
+      input.outcome === "ATTACKER_WIN"
+        ? `${input.attackerSurvivors} survived, ${input.attackerReturned} returned, ${input.attackerRetired} retired. Camp health was reduced by ${input.resolvedAttackPower ?? 0}.`
+        : `The camp fought back. Your sent army was lost, and the camp lost ${input.defenderLosses} defenders.`,
       rewardLine,
     ];
   }

@@ -6,14 +6,34 @@ import styles from "./notice-toast.module.css";
 export function NoticeToast({
   message,
   autoDismissMs = 5000,
+  storageKey,
 }: {
   message: string;
-  autoDismissMs?: number;
+  autoDismissMs?: number | null;
+  storageKey?: string;
 }) {
-  const [isVisible, setIsVisible] = useState(true);
+  const [isVisible, setIsVisible] = useState(() => !storageKey);
 
   useEffect(() => {
-    if (!isVisible) {
+    if (!storageKey) {
+      return;
+    }
+
+    let isDismissed = false;
+
+    try {
+      isDismissed = window.localStorage.getItem(storageKey) === "dismissed";
+    } catch {
+      isDismissed = false;
+    }
+
+    queueMicrotask(() => {
+      setIsVisible(!isDismissed);
+    });
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (!isVisible || autoDismissMs === null) {
       return;
     }
 
@@ -23,6 +43,18 @@ export function NoticeToast({
 
     return () => clearTimeout(timeoutId);
   }, [isVisible, autoDismissMs]);
+
+  function dismissNotice() {
+    if (storageKey) {
+      try {
+        window.localStorage.setItem(storageKey, "dismissed");
+      } catch {
+        // Ignore storage failures and still close locally.
+      }
+    }
+
+    setIsVisible(false);
+  }
 
   if (!isVisible) {
     return null;
@@ -34,7 +66,7 @@ export function NoticeToast({
       <button
         aria-label="Dismiss notice"
         className={styles.closeButton}
-        onClick={() => setIsVisible(false)}
+        onClick={dismissNotice}
         type="button"
       >
         ✕

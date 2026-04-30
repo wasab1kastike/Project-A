@@ -37,6 +37,25 @@ test("raid preview shows the target castle level, defense bonus, and tie warning
   ]);
 });
 
+test("raid preview shows loot camp reward, timer, and defending army", () => {
+  const lines = formatRaidAttackPreview({
+    availableArmy: 80,
+    sentArmy: 20,
+    targetName: "Rich Loot Camp test",
+    targetDbLevel: 0,
+    targetIsLootCamp: true,
+    targetLootCampVariant: "RICH",
+    targetLootCampStrength: 500,
+    targetLootCampDefenseArmy: 40,
+  });
+
+  assert.deepEqual(lines, [
+    "Available army: 80. Sent army: 20.",
+    "Target: Rich Loot Camp test, strength 500, defending army 40, rewards points.",
+    "Loot camps vanish after 30 minutes, fight back, and pay only when destroyed.",
+  ]);
+});
+
 test("winning raid report includes survivors, retirement, return, and loot", () => {
   const lines = formatRaidBattleReport({
     attackerName: "North Keep",
@@ -91,6 +110,32 @@ test("losing raid report includes defender losses and no returned army", () => {
   assert.match(lines[2] ?? "", /7 troops/);
   assert.match(lines[3] ?? "", /0 points/);
   assert.match(lines[3] ?? "", /0 food/);
+});
+
+test("loot camp report includes counterattack details and health damage", () => {
+  const lines = formatRaidBattleReport({
+    attackerName: "North Keep",
+    defenderName: "Chaos Loot Camp test",
+    sentArmy: 100,
+    defenderArmyAtBattleStart: 12,
+    defenderDbLevel: 0,
+    resolvedAttackPower: 100,
+    resolvedDefensePower: 13,
+    outcome: "ATTACKER_WIN",
+    attackerSurvivors: 80,
+    attackerRetired: 40,
+    attackerReturned: 40,
+    defenderLosses: 9,
+    pointsLooted: 0,
+    foodLooted: 0,
+    armyLooted: 100,
+    defenderIsLootCamp: true,
+    defenderLootCampVariant: "CHAOS",
+  });
+
+  assert.match(lines[1] ?? "", /defending army was 12/);
+  assert.match(lines[2] ?? "", /Camp health was reduced by 100/);
+  assert.match(lines[3] ?? "", /100 army and race cooldown reset/);
 });
 
 test("recall report includes returned army without battle details", () => {

@@ -7,6 +7,17 @@ export type PatchNotesRelease = {
 
 export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
   {
+    date: "2026-04-30",
+    title: "Loot camp timers and counterattacks",
+    newFeatures: [
+      "Loot camps now stay on the battlefield for 30 minutes, giving players more time to plan raids.",
+      "Loot camps now show clearer strength, reward, timer, and defending army info on the map and attack preview.",
+    ],
+    bugFixes: [
+      "Loot camps now fight back with variant-scaled defending armies instead of behaving like passive structures.",
+    ],
+  },
+  {
     date: "2026-04-29",
     title: "Teleport fixes and battlefield polish",
     newFeatures: [

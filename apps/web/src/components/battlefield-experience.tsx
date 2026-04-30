@@ -45,6 +45,7 @@ import {
   type AttackUnitMarker,
   type MapFortress,
 } from "./fortress-map";
+import { NoticeToast } from "./notice-toast";
 import styles from "./battlefield-experience.module.css";
 
 type CommandTarget = {
@@ -61,6 +62,7 @@ type CommandTarget = {
   unicornDecoyLevel: number | null;
   health: number;
   maxHealth: number;
+  army: number;
   currentAction: "GROW" | "ATTACK";
 };
 
@@ -211,6 +213,8 @@ const CASTLE_SPECIALIZATION_OPTIONS = [
   { value: "MILITARY", label: "Military", summary: "+10% army production" },
   { value: "DEFENSE", label: "Defense", summary: "+10% defense" },
 ] as const;
+const LOOT_CAMP_FIGHT_BACK_NOTICE_STORAGE_KEY =
+  "project-a:loot-camp-fight-back-notice:2026-04-30";
 
 function CastleSpecializationFields() {
   return (
@@ -739,6 +743,7 @@ export function BattlefieldExperience({
       targetIsLootCamp: selectedAttackTarget?.fortressKind === "LOOT_CAMP",
       targetLootCampVariant: selectedAttackTarget?.lootCampVariant ?? null,
       targetLootCampStrength: selectedAttackTarget?.maxHealth ?? null,
+      targetLootCampDefenseArmy: selectedAttackTarget?.army ?? null,
     });
   }, [playerSummary?.army, sentArmy, selectedAttackTarget]);
   const assignedPopulation = playerSummary
@@ -1764,6 +1769,13 @@ export function BattlefieldExperience({
 
       <div className={styles.mapStage}>
         {!immersive && !shouldPortalActionButtons ? actionButtons : null}
+        {playerSummary ? (
+          <NoticeToast
+            autoDismissMs={null}
+            message="Loot camps fight back now. Check their defending army before sending troops."
+            storageKey={LOOT_CAMP_FIGHT_BACK_NOTICE_STORAGE_KEY}
+          />
+        ) : null}
         <FortressMap
           className={immersive ? styles.fullMap : undefined}
           fortresses={mapFortresses}

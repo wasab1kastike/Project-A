@@ -1102,7 +1102,7 @@ export function FortressMap({
                       isMega
                         ? `${fortress.name}, ${fortress.health} of ${fortress.maxHealth} health`
                         : isLootCamp
-                          ? `${fortress.name}, ${fortress.health} of ${fortress.maxHealth} health, rewards ${getLootCampRewardLabel(
+                          ? `${fortress.name}, ${fortress.health} of ${fortress.maxHealth} health, ${fortress.army} defending army, rewards ${getLootCampRewardLabel(
                               fortress.lootCampVariant
                             )}, ${formatSecondsRemaining(
                               lootCampSecondsRemaining
@@ -1164,7 +1164,7 @@ export function FortressMap({
                         {isMega
                           ? `${fortress.health}/${fortress.maxHealth} HP`
                           : isLootCamp
-                            ? `${getLootCampRewardLabel(
+                            ? `${fortress.health}/${fortress.maxHealth} HP - ${fortress.army} army - ${getLootCampRewardLabel(
                                 fortress.lootCampVariant
                               )} - ${formatSecondsRemaining(
                                 lootCampSecondsRemaining
@@ -1192,7 +1192,7 @@ export function FortressMap({
                         {isMega
                           ? `${fortress.health}/${fortress.maxHealth} HP`
                           : isLootCamp
-                            ? `${fortress.health}/${fortress.maxHealth} HP - ${getLootCampRewardLabel(
+                            ? `${fortress.health}/${fortress.maxHealth} HP - ${fortress.army} army - ${getLootCampRewardLabel(
                                 fortress.lootCampVariant
                               )} - ${formatSecondsRemaining(
                                 lootCampSecondsRemaining

@@ -97,6 +97,7 @@ const QUICKSTART_STEPS = [
 ] as const;
 
 const LATEST_UPDATES = [
+  "Loot camps now stay on the battlefield for 30 minutes, show clearer reward/strength/defender info, and fight back with variant-scaled defending armies.",
   "Loot camps now spawn around the battlefield during gameplay. Classic camps pay food, Rich camps pay points, and Chaos camps pay army plus a race cooldown reset.",
   "Unstable Unicorn teleport now leaves attackable decoy castles again. Hitting a decoy clears it and applies its backlash before any normal loot happens.",
   "Castle Yeet now has clearer warnings and stronger location safeguards, including better handling when a rendered map move would not actually change your tile.",
@@ -308,8 +309,8 @@ export default function WikiPage() {
           <h2>Temporary map targets</h2>
           <p>
             Loot camps are neutral NPC camps that appear during testing and
-            active gameplay. They are short-lived side objectives for players
-            who can spare an attack slot.
+            active gameplay. They are side objectives for players who can spare
+            an attack slot, but they now defend themselves.
           </p>
           <div className={styles.twoCol}>
             <section>
@@ -328,6 +329,10 @@ export default function WikiPage() {
                   Strength is random from {LOOT_CAMP_MIN_STRENGTH} to{" "}
                   {LOOT_CAMP_MAX_STRENGTH}; strength is both HP and reward
                   amount.
+                </li>
+                <li>
+                  Defending army scales by variant: Classic is light, Rich is
+                  medium, and Chaos is the toughest.
                 </li>
               </ul>
             </section>
