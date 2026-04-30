@@ -31,6 +31,7 @@ import {
 import { emitProjectARefresh } from "@/lib/realtime";
 import {
   editRegistrationFortressName,
+  activateDwarfDeepMining,
   activateRaceAbility,
   chooseDwarfGrudge,
   chooseDwarfTierThreeGrudge,
@@ -399,6 +400,33 @@ export async function activateStimAction() {
   }
 
   finishAction("STIM activated for one hour.");
+}
+
+export async function activateDwarfDeepMiningAction(formData: FormData) {
+  const userId = await requireUserId();
+  let notice: string;
+
+  try {
+    const result = await activateDwarfDeepMining({
+      userId,
+      targetFortressId: getString(formData, "targetFortressId"),
+      committedArmy: getNumber(formData, "committedArmy", 0),
+    });
+    emitProjectARefresh("dwarf-deep-mining");
+
+    notice =
+      result.pointDelta !== 0
+        ? `${result.label}: ${result.pointDelta > 0 ? "+" : ""}${result.pointDelta} points.`
+        : result.armyDelta !== 0
+          ? `${result.label}: ${result.armyDelta > 0 ? "+" : ""}${result.armyDelta} army.`
+          : result.committedArmy > 0
+            ? `${result.label}: rune raised with ${result.committedArmy} defenders.`
+            : result.description;
+  } catch (error) {
+    redirectToHome("error", getActionErrorMessage(error));
+  }
+
+  finishAction(notice);
 }
 
 export async function claimUnicornTeleportAction() {

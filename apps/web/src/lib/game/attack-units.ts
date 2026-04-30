@@ -1,7 +1,13 @@
-import { Prisma, PrismaClient, RaceAbilityKind } from "@/lib/prisma-client";
+import {
+  DwarfDeepMiningOutcome,
+  Prisma,
+  PrismaClient,
+  RaceAbilityKind,
+} from "@/lib/prisma-client";
 import { getAttackArrivalAt } from "./attacks";
 import { GameError } from "./errors";
 import { getHelsinkiHourKey, getRaceBuffTier } from "./race-buffs";
+import { DWARF_DEEP_MINING_SLOW_ATTACK_MULTIPLIER } from "./dwarf-deep-mining";
 import type { FortressRace } from "./races";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
@@ -22,6 +28,63 @@ export type AttackCycle = {
   activeStartedAt?: Date | null;
   activeEndsAt: Date | null;
 };
+
+async function getDwarfAttackSpeedMultiplier({
+  db,
+  fortress,
+  now,
+}: {
+  db: DatabaseClient;
+  fortress: { id: string; race?: FortressRace | null };
+  now: Date;
+}) {
+  if (fortress.race !== "DWARFS") {
+    return 1;
+  }
+
+  const suppressed = await db.dwarfDeepMiningRoll.findFirst({
+    where: {
+      outcome: DwarfDeepMiningOutcome.FACTION_SEAL,
+      targetFortressId: fortress.id,
+      activeUntil: {
+        gt: now,
+      },
+      runeFortress: {
+        health: {
+          gt: 0,
+        },
+        expiresAt: {
+          gt: now,
+        },
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (suppressed) {
+    return 1;
+  }
+
+  const activeSlow = await db.raceAbilityActivation.findFirst({
+    where: {
+      fortressId: fortress.id,
+      kind: RaceAbilityKind.DWARF_SLOW_ATTACKS,
+      activeFrom: {
+        lte: now,
+      },
+      activeUntil: {
+        gt: now,
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  return activeSlow ? DWARF_DEEP_MINING_SLOW_ATTACK_MULTIPLIER : 1;
+}
 
 export async function cancelActiveAttackUnits({
   db,
@@ -242,6 +305,11 @@ export async function recallAttackUnit({
       now,
       isActiveSeason: cycle.status === "ACTIVE",
     }),
+    speedMultiplier: await getDwarfAttackSpeedMultiplier({
+      db,
+      fortress: attackUnit.attackerFortress,
+      now,
+    }),
   });
 
   return db.attackUnit.update({
@@ -289,6 +357,11 @@ export async function launchAttackUnit({
       activeStartedAt: cycle.activeStartedAt ?? null,
       now: launchedAt,
       isActiveSeason: cycle.status === "ACTIVE",
+    }),
+    speedMultiplier: await getDwarfAttackSpeedMultiplier({
+      db,
+      fortress: attacker,
+      now: launchedAt,
     }),
   });
 

@@ -8,6 +8,7 @@ import {
   RaceAbilityKind,
   ScoreEventType,
   WinnerRequestStatus,
+  DwarfDeepMiningOutcome,
   type PrismaClient,
 } from "@/lib/prisma-client";
 import {
@@ -47,6 +48,7 @@ import {
   getRaceBuffTier,
 } from "./race-buffs";
 import { countCastleSpecializations } from "./specializations";
+import { DWARF_DEEP_MINING_RUNE_BOUNTY } from "./dwarf-deep-mining";
 
 export type HomePageState = Awaited<ReturnType<typeof getHomePageState>>;
 
@@ -393,6 +395,33 @@ export async function getHomePageState({
               },
             },
           },
+          deepMiningRolls: {
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+            take: 1,
+            select: {
+              outcome: true,
+              committedArmy: true,
+              pointDelta: true,
+              armyDelta: true,
+              activeUntil: true,
+              createdAt: true,
+              targetFortressId: true,
+              runeFortressId: true,
+              targetFortress: {
+                select: {
+                  name: true,
+                  commanderName: true,
+                },
+              },
+              runeFortress: {
+                select: {
+                  health: true,
+                  army: true,
+                  expiresAt: true,
+                },
+              },
+            },
+          },
         },
       },
       attackUnits: {
@@ -605,6 +634,60 @@ export async function getHomePageState({
   const raceTierThreeUnlocksAt = cycle.activeStartedAt
     ? getNextHelsinkiNoonAfter(cycle.activeStartedAt)
     : null;
+  const activeRuneSuppressions = await db.dwarfDeepMiningRoll.findMany({
+    where: {
+      outcome: DwarfDeepMiningOutcome.FACTION_SEAL,
+      activeUntil: {
+        gt: now,
+      },
+      targetFortressId: {
+        not: null,
+      },
+      runeFortress: {
+        health: {
+          gt: 0,
+        },
+        expiresAt: {
+          gt: now,
+        },
+      },
+    },
+    select: {
+      targetFortressId: true,
+      activeUntil: true,
+      runeFortressId: true,
+      fortress: {
+        select: {
+          id: true,
+          name: true,
+          commanderName: true,
+        },
+      },
+      runeFortress: {
+        select: {
+          id: true,
+          health: true,
+          army: true,
+          expiresAt: true,
+        },
+      },
+    },
+  });
+  const suppressedFortressIds = new Set(
+    activeRuneSuppressions
+      .map((suppression) => suppression.targetFortressId)
+      .filter((id): id is string => Boolean(id))
+  );
+  const playerSuppression =
+    playerFortress && suppressedFortressIds.has(playerFortress.id)
+      ? (activeRuneSuppressions.find(
+          (suppression) => suppression.targetFortressId === playerFortress.id
+        ) ?? null)
+      : null;
+  const getEffectiveRace = (fortress: {
+    id: string;
+    race: "DWARFS" | "UNSTABLE_UNICORNS" | "SPACE_MURINES" | "ORKS" | null;
+  }) => (suppressedFortressIds.has(fortress.id) ? null : fortress.race);
   const nextUpgradeCost = playerFortress
     ? getFortressUpgradeCost(playerFortress.level)
     : null;
@@ -655,7 +738,7 @@ export async function getHomePageState({
       ).length
     : 0;
   const maxSimultaneousAttacks = playerFortress
-    ? getMaxSimultaneousAttacks(playerFortress.level, playerFortress.race)
+    ? getMaxSimultaneousAttacks(playerFortress.level, getEffectiveRace(playerFortress))
     : MAX_SIMULTANEOUS_ATTACKS_BASE;
   const latestWaaaghUse = playerFortress
     ? playerFortress.raceAbilityActivations.find(
@@ -688,6 +771,14 @@ export async function getHomePageState({
         (activation) => activation.kind === RaceAbilityKind.UNICORN_TELEPORT
       )
     : null;
+  const latestDwarfDeepMiningUse = playerFortress
+    ? playerFortress.raceAbilityActivations.find(
+        (activation) =>
+          activation.kind === RaceAbilityKind.DWARF_DEEP_MINING_COOLDOWN
+      )
+    : null;
+  const latestDwarfDeepMiningRoll =
+    playerFortress?.deepMiningRolls[0] ?? null;
   const currentDayKey = getHelsinkiDayKey(now);
   const currentHourKey = getHelsinkiHourKey(now);
   const battleReports = playerFortress
@@ -892,7 +983,10 @@ export async function getHomePageState({
       })
     : [];
   const visibleFortresses = cycle.fortresses.filter((fortress) => {
-    if (fortress.fortressKind === FortressKind.LOOT_CAMP) {
+    if (
+      fortress.fortressKind === FortressKind.LOOT_CAMP ||
+      fortress.fortressKind === FortressKind.DWARF_RUNE
+    ) {
       return (
         fortress.health > 0 &&
         fortress.expiresAt !== null &&
@@ -905,7 +999,13 @@ export async function getHomePageState({
       fortress.health > 0
     );
   });
-  const mapFortresses = visibleFortresses.map((fortress) => ({
+  const mapFortresses = visibleFortresses.map((fortress) => {
+    const runeSuppression = activeRuneSuppressions.find(
+      (suppression) => suppression.runeFortressId === fortress.id
+    );
+    const runeOwnerId = runeSuppression?.fortress.id ?? null;
+
+    return {
     id: fortress.id,
     commanderName: getDisplayName(
       fortress.commanderName,
@@ -927,10 +1027,10 @@ export async function getHomePageState({
     fortressKind: fortress.fortressKind,
     unicornDecoyLevel: fortress.unicornDecoyLevel,
     displayedCastleLevel: getDisplayedCastleLevel(fortress.level),
-    population: getFortressPopulation(fortress.level, fortress.race),
+    population: getFortressPopulation(fortress.level, getEffectiveRace(fortress)),
     defenseMultiplier: getFortressDefenseMultiplier(
       fortress.level,
-      fortress.race,
+      getEffectiveRace(fortress),
       countCastleSpecializations(fortress.castleUpgradeSpecializations)
     ),
     food: fortress.food,
@@ -941,7 +1041,16 @@ export async function getHomePageState({
     minersAssigned: fortress.minersAssigned,
     farmersAssigned: fortress.farmersAssigned,
     recruitersAssigned: fortress.recruitersAssigned,
-    race: fortress.race,
+    race: getEffectiveRace(fortress),
+    rawRace: fortress.race,
+    dwarfRune: runeSuppression
+      ? {
+          ownerName: runeSuppression.fortress.name,
+          ownerCommanderName: runeSuppression.fortress.commanderName,
+          targetFortressId: runeSuppression.targetFortressId,
+          bounty: DWARF_DEEP_MINING_RUNE_BOUNTY,
+        }
+      : null,
     isSlayerOfA: fortress.id === cycle.crownedFortressId && !fortress.isNpc,
     currentAction: fortress.currentAction,
     mapX: fortress.mapX,
@@ -954,11 +1063,15 @@ export async function getHomePageState({
       playerFortressId !== null &&
       gameplayOpen &&
       fortress.id !== playerFortressId &&
-      (fortress.fortressKind !== FortressKind.LOOT_CAMP ||
+      (fortress.fortressKind !== FortressKind.DWARF_RUNE ||
+        runeOwnerId !== playerFortressId) &&
+      ((fortress.fortressKind !== FortressKind.LOOT_CAMP &&
+        fortress.fortressKind !== FortressKind.DWARF_RUNE) ||
         (fortress.health > 0 &&
           fortress.expiresAt !== null &&
           fortress.expiresAt > now)),
-  }));
+  };
+  });
   const globalChatMessages = await db.chatMessage.findMany({
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: getChatLimits().limit,
@@ -1176,11 +1289,11 @@ export async function getHomePageState({
           displayedCastleLevel: getDisplayedCastleLevel(playerFortress.level),
           population: getFortressPopulation(
             playerFortress.level,
-            playerFortress.race
+            getEffectiveRace(playerFortress)
           ),
           defenseMultiplier: getFortressDefenseMultiplier(
             playerFortress.level,
-            playerFortress.race,
+            getEffectiveRace(playerFortress),
             playerCastleSpecializationCounts ?? undefined
           ),
           food: playerFortress.food,
@@ -1218,11 +1331,11 @@ export async function getHomePageState({
           displayedCastleLevel: getDisplayedCastleLevel(playerFortress.level),
           population: getFortressPopulation(
             playerFortress.level,
-            playerFortress.race
+            getEffectiveRace(playerFortress)
           ),
           defenseMultiplier: getFortressDefenseMultiplier(
             playerFortress.level,
-            playerFortress.race,
+            getEffectiveRace(playerFortress),
             playerCastleSpecializationCounts ?? undefined
           ),
           food: playerFortress.food,
@@ -1270,9 +1383,39 @@ export async function getHomePageState({
           castleUpgradeChoices: playerFortress.castleUpgradeSpecializations,
           pendingUpgradeSpecializationLevel,
           receivedSlayerUpgrade: Boolean(receivedSlayerUpgrade),
+          factionSuppression: playerSuppression
+            ? {
+                runeFortressId: playerSuppression.runeFortressId,
+                ownerName: playerSuppression.fortress.name,
+                ownerCommanderName: playerSuppression.fortress.commanderName,
+                activeUntil: playerSuppression.activeUntil,
+              }
+            : null,
           raceBuffs: {
             tier: raceBuffTier,
             tierThreeUnlocksAt: raceTierThreeUnlocksAt,
+            deepMiningLatest: latestDwarfDeepMiningRoll
+              ? {
+                  outcome: latestDwarfDeepMiningRoll.outcome,
+                  committedArmy: latestDwarfDeepMiningRoll.committedArmy,
+                  pointDelta: latestDwarfDeepMiningRoll.pointDelta,
+                  armyDelta: latestDwarfDeepMiningRoll.armyDelta,
+                  activeUntil: latestDwarfDeepMiningRoll.activeUntil,
+                  createdAt: latestDwarfDeepMiningRoll.createdAt,
+                  targetName:
+                    latestDwarfDeepMiningRoll.targetFortress?.name ?? null,
+                  runeFortressId: latestDwarfDeepMiningRoll.runeFortressId,
+                  runeHealth:
+                    latestDwarfDeepMiningRoll.runeFortress?.health ?? null,
+                  runeArmy:
+                    latestDwarfDeepMiningRoll.runeFortress?.army ?? null,
+                }
+              : null,
+            canActivateDeepMining:
+              playerFortress.race === "DWARFS" &&
+              (!latestDwarfDeepMiningUse ||
+                getHelsinkiHourKey(latestDwarfDeepMiningUse.usedAt) !==
+                  currentHourKey),
             dwarfGrudges: playerFortress.dwarfGrudges.map((grudge) => ({
               targetFortressId: grudge.targetFortressId,
               targetName: grudge.targetFortress.name,
@@ -1358,6 +1501,7 @@ export async function getHomePageState({
       id: unit.id,
       armyAmount:
         unit.attackerFortress.race === "UNSTABLE_UNICORNS" &&
+        !suppressedFortressIds.has(unit.attackerFortress.id) &&
         unit.attackerFortress.ownerId !== userId
           ? null
           : unit.armyAmount,
@@ -1380,7 +1524,9 @@ export async function getHomePageState({
         name: unit.attackerFortress.name,
         mapX: unit.attackerFortress.mapX,
         mapY: unit.attackerFortress.mapY,
-        race: unit.attackerFortress.race,
+        race: suppressedFortressIds.has(unit.attackerFortress.id)
+          ? null
+          : unit.attackerFortress.race,
         unitSpriteVariant: normalizeUnitSpriteVariant(
           unit.attackerFortress.unitSpriteVariant
         ),
@@ -1448,7 +1594,16 @@ export async function getHomePageState({
     availableTargets:
       gameplayOpen && playerFortress
         ? visibleFortresses
-            .filter((fortress) => fortress.id !== playerFortress.id)
+            .filter((fortress) => {
+              const runeSuppression = activeRuneSuppressions.find(
+                (suppression) => suppression.runeFortressId === fortress.id
+              );
+
+              return (
+                fortress.id !== playerFortress.id &&
+                runeSuppression?.fortress.id !== playerFortress.id
+              );
+            })
             .map((fortress) => ({
               id: fortress.id,
               commanderName: getDisplayName(

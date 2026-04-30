@@ -43,6 +43,8 @@ const RACE_ABILITY_NOTES: Record<string, readonly string[]> = {
   DWARFS: [
     "Tier 2+: Grudge Book unlocks. Pick one enemy fortress and get +25% attack power against that target.",
     "Tier 3: Add a second grudge target or double your first target (x2 grudge multiplier).",
+    "Deep Mining: once per Helsinki hour during active season. Roll table: 25% Rich Vein (+30 minutes of point production, minimum 300), 20% Ore Surge (+50% point/food/army production for 1 hour), 15% Battle Runes (+25% attack and defense for 1 hour), 5% Faction Seal, 5% Buried Warband (+20% idle army, min 25, max 250), 12% Cave-in (-25% idle army, min 25), 10% Unstable Tunnels (new outgoing and returning attacks are 50% slower for 1 hour), 8% Shaft Collapse (point/food/army production halted for 1 hour).",
+    "Faction Seal creates an attackable Dwarf Rune tile between the Dwarf fortress and the chosen target for 1 hour. The committed army defends it only if this roll hits. While the rune has defenders, the target's faction bonuses and active race abilities are disabled. Any player except the Dwarf owner can destroy it for a fixed 500 point bounty; destruction ends suppression immediately.",
   ],
   UNSTABLE_UNICORNS: [
     "Tier 1: Enemies cannot see your army size while your units are in transit.",

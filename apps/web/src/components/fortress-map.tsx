@@ -37,8 +37,14 @@ type MapFortress = {
   rawName: string;
   points: number;
   isNpc: boolean;
-  fortressKind: "PLAYER" | "MEGA" | "UNICORN_DECOY" | "LOOT_CAMP";
+  fortressKind: "PLAYER" | "MEGA" | "UNICORN_DECOY" | "LOOT_CAMP" | "DWARF_RUNE";
   lootCampVariant: "CLASSIC" | "RICH" | "CHAOS" | null;
+  dwarfRune: {
+    ownerName: string;
+    ownerCommanderName: string;
+    targetFortressId: string | null;
+    bounty: number;
+  } | null;
   expiresAt: Date | null;
   unicornDecoyLevel: number | null;
   health: number;
@@ -208,6 +214,10 @@ function LootCampSprite({
       aria-hidden="true"
     />
   );
+}
+
+function DwarfRuneSprite() {
+  return <span className={styles.dwarfRuneSprite} aria-hidden="true" />;
 }
 
 function getLootCampRewardLabel(variant: MapFortress["lootCampVariant"]) {
@@ -510,12 +520,14 @@ export function FortressMap({
     maxTargetSentArmy > 0
       ? Math.min(Math.max(1, targetSentArmy), maxTargetSentArmy)
       : 0;
-  const hasLootCamps = fortresses.some(
-    (fortress) => fortress.fortressKind === "LOOT_CAMP"
+  const hasExpiringObjectives = fortresses.some(
+    (fortress) =>
+      fortress.fortressKind === "LOOT_CAMP" ||
+      fortress.fortressKind === "DWARF_RUNE"
   );
 
   useEffect(() => {
-    if (!hasLootCamps) {
+    if (!hasExpiringObjectives) {
       return;
     }
 
@@ -524,7 +536,7 @@ export function FortressMap({
     }, 1000);
 
     return () => window.clearInterval(interval);
-  }, [hasLootCamps]);
+  }, [hasExpiringObjectives]);
 
   const clampTranslation = useCallback(
     (nextX: number, nextY: number, nextScale: number) => {
@@ -1031,6 +1043,7 @@ export function FortressMap({
               const isMega = fortress.fortressKind === "MEGA";
               const isUnicornDecoy = fortress.fortressKind === "UNICORN_DECOY";
               const isLootCamp = fortress.fortressKind === "LOOT_CAMP";
+              const isDwarfRune = fortress.fortressKind === "DWARF_RUNE";
               const raceDefinition = getRaceDefinition(fortress.race);
               const raceLabel = raceDefinition?.displayName ?? null;
               const showRaceToken =
@@ -1051,6 +1064,7 @@ export function FortressMap({
                 isMega ? styles.megaMarker : "",
                 isUnicornDecoy ? styles.unicornDecoyMarker : "",
                 isLootCamp ? styles.lootCampMarker : "",
+                isDwarfRune ? styles.dwarfRuneMarker : "",
                 fortress.isSlayerOfA ? styles.crownedMarker : "",
                 fortress.isCurrentUser ? styles.currentUser : "",
                 selectedFortressId === fortress.id ? styles.activeFortress : "",
@@ -1103,6 +1117,8 @@ export function FortressMap({
                     aria-label={
                       isMega
                         ? `${fortress.name}, ${fortress.health} of ${fortress.maxHealth} health`
+                        : isDwarfRune
+                          ? `${fortress.name}, Dwarf rune defended by ${fortress.army} army, ${fortress.dwarfRune?.bounty ?? 500} point bounty`
                         : isLootCamp
                           ? `${fortress.name}, ${fortress.health} of ${fortress.maxHealth} health, ${fortress.army} defending army, rewards ${getLootCampRewardLabel(
                               fortress.lootCampVariant
@@ -1120,6 +1136,8 @@ export function FortressMap({
                         <MegaFortressSprite
                           iconLabel={fortress.iconLabel ?? "A-"}
                         />
+                      ) : isDwarfRune ? (
+                        <DwarfRuneSprite />
                       ) : isLootCamp ? (
                         <LootCampSprite variant={fortress.lootCampVariant} />
                       ) : (
@@ -1147,9 +1165,11 @@ export function FortressMap({
                         aria-hidden="true"
                       />
                     ) : null}
-                    {isMega || isUnicornDecoy || isLootCamp ? (
+                    {isMega || isUnicornDecoy || isLootCamp || isDwarfRune ? (
                       <span className={styles.pointsBadge}>
-                        {isLootCamp
+                        {isDwarfRune
+                          ? `${fortress.army} def`
+                          : isLootCamp
                           ? `${fortress.health}/${fortress.maxHealth}`
                           : isUnicornDecoy
                             ? `-${200 * Math.max(1, fortress.unicornDecoyLevel ?? 1)}`

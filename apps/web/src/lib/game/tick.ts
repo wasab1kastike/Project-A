@@ -5,6 +5,7 @@ import {
   Prisma,
   PrismaClient,
   ScoreEventType,
+  DwarfDeepMiningOutcome,
 } from "@/lib/prisma-client";
 import { prisma } from "@/lib/prisma";
 import { ensureOpenRegistrationCycle } from "./bootstrap";
@@ -40,6 +41,12 @@ import {
 } from "./race-buffs";
 import { countCastleSpecializations } from "./specializations";
 import { RaceAbilityKind } from "@/lib/prisma-client";
+import {
+  DWARF_DEEP_MINING_COMBAT_MULTIPLIER,
+  DWARF_DEEP_MINING_ECONOMY_MULTIPLIER,
+  DWARF_DEEP_MINING_RUNE_BOUNTY,
+  DWARF_DEEP_MINING_SLOW_ATTACK_MULTIPLIER,
+} from "./dwarf-deep-mining";
 import {
   expireLootCamps,
   getLootCampReward,
@@ -885,6 +892,21 @@ async function processCycleTick(
       cycleId,
       tickAt,
     });
+    await tx.fortress.updateMany({
+      where: {
+        cycleId,
+        fortressKind: FortressKind.DWARF_RUNE,
+        health: {
+          gt: 0,
+        },
+        expiresAt: {
+          lte: tickAt,
+        },
+      },
+      data: {
+        health: 0,
+      },
+    });
     await spawnScheduledLootCamps({
       db: tx,
       cycleId,
@@ -945,6 +967,33 @@ async function processCycleTick(
         },
       },
     });
+    const activeRuneSuppressions = await tx.dwarfDeepMiningRoll.findMany({
+      where: {
+        outcome: DwarfDeepMiningOutcome.FACTION_SEAL,
+        activeUntil: {
+          gt: tickAt,
+        },
+        targetFortressId: {
+          not: null,
+        },
+        runeFortress: {
+          health: {
+            gt: 0,
+          },
+          expiresAt: {
+            gt: tickAt,
+          },
+        },
+      },
+      select: {
+        targetFortressId: true,
+      },
+    });
+    const suppressedFortressIds = new Set(
+      activeRuneSuppressions
+        .map((suppression) => suppression.targetFortressId)
+        .filter((id): id is string => Boolean(id))
+    );
 
     const currentPoints = new Map(
       fortresses.map((fortress) => [fortress.id, fortress.points])
@@ -964,6 +1013,21 @@ async function processCycleTick(
     const scoreEvents: Prisma.ScoreEventCreateManyInput[] = [];
     const destroyedMegaTargets = new Set<string>();
     let resolvedAttackUnits = 0;
+    const isSuppressed = (fortressId: string) =>
+      suppressedFortressIds.has(fortressId);
+    const getEffectiveRace = (fortress: {
+      id: string;
+      race: (typeof fortresses)[number]["race"];
+    }) => (isSuppressed(fortress.id) ? null : fortress.race);
+    const getDwarfSpeedMultiplier = (fortress: (typeof fortresses)[number]) =>
+      getEffectiveRace(fortress) === "DWARFS" &&
+      isRaceAbilityActive(
+        fortress.raceAbilityActivations,
+        RaceAbilityKind.DWARF_SLOW_ATTACKS,
+        tickAt
+      )
+        ? DWARF_DEEP_MINING_SLOW_ATTACK_MULTIPLIER
+        : 1;
 
     const dueAttackUnits = await tx.attackUnit.findMany({
       where: {
@@ -1085,8 +1149,9 @@ async function processCycleTick(
                 mapX: targetAttacker.mapX,
                 mapY: targetAttacker.mapY,
               },
-              attackerRace: targetAttacker.race,
+              attackerRace: getEffectiveRace(targetAttacker),
               raceBuffTier,
+              speedMultiplier: getDwarfSpeedMultiplier(targetAttacker),
             });
 
             await tx.attackUnit.update({
@@ -1162,6 +1227,214 @@ async function processCycleTick(
         continue;
       }
 
+      if (target?.fortressKind === FortressKind.DWARF_RUNE) {
+        const runeRoll = await tx.dwarfDeepMiningRoll.findUnique({
+          where: {
+            runeFortressId: target.id,
+          },
+          select: {
+            fortressId: true,
+          },
+        });
+        const runeOwner = runeRoll
+          ? fortressLookup.get(runeRoll.fortressId)
+          : null;
+        const targetUnits = dueAttackUnits.filter(
+          (targetUnit) =>
+            targetUnit.targetFortressId === target.id &&
+            !resolvedBatchAttackUnitIds.has(targetUnit.id)
+        );
+        const runeOutcomes = new Map<
+          string,
+          {
+            attackPower: number;
+            defensePower: number;
+            attackerSurvivors: number;
+            attackerRetired: number;
+            attackerReturned: number;
+            defenderLosses: number;
+            defenderArmyAtBattleStart: number;
+          }
+        >();
+        let destroyer: {
+          unitId: string;
+          attacker: NonNullable<typeof attacker>;
+        } | null = null;
+
+        for (const targetUnit of targetUnits) {
+          const targetAttacker = fortressLookup.get(
+            targetUnit.attackerFortressId
+          );
+
+          if (!targetAttacker || targetAttacker.ownerId === runeOwner?.ownerId) {
+            continue;
+          }
+
+          const defenderArmy = currentArmy.get(target.id) ?? target.army;
+          const outcome = calculateRaidOutcome({
+            attackArmy: targetUnit.armyAmount,
+            attackerRace: getEffectiveRace(targetAttacker),
+            defenderArmy,
+            defenderDbLevel: 0,
+            defenderRace: null,
+            defenderPoints: 0,
+            defenderFood: 0,
+          });
+          const defenderArmyAfterBattle = Math.max(
+            0,
+            defenderArmy - outcome.defenderLosses
+          );
+
+          currentArmy.set(target.id, defenderArmyAfterBattle);
+          runeOutcomes.set(targetUnit.id, {
+            attackPower: outcome.attackPower,
+            defensePower: outcome.defensePower,
+            attackerSurvivors: outcome.attackerSurvivors,
+            attackerRetired: outcome.attackerRetired,
+            attackerReturned: outcome.attackerReturned,
+            defenderLosses: outcome.defenderLosses,
+            defenderArmyAtBattleStart: defenderArmy,
+          });
+
+          if (defenderArmyAfterBattle <= 0 && !destroyer) {
+            destroyer = {
+              unitId: targetUnit.id,
+              attacker: targetAttacker,
+            };
+            currentHealth.set(target.id, 0);
+          }
+        }
+
+        if (destroyer) {
+          currentPoints.set(
+            destroyer.attacker.id,
+            (currentPoints.get(destroyer.attacker.id) ??
+              destroyer.attacker.points) + DWARF_DEEP_MINING_RUNE_BOUNTY
+          );
+          await tx.dwarfDeepMiningRoll.updateMany({
+            where: {
+              runeFortressId: target.id,
+              activeUntil: {
+                gt: tickAt,
+              },
+            },
+            data: {
+              activeUntil: tickAt,
+            },
+          });
+          scoreEvents.push({
+            cycleId,
+            fortressId: destroyer.attacker.id,
+            actorId: destroyer.attacker.ownerId,
+            targetFortressId: target.id,
+            eventType: ScoreEventType.DWARF_RUNE_BOUNTY,
+            delta: DWARF_DEEP_MINING_RUNE_BOUNTY,
+            createdAt: tickAt,
+          });
+        }
+
+        for (const targetUnit of targetUnits) {
+          const targetAttacker = fortressLookup.get(
+            targetUnit.attackerFortressId
+          );
+          const outcome = runeOutcomes.get(targetUnit.id);
+          const attackerReturned = outcome?.attackerReturned ?? 0;
+          const unitGetsReward =
+            Boolean(destroyer) && targetUnit.id === destroyer?.unitId;
+
+          if (!targetAttacker || !outcome) {
+            await tx.attackUnit.update({
+              where: {
+                id: targetUnit.id,
+              },
+              data: {
+                resolvedAt: tickAt,
+                defenderArmyAtBattleStart: null,
+                resolvedAttackPower: 0,
+                resolvedDefensePower: 0,
+                attackerSurvivors: 0,
+                attackerRetired: targetUnit.armyAmount,
+                attackerReturned: 0,
+                defenderLosses: 0,
+                pointsLooted: 0,
+                foodLooted: 0,
+                armyLooted: 0,
+              },
+            });
+            resolvedAttackUnits += 1;
+            resolvedBatchAttackUnitIds.add(targetUnit.id);
+            continue;
+          }
+
+          if (attackerReturned > 0) {
+            const returnArrivesAt = getAttackArrivalAt({
+              launchedAt: tickAt,
+              origin: {
+                mapX: target.mapX,
+                mapY: target.mapY,
+              },
+              target: {
+                mapX: targetAttacker.mapX,
+                mapY: targetAttacker.mapY,
+              },
+              attackerRace: getEffectiveRace(targetAttacker),
+              raceBuffTier,
+              speedMultiplier: getDwarfSpeedMultiplier(targetAttacker),
+            });
+
+            await tx.attackUnit.update({
+              where: {
+                id: targetUnit.id,
+              },
+              data: {
+                recalledAt: tickAt,
+                returnOriginMapX: target.mapX,
+                returnOriginMapY: target.mapY,
+                arrivesAt: returnArrivesAt,
+                defenderArmyAtBattleStart: outcome.defenderArmyAtBattleStart,
+                resolvedAttackPower: outcome.attackPower,
+                resolvedDefensePower: outcome.defensePower,
+                attackerSurvivors: outcome.attackerSurvivors,
+                attackerRetired: outcome.attackerRetired,
+                attackerReturned,
+                defenderLosses: outcome.defenderLosses,
+                pointsLooted: unitGetsReward
+                  ? DWARF_DEEP_MINING_RUNE_BOUNTY
+                  : 0,
+                foodLooted: 0,
+                armyLooted: 0,
+              },
+            });
+          } else {
+            await tx.attackUnit.update({
+              where: {
+                id: targetUnit.id,
+              },
+              data: {
+                resolvedAt: tickAt,
+                defenderArmyAtBattleStart: outcome.defenderArmyAtBattleStart,
+                resolvedAttackPower: outcome.attackPower,
+                resolvedDefensePower: outcome.defensePower,
+                attackerSurvivors: outcome.attackerSurvivors,
+                attackerRetired: outcome.attackerRetired,
+                attackerReturned,
+                defenderLosses: outcome.defenderLosses,
+                pointsLooted: unitGetsReward
+                  ? DWARF_DEEP_MINING_RUNE_BOUNTY
+                  : 0,
+                foodLooted: 0,
+                armyLooted: 0,
+              },
+            });
+            resolvedAttackUnits += 1;
+          }
+
+          resolvedBatchAttackUnitIds.add(targetUnit.id);
+        }
+
+        continue;
+      }
+
       if (target?.fortressKind === FortressKind.LOOT_CAMP) {
         const targetUnits = dueAttackUnits.filter(
           (targetUnit) =>
@@ -1199,7 +1472,7 @@ async function processCycleTick(
           const defenderArmy = currentArmy.get(target.id) ?? target.army;
           const outcome = calculateRaidOutcome({
             attackArmy: targetUnit.armyAmount,
-            attackerRace: targetAttacker.race,
+            attackerRace: getEffectiveRace(targetAttacker),
             defenderArmy,
             defenderDbLevel: 0,
             defenderRace: null,
@@ -1337,8 +1610,9 @@ async function processCycleTick(
                 mapX: targetAttacker.mapX,
                 mapY: targetAttacker.mapY,
               },
-              attackerRace: targetAttacker.race,
+              attackerRace: getEffectiveRace(targetAttacker),
               raceBuffTier,
+              speedMultiplier: getDwarfSpeedMultiplier(targetAttacker),
             });
 
             await tx.attackUnit.update({
@@ -1414,8 +1688,9 @@ async function processCycleTick(
                 mapX: targetAttacker.mapX,
                 mapY: targetAttacker.mapY,
               },
-              attackerRace: targetAttacker.race,
+              attackerRace: getEffectiveRace(targetAttacker),
               raceBuffTier,
+              speedMultiplier: getDwarfSpeedMultiplier(targetAttacker),
             });
 
             await tx.attackUnit.update({
@@ -1625,8 +1900,10 @@ async function processCycleTick(
       const defenderPoints = currentPoints.get(target.id) ?? target.points;
       const defenderFood = currentFood.get(target.id) ?? target.food;
       const defenderArmyAtBattleStart = defenderArmy;
+      const attackerRace = getEffectiveRace(attacker);
+      const defenderRace = getEffectiveRace(target);
       const attackerWaaagh =
-        attacker.race === "ORKS" &&
+        attackerRace === "ORKS" &&
         raceBuffTier >= 2 &&
         isRaceAbilityActive(
           attacker.raceAbilityActivations,
@@ -1634,7 +1911,7 @@ async function processCycleTick(
           tickAt
         );
       const defenderWaaagh =
-        target.race === "ORKS" &&
+        defenderRace === "ORKS" &&
         raceBuffTier >= 2 &&
         isRaceAbilityActive(
           target.raceAbilityActivations,
@@ -1642,7 +1919,7 @@ async function processCycleTick(
           tickAt
         );
       const attackerStim =
-        attacker.race === "SPACE_MURINES" &&
+        attackerRace === "SPACE_MURINES" &&
         raceBuffTier >= 2 &&
         isRaceAbilityActive(
           attacker.raceAbilityActivations,
@@ -1650,7 +1927,7 @@ async function processCycleTick(
           tickAt
         );
       const defenderStim =
-        target.race === "SPACE_MURINES" &&
+        defenderRace === "SPACE_MURINES" &&
         raceBuffTier >= 2 &&
         isRaceAbilityActive(
           target.raceAbilityActivations,
@@ -1658,25 +1935,44 @@ async function processCycleTick(
           tickAt
         );
       const dwarfAttackMultiplier =
-        attacker.race === "DWARFS" && raceBuffTier >= 2
+        attackerRace === "DWARFS" && raceBuffTier >= 2
           ? getDwarfGrudgeMultiplier(attacker.dwarfGrudges, target.id)
           : 1;
       const dwarfDefenseMultiplier =
-        target.race === "DWARFS" && raceBuffTier >= 2
+        defenderRace === "DWARFS" && raceBuffTier >= 2
           ? getDwarfGrudgeMultiplier(target.dwarfGrudges, attacker.id)
           : 1;
+      const attackerDeepMiningCombat =
+        attackerRace === "DWARFS" &&
+        isRaceAbilityActive(
+          attacker.raceAbilityActivations,
+          RaceAbilityKind.DWARF_COMBAT_SURGE,
+          tickAt
+        );
+      const defenderDeepMiningCombat =
+        defenderRace === "DWARFS" &&
+        isRaceAbilityActive(
+          target.raceAbilityActivations,
+          RaceAbilityKind.DWARF_COMBAT_SURGE,
+          tickAt
+        );
       const outcome = calculateRaidOutcome({
         attackArmy: unit.armyAmount,
-        attackerRace: attacker.race,
+        attackerRace,
         defenderArmy,
         defenderDbLevel: target.level,
-        defenderRace: target.race,
+        defenderRace,
         defenderCastleSpecializations: countCastleSpecializations(
           target.castleUpgradeSpecializations
         ),
-        attackPowerMultiplier: (attackerWaaagh ? 2 : 1) * dwarfAttackMultiplier,
+        attackPowerMultiplier:
+          (attackerWaaagh ? 2 : 1) *
+          dwarfAttackMultiplier *
+          (attackerDeepMiningCombat ? DWARF_DEEP_MINING_COMBAT_MULTIPLIER : 1),
         defensePowerMultiplier:
-          (defenderWaaagh ? 2 : 1) * dwarfDefenseMultiplier,
+          (defenderWaaagh ? 2 : 1) *
+          dwarfDefenseMultiplier *
+          (defenderDeepMiningCombat ? DWARF_DEEP_MINING_COMBAT_MULTIPLIER : 1),
         preventAttackerCasualties: attackerStim,
         preventDefenderLosses: defenderStim,
         defenderPoints,
@@ -1694,8 +1990,9 @@ async function processCycleTick(
             mapX: attacker.mapX,
             mapY: attacker.mapY,
           },
-          attackerRace: attacker.race,
+          attackerRace: attackerRace,
           raceBuffTier,
+          speedMultiplier: getDwarfSpeedMultiplier(attacker),
         });
 
         await tx.attackUnit.update({
@@ -1794,24 +2091,62 @@ async function processCycleTick(
 
       const production = calculateTickProduction({
         ...fortress,
+        race: getEffectiveRace(fortress),
         food: currentFood.get(fortress.id) ?? fortress.food,
         castleSpecializations: countCastleSpecializations(
           fortress.castleUpgradeSpecializations
         ),
       });
+      const economyHalted =
+        getEffectiveRace(fortress) === "DWARFS" &&
+        isRaceAbilityActive(
+          fortress.raceAbilityActivations,
+          RaceAbilityKind.DWARF_ECONOMY_HALT,
+          tickAt
+        );
+      const economySurged =
+        getEffectiveRace(fortress) === "DWARFS" &&
+        isRaceAbilityActive(
+          fortress.raceAbilityActivations,
+          RaceAbilityKind.DWARF_ECONOMY_SURGE,
+          tickAt
+        );
+      const producedPoints = economyHalted
+        ? 0
+        : Math.floor(
+            production.pointsProduced *
+              (economySurged ? DWARF_DEEP_MINING_ECONOMY_MULTIPLIER : 1)
+          );
+      const producedFood = economyHalted
+        ? 0
+        : Math.floor(
+            production.foodProduced *
+              (economySurged ? DWARF_DEEP_MINING_ECONOMY_MULTIPLIER : 1)
+          );
+      const armyProduced = economyHalted
+        ? 0
+        : Math.floor(
+            production.armyProduced *
+              (economySurged ? DWARF_DEEP_MINING_ECONOMY_MULTIPLIER : 1)
+          );
+      const foodAfterProduction = economyHalted
+        ? currentFood.get(fortress.id) ?? fortress.food
+        : production.foodAfterProduction +
+          (producedFood - production.foodProduced) -
+          (armyProduced - production.armyProduced);
       const currentArmyValue = currentArmy.get(fortress.id) ?? fortress.army;
       currentPoints.set(
         fortress.id,
-        (currentPoints.get(fortress.id) ?? 0) + production.pointsProduced
+        (currentPoints.get(fortress.id) ?? 0) + producedPoints
       );
-      currentFood.set(fortress.id, production.foodAfterProduction);
-      currentArmy.set(fortress.id, currentArmyValue + production.armyProduced);
+      currentFood.set(fortress.id, Math.max(0, foodAfterProduction));
+      currentArmy.set(fortress.id, currentArmyValue + armyProduced);
       scoreEvents.push({
         cycleId,
         fortressId: fortress.id,
         actorId: fortress.ownerId,
         eventType: ScoreEventType.GROW_TICK,
-        delta: production.pointsProduced,
+        delta: producedPoints,
         createdAt: tickAt,
       });
       // TODO: add a dedicated resource history model for food and army deltas.

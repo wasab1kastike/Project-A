@@ -29,6 +29,7 @@ enum FortressKind {
   MEGA
   UNICORN_DECOY
   LOOT_CAMP
+  DWARF_RUNE
 }
 
 enum LootCampVariant {
@@ -52,6 +53,12 @@ enum CastleUpgradeSpecialization {
 }
 
 enum RaceAbilityKind {
+  DWARF_DEEP_MINING_COOLDOWN
+  DWARF_ECONOMY_SURGE
+  DWARF_COMBAT_SURGE
+  DWARF_RUNE_SUPPRESSION
+  DWARF_SLOW_ATTACKS
+  DWARF_ECONOMY_HALT
   ORK_WAAAGH
   SPACE_MURINE_STIM
   SPACE_MURINE_INSTANT_RECALL
@@ -69,8 +76,21 @@ enum ScoreEventType {
   FORTRESS_UPGRADE_PURCHASE
   FORTRESS_UPGRADE_SLAYER_BONUS
   FORTRESS_LOCATION_SHUFFLE_COST
+  DWARF_DEEP_MINING_POINTS
+  DWARF_RUNE_BOUNTY
   RENAME_COST
   MANUAL_ADJUST
+}
+
+enum DwarfDeepMiningOutcome {
+  RICH_VEIN
+  ORE_SURGE
+  BATTLE_RUNES
+  FACTION_SEAL
+  BURIED_WARBAND
+  CAVE_IN
+  UNSTABLE_TUNNELS
+  SHAFT_COLLAPSE
 }
 
 enum WinnerRequestStatus {
@@ -279,6 +299,9 @@ model Fortress {
   raceAbilityActivations       RaceAbilityActivation[]
   dwarfGrudges                 DwarfGrudge[]                       @relation("DwarfGrudgeOwner")
   grudgedBy                    DwarfGrudge[]                       @relation("DwarfGrudgeTarget")
+  deepMiningRolls              DwarfDeepMiningRoll[]               @relation("DwarfDeepMiningOwner")
+  deepMiningRuneRolls          DwarfDeepMiningRoll[]               @relation("DwarfDeepMiningRune")
+  deepMiningTargetedBy         DwarfDeepMiningRoll[]               @relation("DwarfDeepMiningTarget")
 
   @@unique([cycleId, ownerId])
   @@unique([cycleId, commanderName])
@@ -289,6 +312,26 @@ model Fortress {
   @@index([cycleId, fortressKind, expiresAt])
   @@index([unicornDecoySourceFortressId, createdAt])
   @@index([ownerId])
+}
+
+model DwarfDeepMiningRoll {
+  id               String                  @id @default(cuid())
+  fortressId       String
+  targetFortressId String?
+  runeFortressId   String?                 @unique
+  outcome          DwarfDeepMiningOutcome
+  committedArmy    Int                     @default(0)
+  pointDelta       Int                     @default(0)
+  armyDelta        Int                     @default(0)
+  activeUntil      DateTime?
+  createdAt        DateTime                @default(now())
+  fortress         Fortress                @relation("DwarfDeepMiningOwner", fields: [fortressId], references: [id], onDelete: Cascade)
+  targetFortress   Fortress?               @relation("DwarfDeepMiningTarget", fields: [targetFortressId], references: [id], onDelete: SetNull)
+  runeFortress     Fortress?               @relation("DwarfDeepMiningRune", fields: [runeFortressId], references: [id], onDelete: SetNull)
+
+  @@index([fortressId, createdAt])
+  @@index([targetFortressId, activeUntil])
+  @@index([outcome, createdAt])
 }
 
 model CastleUpgradeSpecializationChoice {

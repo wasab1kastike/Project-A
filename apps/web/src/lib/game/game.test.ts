@@ -12,6 +12,7 @@ import {
   ChatMessageType,
   CommunityWishStatus,
   CycleStatus,
+  DwarfDeepMiningOutcome,
   FortressAction,
   FortressKind,
   FortressRace,
@@ -106,6 +107,7 @@ import {
   recallAttackUnit,
   selectFortressRace,
   setFortressAction,
+  activateDwarfDeepMining,
   claimUnicornTeleport,
   updateWorkerAssignment,
   shuffleFortressLocation,
@@ -4322,6 +4324,339 @@ test("race selection is owner-only and locked once per season", async (context) 
   });
 
   assert.equal(fortress.race, "ORKS");
+});
+
+test("Dwarf Deep Mining validates race, committed army, and hourly cooldown", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const dwarf = await createUser(prisma, "deep-mining-dwarf@example.com");
+  const target = await createUser(prisma, "deep-mining-target@example.com");
+  const activeAt = new Date("2026-04-20T12:01:00.000Z");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: dwarf.id,
+    fortressName: "Deep Hold",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: target.id,
+    fortressName: "Target Hold",
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+  await selectFortressRace({
+    db: prisma,
+    userId: dwarf.id,
+    race: FortressRace.DWARFS,
+    now: activeAt,
+  });
+  await selectFortressRace({
+    db: prisma,
+    userId: target.id,
+    race: FortressRace.ORKS,
+    now: activeAt,
+  });
+
+  const dwarfFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: dwarf.id,
+      },
+    },
+  });
+  const targetFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: target.id,
+      },
+    },
+  });
+
+  await prisma.fortress.update({
+    where: {
+      id: dwarfFortress.id,
+    },
+    data: {
+      army: 40,
+      minersAssigned: 30,
+    },
+  });
+
+  await assert.rejects(
+    () =>
+      activateDwarfDeepMining({
+        db: prisma,
+        userId: target.id,
+        targetFortressId: dwarfFortress.id,
+        committedArmy: 1,
+        now: activeAt,
+        rollValue: 0.1,
+      }),
+    /Only Dwarfs/
+  );
+
+  await assert.rejects(
+    () =>
+      activateDwarfDeepMining({
+        db: prisma,
+        userId: dwarf.id,
+        targetFortressId: targetFortress.id,
+        committedArmy: 41,
+        now: activeAt,
+        rollValue: 0.1,
+      }),
+    /enough idle army/
+  );
+
+  const result = await activateDwarfDeepMining({
+    db: prisma,
+    userId: dwarf.id,
+    targetFortressId: targetFortress.id,
+    committedArmy: 10,
+    now: activeAt,
+    rollValue: 0.1,
+  });
+
+  assert.equal(result.outcome, DwarfDeepMiningOutcome.RICH_VEIN);
+  assert.ok(result.pointDelta >= 300);
+
+  await assert.rejects(
+    () =>
+      activateDwarfDeepMining({
+        db: prisma,
+        userId: dwarf.id,
+        targetFortressId: targetFortress.id,
+        committedArmy: 10,
+        now: new Date("2026-04-20T12:30:00.000Z"),
+        rollValue: 0.3,
+      }),
+    /already been used this hour/
+  );
+
+  const updatedDwarf = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: dwarfFortress.id,
+    },
+  });
+  assert.equal(updatedDwarf.army, 40);
+});
+
+test("Dwarf Deep Mining rune is contested and bounty destruction ends suppression", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const dwarf = await createUser(prisma, "rune-dwarf@example.com");
+  const target = await createUser(prisma, "rune-target@example.com");
+  const attacker = await createUser(prisma, "rune-attacker@example.com");
+  const activeAt = new Date("2026-04-20T12:01:00.000Z");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: dwarf.id,
+    fortressName: "Rune Hold",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: target.id,
+    fortressName: "Sealed Hold",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: attacker.id,
+    fortressName: "Breaker Hold",
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  await selectFortressRace({
+    db: prisma,
+    userId: dwarf.id,
+    race: FortressRace.DWARFS,
+    now: activeAt,
+  });
+  await selectFortressRace({
+    db: prisma,
+    userId: target.id,
+    race: FortressRace.ORKS,
+    now: activeAt,
+  });
+  await selectFortressRace({
+    db: prisma,
+    userId: attacker.id,
+    race: FortressRace.SPACE_MURINES,
+    now: activeAt,
+  });
+
+  const dwarfFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: dwarf.id,
+      },
+    },
+  });
+  const targetFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: target.id,
+      },
+    },
+  });
+  const attackerFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: attacker.id,
+      },
+    },
+  });
+
+  await prisma.fortress.update({
+    where: {
+      id: dwarfFortress.id,
+    },
+    data: {
+      army: 80,
+      mapX: 10,
+      mapY: 10,
+    },
+  });
+  await prisma.fortress.update({
+    where: {
+      id: targetFortress.id,
+    },
+    data: {
+      mapX: 90,
+      mapY: 90,
+    },
+  });
+  await prisma.fortress.update({
+    where: {
+      id: attackerFortress.id,
+    },
+    data: {
+      army: 200,
+      mapX: 50,
+      mapY: 50,
+    },
+  });
+
+  const result = await activateDwarfDeepMining({
+    db: prisma,
+    userId: dwarf.id,
+    targetFortressId: targetFortress.id,
+    committedArmy: 40,
+    now: activeAt,
+    rollValue: 0.62,
+  });
+
+  assert.equal(result.outcome, DwarfDeepMiningOutcome.FACTION_SEAL);
+  assert.ok(result.runeFortressId);
+
+  const rune = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: result.runeFortressId,
+    },
+  });
+  const dwarfAfterRune = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: dwarfFortress.id,
+    },
+  });
+
+  assert.equal(rune.fortressKind, FortressKind.DWARF_RUNE);
+  assert.equal(rune.army, 40);
+  assert.equal(rune.health, 1);
+  assert.equal(rune.mapX, 50);
+  assert.equal(rune.mapY, 50);
+  assert.equal(dwarfAfterRune.army, 40);
+
+  const suppressedState = await getHomePageState({
+    db: prisma,
+    userId: target.id,
+    now: activeAt,
+  });
+  assert.equal(
+    suppressedState.playerSummary?.factionSuppression?.runeFortressId,
+    rune.id
+  );
+  assert.equal(suppressedState.playerSummary?.race, null);
+
+  await assert.rejects(
+    () =>
+      setFortressAction({
+        db: prisma,
+        userId: dwarf.id,
+        action: FortressAction.ATTACK,
+        targetFortressId: rune.id,
+        sentArmy: 1,
+        now: new Date("2026-04-20T12:02:00.000Z"),
+      }),
+    /own Deep Mining rune/
+  );
+
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.ATTACK,
+    targetFortressId: rune.id,
+    sentArmy: 200,
+    now: new Date("2026-04-20T12:02:00.000Z"),
+  });
+
+  const attackUnit = await prisma.attackUnit.findFirstOrThrow({
+    where: {
+      attackerFortressId: attackerFortress.id,
+      targetFortressId: rune.id,
+    },
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: attackUnit.arrivesAt,
+  });
+
+  const destroyedRune = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: rune.id,
+    },
+  });
+  const bountyEvent = await prisma.scoreEvent.findFirst({
+    where: {
+      cycleId: cycle.id,
+      fortressId: attackerFortress.id,
+      targetFortressId: rune.id,
+      eventType: ScoreEventType.DWARF_RUNE_BOUNTY,
+      delta: 500,
+    },
+  });
+  const clearedState = await getHomePageState({
+    db: prisma,
+    userId: target.id,
+    now: addMinutes(attackUnit.arrivesAt, 1),
+  });
+
+  assert.equal(destroyedRune.health, 0);
+  assert.ok(bountyEvent);
+  assert.equal(clearedState.playerSummary?.factionSuppression, null);
+  assert.equal(clearedState.playerSummary?.race, FortressRace.ORKS);
 });
 
 test("location shuffle is free once, then costs 50 points", async (context) => {

@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 
 import {
   attackFromMapAction,
+  activateDwarfDeepMiningAction,
   recallAttackUnitAction,
   activateStimAction,
   activateWaaaghAction,
@@ -57,7 +58,7 @@ type CommandTarget = {
   race: FortressRace | null;
   points: number;
   isNpc: boolean;
-  fortressKind: "PLAYER" | "MEGA" | "UNICORN_DECOY" | "LOOT_CAMP";
+  fortressKind: "PLAYER" | "MEGA" | "UNICORN_DECOY" | "LOOT_CAMP" | "DWARF_RUNE";
   lootCampVariant: "CLASSIC" | "RICH" | "CHAOS" | null;
   expiresAt: Date | null;
   unicornDecoyLevel: number | null;
@@ -146,6 +147,19 @@ type PlayerSummary = {
     }>;
     canChooseDwarfGrudge: boolean;
     canChooseDwarfTierThree: boolean;
+    canActivateDeepMining: boolean;
+    deepMiningLatest: {
+      outcome: string;
+      committedArmy: number;
+      pointDelta: number;
+      armyDelta: number;
+      activeUntil: Date | null;
+      createdAt: Date;
+      targetName: string | null;
+      runeFortressId: string | null;
+      runeHealth: number | null;
+      runeArmy: number | null;
+    } | null;
     canActivateWaaagh: boolean;
     waaaghActiveUntil: Date | null;
     canActivateStim: boolean;
@@ -156,6 +170,12 @@ type PlayerSummary = {
     unicornTeleportTokenExpiresAt: Date | null;
   };
   receivedSlayerUpgrade: boolean;
+  factionSuppression: {
+    runeFortressId: string | null;
+    ownerName: string;
+    ownerCommanderName: string;
+    activeUntil: Date | null;
+  } | null;
   growPerTick: number;
   attackDamage: number;
 };
@@ -1408,6 +1428,87 @@ export function BattlefieldExperience({
                 currentRace={playerSummary.race}
                 isTestingPhase={playerSummary.isTestingPhase}
               />
+            ) : null}
+
+            {castleTab === "RACE" && playerSummary.race === "DWARFS" ? (
+              <section className={styles.upgradePanel}>
+                <div className={styles.upgradeHeader}>
+                  <div>
+                    <span className={styles.label}>Deep Mining</span>
+                    <h4>Once per hour</h4>
+                  </div>
+                  <strong>
+                    {playerSummary.raceBuffs.canActivateDeepMining
+                      ? "Ready"
+                      : "Spent"}
+                  </strong>
+                </div>
+                {playerSummary.factionSuppression ? (
+                  <p className={`${styles.helper} ${styles.warningText}`}>
+                    Faction bonuses disabled by{" "}
+                    {playerSummary.factionSuppression.ownerName} until its rune
+                    falls or expires.
+                  </p>
+                ) : null}
+                {playerSummary.raceBuffs.deepMiningLatest ? (
+                  <p className={styles.helper}>
+                    Last roll:{" "}
+                    {playerSummary.raceBuffs.deepMiningLatest.outcome.replace(
+                      /_/g,
+                      " "
+                    )}
+                    {playerSummary.raceBuffs.deepMiningLatest.pointDelta
+                      ? ` (${playerSummary.raceBuffs.deepMiningLatest.pointDelta > 0 ? "+" : ""}${playerSummary.raceBuffs.deepMiningLatest.pointDelta} points)`
+                      : ""}
+                    {playerSummary.raceBuffs.deepMiningLatest.armyDelta
+                      ? ` (${playerSummary.raceBuffs.deepMiningLatest.armyDelta > 0 ? "+" : ""}${playerSummary.raceBuffs.deepMiningLatest.armyDelta} army)`
+                      : ""}
+                    .
+                  </p>
+                ) : null}
+                <form action={activateDwarfDeepMiningAction} className={styles.form}>
+                  <label className={styles.field}>
+                    <span>Rune target</span>
+                    <select name="targetFortressId" required>
+                      <option value="">Choose player</option>
+                      {targets
+                        .filter((target) => !target.isNpc)
+                        .map((target) => (
+                          <option key={target.id} value={target.id}>
+                            {target.name}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  <label className={styles.field}>
+                    <span>Commit army if rune hits</span>
+                    <input
+                      name="committedArmy"
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      max={playerSummary.army}
+                      defaultValue={Math.min(25, Math.max(1, playerSummary.army))}
+                      required
+                    />
+                  </label>
+                  <p className={styles.helper}>
+                    The rune outcome is rare. If it hits, committed army leaves
+                    your fortress and defends a contested map tile worth 500
+                    points to whoever destroys it.
+                  </p>
+                  <button
+                    className={`${styles.secondaryButton} ${styles.emphasisButton}`}
+                    type="submit"
+                    disabled={
+                      !playerSummary.raceBuffs.canActivateDeepMining ||
+                      playerSummary.army <= 0
+                    }
+                  >
+                    Activate Deep Mining
+                  </button>
+                </form>
+              </section>
             ) : null}
 
             {castleTab === "RACE" &&

@@ -567,6 +567,53 @@
   border-color: rgba(116, 224, 142, 0.22);
 }
 
+.dwarfRuneMarker {
+  z-index: 4;
+  width: 72px;
+  height: 72px;
+}
+
+.dwarfRuneMarker .spriteFrame {
+  filter: drop-shadow(0 15px 12px rgba(0, 0, 0, 0.26))
+    drop-shadow(0 0 16px rgba(105, 205, 255, 0.26));
+}
+
+.dwarfRuneMarker .selectionPulse {
+  background: radial-gradient(
+    ellipse,
+    rgba(105, 205, 255, 0.28),
+    rgba(246, 214, 116, 0.12) 48%,
+    transparent 72%
+  );
+}
+
+.dwarfRuneMarker .pointsBadge {
+  min-width: 60px;
+  color: #c8f0ff;
+  border-color: rgba(105, 205, 255, 0.32);
+  font-size: 0.62rem;
+}
+
+.dwarfRuneMarker .nameplate {
+  color: #c8f0ff;
+  border-color: rgba(105, 205, 255, 0.24);
+}
+
+.dwarfRuneSprite {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 64px;
+  height: 64px;
+  display: block;
+  background-image: url("/assets/sprite-rune-grudge.png");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  image-rendering: pixelated;
+  transform: translate(-50%, -50%);
+}
+
 .lootCampSprite {
   width: 82px;
   height: 82px;

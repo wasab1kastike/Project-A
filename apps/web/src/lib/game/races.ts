@@ -43,7 +43,11 @@ export const RACE_DEFINITIONS = [
     flavorQuote: "We mine because we care.",
     flavorText:
       "Stone-minded planners who turn deep mines and stubborn walls into seasonal leverage.",
-    passiveSummary: ["+10% defense bonus", "+1 point per 10 miners"],
+    passiveSummary: [
+      "+10% defense bonus",
+      "+1 point per 10 miners",
+      "Deep Mining once per hour: high-variance rewards, hazards, and rare contested rune suppression",
+    ],
     modifiers: {
       ...NO_RACE_MODIFIERS,
       defenseBonus: 0.1,

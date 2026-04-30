@@ -7,6 +7,7 @@ export {
   ChatMessageType,
   CommunityWishStatus,
   CycleStatus,
+  DwarfDeepMiningOutcome,
   FortressAction,
   FortressKind,
   FortressRace,
