@@ -1148,8 +1148,8 @@ export async function shuffleFortressLocation({
         data: {
           cycleId: cycle.id,
           ownerId: decoyOwner.id,
-          commanderName: fortress.commanderName,
-          name: fortress.name,
+          commanderName: `${fortress.commanderName} Decoy ${locationShuffleCount + 1}`,
+          name: `${fortress.name} Decoy ${locationShuffleCount + 1}`,
           race: fortress.race,
           fortressKind: FortressKind.UNICORN_DECOY,
           isNpc: true,
