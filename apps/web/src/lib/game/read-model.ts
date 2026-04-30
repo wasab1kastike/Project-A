@@ -1090,6 +1090,7 @@ export async function getHomePageState({
     currentAction: fortress.currentAction,
     mapX: fortress.mapX,
     mapY: fortress.mapY,
+    spriteSeedId: disguisedSource?.id ?? fortress.id,
     unitSpriteVariant: normalizeUnitSpriteVariant(fortress.unitSpriteVariant),
     unitCosmeticVariant: displayOwner?.unitCosmeticVariant ?? null,
     fortressCosmeticVariant: displayOwner?.fortressCosmeticVariant ?? null,

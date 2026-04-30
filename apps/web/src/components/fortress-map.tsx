@@ -30,6 +30,8 @@ type MapFortress = {
   commanderName: string;
   name: string;
   rawName: string;
+  fortressKind: "PLAYER" | "MEGA" | "UNICORN_DECOY" | "LOOT_CAMP" | "DWARF_RUNE";
+  lootCampVariant: "STANDARD" | "RICH" | "CHAOS" | "CLASSIC" | null;
   points: number;
   isNpc: boolean;
   health: number;
@@ -41,6 +43,7 @@ type MapFortress = {
   army: number;
   mapX: number;
   mapY: number;
+  spriteSeedId: string;
   unitSpriteVariant: UnitSpriteVariant;
   unitCosmeticVariant: string | null;
   fortressCosmeticVariant: string | null;
@@ -139,7 +142,9 @@ function clampValue(value: number, min: number, max: number) {
 }
 
 function getSpriteVariant(fortress: MapFortress): SpriteVariant {
-  return SPRITE_VARIANTS[hashString(fortress.id) % SPRITE_VARIANTS.length];
+  return SPRITE_VARIANTS[
+    hashString(fortress.spriteSeedId) % SPRITE_VARIANTS.length
+  ];
 }
 
 function FortressSprite({
@@ -172,6 +177,24 @@ function MegaFortressSprite({ iconLabel }: { iconLabel: string }) {
       role="img"
     />
   );
+}
+
+function LootCampSprite({
+  variant,
+}: {
+  variant: "STANDARD" | "RICH" | "CHAOS" | "CLASSIC" | null;
+}) {
+  return (
+    <span
+      className={styles.lootCampSprite}
+      data-variant={variant ?? "STANDARD"}
+      aria-hidden="true"
+    />
+  );
+}
+
+function DwarfRuneSprite() {
+  return <span className={styles.dwarfRuneSprite} aria-hidden="true" />;
 }
 
 function HexTileMap() {
@@ -975,10 +998,17 @@ export function FortressMap({
                 (Boolean(onSelectFortress) && fortress.isCurrentUser) ||
                 (Boolean(onConfirmAttackTarget) && fortress.isTargetable);
               const variant = getSpriteVariant(fortress);
-              const isMega = fortress.isNpc;
+              const isMega = fortress.fortressKind === "MEGA";
+              const isLootCamp = fortress.fortressKind === "LOOT_CAMP";
+              const isDwarfRune = fortress.fortressKind === "DWARF_RUNE";
+              const isUnicornDecoy = fortress.fortressKind === "UNICORN_DECOY";
+              const showsHealth = fortress.fortressKind !== "PLAYER";
               const className = [
                 styles.marker,
                 isMega ? styles.megaMarker : "",
+                isLootCamp ? styles.lootCampMarker : "",
+                isDwarfRune ? styles.dwarfRuneMarker : "",
+                isUnicornDecoy ? styles.unicornDecoyMarker : "",
                 fortress.isSlayerOfA ? styles.crownedMarker : "",
                 fortress.isCurrentUser ? styles.currentUser : "",
                 selectedFortressId === fortress.id ? styles.activeFortress : "",
@@ -1027,7 +1057,7 @@ export function FortressMap({
                       selectedFortressId === fortress.id
                     }
                     aria-label={
-                      isMega
+                      showsHealth
                         ? `${fortress.name}, ${fortress.health} of ${fortress.maxHealth} health`
                         : `${fortress.name}, ${fortress.points} points`
                     }
@@ -1038,6 +1068,10 @@ export function FortressMap({
                         <MegaFortressSprite
                           iconLabel={fortress.iconLabel ?? "A-"}
                         />
+                      ) : isLootCamp ? (
+                        <LootCampSprite variant={fortress.lootCampVariant} />
+                      ) : isDwarfRune ? (
+                        <DwarfRuneSprite />
                       ) : (
                         <FortressSprite
                           variant={variant}
@@ -1045,7 +1079,7 @@ export function FortressMap({
                         />
                       )}
                     </span>
-                    {isMega ? (
+                    {showsHealth ? (
                       <span className={styles.pointsBadge}>
                         {fortress.health}/{fortress.maxHealth}
                       </span>
@@ -1057,7 +1091,7 @@ export function FortressMap({
                     <span className={styles.tooltip}>
                       <strong>{fortress.name}</strong>
                       <span>
-                        {isMega
+                        {showsHealth
                           ? `${fortress.health}/${fortress.maxHealth} HP`
                           : `${fortress.points} pts${
                               fortress.isSlayerOfA ? " - Slayer of A" : ""
@@ -1077,7 +1111,7 @@ export function FortressMap({
                     >
                       <strong>{fortress.name}</strong>
                       <span>
-                        {isMega
+                        {showsHealth
                           ? `${fortress.health}/${fortress.maxHealth} HP`
                           : `${fortress.points} pts`}
                       </span>
