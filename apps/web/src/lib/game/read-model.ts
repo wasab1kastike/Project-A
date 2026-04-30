@@ -1555,6 +1555,14 @@ export async function getHomePageState({
         Boolean(userId) &&
         unit.attackerFortress.ownerId === userId &&
         unit.recalledAt === null,
+      canInstantRecall:
+        Boolean(userId) &&
+        unit.attackerFortress.ownerId === userId &&
+        unit.recalledAt === null &&
+        unit.attackerFortress.race === "SPACE_MURINES" &&
+        raceBuffTier >= 3 &&
+        (!latestInstantRecallUse ||
+          getHelsinkiHourKey(latestInstantRecallUse.usedAt) !== currentHourKey),
       attacker: {
         id: unit.attackerFortress.id,
         name: unit.attackerFortress.name,

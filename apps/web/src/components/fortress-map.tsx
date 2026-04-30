@@ -21,13 +21,8 @@ import {
 } from "@/lib/game/map-hex";
 import { getAttackTravelMinutes } from "@/lib/game/attacks";
 import { getAttackPresentation } from "@/lib/game/attack-presentation";
-import {
-  getCosmeticSpriteStyle,
-  getDefaultRaceCosmeticVariant,
-} from "@/lib/game/cosmetic-sprites";
+import { getCosmeticSpriteStyle } from "@/lib/game/cosmetic-sprites";
 import type { UnitSpriteVariant } from "@/lib/game/constants";
-import { getRaceDefinition, type FortressRace } from "@/lib/game/races";
-import type { CastleSpecializationCounts } from "@/lib/game/specializations";
 import styles from "./fortress-map.module.css";
 
 type MapFortress = {
@@ -37,16 +32,6 @@ type MapFortress = {
   rawName: string;
   points: number;
   isNpc: boolean;
-  fortressKind: "PLAYER" | "MEGA" | "UNICORN_DECOY" | "LOOT_CAMP" | "DWARF_RUNE";
-  lootCampVariant: "CLASSIC" | "RICH" | "CHAOS" | null;
-  dwarfRune: {
-    ownerName: string;
-    ownerCommanderName: string;
-    targetFortressId: string | null;
-    bounty: number;
-  } | null;
-  expiresAt: Date | null;
-  unicornDecoyLevel: number | null;
   health: number;
   maxHealth: number;
   sizeTiles: number;
@@ -54,8 +39,6 @@ type MapFortress = {
   isSlayerOfA: boolean;
   currentAction: "GROW" | "ATTACK";
   army: number;
-  race: FortressRace | null;
-  castleSpecializationCounts: CastleSpecializationCounts;
   mapX: number;
   mapY: number;
   unitSpriteVariant: UnitSpriteVariant;
@@ -76,12 +59,12 @@ type AttackUnitMarker = {
     mapY: number;
   } | null;
   canRecall: boolean;
+  canInstantRecall: boolean;
   attacker: {
     id: string;
     name: string;
     mapX: number;
     mapY: number;
-    race: FortressRace | null;
     unitSpriteVariant: UnitSpriteVariant;
     unitCosmeticVariant: string | null;
   };
@@ -130,13 +113,6 @@ const BIOME_LABELS: Record<HexBiome, string> = {
   lake: "Lake",
 };
 
-const RACE_TOKEN_PATHS: Record<FortressRace, string> = {
-  DWARFS: "/assets/token-dwarf.png",
-  ORKS: "/assets/token-orks.png",
-  SPACE_MURINES: "/assets/token-space-murines.png",
-  UNSTABLE_UNICORNS: "/assets/token-unstable-unicorns.png",
-};
-
 const SPRITE_VARIANTS = [
   "citadel",
   "forge",
@@ -164,10 +140,6 @@ function clampValue(value: number, min: number, max: number) {
 
 function getSpriteVariant(fortress: MapFortress): SpriteVariant {
   return SPRITE_VARIANTS[hashString(fortress.id) % SPRITE_VARIANTS.length];
-}
-
-function getRaceTokenPath(race: FortressRace) {
-  return RACE_TOKEN_PATHS[race];
 }
 
 function FortressSprite({
@@ -200,40 +172,6 @@ function MegaFortressSprite({ iconLabel }: { iconLabel: string }) {
       role="img"
     />
   );
-}
-
-function LootCampSprite({
-  variant,
-}: {
-  variant: MapFortress["lootCampVariant"];
-}) {
-  return (
-    <span
-      className={styles.lootCampSprite}
-      data-variant={variant ?? "CLASSIC"}
-      aria-hidden="true"
-    />
-  );
-}
-
-function DwarfRuneSprite() {
-  return <span className={styles.dwarfRuneSprite} aria-hidden="true" />;
-}
-
-function getLootCampRewardLabel(variant: MapFortress["lootCampVariant"]) {
-  if (variant === "CLASSIC") {
-    return "food";
-  }
-
-  if (variant === "RICH") {
-    return "points";
-  }
-
-  if (variant === "CHAOS") {
-    return "army + cooldown";
-  }
-
-  return "loot";
 }
 
 function HexTileMap() {
@@ -318,9 +256,11 @@ function formatSecondsRemaining(seconds: number) {
 function AttackUnitsLayer({
   attackUnits,
   onRecallAttackUnit,
+  onInstantRecallAttackUnit,
 }: {
   attackUnits: AttackUnitMarker[];
   onRecallAttackUnit?: (attackUnit: AttackUnitMarker) => void | Promise<void>;
+  onInstantRecallAttackUnit?: (attackUnit: AttackUnitMarker) => void | Promise<void>;
 }) {
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
@@ -345,14 +285,10 @@ function AttackUnitsLayer({
   return (
     <div className={styles.attackLayer} aria-label="Active attacks">
       {attackUnits.map((unit) => {
-        const skinVariant =
-          unit.attacker.unitCosmeticVariant ??
-          getDefaultRaceCosmeticVariant({
-            slot: "UNIT",
-            race: unit.attacker.race,
-            seed: unit.attacker.id,
-          });
-        const skinStyle = getCosmeticSpriteStyle("UNIT", skinVariant);
+        const skinStyle = getCosmeticSpriteStyle(
+          "UNIT",
+          unit.attacker.unitCosmeticVariant
+        );
         const isReturning = Boolean(unit.recalledAt);
         const routeOrigin = isReturning
           ? (unit.returnOrigin ?? {
@@ -412,7 +348,7 @@ function AttackUnitsLayer({
                   <span
                     className={styles.attackUnitSprite}
                     data-variant={unit.attacker.unitSpriteVariant}
-                    data-skin={skinVariant ?? undefined}
+                    data-skin={unit.attacker.unitCosmeticVariant ?? undefined}
                     style={skinStyle ?? undefined}
                   />
                   <span className={styles.attackUnitAmount}>
@@ -434,11 +370,7 @@ function AttackUnitsLayer({
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={(event) => event.stopPropagation()}
               >
-                <strong>
-                  {unit.armyAmount !== null
-                    ? `${unit.armyAmount} army`
-                    : "Hidden army"}
-                </strong>
+                <strong>{unit.armyAmount !== null ? `${unit.armyAmount} army` : "Hidden army"}</strong>
                 <span>{statusText}</span>
                 <em>{formatSecondsRemaining(secondsRemaining)} ETA</em>
                 {unit.canRecall && onRecallAttackUnit ? (
@@ -459,6 +391,24 @@ function AttackUnitsLayer({
                     {recallPendingId === unit.id ? "Recalling..." : "Recall"}
                   </button>
                 ) : null}
+                {unit.canInstantRecall && onInstantRecallAttackUnit ? (
+                  <button
+                    type="button"
+                    disabled={recallPendingId === unit.id}
+                    onClick={async () => {
+                      setRecallPendingId(unit.id);
+
+                      try {
+                        await onInstantRecallAttackUnit(unit);
+                        setSelectedUnitId(null);
+                      } finally {
+                        setRecallPendingId(null);
+                      }
+                    }}
+                  >
+                    {recallPendingId === unit.id ? "Recalling..." : "Instant Recall"}
+                  </button>
+                ) : null}
               </div>
             ) : null}
           </Fragment>
@@ -476,6 +426,7 @@ export function FortressMap({
   onSelectFortress,
   onConfirmAttackTarget,
   onRecallAttackUnit,
+  onInstantRecallAttackUnit,
   className,
 }: {
   fortresses: MapFortress[];
@@ -488,6 +439,7 @@ export function FortressMap({
     sentArmy: number
   ) => void | Promise<void>;
   onRecallAttackUnit?: (attackUnit: AttackUnitMarker) => void | Promise<void>;
+  onInstantRecallAttackUnit?: (attackUnit: AttackUnitMarker) => void | Promise<void>;
   className?: string;
 }) {
   const shellRef = useRef<HTMLDivElement | null>(null);
@@ -511,7 +463,6 @@ export function FortressMap({
   const [dragStart, setDragStart] = useState<DragStart | null>(null);
   const [pendingTargetId, setPendingTargetId] = useState<string | null>(null);
   const [targetSentArmy, setTargetSentArmy] = useState(1);
-  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const ownFortress =
     fortresses.find((fortress) => fortress.isCurrentUser) ?? null;
@@ -520,23 +471,6 @@ export function FortressMap({
     maxTargetSentArmy > 0
       ? Math.min(Math.max(1, targetSentArmy), maxTargetSentArmy)
       : 0;
-  const hasExpiringObjectives = fortresses.some(
-    (fortress) =>
-      fortress.fortressKind === "LOOT_CAMP" ||
-      fortress.fortressKind === "DWARF_RUNE"
-  );
-
-  useEffect(() => {
-    if (!hasExpiringObjectives) {
-      return;
-    }
-
-    const interval = window.setInterval(() => {
-      setNowMs(Date.now());
-    }, 1000);
-
-    return () => window.clearInterval(interval);
-  }, [hasExpiringObjectives]);
 
   const clampTranslation = useCallback(
     (nextX: number, nextY: number, nextScale: number) => {
@@ -1025,6 +959,7 @@ export function FortressMap({
           <AttackUnitsLayer
             attackUnits={attackUnits}
             onRecallAttackUnit={onRecallAttackUnit}
+                      onInstantRecallAttackUnit={onInstantRecallAttackUnit}
           />
           {fortresses.length === 0 ? (
             <div className={styles.emptyState}>
@@ -1040,31 +975,10 @@ export function FortressMap({
                 (Boolean(onSelectFortress) && fortress.isCurrentUser) ||
                 (Boolean(onConfirmAttackTarget) && fortress.isTargetable);
               const variant = getSpriteVariant(fortress);
-              const isMega = fortress.fortressKind === "MEGA";
-              const isUnicornDecoy = fortress.fortressKind === "UNICORN_DECOY";
-              const isLootCamp = fortress.fortressKind === "LOOT_CAMP";
-              const isDwarfRune = fortress.fortressKind === "DWARF_RUNE";
-              const raceDefinition = getRaceDefinition(fortress.race);
-              const raceLabel = raceDefinition?.displayName ?? null;
-              const showRaceToken =
-                !fortress.isNpc &&
-                fortress.fortressKind === "PLAYER" &&
-                fortress.race !== null &&
-                raceLabel !== null;
-              const lootCampSecondsRemaining = fortress.expiresAt
-                ? Math.max(
-                    0,
-                    Math.ceil(
-                      (new Date(fortress.expiresAt).getTime() - nowMs) / 1000
-                    )
-                  )
-                : 0;
+              const isMega = fortress.isNpc;
               const className = [
                 styles.marker,
                 isMega ? styles.megaMarker : "",
-                isUnicornDecoy ? styles.unicornDecoyMarker : "",
-                isLootCamp ? styles.lootCampMarker : "",
-                isDwarfRune ? styles.dwarfRuneMarker : "",
                 fortress.isSlayerOfA ? styles.crownedMarker : "",
                 fortress.isCurrentUser ? styles.currentUser : "",
                 selectedFortressId === fortress.id ? styles.activeFortress : "",
@@ -1099,9 +1013,7 @@ export function FortressMap({
                     onPointerUp={(event) =>
                       handleMarkerPointerUp(event, fortress)
                     }
-                    onPointerCancel={(event) =>
-                      clearMarkerTap(event, fortress.id)
-                    }
+                    onPointerCancel={(event) => clearMarkerTap(event, fortress.id)}
                     onClick={(event) => {
                       if (event.detail !== 0 || suppressClickRef.current) {
                         event.preventDefault();
@@ -1117,17 +1029,7 @@ export function FortressMap({
                     aria-label={
                       isMega
                         ? `${fortress.name}, ${fortress.health} of ${fortress.maxHealth} health`
-                        : isDwarfRune
-                          ? `${fortress.name}, Dwarf rune defended by ${fortress.army} army, ${fortress.dwarfRune?.bounty ?? 500} point bounty`
-                        : isLootCamp
-                          ? `${fortress.name}, ${fortress.health} of ${fortress.maxHealth} health, ${fortress.army} defending army, rewards ${getLootCampRewardLabel(
-                              fortress.lootCampVariant
-                            )}, ${formatSecondsRemaining(
-                              lootCampSecondsRemaining
-                            )} remaining`
-                          : isUnicornDecoy
-                            ? `${fortress.name}, Unicorn decoy, ${200 * Math.max(1, fortress.unicornDecoyLevel ?? 1)} army backlash`
-                            : `${fortress.name}, ${raceLabel ? `${raceLabel}, ` : ""}${fortress.points} points`
+                        : `${fortress.name}, ${fortress.points} points`
                     }
                   >
                     <span className={styles.selectionPulse} />
@@ -1136,44 +1038,16 @@ export function FortressMap({
                         <MegaFortressSprite
                           iconLabel={fortress.iconLabel ?? "A-"}
                         />
-                      ) : isDwarfRune ? (
-                        <DwarfRuneSprite />
-                      ) : isLootCamp ? (
-                        <LootCampSprite variant={fortress.lootCampVariant} />
                       ) : (
                         <FortressSprite
                           variant={variant}
-                          skinVariant={
-                            fortress.fortressCosmeticVariant ??
-                            getDefaultRaceCosmeticVariant({
-                              slot: "FORTRESS",
-                              race: fortress.race,
-                              seed: fortress.id,
-                            })
-                          }
+                          skinVariant={fortress.fortressCosmeticVariant}
                         />
                       )}
                     </span>
-                    {showRaceToken && fortress.race ? (
-                      <span
-                        className={styles.raceToken}
-                        style={{
-                          backgroundImage: `url("${getRaceTokenPath(
-                            fortress.race
-                          )}")`,
-                        }}
-                        aria-hidden="true"
-                      />
-                    ) : null}
-                    {isMega || isUnicornDecoy || isLootCamp || isDwarfRune ? (
+                    {isMega ? (
                       <span className={styles.pointsBadge}>
-                        {isDwarfRune
-                          ? `${fortress.army} def`
-                          : isLootCamp
-                          ? `${fortress.health}/${fortress.maxHealth}`
-                          : isUnicornDecoy
-                            ? `-${200 * Math.max(1, fortress.unicornDecoyLevel ?? 1)}`
-                            : `${fortress.health}/${fortress.maxHealth}`}
+                        {fortress.health}/{fortress.maxHealth}
                       </span>
                     ) : null}
                     <span className={styles.nameplate}>{fortress.name}</span>
@@ -1185,17 +1059,9 @@ export function FortressMap({
                       <span>
                         {isMega
                           ? `${fortress.health}/${fortress.maxHealth} HP`
-                          : isLootCamp
-                            ? `${fortress.health}/${fortress.maxHealth} HP - ${fortress.army} army - ${getLootCampRewardLabel(
-                                fortress.lootCampVariant
-                              )} - ${formatSecondsRemaining(
-                                lootCampSecondsRemaining
-                              )}`
-                            : isUnicornDecoy
-                              ? `Decoy L${fortress.unicornDecoyLevel ?? 1}`
-                              : `${raceLabel ? `${raceLabel} - ` : ""}${fortress.points} pts${
-                                  fortress.isSlayerOfA ? " - Slayer of A" : ""
-                                }`}
+                          : `${fortress.points} pts${
+                              fortress.isSlayerOfA ? " - Slayer of A" : ""
+                            }`}
                       </span>
                     </span>
                   </button>
@@ -1213,15 +1079,7 @@ export function FortressMap({
                       <span>
                         {isMega
                           ? `${fortress.health}/${fortress.maxHealth} HP`
-                          : isLootCamp
-                            ? `${fortress.health}/${fortress.maxHealth} HP - ${fortress.army} army - ${getLootCampRewardLabel(
-                                fortress.lootCampVariant
-                              )} - ${formatSecondsRemaining(
-                                lootCampSecondsRemaining
-                              )}`
-                            : isUnicornDecoy
-                              ? `${200 * Math.max(1, fortress.unicornDecoyLevel ?? 1)} army backlash`
-                              : `${fortress.points} pts`}
+                          : `${fortress.points} pts`}
                       </span>
                       {travelMinutes ? <em>{travelMinutes} min ETA</em> : null}
                       <label className={styles.targetArmyControl}>

@@ -202,6 +202,36 @@ export async function recallAttackUnitAction(attackUnitId: string) {
   }
 }
 
+export async function instantRecallAttackUnitAction(attackUnitId: string) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await recallAttackUnit({
+      userId,
+      attackUnitId,
+      instant: true,
+    });
+    emitProjectARefresh("map-recall");
+    revalidatePath("/");
+    return {
+      ok: true,
+    } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
 export async function updateWorkerAssignmentAction(input: {
   minersAssigned: number;
   farmersAssigned: number;

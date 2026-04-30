@@ -7,6 +7,7 @@ import { createPortal } from "react-dom";
 import {
   attackFromMapAction,
   activateDwarfDeepMiningAction,
+  instantRecallAttackUnitAction,
   recallAttackUnitAction,
   activateStimAction,
   activateWaaaghAction,
@@ -987,6 +988,14 @@ export function BattlefieldExperience({
     }
   }
 
+  async function handleInstantRecallAttackUnit(attackUnit: AttackUnitMarker) {
+    const result = await instantRecallAttackUnitAction(attackUnit.id);
+
+    if (result.ok) {
+      router.refresh();
+    }
+  }
+
   function handleCastleYeetSubmit(event: FormEvent<HTMLFormElement>) {
     if (!playerSummary?.hasOutgoingAttackUnits) {
       return;
@@ -1909,6 +1918,7 @@ export function BattlefieldExperience({
           }}
           onConfirmAttackTarget={prepareAttackTarget}
           onRecallAttackUnit={handleRecallAttackUnit}
+          onInstantRecallAttackUnit={handleInstantRecallAttackUnit}
         />
 
         {!immersive ? chatDrawer : null}

@@ -50,17 +50,17 @@ const RACE_ABILITY_NOTES: Record<string, readonly string[]> = {
     "Tier 1: Enemies cannot see your army size while your units are in transit.",
     "Tier 1+: Faster attack travel from Unicorn speed tech.",
     "Tier 2+: Claim one free teleport token per hour.",
-    "Using a free teleport leaves attackable decoy castles behind. Decoys collapse when hit and can destroy part of the attacking army.",
+    "Using a free teleport leaves attackable decoy castles behind. For other players, decoys look like normal player fortresses. Decoys collapse when hit and can destroy part of the attacking army.",
   ],
   SPACE_MURINES: [
-    "Tier 2+: STIM unlocks (1 hour). During STIM, your attacks keep all sent troops and defenders take no losses.",
-    "First recall each hour returns instantly, losing 5% of sent troops, minimum 1.",
+    "Tier 2+: STIM unlocks (1 hour, once per Helsinki day). During STIM, your outgoing attacks keep all sent troops and attacks against you cause no defender losses.",
+    "Tier 3+: First Instant Recall each Helsinki hour returns immediately, losing 5% of sent troops, minimum 1.",
     `Attack slots scale as ${MAX_SIMULTANEOUS_ATTACKS_BASE} + 2 x castle level.`,
   ],
   ORKS: [
-    "Tier 1+: Stronger Together — 15% of killed defenders join your idle army after each successful raid.",
+    "Tier 1: Stronger Together — 15% of killed defenders join your idle army after each successful raid.",
     "Tier 3+: WAAAGH unlocks (once per day, lasts 1 hour) — x4 attack and defense power, 2x movement speed.",
-    "Ork raids carry extra loot per surviving unit from passive carry bonus.",
+    "Passive economy/combat identity: +6 carry capacity per surviving attacker, +1 army per 10 recruiters.",
   ],
 };
 
@@ -133,6 +133,9 @@ const LATEST_UPDATES = [
   "Loot camps now stay on the battlefield for 30 minutes, show clearer reward/strength/defender info, and fight back with variant-scaled defending armies.",
   "Loot camps now spawn around the battlefield during gameplay. Classic camps pay food, Rich camps pay points, and Chaos camps pay army plus a race cooldown reset.",
   "Unstable Unicorn teleport now leaves attackable decoy castles again. Hitting a decoy clears it and applies its backlash before any normal loot happens.",
+  "Unicorn decoys now mimic normal player fort visuals for other players.",
+  "Orks now use Stronger Together at Tier 1 and WAAAGH at Tier 3 (x4 attack/defense, 2x movement speed).",
+  "Space Murines keep STIM at Tier 2, while Instant Recall is a separate Tier 3 unlock.",
   "Castle Yeet now has clearer warnings and stronger location safeguards, including better handling when a rendered map move would not actually change your tile.",
   "Attack recall and return reports are more explicit, so recalled armies and post-raid returning units are easier to track.",
   "Raid loot caps are now 70% of target points and 70% of target food per raid.",

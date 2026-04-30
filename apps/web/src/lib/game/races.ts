@@ -43,11 +43,7 @@ export const RACE_DEFINITIONS = [
     flavorQuote: "We mine because we care.",
     flavorText:
       "Stone-minded planners who turn deep mines and stubborn walls into seasonal leverage.",
-    passiveSummary: [
-      "+10% defense bonus",
-      "+1 point per 10 miners",
-      "Deep Mining once per hour: high-variance rewards, hazards, and rare contested rune suppression",
-    ],
+    passiveSummary: ["+10% defense bonus", "+1 point per 10 miners"],
     modifiers: {
       ...NO_RACE_MODIFIERS,
       defenseBonus: 0.1,
@@ -76,12 +72,11 @@ export const RACE_DEFINITIONS = [
     flavorQuote:
       "In the grim darkness of the sauna, there is only steam.",
     flavorText:
-      "Disciplined orbital rodents with clean recruitment lines and reinforced bunker doctrine.",
+      "Disciplined orbital rodents who scale harder into war with STIM discipline, hourly instant extraction, and expanded strike capacity.",
     passiveSummary: [
       "+1 army per 10 recruiters",
       "+5% defense bonus",
-      "Attack slots: 2 + 2×castle level",
-      "First recall each hour returns instantly, losing 5% sent troops (min 1)",
+      "T2 STIM, T3 Instant Recall, attack slots: 2 + 2×castle level",
     ],
     modifiers: {
       ...NO_RACE_MODIFIERS,
@@ -99,8 +94,6 @@ export const RACE_DEFINITIONS = [
     passiveSummary: [
       "+6 carry capacity per surviving attacker",
       "+1 army per 10 recruiters",
-      "Stronger Together (T1): 15% of killed defenders join your idle army",
-      "WAAAGH (T3): once per day — x4 attack & defense power, 2× movement speed",
     ],
     modifiers: {
       ...NO_RACE_MODIFIERS,

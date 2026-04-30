@@ -4883,7 +4883,7 @@ test("location shuffle is free once, then costs 50 points", async (context) => {
   assert.equal(shuffleCostEvents[0]?.delta, -ACTIVE_LOCATION_SHUFFLE_COST);
 });
 
-test("location shuffle cancels own armies in flight and rejects insufficient paid points", async (context) => {
+test("location shuffle keeps in-flight armies and rejects insufficient paid points", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -4956,7 +4956,7 @@ test("location shuffle cancels own armies in flight and rejects insufficient pai
     now: new Date("2026-04-20T12:05:30.000Z"),
   });
 
-  assert.ok(shuffleWithOutgoingUnits.cancelledAttackUnitCount > 0);
+  assert.equal(shuffleWithOutgoingUnits.cancelledAttackUnitCount, 0);
 
   const activeOwnUnitsAfterShuffle = await prisma.attackUnit.count({
     where: {
@@ -4967,7 +4967,7 @@ test("location shuffle cancels own armies in flight and rejects insufficient pai
     },
   });
 
-  assert.equal(activeOwnUnitsAfterShuffle, 0);
+  assert.ok(activeOwnUnitsAfterShuffle > 0);
 
   await prisma.fortress.update({
     where: {
@@ -5037,6 +5037,194 @@ test("location shuffle prefers an inner-map position when one is available", asy
       y: shuffleResult.fortress.mapY,
     }) >= ACTIVE_EDGE_PADDING
   );
+});
+
+test("location shuffle recalculates returning unit arrival from the new fortress position", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const attacker = await createUser(prisma, "shuffle-eta-attacker@example.com");
+  const defender = await createUser(prisma, "shuffle-eta-defender@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: attacker.id,
+    fortressName: "ETA Alpha",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: defender.id,
+    fortressName: "ETA Beta",
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const attackerFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: attacker.id,
+      },
+    },
+  });
+  const defenderFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: defender.id,
+      },
+    },
+  });
+
+  await prisma.fortress.update({
+    where: {
+      id: attackerFortress.id,
+    },
+    data: {
+      army: 5,
+      race: FortressRace.DWARFS,
+      mapX: 10,
+      mapY: 10,
+    },
+  });
+  await prisma.fortress.update({
+    where: {
+      id: defenderFortress.id,
+    },
+    data: {
+      mapX: 88,
+      mapY: 12,
+    },
+  });
+
+  const launchTime = new Date("2026-04-20T12:05:00.000Z");
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.ATTACK,
+    targetFortressId: defenderFortress.id,
+    sentArmy: 3,
+    now: launchTime,
+  });
+
+  const launchedUnit = await prisma.attackUnit.findFirstOrThrow({
+    where: {
+      attackerFortressId: attackerFortress.id,
+      targetFortressId: defenderFortress.id,
+      resolvedAt: null,
+      cancelledAt: null,
+    },
+  });
+
+  const recallTime = new Date(
+    launchTime.getTime() +
+      Math.floor((launchedUnit.arrivesAt.getTime() - launchTime.getTime()) / 2)
+  );
+  await recallAttackUnit({
+    db: prisma,
+    userId: attacker.id,
+    attackUnitId: launchedUnit.id,
+    now: recallTime,
+  });
+
+  const recalledBeforeShuffle = await prisma.attackUnit.findUniqueOrThrow({
+    where: {
+      id: launchedUnit.id,
+    },
+  });
+
+  const shuffleTime = new Date(recallTime.getTime() + 30_000);
+  const oldFortressPosition = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: attackerFortress.id,
+    },
+    select: {
+      mapX: true,
+      mapY: true,
+    },
+  });
+
+  await shuffleFortressLocation({
+    db: prisma,
+    userId: attacker.id,
+    now: shuffleTime,
+  });
+
+  const recalledAfterShuffle = await prisma.attackUnit.findUniqueOrThrow({
+    where: {
+      id: launchedUnit.id,
+    },
+  });
+  const newFortressPosition = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: attackerFortress.id,
+    },
+    select: {
+      mapX: true,
+      mapY: true,
+    },
+  });
+
+  const originalSegmentStart = recalledBeforeShuffle.recalledAt;
+  assert.ok(originalSegmentStart);
+  const originalDurationMs =
+    recalledBeforeShuffle.arrivesAt.getTime() - originalSegmentStart.getTime();
+  const originalProgress =
+    originalDurationMs <= 0
+      ? 1
+      : Math.min(
+          1,
+          Math.max(
+            0,
+            (shuffleTime.getTime() - originalSegmentStart.getTime()) /
+              originalDurationMs
+          )
+        );
+
+  const originalOriginX = recalledBeforeShuffle.returnOriginMapX ?? 0;
+  const originalOriginY = recalledBeforeShuffle.returnOriginMapY ?? 0;
+  const currentPoint = {
+    mapX: Math.round(
+      originalOriginX +
+        (oldFortressPosition.mapX - originalOriginX) * originalProgress
+    ),
+    mapY: Math.round(
+      originalOriginY +
+        (oldFortressPosition.mapY - originalOriginY) * originalProgress
+    ),
+  };
+
+  const distanceToOldHome = Math.hypot(
+    oldFortressPosition.mapX - currentPoint.mapX,
+    oldFortressPosition.mapY - currentPoint.mapY
+  );
+  const distanceToNewHome = Math.hypot(
+    newFortressPosition.mapX - currentPoint.mapX,
+    newFortressPosition.mapY - currentPoint.mapY
+  );
+  const oldRemainingMs = Math.max(
+    0,
+    recalledBeforeShuffle.arrivesAt.getTime() - shuffleTime.getTime()
+  );
+  const newRemainingMs = Math.max(
+    0,
+    recalledAfterShuffle.arrivesAt.getTime() - shuffleTime.getTime()
+  );
+
+  const expectedRemainingMs =
+    distanceToOldHome <= 0
+      ? 0
+      : Math.round(oldRemainingMs * (distanceToNewHome / distanceToOldHome));
+
+  assert.equal(newRemainingMs, expectedRemainingMs);
+  assert.equal(recalledAfterShuffle.returnOriginMapX, currentPoint.mapX);
+  assert.equal(recalledAfterShuffle.returnOriginMapY, currentPoint.mapY);
 });
 
 test("castle upgrades reject locked, unaffordable, and max-level purchases", async (context) => {
@@ -5914,7 +6102,7 @@ test("recalled attack units return home without damaging the target", async (con
   );
 });
 
-test("Space Murines get one instant recall per Helsinki hour with 5 percent unit loss", async (context) => {
+test("Space Murines can save instant recall for later in the same hour", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -5999,7 +6187,7 @@ test("Space Murines get one instant recall per Helsinki hour with 5 percent unit
     now: launchTime,
   });
 
-  const instantUnit = await prisma.attackUnit.findFirstOrThrow({
+  const normalRecallUnit = await prisma.attackUnit.findFirstOrThrow({
     where: {
       attackerFortressId: attackerFortress.id,
       targetFortressId: defenderFortress.id,
@@ -6009,12 +6197,89 @@ test("Space Murines get one instant recall per Helsinki hour with 5 percent unit
       launchedAt: "desc",
     },
   });
-  const instantRecallTime = new Date("2026-04-20T12:10:00.000Z");
+  const normalRecallTime = new Date("2026-04-20T12:10:00.000Z");
+
+  await recallAttackUnit({
+    db: prisma,
+    userId: attacker.id,
+    attackUnitId: normalRecallUnit.id,
+    now: normalRecallTime,
+  });
+
+  const normallyRecalledUnit = await prisma.attackUnit.findUniqueOrThrow({
+    where: {
+      id: normalRecallUnit.id,
+    },
+  });
+  const attackerAfterNormalRecall = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: attackerFortress.id,
+    },
+  });
+  const defenderAfterNormalRecall = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: defenderFortress.id,
+    },
+  });
+
+  assert.equal(normallyRecalledUnit.resolvedAt, null);
+  assert.equal(normallyRecalledUnit.attackerRetired, null);
+  assert.notEqual(
+    normallyRecalledUnit.arrivesAt.toISOString(),
+    normalRecallTime.toISOString()
+  );
+  assert.equal(attackerAfterNormalRecall.army, 100);
+  assert.equal(defenderAfterNormalRecall.army, 50);
+  assert.equal(defenderAfterNormalRecall.points, 50);
+  assert.equal(defenderAfterNormalRecall.food, 30);
+  assert.equal(
+    await prisma.raceAbilityActivation.count({
+      where: {
+        fortressId: attackerFortress.id,
+        kind: RaceAbilityKind.SPACE_MURINE_INSTANT_RECALL,
+      },
+    }),
+    0
+  );
+
+  const stateAfterNormalRecall = await getHomePageState({
+    db: prisma,
+    userId: attacker.id,
+    now: normalRecallTime,
+  });
+
+  assert.equal(
+    stateAfterNormalRecall.playerSummary?.raceBuffs.canInstantRecall,
+    true
+  );
+
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.ATTACK,
+    targetFortressId: defenderFortress.id,
+    sentArmy: 20,
+    now: new Date("2026-04-20T12:15:00.000Z"),
+  });
+
+  const instantUnit = await prisma.attackUnit.findFirstOrThrow({
+    where: {
+      attackerFortressId: attackerFortress.id,
+      targetFortressId: defenderFortress.id,
+      resolvedAt: null,
+      cancelledAt: null,
+    },
+    orderBy: {
+      launchedAt: "desc",
+    },
+  });
+  const instantRecallTime = new Date("2026-04-20T12:16:00.000Z");
 
   await recallAttackUnit({
     db: prisma,
     userId: attacker.id,
     attackUnitId: instantUnit.id,
+    instant: true,
     now: instantRecallTime,
   });
 
@@ -6023,14 +6288,9 @@ test("Space Murines get one instant recall per Helsinki hour with 5 percent unit
       id: instantUnit.id,
     },
   });
-  const attackerAfterInstant = await prisma.fortress.findUniqueOrThrow({
+  const attackerAfterInstantRecall = await prisma.fortress.findUniqueOrThrow({
     where: {
       id: attackerFortress.id,
-    },
-  });
-  const defenderAfterInstant = await prisma.fortress.findUniqueOrThrow({
-    where: {
-      id: defenderFortress.id,
     },
   });
 
@@ -6045,26 +6305,14 @@ test("Space Murines get one instant recall per Helsinki hour with 5 percent unit
   assert.equal(instantRecalledUnit.defenderArmyAtBattleStart, null);
   assert.equal(instantRecalledUnit.resolvedAttackPower, 0);
   assert.equal(instantRecalledUnit.resolvedDefensePower, 0);
-  assert.equal(instantRecalledUnit.attackerSurvivors, 95);
-  assert.equal(instantRecalledUnit.attackerReturned, 95);
-  assert.equal(instantRecalledUnit.attackerRetired, 5);
+  assert.equal(instantRecalledUnit.attackerSurvivors, 19);
+  assert.equal(instantRecalledUnit.attackerReturned, 19);
+  assert.equal(instantRecalledUnit.attackerRetired, 1);
   assert.equal(instantRecalledUnit.defenderLosses, 0);
   assert.equal(instantRecalledUnit.pointsLooted, 0);
   assert.equal(instantRecalledUnit.foodLooted, 0);
   assert.equal(instantRecalledUnit.armyLooted, 0);
-  assert.equal(attackerAfterInstant.army, 195);
-  assert.equal(defenderAfterInstant.army, 50);
-  assert.equal(defenderAfterInstant.points, 50);
-  assert.equal(defenderAfterInstant.food, 30);
-  assert.equal(
-    await prisma.raceAbilityActivation.count({
-      where: {
-        fortressId: attackerFortress.id,
-        kind: RaceAbilityKind.SPACE_MURINE_INSTANT_RECALL,
-      },
-    }),
-    1
-  );
+  assert.equal(attackerAfterInstantRecall.army, 119);
 
   const stateAfterInstant = await getHomePageState({
     db: prisma,
@@ -6075,77 +6323,36 @@ test("Space Murines get one instant recall per Helsinki hour with 5 percent unit
     (report) => report.id === instantUnit.id
   );
 
-  assert.equal(
-    stateAfterInstant.playerSummary?.raceBuffs.canInstantRecall,
-    false
-  );
+  assert.equal(stateAfterInstant.playerSummary?.raceBuffs.canInstantRecall, false);
   assert.equal(instantReport?.type, "RECALLED");
-  assert.equal(instantReport?.attackerReturned, 95);
-  assert.match(instantReport?.reportLines.join(" ") ?? "", /Recall cost: 5/);
+  assert.equal(instantReport?.attackerReturned, 19);
+  assert.match(instantReport?.reportLines.join(" ") ?? "", /Recall cost: 1/);
   assert.doesNotMatch(
     instantReport?.reportLines.join(" ") ?? "",
     /Loot|Raid failed|Raid victory/
   );
-
-  await setFortressAction({
-    db: prisma,
-    userId: attacker.id,
-    action: FortressAction.ATTACK,
-    targetFortressId: defenderFortress.id,
-    sentArmy: 20,
-    now: new Date("2026-04-20T12:15:00.000Z"),
-  });
-
-  const delayedUnit = await prisma.attackUnit.findFirstOrThrow({
-    where: {
-      attackerFortressId: attackerFortress.id,
-      targetFortressId: defenderFortress.id,
-      resolvedAt: null,
-      cancelledAt: null,
-    },
-    orderBy: {
-      launchedAt: "desc",
-    },
-  });
-
-  await recallAttackUnit({
-    db: prisma,
-    userId: attacker.id,
-    attackUnitId: delayedUnit.id,
-    now: new Date("2026-04-20T12:16:00.000Z"),
-  });
-
-  const delayedRecalledUnit = await prisma.attackUnit.findUniqueOrThrow({
-    where: {
-      id: delayedUnit.id,
-    },
-  });
-  const attackerAfterDelayedRecall = await prisma.fortress.findUniqueOrThrow({
-    where: {
-      id: attackerFortress.id,
-    },
-  });
-
-  assert.equal(delayedRecalledUnit.resolvedAt, null);
-  assert.equal(delayedRecalledUnit.attackerRetired, null);
-  assert.notEqual(
-    delayedRecalledUnit.arrivesAt.toISOString(),
-    new Date("2026-04-20T12:16:00.000Z").toISOString()
+  assert.equal(
+    await prisma.raceAbilityActivation.count({
+      where: {
+        fortressId: attackerFortress.id,
+        kind: RaceAbilityKind.SPACE_MURINE_INSTANT_RECALL,
+      },
+    }),
+    1
   );
-  assert.equal(attackerAfterDelayedRecall.army, 175);
 
   await runGameTick({
     db: prisma,
-    now: delayedRecalledUnit.arrivesAt,
+    now: normallyRecalledUnit.arrivesAt,
   });
 
-  const attackerAfterDelayedReturn = await prisma.fortress.findUniqueOrThrow({
+  const attackerAfterNormalReturn = await prisma.fortress.findUniqueOrThrow({
     where: {
       id: attackerFortress.id,
     },
   });
 
-  assert.equal(attackerAfterDelayedReturn.army, 195);
+  assert.equal(attackerAfterNormalReturn.army, 219);
 
   await setFortressAction({
     db: prisma,
@@ -6173,6 +6380,7 @@ test("Space Murines get one instant recall per Helsinki hour with 5 percent unit
     db: prisma,
     userId: attacker.id,
     attackUnitId: nextHourUnit.id,
+    instant: true,
     now: nextHourRecallTime,
   });
 
@@ -6193,7 +6401,7 @@ test("Space Murines get one instant recall per Helsinki hour with 5 percent unit
   );
   assert.equal(nextHourRecalledUnit.attackerReturned, 0);
   assert.equal(nextHourRecalledUnit.attackerRetired, 1);
-  assert.equal(attackerAfterNextHourRecall.army, 194);
+  assert.equal(attackerAfterNextHourRecall.army, 218);
   assert.equal(
     await prisma.raceAbilityActivation.count({
       where: {
@@ -8700,6 +8908,10 @@ test("read model exposes only valid targetable fortresses during active play", a
   assert.equal(state.attackUnits.length, 1);
   assert.equal(state.attackUnits[0]?.attacker.id, alphaFortress.id);
   assert.equal(state.attackUnits[0]?.target.id, betaFortress.id);
+  assert.deepEqual(state.attackUnits[0]?.returnOrigin, {
+    mapX: alphaFortress.mapX,
+    mapY: alphaFortress.mapY,
+  });
   assert.ok(
     UNIT_SPRITE_VARIANTS.includes(
       state.attackUnits[0]?.attacker.unitSpriteVariant as never

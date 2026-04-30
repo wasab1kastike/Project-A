@@ -22,7 +22,7 @@ const SECTIONS = [
     items: [
       "Dwarfs: Big beards, unbreakable stone walls and beer. ps. holds a grudge like none other.",
       "Unstable Unicorns: magic & food & explosions and ...teleportation?",
-      "Space Murines: Acolytes of the Emperor A, they despise all other life forms.",
+      "Space Murines: disciplined bunker zealots with STIM discipline, instant extraction, and extra strike slots.",
       "ORKS: loud raiders with huge loot potential. Followers of legendary Khraal",
     ],
   },

@@ -2,12 +2,10 @@ import {
   CastleUpgradeSpecialization,
   CycleStatus,
   FortressAction,
-  FortressKind,
   ScoreEventType,
   Prisma,
   PrismaClient,
   RaceAbilityKind,
-  DwarfDeepMiningOutcome,
 } from "@/lib/prisma-client";
 import { prisma } from "@/lib/prisma";
 import {
@@ -22,16 +20,11 @@ import {
   getMaxSimultaneousAttacks,
 } from "./upgrades";
 import {
-  cancelActiveAttackUnits,
   launchAttackUnit,
   recallAttackUnit as recallAttackUnitRecord,
 } from "./attack-units";
 import { GameError } from "./errors";
-import {
-  assertWorkerAssignments,
-  calculateTickProduction,
-  getDisplayedCastleLevel,
-} from "./balance";
+import { assertWorkerAssignments } from "./balance";
 import { isFortressRace, type FortressRace } from "./races";
 import { ensureCommanderRegistrationColumn } from "./schema-guards";
 import {
@@ -46,27 +39,12 @@ import {
   getRaceAbilityActiveUntil,
   getRaceBuffTier,
 } from "./race-buffs";
-import {
-  countCastleSpecializations,
-  isCastleUpgradeSpecialization,
-} from "./specializations";
-import {
-  DWARF_DEEP_MINING_RICH_VEIN_MIN_POINTS,
-  DWARF_DEEP_MINING_RICH_VEIN_TICKS,
-  getDwarfDeepMiningActiveUntil,
-  rollDwarfDeepMining,
-} from "./dwarf-deep-mining";
+import { isCastleUpgradeSpecialization } from "./specializations";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
 const PUBLIC_NAME_MAX_LENGTH = 32;
 const ACTIVE_EDGE_PADDING = 15;
-const LOCATION_SHUFFLE_INITIAL_MIN_TRAVEL_DISTANCE = 24;
-const LOCATION_SHUFFLE_MIN_TRAVEL_DISTANCE_FLOOR = 12;
-const LOCATION_SHUFFLE_MIN_TRAVEL_DISTANCE_STEP = 2;
-const LOCATION_SHUFFLE_SCORE_RANDOMNESS = 24;
-const FACTION_SUPPRESSION_MESSAGE =
-  "Faction bonuses are disabled while a Dwarf rune suppresses your fortress.";
 
 function normalizePublicName(input: string, label: string) {
   const normalized = input.trim().replace(/\s+/g, " ");
@@ -90,6 +68,17 @@ function normalizeCommanderName(input: string) {
 
 function normalizeFortressName(input: string) {
   return normalizePublicName(input, "Fortress name");
+}
+
+function clampProgress(value: number) {
+  return Math.min(1, Math.max(0, value));
+}
+
+function getDistance(left: { mapX: number; mapY: number }, right: { mapX: number; mapY: number }) {
+  const dx = right.mapX - left.mapX;
+  const dy = right.mapY - left.mapY;
+
+  return Math.hypot(dx, dy);
 }
 
 function getCurrentCycle(db: DatabaseClient = prisma) {
@@ -302,7 +291,6 @@ export async function joinRegistrationCycle({
                 ownerId: true,
                 commanderName: true,
                 name: true,
-                isNpc: true,
                 mapX: true,
                 mapY: true,
               },
@@ -330,11 +318,7 @@ export async function joinRegistrationCycle({
           throw new GameError("You already joined this cycle.");
         }
 
-        const playerFortressCount = cycle.fortresses.filter(
-          (fortress) => !fortress.isNpc
-        ).length;
-
-        if (playerFortressCount >= ACTIVE_PLAYER_CAP) {
+        if (cycle.fortresses.length >= ACTIVE_PLAYER_CAP) {
           throw new GameError("This cycle is already full.");
         }
 
@@ -620,25 +604,6 @@ export async function setFortressAction({
       );
     }
 
-    if (target.fortressKind === FortressKind.DWARF_RUNE) {
-      const runeRoll = await tx.dwarfDeepMiningRoll.findUnique({
-        where: {
-          runeFortressId: target.id,
-        },
-        select: {
-          fortress: {
-            select: {
-              ownerId: true,
-            },
-          },
-        },
-      });
-
-      if (runeRoll?.fortress.ownerId === fortress.ownerId) {
-        throw new GameError("You cannot attack your own Dwarf rune.");
-      }
-    }
-
     const updatedFortress = await tx.fortress.update({
       where: {
         id: fortress.id,
@@ -657,17 +622,7 @@ export async function setFortressAction({
       },
     });
 
-    const effectiveRace = (await isFortressFactionSuppressed(
-      tx,
-      fortress.id,
-      now
-    ))
-      ? null
-      : fortress.race;
-    const maxAttacks = getMaxSimultaneousAttacks(
-      fortress.level,
-      effectiveRace
-    );
+    const maxAttacks = getMaxSimultaneousAttacks(fortress.level, fortress.race);
 
     if (outboundAttackCount >= maxAttacks) {
       throw new GameError(
@@ -698,11 +653,13 @@ export async function setFortressAction({
 export async function recallAttackUnit({
   userId,
   attackUnitId,
+  instant = false,
   now = new Date(),
   db = prisma,
 }: {
   userId: string;
   attackUnitId: string;
+  instant?: boolean;
   now?: Date;
   db?: PrismaClient;
 }) {
@@ -723,6 +680,7 @@ export async function recallAttackUnit({
         cycle,
         userId,
         attackUnitId,
+        instant,
         now,
       });
     },
@@ -963,8 +921,6 @@ export async function shuffleFortressLocation({
       },
       select: {
         id: true,
-        commanderName: true,
-        name: true,
         points: true,
         race: true,
         level: true,
@@ -1004,6 +960,24 @@ export async function shuffleFortressLocation({
       );
     }
 
+    const activeReturningUnits = await tx.attackUnit.findMany({
+      where: {
+        attackerFortressId: fortress.id,
+        resolvedAt: null,
+        cancelledAt: null,
+        recalledAt: {
+          not: null,
+        },
+      },
+      select: {
+        id: true,
+        recalledAt: true,
+        arrivesAt: true,
+        returnOriginMapX: true,
+        returnOriginMapY: true,
+      },
+    });
+
     const otherFortresses = await tx.fortress.findMany({
       where: {
         cycleId: cycle.id,
@@ -1021,103 +995,123 @@ export async function shuffleFortressLocation({
         return getRenderedMapPositionKey(otherFortress);
       })
     );
-    const currentRenderedKey = getRenderedMapPositionKey(fortress);
-    excludedKeys.add(currentRenderedKey);
+    excludedKeys.add(getRenderedMapPositionKey(fortress));
 
-    let nextPosition: { x: number; y: number } | null = null;
-    let nextPersistedMapX: number | null = null;
-    let nextPersistedMapY: number | null = null;
+    let nextPosition;
 
-    for (let attempt = 0; attempt < 12; attempt += 1) {
-      let candidate: { x: number; y: number };
-      const requiredTravelDistance = Math.max(
-        LOCATION_SHUFFLE_MIN_TRAVEL_DISTANCE_FLOOR,
-        LOCATION_SHUFFLE_INITIAL_MIN_TRAVEL_DISTANCE -
-          LOCATION_SHUFFLE_MIN_TRAVEL_DISTANCE_STEP * attempt
+    try {
+      nextPosition = takeOpenSpawnPoint(
+        buildFortressSpawnSeed({
+          cycleId: cycle.id,
+          purpose: "active:player-location-shuffle",
+          activeStartedAt: cycle.activeStartedAt,
+          tickAt: now,
+          entropy: `${fortress.id}:${locationShuffleCount + 1}`,
+        }),
+        {
+          excludedKeys,
+          referencePoints: otherFortresses.map((otherFortress) => ({
+            x: otherFortress.mapX,
+            y: otherFortress.mapY,
+          })),
+          minSeparationDistance: 9,
+          preferredEdgePadding: ACTIVE_EDGE_PADDING,
+          scoreRandomness: 10,
+        }
       );
-
-      try {
-        candidate = takeOpenSpawnPoint(
-          buildFortressSpawnSeed({
-            cycleId: cycle.id,
-            purpose: "active:player-location-shuffle",
-            activeStartedAt: cycle.activeStartedAt,
-            tickAt: now,
-            entropy: `${fortress.id}:${locationShuffleCount + 1}:${attempt}`,
-          }),
-          {
-            excludedKeys,
-            referencePoints: [
-              { x: fortress.mapX, y: fortress.mapY },
-              ...otherFortresses.map((otherFortress) => ({
-                x: otherFortress.mapX,
-                y: otherFortress.mapY,
-              })),
-            ],
-            minSeparationDistance: 9,
-            preferredEdgePadding: ACTIVE_EDGE_PADDING,
-            scoreRandomness: LOCATION_SHUFFLE_SCORE_RANDOMNESS,
-          }
-        );
-      } catch {
-        break;
-      }
-
-      const travelDistance = Math.hypot(
-        candidate.x - fortress.mapX,
-        candidate.y - fortress.mapY
-      );
-
-      if (travelDistance < requiredTravelDistance) {
-        excludedKeys.add(getRenderedMapPositionKey(candidate));
-        continue;
-      }
-
-      const persistedMapX = Math.round(candidate.x);
-      const persistedMapY = Math.round(candidate.y);
-      const persistedRenderedKey = getRenderedMapPositionKey({
-        mapX: persistedMapX,
-        mapY: persistedMapY,
-      });
-
-      if (
-        persistedRenderedKey === currentRenderedKey ||
-        excludedKeys.has(persistedRenderedKey)
-      ) {
-        excludedKeys.add(getRenderedMapPositionKey(candidate));
-        excludedKeys.add(persistedRenderedKey);
-        continue;
-      }
-
-      nextPosition = candidate;
-      nextPersistedMapX = persistedMapX;
-      nextPersistedMapY = persistedMapY;
-      break;
-    }
-
-    if (!nextPosition || nextPersistedMapX === null || nextPersistedMapY === null) {
+    } catch {
       throw new GameError(
         "No alternate fortress location is available right now."
       );
     }
 
-    const cancelledAttackUnitCount = await cancelActiveAttackUnits({
-      db: tx,
-      attackerFortressId: fortress.id,
-      cancelledAt: now,
-    });
+    const cancelledAttackUnitCount = 0;
+
+    const nextMapX = Math.round(nextPosition.x);
+    const nextMapY = Math.round(nextPosition.y);
 
     await tx.$executeRaw(
       Prisma.sql`
         UPDATE "Fortress"
         SET
-          "mapX" = ${nextPersistedMapX},
-          "mapY" = ${nextPersistedMapY},
+          "mapX" = ${nextMapX},
+          "mapY" = ${nextMapY},
           "locationShuffleCount" = ${locationShuffleCount + 1},
           "points" = ${fortress.points - shuffleCost}
         WHERE "id" = ${fortress.id}
       `
     );
+
+    if (activeReturningUnits.length > 0) {
+      const updatedReturningUnits = activeReturningUnits
+        .map((unit) => {
+          if (
+            unit.recalledAt === null ||
+            unit.returnOriginMapX === null ||
+            unit.returnOriginMapY === null
+          ) {
+            return null;
+          }
+
+          const segmentStartedAt = unit.recalledAt;
+          const segmentEndsAt = unit.arrivesAt;
+          const totalMs = segmentEndsAt.getTime() - segmentStartedAt.getTime();
+          const elapsedMs = now.getTime() - segmentStartedAt.getTime();
+          const progress =
+            totalMs <= 0 ? 1 : clampProgress(elapsedMs / totalMs);
+
+          const oldDestination = {
+            mapX: fortress.mapX,
+            mapY: fortress.mapY,
+          };
+          const currentPoint = {
+            mapX: Math.round(
+              unit.returnOriginMapX +
+                (oldDestination.mapX - unit.returnOriginMapX) * progress
+            ),
+            mapY: Math.round(
+              unit.returnOriginMapY +
+                (oldDestination.mapY - unit.returnOriginMapY) * progress
+            ),
+          };
+          const oldRemainingDistance = getDistance(currentPoint, oldDestination);
+          const newDestination = {
+            mapX: nextMapX,
+            mapY: nextMapY,
+          };
+          const newRemainingDistance = getDistance(currentPoint, newDestination);
+          const oldRemainingMs = Math.max(0, segmentEndsAt.getTime() - now.getTime());
+          const newRemainingMs =
+            oldRemainingDistance <= 0
+              ? 0
+              : Math.round(
+                  oldRemainingMs * (newRemainingDistance / oldRemainingDistance)
+                );
+
+          return {
+            id: unit.id,
+            returnOriginMapX: currentPoint.mapX,
+            returnOriginMapY: currentPoint.mapY,
+            recalledAt: now,
+            arrivesAt: new Date(now.getTime() + newRemainingMs),
+          };
+        })
+        .filter((unit): unit is NonNullable<typeof unit> => unit !== null);
+
+      for (const unit of updatedReturningUnits) {
+        await tx.attackUnit.update({
+          where: {
+            id: unit.id,
+          },
+          data: {
+            returnOriginMapX: unit.returnOriginMapX,
+            returnOriginMapY: unit.returnOriginMapY,
+            recalledAt: unit.recalledAt,
+            arrivesAt: unit.arrivesAt,
+          },
+        });
+      }
+    }
 
     if (shuffleCost > 0) {
       await tx.scoreEvent.create({
@@ -1133,65 +1127,6 @@ export async function shuffleFortressLocation({
     }
 
     if (freeTeleport) {
-      const decoyOwner = await tx.user.create({
-        data: {},
-        select: {
-          id: true,
-        },
-      });
-      const displayedCastleLevel = Math.max(
-        1,
-        getDisplayedCastleLevel(fortress.level)
-      );
-
-      await tx.fortress.create({
-        data: {
-          cycleId: cycle.id,
-          ownerId: decoyOwner.id,
-          commanderName: `${fortress.commanderName} Decoy ${locationShuffleCount + 1}`,
-          name: `${fortress.name} Decoy ${locationShuffleCount + 1}`,
-          race: fortress.race,
-          fortressKind: FortressKind.UNICORN_DECOY,
-          isNpc: true,
-          health: 1,
-          maxHealth: 1,
-          unicornDecoySourceFortressId: fortress.id,
-          unicornDecoyLevel: displayedCastleLevel,
-          mapX: fortress.mapX,
-          mapY: fortress.mapY,
-          joinedAt: now,
-        },
-      });
-
-      const activeSourceDecoys = await tx.fortress.findMany({
-        where: {
-          cycleId: cycle.id,
-          fortressKind: FortressKind.UNICORN_DECOY,
-          unicornDecoySourceFortressId: fortress.id,
-          health: {
-            gt: 0,
-          },
-        },
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        select: {
-          id: true,
-        },
-      });
-      const decoysToDeactivate = activeSourceDecoys.slice(displayedCastleLevel);
-
-      if (decoysToDeactivate.length > 0) {
-        await tx.fortress.updateMany({
-          where: {
-            id: {
-              in: decoysToDeactivate.map((decoy) => decoy.id),
-            },
-          },
-          data: {
-            health: 0,
-          },
-        });
-      }
-
       await tx.raceAbilityActivation.update({
         where: {
           id: freeTeleport.id,
@@ -1561,352 +1496,6 @@ export async function chooseDwarfTierThreeGrudge({
       },
     });
   });
-}
-
-async function isFortressFactionSuppressed(
-  db: DatabaseClient,
-  fortressId: string,
-  now: Date
-) {
-  const suppression = await db.dwarfDeepMiningRoll.findFirst({
-    where: {
-      outcome: DwarfDeepMiningOutcome.FACTION_SEAL,
-      targetFortressId: fortressId,
-      activeUntil: {
-        gt: now,
-      },
-      runeFortress: {
-        health: {
-          gt: 0,
-        },
-        expiresAt: {
-          gt: now,
-        },
-      },
-    },
-    select: {
-      id: true,
-    },
-  });
-
-  return Boolean(suppression);
-}
-
-export async function activateDwarfDeepMining({
-  userId,
-  targetFortressId,
-  committedArmy,
-  now = new Date(),
-  rollValue,
-  db = prisma,
-}: {
-  userId: string;
-  targetFortressId: string;
-  committedArmy: number;
-  now?: Date;
-  rollValue?: number;
-  db?: PrismaClient;
-}) {
-  return db.$transaction(
-    async (tx) => {
-      const cycle = await getCurrentCycle(tx);
-
-      if (!cycle || cycle.status !== CycleStatus.ACTIVE) {
-        throw new GameError("Deep Mining is only available during the active season.");
-      }
-
-      const fortress = await tx.fortress.findUnique({
-        where: {
-          cycleId_ownerId: {
-            cycleId: cycle.id,
-            ownerId: userId,
-          },
-        },
-        select: {
-          id: true,
-          ownerId: true,
-          commanderName: true,
-          name: true,
-          points: true,
-          level: true,
-          food: true,
-          army: true,
-          minersAssigned: true,
-          farmersAssigned: true,
-          recruitersAssigned: true,
-          race: true,
-          isNpc: true,
-          mapX: true,
-          mapY: true,
-          castleUpgradeSpecializations: {
-            select: {
-              specialization: true,
-            },
-          },
-        },
-      });
-
-      if (!fortress || fortress.isNpc || fortress.race !== "DWARFS") {
-        throw new GameError("Only Dwarfs can activate Deep Mining.");
-      }
-
-      if (!Number.isInteger(committedArmy) || committedArmy <= 0) {
-        throw new GameError("Commit at least 1 army to the possible rune.");
-      }
-
-      if (committedArmy > fortress.army) {
-        throw new GameError("You do not have enough idle army to commit.");
-      }
-
-      if (!targetFortressId || targetFortressId === fortress.id) {
-        throw new GameError("Choose another player as the possible rune target.");
-      }
-
-      const target = await tx.fortress.findFirst({
-        where: {
-          id: targetFortressId,
-          cycleId: cycle.id,
-          isNpc: false,
-        },
-        select: {
-          id: true,
-          name: true,
-          mapX: true,
-          mapY: true,
-        },
-      });
-
-      if (!target) {
-        throw new GameError("Choose a player fortress as the possible rune target.");
-      }
-
-      const hourKey = getHelsinkiHourKey(now);
-      const latestUse = await tx.raceAbilityActivation.findFirst({
-        where: {
-          fortressId: fortress.id,
-          kind: RaceAbilityKind.DWARF_DEEP_MINING_COOLDOWN,
-        },
-        orderBy: [{ usedAt: "desc" }, { id: "desc" }],
-        select: {
-          usedAt: true,
-        },
-      });
-
-      if (latestUse && getHelsinkiHourKey(latestUse.usedAt) === hourKey) {
-        throw new GameError("Deep Mining has already been used this hour.");
-      }
-
-      const roll = rollDwarfDeepMining(rollValue);
-      const activeUntil = getDwarfDeepMiningActiveUntil(now);
-      let pointDelta = 0;
-      let armyDelta = 0;
-      let runeFortressId: string | null = null;
-      let appliedCommittedArmy = 0;
-
-      await tx.raceAbilityActivation.create({
-        data: {
-          fortressId: fortress.id,
-          kind: RaceAbilityKind.DWARF_DEEP_MINING_COOLDOWN,
-          activeFrom: now,
-          activeUntil: now,
-          usedAt: now,
-        },
-      });
-
-      if (roll.outcome === DwarfDeepMiningOutcome.RICH_VEIN) {
-        const production = calculateTickProduction({
-          ...fortress,
-          castleSpecializations: countCastleSpecializations(
-            fortress.castleUpgradeSpecializations
-          ),
-        });
-        pointDelta = Math.max(
-          DWARF_DEEP_MINING_RICH_VEIN_MIN_POINTS,
-          production.pointsProduced * DWARF_DEEP_MINING_RICH_VEIN_TICKS
-        );
-
-        await tx.fortress.update({
-          where: {
-            id: fortress.id,
-          },
-          data: {
-            points: {
-              increment: pointDelta,
-            },
-          },
-        });
-        await tx.scoreEvent.create({
-          data: {
-            cycleId: cycle.id,
-            fortressId: fortress.id,
-            actorId: userId,
-            eventType: ScoreEventType.DWARF_DEEP_MINING_POINTS,
-            delta: pointDelta,
-            createdAt: now,
-          },
-        });
-      } else if (roll.outcome === DwarfDeepMiningOutcome.BURIED_WARBAND) {
-        armyDelta = Math.min(250, Math.max(25, Math.floor(fortress.army * 0.2)));
-
-        await tx.fortress.update({
-          where: {
-            id: fortress.id,
-          },
-          data: {
-            army: {
-              increment: armyDelta,
-            },
-          },
-        });
-      } else if (roll.outcome === DwarfDeepMiningOutcome.CAVE_IN) {
-        armyDelta = -Math.min(
-          fortress.army,
-          Math.max(25, Math.ceil(fortress.army * 0.25))
-        );
-
-        if (armyDelta < 0) {
-          await tx.fortress.update({
-            where: {
-              id: fortress.id,
-            },
-            data: {
-              army: {
-                increment: armyDelta,
-              },
-            },
-          });
-        }
-      } else if (roll.outcome === DwarfDeepMiningOutcome.ORE_SURGE) {
-        await tx.raceAbilityActivation.create({
-          data: {
-            fortressId: fortress.id,
-            kind: RaceAbilityKind.DWARF_ECONOMY_SURGE,
-            activeFrom: now,
-            activeUntil,
-            usedAt: now,
-          },
-        });
-      } else if (roll.outcome === DwarfDeepMiningOutcome.BATTLE_RUNES) {
-        await tx.raceAbilityActivation.create({
-          data: {
-            fortressId: fortress.id,
-            kind: RaceAbilityKind.DWARF_COMBAT_SURGE,
-            activeFrom: now,
-            activeUntil,
-            usedAt: now,
-          },
-        });
-      } else if (roll.outcome === DwarfDeepMiningOutcome.UNSTABLE_TUNNELS) {
-        await tx.raceAbilityActivation.create({
-          data: {
-            fortressId: fortress.id,
-            kind: RaceAbilityKind.DWARF_SLOW_ATTACKS,
-            activeFrom: now,
-            activeUntil,
-            usedAt: now,
-          },
-        });
-      } else if (roll.outcome === DwarfDeepMiningOutcome.SHAFT_COLLAPSE) {
-        await tx.raceAbilityActivation.create({
-          data: {
-            fortressId: fortress.id,
-            kind: RaceAbilityKind.DWARF_ECONOMY_HALT,
-            activeFrom: now,
-            activeUntil,
-            usedAt: now,
-          },
-        });
-      } else if (roll.outcome === DwarfDeepMiningOutcome.FACTION_SEAL) {
-        appliedCommittedArmy = committedArmy;
-        const runeOwner = await tx.user.create({
-          data: {},
-          select: {
-            id: true,
-          },
-        });
-        const rune = await tx.fortress.create({
-          data: {
-            cycleId: cycle.id,
-            ownerId: runeOwner.id,
-            commanderName: `${fortress.commanderName} Rune`,
-            name: `${fortress.name} Rune`,
-            fortressKind: FortressKind.DWARF_RUNE,
-            isNpc: true,
-            health: 1,
-            maxHealth: committedArmy,
-            army: committedArmy,
-            iconLabel: "DR",
-            expiresAt: activeUntil,
-            mapX: Math.round((fortress.mapX + target.mapX) / 2),
-            mapY: Math.round((fortress.mapY + target.mapY) / 2),
-            joinedAt: now,
-          },
-          select: {
-            id: true,
-          },
-        });
-
-        runeFortressId = rune.id;
-
-        await tx.fortress.update({
-          where: {
-            id: fortress.id,
-          },
-          data: {
-            army: {
-              decrement: committedArmy,
-            },
-          },
-        });
-        await tx.raceAbilityActivation.create({
-          data: {
-            fortressId: target.id,
-            kind: RaceAbilityKind.DWARF_RUNE_SUPPRESSION,
-            activeFrom: now,
-            activeUntil,
-            usedAt: now,
-          },
-        });
-      }
-
-      await tx.dwarfDeepMiningRoll.create({
-        data: {
-          fortressId: fortress.id,
-          targetFortressId,
-          runeFortressId,
-          outcome: roll.outcome,
-          committedArmy: appliedCommittedArmy,
-          pointDelta,
-          armyDelta,
-          activeUntil:
-            roll.outcome === DwarfDeepMiningOutcome.RICH_VEIN ||
-            roll.outcome === DwarfDeepMiningOutcome.BURIED_WARBAND ||
-            roll.outcome === DwarfDeepMiningOutcome.CAVE_IN
-              ? null
-              : activeUntil,
-        },
-      });
-
-      return {
-        outcome: roll.outcome,
-        label: roll.label,
-        description: roll.description,
-        pointDelta,
-        armyDelta,
-        committedArmy: appliedCommittedArmy,
-        runeFortressId,
-        activeUntil:
-          roll.outcome === DwarfDeepMiningOutcome.RICH_VEIN ||
-          roll.outcome === DwarfDeepMiningOutcome.BURIED_WARBAND ||
-          roll.outcome === DwarfDeepMiningOutcome.CAVE_IN
-            ? null
-            : activeUntil,
-      };
-    },
-    {
-      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-    }
-  );
 }
 
 export async function activateRaceAbility({

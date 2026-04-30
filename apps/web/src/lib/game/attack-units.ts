@@ -189,12 +189,14 @@ export async function recallAttackUnit({
   cycle,
   userId,
   attackUnitId,
+  instant = false,
   now,
 }: {
   db: DatabaseClient;
   cycle: AttackCycle;
   userId: string;
   attackUnitId: string;
+  instant?: boolean;
   now: Date;
 }) {
   const attackUnit = await db.attackUnit.findUnique({
@@ -255,7 +257,7 @@ export async function recallAttackUnit({
     now,
   });
 
-  if (attackUnit.attackerFortress.race === "SPACE_MURINES") {
+  if (attackUnit.attackerFortress.race === "SPACE_MURINES" && instant) {
     const hourKey = getHelsinkiHourKey(now);
     const latestInstantRecall = await db.raceAbilityActivation.findFirst({
       where: {
@@ -428,6 +430,9 @@ export async function launchAttackUnit({
       armyAmount,
       launchedAt,
       arrivesAt,
+      // Seed origin so in-flight routes stay anchored even if the fortress moves later.
+      returnOriginMapX: attacker.mapX,
+      returnOriginMapY: attacker.mapY,
     },
   });
 }
