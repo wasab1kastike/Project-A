@@ -2,10 +2,12 @@ import {
   CastleUpgradeSpecialization,
   CycleStatus,
   FortressAction,
+  FortressKind,
   ScoreEventType,
   Prisma,
   PrismaClient,
   RaceAbilityKind,
+  DwarfDeepMiningOutcome,
 } from "@/lib/prisma-client";
 import { prisma } from "@/lib/prisma";
 import {
@@ -24,7 +26,11 @@ import {
   recallAttackUnit as recallAttackUnitRecord,
 } from "./attack-units";
 import { GameError } from "./errors";
-import { assertWorkerAssignments } from "./balance";
+import {
+  assertWorkerAssignments,
+  calculateTickProduction,
+  getDisplayedCastleLevel,
+} from "./balance";
 import { isFortressRace, type FortressRace } from "./races";
 import { ensureCommanderRegistrationColumn } from "./schema-guards";
 import {
@@ -39,7 +45,16 @@ import {
   getRaceAbilityActiveUntil,
   getRaceBuffTier,
 } from "./race-buffs";
-import { isCastleUpgradeSpecialization } from "./specializations";
+import {
+  countCastleSpecializations,
+  isCastleUpgradeSpecialization,
+} from "./specializations";
+import {
+  DWARF_DEEP_MINING_RICH_VEIN_MIN_POINTS,
+  DWARF_DEEP_MINING_RICH_VEIN_TICKS,
+  getDwarfDeepMiningActiveUntil,
+  rollDwarfDeepMining,
+} from "./dwarf-deep-mining";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -1496,6 +1511,352 @@ export async function chooseDwarfTierThreeGrudge({
       },
     });
   });
+}
+
+async function isFortressFactionSuppressed(
+  db: DatabaseClient,
+  fortressId: string,
+  now: Date
+) {
+  const suppression = await db.dwarfDeepMiningRoll.findFirst({
+    where: {
+      outcome: DwarfDeepMiningOutcome.FACTION_SEAL,
+      targetFortressId: fortressId,
+      activeUntil: {
+        gt: now,
+      },
+      runeFortress: {
+        health: {
+          gt: 0,
+        },
+        expiresAt: {
+          gt: now,
+        },
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  return Boolean(suppression);
+}
+
+export async function activateDwarfDeepMining({
+  userId,
+  targetFortressId,
+  committedArmy,
+  now = new Date(),
+  rollValue,
+  db = prisma,
+}: {
+  userId: string;
+  targetFortressId: string;
+  committedArmy: number;
+  now?: Date;
+  rollValue?: number;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(
+    async (tx) => {
+      const cycle = await getCurrentCycle(tx);
+
+      if (!cycle || cycle.status !== CycleStatus.ACTIVE) {
+        throw new GameError("Deep Mining is only available during the active season.");
+      }
+
+      const fortress = await tx.fortress.findUnique({
+        where: {
+          cycleId_ownerId: {
+            cycleId: cycle.id,
+            ownerId: userId,
+          },
+        },
+        select: {
+          id: true,
+          ownerId: true,
+          commanderName: true,
+          name: true,
+          points: true,
+          level: true,
+          food: true,
+          army: true,
+          minersAssigned: true,
+          farmersAssigned: true,
+          recruitersAssigned: true,
+          race: true,
+          isNpc: true,
+          mapX: true,
+          mapY: true,
+          castleUpgradeSpecializations: {
+            select: {
+              specialization: true,
+            },
+          },
+        },
+      });
+
+      if (!fortress || fortress.isNpc || fortress.race !== "DWARFS") {
+        throw new GameError("Only Dwarfs can activate Deep Mining.");
+      }
+
+      if (!Number.isInteger(committedArmy) || committedArmy <= 0) {
+        throw new GameError("Commit at least 1 army to the possible rune.");
+      }
+
+      if (committedArmy > fortress.army) {
+        throw new GameError("You do not have enough idle army to commit.");
+      }
+
+      if (!targetFortressId || targetFortressId === fortress.id) {
+        throw new GameError("Choose another player as the possible rune target.");
+      }
+
+      const target = await tx.fortress.findFirst({
+        where: {
+          id: targetFortressId,
+          cycleId: cycle.id,
+          isNpc: false,
+        },
+        select: {
+          id: true,
+          name: true,
+          mapX: true,
+          mapY: true,
+        },
+      });
+
+      if (!target) {
+        throw new GameError("Choose a player fortress as the possible rune target.");
+      }
+
+      const hourKey = getHelsinkiHourKey(now);
+      const latestUse = await tx.raceAbilityActivation.findFirst({
+        where: {
+          fortressId: fortress.id,
+          kind: RaceAbilityKind.DWARF_DEEP_MINING_COOLDOWN,
+        },
+        orderBy: [{ usedAt: "desc" }, { id: "desc" }],
+        select: {
+          usedAt: true,
+        },
+      });
+
+      if (latestUse && getHelsinkiHourKey(latestUse.usedAt) === hourKey) {
+        throw new GameError("Deep Mining has already been used this hour.");
+      }
+
+      const roll = rollDwarfDeepMining(rollValue);
+      const activeUntil = getDwarfDeepMiningActiveUntil(now);
+      let pointDelta = 0;
+      let armyDelta = 0;
+      let runeFortressId: string | null = null;
+      let appliedCommittedArmy = 0;
+
+      await tx.raceAbilityActivation.create({
+        data: {
+          fortressId: fortress.id,
+          kind: RaceAbilityKind.DWARF_DEEP_MINING_COOLDOWN,
+          activeFrom: now,
+          activeUntil: now,
+          usedAt: now,
+        },
+      });
+
+      if (roll.outcome === DwarfDeepMiningOutcome.RICH_VEIN) {
+        const production = calculateTickProduction({
+          ...fortress,
+          castleSpecializations: countCastleSpecializations(
+            fortress.castleUpgradeSpecializations
+          ),
+        });
+        pointDelta = Math.max(
+          DWARF_DEEP_MINING_RICH_VEIN_MIN_POINTS,
+          production.pointsProduced * DWARF_DEEP_MINING_RICH_VEIN_TICKS
+        );
+
+        await tx.fortress.update({
+          where: {
+            id: fortress.id,
+          },
+          data: {
+            points: {
+              increment: pointDelta,
+            },
+          },
+        });
+        await tx.scoreEvent.create({
+          data: {
+            cycleId: cycle.id,
+            fortressId: fortress.id,
+            actorId: userId,
+            eventType: ScoreEventType.DWARF_DEEP_MINING_POINTS,
+            delta: pointDelta,
+            createdAt: now,
+          },
+        });
+      } else if (roll.outcome === DwarfDeepMiningOutcome.BURIED_WARBAND) {
+        armyDelta = Math.min(250, Math.max(25, Math.floor(fortress.army * 0.2)));
+
+        await tx.fortress.update({
+          where: {
+            id: fortress.id,
+          },
+          data: {
+            army: {
+              increment: armyDelta,
+            },
+          },
+        });
+      } else if (roll.outcome === DwarfDeepMiningOutcome.CAVE_IN) {
+        armyDelta = -Math.min(
+          fortress.army,
+          Math.max(25, Math.ceil(fortress.army * 0.25))
+        );
+
+        if (armyDelta < 0) {
+          await tx.fortress.update({
+            where: {
+              id: fortress.id,
+            },
+            data: {
+              army: {
+                increment: armyDelta,
+              },
+            },
+          });
+        }
+      } else if (roll.outcome === DwarfDeepMiningOutcome.ORE_SURGE) {
+        await tx.raceAbilityActivation.create({
+          data: {
+            fortressId: fortress.id,
+            kind: RaceAbilityKind.DWARF_ECONOMY_SURGE,
+            activeFrom: now,
+            activeUntil,
+            usedAt: now,
+          },
+        });
+      } else if (roll.outcome === DwarfDeepMiningOutcome.BATTLE_RUNES) {
+        await tx.raceAbilityActivation.create({
+          data: {
+            fortressId: fortress.id,
+            kind: RaceAbilityKind.DWARF_COMBAT_SURGE,
+            activeFrom: now,
+            activeUntil,
+            usedAt: now,
+          },
+        });
+      } else if (roll.outcome === DwarfDeepMiningOutcome.UNSTABLE_TUNNELS) {
+        await tx.raceAbilityActivation.create({
+          data: {
+            fortressId: fortress.id,
+            kind: RaceAbilityKind.DWARF_SLOW_ATTACKS,
+            activeFrom: now,
+            activeUntil,
+            usedAt: now,
+          },
+        });
+      } else if (roll.outcome === DwarfDeepMiningOutcome.SHAFT_COLLAPSE) {
+        await tx.raceAbilityActivation.create({
+          data: {
+            fortressId: fortress.id,
+            kind: RaceAbilityKind.DWARF_ECONOMY_HALT,
+            activeFrom: now,
+            activeUntil,
+            usedAt: now,
+          },
+        });
+      } else if (roll.outcome === DwarfDeepMiningOutcome.FACTION_SEAL) {
+        appliedCommittedArmy = committedArmy;
+        const runeOwner = await tx.user.create({
+          data: {},
+          select: {
+            id: true,
+          },
+        });
+        const rune = await tx.fortress.create({
+          data: {
+            cycleId: cycle.id,
+            ownerId: runeOwner.id,
+            commanderName: `${fortress.commanderName} Rune`,
+            name: `${fortress.name} Rune`,
+            fortressKind: FortressKind.DWARF_RUNE,
+            isNpc: true,
+            health: 1,
+            maxHealth: committedArmy,
+            army: committedArmy,
+            iconLabel: "DR",
+            expiresAt: activeUntil,
+            mapX: Math.round((fortress.mapX + target.mapX) / 2),
+            mapY: Math.round((fortress.mapY + target.mapY) / 2),
+            joinedAt: now,
+          },
+          select: {
+            id: true,
+          },
+        });
+
+        runeFortressId = rune.id;
+
+        await tx.fortress.update({
+          where: {
+            id: fortress.id,
+          },
+          data: {
+            army: {
+              decrement: committedArmy,
+            },
+          },
+        });
+        await tx.raceAbilityActivation.create({
+          data: {
+            fortressId: target.id,
+            kind: RaceAbilityKind.DWARF_RUNE_SUPPRESSION,
+            activeFrom: now,
+            activeUntil,
+            usedAt: now,
+          },
+        });
+      }
+
+      await tx.dwarfDeepMiningRoll.create({
+        data: {
+          fortressId: fortress.id,
+          targetFortressId,
+          runeFortressId,
+          outcome: roll.outcome,
+          committedArmy: appliedCommittedArmy,
+          pointDelta,
+          armyDelta,
+          activeUntil:
+            roll.outcome === DwarfDeepMiningOutcome.RICH_VEIN ||
+            roll.outcome === DwarfDeepMiningOutcome.BURIED_WARBAND ||
+            roll.outcome === DwarfDeepMiningOutcome.CAVE_IN
+              ? null
+              : activeUntil,
+        },
+      });
+
+      return {
+        outcome: roll.outcome,
+        label: roll.label,
+        description: roll.description,
+        pointDelta,
+        armyDelta,
+        committedArmy: appliedCommittedArmy,
+        runeFortressId,
+        activeUntil:
+          roll.outcome === DwarfDeepMiningOutcome.RICH_VEIN ||
+          roll.outcome === DwarfDeepMiningOutcome.BURIED_WARBAND ||
+          roll.outcome === DwarfDeepMiningOutcome.CAVE_IN
+            ? null
+            : activeUntil,
+      };
+    },
+    {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    }
+  );
 }
 
 export async function activateRaceAbility({
