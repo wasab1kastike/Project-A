@@ -276,19 +276,43 @@ export async function reshuffleActiveFortressPositions({
     fortresses.map((fortress) => getRenderedMapPositionKey(fortress))
   );
 
-  let positions: Array<{ x: number; y: number }>;
+  let positions: Array<{ x: number; y: number }> | null = null;
 
-  try {
-    positions = takeUniqueSpawnPoints(seed, fortresses.length, {
+  const spawnAttempts: Array<Parameters<typeof takeUniqueSpawnPoints>[2]> = [
+    {
       excludedKeys: currentRenderedKeys,
       minSeparationDistance: 9,
       preferredEdgePadding: ACTIVE_EDGE_PADDING,
-    });
-  } catch {
-    positions = takeUniqueSpawnPoints(seed, fortresses.length, {
+    },
+    {
       minSeparationDistance: 9,
       preferredEdgePadding: ACTIVE_EDGE_PADDING,
-    });
+    },
+    {
+      minSeparationDistance: 0,
+      preferredEdgePadding: ACTIVE_EDGE_PADDING,
+    },
+  ];
+
+  for (const options of spawnAttempts) {
+    try {
+      positions = takeUniqueSpawnPoints(seed, fortresses.length, options);
+      break;
+    } catch {
+      continue;
+    }
+  }
+
+  if (!positions) {
+    console.warn(
+      JSON.stringify({
+        event: "active-fortress-reshuffle-skipped",
+        cycleId,
+        fortressCount: fortresses.length,
+        reason: "insufficient-unique-spawn-points",
+      })
+    );
+    return;
   }
 
   const assignments = assignPositionsByDistance(fortresses, positions);
