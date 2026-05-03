@@ -361,7 +361,7 @@ async function startTestingCycle(cycleId: string, now: Date, db: PrismaClient) {
     });
 
     await ensureMegaFortress({
-      db: tx,
+      db: db,
       cycleId: cycle.id,
       seed: buildFortressSpawnSeed({
         cycleId: cycle.id,
@@ -493,7 +493,7 @@ async function completeTestingCycle(
       },
     });
     await ensureMegaFortress({
-      db: tx,
+      db: db,
       cycleId,
       seed: buildFortressSpawnSeed({
         cycleId,
@@ -767,13 +767,13 @@ async function resolveExpiredActiveCycle(
     await createCommunityWishVoteEntitlements({
       cycleId: cycle.id,
       rankedFortresses,
-      db: tx,
+      db: db,
     });
 
     await mintSeasonArcadeCoins({
       cycleId: cycle.id,
       now: resolutionEndedAt,
-      db: tx,
+      db: db,
       rankedFortresses,
     });
 
@@ -789,8 +789,7 @@ async function processCycleTick(
   now: Date,
   db: PrismaClient
 ) {
-  return db.$transaction(async (tx) => {
-    const cycle = await tx.cycle.findUnique({
+  const cycle = await db.cycle.findUnique({
       where: {
         id: cycleId,
       },
@@ -834,7 +833,7 @@ async function processCycleTick(
     });
 
     await ensureActiveCycleMegaFortress({
-      db: tx,
+      db: db,
       cycleId,
     });
 
@@ -857,11 +856,13 @@ async function processCycleTick(
     }
 
     try {
-      await tx.gameTick.create({
-        data: {
-          cycleId,
-          tickAt,
-        },
+      await db.$transaction(async (gateTx) => {
+        await gateTx.gameTick.create({
+          data: {
+            cycleId,
+            tickAt,
+          },
+        });
       });
     } catch (error) {
       if (isUniqueTickError(error)) {
@@ -877,7 +878,7 @@ async function processCycleTick(
     }
 
     await ensureCurrentMapLayout({
-      db: tx,
+      db: db,
       cycleId,
       seed: buildFortressSpawnSeed({
         cycleId,
@@ -888,11 +889,11 @@ async function processCycleTick(
     });
 
     await expireLootCamps({
-      db: tx,
+      db: db,
       cycleId,
       tickAt,
     });
-    await tx.fortress.updateMany({
+    await db.fortress.updateMany({
       where: {
         cycleId,
         fortressKind: FortressKind.DWARF_RUNE,
@@ -908,13 +909,13 @@ async function processCycleTick(
       },
     });
     await spawnScheduledLootCamps({
-      db: tx,
+      db: db,
       cycleId,
       activeStartedAt: gameplayStartedAt,
       tickAt,
     });
 
-    const fortresses = await tx.fortress.findMany({
+    const fortresses = await db.fortress.findMany({
       where: {
         cycleId,
       },
@@ -967,7 +968,7 @@ async function processCycleTick(
         },
       },
     });
-    const activeRuneSuppressions = await tx.dwarfDeepMiningRoll.findMany({
+    const activeRuneSuppressions = await db.dwarfDeepMiningRoll.findMany({
       where: {
         outcome: DwarfDeepMiningOutcome.FACTION_SEAL,
         activeUntil: {
@@ -1037,7 +1038,7 @@ async function processCycleTick(
         tickAt
       );
 
-    const dueAttackUnits = await tx.attackUnit.findMany({
+    const dueAttackUnits = await db.attackUnit.findMany({
       where: {
         cycleId,
         resolvedAt: null,
@@ -1116,7 +1117,7 @@ async function processCycleTick(
           updateData.armyLooted = 0;
         }
 
-        await tx.attackUnit.update({
+        await db.attackUnit.update({
           where: {
             id: unit.id,
           },
@@ -1163,7 +1164,7 @@ async function processCycleTick(
               waaagh: getOrkWaaghActive(targetAttacker),
             });
 
-            await tx.attackUnit.update({
+            await db.attackUnit.update({
               where: {
                 id: targetUnit.id,
               },
@@ -1185,7 +1186,7 @@ async function processCycleTick(
               },
             });
           } else {
-            await tx.attackUnit.update({
+            await db.attackUnit.update({
               where: {
                 id: targetUnit.id,
               },
@@ -1223,7 +1224,7 @@ async function processCycleTick(
 
         if (targetUnits.length > 0) {
           currentHealth.set(target.id, 0);
-          await tx.fortress.update({
+          await db.fortress.update({
             where: {
               id: target.id,
             },
@@ -1237,7 +1238,7 @@ async function processCycleTick(
       }
 
       if (target?.fortressKind === FortressKind.DWARF_RUNE) {
-        const runeRoll = await tx.dwarfDeepMiningRoll.findUnique({
+        const runeRoll = await db.dwarfDeepMiningRoll.findUnique({
           where: {
             runeFortressId: target.id,
           },
@@ -1320,7 +1321,7 @@ async function processCycleTick(
             (currentPoints.get(destroyer.attacker.id) ??
               destroyer.attacker.points) + DWARF_DEEP_MINING_RUNE_BOUNTY
           );
-          await tx.dwarfDeepMiningRoll.updateMany({
+          await db.dwarfDeepMiningRoll.updateMany({
             where: {
               runeFortressId: target.id,
               activeUntil: {
@@ -1352,7 +1353,7 @@ async function processCycleTick(
             Boolean(destroyer) && targetUnit.id === destroyer?.unitId;
 
           if (!targetAttacker || !outcome) {
-            await tx.attackUnit.update({
+            await db.attackUnit.update({
               where: {
                 id: targetUnit.id,
               },
@@ -1392,7 +1393,7 @@ async function processCycleTick(
               waaagh: getOrkWaaghActive(targetAttacker),
             });
 
-            await tx.attackUnit.update({
+            await db.attackUnit.update({
               where: {
                 id: targetUnit.id,
               },
@@ -1416,7 +1417,7 @@ async function processCycleTick(
               },
             });
           } else {
-            await tx.attackUnit.update({
+            await db.attackUnit.update({
               where: {
                 id: targetUnit.id,
               },
@@ -1562,7 +1563,7 @@ async function processCycleTick(
 
           if (reward.resetRaceCooldown) {
             await resetAttackerRaceAbilityCooldown({
-              db: tx,
+              db: db,
               fortress: destroyer.attacker,
               now: tickAt,
             });
@@ -1586,7 +1587,7 @@ async function processCycleTick(
               };
 
           if (!targetAttacker || !outcome) {
-            await tx.attackUnit.update({
+            await db.attackUnit.update({
               where: {
                 id: targetUnit.id,
               },
@@ -1625,7 +1626,7 @@ async function processCycleTick(
               speedMultiplier: getDwarfSpeedMultiplier(targetAttacker),
             });
 
-            await tx.attackUnit.update({
+            await db.attackUnit.update({
               where: {
                 id: targetUnit.id,
               },
@@ -1647,7 +1648,7 @@ async function processCycleTick(
               },
             });
           } else {
-            await tx.attackUnit.update({
+            await db.attackUnit.update({
               where: {
                 id: targetUnit.id,
               },
@@ -1703,7 +1704,7 @@ async function processCycleTick(
               speedMultiplier: getDwarfSpeedMultiplier(targetAttacker),
             });
 
-            await tx.attackUnit.update({
+            await db.attackUnit.update({
               where: {
                 id: targetUnit.id,
               },
@@ -1725,7 +1726,7 @@ async function processCycleTick(
               },
             });
           } else {
-            await tx.attackUnit.update({
+            await db.attackUnit.update({
               where: {
                 id: targetUnit.id,
               },
@@ -1844,7 +1845,7 @@ async function processCycleTick(
             });
           }
 
-          await tx.cycle.update({
+          await db.cycle.update({
             where: {
               id: cycleId,
             },
@@ -1859,7 +1860,7 @@ async function processCycleTick(
           });
 
           if (Object.keys(upgradeData).length > 0) {
-            await tx.fortress.update({
+            await db.fortress.update({
               where: {
                 id: destroyer.attacker.id,
               },
@@ -1867,7 +1868,7 @@ async function processCycleTick(
             });
           }
 
-          await tx.fortress.update({
+          await db.fortress.update({
             where: {
               id: target.id,
             },
@@ -1878,7 +1879,7 @@ async function processCycleTick(
           });
 
           await reshuffleActiveFortressPositions({
-            db: tx,
+            db: db,
             cycleId,
             seed: buildFortressSpawnSeed({
               cycleId,
@@ -1894,7 +1895,7 @@ async function processCycleTick(
       }
 
       if (!attacker || !target) {
-        await tx.attackUnit.update({
+        await db.attackUnit.update({
           where: {
             id: unit.id,
           },
@@ -2006,7 +2007,7 @@ async function processCycleTick(
           waaagh: getOrkWaaghActive(attacker),
         });
 
-        await tx.attackUnit.update({
+        await db.attackUnit.update({
           where: {
             id: unit.id,
           },
@@ -2028,7 +2029,7 @@ async function processCycleTick(
           },
         });
       } else {
-        await tx.attackUnit.update({
+        await db.attackUnit.update({
           where: {
             id: unit.id,
           },
@@ -2175,6 +2176,11 @@ async function processCycleTick(
       // TODO: add a dedicated resource history model for food and army deltas.
     }
 
+    const fortressUpdates: Array<{
+      id: string;
+      data: { points: number; food: number; army: number; health: number };
+    }> = [];
+
     for (const fortress of fortresses) {
       const nextPoints = currentPoints.get(fortress.id) ?? fortress.points;
       const nextFood = currentFood.get(fortress.id) ?? fortress.food;
@@ -2182,38 +2188,50 @@ async function processCycleTick(
       const nextHealth = currentHealth.get(fortress.id) ?? fortress.health;
 
       if (
-        nextPoints !== fortress.points ||
-        nextFood !== fortress.food ||
-        nextArmy !== fortress.army ||
-        nextHealth !== fortress.health
+        nextPoints === fortress.points &&
+        nextFood === fortress.food &&
+        nextArmy === fortress.army &&
+        nextHealth === fortress.health
       ) {
-        await tx.fortress.update({
-          where: {
-            id: fortress.id,
-          },
-          data: {
-            points: nextPoints,
-            food: nextFood,
-            army: nextArmy,
-            health: nextHealth,
-          },
-        });
+        continue;
       }
+
+      fortressUpdates.push({
+        id: fortress.id,
+        data: {
+          points: nextPoints,
+          food: nextFood,
+          army: nextArmy,
+          health: nextHealth,
+        },
+      });
+    }
+
+    const fortressUpdateChunkSize = 25;
+    for (let i = 0; i < fortressUpdates.length; i += fortressUpdateChunkSize) {
+      const chunk = fortressUpdates.slice(i, i + fortressUpdateChunkSize);
+      await Promise.all(
+        chunk.map((update) =>
+          db.fortress.update({
+            where: { id: update.id },
+            data: update.data,
+          })
+        )
+      );
     }
 
     if (scoreEvents.length > 0) {
-      await tx.scoreEvent.createMany({
+      await db.scoreEvent.createMany({
         data: scoreEvents,
       });
     }
 
-    return {
-      processed: true,
-      scoreEventsCreated: scoreEvents.length,
-      launchedAttackUnits: 0,
-      resolvedAttackUnits,
-    };
-  });
+  return {
+    processed: true,
+    scoreEventsCreated: scoreEvents.length,
+    launchedAttackUnits: 0,
+    resolvedAttackUnits,
+  };
 }
 
 export async function runGameTick({
