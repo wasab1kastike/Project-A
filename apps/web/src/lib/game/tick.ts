@@ -75,6 +75,11 @@ type ProcessCycleTickResult = {
   resolvedAttackUnits: number;
 };
 
+const TICK_TRANSACTION_OPTIONS = {
+  maxWait: 5_000,
+  timeout: 15_000,
+} satisfies Parameters<PrismaClient["$transaction"]>[1];
+
 export type TickHealth = "ok" | "lagging" | "stalled";
 
 type TieBreakCandidate = {
@@ -863,7 +868,7 @@ async function processCycleTick(
             tickAt,
           },
         });
-      });
+      }, TICK_TRANSACTION_OPTIONS);
     } catch (error) {
       if (isUniqueTickError(error)) {
         return {
@@ -1071,6 +1076,17 @@ async function processCycleTick(
     });
 
     const resolvedBatchAttackUnitIds = new Set<string>();
+    const dueAttackUnitsByTargetId = new Map<string, typeof dueAttackUnits>();
+    for (const dueAttackUnit of dueAttackUnits) {
+      const targetUnits =
+        dueAttackUnitsByTargetId.get(dueAttackUnit.targetFortressId) ?? [];
+      targetUnits.push(dueAttackUnit);
+      dueAttackUnitsByTargetId.set(dueAttackUnit.targetFortressId, targetUnits);
+    }
+    const getPendingTargetUnits = (targetId: string) =>
+      (dueAttackUnitsByTargetId.get(targetId) ?? []).filter(
+        (targetUnit) => !resolvedBatchAttackUnitIds.has(targetUnit.id)
+      );
 
     for (const unit of dueAttackUnits) {
       if (resolvedBatchAttackUnitIds.has(unit.id)) {
@@ -1125,15 +1141,12 @@ async function processCycleTick(
         });
 
         resolvedAttackUnits += 1;
+        resolvedBatchAttackUnitIds.add(unit.id);
         continue;
       }
 
       if (target?.fortressKind === FortressKind.UNICORN_DECOY) {
-        const targetUnits = dueAttackUnits.filter(
-          (targetUnit) =>
-            targetUnit.targetFortressId === target.id &&
-            !resolvedBatchAttackUnitIds.has(targetUnit.id)
-        );
+        const targetUnits = getPendingTargetUnits(target.id);
         const copiedLevel = Math.max(1, target.unicornDecoyLevel ?? 1);
         const decoyCasualties = target.health > 0 ? 200 * copiedLevel : 0;
 
@@ -1249,11 +1262,7 @@ async function processCycleTick(
         const runeOwner = runeRoll
           ? fortressLookup.get(runeRoll.fortressId)
           : null;
-        const targetUnits = dueAttackUnits.filter(
-          (targetUnit) =>
-            targetUnit.targetFortressId === target.id &&
-            !resolvedBatchAttackUnitIds.has(targetUnit.id)
-        );
+        const targetUnits = getPendingTargetUnits(target.id);
         const runeOutcomes = new Map<
           string,
           {
@@ -1447,11 +1456,7 @@ async function processCycleTick(
       }
 
       if (target?.fortressKind === FortressKind.LOOT_CAMP) {
-        const targetUnits = dueAttackUnits.filter(
-          (targetUnit) =>
-            targetUnit.targetFortressId === target.id &&
-            !resolvedBatchAttackUnitIds.has(targetUnit.id)
-        );
+        const targetUnits = getPendingTargetUnits(target.id);
         const lootCampOutcomes = new Map<
           string,
           {
@@ -1676,11 +1681,7 @@ async function processCycleTick(
       }
 
       if (target?.isNpc) {
-        const targetUnits = dueAttackUnits.filter(
-          (targetUnit) =>
-            targetUnit.targetFortressId === target.id &&
-            !resolvedBatchAttackUnitIds.has(targetUnit.id)
-        );
+        const targetUnits = getPendingTargetUnits(target.id);
 
         for (const targetUnit of targetUnits) {
           const targetAttacker = fortressLookup.get(
@@ -1905,6 +1906,7 @@ async function processCycleTick(
         });
 
         resolvedAttackUnits += 1;
+        resolvedBatchAttackUnitIds.add(unit.id);
         continue;
       }
       const defenderArmy = currentArmy.get(target.id) ?? target.army;

@@ -7645,6 +7645,157 @@ test("attacking Home of A returns armies when mega survives", async (context) =>
   assert.equal(attackerAfterReturn.army, 3);
 });
 
+test("returning mega attackers are not reprocessed with same-target arrivals", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const attacker = await createUser(
+    prisma,
+    "mega-return-batch-attacker@example.com"
+  );
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: attacker.id,
+    fortressName: "Batch Return Alpha",
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const attackerFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: attacker.id,
+      },
+    },
+  });
+  const megaFortress = await prisma.fortress.findFirstOrThrow({
+    where: {
+      cycleId: cycle.id,
+      isNpc: true,
+    },
+  });
+
+  await prisma.fortress.update({
+    where: {
+      id: attackerFortress.id,
+    },
+    data: {
+      army: 3,
+      points: 0,
+      food: 0,
+      minersAssigned: 0,
+      farmersAssigned: 0,
+      recruitersAssigned: 0,
+    },
+  });
+
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.ATTACK,
+    targetFortressId: megaFortress.id,
+    sentArmy: 2,
+    now: new Date("2026-04-20T12:05:00.000Z"),
+  });
+
+  const firstUnit = await prisma.attackUnit.findFirstOrThrow({
+    where: {
+      attackerFortressId: attackerFortress.id,
+      targetFortressId: megaFortress.id,
+      cancelledAt: null,
+    },
+    orderBy: {
+      launchedAt: "asc",
+    },
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: firstUnit.arrivesAt,
+  });
+
+  const returningUnit = await prisma.attackUnit.findUniqueOrThrow({
+    where: {
+      id: firstUnit.id,
+    },
+  });
+  assert.ok(returningUnit.arrivesAt);
+  assert.ok(returningUnit.recalledAt);
+
+  await setFortressAction({
+    db: prisma,
+    userId: attacker.id,
+    action: FortressAction.ATTACK,
+    targetFortressId: megaFortress.id,
+    sentArmy: 1,
+    now: addMinutes(returningUnit.recalledAt, 1),
+  });
+
+  const secondUnit = await prisma.attackUnit.findFirstOrThrow({
+    where: {
+      attackerFortressId: attackerFortress.id,
+      targetFortressId: megaFortress.id,
+      id: {
+        not: firstUnit.id,
+      },
+      cancelledAt: null,
+    },
+    orderBy: {
+      launchedAt: "asc",
+    },
+  });
+
+  await prisma.attackUnit.update({
+    where: {
+      id: secondUnit.id,
+    },
+    data: {
+      arrivesAt: returningUnit.arrivesAt,
+    },
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: returningUnit.arrivesAt,
+  });
+
+  const resolvedReturningUnit = await prisma.attackUnit.findUniqueOrThrow({
+    where: {
+      id: firstUnit.id,
+    },
+  });
+  const recalledSecondUnit = await prisma.attackUnit.findUniqueOrThrow({
+    where: {
+      id: secondUnit.id,
+    },
+  });
+  const refreshedAttacker = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: attackerFortress.id,
+    },
+    select: {
+      army: true,
+    },
+  });
+
+  assert.ok(resolvedReturningUnit.resolvedAt);
+  assert.equal(
+    resolvedReturningUnit.recalledAt?.getTime(),
+    returningUnit.recalledAt.getTime()
+  );
+  assert.ok(recalledSecondUnit.recalledAt);
+  assert.equal(recalledSecondUnit.resolvedAt, null);
+  assert.equal(refreshedAttacker.army, 2);
+});
+
 test("later mega fortress destroys scale reward and health without changing the first slayer or free upgrade count", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
