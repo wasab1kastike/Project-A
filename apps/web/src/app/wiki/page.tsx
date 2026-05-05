@@ -12,11 +12,11 @@ import {
   FORTRESS_ATTACK_DAMAGE_PER_LEVEL,
   FORTRESS_GROWTH_PER_LEVEL,
   FORTRESS_LEVEL_UP_COSTS,
+  HOME_OF_A_POINT_INCOME,
+  HOME_OF_A_TILE_ID,
   MAX_SIMULTANEOUS_ATTACKS_BASE,
-  MEGA_FORTRESS_DESTROY_BONUS,
   MEGA_FORTRESS_HEALTH,
   MEGA_FORTRESS_NAME,
-  MEGA_FORTRESS_SIZE_TILES,
   getArcadeSeasonRankBonus,
 } from "@/lib/game/constants";
 import {
@@ -91,11 +91,11 @@ const PVE_FORMULAS = [
   `Fortress health damage per surviving hit = sent army x (${BASE_FORTRESS_ATTACK_DAMAGE} + attacker castle level x ${FORTRESS_ATTACK_DAMAGE_PER_LEVEL}).`,
   "Attacker castle level affects PvE health damage, not the initial army-vs-army battle power check.",
   "Loot camps first compare attack power against the camp defending army. If the attacker wins, the camp loses health.",
-  `${MEGA_FORTRESS_NAME} has no normal defending army check; attacks directly damage its health with castle-level-scaled fortress attack damage.`,
+  `${MEGA_FORTRESS_NAME} is conquered through the center map tile as a timed control battle.`,
 ] as const;
 
 const homeOfALore =
-  "The map has one giant neutral fortress, Home of A. It is an old machine-citadel that keeps rebooting itself every time someone cracks it.";
+  "Home of A is the center-map control point. Banners fight over it through timed tile battles, and the controlling alliance earns points every tick.";
 
 const SEASON_FLOW = [
   {
@@ -126,7 +126,7 @@ const QUICKSTART_STEPS = [
   "Watch the map for temporary loot camps. They expire fast but can pay food, points, or army.",
   "Scout your first target before sending a huge army. Ties go to defender.",
   "Do not spend all points on one thing. Keep a reserve for rename/yeet/upgrades.",
-  "When Home of A is low, decide early: race for slayer bonus or farm safer value elsewhere.",
+  "Watch the center tile. Home of A income can swing a close season.",
 ] as const;
 
 const LATEST_UPDATES = [
@@ -161,7 +161,7 @@ const FAQ_ENTRIES = [
   {
     question: "Why did my location suddenly change?",
     answer:
-      "Castle Yeet or Home of A destruction can reshuffle positions. The map is not broken; it is dramatic.",
+      "Castle Yeet and some race effects can move fortresses. Home of A stays fixed at the center.",
   },
   {
     question: "What is the safest beginner mistake to avoid?",
@@ -240,7 +240,7 @@ export default function WikiPage() {
           <p>
             The main goal is to end the active season with the most points.
             Points come from your economy, raids, loot camps, and{" "}
-            {MEGA_FORTRESS_NAME} destroy rewards.
+            {MEGA_FORTRESS_NAME} center control.
           </p>
           <div className={styles.twoCol}>
             <section>
@@ -330,9 +330,8 @@ export default function WikiPage() {
           <span className={styles.sectionLabel}>Castle</span>
           <h2>Leveling and specialization</h2>
           <p>
-            Castle upgrades unlock after the first {MEGA_FORTRESS_NAME} kill in
-            a cycle. First slayer gets one free level immediately (if not at
-            cap).
+            Castle upgrades are available during gameplay. Each upgrade can be
+            mapped to a building role on the castle page.
           </p>
           <div className={styles.twoCol}>
             <section>
@@ -442,24 +441,22 @@ export default function WikiPage() {
 
         <article className={styles.card}>
           <span className={styles.sectionLabel}>Home of A</span>
-          <h2>Boss fortress objective</h2>
+          <h2>Center control objective</h2>
           <p>{homeOfALore}</p>
           <ul className={styles.noteList}>
             <li>
-              Starts at {MEGA_FORTRESS_HEALTH} HP and occupies{" "}
-              {MEGA_FORTRESS_SIZE_TILES} tiles.
+              Always sits on center tile {HOME_OF_A_TILE_ID}.
             </li>
             <li>
-              First destroy in a cycle unlocks castle upgrades for everyone.
+              First capture fights neutral defense strength {MEGA_FORTRESS_HEALTH}.
             </li>
             <li>
-              Destroy reward starts at {MEGA_FORTRESS_DESTROY_BONUS} and scales
-              by +{MEGA_FORTRESS_DESTROY_BONUS} each next destroy.
+              The controlling banner alliance earns {HOME_OF_A_POINT_INCOME}{" "}
+              points per tick.
             </li>
-            <li>Its max HP scales upward each destroy (x2, x3, x4...).</li>
             <li>
-              After each destroy, player fortress positions reshuffle, while the
-              first slayer crown is preserved.
+              Banner owner gets half the income; the rest is split by capture
+              army contribution.
             </li>
           </ul>
         </article>

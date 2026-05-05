@@ -3,10 +3,11 @@ import {
   ChatMessageType,
   CommunityWishStatus,
   CycleStatus,
+  BattlefieldSide,
+  BattlefieldStatus,
   FortressKind,
   Prisma,
   RaceAbilityKind,
-  ScoreEventType,
   WinnerRequestStatus,
   DwarfDeepMiningOutcome,
   type PrismaClient,
@@ -14,6 +15,8 @@ import {
 import {
   ACTIVE_LOCATION_SHUFFLE_COST,
   ACTIVE_PLAYER_CAP,
+  HOME_OF_A_POINT_INCOME,
+  HOME_OF_A_TILE_ID,
   MAX_SIMULTANEOUS_ATTACKS_BASE,
 } from "./constants";
 import {
@@ -49,8 +52,83 @@ import {
 } from "./race-buffs";
 import { countCastleSpecializations } from "./specializations";
 import { DWARF_DEEP_MINING_RUNE_BOUNTY } from "./dwarf-deep-mining";
+import {
+  getHomeOfABonus,
+  getTileBonus,
+  getTileById,
+  isHomeOfATile,
+} from "./territory";
 
 export type HomePageState = Awaited<ReturnType<typeof getHomePageState>>;
+
+function formatBattlefieldReportLines({
+  targetName,
+  targetTileId,
+  status,
+  winnerSide,
+  attackerBannerName,
+  defenderBannerName,
+  attackerArmyRemaining,
+  defenderArmyRemaining,
+  participantCount,
+  incomingCount,
+  arrivedReinforcementCount,
+  pointsReward,
+}: {
+  targetName: string;
+  targetTileId: string | null;
+  status: BattlefieldStatus;
+  winnerSide: BattlefieldSide | null;
+  attackerBannerName: string;
+  defenderBannerName: string | null;
+  attackerArmyRemaining: number;
+  defenderArmyRemaining: number;
+  participantCount: number;
+  incomingCount: number;
+  arrivedReinforcementCount: number;
+  pointsReward: number;
+}) {
+  const targetLabel = targetTileId ? `tile ${targetTileId}` : targetName;
+  const lines = [
+    `${attackerBannerName} opened a battlefield against ${defenderBannerName ?? targetLabel}.`,
+    `Target: ${targetLabel}. Participants: ${participantCount}.`,
+  ];
+
+  if (arrivedReinforcementCount > 0 || incomingCount > 0) {
+    lines.push(
+      `Reinforcements: ${arrivedReinforcementCount} arrived, ${incomingCount} still marching.`
+    );
+  }
+
+  if (status === BattlefieldStatus.RESOLVED) {
+    const winnerLabel =
+      winnerSide === BattlefieldSide.ATTACKER
+        ? attackerBannerName
+        : (defenderBannerName ?? "defenders");
+
+    lines.push(
+      `Final result: ${winnerLabel} won with ${attackerArmyRemaining} attacker army and ${defenderArmyRemaining} defender army remaining.`
+    );
+
+    if (targetTileId) {
+      lines.push(
+        winnerSide === BattlefieldSide.ATTACKER
+          ? `Ownership of tile ${targetTileId} transferred to ${attackerBannerName}.`
+          : `Ownership of tile ${targetTileId} stayed with ${defenderBannerName ?? "the defender"}.`
+      );
+    }
+
+    if (pointsReward > 0) {
+      lines.push(`Battlefield reward paid out: ${pointsReward} points.`);
+    }
+  } else {
+    lines.push(
+      `Battle progress continues with ${attackerArmyRemaining} attacker army and ${defenderArmyRemaining} defender army committed.`
+    );
+  }
+
+  return lines;
+}
 
 function compareByLeaderboardOrder(
   left: {
@@ -481,6 +559,113 @@ export async function getHomePageState({
           },
         },
       },
+      mapHexOwnerships: {
+        select: {
+          id: true,
+          tileId: true,
+          claimedAt: true,
+          ownerFortressId: true,
+          ownerFortress: {
+            select: {
+              id: true,
+              ownerId: true,
+              name: true,
+              commanderName: true,
+            },
+          },
+        },
+      },
+      homeOfAHolders: {
+        orderBy: [{ capturedAt: "asc" }, { id: "asc" }],
+        select: {
+          id: true,
+          fortressId: true,
+          bannerFortressId: true,
+          contributionWeight: true,
+          capturedAt: true,
+          fortress: {
+            select: {
+              id: true,
+              ownerId: true,
+              name: true,
+              commanderName: true,
+            },
+          },
+          bannerFortress: {
+            select: {
+              id: true,
+              ownerId: true,
+              name: true,
+              commanderName: true,
+            },
+          },
+        },
+      },
+      battlefields: {
+        where: {
+          status: "ACTIVE",
+        },
+        orderBy: [{ startedAt: "desc" }, { id: "desc" }],
+        select: {
+          id: true,
+          targetTileId: true,
+          progress: true,
+          attackerArmyRemaining: true,
+          defenderArmyRemaining: true,
+          startedAt: true,
+          attackerBannerFortressId: true,
+          defenderBannerFortressId: true,
+          targetFortress: {
+            select: {
+              id: true,
+              name: true,
+              commanderName: true,
+            },
+          },
+          attackerBannerFortress: {
+            select: {
+              id: true,
+              name: true,
+              commanderName: true,
+            },
+          },
+          defenderBannerFortress: {
+            select: {
+              id: true,
+              name: true,
+              commanderName: true,
+            },
+          },
+          participants: {
+            select: {
+              fortressId: true,
+              side: true,
+              armyCommitted: true,
+              armyRemaining: true,
+            },
+          },
+          incomingReinforcements: {
+            where: {
+              resolvedAt: null,
+              cancelledAt: null,
+            },
+            orderBy: [{ arrivesAt: "asc" }, { id: "asc" }],
+            select: {
+              id: true,
+              armyAmount: true,
+              arrivesAt: true,
+              reinforcementSide: true,
+              attackerFortress: {
+                select: {
+                  id: true,
+                  ownerId: true,
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+      },
       gameTicks: {
         orderBy: [{ tickAt: "desc" }, { id: "desc" }],
         take: 1,
@@ -525,6 +710,9 @@ export async function getHomePageState({
       playerSummary: null,
       leaderboard: [],
       mapFortresses: [],
+      mapHexes: [],
+      homeOfA: null,
+      battlefields: [],
       attackUnits: [],
       battleReports: [],
       chat: {
@@ -642,7 +830,7 @@ export async function getHomePageState({
     cycle.fortresses.map((fortress) => [fortress.id, fortress])
   );
   const playerFortressId = playerFortress?.id ?? null;
-  const upgradesUnlocked = Boolean(cycle.upgradesUnlockedAt);
+  const upgradesUnlocked = gameplayOpen;
   const raceBuffTier = getRaceBuffTier({
     activeStartedAt: cycle.activeStartedAt,
     now,
@@ -720,22 +908,7 @@ export async function getHomePageState({
     playerFortress !== null &&
     nextUpgradeCost !== null &&
     playerFortress.points >= nextUpgradeCost;
-  const receivedSlayerUpgrade =
-    playerFortress && cycle.upgradesUnlockedAt
-      ? await db.scoreEvent.findFirst({
-          where: {
-            cycleId: cycle.id,
-            fortressId: playerFortress.id,
-            eventType: ScoreEventType.FORTRESS_UPGRADE_SLAYER_BONUS,
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-          select: {
-            id: true,
-          },
-        })
-      : null;
+  const receivedSlayerUpgrade = null;
   const locationShuffleCount = playerFortress
     ? await getFortressLocationShuffleCount(db, playerFortress.id)
     : 0;
@@ -798,7 +971,7 @@ export async function getHomePageState({
     playerFortress?.deepMiningRolls[0] ?? null;
   const currentDayKey = getHelsinkiDayKey(now);
   const currentHourKey = getHelsinkiHourKey(now);
-  const battleReports = playerFortress
+  const legacyBattleReports = playerFortress
     ? (
         await db.attackUnit.findMany({
           where: {
@@ -807,6 +980,7 @@ export async function getHomePageState({
               not: null,
             },
             cancelledAt: null,
+            reinforcementBattlefieldId: null,
             OR: [
               {
                 attackerFortressId: playerFortress.id,
@@ -999,6 +1173,207 @@ export async function getHomePageState({
         };
       })
     : [];
+  const battlefieldReports = playerFortress
+    ? (
+        await db.battlefield.findMany({
+          where: {
+            cycleId: cycle.id,
+            OR: [
+              { attackerBannerFortressId: playerFortress.id },
+              { defenderBannerFortressId: playerFortress.id },
+              { targetFortressId: playerFortress.id },
+              {
+                participants: {
+                  some: {
+                    fortressId: playerFortress.id,
+                  },
+                },
+              },
+              {
+                incomingReinforcements: {
+                  some: {
+                    attackerFortressId: playerFortress.id,
+                  },
+                },
+              },
+            ],
+          },
+          orderBy: [{ updatedAt: "desc" }, { startedAt: "desc" }, { id: "desc" }],
+          take: 5,
+          select: {
+            id: true,
+            targetTileId: true,
+            status: true,
+            progress: true,
+            attackerArmyRemaining: true,
+            defenderArmyRemaining: true,
+            pointsReward: true,
+            startedAt: true,
+            resolvedAt: true,
+            resolvedWinnerSide: true,
+            targetFortress: {
+              select: {
+                id: true,
+                name: true,
+                commanderName: true,
+                ownerId: true,
+              },
+            },
+            attackerBannerFortress: {
+              select: {
+                id: true,
+                name: true,
+                commanderName: true,
+                ownerId: true,
+              },
+            },
+            defenderBannerFortress: {
+              select: {
+                id: true,
+                name: true,
+                commanderName: true,
+                ownerId: true,
+              },
+            },
+            participants: {
+              orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
+              select: {
+                fortressId: true,
+                side: true,
+                armyCommitted: true,
+                armyRemaining: true,
+                joinedAt: true,
+                fortress: {
+                  select: {
+                    name: true,
+                    commanderName: true,
+                    ownerId: true,
+                  },
+                },
+              },
+            },
+            incomingReinforcements: {
+              orderBy: [{ arrivesAt: "asc" }, { id: "asc" }],
+              select: {
+                id: true,
+                armyAmount: true,
+                arrivesAt: true,
+                resolvedAt: true,
+                cancelledAt: true,
+                reinforcementSide: true,
+                attackerFortress: {
+                  select: {
+                    name: true,
+                    commanderName: true,
+                    ownerId: true,
+                  },
+                },
+              },
+            },
+          },
+        })
+      ).map((battlefield) => {
+        const targetName =
+          battlefield.targetTileId !== null
+            ? `Tile ${battlefield.targetTileId}`
+            : (battlefield.targetFortress?.name ?? "Battlefield");
+        const joinedLines = battlefield.participants.map(
+          (participant) =>
+            `${participant.fortress.name} joined the ${participant.side.toLowerCase()} side with ${participant.armyCommitted} army.`
+        );
+        const arrivedReinforcements = battlefield.incomingReinforcements.filter(
+          (unit) => unit.resolvedAt !== null && unit.cancelledAt === null
+        );
+        const incomingReinforcements = battlefield.incomingReinforcements.filter(
+          (unit) => unit.resolvedAt === null && unit.cancelledAt === null
+        );
+        const reinforcementLines = arrivedReinforcements.map(
+          (unit) =>
+            `${unit.attackerFortress.name} reinforcement arrived for ${(unit.reinforcementSide ?? BattlefieldSide.ATTACKER).toLowerCase()} with ${unit.armyAmount} army.`
+        );
+
+        return {
+          type: "BATTLEFIELD" as const,
+          id: battlefield.id,
+          launchedAt: battlefield.startedAt,
+          resolvedAt: battlefield.resolvedAt ?? battlefield.startedAt,
+          targetTileId: battlefield.targetTileId,
+          targetName,
+          progress: battlefield.progress,
+          attackerName: battlefield.attackerBannerFortress.name,
+          attackerCommanderName:
+            battlefield.attackerBannerFortress.commanderName,
+          attackerOwnerId: battlefield.attackerBannerFortress.ownerId,
+          defenderName:
+            battlefield.defenderBannerFortress?.name ??
+            battlefield.targetFortress?.name ??
+            "defenders",
+          defenderCommanderName:
+            battlefield.defenderBannerFortress?.commanderName ??
+            battlefield.targetFortress?.commanderName ??
+            "Unknown",
+          defenderOwnerId:
+            battlefield.defenderBannerFortress?.ownerId ??
+            battlefield.targetFortress?.ownerId ??
+            "",
+          sentArmy: battlefield.participants
+            .filter(
+              (participant) => participant.side === BattlefieldSide.ATTACKER
+            )
+            .reduce((sum, participant) => sum + participant.armyCommitted, 0),
+          defenderArmyEstimate: formatApproximateForce(
+            battlefield.defenderArmyRemaining
+          ),
+          defenderDbLevel: 0,
+          defenseBonusPercent: 0,
+          defenseMultiplier: 1,
+          resolvedAttackPower: battlefield.attackerArmyRemaining,
+          resolvedDefensePowerEstimate: formatApproximateForce(
+            battlefield.defenderArmyRemaining
+          ),
+          outcome:
+            battlefield.resolvedWinnerSide === BattlefieldSide.ATTACKER
+              ? ("ATTACKER_WIN" as const)
+              : battlefield.status === BattlefieldStatus.RESOLVED
+                ? ("DEFENDER_WIN" as const)
+                : ("IN_PROGRESS" as const),
+          attackerSurvivors: battlefield.attackerArmyRemaining,
+          attackerRetired: 0,
+          attackerReturned: battlefield.attackerArmyRemaining,
+          defenderLosses: 0,
+          pointsLooted:
+            battlefield.resolvedWinnerSide === BattlefieldSide.ATTACKER
+              ? battlefield.pointsReward
+              : 0,
+          foodLooted: 0,
+          armyLooted: 0,
+          reportLines: [
+            ...formatBattlefieldReportLines({
+              targetName,
+              targetTileId: battlefield.targetTileId,
+              status: battlefield.status,
+              winnerSide: battlefield.resolvedWinnerSide,
+              attackerBannerName: battlefield.attackerBannerFortress.name,
+              defenderBannerName:
+                battlefield.defenderBannerFortress?.name ??
+                battlefield.targetFortress?.name ??
+                null,
+              attackerArmyRemaining: battlefield.attackerArmyRemaining,
+              defenderArmyRemaining: battlefield.defenderArmyRemaining,
+              participantCount: battlefield.participants.length,
+              incomingCount: incomingReinforcements.length,
+              arrivedReinforcementCount: arrivedReinforcements.length,
+              pointsReward: battlefield.pointsReward,
+            }),
+            ...joinedLines,
+            ...reinforcementLines,
+          ],
+        };
+      })
+    : [];
+  const battleReports = [...battlefieldReports, ...legacyBattleReports]
+    .sort((left, right) => right.resolvedAt.getTime() - left.resolvedAt.getTime())
+    .slice(0, 5);
   const visibleFortresses = cycle.fortresses.filter((fortress) => {
     if (
       fortress.fortressKind === FortressKind.LOOT_CAMP ||
@@ -1099,6 +1474,7 @@ export async function getHomePageState({
       playerFortressId !== null &&
       gameplayOpen &&
       fortress.id !== playerFortressId &&
+      fortress.fortressKind !== FortressKind.MEGA &&
       (fortress.fortressKind !== FortressKind.DWARF_RUNE ||
         runeOwnerId !== playerFortressId) &&
       ((fortress.fortressKind !== FortressKind.LOOT_CAMP &&
@@ -1226,6 +1602,98 @@ export async function getHomePageState({
   const latestSeason = latestResolvedSeason
     ? mapLatestSeason(latestResolvedSeason)
     : null;
+  const activeBattleTileIds = new Set(
+    cycle.battlefields
+      .map((battlefield) => battlefield.targetTileId)
+      .filter((tileId): tileId is string => tileId !== null)
+  );
+  const homeOwnership =
+    cycle.mapHexOwnerships.find((ownership) =>
+      isHomeOfATile(ownership.tileId)
+    ) ?? null;
+  const homeActiveBattle =
+    cycle.battlefields.find((battlefield) =>
+      battlefield.targetTileId === HOME_OF_A_TILE_ID
+    ) ?? null;
+  const homeHolders = cycle.homeOfAHolders.map((holder) => ({
+    fortressId: holder.fortressId,
+    fortressName: holder.fortress.name,
+    commanderName: holder.fortress.commanderName,
+    contributionWeight: holder.contributionWeight,
+    isCurrentUser: holder.fortress.ownerId === userId,
+  }));
+  const homeBanner = cycle.homeOfAHolders[0]?.bannerFortress ?? null;
+  const canAttackHomeOfA =
+    gameplayOpen &&
+    playerFortress !== null &&
+    playerFortress.army > 0 &&
+    homeOwnership?.ownerFortressId !== playerFortress.id &&
+    !activeBattleTileIds.has(HOME_OF_A_TILE_ID);
+  const mappedMapHexes: Array<{
+    id: string;
+    tileId: string;
+    claimedAt: Date | null;
+    ownerFortressId: string | null;
+    ownerName: string;
+    ownerCommanderName: string;
+    isCurrentUser: boolean;
+    hasActiveBattle: boolean;
+    canAttack: boolean;
+    claimCost: number | null;
+    bonus: { label: string };
+    isHomeOfA: boolean;
+    pointIncome: number | null;
+    holders: typeof homeHolders;
+  }> = cycle.mapHexOwnerships.map((ownership) => {
+    const tile = getTileById(ownership.tileId);
+    const bonus = isHomeOfATile(ownership.tileId)
+      ? getHomeOfABonus()
+      : getTileBonus(tile);
+
+    return {
+      id: ownership.id,
+      tileId: ownership.tileId,
+      claimedAt: ownership.claimedAt,
+      ownerFortressId: ownership.ownerFortressId,
+      ownerName: ownership.ownerFortress.name,
+      ownerCommanderName: ownership.ownerFortress.commanderName,
+      isCurrentUser: ownership.ownerFortress.ownerId === userId,
+      hasActiveBattle: activeBattleTileIds.has(ownership.tileId),
+      canAttack:
+        gameplayOpen &&
+        playerFortress !== null &&
+        playerFortress.army > 0 &&
+        ownership.ownerFortressId !== playerFortress.id &&
+        !activeBattleTileIds.has(ownership.tileId),
+      claimCost: null,
+      bonus,
+      isHomeOfA: isHomeOfATile(ownership.tileId),
+      pointIncome: isHomeOfATile(ownership.tileId)
+        ? HOME_OF_A_POINT_INCOME
+        : null,
+      holders: isHomeOfATile(ownership.tileId) ? homeHolders : [],
+    };
+  });
+
+  if (!homeOwnership) {
+    mappedMapHexes.push({
+      id: "home-of-a-neutral",
+      tileId: HOME_OF_A_TILE_ID,
+      claimedAt: null,
+      ownerFortressId: null,
+      ownerName: "Neutral",
+      ownerCommanderName: "Home of A",
+      isCurrentUser: false,
+      hasActiveBattle: activeBattleTileIds.has(HOME_OF_A_TILE_ID),
+      canAttack: canAttackHomeOfA,
+      claimCost: null,
+      bonus: getHomeOfABonus(),
+      isHomeOfA: true,
+      pointIncome: HOME_OF_A_POINT_INCOME,
+      holders: [],
+    });
+  }
+
   return {
     isSpectator: !playerFortress,
     cycle: {
@@ -1236,7 +1704,8 @@ export async function getHomePageState({
       testingEndsAt: cycle.testingEndsAt,
       joiningLockedAt: cycle.joiningLockedAt,
       activeEndsAt: cycle.activeEndsAt,
-      upgradesUnlockedAt: cycle.upgradesUnlockedAt,
+      upgradesUnlockedAt:
+        cycle.upgradesUnlockedAt ?? cycle.testingStartedAt ?? cycle.activeStartedAt,
       megaFortressDestroyCount: cycle.megaFortressDestroyCount,
       lastProcessedTickAt,
       tickDelayMinutes,
@@ -1534,6 +2003,88 @@ export async function getHomePageState({
       isCurrentUser: fortress.ownerId === userId,
     })),
     mapFortresses,
+    mapHexes: mappedMapHexes,
+    homeOfA: {
+      tileId: HOME_OF_A_TILE_ID,
+      pointIncome: HOME_OF_A_POINT_INCOME,
+      ownerFortressId: homeOwnership?.ownerFortressId ?? null,
+      ownerName: homeOwnership?.ownerFortress.name ?? "Neutral",
+      ownerCommanderName:
+        homeOwnership?.ownerFortress.commanderName ?? "Home of A",
+      bannerFortressId: homeBanner?.id ?? null,
+      bannerName: homeBanner?.name ?? null,
+      holders: homeHolders,
+      activeBattlefieldId: homeActiveBattle?.id ?? null,
+      canAttack: canAttackHomeOfA,
+      attackDisabledReason: canAttackHomeOfA
+        ? null
+        : !gameplayOpen
+          ? "Home of A can only be attacked during gameplay."
+          : !playerFortress
+            ? "Join the cycle to attack Home of A."
+            : playerFortress.army <= 0
+              ? "You need idle army to attack Home of A."
+              : homeOwnership?.ownerFortressId === playerFortress.id
+                ? "Your banner already controls Home of A."
+                : activeBattleTileIds.has(HOME_OF_A_TILE_ID)
+                  ? "Home of A is already contested."
+                  : null,
+    },
+    battlefields: cycle.battlefields.map((battlefield) => {
+      const currentParticipant = playerFortress
+        ? battlefield.participants.find(
+            (participant) => participant.fortressId === playerFortress.id
+          )
+        : null;
+
+      return {
+        id: battlefield.id,
+        targetTileId: battlefield.targetTileId,
+        targetName:
+          battlefield.targetTileId !== null
+            ? `Tile ${battlefield.targetTileId}`
+            : (battlefield.targetFortress?.name ?? "Battlefield"),
+        progress: battlefield.progress,
+        attackerArmyRemaining: battlefield.attackerArmyRemaining,
+        defenderArmyRemaining: battlefield.defenderArmyRemaining,
+        startedAt: battlefield.startedAt,
+        attackerBanner: {
+          id: battlefield.attackerBannerFortress.id,
+          name: battlefield.attackerBannerFortress.name,
+          commanderName: battlefield.attackerBannerFortress.commanderName,
+        },
+        defenderBanner: battlefield.defenderBannerFortress
+          ? {
+              id: battlefield.defenderBannerFortress.id,
+              name: battlefield.defenderBannerFortress.name,
+              commanderName: battlefield.defenderBannerFortress.commanderName,
+            }
+          : null,
+        participantCount: battlefield.participants.length,
+        currentUserSide: currentParticipant?.side ?? null,
+        incomingReinforcements: battlefield.incomingReinforcements.map(
+          (unit) => ({
+            id: unit.id,
+            side: unit.reinforcementSide ?? BattlefieldSide.ATTACKER,
+            armyAmount: unit.armyAmount,
+            arrivesAt: unit.arrivesAt,
+            fortressName: unit.attackerFortress.name,
+            isCurrentUser: unit.attackerFortress.ownerId === userId,
+          })
+        ),
+        canJoinAttacker:
+          gameplayOpen &&
+          playerFortress !== null &&
+          playerFortress.army > 0 &&
+          currentParticipant?.side !== BattlefieldSide.DEFENDER,
+        canJoinDefender:
+          gameplayOpen &&
+          playerFortress !== null &&
+          playerFortress.army > 0 &&
+          battlefield.defenderBannerFortress !== null &&
+          currentParticipant?.side !== BattlefieldSide.ATTACKER,
+      };
+    }),
     attackUnits: cycle.attackUnits.map((unit) => ({
       id: unit.id,
       armyAmount:
@@ -1646,6 +2197,7 @@ export async function getHomePageState({
 
               return (
                 fortress.id !== playerFortress.id &&
+                fortress.fortressKind !== FortressKind.MEGA &&
                 runeSuppression?.fortress.id !== playerFortress.id
               );
             })

@@ -1,0 +1,190 @@
+.page {
+  min-height: 100vh;
+  padding: 28px;
+  background:
+    radial-gradient(circle at top left, rgba(103, 196, 207, 0.16), transparent 34%),
+    #07111a;
+  color: var(--foreground);
+}
+
+.shell {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: 18px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.topbar a,
+.form button,
+.inlineForm button,
+.raceCard button {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgba(247, 196, 95, 0.34);
+  border-radius: 8px;
+  background: rgba(247, 196, 95, 0.9);
+  color: #14202f;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.form button:disabled,
+.inlineForm button:disabled,
+.raceCard button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.eyebrow,
+.panelHeader span {
+  color: var(--accent-strong);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.titleBlock {
+  display: grid;
+  gap: 5px;
+}
+
+.titleBlock h1,
+.panel h1 {
+  margin: 0;
+}
+
+.castleGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.panel {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 8px;
+  background: rgba(9, 19, 29, 0.82);
+}
+
+.panelHeader,
+.inlineForm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.statGrid,
+.buildingGrid,
+.buildingChoiceGrid,
+.raceGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.statGrid div,
+.buildingCard,
+.buildingChoice,
+.raceCard {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(103, 196, 207, 0.18);
+  border-radius: 8px;
+  background: rgba(3, 10, 16, 0.42);
+}
+
+.statGrid dt {
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+
+.statGrid dd {
+  margin: 4px 0 0;
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+.buildingCard,
+.raceCard,
+.form,
+.buildingChoice span {
+  display: grid;
+  gap: 8px;
+}
+
+.buildingCard p,
+.raceCard p,
+.muted {
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.buildingCard span,
+.buildingChoice small {
+  color: #9be7ef;
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+}
+
+.form label {
+  display: grid;
+  gap: 6px;
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+}
+
+.form input,
+.form select,
+.inlineForm input {
+  min-height: 38px;
+  width: 100%;
+  padding: 0 10px;
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  border-radius: 8px;
+  background: rgba(2, 8, 13, 0.68);
+  color: var(--foreground);
+  font: inherit;
+}
+
+.inlineForm input {
+  min-width: 0;
+}
+
+.error {
+  color: #ff9f8f;
+}
+
+@media (max-width: 760px) {
+  .page {
+    padding: 18px;
+  }
+
+  .topbar,
+  .castleGrid,
+  .statGrid,
+  .buildingGrid,
+  .buildingChoiceGrid,
+  .raceGrid,
+  .inlineForm {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+}

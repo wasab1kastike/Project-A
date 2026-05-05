@@ -19,11 +19,15 @@ export function PreviousSeasonWinnerCard({
   const storageKey = `${STORAGE_PREFIX}:${cycleId}`;
 
   useEffect(() => {
+    let nextVisible = true;
+
     try {
-      setIsVisible(window.localStorage.getItem(storageKey) !== "dismissed");
+      nextVisible = window.localStorage.getItem(storageKey) !== "dismissed";
     } catch {
-      setIsVisible(true);
+      nextVisible = true;
     }
+
+    queueMicrotask(() => setIsVisible(nextVisible));
   }, [storageKey]);
 
   function dismissCard() {

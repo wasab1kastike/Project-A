@@ -71,26 +71,6 @@ async function ensureArcadeWallet(db: DatabaseClient, userId: string) {
   });
 }
 
-async function getCurrentBuildCycle(db: DatabaseClient, now: Date) {
-  return db.cycle.findFirst({
-    where: {
-      resolvedAt: null,
-      status: CycleStatus.REGISTRATION,
-      registrationEndsAt: {
-        gt: now,
-      },
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-    select: {
-      id: true,
-      registrationEndsAt: true,
-      status: true,
-    },
-  });
-}
-
 async function getCurrentShopCycle(db: DatabaseClient) {
   return db.cycle.findFirst({
     where: {
@@ -791,6 +771,7 @@ export async function purchaseArcadeLootBox({
           userId,
           crateType,
           price,
+          createdAt: now,
         },
         select: {
           id: true,

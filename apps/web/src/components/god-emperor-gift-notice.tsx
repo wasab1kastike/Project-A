@@ -64,8 +64,8 @@ export function GodEmperorGiftNotice({
         </div>
 
         <p id="god-emperor-gift-description" className={styles.lore}>
-          In the annals of the realm it is written: <em>"He who spots the
-          flaw in the Emperor's war machine shall be made whole — and then some."</em>{" "}
+          In the annals of the realm it is written: <em>&quot;He who spots the
+          flaw in the Emperor&apos;s war machine shall be made whole — and then some.&quot;</em>{" "}
           Your keen eye and the sacrifice of your brave soldiers have not gone
           unnoticed. The God Emperor A, in his infinite wisdom and occasional
           guilt, hereby replenishes your ranks. March forth, commander.

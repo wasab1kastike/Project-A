@@ -158,6 +158,29 @@
   stroke: rgba(6, 16, 18, 0.82);
 }
 
+.spawnableTile {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.ownedTile polygon {
+  stroke: rgba(247, 196, 95, 0.72);
+  stroke-width: 5px;
+}
+
+.ownTile polygon {
+  stroke: rgba(125, 240, 186, 0.86);
+}
+
+.attackableTile polygon {
+  stroke: rgba(255, 143, 118, 0.86);
+}
+
+.contestedTile polygon {
+  stroke-dasharray: 9 6;
+  animation: contestedTilePulse 1.8s ease-in-out infinite;
+}
+
 .emptyState {
   position: absolute;
   inset: 0;
@@ -332,6 +355,17 @@
   100% {
     transform: scale(1.12);
     opacity: 0;
+  }
+}
+
+@keyframes contestedTilePulse {
+  0%,
+  100% {
+    stroke-opacity: 0.62;
+  }
+
+  50% {
+    stroke-opacity: 1;
   }
 }
 

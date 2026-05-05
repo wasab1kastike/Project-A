@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { getCosmeticSpriteStyle } from "@/lib/game/cosmetic-sprites";
 import { unequipCosmeticAction } from "@/app/game-actions";

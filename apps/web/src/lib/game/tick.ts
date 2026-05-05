@@ -10,6 +10,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { ensureOpenRegistrationCycle } from "./bootstrap";
 import {
+  HOME_OF_A_POINT_INCOME,
   MEGA_FORTRESS_DESTROY_BONUS,
   MEGA_FORTRESS_HEALTH,
   TESTING_DURATION_HOURS,
@@ -53,6 +54,11 @@ import {
   resetAttackerRaceAbilityCooldown,
   spawnScheduledLootCamps,
 } from "./loot-camps";
+import {
+  createBattlefieldFromAttackUnit,
+  processActiveBattlefields,
+} from "./battlefields";
+import { getTileBonus, getTileById, isHomeOfATile } from "./territory";
 
 export type TickSummary = {
   restartedRegistrationCycles: number;
@@ -415,6 +421,21 @@ async function completeTestingCycle(
     const activeEndsAt = getNextHelsinkiWeekdayAtHour(activeStartedAt, 0, 12);
 
     await tx.attackUnit.deleteMany({
+      where: {
+        cycleId,
+      },
+    });
+    await tx.battlefield.deleteMany({
+      where: {
+        cycleId,
+      },
+    });
+    await tx.homeOfAHolder.deleteMany({
+      where: {
+        cycleId,
+      },
+    });
+    await tx.mapHexOwnership.deleteMany({
       where: {
         cycleId,
       },
@@ -1057,6 +1078,8 @@ async function processCycleTick(
         id: true,
         attackerFortressId: true,
         targetFortressId: true,
+        reinforcementBattlefieldId: true,
+        reinforcementSide: true,
         armyAmount: true,
         arrivesAt: true,
         recalledAt: true,
@@ -1076,6 +1099,105 @@ async function processCycleTick(
     });
 
     const resolvedBatchAttackUnitIds = new Set<string>();
+    for (const unit of dueAttackUnits) {
+      if (unit.reinforcementBattlefieldId && unit.reinforcementSide) {
+        const battlefield = await db.battlefield.findUnique({
+          where: {
+            id: unit.reinforcementBattlefieldId,
+          },
+          select: {
+            id: true,
+            status: true,
+          },
+        });
+
+        if (battlefield?.status === "ACTIVE") {
+          await db.battlefieldParticipant.upsert({
+            where: {
+              battlefieldId_fortressId: {
+                battlefieldId: battlefield.id,
+                fortressId: unit.attackerFortressId,
+              },
+            },
+            update: {
+              armyCommitted: {
+                increment: unit.armyAmount,
+              },
+              armyRemaining: {
+                increment: unit.armyAmount,
+              },
+            },
+            create: {
+              battlefieldId: battlefield.id,
+              fortressId: unit.attackerFortressId,
+              side: unit.reinforcementSide,
+              armyCommitted: unit.armyAmount,
+              armyRemaining: unit.armyAmount,
+              joinedAt: tickAt,
+            },
+          });
+          await db.battlefield.update({
+            where: {
+              id: battlefield.id,
+            },
+            data:
+              unit.reinforcementSide === "ATTACKER"
+                ? {
+                    attackerArmyRemaining: {
+                      increment: unit.armyAmount,
+                    },
+                  }
+                : {
+                    defenderArmyRemaining: {
+                      increment: unit.armyAmount,
+                    },
+                  },
+          });
+        }
+
+        await db.attackUnit.update({
+          where: {
+            id: unit.id,
+          },
+          data: {
+            resolvedAt: tickAt,
+            defenderArmyAtBattleStart: null,
+            resolvedAttackPower: 0,
+            resolvedDefensePower: 0,
+            attackerSurvivors: unit.armyAmount,
+            attackerRetired: 0,
+            attackerReturned: 0,
+            defenderLosses: 0,
+            pointsLooted: 0,
+            foodLooted: 0,
+            armyLooted: 0,
+          },
+        });
+        resolvedBatchAttackUnitIds.add(unit.id);
+        resolvedAttackUnits += 1;
+        continue;
+      }
+
+      const target = fortressLookup.get(unit.targetFortressId);
+
+      if (
+        unit.recalledAt ||
+        !target ||
+        target.isNpc ||
+        target.fortressKind !== FortressKind.PLAYER
+      ) {
+        continue;
+      }
+
+      await createBattlefieldFromAttackUnit({
+        db,
+        attackUnitId: unit.id,
+        tickAt,
+      });
+      resolvedBatchAttackUnitIds.add(unit.id);
+      resolvedAttackUnits += 1;
+    }
+
     const dueAttackUnitsByTargetId = new Map<string, typeof dueAttackUnits>();
     for (const dueAttackUnit of dueAttackUnits) {
       const targetUnits =
@@ -2110,6 +2232,112 @@ async function processCycleTick(
       }
     }
 
+    const ownedTiles = await db.mapHexOwnership.findMany({
+      where: {
+        cycleId,
+      },
+      select: {
+        ownerFortressId: true,
+        tileId: true,
+      },
+    });
+    const tileBonusesByFortressId = new Map<
+      string,
+      { points: number; food: number; army: number }
+    >();
+
+    for (const ownership of ownedTiles) {
+      if (isHomeOfATile(ownership.tileId)) {
+        continue;
+      }
+
+      const tile = getTileById(ownership.tileId);
+      const bonus = getTileBonus(tile);
+      const current =
+        tileBonusesByFortressId.get(ownership.ownerFortressId) ?? {
+          points: 0,
+          food: 0,
+          army: 0,
+        };
+
+      tileBonusesByFortressId.set(ownership.ownerFortressId, {
+        points: current.points + bonus.points,
+        food: current.food + bonus.food,
+        army: current.army + bonus.army,
+      });
+    }
+
+    const homeOfAHolders = await db.homeOfAHolder.findMany({
+      where: {
+        cycleId,
+      },
+      select: {
+        fortressId: true,
+        bannerFortressId: true,
+        contributionWeight: true,
+      },
+    });
+    const homeBannerFortressId = homeOfAHolders[0]?.bannerFortressId ?? null;
+
+    if (homeBannerFortressId) {
+      const sharedPool = Math.floor(HOME_OF_A_POINT_INCOME / 2);
+      const bannerBase = HOME_OF_A_POINT_INCOME - sharedPool;
+      const totalWeight = homeOfAHolders.reduce(
+        (sum, holder) => sum + Math.max(0, holder.contributionWeight),
+        0
+      );
+      const homeIncomeByFortressId = new Map<string, number>([
+        [homeBannerFortressId, bannerBase],
+      ]);
+      let distributedSharedPoints = 0;
+
+      if (totalWeight > 0) {
+        for (const holder of homeOfAHolders) {
+          const weightedShare = Math.floor(
+            (sharedPool * Math.max(0, holder.contributionWeight)) / totalWeight
+          );
+
+          if (weightedShare <= 0) {
+            continue;
+          }
+
+          distributedSharedPoints += weightedShare;
+          homeIncomeByFortressId.set(
+            holder.fortressId,
+            (homeIncomeByFortressId.get(holder.fortressId) ?? 0) +
+              weightedShare
+          );
+        }
+      }
+
+      const remainder = sharedPool - distributedSharedPoints;
+
+      if (remainder > 0) {
+        homeIncomeByFortressId.set(
+          homeBannerFortressId,
+          (homeIncomeByFortressId.get(homeBannerFortressId) ?? 0) + remainder
+        );
+      }
+
+      for (const [fortressId, income] of homeIncomeByFortressId) {
+        if (income <= 0 || !fortressLookup.has(fortressId)) {
+          continue;
+        }
+
+        currentPoints.set(
+          fortressId,
+          (currentPoints.get(fortressId) ?? 0) + income
+        );
+        scoreEvents.push({
+          cycleId,
+          fortressId,
+          eventType: ScoreEventType.GROW_TICK,
+          delta: income,
+          createdAt: tickAt,
+        });
+      }
+    }
+
     for (const fortress of fortresses) {
       if (fortress.isNpc) {
         continue;
@@ -2161,22 +2389,41 @@ async function processCycleTick(
           (producedFood - production.foodProduced) -
           (armyProduced - production.armyProduced);
       const currentArmyValue = currentArmy.get(fortress.id) ?? fortress.army;
+      const tileBonus = tileBonusesByFortressId.get(fortress.id) ?? {
+        points: 0,
+        food: 0,
+        army: 0,
+      };
       currentPoints.set(
         fortress.id,
-        (currentPoints.get(fortress.id) ?? 0) + producedPoints
+        (currentPoints.get(fortress.id) ?? 0) +
+          producedPoints +
+          tileBonus.points
       );
-      currentFood.set(fortress.id, Math.max(0, foodAfterProduction));
-      currentArmy.set(fortress.id, currentArmyValue + armyProduced);
+      currentFood.set(
+        fortress.id,
+        Math.max(0, foodAfterProduction + tileBonus.food)
+      );
+      currentArmy.set(
+        fortress.id,
+        currentArmyValue + armyProduced + tileBonus.army
+      );
       scoreEvents.push({
         cycleId,
         fortressId: fortress.id,
         actorId: fortress.ownerId,
         eventType: ScoreEventType.GROW_TICK,
-        delta: producedPoints,
+        delta: producedPoints + tileBonus.points,
         createdAt: tickAt,
       });
       // TODO: add a dedicated resource history model for food and army deltas.
     }
+
+    const battlefieldResult = await processActiveBattlefields({
+      db,
+      cycleId,
+      tickAt,
+    });
 
     const fortressUpdates: Array<{
       id: string;
@@ -2230,9 +2477,9 @@ async function processCycleTick(
 
   return {
     processed: true,
-    scoreEventsCreated: scoreEvents.length,
+    scoreEventsCreated: scoreEvents.length + battlefieldResult.scoreEventsCreated,
     launchedAttackUnits: 0,
-    resolvedAttackUnits,
+    resolvedAttackUnits: resolvedAttackUnits + battlefieldResult.resolved,
   };
 }
 

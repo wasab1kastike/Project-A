@@ -69,6 +69,9 @@ enum ScoreEventType {
   GROW_TICK
   ATTACK_SELF
   ATTACK_TARGET
+  TILE_CLAIM
+  TILE_BATTLE_REWARD
+  BATTLEFIELD_REWARD
   MEGA_DAMAGE
   MEGA_DESTROY_BONUS
   UNICORN_DECOY_DESTROY
@@ -136,6 +139,16 @@ enum ArcadeLootBoxType {
 enum ArcadeCosmeticSlot {
   UNIT
   FORTRESS
+}
+
+enum BattlefieldStatus {
+  ACTIVE
+  RESOLVED
+}
+
+enum BattlefieldSide {
+  ATTACKER
+  DEFENDER
 }
 
 model User {
@@ -238,6 +251,9 @@ model Cycle {
   scoreEvents                   ScoreEvent[]
   gameTicks                     GameTick[]
   attackUnits                   AttackUnit[]
+  battlefields                  Battlefield[]
+  mapHexOwnerships              MapHexOwnership[]
+  homeOfAHolders                HomeOfAHolder[]
   winnerRequests                WinnerRequest[]
   communityWishProposals        CommunityWishProposal[]
   communityWishVoteEntitlements CommunityWishVoteEntitlement[]
@@ -302,6 +318,13 @@ model Fortress {
   deepMiningRolls              DwarfDeepMiningRoll[]               @relation("DwarfDeepMiningOwner")
   deepMiningRuneRolls          DwarfDeepMiningRoll[]               @relation("DwarfDeepMiningRune")
   deepMiningTargetedBy         DwarfDeepMiningRoll[]               @relation("DwarfDeepMiningTarget")
+  ownedMapHexes                MapHexOwnership[]                   @relation("MapHexOwner")
+  homeOfAHoldings              HomeOfAHolder[]                     @relation("HomeOfAHolderFortress")
+  homeOfABannerHoldings        HomeOfAHolder[]                     @relation("HomeOfABannerFortress")
+  attackerBannerBattlefields   Battlefield[]                       @relation("BattlefieldAttackerBanner")
+  defenderBannerBattlefields   Battlefield[]                       @relation("BattlefieldDefenderBanner")
+  targetedBattlefields         Battlefield[]                       @relation("BattlefieldTargetFortress")
+  battlefieldParticipants      BattlefieldParticipant[]
 
   @@unique([cycleId, ownerId])
   @@unique([cycleId, commanderName])
@@ -312,6 +335,88 @@ model Fortress {
   @@index([cycleId, fortressKind, expiresAt])
   @@index([unicornDecoySourceFortressId, createdAt])
   @@index([ownerId])
+}
+
+model MapHexOwnership {
+  id              String   @id @default(cuid())
+  cycleId         String
+  tileId          String
+  ownerFortressId String
+  claimedAt       DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  cycle           Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  ownerFortress   Fortress @relation("MapHexOwner", fields: [ownerFortressId], references: [id], onDelete: Cascade)
+
+  @@unique([cycleId, tileId])
+  @@index([ownerFortressId])
+  @@index([cycleId, ownerFortressId])
+}
+
+model HomeOfAHolder {
+  id                String   @id @default(cuid())
+  cycleId           String
+  fortressId        String
+  bannerFortressId  String
+  contributionWeight Int
+  capturedAt        DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  cycle             Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress          Fortress @relation("HomeOfAHolderFortress", fields: [fortressId], references: [id], onDelete: Cascade)
+  bannerFortress    Fortress @relation("HomeOfABannerFortress", fields: [bannerFortressId], references: [id], onDelete: Cascade)
+
+  @@unique([cycleId, fortressId])
+  @@index([cycleId, bannerFortressId])
+  @@index([fortressId])
+}
+
+model Battlefield {
+  id                       String                    @id @default(cuid())
+  cycleId                  String
+  targetFortressId         String?
+  targetTileId             String?
+  attackerBannerFortressId String
+  defenderBannerFortressId String?
+  status                   BattlefieldStatus         @default(ACTIVE)
+  progress                 Int                       @default(0)
+  attackerArmyRemaining    Int                       @default(0)
+  defenderArmyRemaining    Int                       @default(0)
+  pointsReward             Int                       @default(0)
+  foodReward               Int                       @default(0)
+  resolvedWinnerSide       BattlefieldSide?
+  startedAt                DateTime                  @default(now())
+  resolvedAt               DateTime?
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  cycle                    Cycle                     @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  targetFortress           Fortress?                 @relation("BattlefieldTargetFortress", fields: [targetFortressId], references: [id], onDelete: Cascade)
+  attackerBannerFortress   Fortress                  @relation("BattlefieldAttackerBanner", fields: [attackerBannerFortressId], references: [id], onDelete: Cascade)
+  defenderBannerFortress   Fortress?                 @relation("BattlefieldDefenderBanner", fields: [defenderBannerFortressId], references: [id], onDelete: SetNull)
+  participants             BattlefieldParticipant[]
+  incomingReinforcements   AttackUnit[]              @relation("BattlefieldReinforcements")
+
+  @@index([cycleId, status])
+  @@index([targetFortressId, status])
+  @@index([targetTileId, status])
+}
+
+model BattlefieldParticipant {
+  id            String          @id @default(cuid())
+  battlefieldId String
+  fortressId    String
+  side          BattlefieldSide
+  armyCommitted Int
+  armyRemaining Int
+  joinedAt      DateTime        @default(now())
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  battlefield   Battlefield     @relation(fields: [battlefieldId], references: [id], onDelete: Cascade)
+  fortress      Fortress        @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+
+  @@unique([battlefieldId, fortressId])
+  @@index([fortressId])
+  @@index([battlefieldId, side])
 }
 
 model DwarfDeepMiningRoll {
@@ -383,6 +488,8 @@ model AttackUnit {
   cycleId                   String
   attackerFortressId        String
   targetFortressId          String
+  reinforcementBattlefieldId String?
+  reinforcementSide         BattlefieldSide?
   armyAmount                Int       @default(1)
   defenderArmyAtBattleStart Int?
   resolvedAttackPower       Int?
@@ -406,8 +513,10 @@ model AttackUnit {
   cycle                     Cycle     @relation(fields: [cycleId], references: [id], onDelete: Cascade)
   attackerFortress          Fortress  @relation("AttackUnitAttacker", fields: [attackerFortressId], references: [id], onDelete: Cascade)
   targetFortress            Fortress  @relation("AttackUnitTarget", fields: [targetFortressId], references: [id], onDelete: Cascade)
+  reinforcementBattlefield  Battlefield? @relation("BattlefieldReinforcements", fields: [reinforcementBattlefieldId], references: [id], onDelete: SetNull)
 
   @@index([cycleId, arrivesAt])
+  @@index([reinforcementBattlefieldId, arrivesAt])
   @@index([attackerFortressId, resolvedAt, cancelledAt])
   @@index([targetFortressId])
 }

@@ -3,6 +3,8 @@ export {
   ArcadeGameType,
   ArcadeLootBoxType,
   ArcadeTransactionKind,
+  BattlefieldSide,
+  BattlefieldStatus,
   CastleUpgradeSpecialization,
   ChatMessageType,
   CommunityWishStatus,

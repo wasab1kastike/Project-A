@@ -7,6 +7,8 @@ import {
 } from "@/lib/prisma-client";
 import {
   CURRENT_MAP_LAYOUT_VERSION,
+  HOME_OF_A_NEUTRAL_DEFENSE,
+  HOME_OF_A_TILE_ID,
   MEGA_FORTRESS_HEALTH,
   MEGA_FORTRESS_ICON_LABEL,
   MEGA_FORTRESS_NAME,
@@ -14,6 +16,7 @@ import {
   NPC_SYSTEM_USER_EMAIL,
 } from "./constants";
 import { ensureCommanderRegistrationColumn } from "./schema-guards";
+import { getTileById } from "./territory";
 import {
   buildFortressSpawnSeed,
   getRenderedMapPositionKey,
@@ -22,8 +25,23 @@ import {
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
-const DEFAULT_MIN_SPAWN_SEPARATION = 0;
 const ACTIVE_EDGE_PADDING = 15;
+
+export function getHomeOfAMapPosition() {
+  const tile = getTileById(HOME_OF_A_TILE_ID);
+
+  if (!tile) {
+    return {
+      mapX: 50,
+      mapY: 50,
+    };
+  }
+
+  return {
+    mapX: Math.round(tile.xPercent),
+    mapY: Math.round(tile.yPercent),
+  };
+}
 
 function distanceBetweenPoints(
   left: { x: number; y: number },
@@ -117,7 +135,6 @@ export async function ensureNpcSystemUser(db: DatabaseClient) {
 export async function ensureMegaFortress({
   db,
   cycleId,
-  seed,
 }: {
   db: DatabaseClient;
   cycleId: string;
@@ -134,9 +151,14 @@ export async function ensureMegaFortress({
   });
 
   if (existingMega) {
+    const homePosition = getHomeOfAMapPosition();
+
     if (
       existingMega.name !== MEGA_FORTRESS_NAME ||
-      existingMega.iconLabel !== MEGA_FORTRESS_ICON_LABEL
+      existingMega.iconLabel !== MEGA_FORTRESS_ICON_LABEL ||
+      existingMega.mapX !== homePosition.mapX ||
+      existingMega.mapY !== homePosition.mapY ||
+      existingMega.army !== HOME_OF_A_NEUTRAL_DEFENSE
     ) {
       return db.fortress.update({
         where: {
@@ -148,10 +170,12 @@ export async function ensureMegaFortress({
           commanderNameRegisteredAt: new Date(),
           iconLabel: MEGA_FORTRESS_ICON_LABEL,
           food: 0,
-          army: 0,
+          army: HOME_OF_A_NEUTRAL_DEFENSE,
           minersAssigned: 0,
           farmersAssigned: 0,
           recruitersAssigned: 0,
+          mapX: homePosition.mapX,
+          mapY: homePosition.mapY,
         },
       });
     }
@@ -160,26 +184,7 @@ export async function ensureMegaFortress({
   }
 
   const npcUser = await ensureNpcSystemUser(db);
-  const occupiedFortresses = await db.fortress.findMany({
-    where: {
-      cycleId,
-    },
-    select: {
-      mapX: true,
-      mapY: true,
-    },
-  });
-  const occupied = new Set(
-    occupiedFortresses.map((fortress) => getRenderedMapPositionKey(fortress))
-  );
-  const [openPosition] = takeUniqueSpawnPoints(seed, 1, {
-    excludedKeys: occupied,
-    minSeparationDistance: DEFAULT_MIN_SPAWN_SEPARATION,
-  });
-
-  if (!openPosition) {
-    throw new Error("No map position is available for the mega fortress.");
-  }
+  const homePosition = getHomeOfAMapPosition();
 
   return db.fortress.create({
     data: {
@@ -189,7 +194,7 @@ export async function ensureMegaFortress({
       commanderNameRegisteredAt: new Date(),
       name: MEGA_FORTRESS_NAME,
       food: 0,
-      army: 0,
+      army: HOME_OF_A_NEUTRAL_DEFENSE,
       minersAssigned: 0,
       farmersAssigned: 0,
       recruitersAssigned: 0,
@@ -199,8 +204,8 @@ export async function ensureMegaFortress({
       maxHealth: MEGA_FORTRESS_HEALTH,
       sizeTiles: MEGA_FORTRESS_SIZE_TILES,
       iconLabel: MEGA_FORTRESS_ICON_LABEL,
-      mapX: Math.round(openPosition.x),
-      mapY: Math.round(openPosition.y),
+      mapX: homePosition.mapX,
+      mapY: homePosition.mapY,
       unitSpriteVariant: "unit-1",
       currentAction: FortressAction.GROW,
     },
@@ -252,6 +257,9 @@ export async function reshuffleActiveFortressPositions({
   const fortresses = await db.fortress.findMany({
     where: {
       cycleId,
+      fortressKind: {
+        not: FortressKind.MEGA,
+      },
       OR: [
         {
           fortressKind: {
@@ -351,6 +359,9 @@ export async function ensureCurrentMapLayout({
       mapLayoutVersion: true,
       fortresses: {
         where: {
+          fortressKind: {
+            not: FortressKind.MEGA,
+          },
           OR: [
             {
               fortressKind: {

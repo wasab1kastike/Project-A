@@ -13,9 +13,9 @@
 
 .header {
   display: flex;
+  align-items: end;
   justify-content: space-between;
   gap: 18px;
-  align-items: end;
 }
 
 .headerHidden {
@@ -35,14 +35,9 @@
 }
 
 .header p,
-.drawerContent p,
 .helper {
   color: var(--text-muted);
-  line-height: 1.6;
-}
-
-.warningText {
-  color: var(--accent-strong);
+  line-height: 1.5;
 }
 
 .label {
@@ -53,19 +48,38 @@
   text-transform: uppercase;
 }
 
-.headerActions {
+.mapStage {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.immersive .mapStage {
+  height: 100%;
+  border-radius: 0;
+}
+
+.fullMap {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.headerActions,
+.topbarActions,
+.floatingActions {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 8px;
 }
 
 .topbarActions {
   display: inline-flex;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
 }
 
 .floatingActions {
@@ -73,39 +87,23 @@
   z-index: 14;
   top: 88px;
   right: 18px;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
   max-width: min(360px, calc(100% - 36px));
-}
-
-.immersiveOverlayUi {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-}
-
-.immersiveOverlayUi .floatingActions,
-.immersiveOverlayUi .drawer {
-  position: fixed;
-  pointer-events: auto;
 }
 
 .overlayButton,
 .closeButton,
-.primaryButton,
 .secondaryButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 42px;
+  min-height: 38px;
   border: 1px solid var(--border-soft);
-  border-radius: 999px;
+  border-radius: 8px;
   background: rgba(7, 13, 20, 0.78);
   color: var(--foreground);
   font: inherit;
-  font-weight: 600;
+  font-weight: 700;
+  text-decoration: none;
   cursor: pointer;
   transition:
     transform 160ms ease,
@@ -115,14 +113,12 @@
 
 .overlayButton {
   position: relative;
-  padding: 0 16px;
-  overflow: visible;
+  padding: 0 14px;
 }
 
 .topbarActions .overlayButton {
   min-height: 36px;
   padding: 0 12px;
-  border-radius: 8px;
   background: rgba(8, 16, 25, 0.74);
   font-family: var(--font-ibm-plex-mono);
   font-size: 0.76rem;
@@ -130,15 +126,15 @@
   text-transform: uppercase;
 }
 
-.overlayButton:disabled {
-  cursor: not-allowed;
-  opacity: 0.48;
+.secondaryButton {
+  width: 100%;
+  padding: 0 10px;
+  background: transparent;
 }
 
-.overlayButtonLabel {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.secondaryButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
 }
 
 .overlayButtonAttention {
@@ -163,42 +159,11 @@
   justify-content: center;
   border-radius: 999px;
   background: #f7c45f;
-  border: 1px solid rgba(20, 32, 47, 0.28);
-  box-shadow:
-    0 4px 14px rgba(247, 196, 95, 0.32),
-    0 0 0 2px rgba(8, 14, 20, 0.9);
   color: #14202f;
   font-family: var(--font-ibm-plex-mono);
   font-size: 0.66rem;
   font-weight: 700;
   line-height: 1;
-}
-
-.primaryButton:disabled,
-.secondaryButton:disabled {
-  cursor: not-allowed;
-  opacity: 0.48;
-  transform: none;
-}
-
-.mapStage {
-  position: relative;
-  overflow: hidden;
-  border-radius: 8px;
-}
-
-.immersive .mapStage {
-  height: 100%;
-  border-radius: 0;
-}
-
-.fullMap {
-  width: 100%;
-  height: 100%;
-  min-height: 100%;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
 }
 
 .drawer {
@@ -218,48 +183,18 @@
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.05),
     0 18px 44px rgba(0, 0, 0, 0.34);
-  opacity: 0;
-  pointer-events: none;
   backdrop-filter: blur(14px);
-  transition:
-    opacity 180ms ease,
-    transform 180ms ease;
-}
-
-.drawerOpen {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translate(0, 0);
 }
 
 .chatDrawer {
   top: 16px;
   right: 16px;
   width: min(390px, calc(100% - 32px));
-  transform: translateX(24px);
 }
 
-.actionDrawer {
-  left: 16px;
-  bottom: 16px;
-  width: min(430px, calc(100% - 32px));
-  transform: translateY(24px);
-}
-
-.immersiveOverlayUi .drawer {
-  z-index: 22;
-}
-
-.immersiveOverlayUi .chatDrawer {
-  z-index: 23;
-  top: max(92px, calc(env(safe-area-inset-top) + 76px));
-  max-height: calc(100dvh - max(108px, calc(env(safe-area-inset-top) + 92px)));
-}
-
-.immersiveOverlayUi .actionDrawer {
-  z-index: 24;
-  bottom: 16px;
-  max-height: calc(100dvh - 120px);
+.drawerOpen {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .closeButton {
@@ -269,616 +204,89 @@
   font-size: 0.72rem;
 }
 
-.chatDrawer .closeButton {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: rgba(5, 12, 18, 0.96);
-}
-
 .drawerBody {
   min-height: 0;
-}
-
-.actionDrawerBody {
-  overflow: auto;
-  padding-right: 2px;
-  padding-bottom: 18px;
 }
 
 .chatDrawerBody {
   overflow: hidden;
 }
 
-.drawerContent {
+.immersiveOverlayUi {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+.immersiveOverlayUi .drawer,
+.immersiveOverlayUi .floatingActions {
+  position: fixed;
+  pointer-events: auto;
+}
+
+.immersiveOverlayUi .chatDrawer {
+  top: max(92px, calc(env(safe-area-inset-top) + 76px));
+  max-height: calc(100dvh - max(108px, calc(env(safe-area-inset-top) + 92px)));
+}
+
+.battlefieldPanel {
+  position: absolute;
+  z-index: 11;
+  left: 16px;
+  top: 16px;
   display: grid;
   gap: 8px;
-}
-
-.orderSection {
-  display: grid;
-  gap: 6px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border-soft);
-}
-
-.ordersHeader + .orderSection {
-  padding-top: 0;
-  border-top: 0;
-}
-
-.racePanel {
-  display: grid;
-  gap: 8px;
-  padding: 9px;
-  border: 1px solid rgba(247, 196, 95, 0.18);
+  width: min(390px, calc(100% - 32px));
+  max-height: min(52%, 430px);
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid rgba(247, 196, 95, 0.22);
   border-radius: 8px;
-  background:
-    radial-gradient(circle at top left, rgba(247, 196, 95, 0.12), transparent 48%),
-    rgba(3, 10, 16, 0.34);
+  background: rgba(5, 12, 18, 0.86);
+  backdrop-filter: blur(12px);
 }
 
-.raceGrid {
-  display: grid;
-  gap: 8px;
-}
-
-.raceCard {
-  --race-accent: #9be7ef;
-  --race-glow: rgba(103, 196, 207, 0.18);
-  display: grid;
-  gap: 7px;
-  padding: 9px;
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--race-accent) 28%, transparent);
-  border-radius: 8px;
-  background:
-    radial-gradient(circle at top left, var(--race-glow), transparent 58%),
-    rgba(7, 13, 20, 0.54);
-}
-
-.raceCard[data-race="DWARFS"] {
-  --race-accent: #f7c45f;
-  --race-glow: rgba(247, 196, 95, 0.2);
-}
-
-.raceCard[data-race="UNSTABLE_UNICORNS"] {
-  --race-accent: #ff8fd6;
-  --race-glow: rgba(255, 143, 214, 0.2);
-}
-
-.raceCard[data-race="SPACE_MURINES"] {
-  --race-accent: #76beff;
-  --race-glow: rgba(118, 190, 255, 0.22);
-}
-
-.raceCard[data-race="ORKS"] {
-  --race-accent: #7df0ba;
-  --race-glow: rgba(125, 240, 186, 0.2);
-}
-
-.raceCardSelected {
-  border-color: color-mix(in srgb, var(--race-accent) 48%, transparent);
-  background:
-    linear-gradient(180deg, var(--race-glow), transparent),
-    rgba(7, 13, 20, 0.58);
-}
-
-.raceBanner {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 9px;
-  align-items: center;
-  padding: 8px;
-  margin: -3px -3px 0;
-  border: 1px solid color-mix(in srgb, var(--race-accent) 22%, transparent);
-  border-radius: 7px;
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--race-accent) 16%, transparent), transparent),
-    rgba(3, 10, 16, 0.42);
-}
-
-.raceIcon {
-  display: inline-flex;
-  width: 34px;
-  height: 34px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid color-mix(in srgb, var(--race-accent) 42%, transparent);
-  border-radius: 9px;
-  background: color-mix(in srgb, var(--race-accent) 12%, rgba(3, 10, 16, 0.74));
-  box-shadow: 0 0 18px var(--race-glow);
-  color: var(--race-accent);
-  font-family: var(--font-ibm-plex-mono);
-  font-size: 0.76rem;
-  font-weight: 800;
-}
-
-.raceCard p {
-  font-size: 0.76rem;
-  line-height: 1.45;
-}
-
-.raceCard blockquote {
-  margin: 3px 0 0;
-  color: var(--race-accent);
-  font-family: var(--font-ibm-plex-mono);
-  font-size: 0.62rem;
-  line-height: 1.35;
-}
-
-.raceCard ul {
-  display: grid;
-  gap: 3px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.raceCard li,
-.raceCard small {
-  color: var(--race-accent);
-  font-family: var(--font-ibm-plex-mono);
-  font-size: 0.62rem;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-}
-
-.sectionHeading {
+.sectionHeading,
+.battlefieldCardHeader,
+.battlefieldJoinGrid {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-}
-
-.ordersHeader {
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.castleSummaryHeader {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 10px;
-}
-
-.castleSummaryHeader .secondaryButton {
-  max-width: 152px;
-  white-space: normal;
-  line-height: 1.15;
-}
-
-.castleSummaryPanel {
-  display: grid;
-  gap: 6px;
-}
-
-.ordersHeader strong {
-  flex: 0 0 auto;
-  padding: 5px 8px;
-  border: 1px solid rgba(103, 196, 207, 0.32);
-  border-radius: 6px;
-  background: rgba(103, 196, 207, 0.08);
-  color: #9be7ef;
-  font-family: var(--font-ibm-plex-mono);
-  font-size: 0.72rem;
-  line-height: 1;
-}
-
-.drawerContent h3 {
-  margin-top: 2px;
-  font-size: 1.05rem;
-  line-height: 1.15;
-}
-
-.drawerContent h4 {
-  margin-top: 2px;
-  font-size: 0.92rem;
-  line-height: 1.15;
-}
-
-.castleStats {
-  display: grid;
-  gap: 4px;
-}
-
-.castleStats div {
-  min-width: 0;
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 26px;
-  padding: 3px 7px;
-  border-radius: 5px;
-  background: rgba(3, 10, 16, 0.36);
-}
-
-.castleStats .primaryStat {
-  background: rgba(103, 196, 207, 0.08);
-}
-
-.castleStats dt {
-  flex: 0 0 auto;
-  color: var(--text-muted);
-  font-family: var(--font-ibm-plex-mono);
-  font-size: 0.58rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.castleStats dd {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--foreground);
-  font-size: 0.78rem;
-  font-weight: 700;
-  line-height: 1.12;
-  text-align: right;
-}
-
-.form {
-  display: grid;
-  gap: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border-soft);
-}
-
-.renamePanel {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 8px;
-  align-items: end;
-  padding-top: 8px;
-  border-top: 1px solid var(--border-soft);
-}
-
-.upgradePanel {
-  display: grid;
-  gap: 7px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border-soft);
-}
-
-.specializationGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
   gap: 8px;
 }
 
-.specializationOption {
+.battlefieldList,
+.battlefieldCard {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
   gap: 8px;
+}
+
+.battlefieldCard {
   padding: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.26);
+  border: 1px solid rgba(103, 196, 207, 0.18);
   border-radius: 8px;
-  background: rgba(15, 23, 42, 0.42);
+  background: rgba(3, 10, 16, 0.52);
 }
 
-.specializationOption span {
-  display: grid;
-  gap: 3px;
-}
-
-.specializationOption small {
-  color: rgba(226, 232, 240, 0.72);
+.battlefieldCard progress {
+  width: 100%;
 }
 
 .compactList {
   display: grid;
-  gap: 6px;
+  gap: 5px;
   margin: 0;
   padding-left: 18px;
   color: rgba(226, 232, 240, 0.82);
-}
-
-.inlineForm {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-}
-
-.inlineForm select {
-  min-width: 0;
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  border-radius: 8px;
-  padding: 10px 12px;
-  color: #e5eefb;
-  background: rgba(15, 23, 42, 0.82);
-}
-
-.workerForm {
-  display: grid;
-  gap: 8px;
-}
-
-.attackControls {
-  display: grid;
-  gap: 6px;
-}
-
-.battlePreview {
-  display: grid;
-  gap: 3px;
-  padding: 8px 10px;
-  border: 1px solid rgba(103, 196, 207, 0.16);
-  border-radius: 8px;
-  background: rgba(3, 10, 15, 0.58);
-}
-
-.battlePreviewLead {
-  color: var(--foreground);
   font-size: 0.82rem;
-  font-weight: 700;
-  line-height: 1.35;
-}
-
-.battlePreviewLine,
-.battlePreviewTarget {
-  color: var(--text-muted);
-  font-size: 0.74rem;
-  line-height: 1.4;
-}
-
-.battlePreviewTarget {
-  color: #9be7ef;
-}
-
-.battleReportList {
-  display: grid;
-  gap: 8px;
-}
-
-.battleReport {
-  display: grid;
-  gap: 4px;
-  padding: 8px 10px;
-  border: 1px solid rgba(103, 196, 207, 0.16);
-  border-radius: 8px;
-  background: rgba(3, 10, 15, 0.58);
-}
-
-.battleReportHeadline {
-  color: var(--foreground);
-  font-size: 0.82rem;
-  font-weight: 700;
-  line-height: 1.35;
-}
-
-.battleReportLine {
-  color: var(--text-muted);
-  font-size: 0.74rem;
-  line-height: 1.4;
-}
-
-.workerGrid {
-  display: grid;
-  gap: 6px;
-}
-
-.workerRow {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: center;
-  padding: 6px 7px;
-  border-radius: 5px;
-  background: rgba(3, 10, 16, 0.36);
-}
-
-.workerRowMeta {
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-}
-
-.workerRowLabel {
-  color: var(--foreground);
-  font-family: var(--font-ibm-plex-mono);
-  font-size: 0.74rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.workerRowHint {
-  color: var(--text-muted);
-  font-size: 0.76rem;
-  line-height: 1.2;
-}
-
-.workerStepper {
-  display: grid;
-  grid-template-columns: 28px 56px 28px;
-  gap: 4px;
-  align-items: center;
-}
-
-.workerStepperButton {
-  min-width: 0;
-  min-height: 28px;
-  width: 28px;
-  padding: 0;
-  border: 1px solid var(--border-soft);
-  border-radius: 6px;
-  background: rgba(7, 13, 20, 0.55);
-  color: var(--foreground);
-  font: inherit;
-  font-size: 0.95rem;
-  line-height: 1;
-}
-
-.workerStepperButton:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.workerStepperInput {
-  min-width: 0;
-  width: 56px;
-  min-height: 28px;
-  padding: 0 6px;
-  border: 1px solid var(--border-soft);
-  border-radius: 6px;
-  background: rgba(7, 13, 20, 0.7);
-  color: var(--foreground);
-  font: inherit;
-  font-size: 0.86rem;
-  text-align: center;
-}
-
-.workerStepperInput:focus {
-  outline: 2px solid rgba(247, 196, 95, 0.24);
-  border-color: var(--border-strong);
-}
-
-.upgradeHeader {
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.upgradeHeader strong {
-  flex: 0 0 auto;
-  padding: 5px 8px;
-  border: 1px solid rgba(247, 196, 95, 0.32);
-  border-radius: 6px;
-  background: rgba(247, 196, 95, 0.08);
-  color: var(--accent-strong);
-  font-family: var(--font-ibm-plex-mono);
-  font-size: 0.72rem;
-  line-height: 1;
-}
-
-.field {
-  display: grid;
-  gap: 5px;
-}
-
-.field span {
-  color: var(--text-muted);
-  font-family: var(--font-ibm-plex-mono);
-  font-size: 0.7rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.field input,
-.field select {
-  min-height: 36px;
-  width: 100%;
-  padding: 0 10px;
-  border: 1px solid var(--border-soft);
-  border-radius: 6px;
-  background: rgba(7, 13, 20, 0.7);
-  color: var(--foreground);
-  font: inherit;
-  font-size: 0.9rem;
-}
-
-.field input:focus,
-.field select:focus {
-  outline: 2px solid rgba(247, 196, 95, 0.24);
-  border-color: var(--border-strong);
-}
-
-.primaryButton,
-.secondaryButton {
-  width: fit-content;
-  min-height: 36px;
-  padding: 0 12px;
-  font-size: 0.88rem;
-}
-
-.primaryButton {
-  border-color: transparent;
-  background: var(--accent-strong);
-  color: #14202f;
-  box-shadow:
-    0 8px 24px rgba(247, 196, 95, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
-}
-
-.secondaryButton {
-  background: transparent;
-}
-
-.emphasisButton {
-  border-color: rgba(247, 196, 95, 0.48);
-  background:
-    linear-gradient(180deg, rgba(247, 196, 95, 0.92), rgba(208, 159, 53, 0.88)),
-    rgba(247, 196, 95, 0.88);
-  box-shadow:
-    0 10px 26px rgba(247, 196, 95, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.24);
-  color: #14202f;
-}
-
-.emphasisButton:disabled {
-  border-color: var(--border-soft);
-  background: rgba(7, 13, 20, 0.52);
-  box-shadow: none;
-  color: var(--text-muted);
-}
-
-.segmentGroup {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
-  padding: 4px;
-  border: 1px solid rgba(103, 196, 207, 0.22);
-  border-radius: 8px;
-  background: rgba(2, 8, 13, 0.56);
-}
-
-.castleTabs {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.segmentButton {
-  min-height: 32px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-muted);
-  font: inherit;
-  font-size: 0.86rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition:
-    background-color 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease;
-}
-
-.segmentButtonActive {
-  border-color: rgba(247, 196, 95, 0.38);
-  background: rgba(247, 196, 95, 0.14);
-  color: var(--accent-strong);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .overlayButton:hover,
   .closeButton:hover,
-  .primaryButton:hover,
-  .secondaryButton:hover,
-  .segmentButton:hover {
+  .secondaryButton:hover {
     transform: translateY(-1px);
     border-color: var(--border-strong);
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .overlayButtonAttention {
-    animation: unreadGlow 2.6s ease-in-out infinite;
   }
 }
 
@@ -899,40 +307,19 @@
   .floatingActions {
     top: 126px;
     right: 10px;
-    left: auto;
     max-width: min(188px, calc(100% - 20px));
     gap: 5px;
   }
 
-  .floatingActions .overlayButton {
-    flex: 0 0 auto;
-    min-height: 32px;
-    padding: 0 10px;
-    border-radius: 8px;
-    font-size: 0.76rem;
-  }
-
   .topbarActions {
-    flex: 0 0 auto;
     flex-wrap: nowrap;
     gap: 5px;
   }
 
   .topbarActions .overlayButton {
-    flex: 0 0 auto;
     min-height: 32px;
     padding: 0 9px;
-    border-radius: 7px;
     font-size: 0.68rem;
-  }
-
-  .unreadBadge {
-    top: -4px;
-    right: -4px;
-    min-width: 18px;
-    height: 18px;
-    padding: 0 4px;
-    font-size: 0.56rem;
   }
 
   .drawer {
@@ -947,85 +334,20 @@
     border-radius: 14px 14px 0 0;
   }
 
-  .chatDrawer,
-  .actionDrawer {
+  .chatDrawer {
     top: auto;
     bottom: 0;
-    transform: translateY(26px);
   }
 
-  .castleSummaryHeader {
-    grid-template-columns: 1fr;
-  }
-
-  .castleSummaryHeader .secondaryButton {
-    max-width: none;
-  }
-
-  .castleTabs {
-    grid-template-columns: repeat(4, minmax(78px, 1fr));
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .castleTabs::-webkit-scrollbar {
-    display: none;
-  }
-
-  .chatDrawer.drawerOpen,
-  .actionDrawer.drawerOpen {
-    transform: translateY(0);
-  }
-
-  .immersiveOverlayUi .floatingActions {
-    top: max(126px, calc(env(safe-area-inset-top) + 110px));
+  .battlefieldPanel {
+    left: 10px;
     right: 10px;
+    width: auto;
+    max-height: 44%;
   }
 
-  .immersiveOverlayUi .chatDrawer,
-  .immersiveOverlayUi .actionDrawer {
-    bottom: max(10px, calc(env(safe-area-inset-bottom) + 10px));
-    max-height: min(
-      72dvh,
-      calc(100dvh - max(24px, calc(env(safe-area-inset-bottom) + 24px)))
-    );
-  }
-
-  .actionDrawerBody {
-    padding-bottom: calc(18px + env(safe-area-inset-bottom));
-  }
-
-  .closeButton {
-    min-height: 36px;
-    padding: 0 12px;
-    border-radius: 8px;
-  }
-
-  .primaryButton,
-  .secondaryButton {
-    width: 100%;
-  }
-
-  .castleStats {
+  .battlefieldJoinGrid {
+    display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .renamePanel {
-    grid-template-columns: 1fr;
-  }
-}
-
-@keyframes unreadGlow {
-  0%,
-  100% {
-    box-shadow:
-      0 0 0 1px rgba(247, 196, 95, 0.18),
-      0 0 18px rgba(247, 196, 95, 0.12);
-  }
-
-  50% {
-    box-shadow:
-      0 0 0 1px rgba(247, 196, 95, 0.24),
-      0 0 24px rgba(247, 196, 95, 0.22);
   }
 }

@@ -23,6 +23,12 @@ import { getAttackTravelMinutes } from "@/lib/game/attacks";
 import { getAttackPresentation } from "@/lib/game/attack-presentation";
 import { getCosmeticSpriteStyle } from "@/lib/game/cosmetic-sprites";
 import type { UnitSpriteVariant } from "@/lib/game/constants";
+import {
+  getHomeOfABonus,
+  getTileBonus,
+  getTileClaimCost,
+  isHomeOfATile,
+} from "@/lib/game/territory";
 import styles from "./fortress-map.module.css";
 
 type MapFortress = {
@@ -80,6 +86,28 @@ type AttackUnitMarker = {
   };
 };
 
+type MapHexOwnershipMarker = {
+  tileId: string;
+  ownerFortressId?: string | null;
+  ownerName: string;
+  ownerCommanderName: string;
+  isCurrentUser: boolean;
+  hasActiveBattle: boolean;
+  canAttack: boolean;
+  claimCost: number | null;
+  bonus: {
+    label: string;
+  };
+  isHomeOfA?: boolean;
+  pointIncome?: number | null;
+  holders?: Array<{
+    fortressName: string;
+    commanderName: string;
+    contributionWeight: number;
+    isCurrentUser: boolean;
+  }>;
+};
+
 type Point = {
   x: number;
   y: number;
@@ -100,7 +128,7 @@ type MarkerTapState = {
   cancelled: boolean;
 };
 
-export type { AttackUnitMarker, MapFortress };
+export type { AttackUnitMarker, MapFortress, MapHexOwnershipMarker };
 
 const MIN_SCALE = 0.42;
 const MAX_SCALE = 2.1;
@@ -205,7 +233,21 @@ function DwarfRuneSprite() {
   return <span className={styles.dwarfRuneSprite} aria-hidden="true" />;
 }
 
-function HexTileMap() {
+function HexTileMap({
+  mapHexes,
+  currentFortressLocation,
+  onClaimMapHex,
+  onAttackMapHex,
+}: {
+  mapHexes: MapHexOwnershipMarker[];
+  currentFortressLocation?: { mapX: number; mapY: number } | null;
+  onClaimMapHex?: (tileId: string) => void | Promise<void>;
+  onAttackMapHex?: (tileId: string, sentArmy: number) => void | Promise<void>;
+}) {
+  const ownershipByTileId = new Map(
+    mapHexes.map((ownership) => [ownership.tileId, ownership])
+  );
+
   return (
     <svg
       className={styles.hexMap}
@@ -219,10 +261,22 @@ function HexTileMap() {
         className={styles.mapBase}
       />
       {HEX_TILES.map((tile) => {
+        const ownership = ownershipByTileId.get(tile.id);
+        const isHomeTile = isHomeOfATile(tile.id);
+        const neutralClaimCost =
+          !ownership && !isHomeTile && currentFortressLocation
+            ? getTileClaimCost({ tile, origin: currentFortressLocation })
+            : null;
+        const bonus = ownership?.bonus ?? (isHomeTile ? getHomeOfABonus() : getTileBonus(tile));
         const tileClassName = [
           styles.hexTile,
           styles[`${tile.biome}Tile`],
           tile.spawnable ? styles.spawnableTile : "",
+          ownership ? styles.ownedTile : "",
+          ownership?.isHomeOfA ? styles.contestedTile : "",
+          ownership?.isCurrentUser ? styles.ownTile : "",
+          ownership?.canAttack ? styles.attackableTile : "",
+          ownership?.hasActiveBattle ? styles.contestedTile : "",
         ]
           .filter(Boolean)
           .join(" ");
@@ -231,7 +285,34 @@ function HexTileMap() {
           <g
             key={tile.id}
             className={tileClassName}
-            aria-label={BIOME_LABELS[tile.biome]}
+            aria-label={
+              ownership
+                ? `${ownership.isHomeOfA ? "Home of A" : BIOME_LABELS[tile.biome]}, owned by ${ownership.ownerName}, ${ownership.bonus.label}${
+                    ownership.hasActiveBattle ? ", battle active" : ""
+                  }`
+                : `${isHomeTile ? "Home of A, neutral control point" : `${BIOME_LABELS[tile.biome]}, unclaimed`}${
+                    neutralClaimCost ? `, claim cost ${neutralClaimCost}` : ""
+                  }, ${bonus.label}`
+            }
+            onClick={() => {
+              if (!tile.spawnable) {
+                return;
+              }
+
+              if (!ownership && isHomeTile) {
+                void onAttackMapHex?.(tile.id, 1);
+                return;
+              }
+
+              if (!ownership) {
+                void onClaimMapHex?.(tile.id);
+                return;
+              }
+
+              if (ownership.canAttack) {
+                void onAttackMapHex?.(tile.id, 1);
+              }
+            }}
           >
             <polygon points={getHexPolygonPoints(tile.x, tile.y)} />
             <polyline
@@ -451,16 +532,20 @@ function AttackUnitsLayer({
 
 export function FortressMap({
   fortresses,
+  mapHexes = [],
   attackUnits = [],
   selectedFortressId,
   selectedTargetId,
   onSelectFortress,
   onConfirmAttackTarget,
+  onClaimMapHex,
+  onAttackMapHex,
   onRecallAttackUnit,
   onInstantRecallAttackUnit,
   className,
 }: {
   fortresses: MapFortress[];
+  mapHexes?: MapHexOwnershipMarker[];
   attackUnits?: AttackUnitMarker[];
   selectedFortressId?: string | null;
   selectedTargetId?: string | null;
@@ -469,6 +554,8 @@ export function FortressMap({
     fortress: MapFortress,
     sentArmy: number
   ) => void | Promise<void>;
+  onClaimMapHex?: (tileId: string) => void | Promise<void>;
+  onAttackMapHex?: (tileId: string, sentArmy: number) => void | Promise<void>;
   onRecallAttackUnit?: (attackUnit: AttackUnitMarker) => void | Promise<void>;
   onInstantRecallAttackUnit?: (attackUnit: AttackUnitMarker) => void | Promise<void>;
   className?: string;
@@ -986,7 +1073,16 @@ export function FortressMap({
         }}
       >
         <div className={styles.viewportContent} style={viewTransform}>
-          <HexTileMap />
+          <HexTileMap
+            mapHexes={mapHexes}
+            currentFortressLocation={
+              ownFortress
+                ? { mapX: ownFortress.mapX, mapY: ownFortress.mapY }
+                : null
+            }
+            onClaimMapHex={onClaimMapHex}
+            onAttackMapHex={onAttackMapHex}
+          />
           <AttackUnitsLayer
             attackUnits={attackUnits}
             onRecallAttackUnit={onRecallAttackUnit}

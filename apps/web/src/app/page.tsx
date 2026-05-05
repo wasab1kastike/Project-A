@@ -5,7 +5,6 @@ import { auth, isAuthConfigured } from "@/auth";
 import { SessionActions } from "@/components/session-actions";
 import { BattlefieldExperience } from "@/components/battlefield-experience";
 import { GodEmperorGiftNotice } from "@/components/god-emperor-gift-notice";
-import { MegaFortressNotice } from "@/components/mega-fortress-notice";
 import { NoticeToast } from "@/components/notice-toast";
 import { PreviousSeasonWinnerCard } from "@/components/previous-season-winner-card";
 import { RealtimeBridge } from "@/components/realtime-bridge";
@@ -119,8 +118,11 @@ function getDegradedHomePageState(): HomePageState {
     playerFortress: null,
     playerSummary: null,
     leaderboard: [],
-    mapFortresses: [],
-    attackUnits: [],
+        mapFortresses: [],
+        mapHexes: [],
+        homeOfA: null,
+        battlefields: [],
+        attackUnits: [],
     battleReports: [],
     chat: {
       messages: [],
@@ -334,10 +336,6 @@ export default async function Home({
   return (
     <main className={styles.page}>
       <RealtimeBridge enabled={Boolean(state.cycle)} />
-      <MegaFortressNotice
-        cycleId={state.cycle?.id ?? null}
-        megaFortressDestroyCount={state.cycle?.megaFortressDestroyCount ?? 0}
-      />
       <GodEmperorGiftNotice fortressName={state.playerSummary?.name} />
 
       <div className={styles.mapLayer}>
@@ -350,9 +348,12 @@ export default async function Home({
           playerSummary={state.playerSummary}
           playerFortress={state.playerFortress}
           mapFortresses={state.mapFortresses}
+          mapHexes={state.mapHexes}
+          homeOfA={state.homeOfA}
+          battlefields={state.battlefields}
           attackUnits={state.attackUnits}
           battleReports={state.battleReports}
-          targets={state.availableTargets}
+          availableTargets={state.availableTargets}
           chat={state.chat}
           canEditRegistrationName={state.canEditRegistrationName}
         />
@@ -420,6 +421,11 @@ export default async function Home({
             {session?.user ? userLabel : "Guest"}
           </span>
           <SeasonUpdateAnnouncement userId={session?.user?.id ?? null} />
+          {state.playerSummary ? (
+            <Link className={styles.hudButton} href="/castle">
+              Castle
+            </Link>
+          ) : null}
           {PRIMARY_GAME_NAV_LINKS.filter(
             (link) =>
               link.href !== PATCH_NOTES_PAGE_HREF &&

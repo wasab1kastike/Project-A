@@ -8,12 +8,14 @@ import {
   PrismaClient,
   RaceAbilityKind,
   DwarfDeepMiningOutcome,
+  BattlefieldSide,
 } from "@/lib/prisma-client";
 import { prisma } from "@/lib/prisma";
 import {
   ACTIVE_LOCATION_SHUFFLE_COST,
   ACTIVE_PLAYER_CAP,
   ACTIVE_RENAME_COST,
+  HOME_OF_A_NEUTRAL_DEFENSE,
 } from "./constants";
 import { getRandomUnitSpriteVariant } from "./attacks";
 import {
@@ -55,6 +57,9 @@ import {
   getDwarfDeepMiningActiveUntil,
   rollDwarfDeepMining,
 } from "./dwarf-deep-mining";
+import { getTileById, getTileClaimCost, isHomeOfATile } from "./territory";
+import { joinBattlefield as joinBattlefieldRecord } from "./battlefields";
+import { getHomeOfAMapPosition } from "./mega-fortress";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -619,6 +624,10 @@ export async function setFortressAction({
       );
     }
 
+    if (target.fortressKind === FortressKind.MEGA) {
+      throw new GameError("Attack Home of A through the center map tile.");
+    }
+
     if (target.fortressKind === FortressKind.DWARF_RUNE) {
       const runeRoll = await tx.dwarfDeepMiningRoll.findUnique({
         where: {
@@ -691,6 +700,357 @@ export async function setFortressAction({
     }
 
     return updatedFortress;
+  });
+}
+
+export async function claimNeutralMapHex({
+  userId,
+  tileId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  tileId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("The current cycle is not accepting tile claims.");
+    }
+
+    const fortress = await tx.fortress.findUnique({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: userId,
+        },
+      },
+      select: {
+        id: true,
+        ownerId: true,
+        points: true,
+        mapX: true,
+        mapY: true,
+      },
+    });
+
+    if (!fortress) {
+      throw new GameError("You are not participating in the active cycle.");
+    }
+
+    const tile = getTileById(tileId);
+
+    if (!tile || !tile.spawnable) {
+      throw new GameError("That map tile cannot be claimed.");
+    }
+
+    if (isHomeOfATile(tileId)) {
+      throw new GameError("Home of A must be conquered, not claimed.");
+    }
+
+    const existing = await tx.mapHexOwnership.findUnique({
+      where: {
+        cycleId_tileId: {
+          cycleId: cycle.id,
+          tileId,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (existing) {
+      throw new GameError("That tile is already claimed.");
+    }
+
+    const claimCost = getTileClaimCost({
+      tile,
+      origin: fortress,
+    });
+
+    if (fortress.points < claimCost) {
+      throw new GameError(`You need ${claimCost} points to claim this tile.`);
+    }
+
+    await tx.fortress.update({
+      where: {
+        id: fortress.id,
+      },
+      data: {
+        points: {
+          decrement: claimCost,
+        },
+      },
+    });
+
+    await tx.scoreEvent.create({
+      data: {
+        cycleId: cycle.id,
+        fortressId: fortress.id,
+        actorId: userId,
+        eventType: ScoreEventType.TILE_CLAIM,
+        delta: -claimCost,
+        createdAt: now,
+      },
+    });
+
+    return tx.mapHexOwnership.create({
+      data: {
+        cycleId: cycle.id,
+        tileId,
+        ownerFortressId: fortress.id,
+        claimedAt: now,
+      },
+      select: {
+        id: true,
+        tileId: true,
+        claimedAt: true,
+        ownerFortressId: true,
+      },
+    });
+  });
+}
+
+export async function attackMapHex({
+  userId,
+  tileId,
+  sentArmy = 1,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  tileId: string;
+  sentArmy?: number;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("The current cycle is not accepting tile attacks.");
+    }
+
+    const tile = getTileById(tileId);
+
+    if (!tile || !tile.spawnable) {
+      throw new GameError("That map tile cannot be attacked.");
+    }
+
+    if (!Number.isInteger(sentArmy) || sentArmy <= 0) {
+      throw new GameError("You must send at least 1 army.");
+    }
+
+    const attacker = await tx.fortress.findUnique({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: userId,
+        },
+      },
+      select: {
+        id: true,
+        ownerId: true,
+        points: true,
+        army: true,
+        level: true,
+        race: true,
+        mapX: true,
+        mapY: true,
+      },
+    });
+
+    if (!attacker) {
+      throw new GameError("You are not participating in the active cycle.");
+    }
+
+    if (!attacker.race) {
+      throw new GameError("Choose a race before attacking tiles.");
+    }
+
+    if (sentArmy > attacker.army) {
+      throw new GameError("You do not have enough army to send that many units.");
+    }
+
+    const ownership = await tx.mapHexOwnership.findUnique({
+      where: {
+        cycleId_tileId: {
+          cycleId: cycle.id,
+          tileId,
+        },
+      },
+      include: {
+        ownerFortress: {
+          select: {
+            id: true,
+            ownerId: true,
+            points: true,
+            army: true,
+            mapX: true,
+            mapY: true,
+            race: true,
+          },
+        },
+      },
+    });
+
+    const isHomeOfA = isHomeOfATile(tileId);
+
+    if (!ownership && !isHomeOfA) {
+      throw new GameError("Neutral tiles must be claimed, not attacked.");
+    }
+
+    if (ownership?.ownerFortressId === attacker.id) {
+      throw new GameError("You already own that tile.");
+    }
+
+    const activeBattle = await tx.battlefield.findFirst({
+      where: {
+        cycleId: cycle.id,
+        targetTileId: tileId,
+        status: "ACTIVE",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (activeBattle) {
+      throw new GameError("That tile is already contested.");
+    }
+
+    const outboundAttackCount = await tx.attackUnit.count({
+      where: {
+        attackerFortressId: attacker.id,
+        resolvedAt: null,
+        cancelledAt: null,
+      },
+    });
+    const effectiveRace = (await isFortressFactionSuppressed(
+      tx,
+      attacker.id,
+      now
+    ))
+      ? null
+      : attacker.race;
+    const maxAttacks = getMaxSimultaneousAttacks(attacker.level, effectiveRace);
+
+    if (outboundAttackCount >= maxAttacks) {
+      throw new GameError(
+        `You have reached the maximum number of simultaneous attacks (${maxAttacks}).`
+      );
+    }
+
+    const neutralHomeTarget = isHomeOfA
+      ? await tx.fortress.findFirst({
+          where: {
+            cycleId: cycle.id,
+            fortressKind: FortressKind.MEGA,
+            isNpc: true,
+          },
+          select: {
+            id: true,
+            ownerId: true,
+            points: true,
+            army: true,
+            mapX: true,
+            mapY: true,
+            race: true,
+          },
+        })
+      : null;
+    const targetFortress = ownership?.ownerFortress ?? neutralHomeTarget;
+
+    if (!targetFortress) {
+      throw new GameError("Home of A is not available in this cycle yet.");
+    }
+
+    const homePosition = getHomeOfAMapPosition();
+    const battlefieldTarget = isHomeOfA
+      ? {
+          ...targetFortress,
+          mapX: homePosition.mapX,
+          mapY: homePosition.mapY,
+          army: ownership ? targetFortress.army : HOME_OF_A_NEUTRAL_DEFENSE,
+        }
+      : targetFortress;
+
+    const battlefield = await tx.battlefield.create({
+      data: {
+        cycleId: cycle.id,
+        targetFortressId: targetFortress.id,
+        targetTileId: tileId,
+        attackerBannerFortressId: attacker.id,
+        defenderBannerFortressId: ownership?.ownerFortressId ?? null,
+        attackerArmyRemaining: 0,
+        defenderArmyRemaining: battlefieldTarget.army,
+        pointsReward: isHomeOfA ? 0 : 25,
+        foodReward: 0,
+        startedAt: now,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    const launchedUnit = await launchAttackUnit({
+      db: tx,
+      cycle,
+      attacker,
+      target: battlefieldTarget,
+      launchedAt: now,
+      armyAmount: sentArmy,
+    });
+
+    if (!launchedUnit) {
+      throw new GameError("That tile attack would arrive after the cycle ends.");
+    }
+
+    await tx.attackUnit.update({
+      where: {
+        id: launchedUnit.id,
+      },
+      data: {
+        reinforcementBattlefieldId: battlefield.id,
+        reinforcementSide: BattlefieldSide.ATTACKER,
+      },
+    });
+
+    return battlefield;
+  });
+}
+
+export async function joinBattlefield({
+  userId,
+  battlefieldId,
+  side,
+  armyAmount,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  battlefieldId: string;
+  side: BattlefieldSide | string;
+  armyAmount: number;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  const normalizedSide =
+    side === BattlefieldSide.DEFENDER
+      ? BattlefieldSide.DEFENDER
+      : BattlefieldSide.ATTACKER;
+
+  return joinBattlefieldRecord({
+    db,
+    userId,
+    battlefieldId,
+    side: normalizedSide,
+    armyAmount,
+    now,
   });
 }
 
@@ -1276,10 +1636,6 @@ export async function purchaseFortressUpgrade({
 
     if (!cycle || !isGameplayWindowOpen(cycle, now)) {
       throw new GameError("Castle upgrades are only available during gameplay.");
-    }
-
-    if (!cycle.upgradesUnlockedAt) {
-      throw new GameError("Castle upgrades unlock after Home of A has fallen.");
     }
 
     const fortress = await tx.fortress.findUnique({
