@@ -6287,6 +6287,15 @@ test("castle upgrades are available during gameplay and reject unaffordable or m
     specialization: "POINTS",
     now: new Date("2026-04-20T12:06:00.000Z"),
   });
+  const activeProject = await prisma.castleUpgradeProject.findFirstOrThrow({
+    where: {
+      fortressId: fortress.id,
+      completedAt: null,
+    },
+  });
+  assert.equal(activeProject.level, 1);
+  assert.equal(activeProject.goldCost, FORTRESS_LEVEL_UP_COSTS[0]);
+
   const afterFirstUpgradeState = await getHomePageState({
     userId: user.id,
     now: new Date("2026-04-20T12:06:30.000Z"),
@@ -6306,34 +6315,67 @@ test("castle upgrades are available during gameplay and reject unaffordable or m
       throw new Error("Expected player summary after first upgrade.");
     })();
 
-  assert.equal(afterFirstUpgradeFortress.level, 1);
-  assert.equal(afterFirstUpgradeSummary.displayedCastleLevel, 2);
-  assert.equal(afterFirstUpgradeSummary.population, 35);
-  assert.equal(afterFirstUpgradeSummary.defenseMultiplier, 1.2);
+  assert.equal(afterFirstUpgradeFortress.level, 0);
+  assert.equal(afterFirstUpgradeSummary.activeCastleUpgradeProject?.level, 1);
+  assert.equal(afterFirstUpgradeSummary.canPurchaseUpgrade, false);
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:22:00.000Z"),
+  });
+
+  const completedFirstUpgradeState = await getHomePageState({
+    userId: user.id,
+    now: new Date("2026-04-20T12:22:30.000Z"),
+    db: prisma,
+  });
+  const completedFirstUpgradeFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: user.id,
+      },
+    },
+  });
+  const completedFirstUpgradeSummary =
+    completedFirstUpgradeState.playerSummary ??
+    (() => {
+      throw new Error("Expected player summary after completed upgrade.");
+    })();
+
+  assert.equal(completedFirstUpgradeFortress.level, 1);
+  assert.equal(completedFirstUpgradeSummary.displayedCastleLevel, 2);
+  assert.equal(completedFirstUpgradeSummary.population, 35);
+  assert.equal(completedFirstUpgradeSummary.defenseMultiplier, 1.2);
   assert.equal(afterFirstUpgradeSummary.minersAssigned, 10);
   assert.equal(afterFirstUpgradeSummary.farmersAssigned, 10);
   assert.equal(afterFirstUpgradeSummary.recruitersAssigned, 5);
   assert.equal(
-    afterFirstUpgradeSummary.minersAssigned +
-      afterFirstUpgradeSummary.farmersAssigned +
-      afterFirstUpgradeSummary.recruitersAssigned,
+    completedFirstUpgradeSummary.minersAssigned +
+      completedFirstUpgradeSummary.farmersAssigned +
+      completedFirstUpgradeSummary.recruitersAssigned,
     25
   );
   assert.equal(
-    afterFirstUpgradeSummary.population -
-      afterFirstUpgradeSummary.minersAssigned -
-      afterFirstUpgradeSummary.farmersAssigned -
-      afterFirstUpgradeSummary.recruitersAssigned,
+    completedFirstUpgradeSummary.population -
+      completedFirstUpgradeSummary.minersAssigned -
+      completedFirstUpgradeSummary.farmersAssigned -
+      completedFirstUpgradeSummary.recruitersAssigned,
     10
   );
   for (let level = 1; level < MAX_FORTRESS_LEVEL; level += 1) {
+    const startedAt = new Date(
+      `2026-04-20T${String(13 + level).padStart(2, "0")}:00:00.000Z`
+    );
     await purchaseFortressUpgrade({
       db: prisma,
       userId: user.id,
       specialization: "POINTS",
-      now: new Date(
-        `2026-04-20T12:${String(6 + level).padStart(2, "0")}:00.000Z`
-      ),
+      now: startedAt,
+    });
+    await runGameTick({
+      db: prisma,
+      now: addMinutes(startedAt, (level + 1) * 15 + 1),
     });
   }
 

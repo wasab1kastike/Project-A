@@ -253,6 +253,7 @@ model Cycle {
   attackUnits                   AttackUnit[]
   battlefields                  Battlefield[]
   mapHexOwnerships              MapHexOwnership[]
+  castleUpgradeProjects         CastleUpgradeProject[]
   homeOfAHolders                HomeOfAHolder[]
   unicornTemporaryTeleports     UnicornTemporaryTeleport[]
   winnerRequests                WinnerRequest[]
@@ -314,6 +315,7 @@ model Fortress {
   scoreEventsAsFortress        ScoreEvent[]                        @relation("ScoreEventFortress")
   scoreEventsAsTarget          ScoreEvent[]                        @relation("ScoreEventTargetFortress")
   castleUpgradeSpecializations CastleUpgradeSpecializationChoice[]
+  castleUpgradeProjects        CastleUpgradeProject[]
   raceAbilityActivations       RaceAbilityActivation[]
   dwarfGrudges                 DwarfGrudge[]                       @relation("DwarfGrudgeOwner")
   grudgedBy                    DwarfGrudge[]                       @relation("DwarfGrudgeTarget")
@@ -377,6 +379,25 @@ model MapHexOwnership {
   @@unique([cycleId, tileId])
   @@index([ownerFortressId])
   @@index([cycleId, ownerFortressId])
+}
+
+model CastleUpgradeProject {
+  id             String                       @id @default(cuid())
+  cycleId        String
+  fortressId     String
+  level          Int
+  specialization CastleUpgradeSpecialization
+  goldCost       Int
+  startedAt      DateTime
+  completesAt    DateTime
+  completedAt    DateTime?
+  createdAt      DateTime                     @default(now())
+  updatedAt      DateTime                     @updatedAt
+  cycle          Cycle                        @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress       Fortress                     @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+
+  @@index([cycleId, completesAt, completedAt])
+  @@index([fortressId, completedAt])
 }
 
 model HomeOfAHolder {
@@ -473,7 +494,7 @@ model CastleUpgradeSpecializationChoice {
   createdAt      DateTime                    @default(now())
   fortress       Fortress                    @relation(fields: [fortressId], references: [id], onDelete: Cascade)
 
-  @@unique([fortressId, level])
+  @@unique([fortressId, specialization, level])
   @@index([fortressId, specialization])
 }
 

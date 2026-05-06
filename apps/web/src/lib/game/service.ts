@@ -21,6 +21,7 @@ import { getRandomUnitSpriteVariant } from "./attacks";
 import {
   canFortressLevelUp,
   getFortressUpgradeCost,
+  getFortressUpgradeDurationMinutes,
   getMaxSimultaneousAttacks,
 } from "./upgrades";
 import {
@@ -47,7 +48,7 @@ import {
   getRaceAbilityActiveUntil,
   getRaceBuffTier,
 } from "./race-buffs";
-import { addHours } from "./time";
+import { addHours, addMinutes } from "./time";
 import {
   countCastleSpecializations,
   isCastleUpgradeSpecialization,
@@ -1603,29 +1604,56 @@ export async function purchaseFortressUpgrade({
           ownerId: userId,
         },
       },
+      include: {
+        castleUpgradeSpecializations: {
+          select: {
+            specialization: true,
+          },
+        },
+      },
     });
 
     if (!fortress || fortress.isNpc) {
       throw new GameError("You are not participating in the active cycle.");
     }
 
-    const pendingSpecializationLevel =
-      await getPendingUpgradeSpecializationLevel(tx, fortress);
+    const activeUpgradeProject = await tx.castleUpgradeProject.findFirst({
+      where: {
+        fortressId: fortress.id,
+        completedAt: null,
+      },
+      select: {
+        id: true,
+      },
+    });
 
-    if (pendingSpecializationLevel !== null) {
+    if (activeUpgradeProject) {
+      throw new GameError("Your castle already has an upgrade under construction.");
+    }
+
+    const buildingLevels = countCastleSpecializations(
+      fortress.castleUpgradeSpecializations
+    );
+    const currentBuildingLevel = buildingLevels[specialization];
+    const maxBuildingLevel = getDisplayedCastleLevel(fortress.level);
+    const upgradesKeep = specialization === CastleUpgradeSpecialization.DEFENSE;
+
+    if (upgradesKeep && !canFortressLevelUp(fortress.level)) {
+      throw new GameError("Your castle is already at the maximum level.");
+    }
+
+    if (!upgradesKeep && currentBuildingLevel >= maxBuildingLevel) {
       throw new GameError(
-        "Choose the specialization for your free castle upgrade first."
+        `That building is already at the castle level cap (${maxBuildingLevel}).`
       );
     }
 
-    if (!canFortressLevelUp(fortress.level)) {
-      throw new GameError("Your castle is already at the maximum level.");
-    }
-
-    const upgradeCost = getFortressUpgradeCost(fortress.level);
+    const upgradeCost = upgradesKeep
+      ? getFortressUpgradeCost(fortress.level)
+      : getFortressUpgradeCost(currentBuildingLevel);
 
     if (upgradeCost === null) {
-      throw new GameError("Your castle is already at the maximum level.");
+      throw new GameError("That building is already at the maximum level.");
     }
 
     if (fortress.gold < upgradeCost) {
@@ -1634,22 +1662,28 @@ export async function purchaseFortressUpgrade({
       );
     }
 
-    const updatedFortress = await tx.fortress.update({
+    await tx.fortress.update({
       where: {
         id: fortress.id,
       },
       data: {
-        level: fortress.level + 1,
         gold: fortress.gold - upgradeCost,
       },
     });
 
-    await tx.castleUpgradeSpecializationChoice.create({
+    const targetLevel = currentBuildingLevel + 1;
+    const upgradeProject = await tx.castleUpgradeProject.create({
       data: {
+        cycleId: cycle.id,
         fortressId: fortress.id,
-        level: fortress.level + 1,
+        level: targetLevel,
         specialization,
-        createdAt: now,
+        goldCost: upgradeCost,
+        startedAt: now,
+        completesAt: addMinutes(
+          now,
+          getFortressUpgradeDurationMinutes(currentBuildingLevel)
+        ),
       },
     });
 
@@ -1664,7 +1698,7 @@ export async function purchaseFortressUpgrade({
       },
     });
 
-    return updatedFortress;
+    return upgradeProject;
   });
 }
 

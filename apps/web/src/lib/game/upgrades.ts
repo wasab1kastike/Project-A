@@ -4,6 +4,7 @@ import {
   FORTRESS_ATTACK_DAMAGE_PER_LEVEL,
   FORTRESS_GROWTH_PER_LEVEL,
   FORTRESS_LEVEL_UP_COSTS,
+  FORTRESS_UPGRADE_BASE_MINUTES,
   MAX_FORTRESS_LEVEL,
   MAX_SIMULTANEOUS_ATTACKS_BASE,
 } from "./constants";
@@ -11,6 +12,10 @@ import type { FortressRace } from "./races";
 
 export function getFortressUpgradeCost(level: number) {
   return FORTRESS_LEVEL_UP_COSTS[level] ?? null;
+}
+
+export function getFortressUpgradeDurationMinutes(level: number) {
+  return (level + 1) * FORTRESS_UPGRADE_BASE_MINUTES;
 }
 
 export function getFortressGrowGain(level: number) {

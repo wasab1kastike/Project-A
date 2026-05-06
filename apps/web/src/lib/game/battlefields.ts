@@ -401,7 +401,7 @@ export async function processActiveBattlefields({
             defenderArmy: 0,
             defenderDbLevel: 0,
             defenderRace: null,
-            defenderPoints: battlefield.targetFortress?.gold ?? 0,
+            defenderGold: battlefield.targetFortress?.gold ?? 0,
             defenderFood: battlefield.targetFortress?.food ?? 0,
           })
         : calculateRaidOutcome({
@@ -415,7 +415,7 @@ export async function processActiveBattlefields({
                     battlefield.targetFortress.castleUpgradeSpecializations
                   )
                 : undefined,
-            defenderPoints: battlefield.targetFortress?.gold ?? 0,
+            defenderGold: battlefield.targetFortress?.gold ?? 0,
             defenderFood: battlefield.targetFortress?.food ?? 0,
           });
     const winnerSide =
@@ -438,7 +438,7 @@ export async function processActiveBattlefields({
         winnerArmyTotal > 0 ? participant.armyCommitted / winnerArmyTotal : 0;
       const rewardPool = isTileBattle
         ? 0
-        : outcome.pointsLooted + battlefield.pointsReward;
+        : outcome.goldLooted + battlefield.pointsReward;
       const reward =
         winnerSide === BattlefieldSide.ATTACKER
           ? Math.floor(rewardPool * share)
@@ -479,7 +479,7 @@ export async function processActiveBattlefields({
           gold: {
             decrement:
               winnerSide === BattlefieldSide.ATTACKER
-                ? outcome.pointsLooted
+                ? outcome.goldLooted
                 : 0,
           },
           food: {

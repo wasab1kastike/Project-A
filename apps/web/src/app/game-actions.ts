@@ -433,7 +433,7 @@ export async function purchaseFortressUpgradeAction(formData: FormData) {
     redirectToHome("error", getActionErrorMessage(error));
   }
 
-  finishAction("Castle upgraded.");
+  finishAction("Castle upgrade started. It will complete on a future tick.");
 }
 
 export async function choosePendingUpgradeSpecializationAction(

@@ -236,6 +236,109 @@ async function processDueUnicornTeleportReturns({
   }
 }
 
+async function processDueCastleUpgradeProjects({
+  db,
+  cycleId,
+  tickAt,
+}: {
+  db: PrismaClient;
+  cycleId: string;
+  tickAt: Date;
+}) {
+  const dueProjects = await db.castleUpgradeProject.findMany({
+    where: {
+      cycleId,
+      completedAt: null,
+      completesAt: {
+        lte: tickAt,
+      },
+    },
+    orderBy: [{ completesAt: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      fortressId: true,
+      level: true,
+      specialization: true,
+    },
+  });
+
+  for (const project of dueProjects) {
+    await db.$transaction(async (tx) => {
+      const latestProject = await tx.castleUpgradeProject.findUnique({
+        where: {
+          id: project.id,
+        },
+        select: {
+          completedAt: true,
+        },
+      });
+
+      if (!latestProject || latestProject.completedAt) {
+        return;
+      }
+
+      const fortress = await tx.fortress.findUnique({
+        where: {
+          id: project.fortressId,
+        },
+        select: {
+          level: true,
+          isNpc: true,
+        },
+      });
+
+      if (!fortress || fortress.isNpc) {
+        await tx.castleUpgradeProject.update({
+          where: {
+            id: project.id,
+          },
+          data: {
+            completedAt: tickAt,
+          },
+        });
+        return;
+      }
+
+      if (project.specialization === "DEFENSE") {
+        await tx.fortress.update({
+          where: {
+            id: project.fortressId,
+          },
+          data: {
+            level: fortress.level + 1,
+          },
+        });
+      }
+
+      await tx.castleUpgradeSpecializationChoice.upsert({
+        where: {
+          fortressId_specialization_level: {
+            fortressId: project.fortressId,
+            specialization: project.specialization,
+            level: project.level,
+          },
+        },
+        create: {
+          fortressId: project.fortressId,
+          level: project.level,
+          specialization: project.specialization,
+          createdAt: tickAt,
+        },
+        update: {},
+      });
+
+      await tx.castleUpgradeProject.update({
+        where: {
+          id: project.id,
+        },
+        data: {
+          completedAt: tickAt,
+        },
+      });
+    }, TICK_TRANSACTION_OPTIONS);
+  }
+}
+
 function isUniqueTickError(error: unknown) {
   return (
     error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -584,6 +687,11 @@ async function completeTestingCycle(
         fortress: {
           cycleId,
         },
+      },
+    });
+    await tx.castleUpgradeProject.deleteMany({
+      where: {
+        cycleId,
       },
     });
     await tx.raceAbilityActivation.deleteMany({
@@ -1060,6 +1168,12 @@ async function processCycleTick(
     });
 
     await processDueUnicornTeleportReturns({
+      db,
+      cycleId,
+      tickAt,
+    });
+
+    await processDueCastleUpgradeProjects({
       db,
       cycleId,
       tickAt,
@@ -2265,7 +2379,7 @@ async function processCycleTick(
           (defenderDeepMiningCombat ? DWARF_DEEP_MINING_COMBAT_MULTIPLIER : 1),
         preventAttackerCasualties: attackerStim,
         preventDefenderLosses: defenderStim,
-        defenderPoints: defenderGold,
+        defenderGold,
         defenderFood,
       });
 
@@ -2302,7 +2416,7 @@ async function processCycleTick(
             attackerRetired: outcome.attackerRetired,
             attackerReturned: outcome.attackerReturned,
             defenderLosses: outcome.defenderLosses,
-            pointsLooted: outcome.pointsLooted,
+            pointsLooted: outcome.goldLooted,
             foodLooted: outcome.foodLooted,
             armyLooted: 0,
           },
@@ -2321,7 +2435,7 @@ async function processCycleTick(
             attackerRetired: outcome.attackerRetired,
             attackerReturned: outcome.attackerReturned,
             defenderLosses: outcome.defenderLosses,
-            pointsLooted: outcome.pointsLooted,
+            pointsLooted: outcome.goldLooted,
             foodLooted: outcome.foodLooted,
             armyLooted: 0,
           },
@@ -2336,11 +2450,11 @@ async function processCycleTick(
       currentGold.set(
         attacker.id,
         (currentGold.get(attacker.id) ?? attacker.gold) +
-          outcome.pointsLooted
+          outcome.goldLooted
       );
       currentGold.set(
         target.id,
-        Math.max(0, defenderGold - outcome.pointsLooted)
+        Math.max(0, defenderGold - outcome.goldLooted)
       );
       const strongerTogether =
         attackerRace === "ORKS" &&
@@ -2363,7 +2477,7 @@ async function processCycleTick(
         );
       }
 
-      if (outcome.pointsLooted > 0) {
+      if (outcome.goldLooted > 0) {
         scoreEvents.push(
           {
             cycleId,
@@ -2371,7 +2485,7 @@ async function processCycleTick(
             actorId: attacker.ownerId,
             targetFortressId: target.id,
             eventType: ScoreEventType.ATTACK_TARGET,
-            delta: -outcome.pointsLooted,
+            delta: -outcome.goldLooted,
             createdAt: tickAt,
           },
           {
@@ -2380,7 +2494,7 @@ async function processCycleTick(
             actorId: attacker.ownerId,
             targetFortressId: target.id,
             eventType: ScoreEventType.ATTACK_TARGET,
-            delta: outcome.pointsLooted,
+            delta: outcome.goldLooted,
             createdAt: tickAt,
           }
         );

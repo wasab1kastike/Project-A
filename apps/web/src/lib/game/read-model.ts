@@ -5,6 +5,7 @@ import {
   CycleStatus,
   BattlefieldSide,
   BattlefieldStatus,
+  CastleUpgradeSpecialization,
   FortressKind,
   Prisma,
   RaceAbilityKind,
@@ -40,8 +41,10 @@ import {
 } from "./schema-guards";
 import { classifyTickHealth, getActiveCycleMinutesBehind } from "./tick";
 import {
+  canFortressLevelUp,
   getFortressAttackDamage,
   getFortressUpgradeCost,
+  getFortressUpgradeDurationMinutes,
   getMaxSimultaneousAttacks,
 } from "./upgrades";
 import {
@@ -129,6 +132,21 @@ function formatBattlefieldReportLines({
 
   return lines;
 }
+
+const BUILDING_SPECIALIZATIONS = [
+  CastleUpgradeSpecialization.DEFENSE,
+  CastleUpgradeSpecialization.POINTS,
+  CastleUpgradeSpecialization.FOOD,
+  CastleUpgradeSpecialization.MILITARY,
+] as const;
+
+type BuildingUpgradeOption = {
+  level: number;
+  maxLevel: number | null;
+  nextCost: number | null;
+  nextDurationMinutes: number | null;
+  canUpgrade: boolean;
+};
 
 function compareByLeaderboardOrder(
   left: {
@@ -461,6 +479,20 @@ export async function getHomePageState({
             select: {
               level: true,
               specialization: true,
+            },
+          },
+          castleUpgradeProjects: {
+            where: {
+              completedAt: null,
+            },
+            orderBy: [{ startedAt: "asc" }, { id: "asc" }],
+            take: 1,
+            select: {
+              level: true,
+              specialization: true,
+              goldCost: true,
+              startedAt: true,
+              completesAt: true,
             },
           },
           raceAbilityActivations: {
@@ -909,21 +941,60 @@ export async function getHomePageState({
     id: string;
     race: "DWARFS" | "UNSTABLE_UNICORNS" | "SPACE_MURINES" | "ORKS" | null;
   }) => (suppressedFortressIds.has(fortress.id) ? null : fortress.race);
-  const nextUpgradeCost = playerFortress
-    ? getFortressUpgradeCost(playerFortress.level)
-    : null;
   const playerCastleSpecializationCounts = playerFortress
     ? countCastleSpecializations(playerFortress.castleUpgradeSpecializations)
     : null;
-  const pendingUpgradeSpecializationLevel =
-    playerFortress &&
-    playerFortress.castleUpgradeSpecializations.length < playerFortress.level
-      ? playerFortress.castleUpgradeSpecializations.length + 1
+  const maxBuildingLevel = playerFortress
+    ? getDisplayedCastleLevel(playerFortress.level)
+    : 0;
+  const buildingUpgradeOptions =
+    playerFortress && playerCastleSpecializationCounts
+      ? BUILDING_SPECIALIZATIONS.reduce(
+          (options, specialization) => {
+            const currentBuildingLevel =
+              playerCastleSpecializationCounts[specialization];
+            const upgradesKeep =
+              specialization === CastleUpgradeSpecialization.DEFENSE;
+            const isAtCap = upgradesKeep
+              ? !canFortressLevelUp(playerFortress.level)
+              : currentBuildingLevel >= maxBuildingLevel;
+            const nextCost = isAtCap
+              ? null
+              : upgradesKeep
+                ? getFortressUpgradeCost(playerFortress.level)
+                : getFortressUpgradeCost(currentBuildingLevel);
+
+            options[specialization] = {
+              level: currentBuildingLevel,
+              maxLevel: upgradesKeep ? null : maxBuildingLevel,
+              nextCost,
+              nextDurationMinutes:
+                nextCost === null
+                  ? null
+                  : getFortressUpgradeDurationMinutes(currentBuildingLevel),
+              canUpgrade:
+                gameplayOpen &&
+                playerFortress.race !== null &&
+                nextCost !== null &&
+                playerFortress.gold >= nextCost,
+            };
+
+            return options;
+          },
+          {} as Record<CastleUpgradeSpecialization, BuildingUpgradeOption>
+        )
       : null;
+  const nextUpgradeCost =
+    buildingUpgradeOptions?.[CastleUpgradeSpecialization.DEFENSE]?.nextCost ??
+    null;
+  const pendingUpgradeSpecializationLevel = null;
+  const activeCastleUpgradeProject =
+    playerFortress?.castleUpgradeProjects[0] ?? null;
   const canAffordUpgrade =
-    playerFortress !== null &&
-    nextUpgradeCost !== null &&
-    playerFortress.gold >= nextUpgradeCost;
+    buildingUpgradeOptions !== null &&
+    Object.values(buildingUpgradeOptions).some((option) => {
+      return option.nextCost !== null && playerFortress!.gold >= option.nextCost;
+    });
   const receivedSlayerUpgrade = null;
   const locationShuffleCount = playerFortress
     ? await getFortressLocationShuffleCount(db, playerFortress.id)
@@ -1903,12 +1974,27 @@ export async function getHomePageState({
             gameplayOpen &&
             playerFortress.race !== null &&
             upgradesUnlocked &&
-            nextUpgradeCost !== null &&
             canAffordUpgrade &&
-            pendingUpgradeSpecializationLevel === null,
+            activeCastleUpgradeProject === null,
           castleSpecializationCounts: playerCastleSpecializationCounts,
+          buildingUpgradeOptions,
           castleUpgradeChoices: playerFortress.castleUpgradeSpecializations,
           pendingUpgradeSpecializationLevel,
+          activeCastleUpgradeProject: activeCastleUpgradeProject
+            ? {
+                level: activeCastleUpgradeProject.level,
+                specialization: activeCastleUpgradeProject.specialization,
+                goldCost: activeCastleUpgradeProject.goldCost,
+                startedAt: activeCastleUpgradeProject.startedAt,
+                completesAt: activeCastleUpgradeProject.completesAt,
+              }
+            : null,
+          nextUpgradeDurationMinutes:
+            nextUpgradeCost !== null
+              ? getFortressUpgradeDurationMinutes(
+                  playerCastleSpecializationCounts?.DEFENSE ?? 0
+                )
+              : null,
           receivedSlayerUpgrade: Boolean(receivedSlayerUpgrade),
           factionSuppression: playerSuppression
             ? {

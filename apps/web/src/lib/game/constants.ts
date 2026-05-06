@@ -24,6 +24,7 @@ export const FORTRESS_LEVEL_UP_COSTS = [
   18000,
   22500,
 ] as const;
+export const FORTRESS_UPGRADE_BASE_MINUTES = 15;
 export const MAX_FORTRESS_LEVEL = FORTRESS_LEVEL_UP_COSTS.length;
 export const MAX_SIMULTANEOUS_ATTACKS_BASE = 2;
 export const MEGA_FORTRESS_NAME = "Home of A";

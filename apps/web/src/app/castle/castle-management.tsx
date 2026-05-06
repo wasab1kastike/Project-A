@@ -48,12 +48,30 @@ type PlayerSummary = {
   canShuffleLocation: boolean;
   upgradesUnlocked: boolean;
   nextUpgradeCost: number | null;
+  nextUpgradeDurationMinutes: number | null;
   canPurchaseUpgrade: boolean;
   castleSpecializationCounts: Record<
     "POINTS" | "FOOD" | "MILITARY" | "DEFENSE",
     number
   > | null;
+  buildingUpgradeOptions: Record<
+    "POINTS" | "FOOD" | "MILITARY" | "DEFENSE",
+    {
+      level: number;
+      maxLevel: number | null;
+      nextCost: number | null;
+      nextDurationMinutes: number | null;
+      canUpgrade: boolean;
+    }
+  > | null;
   pendingUpgradeSpecializationLevel: number | null;
+  activeCastleUpgradeProject: {
+    level: number;
+    specialization: "POINTS" | "FOOD" | "MILITARY" | "DEFENSE";
+    goldCost: number;
+    startedAt: Date;
+    completesAt: Date;
+  } | null;
   raceBuffs: {
     tier: number;
     canActivateWaaagh: boolean;
@@ -84,23 +102,61 @@ const BUILDINGS = [
     key: "DEFENSE",
     name: "Keep",
     role: "Command, population, and defensive structure.",
+    workerKey: null,
   },
   {
     key: "POINTS",
     name: "Mine",
     role: "Gold generation and future mining tile bonuses.",
+    workerKey: "minersAssigned",
   },
   {
     key: "FOOD",
     name: "Farm",
     role: "Food generation and army upkeep support.",
+    workerKey: "farmersAssigned",
   },
   {
     key: "MILITARY",
     name: "Barracks",
     role: "Army production and future reinforcement bonuses.",
+    workerKey: "recruitersAssigned",
   },
 ] as const;
+
+function formatTime(value: Date) {
+  return value.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function getBuildingEffect({
+  key,
+  level,
+  production,
+  defenseMultiplier,
+  population,
+}: {
+  key: (typeof BUILDINGS)[number]["key"];
+  level: number;
+  production: ReturnType<typeof calculateTickProduction>;
+  defenseMultiplier: number;
+  population: number;
+}) {
+  switch (key) {
+    case "DEFENSE":
+      return `Population ${population}, defense x${defenseMultiplier.toFixed(2)}`;
+    case "POINTS":
+      return `+${production.goldProduced} gold/tick from miners`;
+    case "FOOD":
+      return `+${production.foodProduced} food/tick from farmers`;
+    case "MILITARY":
+      return `+${production.armyProduced}/${production.armyRequested} army/tick from recruiters`;
+    default:
+      return `Level ${level}`;
+  }
+}
 
 function BuildingChoiceFields() {
   return (
@@ -139,9 +195,17 @@ export function CastleManagement({
         level: playerSummary.level,
         race: playerSummary.race as never,
         food: playerSummary.food,
+        castleSpecializations:
+          playerSummary.castleSpecializationCounts ?? undefined,
         ...workers,
       }),
-    [playerSummary.food, playerSummary.level, playerSummary.race, workers]
+    [
+      playerSummary.castleSpecializationCounts,
+      playerSummary.food,
+      playerSummary.level,
+      playerSummary.race,
+      workers,
+    ]
   );
   const validation = validateWorkerAssignments({
     level: playerSummary.level,
@@ -217,19 +281,77 @@ export function CastleManagement({
       <section className={styles.panel}>
         <div className={styles.panelHeader}>
           <span>Buildings</span>
-          <strong>{playerSummary.level} upgrades</strong>
+          <strong>
+            {playerSummary.activeCastleUpgradeProject
+              ? "Construction active"
+              : `${playerSummary.level} upgrades`}
+          </strong>
         </div>
         <div className={styles.buildingGrid}>
-          {BUILDINGS.map((building) => (
-            <article key={building.key} className={styles.buildingCard}>
-              <strong>{building.name}</strong>
-              <p>{building.role}</p>
-              <span>
-                Level{" "}
-                {playerSummary.castleSpecializationCounts?.[building.key] ?? 0}
-              </span>
-            </article>
-          ))}
+          {BUILDINGS.map((building) => {
+            const buildingLevel =
+              playerSummary.castleSpecializationCounts?.[building.key] ?? 0;
+            const upgradeOption =
+              playerSummary.buildingUpgradeOptions?.[building.key] ?? null;
+            const activeProject =
+              playerSummary.activeCastleUpgradeProject?.specialization ===
+              building.key
+                ? playerSummary.activeCastleUpgradeProject
+                : null;
+
+            return (
+              <article key={building.key} className={styles.buildingCard}>
+                <div className={styles.buildingCardHeader}>
+                  <strong>{building.name}</strong>
+                  <span>Level {buildingLevel}</span>
+                </div>
+                <p>{building.role}</p>
+                <small>
+                  {getBuildingEffect({
+                    key: building.key,
+                    level: buildingLevel,
+                    production,
+                    defenseMultiplier: playerSummary.defenseMultiplier,
+                    population: playerSummary.population,
+                  })}
+                </small>
+                {building.workerKey ? (
+                  <small>
+                    Workers: {workers[building.workerKey]} assigned
+                  </small>
+                ) : null}
+                {activeProject ? (
+                  <p className={styles.muted}>
+                    Upgrading to level {activeProject.level}; completes at{" "}
+                    {formatTime(activeProject.completesAt)}.
+                  </p>
+                ) : playerSummary.upgradesUnlocked &&
+                  upgradeOption !== null &&
+                  upgradeOption.nextCost !== null &&
+                  playerSummary.pendingUpgradeSpecializationLevel === null ? (
+                  <form action={purchaseFortressUpgradeAction} className={styles.form}>
+                    <input name="specialization" type="hidden" value={building.key} />
+                    <p>
+                      Upgrade costs {upgradeOption?.nextCost} gold and{" "}
+                      {upgradeOption?.nextDurationMinutes} minutes.
+                      {upgradeOption?.maxLevel !== null
+                        ? ` Max level: ${upgradeOption?.maxLevel}.`
+                        : " Raises castle level cap."}
+                    </p>
+                    <button
+                      type="submit"
+                      disabled={
+                        !playerSummary.canPurchaseUpgrade ||
+                        !upgradeOption?.canUpgrade
+                      }
+                    >
+                      Upgrade {building.name}
+                    </button>
+                  </form>
+                ) : null}
+              </article>
+            );
+          })}
         </div>
         {playerSummary.pendingUpgradeSpecializationLevel !== null ? (
           <form action={choosePendingUpgradeSpecializationAction} className={styles.form}>
@@ -237,14 +359,11 @@ export function CastleManagement({
             <BuildingChoiceFields />
             <button type="submit">Lock building</button>
           </form>
-        ) : playerSummary.upgradesUnlocked && playerSummary.nextUpgradeCost !== null ? (
-          <form action={purchaseFortressUpgradeAction} className={styles.form}>
-            <p>Next upgrade costs {playerSummary.nextUpgradeCost} gold.</p>
-            <BuildingChoiceFields />
-            <button type="submit" disabled={!playerSummary.canPurchaseUpgrade}>
-              Upgrade castle
-            </button>
-          </form>
+        ) : playerSummary.activeCastleUpgradeProject ? (
+          <p className={styles.muted}>
+            One building can be under construction at a time. Gold has already
+            been spent for the active upgrade.
+          </p>
         ) : (
           <p className={styles.muted}>
             Castle upgrades are available once gameplay starts.

@@ -50,7 +50,9 @@ export type RaidOutcomeInput = {
   defensePowerMultiplier?: number;
   preventAttackerCasualties?: boolean;
   preventDefenderLosses?: boolean;
-  defenderPoints: number;
+  defenderGold?: number;
+  /** @deprecated Use defenderGold. Kept for legacy tests and callers. */
+  defenderPoints?: number;
   defenderFood: number;
 };
 
@@ -63,6 +65,8 @@ export type RaidOutcome = {
   attackerRetired: number;
   attackerReturned: number;
   defenderLosses: number;
+  goldLooted: number;
+  /** @deprecated AttackUnit still stores legacy pointsLooted for gold loot. */
   pointsLooted: number;
   foodLooted: number;
 };
@@ -94,32 +98,32 @@ function getSpecializationCount(
 
 function splitRaidLoot({
   lootCapacity,
-  pointLootCap,
+  goldLootCap,
   foodLootCap,
 }: {
   lootCapacity: number;
-  pointLootCap: number;
+  goldLootCap: number;
   foodLootCap: number;
 }) {
-  const halfPointTarget = Math.ceil(lootCapacity / 2);
+  const halfGoldTarget = Math.ceil(lootCapacity / 2);
   const halfFoodTarget = Math.floor(lootCapacity / 2);
 
-  let pointsLooted = Math.min(pointLootCap, halfPointTarget);
+  let goldLooted = Math.min(goldLootCap, halfGoldTarget);
   let foodLooted = Math.min(foodLootCap, halfFoodTarget);
-  let remainingCapacity = lootCapacity - pointsLooted - foodLooted;
+  let remainingCapacity = lootCapacity - goldLooted - foodLooted;
 
   while (remainingCapacity > 0) {
-    const pointRemaining = pointLootCap - pointsLooted;
+    const goldRemaining = goldLootCap - goldLooted;
     const foodRemaining = foodLootCap - foodLooted;
 
-    if (pointRemaining <= 0 && foodRemaining <= 0) {
+    if (goldRemaining <= 0 && foodRemaining <= 0) {
       break;
     }
 
-    if (pointRemaining >= foodRemaining) {
-      const extraPoints = Math.min(remainingCapacity, Math.max(0, pointRemaining));
-      pointsLooted += extraPoints;
-      remainingCapacity -= extraPoints;
+    if (goldRemaining >= foodRemaining) {
+      const extraGold = Math.min(remainingCapacity, Math.max(0, goldRemaining));
+      goldLooted += extraGold;
+      remainingCapacity -= extraGold;
       continue;
     }
 
@@ -129,7 +133,7 @@ function splitRaidLoot({
   }
 
   return {
-    pointsLooted,
+    goldLooted,
     foodLooted,
   };
 }
@@ -281,7 +285,7 @@ export function calculateTickProduction(fortressLike: FortressEconomyLike) {
 export function calculateRaidOutcome(input: RaidOutcomeInput): RaidOutcome {
   const attackArmy = clampInteger(input.attackArmy);
   const defenderArmy = clampInteger(input.defenderArmy);
-  const defenderPoints = clampInteger(input.defenderPoints);
+  const defenderGold = clampInteger(input.defenderGold ?? input.defenderPoints ?? 0);
   const defenderFood = clampInteger(input.defenderFood);
   const attackPower = Math.floor(
     attackArmy * Math.max(0, input.attackPowerMultiplier ?? 1)
@@ -336,7 +340,7 @@ export function calculateRaidOutcome(input: RaidOutcomeInput): RaidOutcome {
           )
         );
 
-  let pointsLooted = 0;
+  let goldLooted = 0;
   let foodLooted = 0;
 
   if (attackerWon) {
@@ -344,16 +348,16 @@ export function calculateRaidOutcome(input: RaidOutcomeInput): RaidOutcome {
       attackerSurvivors *
       (CARRY_CAPACITY_PER_SURVIVOR +
         getRaceModifiers(input.attackerRace).carryCapacityPerSurvivorBonus);
-    const pointLootCap = Math.floor(defenderPoints * MAX_POINT_LOOT_PERCENT);
+    const goldLootCap = Math.floor(defenderGold * MAX_POINT_LOOT_PERCENT);
     const foodLootCap = Math.floor(defenderFood * MAX_FOOD_LOOT_PERCENT);
 
     const looted = splitRaidLoot({
       lootCapacity: carryCapacity,
-      pointLootCap,
+      goldLootCap,
       foodLootCap,
     });
 
-    pointsLooted = looted.pointsLooted;
+    goldLooted = looted.goldLooted;
     foodLooted = looted.foodLooted;
   }
 
@@ -366,7 +370,8 @@ export function calculateRaidOutcome(input: RaidOutcomeInput): RaidOutcome {
     attackerRetired,
     attackerReturned,
     defenderLosses,
-    pointsLooted,
+    goldLooted,
+    pointsLooted: goldLooted,
     foodLooted,
   };
 }

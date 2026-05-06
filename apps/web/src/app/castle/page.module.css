@@ -127,6 +127,13 @@
   gap: 8px;
 }
 
+.buildingCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .buildingCard p,
 .raceCard p,
 .muted {
