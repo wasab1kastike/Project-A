@@ -4,12 +4,14 @@ import styles from "./page.module.css";
 import { auth, isAuthConfigured } from "@/auth";
 import { SessionActions } from "@/components/session-actions";
 import { BattlefieldExperience } from "@/components/battlefield-experience";
+import { DismissiblePhaseCard } from "@/components/dismissible-phase-card";
 import { GodEmperorGiftNotice } from "@/components/god-emperor-gift-notice";
 import { NoticeToast } from "@/components/notice-toast";
 import { PreviousSeasonWinnerCard } from "@/components/previous-season-winner-card";
 import { RealtimeBridge } from "@/components/realtime-bridge";
 import { SeasonUpdateAnnouncement } from "@/components/season-update-announcement";
 import { SeasonTimer } from "@/components/season-timer";
+import { WappuDelayAnnouncement } from "@/components/wappu-delay-announcement";
 import {
   joinFortressAction,
   saveCommunityWishVotesAction,
@@ -251,6 +253,19 @@ export default async function Home({
     showArcadeCard ||
     showSeasonBanner
   );
+  const canDismissPhaseCard = Boolean(
+    showSidePanel &&
+      !blockingMessage &&
+      !showLoginCard &&
+      !showJoinCard &&
+      !showCommanderNameCard &&
+      !showArcadeCard &&
+      !showWinnerWishPrompt &&
+      !showSeasonBanner
+  );
+  const phaseCardStorageKey = `project-a:phase-card:${
+    state.cycle?.id ?? "no-cycle"
+  }:${state.phase?.status ?? "no-phase"}`;
 
   const phaseCopy =
     state.phase?.status === "REGISTRATION"
@@ -337,6 +352,7 @@ export default async function Home({
     <main className={styles.page}>
       <RealtimeBridge enabled={Boolean(state.cycle)} />
       <GodEmperorGiftNotice fortressName={state.playerSummary?.name} />
+      <WappuDelayAnnouncement userId={session?.user?.id ?? null} />
 
       <div className={styles.mapLayer}>
         <BattlefieldExperience
@@ -618,11 +634,14 @@ export default async function Home({
       {notice ? <NoticeToast message={notice} autoDismissMs={5000} /> : null}
 
       {showSidePanel ? (
-        <section
+        <DismissiblePhaseCard
+          ariaLive="polite"
           className={`${styles.sidePanel} ${
             blockingMessage ? styles.statusPanel : ""
           }`}
-          aria-live="polite"
+          closeButtonClassName={styles.phaseCardCloseButton}
+          isDismissible={canDismissPhaseCard}
+          storageKey={phaseCardStorageKey}
         >
           {state.latestSeason ? (
             <PreviousSeasonWinnerCard
@@ -825,7 +844,7 @@ export default async function Home({
               </div>
             </dl>
           ) : null}
-        </section>
+        </DismissiblePhaseCard>
       ) : null}
 
       <footer className={styles.bottomHud} aria-label="Battlefield summary">
