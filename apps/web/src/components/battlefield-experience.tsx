@@ -801,7 +801,7 @@ export function BattlefieldExperience({
   ) : null;
 
   const battlefieldsPanel =
-    homeOfA || battlefields.length > 0 || battleReports.length > 0 ? (
+    battlefields.length > 0 || battleReports.length > 0 ? (
       <aside className={styles.battlefieldPanel} aria-label="Active battles">
         {homeOfA ? (
           <article className={styles.battlefieldCard}>
@@ -1015,6 +1015,7 @@ export function BattlefieldExperience({
             {topActionsRoot ? null : actionButtons}
             {chatDrawer}
             {battleLogDrawer}
+            {selectedTilePanel}
           </div>,
           overlayRoot
         )
@@ -1066,7 +1067,7 @@ export function BattlefieldExperience({
         />
 
         {battlefieldsPanel}
-        {selectedTilePanel}
+        {!immersive ? selectedTilePanel : null}
         {!immersive ? chatDrawer : null}
         {!immersive ? battleLogDrawer : null}
       </div>
