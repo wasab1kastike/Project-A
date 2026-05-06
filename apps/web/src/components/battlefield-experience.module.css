@@ -338,6 +338,22 @@
   width: 100%;
 }
 
+.battlefieldArmyControl {
+  display: grid;
+  gap: 6px;
+}
+
+.battlefieldArmyControl span {
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+}
+
+.battlefieldArmyControl input {
+  width: 100%;
+}
+
 .compactList {
   display: grid;
   gap: 5px;

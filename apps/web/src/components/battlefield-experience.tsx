@@ -83,6 +83,13 @@ type ActiveBattlefield = {
   progress: number;
   attackerArmyRemaining: number;
   defenderArmyRemaining: number;
+  attackerArmyLabel: string;
+  defenderArmyLabel: string;
+  attackerCasualties: number;
+  defenderCasualties: number;
+  ownArmyCommitted: number;
+  ownArmyRemaining: number;
+  ownIncomingArmy: number;
   startedAt: Date;
   attackerBanner: {
     id: string;
@@ -106,6 +113,8 @@ type ActiveBattlefield = {
   }>;
   canJoinAttacker: boolean;
   canJoinDefender: boolean;
+  joinAttackerDisabledReason: string | null;
+  joinDefenderDisabledReason: string | null;
 };
 
 type BattleReport = {
@@ -203,6 +212,9 @@ export function BattlefieldExperience({
   const selectedTargetId = null;
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
   const [tileAttackArmy, setTileAttackArmy] = useState(1);
+  const [battleJoinArmyById, setBattleJoinArmyById] = useState<
+    Record<string, number>
+  >({});
 
   useEffect(() => {
     if (!topActionsContainerId) {
@@ -305,6 +317,16 @@ export function BattlefieldExperience({
     playerSummary && playerSummary.army > 0
       ? Math.min(Math.max(1, tileAttackArmy), playerSummary.army)
       : 0;
+  function getBattleJoinArmy(battlefieldId: string) {
+    if (!playerSummary || playerSummary.army <= 0) {
+      return 0;
+    }
+
+    return Math.min(
+      Math.max(1, battleJoinArmyById[battlefieldId] ?? 1),
+      playerSummary.army
+    );
+  }
 
   function handleChatToggle() {
     if (chatOpen) {
@@ -727,9 +749,7 @@ export function BattlefieldExperience({
                       : playerSummary?.army
                         ? "Not joined"
                         : "No idle army";
-                const joinAmount = playerSummary
-                  ? Math.min(10, Math.max(1, playerSummary.army))
-                  : 1;
+                const joinAmount = getBattleJoinArmy(battlefield.id);
 
                 return (
                   <article
@@ -752,12 +772,24 @@ export function BattlefieldExperience({
                     <p className={styles.helper}>
                       {battlefield.attackerBanner.name} attacks{" "}
                       {battlefield.defenderBanner?.name ?? "neutral defenders"}.
-                      Armies: {battlefield.attackerArmyRemaining} /{" "}
-                      {battlefield.defenderArmyRemaining}. {currentSide}.
+                      Armies: {battlefield.attackerArmyLabel} /{" "}
+                      {battlefield.defenderArmyLabel}. Losses:{" "}
+                      {battlefield.attackerCasualties} /{" "}
+                      {battlefield.defenderCasualties}. {currentSide}.
                       {battlefield.targetTileBonusLabel
                         ? ` Bonus: ${battlefield.targetTileBonusLabel}.`
                         : ""}
                     </p>
+                    {battlefield.currentUserSide ? (
+                      <p className={styles.helper}>
+                        Your army: {battlefield.ownArmyRemaining}/
+                        {battlefield.ownArmyCommitted} fighting
+                        {battlefield.ownIncomingArmy > 0
+                          ? `, ${battlefield.ownIncomingArmy} incoming`
+                          : ""}
+                        .
+                      </p>
+                    ) : null}
                     {battlefield.incomingReinforcements.length > 0 ? (
                       <ul className={styles.compactList}>
                         {battlefield.incomingReinforcements
@@ -781,6 +813,31 @@ export function BattlefieldExperience({
                             No idle army available for reinforcements.
                           </p>
                         ) : null}
+                        {playerSummary.army > 0 ? (
+                          <label className={styles.battlefieldArmyControl}>
+                            <span>
+                              Reinforcements: {joinAmount}/{playerSummary.army}
+                            </span>
+                            <input
+                              type="range"
+                              min={1}
+                              max={Math.max(1, playerSummary.army)}
+                              step={1}
+                              value={Math.max(1, joinAmount)}
+                              onChange={(event) => {
+                                const nextArmy = Number(
+                                  event.currentTarget.value
+                                );
+                                setBattleJoinArmyById((current) => ({
+                                  ...current,
+                                  [battlefield.id]: Number.isFinite(nextArmy)
+                                    ? Math.floor(nextArmy)
+                                    : 1,
+                                }));
+                              }}
+                            />
+                          </label>
+                        ) : null}
                         <div className={styles.battlefieldJoinGrid}>
                           <form action={joinBattlefieldAction}>
                             <input
@@ -798,8 +855,12 @@ export function BattlefieldExperience({
                               className={styles.secondaryButton}
                               type="submit"
                               disabled={!battlefield.canJoinAttacker}
+                              title={
+                                battlefield.joinAttackerDisabledReason ??
+                                undefined
+                              }
                             >
-                              Join attack
+                              Join attack ({joinAmount})
                             </button>
                           </form>
                           <form action={joinBattlefieldAction}>
@@ -818,8 +879,12 @@ export function BattlefieldExperience({
                               className={styles.secondaryButton}
                               type="submit"
                               disabled={!battlefield.canJoinDefender}
+                              title={
+                                battlefield.joinDefenderDisabledReason ??
+                                undefined
+                              }
                             >
-                              Join defense
+                              Join defense ({joinAmount})
                             </button>
                           </form>
                         </div>

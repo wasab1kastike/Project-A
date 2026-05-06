@@ -130,6 +130,7 @@ import {
 } from "./loot-camps";
 import { formatTickRunnerError, formatTickSummary } from "./tick-cli";
 import {
+  getBattlefieldAttrition,
   getBattlefieldProgressDelta,
   processActiveBattlefields,
 } from "./battlefields";
@@ -617,7 +618,9 @@ test("tick health classification separates healthy, delayed, and stalled states"
 });
 
 test("territory bonuses and claim costs are deterministic", () => {
-  const tile = HEX_SPAWN_TILES.find((candidate) => candidate.biome === "plains");
+  const tile = HEX_SPAWN_TILES.find(
+    (candidate) => candidate.biome === "plains"
+  );
 
   assert.ok(tile);
   assert.deepEqual(getTileBonus(tile), {
@@ -660,6 +663,42 @@ test("battlefield progress advances by one to five percent per tick", () => {
       battlefieldId: "battlefield-test",
       tickAt,
     })
+  );
+});
+
+test("battlefield attrition is deterministic and has minimum losses", () => {
+  const tickAt = new Date("2026-05-05T12:00:00.000Z");
+  const attrition = getBattlefieldAttrition({
+    battlefieldId: "battlefield-attrition-test",
+    tickAt,
+    attackerArmy: 2,
+    defenderArmy: 3,
+  });
+
+  assert.ok(attrition.attackerLosses >= 1);
+  assert.ok(attrition.defenderLosses >= 1);
+  assert.ok(attrition.attackerLosses <= 2);
+  assert.ok(attrition.defenderLosses <= 3);
+  assert.deepEqual(
+    attrition,
+    getBattlefieldAttrition({
+      battlefieldId: "battlefield-attrition-test",
+      tickAt,
+      attackerArmy: 2,
+      defenderArmy: 3,
+    })
+  );
+  assert.deepEqual(
+    getBattlefieldAttrition({
+      battlefieldId: "battlefield-attrition-test",
+      tickAt,
+      attackerArmy: 0,
+      defenderArmy: 3,
+    }),
+    {
+      attackerLosses: 0,
+      defenderLosses: 0,
+    }
   );
 });
 
@@ -1907,8 +1946,14 @@ test("free unicorn teleport delays return while the home tile is occupied", asyn
   }
 
   const cycle = await seedOpenCycle(prisma);
-  const unicorn = await createUser(prisma, "unicorn-blocked-return@example.com");
-  const blocker = await createUser(prisma, "unicorn-return-blocker@example.com");
+  const unicorn = await createUser(
+    prisma,
+    "unicorn-blocked-return@example.com"
+  );
+  const blocker = await createUser(
+    prisma,
+    "unicorn-return-blocker@example.com"
+  );
 
   await joinRegistrationCycle({
     db: prisma,
@@ -2585,7 +2630,9 @@ test("underpowered loot camp raids lose without damaging health or paying reward
   });
 
   assert.equal(damagedCamp.health, 10000);
-  assert.ok(damagedCamp.army < getLootCampDefenseArmy(LootCampVariant.RICH, 10000));
+  assert.ok(
+    damagedCamp.army < getLootCampDefenseArmy(LootCampVariant.RICH, 10000)
+  );
   assert.equal(resolvedAttack.pointsLooted, 0);
   assert.equal(resolvedAttack.foodLooted, 0);
   assert.equal(resolvedAttack.armyLooted, 0);
@@ -2678,7 +2725,9 @@ test("winning loot camp raids damage health and return surviving attackers", asy
   });
 
   assert.equal(damagedCamp.health, 8000);
-  assert.ok(damagedCamp.army < getLootCampDefenseArmy(LootCampVariant.RICH, 10000));
+  assert.ok(
+    damagedCamp.army < getLootCampDefenseArmy(LootCampVariant.RICH, 10000)
+  );
   assert.equal(resolvedAttack.pointsLooted, 0);
   assert.equal(resolvedAttack.foodLooted, 0);
   assert.equal(resolvedAttack.armyLooted, 0);
@@ -3627,7 +3676,10 @@ test("NPC fortresses do not consume player join slots", async (context) => {
     })
   );
 
-  const overflowUser = await createUser(prisma, "npc-slot-overflow@example.com");
+  const overflowUser = await createUser(
+    prisma,
+    "npc-slot-overflow@example.com"
+  );
 
   await assert.rejects(
     () =>
@@ -6329,14 +6381,16 @@ test("castle upgrades are available during gameplay and reject unaffordable or m
     now: new Date("2026-04-20T12:22:30.000Z"),
     db: prisma,
   });
-  const completedFirstUpgradeFortress = await prisma.fortress.findUniqueOrThrow({
-    where: {
-      cycleId_ownerId: {
-        cycleId: cycle.id,
-        ownerId: user.id,
+  const completedFirstUpgradeFortress = await prisma.fortress.findUniqueOrThrow(
+    {
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: user.id,
+        },
       },
-    },
-  });
+    }
+  );
   const completedFirstUpgradeSummary =
     completedFirstUpgradeState.playerSummary ??
     (() => {
@@ -7346,7 +7400,10 @@ test("Space Murines can save instant recall for later in the same hour", async (
     (report) => report.id === instantUnit.id
   );
 
-  assert.equal(stateAfterInstant.playerSummary?.raceBuffs.canInstantRecall, false);
+  assert.equal(
+    stateAfterInstant.playerSummary?.raceBuffs.canInstantRecall,
+    false
+  );
   assert.equal(instantReport?.type, "RECALLED");
   assert.equal(instantReport?.attackerReturned, 19);
   assert.match(instantReport?.reportLines.join(" ") ?? "", /Recall cost: 1/);

@@ -129,7 +129,7 @@ function formatBattlefieldReportLines({
     }
   } else {
     lines.push(
-      `Battle progress continues with ${attackerArmyRemaining} attacker army and ${defenderArmyRemaining} defender army committed.`
+      `Battle progress continues with ${attackerArmyRemaining} attacker army and ${defenderArmyRemaining} defender army committed; attrition is applied each tick.`
     );
   }
 
@@ -671,6 +671,7 @@ export async function getHomePageState({
               id: true,
               name: true,
               commanderName: true,
+              army: true,
             },
           },
           attackerBannerFortress: {
@@ -2264,6 +2265,76 @@ export async function getHomePageState({
             (participant) => participant.fortressId === playerFortress.id
           )
         : null;
+      const ownIncomingArmy = playerFortress
+        ? battlefield.incomingReinforcements
+            .filter((unit) => unit.attackerFortress.ownerId === userId)
+            .reduce((sum, unit) => sum + (unit.armyAmount ?? 0), 0)
+        : 0;
+      const attackerCasualties = battlefield.participants
+        .filter((participant) => participant.side === BattlefieldSide.ATTACKER)
+        .reduce(
+          (sum, participant) =>
+            sum +
+            Math.max(0, participant.armyCommitted - participant.armyRemaining),
+          0
+        );
+      const defenderParticipantCasualties = battlefield.participants
+        .filter((participant) => participant.side === BattlefieldSide.DEFENDER)
+        .reduce(
+          (sum, participant) =>
+            sum +
+            Math.max(0, participant.armyCommitted - participant.armyRemaining),
+          0
+        );
+      const nativeDefenderCasualties = battlefield.targetFortress
+        ? Math.max(
+            0,
+            battlefield.targetFortress.army - battlefield.defenderArmyRemaining
+          )
+        : 0;
+      const canJoinAttacker =
+        gameplayOpen &&
+        playerFortress !== null &&
+        playerFortress.army > 0 &&
+        currentParticipant?.side !== BattlefieldSide.DEFENDER;
+      const canJoinDefender =
+        gameplayOpen &&
+        playerFortress !== null &&
+        playerFortress.army > 0 &&
+        battlefield.defenderBannerFortress !== null &&
+        currentParticipant?.side !== BattlefieldSide.ATTACKER;
+      const getJoinDisabledReason = (side: BattlefieldSide) => {
+        if (side === BattlefieldSide.ATTACKER && canJoinAttacker) {
+          return null;
+        }
+
+        if (side === BattlefieldSide.DEFENDER && canJoinDefender) {
+          return null;
+        }
+
+        if (!gameplayOpen) {
+          return "Battles can only be joined during gameplay.";
+        }
+
+        if (!playerFortress) {
+          return "Join the cycle to reinforce battles.";
+        }
+
+        if (playerFortress.army <= 0) {
+          return "No idle army available.";
+        }
+
+        if (
+          side === BattlefieldSide.DEFENDER &&
+          !battlefield.defenderBannerFortress
+        ) {
+          return "Neutral defenders cannot receive player reinforcements.";
+        }
+
+        return currentParticipant?.side === BattlefieldSide.ATTACKER
+          ? "Already committed to attack."
+          : "Already committed to defense.";
+      };
       const targetTile =
         battlefield.targetTileId !== null
           ? getTileById(battlefield.targetTileId)
@@ -2287,6 +2358,20 @@ export async function getHomePageState({
         progress: battlefield.progress,
         attackerArmyRemaining: battlefield.attackerArmyRemaining,
         defenderArmyRemaining: battlefield.defenderArmyRemaining,
+        attackerArmyLabel:
+          currentParticipant?.side === BattlefieldSide.ATTACKER
+            ? `${battlefield.attackerArmyRemaining}`
+            : formatApproximateForce(battlefield.attackerArmyRemaining),
+        defenderArmyLabel:
+          currentParticipant?.side === BattlefieldSide.DEFENDER
+            ? `${battlefield.defenderArmyRemaining}`
+            : formatApproximateForce(battlefield.defenderArmyRemaining),
+        attackerCasualties,
+        defenderCasualties:
+          defenderParticipantCasualties + nativeDefenderCasualties,
+        ownArmyCommitted: currentParticipant?.armyCommitted ?? 0,
+        ownArmyRemaining: currentParticipant?.armyRemaining ?? 0,
+        ownIncomingArmy,
         startedAt: battlefield.startedAt,
         attackerBanner: {
           id: battlefield.attackerBannerFortress.id,
@@ -2312,17 +2397,14 @@ export async function getHomePageState({
             isCurrentUser: unit.attackerFortress.ownerId === userId,
           })
         ),
-        canJoinAttacker:
-          gameplayOpen &&
-          playerFortress !== null &&
-          playerFortress.army > 0 &&
-          currentParticipant?.side !== BattlefieldSide.DEFENDER,
-        canJoinDefender:
-          gameplayOpen &&
-          playerFortress !== null &&
-          playerFortress.army > 0 &&
-          battlefield.defenderBannerFortress !== null &&
-          currentParticipant?.side !== BattlefieldSide.ATTACKER,
+        canJoinAttacker,
+        canJoinDefender,
+        joinAttackerDisabledReason: getJoinDisabledReason(
+          BattlefieldSide.ATTACKER
+        ),
+        joinDefenderDisabledReason: getJoinDisabledReason(
+          BattlefieldSide.DEFENDER
+        ),
       };
     }),
     attackUnits: cycle.attackUnits.map((unit) => ({

@@ -34,6 +34,112 @@ export function getBattlefieldProgressDelta({
   return 1 + (hashBattleTick(`${battlefieldId}:${tickAt.toISOString()}`) % 5);
 }
 
+export function getBattlefieldAttrition({
+  battlefieldId,
+  tickAt,
+  attackerArmy,
+  defenderArmy,
+}: {
+  battlefieldId: string;
+  tickAt: Date;
+  attackerArmy: number;
+  defenderArmy: number;
+}) {
+  if (attackerArmy <= 0 || defenderArmy <= 0) {
+    return {
+      attackerLosses: 0,
+      defenderLosses: 0,
+    };
+  }
+
+  const attackerPressure =
+    2 +
+    (hashBattleTick(`${battlefieldId}:attacker:${tickAt.toISOString()}`) % 5);
+  const defenderPressure =
+    2 +
+    (hashBattleTick(`${battlefieldId}:defender:${tickAt.toISOString()}`) % 5);
+
+  return {
+    attackerLosses: Math.min(
+      attackerArmy,
+      Math.max(1, Math.floor((defenderArmy * defenderPressure) / 100))
+    ),
+    defenderLosses: Math.min(
+      defenderArmy,
+      Math.max(1, Math.floor((attackerArmy * attackerPressure) / 100))
+    ),
+  };
+}
+
+function distributeLosses<
+  TParticipant extends {
+    id: string;
+    armyRemaining: number;
+    armyCommitted: number;
+  },
+>(participants: TParticipant[], totalLosses: number) {
+  const livingParticipants = participants.filter(
+    (participant) => participant.armyRemaining > 0
+  );
+  const livingArmy = livingParticipants.reduce(
+    (sum, participant) => sum + participant.armyRemaining,
+    0
+  );
+
+  if (totalLosses <= 0 || livingArmy <= 0) {
+    return {
+      lossesByParticipantId: new Map<string, number>(),
+      appliedLosses: 0,
+    };
+  }
+
+  const cappedLosses = Math.min(totalLosses, livingArmy);
+  const lossesByParticipantId = new Map<string, number>();
+  let appliedLosses = 0;
+
+  for (const participant of livingParticipants) {
+    const proportionalLoss = Math.floor(
+      (cappedLosses * participant.armyRemaining) / livingArmy
+    );
+    const loss = Math.min(participant.armyRemaining, proportionalLoss);
+
+    if (loss > 0) {
+      lossesByParticipantId.set(participant.id, loss);
+      appliedLosses += loss;
+    }
+  }
+
+  let remainder = cappedLosses - appliedLosses;
+
+  for (const participant of [...livingParticipants].sort(
+    (left, right) =>
+      right.armyRemaining - left.armyRemaining ||
+      right.armyCommitted - left.armyCommitted ||
+      left.id.localeCompare(right.id)
+  )) {
+    if (remainder <= 0) {
+      break;
+    }
+
+    const currentLoss = lossesByParticipantId.get(participant.id) ?? 0;
+    const extraCapacity = participant.armyRemaining - currentLoss;
+
+    if (extraCapacity <= 0) {
+      continue;
+    }
+
+    const extraLoss = Math.min(extraCapacity, remainder);
+    lossesByParticipantId.set(participant.id, currentLoss + extraLoss);
+    appliedLosses += extraLoss;
+    remainder -= extraLoss;
+  }
+
+  return {
+    lossesByParticipantId,
+    appliedLosses,
+  };
+}
+
 export async function createBattlefieldFromAttackUnit({
   db,
   attackUnitId,
@@ -218,7 +324,9 @@ export async function joinBattlefield({
     }
 
     if (!battlefield.targetFortress) {
-      throw new GameError("That battlefield cannot receive reinforcements yet.");
+      throw new GameError(
+        "That battlefield cannot receive reinforcements yet."
+      );
     }
 
     if (
@@ -268,7 +376,9 @@ export async function joinBattlefield({
     });
 
     if (existing && existing.side !== side) {
-      throw new GameError("Your fortress is already committed to the other side.");
+      throw new GameError(
+        "Your fortress is already committed to the other side."
+      );
     }
 
     const pendingCommitment = await tx.attackUnit.findFirst({
@@ -302,7 +412,9 @@ export async function joinBattlefield({
     });
 
     if (!launchedUnit) {
-      throw new GameError("That reinforcement would arrive after the cycle ends.");
+      throw new GameError(
+        "That reinforcement would arrive after the cycle ends."
+      );
     }
 
     await tx.attackUnit.update({
@@ -371,23 +483,121 @@ export async function processActiveBattlefields({
       tickAt,
     });
     const nextProgress = Math.min(100, battlefield.progress + progressDelta);
-    const attackerArmy = battlefield.participants
-      .filter((participant) => participant.side === BattlefieldSide.ATTACKER)
-      .reduce((sum, participant) => sum + participant.armyRemaining, 0);
-    const defenderArmy = battlefield.participants
-      .filter((participant) => participant.side === BattlefieldSide.DEFENDER)
-      .reduce((sum, participant) => sum + participant.armyRemaining, 0);
+    const attackerParticipants = battlefield.participants.filter(
+      (participant) => participant.side === BattlefieldSide.ATTACKER
+    );
+    const defenderParticipants = battlefield.participants.filter(
+      (participant) => participant.side === BattlefieldSide.DEFENDER
+    );
+    const attackerArmyBefore = attackerParticipants.reduce(
+      (sum, participant) => sum + participant.armyRemaining,
+      0
+    );
+    const defenderParticipantArmyBefore = defenderParticipants.reduce(
+      (sum, participant) => sum + participant.armyRemaining,
+      0
+    );
+    const storedDefenderArmy =
+      battlefield.defenderArmyRemaining > 0
+        ? battlefield.defenderArmyRemaining
+        : (battlefield.targetFortress?.army ?? 0);
+    const nativeDefenderArmyBefore = Math.max(
+      0,
+      storedDefenderArmy - defenderParticipantArmyBefore
+    );
+    const defenderArmyBefore =
+      nativeDefenderArmyBefore + defenderParticipantArmyBefore;
+    const attrition = getBattlefieldAttrition({
+      battlefieldId: battlefield.id,
+      tickAt,
+      attackerArmy: attackerArmyBefore,
+      defenderArmy: defenderArmyBefore,
+    });
+    const attackerParticipantLosses = distributeLosses(
+      attackerParticipants,
+      attrition.attackerLosses
+    );
+    const defenderParticipantLossBudget =
+      defenderArmyBefore > 0
+        ? Math.floor(
+            (attrition.defenderLosses * defenderParticipantArmyBefore) /
+              defenderArmyBefore
+          )
+        : 0;
+    const defenderParticipantLosses = distributeLosses(
+      defenderParticipants,
+      defenderParticipantLossBudget
+    );
+    const defenderNativeLosses = Math.min(
+      nativeDefenderArmyBefore,
+      attrition.defenderLosses - defenderParticipantLosses.appliedLosses
+    );
+    const attackerArmy = attackerParticipants.reduce(
+      (sum, participant) => sum + participant.armyRemaining,
+      0
+    );
+    const defenderParticipantArmy = defenderParticipants.reduce(
+      (sum, participant) => sum + participant.armyRemaining,
+      0
+    );
+    const attackerArmyAfter = Math.max(
+      0,
+      attackerArmy - attackerParticipantLosses.appliedLosses
+    );
+    const defenderParticipantArmyAfter = Math.max(
+      0,
+      defenderParticipantArmy - defenderParticipantLosses.appliedLosses
+    );
+    const nativeDefenderArmyAfter = Math.max(
+      0,
+      nativeDefenderArmyBefore - defenderNativeLosses
+    );
     const targetDefenderArmy =
-      defenderArmy > 0 ? defenderArmy : (battlefield.targetFortress?.army ?? 0);
+      nativeDefenderArmyAfter + defenderParticipantArmyAfter;
+    const attritionUpdates = [
+      ...Array.from(attackerParticipantLosses.lossesByParticipantId.entries()),
+      ...Array.from(defenderParticipantLosses.lossesByParticipantId.entries()),
+    ];
 
-    if (nextProgress < 100) {
+    for (const [participantId, losses] of attritionUpdates) {
+      await db.battlefieldParticipant.update({
+        where: {
+          id: participantId,
+        },
+        data: {
+          armyRemaining: {
+            decrement: losses,
+          },
+        },
+      });
+    }
+
+    const engaged = attackerArmyBefore > 0 && defenderArmyBefore > 0;
+    const earlyResolved =
+      engaged && (attackerArmyAfter <= 0 || targetDefenderArmy <= 0);
+
+    if (attackerArmyBefore <= 0 && targetDefenderArmy > 0) {
+      await db.battlefield.update({
+        where: {
+          id: battlefield.id,
+        },
+        data: {
+          progress: Math.min(99, nextProgress),
+          attackerArmyRemaining: 0,
+          defenderArmyRemaining: targetDefenderArmy,
+        },
+      });
+      continue;
+    }
+
+    if (nextProgress < 100 && !earlyResolved) {
       await db.battlefield.update({
         where: {
           id: battlefield.id,
         },
         data: {
           progress: nextProgress,
-          attackerArmyRemaining: attackerArmy,
+          attackerArmyRemaining: attackerArmyAfter,
           defenderArmyRemaining: targetDefenderArmy,
         },
       });
@@ -395,9 +605,9 @@ export async function processActiveBattlefields({
     }
 
     const outcome =
-      targetDefenderArmy <= 0 && attackerArmy > 0
+      targetDefenderArmy <= 0 && attackerArmyAfter > 0
         ? calculateRaidOutcome({
-            attackArmy: attackerArmy,
+            attackArmy: attackerArmyAfter,
             defenderArmy: 0,
             defenderDbLevel: 0,
             defenderRace: null,
@@ -405,16 +615,15 @@ export async function processActiveBattlefields({
             defenderFood: battlefield.targetFortress?.food ?? 0,
           })
         : calculateRaidOutcome({
-            attackArmy: attackerArmy,
+            attackArmy: attackerArmyAfter,
             defenderArmy: targetDefenderArmy,
             defenderDbLevel: battlefield.targetFortress?.level ?? 0,
             defenderRace: battlefield.targetFortress?.race ?? null,
-            defenderCastleSpecializations:
-              battlefield.targetFortress
-                ? countCastleSpecializations(
-                    battlefield.targetFortress.castleUpgradeSpecializations
-                  )
-                : undefined,
+            defenderCastleSpecializations: battlefield.targetFortress
+              ? countCastleSpecializations(
+                  battlefield.targetFortress.castleUpgradeSpecializations
+                )
+              : undefined,
             defenderGold: battlefield.targetFortress?.gold ?? 0,
             defenderFood: battlefield.targetFortress?.food ?? 0,
           });
@@ -478,9 +687,7 @@ export async function processActiveBattlefields({
         data: {
           gold: {
             decrement:
-              winnerSide === BattlefieldSide.ATTACKER
-                ? outcome.goldLooted
-                : 0,
+              winnerSide === BattlefieldSide.ATTACKER ? outcome.goldLooted : 0,
           },
           food: {
             decrement:
@@ -558,7 +765,7 @@ export async function processActiveBattlefields({
       },
       data: {
         status: BattlefieldStatus.RESOLVED,
-        progress: 100,
+        progress: earlyResolved ? nextProgress : 100,
         attackerArmyRemaining: outcome.attackerReturned,
         defenderArmyRemaining: Math.max(
           0,
