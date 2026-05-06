@@ -475,6 +475,20 @@ export async function getHomePageState({
               consumedAt: true,
             },
           },
+          unicornTemporaryTeleports: {
+            where: {
+              returnedAt: null,
+            },
+            orderBy: [{ startedAt: "desc" }, { id: "desc" }],
+            take: 1,
+            select: {
+              originMapX: true,
+              originMapY: true,
+              temporaryMapX: true,
+              temporaryMapY: true,
+              returnAt: true,
+            },
+          },
           dwarfGrudges: {
             orderBy: {
               slot: "asc",
@@ -958,6 +972,8 @@ export async function getHomePageState({
         );
       }) ?? null)
     : null;
+  const activeUnicornTemporaryTeleport =
+    playerFortress?.unicornTemporaryTeleports[0] ?? null;
   const latestUnicornTeleportClaim = playerFortress
     ? playerFortress.raceAbilityActivations.find(
         (activation) => activation.kind === RaceAbilityKind.UNICORN_TELEPORT
@@ -1977,6 +1993,7 @@ export async function getHomePageState({
               playerFortress.race === "UNSTABLE_UNICORNS" &&
               raceBuffTier >= 1 &&
               activeUnicornTeleportToken === null &&
+              activeUnicornTemporaryTeleport === null &&
               (!latestUnicornTeleportClaim ||
                 getHelsinkiHourKey(latestUnicornTeleportClaim.usedAt) !==
                   currentHourKey),
@@ -1984,6 +2001,14 @@ export async function getHomePageState({
             unicornTeleportTokenExpiresAt:
               activeUnicornTeleportToken?.expiresAt ?? null,
           },
+          activeUnicornTeleport: activeUnicornTemporaryTeleport
+            ? {
+                originTile: `${activeUnicornTemporaryTeleport.originMapX}:${activeUnicornTemporaryTeleport.originMapY}`,
+                temporaryTile: `${activeUnicornTemporaryTeleport.temporaryMapX}:${activeUnicornTemporaryTeleport.temporaryMapY}`,
+                returnAt: activeUnicornTemporaryTeleport.returnAt,
+                isReturnDelayed: activeUnicornTemporaryTeleport.returnAt <= now,
+              }
+            : null,
           growPerTick: calculateTickProduction({
             ...playerFortress,
             castleSpecializations:

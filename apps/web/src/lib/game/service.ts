@@ -47,6 +47,7 @@ import {
   getRaceAbilityActiveUntil,
   getRaceBuffTier,
 } from "./race-buffs";
+import { addHours } from "./time";
 import {
   countCastleSpecializations,
   isCastleUpgradeSpecialization,
@@ -60,6 +61,7 @@ import {
 import { getTileById, getTileClaimCost, isHomeOfATile } from "./territory";
 import { joinBattlefield as joinBattlefieldRecord } from "./battlefields";
 import { getHomeOfAMapPosition } from "./mega-fortress";
+import { recalculateReturningAttackRoutes } from "./fortress-relocation";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -88,17 +90,6 @@ function normalizeCommanderName(input: string) {
 
 function normalizeFortressName(input: string) {
   return normalizePublicName(input, "Fortress name");
-}
-
-function clampProgress(value: number) {
-  return Math.min(1, Math.max(0, value));
-}
-
-function getDistance(left: { mapX: number; mapY: number }, right: { mapX: number; mapY: number }) {
-  const dx = right.mapX - left.mapX;
-  const dy = right.mapY - left.mapY;
-
-  return Math.hypot(dx, dy);
 }
 
 function getCurrentCycle(db: DatabaseClient = prisma) {
@@ -1357,6 +1348,31 @@ export async function shuffleFortressLocation({
           orderBy: [{ expiresAt: "asc" }, { id: "asc" }],
         })
       : null;
+
+    if (useFreeTeleport && !freeTeleport) {
+      throw new GameError("You do not have an active Unicorn teleport token.");
+    }
+
+    if (useFreeTeleport) {
+      const activeTemporaryTeleport =
+        await tx.unicornTemporaryTeleport.findFirst({
+          where: {
+            fortressId: fortress.id,
+            returnedAt: null,
+          },
+          select: {
+            id: true,
+            returnAt: true,
+          },
+        });
+
+      if (activeTemporaryTeleport) {
+        throw new GameError(
+          "Your previous Unicorn teleport has not returned home yet."
+        );
+      }
+    }
+
     const shuffleCost =
       locationShuffleCount === 0 || freeTeleport ? 0 : ACTIVE_LOCATION_SHUFFLE_COST;
 
@@ -1365,24 +1381,6 @@ export async function shuffleFortressLocation({
         `You need at least ${ACTIVE_LOCATION_SHUFFLE_COST} gold to relocate again.`
       );
     }
-
-    const activeReturningUnits = await tx.attackUnit.findMany({
-      where: {
-        attackerFortressId: fortress.id,
-        resolvedAt: null,
-        cancelledAt: null,
-        recalledAt: {
-          not: null,
-        },
-      },
-      select: {
-        id: true,
-        recalledAt: true,
-        arrivesAt: true,
-        returnOriginMapX: true,
-        returnOriginMapY: true,
-      },
-    });
 
     const otherFortresses = await tx.fortress.findMany({
       where: {
@@ -1448,76 +1446,19 @@ export async function shuffleFortressLocation({
       `
     );
 
-    if (activeReturningUnits.length > 0) {
-      const updatedReturningUnits = activeReturningUnits
-        .map((unit) => {
-          if (
-            unit.recalledAt === null ||
-            unit.returnOriginMapX === null ||
-            unit.returnOriginMapY === null
-          ) {
-            return null;
-          }
-
-          const segmentStartedAt = unit.recalledAt;
-          const segmentEndsAt = unit.arrivesAt;
-          const totalMs = segmentEndsAt.getTime() - segmentStartedAt.getTime();
-          const elapsedMs = now.getTime() - segmentStartedAt.getTime();
-          const progress =
-            totalMs <= 0 ? 1 : clampProgress(elapsedMs / totalMs);
-
-          const oldDestination = {
-            mapX: fortress.mapX,
-            mapY: fortress.mapY,
-          };
-          const currentPoint = {
-            mapX: Math.round(
-              unit.returnOriginMapX +
-                (oldDestination.mapX - unit.returnOriginMapX) * progress
-            ),
-            mapY: Math.round(
-              unit.returnOriginMapY +
-                (oldDestination.mapY - unit.returnOriginMapY) * progress
-            ),
-          };
-          const oldRemainingDistance = getDistance(currentPoint, oldDestination);
-          const newDestination = {
-            mapX: nextMapX,
-            mapY: nextMapY,
-          };
-          const newRemainingDistance = getDistance(currentPoint, newDestination);
-          const oldRemainingMs = Math.max(0, segmentEndsAt.getTime() - now.getTime());
-          const newRemainingMs =
-            oldRemainingDistance <= 0
-              ? 0
-              : Math.round(
-                  oldRemainingMs * (newRemainingDistance / oldRemainingDistance)
-                );
-
-          return {
-            id: unit.id,
-            returnOriginMapX: currentPoint.mapX,
-            returnOriginMapY: currentPoint.mapY,
-            recalledAt: now,
-            arrivesAt: new Date(now.getTime() + newRemainingMs),
-          };
-        })
-        .filter((unit): unit is NonNullable<typeof unit> => unit !== null);
-
-      for (const unit of updatedReturningUnits) {
-        await tx.attackUnit.update({
-          where: {
-            id: unit.id,
-          },
-          data: {
-            returnOriginMapX: unit.returnOriginMapX,
-            returnOriginMapY: unit.returnOriginMapY,
-            recalledAt: unit.recalledAt,
-            arrivesAt: unit.arrivesAt,
-          },
-        });
-      }
-    }
+    await recalculateReturningAttackRoutes({
+      db: tx,
+      fortressId: fortress.id,
+      oldDestination: {
+        mapX: fortress.mapX,
+        mapY: fortress.mapY,
+      },
+      newDestination: {
+        mapX: nextMapX,
+        mapY: nextMapY,
+      },
+      now,
+    });
 
     if (shuffleCost > 0) {
       await tx.scoreEvent.create({
@@ -1544,7 +1485,7 @@ export async function shuffleFortressLocation({
         getDisplayedCastleLevel(fortress.level)
       );
 
-      await tx.fortress.create({
+      const decoyFortress = await tx.fortress.create({
         data: {
           cycleId: cycle.id,
           ownerId: decoyOwner.id,
@@ -1560,6 +1501,23 @@ export async function shuffleFortressLocation({
           mapX: fortress.mapX,
           mapY: fortress.mapY,
           joinedAt: now,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      await tx.unicornTemporaryTeleport.create({
+        data: {
+          cycleId: cycle.id,
+          fortressId: fortress.id,
+          decoyFortressId: decoyFortress.id,
+          originMapX: fortress.mapX,
+          originMapY: fortress.mapY,
+          temporaryMapX: nextMapX,
+          temporaryMapY: nextMapY,
+          startedAt: now,
+          returnAt: addHours(now, 1),
         },
       });
 

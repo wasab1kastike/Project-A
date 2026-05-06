@@ -59,6 +59,7 @@ import {
   processActiveBattlefields,
 } from "./battlefields";
 import { getTileBonus, getTileById, isHomeOfATile } from "./territory";
+import { recalculateReturningAttackRoutes } from "./fortress-relocation";
 
 export type TickSummary = {
   restartedRegistrationCycles: number;
@@ -96,6 +97,144 @@ type TieBreakCandidate = {
   reachedFinalScoreAt: Date;
   joinedAt: Date;
 };
+
+function isActiveMapBlocker(
+  fortress: {
+    fortressKind: FortressKind;
+    health: number;
+    expiresAt: Date | null;
+  },
+  tickAt: Date
+) {
+  if (fortress.fortressKind === FortressKind.PLAYER) {
+    return true;
+  }
+
+  if (fortress.health <= 0) {
+    return false;
+  }
+
+  return !fortress.expiresAt || fortress.expiresAt > tickAt;
+}
+
+async function processDueUnicornTeleportReturns({
+  db,
+  cycleId,
+  tickAt,
+}: {
+  db: PrismaClient;
+  cycleId: string;
+  tickAt: Date;
+}) {
+  const dueTeleports = await db.unicornTemporaryTeleport.findMany({
+    where: {
+      cycleId,
+      returnedAt: null,
+      returnAt: {
+        lte: tickAt,
+      },
+    },
+    orderBy: [{ returnAt: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      fortressId: true,
+      decoyFortressId: true,
+      originMapX: true,
+      originMapY: true,
+      fortress: {
+        select: {
+          mapX: true,
+          mapY: true,
+        },
+      },
+    },
+  });
+
+  for (const teleport of dueTeleports) {
+    await db.$transaction(async (tx) => {
+      const latestTeleport = await tx.unicornTemporaryTeleport.findUnique({
+        where: {
+          id: teleport.id,
+        },
+        select: {
+          returnedAt: true,
+        },
+      });
+
+      if (!latestTeleport || latestTeleport.returnedAt) {
+        return;
+      }
+
+      const blockers = await tx.fortress.findMany({
+        where: {
+          cycleId,
+          mapX: teleport.originMapX,
+          mapY: teleport.originMapY,
+          id: {
+            notIn: [
+              teleport.fortressId,
+              ...(teleport.decoyFortressId ? [teleport.decoyFortressId] : []),
+            ],
+          },
+        },
+        select: {
+          fortressKind: true,
+          health: true,
+          expiresAt: true,
+        },
+      });
+
+      if (blockers.some((blocker) => isActiveMapBlocker(blocker, tickAt))) {
+        return;
+      }
+
+      await tx.fortress.update({
+        where: {
+          id: teleport.fortressId,
+        },
+        data: {
+          mapX: teleport.originMapX,
+          mapY: teleport.originMapY,
+        },
+      });
+
+      if (teleport.decoyFortressId) {
+        await tx.fortress.update({
+          where: {
+            id: teleport.decoyFortressId,
+          },
+          data: {
+            health: 0,
+            expiresAt: tickAt,
+          },
+        });
+      }
+
+      await tx.unicornTemporaryTeleport.update({
+        where: {
+          id: teleport.id,
+        },
+        data: {
+          returnedAt: tickAt,
+        },
+      });
+
+      await recalculateReturningAttackRoutes({
+        db: tx,
+        fortressId: teleport.fortressId,
+        oldDestination: {
+          mapX: teleport.fortress.mapX,
+          mapY: teleport.fortress.mapY,
+        },
+        newDestination: {
+          mapX: teleport.originMapX,
+          mapY: teleport.originMapY,
+        },
+        now: tickAt,
+      });
+    }, TICK_TRANSACTION_OPTIONS);
+  }
+}
 
 function isUniqueTickError(error: unknown) {
   return (
@@ -452,6 +591,11 @@ async function completeTestingCycle(
         fortress: {
           cycleId,
         },
+      },
+    });
+    await tx.unicornTemporaryTeleport.deleteMany({
+      where: {
+        cycleId,
       },
     });
     await tx.dwarfGrudge.deleteMany({
@@ -913,6 +1057,12 @@ async function processCycleTick(
         tickAt,
         purpose: "tick:layout-v3",
       }),
+    });
+
+    await processDueUnicornTeleportReturns({
+      db,
+      cycleId,
+      tickAt,
     });
 
     await expireLootCamps({

@@ -254,6 +254,7 @@ model Cycle {
   battlefields                  Battlefield[]
   mapHexOwnerships              MapHexOwnership[]
   homeOfAHolders                HomeOfAHolder[]
+  unicornTemporaryTeleports     UnicornTemporaryTeleport[]
   winnerRequests                WinnerRequest[]
   communityWishProposals        CommunityWishProposal[]
   communityWishVoteEntitlements CommunityWishVoteEntitlement[]
@@ -326,6 +327,8 @@ model Fortress {
   defenderBannerBattlefields   Battlefield[]                       @relation("BattlefieldDefenderBanner")
   targetedBattlefields         Battlefield[]                       @relation("BattlefieldTargetFortress")
   battlefieldParticipants      BattlefieldParticipant[]
+  unicornTemporaryTeleports    UnicornTemporaryTeleport[]          @relation("UnicornTeleportFortress")
+  unicornTemporaryTeleportDecoy UnicornTemporaryTeleport?           @relation("UnicornTeleportDecoy")
 
   @@unique([cycleId, ownerId])
   @@unique([cycleId, commanderName])
@@ -336,6 +339,28 @@ model Fortress {
   @@index([cycleId, fortressKind, expiresAt])
   @@index([unicornDecoySourceFortressId, createdAt])
   @@index([ownerId])
+}
+
+model UnicornTemporaryTeleport {
+  id             String    @id @default(cuid())
+  cycleId        String
+  fortressId     String
+  decoyFortressId String?   @unique
+  originMapX     Int
+  originMapY     Int
+  temporaryMapX  Int
+  temporaryMapY  Int
+  startedAt      DateTime
+  returnAt       DateTime
+  returnedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  cycle          Cycle     @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress       Fortress  @relation("UnicornTeleportFortress", fields: [fortressId], references: [id], onDelete: Cascade)
+  decoyFortress  Fortress? @relation("UnicornTeleportDecoy", fields: [decoyFortressId], references: [id], onDelete: SetNull)
+
+  @@index([cycleId, returnAt, returnedAt])
+  @@index([fortressId, returnedAt])
 }
 
 model MapHexOwnership {

@@ -131,7 +131,7 @@ const QUICKSTART_STEPS = [
 const LATEST_UPDATES = [
   "Loot camps now stay on the battlefield for 30 minutes, show clearer reward/strength/defender info, and fight back with variant-scaled defending armies.",
   "Loot camps now spawn around the battlefield during gameplay. Classic camps pay food, Rich camps pay gold, and Chaos camps pay army plus a race cooldown reset.",
-  "Unstable Unicorn teleport now leaves attackable decoy castles again. Hitting a decoy clears it and applies its backlash before any normal loot happens.",
+  "Unstable Unicorn teleport now lasts 1 hour, leaves an attackable decoy at home, then returns the castle on the first tick after the timer ends.",
   "Unicorn decoys now mimic normal player fort visuals for other players.",
   "Orks now use Stronger Together at Tier 1 and WAAAGH at Tier 3 (x4 attack/defense, 2x movement speed).",
   "Space Murines keep STIM at Tier 2, while Instant Recall is a separate Tier 3 unlock.",
@@ -159,7 +159,7 @@ const FAQ_ENTRIES = [
   {
     question: "Why did my location suddenly change?",
     answer:
-      "Unicorn teleport and some race effects can move fortresses. Home of A stays fixed at the center.",
+      "Unicorn teleport temporarily moves the fortress for 1 hour, then returns it home. Home of A stays fixed at the center.",
   },
   {
     question: "What is the safest beginner mistake to avoid?",
@@ -173,7 +173,7 @@ const GLOSSARY = [
   "Buff tier: race power stage (T2/T3) unlocked by active-season timing.",
   "Returned: surviving attackers that come home after a winning raid.",
   "Retired: surviving attackers that do not return to active army after combat.",
-  "Decoy: temporary attackable Unicorn teleport remnant.",
+  "Decoy: temporary attackable Unicorn teleport remnant left at the home tile.",
   "Loot camp: temporary NPC target with strength-based HP and variant rewards.",
 ] as const;
 
@@ -379,7 +379,10 @@ export default function WikiPage() {
             <ul className={styles.noteList}>
               <li>Rename costs {ACTIVE_RENAME_COST} gold.</li>
               <li>Manual Castle Yeet is paused for now.</li>
-              <li>Unicorn teleport remains available through race abilities.</li>
+              <li>
+                Unicorn teleport remains available through race abilities and
+                returns home after 1 hour.
+              </li>
             </ul>
           </section>
         </article>

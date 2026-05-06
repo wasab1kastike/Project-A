@@ -1632,7 +1632,7 @@ test("unstable unicorn default cosmetic variants are deterministic", () => {
   );
 });
 
-test("free unicorn teleport leaves one active decoy per displayed castle level", async (context) => {
+test("free unicorn teleport creates a temporary move and home decoy", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -1747,33 +1747,35 @@ test("free unicorn teleport leaves one active decoy per displayed castle level",
     unicornBeforeTeleport.commanderName
   );
 
-  await prisma.fortress.update({
-    where: {
-      id: unicornBeforeTeleport.id,
-    },
-    data: {
-      points: 100,
-    },
-  });
-  await shuffleFortressLocation({
+  const temporaryTeleport =
+    await prisma.unicornTemporaryTeleport.findFirstOrThrow({
+      where: {
+        fortressId: unicornBeforeTeleport.id,
+        returnedAt: null,
+      },
+    });
+
+  assert.equal(temporaryTeleport.originMapX, unicornBeforeTeleport.mapX);
+  assert.equal(temporaryTeleport.originMapY, unicornBeforeTeleport.mapY);
+  assert.equal(temporaryTeleport.decoyFortressId, firstDecoy.id);
+  assert.equal(
+    temporaryTeleport.returnAt.toISOString(),
+    "2026-04-20T13:03:00.000Z"
+  );
+
+  const unicornState = await getHomePageState({
     db: prisma,
     userId: unicorn.id,
     now: new Date("2026-04-20T12:04:00.000Z"),
   });
-  await shuffleFortressLocation({
-    db: prisma,
-    userId: murine.id,
-    now: new Date("2026-04-20T12:04:30.000Z"),
-  });
 
   assert.equal(
-    await prisma.fortress.count({
-      where: {
-        cycleId: cycle.id,
-        fortressKind: FortressKind.UNICORN_DECOY,
-      },
-    }),
-    1
+    unicornState.playerSummary?.activeUnicornTeleport?.originTile,
+    `${unicornBeforeTeleport.mapX}:${unicornBeforeTeleport.mapY}`
+  );
+  assert.equal(
+    unicornState.playerSummary?.raceBuffs.canClaimUnicornTeleport,
+    false
   );
 
   await claimUnicornTeleport({
@@ -1781,30 +1783,226 @@ test("free unicorn teleport leaves one active decoy per displayed castle level",
     userId: unicorn.id,
     now: new Date("2026-04-20T13:02:00.000Z"),
   });
+  await assert.rejects(
+    () =>
+      shuffleFortressLocation({
+        db: prisma,
+        userId: unicorn.id,
+        useFreeTeleport: true,
+        now: new Date("2026-04-20T13:02:30.000Z"),
+      }),
+    /has not returned home/
+  );
+});
+
+test("free unicorn teleport returns home after one hour and clears its decoy", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const unicorn = await createUser(prisma, "unicorn-return@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: unicorn.id,
+    commanderName: "Unicorn Return",
+    fortressName: "Return Keep",
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+  await prisma.cycle.update({
+    where: {
+      id: cycle.id,
+    },
+    data: {
+      activeStartedAt: new Date("2026-04-19T08:00:00.000Z"),
+    },
+  });
+  await selectFortressRace({
+    db: prisma,
+    userId: unicorn.id,
+    race: FortressRace.UNSTABLE_UNICORNS,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+  });
+
+  const fortressBeforeTeleport = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: unicorn.id,
+      },
+    },
+  });
+
+  await claimUnicornTeleport({
+    db: prisma,
+    userId: unicorn.id,
+    now: new Date("2026-04-20T12:02:00.000Z"),
+  });
   await shuffleFortressLocation({
     db: prisma,
     userId: unicorn.id,
     useFreeTeleport: true,
-    now: new Date("2026-04-20T13:03:00.000Z"),
+    now: new Date("2026-04-20T12:03:00.000Z"),
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:45:00.000Z"),
   });
 
   assert.equal(
-    await prisma.fortress.count({
+    await prisma.unicornTemporaryTeleport.count({
       where: {
-        cycleId: cycle.id,
-        fortressKind: FortressKind.UNICORN_DECOY,
+        fortressId: fortressBeforeTeleport.id,
+        returnedAt: null,
       },
     }),
-    2
+    1
   );
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T13:04:00.000Z"),
+  });
+
+  const fortressAfterReturn = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: fortressBeforeTeleport.id,
+    },
+  });
+  const returnedTeleport =
+    await prisma.unicornTemporaryTeleport.findFirstOrThrow({
+      where: {
+        fortressId: fortressBeforeTeleport.id,
+      },
+    });
+
+  assert.equal(fortressAfterReturn.mapX, fortressBeforeTeleport.mapX);
+  assert.equal(fortressAfterReturn.mapY, fortressBeforeTeleport.mapY);
+  assert.notEqual(returnedTeleport.returnedAt, null);
   assert.equal(
     await prisma.fortress.count({
       where: {
-        cycleId: cycle.id,
-        fortressKind: FortressKind.UNICORN_DECOY,
+        id: returnedTeleport.decoyFortressId ?? "",
         health: {
           gt: 0,
         },
+      },
+    }),
+    0
+  );
+});
+
+test("free unicorn teleport delays return while the home tile is occupied", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const unicorn = await createUser(prisma, "unicorn-blocked-return@example.com");
+  const blocker = await createUser(prisma, "unicorn-return-blocker@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: unicorn.id,
+    commanderName: "Blocked Unicorn",
+    fortressName: "Blocked Keep",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: blocker.id,
+    commanderName: "Return Blocker",
+    fortressName: "Blocker Keep",
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+  await prisma.cycle.update({
+    where: {
+      id: cycle.id,
+    },
+    data: {
+      activeStartedAt: new Date("2026-04-19T08:00:00.000Z"),
+    },
+  });
+  await selectFortressRace({
+    db: prisma,
+    userId: unicorn.id,
+    race: FortressRace.UNSTABLE_UNICORNS,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+  });
+
+  const fortressBeforeTeleport = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: unicorn.id,
+      },
+    },
+  });
+  const blockerBeforeMove = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: blocker.id,
+      },
+    },
+  });
+
+  await claimUnicornTeleport({
+    db: prisma,
+    userId: unicorn.id,
+    now: new Date("2026-04-20T12:02:00.000Z"),
+  });
+  await shuffleFortressLocation({
+    db: prisma,
+    userId: unicorn.id,
+    useFreeTeleport: true,
+    now: new Date("2026-04-20T12:03:00.000Z"),
+  });
+  const fortressDuringTeleport = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: fortressBeforeTeleport.id,
+    },
+  });
+
+  await prisma.fortress.update({
+    where: {
+      id: blockerBeforeMove.id,
+    },
+    data: {
+      mapX: fortressBeforeTeleport.mapX,
+      mapY: fortressBeforeTeleport.mapY,
+    },
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T13:04:00.000Z"),
+  });
+
+  const stillAway = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: fortressBeforeTeleport.id,
+    },
+  });
+
+  assert.equal(stillAway.mapX, fortressDuringTeleport.mapX);
+  assert.equal(stillAway.mapY, fortressDuringTeleport.mapY);
+  assert.equal(
+    await prisma.unicornTemporaryTeleport.count({
+      where: {
+        fortressId: fortressBeforeTeleport.id,
+        returnedAt: null,
       },
     }),
     1
@@ -1812,36 +2010,26 @@ test("free unicorn teleport leaves one active decoy per displayed castle level",
 
   await prisma.fortress.update({
     where: {
-      id: unicornBeforeTeleport.id,
+      id: blockerBeforeMove.id,
     },
     data: {
-      level: 1,
+      mapX: blockerBeforeMove.mapX,
+      mapY: blockerBeforeMove.mapY,
     },
   });
-  await claimUnicornTeleport({
+  await runGameTick({
     db: prisma,
-    userId: unicorn.id,
-    now: new Date("2026-04-20T14:02:00.000Z"),
-  });
-  await shuffleFortressLocation({
-    db: prisma,
-    userId: unicorn.id,
-    useFreeTeleport: true,
-    now: new Date("2026-04-20T14:03:00.000Z"),
+    now: new Date("2026-04-20T13:05:00.000Z"),
   });
 
-  assert.equal(
-    await prisma.fortress.count({
-      where: {
-        cycleId: cycle.id,
-        fortressKind: FortressKind.UNICORN_DECOY,
-        health: {
-          gt: 0,
-        },
-      },
-    }),
-    2
-  );
+  const returnedHome = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: fortressBeforeTeleport.id,
+    },
+  });
+
+  assert.equal(returnedHome.mapX, fortressBeforeTeleport.mapX);
+  assert.equal(returnedHome.mapY, fortressBeforeTeleport.mapY);
 });
 
 test("attacking a unicorn teleport decoy destroys it and applies backlash", async (context) => {

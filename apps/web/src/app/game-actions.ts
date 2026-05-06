@@ -562,8 +562,8 @@ export async function claimUnicornTeleportAction() {
 
     notice =
       result.cancelledAttackUnitCount > 0
-        ? "Free Unicorn teleport fired instantly and left an attackable decoy behind. Outgoing attacks were canceled."
-        : "Free Unicorn teleport fired instantly and left an attackable decoy behind.";
+        ? "Free Unicorn teleport fired for 1 hour and left an attackable decoy at home. Outgoing attacks were canceled."
+        : "Free Unicorn teleport fired for 1 hour and left an attackable decoy at home.";
   } catch (error) {
     redirectToHome("error", getActionErrorMessage(error));
   }
@@ -589,8 +589,8 @@ export async function useUnicornTeleportAction() {
 
     notice =
       result.cancelledAttackUnitCount > 0
-        ? "Free Unicorn teleport fired and left an attackable decoy behind. Outgoing attacks were canceled."
-        : "Free Unicorn teleport fired and left an attackable decoy behind.";
+        ? "Free Unicorn teleport fired for 1 hour and left an attackable decoy at home. Outgoing attacks were canceled."
+        : "Free Unicorn teleport fired for 1 hour and left an attackable decoy at home.";
   } catch (error) {
     redirectToHome("error", getActionErrorMessage(error));
   }

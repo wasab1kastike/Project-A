@@ -64,6 +64,12 @@ type PlayerSummary = {
     hasUnicornTeleportToken: boolean;
     canActivateDeepMining: boolean;
   };
+  activeUnicornTeleport: {
+    originTile: string;
+    temporaryTile: string;
+    returnAt: Date;
+    isReturnDelayed: boolean;
+  } | null;
   growPerTick: number;
 };
 
@@ -320,9 +326,33 @@ export function CastleManagement({
               </form>
             ) : null}
             {playerSummary.race === "UNSTABLE_UNICORNS" ? (
-              playerSummary.raceBuffs.hasUnicornTeleportToken ? (
+              <>
+                {playerSummary.activeUnicornTeleport ? (
+                  <p className={styles.muted}>
+                    Temporary teleport active at{" "}
+                    {playerSummary.activeUnicornTeleport.temporaryTile}; returns
+                    home to {playerSummary.activeUnicornTeleport.originTile} at{" "}
+                    {playerSummary.activeUnicornTeleport.returnAt.toLocaleTimeString(
+                      [],
+                      {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      }
+                    )}
+                    .
+                    {playerSummary.activeUnicornTeleport.isReturnDelayed
+                      ? " Return is delayed until the home tile is clear."
+                      : ""}
+                  </p>
+                ) : null}
+                {playerSummary.raceBuffs.hasUnicornTeleportToken ? (
                 <form action={useUnicornTeleportAction}>
-                  <button type="submit">Use Unicorn teleport</button>
+                  <button
+                    type="submit"
+                    disabled={playerSummary.activeUnicornTeleport !== null}
+                  >
+                    Use Unicorn teleport (1 hour)
+                  </button>
                 </form>
               ) : (
                 <form action={claimUnicornTeleportAction}>
@@ -333,7 +363,8 @@ export function CastleManagement({
                     Claim Unicorn teleport
                   </button>
                 </form>
-              )
+              )}
+              </>
             ) : null}
             {playerSummary.race === "DWARFS" ? (
               <form action={activateDwarfDeepMiningAction} className={styles.form}>
