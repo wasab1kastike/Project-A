@@ -34,6 +34,7 @@ import {
   calculateTickProduction,
   getDisplayedCastleLevel,
 } from "./balance";
+import { getRecruitmentCost } from "./army-recruitment";
 import { isFortressRace, type FortressRace } from "./races";
 import { ensureCommanderRegistrationColumn } from "./schema-guards";
 import {
@@ -1288,6 +1289,86 @@ export async function renameActiveFortress({
 
     throw error;
   }
+}
+
+export async function recruitArmy({
+  userId,
+  unitCount,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  unitCount: number;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  const normalizedUnitCount = Math.floor(unitCount);
+
+  if (!Number.isInteger(normalizedUnitCount) || normalizedUnitCount <= 0) {
+    throw new GameError("Recruit at least 1 army.");
+  }
+
+  return db.$transaction(
+    async (tx) => {
+      const cycle = await getCurrentCycle(tx);
+
+      if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+        throw new GameError("Army recruitment is only available during gameplay.");
+      }
+
+      const fortress = await tx.fortress.findUnique({
+        where: {
+          cycleId_ownerId: {
+            cycleId: cycle.id,
+            ownerId: userId,
+          },
+        },
+        select: {
+          id: true,
+          gold: true,
+          race: true,
+          isNpc: true,
+        },
+      });
+
+      if (!fortress || fortress.isNpc) {
+        throw new GameError("You are not participating in the active cycle.");
+      }
+
+      if (!fortress.race) {
+        throw new GameError("Choose a race before recruiting army.");
+      }
+
+      const goldCost = getRecruitmentCost(normalizedUnitCount);
+
+      if (fortress.gold < goldCost) {
+        throw new GameError(`You need ${goldCost} gold to recruit that army.`);
+      }
+
+      return tx.fortress.update({
+        where: {
+          id: fortress.id,
+        },
+        data: {
+          gold: {
+            decrement: goldCost,
+          },
+          recruitmentQueue: {
+            increment: normalizedUnitCount,
+          },
+        },
+        select: {
+          id: true,
+          gold: true,
+          army: true,
+          recruitmentQueue: true,
+        },
+      });
+    },
+    {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    }
+  );
 }
 
 export async function shuffleFortressLocation({

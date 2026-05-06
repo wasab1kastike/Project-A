@@ -8,28 +8,54 @@
 - Fortress has:
   - name
   - owner
-  - current action
-  - points
-  - target
+  - gold, food, active army, and recruitment queue
+  - worker assignments for miners, farmers, and recruiters
+  - race and castle specializations
+  - owned tiles and active battle participation
   - map position
   - unit sprite variant
-- Attack launches one new visible unit each eligible tick while ATTACK stays active
-- Attack has no point cost at launch
-- Base attack deals up to 2 points of target damage on impact
+- Gold is the main spend currency for recruitment, upgrades, renames, and neutral tile claims
+- Points determine season victory and are earned from map objectives, Home of A control, and score events
+- Recruitment is order-based: players pay 1 gold per unit up front, and recruiters process the queue over future ticks
+- Recruiters do not passively create army without a queued order
+- Active army consumes 0.25 food per unit per tick, rounded down when persisted by the live tick
+- Queued army does not consume food upkeep until it completes and joins active army
 - Attack travel time is distance-based, using the default unit speed
-- Rename costs 10 points
-- Points never go below zero
+- Direct attacks and battlefield reinforcements count against simultaneous outbound attack limits
+- Rename costs 10 gold during active play
+- Gold, food, points, and army never go below zero
 - Global chat with timestamps
 - Chat rate limit: 6 messages per minute per user
 - Top 3 leaderboard visible
 - Cycle timer: 72h
 - Player action persists while offline
-- Castle upgrades unlock for every active player once Home of A falls for the first time in a cycle
-- Castle levels cost 100 / 300 / 600 / 1000 points
+- Castle upgrades are available during gameplay and use gold
+- Castle levels cost 500 / 1500 / 3000 / 5000 / 7500 / 10500 / 14000 / 18000 / 22500 gold
 - Each castle level adds +1 growth per grow tick and +2 attack damage
-- The fortress that first destroys Home of A gets 500 points and 1 free castle level
-- Home of A respawns after each destroy with +1000 max HP and +500 destroy reward each time
-- Map positions reshuffle after every Home of A destroy, but the crown stays with the first slayer
+- Home of A is a center-tile control battle, not a normal neutral claim
+- The controlling Home of A banner alliance earns 25 points per tick while it holds the center
+- Home of A tile battles share battlefield resolution rules with other tile battles where possible
+- Battle-log badges count unread/new reports only, not total historical entries
+
+## Economy & recruitment
+
+- Miners produce gold each tick, affected by race and Mine specialization bonuses.
+- Farmers produce food each tick, affected by race and Food specialization bonuses.
+- Recruiters process the fortress `recruitmentQueue` each tick; capacity starts at 1 unit per recruiter per tick and receives race/specialization modifiers.
+- A recruitment order is rejected unless the player has selected a race, the cycle is playable, the unit count is a positive integer, and the fortress can afford the full gold cost.
+- Completed recruited units are added to active army at the tick boundary.
+- Food upkeep is charged only against active army after production and recruitment completion for that tick.
+- If food cannot cover the full active-army upkeep, food bottoms out at zero; the current implementation does not apply starvation casualties.
+
+## Tiles & battlefields
+
+- Desktop and mobile controls both support inspecting tiles directly from the battlefield map.
+- Neutral spawnable tiles can be claimed by paying their distance/biome-based gold cost.
+- Home of A cannot be neutral-claimed; players must fight for the center objective through a battlefield.
+- Owned tiles are contested through battlefield attacks and can transfer ownership when the battlefield resolves.
+- Players can join an active battlefield as attacker or defender if they have idle army and are not violating same-side/conflicting-side restrictions.
+- Reinforcements are represented by `AttackUnit` rows and now obey the same outbound attack cap as direct attacks.
+- Battlefield resolution is applied after fortress economy persistence in the tick, preventing stale economy writes from overwriting loot, casualty, reward, or ownership results.
 
 ## Spawn & map fairness
 
@@ -49,7 +75,7 @@
 - Recovery stays admin-controlled:
   - open the admin dashboard;
   - use `Replay missed ticks now`;
-  - this replays every due minute and refreshes battlefield, leaderboard, and history state.
+  - this replays every due minute and refreshes battlefield, battle log, leaderboard, and history state.
 - Post-boss upgrade checks:
   - once Home of A falls for the first time, `upgradesUnlockedAt` is set on the current cycle;
   - `megaFortressDestroyCount` tracks how many times the boss has already fallen this cycle;

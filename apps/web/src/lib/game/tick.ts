@@ -34,7 +34,12 @@ import {
 import { getAttackArrivalAt } from "./attacks";
 import { buildFortressSpawnSeed } from "./spawn-layout";
 import { addHours, addMinutes, floorToMinute } from "./time";
-import { calculateRaidOutcome, calculateTickProduction, ORK_STRONGER_TOGETHER_RATE } from "./balance";
+import {
+  calculateRaidOutcome,
+  calculateTickProduction,
+  ORK_STRONGER_TOGETHER_RATE,
+} from "./balance";
+import { getArmyUpkeepCost, processRecruitmentQueue } from "./army-recruitment";
 import { canFortressLevelUp, getFortressAttackDamage } from "./upgrades";
 import {
   getDwarfGrudgeMultiplier,
@@ -1220,6 +1225,7 @@ async function processCycleTick(
         level: true,
         food: true,
         army: true,
+        recruitmentQueue: true,
         minersAssigned: true,
         farmersAssigned: true,
         recruitersAssigned: true,
@@ -1300,6 +1306,12 @@ async function processCycleTick(
     );
     const currentArmy = new Map(
       fortresses.map((fortress) => [fortress.id, fortress.army])
+    );
+    const currentRecruitmentQueue = new Map(
+      fortresses.map((fortress) => [
+        fortress.id,
+        fortress.recruitmentQueue,
+      ])
     );
     const currentHealth = new Map(
       fortresses.map((fortress) => [fortress.id, fortress.health])
@@ -2684,23 +2696,33 @@ async function processCycleTick(
             production.foodProduced *
               (economySurged ? DWARF_DEEP_MINING_ECONOMY_MULTIPLIER : 1)
           );
-      const armyProduced = economyHalted
-        ? 0
-        : Math.floor(
-            production.armyProduced *
-              (economySurged ? DWARF_DEEP_MINING_ECONOMY_MULTIPLIER : 1)
+      const recruitmentResult = economyHalted
+        ? {
+            unitsCreated: 0,
+            newQueue: fortress.recruitmentQueue,
+          }
+        : processRecruitmentQueue(
+            fortress.recruitmentQueue,
+            Math.floor(
+              fortress.recruitersAssigned *
+                (economySurged ? DWARF_DEEP_MINING_ECONOMY_MULTIPLIER : 1)
+            ),
+            getEffectiveRace(fortress)
           );
-
-      // Calculate final food state after production and consumption
-      // When economy is halted, food doesn't change
-      // When economy is active, we account for the modifier changing production amounts
-      const foodAfterProduction = economyHalted
-        ? currentFood.get(fortress.id) ?? fortress.food
-        : production.foodAfterProduction +
-          (producedFood - production.foodProduced) -
-          (armyProduced - production.armyProduced);
+      const armyProduced = recruitmentResult.unitsCreated;
 
       const currentArmyValue = currentArmy.get(fortress.id) ?? fortress.army;
+      // Calculate final food state after production and active army upkeep.
+      const activeArmyUpkeep = Math.floor(getArmyUpkeepCost(currentArmyValue));
+      const foodAfterProduction = economyHalted
+        ? currentFood.get(fortress.id) ?? fortress.food
+        : Math.max(
+            0,
+            (currentFood.get(fortress.id) ?? fortress.food) +
+              producedFood -
+              activeArmyUpkeep
+          );
+
       const tileBonus = tileBonusesByFortressId.get(fortress.id) ?? {
         gold: 0,
         points: 0,
@@ -2727,6 +2749,7 @@ async function processCycleTick(
         fortress.id,
         currentArmyValue + armyProduced + tileBonus.army
       );
+      currentRecruitmentQueue.set(fortress.id, recruitmentResult.newQueue);
 
       // Create score events for tile bonuses
       // Production from workers is recorded via GROW_TICK events (see fortress action handling)
@@ -2743,12 +2766,6 @@ async function processCycleTick(
       // TODO: add a dedicated resource history model for food and army deltas.
     }
 
-    const battlefieldResult = await processActiveBattlefields({
-      db,
-      cycleId,
-      tickAt,
-    });
-
     const fortressUpdates: Array<{
       id: string;
       data: {
@@ -2756,6 +2773,7 @@ async function processCycleTick(
         gold: number;
         food: number;
         army: number;
+        recruitmentQueue: number;
         health: number;
       };
     }> = [];
@@ -2765,6 +2783,8 @@ async function processCycleTick(
       const nextGold = currentGold.get(fortress.id) ?? fortress.gold;
       const nextFood = currentFood.get(fortress.id) ?? fortress.food;
       const nextArmy = currentArmy.get(fortress.id) ?? fortress.army;
+      const nextRecruitmentQueue =
+        currentRecruitmentQueue.get(fortress.id) ?? fortress.recruitmentQueue;
       const nextHealth = currentHealth.get(fortress.id) ?? fortress.health;
 
       if (
@@ -2772,6 +2792,7 @@ async function processCycleTick(
         nextGold === fortress.gold &&
         nextFood === fortress.food &&
         nextArmy === fortress.army &&
+        nextRecruitmentQueue === fortress.recruitmentQueue &&
         nextHealth === fortress.health
       ) {
         continue;
@@ -2784,6 +2805,7 @@ async function processCycleTick(
           gold: nextGold,
           food: nextFood,
           army: nextArmy,
+          recruitmentQueue: nextRecruitmentQueue,
           health: nextHealth,
         },
       });
@@ -2807,6 +2829,12 @@ async function processCycleTick(
         data: scoreEvents,
       });
     }
+
+    const battlefieldResult = await processActiveBattlefields({
+      db,
+      cycleId,
+      tickAt,
+    });
 
   return {
     processed: true,

@@ -1,0 +1,1 @@
+ALTER TABLE "Fortress" ADD COLUMN "recruitmentQueue" INTEGER NOT NULL DEFAULT 0;

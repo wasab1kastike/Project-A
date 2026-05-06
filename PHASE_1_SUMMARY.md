@@ -1,194 +1,125 @@
-## Phase 1: Castle System Cleanup & Army Recruitment Redesign — COMPLETE ✅
+## Phase 1: Castle System Cleanup & Army Recruitment Redesign - COMPLETE
 
 ### Summary
 
-Phase 1 successfully refactored and documented the castle production system, created validation utilities, and prototyped a new order-based army recruitment system. All changes are backward compatible—no breaking changes to the current game.
+Phase 1 refactored and documented the castle production system, created validation utilities, and designed the order-based army recruitment system. That recruitment design is now live: players buy army orders with gold, recruiters process the queue over ticks, and active army pays food upkeep.
 
 ### What Was Accomplished
 
 #### 1. Castle Production System Documentation & Organization
-- **balance.ts**: 200+ lines of comprehensive documentation explaining all production formulas with examples
-- **upgrades.ts**: 90+ lines documenting fortress upgrade costs, durations, and attack damage scaling
-- **tick.ts**: 50+ lines of inline documentation in the production phase
-- **castle-production.ts**: New module organizing production-related types and documentation
+
+- **balance.ts**: Documents deterministic economy, production, defense, and raid formulas.
+- **upgrades.ts**: Documents fortress upgrade costs, durations, and attack damage scaling.
+- **tick.ts**: Documents the live tick production phase and separates economy updates from battlefield resolution.
+- **castle-production.ts**: Organizes production-related types and documentation.
 
 #### 2. Fortress Validation Utilities
-- **fortress-validation.ts**: New module with 6 validation functions:
-  - `validateFortressUpgrade()` — Checks if fortress can upgrade
-  - `validateAndDescribeWorkerAssignment()` — Worker assignment validation
-  - `validateProduction()` — Production health checks
-  - `validateCanAttack()` — Attack limit validation  
-  - `performFortressHealthCheck()` — Comprehensive diagnostics
-  - All return structured error messages for UI/admin use
 
-#### 3. Army Recruitment System Prototype (Order-Based)
-- **army-recruitment.ts**: Complete implementation with:
-  - Recruitment ordering with upfront gold cost (1 gold/unit)
-  - Recruiter processing at 1 unit/recruiter/tick
-  - Cheap army upkeep (0.25 food/unit/tick vs 1 food current)
-  - Queue advancement and sustainability checks
-  - Race modifier support (Space Marines, Orks faster recruitment)
+- **fortress-validation.ts**: Validation helpers for fortress upgrades, worker assignment, production health, attack limits, and diagnostics.
+- Validation returns structured error messages for UI and admin use.
 
-- **army-recruitment.test.ts**: 13 comprehensive tests covering:
-  - Cost calculations
-  - Recruiter capacity and progress
-  - Queue processing
-  - Upkeep sustainability
-  - Realistic game scenarios
+#### 3. Army Recruitment System
 
-### Test Results
+- **army-recruitment.ts** implements order-based recruitment:
+- Recruitment orders charge 1 gold per unit up front.
+- Recruiters process queued units at 1 unit per recruiter per tick before race and specialization modifiers.
+- Completed units join active army at tick boundaries.
+- Active army consumes 0.25 food per unit per tick.
+- Queued army does not consume upkeep.
+- Race modifier support flows through the shared race modifier model.
 
-✅ **All 67 tests pass:**
-- 12 balance tests (production, combat)
-- 13 army recruitment tests (new system)
-- 54 game integration tests (existing)
-- **0 regressions**
+- **army-recruitment.test.ts** covers:
+- Cost calculations.
+- Recruiter capacity and progress.
+- Queue processing.
+- Upkeep sustainability.
+- Realistic game scenarios.
 
-### Production System Overview (Now Documented)
+### Live Production Overview
 
-**Population Formula:**
-```
-Population = 25 + (level × 10) + race_bonus
+**Population Formula**
+
+```text
+Population = 25 + (level x 10) + race_bonus
 ```
 
-**Gold Production (Miners):**
-```
-Gold Base = miners + ⌊miners/10⌋ × race_bonus
-Gold Produced = ⌊Gold Base × (1 + specializations × 0.1)⌋
-```
+**Gold Production**
 
-**Food Production (Farmers):**
-```
-Food Base = farmers + ⌊farmers/10⌋ × race_bonus
-Food Produced = ⌊Food Base × (1 + specializations × 0.1)⌋
+```text
+Gold Base = miners + floor(miners / 10) x race_bonus
+Gold Produced = floor(Gold Base x (1 + specializations x 0.1))
 ```
 
-**Army Production (Current Recruiters):**
-```
-Army Base = recruiters + ⌊recruiters/10⌋ × race_bonus
-Army Requested = ⌊Army Base × (1 + specializations × 0.1)⌋
-Army Produced = min(Army Requested, ⌊(food + food_produced) / 1⌋)
-```
+**Food Production**
 
-**Army Production (NEW Order-Based System):**
-```
-Player Orders X units, pays X gold upfront
-Queue = X units pending
-Each tick: Units Created = min(Queue, recruiters × recruitment_rate)
-Upkeep = active_army × 0.25 food/tick
+```text
+Food Base = farmers + floor(farmers / 10) x race_bonus
+Food Produced = floor(Food Base x (1 + specializations x 0.1))
 ```
 
----
+**Army Recruitment**
 
-## Phase 2: Land Acquisitions & Combat Cleanup — PLANNED
+```text
+Player orders X units and pays X gold up front
+Queue = X pending units
+Each tick: units created = min(queue, recruiter capacity)
+Active upkeep = active army x 0.25 food per tick
+```
 
-### Objectives
+Recruiters no longer create passive army when the queue is empty.
 
-#### Phase 2a: Land Acquisition System
-1. **Audit territory bonuses** — Currently in `territory.ts`, verify all bonuses are pure functions
-2. **Consolidate Home of A logic** — Currently spread across `constants.ts`, `mega-fortress.ts`, `tick.ts`
-3. **Create territory query helpers** — `getClaimedTilesForFortress()`, `getAdjacentTiles()`, etc.
-4. **Add territory tests** — Verify tile claiming, bonuses, and Home of A mechanics
-5. **Document land acquisition** — Explain tile claiming process, adjacent rules, auction logic
+### Phase 3 Implementation Status
 
-#### Phase 2b: Combat System Audit
-1. **Review attack resolution** — Verify casualty calculations in `balance.ts`
-2. **Examine battlefield logic** — Multi-player battles use deterministic hashing
-3. **Consolidate race ability interactions** — Combat bonuses from Dwarf/Ork/Unicorn/Space Marine
-4. **Improve battle reports** — Verify clarity and completeness
-5. **Prepare for new combat features** — Document current design for future expansion
+The queued recruitment rollout is implemented in live gameplay.
 
-### Likely Phase 2 Tasks
+#### 1. Database
 
-Based on Phase 1 patterns, Phase 2 will likely:
-- Create new modules: `territory-queries.ts`, `combat-resolution.ts`, `battlefield-analysis.ts`
-- Add 200+ lines of documentation to existing combat files
-- Create validation utilities similar to Phase 1 fortress validations
-- Add 50+ new tests for territory and combat mechanics
-- Write detailed deployment guides for Phase 2 changes
+- Added `Fortress.recruitmentQueue`.
+- Added checked-in migration `20260506170000_army_recruitment_queue`.
+- No separate `RecruitmentOrder` table exists yet; current state tracks pending unit count.
 
----
+#### 2. Game Loop
 
-## Phase 3: Implementation — New Army Recruitment System
+- Production processes the recruitment queue instead of passive army generation.
+- Completed units are added to `fortress.army`.
+- Active-army food upkeep is charged after production and recruitment completion.
+- `recruitmentQueue` is persisted with fortress economy state.
+- Battlefield resolution now runs after economy persistence so rewards, casualties, loot, and tile ownership are not overwritten by stale tick accumulators.
 
-### What Needs to Happen (Phase 3+)
+#### 3. Service Layer
 
-This is a **substantial change** requiring:
+- Added `recruitArmy(unitCount)` and `recruitArmyAction`.
+- Validates playable cycle state, active player fortress, selected race, positive integer unit count, and available gold.
+- Deducts gold and increments `recruitmentQueue`.
 
-#### 1. Database Migrations
-- Add `recruitmentQueue: Int` to `Fortress` table
-- Optional: Add `RecruitmentOrder` table to track order history
-- Run migrations: `npm run db:migrate`
+#### 4. UI
 
-#### 2. Game Loop Changes (tick.ts)
-- Update production phase to process recruitment queue instead of passive generation
-- Calculate: `unitsCreated = min(queue, recruiterCapacity)`
-- Update: `fortress.army += unitsCreated`
-- Calculate: `foodConsumed = fortress.army * 0.25` (new upkeep)
-- Update score events to track recruitment vs growth
+- Castle page includes a recruitment form with quantity input and total gold cost.
+- Queue size, recruiter capacity, estimated ticks, and active-army upkeep are visible.
+- Worker preview explains that recruiters process queued orders instead of passive army production.
 
-#### 3. Service Layer (service.ts)
-- Add `recruitArmy(unitCount: number)` action
-- Validate: gold available, unit count > 0
-- Deduct gold, add to queue
-- Return: estimated completion time
+#### 5. Combat Follow-Up
 
-#### 4. UI Components
-- Update worker assignment UI (remove recruiter explanation)
-- Add "Recruit Army" button with quantity input
-- Show queue status: "256/1000 units (12 ticks remaining)"
-- Show upkeep preview: "Current upkeep: 75 food/tick"
-- Update production preview to show no passive recruitment
+- Battlefield reinforcements now obey the same simultaneous outbound attack cap as direct attacks.
+- Battle-log badges show unread/new report counts only.
+- Desktop tile selection now supports direct click/tap inspection and tile purchase flow.
 
-#### 5. Tests & Integration
-- Update `balance.test.ts` to remove recruiter tests
-- Add integration tests for `recruitArmy()` action
-- Add regression tests for upkeep calculations
-- Update game.test.ts for new recruitment flow
+#### 6. Verification
 
-#### 6. Documentation & Communication
-- Update game-design.md with new recruitment system
-- Add CHANGELOG entry explaining the change
-- Create wiki page on "Army Recruitment Guide"
-- Update season announcement if going live next cycle
+- `npm run db:generate --workspace web`
+- `npm run typecheck --workspace web`
+- `npm run test:game --workspace web`
+- Focused army recruitment unit tests
+- Focused lint for touched TypeScript/TSX files
 
-### Estimated Effort
-- Database & migrations: 1-2 hours
-- Game loop updates: 2-3 hours
-- UI components: 2-3 hours
-- Tests & validation: 1-2 hours
-- Documentation: 1 hour
-- **Total: 7-11 hours** (can be split across multiple PRs)
+### Current Status
 
----
+- **Phase 1: complete** - Castle system documented, validation utilities created, and recruitment helpers tested.
+- **Phase 2: partially implemented** - Territory and combat cleanup has progressed through tile battle consistency, battlefield persistence ordering, and reinforcement cap enforcement.
+- **Phase 3: implemented** - Order-based recruitment is live in schema, service, tick processing, read models, and Castle UI.
 
-## Current Status
+### Future Follow-Up
 
-**Phase 1: COMPLETE ✅**
-- Castle system documented
-- Production formulas explained
-- Validation utilities created
-- Army recruitment system prototyped
-
-**Phase 2: READY FOR PLANNING**
-- Land acquisition audit ready
-- Combat system review planned
-
-**Phase 3: DESIGNED (Not Started)**
-- Order-based recruitment system fully designed
-- Tests written and passing
-- Ready for implementation when scheduled
-
----
-
-## Recommendation: Next Steps
-
-1. **Review Phase 1 work** — Confirm documentation is clear and helpful
-2. **Start Phase 2** — Begin land acquisition cleanup next
-3. **Plan Phase 3 timing** — Decide when to roll out new recruitment system
-4. **Schedule feedback** — Get design review from stakeholders before Phase 3 implementation
-
-Would you like to:
-- **Proceed to Phase 2** (land acquisitions cleanup)?
-- **Refine Phase 3** (army recruitment system design)?
-- **Continue Phase 1** (add more documentation or validations)?
+- Add per-order recruitment history if design wants audit trails or cancellable orders.
+- Add more DB-backed integration coverage for recruitment order purchase, tick completion, and starvation behavior.
+- Add regression coverage for battlefield resolution rewards, tile transfer, recalls, and simultaneous attack limits across direct attacks and reinforcements.

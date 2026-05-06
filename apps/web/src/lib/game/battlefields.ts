@@ -10,6 +10,7 @@ import { GameError } from "./errors";
 import { countCastleSpecializations } from "./specializations";
 import { launchAttackUnit } from "./attack-units";
 import { isHomeOfATile } from "./territory";
+import { getMaxSimultaneousAttacks } from "./upgrades";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -311,6 +312,7 @@ export async function joinBattlefield({
             points: true,
             gold: true,
             army: true,
+            level: true,
             mapX: true,
             mapY: true,
             race: true,
@@ -349,6 +351,7 @@ export async function joinBattlefield({
         points: true,
         gold: true,
         army: true,
+        level: true,
         mapX: true,
         mapY: true,
         race: true,
@@ -361,6 +364,21 @@ export async function joinBattlefield({
 
     if (fortress.army < armyAmount) {
       throw new GameError("You do not have enough idle army.");
+    }
+
+    const outboundAttackCount = await tx.attackUnit.count({
+      where: {
+        attackerFortressId: fortress.id,
+        resolvedAt: null,
+        cancelledAt: null,
+      },
+    });
+    const maxAttacks = getMaxSimultaneousAttacks(fortress.level, fortress.race);
+
+    if (outboundAttackCount >= maxAttacks) {
+      throw new GameError(
+        `You have reached the maximum number of simultaneous attacks (${maxAttacks}).`
+      );
     }
 
     const existing = await tx.battlefieldParticipant.findUnique({

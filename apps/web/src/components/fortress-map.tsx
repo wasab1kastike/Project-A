@@ -133,6 +133,14 @@ type DragStart = {
   translateY: number;
 };
 
+type TileTapState = {
+  tileId: string;
+  pointerId: number;
+  startX: number;
+  startY: number;
+  cancelled: boolean;
+};
+
 type MarkerTapState = {
   fortressId: string;
   pointerId: number;
@@ -260,6 +268,94 @@ function HexTileMap({
   const ownershipByTileId = new Map(
     mapHexes.map((ownership) => [ownership.tileId, ownership])
   );
+  const tileTapStateRef = useRef<TileTapState | null>(null);
+
+  const handleTilePointerDown = useCallback(
+    (
+      event: ReactPointerEvent<SVGGElement>,
+      tileId: string,
+      selectable: boolean
+    ) => {
+      if (!selectable) {
+        return;
+      }
+
+      if (event.pointerType === "mouse" && event.button !== 0) {
+        return;
+      }
+
+      event.stopPropagation();
+      tileTapStateRef.current = {
+        tileId,
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        cancelled: false,
+      };
+    },
+    []
+  );
+
+  const handleTilePointerMove = useCallback(
+    (event: ReactPointerEvent<SVGGElement>, tileId: string) => {
+      const tapState = tileTapStateRef.current;
+
+      if (
+        !tapState ||
+        tapState.pointerId !== event.pointerId ||
+        tapState.tileId !== tileId
+      ) {
+        return;
+      }
+
+      if (
+        Math.hypot(
+          event.clientX - tapState.startX,
+          event.clientY - tapState.startY
+        ) > CLICK_DRAG_THRESHOLD
+      ) {
+        tapState.cancelled = true;
+      }
+    },
+    []
+  );
+
+  const clearTileTap = useCallback(
+    (event: ReactPointerEvent<SVGGElement>, tileId: string) => {
+      const tapState = tileTapStateRef.current;
+
+      if (
+        tapState &&
+        tapState.pointerId === event.pointerId &&
+        tapState.tileId === tileId
+      ) {
+        tileTapStateRef.current = null;
+      }
+    },
+    []
+  );
+
+  const handleTilePointerUp = useCallback(
+    (event: ReactPointerEvent<SVGGElement>, tileId: string) => {
+      const tapState = tileTapStateRef.current;
+
+      if (
+        !tapState ||
+        tapState.pointerId !== event.pointerId ||
+        tapState.tileId !== tileId
+      ) {
+        return;
+      }
+
+      event.stopPropagation();
+      tileTapStateRef.current = null;
+
+      if (!tapState.cancelled) {
+        onSelectMapHex?.(tileId);
+      }
+    },
+    [onSelectMapHex]
+  );
 
   return (
     <svg
@@ -311,13 +407,14 @@ function HexTileMap({
                     neutralClaimCost ? `, claim cost ${neutralClaimCost}` : ""
                   }, ${bonus.label}`
             }
-            onClick={() => {
-              if (!tile.spawnable || !onSelectMapHex) {
-                return;
-              }
-
-              onSelectMapHex(tile.id);
-            }}
+            onPointerDown={(event) =>
+              handleTilePointerDown(event, tile.id, tile.spawnable)
+            }
+            onPointerMove={(event) =>
+              handleTilePointerMove(event, tile.id)
+            }
+            onPointerUp={(event) => handleTilePointerUp(event, tile.id)}
+            onPointerCancel={(event) => clearTileTap(event, tile.id)}
           >
             <polygon points={getHexPolygonPoints(tile.x, tile.y)} />
             <polyline

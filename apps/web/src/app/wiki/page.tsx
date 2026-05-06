@@ -30,6 +30,11 @@ import {
   WINNING_ATTACKER_MARGIN_SURVIVAL_FACTOR,
 } from "@/lib/game/balance";
 import {
+  ARMY_UPKEEP_PER_UNIT,
+  RECRUITMENT_COST_PER_UNIT,
+  RECRUITMENT_RATE_PER_RECRUITER,
+} from "@/lib/game/army-recruitment";
+import {
   LOOT_CAMP_LIFETIME_MINUTES,
   LOOT_CAMP_MAX_SPAWNS_PER_HOUR,
   LOOT_CAMP_MAX_STRENGTH,
@@ -122,6 +127,8 @@ const SEASON_FLOW = [
 const QUICKSTART_STEPS = [
   "Pick a race that matches your style: stable economy, burst combat, or chaos utility.",
   "Open Castle > Economy and assign workers immediately. Idle population is wasted tempo.",
+  `Recruit army from the Castle page when you are ready to spend gold. Each unit costs ${RECRUITMENT_COST_PER_UNIT} gold up front and waits in your queue.`,
+  "Keep recruiters assigned if you want queued army to finish quickly. Recruiters process the queue; they do not mint free army by themselves.",
   "Watch the map for temporary loot camps. They expire fast but can pay food, gold, or army.",
   "Scout your first target before sending a huge army. Ties go to defender.",
   "Do not spend all gold on one thing. Keep a reserve for rename and upgrades.",
@@ -129,6 +136,12 @@ const QUICKSTART_STEPS = [
 ] as const;
 
 const LATEST_UPDATES = [
+  "Army recruitment is now order-based: buy units with gold, wait for recruiters to process the queue, then pay food upkeep only after units become active.",
+  "Recruiter worker previews now show queue throughput and active-army upkeep instead of implying passive free army production.",
+  "Desktop tile selection now uses the same direct click/tap behavior as mobile, so PC players can inspect and buy tiles from the map.",
+  "Battle-log badges now count unread/new reports only instead of every historical entry.",
+  "Battlefield reinforcements now obey the same simultaneous outbound attack cap as direct attacks.",
+  "Battlefield rewards, casualties, loot, and tile transfers now persist after economy ticks instead of being overwritten by stale production writes.",
   "Loot camps now stay on the battlefield for 30 minutes, show clearer reward/strength/defender info, and fight back with variant-scaled defending armies.",
   "Loot camps now spawn around the battlefield during gameplay. Classic camps pay food, Rich camps pay gold, and Chaos camps pay army plus a race cooldown reset.",
   "Unstable Unicorn teleport now lasts 1 hour, leaves an attackable decoy at home, then returns the castle on the first tick after the timer ends.",
@@ -143,6 +156,24 @@ const LOOT_CAMP_VARIANTS = [
   "Classic Loot Camp: pays food equal to its strength when destroyed.",
   "Rich Loot Camp: pays gold equal to its strength when destroyed.",
   "Chaos Loot Camp: pays army equal to its strength and resets the destroyer's current race ability cooldown.",
+] as const;
+
+const RECRUITMENT_RULES = [
+  `Recruitment orders cost ${RECRUITMENT_COST_PER_UNIT} gold per army unit and are paid up front.`,
+  "Ordered units enter your recruitment queue. They are not active army yet and cannot attack or defend until completed.",
+  `Each assigned recruiter processes ${RECRUITMENT_RATE_PER_RECRUITER} queued unit per tick before race and specialization bonuses.`,
+  `Active army upkeep is ${ARMY_UPKEEP_PER_UNIT} food per unit per tick, rounded down to whole food when the tick saves.`,
+  "Queued army has no upkeep. Food pressure begins only after units finish and join your active army.",
+  "If you assign zero recruiters, the queue waits. If the queue is empty, recruiters add no army.",
+] as const;
+
+const BATTLEFIELD_RULES = [
+  `Direct attacks and battlefield reinforcements share the same outbound cap: base ${MAX_SIMULTANEOUS_ATTACKS_BASE}, modified by castle level and race.`,
+  "Joining a battlefield sends a visible unit toward that battle and reserves the army while it travels.",
+  "A player cannot join both sides of the same unresolved battlefield.",
+  "Resolved tile battlefields can transfer tile ownership to the winning side.",
+  "Battle results are applied after economy persistence, so loot, casualties, and rewards should not be lost to the same tick's production update.",
+  "The battle log badge shows reports you have not seen yet, not the total report archive.",
 ] as const;
 
 const FAQ_ENTRIES = [
@@ -388,6 +419,47 @@ export default function WikiPage() {
         </article>
 
         <article className={styles.card}>
+          <span className={styles.sectionLabel}>Recruitment</span>
+          <h2>Buying and training army</h2>
+          <p>
+            Recruiters are now queue workers, not passive army printers. Spend
+            gold when you want more troops, then use recruiter assignments to
+            decide how quickly those orders become active army.
+          </p>
+          <div className={styles.twoCol}>
+            <section>
+              <h3>Queue rules</h3>
+              <ul className={styles.noteList}>
+                {RECRUITMENT_RULES.map((entry) => (
+                  <li key={entry}>{entry}</li>
+                ))}
+              </ul>
+            </section>
+            <section>
+              <h3>Practical advice</h3>
+              <ul className={styles.noteList}>
+                <li>
+                  Buy in batches you can afford without emptying all upgrade and
+                  tile-claim gold.
+                </li>
+                <li>
+                  Raise recruiter assignments before large orders if you need a
+                  predictable completion time.
+                </li>
+                <li>
+                  Watch food before a large queue completes. Upkeep starts when
+                  troops become active.
+                </li>
+                <li>
+                  Military specialization and race bonuses improve recruitment
+                  throughput, which is strongest when you keep a queue stocked.
+                </li>
+              </ul>
+            </section>
+          </div>
+        </article>
+
+        <article className={styles.card}>
           <span className={styles.sectionLabel}>Loot camps</span>
           <h2>Temporary map targets</h2>
           <p>
@@ -439,11 +511,10 @@ export default function WikiPage() {
           <h2>Center control objective</h2>
           <p>{homeOfALore}</p>
           <ul className={styles.noteList}>
+            <li>Always sits on center tile {HOME_OF_A_TILE_ID}.</li>
             <li>
-              Always sits on center tile {HOME_OF_A_TILE_ID}.
-            </li>
-            <li>
-              First capture fights neutral defense strength {MEGA_FORTRESS_HEALTH}.
+              First capture fights neutral defense strength{" "}
+              {MEGA_FORTRESS_HEALTH}.
             </li>
             <li>
               The controlling banner alliance earns {HOME_OF_A_POINT_INCOME}{" "}
@@ -499,6 +570,16 @@ export default function WikiPage() {
               </ul>
             </section>
             <section>
+              <h3>Battlefields and logs</h3>
+              <ul className={styles.noteList}>
+                {BATTLEFIELD_RULES.map((entry) => (
+                  <li key={entry}>{entry}</li>
+                ))}
+              </ul>
+            </section>
+          </div>
+          <div className={styles.twoCol}>
+            <section>
               <h3>Survivors and loot</h3>
               <ul className={styles.noteList}>
                 <li>
@@ -521,8 +602,8 @@ export default function WikiPage() {
                 </li>
                 <li>
                   Loot caps: up to {Math.round(MAX_POINT_LOOT_PERCENT * 100)}%
-                  of target gold and {Math.round(MAX_FOOD_LOOT_PERCENT * 100)}
-                  % of target food per raid.
+                  of target gold and {Math.round(MAX_FOOD_LOOT_PERCENT * 100)}%
+                  of target food per raid.
                 </li>
                 <li>
                   Armies can be recalled before impact. Recalled units travel

@@ -12,6 +12,7 @@ import {
   purchaseFortressUpgradeAction,
   registerCommanderNameAction,
   renameFortressAction,
+  recruitArmyAction,
   selectFortressRaceAction,
   updateWorkerAssignmentAction,
   useUnicornTeleportAction,
@@ -20,6 +21,11 @@ import {
   calculateTickProduction,
   validateWorkerAssignments,
 } from "@/lib/game/balance";
+import {
+  calculateRecruitmentProgress,
+  getArmyUpkeepCost,
+  getRecruitmentCost,
+} from "@/lib/game/army-recruitment";
 import { RACE_DEFINITIONS } from "@/lib/game/races";
 import styles from "./page.module.css";
 
@@ -36,6 +42,7 @@ type PlayerSummary = {
   defenseMultiplier: number;
   food: number;
   army: number;
+  recruitmentQueue: number;
   minersAssigned: number;
   farmersAssigned: number;
   recruitersAssigned: number;
@@ -160,7 +167,7 @@ function getBuildingEffect({
     case "FOOD":
       return `+${production.foodProduced} food/tick from farmers`;
     case "MILITARY":
-      return `+${production.armyProduced}/${production.armyRequested} army/tick from recruiters`;
+      return "Recruiters process queued army orders";
     default:
       return `Level ${level}`;
   }
@@ -202,6 +209,9 @@ export function CastleManagement({
   });
   const [workerError, setWorkerError] = useState<string | null>(null);
   const [workerPending, setWorkerPending] = useState(false);
+  const [recruitAmount, setRecruitAmount] = useState(10);
+  const [recruitError, setRecruitError] = useState<string | null>(null);
+  const [recruitPending, setRecruitPending] = useState(false);
   const production = useMemo(
     () =>
       calculateTickProduction({
@@ -229,6 +239,13 @@ export function CastleManagement({
     workers.minersAssigned +
     workers.farmersAssigned +
     workers.recruitersAssigned;
+  const recruitmentProgress = calculateRecruitmentProgress(
+    playerSummary.recruitmentQueue,
+    workers.recruitersAssigned,
+    playerSummary.race as never
+  );
+  const recruitCost = getRecruitmentCost(recruitAmount);
+  const armyUpkeep = Math.floor(getArmyUpkeepCost(playerSummary.army));
 
   function setWorker(key: keyof typeof workers, value: number) {
     setWorkerError(null);
@@ -261,6 +278,27 @@ export function CastleManagement({
     }
   }
 
+  async function recruitArmy(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setRecruitError(null);
+    setRecruitPending(true);
+
+    try {
+      const result = await recruitArmyAction({
+        unitCount: recruitAmount,
+      });
+
+      if (!result.ok) {
+        setRecruitError(result.error);
+        return;
+      }
+
+      router.refresh();
+    } finally {
+      setRecruitPending(false);
+    }
+  }
+
   return (
     <div className={styles.castleGrid}>
       <section className={styles.panel}>
@@ -285,6 +323,10 @@ export function CastleManagement({
           <div>
             <dt>Army</dt>
             <dd>{playerSummary.army}</dd>
+          </div>
+          <div>
+            <dt>Queue</dt>
+            <dd>{playerSummary.recruitmentQueue}</dd>
           </div>
           <div>
             <dt>Defense</dt>
@@ -476,11 +518,53 @@ export function CastleManagement({
           </label>
           <p className={styles.muted}>
             Tick preview: +{production.goldProduced} gold, +
-            {production.foodProduced} food, +{production.armyProduced} army.
+            {production.foodProduced} food, {recruitmentProgress.recruiterCapacityPerTick} queue capacity, -{armyUpkeep} food upkeep.
           </p>
           {workerError ? <p className={styles.error}>{workerError}</p> : null}
           <button type="submit" disabled={workerPending || !playerSummary.race}>
             Save workers
+          </button>
+        </form>
+      </section>
+
+      <section className={styles.panel}>
+        <div className={styles.panelHeader}>
+          <span>Recruitment</span>
+          <strong>{playerSummary.recruitmentQueue} queued</strong>
+        </div>
+        <form className={styles.form} onSubmit={recruitArmy}>
+          <label>
+            Army units
+            <input
+              type="number"
+              min={1}
+              value={recruitAmount}
+              onChange={(event) => {
+                const value = event.currentTarget.valueAsNumber;
+                setRecruitError(null);
+                setRecruitAmount(
+                  Number.isFinite(value) ? Math.max(1, Math.floor(value)) : 1
+                );
+              }}
+            />
+          </label>
+          <p className={styles.muted}>
+            Cost: {recruitCost} gold. Current queue finishes in{" "}
+            {Number.isFinite(recruitmentProgress.ticksToComplete)
+              ? `${recruitmentProgress.ticksToComplete} ticks`
+              : "no ticks until recruiters are assigned"}
+            .
+          </p>
+          {recruitError ? <p className={styles.error}>{recruitError}</p> : null}
+          <button
+            type="submit"
+            disabled={
+              recruitPending ||
+              !playerSummary.race ||
+              recruitCost > playerSummary.gold
+            }
+          >
+            Recruit army
           </button>
         </form>
       </section>

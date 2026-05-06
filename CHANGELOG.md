@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-05-06
+
+- Change: Wired order-based army recruitment into live gameplay with `Fortress.recruitmentQueue`, a `recruitArmy` server action, Castle-page queue controls, upfront gold payment, tick-based recruiter processing, and active-army food upkeep.
+- Change: Updated tick persistence so battlefield loot, casualties, rewards, and tile transfers are applied after economy writes and are not overwritten by stale tick accumulators.
+- Change: Enforced simultaneous outbound attack limits for battlefield reinforcements, matching direct attack behavior.
+- Change: Fixed desktop hex-tile click/tap selection so PC players can inspect and buy tiles from the battlefield map.
+- Change: Battle-log badges now show unread/new report counts instead of total historical entry counts.
+- Change: Updated README, game design docs, and the in-app wiki to describe queued recruitment, upkeep, tile interactions, unread battle-log behavior, and current combat limits.
+- User impact: Army growth is now an explicit spending and timing decision, combat accounting is more reliable, map tiles are usable on desktop, and player-facing docs match the live rules.
+
 ## 2026-04-29
 
 - Change: Restored Unstable Unicorn teleport decoy creation after teleport actions, preserving decoy ownership, combat visibility, and cleanup behavior.

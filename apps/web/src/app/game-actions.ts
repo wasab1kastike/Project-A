@@ -43,6 +43,7 @@ import {
   joinBattlefield,
   joinRegistrationCycle,
   purchaseFortressUpgrade,
+  recruitArmy,
   registerCommanderName,
   renameActiveFortress,
   recallAttackUnit,
@@ -343,6 +344,36 @@ export async function updateWorkerAssignmentAction(input: {
     });
     emitProjectARefresh("worker-assignment");
     revalidatePath("/");
+    return {
+      ok: true,
+    } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
+export async function recruitArmyAction(input: { unitCount: number }) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before recruiting army.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await recruitArmy({
+      userId,
+      unitCount: input.unitCount,
+    });
+    emitProjectARefresh("army-recruitment");
+    revalidatePath("/");
+    revalidatePath("/castle");
     return {
       ok: true,
     } satisfies InlineActionResult;

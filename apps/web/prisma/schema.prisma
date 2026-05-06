@@ -280,6 +280,7 @@ model Fortress {
   level                        Int                                 @default(0)
   food                         Int                                 @default(0)
   army                         Int                                 @default(0)
+  recruitmentQueue             Int                                 @default(0)
   minersAssigned               Int                                 @default(10)
   farmersAssigned              Int                                 @default(10)
   recruitersAssigned           Int                                 @default(5)

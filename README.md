@@ -41,6 +41,7 @@ Project-A is a browser-based multiplayer strategy game where each season evolves
 ## Documentation
 
 - [Changelog policy](docs/changelog-policy.md#required-entry-format)
+- [Current game design](docs/game-design.md)
 - [Patch notes policy](docs/patch-notes-policy.md)
 - [Map overhaul changelog entry](docs/changelog-policy.md#map-overhaul-log)
 - [Known hosting constraints for GitHub Pages](docs/github-pages-hosting.md#constraints-to-account-for)
@@ -145,30 +146,36 @@ npx prisma db seed
 - Winner is resolved in `RESOLUTION`
 - The next season begins with a fresh registration phase
 
-## M1 season bootstrap
+## Current gameplay
 
-Milestone 2 is implemented as a backend-first playable core:
+The game is now a castle-economy and battlefield-control loop:
 
 - `seedProjectA` bootstraps the first unresolved `REGISTRATION` cycle if one does not exist
-- joining during `REGISTRATION` or during an open `ACTIVE` window immediately creates a fortress and assigns one of 30 fixed map slots
-- each fortress receives a randomly assigned retro pixel-art unit sprite for attacks
-- fortresses can rename for free during `REGISTRATION`
-- fortresses can switch between `GROW` and `ATTACK` during `ACTIVE`
-- attacks launch visible units across the battlefield; the attacker pays up to 1 point at launch and the target loses up to 2 points on impact
-- active renames cost 10 points
+- joining during `REGISTRATION` or during an open `ACTIVE` window creates one player fortress and assigns a valid spawn tile
+- each fortress receives a retro pixel-art unit sprite for attack movement and battle reports
+- fortresses can rename for free during `REGISTRATION`; active renames cost 10 gold
+- players pick one race per cycle, then assign workers to miners, farmers, and recruiters on the Castle page
+- miners produce gold, farmers produce food, and recruiters process queued army orders instead of passively creating army
+- recruiting army costs 1 gold per unit up front; queued units complete over ticks based on assigned recruiters and race bonuses
+- active army, not queued army, consumes food upkeep at 0.25 food per unit per tick
+- neutral tiles can be claimed with gold, while owned tiles and Home of A create battlefields that players can attack or reinforce
+- direct attacks and battlefield reinforcements both count against the player's simultaneous outbound attack cap
+- battle results are resolved after economy updates so loot, casualties, rewards, and tile ownership are persisted coherently
+- battle-log badges show unread/new reports rather than the total number of historical entries
 - Render Cron runs `npm run game:tick` once per minute in production
 - `npm run game:tick` transitions expired registration windows and applies due minute ticks transactionally, and can be run manually for local/debug catch-up
 
-The home page is intentionally minimal in M1:
+The main player surfaces are:
 
-- signed out: read-only spectator status
-- signed in during `REGISTRATION`: join or rename your fortress
-- signed in during `ACTIVE`: choose `GROW` or `ATTACK`, pick a target, and spend points on renames
+- home battlefield: season status, map, attacks, active battlefields, battle log, chat, and spectator state
+- Castle page: worker assignments, recruitment queue, active-army upkeep, upgrades, owned tiles, and race actions
+- Wiki page: player-facing rule reference for races, economy, combat, loot camps, and Home of A
 
 ## Battlefield map controls
 
 - **Zoom:** mouse wheel, trackpad pinch, or on-screen zoom buttons
 - **Panning:** mouse drag on desktop, touch drag on mobile/tablet
+- **Tile selection:** click/tap a hex tile to inspect claim, attack, battle, and bonus details
 - **Reset view:** use the reset control to return to the default battlefield framing
 
 ## Testing the game loop

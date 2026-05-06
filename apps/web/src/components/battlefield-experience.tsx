@@ -199,6 +199,7 @@ export function BattlefieldExperience({
   const [chatOpen, setChatOpen] = useState(false);
   const [battleLogOpen, setBattleLogOpen] = useState(false);
   const [unreadChatCount, setUnreadChatCount] = useState(chat.unreadCount);
+  const [unreadBattleReportCount, setUnreadBattleReportCount] = useState(0);
   const [selectedFortressId, setSelectedFortressId] = useState<string | null>(
     playerFortress?.id ?? null
   );
@@ -208,6 +209,9 @@ export function BattlefieldExperience({
   );
   const knownChatMessageIdsRef = useRef(
     new Set(chat.messages.map((message) => message.id))
+  );
+  const knownBattleReportIdsRef = useRef(
+    new Set(battleReports.map((report) => report.id))
   );
   const markChatReadPendingRef = useRef(false);
   const selectedTargetId = null;
@@ -272,12 +276,36 @@ export function BattlefieldExperience({
     );
   }, [chat.messages, chat.persistsUnread, chatOpen]);
 
+  useEffect(() => {
+    const knownReportIds = knownBattleReportIdsRef.current;
+    const unseenReportCount = battleReports.filter(
+      (report) => !knownReportIds.has(report.id)
+    ).length;
+
+    if (battleLogOpen) {
+      queueMicrotask(() => {
+        setUnreadBattleReportCount(0);
+      });
+    } else if (unseenReportCount > 0) {
+      queueMicrotask(() => {
+        setUnreadBattleReportCount(
+          (currentCount) => currentCount + unseenReportCount
+        );
+      });
+    }
+
+    knownBattleReportIdsRef.current = new Set(
+      battleReports.map((report) => report.id)
+    );
+  }, [battleReports, battleLogOpen]);
+
   const gameplayOpen = phaseStatus === "ACTIVE" || phaseStatus === "TESTING";
   const hasUnreadChat = unreadChatCount > 0;
   const unreadBadgeLabel =
     unreadChatCount > 99 ? "99+" : unreadChatCount.toString();
+  const hasUnreadBattleReports = unreadBattleReportCount > 0;
   const battleLogCountLabel =
-    battleReports.length > 99 ? "99+" : battleReports.length.toString();
+    unreadBattleReportCount > 99 ? "99+" : unreadBattleReportCount.toString();
   const mapHexByTileId = useMemo(
     () => new Map(mapHexes.map((ownership) => [ownership.tileId, ownership])),
     [mapHexes]
@@ -514,15 +542,33 @@ export function BattlefieldExperience({
       {battleReports.length > 0 ? (
         <button
           type="button"
-          className={styles.overlayButton}
-          aria-label={`Battle log, ${battleReports.length} reports`}
+          className={`${styles.overlayButton} ${
+            hasUnreadBattleReports ? styles.overlayButtonAttention : ""
+          }`}
+          aria-label={
+            hasUnreadBattleReports
+              ? `Battle log, ${unreadBattleReportCount} unread reports`
+              : "Battle log"
+          }
           aria-expanded={battleLogOpen}
-          onClick={() => setBattleLogOpen((current) => !current)}
+          onClick={() => {
+            setBattleLogOpen((current) => {
+              const nextOpen = !current;
+
+              if (nextOpen) {
+                setUnreadBattleReportCount(0);
+              }
+
+              return nextOpen;
+            });
+          }}
         >
           <span className={styles.overlayButtonLabel}>Battle log</span>
-          <span className={styles.unreadBadge} aria-hidden="true">
-            {battleLogCountLabel}
-          </span>
+          {hasUnreadBattleReports ? (
+            <span className={styles.unreadBadge} aria-hidden="true">
+              {battleLogCountLabel}
+            </span>
+          ) : null}
         </button>
       ) : null}
       {playerFortress ? (
