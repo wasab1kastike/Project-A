@@ -117,6 +117,7 @@ import {
   selectFortressRace,
   setFortressAction,
   activateDwarfDeepMining,
+  activateDwarfRuneOfGrudges,
   claimUnicornTeleport,
   claimNeutralMapHex,
   attackMapHex,
@@ -5456,20 +5457,12 @@ test("Dwarf Deep Mining validates race, committed army, and hourly cooldown", as
       },
     },
   });
-  const targetFortress = await prisma.fortress.findUniqueOrThrow({
-    where: {
-      cycleId_ownerId: {
-        cycleId: cycle.id,
-        ownerId: target.id,
-      },
-    },
-  });
-
   await prisma.fortress.update({
     where: {
       id: dwarfFortress.id,
     },
     data: {
+      gold: 600,
       army: 40,
       minersAssigned: 30,
     },
@@ -5480,8 +5473,7 @@ test("Dwarf Deep Mining validates race, committed army, and hourly cooldown", as
       activateDwarfDeepMining({
         db: prisma,
         userId: target.id,
-        targetFortressId: dwarfFortress.id,
-        committedArmy: 1,
+        committedGold: 150,
         now: activeAt,
         rollValue: 0.1,
       }),
@@ -5493,45 +5485,57 @@ test("Dwarf Deep Mining validates race, committed army, and hourly cooldown", as
       activateDwarfDeepMining({
         db: prisma,
         userId: dwarf.id,
-        targetFortressId: targetFortress.id,
-        committedArmy: 41,
+        committedGold: 650,
         now: activeAt,
         rollValue: 0.1,
       }),
-    /enough idle army/
+    /between 150 and 600 gold/
   );
 
   const result = await activateDwarfDeepMining({
     db: prisma,
     userId: dwarf.id,
-    targetFortressId: targetFortress.id,
-    committedArmy: 10,
+    committedGold: 150,
     now: activeAt,
     rollValue: 0.1,
   });
 
   assert.equal(result.outcome, DwarfDeepMiningOutcome.RICH_VEIN);
-  assert.ok(result.pointDelta >= 300);
+  assert.equal(result.committedGold, 150);
+  assert.ok(result.resolveAt > activeAt);
+
+  const paidDwarf = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: dwarfFortress.id,
+    },
+  });
+
+  assert.equal(paidDwarf.gold, 450);
 
   await assert.rejects(
     () =>
       activateDwarfDeepMining({
         db: prisma,
         userId: dwarf.id,
-        targetFortressId: targetFortress.id,
-        committedArmy: 10,
+        committedGold: 150,
         now: new Date("2026-04-20T12:30:00.000Z"),
         rollValue: 0.3,
       }),
     /already been used this hour/
   );
 
-  const updatedDwarf = await prisma.fortress.findUniqueOrThrow({
+  await runGameTick({
+    db: prisma,
+    now: result.resolveAt,
+  });
+
+  const resolvedDwarf = await prisma.fortress.findUniqueOrThrow({
     where: {
       id: dwarfFortress.id,
     },
   });
-  assert.equal(updatedDwarf.army, 40);
+
+  assert.ok(resolvedDwarf.gold > paidDwarf.gold);
 });
 
 test("Dwarf Deep Mining rune is contested and bounty destruction ends suppression", async (context) => {
@@ -5616,6 +5620,7 @@ test("Dwarf Deep Mining rune is contested and bounty destruction ends suppressio
       id: dwarfFortress.id,
     },
     data: {
+      gold: 1000,
       army: 80,
       mapX: 10,
       mapY: 10,
@@ -5626,6 +5631,7 @@ test("Dwarf Deep Mining rune is contested and bounty destruction ends suppressio
       id: targetFortress.id,
     },
     data: {
+      gold: 200,
       mapX: 90,
       mapY: 90,
     },
@@ -5641,16 +5647,14 @@ test("Dwarf Deep Mining rune is contested and bounty destruction ends suppressio
     },
   });
 
-  const result = await activateDwarfDeepMining({
+  const result = await activateDwarfRuneOfGrudges({
     db: prisma,
     userId: dwarf.id,
     targetFortressId: targetFortress.id,
-    committedArmy: 40,
     now: activeAt,
-    rollValue: 0.62,
   });
 
-  assert.equal(result.outcome, DwarfDeepMiningOutcome.FACTION_SEAL);
+  assert.equal(result.goldCost, 250);
   assert.ok(result.runeFortressId);
 
   const rune = await prisma.fortress.findUniqueOrThrow({
@@ -5665,11 +5669,11 @@ test("Dwarf Deep Mining rune is contested and bounty destruction ends suppressio
   });
 
   assert.equal(rune.fortressKind, FortressKind.DWARF_RUNE);
-  assert.equal(rune.army, 40);
   assert.equal(rune.health, 1);
+  assert.equal(rune.army, 1);
   assert.equal(rune.mapX, 50);
   assert.equal(rune.mapY, 50);
-  assert.equal(dwarfAfterRune.army, 40);
+  assert.equal(dwarfAfterRune.gold, 750);
 
   const suppressedState = await getHomePageState({
     db: prisma,
@@ -5681,6 +5685,18 @@ test("Dwarf Deep Mining rune is contested and bounty destruction ends suppressio
     rune.id
   );
   assert.equal(suppressedState.playerSummary?.race, null);
+
+  await runGameTick({
+    db: prisma,
+    now: addMinutes(activeAt, 1),
+  });
+
+  const afterUpkeep = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: dwarfFortress.id,
+    },
+  });
+  assert.equal(afterUpkeep.gold, 725);
 
   await assert.rejects(
     () =>

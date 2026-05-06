@@ -463,7 +463,7 @@ export function calculateTickProduction(fortressLike: FortressEconomyLike) {
   );
   const baseGoldProduced =
     minersAssigned * GOLD_PER_MINER +
-    Math.floor(minersAssigned / 10) * raceModifiers.pointsPerTenMiners;
+    Math.floor(minersAssigned / 10) * raceModifiers.goldPerTenMiners;
   const baseFoodProduced =
     farmersAssigned * FOOD_PER_FARMER +
     Math.floor(farmersAssigned / 10) * raceModifiers.foodPerTenFarmers;

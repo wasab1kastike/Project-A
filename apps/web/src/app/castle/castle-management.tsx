@@ -5,6 +5,9 @@ import { useMemo, useState, type FormEvent } from "react";
 
 import {
   activateDwarfDeepMiningAction,
+  activateDwarfRuneOfGrudgesAction,
+  chooseDwarfGrudgeAction,
+  chooseDwarfTierThreeGrudgeAction,
   activateStimAction,
   activateWaaaghAction,
   choosePendingUpgradeSpecializationAction,
@@ -47,12 +50,29 @@ type PlayerSummary = {
   farmersAssigned: number;
   recruitersAssigned: number;
   race: string | null;
+    factionSuppression: {
+      runeFortressId: string | null;
+      ownerName: string;
+      ownerCommanderName: string;
+      activeUntil: Date;
+    } | null;
   canRename: boolean;
   canSetAction: boolean;
   locationShuffleCost: number | null;
   freeLocationShuffleAvailable: boolean;
   hasOutgoingAttackUnits: boolean;
   canShuffleLocation: boolean;
+  dwarfRuneOfGrudges: {
+    targetFortressId: string | null;
+    targetName: string | null;
+    targetCommanderName: string | null;
+    runeFortressId: string | null;
+    runeHealth: number | null;
+    runeArmy: number | null;
+    activeUntil: Date;
+    goldCost: number;
+    maintenanceGoldPerTick: number;
+  } | null;
   upgradesUnlocked: boolean;
   nextUpgradeCost: number | null;
   nextUpgradeDurationMinutes: number | null;
@@ -88,6 +108,30 @@ type PlayerSummary = {
     canClaimUnicornTeleport: boolean;
     hasUnicornTeleportToken: boolean;
     canActivateDeepMining: boolean;
+    canActivateRuneOfGrudges: boolean;
+    deepMiningLatest: {
+      outcome: string;
+      committedGold: number;
+      goldDelta: number;
+      armyDelta: number;
+      recruitmentQueueDelta: number;
+      resolvedAt: Date | null;
+      activeUntil: Date | null;
+      createdAt: Date;
+      targetName: string | null;
+      runeFortressId: string | null;
+      runeHealth: number | null;
+      runeArmy: number | null;
+    } | null;
+    dwarfGrudges: {
+      targetFortressId: string;
+      targetName: string;
+      targetCommanderName: string;
+      slot: number;
+      bonusMultiplier: number;
+    }[];
+    canChooseDwarfGrudge: boolean;
+    canChooseDwarfTierThree: boolean;
   };
   activeUnicornTeleport: {
     originTile: string;
@@ -640,35 +684,203 @@ export function CastleManagement({
               </>
             ) : null}
             {playerSummary.race === "DWARFS" ? (
-              <form
-                action={activateDwarfDeepMiningAction}
-                className={styles.form}
-              >
-                <label>
-                  Rune target
-                  <select name="targetFortressId" required>
-                    <option value="">Choose target</option>
-                    {targets
-                      .filter((target) => !target.isNpc)
-                      .map((target) => (
-                        <option key={target.id} value={target.id}>
-                          {target.name}
-                        </option>
+              <div className={styles.buildingGrid}>
+                <article className={styles.buildingCard}>
+                  <div className={styles.buildingCardHeader}>
+                    <strong>Book of Grudges</strong>
+                    <span>
+                      {playerSummary.raceBuffs.dwarfGrudges.length} locked
+                    </span>
+                  </div>
+                  <p>
+                    Grudges add attack and defense pressure against chosen
+                    enemy fortresses.
+                  </p>
+                  {playerSummary.raceBuffs.dwarfGrudges.length > 0 ? (
+                    <ul className={styles.noteList}>
+                      {playerSummary.raceBuffs.dwarfGrudges.map((grudge) => (
+                        <li key={`${grudge.slot}-${grudge.targetFortressId}`}>
+                          Slot {grudge.slot}: {grudge.targetName} (
+                          {grudge.targetCommanderName}) x
+                          {(1 + 0.25 * grudge.bonusMultiplier).toFixed(2)}
+                        </li>
                       ))}
-                  </select>
-                </label>
-                <input
-                  name="committedArmy"
-                  type="hidden"
-                  value={Math.min(25, Math.max(1, playerSummary.army))}
-                />
-                <button
-                  type="submit"
-                  disabled={!playerSummary.raceBuffs.canActivateDeepMining}
-                >
-                  Activate Deep Mining
-                </button>
-              </form>
+                    </ul>
+                  ) : (
+                    <p className={styles.muted}>
+                      No grudges locked yet.
+                    </p>
+                  )}
+                  {playerSummary.raceBuffs.canChooseDwarfGrudge ? (
+                    <form
+                      action={chooseDwarfGrudgeAction}
+                      className={styles.form}
+                    >
+                      <label>
+                        First target
+                        <select name="targetFortressId" required>
+                          <option value="">Choose target</option>
+                          {targets
+                            .filter(
+                              (target) =>
+                                !target.isNpc && target.id !== playerSummary.id
+                            )
+                            .map((target) => (
+                              <option key={target.id} value={target.id}>
+                                {target.name}
+                              </option>
+                            ))}
+                        </select>
+                      </label>
+                      <button type="submit">
+                        Set first grudge
+                      </button>
+                    </form>
+                  ) : null}
+                  {playerSummary.raceBuffs.canChooseDwarfTierThree ? (
+                    <div className={styles.form}>
+                      <form action={chooseDwarfTierThreeGrudgeAction}>
+                        <input name="choice" type="hidden" value="double" />
+                        <button type="submit">Double first grudge</button>
+                      </form>
+                      <form
+                        action={chooseDwarfTierThreeGrudgeAction}
+                        className={styles.form}
+                      >
+                        <label>
+                          Second target
+                          <select name="targetFortressId" required>
+                            <option value="">Choose target</option>
+                            {targets
+                              .filter(
+                                (target) =>
+                                  !target.isNpc && target.id !== playerSummary.id
+                              )
+                              .map((target) => (
+                                <option key={target.id} value={target.id}>
+                                  {target.name}
+                                </option>
+                              ))}
+                          </select>
+                        </label>
+                        <button type="submit">Set second grudge</button>
+                      </form>
+                    </div>
+                  ) : null}
+                </article>
+
+                <article className={styles.buildingCard}>
+                  <div className={styles.buildingCardHeader}>
+                    <strong>Rune of Grudges</strong>
+                    <span>
+                      {playerSummary.dwarfRuneOfGrudges
+                        ? "Active"
+                        : "Ready"}
+                    </span>
+                  </div>
+                  {playerSummary.dwarfRuneOfGrudges ? (
+                    <>
+                      <p>
+                        Targeting {playerSummary.dwarfRuneOfGrudges.targetName}(
+                        {playerSummary.dwarfRuneOfGrudges.targetCommanderName}).
+                        Upkeep {playerSummary.dwarfRuneOfGrudges.maintenanceGoldPerTick}
+                        gold per tick until {formatTime(
+                          playerSummary.dwarfRuneOfGrudges.activeUntil
+                        )}
+                        .
+                      </p>
+                      <small>
+                        Rune fortress {playerSummary.dwarfRuneOfGrudges.runeFortressId}
+                        has {playerSummary.dwarfRuneOfGrudges.runeHealth} health and
+                        {playerSummary.dwarfRuneOfGrudges.runeArmy} army.
+                      </small>
+                    </>
+                  ) : (
+                    <form
+                      action={activateDwarfRuneOfGrudgesAction}
+                      className={styles.form}
+                    >
+                      <label>
+                        Target fortress
+                        <select name="targetFortressId" required>
+                          <option value="">Choose target</option>
+                          {targets
+                            .filter(
+                              (target) =>
+                                !target.isNpc && target.id !== playerSummary.id
+                            )
+                            .map((target) => (
+                              <option key={target.id} value={target.id}>
+                                {target.name}
+                              </option>
+                            ))}
+                        </select>
+                      </label>
+                      <p className={styles.muted}>
+                      Costs 250 gold upfront and 25 gold per tick while active.
+                    </p>
+                      <button
+                        type="submit"
+                        disabled={!playerSummary.raceBuffs.canActivateRuneOfGrudges}
+                      >
+                        Raise Rune of Grudges
+                      </button>
+                    </form>
+                  )}
+                </article>
+
+                <article className={styles.buildingCard}>
+                  <div className={styles.buildingCardHeader}>
+                    <strong>Deep Mining</strong>
+                    <span>
+                      {playerSummary.raceBuffs.canActivateDeepMining
+                        ? "Available"
+                        : "Cooling down"}
+                    </span>
+                  </div>
+                  <p>
+                    Invest gold now and resolve the mine later. Bigger
+                    commitments wait longer and can swing harder.
+                  </p>
+                  {playerSummary.raceBuffs.deepMiningLatest ? (
+                    <small>
+                      Last result: {playerSummary.raceBuffs.deepMiningLatest.outcome}
+                      {playerSummary.raceBuffs.deepMiningLatest.resolvedAt
+                        ? ` resolved at ${formatTime(
+                            playerSummary.raceBuffs.deepMiningLatest.resolvedAt
+                          )}.`
+                        : playerSummary.raceBuffs.deepMiningLatest.activeUntil
+                          ? ` resolves at ${formatTime(
+                              playerSummary.raceBuffs.deepMiningLatest.activeUntil
+                            )}.`
+                          : " resolves later."}
+                    </small>
+                  ) : null}
+                  <form
+                    action={activateDwarfDeepMiningAction}
+                    className={styles.form}
+                  >
+                    <label>
+                      Gold commitment
+                      <input
+                        name="committedGold"
+                        type="number"
+                        min={150}
+                        max={600}
+                        step={25}
+                        defaultValue={250}
+                        required
+                      />
+                    </label>
+                    <button
+                      type="submit"
+                      disabled={!playerSummary.raceBuffs.canActivateDeepMining}
+                    >
+                      Start Deep Mining
+                    </button>
+                  </form>
+                </article>
+              </div>
             ) : null}
           </div>
         ) : (

@@ -1,5 +1,4 @@
 import {
-  DwarfDeepMiningOutcome,
   Prisma,
   PrismaClient,
   RaceAbilityKind,
@@ -7,7 +6,7 @@ import {
 import { getAttackArrivalAt } from "./attacks";
 import { GameError } from "./errors";
 import { getHelsinkiHourKey, getRaceBuffTier } from "./race-buffs";
-import { DWARF_DEEP_MINING_SLOW_ATTACK_MULTIPLIER } from "./dwarf-deep-mining";
+import { getRaceModifiers } from "./races";
 import type { FortressRace } from "./races";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
@@ -70,13 +69,17 @@ async function getDwarfAttackSpeedMultiplier({
     return 1;
   }
 
-  const suppressed = await db.dwarfDeepMiningRoll.findFirst({
+  const suppressed = await db.raceAbilityActivation.findFirst({
     where: {
-      outcome: DwarfDeepMiningOutcome.FACTION_SEAL,
+      kind: RaceAbilityKind.DWARF_RUNE_GRUDGES,
       targetFortressId: fortress.id,
+      activeFrom: {
+        lte: now,
+      },
       activeUntil: {
         gt: now,
       },
+      consumedAt: null,
       runeFortress: {
         health: {
           gt: 0,
@@ -95,23 +98,7 @@ async function getDwarfAttackSpeedMultiplier({
     return 1;
   }
 
-  const activeSlow = await db.raceAbilityActivation.findFirst({
-    where: {
-      fortressId: fortress.id,
-      kind: RaceAbilityKind.DWARF_SLOW_ATTACKS,
-      activeFrom: {
-        lte: now,
-      },
-      activeUntil: {
-        gt: now,
-      },
-    },
-    select: {
-      id: true,
-    },
-  });
-
-  return activeSlow ? DWARF_DEEP_MINING_SLOW_ATTACK_MULTIPLIER : 1;
+  return getRaceModifiers(fortress.race).travelSpeedMultiplier;
 }
 
 export async function cancelActiveAttackUnits({

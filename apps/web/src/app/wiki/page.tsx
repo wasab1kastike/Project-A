@@ -45,10 +45,10 @@ import { RACE_DEFINITIONS } from "@/lib/game/races";
 
 const RACE_ABILITY_NOTES: Record<string, readonly string[]> = {
   DWARFS: [
-    "Tier 2+: Grudge Book unlocks. Pick one enemy fortress and get +25% attack power against that target.",
+    "Tier 2+: Grudge Book unlocks. Pick or replace one enemy fortress and gain +25% attack and defense against that target in direct combat and tile battles.",
     "Tier 3: Add a second grudge target or double your first target (x2 grudge multiplier).",
-    "Deep Mining: once per Helsinki hour during active season. Roll table: 25% Rich Vein (+30 minutes of gold production, minimum 300), 20% Ore Surge (+50% gold/food/army production for 1 hour), 15% Battle Runes (+25% attack and defense for 1 hour), 5% Faction Seal, 5% Buried Warband (+20% idle army, min 25, max 250), 12% Cave-in (-25% idle army, min 25), 10% Unstable Tunnels (new outgoing and returning attacks are 50% slower for 1 hour), 8% Shaft Collapse (gold/food/army production halted for 1 hour).",
-    "Faction Seal creates an attackable Dwarf Rune tile between the Dwarf fortress and the chosen target for 1 hour. The committed army defends it only if this roll hits. While the rune has defenders, the target's faction bonuses and active race abilities are disabled. Any player except the Dwarf owner can destroy it for a fixed 500 gold bounty; destruction ends suppression immediately.",
+    "Deep Mining: once per Helsinki hour during active season. Commit 150-600 gold, then wait 10/20/30 minutes based on commitment size. Roll table favors gold, food, recruitment bursts, combat surge, army gains/losses, production halts, and partial gold loss. Rune suppression no longer comes from Deep Mining.",
+    "Rune of Grudges: Tier 3 active ability. Pay 250 gold upfront and 25 gold per tick upkeep for up to 6 hours to raise an attackable Dwarf rune that suppresses a single enemy fortress until the rune dies or upkeep fails.",
   ],
   UNSTABLE_UNICORNS: [
     "Tier 1: Enemies cannot see your army size while your units are in transit.",
@@ -136,6 +136,7 @@ const QUICKSTART_STEPS = [
 ] as const;
 
 const LATEST_UPDATES = [
+  "Dwarfs now play as a fortified economy race: slower movement, stronger owned-tile defense, a better grudge book, deliberate Rune of Grudges pressure, and a delayed gold-funded Deep Mining gamble.",
   "Army recruitment is now order-based: buy units with gold, wait for recruiters to process the queue, then pay food upkeep only after units become active.",
   "Recruiter worker previews now show queue throughput and active-army upkeep instead of implying passive free army production.",
   "Desktop tile selection now uses the same direct click/tap behavior as mobile, so PC players can inspect and buy tiles from the map.",

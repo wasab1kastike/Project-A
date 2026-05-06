@@ -10,10 +10,11 @@ export type FortressRace = (typeof FORTRESS_RACES)[number];
 export type RaceModifiers = {
   populationBonus: number;
   defenseBonus: number;
-  pointsPerTenMiners: number;
+  goldPerTenMiners: number;
   foodPerTenFarmers: number;
   armyPerTenRecruiters: number;
   carryCapacityPerSurvivorBonus: number;
+  travelSpeedMultiplier: number;
 };
 
 export type RaceDefinition = {
@@ -29,10 +30,11 @@ export type RaceDefinition = {
 const NO_RACE_MODIFIERS: RaceModifiers = {
   populationBonus: 0,
   defenseBonus: 0,
-  pointsPerTenMiners: 0,
+  goldPerTenMiners: 0,
   foodPerTenFarmers: 0,
   armyPerTenRecruiters: 0,
   carryCapacityPerSurvivorBonus: 0,
+  travelSpeedMultiplier: 1,
 };
 
 export const RACE_DEFINITIONS = [
@@ -43,11 +45,16 @@ export const RACE_DEFINITIONS = [
     flavorQuote: "We mine because we care.",
     flavorText:
       "Stone-minded planners who turn deep mines and stubborn walls into seasonal leverage.",
-    passiveSummary: ["+10% defense bonus", "+1 point per 10 miners"],
+    passiveSummary: [
+      "+1 gold per 10 miners",
+      "+25% defense on owned tiles and Home of A",
+      "50% slower unit travel",
+    ],
     modifiers: {
       ...NO_RACE_MODIFIERS,
       defenseBonus: 0.1,
-      pointsPerTenMiners: 1,
+      goldPerTenMiners: 1,
+      travelSpeedMultiplier: 0.5,
     },
   },
   {

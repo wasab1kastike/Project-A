@@ -9,6 +9,7 @@ import { calculateRaidOutcome } from "./balance";
 import { GameError } from "./errors";
 import { countCastleSpecializations } from "./specializations";
 import { launchAttackUnit } from "./attack-units";
+import { getDwarfGrudgeMultiplier } from "./race-buffs";
 import { isHomeOfATile } from "./territory";
 import { getMaxSimultaneousAttacks } from "./upgrades";
 
@@ -40,11 +41,15 @@ export function getBattlefieldAttrition({
   tickAt,
   attackerArmy,
   defenderArmy,
+  attackerPowerMultiplier = 1,
+  defenderPowerMultiplier = 1,
 }: {
   battlefieldId: string;
   tickAt: Date;
   attackerArmy: number;
   defenderArmy: number;
+  attackerPowerMultiplier?: number;
+  defenderPowerMultiplier?: number;
 }) {
   if (attackerArmy <= 0 || defenderArmy <= 0) {
     return {
@@ -59,15 +64,23 @@ export function getBattlefieldAttrition({
   const defenderPressure =
     2 +
     (hashBattleTick(`${battlefieldId}:defender:${tickAt.toISOString()}`) % 5);
+  const effectiveAttackerArmy = Math.max(
+    1,
+    Math.floor(attackerArmy * Math.max(0, attackerPowerMultiplier))
+  );
+  const effectiveDefenderArmy = Math.max(
+    1,
+    Math.floor(defenderArmy * Math.max(0, defenderPowerMultiplier))
+  );
 
   return {
     attackerLosses: Math.min(
       attackerArmy,
-      Math.max(1, Math.floor((defenderArmy * defenderPressure) / 100))
+      Math.max(1, Math.floor((effectiveDefenderArmy * defenderPressure) / 100))
     ),
     defenderLosses: Math.min(
       defenderArmy,
-      Math.max(1, Math.floor((attackerArmy * attackerPressure) / 100))
+      Math.max(1, Math.floor((effectiveAttackerArmy * attackerPressure) / 100))
     ),
   };
 }
@@ -464,6 +477,30 @@ export async function processActiveBattlefields({
       status: BattlefieldStatus.ACTIVE,
     },
     include: {
+      attackerBannerFortress: {
+        select: {
+          id: true,
+          race: true,
+          dwarfGrudges: {
+            select: {
+              targetFortressId: true,
+              bonusMultiplier: true,
+            },
+          },
+        },
+      },
+      defenderBannerFortress: {
+        select: {
+          id: true,
+          race: true,
+          dwarfGrudges: {
+            select: {
+              targetFortressId: true,
+              bonusMultiplier: true,
+            },
+          },
+        },
+      },
       targetFortress: {
         select: {
           id: true,
@@ -525,11 +562,36 @@ export async function processActiveBattlefields({
     );
     const defenderArmyBefore =
       nativeDefenderArmyBefore + defenderParticipantArmyBefore;
+    const attackerGrudgeMultiplier =
+      battlefield.attackerBannerFortress?.race === "DWARFS"
+        ? battlefield.targetFortressId
+          ? getDwarfGrudgeMultiplier(
+              battlefield.attackerBannerFortress.dwarfGrudges,
+              battlefield.targetFortressId
+            )
+          : 1
+        : 1;
+    const defenderGrudgeMultiplier =
+      battlefield.defenderBannerFortress?.race === "DWARFS"
+        ? getDwarfGrudgeMultiplier(
+            battlefield.defenderBannerFortress.dwarfGrudges,
+            battlefield.attackerBannerFortressId
+          )
+        : 1;
+    const defenderTileDefenseMultiplier =
+      battlefield.targetTileId !== null &&
+      (battlefield.defenderBannerFortress?.race === "DWARFS" ||
+        battlefield.targetFortress?.race === "DWARFS")
+        ? 1.25
+        : 1;
     const attrition = getBattlefieldAttrition({
       battlefieldId: battlefield.id,
       tickAt,
       attackerArmy: attackerArmyBefore,
       defenderArmy: defenderArmyBefore,
+      attackerPowerMultiplier: attackerGrudgeMultiplier,
+      defenderPowerMultiplier:
+        defenderGrudgeMultiplier * defenderTileDefenseMultiplier,
     });
     const attackerParticipantLosses = distributeLosses(
       attackerParticipants,
@@ -631,6 +693,9 @@ export async function processActiveBattlefields({
             defenderRace: null,
             defenderGold: battlefield.targetFortress?.gold ?? 0,
             defenderFood: battlefield.targetFortress?.food ?? 0,
+            attackPowerMultiplier: attackerGrudgeMultiplier,
+            defensePowerMultiplier:
+              defenderGrudgeMultiplier * defenderTileDefenseMultiplier,
           })
         : calculateRaidOutcome({
             attackArmy: attackerArmyAfter,
@@ -642,6 +707,9 @@ export async function processActiveBattlefields({
                   battlefield.targetFortress.castleUpgradeSpecializations
                 )
               : undefined,
+            attackPowerMultiplier: attackerGrudgeMultiplier,
+            defensePowerMultiplier:
+              defenderGrudgeMultiplier * defenderTileDefenseMultiplier,
             defenderGold: battlefield.targetFortress?.gold ?? 0,
             defenderFood: battlefield.targetFortress?.food ?? 0,
           });
