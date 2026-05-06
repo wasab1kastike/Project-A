@@ -197,6 +197,7 @@ export function BattlefieldExperience({
 }) {
   const router = useRouter();
   const [chatOpen, setChatOpen] = useState(false);
+  const [battleLogOpen, setBattleLogOpen] = useState(false);
   const [unreadChatCount, setUnreadChatCount] = useState(chat.unreadCount);
   const [selectedFortressId, setSelectedFortressId] = useState<string | null>(
     playerFortress?.id ?? null
@@ -275,6 +276,8 @@ export function BattlefieldExperience({
   const hasUnreadChat = unreadChatCount > 0;
   const unreadBadgeLabel =
     unreadChatCount > 99 ? "99+" : unreadChatCount.toString();
+  const battleLogCountLabel =
+    battleReports.length > 99 ? "99+" : battleReports.length.toString();
   const mapHexByTileId = useMemo(
     () => new Map(mapHexes.map((ownership) => [ownership.tileId, ownership])),
     [mapHexes]
@@ -508,6 +511,20 @@ export function BattlefieldExperience({
           </span>
         ) : null}
       </button>
+      {battleReports.length > 0 ? (
+        <button
+          type="button"
+          className={styles.overlayButton}
+          aria-label={`Battle log, ${battleReports.length} reports`}
+          aria-expanded={battleLogOpen}
+          onClick={() => setBattleLogOpen((current) => !current)}
+        >
+          <span className={styles.overlayButtonLabel}>Battle log</span>
+          <span className={styles.unreadBadge} aria-hidden="true">
+            {battleLogCountLabel}
+          </span>
+        </button>
+      ) : null}
       {playerFortress ? (
         <a href="/castle" className={styles.overlayButton}>
           Castle
@@ -535,6 +552,42 @@ export function BattlefieldExperience({
           maxLength={chat.maxLength}
           postHint={chat.postHint}
         />
+      </div>
+    </aside>
+  ) : null;
+  const battleLogDrawer = battleLogOpen ? (
+    <aside
+      className={`${styles.drawer} ${styles.battleLogDrawer} ${styles.drawerOpen}`}
+      aria-label="Battle log"
+    >
+      <button
+        type="button"
+        className={styles.closeButton}
+        aria-label="Close battle log"
+        onClick={() => setBattleLogOpen(false)}
+      >
+        Close
+      </button>
+      <div className={styles.drawerBody}>
+        <div className={styles.sectionHeading}>
+          <span className={styles.label}>Reports</span>
+          <strong>{battleReports.length}</strong>
+        </div>
+        <div className={styles.battlefieldList}>
+          {battleReports.slice(0, 12).map((report) => (
+            <article key={report.id} className={styles.battlefieldCard}>
+              <div className={styles.battlefieldCardHeader}>
+                <strong>{report.targetName ?? "Battle report"}</strong>
+                <span>{report.outcome?.replace("_", " ") ?? "Report"}</span>
+              </div>
+              <ul className={styles.compactList}>
+                {(report.reportLines ?? []).slice(0, 4).map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </article>
+          ))}
+        </div>
       </div>
     </aside>
   ) : null;
@@ -902,27 +955,6 @@ export function BattlefieldExperience({
             </div>
           </>
         ) : null}
-        {battleReports.length > 0 ? (
-          <div className={styles.battlefieldList}>
-            <div className={styles.sectionHeading}>
-              <span className={styles.label}>Reports</span>
-              <strong>{battleReports.length}</strong>
-            </div>
-            {battleReports.slice(0, 3).map((report) => (
-              <article key={report.id} className={styles.battlefieldCard}>
-                <div className={styles.battlefieldCardHeader}>
-                  <strong>{report.targetName ?? "Battle report"}</strong>
-                  <span>{report.outcome?.replace("_", " ") ?? "Report"}</span>
-                </div>
-                <ul className={styles.compactList}>
-                  {(report.reportLines ?? []).slice(0, 4).map((line) => (
-                    <li key={line}>{line}</li>
-                  ))}
-                </ul>
-              </article>
-            ))}
-          </div>
-        ) : null}
       </aside>
     ) : null;
 
@@ -936,6 +968,7 @@ export function BattlefieldExperience({
           <div className={styles.immersiveOverlayUi}>
             {topActionsRoot ? null : actionButtons}
             {chatDrawer}
+            {battleLogDrawer}
           </div>,
           overlayRoot
         )
@@ -989,6 +1022,7 @@ export function BattlefieldExperience({
         {battlefieldsPanel}
         {selectedTilePanel}
         {!immersive ? chatDrawer : null}
+        {!immersive ? battleLogDrawer : null}
       </div>
       {immersiveOverlay}
       {topbarActionsPortal}

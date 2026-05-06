@@ -192,6 +192,13 @@
   width: min(390px, calc(100% - 32px));
 }
 
+.battleLogDrawer {
+  top: 16px;
+  left: 16px;
+  width: min(390px, calc(100% - 32px));
+  max-height: min(68%, 560px);
+}
+
 .drawerOpen {
   opacity: 1;
   pointer-events: auto;
@@ -226,6 +233,12 @@
 
 .immersiveOverlayUi .chatDrawer {
   top: max(92px, calc(env(safe-area-inset-top) + 76px));
+  max-height: calc(100dvh - max(108px, calc(env(safe-area-inset-top) + 92px)));
+}
+
+.immersiveOverlayUi .battleLogDrawer {
+  top: max(92px, calc(env(safe-area-inset-top) + 76px));
+  left: 16px;
   max-height: calc(100dvh - max(108px, calc(env(safe-area-inset-top) + 92px)));
 }
 
@@ -418,6 +431,14 @@
 
   .chatDrawer {
     top: auto;
+    bottom: 0;
+  }
+
+  .battleLogDrawer {
+    top: auto;
+    left: 0;
+    right: 0;
+    width: auto;
     bottom: 0;
   }
 
