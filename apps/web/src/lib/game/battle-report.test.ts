@@ -74,7 +74,7 @@ test("raid preview shows loot camp reward, timer, and defending army", () => {
 
   assert.deepEqual(lines, [
     "Available army: 80. Sent army: 20.",
-    "Target: Rich Loot Camp test, strength 500, defending army 40, rewards points.",
+    "Target: Rich Loot Camp test, strength 500, defending army 40, rewards gold.",
     "Loot camps vanish after 30 minutes, fight back, and pay only when destroyed.",
   ]);
 });
@@ -104,7 +104,7 @@ test("winning raid report includes survivors, retirement, return, and loot", () 
   assert.match(lines[2] ?? "", /28 survived/);
   assert.match(lines[2] ?? "", /14 returned/);
   assert.match(lines[2] ?? "", /14 retired/);
-  assert.match(lines[3] ?? "", /14 points/);
+  assert.match(lines[3] ?? "", /14 gold/);
   assert.match(lines[3] ?? "", /14 food/);
 });
 
@@ -131,7 +131,7 @@ test("losing raid report includes defender losses and no returned army", () => {
   assert.doesNotMatch(lines[1] ?? "", /power 11/);
   assert.match(lines[2] ?? "", /sent army was lost/);
   assert.match(lines[2] ?? "", /7 troops/);
-  assert.match(lines[3] ?? "", /0 points/);
+  assert.match(lines[3] ?? "", /0 gold/);
   assert.match(lines[3] ?? "", /0 food/);
 });
 

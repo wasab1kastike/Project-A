@@ -69,7 +69,7 @@ export function GodEmperorGiftNotice({
           Your keen eye and the sacrifice of your brave soldiers have not gone
           unnoticed. The God Emperor A, in his infinite wisdom and occasional
           guilt, hereby replenishes your ranks. March forth, commander.
-          Do not waste this gift on a yeet.
+          Do not waste this gift.
         </p>
 
         <div className={styles.actions}>

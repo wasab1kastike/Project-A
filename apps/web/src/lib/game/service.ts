@@ -731,7 +731,7 @@ export async function claimNeutralMapHex({
       select: {
         id: true,
         ownerId: true,
-        points: true,
+        gold: true,
         mapX: true,
         mapY: true,
       },
@@ -772,8 +772,8 @@ export async function claimNeutralMapHex({
       origin: fortress,
     });
 
-    if (fortress.points < claimCost) {
-      throw new GameError(`You need ${claimCost} points to claim this tile.`);
+    if (fortress.gold < claimCost) {
+      throw new GameError(`You need ${claimCost} gold to claim this tile.`);
     }
 
     await tx.fortress.update({
@@ -781,7 +781,7 @@ export async function claimNeutralMapHex({
         id: fortress.id,
       },
       data: {
-        points: {
+        gold: {
           decrement: claimCost,
         },
       },
@@ -988,7 +988,7 @@ export async function attackMapHex({
         defenderBannerFortressId: ownership?.ownerFortressId ?? null,
         attackerArmyRemaining: 0,
         defenderArmyRemaining: battlefieldTarget.army,
-        pointsReward: isHomeOfA ? 0 : 25,
+        pointsReward: 0,
         foodReward: 0,
         startedAt: now,
       },
@@ -1261,9 +1261,9 @@ export async function renameActiveFortress({
         throw new GameError("You are not participating in the active cycle.");
       }
 
-      if (fortress.points < ACTIVE_RENAME_COST) {
+      if (fortress.gold < ACTIVE_RENAME_COST) {
         throw new GameError(
-          "You need at least 10 points to rename your fortress."
+          "You need at least 10 gold to rename your fortress."
         );
       }
 
@@ -1273,7 +1273,7 @@ export async function renameActiveFortress({
         },
         data: {
           name: normalizedName,
-          points: fortress.points - ACTIVE_RENAME_COST,
+          gold: fortress.gold - ACTIVE_RENAME_COST,
         },
       });
 
@@ -1313,7 +1313,7 @@ export async function shuffleFortressLocation({
     const cycle = await getCurrentCycle(tx);
 
     if (!cycle || !isGameplayWindowOpen(cycle, now)) {
-      throw new GameError("Castle Yeet is only available during gameplay.");
+      throw new GameError("Fortress relocation is only available during gameplay.");
     }
 
     const fortress = await tx.fortress.findUnique({
@@ -1327,7 +1327,7 @@ export async function shuffleFortressLocation({
         id: true,
         commanderName: true,
         name: true,
-        points: true,
+        gold: true,
         race: true,
         level: true,
         currentAction: true,
@@ -1360,9 +1360,9 @@ export async function shuffleFortressLocation({
     const shuffleCost =
       locationShuffleCount === 0 || freeTeleport ? 0 : ACTIVE_LOCATION_SHUFFLE_COST;
 
-    if (shuffleCost > 0 && fortress.points < shuffleCost) {
+    if (shuffleCost > 0 && fortress.gold < shuffleCost) {
       throw new GameError(
-        `You need at least ${ACTIVE_LOCATION_SHUFFLE_COST} points to trigger Castle Yeet again.`
+        `You need at least ${ACTIVE_LOCATION_SHUFFLE_COST} gold to relocate again.`
       );
     }
 
@@ -1443,7 +1443,7 @@ export async function shuffleFortressLocation({
           "mapX" = ${nextMapX},
           "mapY" = ${nextMapY},
           "locationShuffleCount" = ${locationShuffleCount + 1},
-          "points" = ${fortress.points - shuffleCost}
+          "gold" = ${fortress.gold - shuffleCost}
         WHERE "id" = ${fortress.id}
       `
     );
@@ -1670,9 +1670,9 @@ export async function purchaseFortressUpgrade({
       throw new GameError("Your castle is already at the maximum level.");
     }
 
-    if (fortress.points < upgradeCost) {
+    if (fortress.gold < upgradeCost) {
       throw new GameError(
-        `You need at least ${upgradeCost} points for the next castle upgrade.`
+        `You need at least ${upgradeCost} gold for the next castle upgrade.`
       );
     }
 
@@ -1682,7 +1682,7 @@ export async function purchaseFortressUpgrade({
       },
       data: {
         level: fortress.level + 1,
-        points: fortress.points - upgradeCost,
+        gold: fortress.gold - upgradeCost,
       },
     });
 
@@ -2024,6 +2024,7 @@ export async function activateDwarfDeepMining({
           commanderName: true,
           name: true,
           points: true,
+          gold: true,
           level: true,
           food: true,
           army: true,
@@ -2118,7 +2119,7 @@ export async function activateDwarfDeepMining({
         });
         pointDelta = Math.max(
           DWARF_DEEP_MINING_RICH_VEIN_MIN_POINTS,
-          production.pointsProduced * DWARF_DEEP_MINING_RICH_VEIN_TICKS
+          production.goldProduced * DWARF_DEEP_MINING_RICH_VEIN_TICKS
         );
 
         await tx.fortress.update({
@@ -2126,7 +2127,7 @@ export async function activateDwarfDeepMining({
             id: fortress.id,
           },
           data: {
-            points: {
+            gold: {
               increment: pointDelta,
             },
           },

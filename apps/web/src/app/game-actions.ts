@@ -417,7 +417,7 @@ export async function renameFortressAction(formData: FormData) {
     redirectToHome("error", getActionErrorMessage(error));
   }
 
-  finishAction("Fortress renamed and 10 points spent.");
+  finishAction("Fortress renamed and 10 gold spent.");
 }
 
 export async function purchaseFortressUpgradeAction(formData: FormData) {
@@ -533,7 +533,7 @@ export async function activateDwarfDeepMiningAction(formData: FormData) {
 
     notice =
       result.pointDelta !== 0
-        ? `${result.label}: ${result.pointDelta > 0 ? "+" : ""}${result.pointDelta} points.`
+        ? `${result.label}: ${result.pointDelta > 0 ? "+" : ""}${result.pointDelta} gold.`
         : result.armyDelta !== 0
           ? `${result.label}: ${result.armyDelta > 0 ? "+" : ""}${result.armyDelta} army.`
           : result.committedArmy > 0
@@ -572,28 +572,8 @@ export async function claimUnicornTeleportAction() {
 }
 
 export async function shuffleFortressLocationAction() {
-  const userId = await requireUserId();
-  let notice: string;
-
-  try {
-    const result = await shuffleFortressLocation({
-      userId,
-    });
-    emitProjectARefresh("location-shuffle");
-
-    notice =
-      result.shuffleCost === 0
-        ? result.cancelledAttackUnitCount > 0
-          ? "Castle Yeet fired for free. Outgoing attacks were canceled."
-          : "Castle Yeet fired for free."
-        : result.cancelledAttackUnitCount > 0
-          ? "Castle Yeet fired and 50 points were spent. Outgoing attacks were canceled."
-          : "Castle Yeet fired and 50 points were spent.";
-  } catch (error) {
-    redirectToHome("error", getActionErrorMessage(error));
-  }
-
-  finishAction(notice);
+  await requireUserId();
+  redirectToHome("error", "Castle Yeet is paused for now.");
 }
 
 export async function useUnicornTeleportAction() {

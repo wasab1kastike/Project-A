@@ -53,7 +53,7 @@ test("race modifiers adjust population, defense, production, and carry capacity"
     recruitersAssigned: 20,
   });
 
-  assert.equal(dwarfProduction.pointsProduced, 22);
+  assert.equal(dwarfProduction.goldProduced, 22);
   assert.equal(unicornProduction.foodProduced, 22);
   assert.equal(murineProduction.armyRequested, 22);
 
@@ -90,7 +90,7 @@ test("null legacy race uses base economy and combat safely", () => {
     recruitersAssigned: 5,
   });
 
-  assert.equal(production.pointsProduced, 10);
+  assert.equal(production.goldProduced, 10);
   assert.equal(production.foodProduced, 10);
   assert.equal(production.armyRequested, 5);
 });
@@ -129,7 +129,7 @@ test("worker assignment validation allows idle population and rejects overflow",
   assert.equal(idle.totalAssigned, 0);
 });
 
-test("tick production converts workers into points, food, and food-limited army", () => {
+test("tick production converts workers into gold, food, and food-limited army", () => {
   const production = calculateTickProduction({
     level: 0,
     food: 1,
@@ -139,7 +139,7 @@ test("tick production converts workers into points, food, and food-limited army"
   });
 
   assert.equal(production.population, 25);
-  assert.equal(production.pointsProduced, 2);
+  assert.equal(production.goldProduced, 2);
   assert.equal(production.foodProduced, 3);
   assert.equal(production.armyRequested, 5);
   assert.equal(production.armyProduced, 4);
@@ -162,7 +162,7 @@ test("castle specializations stack production and defense bonuses", () => {
     },
   });
 
-  assert.equal(production.pointsProduced, 24);
+  assert.equal(production.goldProduced, 24);
   assert.equal(production.foodProduced, 22);
   assert.equal(production.armyRequested, 26);
   assert.equal(

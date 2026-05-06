@@ -23,11 +23,11 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
     newFeatures: [
       "Added richer wiki coverage from the top navigation for players who want to check rules, race flavor, and game systems while playing.",
       "Added a special God Emperor A gift notice for Tero.",
-      "Improved Castle Yeet warnings and relocation randomness so teleport outcomes are easier to understand and less predictable.",
+      "Improved relocation randomness so teleport outcomes are easier to understand and less predictable.",
     ],
     bugFixes: [
       "Fixed Unstable Unicorn teleport decoys so they are created reliably again after teleporting.",
-      "Fixed Castle Yeet edge cases where a fortress could appear not to move on the rendered map.",
+      "Fixed relocation edge cases where a fortress could appear not to move on the rendered map.",
       "Fixed attack return handling so recalled and returning armies are reported more clearly.",
     ],
   },
@@ -42,7 +42,7 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
       "Added community wish progress, all-season wish proposals, history voting improvements, and clearer wish progress displays.",
     ],
     bugFixes: [
-      "Fixed several Castle Yeet placement issues, including duplicate map positions, rendered-position mismatches, and reshuffle overlap.",
+      "Fixed several placement issues, including duplicate map positions, rendered-position mismatches, and reshuffle overlap.",
       "Fixed Home of A combat and destroy-credit handling so attacking armies and tiebreak credit resolve correctly.",
       "Improved mobile season update behavior so the modal stays within the visible viewport.",
       "Cleaned up active-season UI behavior with a smaller top HUD, auto-dismissing notices, and a hidden season control panel during active play.",

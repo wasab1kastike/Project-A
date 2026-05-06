@@ -869,6 +869,10 @@ export default async function Home({
                 <dd>{state.playerSummary.points}</dd>
               </div>
               <div>
+                <dt>Gold</dt>
+                <dd>{state.playerSummary.gold}</dd>
+              </div>
+              <div>
                 <dt>Growth</dt>
                 <dd>Workers</dd>
               </div>

@@ -65,6 +65,7 @@ export async function createBattlefieldFromAttackUnit({
           id: true,
           army: true,
           points: true,
+          gold: true,
           food: true,
           level: true,
           race: true,
@@ -103,7 +104,7 @@ export async function createBattlefieldFromAttackUnit({
         defenderBannerFortressId: unit.targetFortressId,
         attackerArmyRemaining: unit.armyAmount,
         defenderArmyRemaining: unit.targetFortress.army,
-        pointsReward: Math.floor(unit.targetFortress.points * 0.7),
+        pointsReward: Math.floor(unit.targetFortress.gold * 0.7),
         foodReward: Math.floor(unit.targetFortress.food * 0.7),
         startedAt: tickAt,
       },
@@ -202,6 +203,7 @@ export async function joinBattlefield({
             id: true,
             ownerId: true,
             points: true,
+            gold: true,
             army: true,
             mapX: true,
             mapY: true,
@@ -237,6 +239,7 @@ export async function joinBattlefield({
         id: true,
         ownerId: true,
         points: true,
+        gold: true,
         army: true,
         mapX: true,
         mapY: true,
@@ -336,6 +339,7 @@ export async function processActiveBattlefields({
           id: true,
           army: true,
           points: true,
+          gold: true,
           food: true,
           level: true,
           race: true,
@@ -397,7 +401,7 @@ export async function processActiveBattlefields({
             defenderArmy: 0,
             defenderDbLevel: 0,
             defenderRace: null,
-            defenderPoints: battlefield.targetFortress?.points ?? 0,
+            defenderPoints: battlefield.targetFortress?.gold ?? 0,
             defenderFood: battlefield.targetFortress?.food ?? 0,
           })
         : calculateRaidOutcome({
@@ -411,7 +415,7 @@ export async function processActiveBattlefields({
                     battlefield.targetFortress.castleUpgradeSpecializations
                   )
                 : undefined,
-            defenderPoints: battlefield.targetFortress?.points ?? 0,
+            defenderPoints: battlefield.targetFortress?.gold ?? 0,
             defenderFood: battlefield.targetFortress?.food ?? 0,
           });
     const winnerSide =
@@ -432,13 +436,12 @@ export async function processActiveBattlefields({
     for (const participant of winningParticipants) {
       const share =
         winnerArmyTotal > 0 ? participant.armyCommitted / winnerArmyTotal : 0;
+      const rewardPool = isTileBattle
+        ? 0
+        : outcome.pointsLooted + battlefield.pointsReward;
       const reward =
         winnerSide === BattlefieldSide.ATTACKER
-          ? Math.floor(
-              ((isTileBattle ? 0 : outcome.pointsLooted) +
-                battlefield.pointsReward) *
-                share
-            )
+          ? Math.floor(rewardPool * share)
           : Math.max(1, Math.floor(participant.armyCommitted * 0.2));
 
       if (reward <= 0) {
@@ -450,7 +453,7 @@ export async function processActiveBattlefields({
           id: participant.fortressId,
         },
         data: {
-          points: {
+          gold: {
             increment: reward,
           },
         },
@@ -473,7 +476,7 @@ export async function processActiveBattlefields({
           id: battlefield.targetFortressId,
         },
         data: {
-          points: {
+          gold: {
             decrement:
               winnerSide === BattlefieldSide.ATTACKER
                 ? outcome.pointsLooted

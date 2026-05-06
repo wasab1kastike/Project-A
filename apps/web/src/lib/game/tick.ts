@@ -484,6 +484,7 @@ async function completeTestingCycle(
       },
       data: {
         points: 0,
+        gold: 0,
         level: 0,
         food: 0,
         army: 0,
@@ -950,6 +951,7 @@ async function processCycleTick(
         id: true,
         ownerId: true,
         points: true,
+        gold: true,
         level: true,
         food: true,
         army: true,
@@ -1024,6 +1026,9 @@ async function processCycleTick(
 
     const currentPoints = new Map(
       fortresses.map((fortress) => [fortress.id, fortress.points])
+    );
+    const currentGold = new Map(
+      fortresses.map((fortress) => [fortress.id, fortress.gold])
     );
     const currentFood = new Map(
       fortresses.map((fortress) => [fortress.id, fortress.food])
@@ -1447,10 +1452,10 @@ async function processCycleTick(
         }
 
         if (destroyer) {
-          currentPoints.set(
+          currentGold.set(
             destroyer.attacker.id,
-            (currentPoints.get(destroyer.attacker.id) ??
-              destroyer.attacker.points) + DWARF_DEEP_MINING_RUNE_BOUNTY
+            (currentGold.get(destroyer.attacker.id) ??
+              destroyer.attacker.gold) + DWARF_DEEP_MINING_RUNE_BOUNTY
           );
           await db.dwarfDeepMiningRoll.updateMany({
             where: {
@@ -1660,10 +1665,10 @@ async function processCycleTick(
             : null;
 
         if (destroyed && destroyer && reward) {
-          currentPoints.set(
+          currentGold.set(
             destroyer.attacker.id,
-            (currentPoints.get(destroyer.attacker.id) ??
-              destroyer.attacker.points) + reward.points
+            (currentGold.get(destroyer.attacker.id) ??
+              destroyer.attacker.gold) + reward.points
           );
           currentFood.set(
             destroyer.attacker.id,
@@ -2032,7 +2037,7 @@ async function processCycleTick(
         continue;
       }
       const defenderArmy = currentArmy.get(target.id) ?? target.army;
-      const defenderPoints = currentPoints.get(target.id) ?? target.points;
+      const defenderGold = currentGold.get(target.id) ?? target.gold;
       const defenderFood = currentFood.get(target.id) ?? target.food;
       const defenderArmyAtBattleStart = defenderArmy;
       const attackerRace = getEffectiveRace(attacker);
@@ -2110,7 +2115,7 @@ async function processCycleTick(
           (defenderDeepMiningCombat ? DWARF_DEEP_MINING_COMBAT_MULTIPLIER : 1),
         preventAttackerCasualties: attackerStim,
         preventDefenderLosses: defenderStim,
-        defenderPoints,
+        defenderPoints: defenderGold,
         defenderFood,
       });
 
@@ -2178,14 +2183,14 @@ async function processCycleTick(
         target.id,
         Math.max(0, defenderArmy - outcome.defenderLosses)
       );
-      currentPoints.set(
+      currentGold.set(
         attacker.id,
-        (currentPoints.get(attacker.id) ?? attacker.points) +
+        (currentGold.get(attacker.id) ?? attacker.gold) +
           outcome.pointsLooted
       );
-      currentPoints.set(
+      currentGold.set(
         target.id,
-        Math.max(0, defenderPoints - outcome.pointsLooted)
+        Math.max(0, defenderGold - outcome.pointsLooted)
       );
       const strongerTogether =
         attackerRace === "ORKS" &&
@@ -2365,10 +2370,10 @@ async function processCycleTick(
           RaceAbilityKind.DWARF_ECONOMY_SURGE,
           tickAt
         );
-      const producedPoints = economyHalted
+      const producedGold = economyHalted
         ? 0
         : Math.floor(
-            production.pointsProduced *
+            production.goldProduced *
               (economySurged ? DWARF_DEEP_MINING_ECONOMY_MULTIPLIER : 1)
           );
       const producedFood = economyHalted
@@ -2394,11 +2399,13 @@ async function processCycleTick(
         food: 0,
         army: 0,
       };
+      currentGold.set(
+        fortress.id,
+        (currentGold.get(fortress.id) ?? fortress.gold) + producedGold
+      );
       currentPoints.set(
         fortress.id,
-        (currentPoints.get(fortress.id) ?? 0) +
-          producedPoints +
-          tileBonus.points
+        (currentPoints.get(fortress.id) ?? 0) + tileBonus.points
       );
       currentFood.set(
         fortress.id,
@@ -2408,14 +2415,16 @@ async function processCycleTick(
         fortress.id,
         currentArmyValue + armyProduced + tileBonus.army
       );
-      scoreEvents.push({
-        cycleId,
-        fortressId: fortress.id,
-        actorId: fortress.ownerId,
-        eventType: ScoreEventType.GROW_TICK,
-        delta: producedPoints + tileBonus.points,
-        createdAt: tickAt,
-      });
+      if (tileBonus.points > 0) {
+        scoreEvents.push({
+          cycleId,
+          fortressId: fortress.id,
+          actorId: fortress.ownerId,
+          eventType: ScoreEventType.GROW_TICK,
+          delta: tileBonus.points,
+          createdAt: tickAt,
+        });
+      }
       // TODO: add a dedicated resource history model for food and army deltas.
     }
 
@@ -2427,17 +2436,25 @@ async function processCycleTick(
 
     const fortressUpdates: Array<{
       id: string;
-      data: { points: number; food: number; army: number; health: number };
+      data: {
+        points: number;
+        gold: number;
+        food: number;
+        army: number;
+        health: number;
+      };
     }> = [];
 
     for (const fortress of fortresses) {
       const nextPoints = currentPoints.get(fortress.id) ?? fortress.points;
+      const nextGold = currentGold.get(fortress.id) ?? fortress.gold;
       const nextFood = currentFood.get(fortress.id) ?? fortress.food;
       const nextArmy = currentArmy.get(fortress.id) ?? fortress.army;
       const nextHealth = currentHealth.get(fortress.id) ?? fortress.health;
 
       if (
         nextPoints === fortress.points &&
+        nextGold === fortress.gold &&
         nextFood === fortress.food &&
         nextArmy === fortress.army &&
         nextHealth === fortress.health
@@ -2449,6 +2466,7 @@ async function processCycleTick(
         id: fortress.id,
         data: {
           points: nextPoints,
+          gold: nextGold,
           food: nextFood,
           army: nextArmy,
           health: nextHealth,

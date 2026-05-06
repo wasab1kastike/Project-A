@@ -95,8 +95,8 @@ export function formatRaidAttackPreview(input: RaidPreviewInput) {
       const reward =
         input.targetLootCampVariant === "CLASSIC"
           ? "food"
-          : input.targetLootCampVariant === "RICH"
-            ? "points"
+        : input.targetLootCampVariant === "RICH"
+            ? "gold"
             : input.targetLootCampVariant === "CHAOS"
               ? "army and race cooldown reset"
               : "loot";
@@ -159,7 +159,7 @@ export function formatRaidBattleReport(input: RaidBattleReportInput) {
         200 * decoyLevel
       } army backlash.`,
       `${input.attackerReturned} returned. ${lostArmy} troops were lost to the decoy.`,
-      "Loot gained: 0 points and 0 food.",
+      "Loot gained: 0 gold and 0 food.",
     ];
   }
 
@@ -168,7 +168,7 @@ export function formatRaidBattleReport(input: RaidBattleReportInput) {
       input.defenderLootCampVariant === "CLASSIC"
         ? `Loot gained: ${input.foodLooted} food.`
         : input.defenderLootCampVariant === "RICH"
-          ? `Loot gained: ${input.pointsLooted} points.`
+          ? `Loot gained: ${input.pointsLooted} gold.`
           : input.defenderLootCampVariant === "CHAOS"
             ? `Loot gained: ${input.armyLooted ?? 0} army and race cooldown reset.`
             : "Loot gained: 0.";
@@ -211,7 +211,7 @@ export function formatRaidBattleReport(input: RaidBattleReportInput) {
     isVictory
       ? `${input.attackerSurvivors} survived, ${input.attackerReturned} returned, ${input.attackerRetired} retired. Defender lost ${input.defenderLosses} troops.`
       : `Your sent army was lost. Defender lost ${input.defenderLosses} troops.`,
-    `Loot gained: ${input.pointsLooted} points and ${input.foodLooted} food.`,
+    `Loot gained: ${input.pointsLooted} gold and ${input.foodLooted} food.`,
   ];
 }
 

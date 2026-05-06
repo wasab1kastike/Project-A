@@ -1,7 +1,6 @@
 import Link from "next/link";
 import styles from "./page.module.css";
 import {
-  ACTIVE_LOCATION_SHUFFLE_COST,
   ACTIVE_RENAME_COST,
   ARCADE_SEASON_BASE_COINS,
   ARCADE_SEASON_POINTS_BONUS_CAP,
@@ -43,8 +42,8 @@ const RACE_ABILITY_NOTES: Record<string, readonly string[]> = {
   DWARFS: [
     "Tier 2+: Grudge Book unlocks. Pick one enemy fortress and get +25% attack power against that target.",
     "Tier 3: Add a second grudge target or double your first target (x2 grudge multiplier).",
-    "Deep Mining: once per Helsinki hour during active season. Roll table: 25% Rich Vein (+30 minutes of point production, minimum 300), 20% Ore Surge (+50% point/food/army production for 1 hour), 15% Battle Runes (+25% attack and defense for 1 hour), 5% Faction Seal, 5% Buried Warband (+20% idle army, min 25, max 250), 12% Cave-in (-25% idle army, min 25), 10% Unstable Tunnels (new outgoing and returning attacks are 50% slower for 1 hour), 8% Shaft Collapse (point/food/army production halted for 1 hour).",
-    "Faction Seal creates an attackable Dwarf Rune tile between the Dwarf fortress and the chosen target for 1 hour. The committed army defends it only if this roll hits. While the rune has defenders, the target's faction bonuses and active race abilities are disabled. Any player except the Dwarf owner can destroy it for a fixed 500 point bounty; destruction ends suppression immediately.",
+    "Deep Mining: once per Helsinki hour during active season. Roll table: 25% Rich Vein (+30 minutes of gold production, minimum 300), 20% Ore Surge (+50% gold/food/army production for 1 hour), 15% Battle Runes (+25% attack and defense for 1 hour), 5% Faction Seal, 5% Buried Warband (+20% idle army, min 25, max 250), 12% Cave-in (-25% idle army, min 25), 10% Unstable Tunnels (new outgoing and returning attacks are 50% slower for 1 hour), 8% Shaft Collapse (gold/food/army production halted for 1 hour).",
+    "Faction Seal creates an attackable Dwarf Rune tile between the Dwarf fortress and the chosen target for 1 hour. The committed army defends it only if this roll hits. While the rune has defenders, the target's faction bonuses and active race abilities are disabled. Any player except the Dwarf owner can destroy it for a fixed 500 gold bounty; destruction ends suppression immediately.",
   ],
   UNSTABLE_UNICORNS: [
     "Tier 1: Enemies cannot see your army size while your units are in transit.",
@@ -65,7 +64,7 @@ const RACE_ABILITY_NOTES: Record<string, readonly string[]> = {
 };
 
 const CASTLE_SPECIALIZATIONS = [
-  "Points: +10% point production per pick.",
+  "Mine: +10% gold production per pick.",
   "Food: +10% food production per pick.",
   "Military: +10% army production per pick.",
   "Defense: +10% PvP defending power per pick.",
@@ -123,27 +122,26 @@ const SEASON_FLOW = [
 const QUICKSTART_STEPS = [
   "Pick a race that matches your style: stable economy, burst combat, or chaos utility.",
   "Open Castle > Economy and assign workers immediately. Idle population is wasted tempo.",
-  "Watch the map for temporary loot camps. They expire fast but can pay food, points, or army.",
+  "Watch the map for temporary loot camps. They expire fast but can pay food, gold, or army.",
   "Scout your first target before sending a huge army. Ties go to defender.",
-  "Do not spend all points on one thing. Keep a reserve for rename/yeet/upgrades.",
+  "Do not spend all gold on one thing. Keep a reserve for rename and upgrades.",
   "Watch the center tile. Home of A income can swing a close season.",
 ] as const;
 
 const LATEST_UPDATES = [
   "Loot camps now stay on the battlefield for 30 minutes, show clearer reward/strength/defender info, and fight back with variant-scaled defending armies.",
-  "Loot camps now spawn around the battlefield during gameplay. Classic camps pay food, Rich camps pay points, and Chaos camps pay army plus a race cooldown reset.",
+  "Loot camps now spawn around the battlefield during gameplay. Classic camps pay food, Rich camps pay gold, and Chaos camps pay army plus a race cooldown reset.",
   "Unstable Unicorn teleport now leaves attackable decoy castles again. Hitting a decoy clears it and applies its backlash before any normal loot happens.",
   "Unicorn decoys now mimic normal player fort visuals for other players.",
   "Orks now use Stronger Together at Tier 1 and WAAAGH at Tier 3 (x4 attack/defense, 2x movement speed).",
   "Space Murines keep STIM at Tier 2, while Instant Recall is a separate Tier 3 unlock.",
-  "Castle Yeet now has clearer warnings and stronger location safeguards, including better handling when a rendered map move would not actually change your tile.",
   "Attack recall and return reports are more explicit, so recalled armies and post-raid returning units are easier to track.",
-  "Raid loot caps are now 70% of target points and 70% of target food per raid.",
+  "Raid loot caps are now 70% of target gold and 70% of target food per raid.",
 ] as const;
 
 const LOOT_CAMP_VARIANTS = [
   "Classic Loot Camp: pays food equal to its strength when destroyed.",
-  "Rich Loot Camp: pays points equal to its strength when destroyed.",
+  "Rich Loot Camp: pays gold equal to its strength when destroyed.",
   "Chaos Loot Camp: pays army equal to its strength and resets the destroyer's current race ability cooldown.",
 ] as const;
 
@@ -161,7 +159,7 @@ const FAQ_ENTRIES = [
   {
     question: "Why did my location suddenly change?",
     answer:
-      "Castle Yeet and some race effects can move fortresses. Home of A stays fixed at the center.",
+      "Unicorn teleport and some race effects can move fortresses. Home of A stays fixed at the center.",
   },
   {
     question: "What is the safest beginner mistake to avoid?",
@@ -239,8 +237,9 @@ export default function WikiPage() {
           <h2>How to win the season</h2>
           <p>
             The main goal is to end the active season with the most points.
-            Points come from your economy, raids, loot camps, and{" "}
-            {MEGA_FORTRESS_NAME} center control.
+            Points come from map objectives: owned tiles and{" "}
+            {MEGA_FORTRESS_NAME} center control. Gold is the castle currency for
+            upgrades, rename, claims, and utility costs.
           </p>
           <div className={styles.twoCol}>
             <section>
@@ -255,8 +254,8 @@ export default function WikiPage() {
                   reached that final score first.
                 </li>
                 <li>
-                  Destroying {MEGA_FORTRESS_NAME} is not required to win, but it
-                  unlocks upgrades and can swing the score race.
+                  Capturing {MEGA_FORTRESS_NAME} is not required to win, but its
+                  center income can swing the score race.
                 </li>
               </ul>
             </section>
@@ -361,7 +360,7 @@ export default function WikiPage() {
               <ol className={styles.noteList}>
                 {FORTRESS_LEVEL_UP_COSTS.map((cost, index) => (
                   <li key={cost}>
-                    Level {index + 2}: {cost} points
+                    Level {index + 2}: {cost} gold
                   </li>
                 ))}
               </ol>
@@ -378,16 +377,9 @@ export default function WikiPage() {
           <section className={styles.subCard}>
             <h3>Active-season utility costs</h3>
             <ul className={styles.noteList}>
-              <li>Rename costs {ACTIVE_RENAME_COST} points.</li>
-              <li>
-                Castle Yeet is free the first time, then costs{" "}
-                {ACTIVE_LOCATION_SHUFFLE_COST} points unless a valid free
-                Unicorn teleport token is used.
-              </li>
-              <li>
-                Castle Yeet cancels your own outgoing armies and moves you to a
-                valid open map tile when one is available.
-              </li>
+              <li>Rename costs {ACTIVE_RENAME_COST} gold.</li>
+              <li>Manual Castle Yeet is paused for now.</li>
+              <li>Unicorn teleport remains available through race abilities.</li>
             </ul>
           </section>
         </article>
@@ -526,7 +518,7 @@ export default function WikiPage() {
                 </li>
                 <li>
                   Loot caps: up to {Math.round(MAX_POINT_LOOT_PERCENT * 100)}%
-                  of target points and {Math.round(MAX_FOOD_LOOT_PERCENT * 100)}
+                  of target gold and {Math.round(MAX_FOOD_LOOT_PERCENT * 100)}
                   % of target food per raid.
                 </li>
                 <li>

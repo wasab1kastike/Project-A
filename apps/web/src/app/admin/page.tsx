@@ -323,6 +323,7 @@ export default async function AdminPage({
                   <th>Role</th>
                   <th>Current fortress</th>
                   <th>Points</th>
+                  <th>Gold</th>
                   <th>Joined</th>
                 </tr>
               </thead>
@@ -336,6 +337,7 @@ export default async function AdminPage({
                     <td>{player.role}</td>
                     <td>{player.currentFortress?.name ?? "Spectator"}</td>
                     <td>{player.currentFortress?.points ?? "-"}</td>
+                    <td>{player.currentFortress?.gold ?? "-"}</td>
                     <td>{formatDateTime(player.currentFortress?.joinedAt ?? null)}</td>
                   </tr>
                 ))}
@@ -355,6 +357,7 @@ export default async function AdminPage({
                   <th>Owner</th>
                   <th>Type</th>
                   <th>Points</th>
+                  <th>Gold</th>
                   <th>HP</th>
                   <th>Action</th>
                   <th>Target</th>
@@ -382,6 +385,7 @@ export default async function AdminPage({
                         </small>
                       </td>
                       <td>{fortress.points}</td>
+                      <td>{fortress.gold}</td>
                       <td>
                         {fortress.isNpc
                           ? `${fortress.health} / ${fortress.maxHealth}`
@@ -394,7 +398,7 @@ export default async function AdminPage({
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={8}>No fortresses are attached to the current cycle.</td>
+                    <td colSpan={9}>No fortresses are attached to the current cycle.</td>
                   </tr>
                 )}
               </tbody>

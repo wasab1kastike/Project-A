@@ -9,7 +9,7 @@ import { CastleUpgradeSpecialization } from "@/lib/prisma-client";
 
 export const BASE_POPULATION = 25;
 export const POPULATION_PER_DB_LEVEL = 10;
-export const POINTS_PER_MINER = 1;
+export const GOLD_PER_MINER = 1;
 export const FOOD_PER_FARMER = 1;
 export const ARMY_PER_RECRUITER = 1;
 export const FOOD_COST_PER_ARMY = 1;
@@ -69,7 +69,7 @@ export type RaidOutcome = {
 
 export type TickProductionResult = {
   population: number;
-  pointsProduced: number;
+  goldProduced: number;
   foodProduced: number;
   armyRequested: number;
   armyProduced: number;
@@ -225,7 +225,7 @@ export function calculateTickProduction(fortressLike: FortressEconomyLike) {
   const minersAssigned = clampNonNegative(fortressLike.minersAssigned);
   const farmersAssigned = clampNonNegative(fortressLike.farmersAssigned);
   const recruitersAssigned = clampNonNegative(fortressLike.recruitersAssigned);
-  const pointMultiplier = getCastleSpecializationMultiplier(
+  const goldMultiplier = getCastleSpecializationMultiplier(
     getSpecializationCount(
       fortressLike.castleSpecializations,
       CastleUpgradeSpecialization.POINTS
@@ -247,8 +247,8 @@ export function calculateTickProduction(fortressLike: FortressEconomyLike) {
     fortressLike.level,
     fortressLike.race
   );
-  const basePointsProduced =
-    minersAssigned * POINTS_PER_MINER +
+  const baseGoldProduced =
+    minersAssigned * GOLD_PER_MINER +
     Math.floor(minersAssigned / 10) * raceModifiers.pointsPerTenMiners;
   const baseFoodProduced =
     farmersAssigned * FOOD_PER_FARMER +
@@ -256,7 +256,7 @@ export function calculateTickProduction(fortressLike: FortressEconomyLike) {
   const baseArmyRequested =
     recruitersAssigned * ARMY_PER_RECRUITER +
     Math.floor(recruitersAssigned / 10) * raceModifiers.armyPerTenRecruiters;
-  const pointsProduced = Math.floor(basePointsProduced * pointMultiplier);
+  const goldProduced = Math.floor(baseGoldProduced * goldMultiplier);
   const foodProduced = Math.floor(baseFoodProduced * foodMultiplier);
   const armyRequested = Math.floor(baseArmyRequested * armyMultiplier);
   const availableFood = clampNonNegative(fortressLike.food) + foodProduced;
@@ -269,7 +269,7 @@ export function calculateTickProduction(fortressLike: FortressEconomyLike) {
 
   return {
     population,
-    pointsProduced,
+    goldProduced,
     foodProduced,
     armyRequested,
     armyProduced,

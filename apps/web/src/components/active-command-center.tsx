@@ -134,11 +134,11 @@ export function ActiveCommandCenter({
             />
           </label>
           <p className={styles.helper}>
-            Renaming during ACTIVE costs 10 points and still requires a unique
+            Renaming during ACTIVE costs 10 gold and still requires a unique
             name.
           </p>
           <button className={styles.secondaryButton} type="submit">
-            Spend 10 points to rename
+            Spend 10 gold to rename
           </button>
         </form>
       </div>

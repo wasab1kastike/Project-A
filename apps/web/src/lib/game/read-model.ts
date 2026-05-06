@@ -118,9 +118,9 @@ function formatBattlefieldReportLines({
       );
     }
 
-    if (pointsReward > 0) {
-      lines.push(`Battlefield reward paid out: ${pointsReward} points.`);
-    }
+      if (pointsReward > 0 && !targetTileId) {
+        lines.push(`Battlefield reward paid out: ${pointsReward} gold.`);
+      }
   } else {
     lines.push(
       `Battle progress continues with ${attackerArmyRemaining} attacker army and ${defenderArmyRemaining} defender army committed.`
@@ -407,6 +407,7 @@ export async function getHomePageState({
           commanderNameRegisteredAt: true,
           name: true,
           points: true,
+          gold: true,
           level: true,
           food: true,
           army: true,
@@ -442,6 +443,7 @@ export async function getHomePageState({
               commanderName: true,
               name: true,
               points: true,
+              gold: true,
               level: true,
               race: true,
               owner: {
@@ -907,7 +909,7 @@ export async function getHomePageState({
   const canAffordUpgrade =
     playerFortress !== null &&
     nextUpgradeCost !== null &&
-    playerFortress.points >= nextUpgradeCost;
+    playerFortress.gold >= nextUpgradeCost;
   const receivedSlayerUpgrade = null;
   const locationShuffleCount = playerFortress
     ? await getFortressLocationShuffleCount(db, playerFortress.id)
@@ -1407,6 +1409,7 @@ export async function getHomePageState({
     const displayCommanderName =
       disguisedSource?.commanderName ?? fortress.commanderName;
     const displayPoints = disguisedSource?.points ?? fortress.points;
+    const displayGold = disguisedSource?.gold ?? fortress.gold;
     const displayRace = disguisedSource?.race ?? fortress.race;
     const displayIsNpc = disguisedSource ? false : fortress.isNpc;
     const displayOwner = disguisedSource?.owner ?? fortress.owner;
@@ -1427,6 +1430,7 @@ export async function getHomePageState({
     ),
     rawName: displayName,
     points: displayPoints,
+    gold: displayGold,
     isNpc: displayIsNpc,
     health: fortress.health,
     maxHealth: fortress.maxHealth,
@@ -1790,6 +1794,7 @@ export async function getHomePageState({
           ),
           rawName: playerFortress.name,
           points: playerFortress.points,
+          gold: playerFortress.gold,
           level: playerFortress.level,
           displayedCastleLevel: getDisplayedCastleLevel(playerFortress.level),
           population: getFortressPopulation(
@@ -1832,6 +1837,7 @@ export async function getHomePageState({
           ),
           rawName: playerFortress.name,
           points: playerFortress.points,
+          gold: playerFortress.gold,
           level: playerFortress.level,
           displayedCastleLevel: getDisplayedCastleLevel(playerFortress.level),
           population: getFortressPopulation(
@@ -1861,7 +1867,7 @@ export async function getHomePageState({
               })()
             : null,
           isSlayerOfA: playerFortress.id === cycle.crownedFortressId,
-          canRename: activeOpen && playerFortress.points >= 10,
+          canRename: activeOpen && playerFortress.gold >= 10,
           isTestingPhase: cycle.status === CycleStatus.TESTING,
           canSetAction: gameplayOpen && playerFortress.race !== null,
           locationShuffleCost,
@@ -1873,7 +1879,7 @@ export async function getHomePageState({
             gameplayOpen &&
             playerFortress.race !== null &&
             locationShuffleCost !== null &&
-            playerFortress.points >= locationShuffleCost,
+            playerFortress.gold >= locationShuffleCost,
           upgradesUnlocked,
           nextUpgradeCost,
           canAffordUpgrade,
@@ -1982,7 +1988,7 @@ export async function getHomePageState({
             ...playerFortress,
             castleSpecializations:
               playerCastleSpecializationCounts ?? undefined,
-          }).pointsProduced,
+          }).goldProduced,
           attackDamage: getFortressAttackDamage(playerFortress.level),
         }
       : null,

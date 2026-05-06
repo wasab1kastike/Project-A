@@ -14,7 +14,7 @@ const SECTIONS = [
     items: [
       "Pick one race for the season.",
       "Locked for the season.",
-      "More race rewards coming later.",
+      "Race abilities stay on the castle page.",
     ],
   },
   {
@@ -30,9 +30,10 @@ const SECTIONS = [
     title: "Economy Rework",
     items: [
       "Castles now have population.",
-      "Miners = points.",
+      "Miners = gold.",
       "Farmers = food.",
       "Recruiters = army.",
+      "Points come from map objectives.",
     ],
   },
   {
@@ -146,10 +147,10 @@ export function SeasonUpdateAnnouncement({
                   </button>
                 </div>
                 <div>
-                  <h2 id={titleId}>Season Update: Castles Got Jobs</h2>
+                  <h2 id={titleId}>Season Update: Castle Economy Split</h2>
                   <p id={descriptionId}>
-                    The season now has real fortress economy, race identity, and
-                    riskier raids. Tiny workers, big consequences.
+                    Castles now produce gold, food, and army. Score points come
+                    from map control and Home of A.
                   </p>
                 </div>
                 <div className={styles.sectionGrid}>

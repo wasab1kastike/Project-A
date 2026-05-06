@@ -663,7 +663,7 @@ test("battlefield progress advances by one to five percent per tick", () => {
   );
 });
 
-test("neutral tile claim spends points and applies tick bonus", async (context) => {
+test("neutral tile claim spends gold and applies tick bonus", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -692,6 +692,7 @@ test("neutral tile claim spends points and applies tick bonus", async (context) 
       id: fortress.id,
     },
     data: {
+      gold: 100,
       minersAssigned: 0,
       farmersAssigned: 0,
       recruitersAssigned: 0,
@@ -728,7 +729,8 @@ test("neutral tile claim spends points and applies tick bonus", async (context) 
     },
   });
 
-  assert.equal(reloaded.points, 100 - claimCost + getTileBonus(tile).points);
+  assert.equal(reloaded.gold, 100 - claimCost);
+  assert.equal(reloaded.points, getTileBonus(tile).points);
 });
 
 test("owned tile attack creates a targetTileId battlefield", async (context) => {
@@ -2300,7 +2302,7 @@ test("loot camp raids apply variant rewards without mega fortress progression", 
   assert.equal(rich.attackUnit.foodLooted, 0);
   assert.equal(chaos.attackUnit.armyLooted, 100);
   assert.ok(refreshedAttacker.food >= 100);
-  assert.ok(refreshedAttacker.points >= 100);
+  assert.ok(refreshedAttacker.gold >= 100);
   assert.ok(refreshedAttacker.army >= 100);
   assert.equal(richRewardEvents.length, 1);
   assert.ok(latestWaaagh.usedAt < waaaghUsedAt);
@@ -4878,7 +4880,7 @@ test("joining assigns a stable valid unit sprite variant", async (context) => {
   assert.ok(UNIT_SPRITE_VARIANTS.includes(fortress.unitSpriteVariant as never));
 });
 
-test("active rename costs 10 points and rejects insufficient points or duplicate names", async (context) => {
+test("active rename costs 10 gold and rejects insufficient gold or duplicate names", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -4909,7 +4911,7 @@ test("active rename costs 10 points and rejects insufficient points or duplicate
       cycleId: cycle.id,
     },
     data: {
-      points: 10,
+      gold: 10,
     },
   });
 
@@ -4939,7 +4941,7 @@ test("active rename costs 10 points and rejects insufficient points or duplicate
       },
     },
     data: {
-      points: 5,
+      gold: 5,
     },
   });
 
@@ -4951,7 +4953,7 @@ test("active rename costs 10 points and rejects insufficient points or duplicate
         fortressName: "Delta",
         now: new Date("2026-04-20T12:02:00.000Z"),
       }),
-    /at least 10 points/
+    /at least 10 gold/
   );
 
   const renamed = await prisma.fortress.findUniqueOrThrow({
@@ -4964,7 +4966,7 @@ test("active rename costs 10 points and rejects insufficient points or duplicate
   });
 
   assert.equal(renamed.name, "Gamma");
-  assert.equal(renamed.points, 0);
+  assert.equal(renamed.gold, 0);
 });
 
 test("worker assignment updates validate cycle, ownership, capacity, and derived population", async (context) => {
@@ -5481,7 +5483,7 @@ test("Dwarf Deep Mining rune is contested and bounty destruction ends suppressio
   assert.equal(clearedState.playerSummary?.race, FortressRace.ORKS);
 });
 
-test("location shuffle is free once, then costs 50 points", async (context) => {
+test("location shuffle is free once, then costs 50 gold", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -5520,7 +5522,7 @@ test("location shuffle is free once, then costs 50 points", async (context) => {
       id: attackerFortress.id,
     },
     data: {
-      points: 100,
+      gold: 100,
       army: 1,
       race: FortressRace.DWARFS,
     },
@@ -5673,7 +5675,7 @@ test("location shuffle is free once, then costs 50 points", async (context) => {
   assert.equal(shuffleCostEvents[0]?.delta, -ACTIVE_LOCATION_SHUFFLE_COST);
 });
 
-test("location shuffle keeps in-flight armies and rejects insufficient paid points", async (context) => {
+test("location shuffle keeps in-flight armies and rejects insufficient paid gold", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -5769,7 +5771,7 @@ test("location shuffle keeps in-flight armies and rejects insufficient paid poin
     data: {
       currentAction: FortressAction.GROW,
       targetFortressId: null,
-      points: ACTIVE_LOCATION_SHUFFLE_COST - 1,
+      gold: ACTIVE_LOCATION_SHUFFLE_COST - 1,
     },
   });
   await prisma.$executeRaw`
@@ -5785,7 +5787,7 @@ test("location shuffle keeps in-flight armies and rejects insufficient paid poin
         userId: attacker.id,
         now: new Date("2026-04-20T12:06:00.000Z"),
       }),
-    /at least 50 points/
+    /at least 50 gold/
   );
 });
 
@@ -6045,7 +6047,7 @@ test("castle upgrades are available during gameplay and reject unaffordable or m
       },
     },
     data: {
-      points: 99,
+      gold: 99,
     },
   });
 
@@ -6057,7 +6059,7 @@ test("castle upgrades are available during gameplay and reject unaffordable or m
         specialization: "POINTS",
         now: new Date("2026-04-20T12:05:00.000Z"),
       }),
-    /at least 100 points/
+    /at least 100 gold/
   );
 
   let fortress = await prisma.fortress.findUniqueOrThrow({
@@ -6070,7 +6072,7 @@ test("castle upgrades are available during gameplay and reject unaffordable or m
   });
 
   assert.equal(fortress.level, 0);
-  assert.equal(fortress.points, 99);
+  assert.equal(fortress.gold, 99);
 
   const unaffordableState = await getHomePageState({
     userId: user.id,
@@ -6087,7 +6089,7 @@ test("castle upgrades are available during gameplay and reject unaffordable or m
       id: fortress.id,
     },
     data: {
-      points: FORTRESS_LEVEL_UP_COSTS.reduce((total, cost) => total + cost, 0),
+      gold: FORTRESS_LEVEL_UP_COSTS.reduce((total, cost) => total + cost, 0),
     },
   });
 
@@ -6174,7 +6176,7 @@ test("castle upgrades are available during gameplay and reject unaffordable or m
     FORTRESS_LEVEL_UP_COSTS.map((cost) => -cost)
   );
   assert.equal(fortress.level, MAX_FORTRESS_LEVEL);
-  assert.equal(fortress.points, 0);
+  assert.equal(fortress.gold, 0);
   assert.equal(state.playerSummary?.level, MAX_FORTRESS_LEVEL);
   assert.equal(state.playerSummary?.displayedCastleLevel, 10);
   assert.equal(state.playerSummary?.nextUpgradeCost, null);
@@ -6231,7 +6233,8 @@ test("tick processing is idempotent for the same minute", async (context) => {
 
   assert.equal(firstRun.processedMinutes, 2);
   assert.equal(secondRun.processedMinutes, 0);
-  assert.equal(fortress.points, 2);
+  assert.equal(fortress.gold, 2);
+  assert.equal(fortress.points, 0);
 });
 
 test("castle levels increase grow income and attack damage without changing cadence", async (context) => {
@@ -6292,6 +6295,7 @@ test("castle levels increase grow income and attack damage without changing cade
     data: {
       level: 2,
       points: 0,
+      gold: 0,
       food: 1,
       army: 20,
       minersAssigned: 10,
@@ -6306,7 +6310,8 @@ test("castle levels increase grow income and attack damage without changing cade
       id: targetFortress.id,
     },
     data: {
-      points: 10,
+      points: 0,
+      gold: 10,
       food: 4,
       army: 4,
       currentAction: FortressAction.ATTACK,
@@ -6329,12 +6334,14 @@ test("castle levels increase grow income and attack damage without changing cade
     },
     select: {
       points: true,
+      gold: true,
       food: true,
       army: true,
     },
   });
 
-  assert.equal(grownAttacker.points, 10);
+  assert.equal(grownAttacker.points, 0);
+  assert.equal(grownAttacker.gold, 10);
   assert.equal(grownAttacker.food, 6);
   assert.equal(grownAttacker.army, 25);
 
@@ -6369,12 +6376,14 @@ test("castle levels increase grow income and attack damage without changing cade
     },
     select: {
       points: true,
+      gold: true,
       food: true,
       army: true,
     },
   });
 
-  assert.equal(damagedTarget.points, 9);
+  assert.equal(damagedTarget.points, 0);
+  assert.equal(damagedTarget.gold, 9);
   assert.equal(damagedTarget.food, 3);
   assert.equal(damagedTarget.army, 2);
 
@@ -6390,12 +6399,14 @@ test("castle levels increase grow income and attack damage without changing cade
     },
     select: {
       points: true,
+      gold: true,
       food: true,
       army: true,
     },
   });
 
-  assert.equal(updatedAttacker.points, 11);
+  assert.equal(updatedAttacker.points, 0);
+  assert.equal(updatedAttacker.gold, 11);
   assert.equal(updatedAttacker.food, 7);
   assert.equal(updatedAttacker.army, 0);
 
@@ -6416,7 +6427,7 @@ test("castle levels increase grow income and attack damage without changing cade
   assert.equal(attackerAfterReturn.army, 11);
 });
 
-test("worker assignments produce points, food, and army in the same tick", async (context) => {
+test("worker assignments produce gold, food, and army in the same tick", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -6490,6 +6501,7 @@ test("worker assignments produce points, food, and army in the same tick", async
     },
     data: {
       points: 0,
+      gold: 0,
       food: 0,
       army: 0,
       minersAssigned: 10,
@@ -6503,6 +6515,7 @@ test("worker assignments produce points, food, and army in the same tick", async
     },
     data: {
       points: 0,
+      gold: 0,
       food: 2,
       army: 0,
       minersAssigned: 0,
@@ -6516,6 +6529,7 @@ test("worker assignments produce points, food, and army in the same tick", async
     },
     data: {
       points: 0,
+      gold: 0,
       food: 0,
       army: 0,
       minersAssigned: 0,
@@ -6529,6 +6543,7 @@ test("worker assignments produce points, food, and army in the same tick", async
     },
     data: {
       points: 0,
+      gold: 0,
       food: 0,
       army: 0,
       minersAssigned: 25,
@@ -6548,6 +6563,7 @@ test("worker assignments produce points, food, and army in the same tick", async
     },
     select: {
       points: true,
+      gold: true,
       food: true,
       army: true,
     },
@@ -6558,6 +6574,7 @@ test("worker assignments produce points, food, and army in the same tick", async
     },
     select: {
       points: true,
+      gold: true,
       food: true,
       army: true,
     },
@@ -6568,6 +6585,7 @@ test("worker assignments produce points, food, and army in the same tick", async
     },
     select: {
       points: true,
+      gold: true,
       food: true,
       army: true,
     },
@@ -6578,6 +6596,7 @@ test("worker assignments produce points, food, and army in the same tick", async
     },
     select: {
       points: true,
+      gold: true,
       food: true,
       army: true,
     },
@@ -6589,26 +6608,30 @@ test("worker assignments produce points, food, and army in the same tick", async
   });
 
   assert.deepEqual(refreshedDefault, {
-    points: 10,
+    points: 0,
+    gold: 10,
     food: 5,
     army: 5,
   });
   assert.deepEqual(refreshedFoodLimited, {
     points: 0,
+    gold: 0,
     food: 0,
     army: 2,
   });
   assert.deepEqual(refreshedIdle, {
     points: 0,
+    gold: 0,
     food: 0,
     army: 0,
   });
   assert.deepEqual(refreshedMiner, {
-    points: 25,
+    points: 0,
+    gold: 25,
     food: 0,
     army: 0,
   });
-  assert.equal(minerState.leaderboard[0]?.id, minerLeader.id);
+  assert.equal(minerState.leaderboard[0]?.id, defaultWorker.id);
 });
 
 test("recalled attack units return home without damaging the target", async (context) => {
@@ -7232,6 +7255,7 @@ test("manual attack units resolve without relaunching on the same tick", async (
     },
     data: {
       points: 3,
+      gold: 3,
       army: 1,
       race: FortressRace.DWARFS,
     },
@@ -7241,7 +7265,8 @@ test("manual attack units resolve without relaunching on the same tick", async (
       id: targetFortress.id,
     },
     data: {
-      points: 1,
+      points: 0,
+      gold: 1,
     },
   });
 
@@ -7274,7 +7299,9 @@ test("manual attack units resolve without relaunching on the same tick", async (
   });
 
   assert.equal(launchedAttacker.points, 3);
-  assert.equal(launchedTarget.points, 1);
+  assert.equal(launchedAttacker.gold, 3);
+  assert.equal(launchedTarget.points, 0);
+  assert.equal(launchedTarget.gold, 1);
   assert.equal(
     attackUnit.arrivesAt.toISOString(),
     getAttackArrivalAt({
@@ -7297,7 +7324,7 @@ test("manual attack units resolve without relaunching on the same tick", async (
     },
   });
 
-  assert.ok(beforeImpactTarget.points >= 1);
+  assert.ok(beforeImpactTarget.gold >= 1);
 
   await runGameTick({
     db: prisma,
@@ -7319,8 +7346,9 @@ test("manual attack units resolve without relaunching on the same tick", async (
     resolvedUnit.resolvedAt?.toISOString(),
     attackUnit.arrivesAt.toISOString()
   );
-  assert.equal(afterImpactTarget.points, beforeImpactTarget.points - 1);
-  assert.ok(afterImpactTarget.points >= 0);
+  assert.equal(afterImpactTarget.points, beforeImpactTarget.points);
+  assert.equal(afterImpactTarget.gold, beforeImpactTarget.gold - 1);
+  assert.ok(afterImpactTarget.gold >= 0);
 
   const sameTickOutbound = await prisma.attackUnit.findMany({
     where: {
@@ -9598,7 +9626,7 @@ test("read model exposes location shuffle cost and outgoing warning state", asyn
       },
     },
     data: {
-      points: ACTIVE_LOCATION_SHUFFLE_COST - 1,
+      gold: ACTIVE_LOCATION_SHUFFLE_COST - 1,
       currentAction: FortressAction.GROW,
       targetFortressId: null,
     },
@@ -11162,7 +11190,7 @@ test("active cycle with missing ticks is detected as stalled", async (context) =
   assert.equal(adminState.currentCycle?.lastProcessedTickAt, null);
 });
 
-test("manual catch-up unfreezes points", async (context) => {
+test("manual catch-up unfreezes gold production", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -11201,7 +11229,7 @@ test("manual catch-up unfreezes points", async (context) => {
       ownerId: user.id,
     },
     select: {
-      points: true,
+      gold: true,
     },
   });
   const stalledState = await getAdminDashboardState({
@@ -11221,7 +11249,7 @@ test("manual catch-up unfreezes points", async (context) => {
       ownerId: user.id,
     },
     select: {
-      points: true,
+      gold: true,
     },
   });
   const recoveredState = await getAdminDashboardState({
@@ -11229,7 +11257,7 @@ test("manual catch-up unfreezes points", async (context) => {
     now: catchUpAt,
   });
 
-  assert.ok(afterCatchUp.points > beforeCatchUp.points);
+  assert.ok(afterCatchUp.gold > beforeCatchUp.gold);
   assert.equal(recoveredState.currentCycle?.tickHealth, "ok");
   assert.equal(recoveredState.currentCycle?.minutesBehind, 0);
 });
@@ -11298,7 +11326,8 @@ test("manual catch-up resolves due attacks without relaunching", async (context)
     data: {
       mapX: 94,
       mapY: 95,
-      points: 5,
+      points: 0,
+      gold: 5,
     },
   });
 
@@ -11330,6 +11359,7 @@ test("manual catch-up resolves due attacks without relaunching", async (context)
     },
     select: {
       points: true,
+      gold: true,
     },
   });
 
@@ -11344,6 +11374,7 @@ test("manual catch-up resolves due attacks without relaunching", async (context)
     },
     select: {
       points: true,
+      gold: true,
     },
   });
   const unresolvedAfterCatchUp = await prisma.attackUnit.findMany({
@@ -11363,6 +11394,7 @@ test("manual catch-up resolves due attacks without relaunching", async (context)
   assert.ok(summary.processedMinutes >= 1);
   assert.equal(summary.resolvedAttackUnits, 1);
   assert.equal(summary.launchedAttackUnits, 0);
-  assert.equal(afterCatchUpTarget.points, beforeCatchUpTarget.points - 2);
+  assert.equal(afterCatchUpTarget.points, beforeCatchUpTarget.points);
+  assert.equal(afterCatchUpTarget.gold, beforeCatchUpTarget.gold - 2);
   assert.equal(unresolvedAfterCatchUp.length, 0);
 });

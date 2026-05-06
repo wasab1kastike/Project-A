@@ -13,7 +13,6 @@ import {
   registerCommanderNameAction,
   renameFortressAction,
   selectFortressRaceAction,
-  shuffleFortressLocationAction,
   updateWorkerAssignmentAction,
   useUnicornTeleportAction,
 } from "@/app/game-actions";
@@ -30,6 +29,7 @@ type PlayerSummary = {
   canRegisterCommanderName: boolean;
   name: string;
   points: number;
+  gold: number;
   level: number;
   displayedCastleLevel: number;
   population: number;
@@ -82,7 +82,7 @@ const BUILDINGS = [
   {
     key: "POINTS",
     name: "Mine",
-    role: "Point generation and future mining tile bonuses.",
+    role: "Gold generation and future mining tile bonuses.",
   },
   {
     key: "FOOD",
@@ -190,6 +190,10 @@ export function CastleManagement({
             <dd>{playerSummary.points}</dd>
           </div>
           <div>
+            <dt>Gold</dt>
+            <dd>{playerSummary.gold}</dd>
+          </div>
+          <div>
             <dt>Food</dt>
             <dd>{playerSummary.food}</dd>
           </div>
@@ -229,7 +233,7 @@ export function CastleManagement({
           </form>
         ) : playerSummary.upgradesUnlocked && playerSummary.nextUpgradeCost !== null ? (
           <form action={purchaseFortressUpgradeAction} className={styles.form}>
-            <p>Next upgrade costs {playerSummary.nextUpgradeCost} points.</p>
+            <p>Next upgrade costs {playerSummary.nextUpgradeCost} gold.</p>
             <BuildingChoiceFields />
             <button type="submit" disabled={!playerSummary.canPurchaseUpgrade}>
               Upgrade castle
@@ -284,7 +288,7 @@ export function CastleManagement({
             />
           </label>
           <p className={styles.muted}>
-            Tick preview: +{production.pointsProduced} points, +
+            Tick preview: +{production.goldProduced} gold, +
             {production.foodProduced} food, +{production.armyProduced} army.
           </p>
           {workerError ? <p className={styles.error}>{workerError}</p> : null}
@@ -318,7 +322,7 @@ export function CastleManagement({
             {playerSummary.race === "UNSTABLE_UNICORNS" ? (
               playerSummary.raceBuffs.hasUnicornTeleportToken ? (
                 <form action={useUnicornTeleportAction}>
-                  <button type="submit">Use Unicorn free yeet</button>
+                  <button type="submit">Use Unicorn teleport</button>
                 </form>
               ) : (
                 <form action={claimUnicornTeleportAction}>
@@ -326,7 +330,7 @@ export function CastleManagement({
                     type="submit"
                     disabled={!playerSummary.raceBuffs.canClaimUnicornTeleport}
                   >
-                    Claim Unicorn free yeet
+                    Claim Unicorn teleport
                   </button>
                 </form>
               )
@@ -400,13 +404,6 @@ export function CastleManagement({
             />
             <button type="submit" disabled={!playerSummary.canRename}>
               Rename
-            </button>
-          </form>
-          <form action={shuffleFortressLocationAction}>
-            <button type="submit" disabled={!playerSummary.canShuffleLocation}>
-              {playerSummary.freeLocationShuffleAvailable
-                ? "Castle Yeet for free"
-                : `Castle Yeet for ${playerSummary.locationShuffleCost} pts`}
             </button>
           </form>
         </div>
