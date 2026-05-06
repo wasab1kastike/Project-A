@@ -246,6 +246,72 @@
   backdrop-filter: blur(12px);
 }
 
+.tilePanel {
+  position: absolute;
+  z-index: 11;
+  right: 16px;
+  bottom: 16px;
+  display: grid;
+  gap: 10px;
+  width: min(380px, calc(100% - 32px));
+  max-height: min(48%, 430px);
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid rgba(103, 196, 207, 0.28);
+  border-radius: 8px;
+  background: rgba(5, 12, 18, 0.88);
+  backdrop-filter: blur(12px);
+}
+
+.tilePanelHeader,
+.tileActions,
+.tileArmyControl {
+  display: grid;
+  gap: 8px;
+}
+
+.tilePanelHeader {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.tilePanelHeader strong {
+  display: block;
+  margin-top: 2px;
+}
+
+.tileStats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.tileStats div {
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid rgba(103, 196, 207, 0.16);
+  border-radius: 8px;
+  background: rgba(3, 10, 16, 0.42);
+}
+
+.tileStats dt,
+.tileArmyControl span {
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+}
+
+.tileStats dd {
+  margin: 4px 0 0;
+  font-weight: 800;
+}
+
+.tileArmyControl input {
+  width: 100%;
+}
+
 .sectionHeading,
 .battlefieldCardHeader,
 .battlefieldJoinGrid {
@@ -344,6 +410,17 @@
     right: 10px;
     width: auto;
     max-height: 44%;
+  }
+
+  .tilePanel {
+    right: 10px;
+    bottom: 10px;
+    width: min(360px, calc(100% - 20px));
+    max-height: 38%;
+  }
+
+  .tileStats {
+    grid-template-columns: 1fr;
   }
 
   .battlefieldJoinGrid {

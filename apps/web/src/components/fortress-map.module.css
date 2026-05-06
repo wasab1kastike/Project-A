@@ -181,6 +181,12 @@
   animation: contestedTilePulse 1.8s ease-in-out infinite;
 }
 
+.selectedTile polygon {
+  stroke: #ffffff;
+  stroke-width: 7px;
+  filter: drop-shadow(0 0 10px rgba(247, 196, 95, 0.78));
+}
+
 .emptyState {
   position: absolute;
   inset: 0;

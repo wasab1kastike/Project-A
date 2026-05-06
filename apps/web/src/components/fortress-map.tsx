@@ -36,7 +36,12 @@ type MapFortress = {
   commanderName: string;
   name: string;
   rawName: string;
-  fortressKind: "PLAYER" | "MEGA" | "UNICORN_DECOY" | "LOOT_CAMP" | "DWARF_RUNE";
+  fortressKind:
+    | "PLAYER"
+    | "MEGA"
+    | "UNICORN_DECOY"
+    | "LOOT_CAMP"
+    | "DWARF_RUNE";
   lootCampVariant: "STANDARD" | "RICH" | "CHAOS" | "CLASSIC" | null;
   points: number;
   isNpc: boolean;
@@ -88,6 +93,7 @@ type AttackUnitMarker = {
 
 type MapHexOwnershipMarker = {
   tileId: string;
+  biome?: HexBiome | string | null;
   ownerFortressId?: string | null;
   ownerName: string;
   ownerCommanderName: string;
@@ -95,8 +101,14 @@ type MapHexOwnershipMarker = {
   hasActiveBattle: boolean;
   canAttack: boolean;
   claimCost: number | null;
+  activeBattlefieldId?: string | null;
+  attackDisabledReason?: string | null;
   bonus: {
     label: string;
+    points?: number;
+    food?: number;
+    army?: number;
+    defensePercent?: number;
   };
   isHomeOfA?: boolean;
   pointIncome?: number | null;
@@ -236,13 +248,13 @@ function DwarfRuneSprite() {
 function HexTileMap({
   mapHexes,
   currentFortressLocation,
-  onClaimMapHex,
-  onAttackMapHex,
+  selectedTileId,
+  onSelectMapHex,
 }: {
   mapHexes: MapHexOwnershipMarker[];
   currentFortressLocation?: { mapX: number; mapY: number } | null;
-  onClaimMapHex?: (tileId: string) => void | Promise<void>;
-  onAttackMapHex?: (tileId: string, sentArmy: number) => void | Promise<void>;
+  selectedTileId?: string | null;
+  onSelectMapHex?: (tileId: string) => void;
 }) {
   const ownershipByTileId = new Map(
     mapHexes.map((ownership) => [ownership.tileId, ownership])
@@ -267,7 +279,9 @@ function HexTileMap({
           !ownership && !isHomeTile && currentFortressLocation
             ? getTileClaimCost({ tile, origin: currentFortressLocation })
             : null;
-        const bonus = ownership?.bonus ?? (isHomeTile ? getHomeOfABonus() : getTileBonus(tile));
+        const bonus =
+          ownership?.bonus ??
+          (isHomeTile ? getHomeOfABonus() : getTileBonus(tile));
         const tileClassName = [
           styles.hexTile,
           styles[`${tile.biome}Tile`],
@@ -277,6 +291,7 @@ function HexTileMap({
           ownership?.isCurrentUser ? styles.ownTile : "",
           ownership?.canAttack ? styles.attackableTile : "",
           ownership?.hasActiveBattle ? styles.contestedTile : "",
+          selectedTileId === tile.id ? styles.selectedTile : "",
         ]
           .filter(Boolean)
           .join(" ");
@@ -295,23 +310,11 @@ function HexTileMap({
                   }, ${bonus.label}`
             }
             onClick={() => {
-              if (!tile.spawnable) {
+              if (!tile.spawnable || !onSelectMapHex) {
                 return;
               }
 
-              if (!ownership && isHomeTile) {
-                void onAttackMapHex?.(tile.id, 1);
-                return;
-              }
-
-              if (!ownership) {
-                void onClaimMapHex?.(tile.id);
-                return;
-              }
-
-              if (ownership.canAttack) {
-                void onAttackMapHex?.(tile.id, 1);
-              }
+              onSelectMapHex(tile.id);
             }}
           >
             <polygon points={getHexPolygonPoints(tile.x, tile.y)} />
@@ -372,7 +375,9 @@ function AttackUnitsLayer({
 }: {
   attackUnits: AttackUnitMarker[];
   onRecallAttackUnit?: (attackUnit: AttackUnitMarker) => void | Promise<void>;
-  onInstantRecallAttackUnit?: (attackUnit: AttackUnitMarker) => void | Promise<void>;
+  onInstantRecallAttackUnit?: (
+    attackUnit: AttackUnitMarker
+  ) => void | Promise<void>;
 }) {
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
@@ -482,7 +487,11 @@ function AttackUnitsLayer({
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={(event) => event.stopPropagation()}
               >
-                <strong>{unit.armyAmount !== null ? `${unit.armyAmount} army` : "Hidden army"}</strong>
+                <strong>
+                  {unit.armyAmount !== null
+                    ? `${unit.armyAmount} army`
+                    : "Hidden army"}
+                </strong>
                 <span>{statusText}</span>
                 <em>{formatSecondsRemaining(secondsRemaining)} ETA</em>
                 {unit.canRecall && onRecallAttackUnit ? (
@@ -518,7 +527,9 @@ function AttackUnitsLayer({
                       }
                     }}
                   >
-                    {recallPendingId === unit.id ? "Recalling..." : "Instant Recall"}
+                    {recallPendingId === unit.id
+                      ? "Recalling..."
+                      : "Instant Recall"}
                   </button>
                 ) : null}
               </div>
@@ -536,10 +547,10 @@ export function FortressMap({
   attackUnits = [],
   selectedFortressId,
   selectedTargetId,
+  selectedTileId,
   onSelectFortress,
   onConfirmAttackTarget,
-  onClaimMapHex,
-  onAttackMapHex,
+  onSelectMapHex,
   onRecallAttackUnit,
   onInstantRecallAttackUnit,
   className,
@@ -549,15 +560,17 @@ export function FortressMap({
   attackUnits?: AttackUnitMarker[];
   selectedFortressId?: string | null;
   selectedTargetId?: string | null;
+  selectedTileId?: string | null;
   onSelectFortress?: (fortress: MapFortress) => void;
   onConfirmAttackTarget?: (
     fortress: MapFortress,
     sentArmy: number
   ) => void | Promise<void>;
-  onClaimMapHex?: (tileId: string) => void | Promise<void>;
-  onAttackMapHex?: (tileId: string, sentArmy: number) => void | Promise<void>;
+  onSelectMapHex?: (tileId: string) => void;
   onRecallAttackUnit?: (attackUnit: AttackUnitMarker) => void | Promise<void>;
-  onInstantRecallAttackUnit?: (attackUnit: AttackUnitMarker) => void | Promise<void>;
+  onInstantRecallAttackUnit?: (
+    attackUnit: AttackUnitMarker
+  ) => void | Promise<void>;
   className?: string;
 }) {
   const shellRef = useRef<HTMLDivElement | null>(null);
@@ -1080,13 +1093,13 @@ export function FortressMap({
                 ? { mapX: ownFortress.mapX, mapY: ownFortress.mapY }
                 : null
             }
-            onClaimMapHex={onClaimMapHex}
-            onAttackMapHex={onAttackMapHex}
+            selectedTileId={selectedTileId}
+            onSelectMapHex={onSelectMapHex}
           />
           <AttackUnitsLayer
             attackUnits={attackUnits}
             onRecallAttackUnit={onRecallAttackUnit}
-                      onInstantRecallAttackUnit={onInstantRecallAttackUnit}
+            onInstantRecallAttackUnit={onInstantRecallAttackUnit}
           />
           {fortresses.length === 0 ? (
             <div className={styles.emptyState}>
@@ -1152,7 +1165,9 @@ export function FortressMap({
                     onPointerUp={(event) =>
                       handleMarkerPointerUp(event, fortress)
                     }
-                    onPointerCancel={(event) => clearMarkerTap(event, fortress.id)}
+                    onPointerCancel={(event) =>
+                      clearMarkerTap(event, fortress.id)
+                    }
                     onClick={(event) => {
                       if (event.detail !== 0 || suppressClickRef.current) {
                         event.preventDefault();

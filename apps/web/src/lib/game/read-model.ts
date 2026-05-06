@@ -60,6 +60,7 @@ import {
   getTileBonus,
   getTileById,
   isHomeOfATile,
+  sumTileBonuses,
 } from "./territory";
 
 export type HomePageState = Awaited<ReturnType<typeof getHomePageState>>;
@@ -67,6 +68,7 @@ export type HomePageState = Awaited<ReturnType<typeof getHomePageState>>;
 function formatBattlefieldReportLines({
   targetName,
   targetTileId,
+  targetTileBonusLabel,
   status,
   winnerSide,
   attackerBannerName,
@@ -80,6 +82,7 @@ function formatBattlefieldReportLines({
 }: {
   targetName: string;
   targetTileId: string | null;
+  targetTileBonusLabel?: string | null;
   status: BattlefieldStatus;
   winnerSide: BattlefieldSide | null;
   attackerBannerName: string;
@@ -116,14 +119,14 @@ function formatBattlefieldReportLines({
     if (targetTileId) {
       lines.push(
         winnerSide === BattlefieldSide.ATTACKER
-          ? `Ownership of tile ${targetTileId} transferred to ${attackerBannerName}.`
-          : `Ownership of tile ${targetTileId} stayed with ${defenderBannerName ?? "the defender"}.`
+          ? `Ownership of tile ${targetTileId} transferred to ${attackerBannerName}${targetTileBonusLabel ? ` with ${targetTileBonusLabel}` : ""}.`
+          : `Ownership of tile ${targetTileId} stayed with ${defenderBannerName ?? "the defender"}${targetTileBonusLabel ? ` and kept ${targetTileBonusLabel}` : ""}.`
       );
     }
 
-      if (pointsReward > 0 && !targetTileId) {
-        lines.push(`Battlefield reward paid out: ${pointsReward} gold.`);
-      }
+    if (pointsReward > 0 && !targetTileId) {
+      lines.push(`Battlefield reward paid out: ${pointsReward} gold.`);
+    }
   } else {
     lines.push(
       `Battle progress continues with ${attackerArmyRemaining} attacker army and ${defenderArmyRemaining} defender army committed.`
@@ -993,7 +996,9 @@ export async function getHomePageState({
   const canAffordUpgrade =
     buildingUpgradeOptions !== null &&
     Object.values(buildingUpgradeOptions).some((option) => {
-      return option.nextCost !== null && playerFortress!.gold >= option.nextCost;
+      return (
+        option.nextCost !== null && playerFortress!.gold >= option.nextCost
+      );
     });
   const receivedSlayerUpgrade = null;
   const locationShuffleCount = playerFortress
@@ -1015,7 +1020,10 @@ export async function getHomePageState({
       ).length
     : 0;
   const maxSimultaneousAttacks = playerFortress
-    ? getMaxSimultaneousAttacks(playerFortress.level, getEffectiveRace(playerFortress))
+    ? getMaxSimultaneousAttacks(
+        playerFortress.level,
+        getEffectiveRace(playerFortress)
+      )
     : MAX_SIMULTANEOUS_ATTACKS_BASE;
   const latestWaaaghUse = playerFortress
     ? playerFortress.raceAbilityActivations.find(
@@ -1056,8 +1064,7 @@ export async function getHomePageState({
           activation.kind === RaceAbilityKind.DWARF_DEEP_MINING_COOLDOWN
       )
     : null;
-  const latestDwarfDeepMiningRoll =
-    playerFortress?.deepMiningRolls[0] ?? null;
+  const latestDwarfDeepMiningRoll = playerFortress?.deepMiningRolls[0] ?? null;
   const currentDayKey = getHelsinkiDayKey(now);
   const currentHourKey = getHelsinkiHourKey(now);
   const legacyBattleReports = playerFortress
@@ -1287,7 +1294,11 @@ export async function getHomePageState({
               },
             ],
           },
-          orderBy: [{ updatedAt: "desc" }, { startedAt: "desc" }, { id: "desc" }],
+          orderBy: [
+            { updatedAt: "desc" },
+            { startedAt: "desc" },
+            { id: "desc" },
+          ],
           take: 5,
           select: {
             id: true,
@@ -1362,6 +1373,16 @@ export async function getHomePageState({
           },
         })
       ).map((battlefield) => {
+        const reportTargetTile =
+          battlefield.targetTileId !== null
+            ? getTileById(battlefield.targetTileId)
+            : null;
+        const reportTargetTileBonus =
+          battlefield.targetTileId !== null
+            ? isHomeOfATile(battlefield.targetTileId)
+              ? getHomeOfABonus()
+              : getTileBonus(reportTargetTile)
+            : null;
         const targetName =
           battlefield.targetTileId !== null
             ? `Tile ${battlefield.targetTileId}`
@@ -1373,9 +1394,10 @@ export async function getHomePageState({
         const arrivedReinforcements = battlefield.incomingReinforcements.filter(
           (unit) => unit.resolvedAt !== null && unit.cancelledAt === null
         );
-        const incomingReinforcements = battlefield.incomingReinforcements.filter(
-          (unit) => unit.resolvedAt === null && unit.cancelledAt === null
-        );
+        const incomingReinforcements =
+          battlefield.incomingReinforcements.filter(
+            (unit) => unit.resolvedAt === null && unit.cancelledAt === null
+          );
         const reinforcementLines = arrivedReinforcements.map(
           (unit) =>
             `${unit.attackerFortress.name} reinforcement arrived for ${(unit.reinforcementSide ?? BattlefieldSide.ATTACKER).toLowerCase()} with ${unit.armyAmount} army.`
@@ -1440,6 +1462,7 @@ export async function getHomePageState({
             ...formatBattlefieldReportLines({
               targetName,
               targetTileId: battlefield.targetTileId,
+              targetTileBonusLabel: reportTargetTileBonus?.label ?? null,
               status: battlefield.status,
               winnerSide: battlefield.resolvedWinnerSide,
               attackerBannerName: battlefield.attackerBannerFortress.name,
@@ -1461,7 +1484,9 @@ export async function getHomePageState({
       })
     : [];
   const battleReports = [...battlefieldReports, ...legacyBattleReports]
-    .sort((left, right) => right.resolvedAt.getTime() - left.resolvedAt.getTime())
+    .sort(
+      (left, right) => right.resolvedAt.getTime() - left.resolvedAt.getTime()
+    )
     .slice(0, 5);
   const visibleFortresses = cycle.fortresses.filter((fortress) => {
     if (
@@ -1506,74 +1531,79 @@ export async function getHomePageState({
     const runeOwnerId = runeSuppression?.fortress.id ?? null;
 
     return {
-    id: fortress.id,
-    commanderName: getDisplayName(
-      displayCommanderName,
-      fortress.id === cycle.crownedFortressId && !displayIsNpc
-    ),
-    name: getDisplayName(
-      displayName,
-      fortress.id === cycle.crownedFortressId && !displayIsNpc
-    ),
-    rawName: displayName,
-    points: displayPoints,
-    gold: displayGold,
-    isNpc: displayIsNpc,
-    health: fortress.health,
-    maxHealth: fortress.maxHealth,
-    lootCampVariant: fortress.lootCampVariant,
-    expiresAt: fortress.expiresAt,
-    sizeTiles: fortress.sizeTiles,
-    iconLabel: fortress.iconLabel,
-    fortressKind: displayFortressKind,
-    unicornDecoyLevel: canRevealUnicornDecoy ? fortress.unicornDecoyLevel : null,
-    displayedCastleLevel: getDisplayedCastleLevel(fortress.level),
-    population: getFortressPopulation(fortress.level, getEffectiveRace(fortress)),
-    defenseMultiplier: getFortressDefenseMultiplier(
-      fortress.level,
-      getEffectiveRace(fortress),
-      countCastleSpecializations(fortress.castleUpgradeSpecializations)
-    ),
-    food: fortress.food,
-    army: fortress.army,
-    castleSpecializationCounts: countCastleSpecializations(
-      fortress.castleUpgradeSpecializations
-    ),
-    minersAssigned: fortress.minersAssigned,
-    farmersAssigned: fortress.farmersAssigned,
-    recruitersAssigned: fortress.recruitersAssigned,
-    race: disguisedSource ? disguisedSource.race : getEffectiveRace(fortress),
-    rawRace: displayRace,
-    dwarfRune: runeSuppression
-      ? {
-          ownerName: runeSuppression.fortress.name,
-          ownerCommanderName: runeSuppression.fortress.commanderName,
-          targetFortressId: runeSuppression.targetFortressId,
-          bounty: DWARF_DEEP_MINING_RUNE_BOUNTY,
-        }
-      : null,
-    isSlayerOfA: fortress.id === cycle.crownedFortressId && !displayIsNpc,
-    currentAction: fortress.currentAction,
-    mapX: fortress.mapX,
-    mapY: fortress.mapY,
-    spriteSeedId: disguisedSource?.id ?? fortress.id,
-    unitSpriteVariant: normalizeUnitSpriteVariant(fortress.unitSpriteVariant),
-    unitCosmeticVariant: displayOwner?.unitCosmeticVariant ?? null,
-    fortressCosmeticVariant: displayOwner?.fortressCosmeticVariant ?? null,
-    isCurrentUser: fortress.ownerId === userId,
-    isTargetable:
-      playerFortressId !== null &&
-      gameplayOpen &&
-      fortress.id !== playerFortressId &&
-      fortress.fortressKind !== FortressKind.MEGA &&
-      (fortress.fortressKind !== FortressKind.DWARF_RUNE ||
-        runeOwnerId !== playerFortressId) &&
-      ((fortress.fortressKind !== FortressKind.LOOT_CAMP &&
-        fortress.fortressKind !== FortressKind.DWARF_RUNE) ||
-        (fortress.health > 0 &&
-          fortress.expiresAt !== null &&
-          fortress.expiresAt > now)),
-  };
+      id: fortress.id,
+      commanderName: getDisplayName(
+        displayCommanderName,
+        fortress.id === cycle.crownedFortressId && !displayIsNpc
+      ),
+      name: getDisplayName(
+        displayName,
+        fortress.id === cycle.crownedFortressId && !displayIsNpc
+      ),
+      rawName: displayName,
+      points: displayPoints,
+      gold: displayGold,
+      isNpc: displayIsNpc,
+      health: fortress.health,
+      maxHealth: fortress.maxHealth,
+      lootCampVariant: fortress.lootCampVariant,
+      expiresAt: fortress.expiresAt,
+      sizeTiles: fortress.sizeTiles,
+      iconLabel: fortress.iconLabel,
+      fortressKind: displayFortressKind,
+      unicornDecoyLevel: canRevealUnicornDecoy
+        ? fortress.unicornDecoyLevel
+        : null,
+      displayedCastleLevel: getDisplayedCastleLevel(fortress.level),
+      population: getFortressPopulation(
+        fortress.level,
+        getEffectiveRace(fortress)
+      ),
+      defenseMultiplier: getFortressDefenseMultiplier(
+        fortress.level,
+        getEffectiveRace(fortress),
+        countCastleSpecializations(fortress.castleUpgradeSpecializations)
+      ),
+      food: fortress.food,
+      army: fortress.army,
+      castleSpecializationCounts: countCastleSpecializations(
+        fortress.castleUpgradeSpecializations
+      ),
+      minersAssigned: fortress.minersAssigned,
+      farmersAssigned: fortress.farmersAssigned,
+      recruitersAssigned: fortress.recruitersAssigned,
+      race: disguisedSource ? disguisedSource.race : getEffectiveRace(fortress),
+      rawRace: displayRace,
+      dwarfRune: runeSuppression
+        ? {
+            ownerName: runeSuppression.fortress.name,
+            ownerCommanderName: runeSuppression.fortress.commanderName,
+            targetFortressId: runeSuppression.targetFortressId,
+            bounty: DWARF_DEEP_MINING_RUNE_BOUNTY,
+          }
+        : null,
+      isSlayerOfA: fortress.id === cycle.crownedFortressId && !displayIsNpc,
+      currentAction: fortress.currentAction,
+      mapX: fortress.mapX,
+      mapY: fortress.mapY,
+      spriteSeedId: disguisedSource?.id ?? fortress.id,
+      unitSpriteVariant: normalizeUnitSpriteVariant(fortress.unitSpriteVariant),
+      unitCosmeticVariant: displayOwner?.unitCosmeticVariant ?? null,
+      fortressCosmeticVariant: displayOwner?.fortressCosmeticVariant ?? null,
+      isCurrentUser: fortress.ownerId === userId,
+      isTargetable:
+        playerFortressId !== null &&
+        gameplayOpen &&
+        fortress.id !== playerFortressId &&
+        fortress.fortressKind !== FortressKind.MEGA &&
+        (fortress.fortressKind !== FortressKind.DWARF_RUNE ||
+          runeOwnerId !== playerFortressId) &&
+        ((fortress.fortressKind !== FortressKind.LOOT_CAMP &&
+          fortress.fortressKind !== FortressKind.DWARF_RUNE) ||
+          (fortress.health > 0 &&
+            fortress.expiresAt !== null &&
+            fortress.expiresAt > now)),
+    };
   });
   const globalChatMessages = await db.chatMessage.findMany({
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -1698,13 +1728,20 @@ export async function getHomePageState({
       .map((battlefield) => battlefield.targetTileId)
       .filter((tileId): tileId is string => tileId !== null)
   );
+  const activeBattlefieldByTileId = new Map(
+    cycle.battlefields.flatMap((battlefield) =>
+      battlefield.targetTileId
+        ? ([[battlefield.targetTileId, battlefield]] as const)
+        : []
+    )
+  );
   const homeOwnership =
     cycle.mapHexOwnerships.find((ownership) =>
       isHomeOfATile(ownership.tileId)
     ) ?? null;
   const homeActiveBattle =
-    cycle.battlefields.find((battlefield) =>
-      battlefield.targetTileId === HOME_OF_A_TILE_ID
+    cycle.battlefields.find(
+      (battlefield) => battlefield.targetTileId === HOME_OF_A_TILE_ID
     ) ?? null;
   const homeHolders = cycle.homeOfAHolders.map((holder) => ({
     fortressId: holder.fortressId,
@@ -1720,9 +1757,54 @@ export async function getHomePageState({
     playerFortress.army > 0 &&
     homeOwnership?.ownerFortressId !== playerFortress.id &&
     !activeBattleTileIds.has(HOME_OF_A_TILE_ID);
+  const getTileAttackDisabledReason = (ownership: {
+    tileId: string;
+    ownerFortressId: string | null;
+  }) => {
+    if (!gameplayOpen) {
+      return "Tiles can only be attacked during gameplay.";
+    }
+
+    if (!playerFortress) {
+      return "Join the cycle to attack tiles.";
+    }
+
+    if (playerFortress.army <= 0) {
+      return "You need idle army to attack tiles.";
+    }
+
+    if (ownership.ownerFortressId === playerFortress.id) {
+      return "Your banner already controls this tile.";
+    }
+
+    if (activeBattleTileIds.has(ownership.tileId)) {
+      return "This tile is already contested.";
+    }
+
+    return null;
+  };
+  const ownedNormalTiles = playerFortress
+    ? cycle.mapHexOwnerships
+        .filter(
+          (ownership) =>
+            ownership.ownerFortressId === playerFortress.id &&
+            !isHomeOfATile(ownership.tileId)
+        )
+        .map((ownership) => getTileById(ownership.tileId))
+        .filter((tile): tile is NonNullable<typeof tile> => tile !== null)
+    : [];
+  const ownedTileBonuses = sumTileBonuses(ownedNormalTiles);
+  const ownedTileSummary = {
+    totalTileCount: ownedNormalTiles.length,
+    pointIncome: ownedTileBonuses.points,
+    foodIncome: ownedTileBonuses.food,
+    armyIncome: ownedTileBonuses.army,
+    defenseBonusPercent: ownedTileBonuses.defensePercent,
+  };
   const mappedMapHexes: Array<{
     id: string;
     tileId: string;
+    biome: string | null;
     claimedAt: Date | null;
     ownerFortressId: string | null;
     ownerName: string;
@@ -1731,7 +1813,15 @@ export async function getHomePageState({
     hasActiveBattle: boolean;
     canAttack: boolean;
     claimCost: number | null;
-    bonus: { label: string };
+    activeBattlefieldId: string | null;
+    attackDisabledReason: string | null;
+    bonus: {
+      label: string;
+      points: number;
+      food: number;
+      army: number;
+      defensePercent: number;
+    };
     isHomeOfA: boolean;
     pointIncome: number | null;
     holders: typeof homeHolders;
@@ -1744,6 +1834,7 @@ export async function getHomePageState({
     return {
       id: ownership.id,
       tileId: ownership.tileId,
+      biome: tile?.biome ?? null,
       claimedAt: ownership.claimedAt,
       ownerFortressId: ownership.ownerFortressId,
       ownerName: ownership.ownerFortress.name,
@@ -1757,6 +1848,9 @@ export async function getHomePageState({
         ownership.ownerFortressId !== playerFortress.id &&
         !activeBattleTileIds.has(ownership.tileId),
       claimCost: null,
+      activeBattlefieldId:
+        activeBattlefieldByTileId.get(ownership.tileId)?.id ?? null,
+      attackDisabledReason: getTileAttackDisabledReason(ownership),
       bonus,
       isHomeOfA: isHomeOfATile(ownership.tileId),
       pointIncome: isHomeOfATile(ownership.tileId)
@@ -1770,6 +1864,7 @@ export async function getHomePageState({
     mappedMapHexes.push({
       id: "home-of-a-neutral",
       tileId: HOME_OF_A_TILE_ID,
+      biome: getTileById(HOME_OF_A_TILE_ID)?.biome ?? null,
       claimedAt: null,
       ownerFortressId: null,
       ownerName: "Neutral",
@@ -1778,6 +1873,19 @@ export async function getHomePageState({
       hasActiveBattle: activeBattleTileIds.has(HOME_OF_A_TILE_ID),
       canAttack: canAttackHomeOfA,
       claimCost: null,
+      activeBattlefieldId:
+        activeBattlefieldByTileId.get(HOME_OF_A_TILE_ID)?.id ?? null,
+      attackDisabledReason: canAttackHomeOfA
+        ? null
+        : !gameplayOpen
+          ? "Home of A can only be attacked during gameplay."
+          : !playerFortress
+            ? "Join the cycle to attack Home of A."
+            : playerFortress.army <= 0
+              ? "You need idle army to attack Home of A."
+              : activeBattleTileIds.has(HOME_OF_A_TILE_ID)
+                ? "Home of A is already contested."
+                : null,
       bonus: getHomeOfABonus(),
       isHomeOfA: true,
       pointIncome: HOME_OF_A_POINT_INCOME,
@@ -1796,7 +1904,9 @@ export async function getHomePageState({
       joiningLockedAt: cycle.joiningLockedAt,
       activeEndsAt: cycle.activeEndsAt,
       upgradesUnlockedAt:
-        cycle.upgradesUnlockedAt ?? cycle.testingStartedAt ?? cycle.activeStartedAt,
+        cycle.upgradesUnlockedAt ??
+        cycle.testingStartedAt ??
+        cycle.activeStartedAt,
       megaFortressDestroyCount: cycle.megaFortressDestroyCount,
       lastProcessedTickAt,
       tickDelayMinutes,
@@ -2095,6 +2205,7 @@ export async function getHomePageState({
                 isReturnDelayed: activeUnicornTemporaryTeleport.returnAt <= now,
               }
             : null,
+          ownedTileSummary,
           growPerTick: calculateTickProduction({
             ...playerFortress,
             castleSpecializations:
@@ -2153,10 +2264,22 @@ export async function getHomePageState({
             (participant) => participant.fortressId === playerFortress.id
           )
         : null;
+      const targetTile =
+        battlefield.targetTileId !== null
+          ? getTileById(battlefield.targetTileId)
+          : null;
+      const targetTileBonus =
+        battlefield.targetTileId !== null
+          ? isHomeOfATile(battlefield.targetTileId)
+            ? getHomeOfABonus()
+            : getTileBonus(targetTile)
+          : null;
 
       return {
         id: battlefield.id,
         targetTileId: battlefield.targetTileId,
+        targetTileBiome: targetTile?.biome ?? null,
+        targetTileBonusLabel: targetTileBonus?.label ?? null,
         targetName:
           battlefield.targetTileId !== null
             ? `Tile ${battlefield.targetTileId}`
@@ -2329,37 +2452,37 @@ export async function getHomePageState({
                   : null;
 
               return {
-              id: fortress.id,
-              commanderName: getDisplayName(
-                disguisedSource?.commanderName ?? fortress.commanderName,
-                fortress.id === cycle.crownedFortressId &&
-                  !(disguisedSource ? false : fortress.isNpc)
-              ),
-              name: getDisplayName(
-                disguisedSource?.name ?? fortress.name,
-                fortress.id === cycle.crownedFortressId &&
-                  !(disguisedSource ? false : fortress.isNpc)
-              ),
-              rawName: disguisedSource?.name ?? fortress.name,
-              level: fortress.level,
-              race: disguisedSource?.race ?? fortress.race,
-              points: disguisedSource?.points ?? fortress.points,
-              isNpc: disguisedSource ? false : fortress.isNpc,
-              fortressKind: disguisedSource
-                ? FortressKind.PLAYER
-                : fortress.fortressKind,
-              lootCampVariant: fortress.lootCampVariant,
-              expiresAt: fortress.expiresAt,
-              unicornDecoyLevel: canRevealUnicornDecoy
-                ? fortress.unicornDecoyLevel
-                : null,
-              health: fortress.health,
-              maxHealth: fortress.maxHealth,
-              army: fortress.army,
-              castleSpecializationCounts: countCastleSpecializations(
-                fortress.castleUpgradeSpecializations
-              ),
-              currentAction: fortress.currentAction,
+                id: fortress.id,
+                commanderName: getDisplayName(
+                  disguisedSource?.commanderName ?? fortress.commanderName,
+                  fortress.id === cycle.crownedFortressId &&
+                    !(disguisedSource ? false : fortress.isNpc)
+                ),
+                name: getDisplayName(
+                  disguisedSource?.name ?? fortress.name,
+                  fortress.id === cycle.crownedFortressId &&
+                    !(disguisedSource ? false : fortress.isNpc)
+                ),
+                rawName: disguisedSource?.name ?? fortress.name,
+                level: fortress.level,
+                race: disguisedSource?.race ?? fortress.race,
+                points: disguisedSource?.points ?? fortress.points,
+                isNpc: disguisedSource ? false : fortress.isNpc,
+                fortressKind: disguisedSource
+                  ? FortressKind.PLAYER
+                  : fortress.fortressKind,
+                lootCampVariant: fortress.lootCampVariant,
+                expiresAt: fortress.expiresAt,
+                unicornDecoyLevel: canRevealUnicornDecoy
+                  ? fortress.unicornDecoyLevel
+                  : null,
+                health: fortress.health,
+                maxHealth: fortress.maxHealth,
+                army: fortress.army,
+                castleSpecializationCounts: countCastleSpecializations(
+                  fortress.castleUpgradeSpecializations
+                ),
+                currentAction: fortress.currentAction,
               };
             })
         : [],

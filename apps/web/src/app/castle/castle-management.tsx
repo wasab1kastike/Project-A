@@ -88,6 +88,13 @@ type PlayerSummary = {
     returnAt: Date;
     isReturnDelayed: boolean;
   } | null;
+  ownedTileSummary: {
+    totalTileCount: number;
+    pointIncome: number;
+    foodIncome: number;
+    armyIncome: number;
+    defenseBonusPercent: number;
+  };
   growPerTick: number;
 };
 
@@ -163,7 +170,12 @@ function BuildingChoiceFields() {
     <div className={styles.buildingChoiceGrid}>
       {BUILDINGS.map((building) => (
         <label key={building.key} className={styles.buildingChoice}>
-          <input name="specialization" type="radio" value={building.key} required />
+          <input
+            name="specialization"
+            type="radio"
+            value={building.key}
+            required
+          />
           <span>
             <strong>{building.name}</strong>
             <small>{building.role}</small>
@@ -213,7 +225,9 @@ export function CastleManagement({
     ...workers,
   });
   const assigned =
-    workers.minersAssigned + workers.farmersAssigned + workers.recruitersAssigned;
+    workers.minersAssigned +
+    workers.farmersAssigned +
+    workers.recruitersAssigned;
 
   function setWorker(key: keyof typeof workers, value: number) {
     setWorkerError(null);
@@ -280,6 +294,35 @@ export function CastleManagement({
 
       <section className={styles.panel}>
         <div className={styles.panelHeader}>
+          <span>Owned land</span>
+          <strong>{playerSummary.ownedTileSummary.totalTileCount} tiles</strong>
+        </div>
+        <dl className={styles.statGrid}>
+          <div>
+            <dt>Points/tick</dt>
+            <dd>+{playerSummary.ownedTileSummary.pointIncome}</dd>
+          </div>
+          <div>
+            <dt>Food/tick</dt>
+            <dd>+{playerSummary.ownedTileSummary.foodIncome}</dd>
+          </div>
+          <div>
+            <dt>Army/tick</dt>
+            <dd>+{playerSummary.ownedTileSummary.armyIncome}</dd>
+          </div>
+          <div>
+            <dt>Defense</dt>
+            <dd>+{playerSummary.ownedTileSummary.defenseBonusPercent}%</dd>
+          </div>
+        </dl>
+        <p className={styles.muted}>
+          Normal hexes feed castle ticks and score points; Home of A is tracked
+          separately on the battlefield because its income can be shared.
+        </p>
+      </section>
+
+      <section className={styles.panel}>
+        <div className={styles.panelHeader}>
           <span>Buildings</span>
           <strong>
             {playerSummary.activeCastleUpgradeProject
@@ -316,9 +359,7 @@ export function CastleManagement({
                   })}
                 </small>
                 {building.workerKey ? (
-                  <small>
-                    Workers: {workers[building.workerKey]} assigned
-                  </small>
+                  <small>Workers: {workers[building.workerKey]} assigned</small>
                 ) : null}
                 {activeProject ? (
                   <p className={styles.muted}>
@@ -329,8 +370,15 @@ export function CastleManagement({
                   upgradeOption !== null &&
                   upgradeOption.nextCost !== null &&
                   playerSummary.pendingUpgradeSpecializationLevel === null ? (
-                  <form action={purchaseFortressUpgradeAction} className={styles.form}>
-                    <input name="specialization" type="hidden" value={building.key} />
+                  <form
+                    action={purchaseFortressUpgradeAction}
+                    className={styles.form}
+                  >
+                    <input
+                      name="specialization"
+                      type="hidden"
+                      value={building.key}
+                    />
                     <p>
                       Upgrade costs {upgradeOption?.nextCost} gold and{" "}
                       {upgradeOption?.nextDurationMinutes} minutes.
@@ -354,8 +402,14 @@ export function CastleManagement({
           })}
         </div>
         {playerSummary.pendingUpgradeSpecializationLevel !== null ? (
-          <form action={choosePendingUpgradeSpecializationAction} className={styles.form}>
-            <p>Choose a building for level {playerSummary.pendingUpgradeSpecializationLevel}.</p>
+          <form
+            action={choosePendingUpgradeSpecializationAction}
+            className={styles.form}
+          >
+            <p>
+              Choose a building for level{" "}
+              {playerSummary.pendingUpgradeSpecializationLevel}.
+            </p>
             <BuildingChoiceFields />
             <button type="submit">Lock building</button>
           </form>
@@ -408,7 +462,10 @@ export function CastleManagement({
               min={0}
               value={workers.recruitersAssigned}
               onChange={(event) =>
-                setWorker("recruitersAssigned", event.currentTarget.valueAsNumber)
+                setWorker(
+                  "recruitersAssigned",
+                  event.currentTarget.valueAsNumber
+                )
               }
             />
           </label>
@@ -432,14 +489,20 @@ export function CastleManagement({
           <div className={styles.form}>
             {playerSummary.race === "ORKS" ? (
               <form action={activateWaaaghAction}>
-                <button type="submit" disabled={!playerSummary.raceBuffs.canActivateWaaagh}>
+                <button
+                  type="submit"
+                  disabled={!playerSummary.raceBuffs.canActivateWaaagh}
+                >
                   Summon WAAAGH
                 </button>
               </form>
             ) : null}
             {playerSummary.race === "SPACE_MURINES" ? (
               <form action={activateStimAction}>
-                <button type="submit" disabled={!playerSummary.raceBuffs.canActivateStim}>
+                <button
+                  type="submit"
+                  disabled={!playerSummary.raceBuffs.canActivateStim}
+                >
                   Activate STIM
                 </button>
               </form>
@@ -465,28 +528,33 @@ export function CastleManagement({
                   </p>
                 ) : null}
                 {playerSummary.raceBuffs.hasUnicornTeleportToken ? (
-                <form action={useUnicornTeleportAction}>
-                  <button
-                    type="submit"
-                    disabled={playerSummary.activeUnicornTeleport !== null}
-                  >
-                    Use Unicorn teleport (1 hour)
-                  </button>
-                </form>
-              ) : (
-                <form action={claimUnicornTeleportAction}>
-                  <button
-                    type="submit"
-                    disabled={!playerSummary.raceBuffs.canClaimUnicornTeleport}
-                  >
-                    Claim Unicorn teleport
-                  </button>
-                </form>
-              )}
+                  <form action={useUnicornTeleportAction}>
+                    <button
+                      type="submit"
+                      disabled={playerSummary.activeUnicornTeleport !== null}
+                    >
+                      Use Unicorn teleport (1 hour)
+                    </button>
+                  </form>
+                ) : (
+                  <form action={claimUnicornTeleportAction}>
+                    <button
+                      type="submit"
+                      disabled={
+                        !playerSummary.raceBuffs.canClaimUnicornTeleport
+                      }
+                    >
+                      Claim Unicorn teleport
+                    </button>
+                  </form>
+                )}
               </>
             ) : null}
             {playerSummary.race === "DWARFS" ? (
-              <form action={activateDwarfDeepMiningAction} className={styles.form}>
+              <form
+                action={activateDwarfDeepMiningAction}
+                className={styles.form}
+              >
                 <label>
                   Rune target
                   <select name="targetFortressId" required>
@@ -517,7 +585,11 @@ export function CastleManagement({
         ) : (
           <div className={styles.raceGrid}>
             {RACE_DEFINITIONS.map((race) => (
-              <form key={race.key} action={selectFortressRaceAction} className={styles.raceCard}>
+              <form
+                key={race.key}
+                action={selectFortressRaceAction}
+                className={styles.raceCard}
+              >
                 <input name="race" type="hidden" value={race.key} />
                 <strong>{race.displayName}</strong>
                 <p>{race.flavorText}</p>
@@ -535,7 +607,10 @@ export function CastleManagement({
         </div>
         <div className={styles.form}>
           {playerSummary.canRegisterCommanderName ? (
-            <form action={registerCommanderNameAction} className={styles.inlineForm}>
+            <form
+              action={registerCommanderNameAction}
+              className={styles.inlineForm}
+            >
               <input
                 name="commanderName"
                 defaultValue={playerSummary.commanderName}

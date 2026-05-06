@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 
@@ -20,6 +20,13 @@ import {
   type MapFortress,
   type MapHexOwnershipMarker,
 } from "./fortress-map";
+import { HEX_TILES, type HexBiome } from "@/lib/game/map-hex";
+import {
+  getHomeOfABonus,
+  getTileBonus,
+  getTileClaimCost,
+  isHomeOfATile,
+} from "@/lib/game/territory";
 import { NoticeToast } from "./notice-toast";
 import styles from "./battlefield-experience.module.css";
 
@@ -54,6 +61,7 @@ type ChatProps = {
 type PlayerSummary = {
   id: string;
   name: string;
+  gold: number;
   army: number;
   race: string | null;
   canSetAction: boolean;
@@ -69,6 +77,8 @@ type PlayerFortress = {
 type ActiveBattlefield = {
   id: string;
   targetTileId: string | null;
+  targetTileBiome: string | null;
+  targetTileBonusLabel: string | null;
   targetName: string;
   progress: number;
   attackerArmyRemaining: number;
@@ -132,6 +142,16 @@ type HomeOfAState = {
 
 const LOOT_CAMP_FIGHT_BACK_NOTICE_STORAGE_KEY =
   "project-a:loot-camp-fight-back-notice:2026-04-30";
+const BIOME_LABELS: Record<HexBiome, string> = {
+  water: "Sea",
+  coast: "Coast",
+  plains: "Plains",
+  forest: "Forest",
+  hills: "Hills",
+  mountains: "Mountains",
+  marsh: "Marsh",
+  lake: "Lake",
+};
 
 export function BattlefieldExperience({
   title,
@@ -181,6 +201,8 @@ export function BattlefieldExperience({
   );
   const markChatReadPendingRef = useRef(false);
   const selectedTargetId = null;
+  const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
+  const [tileAttackArmy, setTileAttackArmy] = useState(1);
 
   useEffect(() => {
     if (!topActionsContainerId) {
@@ -237,11 +259,52 @@ export function BattlefieldExperience({
     );
   }, [chat.messages, chat.persistsUnread, chatOpen]);
 
-  const gameplayOpen =
-    phaseStatus === "ACTIVE" || phaseStatus === "TESTING";
+  const gameplayOpen = phaseStatus === "ACTIVE" || phaseStatus === "TESTING";
   const hasUnreadChat = unreadChatCount > 0;
   const unreadBadgeLabel =
     unreadChatCount > 99 ? "99+" : unreadChatCount.toString();
+  const mapHexByTileId = useMemo(
+    () => new Map(mapHexes.map((ownership) => [ownership.tileId, ownership])),
+    [mapHexes]
+  );
+  const selectedTile = selectedTileId
+    ? (HEX_TILES.find((tile) => tile.id === selectedTileId) ?? null)
+    : null;
+  const selectedOwnership = selectedTileId
+    ? (mapHexByTileId.get(selectedTileId) ?? null)
+    : null;
+  const selectedTileIsHomeOfA = selectedTileId
+    ? isHomeOfATile(selectedTileId)
+    : false;
+  const selectedTileBonus = selectedTileIsHomeOfA
+    ? getHomeOfABonus()
+    : getTileBonus(selectedTile);
+  const selectedClaimCost =
+    selectedTile &&
+    !selectedOwnership &&
+    !selectedTileIsHomeOfA &&
+    playerFortress
+      ? getTileClaimCost({
+          tile: selectedTile,
+          origin: mapFortresses.find(
+            (fortress) => fortress.id === playerFortress.id
+          ) ?? {
+            mapX: 0,
+            mapY: 0,
+          },
+        })
+      : null;
+  const selectedActiveBattlefieldId =
+    selectedOwnership?.activeBattlefieldId ??
+    (selectedTileId
+      ? (battlefields.find(
+          (battlefield) => battlefield.targetTileId === selectedTileId
+        )?.id ?? null)
+      : null);
+  const clampedTileAttackArmy =
+    playerSummary && playerSummary.army > 0
+      ? Math.min(Math.max(1, tileAttackArmy), playerSummary.army)
+      : 0;
 
   function handleChatToggle() {
     if (chatOpen) {
@@ -453,6 +516,162 @@ export function BattlefieldExperience({
       </div>
     </aside>
   ) : null;
+  const selectedTilePanel = selectedTile ? (
+    <aside className={styles.tilePanel} aria-label="Selected map tile">
+      <div className={styles.tilePanelHeader}>
+        <div>
+          <span className={styles.label}>
+            {selectedTileIsHomeOfA
+              ? "Center objective"
+              : BIOME_LABELS[selectedTile.biome]}
+          </span>
+          <strong>
+            {selectedTileIsHomeOfA ? "Home of A" : `Tile ${selectedTile.id}`}
+          </strong>
+        </div>
+        <button
+          type="button"
+          className={styles.closeButton}
+          aria-label="Close tile details"
+          onClick={() => setSelectedTileId(null)}
+        >
+          Close
+        </button>
+      </div>
+
+      <dl className={styles.tileStats}>
+        <div>
+          <dt>Owner</dt>
+          <dd>
+            {selectedOwnership
+              ? selectedOwnership.isCurrentUser
+                ? "You"
+                : selectedOwnership.ownerName
+              : "Neutral"}
+          </dd>
+        </div>
+        <div>
+          <dt>Bonus</dt>
+          <dd>{selectedTileBonus.label}</dd>
+        </div>
+        {!selectedTileIsHomeOfA ? (
+          <div>
+            <dt>Claim cost</dt>
+            <dd>
+              {selectedClaimCost !== null ? `${selectedClaimCost} gold` : "-"}
+            </dd>
+          </div>
+        ) : null}
+        <div>
+          <dt>State</dt>
+          <dd>
+            {selectedActiveBattlefieldId
+              ? "Contested"
+              : selectedOwnership
+                ? selectedOwnership.canAttack
+                  ? "Attackable"
+                  : "Controlled"
+                : selectedTileIsHomeOfA
+                  ? homeOfA?.canAttack
+                    ? "Attackable"
+                    : "Center control"
+                  : "Claimable"}
+          </dd>
+        </div>
+      </dl>
+
+      {selectedOwnership?.holders?.length ? (
+        <ul className={styles.compactList}>
+          {selectedOwnership.holders.slice(0, 4).map((holder) => (
+            <li key={`${holder.fortressName}:${holder.commanderName}`}>
+              {holder.fortressName}: weight {holder.contributionWeight}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {selectedActiveBattlefieldId ? (
+        <p className={styles.helper}>
+          This tile already has an active battlefield. Join from the battle
+          card.
+        </p>
+      ) : null}
+
+      <div className={styles.tileActions}>
+        {!selectedOwnership && !selectedTileIsHomeOfA ? (
+          <button
+            className={styles.secondaryButton}
+            type="button"
+            disabled={
+              mapActionPending ||
+              !gameplayOpen ||
+              !playerSummary ||
+              selectedClaimCost === null ||
+              playerSummary.gold < selectedClaimCost
+            }
+            title={
+              !playerSummary
+                ? "Join the cycle to claim tiles."
+                : selectedClaimCost !== null &&
+                    playerSummary.gold < selectedClaimCost
+                  ? "Not enough gold."
+                  : undefined
+            }
+            onClick={() => {
+              void handleClaimMapHex(selectedTile.id);
+            }}
+          >
+            Claim tile
+          </button>
+        ) : null}
+
+        {(selectedOwnership?.canAttack ||
+          (selectedTileIsHomeOfA && homeOfA?.canAttack)) &&
+        !selectedActiveBattlefieldId ? (
+          <>
+            <label className={styles.tileArmyControl}>
+              <span>
+                Army to send: {clampedTileAttackArmy}/{playerSummary?.army ?? 0}
+              </span>
+              <input
+                type="range"
+                min={1}
+                max={Math.max(1, playerSummary?.army ?? 1)}
+                step={1}
+                value={Math.max(1, clampedTileAttackArmy)}
+                disabled={!playerSummary || playerSummary.army <= 0}
+                onChange={(event) => {
+                  const nextArmy = Number(event.currentTarget.value);
+                  setTileAttackArmy(
+                    Number.isFinite(nextArmy) ? Math.floor(nextArmy) : 1
+                  );
+                }}
+              />
+            </label>
+            <button
+              className={styles.secondaryButton}
+              type="button"
+              disabled={mapActionPending || clampedTileAttackArmy <= 0}
+              onClick={() => {
+                void handleAttackMapHex(selectedTile.id, clampedTileAttackArmy);
+              }}
+            >
+              Attack with {clampedTileAttackArmy} army
+            </button>
+          </>
+        ) : null}
+
+        {selectedOwnership?.attackDisabledReason ||
+        (selectedTileIsHomeOfA && homeOfA?.attackDisabledReason) ? (
+          <p className={styles.helper}>
+            {selectedTileIsHomeOfA
+              ? homeOfA?.attackDisabledReason
+              : selectedOwnership?.attackDisabledReason}
+          </p>
+        ) : null}
+      </div>
+    </aside>
+  ) : null;
 
   const battlefieldsPanel =
     homeOfA || battlefields.length > 0 || battleReports.length > 0 ? (
@@ -482,13 +701,12 @@ export function BattlefieldExperience({
               <button
                 className={styles.secondaryButton}
                 type="button"
-                disabled={!homeOfA.canAttack || mapActionPending}
-                title={homeOfA.attackDisabledReason ?? undefined}
+                disabled={mapActionPending}
                 onClick={() => {
-                  void handleAttackMapHex(homeOfA.tileId, 1);
+                  setSelectedTileId(homeOfA.tileId);
                 }}
               >
-                Attack center
+                Select center
               </button>
             ) : null}
           </article>
@@ -521,7 +739,11 @@ export function BattlefieldExperience({
                     <div className={styles.battlefieldCardHeader}>
                       <strong>
                         {battlefield.targetTileId
-                          ? `${battlefield.targetName} conquest`
+                          ? `${battlefield.targetName}${
+                              battlefield.targetTileBiome
+                                ? ` (${battlefield.targetTileBiome})`
+                                : ""
+                            } conquest`
                           : battlefield.targetName}
                       </strong>
                       <span>{battlefield.progress}%</span>
@@ -532,6 +754,9 @@ export function BattlefieldExperience({
                       {battlefield.defenderBanner?.name ?? "neutral defenders"}.
                       Armies: {battlefield.attackerArmyRemaining} /{" "}
                       {battlefield.defenderArmyRemaining}. {currentSide}.
+                      {battlefield.targetTileBonusLabel
+                        ? ` Bonus: ${battlefield.targetTileBonusLabel}.`
+                        : ""}
                     </p>
                     {battlefield.incomingReinforcements.length > 0 ? (
                       <ul className={styles.compactList}>
@@ -678,19 +903,20 @@ export function BattlefieldExperience({
           attackUnits={attackUnits}
           selectedFortressId={selectedFortressId}
           selectedTargetId={selectedTargetId}
+          selectedTileId={selectedTileId}
           onSelectFortress={(fortress) => {
             if (fortress.isCurrentUser) {
               setSelectedFortressId(fortress.id);
             }
           }}
           onConfirmAttackTarget={handleConfirmAttackTarget}
-          onClaimMapHex={handleClaimMapHex}
-          onAttackMapHex={handleAttackMapHex}
+          onSelectMapHex={setSelectedTileId}
           onRecallAttackUnit={handleRecallAttackUnit}
           onInstantRecallAttackUnit={handleInstantRecallAttackUnit}
         />
 
         {battlefieldsPanel}
+        {selectedTilePanel}
         {!immersive ? chatDrawer : null}
       </div>
       {immersiveOverlay}
