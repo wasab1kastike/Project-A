@@ -59,6 +59,8 @@ import {
   ARCADE_SEASON_BASE_COINS,
   ARCADE_SEASON_POINTS_BONUS_CAP,
   ARCADE_SEASON_POINTS_BONUS_DIVISOR,
+  HOME_OF_A_ARMY_DRAIN_PER_TICK,
+  HOME_OF_A_NEUTRAL_DEFENSE,
   getArcadeSeasonRankBonus,
   ARCADE_FORTRESS_LOOT_BOX_SKINS_SET_1,
   CURRENT_MAP_LAYOUT_VERSION,
@@ -624,11 +626,12 @@ test("territory bonuses and claim costs are deterministic", () => {
 
   assert.ok(tile);
   assert.deepEqual(getTileBonus(tile), {
-    points: 1,
+    gold: 1,
+    points: 0,
     food: 2,
     army: 0,
     defensePercent: 0,
-    label: "+1 points, +2 food / tick",
+    label: "+1 gold, +2 food / tick",
   });
   assert.equal(
     getTileClaimCost({
@@ -731,14 +734,19 @@ test("neutral tile claim spends gold and applies tick bonus", async (context) =>
       id: fortress.id,
     },
     data: {
+      points: 0,
       gold: 100,
+      food: 0,
+      army: 0,
       minersAssigned: 0,
       farmersAssigned: 0,
       recruitersAssigned: 0,
     },
   });
   const tile = HEX_SPAWN_TILES.find(
-    (candidate) => candidate.spawnable && getTileBonus(candidate).points > 0
+    (candidate) =>
+      candidate.spawnable &&
+      (getTileBonus(candidate).gold > 0 || getTileBonus(candidate).food > 0)
   );
 
   assert.ok(tile);
@@ -762,14 +770,21 @@ test("neutral tile claim spends gold and applies tick bonus", async (context) =>
     db: prisma,
   });
 
+  const expectedTileBonus = getTileBonus(tile, {
+    tileId: tile.id,
+    cycleId: cycle.id,
+    at: new Date("2026-04-20T12:02:00.000Z"),
+  });
+
   const reloaded = await prisma.fortress.findUniqueOrThrow({
     where: {
       id: fortress.id,
     },
   });
 
-  assert.equal(reloaded.gold, 100 - claimCost);
-  assert.equal(reloaded.points, getTileBonus(tile).points);
+  assert.equal(reloaded.gold, 100 - claimCost + expectedTileBonus.gold);
+  assert.equal(reloaded.food, expectedTileBonus.food);
+  assert.equal(reloaded.points, expectedTileBonus.points);
 });
 
 test("owned tile attack creates a targetTileId battlefield", async (context) => {
@@ -1192,6 +1207,7 @@ test("Home of A is centered and cannot be neutral claimed", async (context) => {
 
   assert.equal(home.mapX, position.mapX);
   assert.equal(home.mapY, position.mapY);
+  assert.equal(home.army, HOME_OF_A_NEUTRAL_DEFENSE);
   await assert.rejects(
     () =>
       claimNeutralMapHex({
@@ -1243,6 +1259,7 @@ test("Home of A first capture creates ownership and holder shares", async (conte
       },
     },
     data: {
+      army: 10,
       minersAssigned: 0,
       farmersAssigned: 0,
       recruitersAssigned: 0,
@@ -1390,6 +1407,8 @@ test("Home of A tick income splits banner half and holder army share", async (co
 
   assert.equal(reloadedBanner.points, 17);
   assert.equal(reloadedAlly.points, 8);
+  assert.equal(reloadedBanner.army, 10 - HOME_OF_A_ARMY_DRAIN_PER_TICK);
+  assert.equal(reloadedAlly.army, 10 - HOME_OF_A_ARMY_DRAIN_PER_TICK);
 });
 
 test("tick CLI summary includes attack launch and resolution counts", () => {

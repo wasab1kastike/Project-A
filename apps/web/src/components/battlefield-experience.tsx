@@ -288,9 +288,9 @@ export function BattlefieldExperience({
   const selectedTileIsHomeOfA = selectedTileId
     ? isHomeOfATile(selectedTileId)
     : false;
-  const selectedTileBonus = selectedTileIsHomeOfA
-    ? getHomeOfABonus()
-    : getTileBonus(selectedTile);
+  const selectedTileBonus =
+    selectedOwnership?.bonus ??
+    (selectedTileIsHomeOfA ? getHomeOfABonus() : getTileBonus(selectedTile));
   const selectedClaimCost =
     selectedTile &&
     !selectedOwnership &&
@@ -576,6 +576,12 @@ export function BattlefieldExperience({
           <dt>Bonus</dt>
           <dd>{selectedTileBonus.label}</dd>
         </div>
+        {selectedOwnership?.pointIncome ? (
+          <div>
+            <dt>Objective</dt>
+            <dd>+{selectedOwnership.pointIncome} points / tick</dd>
+          </div>
+        ) : null}
         {!selectedTileIsHomeOfA ? (
           <div>
             <dt>Claim cost</dt>

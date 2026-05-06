@@ -1382,7 +1382,11 @@ export async function getHomePageState({
           battlefield.targetTileId !== null
             ? isHomeOfATile(battlefield.targetTileId)
               ? getHomeOfABonus()
-              : getTileBonus(reportTargetTile)
+              : getTileBonus(reportTargetTile, {
+                  tileId: battlefield.targetTileId,
+                  cycleId: cycle.id,
+                  at: now,
+                })
             : null;
         const targetName =
           battlefield.targetTileId !== null
@@ -1794,9 +1798,13 @@ export async function getHomePageState({
         .map((ownership) => getTileById(ownership.tileId))
         .filter((tile): tile is NonNullable<typeof tile> => tile !== null)
     : [];
-  const ownedTileBonuses = sumTileBonuses(ownedNormalTiles);
+  const ownedTileBonuses = sumTileBonuses(ownedNormalTiles, {
+    cycleId: cycle.id,
+    at: now,
+  });
   const ownedTileSummary = {
     totalTileCount: ownedNormalTiles.length,
+    goldIncome: ownedTileBonuses.gold,
     pointIncome: ownedTileBonuses.points,
     foodIncome: ownedTileBonuses.food,
     armyIncome: ownedTileBonuses.army,
@@ -1818,6 +1826,7 @@ export async function getHomePageState({
     attackDisabledReason: string | null;
     bonus: {
       label: string;
+      gold: number;
       points: number;
       food: number;
       army: number;
@@ -1830,7 +1839,11 @@ export async function getHomePageState({
     const tile = getTileById(ownership.tileId);
     const bonus = isHomeOfATile(ownership.tileId)
       ? getHomeOfABonus()
-      : getTileBonus(tile);
+      : getTileBonus(tile, {
+          tileId: ownership.tileId,
+          cycleId: cycle.id,
+          at: now,
+        });
 
     return {
       id: ownership.id,
@@ -1854,9 +1867,7 @@ export async function getHomePageState({
       attackDisabledReason: getTileAttackDisabledReason(ownership),
       bonus,
       isHomeOfA: isHomeOfATile(ownership.tileId),
-      pointIncome: isHomeOfATile(ownership.tileId)
-        ? HOME_OF_A_POINT_INCOME
-        : null,
+      pointIncome: bonus.points > 0 ? bonus.points : null,
       holders: isHomeOfATile(ownership.tileId) ? homeHolders : [],
     };
   });
@@ -2343,7 +2354,11 @@ export async function getHomePageState({
         battlefield.targetTileId !== null
           ? isHomeOfATile(battlefield.targetTileId)
             ? getHomeOfABonus()
-            : getTileBonus(targetTile)
+            : getTileBonus(targetTile, {
+                tileId: battlefield.targetTileId,
+                cycleId: cycle.id,
+                at: now,
+              })
           : null;
 
       return {

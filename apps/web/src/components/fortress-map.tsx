@@ -105,6 +105,7 @@ type MapHexOwnershipMarker = {
   attackDisabledReason?: string | null;
   bonus: {
     label: string;
+    gold?: number;
     points?: number;
     food?: number;
     army?: number;
@@ -287,6 +288,7 @@ function HexTileMap({
           styles[`${tile.biome}Tile`],
           tile.spawnable ? styles.spawnableTile : "",
           ownership ? styles.ownedTile : "",
+          ownership?.pointIncome ? styles.objectiveTile : "",
           ownership?.isHomeOfA ? styles.contestedTile : "",
           ownership?.isCurrentUser ? styles.ownTile : "",
           ownership?.canAttack ? styles.attackableTile : "",

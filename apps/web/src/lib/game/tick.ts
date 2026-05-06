@@ -10,6 +10,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { ensureOpenRegistrationCycle } from "./bootstrap";
 import {
+  HOME_OF_A_ARMY_DRAIN_PER_TICK,
   HOME_OF_A_POINT_INCOME,
   MEGA_FORTRESS_DESTROY_BONUS,
   MEGA_FORTRESS_HEALTH,
@@ -2512,7 +2513,7 @@ async function processCycleTick(
     });
     const tileBonusesByFortressId = new Map<
       string,
-      { points: number; food: number; army: number }
+      { gold: number; points: number; food: number; army: number }
     >();
 
     for (const ownership of ownedTiles) {
@@ -2521,15 +2522,21 @@ async function processCycleTick(
       }
 
       const tile = getTileById(ownership.tileId);
-      const bonus = getTileBonus(tile);
+      const bonus = getTileBonus(tile, {
+        tileId: ownership.tileId,
+        cycleId,
+        at: tickAt,
+      });
       const current =
         tileBonusesByFortressId.get(ownership.ownerFortressId) ?? {
+          gold: 0,
           points: 0,
           food: 0,
           army: 0,
         };
 
       tileBonusesByFortressId.set(ownership.ownerFortressId, {
+        gold: current.gold + bonus.gold,
         points: current.points + bonus.points,
         food: current.food + bonus.food,
         army: current.army + bonus.army,
@@ -2593,6 +2600,13 @@ async function processCycleTick(
           continue;
         }
 
+        const currentArmyCount =
+          currentArmy.get(fortressId) ?? fortressLookup.get(fortressId)?.army ?? 0;
+        currentArmy.set(
+          fortressId,
+          Math.max(0, currentArmyCount - HOME_OF_A_ARMY_DRAIN_PER_TICK)
+        );
+
         currentPoints.set(
           fortressId,
           (currentPoints.get(fortressId) ?? 0) + income
@@ -2607,11 +2621,29 @@ async function processCycleTick(
       }
     }
 
+    // ========================================================================
+    // FORTRESS PRODUCTION PHASE
+    // ========================================================================
+    // Each fortress produces resources (gold, food, army) based on its
+    // worker assignments, level, and specializations.
+    //
+    // This phase:
+    // 1. Calculates base production using calculateTickProduction()
+    // 2. Applies race ability modifiers (DWARF_ECONOMY_HALT, DWARF_ECONOMY_SURGE)
+    // 3. Combines production with territory tile bonuses
+    // 4. Records production in currentGold/currentFood/currentArmy maps
+    // 5. Creates score events for non-zero production
+    //
+    // See castle-production.ts and balance.ts for production calculation details.
+    // ========================================================================
+
     for (const fortress of fortresses) {
       if (fortress.isNpc) {
         continue;
       }
 
+      // Calculate base fortress production (gold, food, army).
+      // This is a pure function based on worker assignments, level, race, and specializations.
       const production = calculateTickProduction({
         ...fortress,
         race: getEffectiveRace(fortress),
@@ -2620,6 +2652,8 @@ async function processCycleTick(
           fortress.castleUpgradeSpecializations
         ),
       });
+
+      // Check for DWARF race ability modifiers that affect economy
       const economyHalted =
         getEffectiveRace(fortress) === "DWARFS" &&
         isRaceAbilityActive(
@@ -2634,6 +2668,10 @@ async function processCycleTick(
           RaceAbilityKind.DWARF_ECONOMY_SURGE,
           tickAt
         );
+
+      // Apply race ability modifiers to production
+      // DWARF_ECONOMY_HALT: reduces all production to 0
+      // DWARF_ECONOMY_SURGE: multiplies production by DWARF_DEEP_MINING_ECONOMY_MULTIPLIER
       const producedGold = economyHalted
         ? 0
         : Math.floor(
@@ -2652,20 +2690,30 @@ async function processCycleTick(
             production.armyProduced *
               (economySurged ? DWARF_DEEP_MINING_ECONOMY_MULTIPLIER : 1)
           );
+
+      // Calculate final food state after production and consumption
+      // When economy is halted, food doesn't change
+      // When economy is active, we account for the modifier changing production amounts
       const foodAfterProduction = economyHalted
         ? currentFood.get(fortress.id) ?? fortress.food
         : production.foodAfterProduction +
           (producedFood - production.foodProduced) -
           (armyProduced - production.armyProduced);
+
       const currentArmyValue = currentArmy.get(fortress.id) ?? fortress.army;
       const tileBonus = tileBonusesByFortressId.get(fortress.id) ?? {
+        gold: 0,
         points: 0,
         food: 0,
         army: 0,
       };
+
+      // Record produced resources in accumulator maps for database update
       currentGold.set(
         fortress.id,
-        (currentGold.get(fortress.id) ?? fortress.gold) + producedGold
+        (currentGold.get(fortress.id) ?? fortress.gold) +
+          producedGold +
+          tileBonus.gold
       );
       currentPoints.set(
         fortress.id,
@@ -2679,6 +2727,9 @@ async function processCycleTick(
         fortress.id,
         currentArmyValue + armyProduced + tileBonus.army
       );
+
+      // Create score events for tile bonuses
+      // Production from workers is recorded via GROW_TICK events (see fortress action handling)
       if (tileBonus.points > 0) {
         scoreEvents.push({
           cycleId,

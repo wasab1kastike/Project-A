@@ -35,7 +35,10 @@ export const MEGA_FORTRESS_DESTROY_BONUS = 500;
 export const NPC_SYSTEM_USER_EMAIL = "npc@project-a.local";
 export const HOME_OF_A_TILE_ID = "20:15";
 export const HOME_OF_A_POINT_INCOME = 25;
-export const HOME_OF_A_NEUTRAL_DEFENSE = MEGA_FORTRESS_HEALTH;
+export const HOME_OF_A_NEUTRAL_DEFENSE = 10_000;
+export const HOME_OF_A_ARMY_DRAIN_PER_TICK = 1;
+export const TEMPORARY_MAP_OBJECTIVE_INTERVAL_HOURS = 8;
+export const TEMPORARY_MAP_OBJECTIVE_POINT_VALUES = [4, 6, 8] as const;
 
 export const UNIT_SPRITE_VARIANTS = [
   "unit-1",

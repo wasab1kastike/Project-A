@@ -168,6 +168,12 @@
   stroke-width: 5px;
 }
 
+.objectiveTile polygon {
+  stroke: rgba(109, 217, 255, 0.8);
+  stroke-width: 6px;
+  filter: drop-shadow(0 0 8px rgba(109, 217, 255, 0.45));
+}
+
 .ownTile polygon {
   stroke: rgba(125, 240, 186, 0.86);
 }

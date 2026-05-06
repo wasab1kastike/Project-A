@@ -90,6 +90,7 @@ type PlayerSummary = {
   } | null;
   ownedTileSummary: {
     totalTileCount: number;
+    goldIncome: number;
     pointIncome: number;
     foodIncome: number;
     armyIncome: number;
@@ -299,6 +300,10 @@ export function CastleManagement({
         </div>
         <dl className={styles.statGrid}>
           <div>
+            <dt>Gold/tick</dt>
+            <dd>+{playerSummary.ownedTileSummary.goldIncome}</dd>
+          </div>
+          <div>
             <dt>Points/tick</dt>
             <dd>+{playerSummary.ownedTileSummary.pointIncome}</dd>
           </div>
@@ -316,8 +321,8 @@ export function CastleManagement({
           </div>
         </dl>
         <p className={styles.muted}>
-          Normal hexes feed castle ticks and score points; Home of A is tracked
-          separately on the battlefield because its income can be shared.
+          Normal hexes now feed gold and food, while temporary objectives and
+          Home of A generate score income.
         </p>
       </section>
 
