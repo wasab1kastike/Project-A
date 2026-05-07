@@ -62,6 +62,9 @@ const RACE_ABILITY_NOTES: Record<string, readonly string[]> = {
     `Attack slots scale as ${MAX_SIMULTANEOUS_ATTACKS_BASE} + 2 x castle level.`,
   ],
   ORKS: [
+    "Scrap: ORKS earn Scrap from successful raids, tile battle wins, Home of A captures, and loot camp destruction.",
+    "Boss Orders: spend Scrap and gold on one active short-term order at a time: More Dakka, Loot Wagons, or Patch Da Fort.",
+    "Scrap-Fueled WAAAGH: while WAAAGH is active, spend Scrap once per investment to extend it, boost attack power, or improve Stronger Together.",
     "Tier 1: Stronger Together — 15% of killed defenders join your idle army after each successful raid.",
     "Tier 3+: WAAAGH unlocks (once per day, lasts 1 hour) — x4 attack and defense power, 2x movement speed.",
     "Passive economy/combat identity: +6 carry capacity per surviving attacker, +1 army per 10 recruiters.",
@@ -77,7 +80,7 @@ const CASTLE_SPECIALIZATIONS = [
 
 const ATTACK_MULTIPLIERS = [
   "Base PvP/PvE battle power: sent army x 1.",
-  "ORKS WAAAGH (T3): x4 attack and defense power, 2x movement speed while active.",
+  "ORKS WAAAGH (T3): x4 attack and defense power, 2x movement speed while active. Scrap can extend or intensify a current WAAAGH.",
   "Dwarf Grudge Book: x1.25 attack power against the chosen target.",
   "Dwarf tier 3 doubled grudge: x1.5 attack power against that target.",
 ] as const;
@@ -147,7 +150,7 @@ const LATEST_UPDATES = [
   "Loot camps now spawn around the battlefield during gameplay. Classic camps pay food, Rich camps pay gold, and Chaos camps pay army plus a race cooldown reset.",
   "Unstable Unicorn teleport now lasts 1 hour, leaves an attackable decoy at home, then returns the castle on the first tick after the timer ends.",
   "Unicorn decoys now mimic normal player fort visuals for other players.",
-  "Orks now use Stronger Together at Tier 1 and WAAAGH at Tier 3 (x4 attack/defense, 2x movement speed).",
+  "Orks now earn Scrap from fighting, spend it on Boss Orders, and can feed an active WAAAGH for extra pressure.",
   "Space Murines keep STIM at Tier 2, while Instant Recall is a separate Tier 3 unlock.",
   "Attack recall and return reports are more explicit, so recalled armies and post-raid returning units are easier to track.",
   "Raid loot caps are now 70% of target gold and 70% of target food per raid.",

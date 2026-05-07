@@ -6,8 +6,10 @@ import { useMemo, useState, type FormEvent } from "react";
 import {
   activateDwarfDeepMiningAction,
   activateDwarfRuneOfGrudgesAction,
+  activateOrkBossOrderAction,
   chooseDwarfGrudgeAction,
   chooseDwarfTierThreeGrudgeAction,
+  investOrkWaaaghScrapAction,
   activateStimAction,
   activateWaaaghAction,
   choosePendingUpgradeSpecializationAction,
@@ -107,6 +109,45 @@ type PlayerSummary = {
     tier: number;
     canActivateWaaagh: boolean;
     waaaghActiveUntil: Date | null;
+    orkScrap: number;
+    orkScrapEvents: {
+      id: string;
+      reason: string;
+      delta: number;
+      balanceAfter: number;
+      tileId: string | null;
+      targetName: string | null;
+      targetCommanderName: string | null;
+      createdAt: Date;
+    }[];
+    activeOrkBossOrder: {
+      id: string;
+      kind: string;
+      label: string;
+      description: string;
+      scrapCost: number;
+      goldCost: number;
+      activeUntil: Date;
+    } | null;
+    orkBossOrders: {
+      kind: string;
+      label: string;
+      description: string;
+      scrapCost: number;
+      goldCost: number;
+      durationMinutes: number;
+      canActivate: boolean;
+      disabledReason: string | null;
+    }[];
+    orkWaaaghInvestments: {
+      kind: string;
+      label: string;
+      description: string;
+      scrapCost: number;
+      canActivate: boolean;
+      disabledReason: string | null;
+      active: boolean;
+    }[];
     canActivateStim: boolean;
     stimActiveUntil: Date | null;
     canClaimUnicornTeleport: boolean;
@@ -256,19 +297,19 @@ const BUILDING_COPY_BY_RACE = {
   ORKS: {
     DEFENSE: {
       name: "Boss Fort",
-      role: "Reinforced scrap walls where the loudest plan becomes policy.",
+      role: "Reinforced scrap walls where Boss Orders are shouted into policy.",
     },
     POINTS: {
       name: "Teef Pit",
-      role: "A noisy dig site that turns shiny loot into spendable gold.",
+      role: "A noisy dig site that turns loot, teef, and Scrap into pressure.",
     },
     FOOD: {
       name: "Squig Pens",
-      role: "Dangerous food pens that somehow keep the horde fed.",
+      role: "Dangerous food pens that keep the horde fed between raids.",
     },
     MILITARY: {
       name: "Mob Yard",
-      role: "A brawling ground where recruits become enough army to matter.",
+      role: "A brawling ground where Scrap-funded plans become marching mobs.",
     },
   },
 } as const satisfies Record<
@@ -739,14 +780,117 @@ export function CastleManagement({
         {playerSummary.race ? (
           <div className={styles.form}>
             {playerSummary.race === "ORKS" ? (
-              <form action={activateWaaaghAction}>
-                <button
-                  type="submit"
-                  disabled={!playerSummary.raceBuffs.canActivateWaaagh}
-                >
-                  Summon WAAAGH
-                </button>
-              </form>
+              <div className={styles.buildingGrid}>
+                <article className={styles.buildingCard}>
+                  <div className={styles.buildingCardHeader}>
+                    <strong>Scrap Pile</strong>
+                    <span>{playerSummary.raceBuffs.orkScrap} Scrap</span>
+                  </div>
+                  <p>
+                    Earn Scrap from raids, tile wins, Home of A, and loot camps.
+                    Spend it on Boss Orders or feed an active WAAAGH.
+                  </p>
+                  {playerSummary.raceBuffs.orkScrapEvents.length > 0 ? (
+                    <ul className={styles.compactList}>
+                      {playerSummary.raceBuffs.orkScrapEvents.map((event) => (
+                        <li key={event.id}>
+                          {event.delta > 0 ? "+" : ""}
+                          {event.delta} Scrap: {event.reason.replaceAll("_", " ")}
+                          {event.targetName ? ` vs ${event.targetName}` : ""}
+                          {event.tileId ? ` on tile ${event.tileId}` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className={styles.muted}>No Scrap has been recorded yet.</p>
+                  )}
+                </article>
+
+                <article className={styles.buildingCard}>
+                  <div className={styles.buildingCardHeader}>
+                    <strong>WAAAGH</strong>
+                    <span>
+                      {playerSummary.raceBuffs.waaaghActiveUntil
+                        ? `Active until ${playerSummary.raceBuffs.waaaghActiveUntil.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                        : "Tier 3 daily"}
+                    </span>
+                  </div>
+                  <form action={activateWaaaghAction}>
+                    <button
+                      type="submit"
+                      disabled={!playerSummary.raceBuffs.canActivateWaaagh}
+                    >
+                      Summon WAAAGH
+                    </button>
+                  </form>
+                  <div className={styles.form}>
+                    {playerSummary.raceBuffs.orkWaaaghInvestments.map(
+                      (investment) => (
+                        <form
+                          key={investment.kind}
+                          action={investOrkWaaaghScrapAction}
+                        >
+                          <input
+                            type="hidden"
+                            name="kind"
+                            value={investment.kind}
+                          />
+                          <button
+                            type="submit"
+                            disabled={!investment.canActivate}
+                            title={investment.disabledReason ?? undefined}
+                          >
+                            {investment.active
+                              ? `${investment.label} active`
+                              : `${investment.label} (${investment.scrapCost} Scrap)`}
+                          </button>
+                          <p className={styles.muted}>
+                            {investment.description}
+                          </p>
+                        </form>
+                      )
+                    )}
+                  </div>
+                </article>
+
+                <article className={styles.buildingCard}>
+                  <div className={styles.buildingCardHeader}>
+                    <strong>Boss Orders</strong>
+                    <span>
+                      {playerSummary.raceBuffs.activeOrkBossOrder
+                        ? `${playerSummary.raceBuffs.activeOrkBossOrder.label} active`
+                        : "One at a time"}
+                    </span>
+                  </div>
+                  {playerSummary.raceBuffs.activeOrkBossOrder ? (
+                    <p className={styles.muted}>
+                      {playerSummary.raceBuffs.activeOrkBossOrder.description}{" "}
+                      Ends at{" "}
+                      {playerSummary.raceBuffs.activeOrkBossOrder.activeUntil.toLocaleTimeString(
+                        [],
+                        { hour: "2-digit", minute: "2-digit" }
+                      )}
+                      .
+                    </p>
+                  ) : null}
+                  <div className={styles.form}>
+                    {playerSummary.raceBuffs.orkBossOrders.map((order) => (
+                      <form key={order.kind} action={activateOrkBossOrderAction}>
+                        <input type="hidden" name="kind" value={order.kind} />
+                        <button
+                          type="submit"
+                          disabled={!order.canActivate}
+                          title={order.disabledReason ?? undefined}
+                        >
+                          {order.label} ({order.scrapCost} Scrap,{" "}
+                          {order.goldCost} gold)
+                        </button>
+                        <p className={styles.muted}>{order.description}</p>
+                      </form>
+                    ))}
+                  </div>
+                </article>
+              </div>
             ) : null}
             {playerSummary.race === "SPACE_MURINES" ? (
               <form action={activateStimAction}>

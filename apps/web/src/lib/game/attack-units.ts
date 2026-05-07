@@ -4,6 +4,7 @@ import { GameError } from "./errors";
 import { getHelsinkiHourKey, getRaceBuffTier } from "./race-buffs";
 import { getRaceModifiers } from "./races";
 import type { FortressRace } from "./races";
+import { getOrkBossOrderSpeedMultiplier } from "./orks";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -50,6 +51,34 @@ async function getOrkWaaghActive({
   });
 
   return Boolean(active);
+}
+
+async function getOrkBossOrderAttackSpeedMultiplier({
+  db,
+  fortress,
+  now,
+}: {
+  db: DatabaseClient;
+  fortress: { id: string; race?: FortressRace | null };
+  now: Date;
+}) {
+  if (fortress.race !== "ORKS") {
+    return 1;
+  }
+
+  const orders = await db.orkBossOrder.findMany({
+    where: {
+      fortressId: fortress.id,
+      activeUntil: { gt: now },
+    },
+    select: {
+      kind: true,
+      activeFrom: true,
+      activeUntil: true,
+    },
+  });
+
+  return getOrkBossOrderSpeedMultiplier(orders, now);
 }
 
 function getDwarfAttackSpeedMultiplier(fortress: {
@@ -284,9 +313,13 @@ export async function recallAttackUnit({
     target: attackUnit.attackerFortress,
     attackerRace: attackUnit.attackerFortress.race,
     raceBuffTier,
-    speedMultiplier: getDwarfAttackSpeedMultiplier(
-      attackUnit.attackerFortress
-    ),
+    speedMultiplier:
+      getDwarfAttackSpeedMultiplier(attackUnit.attackerFortress) *
+      (await getOrkBossOrderAttackSpeedMultiplier({
+        db,
+        fortress: attackUnit.attackerFortress,
+        now,
+      })),
     waaagh: await getOrkWaaghActive({
       db,
       fortress: attackUnit.attackerFortress,
@@ -342,7 +375,13 @@ export async function launchAttackUnit({
     target,
     attackerRace: attacker.race,
     raceBuffTier: buffTier,
-    speedMultiplier: getDwarfAttackSpeedMultiplier(attacker),
+    speedMultiplier:
+      getDwarfAttackSpeedMultiplier(attacker) *
+      (await getOrkBossOrderAttackSpeedMultiplier({
+        db,
+        fortress: attacker,
+        now: launchedAt,
+      })),
     waaagh: await getOrkWaaghActive({
       db,
       fortress: attacker,

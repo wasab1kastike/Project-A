@@ -79,13 +79,14 @@ const JOIN_RACE_COPY: Record<
     cons: ["Needs timing discipline", "Less loot-focused than ORKS"],
   },
   ORKS: {
-    lore: "Their logistics doctrine is yelling, their accounting system is teeth, and somehow the carts come back full.",
+    lore: "Their logistics doctrine is yelling, their accounting system is teeth, and their recycling program is called Scrap.",
     pros: [
+      "Scrap economy from fighting",
+      "Boss Orders and WAAAGH investments",
       "Best loot carrying capacity",
       "Extra army from recruiters",
-      "Simple raid-heavy game plan",
     ],
-    cons: ["Few defensive tricks", "Subtle plans may be shouted at"],
+    cons: ["Needs frequent fighting", "Scrap does nothing if you turtle"],
   },
 };
 

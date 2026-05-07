@@ -27,6 +27,8 @@ import {
   ArcadeLootBoxType,
   BattlefieldSide,
   FortressAction,
+  OrkBossOrderKind,
+  OrkWaaaghInvestmentKind,
   RaceAbilityKind,
 } from "@/lib/prisma-client";
 import { emitProjectARefresh } from "@/lib/realtime";
@@ -34,6 +36,7 @@ import {
   editRegistrationFortressName,
   activateDwarfDeepMining,
   activateDwarfRuneOfGrudges,
+  activateOrkBossOrder,
   activateRaceAbility,
   chooseDwarfGrudge,
   chooseDwarfTierThreeGrudge,
@@ -52,6 +55,7 @@ import {
   setFortressAction,
   updateWorkerAssignment,
   shuffleFortressLocation,
+  investOrkWaaaghScrap,
 } from "@/lib/game/service";
 
 function getString(formData: FormData, key: string) {
@@ -534,6 +538,38 @@ export async function activateWaaaghAction() {
   }
 
   finishAction("WAAAGH activated for one hour.");
+}
+
+export async function activateOrkBossOrderAction(formData: FormData) {
+  const userId = await requireUserId();
+
+  try {
+    await activateOrkBossOrder({
+      userId,
+      kind: getString(formData, "kind") as OrkBossOrderKind,
+    });
+    emitProjectARefresh("ork-boss-order");
+  } catch (error) {
+    redirectToHome("error", getActionErrorMessage(error));
+  }
+
+  finishAction("Boss Order shouted.");
+}
+
+export async function investOrkWaaaghScrapAction(formData: FormData) {
+  const userId = await requireUserId();
+
+  try {
+    await investOrkWaaaghScrap({
+      userId,
+      kind: getString(formData, "kind") as OrkWaaaghInvestmentKind,
+    });
+    emitProjectARefresh("ork-waaagh-investment");
+  } catch (error) {
+    redirectToHome("error", getActionErrorMessage(error));
+  }
+
+  finishAction("WAAAGH fed with Scrap.");
 }
 
 export async function activateStimAction() {

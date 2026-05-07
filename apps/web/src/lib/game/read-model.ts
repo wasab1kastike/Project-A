@@ -7,6 +7,8 @@ import {
   BattlefieldStatus,
   CastleUpgradeSpecialization,
   FortressKind,
+  OrkBossOrderKind,
+  OrkWaaaghInvestmentKind,
   Prisma,
   RaceAbilityKind,
   WinnerRequestStatus,
@@ -54,6 +56,10 @@ import {
 } from "./race-buffs";
 import { countCastleSpecializations } from "./specializations";
 import { DWARF_DEEP_MINING_RUNE_BOUNTY } from "./dwarf-deep-mining";
+import {
+  ORK_BOSS_ORDER_CONFIG,
+  ORK_WAAAGH_INVESTMENT_CONFIG,
+} from "./orks";
 import { HEX_TILES, type HexTile } from "./map-hex";
 import {
   TILE_CLAIM_MAX_ACTIVE_PROJECTS,
@@ -530,6 +536,51 @@ export async function getHomePageState({
                   expiresAt: true,
                 },
               },
+            },
+          },
+          orkScrapBank: {
+            select: {
+              scrap: true,
+            },
+          },
+          orkScrapEvents: {
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+            take: 5,
+            select: {
+              id: true,
+              reason: true,
+              delta: true,
+              balanceAfter: true,
+              tileId: true,
+              createdAt: true,
+              targetFortress: {
+                select: {
+                  name: true,
+                  commanderName: true,
+                },
+              },
+            },
+          },
+          orkBossOrders: {
+            orderBy: [{ usedAt: "desc" }, { id: "desc" }],
+            select: {
+              id: true,
+              kind: true,
+              scrapCost: true,
+              goldCost: true,
+              activeFrom: true,
+              activeUntil: true,
+              usedAt: true,
+            },
+          },
+          orkWaaaghInvestments: {
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+            select: {
+              id: true,
+              kind: true,
+              scrapCost: true,
+              createdAt: true,
+              waaaghActivationId: true,
             },
           },
           unicornTemporaryTeleports: {
@@ -1081,6 +1132,22 @@ export async function getHomePageState({
         (activation) => activation.kind === RaceAbilityKind.ORK_WAAAGH
       )
     : null;
+  const activeWaaagh =
+    latestWaaaghUse &&
+    latestWaaaghUse.activeFrom <= now &&
+    latestWaaaghUse.activeUntil > now
+      ? latestWaaaghUse
+      : null;
+  const activeOrkBossOrder =
+    playerFortress?.orkBossOrders.find(
+      (order) => order.activeFrom <= now && order.activeUntil > now
+    ) ?? null;
+  const activeWaaaghInvestments =
+    playerFortress && activeWaaagh
+      ? playerFortress.orkWaaaghInvestments.filter(
+          (investment) => investment.waaaghActivationId === activeWaaagh.id
+        )
+      : [];
   const latestStimUse = playerFortress
     ? playerFortress.raceAbilityActivations.find(
         (activation) => activation.kind === RaceAbilityKind.SPACE_MURINE_STIM
@@ -2429,11 +2496,87 @@ export async function getHomePageState({
               (!latestWaaaghUse ||
                 getHelsinkiDayKey(latestWaaaghUse.usedAt) !== currentDayKey),
             waaaghActiveUntil:
-              latestWaaaghUse &&
-              latestWaaaghUse.activeFrom <= now &&
-              latestWaaaghUse.activeUntil > now
-                ? latestWaaaghUse.activeUntil
-                : null,
+              activeWaaagh?.activeUntil ?? null,
+            orkScrap: playerFortress.orkScrapBank?.scrap ?? 0,
+            orkScrapEvents: playerFortress.orkScrapEvents.map((event) => ({
+              id: event.id,
+              reason: event.reason,
+              delta: event.delta,
+              balanceAfter: event.balanceAfter,
+              tileId: event.tileId,
+              targetName: event.targetFortress?.name ?? null,
+              targetCommanderName:
+                event.targetFortress?.commanderName ?? null,
+              createdAt: event.createdAt,
+            })),
+            activeOrkBossOrder: activeOrkBossOrder
+              ? {
+                  id: activeOrkBossOrder.id,
+                  kind: activeOrkBossOrder.kind,
+                  label: ORK_BOSS_ORDER_CONFIG[activeOrkBossOrder.kind].label,
+                  description:
+                    ORK_BOSS_ORDER_CONFIG[activeOrkBossOrder.kind].description,
+                  scrapCost: activeOrkBossOrder.scrapCost,
+                  goldCost: activeOrkBossOrder.goldCost,
+                  activeUntil: activeOrkBossOrder.activeUntil,
+                }
+              : null,
+            orkBossOrders: Object.values(OrkBossOrderKind).map((kind) => {
+              const config = ORK_BOSS_ORDER_CONFIG[kind];
+              const disabledReason =
+                playerFortress.race !== "ORKS"
+                  ? "Only ORKS can bark Boss Orders."
+                  : !gameplayOpen
+                    ? "Boss Orders are only available during gameplay."
+                    : activeOrkBossOrder
+                      ? "Another Boss Order is already active."
+                      : (playerFortress.orkScrapBank?.scrap ?? 0) <
+                          config.scrapCost
+                        ? `Needs ${config.scrapCost} Scrap.`
+                        : playerFortress.gold < config.goldCost
+                          ? `Needs ${config.goldCost} gold.`
+                          : null;
+
+              return {
+                kind,
+                label: config.label,
+                description: config.description,
+                scrapCost: config.scrapCost,
+                goldCost: config.goldCost,
+                durationMinutes: config.durationMinutes,
+                canActivate: disabledReason === null,
+                disabledReason,
+              };
+            }),
+            orkWaaaghInvestments: Object.values(OrkWaaaghInvestmentKind).map(
+              (kind) => {
+                const config = ORK_WAAAGH_INVESTMENT_CONFIG[kind];
+                const alreadyActive = activeWaaaghInvestments.some(
+                  (investment) => investment.kind === kind
+                );
+                const disabledReason =
+                  playerFortress.race !== "ORKS"
+                    ? "Only ORKS can feed WAAAGH."
+                    : !activeWaaagh
+                      ? "WAAAGH must be active."
+                      : alreadyActive
+                        ? "This WAAAGH investment is already active."
+                        : (playerFortress.orkScrapBank?.scrap ?? 0) <
+                            config.scrapCost
+                          ? `Needs ${config.scrapCost} Scrap.`
+                          : null;
+
+                return {
+                  kind,
+                  label: config.label,
+                  description: config.description,
+                  scrapCost: config.scrapCost,
+                  canActivate: disabledReason === null,
+                  disabledReason,
+                  active: alreadyActive,
+                };
+              }
+            ),
             canActivateStim:
               playerFortress.race === "SPACE_MURINES" &&
               raceBuffTier >= 2 &&

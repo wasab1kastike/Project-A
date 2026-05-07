@@ -3354,6 +3354,10 @@ async function resetDatabase(client: PrismaClient) {
   await client.battlefieldParticipant.deleteMany();
   await client.battlefield.deleteMany();
   await client.homeOfAHolder.deleteMany();
+  await client.orkScrapEvent.deleteMany();
+  await client.orkWaaaghInvestment.deleteMany();
+  await client.orkBossOrder.deleteMany();
+  await client.orkScrapBank.deleteMany();
   await client.mapHexClaimProject.deleteMany();
   await client.mapHexOwnership.deleteMany();
   await client.scoreEvent.deleteMany();

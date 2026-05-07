@@ -7,6 +7,7 @@ import {
   ScoreEventType,
   DwarfDeepMiningOutcome,
   RaceAbilityKind,
+  OrkScrapEventReason,
 } from "@/lib/prisma-client";
 import { prisma } from "@/lib/prisma";
 import { ensureOpenRegistrationCycle } from "./bootstrap";
@@ -38,7 +39,6 @@ import { addHours, addMinutes, floorToMinute } from "./time";
 import {
   calculateRaidOutcome,
   calculateTickProduction,
-  ORK_STRONGER_TOGETHER_RATE,
 } from "./balance";
 import { getArmyUpkeepCost, processRecruitmentQueue } from "./army-recruitment";
 import { canFortressLevelUp, getFortressAttackDamage } from "./upgrades";
@@ -49,6 +49,18 @@ import {
 } from "./race-buffs";
 import { getRaceModifiers } from "./races";
 import { countCastleSpecializations } from "./specializations";
+import {
+  applyOrkScrapDelta,
+  getOrkBossOrderAttackMultiplier,
+  getOrkBossOrderCarryMultiplier,
+  getOrkBossOrderDefenseMultiplier,
+  getOrkBossOrderSpeedMultiplier,
+  getOrkDirectRaidScrap,
+  getOrkLootCampScrap,
+  getOrkStrongerTogetherRate,
+  getOrkWaaaghAttackInvestmentMultiplier,
+  isRealOrkPlayerFortress,
+} from "./orks";
 import {
   DWARF_DEEP_MINING_COMBAT_MULTIPLIER,
   DWARF_DEEP_MINING_ECONOMY_MULTIPLIER,
@@ -788,6 +800,26 @@ async function completeTestingCycle(
         },
       },
     });
+    await tx.orkScrapEvent.deleteMany({
+      where: {
+        cycleId,
+      },
+    });
+    await tx.orkWaaaghInvestment.deleteMany({
+      where: {
+        cycleId,
+      },
+    });
+    await tx.orkBossOrder.deleteMany({
+      where: {
+        cycleId,
+      },
+    });
+    await tx.orkScrapBank.deleteMany({
+      where: {
+        cycleId,
+      },
+    });
     await tx.unicornTemporaryTeleport.deleteMany({
       where: {
         cycleId,
@@ -1352,6 +1384,33 @@ async function processCycleTick(
             maintenanceGoldPerTick: true,
           },
         },
+        orkBossOrders: {
+          where: {
+            activeUntil: {
+              gt: tickAt,
+            },
+          },
+          select: {
+            kind: true,
+            activeFrom: true,
+            activeUntil: true,
+          },
+        },
+        orkWaaaghInvestments: {
+          where: {
+            waaaghActivation: {
+              activeFrom: {
+                lte: tickAt,
+              },
+              activeUntil: {
+                gt: tickAt,
+              },
+            },
+          },
+          select: {
+            kind: true,
+          },
+        },
         dwarfGrudges: {
           select: {
             targetFortressId: true,
@@ -1477,6 +1536,8 @@ async function processCycleTick(
     }) => (isSuppressed(fortress.id) ? null : fortress.race);
     const getDwarfSpeedMultiplier = (fortress: (typeof fortresses)[number]) =>
       getRaceModifiers(fortress.race).travelSpeedMultiplier;
+    const getOrkSpeedMultiplier = (fortress: (typeof fortresses)[number]) =>
+      getOrkBossOrderSpeedMultiplier(fortress.orkBossOrders, tickAt);
     const getOrkWaaghActive = (fortress: (typeof fortresses)[number]) =>
       getEffectiveRace(fortress) === "ORKS" &&
       raceBuffTier >= 3 &&
@@ -1870,7 +1931,9 @@ async function processCycleTick(
               },
               attackerRace: getEffectiveRace(targetAttacker),
               raceBuffTier,
-              speedMultiplier: getDwarfSpeedMultiplier(targetAttacker),
+              speedMultiplier:
+                getDwarfSpeedMultiplier(targetAttacker) *
+                getOrkSpeedMultiplier(targetAttacker),
               waaagh: getOrkWaaghActive(targetAttacker),
             });
 
@@ -2003,6 +2066,13 @@ async function processCycleTick(
             defenderArmy,
             defenderDbLevel: 0,
             defenderRace: null,
+            attackPowerMultiplier:
+              getEffectiveRace(targetAttacker) === "ORKS"
+                ? getOrkBossOrderAttackMultiplier(
+                    targetAttacker.orkBossOrders,
+                    tickAt
+                  )
+                : 1,
             defenderPoints: 0,
             defenderFood: 0,
           });
@@ -2118,7 +2188,9 @@ async function processCycleTick(
               },
               attackerRace: getEffectiveRace(targetAttacker),
               raceBuffTier,
-              speedMultiplier: getDwarfSpeedMultiplier(targetAttacker),
+              speedMultiplier:
+                getDwarfSpeedMultiplier(targetAttacker) *
+                getOrkSpeedMultiplier(targetAttacker),
               waaagh: getOrkWaaghActive(targetAttacker),
             });
 
@@ -2293,6 +2365,19 @@ async function processCycleTick(
               now: tickAt,
             });
           }
+
+          if (isRealOrkPlayerFortress(destroyer.attacker)) {
+            await applyOrkScrapDelta({
+              db,
+              cycleId,
+              fortressId: destroyer.attacker.id,
+              delta: getOrkLootCampScrap(target.lootCampVariant),
+              reason: OrkScrapEventReason.LOOT_CAMP,
+              now: tickAt,
+              targetFortressId: target.id,
+              attackUnitId: destroyer.unitId,
+            });
+          }
         }
 
         for (const targetUnit of targetUnits) {
@@ -2348,7 +2433,9 @@ async function processCycleTick(
               },
               attackerRace: getEffectiveRace(targetAttacker),
               raceBuffTier,
-              speedMultiplier: getDwarfSpeedMultiplier(targetAttacker),
+              speedMultiplier:
+                getDwarfSpeedMultiplier(targetAttacker) *
+                getOrkSpeedMultiplier(targetAttacker),
             });
 
             await db.attackUnit.update({
@@ -2422,7 +2509,9 @@ async function processCycleTick(
               },
               attackerRace: getEffectiveRace(targetAttacker),
               raceBuffTier,
-              speedMultiplier: getDwarfSpeedMultiplier(targetAttacker),
+              speedMultiplier:
+                getDwarfSpeedMultiplier(targetAttacker) *
+                getOrkSpeedMultiplier(targetAttacker),
             });
 
             await db.attackUnit.update({
@@ -2691,6 +2780,25 @@ async function processCycleTick(
             RaceAbilityKind.DWARF_COMBAT_SURGE,
             tickAt
           ));
+      const attackerOrkAttackInvestmentMultiplier =
+        attackerRace === "ORKS"
+          ? getOrkWaaaghAttackInvestmentMultiplier({
+              waaaghActive: attackerWaaagh,
+              investments: attacker.orkWaaaghInvestments,
+            })
+          : 1;
+      const attackerOrkBossAttackMultiplier =
+        attackerRace === "ORKS"
+          ? getOrkBossOrderAttackMultiplier(attacker.orkBossOrders, tickAt)
+          : 1;
+      const defenderOrkBossDefenseMultiplier =
+        defenderRace === "ORKS"
+          ? getOrkBossOrderDefenseMultiplier(target.orkBossOrders, tickAt)
+          : 1;
+      const attackerOrkCarryMultiplier =
+        attackerRace === "ORKS"
+          ? getOrkBossOrderCarryMultiplier(attacker.orkBossOrders, tickAt)
+          : 1;
       const outcome = calculateRaidOutcome({
         attackArmy: unit.armyAmount,
         attackerRace,
@@ -2702,14 +2810,18 @@ async function processCycleTick(
         ),
         attackPowerMultiplier:
           (attackerWaaagh ? 4 : 1) *
+          attackerOrkAttackInvestmentMultiplier *
+          attackerOrkBossAttackMultiplier *
           dwarfAttackMultiplier *
           (attackerDeepMiningCombat ? DWARF_DEEP_MINING_COMBAT_MULTIPLIER : 1),
         defensePowerMultiplier:
           (defenderWaaagh ? 4 : 1) *
+          defenderOrkBossDefenseMultiplier *
           dwarfDefenseMultiplier *
           (defenderDeepMiningCombat ? DWARF_DEEP_MINING_COMBAT_MULTIPLIER : 1),
         preventAttackerCasualties: attackerStim,
         preventDefenderLosses: defenderStim,
+        carryCapacityMultiplier: attackerOrkCarryMultiplier,
         defenderGold,
         defenderFood,
       });
@@ -2727,7 +2839,8 @@ async function processCycleTick(
           },
           attackerRace: attackerRace,
           raceBuffTier,
-          speedMultiplier: getDwarfSpeedMultiplier(attacker),
+          speedMultiplier:
+            getDwarfSpeedMultiplier(attacker) * getOrkSpeedMultiplier(attacker),
           waaagh: getOrkWaaghActive(attacker),
         });
 
@@ -2791,7 +2904,13 @@ async function processCycleTick(
         attackerRace === "ORKS" &&
         raceBuffTier >= 1 &&
         outcome.defenderLosses > 0
-          ? Math.floor(outcome.defenderLosses * ORK_STRONGER_TOGETHER_RATE)
+          ? Math.floor(
+              outcome.defenderLosses *
+                getOrkStrongerTogetherRate({
+                  waaaghActive: attackerWaaagh,
+                  investments: attacker.orkWaaaghInvestments,
+                })
+            )
           : 0;
       currentFood.set(
         attacker.id,
@@ -2806,6 +2925,27 @@ async function processCycleTick(
           attacker.id,
           (currentArmy.get(attacker.id) ?? attacker.army) + strongerTogether
         );
+      }
+
+      if (
+        outcome.outcome === "ATTACKER_WIN" &&
+        isRealOrkPlayerFortress(attacker) &&
+        !target.isNpc
+      ) {
+        await applyOrkScrapDelta({
+          db,
+          cycleId,
+          fortressId: attacker.id,
+          delta: getOrkDirectRaidScrap({
+            defenderLosses: outcome.defenderLosses,
+            goldLooted: outcome.goldLooted,
+            foodLooted: outcome.foodLooted,
+          }),
+          reason: OrkScrapEventReason.DIRECT_RAID,
+          now: tickAt,
+          targetFortressId: target.id,
+          attackUnitId: unit.id,
+        });
       }
 
       if (outcome.goldLooted > 0) {

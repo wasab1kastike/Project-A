@@ -114,6 +114,7 @@ export type RaidOutcomeInput = {
   defensePowerMultiplier?: number;
   preventAttackerCasualties?: boolean;
   preventDefenderLosses?: boolean;
+  carryCapacityMultiplier?: number;
   defenderGold?: number;
   /** @deprecated Use defenderGold. Kept for legacy tests and callers. */
   defenderPoints?: number;
@@ -637,9 +638,12 @@ export function calculateRaidOutcome(input: RaidOutcomeInput): RaidOutcome {
 
   if (attackerWon) {
     const carryCapacity =
-      attackerSurvivors *
-      (CARRY_CAPACITY_PER_SURVIVOR +
-        getRaceModifiers(input.attackerRace).carryCapacityPerSurvivorBonus);
+      Math.floor(
+        attackerSurvivors *
+          (CARRY_CAPACITY_PER_SURVIVOR +
+            getRaceModifiers(input.attackerRace).carryCapacityPerSurvivorBonus) *
+          Math.max(0, input.carryCapacityMultiplier ?? 1)
+      );
     const goldLootCap = Math.floor(defenderGold * MAX_POINT_LOOT_PERCENT);
     const foodLootCap = Math.floor(defenderFood * MAX_FOOD_LOOT_PERCENT);
 

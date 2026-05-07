@@ -1,6 +1,7 @@
 import {
   BattlefieldSide,
   BattlefieldStatus,
+  OrkScrapEventReason,
   Prisma,
   PrismaClient,
   ScoreEventType,
@@ -12,6 +13,13 @@ import { launchAttackUnit } from "./attack-units";
 import { getDwarfGrudgeMultiplier } from "./race-buffs";
 import { isHomeOfATile } from "./territory";
 import { getMaxSimultaneousAttacks } from "./upgrades";
+import {
+  applyOrkScrapDelta,
+  getOrkBossOrderAttackMultiplier,
+  getOrkBossOrderDefenseMultiplier,
+  getOrkTileBattleScrap,
+  isRealOrkPlayerFortress,
+} from "./orks";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -189,6 +197,15 @@ export async function createBattlefieldFromAttackUnit({
           food: true,
           level: true,
           race: true,
+          isNpc: true,
+          fortressKind: true,
+          orkBossOrders: {
+            select: {
+              kind: true,
+              activeFrom: true,
+              activeUntil: true,
+            },
+          },
           castleUpgradeSpecializations: {
             select: {
               specialization: true,
@@ -481,6 +498,15 @@ export async function processActiveBattlefields({
         select: {
           id: true,
           race: true,
+          isNpc: true,
+          fortressKind: true,
+          orkBossOrders: {
+            select: {
+              kind: true,
+              activeFrom: true,
+              activeUntil: true,
+            },
+          },
           dwarfGrudges: {
             select: {
               targetFortressId: true,
@@ -493,6 +519,15 @@ export async function processActiveBattlefields({
         select: {
           id: true,
           race: true,
+          isNpc: true,
+          fortressKind: true,
+          orkBossOrders: {
+            select: {
+              kind: true,
+              activeFrom: true,
+              activeUntil: true,
+            },
+          },
           dwarfGrudges: {
             select: {
               targetFortressId: true,
@@ -510,6 +545,15 @@ export async function processActiveBattlefields({
           food: true,
           level: true,
           race: true,
+          isNpc: true,
+          fortressKind: true,
+          orkBossOrders: {
+            select: {
+              kind: true,
+              activeFrom: true,
+              activeUntil: true,
+            },
+          },
           castleUpgradeSpecializations: {
             select: {
               specialization: true,
@@ -584,14 +628,35 @@ export async function processActiveBattlefields({
         battlefield.targetFortress?.race === "DWARFS")
         ? 1.25
         : 1;
+    const attackerBossOrderMultiplier =
+      battlefield.attackerBannerFortress?.race === "ORKS"
+        ? getOrkBossOrderAttackMultiplier(
+            battlefield.attackerBannerFortress.orkBossOrders,
+            tickAt
+          )
+        : 1;
+    const defenderBossOrderMultiplier =
+      battlefield.defenderBannerFortress?.race === "ORKS"
+        ? getOrkBossOrderDefenseMultiplier(
+            battlefield.defenderBannerFortress.orkBossOrders,
+            tickAt
+          )
+        : battlefield.targetFortress?.race === "ORKS"
+          ? getOrkBossOrderDefenseMultiplier(
+              battlefield.targetFortress.orkBossOrders,
+              tickAt
+            )
+          : 1;
     const attrition = getBattlefieldAttrition({
       battlefieldId: battlefield.id,
       tickAt,
       attackerArmy: attackerArmyBefore,
       defenderArmy: defenderArmyBefore,
-      attackerPowerMultiplier: attackerGrudgeMultiplier,
+      attackerPowerMultiplier: attackerGrudgeMultiplier * attackerBossOrderMultiplier,
       defenderPowerMultiplier:
-        defenderGrudgeMultiplier * defenderTileDefenseMultiplier,
+        defenderGrudgeMultiplier *
+        defenderTileDefenseMultiplier *
+        defenderBossOrderMultiplier,
     });
     const attackerParticipantLosses = distributeLosses(
       attackerParticipants,
@@ -693,9 +758,11 @@ export async function processActiveBattlefields({
             defenderRace: null,
             defenderGold: battlefield.targetFortress?.gold ?? 0,
             defenderFood: battlefield.targetFortress?.food ?? 0,
-            attackPowerMultiplier: attackerGrudgeMultiplier,
+            attackPowerMultiplier: attackerGrudgeMultiplier * attackerBossOrderMultiplier,
             defensePowerMultiplier:
-              defenderGrudgeMultiplier * defenderTileDefenseMultiplier,
+              defenderGrudgeMultiplier *
+              defenderTileDefenseMultiplier *
+              defenderBossOrderMultiplier,
           })
         : calculateRaidOutcome({
             attackArmy: attackerArmyAfter,
@@ -707,9 +774,11 @@ export async function processActiveBattlefields({
                   battlefield.targetFortress.castleUpgradeSpecializations
                 )
               : undefined,
-            attackPowerMultiplier: attackerGrudgeMultiplier,
+            attackPowerMultiplier: attackerGrudgeMultiplier * attackerBossOrderMultiplier,
             defensePowerMultiplier:
-              defenderGrudgeMultiplier * defenderTileDefenseMultiplier,
+              defenderGrudgeMultiplier *
+              defenderTileDefenseMultiplier *
+              defenderBossOrderMultiplier,
             defenderGold: battlefield.targetFortress?.gold ?? 0,
             defenderFood: battlefield.targetFortress?.food ?? 0,
           });
@@ -806,6 +875,25 @@ export async function processActiveBattlefields({
           claimedAt: tickAt,
         },
       });
+
+      if (
+        battlefield.attackerBannerFortress &&
+        isRealOrkPlayerFortress(battlefield.attackerBannerFortress)
+      ) {
+        await applyOrkScrapDelta({
+          db,
+          cycleId,
+          fortressId: battlefield.attackerBannerFortress.id,
+          delta: getOrkTileBattleScrap(isHomeOfATile(battlefield.targetTileId)),
+          reason: isHomeOfATile(battlefield.targetTileId)
+            ? OrkScrapEventReason.HOME_OF_A_BATTLE
+            : OrkScrapEventReason.TILE_BATTLE,
+          now: tickAt,
+          targetFortressId: battlefield.targetFortressId,
+          tileId: battlefield.targetTileId,
+          battlefieldId: battlefield.id,
+        });
+      }
 
       if (isHomeOfATile(battlefield.targetTileId)) {
         await db.homeOfAHolder.deleteMany({

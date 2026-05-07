@@ -8,6 +8,9 @@ import {
   PrismaClient,
   RaceAbilityKind,
   BattlefieldSide,
+  OrkBossOrderKind,
+  OrkScrapEventReason,
+  OrkWaaaghInvestmentKind,
 } from "@/lib/prisma-client";
 import { prisma } from "@/lib/prisma";
 import {
@@ -73,6 +76,14 @@ import {
 import { joinBattlefield as joinBattlefieldRecord } from "./battlefields";
 import { getHomeOfAMapPosition } from "./mega-fortress";
 import { recalculateReturningAttackRoutes } from "./fortress-relocation";
+import {
+  ORK_BOSS_ORDER_CONFIG,
+  ORK_WAAAGH_INVESTMENT_CONFIG,
+  applyOrkScrapDelta,
+  getBossOrderActiveUntil,
+  getWaaaghInvestmentCost,
+  isRealOrkPlayerFortress,
+} from "./orks";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -2547,6 +2558,255 @@ export async function activateRaceAbility({
         usedAt: now,
       },
     });
+  });
+}
+
+export async function activateOrkBossOrder({
+  userId,
+  kind,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  kind: OrkBossOrderKind | string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  if (!Object.values(OrkBossOrderKind).includes(kind as OrkBossOrderKind)) {
+    throw new GameError("That Boss Order does not exist.");
+  }
+
+  const orderKind = kind as OrkBossOrderKind;
+  const config = ORK_BOSS_ORDER_CONFIG[orderKind];
+
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || cycle.status !== CycleStatus.ACTIVE) {
+      throw new GameError("Boss Orders are only available during the active season.");
+    }
+
+    const fortress = await tx.fortress.findUnique({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: userId,
+        },
+      },
+      select: {
+        id: true,
+        cycleId: true,
+        race: true,
+        isNpc: true,
+        fortressKind: true,
+        gold: true,
+      },
+    });
+
+    if (!fortress || !isRealOrkPlayerFortress(fortress)) {
+      throw new GameError("Only ORKS can bark Boss Orders.");
+    }
+
+    const activeOrder = await tx.orkBossOrder.findFirst({
+      where: {
+        fortressId: fortress.id,
+        activeFrom: { lte: now },
+        activeUntil: { gt: now },
+      },
+      select: { id: true },
+    });
+
+    if (activeOrder) {
+      throw new GameError("You can only run one Boss Order at a time.");
+    }
+
+    if (fortress.gold < config.goldCost) {
+      throw new GameError(`You need ${config.goldCost} gold for that Boss Order.`);
+    }
+
+    const bank = await tx.orkScrapBank.upsert({
+      where: {
+        cycleId_fortressId: {
+          cycleId: cycle.id,
+          fortressId: fortress.id,
+        },
+      },
+      create: {
+        cycleId: cycle.id,
+        fortressId: fortress.id,
+        scrap: 0,
+      },
+      update: {},
+      select: { scrap: true },
+    });
+
+    if (bank.scrap < config.scrapCost) {
+      throw new GameError(`You need ${config.scrapCost} Scrap for that Boss Order.`);
+    }
+
+    await tx.fortress.update({
+      where: { id: fortress.id },
+      data: { gold: { decrement: config.goldCost } },
+    });
+
+    const order = await tx.orkBossOrder.create({
+      data: {
+        cycleId: cycle.id,
+        fortressId: fortress.id,
+        kind: orderKind,
+        scrapCost: config.scrapCost,
+        goldCost: config.goldCost,
+        activeFrom: now,
+        activeUntil: getBossOrderActiveUntil(orderKind, now),
+        usedAt: now,
+      },
+    });
+
+    await applyOrkScrapDelta({
+      db: tx,
+      cycleId: cycle.id,
+      fortressId: fortress.id,
+      delta: -config.scrapCost,
+      reason: OrkScrapEventReason.BOSS_ORDER,
+      now,
+      bossOrderId: order.id,
+    });
+
+    return order;
+  });
+}
+
+export async function investOrkWaaaghScrap({
+  userId,
+  kind,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  kind: OrkWaaaghInvestmentKind | string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  if (
+    !Object.values(OrkWaaaghInvestmentKind).includes(
+      kind as OrkWaaaghInvestmentKind
+    )
+  ) {
+    throw new GameError("That WAAAGH investment does not exist.");
+  }
+
+  const investmentKind = kind as OrkWaaaghInvestmentKind;
+  const scrapCost = getWaaaghInvestmentCost(investmentKind);
+
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || cycle.status !== CycleStatus.ACTIVE) {
+      throw new GameError("WAAAGH investments are only available during the active season.");
+    }
+
+    const fortress = await tx.fortress.findUnique({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: userId,
+        },
+      },
+      select: {
+        id: true,
+        cycleId: true,
+        race: true,
+        isNpc: true,
+        fortressKind: true,
+      },
+    });
+
+    if (!fortress || !isRealOrkPlayerFortress(fortress)) {
+      throw new GameError("Only ORKS can feed the WAAAGH.");
+    }
+
+    const waaagh = await tx.raceAbilityActivation.findFirst({
+      where: {
+        fortressId: fortress.id,
+        kind: RaceAbilityKind.ORK_WAAAGH,
+        activeFrom: { lte: now },
+        activeUntil: { gt: now },
+      },
+      orderBy: [{ activeUntil: "desc" }, { id: "desc" }],
+      select: {
+        id: true,
+        activeUntil: true,
+        orkWaaaghInvestments: {
+          select: { kind: true },
+        },
+      },
+    });
+
+    if (!waaagh) {
+      throw new GameError("WAAAGH must be active before you can feed it Scrap.");
+    }
+
+    if (
+      waaagh.orkWaaaghInvestments.some(
+        (investment) => investment.kind === investmentKind
+      )
+    ) {
+      throw new GameError("That WAAAGH investment is already active.");
+    }
+
+    const bank = await tx.orkScrapBank.upsert({
+      where: {
+        cycleId_fortressId: {
+          cycleId: cycle.id,
+          fortressId: fortress.id,
+        },
+      },
+      create: {
+        cycleId: cycle.id,
+        fortressId: fortress.id,
+        scrap: 0,
+      },
+      update: {},
+      select: { scrap: true },
+    });
+
+    if (bank.scrap < scrapCost) {
+      throw new GameError(`You need ${scrapCost} Scrap to feed the WAAAGH.`);
+    }
+
+    const investment = await tx.orkWaaaghInvestment.create({
+      data: {
+        cycleId: cycle.id,
+        fortressId: fortress.id,
+        waaaghActivationId: waaagh.id,
+        kind: investmentKind,
+        scrapCost,
+      },
+    });
+
+    await applyOrkScrapDelta({
+      db: tx,
+      cycleId: cycle.id,
+      fortressId: fortress.id,
+      delta: -scrapCost,
+      reason: OrkScrapEventReason.WAAAGH_INVESTMENT,
+      now,
+      waaaghInvestmentId: investment.id,
+    });
+
+    const extensionMinutes =
+      ORK_WAAAGH_INVESTMENT_CONFIG[investmentKind].extensionMinutes;
+
+    if (extensionMinutes > 0) {
+      await tx.raceAbilityActivation.update({
+        where: { id: waaagh.id },
+        data: {
+          activeUntil: addMinutes(waaagh.activeUntil, extensionMinutes),
+        },
+      });
+    }
+
+    return investment;
   });
 }
 

@@ -66,6 +66,27 @@ enum RaceAbilityKind {
   UNICORN_TELEPORT
 }
 
+enum OrkScrapEventReason {
+  DIRECT_RAID
+  TILE_BATTLE
+  HOME_OF_A_BATTLE
+  LOOT_CAMP
+  BOSS_ORDER
+  WAAAGH_INVESTMENT
+}
+
+enum OrkBossOrderKind {
+  MORE_DAKKA
+  LOOT_WAGONS
+  PATCH_DA_FORT
+}
+
+enum OrkWaaaghInvestmentKind {
+  KEEP_IT_LOUD
+  BIGGER_SHOUTIN
+  DA_GREEN_TIDE
+}
+
 enum ScoreEventType {
   GROW_TICK
   ATTACK_SELF
@@ -258,6 +279,10 @@ model Cycle {
   castleUpgradeProjects         CastleUpgradeProject[]
   homeOfAHolders                HomeOfAHolder[]
   unicornTemporaryTeleports     UnicornTemporaryTeleport[]
+  orkScrapBanks                 OrkScrapBank[]
+  orkScrapEvents                OrkScrapEvent[]
+  orkBossOrders                 OrkBossOrder[]
+  orkWaaaghInvestments          OrkWaaaghInvestment[]
   winnerRequests                WinnerRequest[]
   communityWishProposals        CommunityWishProposal[]
   communityWishVoteEntitlements CommunityWishVoteEntitlement[]
@@ -320,6 +345,11 @@ model Fortress {
   castleUpgradeSpecializations CastleUpgradeSpecializationChoice[]
   castleUpgradeProjects        CastleUpgradeProject[]
   raceAbilityActivations       RaceAbilityActivation[]
+  orkScrapBank                 OrkScrapBank?
+  orkScrapEvents               OrkScrapEvent[]                    @relation("OrkScrapEventFortress")
+  orkScrapTargetedEvents       OrkScrapEvent[]                    @relation("OrkScrapEventTargetFortress")
+  orkBossOrders                OrkBossOrder[]
+  orkWaaaghInvestments         OrkWaaaghInvestment[]
   targetedRaceAbilityActivations RaceAbilityActivation[] @relation("RaceAbilityTargetFortress")
   runeRaceAbilityActivations   RaceAbilityActivation[] @relation("RaceAbilityRuneFortress")
   dwarfGrudges                 DwarfGrudge[]                       @relation("DwarfGrudgeOwner")
@@ -542,12 +572,89 @@ model RaceAbilityActivation {
   fortress              Fortress        @relation(fields: [fortressId], references: [id], onDelete: Cascade)
   targetFortress        Fortress?       @relation("RaceAbilityTargetFortress", fields: [targetFortressId], references: [id], onDelete: SetNull)
   runeFortress          Fortress?       @relation("RaceAbilityRuneFortress", fields: [runeFortressId], references: [id], onDelete: SetNull)
+  orkWaaaghInvestments  OrkWaaaghInvestment[]
 
   @@index([fortressId, kind, usedAt])
   @@index([fortressId, kind, activeUntil])
   @@index([fortressId, kind, expiresAt, consumedAt])
   @@index([targetFortressId, kind, activeUntil])
   @@index([runeFortressId, kind, activeUntil])
+}
+
+model OrkScrapBank {
+  id         String   @id @default(cuid())
+  cycleId    String
+  fortressId String   @unique
+  scrap      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  cycle      Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress   Fortress @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+
+  @@unique([cycleId, fortressId])
+  @@index([cycleId])
+}
+
+model OrkScrapEvent {
+  id               String              @id @default(cuid())
+  cycleId          String
+  fortressId       String
+  reason           OrkScrapEventReason
+  delta            Int
+  balanceAfter     Int
+  targetFortressId String?
+  tileId           String?
+  battlefieldId    String?
+  attackUnitId     String?
+  bossOrderId      String?
+  waaaghInvestmentId String?
+  createdAt        DateTime            @default(now())
+  cycle            Cycle               @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress         Fortress            @relation("OrkScrapEventFortress", fields: [fortressId], references: [id], onDelete: Cascade)
+  targetFortress   Fortress?           @relation("OrkScrapEventTargetFortress", fields: [targetFortressId], references: [id], onDelete: SetNull)
+  bossOrder        OrkBossOrder?        @relation(fields: [bossOrderId], references: [id], onDelete: SetNull)
+  waaaghInvestment OrkWaaaghInvestment? @relation(fields: [waaaghInvestmentId], references: [id], onDelete: SetNull)
+
+  @@index([cycleId, fortressId, createdAt])
+  @@index([targetFortressId])
+  @@index([battlefieldId])
+  @@index([attackUnitId])
+}
+
+model OrkBossOrder {
+  id          String           @id @default(cuid())
+  cycleId     String
+  fortressId  String
+  kind        OrkBossOrderKind
+  scrapCost   Int
+  goldCost    Int
+  activeFrom  DateTime
+  activeUntil DateTime
+  usedAt      DateTime         @default(now())
+  createdAt   DateTime         @default(now())
+  cycle       Cycle            @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress    Fortress         @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+  scrapEvents OrkScrapEvent[]
+
+  @@index([cycleId, fortressId, activeUntil])
+  @@index([fortressId, kind, usedAt])
+}
+
+model OrkWaaaghInvestment {
+  id                 String                  @id @default(cuid())
+  cycleId            String
+  fortressId         String
+  waaaghActivationId String
+  kind               OrkWaaaghInvestmentKind
+  scrapCost          Int
+  createdAt          DateTime                @default(now())
+  cycle              Cycle                   @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress           Fortress                @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+  waaaghActivation   RaceAbilityActivation   @relation(fields: [waaaghActivationId], references: [id], onDelete: Cascade)
+  scrapEvents        OrkScrapEvent[]
+
+  @@unique([waaaghActivationId, kind])
+  @@index([cycleId, fortressId, createdAt])
 }
 
 model DwarfGrudge {

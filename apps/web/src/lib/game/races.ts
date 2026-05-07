@@ -97,8 +97,10 @@ export const RACE_DEFINITIONS = [
     iconPlaceholder: "OK",
     flavorQuote: "IF IT MOVES, RAID IT.",
     flavorText:
-      "Loud, improvised, and alarmingly effective when survivors find room for extra loot.",
+      "Loud, improvised, and alarmingly effective raiders who turn wreckage into Scrap, Boss Orders, and bigger WAAAGH pressure.",
     passiveSummary: [
+      "Earn Scrap from raids, tile wins, Home of A, and loot camps",
+      "Spend Scrap on Boss Orders and WAAAGH investments",
       "+6 carry capacity per surviving attacker",
       "+1 army per 10 recruiters",
     ],
