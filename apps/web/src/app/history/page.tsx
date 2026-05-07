@@ -72,6 +72,24 @@ function normalizeProgress(progress: number) {
   return Math.min(100, Math.max(0, Math.round(progress)));
 }
 
+function formatSeasonName(seasonNumber: number) {
+  const seasonNames = [
+    "One",
+    "Two",
+    "Three",
+    "Four",
+    "Five",
+    "Six",
+    "Seven",
+    "Eight",
+    "Nine",
+    "Ten",
+  ];
+
+  const suffix = seasonNames[seasonNumber - 1] ?? String(seasonNumber);
+  return `Season ${suffix}`;
+}
+
 export default async function HistoryPage({
   searchParams,
 }: {
@@ -85,12 +103,21 @@ export default async function HistoryPage({
   const state = await getCycleHistoryPageState({
     userId: session?.user?.id,
   });
+  const seasonIndex = [...state.entries]
+    .reverse()
+    .map((entry, index) => ({
+      cycleId: entry.cycleId,
+      seasonName: formatSeasonName(index + 1),
+      winnerFortressName: entry.winnerFortressName,
+      communityWishSnapshot:
+        entry.communityWishSnapshot ?? "No community wish recorded.",
+    }));
 
   return (
     <main className={styles.page}>
       <section className={styles.hero}>
         <div className={styles.heroCopy}>
-          <p className={styles.eyebrow}>Cycle archive</p>
+          <p className={styles.eyebrow}>History of seasons</p>
           <h1>Resolved seasons, winners, and tie-break receipts.</h1>
           <p>
             Review who won, when the cycle ended, what winner request was on
@@ -123,31 +150,44 @@ export default async function HistoryPage({
               Open admin dashboard
             </Link>
           ) : null}
+          <Link
+            className={styles.linkButton}
+            data-active={activeTab === "cycles" ? "true" : undefined}
+            href="/history"
+          >
+            History of seasons
+          </Link>
+          <Link
+            className={styles.linkButton}
+            data-active={activeTab === "exploits" ? "true" : undefined}
+            href="/history?tab=exploits"
+          >
+            Exploit Hall of Fame
+          </Link>
         </div>
       </section>
 
       {error ? <p className={styles.errorBanner}>{error}</p> : null}
       {notice ? <p className={styles.noticeBanner}>{notice}</p> : null}
 
-      <nav className={styles.tabRow} aria-label="History views">
-        <Link
-          className={styles.tabLink}
-          data-active={activeTab === "cycles" ? "true" : undefined}
-          href="/history"
-        >
-          Cycle archive
-        </Link>
-        <Link
-          className={styles.tabLink}
-          data-active={activeTab === "exploits" ? "true" : undefined}
-          href="/history?tab=exploits"
-        >
-          Exploit Hall of Fame
-        </Link>
-      </nav>
-
       {activeTab === "cycles" ? (
         <section className={styles.stack}>
+          {seasonIndex.length > 0 ? (
+            <article className={styles.card}>
+              <span className={styles.sectionLabel}>Seasons overview</span>
+              <h2>Season winners and wishes</h2>
+              <ul className={styles.seasonList}>
+                {seasonIndex.map((season) => (
+                  <li key={season.cycleId}>
+                    <strong>{season.seasonName}</strong>
+                    <span>Winner fortress: {season.winnerFortressName}</span>
+                    <span>Wish: {season.communityWishSnapshot}</span>
+                  </li>
+                ))}
+              </ul>
+            </article>
+          ) : null}
+
           {state.entries.length > 0 ? (
             state.entries.map((entry) => (
               <article className={styles.card} key={entry.id}>
