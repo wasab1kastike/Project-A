@@ -1,8 +1,4 @@
-import {
-  Prisma,
-  PrismaClient,
-  RaceAbilityKind,
-} from "@/lib/prisma-client";
+import { Prisma, PrismaClient, RaceAbilityKind } from "@/lib/prisma-client";
 import { getAttackArrivalAt } from "./attacks";
 import { GameError } from "./errors";
 import { getHelsinkiHourKey, getRaceBuffTier } from "./race-buffs";
@@ -56,45 +52,10 @@ async function getOrkWaaghActive({
   return Boolean(active);
 }
 
-async function getDwarfAttackSpeedMultiplier({
-  db,
-  fortress,
-  now,
-}: {
-  db: DatabaseClient;
-  fortress: { id: string; race?: FortressRace | null };
-  now: Date;
+function getDwarfAttackSpeedMultiplier(fortress: {
+  race?: FortressRace | null;
 }) {
   if (fortress.race !== "DWARFS") {
-    return 1;
-  }
-
-  const suppressed = await db.raceAbilityActivation.findFirst({
-    where: {
-      kind: RaceAbilityKind.DWARF_RUNE_GRUDGES,
-      targetFortressId: fortress.id,
-      activeFrom: {
-        lte: now,
-      },
-      activeUntil: {
-        gt: now,
-      },
-      consumedAt: null,
-      runeFortress: {
-        health: {
-          gt: 0,
-        },
-        expiresAt: {
-          gt: now,
-        },
-      },
-    },
-    select: {
-      id: true,
-    },
-  });
-
-  if (suppressed) {
     return 1;
   }
 
@@ -323,11 +284,9 @@ export async function recallAttackUnit({
     target: attackUnit.attackerFortress,
     attackerRace: attackUnit.attackerFortress.race,
     raceBuffTier,
-    speedMultiplier: await getDwarfAttackSpeedMultiplier({
-      db,
-      fortress: attackUnit.attackerFortress,
-      now,
-    }),
+    speedMultiplier: getDwarfAttackSpeedMultiplier(
+      attackUnit.attackerFortress
+    ),
     waaagh: await getOrkWaaghActive({
       db,
       fortress: attackUnit.attackerFortress,
@@ -383,11 +342,7 @@ export async function launchAttackUnit({
     target,
     attackerRace: attacker.race,
     raceBuffTier: buffTier,
-    speedMultiplier: await getDwarfAttackSpeedMultiplier({
-      db,
-      fortress: attacker,
-      now: launchedAt,
-    }),
+    speedMultiplier: getDwarfAttackSpeedMultiplier(attacker),
     waaagh: await getOrkWaaghActive({
       db,
       fortress: attacker,

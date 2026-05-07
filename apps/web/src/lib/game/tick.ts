@@ -1389,7 +1389,7 @@ async function processCycleTick(
       race: (typeof fortresses)[number]["race"];
     }) => (isSuppressed(fortress.id) ? null : fortress.race);
     const getDwarfSpeedMultiplier = (fortress: (typeof fortresses)[number]) =>
-      getRaceModifiers(getEffectiveRace(fortress)).travelSpeedMultiplier;
+      getRaceModifiers(fortress.race).travelSpeedMultiplier;
     const getOrkWaaghActive = (fortress: (typeof fortresses)[number]) =>
       getEffectiveRace(fortress) === "ORKS" &&
       raceBuffTier >= 3 &&
@@ -1398,6 +1398,10 @@ async function processCycleTick(
         RaceAbilityKind.ORK_WAAAGH,
         tickAt
       );
+
+    const dwarfEconomySurgedThisTick = new Set<string>();
+    const dwarfEconomyHaltedThisTick = new Set<string>();
+    const dwarfCombatSurgedThisTick = new Set<string>();
 
     const pendingDeepMiningRolls = await db.dwarfDeepMiningRoll.findMany({
       where: {
@@ -1481,6 +1485,7 @@ async function processCycleTick(
             usedAt: tickAt,
           },
         });
+        dwarfEconomySurgedThisTick.add(source.id);
       } else if (roll.outcome === DwarfDeepMiningOutcome.BATTLE_RUNES) {
         await db.raceAbilityActivation.create({
           data: {
@@ -1491,6 +1496,7 @@ async function processCycleTick(
             usedAt: tickAt,
           },
         });
+        dwarfCombatSurgedThisTick.add(source.id);
       } else if (roll.outcome === DwarfDeepMiningOutcome.FACTION_SEAL) {
         const queueDelta = Math.min(
           250,
@@ -1526,6 +1532,7 @@ async function processCycleTick(
             usedAt: tickAt,
           },
         });
+        dwarfEconomyHaltedThisTick.add(source.id);
       }
 
       await db.dwarfDeepMiningRoll.update({
@@ -2583,18 +2590,20 @@ async function processCycleTick(
           : 1;
       const attackerDeepMiningCombat =
         attackerRace === "DWARFS" &&
-        isRaceAbilityActive(
-          attacker.raceAbilityActivations,
-          RaceAbilityKind.DWARF_COMBAT_SURGE,
-          tickAt
-        );
+        (dwarfCombatSurgedThisTick.has(attacker.id) ||
+          isRaceAbilityActive(
+            attacker.raceAbilityActivations,
+            RaceAbilityKind.DWARF_COMBAT_SURGE,
+            tickAt
+          ));
       const defenderDeepMiningCombat =
         defenderRace === "DWARFS" &&
-        isRaceAbilityActive(
-          target.raceAbilityActivations,
-          RaceAbilityKind.DWARF_COMBAT_SURGE,
-          tickAt
-        );
+        (dwarfCombatSurgedThisTick.has(target.id) ||
+          isRaceAbilityActive(
+            target.raceAbilityActivations,
+            RaceAbilityKind.DWARF_COMBAT_SURGE,
+            tickAt
+          ));
       const outcome = calculateRaidOutcome({
         attackArmy: unit.armyAmount,
         attackerRace,
@@ -2890,18 +2899,20 @@ async function processCycleTick(
       // Check for DWARF race ability modifiers that affect economy
       const economyHalted =
         getEffectiveRace(fortress) === "DWARFS" &&
-        isRaceAbilityActive(
-          fortress.raceAbilityActivations,
-          RaceAbilityKind.DWARF_ECONOMY_HALT,
-          tickAt
-        );
+        (dwarfEconomyHaltedThisTick.has(fortress.id) ||
+          isRaceAbilityActive(
+            fortress.raceAbilityActivations,
+            RaceAbilityKind.DWARF_ECONOMY_HALT,
+            tickAt
+          ));
       const economySurged =
         getEffectiveRace(fortress) === "DWARFS" &&
-        isRaceAbilityActive(
-          fortress.raceAbilityActivations,
-          RaceAbilityKind.DWARF_ECONOMY_SURGE,
-          tickAt
-        );
+        (dwarfEconomySurgedThisTick.has(fortress.id) ||
+          isRaceAbilityActive(
+            fortress.raceAbilityActivations,
+            RaceAbilityKind.DWARF_ECONOMY_SURGE,
+            tickAt
+          ));
 
       // Apply race ability modifiers to production
       // DWARF_ECONOMY_HALT: reduces all production to 0
@@ -2921,10 +2932,13 @@ async function processCycleTick(
       const recruitmentResult = economyHalted
         ? {
             unitsCreated: 0,
-            newQueue: fortress.recruitmentQueue,
+            newQueue:
+              currentRecruitmentQueue.get(fortress.id) ??
+              fortress.recruitmentQueue,
           }
         : processRecruitmentQueue(
-            fortress.recruitmentQueue,
+            currentRecruitmentQueue.get(fortress.id) ??
+              fortress.recruitmentQueue,
             Math.floor(
               fortress.recruitersAssigned *
                 (economySurged ? DWARF_DEEP_MINING_ECONOMY_MULTIPLIER : 1)
