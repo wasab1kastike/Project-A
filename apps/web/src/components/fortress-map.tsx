@@ -94,12 +94,14 @@ type MapHexOwnershipMarker = {
   tileId: string;
   biome?: HexBiome | string | null;
   ownerFortressId?: string | null;
+  ownerRace?: "DWARFS" | "UNSTABLE_UNICORNS" | "ORKS" | "SPACE_MURINES" | null;
   ownerName: string;
   ownerCommanderName: string;
   isCurrentUser: boolean;
   hasActiveBattle: boolean;
   canAttack: boolean;
   claimCost: number | null;
+  claimDurationMinutes?: number;
   sizeSurcharge?: number;
   isConnectedToPlayerTerritory?: boolean;
   canClaim?: boolean;
@@ -196,6 +198,13 @@ const RACE_TOKEN_PATHS: Record<string, string> = {
   ORKS: "/assets/token-orks.png",
   SPACE_MURINES: "/assets/token-space-murines.png",
   UNSTABLE_UNICORNS: "/assets/token-unstable-unicorns.png",
+};
+
+const OWNED_TILE_RACE_CLASS_BY_RACE: Record<string, string> = {
+  DWARFS: styles.dwarfOwnedTile,
+  UNSTABLE_UNICORNS: styles.unicornOwnedTile,
+  ORKS: styles.orkOwnedTile,
+  SPACE_MURINES: styles.spaceMurineOwnedTile,
 };
 
 function hashString(value: string) {
@@ -396,6 +405,9 @@ function HexTileMap({
           styles[`${tile.biome}Tile`],
           tile.spawnable ? styles.spawnableTile : "",
           isOwnedTile ? styles.ownedTile : "",
+          isOwnedTile && ownership?.ownerRace
+            ? OWNED_TILE_RACE_CLASS_BY_RACE[ownership.ownerRace] ?? ""
+            : "",
           isPendingClaim ? styles.pendingClaimTile : "",
           ownership?.pointIncome ? styles.objectiveTile : "",
           ownership?.isHomeOfA ? styles.contestedTile : "",

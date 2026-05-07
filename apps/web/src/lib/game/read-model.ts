@@ -699,6 +699,7 @@ export async function getHomePageState({
               ownerId: true,
               name: true,
               commanderName: true,
+              race: true,
             },
           },
         },
@@ -722,6 +723,7 @@ export async function getHomePageState({
               ownerId: true,
               name: true,
               commanderName: true,
+              race: true,
             },
           },
         },
@@ -1965,6 +1967,7 @@ export async function getHomePageState({
     return {
       id: pendingClaim.id,
       fortressId: pendingClaim.fortressId,
+      ownerRace: pendingClaim.fortress.race,
       ownerName: pendingClaim.fortress.name,
       ownerCommanderName: pendingClaim.fortress.commanderName,
       isCurrentUser: pendingClaim.fortress.ownerId === userId,
@@ -2055,6 +2058,12 @@ export async function getHomePageState({
     biome: string | null;
     claimedAt: Date | null;
     ownerFortressId: string | null;
+    ownerRace:
+      | "DWARFS"
+      | "UNSTABLE_UNICORNS"
+      | "ORKS"
+      | "SPACE_MURINES"
+      | null;
     ownerName: string;
     ownerCommanderName: string;
     isCurrentUser: boolean;
@@ -2105,6 +2114,7 @@ export async function getHomePageState({
       biome: tile?.biome ?? null,
       claimedAt: ownership.claimedAt,
       ownerFortressId: ownership.ownerFortressId,
+      ownerRace: ownership.ownerFortress.race,
       ownerName: ownership.ownerFortress.name,
       ownerCommanderName: ownership.ownerFortress.commanderName,
       isCurrentUser: ownership.ownerFortress.ownerId === userId,
@@ -2138,6 +2148,7 @@ export async function getHomePageState({
       biome: getTileById(HOME_OF_A_TILE_ID)?.biome ?? null,
       claimedAt: null,
       ownerFortressId: null,
+      ownerRace: null,
       ownerName: "Neutral",
       ownerCommanderName: "Home of A",
       isCurrentUser: false,
@@ -2192,6 +2203,7 @@ export async function getHomePageState({
       biome: tile.biome,
       claimedAt: null,
       ownerFortressId: null,
+      ownerRace: pendingClaim?.ownerRace ?? null,
       ownerName: pendingClaim?.ownerName ?? "Neutral",
       ownerCommanderName: pendingClaim?.ownerCommanderName ?? "Unclaimed",
       isCurrentUser: pendingClaim?.isCurrentUser ?? false,

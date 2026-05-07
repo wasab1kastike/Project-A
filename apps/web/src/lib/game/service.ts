@@ -90,6 +90,10 @@ type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
 const PUBLIC_NAME_MAX_LENGTH = 32;
 const ACTIVE_EDGE_PADDING = 15;
+const SERVICE_TRANSACTION_OPTIONS = {
+  maxWait: 10_000,
+  timeout: 20_000,
+} satisfies Parameters<PrismaClient["$transaction"]>[1];
 
 function normalizePublicName(input: string, label: string) {
   const normalized = input.trim().replace(/\s+/g, " ");
@@ -774,49 +778,47 @@ export async function claimNeutralMapHex({
       throw new GameError("Home of A must be conquered, not claimed.");
     }
 
-    const existing = await tx.mapHexOwnership.findUnique({
-      where: {
-        cycleId_tileId: {
-          cycleId: cycle.id,
-          tileId,
-        },
-      },
-      select: {
-        id: true,
-      },
-    });
+    const [existing, activeClaimOnTile, activeOwnClaimCount] =
+      await Promise.all([
+        tx.mapHexOwnership.findUnique({
+          where: {
+            cycleId_tileId: {
+              cycleId: cycle.id,
+              tileId,
+            },
+          },
+          select: {
+            id: true,
+          },
+        }),
+        tx.mapHexClaimProject.findFirst({
+          where: {
+            cycleId: cycle.id,
+            tileId,
+            completedAt: null,
+          },
+          select: {
+            id: true,
+          },
+        }),
+        tx.mapHexClaimProject.count({
+          where: {
+            cycleId: cycle.id,
+            fortressId: fortress.id,
+            completedAt: null,
+          },
+        }),
+      ]);
 
     if (existing) {
       throw new GameError("That tile is already claimed.");
     }
 
-    const activeClaimOnTile = await tx.mapHexClaimProject.findFirst({
-      where: {
-        cycleId: cycle.id,
-        tileId,
-        completedAt: null,
-      },
-      select: {
-        id: true,
-      },
-    });
-
     if (activeClaimOnTile) {
       throw new GameError("That tile is already being acquired.");
     }
 
-    const activeOwnClaims = await tx.mapHexClaimProject.findMany({
-      where: {
-        cycleId: cycle.id,
-        fortressId: fortress.id,
-        completedAt: null,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (activeOwnClaims.length >= TILE_CLAIM_MAX_ACTIVE_PROJECTS) {
+    if (activeOwnClaimCount >= TILE_CLAIM_MAX_ACTIVE_PROJECTS) {
       throw new GameError("You can only acquire one tile at a time.");
     }
 
@@ -849,7 +851,7 @@ export async function claimNeutralMapHex({
       tile,
       origin: fortress,
       ownedTileCount: ownedNormalTileIds.length,
-      pendingClaimCount: activeOwnClaims.length,
+      pendingClaimCount: activeOwnClaimCount,
     });
 
     if (fortress.gold < claimCost) {
@@ -897,7 +899,7 @@ export async function claimNeutralMapHex({
         completedAt: true,
       },
     });
-  });
+  }, SERVICE_TRANSACTION_OPTIONS);
 }
 
 export async function attackMapHex({

@@ -164,8 +164,24 @@
 }
 
 .ownedTile polygon {
-  stroke: rgba(247, 196, 95, 0.72);
+  stroke: var(--owned-tile-stroke, rgba(247, 196, 95, 0.72));
   stroke-width: 5px;
+}
+
+.dwarfOwnedTile {
+  --owned-tile-stroke: rgba(145, 96, 60, 0.9);
+}
+
+.unicornOwnedTile {
+  --owned-tile-stroke: rgba(245, 134, 199, 0.92);
+}
+
+.orkOwnedTile {
+  --owned-tile-stroke: rgba(77, 255, 64, 0.94);
+}
+
+.spaceMurineOwnedTile {
+  --owned-tile-stroke: rgba(121, 210, 255, 0.92);
 }
 
 .pendingClaimTile polygon {
@@ -182,7 +198,7 @@
 }
 
 .ownTile polygon {
-  stroke: rgba(125, 240, 186, 0.86);
+  stroke-width: 6px;
 }
 
 .attackableTile polygon {
