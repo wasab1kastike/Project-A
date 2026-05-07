@@ -149,6 +149,16 @@ type InlineActionResult =
       error: string;
     };
 
+function isTransientClaimTransactionError(error: unknown) {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return /Transaction already closed|expired transaction|Transaction API error|timed out/i.test(
+    error.message
+  );
+}
+
 export async function attackFromMapAction(
   targetFortressId: string,
   sentArmy = 1
@@ -195,10 +205,27 @@ export async function claimMapHexAction(tileId: string) {
   }
 
   try {
-    await claimNeutralMapHex({
-      userId,
-      tileId,
-    });
+    try {
+      await claimNeutralMapHex({
+        userId,
+        tileId,
+      });
+    } catch (error) {
+      if (!isTransientClaimTransactionError(error)) {
+        throw error;
+      }
+
+      console.warn(
+        "Retrying claimMapHexAction after transient transaction timeout",
+        error
+      );
+
+      await claimNeutralMapHex({
+        userId,
+        tileId,
+      });
+    }
+
     emitProjectARefresh("map-hex-claim");
     revalidatePath("/");
     revalidatePath("/castle");

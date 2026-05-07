@@ -251,7 +251,7 @@ test("tie goes to the defender and the attacker loses all sent army", () => {
   assert.equal(outcome.attackerSurvivors, 0);
   assert.equal(outcome.attackerRetired, 0);
   assert.equal(outcome.attackerReturned, 0);
-  assert.equal(outcome.defenderLosses, 7);
+  assert.equal(outcome.defenderLosses, 4);
   assert.equal(outcome.pointsLooted, 0);
   assert.equal(outcome.foodLooted, 0);
 });
@@ -272,7 +272,7 @@ test("attacker loses all sent army when attack power does not beat defense power
   assert.equal(outcome.attackerSurvivors, 0);
   assert.equal(outcome.attackerRetired, 0);
   assert.equal(outcome.attackerReturned, 0);
-  assert.equal(outcome.defenderLosses, 3);
+  assert.equal(outcome.defenderLosses, 2);
   assert.equal(outcome.pointsLooted, 0);
   assert.equal(outcome.foodLooted, 0);
 });
@@ -331,4 +331,19 @@ test("loot splits by carry capacity when resource caps do not bind", () => {
   assert.equal(outcome.defenderLosses, 3);
   assert.equal(outcome.pointsLooted, 64);
   assert.equal(outcome.foodLooted, 64);
+});
+
+test("attacker win wipes defender when target has no castle defenses", () => {
+  const outcome = calculateRaidOutcome({
+    attackArmy: 25,
+    defenderArmy: 10,
+    defenderDbLevel: 0,
+    defenderHasCastle: false,
+    defenderRace: null,
+    defenderPoints: 100,
+    defenderFood: 100,
+  });
+
+  assert.equal(outcome.outcome, "ATTACKER_WIN");
+  assert.equal(outcome.defenderLosses, 10);
 });

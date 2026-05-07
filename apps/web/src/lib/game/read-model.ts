@@ -1275,6 +1275,23 @@ export async function getHomePageState({
         })
       ).map((unit) => {
         const attackerReturned = unit.attackerReturned ?? unit.armyAmount;
+        const isBattlefieldOpenerResolution =
+          !unit.recalledAt &&
+          unit.targetFortress.fortressKind !== FortressKind.LOOT_CAMP &&
+          unit.defenderArmyAtBattleStart !== null &&
+          (unit.resolvedAttackPower ?? 0) === 0 &&
+          (unit.resolvedDefensePower ?? 0) === 0 &&
+          (unit.attackerSurvivors ?? 0) === unit.armyAmount &&
+          (unit.attackerRetired ?? 0) === 0 &&
+          (unit.attackerReturned ?? 0) === 0 &&
+          (unit.defenderLosses ?? 0) === 0 &&
+          (unit.pointsLooted ?? 0) === 0 &&
+          (unit.foodLooted ?? 0) === 0 &&
+          (unit.armyLooted ?? 0) === 0;
+
+        if (isBattlefieldOpenerResolution) {
+          return null;
+        }
 
         if (
           unit.recalledAt &&
@@ -1398,6 +1415,7 @@ export async function getHomePageState({
           }),
         };
       })
+      .filter((report) => report !== null)
     : [];
   const battlefieldReports = playerFortress
     ? (
@@ -2310,6 +2328,7 @@ export async function getHomePageState({
     playerFortress: playerFortress
       ? {
           id: playerFortress.id,
+          ownerId: playerFortress.ownerId,
           commanderName: getDisplayName(
             playerFortress.commanderName,
             playerFortress.id === cycle.crownedFortressId

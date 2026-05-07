@@ -71,6 +71,7 @@ type PlayerSummary = {
 
 type PlayerFortress = {
   id: string;
+  ownerId?: string;
   name: string;
 };
 
@@ -126,8 +127,52 @@ type BattleReport = {
   outcome?: "ATTACKER_WIN" | "DEFENDER_WIN" | "RECALLED" | "IN_PROGRESS";
   attackerName?: string;
   defenderName?: string;
+  attackerOwnerId?: string;
+  defenderOwnerId?: string;
   reportLines?: string[];
 };
+
+function getBattleOutcomeLabel(
+  report: BattleReport,
+  currentOwnerId: string | null
+) {
+  if (!report.outcome) {
+    return "Report";
+  }
+
+  if (report.outcome === "RECALLED") {
+    return "RECALLED";
+  }
+
+  if (report.outcome === "IN_PROGRESS") {
+    return "IN PROGRESS";
+  }
+
+  if (!currentOwnerId || !report.attackerOwnerId || !report.defenderOwnerId) {
+    return report.outcome.replace("_", " ");
+  }
+
+  const playerWon =
+    (report.outcome === "ATTACKER_WIN" &&
+      report.attackerOwnerId === currentOwnerId) ||
+    (report.outcome === "DEFENDER_WIN" &&
+      report.defenderOwnerId === currentOwnerId);
+  const playerLost =
+    (report.outcome === "ATTACKER_WIN" &&
+      report.defenderOwnerId === currentOwnerId) ||
+    (report.outcome === "DEFENDER_WIN" &&
+      report.attackerOwnerId === currentOwnerId);
+
+  if (playerWon) {
+    return "VICTORY";
+  }
+
+  if (playerLost) {
+    return "DEFEAT";
+  }
+
+  return report.outcome.replace("_", " ");
+}
 
 type HomeOfAState = {
   tileId: string;
@@ -345,6 +390,7 @@ export function BattlefieldExperience({
           (battlefield) => battlefield.targetTileId === selectedTileId
         )?.id ?? null)
       : null);
+  const currentOwnerId = playerFortress?.ownerId ?? null;
   const clampedTileAttackArmy =
     playerSummary && playerSummary.army > 0
       ? Math.min(Math.max(1, tileAttackArmy), playerSummary.army)
@@ -625,7 +671,7 @@ export function BattlefieldExperience({
             <article key={report.id} className={styles.battlefieldCard}>
               <div className={styles.battlefieldCardHeader}>
                 <strong>{report.targetName ?? "Battle report"}</strong>
-                <span>{report.outcome?.replace("_", " ") ?? "Report"}</span>
+                <span>{getBattleOutcomeLabel(report, currentOwnerId)}</span>
               </div>
               <ul className={styles.compactList}>
                 {(report.reportLines ?? []).slice(0, 4).map((line) => (

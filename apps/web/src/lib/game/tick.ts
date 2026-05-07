@@ -2285,6 +2285,7 @@ async function processCycleTick(
             attackerRace: getEffectiveRace(targetAttacker),
             defenderArmy,
             defenderDbLevel: 0,
+            defenderHasCastle: false,
             defenderRace: null,
             defenderPoints: 0,
             defenderFood: 0,

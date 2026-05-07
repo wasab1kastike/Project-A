@@ -61,7 +61,7 @@ export const DEFENSE_BONUS_PER_DISPLAYED_LEVEL = 0.1;
 // These constants define casualty rates and loot mechanics in combat.
 
 /** Casualty rate when defender wins: 35% (65% survive) */
-export const FAILED_ATTACK_DEFENDER_CASUALTY_FACTOR = 0.65;
+export const FAILED_ATTACK_DEFENDER_CASUALTY_FACTOR = 0.35;
 /** Base survival rate for attacker when winning (15% base) */
 export const WINNING_ATTACKER_BASE_SURVIVAL_FACTOR = 0.15;
 /** Survival bonus per point of attack power margin (85% of margin survives) */
@@ -108,6 +108,7 @@ export type RaidOutcomeInput = {
   attackerRace?: FortressRace | null;
   defenderArmy: number;
   defenderDbLevel: number;
+  defenderHasCastle?: boolean;
   defenderRace?: FortressRace | null;
   defenderCastleSpecializations?: Partial<CastleSpecializationCounts>;
   attackPowerMultiplier?: number;
@@ -531,7 +532,7 @@ export function calculateTickProduction(fortressLike: FortressEconomyLike) {
  *      Losses = ceil(defender_army * 70%)
  *      Exception: preventDefenderLosses flag (used for loot camps)
  *    - If Attacker Loses:
- *      Losses = ceil((attack_power / defense_multiplier) * 65%)
+ *      Losses = ceil((attack_power / defense_multiplier) * 35%)
  *
  * 5. Calculate Loot
  *    - Only when attacker wins
@@ -547,6 +548,7 @@ export function calculateTickProduction(fortressLike: FortressEconomyLike) {
  * attackerRace: attacker race (affects loot capacity)
  * defenderArmy: number of defending units
  * defenderDbLevel: defender's fortress level (affects defense bonus)
+ * defenderHasCastle: whether defender has castle fortifications (default: true)
  * defenderRace: defender race (affects defense bonus)
  * defenderCastleSpecializations: defender specialization counts (affects defense)
  * attackPowerMultiplier: multiplier for attack power (default: 1, used for race abilities)
@@ -601,6 +603,17 @@ export function calculateRaidOutcome(input: RaidOutcomeInput): RaidOutcome {
     ? "ATTACKER_WIN"
     : "DEFENDER_WIN";
 
+  const hasDefensiveMitigation =
+    input.defenderHasCastle !== false ||
+    input.defenderRace !== null && input.defenderRace !== undefined ||
+    getSpecializationCount(
+      input.defenderCastleSpecializations,
+      CastleUpgradeSpecialization.DEFENSE
+    ) > 0;
+  const defenderLossRateOnAttackerWin = hasDefensiveMitigation
+    ? DEFENDER_LOSS_RATE_ON_ATTACKER_WIN
+    : 1;
+
   const attackerSurvivors = attackerWon
     ? Math.max(
         0,
@@ -623,7 +636,7 @@ export function calculateRaidOutcome(input: RaidOutcomeInput): RaidOutcome {
     : attackerWon
       ? Math.min(
           defenderArmy,
-          Math.ceil(defenderArmy * DEFENDER_LOSS_RATE_ON_ATTACKER_WIN)
+          Math.ceil(defenderArmy * defenderLossRateOnAttackerWin)
         )
       : Math.min(
           defenderArmy,
