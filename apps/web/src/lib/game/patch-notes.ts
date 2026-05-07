@@ -7,6 +7,14 @@ export type PatchNotesRelease = {
 
 export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
   {
+    date: "2026-05-07",
+    title: "Army upkeep reduced",
+    newFeatures: [],
+    bugFixes: [
+      "Army upkeep reduced to 0.01 food per unit per tick — 1 food now sustains 100 active army units.",
+    ],
+  },
+  {
     date: "2026-04-30",
     title: "Loot camp timers and counterattacks",
     newFeatures: [

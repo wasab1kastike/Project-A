@@ -27,7 +27,7 @@
  * CONSTANTS:
  * ==========
  * RECRUITMENT_COST_PER_UNIT: 1 gold per unit (player pays when ordering)
- * ARMY_UPKEEP_PER_UNIT: 0.25 food per unit per tick (to keep armies sustainable)
+ * ARMY_UPKEEP_PER_UNIT: 0.01 food per unit per tick (1 food sustains 100 units)
  * RECRUITMENT_RATE_PER_RECRUITER: 1 unit per recruiter per tick
  *
  * FORMULA EXAMPLES:
@@ -42,8 +42,8 @@
  *   goldCost = 100 * RECRUITMENT_COST_PER_UNIT = 100 gold
  *
  * Example 3: What's the upkeep for 500 army units per tick?
- *   foodCost = 500 * ARMY_UPKEEP_PER_UNIT = 125 food/tick
- *   Compare to old system: 500 * 1 = 500 food/tick (5x more expensive!)
+ *   foodCost = 500 * ARMY_UPKEEP_PER_UNIT = 5 food/tick
+ *   Compare to old system: 500 * 1 = 500 food/tick (100x more expensive!)
  *
  * TRANSITION STRATEGY (Phase 2):
  * ==============================
@@ -64,7 +64,7 @@ import { getRaceModifiers, type FortressRace } from "./races";
 export const RECRUITMENT_COST_PER_UNIT = 1;
 
 /** Food cost per unit per tick (upkeep for existing armies) */
-export const ARMY_UPKEEP_PER_UNIT = 0.25;
+export const ARMY_UPKEEP_PER_UNIT = 0.01;
 
 /** Base recruitment rate (units per recruiter per tick) */
 export const RECRUITMENT_RATE_PER_RECRUITER = 1;
@@ -230,8 +230,8 @@ export function processRecruitmentQueue(
  *
  * Example:
  *   - Army: 500 units
- *   - Upkeep: 500 * 0.25 = 125 food/tick
- *   - Compare to old system: 500 * 1 = 500 food/tick (4x cheaper!)
+ *   - Upkeep: 500 * 0.01 = 5 food/tick
+ *   - Compare to old system: 500 * 1 = 500 food/tick (100x cheaper!)
  */
 export function getArmyUpkeepCost(activeArmyCount: number): number {
   return Math.max(0, Math.floor(activeArmyCount)) * ARMY_UPKEEP_PER_UNIT;
@@ -314,7 +314,7 @@ export function compareRecruitmentSystems(unitCount: number): {
 } {
   const oldSystemFoodCost = unitCount * 1; // Old: 1 food per unit
   const newSystemGoldUpfront = getRecruitmentCost(unitCount); // New: 1 gold per unit
-  const newSystemFoodUpkeepPerTick = getArmyUpkeepCost(unitCount); // New: 0.25 food per unit
+  const newSystemFoodUpkeepPerTick = getArmyUpkeepCost(unitCount); // New: 0.01 food per unit
 
   return {
     oldSystemFoodCost,

@@ -111,39 +111,39 @@ test("recruitment queue respects recruiter capacity ceiling", () => {
   assert.equal(atCapacity.newQueue, 90);
 });
 
-test("army upkeep cost is 0.25 food per unit per tick", () => {
+test("army upkeep cost is 0.01 food per unit per tick", () => {
   assert.equal(getArmyUpkeepCost(0), 0);
-  assert.equal(getArmyUpkeepCost(1), 0.25);
-  assert.equal(getArmyUpkeepCost(100), 25);
-  assert.equal(getArmyUpkeepCost(500), 125);
-  assert.equal(getArmyUpkeepCost(1000), 250);
+  assert.equal(getArmyUpkeepCost(1), 0.01);
+  assert.equal(getArmyUpkeepCost(100), 1);
+  assert.equal(getArmyUpkeepCost(500), 5);
+  assert.equal(getArmyUpkeepCost(1000), 10);
 });
 
 test("army upkeep calculation returns detailed breakdown", () => {
   const upkeep = calculateArmyUpkeep(100);
   assert.equal(upkeep.activeArmyCount, 100);
-  assert.equal(upkeep.foodCostPerTick, 25);
+  assert.equal(upkeep.foodCostPerTick, 1);
 });
 
 test("army sustainability check validates food reserves against upkeep", () => {
-  // 100 army, 30 food available, upkeep is 25/tick
+  // 100 army, 30 food available, upkeep is 1/tick
   const sustainable = canSustainArmy(100, 30);
   assert.equal(sustainable.isSustainable, true);
-  assert.equal(sustainable.upkeepPerTick, 25);
-  assert.equal(sustainable.foodRemaining, 5);
-  assert.equal(sustainable.ticksUntilStarving, 1);
+  assert.equal(sustainable.upkeepPerTick, 1);
+  assert.equal(sustainable.foodRemaining, 29);
+  assert.equal(sustainable.ticksUntilStarving, 30);
 
-  // 100 army, 10 food available (not enough for one tick)
-  const starving = canSustainArmy(100, 10);
-  assert.equal(starving.isSustainable, false);
-  assert.equal(starving.foodRemaining, 0); // Clamped to 0
-  assert.equal(starving.ticksUntilStarving, 0);
+  // 100 army, 10 food available (still sustainable: 1 food/tick)
+  const lowFood = canSustainArmy(100, 10);
+  assert.equal(lowFood.isSustainable, true);
+  assert.equal(lowFood.foodRemaining, 9);
+  assert.equal(lowFood.ticksUntilStarving, 10);
 
   // 100 army, 500 food available (plenty)
   const wealthy = canSustainArmy(100, 500);
   assert.equal(wealthy.isSustainable, true);
-  assert.equal(wealthy.foodRemaining, 475);
-  assert.equal(wealthy.ticksUntilStarving, 20);
+  assert.equal(wealthy.foodRemaining, 499);
+  assert.equal(wealthy.ticksUntilStarving, 500);
 
   // 0 army (no upkeep)
   const noArmy = canSustainArmy(0, 0);
@@ -151,18 +151,18 @@ test("army sustainability check validates food reserves against upkeep", () => {
   assert.equal(noArmy.ticksUntilStarving, Infinity);
 });
 
-test("old vs new system comparison shows 4x upkeep reduction", () => {
+test("old vs new system comparison shows 100x upkeep reduction", () => {
   const comparison100 = compareRecruitmentSystems(100);
   assert.equal(comparison100.oldSystemFoodCost, 100);
   assert.equal(comparison100.newSystemGoldUpfront, 100);
-  assert.equal(comparison100.newSystemFoodUpkeepPerTick, 25);
-  assert.equal(comparison100.oldVsNewUptimeRatio, 4);
+  assert.equal(comparison100.newSystemFoodUpkeepPerTick, 1);
+  assert.equal(comparison100.oldVsNewUptimeRatio, 100);
 
   const comparison500 = compareRecruitmentSystems(500);
   assert.equal(comparison500.oldSystemFoodCost, 500);
   assert.equal(comparison500.newSystemGoldUpfront, 500);
-  assert.equal(comparison500.newSystemFoodUpkeepPerTick, 125);
-  assert.equal(comparison500.oldVsNewUptimeRatio, 4);
+  assert.equal(comparison500.newSystemFoodUpkeepPerTick, 5);
+  assert.equal(comparison500.oldVsNewUptimeRatio, 100);
 });
 
 test("realistic scenario: order 200 units with 8 recruiters", () => {
@@ -194,10 +194,10 @@ test("realistic scenario: order 200 units with 8 recruiters", () => {
   assert.equal(queue, 0);
 
   // Check upkeep for completed army
-    const upkeep = canSustainArmy(200, 100); // 100 food available
-    assert.equal(upkeep.isSustainable, true); // 50 food upkeep, 100 food available = OK
-  assert.equal(upkeep.upkeepPerTick, 50);
-  assert.equal(upkeep.ticksUntilStarving, 2);
+  const upkeep = canSustainArmy(200, 100); // 100 food available
+  assert.equal(upkeep.isSustainable, true); // 2 food upkeep, 100 food available = OK
+  assert.equal(upkeep.upkeepPerTick, 2);
+  assert.equal(upkeep.ticksUntilStarving, 50);
 });
 
 test("recruitment with race bonus: SPACE_MURINES 20 recruiters", () => {
@@ -220,5 +220,5 @@ test("recruitment with race bonus: SPACE_MURINES 20 recruiters", () => {
 
 test("constants are correctly defined", () => {
   assert.equal(RECRUITMENT_COST_PER_UNIT, 1);
-  assert.equal(ARMY_UPKEEP_PER_UNIT, 0.25);
+  assert.equal(ARMY_UPKEEP_PER_UNIT, 0.01);
 });

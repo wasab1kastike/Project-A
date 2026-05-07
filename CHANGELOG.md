@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-05-07
+- Change: Reduced `ARMY_UPKEEP_PER_UNIT` from 0.25 to 0.01 food per unit per tick.
+- User impact: 1 food now sustains 100 active army units per tick; players can maintain much larger standing armies without heavy food investment.
+
 ## 2026-05-06
 
 - Change: Wired order-based army recruitment into live gameplay with `Fortress.recruitmentQueue`, a `recruitArmy` server action, Castle-page queue controls, upfront gold payment, tick-based recruiter processing, and active-army food upkeep.
