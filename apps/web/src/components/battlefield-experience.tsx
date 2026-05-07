@@ -618,11 +618,6 @@ export function BattlefieldExperience({
           ) : null}
         </button>
       ) : null}
-      {playerFortress ? (
-        <a href="/castle" className={styles.overlayButton}>
-          Castle
-        </a>
-      ) : null}
     </div>
   );
 
