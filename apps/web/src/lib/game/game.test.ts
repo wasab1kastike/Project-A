@@ -68,6 +68,7 @@ import {
   HOME_OF_A_TILE_ID,
   MEGA_FORTRESS_DESTROY_BONUS,
   MEGA_FORTRESS_HEALTH,
+  NPC_SYSTEM_USER_EMAIL,
   ARCADE_LOOT_BOX_SKINS,
   ARCADE_UNIT_LOOT_BOX_SKINS_LEGACY,
   FORTRESS_LEVEL_UP_COSTS,
@@ -116,6 +117,7 @@ import {
   recallAttackUnit,
   selectFortressRace,
   setFortressAction,
+  activateRaceAbility,
   activateDwarfDeepMining,
   activateDwarfRuneOfGrudges,
   claimUnicornTeleport,
@@ -2596,6 +2598,64 @@ test("loot camp raids apply variant rewards without mega fortress progression", 
   assert.equal(refreshedCycle.megaFortressDestroyCount, 0);
   assert.equal(refreshedCycle.upgradesUnlockedAt, null);
   assert.equal(refreshedCycle.crownedFortressId, null);
+});
+
+test("activating WAAAGH posts a global system chat announcement", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const ork = await createUser(prisma, "waaagh-announcer@example.com");
+  const cycle = await seedActiveCommunityWishCycle(
+    prisma,
+    [
+      {
+        userId: ork.id,
+        commanderName: "Big Shouta",
+        fortressName: "Noise Fort",
+        points: 0,
+      },
+    ],
+    new Date("2026-04-20T15:00:00.000Z")
+  );
+
+  await prisma.fortress.update({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: ork.id,
+      },
+    },
+    data: {
+      race: FortressRace.ORKS,
+    },
+  });
+
+  await activateRaceAbility({
+    userId: ork.id,
+    kind: RaceAbilityKind.ORK_WAAAGH,
+    now: new Date("2026-04-20T12:05:00.000Z"),
+    db: prisma,
+  });
+
+  const announcement = await prisma.chatMessage.findFirstOrThrow({
+    where: {
+      cycleId: cycle.id,
+      body: {
+        contains: "WAAAGH",
+      },
+    },
+    include: {
+      author: true,
+    },
+  });
+
+  assert.equal(announcement.author.email, NPC_SYSTEM_USER_EMAIL);
+  assert.equal(announcement.type, ChatMessageType.TEXT);
+  assert.match(announcement.body, /Noise Fort/);
+  assert.match(announcement.body, /Big Shouta/);
 });
 
 test("underpowered loot camp raids lose without damaging health or paying rewards", async (context) => {

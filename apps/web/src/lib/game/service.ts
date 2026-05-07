@@ -8,6 +8,7 @@ import {
   PrismaClient,
   RaceAbilityKind,
   BattlefieldSide,
+  ChatMessageType,
   OrkBossOrderKind,
   OrkScrapEventReason,
   OrkWaaaghInvestmentKind,
@@ -74,7 +75,7 @@ import {
   isTileConnectedToFortressOrOwnedTiles,
 } from "./territory";
 import { joinBattlefield as joinBattlefieldRecord } from "./battlefields";
-import { getHomeOfAMapPosition } from "./mega-fortress";
+import { ensureNpcSystemUser, getHomeOfAMapPosition } from "./mega-fortress";
 import { recalculateReturningAttackRoutes } from "./fortress-relocation";
 import {
   ORK_BOSS_ORDER_CONFIG,
@@ -2513,6 +2514,8 @@ export async function activateRaceAbility({
       },
       select: {
         id: true,
+        name: true,
+        commanderName: true,
         race: true,
         isNpc: true,
       },
@@ -2549,7 +2552,7 @@ export async function activateRaceAbility({
       throw new GameError("That race ability has already been used today.");
     }
 
-    return tx.raceAbilityActivation.create({
+    const activation = await tx.raceAbilityActivation.create({
       data: {
         fortressId: fortress.id,
         kind,
@@ -2558,6 +2561,22 @@ export async function activateRaceAbility({
         usedAt: now,
       },
     });
+
+    if (kind === RaceAbilityKind.ORK_WAAAGH) {
+      const systemUser = await ensureNpcSystemUser(tx);
+
+      await tx.chatMessage.create({
+        data: {
+          cycleId: cycle.id,
+          authorId: systemUser.id,
+          type: ChatMessageType.TEXT,
+          body: `WAAAGH! ${fortress.name} has started a WAAAGH. ${fortress.commanderName}'s warcry shakes the whole realm.`,
+          createdAt: now,
+        },
+      });
+    }
+
+    return activation;
   });
 }
 
