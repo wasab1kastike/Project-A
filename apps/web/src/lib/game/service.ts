@@ -7,7 +7,6 @@ import {
   Prisma,
   PrismaClient,
   RaceAbilityKind,
-  DwarfDeepMiningOutcome,
   BattlefieldSide,
 } from "@/lib/prisma-client";
 import { prisma } from "@/lib/prisma";
@@ -31,7 +30,6 @@ import {
 import { GameError } from "./errors";
 import {
   assertWorkerAssignments,
-  calculateTickProduction,
   getDisplayedCastleLevel,
 } from "./balance";
 import { getRecruitmentCost } from "./army-recruitment";
@@ -55,8 +53,12 @@ import {
   isCastleUpgradeSpecialization,
 } from "./specializations";
 import {
-  DWARF_DEEP_MINING_RICH_VEIN_MIN_POINTS,
-  DWARF_DEEP_MINING_RICH_VEIN_TICKS,
+  DWARF_DEEP_MINING_MAX_GOLD_COMMITMENT,
+  DWARF_DEEP_MINING_MIN_GOLD_COMMITMENT,
+  DWARF_RUNE_OF_GRUDGES_ACTIVATION_GOLD,
+  DWARF_RUNE_OF_GRUDGES_MAX_DURATION_HOURS,
+  DWARF_RUNE_OF_GRUDGES_MAINTENANCE_GOLD,
+  getDwarfDeepMiningResolveAt,
   getDwarfDeepMiningActiveUntil,
   rollDwarfDeepMining,
 } from "./dwarf-deep-mining";
@@ -1900,21 +1902,32 @@ export async function chooseDwarfGrudge({
       throw new GameError("Choose a player fortress for the Grudge Book.");
     }
 
-    const grudgeCount = await tx.dwarfGrudge.count({
+    await tx.dwarfGrudge.deleteMany({
       where: {
         fortressId: fortress.id,
+        targetFortressId,
+        NOT: {
+          slot: 1,
+        },
       },
     });
 
-    if (grudgeCount >= 1) {
-      throw new GameError("Your first Grudge Book target is already locked.");
-    }
-
-    return tx.dwarfGrudge.create({
-      data: {
+    return tx.dwarfGrudge.upsert({
+      where: {
+        fortressId_slot: {
+          fortressId: fortress.id,
+          slot: 1,
+        },
+      },
+      update: {
+        targetFortressId,
+        bonusMultiplier: 1,
+      },
+      create: {
         fortressId: fortress.id,
         targetFortressId,
         slot: 1,
+        bonusMultiplier: 1,
       },
     });
   });
@@ -1984,10 +1997,6 @@ export async function chooseDwarfTierThreeGrudge({
       throw new GameError("Choose your first Grudge Book target first.");
     }
 
-    if (fortress.dwarfGrudges.some((grudge) => grudge.slot === 2)) {
-      throw new GameError("Your tier 3 Grudge Book choice is already locked.");
-    }
-
     if (doubleExisting) {
       if (firstGrudge.bonusMultiplier >= 2) {
         throw new GameError("Your first Grudge Book target is already doubled.");
@@ -2022,11 +2031,32 @@ export async function chooseDwarfTierThreeGrudge({
       throw new GameError("Choose a player fortress for the Grudge Book.");
     }
 
-    return tx.dwarfGrudge.create({
-      data: {
+    await tx.dwarfGrudge.deleteMany({
+      where: {
+        fortressId: fortress.id,
+        targetFortressId,
+        NOT: {
+          slot: 2,
+        },
+      },
+    });
+
+    return tx.dwarfGrudge.upsert({
+      where: {
+        fortressId_slot: {
+          fortressId: fortress.id,
+          slot: 2,
+        },
+      },
+      update: {
+        targetFortressId,
+        bonusMultiplier: 1,
+      },
+      create: {
         fortressId: fortress.id,
         targetFortressId,
         slot: 2,
+        bonusMultiplier: 1,
       },
     });
   });
@@ -2037,13 +2067,17 @@ async function isFortressFactionSuppressed(
   fortressId: string,
   now: Date
 ) {
-  const suppression = await db.dwarfDeepMiningRoll.findFirst({
+  const suppression = await db.raceAbilityActivation.findFirst({
     where: {
-      outcome: DwarfDeepMiningOutcome.FACTION_SEAL,
+      kind: RaceAbilityKind.DWARF_RUNE_GRUDGES,
       targetFortressId: fortressId,
+      activeFrom: {
+        lte: now,
+      },
       activeUntil: {
         gt: now,
       },
+      consumedAt: null,
       runeFortress: {
         health: {
           gt: 0,
@@ -2063,15 +2097,13 @@ async function isFortressFactionSuppressed(
 
 export async function activateDwarfDeepMining({
   userId,
-  targetFortressId,
-  committedArmy,
+  committedGold,
   now = new Date(),
   rollValue,
   db = prisma,
 }: {
   userId: string;
-  targetFortressId: string;
-  committedArmy: number;
+  committedGold: number;
   now?: Date;
   rollValue?: number;
   db?: PrismaClient;
@@ -2081,7 +2113,9 @@ export async function activateDwarfDeepMining({
       const cycle = await getCurrentCycle(tx);
 
       if (!cycle || cycle.status !== CycleStatus.ACTIVE) {
-        throw new GameError("Deep Mining is only available during the active season.");
+        throw new GameError(
+          "Deep Mining is only available during the active season."
+        );
       }
 
       const fortress = await tx.fortress.findUnique({
@@ -2120,34 +2154,18 @@ export async function activateDwarfDeepMining({
         throw new GameError("Only Dwarfs can activate Deep Mining.");
       }
 
-      if (!Number.isInteger(committedArmy) || committedArmy <= 0) {
-        throw new GameError("Commit at least 1 army to the possible rune.");
+      if (
+        !Number.isInteger(committedGold) ||
+        committedGold < DWARF_DEEP_MINING_MIN_GOLD_COMMITMENT ||
+        committedGold > DWARF_DEEP_MINING_MAX_GOLD_COMMITMENT
+      ) {
+        throw new GameError(
+          `Commit between ${DWARF_DEEP_MINING_MIN_GOLD_COMMITMENT} and ${DWARF_DEEP_MINING_MAX_GOLD_COMMITMENT} gold.`
+        );
       }
 
-      if (committedArmy > fortress.army) {
-        throw new GameError("You do not have enough idle army to commit.");
-      }
-
-      if (!targetFortressId || targetFortressId === fortress.id) {
-        throw new GameError("Choose another player as the possible rune target.");
-      }
-
-      const target = await tx.fortress.findFirst({
-        where: {
-          id: targetFortressId,
-          cycleId: cycle.id,
-          isNpc: false,
-        },
-        select: {
-          id: true,
-          name: true,
-          mapX: true,
-          mapY: true,
-        },
-      });
-
-      if (!target) {
-        throw new GameError("Choose a player fortress as the possible rune target.");
+      if (committedGold > fortress.gold) {
+        throw new GameError("You do not have enough gold to commit that much.");
       }
 
       const hourKey = getHelsinkiHourKey(now);
@@ -2167,11 +2185,8 @@ export async function activateDwarfDeepMining({
       }
 
       const roll = rollDwarfDeepMining(rollValue);
-      const activeUntil = getDwarfDeepMiningActiveUntil(now);
-      let pointDelta = 0;
-      let armyDelta = 0;
-      let runeFortressId: string | null = null;
-      let appliedCommittedArmy = 0;
+      const resolveAt = getDwarfDeepMiningResolveAt(now, committedGold);
+      const effectUntil = getDwarfDeepMiningActiveUntil(resolveAt);
 
       await tx.raceAbilityActivation.create({
         data: {
@@ -2183,177 +2198,23 @@ export async function activateDwarfDeepMining({
         },
       });
 
-      if (roll.outcome === DwarfDeepMiningOutcome.RICH_VEIN) {
-        const production = calculateTickProduction({
-          ...fortress,
-          castleSpecializations: countCastleSpecializations(
-            fortress.castleUpgradeSpecializations
-          ),
-        });
-        pointDelta = Math.max(
-          DWARF_DEEP_MINING_RICH_VEIN_MIN_POINTS,
-          production.goldProduced * DWARF_DEEP_MINING_RICH_VEIN_TICKS
-        );
-
-        await tx.fortress.update({
-          where: {
-            id: fortress.id,
+      await tx.fortress.update({
+        where: {
+          id: fortress.id,
+        },
+        data: {
+          gold: {
+            decrement: committedGold,
           },
-          data: {
-            gold: {
-              increment: pointDelta,
-            },
-          },
-        });
-        await tx.scoreEvent.create({
-          data: {
-            cycleId: cycle.id,
-            fortressId: fortress.id,
-            actorId: userId,
-            eventType: ScoreEventType.DWARF_DEEP_MINING_POINTS,
-            delta: pointDelta,
-            createdAt: now,
-          },
-        });
-      } else if (roll.outcome === DwarfDeepMiningOutcome.BURIED_WARBAND) {
-        armyDelta = Math.min(250, Math.max(25, Math.floor(fortress.army * 0.2)));
-
-        await tx.fortress.update({
-          where: {
-            id: fortress.id,
-          },
-          data: {
-            army: {
-              increment: armyDelta,
-            },
-          },
-        });
-      } else if (roll.outcome === DwarfDeepMiningOutcome.CAVE_IN) {
-        armyDelta = -Math.min(
-          fortress.army,
-          Math.max(25, Math.ceil(fortress.army * 0.25))
-        );
-
-        if (armyDelta < 0) {
-          await tx.fortress.update({
-            where: {
-              id: fortress.id,
-            },
-            data: {
-              army: {
-                increment: armyDelta,
-              },
-            },
-          });
-        }
-      } else if (roll.outcome === DwarfDeepMiningOutcome.ORE_SURGE) {
-        await tx.raceAbilityActivation.create({
-          data: {
-            fortressId: fortress.id,
-            kind: RaceAbilityKind.DWARF_ECONOMY_SURGE,
-            activeFrom: now,
-            activeUntil,
-            usedAt: now,
-          },
-        });
-      } else if (roll.outcome === DwarfDeepMiningOutcome.BATTLE_RUNES) {
-        await tx.raceAbilityActivation.create({
-          data: {
-            fortressId: fortress.id,
-            kind: RaceAbilityKind.DWARF_COMBAT_SURGE,
-            activeFrom: now,
-            activeUntil,
-            usedAt: now,
-          },
-        });
-      } else if (roll.outcome === DwarfDeepMiningOutcome.UNSTABLE_TUNNELS) {
-        await tx.raceAbilityActivation.create({
-          data: {
-            fortressId: fortress.id,
-            kind: RaceAbilityKind.DWARF_SLOW_ATTACKS,
-            activeFrom: now,
-            activeUntil,
-            usedAt: now,
-          },
-        });
-      } else if (roll.outcome === DwarfDeepMiningOutcome.SHAFT_COLLAPSE) {
-        await tx.raceAbilityActivation.create({
-          data: {
-            fortressId: fortress.id,
-            kind: RaceAbilityKind.DWARF_ECONOMY_HALT,
-            activeFrom: now,
-            activeUntil,
-            usedAt: now,
-          },
-        });
-      } else if (roll.outcome === DwarfDeepMiningOutcome.FACTION_SEAL) {
-        appliedCommittedArmy = committedArmy;
-        const runeOwner = await tx.user.create({
-          data: {},
-          select: {
-            id: true,
-          },
-        });
-        const rune = await tx.fortress.create({
-          data: {
-            cycleId: cycle.id,
-            ownerId: runeOwner.id,
-            commanderName: `${fortress.commanderName} Rune`,
-            name: `${fortress.name} Rune`,
-            fortressKind: FortressKind.DWARF_RUNE,
-            isNpc: true,
-            health: 1,
-            maxHealth: committedArmy,
-            army: committedArmy,
-            iconLabel: "DR",
-            expiresAt: activeUntil,
-            mapX: Math.round((fortress.mapX + target.mapX) / 2),
-            mapY: Math.round((fortress.mapY + target.mapY) / 2),
-            joinedAt: now,
-          },
-          select: {
-            id: true,
-          },
-        });
-
-        runeFortressId = rune.id;
-
-        await tx.fortress.update({
-          where: {
-            id: fortress.id,
-          },
-          data: {
-            army: {
-              decrement: committedArmy,
-            },
-          },
-        });
-        await tx.raceAbilityActivation.create({
-          data: {
-            fortressId: target.id,
-            kind: RaceAbilityKind.DWARF_RUNE_SUPPRESSION,
-            activeFrom: now,
-            activeUntil,
-            usedAt: now,
-          },
-        });
-      }
+        },
+      });
 
       await tx.dwarfDeepMiningRoll.create({
         data: {
           fortressId: fortress.id,
-          targetFortressId,
-          runeFortressId,
           outcome: roll.outcome,
-          committedArmy: appliedCommittedArmy,
-          pointDelta,
-          armyDelta,
-          activeUntil:
-            roll.outcome === DwarfDeepMiningOutcome.RICH_VEIN ||
-            roll.outcome === DwarfDeepMiningOutcome.BURIED_WARBAND ||
-            roll.outcome === DwarfDeepMiningOutcome.CAVE_IN
-              ? null
-              : activeUntil,
+          committedGold,
+          activeUntil: resolveAt,
         },
       });
 
@@ -2361,22 +2222,169 @@ export async function activateDwarfDeepMining({
         outcome: roll.outcome,
         label: roll.label,
         description: roll.description,
-        pointDelta,
-        armyDelta,
-        committedArmy: appliedCommittedArmy,
-        runeFortressId,
-        activeUntil:
-          roll.outcome === DwarfDeepMiningOutcome.RICH_VEIN ||
-          roll.outcome === DwarfDeepMiningOutcome.BURIED_WARBAND ||
-          roll.outcome === DwarfDeepMiningOutcome.CAVE_IN
-            ? null
-            : activeUntil,
+        committedGold,
+        resolveAt,
+        effectUntil,
       };
     },
     {
       isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     }
   );
+}
+
+export async function activateDwarfRuneOfGrudges({
+  userId,
+  targetFortressId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  targetFortressId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || cycle.status !== CycleStatus.ACTIVE) {
+      throw new GameError(
+        "Rune of Grudges is only available during the active season."
+      );
+    }
+
+    if (
+      getRaceBuffTier({
+        activeStartedAt: cycle.activeStartedAt,
+        now,
+        isActiveSeason: true,
+      }) < 3
+    ) {
+      throw new GameError("Rune of Grudges has not unlocked yet.");
+    }
+
+    const fortress = await tx.fortress.findUnique({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: userId,
+        },
+      },
+      select: {
+        id: true,
+        ownerId: true,
+        commanderName: true,
+        name: true,
+        gold: true,
+        army: true,
+        race: true,
+        isNpc: true,
+        mapX: true,
+        mapY: true,
+      },
+    });
+
+    if (!fortress || fortress.isNpc || fortress.race !== "DWARFS") {
+      throw new GameError("Only Dwarfs can raise the Rune of Grudges.");
+    }
+
+    const activeRune = await tx.raceAbilityActivation.findFirst({
+      where: {
+        fortressId: fortress.id,
+        kind: RaceAbilityKind.DWARF_RUNE_GRUDGES,
+        consumedAt: null,
+        activeUntil: {
+          gt: now,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (activeRune) {
+      throw new GameError("You already have an active Rune of Grudges.");
+    }
+
+    if (fortress.gold < DWARF_RUNE_OF_GRUDGES_ACTIVATION_GOLD) {
+      throw new GameError("You do not have enough gold to raise the rune.");
+    }
+
+    const target = await tx.fortress.findFirst({
+      where: {
+        id: targetFortressId,
+        cycleId: cycle.id,
+        isNpc: false,
+      },
+      select: {
+        id: true,
+        name: true,
+        ownerId: true,
+        mapX: true,
+        mapY: true,
+      },
+    });
+
+    if (!target || target.id === fortress.id) {
+      throw new GameError("Choose another player fortress for the rune.");
+    }
+
+    await tx.fortress.update({
+      where: {
+        id: fortress.id,
+      },
+      data: {
+        gold: {
+          decrement: DWARF_RUNE_OF_GRUDGES_ACTIVATION_GOLD,
+        },
+      },
+    });
+
+    const rune = await tx.fortress.create({
+      data: {
+        cycleId: cycle.id,
+        ownerId: fortress.ownerId,
+        commanderName: `${fortress.commanderName} Rune`,
+        name: `${fortress.name} Rune`,
+        fortressKind: FortressKind.DWARF_RUNE,
+        isNpc: true,
+        health: 1,
+        maxHealth: 1,
+        army: 1,
+        iconLabel: "DR",
+        expiresAt: addHours(now, DWARF_RUNE_OF_GRUDGES_MAX_DURATION_HOURS),
+        mapX: Math.round((fortress.mapX + target.mapX) / 2),
+        mapY: Math.round((fortress.mapY + target.mapY) / 2),
+        joinedAt: now,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.raceAbilityActivation.create({
+      data: {
+        fortressId: fortress.id,
+        kind: RaceAbilityKind.DWARF_RUNE_GRUDGES,
+        activeFrom: now,
+        activeUntil: addHours(now, DWARF_RUNE_OF_GRUDGES_MAX_DURATION_HOURS),
+        usedAt: now,
+        targetFortressId: target.id,
+        runeFortressId: rune.id,
+        goldCost: DWARF_RUNE_OF_GRUDGES_ACTIVATION_GOLD,
+        maintenanceGoldPerTick: DWARF_RUNE_OF_GRUDGES_MAINTENANCE_GOLD,
+      },
+    });
+
+    return {
+      targetFortressId: target.id,
+      targetName: target.name,
+      runeFortressId: rune.id,
+      activeUntil: addHours(now, DWARF_RUNE_OF_GRUDGES_MAX_DURATION_HOURS),
+      goldCost: DWARF_RUNE_OF_GRUDGES_ACTIVATION_GOLD,
+      maintenanceGoldPerTick: DWARF_RUNE_OF_GRUDGES_MAINTENANCE_GOLD,
+    };
+  });
 }
 
 export async function activateRaceAbility({

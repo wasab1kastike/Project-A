@@ -6,6 +6,7 @@ import {
   PrismaClient,
   ScoreEventType,
   DwarfDeepMiningOutcome,
+  RaceAbilityKind,
 } from "@/lib/prisma-client";
 import { prisma } from "@/lib/prisma";
 import { ensureOpenRegistrationCycle } from "./bootstrap";
@@ -46,13 +47,12 @@ import {
   getRaceBuffTier,
   isRaceAbilityActive,
 } from "./race-buffs";
+import { getRaceModifiers } from "./races";
 import { countCastleSpecializations } from "./specializations";
-import { RaceAbilityKind } from "@/lib/prisma-client";
 import {
   DWARF_DEEP_MINING_COMBAT_MULTIPLIER,
   DWARF_DEEP_MINING_ECONOMY_MULTIPLIER,
   DWARF_DEEP_MINING_RUNE_BOUNTY,
-  DWARF_DEEP_MINING_SLOW_ATTACK_MULTIPLIER,
 } from "./dwarf-deep-mining";
 import {
   expireLootCamps,
@@ -1254,9 +1254,15 @@ async function processCycleTick(
             },
           },
           select: {
+            id: true,
             kind: true,
             activeFrom: true,
             activeUntil: true,
+            consumedAt: true,
+            targetFortressId: true,
+            runeFortressId: true,
+            goldCost: true,
+            maintenanceGoldPerTick: true,
           },
         },
         dwarfGrudges: {
@@ -1267,12 +1273,13 @@ async function processCycleTick(
         },
       },
     });
-    const activeRuneSuppressions = await db.dwarfDeepMiningRoll.findMany({
+    const activeRuneSuppressions = await db.raceAbilityActivation.findMany({
       where: {
-        outcome: DwarfDeepMiningOutcome.FACTION_SEAL,
+        kind: RaceAbilityKind.DWARF_RUNE_GRUDGES,
         activeUntil: {
           gt: tickAt,
         },
+        consumedAt: null,
         targetFortressId: {
           not: null,
         },
@@ -1319,6 +1326,59 @@ async function processCycleTick(
     const fortressLookup = new Map(
       fortresses.map((fortress) => [fortress.id, fortress])
     );
+    for (const fortress of fortresses) {
+      const activeRune = fortress.raceAbilityActivations.find(
+        (activation) =>
+          activation.kind === RaceAbilityKind.DWARF_RUNE_GRUDGES &&
+          activation.activeFrom <= tickAt &&
+          activation.activeUntil > tickAt &&
+          activation.consumedAt === null
+      );
+
+      if (!activeRune || !activeRune.targetFortressId) {
+        continue;
+      }
+
+      const upkeepCost = activeRune.maintenanceGoldPerTick || 25;
+      const currentGoldValue = currentGold.get(fortress.id) ?? fortress.gold;
+
+      if (currentGoldValue >= upkeepCost) {
+        currentGold.set(fortress.id, currentGoldValue - upkeepCost);
+        continue;
+      }
+
+      currentHealth.set(activeRune.runeFortressId ?? fortress.id, 0);
+      suppressedFortressIds.delete(activeRune.targetFortressId);
+      await db.fortress.update({
+        where: {
+          id: fortress.id,
+        },
+        data: {
+          gold: currentGoldValue,
+        },
+      });
+      if (activeRune.runeFortressId) {
+        await db.fortress.update({
+          where: {
+            id: activeRune.runeFortressId,
+          },
+          data: {
+            health: 0,
+            army: 0,
+            expiresAt: tickAt,
+          },
+        });
+      }
+      await db.raceAbilityActivation.update({
+        where: {
+          id: activeRune.id,
+        },
+        data: {
+          consumedAt: tickAt,
+          activeUntil: tickAt,
+        },
+      });
+    }
     const scoreEvents: Prisma.ScoreEventCreateManyInput[] = [];
     const destroyedMegaTargets = new Set<string>();
     let resolvedAttackUnits = 0;
@@ -1329,14 +1389,7 @@ async function processCycleTick(
       race: (typeof fortresses)[number]["race"];
     }) => (isSuppressed(fortress.id) ? null : fortress.race);
     const getDwarfSpeedMultiplier = (fortress: (typeof fortresses)[number]) =>
-      getEffectiveRace(fortress) === "DWARFS" &&
-      isRaceAbilityActive(
-        fortress.raceAbilityActivations,
-        RaceAbilityKind.DWARF_SLOW_ATTACKS,
-        tickAt
-      )
-        ? DWARF_DEEP_MINING_SLOW_ATTACK_MULTIPLIER
-        : 1;
+      getRaceModifiers(fortress.race).travelSpeedMultiplier;
     const getOrkWaaghActive = (fortress: (typeof fortresses)[number]) =>
       getEffectiveRace(fortress) === "ORKS" &&
       raceBuffTier >= 3 &&
@@ -1345,6 +1398,159 @@ async function processCycleTick(
         RaceAbilityKind.ORK_WAAAGH,
         tickAt
       );
+
+    const dwarfEconomySurgedThisTick = new Set<string>();
+    const dwarfEconomyHaltedThisTick = new Set<string>();
+    const dwarfCombatSurgedThisTick = new Set<string>();
+
+    const pendingDeepMiningRolls = await db.dwarfDeepMiningRoll.findMany({
+      where: {
+        resolvedAt: null,
+        activeUntil: {
+          lte: tickAt,
+        },
+      },
+      include: {
+        fortress: {
+          select: {
+            id: true,
+            ownerId: true,
+            commanderName: true,
+            name: true,
+            gold: true,
+            army: true,
+            level: true,
+            minersAssigned: true,
+            farmersAssigned: true,
+            recruitmentQueue: true,
+            recruitersAssigned: true,
+            race: true,
+            mapX: true,
+            mapY: true,
+            castleUpgradeSpecializations: {
+              select: {
+                specialization: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    for (const roll of pendingDeepMiningRolls) {
+      const source = fortressLookup.get(roll.fortressId) ?? roll.fortress;
+      const sourceGold = currentGold.get(source.id) ?? source.gold;
+      const sourceArmy = currentArmy.get(source.id) ?? source.army;
+      const sourceRecruitmentQueue =
+        currentRecruitmentQueue.get(source.id) ?? source.recruitmentQueue;
+      const sourceFood = "food" in source ? source.food : 0;
+      const effectUntil = addHours(tickAt, 1);
+      const production = calculateTickProduction({
+        food: currentFood.get(source.id) ?? sourceFood,
+        level: source.level,
+        minersAssigned: source.minersAssigned,
+        farmersAssigned: source.farmersAssigned,
+        recruitersAssigned: source.recruitersAssigned,
+        race: source.race,
+        castleSpecializations: countCastleSpecializations(
+          source.castleUpgradeSpecializations
+        ),
+      });
+      const rollUpdateData: Prisma.DwarfDeepMiningRollUpdateInput = {};
+
+      if (roll.outcome === DwarfDeepMiningOutcome.RICH_VEIN) {
+        const goldDelta = Math.max(
+          300,
+          production.goldProduced * 30
+        );
+        currentGold.set(source.id, sourceGold + goldDelta);
+        await db.scoreEvent.create({
+          data: {
+            cycleId,
+            fortressId: source.id,
+            actorId: source.ownerId,
+            eventType: ScoreEventType.DWARF_DEEP_MINING_POINTS,
+            delta: goldDelta,
+            createdAt: tickAt,
+          },
+        });
+        rollUpdateData.goldDelta = goldDelta;
+      } else if (roll.outcome === DwarfDeepMiningOutcome.ORE_SURGE) {
+        await db.raceAbilityActivation.create({
+          data: {
+            fortressId: source.id,
+            kind: RaceAbilityKind.DWARF_ECONOMY_SURGE,
+            activeFrom: tickAt,
+            activeUntil: effectUntil,
+            usedAt: tickAt,
+          },
+        });
+        dwarfEconomySurgedThisTick.add(source.id);
+      } else if (roll.outcome === DwarfDeepMiningOutcome.BATTLE_RUNES) {
+        await db.raceAbilityActivation.create({
+          data: {
+            fortressId: source.id,
+            kind: RaceAbilityKind.DWARF_COMBAT_SURGE,
+            activeFrom: tickAt,
+            activeUntil: effectUntil,
+            usedAt: tickAt,
+          },
+        });
+        dwarfCombatSurgedThisTick.add(source.id);
+      } else if (roll.outcome === DwarfDeepMiningOutcome.FACTION_SEAL) {
+        const queueDelta = Math.min(
+          250,
+          Math.max(25, Math.floor(roll.committedGold / 2))
+        );
+        currentRecruitmentQueue.set(source.id, sourceRecruitmentQueue + queueDelta);
+        rollUpdateData.recruitmentQueueDelta = queueDelta;
+      } else if (roll.outcome === DwarfDeepMiningOutcome.BURIED_WARBAND) {
+        const armyDelta = Math.min(250, Math.max(25, Math.floor(sourceArmy * 0.2)));
+        currentArmy.set(source.id, sourceArmy + armyDelta);
+        rollUpdateData.armyDelta = armyDelta;
+      } else if (roll.outcome === DwarfDeepMiningOutcome.CAVE_IN) {
+        const armyDelta = -Math.min(
+          sourceArmy,
+          Math.max(25, Math.ceil(sourceArmy * 0.25))
+        );
+        currentArmy.set(source.id, Math.max(0, sourceArmy + armyDelta));
+        rollUpdateData.armyDelta = armyDelta;
+      } else if (roll.outcome === DwarfDeepMiningOutcome.UNSTABLE_TUNNELS) {
+        const goldDelta = -Math.min(
+          roll.committedGold,
+          Math.max(25, Math.floor(roll.committedGold * 0.25))
+        );
+        currentGold.set(source.id, Math.max(0, sourceGold + goldDelta));
+        rollUpdateData.goldDelta = goldDelta;
+      } else if (roll.outcome === DwarfDeepMiningOutcome.SHAFT_COLLAPSE) {
+        await db.raceAbilityActivation.create({
+          data: {
+            fortressId: source.id,
+            kind: RaceAbilityKind.DWARF_ECONOMY_HALT,
+            activeFrom: tickAt,
+            activeUntil: effectUntil,
+            usedAt: tickAt,
+          },
+        });
+        dwarfEconomyHaltedThisTick.add(source.id);
+      }
+
+      await db.dwarfDeepMiningRoll.update({
+        where: {
+          id: roll.id,
+        },
+        data: {
+          ...rollUpdateData,
+          resolvedAt: tickAt,
+          activeUntil:
+            roll.outcome === DwarfDeepMiningOutcome.ORE_SURGE ||
+            roll.outcome === DwarfDeepMiningOutcome.BATTLE_RUNES ||
+            roll.outcome === DwarfDeepMiningOutcome.SHAFT_COLLAPSE
+              ? effectUntil
+              : null,
+        },
+      });
+    }
 
     const dueAttackUnits = await db.attackUnit.findMany({
       where: {
@@ -1655,16 +1861,23 @@ async function processCycleTick(
       }
 
       if (target?.fortressKind === FortressKind.DWARF_RUNE) {
-        const runeRoll = await db.dwarfDeepMiningRoll.findUnique({
+        const runeActivation = await db.raceAbilityActivation.findFirst({
           where: {
+            kind: RaceAbilityKind.DWARF_RUNE_GRUDGES,
             runeFortressId: target.id,
+            activeUntil: {
+              gt: tickAt,
+            },
+            consumedAt: null,
           },
           select: {
             fortressId: true,
+            targetFortressId: true,
+            id: true,
           },
         });
-        const runeOwner = runeRoll
-          ? fortressLookup.get(runeRoll.fortressId)
+        const runeOwner = runeActivation
+          ? fortressLookup.get(runeActivation.fortressId)
           : null;
         const targetUnits = getPendingTargetUnits(target.id);
         const runeOutcomes = new Map<
@@ -1689,7 +1902,10 @@ async function processCycleTick(
             targetUnit.attackerFortressId
           );
 
-          if (!targetAttacker || targetAttacker.ownerId === runeOwner?.ownerId) {
+          if (
+            !targetAttacker ||
+            targetAttacker.ownerId === runeOwner?.ownerId
+          ) {
             continue;
           }
 
@@ -1734,15 +1950,28 @@ async function processCycleTick(
             (currentGold.get(destroyer.attacker.id) ??
               destroyer.attacker.gold) + DWARF_DEEP_MINING_RUNE_BOUNTY
           );
-          await db.dwarfDeepMiningRoll.updateMany({
-            where: {
-              runeFortressId: target.id,
-              activeUntil: {
-                gt: tickAt,
+          if (runeActivation?.targetFortressId) {
+            suppressedFortressIds.delete(runeActivation.targetFortressId);
+          }
+          if (runeActivation) {
+            await db.raceAbilityActivation.update({
+              where: {
+                id: runeActivation.id,
               },
+              data: {
+                consumedAt: tickAt,
+                activeUntil: tickAt,
+              },
+            });
+          }
+          await db.fortress.update({
+            where: {
+              id: target.id,
             },
             data: {
-              activeUntil: tickAt,
+              health: 0,
+              army: 0,
+              expiresAt: tickAt,
             },
           });
           scoreEvents.push({
@@ -2361,18 +2590,20 @@ async function processCycleTick(
           : 1;
       const attackerDeepMiningCombat =
         attackerRace === "DWARFS" &&
-        isRaceAbilityActive(
-          attacker.raceAbilityActivations,
-          RaceAbilityKind.DWARF_COMBAT_SURGE,
-          tickAt
-        );
+        (dwarfCombatSurgedThisTick.has(attacker.id) ||
+          isRaceAbilityActive(
+            attacker.raceAbilityActivations,
+            RaceAbilityKind.DWARF_COMBAT_SURGE,
+            tickAt
+          ));
       const defenderDeepMiningCombat =
         defenderRace === "DWARFS" &&
-        isRaceAbilityActive(
-          target.raceAbilityActivations,
-          RaceAbilityKind.DWARF_COMBAT_SURGE,
-          tickAt
-        );
+        (dwarfCombatSurgedThisTick.has(target.id) ||
+          isRaceAbilityActive(
+            target.raceAbilityActivations,
+            RaceAbilityKind.DWARF_COMBAT_SURGE,
+            tickAt
+          ));
       const outcome = calculateRaidOutcome({
         attackArmy: unit.armyAmount,
         attackerRace,
@@ -2668,18 +2899,20 @@ async function processCycleTick(
       // Check for DWARF race ability modifiers that affect economy
       const economyHalted =
         getEffectiveRace(fortress) === "DWARFS" &&
-        isRaceAbilityActive(
-          fortress.raceAbilityActivations,
-          RaceAbilityKind.DWARF_ECONOMY_HALT,
-          tickAt
-        );
+        (dwarfEconomyHaltedThisTick.has(fortress.id) ||
+          isRaceAbilityActive(
+            fortress.raceAbilityActivations,
+            RaceAbilityKind.DWARF_ECONOMY_HALT,
+            tickAt
+          ));
       const economySurged =
         getEffectiveRace(fortress) === "DWARFS" &&
-        isRaceAbilityActive(
-          fortress.raceAbilityActivations,
-          RaceAbilityKind.DWARF_ECONOMY_SURGE,
-          tickAt
-        );
+        (dwarfEconomySurgedThisTick.has(fortress.id) ||
+          isRaceAbilityActive(
+            fortress.raceAbilityActivations,
+            RaceAbilityKind.DWARF_ECONOMY_SURGE,
+            tickAt
+          ));
 
       // Apply race ability modifiers to production
       // DWARF_ECONOMY_HALT: reduces all production to 0
@@ -2699,10 +2932,13 @@ async function processCycleTick(
       const recruitmentResult = economyHalted
         ? {
             unitsCreated: 0,
-            newQueue: fortress.recruitmentQueue,
+            newQueue:
+              currentRecruitmentQueue.get(fortress.id) ??
+              fortress.recruitmentQueue,
           }
         : processRecruitmentQueue(
-            fortress.recruitmentQueue,
+            currentRecruitmentQueue.get(fortress.id) ??
+              fortress.recruitmentQueue,
             Math.floor(
               fortress.recruitersAssigned *
                 (economySurged ? DWARF_DEEP_MINING_ECONOMY_MULTIPLIER : 1)

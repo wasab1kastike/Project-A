@@ -33,6 +33,7 @@ import { emitProjectARefresh } from "@/lib/realtime";
 import {
   editRegistrationFortressName,
   activateDwarfDeepMining,
+  activateDwarfRuneOfGrudges,
   activateRaceAbility,
   chooseDwarfGrudge,
   chooseDwarfTierThreeGrudge,
@@ -557,24 +558,37 @@ export async function activateDwarfDeepMiningAction(formData: FormData) {
   try {
     const result = await activateDwarfDeepMining({
       userId,
-      targetFortressId: getString(formData, "targetFortressId"),
-      committedArmy: getNumber(formData, "committedArmy", 0),
+      committedGold: getNumber(formData, "committedGold", 0),
     });
     emitProjectARefresh("dwarf-deep-mining");
 
-    notice =
-      result.pointDelta !== 0
-        ? `${result.label}: ${result.pointDelta > 0 ? "+" : ""}${result.pointDelta} gold.`
-        : result.armyDelta !== 0
-          ? `${result.label}: ${result.armyDelta > 0 ? "+" : ""}${result.armyDelta} army.`
-          : result.committedArmy > 0
-            ? `${result.label}: rune raised with ${result.committedArmy} defenders.`
-            : result.description;
+    notice = `${result.label}: ${result.committedGold} gold committed, resolves at ${result.resolveAt.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    })}.`;
   } catch (error) {
     redirectToHome("error", getActionErrorMessage(error));
   }
 
   finishAction(notice);
+}
+
+export async function activateDwarfRuneOfGrudgesAction(formData: FormData) {
+  const userId = await requireUserId();
+
+  try {
+    const result = await activateDwarfRuneOfGrudges({
+      userId,
+      targetFortressId: getString(formData, "targetFortressId"),
+    });
+    emitProjectARefresh("dwarf-rune-grudges");
+
+    finishAction(
+      `Rune of Grudges raised against ${result.targetName} for 6 hours.`
+    );
+  } catch (error) {
+    redirectToHome("error", getActionErrorMessage(error));
+  }
 }
 
 export async function claimUnicornTeleportAction() {

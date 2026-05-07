@@ -57,6 +57,7 @@ enum RaceAbilityKind {
   DWARF_ECONOMY_SURGE
   DWARF_COMBAT_SURGE
   DWARF_RUNE_SUPPRESSION
+  DWARF_RUNE_GRUDGES
   DWARF_SLOW_ATTACKS
   DWARF_ECONOMY_HALT
   ORK_WAAAGH
@@ -318,6 +319,8 @@ model Fortress {
   castleUpgradeSpecializations CastleUpgradeSpecializationChoice[]
   castleUpgradeProjects        CastleUpgradeProject[]
   raceAbilityActivations       RaceAbilityActivation[]
+  targetedRaceAbilityActivations RaceAbilityActivation[] @relation("RaceAbilityTargetFortress")
+  runeRaceAbilityActivations   RaceAbilityActivation[] @relation("RaceAbilityRuneFortress")
   dwarfGrudges                 DwarfGrudge[]                       @relation("DwarfGrudgeOwner")
   grudgedBy                    DwarfGrudge[]                       @relation("DwarfGrudgeTarget")
   deepMiningRolls              DwarfDeepMiningRoll[]               @relation("DwarfDeepMiningOwner")
@@ -473,9 +476,11 @@ model DwarfDeepMiningRoll {
   targetFortressId String?
   runeFortressId   String?                 @unique
   outcome          DwarfDeepMiningOutcome
-  committedArmy    Int                     @default(0)
-  pointDelta       Int                     @default(0)
+  committedGold    Int                     @default(0)
+  goldDelta        Int                     @default(0)
   armyDelta        Int                     @default(0)
+  recruitmentQueueDelta Int                @default(0)
+  resolvedAt       DateTime?
   activeUntil      DateTime?
   createdAt        DateTime                @default(now())
   fortress         Fortress                @relation("DwarfDeepMiningOwner", fields: [fortressId], references: [id], onDelete: Cascade)
@@ -500,20 +505,28 @@ model CastleUpgradeSpecializationChoice {
 }
 
 model RaceAbilityActivation {
-  id          String          @id @default(cuid())
-  fortressId  String
-  kind        RaceAbilityKind
-  activeFrom  DateTime
-  activeUntil DateTime
-  usedAt      DateTime        @default(now())
-  expiresAt   DateTime?
-  consumedAt  DateTime?
-  createdAt   DateTime        @default(now())
-  fortress    Fortress        @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+  id                    String          @id @default(cuid())
+  fortressId            String
+  kind                  RaceAbilityKind
+  activeFrom            DateTime
+  activeUntil           DateTime
+  usedAt                DateTime        @default(now())
+  expiresAt             DateTime?
+  consumedAt            DateTime?
+  targetFortressId      String?
+  runeFortressId        String?
+  goldCost              Int             @default(0)
+  maintenanceGoldPerTick Int             @default(0)
+  createdAt             DateTime        @default(now())
+  fortress              Fortress        @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+  targetFortress        Fortress?       @relation("RaceAbilityTargetFortress", fields: [targetFortressId], references: [id], onDelete: SetNull)
+  runeFortress          Fortress?       @relation("RaceAbilityRuneFortress", fields: [runeFortressId], references: [id], onDelete: SetNull)
 
   @@index([fortressId, kind, usedAt])
   @@index([fortressId, kind, activeUntil])
   @@index([fortressId, kind, expiresAt, consumedAt])
+  @@index([targetFortressId, kind, activeUntil])
+  @@index([runeFortressId, kind, activeUntil])
 }
 
 model DwarfGrudge {

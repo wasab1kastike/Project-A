@@ -1,13 +1,8 @@
-import {
-  DwarfDeepMiningOutcome,
-  Prisma,
-  PrismaClient,
-  RaceAbilityKind,
-} from "@/lib/prisma-client";
+import { Prisma, PrismaClient, RaceAbilityKind } from "@/lib/prisma-client";
 import { getAttackArrivalAt } from "./attacks";
 import { GameError } from "./errors";
 import { getHelsinkiHourKey, getRaceBuffTier } from "./race-buffs";
-import { DWARF_DEEP_MINING_SLOW_ATTACK_MULTIPLIER } from "./dwarf-deep-mining";
+import { getRaceModifiers } from "./races";
 import type { FortressRace } from "./races";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
@@ -57,61 +52,14 @@ async function getOrkWaaghActive({
   return Boolean(active);
 }
 
-async function getDwarfAttackSpeedMultiplier({
-  db,
-  fortress,
-  now,
-}: {
-  db: DatabaseClient;
-  fortress: { id: string; race?: FortressRace | null };
-  now: Date;
+function getDwarfAttackSpeedMultiplier(fortress: {
+  race?: FortressRace | null;
 }) {
   if (fortress.race !== "DWARFS") {
     return 1;
   }
 
-  const suppressed = await db.dwarfDeepMiningRoll.findFirst({
-    where: {
-      outcome: DwarfDeepMiningOutcome.FACTION_SEAL,
-      targetFortressId: fortress.id,
-      activeUntil: {
-        gt: now,
-      },
-      runeFortress: {
-        health: {
-          gt: 0,
-        },
-        expiresAt: {
-          gt: now,
-        },
-      },
-    },
-    select: {
-      id: true,
-    },
-  });
-
-  if (suppressed) {
-    return 1;
-  }
-
-  const activeSlow = await db.raceAbilityActivation.findFirst({
-    where: {
-      fortressId: fortress.id,
-      kind: RaceAbilityKind.DWARF_SLOW_ATTACKS,
-      activeFrom: {
-        lte: now,
-      },
-      activeUntil: {
-        gt: now,
-      },
-    },
-    select: {
-      id: true,
-    },
-  });
-
-  return activeSlow ? DWARF_DEEP_MINING_SLOW_ATTACK_MULTIPLIER : 1;
+  return getRaceModifiers(fortress.race).travelSpeedMultiplier;
 }
 
 export async function cancelActiveAttackUnits({
@@ -336,11 +284,9 @@ export async function recallAttackUnit({
     target: attackUnit.attackerFortress,
     attackerRace: attackUnit.attackerFortress.race,
     raceBuffTier,
-    speedMultiplier: await getDwarfAttackSpeedMultiplier({
-      db,
-      fortress: attackUnit.attackerFortress,
-      now,
-    }),
+    speedMultiplier: getDwarfAttackSpeedMultiplier(
+      attackUnit.attackerFortress
+    ),
     waaagh: await getOrkWaaghActive({
       db,
       fortress: attackUnit.attackerFortress,
@@ -396,11 +342,7 @@ export async function launchAttackUnit({
     target,
     attackerRace: attacker.race,
     raceBuffTier: buffTier,
-    speedMultiplier: await getDwarfAttackSpeedMultiplier({
-      db,
-      fortress: attacker,
-      now: launchedAt,
-    }),
+    speedMultiplier: getDwarfAttackSpeedMultiplier(attacker),
     waaagh: await getOrkWaaghActive({
       db,
       fortress: attacker,

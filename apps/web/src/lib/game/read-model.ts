@@ -10,7 +10,6 @@ import {
   Prisma,
   RaceAbilityKind,
   WinnerRequestStatus,
-  DwarfDeepMiningOutcome,
   type PrismaClient,
 } from "@/lib/prisma-client";
 import {
@@ -509,6 +508,23 @@ export async function getHomePageState({
               usedAt: true,
               expiresAt: true,
               consumedAt: true,
+              targetFortressId: true,
+              runeFortressId: true,
+              goldCost: true,
+              maintenanceGoldPerTick: true,
+              targetFortress: {
+                select: {
+                  name: true,
+                  commanderName: true,
+                },
+              },
+              runeFortress: {
+                select: {
+                  health: true,
+                  army: true,
+                  expiresAt: true,
+                },
+              },
             },
           },
           unicornTemporaryTeleports: {
@@ -547,9 +563,11 @@ export async function getHomePageState({
             take: 1,
             select: {
               outcome: true,
-              committedArmy: true,
-              pointDelta: true,
+              committedGold: true,
+              goldDelta: true,
               armyDelta: true,
+              recruitmentQueueDelta: true,
+              resolvedAt: true,
               activeUntil: true,
               createdAt: true,
               targetFortressId: true,
@@ -892,15 +910,16 @@ export async function getHomePageState({
   const raceTierThreeUnlocksAt = cycle.activeStartedAt
     ? getNextHelsinkiNoonAfter(cycle.activeStartedAt)
     : null;
-  const activeRuneSuppressions = await db.dwarfDeepMiningRoll.findMany({
+  const activeRuneSuppressions = await db.raceAbilityActivation.findMany({
     where: {
-      outcome: DwarfDeepMiningOutcome.FACTION_SEAL,
+      kind: RaceAbilityKind.DWARF_RUNE_GRUDGES,
       activeUntil: {
         gt: now,
       },
       targetFortressId: {
         not: null,
       },
+      consumedAt: null,
       runeFortress: {
         health: {
           gt: 0,
@@ -914,6 +933,8 @@ export async function getHomePageState({
       targetFortressId: true,
       activeUntil: true,
       runeFortressId: true,
+      goldCost: true,
+      maintenanceGoldPerTick: true,
       fortress: {
         select: {
           id: true,
@@ -1064,6 +1085,14 @@ export async function getHomePageState({
     ? playerFortress.raceAbilityActivations.find(
         (activation) =>
           activation.kind === RaceAbilityKind.DWARF_DEEP_MINING_COOLDOWN
+      )
+    : null;
+  const latestDwarfRuneOfGrudges = playerFortress
+    ? playerFortress.raceAbilityActivations.find(
+        (activation) =>
+          activation.kind === RaceAbilityKind.DWARF_RUNE_GRUDGES &&
+          activation.consumedAt === null &&
+          activation.activeUntil > now
       )
     : null;
   const latestDwarfDeepMiningRoll = playerFortress?.deepMiningRolls[0] ?? null;
@@ -2130,15 +2159,35 @@ export async function getHomePageState({
                 activeUntil: playerSuppression.activeUntil,
               }
             : null,
+          dwarfRuneOfGrudges: latestDwarfRuneOfGrudges
+            ? {
+                targetFortressId:
+                  latestDwarfRuneOfGrudges.targetFortressId ?? null,
+                targetName:
+                  latestDwarfRuneOfGrudges.targetFortress?.name ?? null,
+                targetCommanderName:
+                  latestDwarfRuneOfGrudges.targetFortress?.commanderName ?? null,
+                runeFortressId: latestDwarfRuneOfGrudges.runeFortressId,
+                runeHealth: latestDwarfRuneOfGrudges.runeFortress?.health ?? null,
+                runeArmy: latestDwarfRuneOfGrudges.runeFortress?.army ?? null,
+                activeUntil: latestDwarfRuneOfGrudges.activeUntil,
+                goldCost: latestDwarfRuneOfGrudges.goldCost,
+                maintenanceGoldPerTick:
+                  latestDwarfRuneOfGrudges.maintenanceGoldPerTick,
+              }
+            : null,
           raceBuffs: {
             tier: raceBuffTier,
             tierThreeUnlocksAt: raceTierThreeUnlocksAt,
             deepMiningLatest: latestDwarfDeepMiningRoll
               ? {
                   outcome: latestDwarfDeepMiningRoll.outcome,
-                  committedArmy: latestDwarfDeepMiningRoll.committedArmy,
-                  pointDelta: latestDwarfDeepMiningRoll.pointDelta,
+                  committedGold: latestDwarfDeepMiningRoll.committedGold,
+                  goldDelta: latestDwarfDeepMiningRoll.goldDelta,
                   armyDelta: latestDwarfDeepMiningRoll.armyDelta,
+                  recruitmentQueueDelta:
+                    latestDwarfDeepMiningRoll.recruitmentQueueDelta,
+                  resolvedAt: latestDwarfDeepMiningRoll.resolvedAt,
                   activeUntil: latestDwarfDeepMiningRoll.activeUntil,
                   createdAt: latestDwarfDeepMiningRoll.createdAt,
                   targetName:
@@ -2155,6 +2204,10 @@ export async function getHomePageState({
               (!latestDwarfDeepMiningUse ||
                 getHelsinkiHourKey(latestDwarfDeepMiningUse.usedAt) !==
                   currentHourKey),
+            canActivateRuneOfGrudges:
+              playerFortress.race === "DWARFS" &&
+              raceBuffTier >= 3 &&
+              latestDwarfRuneOfGrudges === null,
             dwarfGrudges: playerFortress.dwarfGrudges.map((grudge) => ({
               targetFortressId: grudge.targetFortressId,
               targetName: grudge.targetFortress.name,
@@ -2164,15 +2217,11 @@ export async function getHomePageState({
             })),
             canChooseDwarfGrudge:
               playerFortress.race === "DWARFS" &&
-              raceBuffTier >= 2 &&
-              playerFortress.dwarfGrudges.length === 0,
+              raceBuffTier >= 2,
             canChooseDwarfTierThree:
               playerFortress.race === "DWARFS" &&
               raceBuffTier >= 3 &&
-              playerFortress.dwarfGrudges.length > 0 &&
-              !playerFortress.dwarfGrudges.some(
-                (grudge) => grudge.slot === 2 || grudge.bonusMultiplier >= 2
-              ),
+              playerFortress.dwarfGrudges.length > 0,
             canActivateWaaagh:
               playerFortress.race === "ORKS" &&
               raceBuffTier >= 3 &&
