@@ -1113,7 +1113,7 @@ export function FortressMap({
             y: event.clientY - shellBounds.top,
           });
         }}
-        onPointerDown={(event) => {
+        onPointerDownCapture={(event) => {
           const shellBounds = shellRef.current?.getBoundingClientRect();
           if (!shellBounds) {
             return;
@@ -1146,11 +1146,10 @@ export function FortressMap({
             setDragStart(null);
             suppressClickRef.current = true;
             updatePinch();
+            (event.currentTarget as HTMLDivElement).setPointerCapture(
+              event.pointerId
+            );
           }
-
-          (event.currentTarget as HTMLDivElement).setPointerCapture(
-            event.pointerId
-          );
         }}
         onPointerMove={(event) => {
           const shellBounds = shellRef.current?.getBoundingClientRect();
@@ -1183,6 +1182,9 @@ export function FortressMap({
           if (Math.hypot(deltaX, deltaY) > CLICK_DRAG_THRESHOLD) {
             suppressClickRef.current = true;
             userAdjustedViewRef.current = true;
+            (event.currentTarget as HTMLDivElement).setPointerCapture(
+              event.pointerId
+            );
           }
 
           const nextTranslate = clampTranslation(
@@ -1193,7 +1195,7 @@ export function FortressMap({
           setTranslateX(nextTranslate.x);
           setTranslateY(nextTranslate.y);
         }}
-        onPointerUp={(event) => {
+        onPointerUpCapture={(event) => {
           pointerCacheRef.current.delete(event.pointerId);
           pinchStateRef.current = null;
 
@@ -1205,7 +1207,7 @@ export function FortressMap({
             }, 0);
           }
         }}
-        onPointerCancel={(event) => {
+        onPointerCancelCapture={(event) => {
           pointerCacheRef.current.delete(event.pointerId);
           pinchStateRef.current = null;
           setIsDragging(false);
