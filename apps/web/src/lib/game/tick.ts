@@ -1,5 +1,4 @@
 import {
-  AttackUnitMissionKind,
   CycleStatus,
   FortressKind,
   FortressAction,
@@ -1717,14 +1716,10 @@ async function processCycleTick(
         id: true,
         attackerFortressId: true,
         targetFortressId: true,
-        defenseTargetFortressId: true,
-        missionKind: true,
         reinforcementBattlefieldId: true,
         reinforcementSide: true,
         armyAmount: true,
         arrivesAt: true,
-        defenseStationedAt: true,
-        defenseReleasedAt: true,
         recalledAt: true,
         returnOriginMapX: true,
         returnOriginMapY: true,
@@ -1743,79 +1738,6 @@ async function processCycleTick(
 
     const resolvedBatchAttackUnitIds = new Set<string>();
     for (const unit of dueAttackUnits) {
-      if (
-        unit.missionKind === AttackUnitMissionKind.CASTLE_DEFENSE &&
-        !unit.recalledAt
-      ) {
-        const defenseTargetId =
-          unit.defenseTargetFortressId ?? unit.targetFortressId;
-        const defenseTarget = fortressLookup.get(defenseTargetId);
-        const attacker = fortressLookup.get(unit.attackerFortressId);
-
-        if (
-          defenseTarget &&
-          !defenseTarget.isNpc &&
-          defenseTarget.fortressKind === FortressKind.PLAYER
-        ) {
-          currentArmy.set(
-            defenseTarget.id,
-            (currentArmy.get(defenseTarget.id) ?? defenseTarget.army) +
-              unit.armyAmount
-          );
-        } else if (attacker) {
-          currentArmy.set(
-            attacker.id,
-            (currentArmy.get(attacker.id) ?? attacker.army) + unit.armyAmount
-          );
-        }
-
-        await db.attackUnit.update({
-          where: {
-            id: unit.id,
-          },
-          data: {
-            resolvedAt: tickAt,
-            defenseStationedAt:
-              defenseTarget &&
-              !defenseTarget.isNpc &&
-              defenseTarget.fortressKind === FortressKind.PLAYER
-                ? tickAt
-                : null,
-            defenseReleasedAt:
-              defenseTarget &&
-              !defenseTarget.isNpc &&
-              defenseTarget.fortressKind === FortressKind.PLAYER
-                ? null
-                : tickAt,
-            recalledAt:
-              defenseTarget &&
-              !defenseTarget.isNpc &&
-              defenseTarget.fortressKind === FortressKind.PLAYER
-                ? null
-                : tickAt,
-            defenderArmyAtBattleStart: null,
-            resolvedAttackPower: 0,
-            resolvedDefensePower: 0,
-            attackerSurvivors: unit.armyAmount,
-            attackerRetired: 0,
-            attackerReturned:
-              defenseTarget &&
-              !defenseTarget.isNpc &&
-              defenseTarget.fortressKind === FortressKind.PLAYER
-                ? 0
-                : unit.armyAmount,
-            defenderLosses: 0,
-            pointsLooted: 0,
-            foodLooted: 0,
-            armyLooted: 0,
-          },
-        });
-
-        resolvedBatchAttackUnitIds.add(unit.id);
-        resolvedAttackUnits += 1;
-        continue;
-      }
-
       if (unit.reinforcementBattlefieldId && unit.reinforcementSide) {
         const battlefield = await db.battlefield.findUnique({
           where: {

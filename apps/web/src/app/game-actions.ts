@@ -26,7 +26,6 @@ import {
   ArcadeGameType,
   ArcadeLootBoxType,
   BattlefieldSide,
-  DiplomacyStatus,
   FortressAction,
   OrkBossOrderKind,
   OrkWaaaghInvestmentKind,
@@ -45,8 +44,6 @@ import {
   attackMapHex,
   claimNeutralMapHex,
   claimUnicornTeleport,
-  deployCastleDefense,
-  recallStationedDefense,
   joinBattlefield,
   joinRegistrationCycle,
   purchaseFortressUpgrade,
@@ -56,7 +53,6 @@ import {
   recallAttackUnit,
   selectFortressRace,
   setFortressAction,
-  setDiplomacyStatus,
   updateWorkerAssignment,
   shuffleFortressLocation,
   investOrkWaaaghScrap,
@@ -345,107 +341,6 @@ export async function instantRecallAttackUnitAction(attackUnitId: string) {
     });
     emitProjectARefresh("map-recall");
     revalidatePath("/");
-    return {
-      ok: true,
-    } satisfies InlineActionResult;
-  } catch (error) {
-    return {
-      ok: false,
-      error: getActionErrorMessage(error),
-    } satisfies InlineActionResult;
-  }
-}
-
-export async function deployCastleDefenseAction(
-  targetFortressId: string,
-  armyAmount = 1
-) {
-  const session = await auth();
-  const userId = session?.user?.id;
-
-  if (!userId) {
-    return {
-      ok: false,
-      error: "You need to sign in before changing season state.",
-    } satisfies InlineActionResult;
-  }
-
-  try {
-    await deployCastleDefense({
-      userId,
-      targetFortressId,
-      armyAmount,
-    });
-    emitProjectARefresh("castle-defense-deploy");
-    revalidatePath("/");
-    revalidatePath("/castle");
-    return {
-      ok: true,
-    } satisfies InlineActionResult;
-  } catch (error) {
-    return {
-      ok: false,
-      error: getActionErrorMessage(error),
-    } satisfies InlineActionResult;
-  }
-}
-
-export async function recallStationedDefenseAction(attackUnitId: string) {
-  const session = await auth();
-  const userId = session?.user?.id;
-
-  if (!userId) {
-    return {
-      ok: false,
-      error: "You need to sign in before changing season state.",
-    } satisfies InlineActionResult;
-  }
-
-  try {
-    await recallStationedDefense({
-      userId,
-      attackUnitId,
-    });
-    emitProjectARefresh("castle-defense-recall");
-    revalidatePath("/");
-    revalidatePath("/castle");
-    return {
-      ok: true,
-    } satisfies InlineActionResult;
-  } catch (error) {
-    return {
-      ok: false,
-      error: getActionErrorMessage(error),
-    } satisfies InlineActionResult;
-  }
-}
-
-export async function setDiplomacyStatusAction(
-  targetUserId: string,
-  nextStatus: DiplomacyStatus | string
-) {
-  const session = await auth();
-  const userId = session?.user?.id;
-
-  if (!userId) {
-    return {
-      ok: false,
-      error: "You need to sign in before changing season state.",
-    } satisfies InlineActionResult;
-  }
-
-  try {
-    await setDiplomacyStatus({
-      userId,
-      targetUserId,
-      status:
-        nextStatus === DiplomacyStatus.PEACE
-          ? DiplomacyStatus.PEACE
-          : DiplomacyStatus.WAR,
-    });
-    emitProjectARefresh("diplomacy-status");
-    revalidatePath("/");
-    revalidatePath("/castle");
     return {
       ok: true,
     } satisfies InlineActionResult;
