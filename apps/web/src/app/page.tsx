@@ -43,6 +43,52 @@ const RACE_TOKEN_PATHS: Record<FortressRace, string> = {
   UNSTABLE_UNICORNS: "/assets/token-unstable-unicorns.png",
 };
 
+const JOIN_RACE_COPY: Record<
+  FortressRace,
+  {
+    lore: string;
+    pros: string[];
+    cons: string[];
+  }
+> = {
+  DWARFS: {
+    lore: "They arrived with ledgers, helmets, and seven generations of receipts. Nobody remembers the original insult, but the paperwork is immaculate.",
+    pros: [
+      "Extra gold from miners",
+      "Stronger defense on owned tiles",
+      "Grudge targets hit harder later",
+    ],
+    cons: ["Slow army travel", "Deep Mining pays off after a delay"],
+  },
+  UNSTABLE_UNICORNS: {
+    lore: "Every strategy meeting starts with glitter and ends with someone insisting the teleport was definitely intentional.",
+    pros: [
+      "Extra food from farmers",
+      "More starting population",
+      "Teleport tricks and hidden army sizes",
+    ],
+    cons: ["Lower direct combat bonuses", "Chaos requires attention"],
+  },
+  SPACE_MURINES: {
+    lore: "Tiny professionals in oversized doctrine manuals. If a plan fails, they call it reconnaissance and file it under victory-adjacent.",
+    pros: [
+      "Extra army from recruiters",
+      "More attack slots at high levels",
+      "STIM and instant recall tools",
+    ],
+    cons: ["Needs timing discipline", "Less loot-focused than ORKS"],
+  },
+  ORKS: {
+    lore: "Their logistics doctrine is yelling, their accounting system is teeth, and somehow the carts come back full.",
+    pros: [
+      "Best loot carrying capacity",
+      "Extra army from recruiters",
+      "Simple raid-heavy game plan",
+    ],
+    cons: ["Few defensive tricks", "Subtle plans may be shouted at"],
+  },
+};
+
 function getSearchValue(
   value: string | string[] | undefined
 ): string | undefined {
@@ -766,31 +812,82 @@ export default async function Home({
           ) : null}
 
           {showJoinCard && !blockingMessage ? (
-            <form action={joinFortressAction} className={styles.form}>
-              <label className={styles.field}>
-                <span>In-game nick</span>
-                <input
-                  name="commanderName"
-                  type="text"
-                  maxLength={32}
-                  placeholder="Name your commander"
-                  required
-                />
-              </label>
-              <label className={styles.field}>
-                <span>Fortress name</span>
-                <input
-                  name="fortressName"
-                  type="text"
-                  maxLength={32}
-                  placeholder="Name your fortress"
-                  required
-                />
-              </label>
-              <button className={styles.primaryButton} type="submit">
-                Join this season
-              </button>
-            </form>
+            <div className={styles.joinModal} role="dialog" aria-modal="true">
+              <form action={joinFortressAction} className={styles.joinForm}>
+                <div className={styles.joinModalHeader}>
+                  <span className={styles.sectionLabel}>Choose your trouble</span>
+                  <h2>Pick a race before the season notices you.</h2>
+                  <p>
+                    Race locks for the season. Choose the kind of bad decision
+                    you want to optimize.
+                  </p>
+                </div>
+                <div className={styles.joinIdentityGrid}>
+                  <label className={styles.field}>
+                    <span>In-game nick</span>
+                    <input
+                      name="commanderName"
+                      type="text"
+                      maxLength={32}
+                      placeholder="Name your commander"
+                      required
+                    />
+                  </label>
+                  <label className={styles.field}>
+                    <span>Fortress name</span>
+                    <input
+                      name="fortressName"
+                      type="text"
+                      maxLength={32}
+                      placeholder="Name your fortress"
+                      required
+                    />
+                  </label>
+                </div>
+                <div className={styles.joinRaceGrid}>
+                  {RACE_DEFINITIONS.map((race) => {
+                    const copy = JOIN_RACE_COPY[race.key];
+
+                    return (
+                      <label key={race.key} className={styles.joinRaceCard}>
+                        <input
+                          name="race"
+                          type="radio"
+                          value={race.key}
+                          required
+                        />
+                        <span className={styles.joinRaceCardBody}>
+                          <span className={styles.joinRaceTitle}>
+                            <span
+                              className={styles.joinRaceToken}
+                              style={{
+                                backgroundImage: `url(${RACE_TOKEN_PATHS[race.key]})`,
+                              }}
+                              aria-hidden="true"
+                            />
+                            <strong>{race.displayName}</strong>
+                          </span>
+                          <span className={styles.joinRaceLore}>{copy.lore}</span>
+                          <span className={styles.joinRaceTradeoffs}>
+                            <span>
+                              <b>Pros</b>
+                              {copy.pros.join(" / ")}
+                            </span>
+                            <span>
+                              <b>Cons</b>
+                              {copy.cons.join(" / ")}
+                            </span>
+                          </span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <button className={styles.primaryButton} type="submit">
+                  Join this season
+                </button>
+              </form>
+            </div>
           ) : null}
 
           {showCommanderNameCard && !blockingMessage ? (

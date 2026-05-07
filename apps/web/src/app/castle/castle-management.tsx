@@ -29,7 +29,11 @@ import {
   getArmyUpkeepCost,
   getRecruitmentCost,
 } from "@/lib/game/army-recruitment";
-import { RACE_DEFINITIONS } from "@/lib/game/races";
+import {
+  RACE_DEFINITIONS,
+  isFortressRace,
+  type FortressRace,
+} from "@/lib/game/races";
 import styles from "./page.module.css";
 
 type PlayerSummary = {
@@ -156,32 +160,141 @@ type CommandTarget = {
   isNpc: boolean;
 };
 
-const BUILDINGS = [
-  {
-    key: "DEFENSE",
-    name: "Keep",
-    role: "Command, population, and defensive structure.",
-    workerKey: null,
+type BuildingSpecialization = "POINTS" | "FOOD" | "MILITARY" | "DEFENSE";
+type WorkerAssignmentKey =
+  | "minersAssigned"
+  | "farmersAssigned"
+  | "recruitersAssigned";
+type BuildingMetadata = {
+  key: BuildingSpecialization;
+  name: string;
+  role: string;
+  workerKey: WorkerAssignmentKey | null;
+};
+type BuildingRaceKey = FortressRace | "DEFAULT";
+
+const BUILDING_WORKER_KEYS = {
+  DEFENSE: null,
+  POINTS: "minersAssigned",
+  FOOD: "farmersAssigned",
+  MILITARY: "recruitersAssigned",
+} as const satisfies Record<BuildingSpecialization, WorkerAssignmentKey | null>;
+
+const BUILDING_COPY_BY_RACE = {
+  DEFAULT: {
+    DEFENSE: {
+      name: "Keep",
+      role: "Command, population, and defensive structure.",
+    },
+    POINTS: {
+      name: "Mine",
+      role: "Gold generation and mining bonuses.",
+    },
+    FOOD: {
+      name: "Farm",
+      role: "Food generation and army upkeep support.",
+    },
+    MILITARY: {
+      name: "Barracks",
+      role: "Army recruitment and reinforcement support.",
+    },
   },
-  {
-    key: "POINTS",
-    name: "Mine",
-    role: "Gold generation and future mining tile bonuses.",
-    workerKey: "minersAssigned",
+  DWARFS: {
+    DEFENSE: {
+      name: "Grudgehold",
+      role: "Ancestral stone halls that shelter the clan and harden every oath.",
+    },
+    POINTS: {
+      name: "Oathmine",
+      role: "Deep shafts where gold is weighed against old debts.",
+    },
+    FOOD: {
+      name: "Fungus Vaults",
+      role: "Sealed underhalls that feed the throng through siege and spite.",
+    },
+    MILITARY: {
+      name: "Muster Hall",
+      role: "Iron muster grounds where grudges become marching orders.",
+    },
   },
-  {
-    key: "FOOD",
-    name: "Farm",
-    role: "Food generation and army upkeep support.",
-    workerKey: "farmersAssigned",
+  UNSTABLE_UNICORNS: {
+    DEFENSE: {
+      name: "Prismatic Bastion",
+      role: "Shifting walls and decoy towers that refuse to stay where expected.",
+    },
+    POINTS: {
+      name: "Glitter Quarry",
+      role: "Unstable seams that shed suspiciously valuable sparkle.",
+    },
+    FOOD: {
+      name: "Moon Pasture",
+      role: "Overgrown grazing rings that turn chaos into food stores.",
+    },
+    MILITARY: {
+      name: "Horn Drill Yard",
+      role: "A loud training ring for charges, feints, and sudden retreats.",
+    },
   },
-  {
-    key: "MILITARY",
-    name: "Barracks",
-    role: "Army production and future reinforcement bonuses.",
-    workerKey: "recruitersAssigned",
+  SPACE_MURINES: {
+    DEFENSE: {
+      name: "Command Bunker",
+      role: "Armored command decks coordinating disciplined fortress defense.",
+    },
+    POINTS: {
+      name: "Ore Refinery",
+      role: "Industrial extraction bays converting raw ore into campaign funds.",
+    },
+    FOOD: {
+      name: "Nutrient Vats",
+      role: "Sealed ration systems keeping the war machine supplied.",
+    },
+    MILITARY: {
+      name: "Drop Barracks",
+      role: "Readiness decks that process recruits into deployable strike teams.",
+    },
   },
-] as const;
+  ORKS: {
+    DEFENSE: {
+      name: "Boss Fort",
+      role: "Reinforced scrap walls where the loudest plan becomes policy.",
+    },
+    POINTS: {
+      name: "Teef Pit",
+      role: "A noisy dig site that turns shiny loot into spendable gold.",
+    },
+    FOOD: {
+      name: "Squig Pens",
+      role: "Dangerous food pens that somehow keep the horde fed.",
+    },
+    MILITARY: {
+      name: "Mob Yard",
+      role: "A brawling ground where recruits become enough army to matter.",
+    },
+  },
+} as const satisfies Record<
+  BuildingRaceKey,
+  Record<BuildingSpecialization, { name: string; role: string }>
+>;
+
+const BUILDING_SPECIALIZATIONS = [
+  "DEFENSE",
+  "POINTS",
+  "FOOD",
+  "MILITARY",
+] as const satisfies readonly BuildingSpecialization[];
+
+function getBuildingsForRace(race: string | null): readonly BuildingMetadata[] {
+  const raceKey: BuildingRaceKey =
+    race && isFortressRace(race) ? race : "DEFAULT";
+  const copy = BUILDING_COPY_BY_RACE[raceKey];
+
+  return BUILDING_SPECIALIZATIONS.map((key) => ({
+    key,
+    name: copy[key].name,
+    role: copy[key].role,
+    workerKey: BUILDING_WORKER_KEYS[key],
+  }));
+}
 
 function formatTime(value: Date) {
   return value.toLocaleTimeString([], {
@@ -197,7 +310,7 @@ function getBuildingEffect({
   defenseMultiplier,
   population,
 }: {
-  key: (typeof BUILDINGS)[number]["key"];
+  key: BuildingSpecialization;
   level: number;
   production: ReturnType<typeof calculateTickProduction>;
   defenseMultiplier: number;
@@ -217,10 +330,14 @@ function getBuildingEffect({
   }
 }
 
-function BuildingChoiceFields() {
+function BuildingChoiceFields({
+  buildings,
+}: {
+  buildings: readonly BuildingMetadata[];
+}) {
   return (
     <div className={styles.buildingChoiceGrid}>
-      {BUILDINGS.map((building) => (
+      {buildings.map((building) => (
         <label key={building.key} className={styles.buildingChoice}>
           <input
             name="specialization"
@@ -256,6 +373,7 @@ export function CastleManagement({
   const [recruitAmount, setRecruitAmount] = useState(10);
   const [recruitError, setRecruitError] = useState<string | null>(null);
   const [recruitPending, setRecruitPending] = useState(false);
+  const buildings = getBuildingsForRace(playerSummary.race);
   const production = useMemo(
     () =>
       calculateTickProduction({
@@ -422,7 +540,7 @@ export function CastleManagement({
           </strong>
         </div>
         <div className={styles.buildingGrid}>
-          {BUILDINGS.map((building) => {
+          {buildings.map((building) => {
             const buildingLevel =
               playerSummary.castleSpecializationCounts?.[building.key] ?? 0;
             const upgradeOption =
@@ -501,7 +619,7 @@ export function CastleManagement({
               Choose a building for level{" "}
               {playerSummary.pendingUpgradeSpecializationLevel}.
             </p>
-            <BuildingChoiceFields />
+            <BuildingChoiceFields buildings={buildings} />
             <button type="submit">Lock building</button>
           </form>
         ) : playerSummary.activeCastleUpgradeProject ? (

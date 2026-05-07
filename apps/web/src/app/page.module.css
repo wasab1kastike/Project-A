@@ -514,6 +514,152 @@
   gap: 12px;
 }
 
+.joinModal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(118, 190, 255, 0.12), transparent 34%),
+    rgba(2, 7, 11, 0.72);
+  pointer-events: auto;
+}
+
+.joinForm {
+  width: min(920px, 100%);
+  max-height: min(780px, calc(100dvh - 36px));
+  display: grid;
+  gap: 14px;
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid rgba(247, 196, 95, 0.24);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0)),
+    rgba(5, 12, 18, 0.94);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 30px 80px rgba(0, 0, 0, 0.52);
+  backdrop-filter: blur(16px);
+}
+
+.joinModalHeader {
+  display: grid;
+  gap: 7px;
+}
+
+.joinModalHeader h2 {
+  max-width: 760px;
+  font-size: clamp(1.45rem, 4vw, 2.3rem);
+  line-height: 1;
+}
+
+.joinModalHeader p {
+  max-width: 680px;
+}
+
+.joinIdentityGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.joinRaceGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.joinRaceCard {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.joinRaceCard input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.joinRaceCardBody {
+  min-height: 210px;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 13px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(7, 13, 20, 0.58);
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.joinRaceCard input:checked + .joinRaceCardBody {
+  border-color: rgba(247, 196, 95, 0.66);
+  background:
+    linear-gradient(180deg, rgba(247, 196, 95, 0.14), rgba(247, 196, 95, 0.03)),
+    rgba(7, 13, 20, 0.72);
+  box-shadow: inset 0 0 0 1px rgba(247, 196, 95, 0.14);
+}
+
+.joinRaceCard input:focus-visible + .joinRaceCardBody {
+  outline: 2px solid rgba(247, 196, 95, 0.3);
+  outline-offset: 2px;
+}
+
+.joinRaceTitle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.joinRaceTitle strong {
+  font-size: 1.02rem;
+}
+
+.joinRaceToken {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  image-rendering: pixelated;
+}
+
+.joinRaceLore {
+  color: var(--foreground);
+  font-size: 0.9rem;
+  line-height: 1.42;
+}
+
+.joinRaceTradeoffs {
+  display: grid;
+  gap: 7px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.joinRaceTradeoffs span {
+  display: grid;
+  gap: 2px;
+}
+
+.joinRaceTradeoffs b {
+  color: var(--accent-strong);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .voteForm {
   display: grid;
   gap: 12px;
@@ -1020,8 +1166,23 @@
   }
 
   .deadlineList,
+  .joinIdentityGrid,
+  .joinRaceGrid,
   .bottomHud {
     grid-template-columns: 1fr;
+  }
+
+  .joinModal {
+    padding: 10px;
+  }
+
+  .joinForm {
+    max-height: calc(100dvh - 20px);
+    padding: 16px;
+  }
+
+  .joinRaceCardBody {
+    min-height: auto;
   }
 
   .bottomHud {

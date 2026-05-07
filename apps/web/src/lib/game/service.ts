@@ -272,12 +272,14 @@ export async function joinRegistrationCycle({
   userId,
   commanderName,
   fortressName,
+  race,
   now = new Date(),
   db = prisma,
 }: {
   userId: string;
   commanderName?: string;
   fortressName: string;
+  race?: FortressRace | string;
   now?: Date;
   db?: PrismaClient;
 }) {
@@ -287,6 +289,12 @@ export async function joinRegistrationCycle({
   const normalizedCommanderName = normalizeCommanderName(
     commanderName ?? fortressName
   );
+  const normalizedRace =
+    race === undefined ? undefined : isFortressRace(race) ? race : null;
+
+  if (race !== undefined && normalizedRace === null) {
+    throw new GameError("Choose a valid race before joining this season.");
+  }
 
   try {
     return await db.$transaction(
@@ -368,6 +376,7 @@ export async function joinRegistrationCycle({
             commanderName: normalizedCommanderName,
             commanderNameRegisteredAt: now,
             name: normalizedName,
+            race: normalizedRace,
             mapX: Math.round(openPosition.x),
             mapY: Math.round(openPosition.y),
             unitSpriteVariant: getRandomUnitSpriteVariant(),

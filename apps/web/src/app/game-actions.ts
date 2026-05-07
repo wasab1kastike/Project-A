@@ -410,6 +410,7 @@ export async function joinFortressAction(formData: FormData) {
       userId,
       commanderName: getString(formData, "commanderName"),
       fortressName: getString(formData, "fortressName"),
+      race: getString(formData, "race"),
     });
     emitProjectARefresh("join");
   } catch (error) {
