@@ -844,41 +844,6 @@ export function BattlefieldExperience({
   const battlefieldsPanel =
     battlefields.length > 0 || battleReports.length > 0 ? (
       <aside className={styles.battlefieldPanel} aria-label="Active battles">
-        {homeOfA ? (
-          <article className={styles.battlefieldCard}>
-            <div className={styles.battlefieldCardHeader}>
-              <strong>Home of A</strong>
-              <span>+{homeOfA.pointIncome}/tick</span>
-            </div>
-            <p className={styles.helper}>
-              {homeOfA.ownerFortressId
-                ? `${homeOfA.ownerName} controls the center banner.`
-                : "Neutral center control point."}{" "}
-              {homeOfA.activeBattlefieldId ? "Battle active." : ""}
-            </p>
-            {homeOfA.holders.length > 0 ? (
-              <ul className={styles.compactList}>
-                {homeOfA.holders.slice(0, 4).map((holder) => (
-                  <li key={holder.fortressId}>
-                    {holder.fortressName}: weight {holder.contributionWeight}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-            {playerSummary ? (
-              <button
-                className={styles.secondaryButton}
-                type="button"
-                disabled={mapActionPending}
-                onClick={() => {
-                  setSelectedTileId(homeOfA.tileId);
-                }}
-              >
-                Select center
-              </button>
-            ) : null}
-          </article>
-        ) : null}
         {battlefields.length > 0 ? (
           <>
             <div className={styles.sectionHeading}>
@@ -1099,6 +1064,11 @@ export function BattlefieldExperience({
           onSelectFortress={(fortress) => {
             if (fortress.isCurrentUser) {
               setSelectedFortressId(fortress.id);
+              return;
+            }
+
+            if (homeOfA && fortress.fortressKind === "MEGA") {
+              setSelectedTileId(homeOfA.tileId);
             }
           }}
           onConfirmAttackTarget={handleConfirmAttackTarget}

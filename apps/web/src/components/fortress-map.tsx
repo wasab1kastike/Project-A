@@ -899,7 +899,7 @@ export function FortressMap({
 
   const activateFortress = useCallback(
     (fortress: MapFortress) => {
-      if (fortress.isCurrentUser) {
+      if (fortress.isCurrentUser || fortress.fortressKind === "MEGA") {
         setPendingTargetId(null);
         onSelectFortress?.(fortress);
         return;
@@ -1236,6 +1236,7 @@ export function FortressMap({
               });
               const selectable =
                 (Boolean(onSelectFortress) && fortress.isCurrentUser) ||
+                (Boolean(onSelectFortress) && fortress.fortressKind === "MEGA") ||
                 (Boolean(onConfirmAttackTarget) && fortress.isTargetable);
               const variant = getSpriteVariant(fortress);
               const isMega = fortress.fortressKind === "MEGA";
