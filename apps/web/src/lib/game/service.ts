@@ -20,7 +20,11 @@ import {
   ACTIVE_RENAME_COST,
   HOME_OF_A_NEUTRAL_DEFENSE,
 } from "./constants";
-import { getRandomUnitSpriteVariant } from "./attacks";
+import {
+  getRandomUnitSpriteVariant,
+  normalizeUnitSpriteVariant,
+} from "./attacks";
+import type { UnitSpriteVariant } from "./constants";
 import {
   canFortressLevelUp,
   getFortressUpgradeCost,
@@ -87,6 +91,39 @@ import {
 } from "./orks";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
+
+export type AttackUnitLaunchMarker = {
+  id: string;
+  armyAmount: number;
+  launchedAt: Date;
+  arrivesAt: Date;
+  recalledAt: Date | null;
+  returnOrigin: {
+    mapX: number;
+    mapY: number;
+  } | null;
+  canRecall: boolean;
+  canInstantRecall: boolean;
+  attacker: {
+    id: string;
+    name: string;
+    mapX: number;
+    mapY: number;
+    unitSpriteVariant: UnitSpriteVariant;
+    unitCosmeticVariant: string | null;
+  };
+  target: {
+    id: string;
+    name: string;
+    mapX: number;
+    mapY: number;
+  };
+};
+
+export type AttackMapHexResult = {
+  battlefieldId: string;
+  launchedAttackUnit: AttackUnitLaunchMarker;
+};
 
 const PUBLIC_NAME_MAX_LENGTH = 32;
 const ACTIVE_EDGE_PADDING = 15;
@@ -914,7 +951,7 @@ export async function attackMapHex({
   sentArmy?: number;
   now?: Date;
   db?: PrismaClient;
-}) {
+}): Promise<AttackMapHexResult> {
   return db.$transaction(async (tx) => {
     const cycle = await getCurrentCycle(tx);
 
@@ -942,12 +979,19 @@ export async function attackMapHex({
       select: {
         id: true,
         ownerId: true,
+        name: true,
         points: true,
         army: true,
         level: true,
         race: true,
         mapX: true,
         mapY: true,
+        unitSpriteVariant: true,
+        owner: {
+          select: {
+            unitCosmeticVariant: true,
+          },
+        },
       },
     });
 
@@ -974,6 +1018,7 @@ export async function attackMapHex({
         ownerFortress: {
           select: {
             id: true,
+            name: true,
             ownerId: true,
             points: true,
             army: true,
@@ -1041,6 +1086,7 @@ export async function attackMapHex({
           },
           select: {
             id: true,
+            name: true,
             ownerId: true,
             points: true,
             army: true,
@@ -1107,7 +1153,42 @@ export async function attackMapHex({
       },
     });
 
-    return battlefield;
+    return {
+      battlefieldId: battlefield.id,
+      launchedAttackUnit: {
+        id: launchedUnit.id,
+        armyAmount: launchedUnit.armyAmount,
+        launchedAt: launchedUnit.launchedAt,
+        arrivesAt: launchedUnit.arrivesAt,
+        recalledAt: launchedUnit.recalledAt,
+        returnOrigin:
+          launchedUnit.returnOriginMapX !== null &&
+          launchedUnit.returnOriginMapY !== null
+            ? {
+                mapX: launchedUnit.returnOriginMapX,
+                mapY: launchedUnit.returnOriginMapY,
+              }
+            : null,
+        canRecall: true,
+        canInstantRecall: false,
+        attacker: {
+          id: attacker.id,
+          name: attacker.name,
+          mapX: attacker.mapX,
+          mapY: attacker.mapY,
+          unitSpriteVariant: normalizeUnitSpriteVariant(
+            attacker.unitSpriteVariant
+          ),
+          unitCosmeticVariant: attacker.owner?.unitCosmeticVariant ?? null,
+        },
+        target: {
+          id: targetFortress.id,
+          name: targetFortress.name,
+          mapX: battlefieldTarget.mapX,
+          mapY: battlefieldTarget.mapY,
+        },
+      },
+    };
   });
 }
 

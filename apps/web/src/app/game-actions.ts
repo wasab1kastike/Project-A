@@ -57,6 +57,7 @@ import {
   shuffleFortressLocation,
   investOrkWaaaghScrap,
 } from "@/lib/game/service";
+import type { AttackUnitLaunchMarker } from "@/lib/game/service";
 
 function getString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -143,6 +144,16 @@ function finishArcadeAction(
 type InlineActionResult =
   | {
       ok: true;
+    }
+  | {
+      ok: false;
+      error: string;
+    };
+
+type MapHexAttackActionResult =
+  | {
+      ok: true;
+      launchedAttackUnit?: AttackUnitLaunchMarker;
     }
   | {
       ok: false;
@@ -252,7 +263,7 @@ export async function attackMapHexAction(tileId: string, sentArmy = 1) {
   }
 
   try {
-    await attackMapHex({
+    const result = await attackMapHex({
       userId,
       tileId,
       sentArmy,
@@ -262,12 +273,13 @@ export async function attackMapHexAction(tileId: string, sentArmy = 1) {
     revalidatePath("/castle");
     return {
       ok: true,
-    } satisfies InlineActionResult;
+      launchedAttackUnit: result.launchedAttackUnit,
+    } satisfies MapHexAttackActionResult;
   } catch (error) {
     return {
       ok: false,
       error: getActionErrorMessage(error),
-    } satisfies InlineActionResult;
+    } satisfies MapHexAttackActionResult;
   }
 }
 

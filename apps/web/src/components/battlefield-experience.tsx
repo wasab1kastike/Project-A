@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 
@@ -273,6 +273,9 @@ export function BattlefieldExperience({
   const [battleJoinArmyById, setBattleJoinArmyById] = useState<
     Record<string, number>
   >({});
+  const [optimisticAttackUnits, setOptimisticAttackUnits] = useState<
+    AttackUnitMarker[]
+  >([]);
 
   useEffect(() => {
     if (!topActionsContainerId) {
@@ -351,6 +354,40 @@ export function BattlefieldExperience({
       battleReports.map((report) => report.id)
     );
   }, [battleReports, battleLogOpen]);
+
+  useEffect(() => {
+    if (optimisticAttackUnits.length === 0) {
+      return;
+    }
+
+    const serverAttackUnitIds = new Set(attackUnits.map((unit) => unit.id));
+
+    setOptimisticAttackUnits((currentUnits) =>
+      currentUnits.filter((unit) => !serverAttackUnitIds.has(unit.id))
+    );
+  }, [attackUnits, optimisticAttackUnits.length]);
+
+  const visibleAttackUnits = useMemo(() => {
+    if (optimisticAttackUnits.length === 0) {
+      return attackUnits;
+    }
+
+    const mergedById = new Map<string, AttackUnitMarker>();
+
+    for (const unit of optimisticAttackUnits) {
+      mergedById.set(unit.id, unit);
+    }
+
+    for (const unit of attackUnits) {
+      mergedById.set(unit.id, unit);
+    }
+
+    return [...mergedById.values()].sort(
+      (left, right) =>
+        new Date(left.launchedAt).getTime() -
+        new Date(right.launchedAt).getTime()
+    );
+  }, [attackUnits, optimisticAttackUnits]);
 
   const gameplayOpen = phaseStatus === "ACTIVE" || phaseStatus === "TESTING";
   const hasUnreadChat = unreadChatCount > 0;
@@ -529,6 +566,25 @@ export function BattlefieldExperience({
         return;
       }
 
+      if (isHomeOfATile(tileId) && result.launchedAttackUnit) {
+        setOptimisticAttackUnits((currentUnits) => {
+          const nextUnit: AttackUnitMarker = {
+            ...result.launchedAttackUnit,
+            launchedAt: new Date(result.launchedAttackUnit.launchedAt),
+            arrivesAt: new Date(result.launchedAttackUnit.arrivesAt),
+            recalledAt: result.launchedAttackUnit.recalledAt
+              ? new Date(result.launchedAttackUnit.recalledAt)
+              : null,
+          };
+
+          if (currentUnits.some((unit) => unit.id === nextUnit.id)) {
+            return currentUnits;
+          }
+
+          return [...currentUnits, nextUnit];
+        });
+      }
+
       router.refresh();
     } finally {
       setMapActionPending(false);
@@ -556,6 +612,24 @@ export function BattlefieldExperience({
 
     router.refresh();
   }
+
+  const handleSelectFortress = useCallback(
+    (fortress: MapFortress) => {
+      if (fortress.isCurrentUser) {
+        setSelectedFortressId(fortress.id);
+        return;
+      }
+
+      if (homeOfA && fortress.fortressKind === "MEGA") {
+        setSelectedTileId(homeOfA.tileId);
+      }
+    },
+    [homeOfA]
+  );
+
+  const handleSelectMapHex = useCallback((tileId: string) => {
+    setSelectedTileId(tileId);
+  }, []);
 
   const actionButtons = (
     <div
@@ -1098,22 +1172,13 @@ export function BattlefieldExperience({
           className={immersive ? styles.fullMap : undefined}
           fortresses={mapFortresses}
           mapHexes={mapHexes}
-          attackUnits={attackUnits}
+          attackUnits={visibleAttackUnits}
           selectedFortressId={selectedFortressId}
           selectedTargetId={selectedTargetId}
           selectedTileId={selectedTileId}
-          onSelectFortress={(fortress) => {
-            if (fortress.isCurrentUser) {
-              setSelectedFortressId(fortress.id);
-              return;
-            }
-
-            if (homeOfA && fortress.fortressKind === "MEGA") {
-              setSelectedTileId(homeOfA.tileId);
-            }
-          }}
+          onSelectFortress={handleSelectFortress}
           onConfirmAttackTarget={handleConfirmAttackTarget}
-          onSelectMapHex={setSelectedTileId}
+          onSelectMapHex={handleSelectMapHex}
           onRecallAttackUnit={handleRecallAttackUnit}
           onInstantRecallAttackUnit={handleInstantRecallAttackUnit}
         />
