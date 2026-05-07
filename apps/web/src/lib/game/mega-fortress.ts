@@ -388,6 +388,39 @@ export async function ensureCurrentMapLayout({
   const hasDuplicatePositions =
     cycle && hasDuplicateFortressMapPositions(cycle.fortresses);
 
+  // DIAGNOSTIC LOGGING: Help identify why fortress locations are resetting on deploy
+  if (cycle) {
+    const willReshuffle = !(
+      !cycle ||
+      (cycle.status !== CycleStatus.ACTIVE &&
+        cycle.status !== CycleStatus.TESTING) ||
+      (hasCurrentLayout && !hasDuplicatePositions)
+    );
+
+    console.error(
+      `[LOCATION_DIAGNOSTIC] Cycle: ${cycle.id}, Status: ${cycle.status}`,
+      {
+        dbMapLayoutVersion: cycle.mapLayoutVersion,
+        currentMapLayoutVersion: CURRENT_MAP_LAYOUT_VERSION,
+        hasCurrentLayout,
+        hasDuplicatePositions,
+        fortressCount: cycle.fortresses.length,
+        willReshuffle,
+        timestamp: new Date().toISOString(),
+      }
+    );
+
+    if (willReshuffle) {
+      console.error(
+        `[LOCATION_RESHUFFLE_TRIGGERED] Fortress locations will be randomized! Reason: ${
+          !hasCurrentLayout
+            ? "mapLayoutVersion outdated"
+            : "duplicate positions detected"
+        }`
+      );
+    }
+  }
+
   if (
     !cycle ||
     (cycle.status !== CycleStatus.ACTIVE &&
