@@ -56,6 +56,30 @@
   background: rgba(247, 196, 95, 0.12);
 }
 
+.systemMessage {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--accent-strong);
+  border-radius: 12px;
+  background: rgba(247, 196, 95, 0.08);
+}
+
+.systemLabel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--accent-strong);
+  color: var(--accent-strong);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .messageMeta {
   display: flex;
   justify-content: space-between;

@@ -1,6 +1,7 @@
 import { sendChatMessageAction } from "@/app/game-actions";
 import { ChatMessageList } from "./chat-message-list";
 import { GiphyGifPicker } from "./giphy-gif-picker";
+import { getChatMessageVariant } from "./chat-panel-helpers";
 import styles from "./chat-panel.module.css";
 
 const messageFormatter = new Intl.DateTimeFormat("en-US", {
@@ -28,6 +29,7 @@ type ChatPanelProps = {
     createdAt: Date;
     authorName: string;
     isCurrentUser: boolean;
+    isSystem: boolean;
   }>;
   canPost: boolean;
   maxLength: number;
@@ -43,33 +45,47 @@ export function ChatPanel({
   function renderMessages(
     sourceMessages: ChatPanelProps["messages"]
   ) {
-    return sourceMessages.map((message) => (
-      <article
-        key={message.id}
-        className={message.isCurrentUser ? styles.ownMessage : styles.message}
-      >
-        <div className={styles.messageMeta}>
-          <strong>{message.authorName}</strong>
-          <span>{messageFormatter.format(message.createdAt)}</span>
-        </div>
-        {message.type === "GIF" && message.gif ? (
-          <div className={styles.gifMessage}>
-            <img
-              src={message.gif.displayUrl}
-              alt={message.gif.title}
-              width={message.gif.width}
-              height={message.gif.height}
-              loading="lazy"
-            />
-            <a href={message.gif.sourceUrl} target="_blank" rel="noreferrer">
-              View on GIPHY
-            </a>
+    return sourceMessages.map((message) => {
+      const variant = getChatMessageVariant(message);
+
+      return (
+        <article
+          key={message.id}
+          className={
+            variant === "system"
+              ? styles.systemMessage
+              : variant === "own"
+                ? styles.ownMessage
+                : styles.message
+          }
+        >
+          <div className={styles.messageMeta}>
+            {message.isSystem ? (
+              <span className={styles.systemLabel}>System</span>
+            ) : (
+              <strong>{message.authorName}</strong>
+            )}
+            <span>{messageFormatter.format(message.createdAt)}</span>
           </div>
-        ) : (
-          <p>{message.body}</p>
-        )}
-      </article>
-    ));
+          {message.type === "GIF" && message.gif ? (
+            <div className={styles.gifMessage}>
+              <img
+                src={message.gif.displayUrl}
+                alt={message.gif.title}
+                width={message.gif.width}
+                height={message.gif.height}
+                loading="lazy"
+              />
+              <a href={message.gif.sourceUrl} target="_blank" rel="noreferrer">
+                View on GIPHY
+              </a>
+            </div>
+          ) : (
+            <p>{message.body}</p>
+          )}
+        </article>
+      );
+    });
   }
 
   return (

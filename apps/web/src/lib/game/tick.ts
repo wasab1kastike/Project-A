@@ -78,6 +78,7 @@ import {
 } from "./battlefields";
 import { getTileBonus, getTileById, isHomeOfATile } from "./territory";
 import { recalculateReturningAttackRoutes } from "./fortress-relocation";
+import { ensureRaceSchemaReadiness } from "./schema-guards";
 
 export type TickSummary = {
   restartedRegistrationCycles: number;
@@ -457,6 +458,7 @@ export function classifyTickHealth(minutesBehind: number): TickHealth {
 }
 
 type TickRunnerStage =
+  | "schema-preflight"
   | "restart-registration"
   | "start-testing-cycle"
   | "complete-testing-cycle"
@@ -3314,6 +3316,16 @@ export async function runGameTick({
   now?: Date;
   db?: PrismaClient;
 } = {}): Promise<TickSummary> {
+  try {
+    await ensureRaceSchemaReadiness(db);
+  } catch (error) {
+    throw new TickRunnerError({
+      stage: "schema-preflight",
+      now,
+      cause: error,
+    });
+  }
+
   const summary: TickSummary = {
     restartedRegistrationCycles: 0,
     testingCyclesStarted: 0,

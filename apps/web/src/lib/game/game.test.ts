@@ -150,6 +150,12 @@ import {
   submitWinnerRequest,
   updateWinnerRequestFulfillmentProgress,
 } from "./winner-requests";
+import {
+  RaceSchemaReadinessError,
+  ensureRaceSchemaReadiness,
+  getRaceSchemaReadiness,
+} from "./schema-guards";
+import { getChatMessageVariant } from "@/components/chat-panel-helpers";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = resolve(__dirname, "../../..");
@@ -624,6 +630,25 @@ test("tick health classification separates healthy, delayed, and stalled states"
   assert.equal(classifyTickHealth(1), "ok");
   assert.equal(classifyTickHealth(2), "lagging");
   assert.equal(classifyTickHealth(3), "stalled");
+});
+
+test("chat message variant marks only system messages as system", () => {
+  assert.equal(
+    getChatMessageVariant({ isCurrentUser: false, isSystem: false }),
+    "default"
+  );
+  assert.equal(
+    getChatMessageVariant({ isCurrentUser: true, isSystem: false }),
+    "own"
+  );
+  assert.equal(
+    getChatMessageVariant({ isCurrentUser: false, isSystem: true }),
+    "system"
+  );
+  assert.equal(
+    getChatMessageVariant({ isCurrentUser: true, isSystem: true }),
+    "system"
+  );
 });
 
 test("territory bonuses and claim costs are deterministic", () => {
@@ -1485,6 +1510,142 @@ test("tick CLI formats structured runner errors with stage context", () => {
   assert.match(formatted, /"stage":"process-minute"/);
   assert.match(formatted, /"cycleId":"cycle-123"/);
   assert.match(formatted, /Unique constraint failed/);
+});
+
+test("race schema readiness passes when race tables, enums, and columns exist", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  await withIsolatedDatabase(prisma, async (isolated) => {
+    const readiness = await getRaceSchemaReadiness(isolated);
+
+    assert.equal(readiness.ready, true);
+    assert.equal(readiness.missingObjects.length, 0);
+    assert.equal(readiness.message, null);
+  });
+});
+
+test("race schema readiness reports missing Dwarf roll columns clearly", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  await withIsolatedDatabase(prisma, async (isolated) => {
+    await isolated.$executeRawUnsafe(`
+      ALTER TABLE "DwarfDeepMiningRoll"
+      DROP COLUMN "committedGold",
+      DROP COLUMN "armyDelta"
+    `);
+
+    const readiness = await getRaceSchemaReadiness(isolated);
+
+    assert.equal(readiness.ready, false);
+    assert.equal(
+      readiness.missingObjects.includes(
+        "column DwarfDeepMiningRoll.committedGold"
+      ),
+      true
+    );
+    assert.equal(
+      readiness.missingObjects.includes("column DwarfDeepMiningRoll.armyDelta"),
+      true
+    );
+    assert.match(readiness.message ?? "", /Run Prisma migrations/);
+  });
+});
+
+test("race schema readiness reports missing ORK tables and enums clearly", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  await withIsolatedDatabase(prisma, async (isolated) => {
+    await isolated.$executeRawUnsafe('DROP TABLE "OrkScrapBank" CASCADE');
+    await isolated.$executeRawUnsafe(
+      'ALTER TYPE "OrkBossOrderKind" RENAME TO "OrkBossOrderKind__missing"'
+    );
+
+    const readiness = await getRaceSchemaReadiness(isolated);
+
+    assert.equal(readiness.ready, false);
+    assert.equal(readiness.missingObjects.includes("table OrkScrapBank"), true);
+    assert.equal(
+      readiness.missingObjects.includes("enum OrkBossOrderKind"),
+      true
+    );
+  });
+});
+
+test("race schema readiness error message is concise for cron logs", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  await withIsolatedDatabase(prisma, async (isolated) => {
+    await isolated.$executeRawUnsafe('DROP TABLE "OrkScrapEvent" CASCADE');
+
+    await assert.rejects(
+      () => ensureRaceSchemaReadiness(isolated),
+      (error: unknown) => {
+        assert.equal(error instanceof RaceSchemaReadinessError, true);
+        assert.match(String((error as Error).message), /Race schema preflight failed/);
+        assert.match(String((error as Error).message), /Run Prisma migrations/);
+        return true;
+      }
+    );
+  });
+});
+
+test("runGameTick fails fast on race schema drift before processing minutes", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  await withIsolatedDatabase(prisma, async (isolated) => {
+    const cycle = await seedOpenCycle(isolated);
+
+    await isolated.$executeRawUnsafe('DROP TABLE "OrkBossOrder" CASCADE');
+
+    let runnerError: TickRunnerError | null = null;
+
+    try {
+      await runGameTick({
+        db: isolated,
+        now: new Date("2026-04-20T12:00:00.000Z"),
+      });
+    } catch (error) {
+      runnerError = error as TickRunnerError;
+    }
+
+    assert.ok(runnerError);
+    assert.equal(runnerError.stage, "schema-preflight");
+    assert.equal(
+      (runnerError as Error & { cause?: unknown }).cause instanceof
+        RaceSchemaReadinessError,
+      true
+    );
+    assert.match(formatTickRunnerError(runnerError), /"stage":"schema-preflight"/);
+    assert.equal(await isolated.gameTick.count(), 0);
+
+    const reloadedCycle = await isolated.cycle.findUniqueOrThrow({
+      where: {
+        id: cycle.id,
+      },
+    });
+
+    assert.equal(reloadedCycle.status, CycleStatus.REGISTRATION);
+  });
 });
 
 test("attack presentation keeps units moving until the impact window", () => {
@@ -3407,6 +3568,22 @@ async function setupDatabase() {
   await client.$connect();
 
   return { client, schema };
+}
+
+async function withIsolatedDatabase<T>(
+  baseClient: PrismaClient,
+  run: (isolatedClient: PrismaClient) => Promise<T>
+) {
+  const isolated = await setupDatabase();
+
+  try {
+    return await run(isolated.client);
+  } finally {
+    await isolated.client.$disconnect();
+    await baseClient.$executeRawUnsafe(
+      `DROP SCHEMA IF EXISTS "${isolated.schema}" CASCADE`
+    );
+  }
 }
 
 async function resetDatabase(client: PrismaClient) {
@@ -10329,6 +10506,76 @@ test("chat messages are visible to spectators in read-only mode", async (context
     signedOutState.chat.latestMessageAt?.toISOString(),
     "2026-04-19T12:03:00.000Z"
   );
+});
+
+test("read model maps system-authored WAAAGH announcements to system chat messages", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const ork = await createUser(prisma, "waaagh-system-map@example.com");
+
+  const cycle = await seedActiveCommunityWishCycle(
+    prisma,
+    [
+      {
+        userId: ork.id,
+        commanderName: "Shout Boss",
+        fortressName: "Echo Fort",
+        points: 0,
+      },
+    ],
+    new Date("2026-04-20T16:00:00.000Z")
+  );
+
+  await prisma.fortress.update({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: ork.id,
+      },
+    },
+    data: {
+      race: FortressRace.ORKS,
+    },
+  });
+
+  await sendChatMessage({
+    db: prisma,
+    userId: ork.id,
+    body: "Green tide rising.",
+    now: new Date("2026-04-20T12:03:00.000Z"),
+  });
+
+  await activateRaceAbility({
+    userId: ork.id,
+    kind: RaceAbilityKind.ORK_WAAAGH,
+    now: new Date("2026-04-20T12:05:00.000Z"),
+    db: prisma,
+  });
+
+  const state = await getHomePageState({
+    db: prisma,
+    userId: ork.id,
+  });
+
+  const systemMessage = state.chat.messages.find((message) =>
+    message.body.includes("WAAAGH")
+  );
+  const playerMessage = state.chat.messages.find(
+    (message) => message.body === "Green tide rising."
+  );
+
+  assert.ok(systemMessage);
+  assert.equal(systemMessage.isSystem, true);
+  assert.equal(systemMessage.authorName, "System");
+  assert.notEqual(systemMessage.authorName, "Spectator");
+
+  assert.ok(playerMessage);
+  assert.equal(playerMessage.isSystem, false);
+  assert.equal(playerMessage.authorName, "Shout Boss");
 });
 
 test("chat sending is rate limited to six messages per minute", async (context) => {

@@ -20,6 +20,7 @@ import {
   HOME_OF_A_POINT_INCOME,
   HOME_OF_A_TILE_ID,
   MAX_SIMULTANEOUS_ATTACKS_BASE,
+  NPC_SYSTEM_USER_EMAIL,
 } from "./constants";
 import {
   calculateTickProduction,
@@ -62,6 +63,7 @@ import {
 } from "./orks";
 import { HEX_TILES, type HexTile } from "./map-hex";
 import {
+  TILE_CLAIM_DURATION_MINUTES,
   TILE_CLAIM_MAX_ACTIVE_PROJECTS,
   TILE_CLAIM_OWNED_TILE_COST_STEP,
   getHomeOfABonus,
@@ -1755,12 +1757,14 @@ export async function getHomePageState({
       author: {
         select: {
           id: true,
+          email: true,
         },
       },
     },
   });
   const latestMessageAt = globalChatMessages[0]?.createdAt ?? null;
   const chatMessages = [...globalChatMessages].reverse().map((message) => ({
+    isSystem: message.author.email === NPC_SYSTEM_USER_EMAIL,
     id: message.id,
     type: message.type,
     body: message.body,
@@ -1785,7 +1789,10 @@ export async function getHomePageState({
           }
         : null,
     createdAt: message.createdAt,
-    authorName: commanderNameByOwnerId.get(message.author.id) ?? "Spectator",
+    authorName:
+      message.author.email === NPC_SYSTEM_USER_EMAIL
+        ? "System"
+        : (commanderNameByOwnerId.get(message.author.id) ?? "Spectator"),
     isCurrentUser: message.author.id === userId,
   }));
   const unreadCount = currentUser
@@ -2035,6 +2042,7 @@ export async function getHomePageState({
     return {
       pendingClaim,
       claimCost,
+      claimDurationMinutes: TILE_CLAIM_DURATION_MINUTES,
       sizeSurcharge,
       isConnectedToPlayerTerritory,
       canClaim: claimDisabledReason === null,

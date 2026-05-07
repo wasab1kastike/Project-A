@@ -47,6 +47,7 @@ type ChatProps = {
     createdAt: Date;
     authorName: string;
     isCurrentUser: boolean;
+    isSystem: boolean;
   }>;
   canPost: boolean;
   maxLength: number;
@@ -697,6 +698,18 @@ export function BattlefieldExperience({
             </dd>
           </div>
         ) : null}
+        {!selectedTileIsHomeOfA && !selectedOwnership?.ownerFortressId ? (
+          <div>
+            <dt>Claim time</dt>
+            <dd>
+              {selectedPendingClaim
+                ? `${selectedPendingClaim.remainingSeconds >= 60 ? `${Math.ceil(selectedPendingClaim.remainingSeconds / 60)} min` : `${selectedPendingClaim.remainingSeconds}s`} left`
+                : selectedOwnership?.claimDurationMinutes != null
+                  ? `${selectedOwnership.claimDurationMinutes} min`
+                  : "-"}
+            </dd>
+          </div>
+        ) : null}
         {!selectedTileIsHomeOfA && selectedOwnership ? (
           <div>
             <dt>Size surcharge</dt>
@@ -750,12 +763,12 @@ export function BattlefieldExperience({
 
       {selectedPendingClaim ? (
         <p className={styles.helper}>
-          Acquiring until{" "}
+          Completes at{" "}
           {new Date(selectedPendingClaim.completesAt).toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
           })}
-          . {formatClaimRemaining(selectedPendingClaim.remainingSeconds)} left.
+          {selectedPendingClaim.isCurrentUser ? " — your acquisition." : "."}
         </p>
       ) : null}
 
