@@ -137,7 +137,11 @@ import {
   getBattlefieldProgressDelta,
   processActiveBattlefields,
 } from "./battlefields";
-import { getTileBonus, getTileClaimCost } from "./territory";
+import {
+  getTileBonus,
+  getTileClaimCost,
+  isTileConnectedToFortressOrOwnedTiles,
+} from "./territory";
 import {
   classifyWinnerRequest,
   reviewWinnerRequest,
@@ -747,6 +751,11 @@ test("neutral tile claim spends gold and applies tick bonus", async (context) =>
   const tile = HEX_SPAWN_TILES.find(
     (candidate) =>
       candidate.spawnable &&
+      isTileConnectedToFortressOrOwnedTiles({
+        tileId: candidate.id,
+        fortress,
+        ownedTileIds: [],
+      }) &&
       (getTileBonus(candidate).gold > 0 || getTileBonus(candidate).food > 0)
   );
 
@@ -771,10 +780,26 @@ test("neutral tile claim spends gold and applies tick bonus", async (context) =>
     db: prisma,
   });
 
+  const pendingOwnership = await prisma.mapHexOwnership.findUnique({
+    where: {
+      cycleId_tileId: {
+        cycleId: cycle.id,
+        tileId: tile.id,
+      },
+    },
+  });
+
+  assert.equal(pendingOwnership, null);
+
+  await runGameTick({
+    now: new Date("2026-04-20T12:11:00.000Z"),
+    db: prisma,
+  });
+
   const expectedTileBonus = getTileBonus(tile, {
     tileId: tile.id,
     cycleId: cycle.id,
-    at: new Date("2026-04-20T12:02:00.000Z"),
+    at: new Date("2026-04-20T12:11:00.000Z"),
   });
 
   const reloaded = await prisma.fortress.findUniqueOrThrow({
@@ -786,6 +811,15 @@ test("neutral tile claim spends gold and applies tick bonus", async (context) =>
   assert.equal(reloaded.gold, 100 - claimCost + expectedTileBonus.gold);
   assert.equal(reloaded.food, expectedTileBonus.food);
   assert.equal(reloaded.points, expectedTileBonus.points);
+
+  const completedProject = await prisma.mapHexClaimProject.findFirstOrThrow({
+    where: {
+      cycleId: cycle.id,
+      tileId: tile.id,
+    },
+  });
+
+  assert.equal(completedProject.completedAt?.toISOString(), "2026-04-20T12:11:00.000Z");
 });
 
 test("owned tile attack creates a targetTileId battlefield", async (context) => {
@@ -3320,6 +3354,7 @@ async function resetDatabase(client: PrismaClient) {
   await client.battlefieldParticipant.deleteMany();
   await client.battlefield.deleteMany();
   await client.homeOfAHolder.deleteMany();
+  await client.mapHexClaimProject.deleteMany();
   await client.mapHexOwnership.deleteMany();
   await client.scoreEvent.deleteMany();
   await client.gameTick.deleteMany();

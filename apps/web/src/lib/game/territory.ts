@@ -26,6 +26,10 @@ export type TemporaryMapObjective = {
   label: string;
 };
 
+export const TILE_CLAIM_DURATION_MINUTES = 10;
+export const TILE_CLAIM_MAX_ACTIVE_PROJECTS = 1;
+export const TILE_CLAIM_OWNED_TILE_COST_STEP = 10;
+
 const EMPTY_BONUS: TileBonus = {
   gold: 0,
   points: 0,
@@ -168,6 +172,86 @@ export function getTileById(tileId: string) {
   return HEX_TILES.find((tile) => tile.id === tileId) ?? null;
 }
 
+const TILE_BY_COORDINATE = new Map(
+  HEX_TILES.map((tile) => [`${tile.col}:${tile.row}`, tile] as const)
+);
+
+export function getAdjacentTileIds(tileId: string) {
+  const tile = getTileById(tileId);
+
+  if (!tile) {
+    return [];
+  }
+
+  const neighborOffsets =
+    tile.row % 2 === 0
+      ? [
+          [-1, -1],
+          [0, -1],
+          [-1, 0],
+          [1, 0],
+          [-1, 1],
+          [0, 1],
+        ]
+      : [
+          [0, -1],
+          [1, -1],
+          [-1, 0],
+          [1, 0],
+          [0, 1],
+          [1, 1],
+        ];
+
+  return neighborOffsets
+    .map(([colOffset, rowOffset]) =>
+      TILE_BY_COORDINATE.get(`${tile.col + colOffset}:${tile.row + rowOffset}`)
+    )
+    .filter((neighbor): neighbor is HexTile => neighbor !== undefined)
+    .map((neighbor) => neighbor.id);
+}
+
+export function isTileConnectedToFortressOrOwnedTiles({
+  tileId,
+  fortress,
+  ownedTileIds,
+}: {
+  tileId: string;
+  fortress: { mapX: number; mapY: number };
+  ownedTileIds: Iterable<string>;
+}) {
+  const tile = getTileById(tileId);
+
+  if (!tile) {
+    return false;
+  }
+
+  const adjacentTileIds = new Set(getAdjacentTileIds(tileId));
+  const castleTile = HEX_TILES.reduce((nearest, candidate) => {
+    const candidateDistance = Math.hypot(
+      candidate.xPercent - fortress.mapX,
+      candidate.yPercent - fortress.mapY
+    );
+    const nearestDistance = Math.hypot(
+      nearest.xPercent - fortress.mapX,
+      nearest.yPercent - fortress.mapY
+    );
+
+    return candidateDistance < nearestDistance ? candidate : nearest;
+  }, HEX_TILES[0]);
+
+  if (castleTile && adjacentTileIds.has(castleTile.id)) {
+    return true;
+  }
+
+  for (const ownedTileId of ownedTileIds) {
+    if (adjacentTileIds.has(ownedTileId)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 export function getTemporaryMapObjectives({
   cycleId,
   at,
@@ -294,19 +378,25 @@ export function getHomeOfABonus(): TileBonus {
 export function getTileClaimCost({
   tile,
   origin,
+  ownedTileCount = 0,
+  pendingClaimCount = 0,
 }: {
   tile: HexTile;
   origin: { mapX: number; mapY: number };
+  ownedTileCount?: number;
+  pendingClaimCount?: number;
 }) {
   const distance = Math.hypot(tile.xPercent - origin.mapX, tile.yPercent - origin.mapY);
   const biomePremium =
     tile.biome === "hills" || tile.biome === "forest"
-      ? 8
+      ? 12
       : tile.biome === "marsh" || tile.biome === "coast"
-        ? 5
+        ? 8
         : 0;
+  const sizeSurcharge =
+    (ownedTileCount + pendingClaimCount) * TILE_CLAIM_OWNED_TILE_COST_STEP;
 
-  return Math.max(10, Math.ceil(distance / 2) + biomePremium);
+  return 25 + Math.ceil(distance * 0.75) + biomePremium + sizeSurcharge;
 }
 
 export function sumTileBonuses(

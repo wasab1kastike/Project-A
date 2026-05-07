@@ -54,11 +54,16 @@ import {
 } from "./race-buffs";
 import { countCastleSpecializations } from "./specializations";
 import { DWARF_DEEP_MINING_RUNE_BOUNTY } from "./dwarf-deep-mining";
+import { HEX_TILES, type HexTile } from "./map-hex";
 import {
+  TILE_CLAIM_MAX_ACTIVE_PROJECTS,
+  TILE_CLAIM_OWNED_TILE_COST_STEP,
   getHomeOfABonus,
   getTileBonus,
+  getTileClaimCost,
   getTileById,
   isHomeOfATile,
+  isTileConnectedToFortressOrOwnedTiles,
   sumTileBonuses,
 } from "./territory";
 
@@ -636,6 +641,29 @@ export async function getHomePageState({
           claimedAt: true,
           ownerFortressId: true,
           ownerFortress: {
+            select: {
+              id: true,
+              ownerId: true,
+              name: true,
+              commanderName: true,
+            },
+          },
+        },
+      },
+      mapHexClaimProjects: {
+        where: {
+          completedAt: null,
+        },
+        orderBy: [{ completesAt: "asc" }, { id: "asc" }],
+        select: {
+          id: true,
+          fortressId: true,
+          tileId: true,
+          goldCost: true,
+          startedAt: true,
+          completesAt: true,
+          completedAt: true,
+          fortress: {
             select: {
               id: true,
               ownerId: true,
@@ -1829,6 +1857,18 @@ export async function getHomePageState({
         .map((ownership) => getTileById(ownership.tileId))
         .filter((tile): tile is NonNullable<typeof tile> => tile !== null)
     : [];
+  const ownedNormalTileIds = ownedNormalTiles.map((tile) => tile.id);
+  const activeClaimByTileId = new Map(
+    cycle.mapHexClaimProjects.map((project) => [project.tileId, project])
+  );
+  const activeOwnClaimCount = playerFortress
+    ? cycle.mapHexClaimProjects.filter(
+        (project) => project.fortressId === playerFortress.id
+      ).length
+    : 0;
+  const claimedTileIds = new Set(
+    cycle.mapHexOwnerships.map((ownership) => ownership.tileId)
+  );
   const ownedTileBonuses = sumTileBonuses(ownedNormalTiles, {
     cycleId: cycle.id,
     at: now,
@@ -1840,6 +1880,99 @@ export async function getHomePageState({
     foodIncome: ownedTileBonuses.food,
     armyIncome: ownedTileBonuses.army,
     defenseBonusPercent: ownedTileBonuses.defensePercent,
+  };
+  const getPendingClaimPayload = (tileId: string) => {
+    const pendingClaim = activeClaimByTileId.get(tileId);
+
+    if (!pendingClaim) {
+      return null;
+    }
+
+    return {
+      id: pendingClaim.id,
+      fortressId: pendingClaim.fortressId,
+      ownerName: pendingClaim.fortress.name,
+      ownerCommanderName: pendingClaim.fortress.commanderName,
+      isCurrentUser: pendingClaim.fortress.ownerId === userId,
+      goldCost: pendingClaim.goldCost,
+      startedAt: pendingClaim.startedAt,
+      completesAt: pendingClaim.completesAt,
+      remainingSeconds: Math.max(
+        0,
+        Math.ceil((pendingClaim.completesAt.getTime() - now.getTime()) / 1000)
+      ),
+    };
+  };
+  const getTileClaimState = (tile: HexTile) => {
+    const pendingClaim = getPendingClaimPayload(tile.id);
+    const claimCost = playerFortress
+      ? getTileClaimCost({
+          tile,
+          origin: playerFortress,
+          ownedTileCount: ownedNormalTiles.length,
+          pendingClaimCount: activeOwnClaimCount,
+        })
+      : null;
+    const isConnectedToPlayerTerritory = playerFortress
+      ? isTileConnectedToFortressOrOwnedTiles({
+          tileId: tile.id,
+          fortress: playerFortress,
+          ownedTileIds: ownedNormalTileIds,
+        })
+      : false;
+    const sizeSurcharge =
+      playerFortress !== null
+        ? (ownedNormalTiles.length + activeOwnClaimCount) *
+          TILE_CLAIM_OWNED_TILE_COST_STEP
+        : 0;
+    const claimDisabledReason = (() => {
+      if (!gameplayOpen) {
+        return "Tiles can only be claimed during gameplay.";
+      }
+
+      if (!playerFortress) {
+        return "Join the cycle to claim tiles.";
+      }
+
+      if (!tile.spawnable) {
+        return "That map tile cannot be claimed.";
+      }
+
+      if (isHomeOfATile(tile.id)) {
+        return "Home of A must be conquered, not claimed.";
+      }
+
+      if (claimedTileIds.has(tile.id)) {
+        return "That tile is already claimed.";
+      }
+
+      if (pendingClaim) {
+        return "That tile is already being acquired.";
+      }
+
+      if (activeOwnClaimCount >= TILE_CLAIM_MAX_ACTIVE_PROJECTS) {
+        return "You can only acquire one tile at a time.";
+      }
+
+      if (!isConnectedToPlayerTerritory) {
+        return "That tile is not connected to your castle or owned territory.";
+      }
+
+      if (claimCost !== null && playerFortress.gold < claimCost) {
+        return `You need ${claimCost} gold to claim this tile.`;
+      }
+
+      return null;
+    })();
+
+    return {
+      pendingClaim,
+      claimCost,
+      sizeSurcharge,
+      isConnectedToPlayerTerritory,
+      canClaim: claimDisabledReason === null,
+      claimDisabledReason,
+    };
   };
   const mappedMapHexes: Array<{
     id: string;
@@ -1853,6 +1986,11 @@ export async function getHomePageState({
     hasActiveBattle: boolean;
     canAttack: boolean;
     claimCost: number | null;
+    sizeSurcharge: number;
+    isConnectedToPlayerTerritory: boolean;
+    canClaim: boolean;
+    claimDisabledReason: string | null;
+    pendingClaim: ReturnType<typeof getPendingClaimPayload>;
     activeBattlefieldId: string | null;
     attackDisabledReason: string | null;
     bonus: {
@@ -1868,6 +2006,16 @@ export async function getHomePageState({
     holders: typeof homeHolders;
   }> = cycle.mapHexOwnerships.map((ownership) => {
     const tile = getTileById(ownership.tileId);
+    const claimState = tile
+      ? getTileClaimState(tile)
+      : {
+          pendingClaim: null,
+          claimCost: null,
+          sizeSurcharge: 0,
+          isConnectedToPlayerTerritory: false,
+          canClaim: false,
+          claimDisabledReason: "That map tile cannot be claimed.",
+        };
     const bonus = isHomeOfATile(ownership.tileId)
       ? getHomeOfABonus()
       : getTileBonus(tile, {
@@ -1892,7 +2040,12 @@ export async function getHomePageState({
         playerFortress.army > 0 &&
         ownership.ownerFortressId !== playerFortress.id &&
         !activeBattleTileIds.has(ownership.tileId),
-      claimCost: null,
+      claimCost: claimState.claimCost,
+      sizeSurcharge: claimState.sizeSurcharge,
+      isConnectedToPlayerTerritory: claimState.isConnectedToPlayerTerritory,
+      canClaim: false,
+      claimDisabledReason: "That tile is already claimed.",
+      pendingClaim: claimState.pendingClaim,
       activeBattlefieldId:
         activeBattlefieldByTileId.get(ownership.tileId)?.id ?? null,
       attackDisabledReason: getTileAttackDisabledReason(ownership),
@@ -1916,6 +2069,11 @@ export async function getHomePageState({
       hasActiveBattle: activeBattleTileIds.has(HOME_OF_A_TILE_ID),
       canAttack: canAttackHomeOfA,
       claimCost: null,
+      sizeSurcharge: 0,
+      isConnectedToPlayerTerritory: false,
+      canClaim: false,
+      claimDisabledReason: "Home of A must be conquered, not claimed.",
+      pendingClaim: null,
       activeBattlefieldId:
         activeBattlefieldByTileId.get(HOME_OF_A_TILE_ID)?.id ?? null,
       attackDisabledReason: canAttackHomeOfA
@@ -1932,6 +2090,49 @@ export async function getHomePageState({
       bonus: getHomeOfABonus(),
       isHomeOfA: true,
       pointIncome: HOME_OF_A_POINT_INCOME,
+      holders: [],
+    });
+  }
+
+  for (const tile of HEX_TILES) {
+    if (
+      !tile.spawnable ||
+      isHomeOfATile(tile.id) ||
+      claimedTileIds.has(tile.id)
+    ) {
+      continue;
+    }
+
+    const claimState = getTileClaimState(tile);
+    const pendingClaim = claimState.pendingClaim;
+    const bonus = getTileBonus(tile, {
+      tileId: tile.id,
+      cycleId: cycle.id,
+      at: now,
+    });
+
+    mappedMapHexes.push({
+      id: pendingClaim?.id ?? `neutral-${tile.id}`,
+      tileId: tile.id,
+      biome: tile.biome,
+      claimedAt: null,
+      ownerFortressId: null,
+      ownerName: pendingClaim?.ownerName ?? "Neutral",
+      ownerCommanderName: pendingClaim?.ownerCommanderName ?? "Unclaimed",
+      isCurrentUser: pendingClaim?.isCurrentUser ?? false,
+      hasActiveBattle: activeBattleTileIds.has(tile.id),
+      canAttack: false,
+      claimCost: claimState.claimCost,
+      sizeSurcharge: claimState.sizeSurcharge,
+      isConnectedToPlayerTerritory: claimState.isConnectedToPlayerTerritory,
+      canClaim: claimState.canClaim,
+      claimDisabledReason: claimState.claimDisabledReason,
+      pendingClaim,
+      activeBattlefieldId: activeBattlefieldByTileId.get(tile.id)?.id ?? null,
+      attackDisabledReason: null,
+      bonus,
+      isHomeOfA: false,
+      pointIncome: bonus.points > 0 ? bonus.points : null,
       holders: [],
     });
   }

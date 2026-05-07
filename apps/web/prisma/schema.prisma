@@ -254,6 +254,7 @@ model Cycle {
   attackUnits                   AttackUnit[]
   battlefields                  Battlefield[]
   mapHexOwnerships              MapHexOwnership[]
+  mapHexClaimProjects           MapHexClaimProject[]
   castleUpgradeProjects         CastleUpgradeProject[]
   homeOfAHolders                HomeOfAHolder[]
   unicornTemporaryTeleports     UnicornTemporaryTeleport[]
@@ -327,6 +328,7 @@ model Fortress {
   deepMiningRuneRolls          DwarfDeepMiningRoll[]               @relation("DwarfDeepMiningRune")
   deepMiningTargetedBy         DwarfDeepMiningRoll[]               @relation("DwarfDeepMiningTarget")
   ownedMapHexes                MapHexOwnership[]                   @relation("MapHexOwner")
+  mapHexClaimProjects          MapHexClaimProject[]                @relation("MapHexClaimProjectFortress")
   homeOfAHoldings              HomeOfAHolder[]                     @relation("HomeOfAHolderFortress")
   homeOfABannerHoldings        HomeOfAHolder[]                     @relation("HomeOfABannerFortress")
   attackerBannerBattlefields   Battlefield[]                       @relation("BattlefieldAttackerBanner")
@@ -383,6 +385,25 @@ model MapHexOwnership {
   @@unique([cycleId, tileId])
   @@index([ownerFortressId])
   @@index([cycleId, ownerFortressId])
+}
+
+model MapHexClaimProject {
+  id          String    @id @default(cuid())
+  cycleId     String
+  fortressId  String
+  tileId      String
+  goldCost    Int
+  startedAt   DateTime
+  completesAt DateTime
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  cycle       Cycle     @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress    Fortress  @relation("MapHexClaimProjectFortress", fields: [fortressId], references: [id], onDelete: Cascade)
+
+  @@index([cycleId, completedAt, completesAt])
+  @@index([fortressId, completedAt])
+  @@index([cycleId, tileId, completedAt])
 }
 
 model CastleUpgradeProject {

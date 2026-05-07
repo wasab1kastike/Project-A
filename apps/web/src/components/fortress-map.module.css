@@ -168,6 +168,13 @@
   stroke-width: 5px;
 }
 
+.pendingClaimTile polygon {
+  stroke: rgba(255, 238, 150, 0.85);
+  stroke-width: 5px;
+  stroke-dasharray: 7 7;
+  filter: drop-shadow(0 0 7px rgba(255, 238, 150, 0.38));
+}
+
 .objectiveTile polygon {
   stroke: rgba(109, 217, 255, 0.8);
   stroke-width: 6px;

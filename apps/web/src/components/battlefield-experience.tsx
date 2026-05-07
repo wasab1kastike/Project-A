@@ -24,7 +24,6 @@ import { HEX_TILES, type HexBiome } from "@/lib/game/map-hex";
 import {
   getHomeOfABonus,
   getTileBonus,
-  getTileClaimCost,
   isHomeOfATile,
 } from "@/lib/game/territory";
 import { NoticeToast } from "./notice-toast";
@@ -161,6 +160,14 @@ const BIOME_LABELS: Record<HexBiome, string> = {
   marsh: "Marsh",
   lake: "Lake",
 };
+
+function formatClaimRemaining(seconds: number) {
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+
+  return `${Math.ceil(seconds / 60)}m`;
+}
 
 export function BattlefieldExperience({
   title,
@@ -322,21 +329,14 @@ export function BattlefieldExperience({
   const selectedTileBonus =
     selectedOwnership?.bonus ??
     (selectedTileIsHomeOfA ? getHomeOfABonus() : getTileBonus(selectedTile));
+  const selectedPendingClaim = selectedOwnership?.pendingClaim ?? null;
   const selectedClaimCost =
-    selectedTile &&
-    !selectedOwnership &&
-    !selectedTileIsHomeOfA &&
-    playerFortress
-      ? getTileClaimCost({
-          tile: selectedTile,
-          origin: mapFortresses.find(
-            (fortress) => fortress.id === playerFortress.id
-          ) ?? {
-            mapX: 0,
-            mapY: 0,
-          },
-        })
+    !selectedTileIsHomeOfA && !selectedOwnership?.ownerFortressId
+      ? (selectedOwnership?.claimCost ?? null)
       : null;
+  const selectedCanClaim = selectedOwnership?.canClaim ?? false;
+  const selectedClaimDisabledReason =
+    selectedOwnership?.claimDisabledReason ?? null;
   const selectedActiveBattlefieldId =
     selectedOwnership?.activeBattlefieldId ??
     (selectedTileId
@@ -664,7 +664,11 @@ export function BattlefieldExperience({
         <div>
           <dt>Owner</dt>
           <dd>
-            {selectedOwnership
+            {selectedPendingClaim
+              ? selectedPendingClaim.isCurrentUser
+                ? "You (acquiring)"
+                : `${selectedPendingClaim.ownerName} (acquiring)`
+              : selectedOwnership?.ownerFortressId
               ? selectedOwnership.isCurrentUser
                 ? "You"
                 : selectedOwnership.ownerName
@@ -685,7 +689,25 @@ export function BattlefieldExperience({
           <div>
             <dt>Claim cost</dt>
             <dd>
-              {selectedClaimCost !== null ? `${selectedClaimCost} gold` : "-"}
+              {selectedPendingClaim
+                ? `${selectedPendingClaim.goldCost} gold paid`
+                : selectedClaimCost !== null
+                  ? `${selectedClaimCost} gold`
+                  : "-"}
+            </dd>
+          </div>
+        ) : null}
+        {!selectedTileIsHomeOfA && selectedOwnership ? (
+          <div>
+            <dt>Size surcharge</dt>
+            <dd>{selectedOwnership.sizeSurcharge ?? 0} gold</dd>
+          </div>
+        ) : null}
+        {!selectedTileIsHomeOfA && selectedOwnership ? (
+          <div>
+            <dt>Connected</dt>
+            <dd>
+              {selectedOwnership.isConnectedToPlayerTerritory ? "Yes" : "No"}
             </dd>
           </div>
         ) : null}
@@ -694,7 +716,9 @@ export function BattlefieldExperience({
           <dd>
             {selectedActiveBattlefieldId
               ? "Contested"
-              : selectedOwnership
+              : selectedPendingClaim
+                ? "Acquiring"
+              : selectedOwnership?.ownerFortressId
                 ? selectedOwnership.canAttack
                   ? "Attackable"
                   : "Controlled"
@@ -724,26 +748,30 @@ export function BattlefieldExperience({
         </p>
       ) : null}
 
+      {selectedPendingClaim ? (
+        <p className={styles.helper}>
+          Acquiring until{" "}
+          {new Date(selectedPendingClaim.completesAt).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+          . {formatClaimRemaining(selectedPendingClaim.remainingSeconds)} left.
+        </p>
+      ) : null}
+
       <div className={styles.tileActions}>
-        {!selectedOwnership && !selectedTileIsHomeOfA ? (
+        {!selectedOwnership?.ownerFortressId &&
+        !selectedPendingClaim &&
+        !selectedTileIsHomeOfA ? (
           <button
             className={styles.secondaryButton}
             type="button"
             disabled={
               mapActionPending ||
-              !gameplayOpen ||
-              !playerSummary ||
-              selectedClaimCost === null ||
-              playerSummary.gold < selectedClaimCost
+              !selectedCanClaim ||
+              selectedClaimCost === null
             }
-            title={
-              !playerSummary
-                ? "Join the cycle to claim tiles."
-                : selectedClaimCost !== null &&
-                    playerSummary.gold < selectedClaimCost
-                  ? "Not enough gold."
-                  : undefined
-            }
+            title={selectedClaimDisabledReason ?? undefined}
             onClick={() => {
               void handleClaimMapHex(selectedTile.id);
             }}

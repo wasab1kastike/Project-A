@@ -62,7 +62,14 @@ import {
   getDwarfDeepMiningActiveUntil,
   rollDwarfDeepMining,
 } from "./dwarf-deep-mining";
-import { getTileById, getTileClaimCost, isHomeOfATile } from "./territory";
+import {
+  TILE_CLAIM_DURATION_MINUTES,
+  TILE_CLAIM_MAX_ACTIVE_PROJECTS,
+  getTileById,
+  getTileClaimCost,
+  isHomeOfATile,
+  isTileConnectedToFortressOrOwnedTiles,
+} from "./territory";
 import { joinBattlefield as joinBattlefieldRecord } from "./battlefields";
 import { getHomeOfAMapPosition } from "./mega-fortress";
 import { recalculateReturningAttackRoutes } from "./fortress-relocation";
@@ -771,9 +778,66 @@ export async function claimNeutralMapHex({
       throw new GameError("That tile is already claimed.");
     }
 
+    const activeClaimOnTile = await tx.mapHexClaimProject.findFirst({
+      where: {
+        cycleId: cycle.id,
+        tileId,
+        completedAt: null,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (activeClaimOnTile) {
+      throw new GameError("That tile is already being acquired.");
+    }
+
+    const activeOwnClaims = await tx.mapHexClaimProject.findMany({
+      where: {
+        cycleId: cycle.id,
+        fortressId: fortress.id,
+        completedAt: null,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (activeOwnClaims.length >= TILE_CLAIM_MAX_ACTIVE_PROJECTS) {
+      throw new GameError("You can only acquire one tile at a time.");
+    }
+
+    const ownedTileIds = await tx.mapHexOwnership.findMany({
+      where: {
+        cycleId: cycle.id,
+        ownerFortressId: fortress.id,
+      },
+      select: {
+        tileId: true,
+      },
+    });
+    const ownedNormalTileIds = ownedTileIds
+      .map((ownership) => ownership.tileId)
+      .filter((ownedTileId) => !isHomeOfATile(ownedTileId));
+
+    if (
+      !isTileConnectedToFortressOrOwnedTiles({
+        tileId,
+        fortress,
+        ownedTileIds: ownedNormalTileIds,
+      })
+    ) {
+      throw new GameError(
+        "You can only claim tiles connected to your castle or owned territory."
+      );
+    }
+
     const claimCost = getTileClaimCost({
       tile,
       origin: fortress,
+      ownedTileCount: ownedNormalTileIds.length,
+      pendingClaimCount: activeOwnClaims.length,
     });
 
     if (fortress.gold < claimCost) {
@@ -802,18 +866,23 @@ export async function claimNeutralMapHex({
       },
     });
 
-    return tx.mapHexOwnership.create({
+    return tx.mapHexClaimProject.create({
       data: {
         cycleId: cycle.id,
+        fortressId: fortress.id,
         tileId,
-        ownerFortressId: fortress.id,
-        claimedAt: now,
+        goldCost: claimCost,
+        startedAt: now,
+        completesAt: addMinutes(now, TILE_CLAIM_DURATION_MINUTES),
       },
       select: {
         id: true,
         tileId: true,
-        claimedAt: true,
-        ownerFortressId: true,
+        fortressId: true,
+        goldCost: true,
+        startedAt: true,
+        completesAt: true,
+        completedAt: true,
       },
     });
   });

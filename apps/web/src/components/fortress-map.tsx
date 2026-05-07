@@ -26,7 +26,6 @@ import type { UnitSpriteVariant } from "@/lib/game/constants";
 import {
   getHomeOfABonus,
   getTileBonus,
-  getTileClaimCost,
   isHomeOfATile,
 } from "@/lib/game/territory";
 import styles from "./fortress-map.module.css";
@@ -101,6 +100,21 @@ type MapHexOwnershipMarker = {
   hasActiveBattle: boolean;
   canAttack: boolean;
   claimCost: number | null;
+  sizeSurcharge?: number;
+  isConnectedToPlayerTerritory?: boolean;
+  canClaim?: boolean;
+  claimDisabledReason?: string | null;
+  pendingClaim?: {
+    id: string;
+    fortressId: string;
+    ownerName: string;
+    ownerCommanderName: string;
+    isCurrentUser: boolean;
+    goldCost: number;
+    startedAt: Date;
+    completesAt: Date;
+    remainingSeconds: number;
+  } | null;
   activeBattlefieldId?: string | null;
   attackDisabledReason?: string | null;
   bonus: {
@@ -256,12 +270,10 @@ function DwarfRuneSprite() {
 
 function HexTileMap({
   mapHexes,
-  currentFortressLocation,
   selectedTileId,
   onSelectMapHex,
 }: {
   mapHexes: MapHexOwnershipMarker[];
-  currentFortressLocation?: { mapX: number; mapY: number } | null;
   selectedTileId?: string | null;
   onSelectMapHex?: (tileId: string) => void;
 }) {
@@ -372,10 +384,10 @@ function HexTileMap({
       {HEX_TILES.map((tile) => {
         const ownership = ownershipByTileId.get(tile.id);
         const isHomeTile = isHomeOfATile(tile.id);
+        const isOwnedTile = Boolean(ownership?.ownerFortressId);
+        const isPendingClaim = Boolean(ownership?.pendingClaim);
         const neutralClaimCost =
-          !ownership && !isHomeTile && currentFortressLocation
-            ? getTileClaimCost({ tile, origin: currentFortressLocation })
-            : null;
+          !isOwnedTile && !isHomeTile ? (ownership?.claimCost ?? null) : null;
         const bonus =
           ownership?.bonus ??
           (isHomeTile ? getHomeOfABonus() : getTileBonus(tile));
@@ -383,10 +395,11 @@ function HexTileMap({
           styles.hexTile,
           styles[`${tile.biome}Tile`],
           tile.spawnable ? styles.spawnableTile : "",
-          ownership ? styles.ownedTile : "",
+          isOwnedTile ? styles.ownedTile : "",
+          isPendingClaim ? styles.pendingClaimTile : "",
           ownership?.pointIncome ? styles.objectiveTile : "",
           ownership?.isHomeOfA ? styles.contestedTile : "",
-          ownership?.isCurrentUser ? styles.ownTile : "",
+          isOwnedTile && ownership?.isCurrentUser ? styles.ownTile : "",
           ownership?.canAttack ? styles.attackableTile : "",
           ownership?.hasActiveBattle ? styles.contestedTile : "",
           selectedTileId === tile.id ? styles.selectedTile : "",
@@ -399,10 +412,14 @@ function HexTileMap({
             key={tile.id}
             className={tileClassName}
             aria-label={
-              ownership
+              isOwnedTile && ownership
                 ? `${ownership.isHomeOfA ? "Home of A" : BIOME_LABELS[tile.biome]}, owned by ${ownership.ownerName}, ${ownership.bonus.label}${
                     ownership.hasActiveBattle ? ", battle active" : ""
                   }`
+                : isPendingClaim && ownership?.pendingClaim
+                  ? `${BIOME_LABELS[tile.biome]}, acquisition reserved by ${ownership.pendingClaim.ownerName}, completes at ${new Date(
+                      ownership.pendingClaim.completesAt
+                    ).toLocaleTimeString()}, ${bonus.label}`
                 : `${isHomeTile ? "Home of A, neutral control point" : `${BIOME_LABELS[tile.biome]}, unclaimed`}${
                     neutralClaimCost ? `, claim cost ${neutralClaimCost}` : ""
                   }, ${bonus.label}`
@@ -1187,11 +1204,6 @@ export function FortressMap({
         <div className={styles.viewportContent} style={viewTransform}>
           <HexTileMap
             mapHexes={mapHexes}
-            currentFortressLocation={
-              ownFortress
-                ? { mapX: ownFortress.mapX, mapY: ownFortress.mapY }
-                : null
-            }
             selectedTileId={selectedTileId}
             onSelectMapHex={onSelectMapHex}
           />

@@ -345,6 +345,82 @@ async function processDueCastleUpgradeProjects({
   }
 }
 
+async function processDueMapHexClaimProjects({
+  db,
+  cycleId,
+  tickAt,
+}: {
+  db: PrismaClient;
+  cycleId: string;
+  tickAt: Date;
+}) {
+  const dueProjects = await db.mapHexClaimProject.findMany({
+    where: {
+      cycleId,
+      completedAt: null,
+      completesAt: {
+        lte: tickAt,
+      },
+    },
+    orderBy: [{ completesAt: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      fortressId: true,
+      tileId: true,
+      completesAt: true,
+    },
+  });
+
+  for (const project of dueProjects) {
+    await db.$transaction(async (tx) => {
+      const latestProject = await tx.mapHexClaimProject.findUnique({
+        where: {
+          id: project.id,
+        },
+        select: {
+          completedAt: true,
+        },
+      });
+
+      if (!latestProject || latestProject.completedAt) {
+        return;
+      }
+
+      const existingOwnership = await tx.mapHexOwnership.findUnique({
+        where: {
+          cycleId_tileId: {
+            cycleId,
+            tileId: project.tileId,
+          },
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (!existingOwnership) {
+        await tx.mapHexOwnership.create({
+          data: {
+            cycleId,
+            tileId: project.tileId,
+            ownerFortressId: project.fortressId,
+            claimedAt: project.completesAt,
+          },
+        });
+      }
+
+      await tx.mapHexClaimProject.update({
+        where: {
+          id: project.id,
+        },
+        data: {
+          completedAt: tickAt,
+        },
+      });
+    }, TICK_TRANSACTION_OPTIONS);
+  }
+}
+
 function isUniqueTickError(error: unknown) {
   return (
     error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -679,6 +755,11 @@ async function completeTestingCycle(
       },
     });
     await tx.homeOfAHolder.deleteMany({
+      where: {
+        cycleId,
+      },
+    });
+    await tx.mapHexClaimProject.deleteMany({
       where: {
         cycleId,
       },
@@ -1180,6 +1261,12 @@ async function processCycleTick(
     });
 
     await processDueCastleUpgradeProjects({
+      db,
+      cycleId,
+      tickAt,
+    });
+
+    await processDueMapHexClaimProjects({
       db,
       cycleId,
       tickAt,
