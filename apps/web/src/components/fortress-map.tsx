@@ -192,6 +192,7 @@ const MIN_SCALE = 0.42;
 const MAX_SCALE = 2.1;
 const ZOOM_STEP = 0.14;
 const CLICK_DRAG_THRESHOLD = 6;
+const DEFAULT_VIEW_PADDING = 48;
 const BIOME_LABELS: Record<HexBiome, string> = {
   water: "Sea",
   coast: "Coast",
@@ -870,13 +871,39 @@ export const FortressMap = memo(function FortressMap({
     [clampTranslation, clearPendingPanFrame]
   );
 
+  const fitMapToViewport = useCallback(() => {
+    const shellBounds = shellRef.current?.getBoundingClientRect();
+
+    if (!shellBounds) {
+      applyView(1, 0, 0);
+      return;
+    }
+
+    const availableWidth = Math.max(
+      1,
+      shellBounds.width - DEFAULT_VIEW_PADDING * 2
+    );
+    const availableHeight = Math.max(
+      1,
+      shellBounds.height - DEFAULT_VIEW_PADDING * 2
+    );
+    const nextScale = clampValue(
+      Math.min(
+        availableWidth / MAP_WORLD_WIDTH,
+        availableHeight / MAP_WORLD_HEIGHT
+      ),
+      MIN_SCALE,
+      1
+    );
+
+    lastAutoFocusKeyRef.current = null;
+    applyView(nextScale, 0, 0);
+  }, [applyView]);
+
   const resetView = useCallback(() => {
     userAdjustedViewRef.current = true;
     pendingTranslateRef.current = null;
     clearPendingPanFrame();
-    setScale(1);
-    setTranslateX(0);
-    setTranslateY(0);
     setIsDragging(false);
     dragStartRef.current = null;
     setPendingTargetId(null);
@@ -884,7 +911,8 @@ export const FortressMap = memo(function FortressMap({
     pointerCacheRef.current.clear();
     markerTapStateRef.current = null;
     pinchStateRef.current = null;
-  }, [clearPendingPanFrame]);
+    fitMapToViewport();
+  }, [clearPendingPanFrame, fitMapToViewport]);
 
   const focusFortress = useCallback(
     (fortress: Pick<MapFortress, "id" | "mapX" | "mapY">) => {
@@ -1336,22 +1364,12 @@ export const FortressMap = memo(function FortressMap({
   ]);
 
   useEffect(() => {
-    if (!ownFortress) {
+    if (userAdjustedViewRef.current) {
       return;
     }
 
-    const focusKey = `${ownFortress.id}:${ownFortress.mapX}:${ownFortress.mapY}`;
-    const lastFocusId = lastAutoFocusKeyRef.current?.split(":")[0] ?? null;
-    const shouldFocus =
-      lastAutoFocusKeyRef.current === null ||
-      lastFocusId !== ownFortress.id ||
-      (!userAdjustedViewRef.current &&
-        lastAutoFocusKeyRef.current !== focusKey);
-
-    if (shouldFocus) {
-      focusFortress(ownFortress);
-    }
-  }, [focusFortress, ownFortress]);
+    fitMapToViewport();
+  }, [fitMapToViewport, ownFortress?.id]);
 
   return (
     <div
