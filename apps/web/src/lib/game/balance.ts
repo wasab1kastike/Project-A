@@ -624,9 +624,17 @@ export function calculateRaidOutcome(input: RaidOutcomeInput): RaidOutcome {
       )
     : 0;
   const attackerRetired = 0; // Retirement system removed - all survivors return
+  const isExactTie = !attackerWon && attackPower === defensePower;
   const attackerReturned = input.preventAttackerCasualties
     ? attackArmy
-    : attackerSurvivors;
+    : attackerWon
+      ? attackerSurvivors
+      : isExactTie
+        ? Math.max(
+            0,
+            attackArmy - Math.ceil(attackArmy * WINNING_ATTACKER_BASE_SURVIVAL_FACTOR)
+          )
+        : 0;
   const defenderLosses = input.preventDefenderLosses
     ? 0
     : attackerWon

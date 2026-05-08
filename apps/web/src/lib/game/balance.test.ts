@@ -309,8 +309,8 @@ test("loot is capped by carry capacity and by point and food caps", () => {
 
   assert.equal(outcome.outcome, "ATTACKER_WIN");
   assert.equal(outcome.attackerSurvivors, 9);
-  assert.equal(outcome.attackerRetired, 5);
-  assert.equal(outcome.attackerReturned, 4);
+  assert.equal(outcome.attackerRetired, 0);
+  assert.equal(outcome.attackerReturned, 9);
   assert.equal(outcome.pointsLooted, 14);
   assert.equal(outcome.foodLooted, 8);
 });
@@ -326,8 +326,8 @@ test("loot splits by carry capacity when resource caps do not bind", () => {
 
   assert.equal(outcome.outcome, "ATTACKER_WIN");
   assert.equal(outcome.attackerSurvivors, 16);
-  assert.equal(outcome.attackerRetired, 8);
-  assert.equal(outcome.attackerReturned, 8);
+  assert.equal(outcome.attackerRetired, 0);
+  assert.equal(outcome.attackerReturned, 16);
   assert.equal(outcome.defenderLosses, 3);
   assert.equal(outcome.pointsLooted, 64);
   assert.equal(outcome.foodLooted, 64);
