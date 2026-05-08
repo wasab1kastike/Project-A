@@ -479,12 +479,6 @@ export async function joinBattlefield({
       side === BattlefieldSide.DEFENDER &&
       !battlefield.defenderBannerFortressId
     ) {
-      if (!isHomeOfATile(battlefield.targetTileId ?? "")) {
-        throw new GameError(
-          "That battlefield cannot receive defender reinforcements yet."
-        );
-      }
-
       await tx.battlefield.update({
         where: {
           id: battlefield.id,

@@ -6,6 +6,7 @@ import {
   TEMPORARY_MAP_OBJECTIVE_INTERVAL_HOURS,
   TEMPORARY_MAP_OBJECTIVE_POINT_VALUES,
 } from "./constants";
+export { TEMPORARY_MAP_OBJECTIVE_INTERVAL_HOURS } from "./constants";
 
 export type TileBonus = {
   gold: number;
