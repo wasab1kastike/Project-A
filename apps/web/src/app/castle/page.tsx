@@ -2,13 +2,13 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
-import { getHomePageState } from "@/lib/game/read-model";
+import { getCastlePageState } from "@/lib/game/castle-read-model";
 import { CastleManagement } from "./castle-management";
 import styles from "./page.module.css";
 
 export default async function CastlePage() {
   const session = await auth();
-  const state = await getHomePageState({
+  const state = await getCastlePageState({
     userId: session?.user?.id,
   });
 
