@@ -1004,17 +1004,60 @@ export function BattlefieldExperience({
                       <span>{battlefield.progress}%</span>
                     </div>
                     <progress value={battlefield.progress} max={100} />
-                    <p className={styles.helper}>
-                      {battlefield.attackerBanner.name} attacks{" "}
-                      {battlefield.defenderBanner?.name ?? "neutral defenders"}.
-                      Armies: {battlefield.attackerArmyLabel} /{" "}
-                      {battlefield.defenderArmyLabel}. Losses:{" "}
-                      {battlefield.attackerCasualties} /{" "}
-                      {battlefield.defenderCasualties}. {currentSide}.
-                      {battlefield.targetTileBonusLabel
-                        ? ` Bonus: ${battlefield.targetTileBonusLabel}.`
-                        : ""}
-                    </p>
+                    {(() => {
+                      const totalArmy =
+                        (battlefield.attackerArmyRemaining ?? 0) +
+                        (battlefield.defenderArmyRemaining ?? 0);
+                      const attackerFlex =
+                        totalArmy > 0
+                          ? Math.max(
+                              1,
+                              (battlefield.attackerArmyRemaining / totalArmy) *
+                                100
+                            )
+                          : 50;
+                      const defenderFlex = Math.max(1, 100 - attackerFlex);
+                      return (
+                        <>
+                          <div className={styles.armyBalanceBar}>
+                            <div
+                              className={styles.armyBalanceAttacker}
+                              style={{ flex: attackerFlex }}
+                            />
+                            <div
+                              className={styles.armyBalanceDefender}
+                              style={{ flex: defenderFlex }}
+                            />
+                          </div>
+                          <div className={styles.armyStats}>
+                            <div className={styles.armyStatAttacker}>
+                              <div className={styles.armyStatLabel}>
+                                ⚔ {battlefield.attackerBanner.commanderName}
+                              </div>
+                              <div>{battlefield.attackerArmyLabel}</div>
+                              {battlefield.attackerCasualties > 0 ? (
+                                <div className={styles.armyStatLoss}>
+                                  −{battlefield.attackerCasualties} lost
+                                </div>
+                              ) : null}
+                            </div>
+                            <div className={styles.armyStatDefender}>
+                              <div className={styles.armyStatLabel}>
+                                {battlefield.defenderBanner?.commanderName ??
+                                  "Defenders"}{" "}
+                                🛡
+                              </div>
+                              <div>{battlefield.defenderArmyLabel}</div>
+                              {battlefield.defenderCasualties > 0 ? (
+                                <div className={styles.armyStatLoss}>
+                                  −{battlefield.defenderCasualties} lost
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+                        </>
+                      );
+                    })()}
                     {battlefield.currentUserSide ? (
                       <p className={styles.helper}>
                         Your army: {battlefield.ownArmyRemaining}/
@@ -1022,9 +1065,20 @@ export function BattlefieldExperience({
                         {battlefield.ownIncomingArmy > 0
                           ? `, ${battlefield.ownIncomingArmy} incoming`
                           : ""}
+                        .{" "}
+                        {battlefield.targetTileBonusLabel
+                          ? `Tile bonus: ${battlefield.targetTileBonusLabel}.`
+                          : ""}
+                      </p>
+                    ) : (
+                      <p className={styles.helper}>
+                        {currentSide}
+                        {battlefield.targetTileBonusLabel
+                          ? ` · Tile bonus: ${battlefield.targetTileBonusLabel}`
+                          : ""}
                         .
                       </p>
-                    ) : null}
+                    )}
                     {battlefield.incomingReinforcements.length > 0 ? (
                       <ul className={styles.compactList}>
                         {battlefield.incomingReinforcements

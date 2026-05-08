@@ -81,14 +81,45 @@ export function getBattlefieldAttrition({
     Math.floor(defenderArmy * Math.max(0, defenderPowerMultiplier))
   );
 
+  // Sublinear attrition: losses = 2.3 * army^0.28 * pressure/4
+  // Calibrated so equal armies of 1k resolve in ~1h, 10k ~5h, 100k ~24h
+  const ATTRITION_SCALE = 2.3;
+  const ATTRITION_EXPONENT = 0.28;
+  const PRESSURE_BASE = 4;
+  // Faster resolution when force sizes are uneven.
+  // ratio 1.0 => 1.0x (unchanged), ratio 2.0 => 1.5x (~40 min for 1k vs 2k)
+  const imbalanceRatio =
+    Math.max(effectiveAttackerArmy, effectiveDefenderArmy) /
+    Math.max(1, Math.min(effectiveAttackerArmy, effectiveDefenderArmy));
+  const imbalanceSpeedMultiplier = Math.min(
+    2.5,
+    1 + (imbalanceRatio - 1) * 0.5
+  );
+
   return {
     attackerLosses: Math.min(
       attackerArmy,
-      Math.max(1, Math.floor((effectiveDefenderArmy * defenderPressure) / 100))
+      Math.max(
+        1,
+        Math.floor(
+          ATTRITION_SCALE *
+            Math.pow(effectiveDefenderArmy, ATTRITION_EXPONENT) *
+            (defenderPressure / PRESSURE_BASE) *
+            imbalanceSpeedMultiplier
+        )
+      )
     ),
     defenderLosses: Math.min(
       defenderArmy,
-      Math.max(1, Math.floor((effectiveAttackerArmy * attackerPressure) / 100))
+      Math.max(
+        1,
+        Math.floor(
+          ATTRITION_SCALE *
+            Math.pow(effectiveAttackerArmy, ATTRITION_EXPONENT) *
+            (attackerPressure / PRESSURE_BASE) *
+            imbalanceSpeedMultiplier
+        )
+      )
     ),
   };
 }
