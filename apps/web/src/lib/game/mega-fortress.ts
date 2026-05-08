@@ -257,21 +257,7 @@ export async function reshuffleActiveFortressPositions({
   const fortresses = await db.fortress.findMany({
     where: {
       cycleId,
-      fortressKind: {
-        not: FortressKind.MEGA,
-      },
-      OR: [
-        {
-          fortressKind: {
-            not: FortressKind.UNICORN_DECOY,
-          },
-        },
-        {
-          health: {
-            gt: 0,
-          },
-        },
-      ],
+      fortressKind: FortressKind.PLAYER,
     },
     orderBy: [{ isNpc: "asc" }, { joinedAt: "asc" }, { id: "asc" }],
     select: {
@@ -359,21 +345,7 @@ export async function ensureCurrentMapLayout({
       mapLayoutVersion: true,
       fortresses: {
         where: {
-          fortressKind: {
-            not: FortressKind.MEGA,
-          },
-          OR: [
-            {
-              fortressKind: {
-                not: FortressKind.UNICORN_DECOY,
-              },
-            },
-            {
-              health: {
-                gt: 0,
-              },
-            },
-          ],
+          fortressKind: FortressKind.PLAYER,
         },
         select: {
           mapX: true,
