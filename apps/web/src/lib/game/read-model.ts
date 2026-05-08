@@ -2797,7 +2797,10 @@ export async function getHomePageState({
         gameplayOpen &&
         playerFortress !== null &&
         playerFortress.army > 0 &&
-        battlefield.defenderBannerFortress !== null &&
+        (
+          battlefield.defenderBannerFortress !== null ||
+          isHomeOfATile(battlefield.targetTileId ?? "")
+        ) &&
         currentParticipant?.side !== BattlefieldSide.ATTACKER;
       const getJoinDisabledReason = (side: BattlefieldSide) => {
         if (side === BattlefieldSide.ATTACKER && canJoinAttacker) {
@@ -2822,7 +2825,8 @@ export async function getHomePageState({
 
         if (
           side === BattlefieldSide.DEFENDER &&
-          !battlefield.defenderBannerFortress
+          !battlefield.defenderBannerFortress &&
+          !isHomeOfATile(battlefield.targetTileId ?? "")
         ) {
           return "Neutral defenders cannot receive player reinforcements.";
         }

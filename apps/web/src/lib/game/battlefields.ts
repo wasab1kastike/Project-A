@@ -356,6 +356,7 @@ export async function joinBattlefield({
         id: true,
         cycleId: true,
         status: true,
+        targetTileId: true,
         targetFortressId: true,
         defenderBannerFortressId: true,
         cycle: {
@@ -390,13 +391,6 @@ export async function joinBattlefield({
       throw new GameError(
         "That battlefield cannot receive reinforcements yet."
       );
-    }
-
-    if (
-      side === BattlefieldSide.DEFENDER &&
-      !battlefield.defenderBannerFortressId
-    ) {
-      throw new GameError("Neutral Home of A has no player defender side yet.");
     }
 
     const fortress = await tx.fortress.findUnique({
@@ -479,6 +473,26 @@ export async function joinBattlefield({
       throw new GameError(
         "Your fortress already has reinforcements marching for the other side."
       );
+    }
+
+    if (
+      side === BattlefieldSide.DEFENDER &&
+      !battlefield.defenderBannerFortressId
+    ) {
+      if (!isHomeOfATile(battlefield.targetTileId ?? "")) {
+        throw new GameError(
+          "That battlefield cannot receive defender reinforcements yet."
+        );
+      }
+
+      await tx.battlefield.update({
+        where: {
+          id: battlefield.id,
+        },
+        data: {
+          defenderBannerFortressId: fortress.id,
+        },
+      });
     }
 
     const launchedUnit = await launchAttackUnit({
