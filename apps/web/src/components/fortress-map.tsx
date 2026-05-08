@@ -1160,10 +1160,12 @@ export const FortressMap = memo(function FortressMap({
           const isInPopover = (event.target as HTMLElement).closest(
             "[data-target-popover]"
           );
-          if (!isInPopover) {
-            setPendingTargetId(null);
-            markerTapStateRef.current = null;
+          if (isInPopover) {
+            return;
           }
+
+          setPendingTargetId(null);
+          markerTapStateRef.current = null;
 
           const point = {
             x: event.clientX - shellBounds.left,
