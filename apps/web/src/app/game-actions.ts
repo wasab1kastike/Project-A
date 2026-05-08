@@ -44,6 +44,7 @@ import {
   attackMapHex,
   claimNeutralMapHex,
   claimUnicornTeleport,
+  activateUnicornShatteredReality,
   joinBattlefield,
   joinRegistrationCycle,
   purchaseFortressUpgrade,
@@ -531,6 +532,8 @@ export async function buyPointsWithGoldAction(formData: FormData) {
   const userId = await requireUserId();
 
   const goldAmount = getNumber(formData, "goldAmount", 0);
+  let goldSpent = goldAmount;
+  let pointsGained = 0;
 
   if (goldAmount <= 0) {
     redirectToHome("error", "Gold amount must be greater than 0.");
@@ -541,13 +544,15 @@ export async function buyPointsWithGoldAction(formData: FormData) {
       userId,
       goldAmount,
     });
+    goldSpent = result.goldSpent;
+    pointsGained = result.pointsGained;
     emitProjectARefresh("gold-to-points-conversion");
     revalidatePath("/");
   } catch (error) {
     redirectToHome("error", getActionErrorMessage(error));
   }
 
-  finishAction(`Spent ${goldAmount} gold to gain points.`);
+  finishAction(`Spent ${goldSpent} gold to gain ${pointsGained} points.`);
 }
 
 export async function purchaseFortressUpgradeAction(formData: FormData) {
@@ -744,6 +749,20 @@ export async function claimUnicornTeleportAction() {
   }
 
   finishAction(notice);
+}
+
+export async function activateUnicornShatteredRealityAction() {
+  const userId = await requireUserId();
+
+  try {
+    const result = await activateUnicornShatteredReality({
+      userId,
+    });
+    emitProjectARefresh("unicorn-shattered-reality");
+    finishAction(`Shattered Reality: ${result.summary}`);
+  } catch (error) {
+    redirectToHome("error", getActionErrorMessage(error));
+  }
 }
 
 export async function shuffleFortressLocationAction() {

@@ -3104,3 +3104,212 @@ export async function claimUnicornTeleport({
     });
   });
 }
+
+export async function activateUnicornShatteredReality({
+  userId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || cycle.status !== CycleStatus.ACTIVE) {
+      throw new GameError("Shattered Reality is only available during the active season.");
+    }
+
+    const raceBuffTier = getRaceBuffTier({
+      activeStartedAt: cycle.activeStartedAt,
+      now,
+      isActiveSeason: true,
+    });
+
+    if (raceBuffTier < 3) {
+      throw new GameError("Shattered Reality unlocks at Tier 3 race buffs.");
+    }
+
+    const fortress = await tx.fortress.findUnique({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: userId,
+        },
+      },
+      select: {
+        id: true,
+        race: true,
+        isNpc: true,
+        army: true,
+      },
+    });
+
+    if (!fortress || fortress.isNpc || fortress.race !== "UNSTABLE_UNICORNS") {
+      throw new GameError("Only Unstable Unicorns can activate Shattered Reality.");
+    }
+
+    const dayKey = getHelsinkiDayKey(now);
+    const latestUse = await tx.raceAbilityActivation.findFirst({
+      where: {
+        fortressId: fortress.id,
+        kind: "UNICORN_SHATTERED_REALITY" as RaceAbilityKind,
+      },
+      orderBy: [{ usedAt: "desc" }, { id: "desc" }],
+      select: {
+        usedAt: true,
+      },
+    });
+
+    if (latestUse && getHelsinkiDayKey(latestUse.usedAt) === dayKey) {
+      throw new GameError("Shattered Reality has already been activated today.");
+    }
+
+    const garrisons = await tx.fortressGarrison.findMany({
+      where: {
+        cycleId: cycle.id,
+        fortressId: fortress.id,
+      },
+      select: {
+        id: true,
+        army: true,
+      },
+    });
+
+    const omenRoll = Math.floor(Math.random() * 3);
+    const omen =
+      omenRoll === 0
+        ? "MIRROR_HOST"
+        : omenRoll === 1
+          ? "PRISMATIC_SCATTER"
+          : "CHAOTIC_BACKFIRE";
+
+    await tx.raceAbilityActivation.create({
+      data: {
+        fortressId: fortress.id,
+        kind: "UNICORN_SHATTERED_REALITY" as RaceAbilityKind,
+        activeFrom: now,
+        activeUntil: now,
+        usedAt: now,
+      },
+    });
+
+    if (omen === "MIRROR_HOST") {
+      const fortressGain = Math.max(1, Math.ceil(fortress.army * 0.2));
+
+      await tx.fortress.update({
+        where: {
+          id: fortress.id,
+        },
+        data: {
+          army: {
+            increment: fortressGain,
+          },
+        },
+      });
+
+      for (const garrison of garrisons) {
+        const gain = Math.max(1, Math.ceil(garrison.army * 0.25));
+
+        await tx.fortressGarrison.update({
+          where: {
+            id: garrison.id,
+          },
+          data: {
+            army: {
+              increment: gain,
+            },
+          },
+        });
+      }
+
+      return {
+        omen,
+        summary: `Mirror Host: fortress gained ${fortressGain} army and garrisons surged by 25%.`,
+      };
+    }
+
+    if (omen === "PRISMATIC_SCATTER") {
+      let returnedArmy = 0;
+      let recalledCount = 0;
+
+      for (const garrison of garrisons) {
+        const lostArmy = Math.max(1, Math.ceil(garrison.army * 0.08));
+        const returned = Math.max(0, garrison.army - lostArmy);
+
+        if (returned > 0) {
+          returnedArmy += returned;
+        }
+
+        recalledCount += 1;
+
+        await tx.fortressGarrison.delete({
+          where: {
+            id: garrison.id,
+          },
+        });
+      }
+
+      if (returnedArmy > 0) {
+        await tx.fortress.update({
+          where: {
+            id: fortress.id,
+          },
+          data: {
+            army: {
+              increment: returnedArmy,
+            },
+          },
+        });
+      }
+
+      return {
+        omen,
+        summary:
+          recalledCount > 0
+            ? `Prismatic Scatter: recalled ${recalledCount} garrison${recalledCount === 1 ? "" : "s"} with 8% chaos loss.`
+            : "Prismatic Scatter: no active garrisons to scatter.",
+      };
+    }
+
+    const fortressLoss = Math.max(1, Math.ceil(fortress.army * 0.18));
+    const nextFortressArmy = Math.max(1, fortress.army - fortressLoss);
+
+    await tx.fortress.update({
+      where: {
+        id: fortress.id,
+      },
+      data: {
+        army: nextFortressArmy,
+      },
+    });
+
+    for (const garrison of garrisons) {
+      const loss = Math.max(1, Math.ceil(garrison.army * 0.18));
+      const remaining = garrison.army - loss;
+
+      if (remaining <= 0) {
+        await tx.fortressGarrison.delete({
+          where: {
+            id: garrison.id,
+          },
+        });
+      } else {
+        await tx.fortressGarrison.update({
+          where: {
+            id: garrison.id,
+          },
+          data: {
+            army: remaining,
+          },
+        });
+      }
+    }
+
+    return {
+      omen,
+      summary: "Chaotic Backfire: reality cracked and your armies took 18% losses.",
+    };
+  });
+}

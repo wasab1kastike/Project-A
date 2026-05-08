@@ -64,12 +64,14 @@ export const RACE_DEFINITIONS = [
     flavorQuote:
       "Everything is under control. (Everything is not under control.)",
     flavorText:
-      "Glittering chaos farmers who now excel at sticky tile control through cheaper garrison upkeep and rapid repositioning.",
+      "Illusion-heavy chaos raiders who hide force reads, move fast across the map, and gamble daily power spikes with Shattered Reality.",
     passiveSummary: [
       "+1 food per 10 farmers",
       "+2 population",
       "Enemies cannot see your army size in transit",
+      "2x travel speed while race buffs are active",
       "Garrisons lose army every 2 ticks (instead of every tick)",
+      "T3 Shattered Reality (daily RNG omen)",
     ],
     modifiers: {
       ...NO_RACE_MODIFIERS,

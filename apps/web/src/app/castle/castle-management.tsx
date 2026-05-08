@@ -11,6 +11,7 @@ import {
   chooseDwarfTierThreeGrudgeAction,
   investOrkWaaaghScrapAction,
   activateStimAction,
+  activateUnicornShatteredRealityAction,
   activateWaaaghAction,
   choosePendingUpgradeSpecializationAction,
   claimUnicornTeleportAction,
@@ -155,6 +156,7 @@ type PlayerSummary = {
       active: boolean;
     }[];
     canActivateStim: boolean;
+    canActivateUnicornShatteredReality: boolean;
     stimActiveUntil: Date | null;
     canClaimUnicornTeleport: boolean;
     hasUnicornTeleportToken: boolean;
@@ -330,6 +332,13 @@ const BUILDING_SPECIALIZATIONS = [
   "MILITARY",
 ] as const satisfies readonly BuildingSpecialization[];
 
+const EMPTY_BUILDING_COUNTS: Record<BuildingSpecialization, number> = {
+  DEFENSE: 0,
+  POINTS: 0,
+  FOOD: 0,
+  MILITARY: 0,
+};
+
 function getBuildingsForRace(race: string | null): readonly BuildingMetadata[] {
   const raceKey: BuildingRaceKey =
     race && isFortressRace(race) ? race : "DEFAULT";
@@ -372,6 +381,43 @@ function getBuildingEffect({
       return `+${production.foodProduced} food/tick from farmers`;
     case "MILITARY":
       return "Recruiters process queued army orders";
+    default:
+      return `Level ${level}`;
+  }
+}
+
+function getBuildingUpgradeBenefitPreview({
+  key,
+  level,
+  currentProduction,
+  projectedProduction,
+}: {
+  key: BuildingSpecialization;
+  level: number;
+  currentProduction: ReturnType<typeof calculateTickProduction>;
+  projectedProduction: ReturnType<typeof calculateTickProduction>;
+}) {
+  const comparison = getBuildingUpgradeComparison(level);
+
+  switch (key) {
+    case "DEFENSE":
+      return `Defense multiplier x${comparison.currentMultiplier.toFixed(2)} -> x${comparison.nextMultiplier.toFixed(2)} (+${comparison.percentageIncrease.toFixed(2)}%).`;
+    case "POINTS": {
+      const diff = projectedProduction.goldProduced - currentProduction.goldProduced;
+
+      return `Gold per tick +${currentProduction.goldProduced} -> +${projectedProduction.goldProduced} (${diff >= 0 ? "+" : ""}${diff}/tick).`;
+    }
+    case "FOOD": {
+      const diff = projectedProduction.foodProduced - currentProduction.foodProduced;
+
+      return `Food per tick +${currentProduction.foodProduced} -> +${projectedProduction.foodProduced} (${diff >= 0 ? "+" : ""}${diff}/tick).`;
+    }
+    case "MILITARY": {
+      const diff =
+        projectedProduction.armyRequested - currentProduction.armyRequested;
+
+      return `Recruitment capacity ${currentProduction.armyRequested} -> ${projectedProduction.armyRequested} (${diff >= 0 ? "+" : ""}${diff}/tick).`;
+    }
     default:
       return `Level ${level}`;
   }
@@ -420,19 +466,21 @@ export function CastleManagement({
   const [recruitAmount, setRecruitAmount] = useState(10);
   const [recruitError, setRecruitError] = useState<string | null>(null);
   const [recruitPending, setRecruitPending] = useState(false);
+  const [goldToConvert, setGoldToConvert] = useState(getGoldToPointsRatio());
   const buildings = getBuildingsForRace(playerSummary.race);
+  const castleSpecializationCounts =
+    playerSummary.castleSpecializationCounts ?? EMPTY_BUILDING_COUNTS;
   const production = useMemo(
     () =>
       calculateTickProduction({
         level: playerSummary.level,
         race: playerSummary.race as never,
         food: playerSummary.food,
-        castleSpecializations:
-          playerSummary.castleSpecializationCounts ?? undefined,
+        castleSpecializations: castleSpecializationCounts,
         ...workers,
       }),
     [
-      playerSummary.castleSpecializationCounts,
+      castleSpecializationCounts,
       playerSummary.food,
       playerSummary.level,
       playerSummary.race,
@@ -455,6 +503,9 @@ export function CastleManagement({
   );
   const recruitCost = getRecruitmentCost(recruitAmount);
   const armyUpkeep = Math.floor(getArmyUpkeepCost(playerSummary.army));
+  const pointsFromGold = convertGoldToPoints(goldToConvert);
+  const canConvertGoldToPoints =
+    pointsFromGold > 0 && goldToConvert > 0 && goldToConvert <= playerSummary.gold;
 
   function setWorker(key: keyof typeof workers, value: number) {
     setWorkerError(null);
@@ -542,6 +593,30 @@ export function CastleManagement({
             <dd>x{playerSummary.defenseMultiplier.toFixed(2)}</dd>
           </div>
         </dl>
+        <form action={buyPointsWithGoldAction} className={styles.form}>
+          <label>
+            Buy points with gold
+            <input
+              type="number"
+              name="goldAmount"
+              min={getGoldToPointsRatio()}
+              step={1}
+              value={goldToConvert}
+              onChange={(event) => {
+                const value = event.currentTarget.valueAsNumber;
+                setGoldToConvert(
+                  Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0
+                );
+              }}
+            />
+          </label>
+          <p className={styles.muted}>
+            Rate: {getGoldToPointsRatio()} gold = 1 point. This converts {goldToConvert} gold into {pointsFromGold} points.
+          </p>
+          <button type="submit" disabled={!canConvertGoldToPoints}>
+            Convert gold to points
+          </button>
+        </form>
       </section>
 
       <section className={styles.panel}>
@@ -590,6 +665,16 @@ export function CastleManagement({
           {buildings.map((building) => {
             const buildingLevel =
               playerSummary.castleSpecializationCounts?.[building.key] ?? 0;
+            const projectedProduction = calculateTickProduction({
+              level: playerSummary.level,
+              race: playerSummary.race as never,
+              food: playerSummary.food,
+              castleSpecializations: {
+                ...castleSpecializationCounts,
+                [building.key]: buildingLevel + 1,
+              },
+              ...workers,
+            });
             const upgradeOption =
               playerSummary.buildingUpgradeOptions?.[building.key] ?? null;
             const activeProject =
@@ -612,6 +697,14 @@ export function CastleManagement({
                     production,
                     defenseMultiplier: playerSummary.defenseMultiplier,
                     population: playerSummary.population,
+                  })}
+                </small>
+                <small>
+                  Next level: {getBuildingUpgradeBenefitPreview({
+                    key: building.key,
+                    level: buildingLevel,
+                    currentProduction: production,
+                    projectedProduction,
                   })}
                 </small>
                 {building.workerKey ? (
@@ -910,6 +1003,20 @@ export function CastleManagement({
             ) : null}
             {playerSummary.race === "UNSTABLE_UNICORNS" ? (
               <>
+                <form action={activateUnicornShatteredRealityAction}>
+                  <button
+                    type="submit"
+                    disabled={
+                      !playerSummary.raceBuffs.canActivateUnicornShatteredReality
+                    }
+                  >
+                    Trigger Shattered Reality (daily)
+                  </button>
+                </form>
+                <p className={styles.muted}>
+                  Rolls a random chaos omen: surge your forces, scatter
+                  garrisons home with loss, or backfire your own army.
+                </p>
                 {playerSummary.activeUnicornTeleport ? (
                   <p className={styles.muted}>
                     Temporary teleport active at{" "}

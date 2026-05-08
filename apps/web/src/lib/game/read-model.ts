@@ -645,7 +645,7 @@ export async function getHomePageState({
               },
             },
           },
-          fortressGarrisons: {
+          garrisons: {
             orderBy: [{ createdAt: "desc" }, { id: "desc" }],
             select: {
               id: true,
@@ -1178,6 +1178,13 @@ export async function getHomePageState({
         (activation) =>
           activation.kind ===
           RaceAbilityKind.SPACE_MURINE_GARRISON_INSTANT_RECALL
+      )
+    : null;
+  const latestUnicornShatteredRealityUse = playerFortress
+    ? playerFortress.raceAbilityActivations.find(
+        (activation) =>
+          activation.kind ===
+          ("UNICORN_SHATTERED_REALITY" as RaceAbilityKind)
       )
     : null;
   const activeUnicornTeleportToken = playerFortress
@@ -2656,6 +2663,12 @@ export async function getHomePageState({
               (!latestGarrisonInstantRecallUse ||
                 getHelsinkiHourKey(latestGarrisonInstantRecallUse.usedAt) !==
                   currentHourKey),
+            canActivateUnicornShatteredReality:
+              playerFortress.race === "UNSTABLE_UNICORNS" &&
+              raceBuffTier >= 3 &&
+              (!latestUnicornShatteredRealityUse ||
+                getHelsinkiDayKey(latestUnicornShatteredRealityUse.usedAt) !==
+                  currentDayKey),
             canClaimUnicornTeleport:
               playerFortress.race === "UNSTABLE_UNICORNS" &&
               raceBuffTier >= 1 &&
@@ -2683,7 +2696,7 @@ export async function getHomePageState({
               playerCastleSpecializationCounts ?? undefined,
           }).goldProduced,
           attackDamage: getFortressAttackDamage(playerFortress.level),
-          garrisons: playerFortress.fortressGarrisons.map((garrison) => ({
+          garrisons: playerFortress.garrisons.map((garrison) => ({
             id: garrison.id,
             army: garrison.army,
             tileId: garrison.tileId,
