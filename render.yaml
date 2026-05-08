@@ -7,7 +7,7 @@ services:
     buildCommand: node scripts/render-build.mjs web
     preDeployCommand: npm run db:deploy && npm run db:allocate-season-one-coins
     startCommand: npm run start
-    healthCheckPath: /
+    healthCheckPath: /api/health
     buildFilter:
       paths:
         - .node-version

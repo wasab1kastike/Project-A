@@ -314,6 +314,13 @@ async function main() {
   await app.prepare();
 
   const server = http.createServer((request, response) => {
+    if (request.url === "/api/health") {
+      response.statusCode = 200;
+      response.setHeader("Content-Type", "application/json");
+      response.end(JSON.stringify({ status: "ok" }));
+      return;
+    }
+
     handle(request, response).catch((error) => {
       console.error("Next request failed", error);
       response.statusCode = 500;
