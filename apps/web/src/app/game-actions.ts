@@ -1043,3 +1043,129 @@ export async function markChatReadAction() {
     } satisfies InlineActionResult;
   }
 }
+
+export async function recallGarrisonAction(garrisonId: string) {
+  try {
+    const userId = await requireGameUserId();
+    const garrison = await prisma.fortressGarrison.findUnique({
+      where: {
+        id: garrisonId,
+      },
+      select: {
+        id: true,
+        cycleId: true,
+        fortressId: true,
+        army: true,
+        fortress: {
+          select: {
+            ownerId: true,
+          },
+        },
+      },
+    });
+
+    if (!garrison) {
+      throw new GameError(""Garrison not found."");
+    }
+
+    if (garrison.fortress.ownerId !== userId) {
+      throw new GameError(""You do not own this garrison."");
+    }
+
+    // Add the garrison army back to the fortress
+    await prisma.fortress.update({
+      where: {
+        id: garrison.fortressId,
+      },
+      data: {
+        army: {
+          increment: garrison.army,
+        },
+      },
+    });
+
+    // Delete the garrison
+    await prisma.fortressGarrison.delete({
+      where: {
+        id: garrisonId,
+      },
+    });
+
+    emitProjectARefresh(""garrison-recalled"");
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function reinforceGarrisonAction(formData: FormData) {
+  try {
+    const userId = await requireGameUserId();
+    const garrisonId = getString(formData, ""garrisonId"");
+    const armyAmount = Number(getString(formData, ""army""));
+
+    if (!Number.isInteger(armyAmount) || armyAmount <= 0) {
+      throw new GameError(""Send at least 1 army."");
+    }
+
+    const garrison = await prisma.fortressGarrison.findUnique({
+      where: {
+        id: garrisonId,
+      },
+      select: {
+        id: true,
+        cycleId: true,
+        fortressId: true,
+        tileId: true,
+        fortress: {
+          select: {
+            id: true,
+            ownerId: true,
+            army: true,
+            mapX: true,
+            mapY: true,
+          },
+        },
+      },
+    });
+
+    if (!garrison) {
+      throw new GameError(""Garrison not found."");
+    }
+
+    if (garrison.fortress.ownerId !== userId) {
+      throw new GameError(""You do not own this garrison."");
+    }
+
+    if (garrison.fortress.army < armyAmount) {
+      throw new GameError(""You do not have enough idle army."");
+    }
+
+    // Deduct from fortress army
+    await prisma.fortress.update({
+      where: {
+        id: garrison.fortressId,
+      },
+      data: {
+        army: {
+          decrement: armyAmount,
+        },
+      },
+    });
+
+    // Add to garrison
+    await prisma.fortressGarrison.update({
+      where: {
+        id: garrisonId,
+      },
+      data: {
+        army: {
+          increment: armyAmount,
+        },
+      },
+    });
+
+    emitProjectARefresh(""garrison-reinforced"");
+  } catch (error) {
+    throw error;
+  }
+}

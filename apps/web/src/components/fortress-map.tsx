@@ -2,6 +2,7 @@
 
 import {
   Fragment,
+  memo,
   type PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
@@ -166,6 +167,26 @@ type MarkerTapState = {
 };
 
 export type { AttackUnitMarker, MapFortress, MapHexOwnershipMarker };
+
+type FortressMapProps = {
+  fortresses: MapFortress[];
+  mapHexes?: MapHexOwnershipMarker[];
+  attackUnits?: AttackUnitMarker[];
+  selectedFortressId?: string | null;
+  selectedTargetId?: string | null;
+  selectedTileId?: string | null;
+  onSelectFortress?: (fortress: MapFortress) => void;
+  onConfirmAttackTarget?: (
+    fortress: MapFortress,
+    sentArmy: number
+  ) => void | Promise<void>;
+  onSelectMapHex?: (tileId: string) => void;
+  onRecallAttackUnit?: (attackUnit: AttackUnitMarker) => void | Promise<void>;
+  onInstantRecallAttackUnit?: (
+    attackUnit: AttackUnitMarker
+  ) => void | Promise<void>;
+  className?: string;
+};
 
 const MIN_SCALE = 0.42;
 const MAX_SCALE = 2.1;
@@ -669,7 +690,7 @@ function AttackUnitsLayer({
   );
 }
 
-export function FortressMap({
+export const FortressMap = memo(function FortressMap({
   fortresses,
   mapHexes = [],
   attackUnits = [],
@@ -682,25 +703,7 @@ export function FortressMap({
   onRecallAttackUnit,
   onInstantRecallAttackUnit,
   className,
-}: {
-  fortresses: MapFortress[];
-  mapHexes?: MapHexOwnershipMarker[];
-  attackUnits?: AttackUnitMarker[];
-  selectedFortressId?: string | null;
-  selectedTargetId?: string | null;
-  selectedTileId?: string | null;
-  onSelectFortress?: (fortress: MapFortress) => void;
-  onConfirmAttackTarget?: (
-    fortress: MapFortress,
-    sentArmy: number
-  ) => void | Promise<void>;
-  onSelectMapHex?: (tileId: string) => void;
-  onRecallAttackUnit?: (attackUnit: AttackUnitMarker) => void | Promise<void>;
-  onInstantRecallAttackUnit?: (
-    attackUnit: AttackUnitMarker
-  ) => void | Promise<void>;
-  className?: string;
-}) {
+}: FortressMapProps) {
   const shellRef = useRef<HTMLDivElement | null>(null);
   const lastAutoFocusKeyRef = useRef<string | null>(null);
   const userAdjustedViewRef = useRef(false);
@@ -725,6 +728,16 @@ export function FortressMap({
 
   const ownFortress =
     fortresses.find((fortress) => fortress.isCurrentUser) ?? null;
+  const snappedFortressPositions = useMemo(
+    () =>
+      new Map(
+        fortresses.map((fortress) => [
+          fortress.id,
+          snapMapPointToHex({ x: fortress.mapX, y: fortress.mapY }),
+        ])
+      ),
+    [fortresses]
+  );
   const maxTargetSentArmy = ownFortress?.army ?? 0;
   const clampedTargetSentArmy =
     maxTargetSentArmy > 0
@@ -936,8 +949,11 @@ export function FortressMap({
         startY: event.clientY,
         cancelled: false,
       };
+
+      // Activate on press for immediate feedback; drag gestures still use map-level suppression.
+      activateFortress(fortress);
     },
-    []
+    [activateFortress]
   );
 
   const handleMarkerPointerMove = useCallback(
@@ -980,25 +996,21 @@ export function FortressMap({
   );
 
   const handleMarkerPointerUp = useCallback(
-    (event: ReactPointerEvent<HTMLButtonElement>, fortress: MapFortress) => {
+    (event: ReactPointerEvent<HTMLButtonElement>, fortressId: string) => {
       const tapState = markerTapStateRef.current;
 
       if (
         !tapState ||
         tapState.pointerId !== event.pointerId ||
-        tapState.fortressId !== fortress.id
+        tapState.fortressId !== fortressId
       ) {
         return;
       }
 
       event.stopPropagation();
       markerTapStateRef.current = null;
-
-      if (!tapState.cancelled) {
-        activateFortress(fortress);
-      }
     },
-    [activateFortress]
+    []
   );
 
   useEffect(() => {
@@ -1232,10 +1244,12 @@ export function FortressMap({
             </div>
           ) : (
             fortresses.map((fortress) => {
-              const snappedPosition = snapMapPointToHex({
-                x: fortress.mapX,
-                y: fortress.mapY,
-              });
+              const snappedPosition =
+                snappedFortressPositions.get(fortress.id) ??
+                snapMapPointToHex({
+                  x: fortress.mapX,
+                  y: fortress.mapY,
+                });
               const selectable =
                 (Boolean(onSelectFortress) && fortress.isCurrentUser) ||
                 (Boolean(onSelectFortress) && fortress.fortressKind === "MEGA") ||
@@ -1269,7 +1283,7 @@ export function FortressMap({
 
               const showTargetPopover =
                 pendingTargetId === fortress.id && fortress.isTargetable;
-              const travelMinutes = ownFortress
+              const travelMinutes = showTargetPopover && ownFortress
                 ? getAttackTravelMinutes(ownFortress, fortress)
                 : null;
 
@@ -1289,7 +1303,7 @@ export function FortressMap({
                       handleMarkerPointerMove(event, fortress.id)
                     }
                     onPointerUp={(event) =>
-                      handleMarkerPointerUp(event, fortress)
+                      handleMarkerPointerUp(event, fortress.id)
                     }
                     onPointerCancel={(event) =>
                       clearMarkerTap(event, fortress.id)
@@ -1421,4 +1435,4 @@ export function FortressMap({
       </div>
     </div>
   );
-}
+});

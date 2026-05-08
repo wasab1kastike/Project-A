@@ -834,22 +834,28 @@ export async function processActiveBattlefields({
       });
     }
 
-    if (battlefield.targetFortressId && !isTileBattle) {
+    if (battlefield.targetFortressId) {
+      const fortressUpdateData: Prisma.FortressUpdateInput = {
+        army: Math.max(0, targetDefenderArmy - outcome.defenderLosses),
+      };
+
+      // Only apply gold/food losses for direct fortress battles, not tile battles
+      if (!isTileBattle) {
+        fortressUpdateData.gold = {
+          decrement:
+            winnerSide === BattlefieldSide.ATTACKER ? outcome.goldLooted : 0,
+        };
+        fortressUpdateData.food = {
+          decrement:
+            winnerSide === BattlefieldSide.ATTACKER ? outcome.foodLooted : 0,
+        };
+      }
+
       await db.fortress.update({
         where: {
           id: battlefield.targetFortressId,
         },
-        data: {
-          gold: {
-            decrement:
-              winnerSide === BattlefieldSide.ATTACKER ? outcome.goldLooted : 0,
-          },
-          food: {
-            decrement:
-              winnerSide === BattlefieldSide.ATTACKER ? outcome.foodLooted : 0,
-          },
-          army: Math.max(0, targetDefenderArmy - outcome.defenderLosses),
-        },
+        data: fortressUpdateData,
       });
     }
 
@@ -875,6 +881,37 @@ export async function processActiveBattlefields({
           claimedAt: tickAt,
         },
       });
+
+      // Create garrisons for each attacker participant with surviving army
+      for (const participant of attackerParticipants) {
+        const surviving = Math.max(
+          0,
+          (participant.armyRemaining ?? 0) - (attackerParticipantLosses.lossesByParticipantId.get(participant.id) ?? 0)
+        );
+
+        if (surviving > 0) {
+          await db.fortressGarrison.upsert({
+            where: {
+              battlefieldId_fortressId: {
+                battlefieldId: battlefield.id,
+                fortressId: participant.fortressId,
+              },
+            },
+            create: {
+              cycleId,
+              battlefieldId: battlefield.id,
+              fortressId: participant.fortressId,
+              tileId: battlefield.targetTileId,
+              army: surviving,
+            },
+            update: {
+              army: {
+                increment: surviving,
+              },
+            },
+          });
+        }
+      }
 
       if (
         battlefield.attackerBannerFortress &&

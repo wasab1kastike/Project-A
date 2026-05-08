@@ -288,6 +288,7 @@ model Cycle {
   communityWishVoteEntitlements CommunityWishVoteEntitlement[]
   buildArcadeRuns               BuildArcadeRun[]
   arcadeTransactions            ArcadeTransaction[]
+  fortressGarrisons             FortressGarrison[]
   history                       CycleHistory?
 
   @@index([status])
@@ -367,6 +368,7 @@ model Fortress {
   battlefieldParticipants      BattlefieldParticipant[]
   unicornTemporaryTeleports    UnicornTemporaryTeleport[]          @relation("UnicornTeleportFortress")
   unicornTemporaryTeleportDecoy UnicornTemporaryTeleport?           @relation("UnicornTeleportDecoy")
+  garrisons                    FortressGarrison[]
 
   @@unique([cycleId, ownerId])
   @@unique([cycleId, commanderName])
@@ -497,6 +499,7 @@ model Battlefield {
   defenderBannerFortress   Fortress?                 @relation("BattlefieldDefenderBanner", fields: [defenderBannerFortressId], references: [id], onDelete: SetNull)
   participants             BattlefieldParticipant[]
   incomingReinforcements   AttackUnit[]              @relation("BattlefieldReinforcements")
+  garrisons                FortressGarrison[]
 
   @@index([cycleId, status])
   @@index([targetFortressId, status])
@@ -942,4 +945,22 @@ model CycleHistory {
   @@index([communityWishStatus, communityWishProposalEndsAt])
   @@index([communityWishStatus, communityWishVotingEndsAt])
   @@index([communityWishResolvedById])
+}
+
+model FortressGarrison {
+  id          String     @id @default(cuid())
+  cycleId     String
+  fortressId  String
+  battlefieldId String
+  tileId      String
+  army        Int
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  cycle       Cycle      @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress    Fortress   @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+  battlefield Battlefield @relation(fields: [battlefieldId], references: [id], onDelete: Cascade)
+
+  @@unique([battlefieldId, fortressId])
+  @@index([cycleId, tileId])
+  @@index([fortressId, cycleId])
 }

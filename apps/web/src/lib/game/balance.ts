@@ -67,7 +67,7 @@ export const WINNING_ATTACKER_BASE_SURVIVAL_FACTOR = 0.15;
 /** Survival bonus per point of attack power margin (85% of margin survives) */
 export const WINNING_ATTACKER_MARGIN_SURVIVAL_FACTOR = 0.85;
 /** Rate at which victorious attackers retire (50%) instead of returning home */
-export const ATTACKER_RETIREMENT_RATE = 0.5;
+// Retirement rate removed - all survivors now return home
 /** Loss rate for defender when attacker wins (70%) */
 export const DEFENDER_LOSS_RATE_ON_ATTACKER_WIN = 0.7;
 /** Loot carrying capacity per surviving attacker (before race bonuses) */
@@ -623,14 +623,10 @@ export function calculateRaidOutcome(input: RaidOutcomeInput): RaidOutcome {
         )
       )
     : 0;
-  const attackerRetired = input.preventAttackerCasualties
-    ? 0
-    : attackerWon
-      ? Math.ceil(attackerSurvivors * ATTACKER_RETIREMENT_RATE)
-      : 0;
+  const attackerRetired = 0; // Retirement system removed - all survivors return
   const attackerReturned = input.preventAttackerCasualties
     ? attackArmy
-    : Math.max(0, attackerSurvivors - attackerRetired);
+    : attackerSurvivors;
   const defenderLosses = input.preventDefenderLosses
     ? 0
     : attackerWon

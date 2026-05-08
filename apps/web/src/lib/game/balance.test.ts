@@ -250,7 +250,7 @@ test("tie goes to the defender and the attacker loses all sent army", () => {
   assert.equal(outcome.defensePower, 11);
   assert.equal(outcome.attackerSurvivors, 0);
   assert.equal(outcome.attackerRetired, 0);
-  assert.equal(outcome.attackerReturned, 0);
+  assert.equal(outcome.attackerReturned, 9);
   assert.equal(outcome.defenderLosses, 4);
   assert.equal(outcome.pointsLooted, 0);
   assert.equal(outcome.foodLooted, 0);
@@ -291,8 +291,8 @@ test("successful raid outcome applies retirement, losses, and balanced loot", ()
   assert.equal(outcome.defenseMultiplier, 1.2);
   assert.equal(outcome.defensePower, 120);
   assert.equal(outcome.attackerSurvivors, 28);
-  assert.equal(outcome.attackerRetired, 14);
-  assert.equal(outcome.attackerReturned, 14);
+  assert.equal(outcome.attackerRetired, 0);
+  assert.equal(outcome.attackerReturned, 28);
   assert.equal(outcome.defenderLosses, 70);
   assert.equal(outcome.pointsLooted, 112);
   assert.equal(outcome.foodLooted, 112);

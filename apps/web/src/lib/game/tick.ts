@@ -3302,6 +3302,31 @@ async function processCycleTick(
       tickAt,
     });
 
+    // Apply garrison maintenance drain (-1 per garrison per tick)
+    await db.fortressGarrison.updateMany({
+      where: {
+        cycleId,
+        army: {
+          gt: 0,
+        },
+      },
+      data: {
+        army: {
+          decrement: 1,
+        },
+      },
+    });
+
+    // Delete garrisons with 0 army
+    await db.fortressGarrison.deleteMany({
+      where: {
+        cycleId,
+        army: {
+          lte: 0,
+        },
+      },
+    });
+
   return {
     processed: true,
     scoreEventsCreated: scoreEvents.length + battlefieldResult.scoreEventsCreated,

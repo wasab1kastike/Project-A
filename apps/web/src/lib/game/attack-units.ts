@@ -291,7 +291,7 @@ export async function recallAttackUnit({
           resolvedAttackPower: 0,
           resolvedDefensePower: 0,
           attackerSurvivors: returnedArmy,
-          attackerRetired: lostArmy,
+          attackerRetired: 0, // Retirement removed
           attackerReturned: returnedArmy,
           defenderLosses: 0,
           pointsLooted: 0,

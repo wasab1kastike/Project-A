@@ -460,68 +460,71 @@ export function BattlefieldExperience({
     }
   }
 
-  function getAttackValidationError(sentArmy: number) {
-    if (!playerSummary?.canSetAction) {
-      return "You need an active castle before attacking.";
-    }
+  const getAttackValidationError = useCallback(
+    (sentArmy: number) => {
+      if (!playerSummary?.canSetAction) {
+        return "You need an active castle before attacking.";
+      }
 
-    if (!playerSummary.race) {
-      return "Choose a race from Castle before attacking.";
-    }
+      if (!playerSummary.race) {
+        return "Choose a race from Castle before attacking.";
+      }
 
-    if (playerSummary.army <= 0) {
-      return "You need at least 1 idle army before attacking.";
-    }
+      if (playerSummary.army <= 0) {
+        return "You need at least 1 idle army before attacking.";
+      }
 
-    if (!Number.isInteger(sentArmy) || sentArmy <= 0) {
-      return "Send at least 1 army.";
-    }
+      if (!Number.isInteger(sentArmy) || sentArmy <= 0) {
+        return "Send at least 1 army.";
+      }
 
-    if (sentArmy > playerSummary.army) {
-      return `You can send at most ${playerSummary.army} army.`;
-    }
+      if (sentArmy > playerSummary.army) {
+        return `You can send at most ${playerSummary.army} army.`;
+      }
 
-    if (
-      playerSummary.outboundAttackUnitCount >=
-      playerSummary.maxSimultaneousAttacks
-    ) {
-      return `Maximum attacks in flight (${playerSummary.outboundAttackUnitCount}/${playerSummary.maxSimultaneousAttacks}).`;
-    }
+      if (
+        playerSummary.outboundAttackUnitCount >=
+        playerSummary.maxSimultaneousAttacks
+      ) {
+        return `Maximum attacks in flight (${playerSummary.outboundAttackUnitCount}/${playerSummary.maxSimultaneousAttacks}).`;
+      }
 
-    return null;
-  }
+      return null;
+    },
+    [playerSummary]
+  );
 
-  async function handleConfirmAttackTarget(
-    fortress: MapFortress,
-    sentArmy: number
-  ) {
-    if (!fortress.isTargetable || mapActionPending) {
-      return;
-    }
-
-    const validationError = getAttackValidationError(sentArmy);
-
-    if (validationError) {
-      window.alert(validationError);
-      return;
-    }
-
-    setSelectedFortressId(playerFortress?.id ?? null);
-    setMapActionPending(true);
-
-    try {
-      const result = await attackFromMapAction(fortress.id, sentArmy);
-
-      if (!result.ok) {
-        window.alert(result.error);
+  const handleConfirmAttackTarget = useCallback(
+    async (fortress: MapFortress, sentArmy: number) => {
+      if (!fortress.isTargetable || mapActionPending) {
         return;
       }
 
-      router.refresh();
-    } finally {
-      setMapActionPending(false);
-    }
-  }
+      const validationError = getAttackValidationError(sentArmy);
+
+      if (validationError) {
+        window.alert(validationError);
+        return;
+      }
+
+      setSelectedFortressId(playerFortress?.id ?? null);
+      setMapActionPending(true);
+
+      try {
+        const result = await attackFromMapAction(fortress.id, sentArmy);
+
+        if (!result.ok) {
+          window.alert(result.error);
+          return;
+        }
+
+        router.refresh();
+      } finally {
+        setMapActionPending(false);
+      }
+    },
+    [getAttackValidationError, mapActionPending, playerFortress?.id, router]
+  );
 
   async function handleClaimMapHex(tileId: string) {
     if (mapActionPending || !gameplayOpen) {
@@ -591,27 +594,33 @@ export function BattlefieldExperience({
     }
   }
 
-  async function handleRecallAttackUnit(attackUnit: AttackUnitMarker) {
-    const result = await recallAttackUnitAction(attackUnit.id);
+  const handleRecallAttackUnit = useCallback(
+    async (attackUnit: AttackUnitMarker) => {
+      const result = await recallAttackUnitAction(attackUnit.id);
 
-    if (!result.ok) {
-      window.alert(result.error);
-      return;
-    }
+      if (!result.ok) {
+        window.alert(result.error);
+        return;
+      }
 
-    router.refresh();
-  }
+      router.refresh();
+    },
+    [router]
+  );
 
-  async function handleInstantRecallAttackUnit(attackUnit: AttackUnitMarker) {
-    const result = await instantRecallAttackUnitAction(attackUnit.id);
+  const handleInstantRecallAttackUnit = useCallback(
+    async (attackUnit: AttackUnitMarker) => {
+      const result = await instantRecallAttackUnitAction(attackUnit.id);
 
-    if (!result.ok) {
-      window.alert(result.error);
-      return;
-    }
+      if (!result.ok) {
+        window.alert(result.error);
+        return;
+      }
 
-    router.refresh();
-  }
+      router.refresh();
+    },
+    [router]
+  );
 
   const handleSelectFortress = useCallback(
     (fortress: MapFortress) => {
