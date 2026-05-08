@@ -62,6 +62,15 @@ async function saveNextCache() {
   await cp(nextCacheDir, cachedNextDir, { recursive: true });
 }
 
+async function removeNextCacheFromArtifact() {
+  if (!existsSync(nextCacheDir)) {
+    return;
+  }
+
+  console.log(`Removing Next.js build cache from artifact at ${nextCacheDir}`);
+  await rm(nextCacheDir, { force: true, recursive: true });
+}
+
 async function installDependencies() {
   await mkdir(npmCacheDir, { recursive: true });
   await run("npm", ["ci", "--prefer-offline", "--cache", npmCacheDir]);
@@ -72,6 +81,7 @@ async function buildWeb() {
   await installDependencies();
   await run("npm", ["run", "build"]);
   await saveNextCache();
+  await removeNextCacheFromArtifact();
 }
 
 async function buildCron() {
