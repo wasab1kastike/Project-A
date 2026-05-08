@@ -1157,8 +1157,13 @@ export const FortressMap = memo(function FortressMap({
             return;
           }
 
-          setPendingTargetId(null);
-          markerTapStateRef.current = null;
+          const isInPopover = (event.target as HTMLElement).closest(
+            "[data-target-popover]"
+          );
+          if (!isInPopover) {
+            setPendingTargetId(null);
+            markerTapStateRef.current = null;
+          }
 
           const point = {
             x: event.clientX - shellBounds.left,
@@ -1401,6 +1406,7 @@ export const FortressMap = memo(function FortressMap({
                   {showTargetPopover ? (
                     <div
                       className={styles.targetPopover}
+                      data-target-popover
                       style={{
                         left: `${snappedPosition.x}%`,
                         top: `${snappedPosition.y}%`,
