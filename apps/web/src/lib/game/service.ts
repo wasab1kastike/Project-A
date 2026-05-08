@@ -1016,8 +1016,17 @@ export async function attackMapHex({
           tileId,
         },
       },
-      include: {
-        ownerFortress: {
+      select: {
+        id: true,
+        ownerFortressId: true,
+      },
+    });
+
+    const ownedTileFortress = ownership
+      ? await tx.fortress.findUnique({
+          where: {
+            id: ownership.ownerFortressId,
+          },
           select: {
             id: true,
             name: true,
@@ -1028,9 +1037,16 @@ export async function attackMapHex({
             mapY: true,
             race: true,
           },
+        })
+      : null;
+
+    if (ownership && !ownedTileFortress) {
+      await tx.mapHexOwnership.delete({
+        where: {
+          id: ownership.id,
         },
-      },
-    });
+      });
+    }
 
     const isHomeOfA = isHomeOfATile(tileId);
 
@@ -1098,7 +1114,7 @@ export async function attackMapHex({
           },
         })
       : null;
-    const targetFortress = ownership?.ownerFortress ?? neutralHomeTarget;
+    const targetFortress = ownedTileFortress ?? neutralHomeTarget;
 
     if (!targetFortress) {
       throw new GameError("Home of A is not available in this cycle yet.");
@@ -1110,7 +1126,9 @@ export async function attackMapHex({
           ...targetFortress,
           mapX: homePosition.mapX,
           mapY: homePosition.mapY,
-          army: ownership ? targetFortress.army : HOME_OF_A_NEUTRAL_DEFENSE,
+          army: ownedTileFortress
+            ? targetFortress.army
+            : HOME_OF_A_NEUTRAL_DEFENSE,
         }
       : targetFortress;
 
@@ -1120,7 +1138,9 @@ export async function attackMapHex({
         targetFortressId: targetFortress.id,
         targetTileId: tileId,
         attackerBannerFortressId: attacker.id,
-        defenderBannerFortressId: ownership?.ownerFortressId ?? null,
+        defenderBannerFortressId: ownedTileFortress
+          ? ownership?.ownerFortressId ?? null
+          : null,
         attackerArmyRemaining: 0,
         defenderArmyRemaining: battlefieldTarget.army,
         pointsReward: 0,

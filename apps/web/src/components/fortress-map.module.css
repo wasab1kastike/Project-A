@@ -78,6 +78,19 @@
   cursor: grabbing;
 }
 
+.dragging .contestedTile polygon {
+  animation: none;
+}
+
+.dragging .battleIndicator,
+.dragging .battleText {
+  animation: none;
+}
+
+.dragging .battleIndicator {
+  filter: none;
+}
+
 .viewportContent {
   position: absolute;
   top: 50%;

@@ -17,6 +17,8 @@ services:
         - scripts/**
         - apps/web/**
     envVars:
+      # Runtime secrets and connection strings should come from Render env or the
+      # managed database binding below. Do not commit real secrets to this file.
       - key: NEXT_PUBLIC_APP_NAME
         value: Project-A
       - key: DATABASE_URL
@@ -25,6 +27,8 @@ services:
           property: connectionString
       - key: AUTH_SECRET
         generateValue: true
+      - key: AUTH_URL
+        sync: false
       - key: AUTH_GOOGLE_ID
         sync: false
       - key: AUTH_GOOGLE_SECRET

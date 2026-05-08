@@ -302,7 +302,7 @@ function DwarfRuneSprite() {
   return <span className={styles.dwarfRuneSprite} aria-hidden="true" />;
 }
 
-function HexTileMap({
+const HexTileMap = memo(function HexTileMap({
   mapHexes,
   selectedTileId,
   onSelectMapHex,
@@ -526,7 +526,7 @@ function HexTileMap({
       })}
     </svg>
   );
-}
+});
 
 function getInterpolatedPoint(origin: Point, target: Point, progress: number) {
   return {
@@ -543,7 +543,7 @@ function formatSecondsRemaining(seconds: number) {
   return `${Math.ceil(seconds / 60)}m`;
 }
 
-function AttackUnitsLayer({
+const AttackUnitsLayer = memo(function AttackUnitsLayer({
   attackUnits,
   onRecallAttackUnit,
   onInstantRecallAttackUnit,
@@ -714,7 +714,7 @@ function AttackUnitsLayer({
       })}
     </div>
   );
-}
+});
 
 export const FortressMap = memo(function FortressMap({
   fortresses,
@@ -735,6 +735,9 @@ export const FortressMap = memo(function FortressMap({
   const userAdjustedViewRef = useRef(false);
   const pointerCacheRef = useRef<Map<number, Point>>(new Map());
   const markerTapStateRef = useRef<MarkerTapState | null>(null);
+  const dragStartRef = useRef<DragStart | null>(null);
+  const pendingTranslateRef = useRef<Point | null>(null);
+  const panFrameRef = useRef<number | null>(null);
   const pinchStateRef = useRef<{
     startScale: number;
     startTranslateX: number;
@@ -748,7 +751,6 @@ export const FortressMap = memo(function FortressMap({
   const [translateX, setTranslateX] = useState(0);
   const [translateY, setTranslateY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState<DragStart | null>(null);
   const [pendingTargetId, setPendingTargetId] = useState<string | null>(null);
   const [targetSentArmy, setTargetSentArmy] = useState(1);
 
@@ -810,30 +812,77 @@ export const FortressMap = memo(function FortressMap({
     []
   );
 
+  const clearPendingPanFrame = useCallback(() => {
+    if (panFrameRef.current !== null) {
+      window.cancelAnimationFrame(panFrameRef.current);
+      panFrameRef.current = null;
+    }
+  }, []);
+
+  const flushPendingTranslate = useCallback(() => {
+    if (!pendingTranslateRef.current) {
+      return;
+    }
+
+    const pendingTranslate = pendingTranslateRef.current;
+    pendingTranslateRef.current = null;
+    clearPendingPanFrame();
+    setTranslateX(pendingTranslate.x);
+    setTranslateY(pendingTranslate.y);
+  }, [clearPendingPanFrame]);
+
+  const scheduleTranslateUpdate = useCallback(
+    (nextTranslate: Point) => {
+      pendingTranslateRef.current = nextTranslate;
+
+      if (panFrameRef.current !== null) {
+        return;
+      }
+
+      panFrameRef.current = window.requestAnimationFrame(() => {
+        panFrameRef.current = null;
+
+        if (!pendingTranslateRef.current) {
+          return;
+        }
+
+        const translate = pendingTranslateRef.current;
+        pendingTranslateRef.current = null;
+        setTranslateX(translate.x);
+        setTranslateY(translate.y);
+      });
+    },
+    []
+  );
+
   const applyView = useCallback(
     (nextScale: number, nextX: number, nextY: number) => {
       const clampedScale = clampValue(nextScale, MIN_SCALE, MAX_SCALE);
       const clampedTranslate = clampTranslation(nextX, nextY, clampedScale);
+      pendingTranslateRef.current = null;
+      clearPendingPanFrame();
       setScale(clampedScale);
       setTranslateX(clampedTranslate.x);
       setTranslateY(clampedTranslate.y);
     },
-    [clampTranslation]
+    [clampTranslation, clearPendingPanFrame]
   );
 
   const resetView = useCallback(() => {
     userAdjustedViewRef.current = true;
+    pendingTranslateRef.current = null;
+    clearPendingPanFrame();
     setScale(1);
     setTranslateX(0);
     setTranslateY(0);
     setIsDragging(false);
-    setDragStart(null);
+    dragStartRef.current = null;
     setPendingTargetId(null);
     suppressClickRef.current = false;
     pointerCacheRef.current.clear();
     markerTapStateRef.current = null;
     pinchStateRef.current = null;
-  }, []);
+  }, [clearPendingPanFrame]);
 
   const focusFortress = useCallback(
     (fortress: Pick<MapFortress, "id" | "mapX" | "mapY">) => {
@@ -1051,6 +1100,240 @@ export const FortressMap = memo(function FortressMap({
   );
 
   useEffect(() => {
+    return () => {
+      clearPendingPanFrame();
+    };
+  }, [clearPendingPanFrame]);
+
+  const fortressMarkers = useMemo(() => {
+    if (fortresses.length === 0) {
+      return (
+        <div className={styles.emptyState}>
+          No fortresses on the battlefield yet.
+        </div>
+      );
+    }
+
+    return fortresses.map((fortress) => {
+      const snappedPosition =
+        snappedFortressPositions.get(fortress.id) ??
+        snapMapPointToHex({
+          x: fortress.mapX,
+          y: fortress.mapY,
+        });
+      const selectable =
+        (Boolean(onSelectFortress) && fortress.isCurrentUser) ||
+        (Boolean(onSelectFortress) && fortress.fortressKind === "MEGA") ||
+        (Boolean(onConfirmAttackTarget) && fortress.isTargetable);
+      const variant = getSpriteVariant(fortress);
+      const isMega = fortress.fortressKind === "MEGA";
+      const isLootCamp = fortress.fortressKind === "LOOT_CAMP";
+      const isDwarfRune = fortress.fortressKind === "DWARF_RUNE";
+      const isUnicornDecoy = fortress.fortressKind === "UNICORN_DECOY";
+      const showsHealth = fortress.fortressKind !== "PLAYER" && !isMega;
+      const homeOwnerFortressId = isMega
+        ? (homeOfAOwnership?.ownerFortressId ?? null)
+        : null;
+      const megaNpcDefense =
+        isMega && !homeOwnerFortressId ? Math.max(0, fortress.army) : 0;
+      const megaOccupyingDefense =
+        isMega && homeOwnerFortressId
+          ? Math.max(0, fortressById.get(homeOwnerFortressId)?.army ?? 0)
+          : 0;
+      const megaTotalDefense = megaOccupyingDefense || megaNpcDefense;
+      const megaDefenseSplitLabel =
+        megaOccupyingDefense > 0
+          ? `${megaOccupyingDefense}`
+          : `${megaNpcDefense}`;
+      const effectiveFortressSkin =
+        fortress.fortressCosmeticVariant ??
+        (fortress.race === "UNSTABLE_UNICORNS"
+          ? `unstable-unicorn-${(hashString(fortress.spriteSeedId) % 2) + 1}`
+          : null);
+      const className = [
+        styles.marker,
+        isMega ? styles.megaMarker : "",
+        isLootCamp ? styles.lootCampMarker : "",
+        isDwarfRune ? styles.dwarfRuneMarker : "",
+        isUnicornDecoy ? styles.unicornDecoyMarker : "",
+        fortress.isSlayerOfA ? styles.crownedMarker : "",
+        fortress.isCurrentUser ? styles.currentUser : "",
+        selectedFortressId === fortress.id ? styles.activeFortress : "",
+        selectedTargetId === fortress.id ? styles.selected : "",
+        selectable ? styles.selectable : "",
+        fortress.isTargetable ? styles.targetable : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+
+      const showTargetPopover =
+        pendingTargetId === fortress.id && fortress.isTargetable;
+      const travelMinutes =
+        showTargetPopover && ownFortress
+          ? getAttackTravelMinutes(ownFortress, fortress)
+          : null;
+
+      return (
+        <Fragment key={fortress.id}>
+          <button
+            type="button"
+            className={className}
+            style={{
+              left: `${snappedPosition.x}%`,
+              top: `${snappedPosition.y}%`,
+            }}
+            onPointerDown={(event) =>
+              handleMarkerPointerDown(event, fortress, selectable)
+            }
+            onPointerMove={(event) =>
+              handleMarkerPointerMove(event, fortress.id)
+            }
+            onPointerUp={(event) => handleMarkerPointerUp(event, fortress.id)}
+            onPointerCancel={(event) => clearMarkerTap(event, fortress.id)}
+            onClick={(event) => {
+              if (event.detail !== 0 || suppressClickRef.current) {
+                event.preventDefault();
+                return;
+              }
+
+              activateFortress(fortress);
+            }}
+            aria-pressed={
+              selectedTargetId === fortress.id ||
+              selectedFortressId === fortress.id
+            }
+            aria-label={
+              isMega
+                ? `${fortress.name}, defending force ${megaTotalDefense} (${megaOccupyingDefense > 0 ? "occupying" : "npc"})`
+                : showsHealth
+                  ? `${fortress.name}, ${fortress.health} of ${fortress.maxHealth} health`
+                  : `${fortress.name}, ${fortress.points} points`
+            }
+          >
+            <span className={styles.selectionPulse} />
+            {fortress.race && !fortress.isNpc ? (
+              <span
+                className={styles.raceToken}
+                style={{
+                  backgroundImage: `url("${RACE_TOKEN_PATHS[fortress.race]}")`,
+                }}
+              />
+            ) : null}
+            <span className={styles.spriteFrame}>
+              {isMega ? (
+                <MegaFortressSprite iconLabel={fortress.iconLabel ?? "A-"} />
+              ) : isLootCamp ? (
+                <LootCampSprite variant={fortress.lootCampVariant} />
+              ) : isDwarfRune ? (
+                <DwarfRuneSprite />
+              ) : (
+                <FortressSprite
+                  variant={variant}
+                  skinVariant={effectiveFortressSkin}
+                />
+              )}
+            </span>
+            {isMega ? (
+              <span className={styles.pointsBadge}>
+                {megaDefenseSplitLabel} ({megaTotalDefense})
+              </span>
+            ) : showsHealth ? (
+              <span className={styles.pointsBadge}>
+                {fortress.health}/{fortress.maxHealth}
+              </span>
+            ) : null}
+            <span className={styles.nameplate}>{fortress.name}</span>
+            {fortress.isSlayerOfA ? (
+              <span className={styles.crownBadge}>Slayer of A</span>
+            ) : null}
+            <span className={styles.tooltip}>
+              <strong>{fortress.name}</strong>
+              <span>
+                {isMega
+                  ? `Defenders ${megaDefenseSplitLabel} (${megaOccupyingDefense > 0 ? "occupying" : "npc"})`
+                  : showsHealth
+                    ? `${fortress.health}/${fortress.maxHealth} HP`
+                    : `${fortress.points} pts${
+                        fortress.isSlayerOfA ? " - Slayer of A" : ""
+                      }`}
+              </span>
+            </span>
+          </button>
+
+          {showTargetPopover ? (
+            <div
+              className={styles.targetPopover}
+              data-target-popover
+              style={{
+                left: `${snappedPosition.x}%`,
+                top: `${snappedPosition.y}%`,
+              }}
+              onPointerDown={(event) => event.stopPropagation()}
+            >
+              <strong>{fortress.name}</strong>
+              <span>
+                {showsHealth
+                  ? `${fortress.health}/${fortress.maxHealth} HP`
+                  : `${fortress.points} pts`}
+              </span>
+              {travelMinutes ? <em>{travelMinutes} min ETA</em> : null}
+              <label className={styles.targetArmyControl}>
+                <span className={styles.targetArmyLabel}>
+                  Army to send: {clampedTargetSentArmy}/{maxTargetSentArmy}
+                </span>
+                <input
+                  type="range"
+                  min={1}
+                  max={Math.max(1, maxTargetSentArmy)}
+                  step={1}
+                  value={Math.max(1, clampedTargetSentArmy)}
+                  disabled={maxTargetSentArmy <= 0}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onChange={(event) => {
+                    const nextArmy = Number(event.currentTarget.value);
+                    setTargetSentArmy(
+                      Number.isFinite(nextArmy) ? Math.floor(nextArmy) : 1
+                    );
+                  }}
+                />
+              </label>
+              <button
+                type="button"
+                disabled={maxTargetSentArmy <= 0}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={async () => {
+                  setPendingTargetId(null);
+                  await onConfirmAttackTarget?.(fortress, clampedTargetSentArmy);
+                }}
+              >
+                Send {clampedTargetSentArmy || 0} army
+              </button>
+            </div>
+          ) : null}
+        </Fragment>
+      );
+    });
+  }, [
+    activateFortress,
+    clampedTargetSentArmy,
+    clearMarkerTap,
+    fortresses,
+    fortressById,
+    handleMarkerPointerDown,
+    handleMarkerPointerMove,
+    handleMarkerPointerUp,
+    homeOfAOwnership?.ownerFortressId,
+    maxTargetSentArmy,
+    onConfirmAttackTarget,
+    onSelectFortress,
+    ownFortress,
+    pendingTargetId,
+    selectedFortressId,
+    selectedTargetId,
+    snappedFortressPositions,
+  ]);
+
+  useEffect(() => {
     if (!ownFortress) {
       return;
     }
@@ -1187,19 +1470,19 @@ export const FortressMap = memo(function FortressMap({
 
           if (pointerCacheRef.current.size === 1) {
             setIsDragging(true);
-            setDragStart({
+            dragStartRef.current = {
               x: event.clientX,
               y: event.clientY,
               translateX,
               translateY,
-            });
+            };
             suppressClickRef.current = false;
             pinchStateRef.current = null;
           }
 
           if (pointerCacheRef.current.size >= 2) {
             setIsDragging(false);
-            setDragStart(null);
+            dragStartRef.current = null;
             suppressClickRef.current = true;
             updatePinch();
             (event.currentTarget as HTMLDivElement).setPointerCapture(
@@ -1228,6 +1511,8 @@ export const FortressMap = memo(function FortressMap({
             return;
           }
 
+          const dragStart = dragStartRef.current;
+
           if (!dragStart) {
             return;
           }
@@ -1248,16 +1533,16 @@ export const FortressMap = memo(function FortressMap({
             dragStart.translateY + deltaY,
             scale
           );
-          setTranslateX(nextTranslate.x);
-          setTranslateY(nextTranslate.y);
+          scheduleTranslateUpdate(nextTranslate);
         }}
         onPointerUpCapture={(event) => {
           pointerCacheRef.current.delete(event.pointerId);
           pinchStateRef.current = null;
+          flushPendingTranslate();
 
           if (pointerCacheRef.current.size === 0) {
             setIsDragging(false);
-            setDragStart(null);
+            dragStartRef.current = null;
             window.setTimeout(() => {
               suppressClickRef.current = false;
             }, 0);
@@ -1266,8 +1551,9 @@ export const FortressMap = memo(function FortressMap({
         onPointerCancelCapture={(event) => {
           pointerCacheRef.current.delete(event.pointerId);
           pinchStateRef.current = null;
+          flushPendingTranslate();
           setIsDragging(false);
-          setDragStart(null);
+          dragStartRef.current = null;
           suppressClickRef.current = false;
         }}
       >
@@ -1282,227 +1568,7 @@ export const FortressMap = memo(function FortressMap({
             onRecallAttackUnit={onRecallAttackUnit}
             onInstantRecallAttackUnit={onInstantRecallAttackUnit}
           />
-          {fortresses.length === 0 ? (
-            <div className={styles.emptyState}>
-              No fortresses on the battlefield yet.
-            </div>
-          ) : (
-            fortresses.map((fortress) => {
-              const snappedPosition =
-                snappedFortressPositions.get(fortress.id) ??
-                snapMapPointToHex({
-                  x: fortress.mapX,
-                  y: fortress.mapY,
-                });
-              const selectable =
-                (Boolean(onSelectFortress) && fortress.isCurrentUser) ||
-                (Boolean(onSelectFortress) && fortress.fortressKind === "MEGA") ||
-                (Boolean(onConfirmAttackTarget) && fortress.isTargetable);
-              const variant = getSpriteVariant(fortress);
-              const isMega = fortress.fortressKind === "MEGA";
-              const isLootCamp = fortress.fortressKind === "LOOT_CAMP";
-              const isDwarfRune = fortress.fortressKind === "DWARF_RUNE";
-              const isUnicornDecoy = fortress.fortressKind === "UNICORN_DECOY";
-              const showsHealth = fortress.fortressKind !== "PLAYER" && !isMega;
-              const homeOwnerFortressId = isMega
-                ? (homeOfAOwnership?.ownerFortressId ?? null)
-                : null;
-              const megaNpcDefense =
-                isMega && !homeOwnerFortressId
-                  ? Math.max(0, fortress.army)
-                  : 0;
-              const megaOccupyingDefense =
-                isMega && homeOwnerFortressId
-                  ? Math.max(
-                      0,
-                      fortressById.get(homeOwnerFortressId)?.army ?? 0
-                    )
-                  : 0;
-              const megaTotalDefense = megaOccupyingDefense || megaNpcDefense;
-              const megaDefenseSplitLabel =
-                megaOccupyingDefense > 0
-                  ? `${megaOccupyingDefense}`
-                  : `${megaNpcDefense}`;
-              const effectiveFortressSkin =
-                fortress.fortressCosmeticVariant ??
-                (fortress.race === "UNSTABLE_UNICORNS"
-                  ? `unstable-unicorn-${(hashString(fortress.spriteSeedId) % 2) + 1}`
-                  : null);
-              const className = [
-                styles.marker,
-                isMega ? styles.megaMarker : "",
-                isLootCamp ? styles.lootCampMarker : "",
-                isDwarfRune ? styles.dwarfRuneMarker : "",
-                isUnicornDecoy ? styles.unicornDecoyMarker : "",
-                fortress.isSlayerOfA ? styles.crownedMarker : "",
-                fortress.isCurrentUser ? styles.currentUser : "",
-                selectedFortressId === fortress.id ? styles.activeFortress : "",
-                selectedTargetId === fortress.id ? styles.selected : "",
-                selectable ? styles.selectable : "",
-                fortress.isTargetable ? styles.targetable : "",
-              ]
-                .filter(Boolean)
-                .join(" ");
-
-              const showTargetPopover =
-                pendingTargetId === fortress.id && fortress.isTargetable;
-              const travelMinutes = showTargetPopover && ownFortress
-                ? getAttackTravelMinutes(ownFortress, fortress)
-                : null;
-
-              return (
-                <Fragment key={fortress.id}>
-                  <button
-                    type="button"
-                    className={className}
-                    style={{
-                      left: `${snappedPosition.x}%`,
-                      top: `${snappedPosition.y}%`,
-                    }}
-                    onPointerDown={(event) =>
-                      handleMarkerPointerDown(event, fortress, selectable)
-                    }
-                    onPointerMove={(event) =>
-                      handleMarkerPointerMove(event, fortress.id)
-                    }
-                    onPointerUp={(event) =>
-                      handleMarkerPointerUp(event, fortress.id)
-                    }
-                    onPointerCancel={(event) =>
-                      clearMarkerTap(event, fortress.id)
-                    }
-                    onClick={(event) => {
-                      if (event.detail !== 0 || suppressClickRef.current) {
-                        event.preventDefault();
-                        return;
-                      }
-
-                      activateFortress(fortress);
-                    }}
-                    aria-pressed={
-                      selectedTargetId === fortress.id ||
-                      selectedFortressId === fortress.id
-                    }
-                    aria-label={
-                      isMega
-                        ? `${fortress.name}, defending force ${megaTotalDefense} (${megaOccupyingDefense > 0 ? "occupying" : "npc"})`
-                        : showsHealth
-                        ? `${fortress.name}, ${fortress.health} of ${fortress.maxHealth} health`
-                        : `${fortress.name}, ${fortress.points} points`
-                    }
-                  >
-                    <span className={styles.selectionPulse} />
-                    {fortress.race && !fortress.isNpc ? (
-                      <span
-                        className={styles.raceToken}
-                        style={{
-                          backgroundImage: `url("${RACE_TOKEN_PATHS[fortress.race]}")`,
-                        }}
-                      />
-                    ) : null}
-                    <span className={styles.spriteFrame}>
-                      {isMega ? (
-                        <MegaFortressSprite
-                          iconLabel={fortress.iconLabel ?? "A-"}
-                        />
-                      ) : isLootCamp ? (
-                        <LootCampSprite variant={fortress.lootCampVariant} />
-                      ) : isDwarfRune ? (
-                        <DwarfRuneSprite />
-                      ) : (
-                        <FortressSprite
-                          variant={variant}
-                          skinVariant={effectiveFortressSkin}
-                        />
-                      )}
-                    </span>
-                    {isMega ? (
-                      <span className={styles.pointsBadge}>
-                        {megaDefenseSplitLabel} ({megaTotalDefense})
-                      </span>
-                    ) : showsHealth ? (
-                      <span className={styles.pointsBadge}>
-                        {fortress.health}/{fortress.maxHealth}
-                      </span>
-                    ) : null}
-                    <span className={styles.nameplate}>{fortress.name}</span>
-                    {fortress.isSlayerOfA ? (
-                      <span className={styles.crownBadge}>Slayer of A</span>
-                    ) : null}
-                    <span className={styles.tooltip}>
-                      <strong>{fortress.name}</strong>
-                      <span>
-                        {isMega
-                          ? `Defenders ${megaDefenseSplitLabel} (${megaOccupyingDefense > 0 ? "occupying" : "npc"})`
-                          : showsHealth
-                          ? `${fortress.health}/${fortress.maxHealth} HP`
-                          : `${fortress.points} pts${
-                              fortress.isSlayerOfA ? " - Slayer of A" : ""
-                            }`}
-                      </span>
-                    </span>
-                  </button>
-
-                  {showTargetPopover ? (
-                    <div
-                      className={styles.targetPopover}
-                      data-target-popover
-                      style={{
-                        left: `${snappedPosition.x}%`,
-                        top: `${snappedPosition.y}%`,
-                      }}
-                      onPointerDown={(event) => event.stopPropagation()}
-                    >
-                      <strong>{fortress.name}</strong>
-                      <span>
-                        {showsHealth
-                          ? `${fortress.health}/${fortress.maxHealth} HP`
-                          : `${fortress.points} pts`}
-                      </span>
-                      {travelMinutes ? <em>{travelMinutes} min ETA</em> : null}
-                      <label className={styles.targetArmyControl}>
-                        <span className={styles.targetArmyLabel}>
-                          Army to send: {clampedTargetSentArmy}/
-                          {maxTargetSentArmy}
-                        </span>
-                        <input
-                          type="range"
-                          min={1}
-                          max={Math.max(1, maxTargetSentArmy)}
-                          step={1}
-                          value={Math.max(1, clampedTargetSentArmy)}
-                          disabled={maxTargetSentArmy <= 0}
-                          onPointerDown={(event) => event.stopPropagation()}
-                          onChange={(event) => {
-                            const nextArmy = Number(event.currentTarget.value);
-                            setTargetSentArmy(
-                              Number.isFinite(nextArmy)
-                                ? Math.floor(nextArmy)
-                                : 1
-                            );
-                          }}
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        disabled={maxTargetSentArmy <= 0}
-                        onPointerDown={(event) => event.stopPropagation()}
-                        onClick={async () => {
-                          setPendingTargetId(null);
-                          await onConfirmAttackTarget?.(
-                            fortress,
-                            clampedTargetSentArmy
-                          );
-                        }}
-                      >
-                        Send {clampedTargetSentArmy || 0} army
-                      </button>
-                    </div>
-                  ) : null}
-                </Fragment>
-              );
-            })
-          )}
+          {fortressMarkers}
         </div>
       </div>
     </div>

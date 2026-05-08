@@ -9,6 +9,7 @@ const shouldValidateAuthEnv =
 const authSecret = process.env.AUTH_SECRET?.trim();
 const googleClientId = process.env.AUTH_GOOGLE_ID?.trim();
 const googleClientSecret = process.env.AUTH_GOOGLE_SECRET?.trim();
+const databaseUrl = process.env.DATABASE_URL?.trim();
 const authUrl =
   process.env.AUTH_URL ??
   process.env.NEXTAUTH_URL ??
@@ -19,9 +20,19 @@ const unsafePlaceholderValues = new Set([
   "replace-with-a-long-random-string",
   "admin@example.com",
 ]);
+const sessionMaxAgeSeconds = 60 * 60 * 24 * 7;
+const sessionUpdateAgeSeconds = 60 * 60 * 12;
 
 function isUnsafePlaceholder(value: string | null | undefined) {
   return value ? unsafePlaceholderValues.has(value.trim().toLowerCase()) : false;
+}
+
+function hasUnsafeDatabaseUrl(value: string | null | undefined) {
+  if (!value) {
+    return false;
+  }
+
+  return /postgresql:\/\/postgres:postgres@/i.test(value);
 }
 
 if (authUrl) {
@@ -42,18 +53,31 @@ if (shouldValidateAuthEnv) {
     !googleClientId ? "AUTH_GOOGLE_ID" : null,
     !googleClientSecret ? "AUTH_GOOGLE_SECRET" : null,
     !authUrl ? "AUTH_URL, NEXTAUTH_URL, or RENDER_EXTERNAL_URL" : null,
+    !databaseUrl ? "DATABASE_URL" : null,
   ].filter(Boolean);
   const placeholders = [
     isUnsafePlaceholder(authSecret) ? "AUTH_SECRET" : null,
     isUnsafePlaceholder(googleClientId) ? "AUTH_GOOGLE_ID" : null,
     isUnsafePlaceholder(googleClientSecret) ? "AUTH_GOOGLE_SECRET" : null,
   ].filter(Boolean);
+  const insecureConfig = [
+    hasUnsafeDatabaseUrl(databaseUrl)
+      ? "DATABASE_URL (uses default postgres:postgres credentials)"
+      : null,
+  ].filter(Boolean);
 
-  if (missing.length > 0 || placeholders.length > 0) {
+  if (
+    missing.length > 0 ||
+    placeholders.length > 0 ||
+    insecureConfig.length > 0
+  ) {
     const details = [
       missing.length > 0 ? `Missing: ${missing.join(", ")}` : null,
       placeholders.length > 0
         ? `Replace placeholder values for: ${placeholders.join(", ")}`
+        : null,
+      insecureConfig.length > 0
+        ? `Fix insecure values for: ${insecureConfig.join(", ")}`
         : null,
     ].filter(Boolean);
 
@@ -66,9 +90,13 @@ if (shouldValidateAuthEnv) {
 export const { auth, handlers } = NextAuth({
   adapter: PrismaAdapter(prisma),
   secret: authSecret,
+  // Only safe behind a trusted reverse proxy that sanitizes forwarded headers.
+  // Keep AUTH_URL explicit for custom domains and non-Render environments.
   trustHost: true,
   session: {
     strategy: "database",
+    maxAge: sessionMaxAgeSeconds,
+    updateAge: sessionUpdateAgeSeconds,
   },
   providers: isAuthConfigured
     ? [
