@@ -34,6 +34,7 @@ import {
 import {
   launchAttackUnit,
   recallAttackUnit as recallAttackUnitRecord,
+  instantRecallGarrison as instantRecallGarrisonRecord,
 } from "./attack-units";
 import { GameError } from "./errors";
 import {
@@ -60,6 +61,7 @@ import {
   countCastleSpecializations,
   isCastleUpgradeSpecialization,
 } from "./specializations";
+import { convertGoldToPoints } from "./currency";
 import {
   DWARF_DEEP_MINING_MAX_GOLD_COMMITMENT,
   DWARF_DEEP_MINING_MIN_GOLD_COMMITMENT,
@@ -1253,6 +1255,42 @@ export async function recallAttackUnit({
         userId,
         attackUnitId,
         instant,
+        now,
+      });
+    },
+    {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    }
+  );
+}
+
+export async function instantRecallGarrison({
+  userId,
+  garrisonId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  garrisonId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(
+    async (tx) => {
+      const cycle = await getCurrentCycle(tx);
+
+      if (
+        !cycle ||
+        (cycle.status !== CycleStatus.ACTIVE &&
+          cycle.status !== CycleStatus.TESTING)
+      ) {
+        throw new GameError("The battlefield is not accepting active actions.");
+      }
+
+      return instantRecallGarrisonRecord({
+        db: tx,
+        garrisonId,
+        userId,
         now,
       });
     },
@@ -2775,6 +2813,73 @@ export async function activateOrkBossOrder({
     });
 
     return order;
+  });
+}
+
+export async function buyPointsWithGold({
+  userId,
+  goldAmount,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  goldAmount: number;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  if (goldAmount <= 0) {
+    throw new GameError("Gold amount must be greater than 0.");
+  }
+
+  return await db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isActiveWindowOpen(cycle, now)) {
+      throw new GameError(
+        "You can only convert gold during the ACTIVE phase."
+      );
+    }
+
+    const fortress = await tx.fortress.findUnique({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: userId,
+        },
+      },
+    });
+
+    if (!fortress) {
+      throw new GameError("You are not participating in the active cycle.");
+    }
+
+    if (fortress.gold < goldAmount) {
+      throw new GameError("You do not have enough gold for this conversion.");
+    }
+
+    const pointsGained = convertGoldToPoints(goldAmount);
+
+    if (pointsGained <= 0) {
+      throw new GameError(
+        "Gold amount is too small. You need at least 10 gold to convert to 1 point."
+      );
+    }
+
+    const updatedFortress = await tx.fortress.update({
+      where: {
+        id: fortress.id,
+      },
+      data: {
+        gold: fortress.gold - goldAmount,
+        points: fortress.points + pointsGained,
+      },
+    });
+
+    return {
+      goldSpent: goldAmount,
+      pointsGained,
+      fortress: updatedFortress,
+    };
   });
 }
 

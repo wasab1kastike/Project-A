@@ -51,11 +51,13 @@ import {
   registerCommanderName,
   renameActiveFortress,
   recallAttackUnit,
+  instantRecallGarrison,
   selectFortressRace,
   setFortressAction,
   updateWorkerAssignment,
   shuffleFortressLocation,
   investOrkWaaaghScrap,
+  buyPointsWithGold,
 } from "@/lib/game/service";
 import type { AttackUnitLaunchMarker } from "@/lib/game/service";
 
@@ -364,6 +366,35 @@ export async function instantRecallAttackUnitAction(attackUnitId: string) {
   }
 }
 
+export async function instantRecallGarrisonAction(garrisonId: string) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await instantRecallGarrison({
+      userId,
+      garrisonId,
+    });
+    emitProjectARefresh("garrison-recall");
+    revalidatePath("/");
+    return {
+      ok: true,
+    } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
 export async function updateWorkerAssignmentAction(input: {
   minersAssigned: number;
   farmersAssigned: number;
@@ -494,6 +525,29 @@ export async function renameFortressAction(formData: FormData) {
   }
 
   finishAction("Fortress renamed and 10 gold spent.");
+}
+
+export async function buyPointsWithGoldAction(formData: FormData) {
+  const userId = await requireUserId();
+
+  const goldAmount = getNumber(formData, "goldAmount", 0);
+
+  if (goldAmount <= 0) {
+    redirectToHome("error", "Gold amount must be greater than 0.");
+  }
+
+  try {
+    const result = await buyPointsWithGold({
+      userId,
+      goldAmount,
+    });
+    emitProjectARefresh("gold-to-points-conversion");
+    revalidatePath("/");
+  } catch (error) {
+    redirectToHome("error", getActionErrorMessage(error));
+  }
+
+  finishAction(`Spent ${goldAmount} gold to gain points.`);
 }
 
 export async function purchaseFortressUpgradeAction(formData: FormData) {

@@ -645,6 +645,16 @@ export async function getHomePageState({
               },
             },
           },
+          fortressGarrisons: {
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+            select: {
+              id: true,
+              army: true,
+              tileId: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          },
         },
       },
       attackUnits: {
@@ -1161,6 +1171,13 @@ export async function getHomePageState({
     ? playerFortress.raceAbilityActivations.find(
         (activation) =>
           activation.kind === RaceAbilityKind.SPACE_MURINE_INSTANT_RECALL
+      )
+    : null;
+  const latestGarrisonInstantRecallUse = playerFortress
+    ? playerFortress.raceAbilityActivations.find(
+        (activation) =>
+          activation.kind ===
+          RaceAbilityKind.SPACE_MURINE_GARRISON_INSTANT_RECALL
       )
     : null;
   const activeUnicornTeleportToken = playerFortress
@@ -2633,6 +2650,12 @@ export async function getHomePageState({
               (!latestInstantRecallUse ||
                 getHelsinkiHourKey(latestInstantRecallUse.usedAt) !==
                   currentHourKey),
+            canInstantRecallGarrison:
+              playerFortress.race === "SPACE_MURINES" &&
+              raceBuffTier >= 2 &&
+              (!latestGarrisonInstantRecallUse ||
+                getHelsinkiHourKey(latestGarrisonInstantRecallUse.usedAt) !==
+                  currentHourKey),
             canClaimUnicornTeleport:
               playerFortress.race === "UNSTABLE_UNICORNS" &&
               raceBuffTier >= 1 &&
@@ -2660,6 +2683,19 @@ export async function getHomePageState({
               playerCastleSpecializationCounts ?? undefined,
           }).goldProduced,
           attackDamage: getFortressAttackDamage(playerFortress.level),
+          garrisons: playerFortress.fortressGarrisons.map((garrison) => ({
+            id: garrison.id,
+            army: garrison.army,
+            tileId: garrison.tileId,
+            createdAt: garrison.createdAt,
+            canInstantRecall:
+              playerFortress.race === "SPACE_MURINES" &&
+              raceBuffTier >= 2 &&
+              (!latestGarrisonInstantRecallUse ||
+                getHelsinkiHourKey(
+                  latestGarrisonInstantRecallUse.usedAt
+                ) !== currentHourKey),
+          })),
         }
       : null,
     leaderboard: sortedFortresses.slice(0, 3).map((fortress, index) => ({

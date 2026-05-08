@@ -39,3 +39,36 @@ export function countCastleSpecializations(
 export function getCastleSpecializationMultiplier(count: number) {
   return 1 + count * 0.1;
 }
+
+/**
+ * Get the before/after multiplier comparison for a building upgrade
+ * 
+ * Shows the current multiplier at the current level and what it will be
+ * at the next level, along with the percentage increase.
+ * 
+ * @param currentLevel - Current building level (0 to max-1)
+ * @returns Object with current multiplier, next multiplier, absolute difference, and percentage increase
+ * 
+ * @example
+ * // A POINTS building at level 2
+ * getBuildingUpgradeComparison(2)
+ * // returns {
+ * //   currentMultiplier: 1.2,    // 1 + 2*0.1
+ * //   nextMultiplier: 1.3,       // 1 + 3*0.1
+ * //   absoluteDifference: 0.1,
+ * //   percentageIncrease: 8.33   // (0.1 / 1.2) * 100
+ * // }
+ */
+export function getBuildingUpgradeComparison(currentLevel: number) {
+  const currentMultiplier = getCastleSpecializationMultiplier(currentLevel);
+  const nextMultiplier = getCastleSpecializationMultiplier(currentLevel + 1);
+  const absoluteDifference = nextMultiplier - currentMultiplier;
+  const percentageIncrease = (absoluteDifference / currentMultiplier) * 100;
+
+  return {
+    currentMultiplier,
+    nextMultiplier,
+    absoluteDifference,
+    percentageIncrease,
+  };
+}

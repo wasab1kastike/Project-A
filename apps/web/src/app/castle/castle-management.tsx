@@ -21,6 +21,7 @@ import {
   selectFortressRaceAction,
   updateWorkerAssignmentAction,
   useUnicornTeleportAction,
+  buyPointsWithGoldAction,
 } from "@/app/game-actions";
 import {
   calculateTickProduction,
@@ -36,6 +37,11 @@ import {
   isFortressRace,
   type FortressRace,
 } from "@/lib/game/races";
+import {
+  convertGoldToPoints,
+  getGoldToPointsRatio,
+} from "@/lib/game/currency";
+import { getBuildingUpgradeComparison } from "@/lib/game/specializations";
 import styles from "./page.module.css";
 
 type PlayerSummary = {

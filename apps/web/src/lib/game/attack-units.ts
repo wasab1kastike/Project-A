@@ -417,3 +417,96 @@ export async function launchAttackUnit({
     },
   });
 }
+
+export async function instantRecallGarrison({
+  db,
+  garrisonId,
+  userId,
+  now,
+}: {
+  db: DatabaseClient;
+  garrisonId: string;
+  userId: string;
+  now: Date;
+}) {
+  const garrison = await db.fortressGarrison.findUnique({
+    where: {
+      id: garrisonId,
+    },
+    select: {
+      id: true,
+      army: true,
+      fortressId: true,
+      fortress: {
+        select: {
+          id: true,
+          ownerId: true,
+          race: true,
+        },
+      },
+    },
+  });
+
+  if (!garrison || garrison.fortress.ownerId !== userId) {
+    throw new GameError("That garrison is not available to recall.");
+  }
+
+  if (garrison.fortress.race !== "SPACE_MURINES") {
+    throw new GameError(
+      "Only Space Murines can instantly recall garrisons."
+    );
+  }
+
+  const hourKey = getHelsinkiHourKey(now);
+  const latestInstantRecall = await db.raceAbilityActivation.findFirst({
+    where: {
+      fortressId: garrison.fortress.id,
+      kind: RaceAbilityKind.SPACE_MURINE_GARRISON_INSTANT_RECALL,
+    },
+    orderBy: [{ usedAt: "desc" }, { id: "desc" }],
+    select: {
+      usedAt: true,
+    },
+  });
+
+  if (
+    latestInstantRecall &&
+    getHelsinkiHourKey(latestInstantRecall.usedAt) === hourKey
+  ) {
+    throw new GameError(
+      "You have already recalled a garrison this hour. Try again later."
+    );
+  }
+
+  const lostArmy = Math.max(1, Math.ceil(garrison.army * 0.05));
+  const returnedArmy = Math.max(0, garrison.army - lostArmy);
+
+  await db.raceAbilityActivation.create({
+    data: {
+      fortressId: garrison.fortress.id,
+      kind: RaceAbilityKind.SPACE_MURINE_GARRISON_INSTANT_RECALL,
+      activeFrom: now,
+      activeUntil: now,
+      usedAt: now,
+    },
+  });
+
+  if (returnedArmy > 0) {
+    await db.fortress.update({
+      where: {
+        id: garrison.fortress.id,
+      },
+      data: {
+        army: {
+          increment: returnedArmy,
+        },
+      },
+    });
+  }
+
+  return db.fortressGarrison.delete({
+    where: {
+      id: garrison.id,
+    },
+  });
+}
