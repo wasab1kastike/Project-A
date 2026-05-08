@@ -11,10 +11,11 @@ import {
   FORTRESS_ATTACK_DAMAGE_PER_LEVEL,
   FORTRESS_GROWTH_PER_LEVEL,
   FORTRESS_LEVEL_UP_COSTS,
+  HOME_OF_A_ARMY_DRAIN_PER_TICK,
+  HOME_OF_A_NEUTRAL_DEFENSE,
   HOME_OF_A_POINT_INCOME,
   HOME_OF_A_TILE_ID,
   MAX_SIMULTANEOUS_ATTACKS_BASE,
-  MEGA_FORTRESS_HEALTH,
   MEGA_FORTRESS_NAME,
   getArcadeSeasonRankBonus,
 } from "@/lib/game/constants";
@@ -41,11 +42,17 @@ import {
   LOOT_CAMP_MIN_STRENGTH,
 } from "@/lib/game/loot-camps";
 import { RACE_DEFINITIONS } from "@/lib/game/races";
+import {
+  TEMPORARY_MAP_OBJECTIVE_INTERVAL_HOURS,
+  TILE_CLAIM_DURATION_MINUTES,
+  TILE_CLAIM_MAX_ACTIVE_PROJECTS,
+  TILE_CLAIM_OWNED_TILE_COST_STEP,
+} from "@/lib/game/territory";
 
 const RACE_ABILITY_NOTES: Record<string, readonly string[]> = {
   DWARFS: [
     "Tier 2+: Grudge Book unlocks. Pick or replace one enemy fortress and gain +25% attack and defense against that target in direct combat and tile battles.",
-    "Tier 3: Add a second grudge target or double your first target (x2 grudge multiplier).",
+    "Tier 3: Add a second grudge target or double your first target for a total x1.5 grudge multiplier against that one enemy.",
     "Deep Mining: once per Helsinki hour during active season. Commit 150-600 gold, then wait 10/20/30 minutes based on commitment size. Roll table favors gold, food, recruitment bursts, combat surge, army gains/losses, production halts, and partial gold loss. Rune suppression no longer comes from Deep Mining.",
     "Rune of Grudges: Tier 3 active ability. Pay 250 gold upfront and 25 gold per tick upkeep for up to 6 hours to raise an attackable Dwarf rune that suppresses a single enemy fortress until the rune dies or upkeep fails.",
   ],
@@ -53,6 +60,7 @@ const RACE_ABILITY_NOTES: Record<string, readonly string[]> = {
     "Tier 1: Enemies cannot see your army size while your units are in transit.",
     "Tier 1+: Faster attack travel from Unicorn speed tech.",
     "Tier 2+: Claim one free teleport token per hour.",
+    "Tier 3: Shattered Reality unlocks once per Helsinki day and rolls a random omen that can surge, scatter, or backfire armies.",
     "Using a free teleport leaves attackable decoy castles behind. For other players, decoys look like normal player fortresses. Decoys collapse when hit and can destroy part of the attacking army.",
   ],
   SPACE_MURINES: [
@@ -97,11 +105,11 @@ const PVE_FORMULAS = [
   `Fortress health damage per surviving hit = sent army x (${BASE_FORTRESS_ATTACK_DAMAGE} + attacker castle level x ${FORTRESS_ATTACK_DAMAGE_PER_LEVEL}).`,
   "Attacker castle level affects PvE health damage, not the initial army-vs-army battle power check.",
   "Loot camps first compare attack power against the camp defending army. If the attacker wins, the camp loses health.",
-  `${MEGA_FORTRESS_NAME} is conquered through the center map tile as a timed control battle.`,
+  `${MEGA_FORTRESS_NAME} is conquered through the center map tile as a timed control battle that starts against ${HOME_OF_A_NEUTRAL_DEFENSE} neutral defense.`,
 ] as const;
 
 const homeOfALore =
-  "Home of A is the center-map control point. Banners fight over it through timed tile battles, and the controlling alliance earns points every tick.";
+  "Home of A is the center-map control point. Banners fight over it through timed tile battles, and the controlling alliance earns points every tick while each holder also bleeds army to keep the banner planted.";
 
 const SEASON_FLOW = [
   {
@@ -139,12 +147,15 @@ const QUICKSTART_STEPS = [
 
 const LATEST_UPDATES = [
   "Dwarfs now play as a fortified economy race: slower movement, stronger owned-tile defense, a better grudge book, deliberate Rune of Grudges pressure, and a delayed gold-funded Deep Mining gamble.",
+  "Race identities are now sharper: Unicorns lean harder into hidden movement and chaos teleports, Space Murines into disciplined STIM/recall windows and attack slots, and ORKS into Scrap-powered tempo swings.",
   "Army recruitment is now order-based: buy units with gold, wait for recruiters to process the queue, then pay food upkeep only after units become active.",
   "Recruiter worker previews now show queue throughput and active-army upkeep instead of implying passive free army production.",
   "Desktop tile selection now uses the same direct click/tap behavior as mobile, so PC players can inspect and buy tiles from the map.",
+  "Neutral tile acquisition is now a timed project: only connected neutral spawn tiles can be acquired, and each fortress may run one acquisition at a time.",
   "Battle-log badges now count unread/new reports only instead of every historical entry.",
   "Battlefield reinforcements now obey the same simultaneous outbound attack cap as direct attacks.",
   "Battlefield rewards, casualties, loot, and tile transfers now persist after economy ticks instead of being overwritten by stale production writes.",
+  "Owned tile battles now keep the tile bonus context in view, and Dwarfs gain extra defensive leverage when holding territory or Home of A.",
   "Loot camps now stay on the battlefield for 30 minutes, show clearer reward/strength/defender info, and fight back with variant-scaled defending armies.",
   "Loot camps now spawn around the battlefield during gameplay. Classic camps pay food, Rich camps pay gold, and Chaos camps pay army plus a race cooldown reset.",
   "Unstable Unicorn teleport now lasts 1 hour, leaves an attackable decoy at home, then returns the castle on the first tick after the timer ends.",
@@ -175,8 +186,18 @@ const BATTLEFIELD_RULES = [
   "Joining a battlefield sends a visible unit toward that battle and reserves the army while it travels.",
   "A player cannot join both sides of the same unresolved battlefield.",
   "Resolved tile battlefields can transfer tile ownership to the winning side.",
+  "Owned-tile and Home of A defenders get the tile's native bonus, and Dwarf defenders get an extra x1.25 defensive multiplier on those fights.",
   "Battle results are applied after economy persistence, so loot, casualties, and rewards should not be lost to the same tick's production update.",
   "The battle log badge shows reports you have not seen yet, not the total report archive.",
+] as const;
+
+const TILE_CONTROL_RULES = [
+  `Neutral spawnable tiles are acquired through a ${TILE_CLAIM_DURATION_MINUTES}-minute claim project, not instantly.`,
+  `Each fortress can run ${TILE_CLAIM_MAX_ACTIVE_PROJECTS} neutral tile acquisition project at a time.`,
+  "A neutral tile must be connected to your castle tile or your existing owned territory before you can claim it.",
+  `Claim cost starts at 25 gold, scales with distance, adds biome premiums, and increases by ${TILE_CLAIM_OWNED_TILE_COST_STEP} gold per owned or pending tile.`,
+  `Temporary map objectives rotate every ${TEMPORARY_MAP_OBJECTIVE_INTERVAL_HOURS} hours and add bonus point income to selected normal tiles while active.`,
+  "Home of A cannot be claimed. It must be attacked through the center tile and held through battlefield control.",
 ] as const;
 
 const FAQ_ENTRIES = [
@@ -205,6 +226,7 @@ const FAQ_ENTRIES = [
 const GLOSSARY = [
   "Tick: the minute-based game update that applies growth, combat, and state transitions.",
   "Buff tier: race power stage (T2/T3) unlocked by active-season timing.",
+  "Claim project: the timed neutral-tile acquisition job that reserves gold until the tile finishes transferring.",
   "Returned: surviving attackers that come home after a winning raid.",
   "Decoy: temporary attackable Unicorn teleport remnant left at the home tile.",
   "Loot camp: temporary NPC target with strength-based HP and variant rewards.",
@@ -509,6 +531,46 @@ export default function WikiPage() {
         </article>
 
         <article className={styles.card}>
+          <span className={styles.sectionLabel}>Tiles</span>
+          <h2>Claims, objectives, and territory pressure</h2>
+          <p>
+            Territory grows through timed claim projects, rotating point
+            objectives, and control battles over valuable hexes.
+          </p>
+          <div className={styles.twoCol}>
+            <section>
+              <h3>Claim rules</h3>
+              <ul className={styles.noteList}>
+                {TILE_CONTROL_RULES.map((entry) => (
+                  <li key={entry}>{entry}</li>
+                ))}
+              </ul>
+            </section>
+            <section>
+              <h3>What owned tiles do</h3>
+              <ul className={styles.noteList}>
+                <li>
+                  Tile bonuses come from biome and can include gold, food,
+                  army, defense, or temporary objective points.
+                </li>
+                <li>
+                  Forest and hills are better defensive holds, while marsh
+                  tiles are the main army-income biome.
+                </li>
+                <li>
+                  Owned tiles can be attacked, reinforced, and transferred when
+                  their battlefield resolves.
+                </li>
+                <li>
+                  The selected tile panel shows current owner, bonus, claim
+                  status, contest state, and action limits.
+                </li>
+              </ul>
+            </section>
+          </div>
+        </article>
+
+        <article className={styles.card}>
           <span className={styles.sectionLabel}>Home of A</span>
           <h2>Center control objective</h2>
           <p>{homeOfALore}</p>
@@ -516,7 +578,7 @@ export default function WikiPage() {
             <li>Always sits on center tile {HOME_OF_A_TILE_ID}.</li>
             <li>
               First capture fights neutral defense strength{" "}
-              {MEGA_FORTRESS_HEALTH}.
+              {HOME_OF_A_NEUTRAL_DEFENSE}.
             </li>
             <li>
               The controlling banner alliance earns {HOME_OF_A_POINT_INCOME}{" "}
@@ -525,6 +587,10 @@ export default function WikiPage() {
             <li>
               Banner owner gets half the income; the rest is split by capture
               army contribution.
+            </li>
+            <li>
+              Every active Home of A holder loses {HOME_OF_A_ARMY_DRAIN_PER_TICK} army
+              per tick while the banner is held.
             </li>
           </ul>
         </article>
