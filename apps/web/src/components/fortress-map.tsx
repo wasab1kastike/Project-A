@@ -755,7 +755,9 @@ export const FortressMap = memo(function FortressMap({
   const [targetSentArmy, setTargetSentArmy] = useState(1);
 
   const ownFortress =
-    fortresses.find((fortress) => fortress.isCurrentUser) ?? null;
+    fortresses.find(
+      (fortress) => fortress.isCurrentUser && fortress.fortressKind === "PLAYER"
+    ) ?? null;
   const fortressById = useMemo(
     () => new Map(fortresses.map((fortress) => [fortress.id, fortress])),
     [fortresses]
