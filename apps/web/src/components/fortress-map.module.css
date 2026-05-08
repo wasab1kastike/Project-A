@@ -216,6 +216,17 @@
   filter: drop-shadow(0 0 10px rgba(247, 196, 95, 0.78));
 }
 
+.battleIndicator {
+  filter: drop-shadow(0 0 8px rgba(255, 143, 118, 0.8)) drop-shadow(0 0 4px rgba(255, 143, 118, 1));
+  animation: battleIndicatorPulse 1.8s ease-in-out infinite;
+}
+
+.battleText {
+  font-size: 24px;
+  font-weight: bold;
+  animation: battleIndicatorPulse 1.8s ease-in-out infinite;
+}
+
 .emptyState {
   position: absolute;
   inset: 0;
@@ -401,6 +412,19 @@
 
   50% {
     stroke-opacity: 1;
+  }
+}
+
+@keyframes battleIndicatorPulse {
+  0%,
+  100% {
+    opacity: 0.7;
+    filter: drop-shadow(0 0 8px rgba(255, 143, 118, 0.6)) drop-shadow(0 0 4px rgba(255, 143, 118, 0.8));
+  }
+
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 12px rgba(255, 143, 118, 1)) drop-shadow(0 0 8px rgba(255, 143, 118, 1));
   }
 }
 

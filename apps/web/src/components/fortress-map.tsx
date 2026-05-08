@@ -221,6 +221,10 @@ const RACE_TOKEN_PATHS: Record<string, string> = {
   UNSTABLE_UNICORNS: "/assets/token-unstable-unicorns.png",
 };
 
+// SVG data URL for crossed swords battle indicator
+// Falls back to emoji if image asset is not available
+const CROSSED_SWORDS_PATH = `/assets/crossed-swords.png`;
+
 const OWNED_TILE_RACE_CLASS_BY_RACE: Record<string, string> = {
   DWARFS: styles.dwarfOwnedTile,
   UNSTABLE_UNICORNS: styles.unicornOwnedTile,
@@ -494,6 +498,28 @@ function HexTileMap({
                   tile.y - 3
                 } v 22 M ${tile.x + 11} ${tile.y - 6} v 24`}
               />
+            ) : null}
+            {ownership?.hasActiveBattle ? (
+              <g className={styles.battleIndicator}>
+                <image
+                  xlinkHref={CROSSED_SWORDS_PATH}
+                  x={tile.x - 20}
+                  y={tile.y - 20}
+                  width={40}
+                  height={40}
+                  onError={(e) => {
+                    (e.target as SVGImageElement).style.display = "none";
+                  }}
+                />
+                <text
+                  x={tile.x}
+                  y={tile.y + 6}
+                  textAnchor="middle"
+                  className={styles.battleText}
+                >
+                  ⚔️
+                </text>
+              </g>
             ) : null}
           </g>
         );
