@@ -880,8 +880,8 @@ export function BattlefieldExperience({
 
       {selectedActiveBattlefieldId ? (
         <p className={styles.helper}>
-          This tile already has an active battlefield. Join from the battle
-          card.
+          This tile already has an active battlefield. Use the battle card to
+          reinforce either side.
         </p>
       ) : null}
 
@@ -982,7 +982,7 @@ export function BattlefieldExperience({
                     : battlefield.currentUserSide === "DEFENDER"
                       ? "Joined defense"
                       : playerSummary?.army
-                        ? "Not joined"
+                        ? "Choose a side to reinforce"
                         : "No idle army";
                 const joinAmount = getBattleJoinArmy(battlefield.id);
 
@@ -1149,7 +1149,7 @@ export function BattlefieldExperience({
                                 undefined
                               }
                             >
-                              Join attack ({joinAmount})
+                              Reinforce attack ({joinAmount})
                             </button>
                           </form>
                           <form action={joinBattlefieldAction}>
@@ -1173,7 +1173,7 @@ export function BattlefieldExperience({
                                 undefined
                               }
                             >
-                              Join defense ({joinAmount})
+                              Reinforce defense ({joinAmount})
                             </button>
                           </form>
                         </div>
