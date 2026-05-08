@@ -188,7 +188,7 @@ type FortressMapProps = {
   className?: string;
 };
 
-const MIN_SCALE = 0.42;
+const MIN_SCALE = 0.25;
 const MAX_SCALE = 2.1;
 const ZOOM_STEP = 0.14;
 const CLICK_DRAG_THRESHOLD = 6;
