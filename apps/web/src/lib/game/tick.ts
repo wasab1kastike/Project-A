@@ -3302,12 +3302,18 @@ async function processCycleTick(
       tickAt,
     });
 
-    // Apply garrison maintenance drain (-1 per garrison per tick)
+    // Apply garrison maintenance drain.
+    // Unicorn garrisons drain every other tick to support the new tile-holding loop.
     await db.fortressGarrison.updateMany({
       where: {
         cycleId,
         army: {
           gt: 0,
+        },
+        fortress: {
+          race: {
+            not: "UNSTABLE_UNICORNS",
+          },
         },
       },
       data: {
@@ -3316,6 +3322,25 @@ async function processCycleTick(
         },
       },
     });
+
+    if (tickAt.getUTCMinutes() % 2 === 0) {
+      await db.fortressGarrison.updateMany({
+        where: {
+          cycleId,
+          army: {
+            gt: 0,
+          },
+          fortress: {
+            race: "UNSTABLE_UNICORNS",
+          },
+        },
+        data: {
+          army: {
+            decrement: 1,
+          },
+        },
+      });
+    }
 
     // Delete garrisons with 0 army
     await db.fortressGarrison.deleteMany({

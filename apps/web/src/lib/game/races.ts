@@ -64,8 +64,13 @@ export const RACE_DEFINITIONS = [
     flavorQuote:
       "Everything is under control. (Everything is not under control.)",
     flavorText:
-      "Glittering chaos farmers who somehow make the food stores bigger and the castle louder.",
-    passiveSummary: ["+1 food per 10 farmers", "+2 population", "Enemies cannot see your army size in transit"],
+      "Glittering chaos farmers who now excel at sticky tile control through cheaper garrison upkeep and rapid repositioning.",
+    passiveSummary: [
+      "+1 food per 10 farmers",
+      "+2 population",
+      "Enemies cannot see your army size in transit",
+      "Garrisons lose army every 2 ticks (instead of every tick)",
+    ],
     modifiers: {
       ...NO_RACE_MODIFIERS,
       populationBonus: 2,

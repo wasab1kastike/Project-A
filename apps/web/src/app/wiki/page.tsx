@@ -19,7 +19,6 @@ import {
   getArcadeSeasonRankBonus,
 } from "@/lib/game/constants";
 import {
-  ATTACKER_RETIREMENT_RATE,
   CARRY_CAPACITY_PER_SURVIVOR,
   DEFENSE_BONUS_PER_DISPLAYED_LEVEL,
   DEFENDER_LOSS_RATE_ON_ATTACKER_WIN,
@@ -207,7 +206,6 @@ const GLOSSARY = [
   "Tick: the minute-based game update that applies growth, combat, and state transitions.",
   "Buff tier: race power stage (T2/T3) unlocked by active-season timing.",
   "Returned: surviving attackers that come home after a winning raid.",
-  "Retired: surviving attackers that do not return to active army after combat.",
   "Decoy: temporary attackable Unicorn teleport remnant left at the home tile.",
   "Loot camp: temporary NPC target with strength-based HP and variant rewards.",
 ] as const;
@@ -597,8 +595,7 @@ export default function WikiPage() {
                   {WINNING_ATTACKER_MARGIN_SURVIVAL_FACTOR}).
                 </li>
                 <li>
-                  {Math.round(ATTACKER_RETIREMENT_RATE * 100)}% of surviving
-                  attackers retire after a win; the rest return.
+                  Surviving attackers return home after a win.
                 </li>
                 <li>
                   Survivors carry {CARRY_CAPACITY_PER_SURVIVOR} loot each before
