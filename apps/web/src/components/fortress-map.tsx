@@ -871,6 +871,26 @@ export const FortressMap = memo(function FortressMap({
     [clampTranslation, clearPendingPanFrame]
   );
 
+  const centerViewOnFortress = useCallback(
+    (
+      fortress: Pick<MapFortress, "id" | "mapX" | "mapY">,
+      nextScale: number
+    ) => {
+      const snappedPosition = snapMapPointToHex({
+        x: fortress.mapX,
+        y: fortress.mapY,
+      });
+      const worldX = (snappedPosition.x / 100) * MAP_WORLD_WIDTH;
+      const worldY = (snappedPosition.y / 100) * MAP_WORLD_HEIGHT;
+      const nextTranslateX = -(worldX - MAP_WORLD_WIDTH / 2) * nextScale;
+      const nextTranslateY = -(worldY - MAP_WORLD_HEIGHT / 2) * nextScale;
+
+      lastAutoFocusKeyRef.current = `${fortress.id}:${fortress.mapX}:${fortress.mapY}`;
+      applyView(nextScale, nextTranslateX, nextTranslateY);
+    },
+    [applyView]
+  );
+
   const fitMapToViewport = useCallback(() => {
     const shellBounds = shellRef.current?.getBoundingClientRect();
 
@@ -897,8 +917,13 @@ export const FortressMap = memo(function FortressMap({
     );
 
     lastAutoFocusKeyRef.current = null;
+    if (ownFortress) {
+      centerViewOnFortress(ownFortress, nextScale);
+      return;
+    }
+
     applyView(nextScale, 0, 0);
-  }, [applyView]);
+  }, [applyView, centerViewOnFortress, ownFortress]);
 
   const resetView = useCallback(() => {
     userAdjustedViewRef.current = true;
@@ -916,20 +941,10 @@ export const FortressMap = memo(function FortressMap({
 
   const focusFortress = useCallback(
     (fortress: Pick<MapFortress, "id" | "mapX" | "mapY">) => {
-      const snappedPosition = snapMapPointToHex({
-        x: fortress.mapX,
-        y: fortress.mapY,
-      });
       const focusScale = clampValue(1.08, MIN_SCALE, MAX_SCALE);
-      const worldX = (snappedPosition.x / 100) * MAP_WORLD_WIDTH;
-      const worldY = (snappedPosition.y / 100) * MAP_WORLD_HEIGHT;
-      const nextTranslateX = -(worldX - MAP_WORLD_WIDTH / 2) * focusScale;
-      const nextTranslateY = -(worldY - MAP_WORLD_HEIGHT / 2) * focusScale;
-
-      lastAutoFocusKeyRef.current = `${fortress.id}:${fortress.mapX}:${fortress.mapY}`;
-      applyView(focusScale, nextTranslateX, nextTranslateY);
+      centerViewOnFortress(fortress, focusScale);
     },
-    [applyView]
+    [centerViewOnFortress]
   );
 
   const zoomFromViewportPoint = useCallback(
