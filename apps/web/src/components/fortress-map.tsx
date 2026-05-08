@@ -754,6 +754,17 @@ export const FortressMap = memo(function FortressMap({
 
   const ownFortress =
     fortresses.find((fortress) => fortress.isCurrentUser) ?? null;
+  const fortressById = useMemo(
+    () => new Map(fortresses.map((fortress) => [fortress.id, fortress])),
+    [fortresses]
+  );
+  const homeOfAOwnership = useMemo(
+    () =>
+      mapHexes.find(
+        (ownership) => ownership.isHomeOfA || isHomeOfATile(ownership.tileId)
+      ) ?? null,
+    [mapHexes]
+  );
   const snappedFortressPositions = useMemo(
     () =>
       new Map(
@@ -1292,7 +1303,26 @@ export const FortressMap = memo(function FortressMap({
               const isLootCamp = fortress.fortressKind === "LOOT_CAMP";
               const isDwarfRune = fortress.fortressKind === "DWARF_RUNE";
               const isUnicornDecoy = fortress.fortressKind === "UNICORN_DECOY";
-              const showsHealth = fortress.fortressKind !== "PLAYER";
+              const showsHealth = fortress.fortressKind !== "PLAYER" && !isMega;
+              const homeOwnerFortressId = isMega
+                ? (homeOfAOwnership?.ownerFortressId ?? null)
+                : null;
+              const megaNpcDefense =
+                isMega && !homeOwnerFortressId
+                  ? Math.max(0, fortress.army)
+                  : 0;
+              const megaOccupyingDefense =
+                isMega && homeOwnerFortressId
+                  ? Math.max(
+                      0,
+                      fortressById.get(homeOwnerFortressId)?.army ?? 0
+                    )
+                  : 0;
+              const megaTotalDefense = megaOccupyingDefense || megaNpcDefense;
+              const megaDefenseSplitLabel =
+                megaOccupyingDefense > 0
+                  ? `${megaOccupyingDefense}`
+                  : `${megaNpcDefense}`;
               const effectiveFortressSkin =
                 fortress.fortressCosmeticVariant ??
                 (fortress.race === "UNSTABLE_UNICORNS"
@@ -1354,7 +1384,9 @@ export const FortressMap = memo(function FortressMap({
                       selectedFortressId === fortress.id
                     }
                     aria-label={
-                      showsHealth
+                      isMega
+                        ? `${fortress.name}, defending force ${megaTotalDefense} (${megaOccupyingDefense > 0 ? "occupying" : "npc"})`
+                        : showsHealth
                         ? `${fortress.name}, ${fortress.health} of ${fortress.maxHealth} health`
                         : `${fortress.name}, ${fortress.points} points`
                     }
@@ -1384,7 +1416,11 @@ export const FortressMap = memo(function FortressMap({
                         />
                       )}
                     </span>
-                    {showsHealth ? (
+                    {isMega ? (
+                      <span className={styles.pointsBadge}>
+                        {megaDefenseSplitLabel} ({megaTotalDefense})
+                      </span>
+                    ) : showsHealth ? (
                       <span className={styles.pointsBadge}>
                         {fortress.health}/{fortress.maxHealth}
                       </span>
@@ -1396,7 +1432,9 @@ export const FortressMap = memo(function FortressMap({
                     <span className={styles.tooltip}>
                       <strong>{fortress.name}</strong>
                       <span>
-                        {showsHealth
+                        {isMega
+                          ? `Defenders ${megaDefenseSplitLabel} (${megaOccupyingDefense > 0 ? "occupying" : "npc"})`
+                          : showsHealth
                           ? `${fortress.health}/${fortress.maxHealth} HP`
                           : `${fortress.points} pts${
                               fortress.isSlayerOfA ? " - Slayer of A" : ""
