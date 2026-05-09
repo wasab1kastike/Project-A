@@ -18,7 +18,8 @@ const LOCAL_ALLOWED_ORIGINS = [
 ];
 const CONNECTION_WINDOW_MS = 60_000;
 const MAX_CONNECTIONS_PER_WINDOW = isProduction ? 20 : 60;
-const REALTIME_WATCHER_INTERVAL_MS = 1_000;
+const REALTIME_WATCHER_INTERVAL_MS = 5_000;
+const REFRESH_BROADCAST_COOLDOWN_MS = 5_000;
 const prisma = new PrismaClient(
   process.env.DATABASE_URL
     ? {
@@ -31,6 +32,8 @@ const prisma = new PrismaClient(
     : undefined
 );
 const connectionAttemptsByIp = new Map();
+let lastRefreshBroadcastAt = 0;
+let queuedRefreshBroadcast = null;
 
 function parseOrigin(origin) {
   if (!origin) {
@@ -197,6 +200,21 @@ function recordConnectionAttempt(ipAddress, now = Date.now()) {
 }
 
 function emitRefresh(io, reason = "server") {
+  const now = Date.now();
+  const elapsed = now - lastRefreshBroadcastAt;
+
+  if (elapsed < REFRESH_BROADCAST_COOLDOWN_MS) {
+    if (queuedRefreshBroadcast === null) {
+      queuedRefreshBroadcast = setTimeout(() => {
+        queuedRefreshBroadcast = null;
+        emitRefresh(io, reason);
+      }, REFRESH_BROADCAST_COOLDOWN_MS - elapsed);
+    }
+
+    return;
+  }
+
+  lastRefreshBroadcastAt = now;
   io.emit(REFRESH_EVENT, {
     reason,
     at: new Date().toISOString(),

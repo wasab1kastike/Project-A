@@ -9,6 +9,9 @@ type RealtimeBridgeProps = {
   enabled: boolean;
 };
 
+const FALLBACK_REFRESH_INTERVAL_MS = 10_000;
+const MIN_REFRESH_INTERVAL_MS = 5_000;
+
 export function RealtimeBridge({ enabled }: RealtimeBridgeProps) {
   const router = useRouter();
 
@@ -18,15 +21,32 @@ export function RealtimeBridge({ enabled }: RealtimeBridgeProps) {
     }
 
     let pollingInterval: ReturnType<typeof setInterval> | null = null;
+    let refreshTimeout: ReturnType<typeof setTimeout> | null = null;
     let refreshPending = false;
+    let lastRefreshAt = 0;
 
     const refreshView = () => {
+      const now = Date.now();
+      const elapsed = now - lastRefreshAt;
+
       if (refreshPending) {
+        return;
+      }
+
+      if (elapsed < MIN_REFRESH_INTERVAL_MS) {
+        if (refreshTimeout === null) {
+          refreshTimeout = setTimeout(() => {
+            refreshTimeout = null;
+            refreshView();
+          }, MIN_REFRESH_INTERVAL_MS - elapsed);
+        }
+
         return;
       }
 
       refreshPending = true;
       startTransition(() => {
+        lastRefreshAt = Date.now();
         router.refresh();
         refreshPending = false;
       });
@@ -39,7 +59,7 @@ export function RealtimeBridge({ enabled }: RealtimeBridgeProps) {
 
       pollingInterval = setInterval(() => {
         refreshView();
-      }, 2000);
+      }, FALLBACK_REFRESH_INTERVAL_MS);
     };
 
     const socket = io({
@@ -66,6 +86,10 @@ export function RealtimeBridge({ enabled }: RealtimeBridgeProps) {
     return () => {
       if (pollingInterval !== null) {
         clearInterval(pollingInterval);
+      }
+
+      if (refreshTimeout !== null) {
+        clearTimeout(refreshTimeout);
       }
 
       socket.disconnect();
