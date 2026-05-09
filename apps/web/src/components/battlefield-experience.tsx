@@ -178,6 +178,23 @@ function getBattleOutcomeLabel(
   return report.outcome.replace("_", " ");
 }
 
+function getBattlePressure(battlefield: ActiveBattlefield): {
+  label: "Attack favored" | "Defense favored" | "Even fight";
+  tone: "attacker" | "defender" | "even";
+} {
+  const attacker = Math.max(0, battlefield.attackerArmyRemaining ?? 0);
+  const defender = Math.max(0, battlefield.defenderArmyRemaining ?? 0);
+  const total = attacker + defender;
+
+  if (total <= 0 || Math.abs(attacker - defender) / total < 0.12) {
+    return { label: "Even fight", tone: "even" };
+  }
+
+  return attacker > defender
+    ? { label: "Attack favored", tone: "attacker" }
+    : { label: "Defense favored", tone: "defender" };
+}
+
 type HomeOfAState = {
   tileId: string;
   pointIncome: number;
@@ -210,14 +227,6 @@ const BIOME_LABELS: Record<HexBiome, string> = {
   marsh: "Marsh",
   lake: "Lake",
 };
-
-function formatClaimRemaining(seconds: number) {
-  if (seconds < 60) {
-    return `${seconds}s`;
-  }
-
-  return `${Math.ceil(seconds / 60)}m`;
-}
 
 export function BattlefieldExperience({
   title,
@@ -264,6 +273,7 @@ export function BattlefieldExperience({
   const [topActionsRoot, setTopActionsRoot] = useState<HTMLElement | null>(
     null
   );
+  const [overlayRoot, setOverlayRoot] = useState<HTMLElement | null>(null);
   const knownChatMessageIdsRef = useRef(
     new Set(chat.messages.map((message) => message.id))
   );
@@ -303,6 +313,12 @@ export function BattlefieldExperience({
       setTopActionsRoot(document.getElementById(topActionsContainerId))
     );
   }, [topActionsContainerId]);
+
+  useEffect(() => {
+    queueMicrotask(() =>
+      setOverlayRoot(document.getElementById("battlefield-overlay-root"))
+    );
+  }, []);
 
   useEffect(() => {
     if (chatOpen || !chat.persistsUnread) {
@@ -966,9 +982,12 @@ export function BattlefieldExperience({
       {selectedOwnGarrison ? (
         <div className={styles.recallPanel}>
           <div className={styles.recallPanelHeader}>
-            <span>Your garrison</span>
+            <span>Holding force</span>
             <strong>{selectedOwnGarrison.army} army</strong>
           </div>
+          <p className={styles.recallCopy}>
+            Recall marches home; losses stay lost.
+          </p>
           {selectedOwnGarrison.army > 0 ? (
             <label className={styles.tileArmyControl}>
               <span>
@@ -1018,7 +1037,7 @@ export function BattlefieldExperience({
       {selectedActiveBattlefieldId ? (
         <p className={styles.helper}>
           This tile already has an active battlefield. Use the battle card to
-          reinforce either side.
+          read pressure, reinforce, or recall your committed army.
         </p>
       ) : null}
 
@@ -1123,6 +1142,10 @@ export function BattlefieldExperience({
                         : "No idle army";
                 const joinAmount = getBattleJoinArmy(battlefield.id);
                 const recallAmount = getBattleRecallArmy(battlefield);
+                const pressure = getBattlePressure(battlefield);
+                const isHomeBattle =
+                  battlefield.targetTileId !== null &&
+                  isHomeOfATile(battlefield.targetTileId);
 
                 return (
                   <article
@@ -1139,7 +1162,15 @@ export function BattlefieldExperience({
                             } conquest`
                           : battlefield.targetName}
                       </strong>
-                      <span>{battlefield.progress}%</span>
+                      <span className={styles.battleMeta}>
+                        <span
+                          className={styles.pressureBadge}
+                          data-pressure={pressure.tone}
+                        >
+                          {pressure.label}
+                        </span>
+                        <span>{battlefield.progress}%</span>
+                      </span>
                     </div>
                     <progress value={battlefield.progress} max={100} />
                     {(() => {
@@ -1197,17 +1228,47 @@ export function BattlefieldExperience({
                       );
                     })()}
                     {battlefield.currentUserSide ? (
-                      <p className={styles.helper}>
-                        Your army: {battlefield.ownArmyRemaining}/
-                        {battlefield.ownArmyCommitted} fighting
-                        {battlefield.ownIncomingArmy > 0
-                          ? `, ${battlefield.ownIncomingArmy} incoming`
-                          : ""}
-                        .{" "}
-                        {battlefield.targetTileBonusLabel
-                          ? `Tile bonus: ${battlefield.targetTileBonusLabel}.`
-                          : ""}
-                      </p>
+                      <div className={styles.yourForcePanel}>
+                        <div className={styles.yourForceHeader}>
+                          <span>
+                            {isHomeBattle
+                              ? "Your Home of A force"
+                              : "Your force"}
+                          </span>
+                          <strong>
+                            {battlefield.currentUserSide === "ATTACKER"
+                              ? "Attack"
+                              : "Defense"}
+                          </strong>
+                        </div>
+                        <dl className={styles.yourForceStats}>
+                          <div>
+                            <dt>Committed</dt>
+                            <dd>{battlefield.ownArmyCommitted}</dd>
+                          </div>
+                          <div>
+                            <dt>Remaining</dt>
+                            <dd>{battlefield.ownArmyRemaining}</dd>
+                          </div>
+                          <div>
+                            <dt>Incoming</dt>
+                            <dd>{battlefield.ownIncomingArmy}</dd>
+                          </div>
+                          <div>
+                            <dt>Recallable</dt>
+                            <dd>
+                              {battlefield.canRecall
+                                ? battlefield.ownArmyRemaining
+                                : 0}
+                            </dd>
+                          </div>
+                        </dl>
+                        {battlefield.targetTileBonusLabel ? (
+                          <p className={styles.helper}>
+                            Tile bonus: {battlefield.targetTileBonusLabel}.
+                          </p>
+                        ) : null}
+                      </div>
                     ) : (
                       <p className={styles.helper}>
                         {currentSide}
@@ -1219,6 +1280,15 @@ export function BattlefieldExperience({
                     )}
                     {battlefield.currentUserSide ? (
                       <div className={styles.recallPanel}>
+                        <div className={styles.recallPanelHeader}>
+                          <span>
+                            {isHomeBattle ? "Home of A recall" : "Recall"}
+                          </span>
+                          <strong>{recallAmount} army</strong>
+                        </div>
+                        <p className={styles.recallCopy}>
+                          Recall marches home; losses stay lost.
+                        </p>
                         {battlefield.ownArmyRemaining > 0 ? (
                           <label className={styles.battlefieldArmyControl}>
                             <span>
@@ -1377,10 +1447,6 @@ export function BattlefieldExperience({
       </aside>
     ) : null;
 
-  const overlayRoot =
-    typeof document !== "undefined"
-      ? document.getElementById("battlefield-overlay-root")
-      : null;
   const immersiveOverlay =
     immersive && overlayRoot
       ? createPortal(

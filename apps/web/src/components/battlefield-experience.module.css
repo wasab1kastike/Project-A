@@ -364,6 +364,44 @@
   width: 100%;
 }
 
+.battleMeta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: max-content;
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.72rem;
+}
+
+.pressureBadge {
+  padding: 3px 6px;
+  border: 1px solid rgba(226, 232, 240, 0.16);
+  border-radius: 6px;
+  color: var(--text-muted);
+  background: rgba(226, 232, 240, 0.06);
+  text-transform: uppercase;
+}
+
+.pressureBadge[data-pressure="attacker"] {
+  border-color: rgba(72, 180, 212, 0.32);
+  color: #72d4f0;
+  background: rgba(72, 180, 212, 0.1);
+}
+
+.pressureBadge[data-pressure="defender"] {
+  border-color: rgba(212, 72, 72, 0.32);
+  color: #f09090;
+  background: rgba(212, 72, 72, 0.1);
+}
+
+.pressureBadge[data-pressure="even"] {
+  border-color: rgba(248, 191, 87, 0.28);
+  color: #f8bf57;
+  background: rgba(248, 191, 87, 0.08);
+}
+
 .armyBalanceBar {
   display: flex;
   height: 8px;
@@ -419,6 +457,56 @@
   opacity: 0.7;
 }
 
+.yourForcePanel {
+  display: grid;
+  gap: 7px;
+  padding: 8px;
+  border: 1px solid rgba(103, 196, 207, 0.18);
+  border-radius: 8px;
+  background: rgba(103, 196, 207, 0.06);
+}
+
+.yourForceHeader,
+.yourForceStats {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.yourForceHeader {
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+}
+
+.yourForceHeader strong {
+  color: var(--text-primary);
+}
+
+.yourForceStats {
+  margin: 0;
+  flex-wrap: wrap;
+}
+
+.yourForceStats div {
+  min-width: 68px;
+}
+
+.yourForceStats dt {
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+}
+
+.yourForceStats dd {
+  margin: 2px 0 0;
+  color: var(--text-primary);
+  font-weight: 800;
+}
+
 .battlefieldArmyControl {
   display: grid;
   gap: 6px;
@@ -457,6 +545,13 @@
 
 .recallPanelHeader strong {
   color: var(--text-primary);
+}
+
+.recallCopy {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  line-height: 1.4;
 }
 
 .compactList {

@@ -18,6 +18,7 @@ import {
   registerCommanderNameAction,
   submitCommunityWishProposalAction,
 } from "@/app/game-actions";
+import { getContextualActionHint } from "@/lib/game/action-hints";
 import { COMMUNITY_WISH_MAX_LENGTH } from "@/lib/game/community-wishes";
 import { getHomePageState, type HomePageState } from "@/lib/game/read-model";
 import { RACE_DEFINITIONS, type FortressRace } from "@/lib/game/races";
@@ -366,6 +367,16 @@ export default async function Home({
               battlefieldDescription:
                 "The map updates when the next season starts.",
             };
+  const actionHint = getContextualActionHint({
+    phaseStatus: state.phase?.status ?? null,
+    tickHealth,
+    canJoinCycle: state.canJoinCycle,
+    playerSummary: state.playerSummary,
+    battlefields: state.battlefields,
+    mapHexes: state.mapHexes,
+    homeOfA: state.homeOfA,
+    fallback: phaseCopy.nextAction,
+  });
 
   const centerTitle = blockingMessage
     ? "Something needs attention."
@@ -990,7 +1001,10 @@ export default async function Home({
 
         <section className={styles.hintStrip}>
           <span className={styles.sectionLabel}>Next</span>
-          <p>{phaseCopy.nextAction}</p>
+          <div className={styles.actionHint} data-tone={actionHint.tone}>
+            <strong>{actionHint.label}</strong>
+            <p>{actionHint.message}</p>
+          </div>
         </section>
 
         <section className={styles.leaderboardStrip}>

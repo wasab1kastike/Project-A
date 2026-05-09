@@ -45,6 +45,7 @@ import {
   updateCommunityWishFulfillmentProgress,
 } from "./community-wishes";
 import { getBuildArcadeRewardVariant } from "./build-arcade";
+import { getContextualActionHint } from "./action-hints";
 import {
   equipCosmeticUnlock,
   getArcadeHubState,
@@ -173,6 +174,107 @@ const defaultDatabaseUrl =
   process.env.DATABASE_URL ??
   "postgresql://postgres:postgres@localhost:5432/project_a?schema=public";
 const ACTIVE_EDGE_PADDING = 15;
+
+test("contextual action hint prioritizes recallable Home of A battle forces", () => {
+  const hint = getContextualActionHint({
+    phaseStatus: "ACTIVE",
+    tickHealth: "ok",
+    canJoinCycle: false,
+    playerSummary: {
+      army: 15,
+      food: 20,
+      recruitmentQueue: 2,
+      race: null,
+    },
+    battlefields: [
+      {
+        targetTileId: HOME_OF_A_TILE_ID,
+        currentUserSide: "ATTACKER",
+        canRecall: true,
+        ownArmyRemaining: 42,
+        canJoinAttacker: false,
+        canJoinDefender: false,
+      },
+    ],
+    mapHexes: [],
+    homeOfA: {
+      canAttack: true,
+      activeBattlefieldId: "battlefield-1",
+    },
+    fallback: "Keep watch.",
+  });
+
+  assert.equal(hint.label, "Home of A");
+  assert.equal(hint.tone, "battle");
+  assert.match(hint.message, /42 army at Home of A/);
+  assert.match(hint.message, /recall from the battle card/);
+});
+
+test("contextual action hint calls out recallable Home of A garrisons", () => {
+  const hint = getContextualActionHint({
+    phaseStatus: "ACTIVE",
+    tickHealth: "ok",
+    canJoinCycle: false,
+    playerSummary: {
+      army: 8,
+      food: 10,
+      recruitmentQueue: 1,
+      race: null,
+    },
+    battlefields: [],
+    mapHexes: [
+      {
+        tileId: HOME_OF_A_TILE_ID,
+        ownGarrison: {
+          canRecall: true,
+          army: 30,
+        },
+      },
+    ],
+    homeOfA: {
+      canAttack: false,
+      activeBattlefieldId: null,
+    },
+    fallback: "Hold position.",
+  });
+
+  assert.equal(hint.label, "Home of A");
+  assert.equal(hint.tone, "battle");
+  assert.match(hint.message, /30 holding army from Home of A/);
+});
+
+test("contextual action hint points idle army at active battles before economy chores", () => {
+  const hint = getContextualActionHint({
+    phaseStatus: "ACTIVE",
+    tickHealth: "ok",
+    canJoinCycle: false,
+    playerSummary: {
+      army: 20,
+      food: 0,
+      recruitmentQueue: 0,
+      race: null,
+    },
+    battlefields: [
+      {
+        targetTileId: "map-12",
+        currentUserSide: null,
+        canRecall: false,
+        ownArmyRemaining: 0,
+        canJoinAttacker: true,
+        canJoinDefender: true,
+      },
+    ],
+    mapHexes: [{ tileId: "map-4", canClaim: true }],
+    homeOfA: {
+      canAttack: true,
+      activeBattlefieldId: null,
+    },
+    fallback: "Keep watch.",
+  });
+
+  assert.equal(hint.label, "Reinforce");
+  assert.equal(hint.tone, "opportunity");
+});
 
 async function getFortressLocationShuffleCount(
   prisma: PrismaClient,

@@ -953,6 +953,45 @@
   line-height: 1.1;
 }
 
+.actionHint {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(8, 16, 25, 0.52);
+}
+
+.actionHint[data-tone="battle"] {
+  border-color: rgba(103, 196, 207, 0.34);
+  background: rgba(22, 93, 115, 0.18);
+}
+
+.actionHint[data-tone="opportunity"] {
+  border-color: rgba(247, 196, 95, 0.34);
+  background: rgba(247, 196, 95, 0.12);
+}
+
+.actionHint[data-tone="warning"] {
+  border-color: rgba(248, 113, 113, 0.38);
+  background: rgba(127, 29, 29, 0.24);
+}
+
+.actionHint strong {
+  color: var(--accent-strong);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.actionHint p {
+  margin: 0;
+  color: var(--foreground);
+  line-height: 1.35;
+}
+
 .crownBadge {
   width: fit-content;
   flex: 0 0 auto;
