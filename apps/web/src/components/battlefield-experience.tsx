@@ -273,6 +273,10 @@ export function BattlefieldExperience({
   const [battleJoinArmyById, setBattleJoinArmyById] = useState<
     Record<string, number>
   >({});
+  const [pendingBattlefieldJoin, setPendingBattlefieldJoin] = useState<{
+    battlefieldId: string;
+    side: "ATTACKER" | "DEFENDER";
+  } | null>(null);
   const [optimisticAttackUnits, setOptimisticAttackUnits] = useState<
     AttackUnitMarker[]
   >([]);
@@ -591,6 +595,42 @@ export function BattlefieldExperience({
       router.refresh();
     } finally {
       setMapActionPending(false);
+    }
+  }
+
+  async function handleJoinBattlefield(
+    battlefieldId: string,
+    side: "ATTACKER" | "DEFENDER",
+    armyAmount: number
+  ) {
+    if (pendingBattlefieldJoin || mapActionPending || !gameplayOpen) {
+      return;
+    }
+
+    const validationError = getAttackValidationError(armyAmount);
+
+    if (validationError) {
+      window.alert(validationError);
+      return;
+    }
+
+    setPendingBattlefieldJoin({ battlefieldId, side });
+
+    try {
+      const result = await joinBattlefieldAction({
+        battlefieldId,
+        side,
+        armyAmount,
+      });
+
+      if (!result.ok) {
+        window.alert(result.error);
+        return;
+      }
+
+      router.refresh();
+    } finally {
+      setPendingBattlefieldJoin(null);
     }
   }
 
@@ -985,6 +1025,10 @@ export function BattlefieldExperience({
                         ? "Choose a side to reinforce"
                         : "No idle army";
                 const joinAmount = getBattleJoinArmy(battlefield.id);
+                const pendingJoinSide =
+                  pendingBattlefieldJoin?.battlefieldId === battlefield.id
+                    ? pendingBattlefieldJoin.side
+                    : null;
 
                 return (
                   <article
@@ -1128,54 +1172,52 @@ export function BattlefieldExperience({
                           </label>
                         ) : null}
                         <div className={styles.battlefieldJoinGrid}>
-                          <form action={joinBattlefieldAction}>
-                            <input
-                              name="battlefieldId"
-                              type="hidden"
-                              value={battlefield.id}
-                            />
-                            <input name="side" type="hidden" value="ATTACKER" />
-                            <input
-                              name="armyAmount"
-                              type="hidden"
-                              value={joinAmount}
-                            />
-                            <button
-                              className={styles.secondaryButton}
-                              type="submit"
-                              disabled={!battlefield.canJoinAttacker}
-                              title={
-                                battlefield.joinAttackerDisabledReason ??
-                                undefined
-                              }
-                            >
-                              Reinforce attack ({joinAmount})
-                            </button>
-                          </form>
-                          <form action={joinBattlefieldAction}>
-                            <input
-                              name="battlefieldId"
-                              type="hidden"
-                              value={battlefield.id}
-                            />
-                            <input name="side" type="hidden" value="DEFENDER" />
-                            <input
-                              name="armyAmount"
-                              type="hidden"
-                              value={joinAmount}
-                            />
-                            <button
-                              className={styles.secondaryButton}
-                              type="submit"
-                              disabled={!battlefield.canJoinDefender}
-                              title={
-                                battlefield.joinDefenderDisabledReason ??
-                                undefined
-                              }
-                            >
-                              Reinforce defense ({joinAmount})
-                            </button>
-                          </form>
+                          <button
+                            className={styles.secondaryButton}
+                            type="button"
+                            disabled={
+                              !battlefield.canJoinAttacker ||
+                              pendingBattlefieldJoin !== null
+                            }
+                            title={
+                              battlefield.joinAttackerDisabledReason ??
+                              undefined
+                            }
+                            onClick={() => {
+                              void handleJoinBattlefield(
+                                battlefield.id,
+                                "ATTACKER",
+                                joinAmount
+                              );
+                            }}
+                          >
+                            {pendingJoinSide === "ATTACKER"
+                              ? "Launching..."
+                              : `Reinforce attack (${joinAmount})`}
+                          </button>
+                          <button
+                            className={styles.secondaryButton}
+                            type="button"
+                            disabled={
+                              !battlefield.canJoinDefender ||
+                              pendingBattlefieldJoin !== null
+                            }
+                            title={
+                              battlefield.joinDefenderDisabledReason ??
+                              undefined
+                            }
+                            onClick={() => {
+                              void handleJoinBattlefield(
+                                battlefield.id,
+                                "DEFENDER",
+                                joinAmount
+                              );
+                            }}
+                          >
+                            {pendingJoinSide === "DEFENDER"
+                              ? "Launching..."
+                              : `Reinforce defense (${joinAmount})`}
+                          </button>
                         </div>
                       </>
                     ) : null}

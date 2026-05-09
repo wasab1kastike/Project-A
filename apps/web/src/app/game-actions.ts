@@ -286,26 +286,44 @@ export async function attackMapHexAction(tileId: string, sentArmy = 1) {
   }
 }
 
-export async function joinBattlefieldAction(formData: FormData) {
-  const userId = await requireUserId();
-  const sideInput = getString(formData, "side");
+export async function joinBattlefieldAction(input: {
+  battlefieldId: string;
+  side: BattlefieldSide | string;
+  armyAmount: number;
+}) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
+
+  const sideInput = input.side;
 
   try {
     await joinBattlefield({
       userId,
-      battlefieldId: getString(formData, "battlefieldId"),
+      battlefieldId: input.battlefieldId,
       side:
         sideInput === BattlefieldSide.DEFENDER
           ? BattlefieldSide.DEFENDER
           : BattlefieldSide.ATTACKER,
-      armyAmount: getNumber(formData, "armyAmount", 1),
+      armyAmount: input.armyAmount,
     });
     emitProjectARefresh("battlefield-join");
+    revalidatePath("/");
+    return {
+      ok: true,
+    } satisfies InlineActionResult;
   } catch (error) {
-    redirectToHome("error", getActionErrorMessage(error));
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
   }
-
-  finishAction("Army committed to battlefield.");
 }
 
 export async function recallAttackUnitAction(attackUnitId: string) {
