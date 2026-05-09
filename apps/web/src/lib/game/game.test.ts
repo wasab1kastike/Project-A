@@ -8111,6 +8111,177 @@ test("worker assignments produce gold, food, and army in the same tick", async (
   assert.equal(minerState.leaderboard[0]?.id, defaultWorker.id);
 });
 
+test("starving active army loses attrition when food cannot cover upkeep", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const starvingUser = await createUser(prisma, "starving-upkeep@example.com");
+  const exactUser = await createUser(prisma, "exact-upkeep@example.com");
+  const queuedUser = await createUser(prisma, "queued-upkeep@example.com");
+  const recruitingUser = await createUser(
+    prisma,
+    "recruiting-starvation@example.com"
+  );
+
+  for (const [userId, name] of [
+    [starvingUser.id, "Starving Upkeep"],
+    [exactUser.id, "Exact Upkeep"],
+    [queuedUser.id, "Queued Upkeep"],
+    [recruitingUser.id, "Recruiting Starvation"],
+  ] as const) {
+    await joinRegistrationCycle({
+      db: prisma,
+      userId,
+      fortressName: name,
+      now: new Date("2026-04-19T12:05:00.000Z"),
+    });
+  }
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const fortresses = await prisma.fortress.findMany({
+    where: {
+      cycleId: cycle.id,
+      ownerId: {
+        in: [
+          starvingUser.id,
+          exactUser.id,
+          queuedUser.id,
+          recruitingUser.id,
+        ],
+      },
+    },
+    select: {
+      id: true,
+      ownerId: true,
+    },
+  });
+  const fortressByOwner = new Map(
+    fortresses.map((fortress) => [fortress.ownerId, fortress.id])
+  );
+  const starvingFortressId = fortressByOwner.get(starvingUser.id);
+  const exactFortressId = fortressByOwner.get(exactUser.id);
+  const queuedFortressId = fortressByOwner.get(queuedUser.id);
+  const recruitingFortressId = fortressByOwner.get(recruitingUser.id);
+
+  assert.ok(starvingFortressId);
+  assert.ok(exactFortressId);
+  assert.ok(queuedFortressId);
+  assert.ok(recruitingFortressId);
+
+  await prisma.fortress.update({
+    where: {
+      id: starvingFortressId,
+    },
+    data: {
+      food: 9,
+      army: 1000,
+      minersAssigned: 0,
+      farmersAssigned: 0,
+      recruitersAssigned: 0,
+      recruitmentQueue: 0,
+    },
+  });
+  await prisma.fortress.update({
+    where: {
+      id: exactFortressId,
+    },
+    data: {
+      food: 10,
+      army: 1000,
+      minersAssigned: 0,
+      farmersAssigned: 0,
+      recruitersAssigned: 0,
+      recruitmentQueue: 0,
+    },
+  });
+  await prisma.fortress.update({
+    where: {
+      id: queuedFortressId,
+    },
+    data: {
+      food: 0,
+      army: 0,
+      minersAssigned: 0,
+      farmersAssigned: 0,
+      recruitersAssigned: 100,
+      recruitmentQueue: 100,
+    },
+  });
+  await prisma.fortress.update({
+    where: {
+      id: recruitingFortressId,
+    },
+    data: {
+      food: 0,
+      army: 100,
+      minersAssigned: 0,
+      farmersAssigned: 0,
+      recruitersAssigned: 100,
+      recruitmentQueue: 100,
+    },
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+  });
+
+  const refreshed = await prisma.fortress.findMany({
+    where: {
+      id: {
+        in: [
+          starvingFortressId,
+          exactFortressId,
+          queuedFortressId,
+          recruitingFortressId,
+        ],
+      },
+    },
+    select: {
+      id: true,
+      food: true,
+      army: true,
+      recruitmentQueue: true,
+    },
+  });
+  const refreshedById = new Map(
+    refreshed.map((fortress) => [fortress.id, fortress])
+  );
+
+  assert.deepEqual(refreshedById.get(starvingFortressId), {
+    id: starvingFortressId,
+    food: 0,
+    army: 980,
+    recruitmentQueue: 0,
+  });
+  assert.deepEqual(refreshedById.get(exactFortressId), {
+    id: exactFortressId,
+    food: 0,
+    army: 1000,
+    recruitmentQueue: 0,
+  });
+  assert.deepEqual(refreshedById.get(queuedFortressId), {
+    id: queuedFortressId,
+    food: 0,
+    army: 100,
+    recruitmentQueue: 0,
+  });
+  assert.deepEqual(refreshedById.get(recruitingFortressId), {
+    id: recruitingFortressId,
+    food: 0,
+    army: 198,
+    recruitmentQueue: 0,
+  });
+});
+
 test("recalled attack units return home without damaging the target", async (context) => {
   const prisma = getPrismaOrSkip(context);
 

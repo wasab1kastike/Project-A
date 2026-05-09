@@ -18,7 +18,8 @@
 - Points determine season victory and are earned from map objectives, Home of A control, and score events
 - Recruitment is order-based: players pay 1 gold per unit up front, and recruiters process the queue over future ticks
 - Recruiters do not passively create army without a queued order
-- Active army consumes 0.25 food per unit per tick, rounded down when persisted by the live tick
+- Active army consumes 0.01 food per unit per tick, rounded down when persisted by the live tick
+- If food cannot cover active-army upkeep, food falls to zero and active army loses 2% that tick
 - Queued army does not consume food upkeep until it completes and joins active army
 - Attack travel time is distance-based, using the default unit speed
 - Direct attacks and battlefield reinforcements count against simultaneous outbound attack limits
@@ -46,8 +47,8 @@
 - Recruiters process the fortress `recruitmentQueue` each tick; capacity starts at 1 unit per recruiter per tick and receives race/specialization modifiers.
 - A recruitment order is rejected unless the player has selected a race, the cycle is playable, the unit count is a positive integer, and the fortress can afford the full gold cost.
 - Completed recruited units are added to active army at the tick boundary.
-- Food upkeep is charged only against active army after production and recruitment completion for that tick.
-- If food cannot cover the full active-army upkeep, food bottoms out at zero; the current implementation does not apply starvation casualties.
+- Food upkeep is charged only against active army after production for that tick; newly completed recruited units start counting for upkeep on later ticks.
+- If food cannot cover the full active-army upkeep, food bottoms out at zero and active army loses 2% that tick.
 
 ## Tiles & battlefields
 

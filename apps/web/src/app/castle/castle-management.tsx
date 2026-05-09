@@ -32,6 +32,7 @@ import {
   calculateRecruitmentProgress,
   getArmyUpkeepCost,
   getRecruitmentCost,
+  STARVATION_ATTRITION_RATE,
 } from "@/lib/game/army-recruitment";
 import {
   RACE_DEFINITIONS,
@@ -504,6 +505,9 @@ export function CastleManagement({
   );
   const recruitCost = getRecruitmentCost(recruitAmount);
   const armyUpkeep = Math.floor(getArmyUpkeepCost(playerSummary.army));
+  const starvationAttritionPercent = Math.round(
+    STARVATION_ATTRITION_RATE * 100
+  );
   const pointsFromGold = convertGoldToPoints(goldToConvert);
   const canConvertGoldToPoints =
     pointsFromGold > 0 &&
@@ -831,7 +835,8 @@ export function CastleManagement({
             Tick preview: +{production.goldProduced} gold, +
             {production.foodProduced} food,{" "}
             {recruitmentProgress.recruiterCapacityPerTick} queue capacity, -
-            {armyUpkeep} food upkeep.
+            {armyUpkeep} food upkeep. If unpaid, active army loses{" "}
+            {starvationAttritionPercent}%.
           </p>
           {workerError ? <p className={styles.error}>{workerError}</p> : null}
           <button type="submit" disabled={workerPending || !playerSummary.race}>

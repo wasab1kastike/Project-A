@@ -41,7 +41,11 @@ import {
   calculateRaidOutcome,
   calculateTickProduction,
 } from "./balance";
-import { getArmyUpkeepCost, processRecruitmentQueue } from "./army-recruitment";
+import {
+  getArmyUpkeepCost,
+  getStarvationArmyLoss,
+  processRecruitmentQueue,
+} from "./army-recruitment";
 import { canFortressLevelUp, getFortressAttackDamage } from "./upgrades";
 import {
   getDwarfGrudgeMultiplier,
@@ -3184,16 +3188,20 @@ async function processCycleTick(
       const armyProduced = recruitmentResult.unitsCreated;
 
       const currentArmyValue = currentArmy.get(fortress.id) ?? fortress.army;
-      // Calculate final food state after production and active army upkeep.
+      // Calculate final food/army state after production, upkeep, and starvation.
       const activeArmyUpkeep = Math.floor(getArmyUpkeepCost(currentArmyValue));
+      const foodBeforeUpkeep =
+        (currentFood.get(fortress.id) ?? fortress.food) + producedFood;
+      const starvationArmyLoss =
+        !economyHalted &&
+        fortress.fortressKind === FortressKind.PLAYER &&
+        activeArmyUpkeep > 0 &&
+        foodBeforeUpkeep < activeArmyUpkeep
+          ? getStarvationArmyLoss(currentArmyValue)
+          : 0;
       const foodAfterProduction = economyHalted
         ? currentFood.get(fortress.id) ?? fortress.food
-        : Math.max(
-            0,
-            (currentFood.get(fortress.id) ?? fortress.food) +
-              producedFood -
-              activeArmyUpkeep
-          );
+        : Math.max(0, foodBeforeUpkeep - activeArmyUpkeep);
 
       const tileBonus = tileBonusesByFortressId.get(fortress.id) ?? {
         gold: 0,
@@ -3219,7 +3227,9 @@ async function processCycleTick(
       );
       currentArmy.set(
         fortress.id,
-        currentArmyValue + armyProduced + tileBonus.army
+        Math.max(0, currentArmyValue - starvationArmyLoss) +
+          armyProduced +
+          tileBonus.army
       );
       currentRecruitmentQueue.set(fortress.id, recruitmentResult.newQueue);
 

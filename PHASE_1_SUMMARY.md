@@ -24,7 +24,7 @@ Phase 1 refactored and documented the castle production system, created validati
 - Recruitment orders charge 1 gold per unit up front.
 - Recruiters process queued units at 1 unit per recruiter per tick before race and specialization modifiers.
 - Completed units join active army at tick boundaries.
-- Active army consumes 0.25 food per unit per tick.
+- Active army consumes 0.01 food per unit per tick.
 - Queued army does not consume upkeep.
 - Race modifier support flows through the shared race modifier model.
 
@@ -63,7 +63,7 @@ Food Produced = floor(Food Base x (1 + specializations x 0.1))
 Player orders X units and pays X gold up front
 Queue = X pending units
 Each tick: units created = min(queue, recruiter capacity)
-Active upkeep = active army x 0.25 food per tick
+Active upkeep = active army x 0.01 food per tick
 ```
 
 Recruiters no longer create passive army when the queue is empty.
@@ -82,7 +82,7 @@ The queued recruitment rollout is implemented in live gameplay.
 
 - Production processes the recruitment queue instead of passive army generation.
 - Completed units are added to `fortress.army`.
-- Active-army food upkeep is charged after production and recruitment completion.
+- Active-army food upkeep is charged after production; newly completed recruited units start counting for upkeep on later ticks.
 - `recruitmentQueue` is persisted with fortress economy state.
 - Battlefield resolution now runs after economy persistence so rewards, casualties, loot, and tile ownership are not overwritten by stale tick accumulators.
 

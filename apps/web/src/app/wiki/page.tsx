@@ -33,6 +33,7 @@ import {
   ARMY_UPKEEP_PER_UNIT,
   RECRUITMENT_COST_PER_UNIT,
   RECRUITMENT_RATE_PER_RECRUITER,
+  STARVATION_ATTRITION_RATE,
 } from "@/lib/game/army-recruitment";
 import {
   LOOT_CAMP_LIFETIME_MINUTES,
@@ -230,6 +231,7 @@ const RECRUITMENT_RULES = [
   "Ordered units enter your recruitment queue. They are not active army yet and cannot attack or defend until completed.",
   `Each assigned recruiter processes ${RECRUITMENT_RATE_PER_RECRUITER} queued unit per tick before race and specialization bonuses.`,
   `Active army upkeep is ${ARMY_UPKEEP_PER_UNIT} food per unit per tick, rounded down to whole food when the tick saves.`,
+  `If food cannot cover that upkeep, food falls to zero and active army loses ${Math.round(STARVATION_ATTRITION_RATE * 100)}% that tick.`,
   "Queued army has no upkeep. Food pressure begins only after units finish and join your active army.",
   "If you assign zero recruiters, the queue waits. If the queue is empty, recruiters add no army.",
 ] as const;

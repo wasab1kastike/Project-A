@@ -9,8 +9,10 @@ import {
   calculateArmyUpkeep,
   canSustainArmy,
   compareRecruitmentSystems,
+  getStarvationArmyLoss,
   RECRUITMENT_COST_PER_UNIT,
   ARMY_UPKEEP_PER_UNIT,
+  STARVATION_ATTRITION_RATE,
 } from "./army-recruitment";
 
 test("recruitment cost calculation is straightforward", () => {
@@ -151,6 +153,15 @@ test("army sustainability check validates food reserves against upkeep", () => {
   assert.equal(noArmy.ticksUntilStarving, Infinity);
 });
 
+test("starvation army loss applies 2% attrition with a minimum loss", () => {
+  assert.equal(getStarvationArmyLoss(0), 0);
+  assert.equal(getStarvationArmyLoss(1), 1);
+  assert.equal(getStarvationArmyLoss(20), 1);
+  assert.equal(getStarvationArmyLoss(100), 2);
+  assert.equal(getStarvationArmyLoss(1000), 20);
+  assert.equal(getStarvationArmyLoss(0.5), 0);
+});
+
 test("old vs new system comparison shows 100x upkeep reduction", () => {
   const comparison100 = compareRecruitmentSystems(100);
   assert.equal(comparison100.oldSystemFoodCost, 100);
@@ -221,4 +232,5 @@ test("recruitment with race bonus: SPACE_MURINES 20 recruiters", () => {
 test("constants are correctly defined", () => {
   assert.equal(RECRUITMENT_COST_PER_UNIT, 1);
   assert.equal(ARMY_UPKEEP_PER_UNIT, 0.01);
+  assert.equal(STARVATION_ATTRITION_RATE, 0.02);
 });

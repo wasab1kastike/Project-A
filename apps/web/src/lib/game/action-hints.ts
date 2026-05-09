@@ -146,7 +146,8 @@ export function getContextualActionHint(input: ActionHintInput): ActionHint {
   if ((input.playerSummary.food ?? 1) <= 0) {
     return {
       label: "Food",
-      message: "Food is empty. Assign farmers, claim food tiles, or slow army growth before upkeep bites.",
+      message:
+        "Food is empty. Assign farmers, claim food tiles, or slow army growth before starvation costs army.",
       tone: "warning",
     };
   }

@@ -14,13 +14,14 @@
  *    - 10 recruiters = 10 units/tick → 100 units in 10 ticks
  *    - 5 recruiters = 5 units/tick → 100 units in 20 ticks
  * 3. As units complete, they enter active army
- * 4. Upkeep cost applies to active units only (0.25 food/unit/tick)
+ * 4. Upkeep cost applies to active units only (0.01 food/unit/tick)
+ *    and unpaid upkeep causes starvation attrition
  *
  * BENEFITS vs CURRENT SYSTEM:
  * ============================
  * - Strategic: Player controls when to invest in army growth
  * - Visible: Queue shows exact completion time
- * - Scalable: Upkeep is 4x cheaper (0.25 vs 1 food/tick), enables large armies
+ * - Scalable: Upkeep is 100x cheaper (0.01 vs 1 food/tick), enables large armies
  * - Balanced: Gold cost upfront controls spending
  * - Race-differentiated: Recruiter speed varies by race
  *
@@ -65,6 +66,9 @@ export const RECRUITMENT_COST_PER_UNIT = 1;
 
 /** Food cost per unit per tick (upkeep for existing armies) */
 export const ARMY_UPKEEP_PER_UNIT = 0.01;
+
+/** Active army lost per tick when food cannot cover upkeep */
+export const STARVATION_ATTRITION_RATE = 0.02;
 
 /** Base recruitment rate (units per recruiter per tick) */
 export const RECRUITMENT_RATE_PER_RECRUITER = 1;
@@ -238,6 +242,25 @@ export function getArmyUpkeepCost(activeArmyCount: number): number {
 }
 
 /**
+ * Calculate active army lost when a fortress cannot cover food upkeep.
+ *
+ * Starvation always removes at least 1 unit from a positive active army and is
+ * capped at the current army size.
+ */
+export function getStarvationArmyLoss(activeArmyCount: number): number {
+  const normalizedArmy = Math.max(0, Math.floor(activeArmyCount));
+
+  if (normalizedArmy <= 0) {
+    return 0;
+  }
+
+  return Math.min(
+    normalizedArmy,
+    Math.max(1, Math.ceil(normalizedArmy * STARVATION_ATTRITION_RATE))
+  );
+}
+
+/**
  * Calculate full upkeep including pending queue and active army.
  *
  * When armies are in recruitment queue, they don't consume upkeep yet.
@@ -301,7 +324,7 @@ export function canSustainArmy(
  * NEW SYSTEM:
  * - Player orders 100 army, pays 100 gold upfront
  * - 10 recruiters create 100 army in 10 ticks
- * - Upkeep: 25 food/tick (0.25 per unit * 100)
+ * - Upkeep: 1 food/tick (0.01 per unit * 100)
  * - Active (player controls timing)
  *
  * This function helps visualize the tradeoff:
