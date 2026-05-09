@@ -136,8 +136,9 @@ npx prisma db seed
 - Session signing uses `AUTH_SECRET`
 - Database-backed sessions expire after 7 days and rotate at most every 12 hours of activity
 - Set `AUTH_URL` for any deployment where the public URL should be explicit
+- `RENDER_EXTERNAL_URL` is accepted as the production auth origin on Render, so `AUTH_URL` is only needed for custom domains or other explicit origins
 - Production boot now fails fast if `AUTH_SECRET`, Google OAuth credentials, or a server-side auth origin are missing
-- The first admin is bootstrapped via `ADMIN_EMAIL`
+- The first admin is bootstrapped via `ADMIN_EMAIL` during the seed flow
 - Admin access is enforced from the `User.role` field in the database
 - `trustHost` is enabled for proxy-based deployments such as Render
 
@@ -145,8 +146,9 @@ npx prisma db seed
 
 1. Create a Google OAuth client for the app.
 2. Set the values in `apps/web/.env.local` for local development or in Render for deployed environments.
-   - For Render, set `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, and `ADMIN_EMAIL` explicitly.
-   - For Render, the app falls back to Render's runtime `RENDER_EXTERNAL_URL` if `AUTH_URL` is unset.
+   - For Render, set `AUTH_SECRET`, `AUTH_GOOGLE_ID`, and `AUTH_GOOGLE_SECRET` explicitly.
+   - Also set `ADMIN_EMAIL` if you want the seed flow to bootstrap the first admin account.
+   - The app falls back to Render's runtime `RENDER_EXTERNAL_URL` if `AUTH_URL` is unset.
    - If you later add a custom domain, set `AUTH_URL` to that public HTTPS origin explicitly.
    - `ALLOWED_ORIGINS` is optional and only needed if you want websocket access from additional trusted origins beyond the auth/render URL set.
 3. Add these callback URLs to the Google OAuth app:

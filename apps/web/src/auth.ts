@@ -10,6 +10,7 @@ const authSecret = process.env.AUTH_SECRET?.trim();
 const googleClientId = process.env.AUTH_GOOGLE_ID?.trim();
 const googleClientSecret = process.env.AUTH_GOOGLE_SECRET?.trim();
 const databaseUrl = process.env.DATABASE_URL?.trim();
+const adminEmail = process.env.ADMIN_EMAIL?.trim();
 const authUrl =
   process.env.AUTH_URL ??
   process.env.NEXTAUTH_URL ??
@@ -35,19 +36,7 @@ function hasUnsafeDatabaseUrl(value: string | null | undefined) {
   return /postgresql:\/\/postgres:postgres@/i.test(value);
 }
 
-if (authUrl) {
-  // The custom Node server listens on 0.0.0.0 inside Render, so pin Auth.js
-  // to the public origin before it builds OAuth callback URLs.
-  process.env.AUTH_URL ??= authUrl;
-}
-
-export const isAuthConfigured = Boolean(
-  authSecret &&
-    googleClientId &&
-    googleClientSecret
-);
-
-if (shouldValidateAuthEnv) {
+function formatMissingProductionAuthMessage() {
   const missing = [
     !authSecret ? "AUTH_SECRET" : null,
     !googleClientId ? "AUTH_GOOGLE_ID" : null,
@@ -66,24 +55,52 @@ if (shouldValidateAuthEnv) {
       : null,
   ].filter(Boolean);
 
-  if (
-    missing.length > 0 ||
-    placeholders.length > 0 ||
+  return [
+    "Project-A auth is misconfigured for production.",
+    missing.length > 0 ? `Missing: ${missing.join(", ")}` : null,
+    placeholders.length > 0
+      ? `Replace placeholder values for: ${placeholders.join(", ")}`
+      : null,
     insecureConfig.length > 0
-  ) {
-    const details = [
-      missing.length > 0 ? `Missing: ${missing.join(", ")}` : null,
-      placeholders.length > 0
-        ? `Replace placeholder values for: ${placeholders.join(", ")}`
-        : null,
-      insecureConfig.length > 0
-        ? `Fix insecure values for: ${insecureConfig.join(", ")}`
-        : null,
-    ].filter(Boolean);
+      ? `Fix insecure values for: ${insecureConfig.join(", ")}`
+      : null,
+    "On Render, set AUTH_SECRET, AUTH_GOOGLE_ID, and AUTH_GOOGLE_SECRET in the service settings.",
+    "RENDER_EXTERNAL_URL is accepted as the public auth origin, so AUTH_URL is only needed for a custom domain.",
+    "ADMIN_EMAIL is used by the seed flow to bootstrap the first admin account.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
 
-    throw new Error(
-      `Project-A auth is misconfigured for production. ${details.join(" ")}.`
+if (authUrl) {
+  // The custom Node server listens on 0.0.0.0 inside Render, so pin Auth.js
+  // to the public origin before it builds OAuth callback URLs.
+  process.env.AUTH_URL ??= authUrl;
+}
+
+export const isAuthConfigured = Boolean(
+  authSecret && googleClientId && googleClientSecret
+);
+
+if (shouldValidateAuthEnv) {
+  if (!adminEmail) {
+    console.warn(
+      "Project-A admin bootstrap is not configured. Set ADMIN_EMAIL in Render if you want the seed flow to create the first admin account."
     );
+  }
+
+  if (
+    !authSecret ||
+    !googleClientId ||
+    !googleClientSecret ||
+    !authUrl ||
+    !databaseUrl ||
+    isUnsafePlaceholder(authSecret) ||
+    isUnsafePlaceholder(googleClientId) ||
+    isUnsafePlaceholder(googleClientSecret) ||
+    hasUnsafeDatabaseUrl(databaseUrl)
+  ) {
+    throw new Error(formatMissingProductionAuthMessage());
   }
 }
 

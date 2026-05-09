@@ -21,6 +21,8 @@ services:
       # managed database binding below. Do not commit real secrets to this file.
       - key: NEXT_PUBLIC_APP_NAME
         value: Project-A
+      # Required runtime auth values for the web service.
+      # AUTH_URL is optional on Render because the app falls back to RENDER_EXTERNAL_URL.
       - key: DATABASE_URL
         fromDatabase:
           name: project-a-db
@@ -33,6 +35,7 @@ services:
         sync: false
       - key: AUTH_GOOGLE_SECRET
         sync: false
+      # Used by the seed flow to create the first admin account.
       - key: ADMIN_EMAIL
         sync: false
 
