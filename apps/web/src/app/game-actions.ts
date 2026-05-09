@@ -55,6 +55,7 @@ import {
   recallAttackUnit,
   recallGarrisonArmy,
   instantRecallGarrison,
+  torchOccupiedMapHex,
   selectFortressRace,
   setFortressAction,
   updateWorkerAssignment,
@@ -466,6 +467,36 @@ export async function recallGarrisonArmyAction(
   }
 }
 
+export async function torchOccupiedMapHexAction(garrisonId: string) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await torchOccupiedMapHex({
+      userId,
+      garrisonId,
+    });
+    emitProjectARefresh("map-hex-torch");
+    revalidatePath("/");
+    revalidatePath("/castle");
+    return {
+      ok: true,
+    } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
 export async function updateWorkerAssignmentAction(input: {
   minersAssigned: number;
   farmersAssigned: number;
@@ -767,10 +798,13 @@ export async function activateDwarfDeepMiningAction(formData: FormData) {
     });
     emitProjectARefresh("dwarf-deep-mining");
 
-    notice = `${result.label}: ${result.committedGold} gold committed, resolves at ${result.resolveAt.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    })}.`;
+    notice = `${result.label}: ${result.committedGold} gold committed, resolves at ${result.resolveAt.toLocaleTimeString(
+      [],
+      {
+        hour: "2-digit",
+        minute: "2-digit",
+      }
+    )}.`;
   } catch (error) {
     redirectToHome("error", getActionErrorMessage(error));
   }
@@ -1186,4 +1220,3 @@ export async function markChatReadAction() {
     } satisfies InlineActionResult;
   }
 }
-

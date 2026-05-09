@@ -136,6 +136,15 @@ type MapHexOwnershipMarker = {
     canRecall: boolean;
     recallDisabledReason: string | null;
     canInstantRecall: boolean;
+    canTorch: boolean;
+    torchDisabledReason: string | null;
+  } | null;
+  occupyingGarrison?: {
+    fortressId: string;
+    fortressName: string;
+    commanderName: string;
+    army: number;
+    isCurrentUser: boolean;
   } | null;
   holders?: Array<{
     fortressName: string;
@@ -438,7 +447,7 @@ function HexTileMap({
           tile.spawnable ? styles.spawnableTile : "",
           isOwnedTile ? styles.ownedTile : "",
           isOwnedTile && ownership?.ownerRace
-            ? OWNED_TILE_RACE_CLASS_BY_RACE[ownership.ownerRace] ?? ""
+            ? (OWNED_TILE_RACE_CLASS_BY_RACE[ownership.ownerRace] ?? "")
             : "",
           isPendingClaim ? styles.pendingClaimTile : "",
           ownership?.pointIncome ? styles.objectiveTile : "",
@@ -464,16 +473,14 @@ function HexTileMap({
                   ? `${BIOME_LABELS[tile.biome]}, acquisition reserved by ${ownership.pendingClaim.ownerName}, completes at ${new Date(
                       ownership.pendingClaim.completesAt
                     ).toLocaleTimeString()}, ${bonus.label}`
-                : `${isHomeTile ? "Home of A, neutral control point" : `${BIOME_LABELS[tile.biome]}, unclaimed`}${
-                    neutralClaimCost ? `, claim cost ${neutralClaimCost}` : ""
-                  }, ${bonus.label}`
+                  : `${isHomeTile ? "Home of A, neutral control point" : `${BIOME_LABELS[tile.biome]}, unclaimed`}${
+                      neutralClaimCost ? `, claim cost ${neutralClaimCost}` : ""
+                    }, ${bonus.label}`
             }
             onPointerDown={(event) =>
               handleTilePointerDown(event, tile.id, tile.spawnable)
             }
-            onPointerMove={(event) =>
-              handleTilePointerMove(event, tile.id)
-            }
+            onPointerMove={(event) => handleTilePointerMove(event, tile.id)}
             onPointerUp={(event) => handleTilePointerUp(event, tile.id)}
             onPointerCancel={(event) => clearTileTap(event, tile.id)}
           >
@@ -1303,7 +1310,8 @@ export const FortressMap = memo(function FortressMap({
                 });
               const selectable =
                 (Boolean(onSelectFortress) && fortress.isCurrentUser) ||
-                (Boolean(onSelectFortress) && fortress.fortressKind === "MEGA") ||
+                (Boolean(onSelectFortress) &&
+                  fortress.fortressKind === "MEGA") ||
                 (Boolean(onConfirmAttackTarget) && fortress.isTargetable);
               const variant = getSpriteVariant(fortress);
               const isMega = fortress.fortressKind === "MEGA";
@@ -1315,9 +1323,7 @@ export const FortressMap = memo(function FortressMap({
                 ? (homeOfAOwnership?.ownerFortressId ?? null)
                 : null;
               const megaNpcDefense =
-                isMega && !homeOwnerFortressId
-                  ? Math.max(0, fortress.army)
-                  : 0;
+                isMega && !homeOwnerFortressId ? Math.max(0, fortress.army) : 0;
               const megaOccupyingDefense =
                 isMega && homeOwnerFortressId
                   ? Math.max(
@@ -1353,9 +1359,10 @@ export const FortressMap = memo(function FortressMap({
 
               const showTargetPopover =
                 pendingTargetId === fortress.id && fortress.isTargetable;
-              const travelMinutes = showTargetPopover && ownFortress
-                ? getAttackTravelMinutes(ownFortress, fortress)
-                : null;
+              const travelMinutes =
+                showTargetPopover && ownFortress
+                  ? getAttackTravelMinutes(ownFortress, fortress)
+                  : null;
 
               return (
                 <Fragment key={fortress.id}>
@@ -1394,8 +1401,8 @@ export const FortressMap = memo(function FortressMap({
                       isMega
                         ? `${fortress.name}, defending force ${megaTotalDefense} (${megaOccupyingDefense > 0 ? "occupying" : "npc"})`
                         : showsHealth
-                        ? `${fortress.name}, ${fortress.health} of ${fortress.maxHealth} health`
-                        : `${fortress.name}, ${fortress.points} points`
+                          ? `${fortress.name}, ${fortress.health} of ${fortress.maxHealth} health`
+                          : `${fortress.name}, ${fortress.points} points`
                     }
                   >
                     <span className={styles.selectionPulse} />
@@ -1442,10 +1449,10 @@ export const FortressMap = memo(function FortressMap({
                         {isMega
                           ? `Defenders ${megaDefenseSplitLabel} (${megaOccupyingDefense > 0 ? "occupying" : "npc"})`
                           : showsHealth
-                          ? `${fortress.health}/${fortress.maxHealth} HP`
-                          : `${fortress.points} pts${
-                              fortress.isSlayerOfA ? " - Slayer of A" : ""
-                            }`}
+                            ? `${fortress.health}/${fortress.maxHealth} HP`
+                            : `${fortress.points} pts${
+                                fortress.isSlayerOfA ? " - Slayer of A" : ""
+                              }`}
                       </span>
                     </span>
                   </button>

@@ -168,11 +168,11 @@ function getDegradedHomePageState(): HomePageState {
     playerFortress: null,
     playerSummary: null,
     leaderboard: [],
-        mapFortresses: [],
-        mapHexes: [],
-        homeOfA: null,
-        battlefields: [],
-        attackUnits: [],
+    mapFortresses: [],
+    mapHexes: [],
+    homeOfA: null,
+    battlefields: [],
+    attackUnits: [],
     battleReports: [],
     chat: {
       messages: [],
@@ -303,13 +303,13 @@ export default async function Home({
   );
   const canDismissPhaseCard = Boolean(
     showSidePanel &&
-      !blockingMessage &&
-      !showLoginCard &&
-      !showJoinCard &&
-      !showCommanderNameCard &&
-      !showArcadeCard &&
-      !showWinnerWishPrompt &&
-      !showSeasonBanner
+    !blockingMessage &&
+    !showLoginCard &&
+    !showJoinCard &&
+    !showCommanderNameCard &&
+    !showArcadeCard &&
+    !showWinnerWishPrompt &&
+    !showSeasonBanner
   );
   const phaseCardStorageKey = `project-a:phase-card:${
     state.cycle?.id ?? "no-cycle"
@@ -827,7 +827,9 @@ export default async function Home({
             <div className={styles.joinModal} role="dialog" aria-modal="true">
               <form action={joinFortressAction} className={styles.joinForm}>
                 <div className={styles.joinModalHeader}>
-                  <span className={styles.sectionLabel}>Choose your trouble</span>
+                  <span className={styles.sectionLabel}>
+                    Choose your trouble
+                  </span>
                   <h2>Pick a race before the season notices you.</h2>
                   <p>
                     Race locks for the season. Choose the kind of bad decision
@@ -879,7 +881,9 @@ export default async function Home({
                             />
                             <strong>{race.displayName}</strong>
                           </span>
-                          <span className={styles.joinRaceLore}>{copy.lore}</span>
+                          <span className={styles.joinRaceLore}>
+                            {copy.lore}
+                          </span>
                           <span className={styles.joinRaceTradeoffs}>
                             <span>
                               <b>Pros</b>
@@ -982,8 +986,10 @@ export default async function Home({
                 <dd>{state.playerSummary.gold}</dd>
               </div>
               <div>
-                <dt>Growth</dt>
-                <dd>Workers</dd>
+                <dt>Military</dt>
+                <dd>
+                  {state.playerSummary.army}/{state.playerSummary.allUnits}
+                </dd>
               </div>
               {state.playerSummary.currentTargetName ? (
                 <div className={styles.targetStat}>

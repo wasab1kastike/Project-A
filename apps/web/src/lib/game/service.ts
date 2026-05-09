@@ -1440,7 +1440,9 @@ export async function recallBattlefieldArmy({
         battlefield.status !== BattlefieldStatus.ACTIVE ||
         !participant
       ) {
-        throw new GameError("That battlefield army is not available to recall.");
+        throw new GameError(
+          "That battlefield army is not available to recall."
+        );
       }
 
       const recalledArmy = normalizeRecallAmount(
@@ -1519,7 +1521,8 @@ export async function recallBattlefieldArmy({
         cycle,
         fortress: participant.fortress,
         origin,
-        targetFortressId: battlefield.targetFortressId ?? participant.fortress.id,
+        targetFortressId:
+          battlefield.targetFortressId ?? participant.fortress.id,
         armyAmount: recalledArmy,
         now,
       });
@@ -1632,6 +1635,116 @@ export async function recallGarrisonArmy({
         armyAmount: recalledArmy,
         now,
       });
+    },
+    {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    }
+  );
+}
+
+export async function torchOccupiedMapHex({
+  userId,
+  garrisonId,
+  db = prisma,
+}: {
+  userId: string;
+  garrisonId: string;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(
+    async (tx) => {
+      const cycle = await getCurrentCycle(tx);
+
+      if (
+        !cycle ||
+        (cycle.status !== CycleStatus.ACTIVE &&
+          cycle.status !== CycleStatus.TESTING)
+      ) {
+        throw new GameError("The battlefield is not accepting active actions.");
+      }
+
+      const garrison = await tx.fortressGarrison.findUnique({
+        where: {
+          id: garrisonId,
+        },
+        select: {
+          id: true,
+          cycleId: true,
+          tileId: true,
+          fortressId: true,
+          fortress: {
+            select: {
+              ownerId: true,
+            },
+          },
+        },
+      });
+
+      if (
+        !garrison ||
+        garrison.cycleId !== cycle.id ||
+        garrison.fortress.ownerId !== userId
+      ) {
+        throw new GameError("That garrison is not available to torch from.");
+      }
+
+      if (isHomeOfATile(garrison.tileId)) {
+        throw new GameError("Home of A cannot be torched.");
+      }
+
+      const ownership = await tx.mapHexOwnership.findUnique({
+        where: {
+          cycleId_tileId: {
+            cycleId: cycle.id,
+            tileId: garrison.tileId,
+          },
+        },
+        select: {
+          ownerFortressId: true,
+        },
+      });
+
+      if (!ownership) {
+        throw new GameError("That tile is already neutral.");
+      }
+
+      if (ownership.ownerFortressId === garrison.fortressId) {
+        throw new GameError("You cannot torch your own tile.");
+      }
+
+      const activeBattle = await tx.battlefield.findFirst({
+        where: {
+          cycleId: cycle.id,
+          targetTileId: garrison.tileId,
+          status: BattlefieldStatus.ACTIVE,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (activeBattle) {
+        throw new GameError("That tile is already contested.");
+      }
+
+      await tx.mapHexOwnership.delete({
+        where: {
+          cycleId_tileId: {
+            cycleId: cycle.id,
+            tileId: garrison.tileId,
+          },
+        },
+      });
+      await tx.fortressGarrison.deleteMany({
+        where: {
+          cycleId: cycle.id,
+          tileId: garrison.tileId,
+        },
+      });
+
+      return {
+        tileId: garrison.tileId,
+      };
     },
     {
       isolationLevel: Prisma.TransactionIsolationLevel.Serializable,

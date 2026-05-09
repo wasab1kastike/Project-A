@@ -14,6 +14,7 @@ import {
   recallBattlefieldArmyAction,
   recallAttackUnitAction,
   recallGarrisonArmyAction,
+  torchOccupiedMapHexAction,
 } from "@/app/game-actions";
 import { ChatPanel } from "./chat-panel";
 import {
@@ -65,6 +66,7 @@ type PlayerSummary = {
   name: string;
   gold: number;
   army: number;
+  allUnits: number;
   race: string | null;
   canSetAction: boolean;
   outboundAttackUnitCount: number;
@@ -299,6 +301,9 @@ export function BattlefieldExperience({
   const [garrisonRecallPendingId, setGarrisonRecallPendingId] = useState<
     string | null
   >(null);
+  const [garrisonTorchPendingId, setGarrisonTorchPendingId] = useState<
+    string | null
+  >(null);
   const [optimisticAttackUnits, setOptimisticAttackUnits] = useState<
     AttackUnitMarker[]
   >([]);
@@ -483,11 +488,16 @@ export function BattlefieldExperience({
     }
 
     return Math.min(
-      Math.max(1, battleRecallArmyById[battlefield.id] ?? battlefield.ownArmyRemaining),
+      Math.max(
+        1,
+        battleRecallArmyById[battlefield.id] ?? battlefield.ownArmyRemaining
+      ),
       battlefield.ownArmyRemaining
     );
   }
-  function getGarrisonRecallArmy(garrison: NonNullable<MapHexOwnershipMarker["ownGarrison"]>) {
+  function getGarrisonRecallArmy(
+    garrison: NonNullable<MapHexOwnershipMarker["ownGarrison"]>
+  ) {
     if (garrison.army <= 0) {
       return 0;
     }
@@ -723,6 +733,26 @@ export function BattlefieldExperience({
     [router]
   );
 
+  const handleTorchOccupiedMapHex = useCallback(
+    async (garrison: NonNullable<MapHexOwnershipMarker["ownGarrison"]>) => {
+      setGarrisonTorchPendingId(garrison.id);
+
+      try {
+        const result = await torchOccupiedMapHexAction(garrison.id);
+
+        if (!result.ok) {
+          window.alert(result.error);
+          return;
+        }
+
+        router.refresh();
+      } finally {
+        setGarrisonTorchPendingId(null);
+      }
+    },
+    [router]
+  );
+
   const handleSelectFortress = useCallback(
     (fortress: MapFortress) => {
       if (fortress.isCurrentUser) {
@@ -895,10 +925,10 @@ export function BattlefieldExperience({
                 ? "You (acquiring)"
                 : `${selectedPendingClaim.ownerName} (acquiring)`
               : selectedOwnership?.ownerFortressId
-              ? selectedOwnership.isCurrentUser
-                ? "You"
-                : selectedOwnership.ownerName
-              : "Neutral"}
+                ? selectedOwnership.isCurrentUser
+                  ? "You"
+                  : selectedOwnership.ownerName
+                : "Neutral"}
           </dd>
         </div>
         <div>
@@ -954,17 +984,21 @@ export function BattlefieldExperience({
           <dd>
             {selectedActiveBattlefieldId
               ? "Contested"
-              : selectedPendingClaim
-                ? "Acquiring"
-              : selectedOwnership?.ownerFortressId
-                ? selectedOwnership.canAttack
-                  ? "Attackable"
-                  : "Controlled"
-                : selectedTileIsHomeOfA
-                  ? homeOfA?.canAttack
-                    ? "Attackable"
-                    : "Center control"
-                  : "Claimable"}
+              : selectedOwnership?.occupyingGarrison
+                ? selectedOwnership.occupyingGarrison.isCurrentUser
+                  ? "Occupied by you"
+                  : "Occupied"
+                : selectedPendingClaim
+                  ? "Acquiring"
+                  : selectedOwnership?.ownerFortressId
+                    ? selectedOwnership.canAttack
+                      ? "Attackable"
+                      : "Controlled"
+                    : selectedTileIsHomeOfA
+                      ? homeOfA?.canAttack
+                        ? "Attackable"
+                        : "Center control"
+                      : "Claimable"}
           </dd>
         </div>
       </dl>
@@ -977,6 +1011,14 @@ export function BattlefieldExperience({
             </li>
           ))}
         </ul>
+      ) : null}
+
+      {selectedOwnership?.occupyingGarrison ? (
+        <p className={styles.helper}>
+          Occupied by {selectedOwnership.occupyingGarrison.fortressName} with{" "}
+          {selectedOwnership.occupyingGarrison.army} army. The strongest
+          occupier receives this tile&apos;s bonus.
+        </p>
       ) : null}
 
       {selectedOwnGarrison ? (
@@ -1030,6 +1072,22 @@ export function BattlefieldExperience({
             {garrisonRecallPendingId === selectedOwnGarrison.id
               ? "Recalling..."
               : `Recall ${getGarrisonRecallArmy(selectedOwnGarrison)} army`}
+          </button>
+          <button
+            className={styles.secondaryButton}
+            type="button"
+            disabled={
+              !selectedOwnGarrison.canTorch ||
+              garrisonTorchPendingId === selectedOwnGarrison.id
+            }
+            title={selectedOwnGarrison.torchDisabledReason ?? undefined}
+            onClick={() => {
+              void handleTorchOccupiedMapHex(selectedOwnGarrison);
+            }}
+          >
+            {garrisonTorchPendingId === selectedOwnGarrison.id
+              ? "Torching..."
+              : "Torch tile"}
           </button>
         </div>
       ) : null}
@@ -1322,9 +1380,7 @@ export function BattlefieldExperience({
                             !battlefield.canRecall ||
                             battleRecallPendingId === battlefield.id
                           }
-                          title={
-                            battlefield.recallDisabledReason ?? undefined
-                          }
+                          title={battlefield.recallDisabledReason ?? undefined}
                           onClick={() => {
                             void handleRecallBattlefieldArmy(
                               battlefield,

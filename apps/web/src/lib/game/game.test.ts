@@ -135,6 +135,7 @@ import {
   claimNeutralMapHex,
   attackMapHex,
   joinBattlefield,
+  torchOccupiedMapHex,
   updateWorkerAssignment,
   shuffleFortressLocation,
 } from "./service";
@@ -153,6 +154,7 @@ import {
 import {
   getTileBonus,
   getTileClaimCost,
+  isHomeOfATile,
   isTileConnectedToFortressOrOwnedTiles,
 } from "./territory";
 import {
@@ -2072,7 +2074,10 @@ test("players can partially or fully recall won-tile garrisons", async (context)
   }
 
   const owner = await createUser(prisma, "garrison-recall@example.com");
-  const outsider = await createUser(prisma, "garrison-recall-outsider@example.com");
+  const outsider = await createUser(
+    prisma,
+    "garrison-recall-outsider@example.com"
+  );
   const cycle = await seedActiveCommunityWishCycle(
     prisma,
     [
@@ -2182,6 +2187,602 @@ test("players can partially or fully recall won-tile garrisons", async (context)
   });
 
   assert.equal(reloadedOwner.army, 60);
+});
+
+test("occupied tiles pay their bonus to the largest external garrison", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const owner = await createUser(prisma, "occupied-owner@example.com");
+  const occupier = await createUser(prisma, "occupied-occupier@example.com");
+  const smaller = await createUser(prisma, "occupied-smaller@example.com");
+  const cycle = await seedActiveCommunityWishCycle(
+    prisma,
+    [
+      {
+        userId: owner.id,
+        commanderName: "Tile Owner",
+        fortressName: "Owner Keep",
+        points: 0,
+      },
+      {
+        userId: occupier.id,
+        commanderName: "Tile Occupier",
+        fortressName: "Occupier Keep",
+        points: 0,
+      },
+      {
+        userId: smaller.id,
+        commanderName: "Small Occupier",
+        fortressName: "Small Keep",
+        points: 0,
+      },
+    ],
+    new Date("2026-04-20T14:00:00.000Z")
+  );
+  const [ownerFortress, occupierFortress, smallerFortress] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: owner.id } },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: occupier.id } },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: smaller.id } },
+    }),
+  ]);
+  const tile = HEX_SPAWN_TILES.find(
+    (candidate) =>
+      candidate.spawnable &&
+      !isHomeOfATile(candidate.id) &&
+      (getTileBonus(candidate).gold > 0 || getTileBonus(candidate).food > 0)
+  );
+
+  assert.ok(tile);
+  const bonus = getTileBonus(tile);
+
+  await prisma.fortress.updateMany({
+    where: { cycleId: cycle.id },
+    data: {
+      points: 0,
+      gold: 0,
+      food: 0,
+      army: 0,
+      minersAssigned: 0,
+      farmersAssigned: 0,
+      recruitersAssigned: 0,
+    },
+  });
+  await prisma.mapHexOwnership.create({
+    data: {
+      cycleId: cycle.id,
+      tileId: tile.id,
+      ownerFortressId: ownerFortress.id,
+    },
+  });
+  const [occupierBattlefield, smallerBattlefield] = await Promise.all([
+    prisma.battlefield.create({
+      data: {
+        cycleId: cycle.id,
+        targetTileId: tile.id,
+        targetFortressId: ownerFortress.id,
+        attackerBannerFortressId: occupierFortress.id,
+        defenderBannerFortressId: ownerFortress.id,
+        status: "RESOLVED",
+      },
+    }),
+    prisma.battlefield.create({
+      data: {
+        cycleId: cycle.id,
+        targetTileId: tile.id,
+        targetFortressId: ownerFortress.id,
+        attackerBannerFortressId: smallerFortress.id,
+        defenderBannerFortressId: ownerFortress.id,
+        status: "RESOLVED",
+      },
+    }),
+  ]);
+  await prisma.fortressGarrison.createMany({
+    data: [
+      {
+        cycleId: cycle.id,
+        battlefieldId: occupierBattlefield.id,
+        fortressId: occupierFortress.id,
+        tileId: tile.id,
+        army: 10,
+        createdAt: new Date("2026-04-20T12:00:20.000Z"),
+      },
+      {
+        cycleId: cycle.id,
+        battlefieldId: smallerBattlefield.id,
+        fortressId: smallerFortress.id,
+        tileId: tile.id,
+        army: 5,
+        createdAt: new Date("2026-04-20T12:00:10.000Z"),
+      },
+    ],
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+  });
+
+  const [reloadedOwner, reloadedOccupier, reloadedSmaller] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({ where: { id: ownerFortress.id } }),
+    prisma.fortress.findUniqueOrThrow({ where: { id: occupierFortress.id } }),
+    prisma.fortress.findUniqueOrThrow({ where: { id: smallerFortress.id } }),
+  ]);
+
+  assert.equal(reloadedOwner.gold, 0);
+  assert.equal(reloadedOwner.food, 0);
+  assert.equal(reloadedOccupier.gold, bonus.gold);
+  assert.equal(reloadedOccupier.food, bonus.food);
+  assert.equal(reloadedSmaller.gold, 0);
+  assert.equal(reloadedSmaller.food, 0);
+});
+
+test("tile bonus occupation ties prefer the older garrison", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const owner = await createUser(prisma, "occupied-tie-owner@example.com");
+  const older = await createUser(prisma, "occupied-tie-older@example.com");
+  const newer = await createUser(prisma, "occupied-tie-newer@example.com");
+  const cycle = await seedActiveCommunityWishCycle(
+    prisma,
+    [
+      {
+        userId: owner.id,
+        commanderName: "Tie Owner",
+        fortressName: "Tie Owner Keep",
+        points: 0,
+      },
+      {
+        userId: older.id,
+        commanderName: "Older Occupier",
+        fortressName: "Older Keep",
+        points: 0,
+      },
+      {
+        userId: newer.id,
+        commanderName: "Newer Occupier",
+        fortressName: "Newer Keep",
+        points: 0,
+      },
+    ],
+    new Date("2026-04-20T14:00:00.000Z")
+  );
+  const [ownerFortress, olderFortress, newerFortress] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: owner.id } },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: older.id } },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: newer.id } },
+    }),
+  ]);
+  const tile = HEX_SPAWN_TILES.find(
+    (candidate) =>
+      candidate.spawnable &&
+      !isHomeOfATile(candidate.id) &&
+      (getTileBonus(candidate).gold > 0 || getTileBonus(candidate).food > 0)
+  );
+
+  assert.ok(tile);
+  const bonus = getTileBonus(tile);
+
+  await prisma.fortress.updateMany({
+    where: { cycleId: cycle.id },
+    data: {
+      points: 0,
+      gold: 0,
+      food: 0,
+      army: 0,
+      minersAssigned: 0,
+      farmersAssigned: 0,
+      recruitersAssigned: 0,
+    },
+  });
+  await prisma.mapHexOwnership.create({
+    data: {
+      cycleId: cycle.id,
+      tileId: tile.id,
+      ownerFortressId: ownerFortress.id,
+    },
+  });
+  const [olderBattlefield, newerBattlefield] = await Promise.all([
+    prisma.battlefield.create({
+      data: {
+        cycleId: cycle.id,
+        targetTileId: tile.id,
+        targetFortressId: ownerFortress.id,
+        attackerBannerFortressId: olderFortress.id,
+        defenderBannerFortressId: ownerFortress.id,
+        status: "RESOLVED",
+      },
+    }),
+    prisma.battlefield.create({
+      data: {
+        cycleId: cycle.id,
+        targetTileId: tile.id,
+        targetFortressId: ownerFortress.id,
+        attackerBannerFortressId: newerFortress.id,
+        defenderBannerFortressId: ownerFortress.id,
+        status: "RESOLVED",
+      },
+    }),
+  ]);
+  await prisma.fortressGarrison.createMany({
+    data: [
+      {
+        cycleId: cycle.id,
+        battlefieldId: olderBattlefield.id,
+        fortressId: olderFortress.id,
+        tileId: tile.id,
+        army: 10,
+        createdAt: new Date("2026-04-20T12:00:10.000Z"),
+      },
+      {
+        cycleId: cycle.id,
+        battlefieldId: newerBattlefield.id,
+        fortressId: newerFortress.id,
+        tileId: tile.id,
+        army: 10,
+        createdAt: new Date("2026-04-20T12:00:20.000Z"),
+      },
+    ],
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+  });
+
+  const [reloadedOlder, reloadedNewer] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({ where: { id: olderFortress.id } }),
+    prisma.fortress.findUniqueOrThrow({ where: { id: newerFortress.id } }),
+  ]);
+
+  assert.equal(reloadedOlder.gold, bonus.gold);
+  assert.equal(reloadedOlder.food, bonus.food);
+  assert.equal(reloadedNewer.gold, 0);
+  assert.equal(reloadedNewer.food, 0);
+});
+
+test("owner receives tile bonus when there is no external garrison", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const owner = await createUser(prisma, "unoccupied-owner@example.com");
+  const cycle = await seedActiveCommunityWishCycle(
+    prisma,
+    [
+      {
+        userId: owner.id,
+        commanderName: "Unoccupied Owner",
+        fortressName: "Unoccupied Keep",
+        points: 0,
+      },
+    ],
+    new Date("2026-04-20T14:00:00.000Z")
+  );
+  const ownerFortress = await prisma.fortress.findUniqueOrThrow({
+    where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: owner.id } },
+  });
+  const tile = HEX_SPAWN_TILES.find(
+    (candidate) =>
+      candidate.spawnable &&
+      !isHomeOfATile(candidate.id) &&
+      (getTileBonus(candidate).gold > 0 || getTileBonus(candidate).food > 0)
+  );
+
+  assert.ok(tile);
+  const bonus = getTileBonus(tile);
+
+  await prisma.fortress.update({
+    where: { id: ownerFortress.id },
+    data: {
+      points: 0,
+      gold: 0,
+      food: 0,
+      army: 0,
+      minersAssigned: 0,
+      farmersAssigned: 0,
+      recruitersAssigned: 0,
+    },
+  });
+  await prisma.mapHexOwnership.create({
+    data: {
+      cycleId: cycle.id,
+      tileId: tile.id,
+      ownerFortressId: ownerFortress.id,
+    },
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+  });
+
+  const reloadedOwner = await prisma.fortress.findUniqueOrThrow({
+    where: { id: ownerFortress.id },
+  });
+
+  assert.equal(reloadedOwner.gold, bonus.gold);
+  assert.equal(reloadedOwner.food, bonus.food);
+});
+
+test("occupying garrisons can torch enemy tiles neutral", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const owner = await createUser(prisma, "torch-owner@example.com");
+  const occupier = await createUser(prisma, "torch-occupier@example.com");
+  const cycle = await seedActiveCommunityWishCycle(
+    prisma,
+    [
+      {
+        userId: owner.id,
+        commanderName: "Torch Owner",
+        fortressName: "Torch Owner Keep",
+        points: 0,
+      },
+      {
+        userId: occupier.id,
+        commanderName: "Torch Occupier",
+        fortressName: "Torch Occupier Keep",
+        points: 0,
+      },
+    ],
+    new Date("2026-04-20T14:00:00.000Z")
+  );
+  const [ownerFortress, occupierFortress] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: owner.id } },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: occupier.id } },
+    }),
+  ]);
+  const tile = HEX_SPAWN_TILES.find(
+    (candidate) => candidate.spawnable && !isHomeOfATile(candidate.id)
+  );
+
+  assert.ok(tile);
+
+  await prisma.mapHexOwnership.create({
+    data: {
+      cycleId: cycle.id,
+      tileId: tile.id,
+      ownerFortressId: ownerFortress.id,
+    },
+  });
+  const battlefield = await prisma.battlefield.create({
+    data: {
+      cycleId: cycle.id,
+      targetTileId: tile.id,
+      targetFortressId: ownerFortress.id,
+      attackerBannerFortressId: occupierFortress.id,
+      defenderBannerFortressId: ownerFortress.id,
+      status: "RESOLVED",
+    },
+  });
+  const garrison = await prisma.fortressGarrison.create({
+    data: {
+      cycleId: cycle.id,
+      battlefieldId: battlefield.id,
+      fortressId: occupierFortress.id,
+      tileId: tile.id,
+      army: 12,
+    },
+  });
+
+  await torchOccupiedMapHex({
+    db: prisma,
+    userId: occupier.id,
+    garrisonId: garrison.id,
+  });
+
+  assert.equal(
+    await prisma.mapHexOwnership.findUnique({
+      where: { cycleId_tileId: { cycleId: cycle.id, tileId: tile.id } },
+    }),
+    null
+  );
+  assert.equal(
+    await prisma.fortressGarrison.count({
+      where: { cycleId: cycle.id, tileId: tile.id },
+    }),
+    0
+  );
+});
+
+test("torch rejects own, Home of A, missing, and contested garrisons", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const owner = await createUser(prisma, "torch-invalid-owner@example.com");
+  const occupier = await createUser(
+    prisma,
+    "torch-invalid-occupier@example.com"
+  );
+  const cycle = await seedActiveCommunityWishCycle(
+    prisma,
+    [
+      {
+        userId: owner.id,
+        commanderName: "Invalid Torch Owner",
+        fortressName: "Invalid Owner Keep",
+        points: 0,
+      },
+      {
+        userId: occupier.id,
+        commanderName: "Invalid Torch Occupier",
+        fortressName: "Invalid Occupier Keep",
+        points: 0,
+      },
+    ],
+    new Date("2026-04-20T14:00:00.000Z")
+  );
+  const [ownerFortress, occupierFortress] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: owner.id } },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: occupier.id } },
+    }),
+  ]);
+  const [tile, contestedTile] = HEX_SPAWN_TILES.filter(
+    (candidate) => candidate.spawnable && !isHomeOfATile(candidate.id)
+  ).slice(0, 2);
+
+  assert.ok(tile);
+  assert.ok(contestedTile);
+
+  const ownBattlefield = await prisma.battlefield.create({
+    data: {
+      cycleId: cycle.id,
+      targetTileId: tile.id,
+      targetFortressId: ownerFortress.id,
+      attackerBannerFortressId: ownerFortress.id,
+      status: "RESOLVED",
+    },
+  });
+  await prisma.mapHexOwnership.create({
+    data: {
+      cycleId: cycle.id,
+      tileId: tile.id,
+      ownerFortressId: ownerFortress.id,
+    },
+  });
+  const ownGarrison = await prisma.fortressGarrison.create({
+    data: {
+      cycleId: cycle.id,
+      battlefieldId: ownBattlefield.id,
+      fortressId: ownerFortress.id,
+      tileId: tile.id,
+      army: 5,
+    },
+  });
+
+  await assert.rejects(
+    () =>
+      torchOccupiedMapHex({
+        db: prisma,
+        userId: owner.id,
+        garrisonId: ownGarrison.id,
+      }),
+    /own tile/
+  );
+
+  await assert.rejects(
+    () =>
+      torchOccupiedMapHex({
+        db: prisma,
+        userId: owner.id,
+        garrisonId: "missing-garrison",
+      }),
+    /not available/
+  );
+
+  const home = await ensureMegaFortress({
+    db: prisma,
+    cycleId: cycle.id,
+    seed: "test-torch-home",
+  });
+  const homeBattlefield = await prisma.battlefield.create({
+    data: {
+      cycleId: cycle.id,
+      targetTileId: HOME_OF_A_TILE_ID,
+      targetFortressId: home.id,
+      attackerBannerFortressId: occupierFortress.id,
+      status: "RESOLVED",
+    },
+  });
+  const homeGarrison = await prisma.fortressGarrison.create({
+    data: {
+      cycleId: cycle.id,
+      battlefieldId: homeBattlefield.id,
+      fortressId: occupierFortress.id,
+      tileId: HOME_OF_A_TILE_ID,
+      army: 5,
+    },
+  });
+
+  await assert.rejects(
+    () =>
+      torchOccupiedMapHex({
+        db: prisma,
+        userId: occupier.id,
+        garrisonId: homeGarrison.id,
+      }),
+    /Home of A/
+  );
+
+  await prisma.mapHexOwnership.create({
+    data: {
+      cycleId: cycle.id,
+      tileId: contestedTile.id,
+      ownerFortressId: ownerFortress.id,
+    },
+  });
+  const contestedBattlefield = await prisma.battlefield.create({
+    data: {
+      cycleId: cycle.id,
+      targetTileId: contestedTile.id,
+      targetFortressId: ownerFortress.id,
+      attackerBannerFortressId: occupierFortress.id,
+      defenderBannerFortressId: ownerFortress.id,
+      status: "RESOLVED",
+    },
+  });
+  const contestedGarrison = await prisma.fortressGarrison.create({
+    data: {
+      cycleId: cycle.id,
+      battlefieldId: contestedBattlefield.id,
+      fortressId: occupierFortress.id,
+      tileId: contestedTile.id,
+      army: 5,
+    },
+  });
+  await prisma.battlefield.create({
+    data: {
+      cycleId: cycle.id,
+      targetTileId: contestedTile.id,
+      targetFortressId: ownerFortress.id,
+      attackerBannerFortressId: occupierFortress.id,
+      defenderBannerFortressId: ownerFortress.id,
+      status: "ACTIVE",
+    },
+  });
+
+  await assert.rejects(
+    () =>
+      torchOccupiedMapHex({
+        db: prisma,
+        userId: occupier.id,
+        garrisonId: contestedGarrison.id,
+      }),
+    /contested/
+  );
 });
 
 test("tick CLI summary includes attack launch and resolution counts", () => {

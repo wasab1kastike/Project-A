@@ -37,10 +37,7 @@ import {
 import { getAttackArrivalAt } from "./attacks";
 import { buildFortressSpawnSeed } from "./spawn-layout";
 import { addHours, addMinutes, floorToMinute } from "./time";
-import {
-  calculateRaidOutcome,
-  calculateTickProduction,
-} from "./balance";
+import { calculateRaidOutcome, calculateTickProduction } from "./balance";
 import {
   getArmyUpkeepCost,
   getStarvationArmyLoss,
@@ -1195,30 +1192,82 @@ async function processCycleTick(
   db: PrismaClient
 ) {
   const cycle = await db.cycle.findUnique({
-      where: {
-        id: cycleId,
-      },
-      select: {
-        id: true,
-        status: true,
-        testingStartedAt: true,
-        testingEndsAt: true,
-        activeStartedAt: true,
-        activeEndsAt: true,
-        upgradesUnlockedAt: true,
-        crownedFortressId: true,
-        megaFortressDestroyCount: true,
-      },
-    });
+    where: {
+      id: cycleId,
+    },
+    select: {
+      id: true,
+      status: true,
+      testingStartedAt: true,
+      testingEndsAt: true,
+      activeStartedAt: true,
+      activeEndsAt: true,
+      upgradesUnlockedAt: true,
+      crownedFortressId: true,
+      megaFortressDestroyCount: true,
+    },
+  });
 
-    if (
-      !cycle ||
-      (cycle.status !== CycleStatus.ACTIVE &&
-        cycle.status !== CycleStatus.TESTING) ||
-      !(cycle.status === CycleStatus.TESTING
-        ? cycle.testingStartedAt
-        : cycle.activeStartedAt)
-    ) {
+  if (
+    !cycle ||
+    (cycle.status !== CycleStatus.ACTIVE &&
+      cycle.status !== CycleStatus.TESTING) ||
+    !(cycle.status === CycleStatus.TESTING
+      ? cycle.testingStartedAt
+      : cycle.activeStartedAt)
+  ) {
+    return {
+      processed: false,
+      scoreEventsCreated: 0,
+      launchedAttackUnits: 0,
+      resolvedAttackUnits: 0,
+    };
+  }
+
+  const gameplayStartedAt =
+    cycle.status === CycleStatus.TESTING
+      ? cycle.testingStartedAt!
+      : cycle.activeStartedAt!;
+  const raceBuffTier = getRaceBuffTier({
+    activeStartedAt: cycle.activeStartedAt,
+    now: tickAt,
+    isActiveSeason: cycle.status === CycleStatus.ACTIVE,
+  });
+
+  await ensureActiveCycleMegaFortress({
+    db: db,
+    cycleId,
+  });
+
+  const firstTickAt = getFirstTickAt(gameplayStartedAt);
+  const lastDueTickAt = getLastDueTickAt(
+    {
+      ...cycle,
+      activeStartedAt: gameplayStartedAt,
+    },
+    now
+  );
+
+  if (!lastDueTickAt || tickAt < firstTickAt || tickAt > lastDueTickAt) {
+    return {
+      processed: false,
+      scoreEventsCreated: 0,
+      launchedAttackUnits: 0,
+      resolvedAttackUnits: 0,
+    };
+  }
+
+  try {
+    await db.$transaction(async (gateTx) => {
+      await gateTx.gameTick.create({
+        data: {
+          cycleId,
+          tickAt,
+        },
+      });
+    }, TICK_TRANSACTION_OPTIONS);
+  } catch (error) {
+    if (isUniqueTickError(error)) {
       return {
         processed: false,
         scoreEventsCreated: 0,
@@ -1227,293 +1276,855 @@ async function processCycleTick(
       };
     }
 
-    const gameplayStartedAt =
-      cycle.status === CycleStatus.TESTING
-        ? cycle.testingStartedAt!
-        : cycle.activeStartedAt!;
-    const raceBuffTier = getRaceBuffTier({
-      activeStartedAt: cycle.activeStartedAt,
-      now: tickAt,
-      isActiveSeason: cycle.status === CycleStatus.ACTIVE,
-    });
+    throw error;
+  }
 
-    await ensureActiveCycleMegaFortress({
-      db: db,
+  await ensureCurrentMapLayout({
+    db: db,
+    cycleId,
+    seed: buildFortressSpawnSeed({
       cycleId,
-    });
+      activeStartedAt: gameplayStartedAt,
+      tickAt,
+      purpose: "tick:layout-v3",
+    }),
+  });
 
-    const firstTickAt = getFirstTickAt(gameplayStartedAt);
-    const lastDueTickAt = getLastDueTickAt(
-      {
-        ...cycle,
-        activeStartedAt: gameplayStartedAt,
+  await processDueUnicornTeleportReturns({
+    db,
+    cycleId,
+    tickAt,
+  });
+
+  await processDueCastleUpgradeProjects({
+    db,
+    cycleId,
+    tickAt,
+  });
+
+  await processDueMapHexClaimProjects({
+    db,
+    cycleId,
+    tickAt,
+  });
+
+  await expireLootCamps({
+    db: db,
+    cycleId,
+    tickAt,
+  });
+  await db.fortress.updateMany({
+    where: {
+      cycleId,
+      fortressKind: FortressKind.DWARF_RUNE,
+      health: {
+        gt: 0,
       },
-      now
-    );
+      expiresAt: {
+        lte: tickAt,
+      },
+    },
+    data: {
+      health: 0,
+    },
+  });
+  await spawnScheduledLootCamps({
+    db: db,
+    cycleId,
+    activeStartedAt: gameplayStartedAt,
+    tickAt,
+  });
 
-    if (!lastDueTickAt || tickAt < firstTickAt || tickAt > lastDueTickAt) {
-      return {
-        processed: false,
-        scoreEventsCreated: 0,
-        launchedAttackUnits: 0,
-        resolvedAttackUnits: 0,
-      };
-    }
-
-    try {
-      await db.$transaction(async (gateTx) => {
-        await gateTx.gameTick.create({
-          data: {
-            cycleId,
-            tickAt,
+  const fortresses = await db.fortress.findMany({
+    where: {
+      cycleId,
+    },
+    orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      ownerId: true,
+      points: true,
+      gold: true,
+      level: true,
+      food: true,
+      army: true,
+      recruitmentQueue: true,
+      minersAssigned: true,
+      farmersAssigned: true,
+      recruitersAssigned: true,
+      race: true,
+      fortressKind: true,
+      lootCampVariant: true,
+      unicornDecoyLevel: true,
+      currentAction: true,
+      targetFortressId: true,
+      isNpc: true,
+      health: true,
+      maxHealth: true,
+      expiresAt: true,
+      mapX: true,
+      mapY: true,
+      joinedAt: true,
+      castleUpgradeSpecializations: {
+        select: {
+          specialization: true,
+        },
+      },
+      raceAbilityActivations: {
+        where: {
+          activeUntil: {
+            gt: tickAt,
           },
-        });
-      }, TICK_TRANSACTION_OPTIONS);
-    } catch (error) {
-      if (isUniqueTickError(error)) {
-        return {
-          processed: false,
-          scoreEventsCreated: 0,
-          launchedAttackUnits: 0,
-          resolvedAttackUnits: 0,
-        };
-      }
-
-      throw error;
-    }
-
-    await ensureCurrentMapLayout({
-      db: db,
-      cycleId,
-      seed: buildFortressSpawnSeed({
-        cycleId,
-        activeStartedAt: gameplayStartedAt,
-        tickAt,
-        purpose: "tick:layout-v3",
-      }),
-    });
-
-    await processDueUnicornTeleportReturns({
-      db,
-      cycleId,
-      tickAt,
-    });
-
-    await processDueCastleUpgradeProjects({
-      db,
-      cycleId,
-      tickAt,
-    });
-
-    await processDueMapHexClaimProjects({
-      db,
-      cycleId,
-      tickAt,
-    });
-
-    await expireLootCamps({
-      db: db,
-      cycleId,
-      tickAt,
-    });
-    await db.fortress.updateMany({
-      where: {
-        cycleId,
-        fortressKind: FortressKind.DWARF_RUNE,
+        },
+        select: {
+          id: true,
+          kind: true,
+          activeFrom: true,
+          activeUntil: true,
+          consumedAt: true,
+          targetFortressId: true,
+          runeFortressId: true,
+          goldCost: true,
+          maintenanceGoldPerTick: true,
+        },
+      },
+      orkBossOrders: {
+        where: {
+          activeUntil: {
+            gt: tickAt,
+          },
+        },
+        select: {
+          kind: true,
+          activeFrom: true,
+          activeUntil: true,
+        },
+      },
+      orkWaaaghInvestments: {
+        where: {
+          waaaghActivation: {
+            activeFrom: {
+              lte: tickAt,
+            },
+            activeUntil: {
+              gt: tickAt,
+            },
+          },
+        },
+        select: {
+          kind: true,
+        },
+      },
+      dwarfGrudges: {
+        select: {
+          targetFortressId: true,
+          bonusMultiplier: true,
+        },
+      },
+    },
+  });
+  const activeRuneSuppressions = await db.raceAbilityActivation.findMany({
+    where: {
+      kind: RaceAbilityKind.DWARF_RUNE_GRUDGES,
+      activeUntil: {
+        gt: tickAt,
+      },
+      consumedAt: null,
+      targetFortressId: {
+        not: null,
+      },
+      runeFortress: {
         health: {
           gt: 0,
         },
         expiresAt: {
-          lte: tickAt,
-        },
-      },
-      data: {
-        health: 0,
-      },
-    });
-    await spawnScheduledLootCamps({
-      db: db,
-      cycleId,
-      activeStartedAt: gameplayStartedAt,
-      tickAt,
-    });
-
-    const fortresses = await db.fortress.findMany({
-      where: {
-        cycleId,
-      },
-      orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
-      select: {
-        id: true,
-        ownerId: true,
-        points: true,
-        gold: true,
-        level: true,
-        food: true,
-        army: true,
-        recruitmentQueue: true,
-        minersAssigned: true,
-        farmersAssigned: true,
-        recruitersAssigned: true,
-        race: true,
-        fortressKind: true,
-        lootCampVariant: true,
-        unicornDecoyLevel: true,
-        currentAction: true,
-        targetFortressId: true,
-        isNpc: true,
-        health: true,
-        maxHealth: true,
-        expiresAt: true,
-        mapX: true,
-        mapY: true,
-        joinedAt: true,
-        castleUpgradeSpecializations: {
-          select: {
-            specialization: true,
-          },
-        },
-        raceAbilityActivations: {
-          where: {
-            activeUntil: {
-              gt: tickAt,
-            },
-          },
-          select: {
-            id: true,
-            kind: true,
-            activeFrom: true,
-            activeUntil: true,
-            consumedAt: true,
-            targetFortressId: true,
-            runeFortressId: true,
-            goldCost: true,
-            maintenanceGoldPerTick: true,
-          },
-        },
-        orkBossOrders: {
-          where: {
-            activeUntil: {
-              gt: tickAt,
-            },
-          },
-          select: {
-            kind: true,
-            activeFrom: true,
-            activeUntil: true,
-          },
-        },
-        orkWaaaghInvestments: {
-          where: {
-            waaaghActivation: {
-              activeFrom: {
-                lte: tickAt,
-              },
-              activeUntil: {
-                gt: tickAt,
-              },
-            },
-          },
-          select: {
-            kind: true,
-          },
-        },
-        dwarfGrudges: {
-          select: {
-            targetFortressId: true,
-            bonusMultiplier: true,
-          },
-        },
-      },
-    });
-    const activeRuneSuppressions = await db.raceAbilityActivation.findMany({
-      where: {
-        kind: RaceAbilityKind.DWARF_RUNE_GRUDGES,
-        activeUntil: {
           gt: tickAt,
         },
-        consumedAt: null,
-        targetFortressId: {
-          not: null,
-        },
-        runeFortress: {
-          health: {
-            gt: 0,
-          },
-          expiresAt: {
-            gt: tickAt,
-          },
-        },
       },
-      select: {
-        targetFortressId: true,
+    },
+    select: {
+      targetFortressId: true,
+    },
+  });
+  const suppressedFortressIds = new Set(
+    activeRuneSuppressions
+      .map((suppression) => suppression.targetFortressId)
+      .filter((id): id is string => Boolean(id))
+  );
+
+  const currentPoints = new Map(
+    fortresses.map((fortress) => [fortress.id, fortress.points])
+  );
+  const currentGold = new Map(
+    fortresses.map((fortress) => [fortress.id, fortress.gold])
+  );
+  const currentFood = new Map(
+    fortresses.map((fortress) => [fortress.id, fortress.food])
+  );
+  const currentArmy = new Map(
+    fortresses.map((fortress) => [fortress.id, fortress.army])
+  );
+  const currentRecruitmentQueue = new Map(
+    fortresses.map((fortress) => [fortress.id, fortress.recruitmentQueue])
+  );
+  const currentHealth = new Map(
+    fortresses.map((fortress) => [fortress.id, fortress.health])
+  );
+  const fortressLookup = new Map(
+    fortresses.map((fortress) => [fortress.id, fortress])
+  );
+  for (const fortress of fortresses) {
+    const activeRune = fortress.raceAbilityActivations.find(
+      (activation) =>
+        activation.kind === RaceAbilityKind.DWARF_RUNE_GRUDGES &&
+        activation.activeFrom <= tickAt &&
+        activation.activeUntil > tickAt &&
+        activation.consumedAt === null
+    );
+
+    if (!activeRune || !activeRune.targetFortressId) {
+      continue;
+    }
+
+    const upkeepCost = activeRune.maintenanceGoldPerTick || 25;
+    const currentGoldValue = currentGold.get(fortress.id) ?? fortress.gold;
+
+    if (currentGoldValue >= upkeepCost) {
+      currentGold.set(fortress.id, currentGoldValue - upkeepCost);
+      continue;
+    }
+
+    currentHealth.set(activeRune.runeFortressId ?? fortress.id, 0);
+    suppressedFortressIds.delete(activeRune.targetFortressId);
+    await db.fortress.update({
+      where: {
+        id: fortress.id,
+      },
+      data: {
+        gold: currentGoldValue,
       },
     });
-    const suppressedFortressIds = new Set(
-      activeRuneSuppressions
-        .map((suppression) => suppression.targetFortressId)
-        .filter((id): id is string => Boolean(id))
-    );
-
-    const currentPoints = new Map(
-      fortresses.map((fortress) => [fortress.id, fortress.points])
-    );
-    const currentGold = new Map(
-      fortresses.map((fortress) => [fortress.id, fortress.gold])
-    );
-    const currentFood = new Map(
-      fortresses.map((fortress) => [fortress.id, fortress.food])
-    );
-    const currentArmy = new Map(
-      fortresses.map((fortress) => [fortress.id, fortress.army])
-    );
-    const currentRecruitmentQueue = new Map(
-      fortresses.map((fortress) => [
-        fortress.id,
-        fortress.recruitmentQueue,
-      ])
-    );
-    const currentHealth = new Map(
-      fortresses.map((fortress) => [fortress.id, fortress.health])
-    );
-    const fortressLookup = new Map(
-      fortresses.map((fortress) => [fortress.id, fortress])
-    );
-    for (const fortress of fortresses) {
-      const activeRune = fortress.raceAbilityActivations.find(
-        (activation) =>
-          activation.kind === RaceAbilityKind.DWARF_RUNE_GRUDGES &&
-          activation.activeFrom <= tickAt &&
-          activation.activeUntil > tickAt &&
-          activation.consumedAt === null
-      );
-
-      if (!activeRune || !activeRune.targetFortressId) {
-        continue;
-      }
-
-      const upkeepCost = activeRune.maintenanceGoldPerTick || 25;
-      const currentGoldValue = currentGold.get(fortress.id) ?? fortress.gold;
-
-      if (currentGoldValue >= upkeepCost) {
-        currentGold.set(fortress.id, currentGoldValue - upkeepCost);
-        continue;
-      }
-
-      currentHealth.set(activeRune.runeFortressId ?? fortress.id, 0);
-      suppressedFortressIds.delete(activeRune.targetFortressId);
+    if (activeRune.runeFortressId) {
       await db.fortress.update({
         where: {
-          id: fortress.id,
+          id: activeRune.runeFortressId,
         },
         data: {
-          gold: currentGoldValue,
+          health: 0,
+          army: 0,
+          expiresAt: tickAt,
         },
       });
-      if (activeRune.runeFortressId) {
+    }
+    await db.raceAbilityActivation.update({
+      where: {
+        id: activeRune.id,
+      },
+      data: {
+        consumedAt: tickAt,
+        activeUntil: tickAt,
+      },
+    });
+  }
+  const scoreEvents: Prisma.ScoreEventCreateManyInput[] = [];
+  const destroyedMegaTargets = new Set<string>();
+  let resolvedAttackUnits = 0;
+  const isSuppressed = (fortressId: string) =>
+    suppressedFortressIds.has(fortressId);
+  const getEffectiveRace = (fortress: {
+    id: string;
+    race: (typeof fortresses)[number]["race"];
+  }) => (isSuppressed(fortress.id) ? null : fortress.race);
+  const getDwarfSpeedMultiplier = (fortress: (typeof fortresses)[number]) =>
+    getRaceModifiers(fortress.race).travelSpeedMultiplier;
+  const getOrkSpeedMultiplier = (fortress: (typeof fortresses)[number]) =>
+    getOrkBossOrderSpeedMultiplier(fortress.orkBossOrders, tickAt);
+  const getOrkWaaghActive = (fortress: (typeof fortresses)[number]) =>
+    getEffectiveRace(fortress) === "ORKS" &&
+    raceBuffTier >= 3 &&
+    isRaceAbilityActive(
+      fortress.raceAbilityActivations,
+      RaceAbilityKind.ORK_WAAAGH,
+      tickAt
+    );
+
+  const dwarfEconomySurgedThisTick = new Set<string>();
+  const dwarfEconomyHaltedThisTick = new Set<string>();
+  const dwarfCombatSurgedThisTick = new Set<string>();
+
+  const pendingDeepMiningRolls = await db.dwarfDeepMiningRoll.findMany({
+    where: {
+      resolvedAt: null,
+      activeUntil: {
+        lte: tickAt,
+      },
+    },
+    include: {
+      fortress: {
+        select: {
+          id: true,
+          ownerId: true,
+          commanderName: true,
+          name: true,
+          gold: true,
+          army: true,
+          level: true,
+          minersAssigned: true,
+          farmersAssigned: true,
+          recruitmentQueue: true,
+          recruitersAssigned: true,
+          race: true,
+          mapX: true,
+          mapY: true,
+          castleUpgradeSpecializations: {
+            select: {
+              specialization: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  for (const roll of pendingDeepMiningRolls) {
+    const source = fortressLookup.get(roll.fortressId) ?? roll.fortress;
+    const sourceGold = currentGold.get(source.id) ?? source.gold;
+    const sourceArmy = currentArmy.get(source.id) ?? source.army;
+    const sourceRecruitmentQueue =
+      currentRecruitmentQueue.get(source.id) ?? source.recruitmentQueue;
+    const sourceFood = "food" in source ? source.food : 0;
+    const effectUntil = addHours(tickAt, 1);
+    const production = calculateTickProduction({
+      food: currentFood.get(source.id) ?? sourceFood,
+      level: source.level,
+      minersAssigned: source.minersAssigned,
+      farmersAssigned: source.farmersAssigned,
+      recruitersAssigned: source.recruitersAssigned,
+      race: source.race,
+      castleSpecializations: countCastleSpecializations(
+        source.castleUpgradeSpecializations
+      ),
+    });
+    const rollUpdateData: Prisma.DwarfDeepMiningRollUpdateInput = {};
+
+    if (roll.outcome === DwarfDeepMiningOutcome.RICH_VEIN) {
+      const goldDelta = Math.max(300, production.goldProduced * 30);
+      currentGold.set(source.id, sourceGold + goldDelta);
+      await db.scoreEvent.create({
+        data: {
+          cycleId,
+          fortressId: source.id,
+          actorId: source.ownerId,
+          eventType: ScoreEventType.DWARF_DEEP_MINING_POINTS,
+          delta: goldDelta,
+          createdAt: tickAt,
+        },
+      });
+      rollUpdateData.goldDelta = goldDelta;
+    } else if (roll.outcome === DwarfDeepMiningOutcome.ORE_SURGE) {
+      await db.raceAbilityActivation.create({
+        data: {
+          fortressId: source.id,
+          kind: RaceAbilityKind.DWARF_ECONOMY_SURGE,
+          activeFrom: tickAt,
+          activeUntil: effectUntil,
+          usedAt: tickAt,
+        },
+      });
+      dwarfEconomySurgedThisTick.add(source.id);
+    } else if (roll.outcome === DwarfDeepMiningOutcome.BATTLE_RUNES) {
+      await db.raceAbilityActivation.create({
+        data: {
+          fortressId: source.id,
+          kind: RaceAbilityKind.DWARF_COMBAT_SURGE,
+          activeFrom: tickAt,
+          activeUntil: effectUntil,
+          usedAt: tickAt,
+        },
+      });
+      dwarfCombatSurgedThisTick.add(source.id);
+    } else if (roll.outcome === DwarfDeepMiningOutcome.FACTION_SEAL) {
+      const queueDelta = Math.min(
+        250,
+        Math.max(25, Math.floor(roll.committedGold / 2))
+      );
+      currentRecruitmentQueue.set(
+        source.id,
+        sourceRecruitmentQueue + queueDelta
+      );
+      rollUpdateData.recruitmentQueueDelta = queueDelta;
+    } else if (roll.outcome === DwarfDeepMiningOutcome.BURIED_WARBAND) {
+      const armyDelta = Math.min(
+        250,
+        Math.max(25, Math.floor(sourceArmy * 0.2))
+      );
+      currentArmy.set(source.id, sourceArmy + armyDelta);
+      rollUpdateData.armyDelta = armyDelta;
+    } else if (roll.outcome === DwarfDeepMiningOutcome.CAVE_IN) {
+      const armyDelta = -Math.min(
+        sourceArmy,
+        Math.max(25, Math.ceil(sourceArmy * 0.25))
+      );
+      currentArmy.set(source.id, Math.max(0, sourceArmy + armyDelta));
+      rollUpdateData.armyDelta = armyDelta;
+    } else if (roll.outcome === DwarfDeepMiningOutcome.UNSTABLE_TUNNELS) {
+      const goldDelta = -Math.min(
+        roll.committedGold,
+        Math.max(25, Math.floor(roll.committedGold * 0.25))
+      );
+      currentGold.set(source.id, Math.max(0, sourceGold + goldDelta));
+      rollUpdateData.goldDelta = goldDelta;
+    } else if (roll.outcome === DwarfDeepMiningOutcome.SHAFT_COLLAPSE) {
+      await db.raceAbilityActivation.create({
+        data: {
+          fortressId: source.id,
+          kind: RaceAbilityKind.DWARF_ECONOMY_HALT,
+          activeFrom: tickAt,
+          activeUntil: effectUntil,
+          usedAt: tickAt,
+        },
+      });
+      dwarfEconomyHaltedThisTick.add(source.id);
+    }
+
+    await db.dwarfDeepMiningRoll.update({
+      where: {
+        id: roll.id,
+      },
+      data: {
+        ...rollUpdateData,
+        resolvedAt: tickAt,
+        activeUntil:
+          roll.outcome === DwarfDeepMiningOutcome.ORE_SURGE ||
+          roll.outcome === DwarfDeepMiningOutcome.BATTLE_RUNES ||
+          roll.outcome === DwarfDeepMiningOutcome.SHAFT_COLLAPSE
+            ? effectUntil
+            : null,
+      },
+    });
+  }
+
+  const dueAttackUnits = await db.attackUnit.findMany({
+    where: {
+      cycleId,
+      resolvedAt: null,
+      cancelledAt: null,
+      arrivesAt: {
+        lte: tickAt,
+      },
+    },
+    orderBy: [{ arrivesAt: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      attackerFortressId: true,
+      targetFortressId: true,
+      reinforcementBattlefieldId: true,
+      reinforcementSide: true,
+      armyAmount: true,
+      arrivesAt: true,
+      recalledAt: true,
+      returnOriginMapX: true,
+      returnOriginMapY: true,
+      attackerReturned: true,
+      defenderArmyAtBattleStart: true,
+      resolvedAttackPower: true,
+      resolvedDefensePower: true,
+      attackerSurvivors: true,
+      attackerRetired: true,
+      defenderLosses: true,
+      pointsLooted: true,
+      foodLooted: true,
+      armyLooted: true,
+    },
+  });
+
+  const resolvedBatchAttackUnitIds = new Set<string>();
+  for (const unit of dueAttackUnits) {
+    if (unit.reinforcementBattlefieldId && unit.reinforcementSide) {
+      const battlefield = await db.battlefield.findUnique({
+        where: {
+          id: unit.reinforcementBattlefieldId,
+        },
+        select: {
+          id: true,
+          status: true,
+        },
+      });
+
+      if (battlefield?.status === "ACTIVE") {
+        await db.battlefieldParticipant.upsert({
+          where: {
+            battlefieldId_fortressId: {
+              battlefieldId: battlefield.id,
+              fortressId: unit.attackerFortressId,
+            },
+          },
+          update: {
+            armyCommitted: {
+              increment: unit.armyAmount,
+            },
+            armyRemaining: {
+              increment: unit.armyAmount,
+            },
+          },
+          create: {
+            battlefieldId: battlefield.id,
+            fortressId: unit.attackerFortressId,
+            side: unit.reinforcementSide,
+            armyCommitted: unit.armyAmount,
+            armyRemaining: unit.armyAmount,
+            joinedAt: tickAt,
+          },
+        });
+        await db.battlefield.update({
+          where: {
+            id: battlefield.id,
+          },
+          data:
+            unit.reinforcementSide === "ATTACKER"
+              ? {
+                  attackerArmyRemaining: {
+                    increment: unit.armyAmount,
+                  },
+                }
+              : {
+                  defenderArmyRemaining: {
+                    increment: unit.armyAmount,
+                  },
+                },
+        });
+      }
+
+      await db.attackUnit.update({
+        where: {
+          id: unit.id,
+        },
+        data: {
+          resolvedAt: tickAt,
+          defenderArmyAtBattleStart: null,
+          resolvedAttackPower: 0,
+          resolvedDefensePower: 0,
+          attackerSurvivors: unit.armyAmount,
+          attackerRetired: 0,
+          attackerReturned: 0,
+          defenderLosses: 0,
+          pointsLooted: 0,
+          foodLooted: 0,
+          armyLooted: 0,
+        },
+      });
+      resolvedBatchAttackUnitIds.add(unit.id);
+      resolvedAttackUnits += 1;
+      continue;
+    }
+
+    const target = fortressLookup.get(unit.targetFortressId);
+
+    if (
+      unit.recalledAt ||
+      !target ||
+      target.isNpc ||
+      target.fortressKind !== FortressKind.PLAYER
+    ) {
+      continue;
+    }
+
+    await createBattlefieldFromAttackUnit({
+      db,
+      attackUnitId: unit.id,
+      tickAt,
+    });
+    resolvedBatchAttackUnitIds.add(unit.id);
+    resolvedAttackUnits += 1;
+  }
+
+  const dueAttackUnitsByTargetId = new Map<string, typeof dueAttackUnits>();
+  for (const dueAttackUnit of dueAttackUnits) {
+    const targetUnits =
+      dueAttackUnitsByTargetId.get(dueAttackUnit.targetFortressId) ?? [];
+    targetUnits.push(dueAttackUnit);
+    dueAttackUnitsByTargetId.set(dueAttackUnit.targetFortressId, targetUnits);
+  }
+  const getPendingTargetUnits = (targetId: string) =>
+    (dueAttackUnitsByTargetId.get(targetId) ?? []).filter(
+      (targetUnit) => !resolvedBatchAttackUnitIds.has(targetUnit.id)
+    );
+
+  for (const unit of dueAttackUnits) {
+    if (resolvedBatchAttackUnitIds.has(unit.id)) {
+      continue;
+    }
+
+    const attacker = fortressLookup.get(unit.attackerFortressId);
+    const target = fortressLookup.get(unit.targetFortressId);
+
+    if (unit.recalledAt) {
+      const returningArmy = unit.attackerReturned ?? unit.armyAmount;
+
+      if (attacker) {
+        currentArmy.set(
+          attacker.id,
+          (currentArmy.get(attacker.id) ?? attacker.army) + returningArmy
+        );
+      }
+
+      const pureRecallDetection =
+        unit.defenderArmyAtBattleStart === null &&
+        unit.resolvedAttackPower === null &&
+        unit.resolvedDefensePower === null &&
+        unit.attackerSurvivors === null &&
+        unit.attackerRetired === null &&
+        unit.attackerReturned === null &&
+        unit.defenderLosses === null &&
+        unit.pointsLooted === null &&
+        unit.foodLooted === null;
+      const updateData: Prisma.AttackUnitUpdateInput = {
+        resolvedAt: tickAt,
+      };
+
+      if (pureRecallDetection) {
+        updateData.defenderArmyAtBattleStart = null;
+        updateData.resolvedAttackPower = 0;
+        updateData.resolvedDefensePower = 0;
+        updateData.attackerSurvivors = returningArmy;
+        updateData.attackerRetired = 0;
+        updateData.attackerReturned = returningArmy;
+        updateData.defenderLosses = 0;
+        updateData.pointsLooted = 0;
+        updateData.foodLooted = 0;
+        updateData.armyLooted = 0;
+      }
+
+      await db.attackUnit.update({
+        where: {
+          id: unit.id,
+        },
+        data: updateData,
+      });
+
+      resolvedAttackUnits += 1;
+      resolvedBatchAttackUnitIds.add(unit.id);
+      continue;
+    }
+
+    if (target?.fortressKind === FortressKind.UNICORN_DECOY) {
+      const targetUnits = getPendingTargetUnits(target.id);
+      const copiedLevel = Math.max(1, target.unicornDecoyLevel ?? 1);
+      const decoyCasualties = target.health > 0 ? 200 * copiedLevel : 0;
+
+      for (const targetUnit of targetUnits) {
+        const targetAttacker = fortressLookup.get(
+          targetUnit.attackerFortressId
+        );
+        const attackerReturned = Math.max(
+          0,
+          targetUnit.armyAmount - decoyCasualties
+        );
+        const attackerLost = targetUnit.armyAmount - attackerReturned;
+
+        if (targetAttacker && attackerReturned > 0) {
+          const returnArrivesAt = getAttackArrivalAt({
+            launchedAt: tickAt,
+            origin: {
+              mapX: target.mapX,
+              mapY: target.mapY,
+            },
+            target: {
+              mapX: targetAttacker.mapX,
+              mapY: targetAttacker.mapY,
+            },
+            attackerRace: getEffectiveRace(targetAttacker),
+            raceBuffTier,
+            speedMultiplier:
+              getDwarfSpeedMultiplier(targetAttacker) *
+              getOrkSpeedMultiplier(targetAttacker),
+            waaagh: getOrkWaaghActive(targetAttacker),
+          });
+
+          await db.attackUnit.update({
+            where: {
+              id: targetUnit.id,
+            },
+            data: {
+              recalledAt: tickAt,
+              returnOriginMapX: target.mapX,
+              returnOriginMapY: target.mapY,
+              arrivesAt: returnArrivesAt,
+              defenderArmyAtBattleStart: 0,
+              resolvedAttackPower: targetUnit.armyAmount,
+              resolvedDefensePower: decoyCasualties,
+              attackerSurvivors: attackerReturned,
+              attackerRetired: attackerLost,
+              attackerReturned,
+              defenderLosses: 0,
+              pointsLooted: 0,
+              foodLooted: 0,
+              armyLooted: 0,
+            },
+          });
+        } else {
+          await db.attackUnit.update({
+            where: {
+              id: targetUnit.id,
+            },
+            data: {
+              resolvedAt: tickAt,
+              defenderArmyAtBattleStart: 0,
+              resolvedAttackPower: targetUnit.armyAmount,
+              resolvedDefensePower: decoyCasualties,
+              attackerSurvivors: attackerReturned,
+              attackerRetired: attackerLost,
+              attackerReturned,
+              defenderLosses: 0,
+              pointsLooted: 0,
+              foodLooted: 0,
+              armyLooted: 0,
+            },
+          });
+          resolvedAttackUnits += 1;
+        }
+
+        resolvedBatchAttackUnitIds.add(targetUnit.id);
+
+        if (targetAttacker) {
+          scoreEvents.push({
+            cycleId,
+            fortressId: targetAttacker.id,
+            actorId: targetAttacker.ownerId,
+            targetFortressId: target.id,
+            eventType: ScoreEventType.UNICORN_DECOY_DESTROY,
+            delta: 0,
+            createdAt: tickAt,
+          });
+        }
+      }
+
+      if (targetUnits.length > 0) {
+        currentHealth.set(target.id, 0);
         await db.fortress.update({
           where: {
-            id: activeRune.runeFortressId,
+            id: target.id,
+          },
+          data: {
+            health: 0,
+          },
+        });
+      }
+
+      continue;
+    }
+
+    if (target?.fortressKind === FortressKind.DWARF_RUNE) {
+      const runeActivation = await db.raceAbilityActivation.findFirst({
+        where: {
+          kind: RaceAbilityKind.DWARF_RUNE_GRUDGES,
+          runeFortressId: target.id,
+          activeUntil: {
+            gt: tickAt,
+          },
+          consumedAt: null,
+        },
+        select: {
+          fortressId: true,
+          targetFortressId: true,
+          id: true,
+        },
+      });
+      const runeOwner = runeActivation
+        ? fortressLookup.get(runeActivation.fortressId)
+        : null;
+      const targetUnits = getPendingTargetUnits(target.id);
+      const runeOutcomes = new Map<
+        string,
+        {
+          attackPower: number;
+          defensePower: number;
+          attackerSurvivors: number;
+          attackerRetired: number;
+          attackerReturned: number;
+          defenderLosses: number;
+          defenderArmyAtBattleStart: number;
+        }
+      >();
+      let destroyer: {
+        unitId: string;
+        attacker: NonNullable<typeof attacker>;
+      } | null = null;
+
+      for (const targetUnit of targetUnits) {
+        const targetAttacker = fortressLookup.get(
+          targetUnit.attackerFortressId
+        );
+
+        if (!targetAttacker || targetAttacker.ownerId === runeOwner?.ownerId) {
+          continue;
+        }
+
+        const defenderArmy = currentArmy.get(target.id) ?? target.army;
+        const outcome = calculateRaidOutcome({
+          attackArmy: targetUnit.armyAmount,
+          attackerRace: getEffectiveRace(targetAttacker),
+          defenderArmy,
+          defenderDbLevel: 0,
+          defenderRace: null,
+          attackPowerMultiplier:
+            getEffectiveRace(targetAttacker) === "ORKS"
+              ? getOrkBossOrderAttackMultiplier(
+                  targetAttacker.orkBossOrders,
+                  tickAt
+                )
+              : 1,
+          defenderPoints: 0,
+          defenderFood: 0,
+        });
+        const defenderArmyAfterBattle = Math.max(
+          0,
+          defenderArmy - outcome.defenderLosses
+        );
+
+        currentArmy.set(target.id, defenderArmyAfterBattle);
+        runeOutcomes.set(targetUnit.id, {
+          attackPower: outcome.attackPower,
+          defensePower: outcome.defensePower,
+          attackerSurvivors: outcome.attackerSurvivors,
+          attackerRetired: outcome.attackerRetired,
+          attackerReturned: outcome.attackerReturned,
+          defenderLosses: outcome.defenderLosses,
+          defenderArmyAtBattleStart: defenderArmy,
+        });
+
+        if (defenderArmyAfterBattle <= 0 && !destroyer) {
+          destroyer = {
+            unitId: targetUnit.id,
+            attacker: targetAttacker,
+          };
+          currentHealth.set(target.id, 0);
+        }
+      }
+
+      if (destroyer) {
+        currentGold.set(
+          destroyer.attacker.id,
+          (currentGold.get(destroyer.attacker.id) ?? destroyer.attacker.gold) +
+            DWARF_DEEP_MINING_RUNE_BOUNTY
+        );
+        if (runeActivation?.targetFortressId) {
+          suppressedFortressIds.delete(runeActivation.targetFortressId);
+        }
+        if (runeActivation) {
+          await db.raceAbilityActivation.update({
+            where: {
+              id: runeActivation.id,
+            },
+            data: {
+              consumedAt: tickAt,
+              activeUntil: tickAt,
+            },
+          });
+        }
+        await db.fortress.update({
+          where: {
+            id: target.id,
           },
           data: {
             health: 0,
@@ -1521,1805 +2132,1232 @@ async function processCycleTick(
             expiresAt: tickAt,
           },
         });
-      }
-      await db.raceAbilityActivation.update({
-        where: {
-          id: activeRune.id,
-        },
-        data: {
-          consumedAt: tickAt,
-          activeUntil: tickAt,
-        },
-      });
-    }
-    const scoreEvents: Prisma.ScoreEventCreateManyInput[] = [];
-    const destroyedMegaTargets = new Set<string>();
-    let resolvedAttackUnits = 0;
-    const isSuppressed = (fortressId: string) =>
-      suppressedFortressIds.has(fortressId);
-    const getEffectiveRace = (fortress: {
-      id: string;
-      race: (typeof fortresses)[number]["race"];
-    }) => (isSuppressed(fortress.id) ? null : fortress.race);
-    const getDwarfSpeedMultiplier = (fortress: (typeof fortresses)[number]) =>
-      getRaceModifiers(fortress.race).travelSpeedMultiplier;
-    const getOrkSpeedMultiplier = (fortress: (typeof fortresses)[number]) =>
-      getOrkBossOrderSpeedMultiplier(fortress.orkBossOrders, tickAt);
-    const getOrkWaaghActive = (fortress: (typeof fortresses)[number]) =>
-      getEffectiveRace(fortress) === "ORKS" &&
-      raceBuffTier >= 3 &&
-      isRaceAbilityActive(
-        fortress.raceAbilityActivations,
-        RaceAbilityKind.ORK_WAAAGH,
-        tickAt
-      );
-
-    const dwarfEconomySurgedThisTick = new Set<string>();
-    const dwarfEconomyHaltedThisTick = new Set<string>();
-    const dwarfCombatSurgedThisTick = new Set<string>();
-
-    const pendingDeepMiningRolls = await db.dwarfDeepMiningRoll.findMany({
-      where: {
-        resolvedAt: null,
-        activeUntil: {
-          lte: tickAt,
-        },
-      },
-      include: {
-        fortress: {
-          select: {
-            id: true,
-            ownerId: true,
-            commanderName: true,
-            name: true,
-            gold: true,
-            army: true,
-            level: true,
-            minersAssigned: true,
-            farmersAssigned: true,
-            recruitmentQueue: true,
-            recruitersAssigned: true,
-            race: true,
-            mapX: true,
-            mapY: true,
-            castleUpgradeSpecializations: {
-              select: {
-                specialization: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    for (const roll of pendingDeepMiningRolls) {
-      const source = fortressLookup.get(roll.fortressId) ?? roll.fortress;
-      const sourceGold = currentGold.get(source.id) ?? source.gold;
-      const sourceArmy = currentArmy.get(source.id) ?? source.army;
-      const sourceRecruitmentQueue =
-        currentRecruitmentQueue.get(source.id) ?? source.recruitmentQueue;
-      const sourceFood = "food" in source ? source.food : 0;
-      const effectUntil = addHours(tickAt, 1);
-      const production = calculateTickProduction({
-        food: currentFood.get(source.id) ?? sourceFood,
-        level: source.level,
-        minersAssigned: source.minersAssigned,
-        farmersAssigned: source.farmersAssigned,
-        recruitersAssigned: source.recruitersAssigned,
-        race: source.race,
-        castleSpecializations: countCastleSpecializations(
-          source.castleUpgradeSpecializations
-        ),
-      });
-      const rollUpdateData: Prisma.DwarfDeepMiningRollUpdateInput = {};
-
-      if (roll.outcome === DwarfDeepMiningOutcome.RICH_VEIN) {
-        const goldDelta = Math.max(
-          300,
-          production.goldProduced * 30
-        );
-        currentGold.set(source.id, sourceGold + goldDelta);
-        await db.scoreEvent.create({
-          data: {
-            cycleId,
-            fortressId: source.id,
-            actorId: source.ownerId,
-            eventType: ScoreEventType.DWARF_DEEP_MINING_POINTS,
-            delta: goldDelta,
-            createdAt: tickAt,
-          },
+        scoreEvents.push({
+          cycleId,
+          fortressId: destroyer.attacker.id,
+          actorId: destroyer.attacker.ownerId,
+          targetFortressId: target.id,
+          eventType: ScoreEventType.DWARF_RUNE_BOUNTY,
+          delta: DWARF_DEEP_MINING_RUNE_BOUNTY,
+          createdAt: tickAt,
         });
-        rollUpdateData.goldDelta = goldDelta;
-      } else if (roll.outcome === DwarfDeepMiningOutcome.ORE_SURGE) {
-        await db.raceAbilityActivation.create({
-          data: {
-            fortressId: source.id,
-            kind: RaceAbilityKind.DWARF_ECONOMY_SURGE,
-            activeFrom: tickAt,
-            activeUntil: effectUntil,
-            usedAt: tickAt,
-          },
-        });
-        dwarfEconomySurgedThisTick.add(source.id);
-      } else if (roll.outcome === DwarfDeepMiningOutcome.BATTLE_RUNES) {
-        await db.raceAbilityActivation.create({
-          data: {
-            fortressId: source.id,
-            kind: RaceAbilityKind.DWARF_COMBAT_SURGE,
-            activeFrom: tickAt,
-            activeUntil: effectUntil,
-            usedAt: tickAt,
-          },
-        });
-        dwarfCombatSurgedThisTick.add(source.id);
-      } else if (roll.outcome === DwarfDeepMiningOutcome.FACTION_SEAL) {
-        const queueDelta = Math.min(
-          250,
-          Math.max(25, Math.floor(roll.committedGold / 2))
-        );
-        currentRecruitmentQueue.set(source.id, sourceRecruitmentQueue + queueDelta);
-        rollUpdateData.recruitmentQueueDelta = queueDelta;
-      } else if (roll.outcome === DwarfDeepMiningOutcome.BURIED_WARBAND) {
-        const armyDelta = Math.min(250, Math.max(25, Math.floor(sourceArmy * 0.2)));
-        currentArmy.set(source.id, sourceArmy + armyDelta);
-        rollUpdateData.armyDelta = armyDelta;
-      } else if (roll.outcome === DwarfDeepMiningOutcome.CAVE_IN) {
-        const armyDelta = -Math.min(
-          sourceArmy,
-          Math.max(25, Math.ceil(sourceArmy * 0.25))
-        );
-        currentArmy.set(source.id, Math.max(0, sourceArmy + armyDelta));
-        rollUpdateData.armyDelta = armyDelta;
-      } else if (roll.outcome === DwarfDeepMiningOutcome.UNSTABLE_TUNNELS) {
-        const goldDelta = -Math.min(
-          roll.committedGold,
-          Math.max(25, Math.floor(roll.committedGold * 0.25))
-        );
-        currentGold.set(source.id, Math.max(0, sourceGold + goldDelta));
-        rollUpdateData.goldDelta = goldDelta;
-      } else if (roll.outcome === DwarfDeepMiningOutcome.SHAFT_COLLAPSE) {
-        await db.raceAbilityActivation.create({
-          data: {
-            fortressId: source.id,
-            kind: RaceAbilityKind.DWARF_ECONOMY_HALT,
-            activeFrom: tickAt,
-            activeUntil: effectUntil,
-            usedAt: tickAt,
-          },
-        });
-        dwarfEconomyHaltedThisTick.add(source.id);
       }
 
-      await db.dwarfDeepMiningRoll.update({
-        where: {
-          id: roll.id,
-        },
-        data: {
-          ...rollUpdateData,
-          resolvedAt: tickAt,
-          activeUntil:
-            roll.outcome === DwarfDeepMiningOutcome.ORE_SURGE ||
-            roll.outcome === DwarfDeepMiningOutcome.BATTLE_RUNES ||
-            roll.outcome === DwarfDeepMiningOutcome.SHAFT_COLLAPSE
-              ? effectUntil
-              : null,
-        },
-      });
-    }
+      for (const targetUnit of targetUnits) {
+        const targetAttacker = fortressLookup.get(
+          targetUnit.attackerFortressId
+        );
+        const outcome = runeOutcomes.get(targetUnit.id);
+        const attackerReturned = outcome?.attackerReturned ?? 0;
+        const unitGetsReward =
+          Boolean(destroyer) && targetUnit.id === destroyer?.unitId;
 
-    const dueAttackUnits = await db.attackUnit.findMany({
-      where: {
-        cycleId,
-        resolvedAt: null,
-        cancelledAt: null,
-        arrivesAt: {
-          lte: tickAt,
-        },
-      },
-      orderBy: [{ arrivesAt: "asc" }, { id: "asc" }],
-      select: {
-        id: true,
-        attackerFortressId: true,
-        targetFortressId: true,
-        reinforcementBattlefieldId: true,
-        reinforcementSide: true,
-        armyAmount: true,
-        arrivesAt: true,
-        recalledAt: true,
-        returnOriginMapX: true,
-        returnOriginMapY: true,
-        attackerReturned: true,
-        defenderArmyAtBattleStart: true,
-        resolvedAttackPower: true,
-        resolvedDefensePower: true,
-        attackerSurvivors: true,
-        attackerRetired: true,
-        defenderLosses: true,
-        pointsLooted: true,
-        foodLooted: true,
-        armyLooted: true,
-      },
-    });
-
-    const resolvedBatchAttackUnitIds = new Set<string>();
-    for (const unit of dueAttackUnits) {
-      if (unit.reinforcementBattlefieldId && unit.reinforcementSide) {
-        const battlefield = await db.battlefield.findUnique({
-          where: {
-            id: unit.reinforcementBattlefieldId,
-          },
-          select: {
-            id: true,
-            status: true,
-          },
-        });
-
-        if (battlefield?.status === "ACTIVE") {
-          await db.battlefieldParticipant.upsert({
+        if (!targetAttacker || !outcome) {
+          await db.attackUnit.update({
             where: {
-              battlefieldId_fortressId: {
-                battlefieldId: battlefield.id,
-                fortressId: unit.attackerFortressId,
-              },
+              id: targetUnit.id,
             },
-            update: {
-              armyCommitted: {
-                increment: unit.armyAmount,
-              },
-              armyRemaining: {
-                increment: unit.armyAmount,
-              },
-            },
-            create: {
-              battlefieldId: battlefield.id,
-              fortressId: unit.attackerFortressId,
-              side: unit.reinforcementSide,
-              armyCommitted: unit.armyAmount,
-              armyRemaining: unit.armyAmount,
-              joinedAt: tickAt,
+            data: {
+              resolvedAt: tickAt,
+              defenderArmyAtBattleStart: null,
+              resolvedAttackPower: 0,
+              resolvedDefensePower: 0,
+              attackerSurvivors: 0,
+              attackerRetired: targetUnit.armyAmount,
+              attackerReturned: 0,
+              defenderLosses: 0,
+              pointsLooted: 0,
+              foodLooted: 0,
+              armyLooted: 0,
             },
           });
-          await db.battlefield.update({
-            where: {
-              id: battlefield.id,
-            },
-            data:
-              unit.reinforcementSide === "ATTACKER"
-                ? {
-                    attackerArmyRemaining: {
-                      increment: unit.armyAmount,
-                    },
-                  }
-                : {
-                    defenderArmyRemaining: {
-                      increment: unit.armyAmount,
-                    },
-                  },
-          });
-        }
-
-        await db.attackUnit.update({
-          where: {
-            id: unit.id,
-          },
-          data: {
-            resolvedAt: tickAt,
-            defenderArmyAtBattleStart: null,
-            resolvedAttackPower: 0,
-            resolvedDefensePower: 0,
-            attackerSurvivors: unit.armyAmount,
-            attackerRetired: 0,
-            attackerReturned: 0,
-            defenderLosses: 0,
-            pointsLooted: 0,
-            foodLooted: 0,
-            armyLooted: 0,
-          },
-        });
-        resolvedBatchAttackUnitIds.add(unit.id);
-        resolvedAttackUnits += 1;
-        continue;
-      }
-
-      const target = fortressLookup.get(unit.targetFortressId);
-
-      if (
-        unit.recalledAt ||
-        !target ||
-        target.isNpc ||
-        target.fortressKind !== FortressKind.PLAYER
-      ) {
-        continue;
-      }
-
-      await createBattlefieldFromAttackUnit({
-        db,
-        attackUnitId: unit.id,
-        tickAt,
-      });
-      resolvedBatchAttackUnitIds.add(unit.id);
-      resolvedAttackUnits += 1;
-    }
-
-    const dueAttackUnitsByTargetId = new Map<string, typeof dueAttackUnits>();
-    for (const dueAttackUnit of dueAttackUnits) {
-      const targetUnits =
-        dueAttackUnitsByTargetId.get(dueAttackUnit.targetFortressId) ?? [];
-      targetUnits.push(dueAttackUnit);
-      dueAttackUnitsByTargetId.set(dueAttackUnit.targetFortressId, targetUnits);
-    }
-    const getPendingTargetUnits = (targetId: string) =>
-      (dueAttackUnitsByTargetId.get(targetId) ?? []).filter(
-        (targetUnit) => !resolvedBatchAttackUnitIds.has(targetUnit.id)
-      );
-
-    for (const unit of dueAttackUnits) {
-      if (resolvedBatchAttackUnitIds.has(unit.id)) {
-        continue;
-      }
-
-      const attacker = fortressLookup.get(unit.attackerFortressId);
-      const target = fortressLookup.get(unit.targetFortressId);
-
-      if (unit.recalledAt) {
-        const returningArmy = unit.attackerReturned ?? unit.armyAmount;
-
-        if (attacker) {
-          currentArmy.set(
-            attacker.id,
-            (currentArmy.get(attacker.id) ?? attacker.army) + returningArmy
-          );
-        }
-
-        const pureRecallDetection =
-          unit.defenderArmyAtBattleStart === null &&
-          unit.resolvedAttackPower === null &&
-          unit.resolvedDefensePower === null &&
-          unit.attackerSurvivors === null &&
-          unit.attackerRetired === null &&
-          unit.attackerReturned === null &&
-          unit.defenderLosses === null &&
-          unit.pointsLooted === null &&
-          unit.foodLooted === null;
-        const updateData: Prisma.AttackUnitUpdateInput = {
-          resolvedAt: tickAt,
-        };
-
-        if (pureRecallDetection) {
-          updateData.defenderArmyAtBattleStart = null;
-          updateData.resolvedAttackPower = 0;
-          updateData.resolvedDefensePower = 0;
-          updateData.attackerSurvivors = returningArmy;
-          updateData.attackerRetired = 0;
-          updateData.attackerReturned = returningArmy;
-          updateData.defenderLosses = 0;
-          updateData.pointsLooted = 0;
-          updateData.foodLooted = 0;
-          updateData.armyLooted = 0;
-        }
-
-        await db.attackUnit.update({
-          where: {
-            id: unit.id,
-          },
-          data: updateData,
-        });
-
-        resolvedAttackUnits += 1;
-        resolvedBatchAttackUnitIds.add(unit.id);
-        continue;
-      }
-
-      if (target?.fortressKind === FortressKind.UNICORN_DECOY) {
-        const targetUnits = getPendingTargetUnits(target.id);
-        const copiedLevel = Math.max(1, target.unicornDecoyLevel ?? 1);
-        const decoyCasualties = target.health > 0 ? 200 * copiedLevel : 0;
-
-        for (const targetUnit of targetUnits) {
-          const targetAttacker = fortressLookup.get(
-            targetUnit.attackerFortressId
-          );
-          const attackerReturned = Math.max(
-            0,
-            targetUnit.armyAmount - decoyCasualties
-          );
-          const attackerLost = targetUnit.armyAmount - attackerReturned;
-
-          if (targetAttacker && attackerReturned > 0) {
-            const returnArrivesAt = getAttackArrivalAt({
-              launchedAt: tickAt,
-              origin: {
-                mapX: target.mapX,
-                mapY: target.mapY,
-              },
-              target: {
-                mapX: targetAttacker.mapX,
-                mapY: targetAttacker.mapY,
-              },
-              attackerRace: getEffectiveRace(targetAttacker),
-              raceBuffTier,
-              speedMultiplier:
-                getDwarfSpeedMultiplier(targetAttacker) *
-                getOrkSpeedMultiplier(targetAttacker),
-              waaagh: getOrkWaaghActive(targetAttacker),
-            });
-
-            await db.attackUnit.update({
-              where: {
-                id: targetUnit.id,
-              },
-              data: {
-                recalledAt: tickAt,
-                returnOriginMapX: target.mapX,
-                returnOriginMapY: target.mapY,
-                arrivesAt: returnArrivesAt,
-                defenderArmyAtBattleStart: 0,
-                resolvedAttackPower: targetUnit.armyAmount,
-                resolvedDefensePower: decoyCasualties,
-                attackerSurvivors: attackerReturned,
-                attackerRetired: attackerLost,
-                attackerReturned,
-                defenderLosses: 0,
-                pointsLooted: 0,
-                foodLooted: 0,
-                armyLooted: 0,
-              },
-            });
-          } else {
-            await db.attackUnit.update({
-              where: {
-                id: targetUnit.id,
-              },
-              data: {
-                resolvedAt: tickAt,
-                defenderArmyAtBattleStart: 0,
-                resolvedAttackPower: targetUnit.armyAmount,
-                resolvedDefensePower: decoyCasualties,
-                attackerSurvivors: attackerReturned,
-                attackerRetired: attackerLost,
-                attackerReturned,
-                defenderLosses: 0,
-                pointsLooted: 0,
-                foodLooted: 0,
-                armyLooted: 0,
-              },
-            });
-            resolvedAttackUnits += 1;
-          }
-
+          resolvedAttackUnits += 1;
           resolvedBatchAttackUnitIds.add(targetUnit.id);
-
-          if (targetAttacker) {
-            scoreEvents.push({
-              cycleId,
-              fortressId: targetAttacker.id,
-              actorId: targetAttacker.ownerId,
-              targetFortressId: target.id,
-              eventType: ScoreEventType.UNICORN_DECOY_DESTROY,
-              delta: 0,
-              createdAt: tickAt,
-            });
-          }
+          continue;
         }
 
-        if (targetUnits.length > 0) {
-          currentHealth.set(target.id, 0);
-          await db.fortress.update({
+        if (attackerReturned > 0) {
+          const returnArrivesAt = getAttackArrivalAt({
+            launchedAt: tickAt,
+            origin: {
+              mapX: target.mapX,
+              mapY: target.mapY,
+            },
+            target: {
+              mapX: targetAttacker.mapX,
+              mapY: targetAttacker.mapY,
+            },
+            attackerRace: getEffectiveRace(targetAttacker),
+            raceBuffTier,
+            speedMultiplier:
+              getDwarfSpeedMultiplier(targetAttacker) *
+              getOrkSpeedMultiplier(targetAttacker),
+            waaagh: getOrkWaaghActive(targetAttacker),
+          });
+
+          await db.attackUnit.update({
             where: {
-              id: target.id,
+              id: targetUnit.id,
             },
             data: {
-              health: 0,
+              recalledAt: tickAt,
+              returnOriginMapX: target.mapX,
+              returnOriginMapY: target.mapY,
+              arrivesAt: returnArrivesAt,
+              defenderArmyAtBattleStart: outcome.defenderArmyAtBattleStart,
+              resolvedAttackPower: outcome.attackPower,
+              resolvedDefensePower: outcome.defensePower,
+              attackerSurvivors: outcome.attackerSurvivors,
+              attackerRetired: outcome.attackerRetired,
+              attackerReturned,
+              defenderLosses: outcome.defenderLosses,
+              pointsLooted: unitGetsReward ? DWARF_DEEP_MINING_RUNE_BOUNTY : 0,
+              foodLooted: 0,
+              armyLooted: 0,
             },
           });
+        } else {
+          await db.attackUnit.update({
+            where: {
+              id: targetUnit.id,
+            },
+            data: {
+              resolvedAt: tickAt,
+              defenderArmyAtBattleStart: outcome.defenderArmyAtBattleStart,
+              resolvedAttackPower: outcome.attackPower,
+              resolvedDefensePower: outcome.defensePower,
+              attackerSurvivors: outcome.attackerSurvivors,
+              attackerRetired: outcome.attackerRetired,
+              attackerReturned,
+              defenderLosses: outcome.defenderLosses,
+              pointsLooted: unitGetsReward ? DWARF_DEEP_MINING_RUNE_BOUNTY : 0,
+              foodLooted: 0,
+              armyLooted: 0,
+            },
+          });
+          resolvedAttackUnits += 1;
         }
 
-        continue;
+        resolvedBatchAttackUnitIds.add(targetUnit.id);
       }
 
-      if (target?.fortressKind === FortressKind.DWARF_RUNE) {
-        const runeActivation = await db.raceAbilityActivation.findFirst({
-          where: {
-            kind: RaceAbilityKind.DWARF_RUNE_GRUDGES,
-            runeFortressId: target.id,
-            activeUntil: {
-              gt: tickAt,
-            },
-            consumedAt: null,
-          },
-          select: {
-            fortressId: true,
-            targetFortressId: true,
-            id: true,
-          },
-        });
-        const runeOwner = runeActivation
-          ? fortressLookup.get(runeActivation.fortressId)
-          : null;
-        const targetUnits = getPendingTargetUnits(target.id);
-        const runeOutcomes = new Map<
-          string,
-          {
-            attackPower: number;
-            defensePower: number;
-            attackerSurvivors: number;
-            attackerRetired: number;
-            attackerReturned: number;
-            defenderLosses: number;
-            defenderArmyAtBattleStart: number;
-          }
-        >();
-        let destroyer: {
-          unitId: string;
-          attacker: NonNullable<typeof attacker>;
-        } | null = null;
+      continue;
+    }
 
-        for (const targetUnit of targetUnits) {
-          const targetAttacker = fortressLookup.get(
-            targetUnit.attackerFortressId
-          );
+    if (target?.fortressKind === FortressKind.LOOT_CAMP) {
+      const targetUnits = getPendingTargetUnits(target.id);
+      const lootCampOutcomes = new Map<
+        string,
+        {
+          attackPower: number;
+          defensePower: number;
+          attackerSurvivors: number;
+          attackerRetired: number;
+          attackerReturned: number;
+          defenderLosses: number;
+          targetLoss: number;
+          defenderArmyAtBattleStart: number;
+        }
+      >();
+      let destroyer: {
+        unitId: string;
+        attacker: NonNullable<typeof attacker>;
+      } | null = null;
 
-          if (
-            !targetAttacker ||
-            targetAttacker.ownerId === runeOwner?.ownerId
-          ) {
-            continue;
-          }
+      for (const targetUnit of targetUnits) {
+        const targetAttacker = fortressLookup.get(
+          targetUnit.attackerFortressId
+        );
 
-          const defenderArmy = currentArmy.get(target.id) ?? target.army;
-          const outcome = calculateRaidOutcome({
-            attackArmy: targetUnit.armyAmount,
-            attackerRace: getEffectiveRace(targetAttacker),
-            defenderArmy,
-            defenderDbLevel: 0,
-            defenderRace: null,
-            attackPowerMultiplier:
-              getEffectiveRace(targetAttacker) === "ORKS"
-                ? getOrkBossOrderAttackMultiplier(
-                    targetAttacker.orkBossOrders,
-                    tickAt
-                  )
-                : 1,
-            defenderPoints: 0,
-            defenderFood: 0,
-          });
-          const defenderArmyAfterBattle = Math.max(
-            0,
-            defenderArmy - outcome.defenderLosses
-          );
-
-          currentArmy.set(target.id, defenderArmyAfterBattle);
-          runeOutcomes.set(targetUnit.id, {
-            attackPower: outcome.attackPower,
-            defensePower: outcome.defensePower,
-            attackerSurvivors: outcome.attackerSurvivors,
-            attackerRetired: outcome.attackerRetired,
-            attackerReturned: outcome.attackerReturned,
-            defenderLosses: outcome.defenderLosses,
-            defenderArmyAtBattleStart: defenderArmy,
-          });
-
-          if (defenderArmyAfterBattle <= 0 && !destroyer) {
-            destroyer = {
-              unitId: targetUnit.id,
-              attacker: targetAttacker,
-            };
-            currentHealth.set(target.id, 0);
-          }
+        if (!targetAttacker) {
+          continue;
         }
 
-        if (destroyer) {
-          currentGold.set(
-            destroyer.attacker.id,
-            (currentGold.get(destroyer.attacker.id) ??
-              destroyer.attacker.gold) + DWARF_DEEP_MINING_RUNE_BOUNTY
-          );
-          if (runeActivation?.targetFortressId) {
-            suppressedFortressIds.delete(runeActivation.targetFortressId);
-          }
-          if (runeActivation) {
-            await db.raceAbilityActivation.update({
-              where: {
-                id: runeActivation.id,
-              },
-              data: {
-                consumedAt: tickAt,
-                activeUntil: tickAt,
-              },
-            });
-          }
-          await db.fortress.update({
-            where: {
-              id: target.id,
-            },
-            data: {
-              health: 0,
-              army: 0,
-              expiresAt: tickAt,
-            },
-          });
+        const targetHealth = currentHealth.get(target.id) ?? target.health;
+        const defenderArmy = currentArmy.get(target.id) ?? target.army;
+        const outcome = calculateRaidOutcome({
+          attackArmy: targetUnit.armyAmount,
+          attackerRace: getEffectiveRace(targetAttacker),
+          defenderArmy,
+          defenderDbLevel: 0,
+          defenderHasCastle: false,
+          defenderRace: null,
+          defenderPoints: 0,
+          defenderFood: 0,
+        });
+        const attackerWon = outcome.outcome === "ATTACKER_WIN";
+        const defenderArmyAfterBattle = Math.max(
+          0,
+          defenderArmy - outcome.defenderLosses
+        );
+        const targetLoss = Math.min(
+          targetHealth,
+          attackerWon
+            ? targetUnit.armyAmount *
+                getFortressAttackDamage(targetAttacker.level)
+            : 0
+        );
+
+        currentArmy.set(target.id, defenderArmyAfterBattle);
+        lootCampOutcomes.set(targetUnit.id, {
+          attackPower: outcome.attackPower,
+          defensePower: outcome.defensePower,
+          attackerSurvivors: outcome.attackerSurvivors,
+          attackerRetired: outcome.attackerRetired,
+          attackerReturned: outcome.attackerReturned,
+          defenderLosses: outcome.defenderLosses,
+          targetLoss,
+          defenderArmyAtBattleStart: defenderArmy,
+        });
+
+        const nextHealth = targetHealth - targetLoss;
+        currentHealth.set(target.id, nextHealth);
+
+        if (nextHealth <= 0 && !destroyer) {
+          destroyer = {
+            unitId: targetUnit.id,
+            attacker: targetAttacker,
+          };
+        }
+      }
+
+      const destroyed = (currentHealth.get(target.id) ?? target.health) <= 0;
+      const reward =
+        destroyed && destroyer
+          ? getLootCampReward(target.lootCampVariant, target.maxHealth)
+          : null;
+
+      if (destroyed && destroyer && reward) {
+        currentGold.set(
+          destroyer.attacker.id,
+          (currentGold.get(destroyer.attacker.id) ?? destroyer.attacker.gold) +
+            reward.gold
+        );
+        currentPoints.set(
+          destroyer.attacker.id,
+          (currentPoints.get(destroyer.attacker.id) ?? 0) + reward.points
+        );
+        currentFood.set(
+          destroyer.attacker.id,
+          (currentFood.get(destroyer.attacker.id) ?? destroyer.attacker.food) +
+            reward.food
+        );
+        currentArmy.set(
+          destroyer.attacker.id,
+          (currentArmy.get(destroyer.attacker.id) ?? destroyer.attacker.army) +
+            reward.army
+        );
+
+        if (reward.points > 0) {
           scoreEvents.push({
             cycleId,
             fortressId: destroyer.attacker.id,
             actorId: destroyer.attacker.ownerId,
             targetFortressId: target.id,
-            eventType: ScoreEventType.DWARF_RUNE_BOUNTY,
-            delta: DWARF_DEEP_MINING_RUNE_BOUNTY,
+            eventType: ScoreEventType.LOOT_CAMP_REWARD,
+            delta: reward.points,
             createdAt: tickAt,
           });
         }
 
-        for (const targetUnit of targetUnits) {
-          const targetAttacker = fortressLookup.get(
-            targetUnit.attackerFortressId
-          );
-          const outcome = runeOutcomes.get(targetUnit.id);
-          const attackerReturned = outcome?.attackerReturned ?? 0;
-          const unitGetsReward =
-            Boolean(destroyer) && targetUnit.id === destroyer?.unitId;
-
-          if (!targetAttacker || !outcome) {
-            await db.attackUnit.update({
-              where: {
-                id: targetUnit.id,
-              },
-              data: {
-                resolvedAt: tickAt,
-                defenderArmyAtBattleStart: null,
-                resolvedAttackPower: 0,
-                resolvedDefensePower: 0,
-                attackerSurvivors: 0,
-                attackerRetired: targetUnit.armyAmount,
-                attackerReturned: 0,
-                defenderLosses: 0,
-                pointsLooted: 0,
-                foodLooted: 0,
-                armyLooted: 0,
-              },
-            });
-            resolvedAttackUnits += 1;
-            resolvedBatchAttackUnitIds.add(targetUnit.id);
-            continue;
-          }
-
-          if (attackerReturned > 0) {
-            const returnArrivesAt = getAttackArrivalAt({
-              launchedAt: tickAt,
-              origin: {
-                mapX: target.mapX,
-                mapY: target.mapY,
-              },
-              target: {
-                mapX: targetAttacker.mapX,
-                mapY: targetAttacker.mapY,
-              },
-              attackerRace: getEffectiveRace(targetAttacker),
-              raceBuffTier,
-              speedMultiplier:
-                getDwarfSpeedMultiplier(targetAttacker) *
-                getOrkSpeedMultiplier(targetAttacker),
-              waaagh: getOrkWaaghActive(targetAttacker),
-            });
-
-            await db.attackUnit.update({
-              where: {
-                id: targetUnit.id,
-              },
-              data: {
-                recalledAt: tickAt,
-                returnOriginMapX: target.mapX,
-                returnOriginMapY: target.mapY,
-                arrivesAt: returnArrivesAt,
-                defenderArmyAtBattleStart: outcome.defenderArmyAtBattleStart,
-                resolvedAttackPower: outcome.attackPower,
-                resolvedDefensePower: outcome.defensePower,
-                attackerSurvivors: outcome.attackerSurvivors,
-                attackerRetired: outcome.attackerRetired,
-                attackerReturned,
-                defenderLosses: outcome.defenderLosses,
-                pointsLooted: unitGetsReward
-                  ? DWARF_DEEP_MINING_RUNE_BOUNTY
-                  : 0,
-                foodLooted: 0,
-                armyLooted: 0,
-              },
-            });
-          } else {
-            await db.attackUnit.update({
-              where: {
-                id: targetUnit.id,
-              },
-              data: {
-                resolvedAt: tickAt,
-                defenderArmyAtBattleStart: outcome.defenderArmyAtBattleStart,
-                resolvedAttackPower: outcome.attackPower,
-                resolvedDefensePower: outcome.defensePower,
-                attackerSurvivors: outcome.attackerSurvivors,
-                attackerRetired: outcome.attackerRetired,
-                attackerReturned,
-                defenderLosses: outcome.defenderLosses,
-                pointsLooted: unitGetsReward
-                  ? DWARF_DEEP_MINING_RUNE_BOUNTY
-                  : 0,
-                foodLooted: 0,
-                armyLooted: 0,
-              },
-            });
-            resolvedAttackUnits += 1;
-          }
-
-          resolvedBatchAttackUnitIds.add(targetUnit.id);
+        if (reward.resetRaceCooldown) {
+          await resetAttackerRaceAbilityCooldown({
+            db: db,
+            fortress: destroyer.attacker,
+            now: tickAt,
+          });
         }
 
-        continue;
+        if (isRealOrkPlayerFortress(destroyer.attacker)) {
+          await applyOrkScrapDelta({
+            db,
+            cycleId,
+            fortressId: destroyer.attacker.id,
+            delta: getOrkLootCampScrap(target.lootCampVariant),
+            reason: OrkScrapEventReason.LOOT_CAMP,
+            now: tickAt,
+            targetFortressId: target.id,
+            attackUnitId: destroyer.unitId,
+          });
+        }
       }
 
-      if (target?.fortressKind === FortressKind.LOOT_CAMP) {
-        const targetUnits = getPendingTargetUnits(target.id);
-        const lootCampOutcomes = new Map<
-          string,
-          {
-            attackPower: number;
-            defensePower: number;
-            attackerSurvivors: number;
-            attackerRetired: number;
-            attackerReturned: number;
-            defenderLosses: number;
-            targetLoss: number;
-            defenderArmyAtBattleStart: number;
-          }
-        >();
-        let destroyer: {
-          unitId: string;
-          attacker: NonNullable<typeof attacker>;
-        } | null = null;
-
-        for (const targetUnit of targetUnits) {
-          const targetAttacker = fortressLookup.get(
-            targetUnit.attackerFortressId
-          );
-
-          if (!targetAttacker) {
-            continue;
-          }
-
-          const targetHealth = currentHealth.get(target.id) ?? target.health;
-          const defenderArmy = currentArmy.get(target.id) ?? target.army;
-          const outcome = calculateRaidOutcome({
-            attackArmy: targetUnit.armyAmount,
-            attackerRace: getEffectiveRace(targetAttacker),
-            defenderArmy,
-            defenderDbLevel: 0,
-            defenderHasCastle: false,
-            defenderRace: null,
-            defenderPoints: 0,
-            defenderFood: 0,
-          });
-          const attackerWon = outcome.outcome === "ATTACKER_WIN";
-          const defenderArmyAfterBattle = Math.max(
-            0,
-            defenderArmy - outcome.defenderLosses
-          );
-          const targetLoss = Math.min(
-            targetHealth,
-            attackerWon
-              ? targetUnit.armyAmount *
-                  getFortressAttackDamage(targetAttacker.level)
-              : 0
-          );
-
-          currentArmy.set(target.id, defenderArmyAfterBattle);
-          lootCampOutcomes.set(targetUnit.id, {
-            attackPower: outcome.attackPower,
-            defensePower: outcome.defensePower,
-            attackerSurvivors: outcome.attackerSurvivors,
-            attackerRetired: outcome.attackerRetired,
-            attackerReturned: outcome.attackerReturned,
-            defenderLosses: outcome.defenderLosses,
-            targetLoss,
-            defenderArmyAtBattleStart: defenderArmy,
-          });
-
-          const nextHealth = targetHealth - targetLoss;
-          currentHealth.set(target.id, nextHealth);
-
-          if (nextHealth <= 0 && !destroyer) {
-            destroyer = {
-              unitId: targetUnit.id,
-              attacker: targetAttacker,
-            };
-          }
-        }
-
-        const destroyed = (currentHealth.get(target.id) ?? target.health) <= 0;
-        const reward =
-          destroyed && destroyer
-            ? getLootCampReward(target.lootCampVariant, target.maxHealth)
-            : null;
-
-        if (destroyed && destroyer && reward) {
-          currentGold.set(
-            destroyer.attacker.id,
-            (currentGold.get(destroyer.attacker.id) ??
-              destroyer.attacker.gold) + reward.gold
-          );
-          currentPoints.set(
-            destroyer.attacker.id,
-            (currentPoints.get(destroyer.attacker.id) ?? 0) + reward.points
-          );
-          currentFood.set(
-            destroyer.attacker.id,
-            (currentFood.get(destroyer.attacker.id) ??
-              destroyer.attacker.food) + reward.food
-          );
-          currentArmy.set(
-            destroyer.attacker.id,
-            (currentArmy.get(destroyer.attacker.id) ??
-              destroyer.attacker.army) + reward.army
-          );
-
-          if (reward.points > 0) {
-            scoreEvents.push({
-              cycleId,
-              fortressId: destroyer.attacker.id,
-              actorId: destroyer.attacker.ownerId,
-              targetFortressId: target.id,
-              eventType: ScoreEventType.LOOT_CAMP_REWARD,
-              delta: reward.points,
-              createdAt: tickAt,
-            });
-          }
-
-          if (reward.resetRaceCooldown) {
-            await resetAttackerRaceAbilityCooldown({
-              db: db,
-              fortress: destroyer.attacker,
-              now: tickAt,
-            });
-          }
-
-          if (isRealOrkPlayerFortress(destroyer.attacker)) {
-            await applyOrkScrapDelta({
-              db,
-              cycleId,
-              fortressId: destroyer.attacker.id,
-              delta: getOrkLootCampScrap(target.lootCampVariant),
-              reason: OrkScrapEventReason.LOOT_CAMP,
-              now: tickAt,
-              targetFortressId: target.id,
-              attackUnitId: destroyer.unitId,
-            });
-          }
-        }
-
-        for (const targetUnit of targetUnits) {
-          const targetAttacker = fortressLookup.get(
-            targetUnit.attackerFortressId
-          );
-          const outcome = lootCampOutcomes.get(targetUnit.id);
-          const attackerReturned = outcome?.attackerReturned ?? 0;
-          const unitGetsReward =
-            Boolean(destroyer) && targetUnit.id === destroyer?.unitId && reward;
-          const unitReward = unitGetsReward
-            ? reward
-            : {
+      for (const targetUnit of targetUnits) {
+        const targetAttacker = fortressLookup.get(
+          targetUnit.attackerFortressId
+        );
+        const outcome = lootCampOutcomes.get(targetUnit.id);
+        const attackerReturned = outcome?.attackerReturned ?? 0;
+        const unitGetsReward =
+          Boolean(destroyer) && targetUnit.id === destroyer?.unitId && reward;
+        const unitReward = unitGetsReward
+          ? reward
+          : {
               points: 0,
               gold: 0,
               food: 0,
               army: 0,
             };
 
-          if (!targetAttacker || !outcome) {
-            await db.attackUnit.update({
-              where: {
-                id: targetUnit.id,
-              },
-              data: {
-                resolvedAt: tickAt,
-                defenderArmyAtBattleStart: null,
-                resolvedAttackPower: 0,
-                resolvedDefensePower: 0,
-                attackerSurvivors: 0,
-                attackerRetired: targetUnit.armyAmount,
-                attackerReturned: 0,
-                defenderLosses: 0,
-                pointsLooted: 0,
-                foodLooted: 0,
-                armyLooted: 0,
-              },
-            });
-            resolvedAttackUnits += 1;
-            resolvedBatchAttackUnitIds.add(targetUnit.id);
-            continue;
-          }
-
-          if (attackerReturned > 0) {
-            const returnArrivesAt = getAttackArrivalAt({
-              launchedAt: tickAt,
-              origin: {
-                mapX: target.mapX,
-                mapY: target.mapY,
-              },
-              target: {
-                mapX: targetAttacker.mapX,
-                mapY: targetAttacker.mapY,
-              },
-              attackerRace: getEffectiveRace(targetAttacker),
-              raceBuffTier,
-              speedMultiplier:
-                getDwarfSpeedMultiplier(targetAttacker) *
-                getOrkSpeedMultiplier(targetAttacker),
-            });
-
-            await db.attackUnit.update({
-              where: {
-                id: targetUnit.id,
-              },
-              data: {
-                recalledAt: tickAt,
-                returnOriginMapX: target.mapX,
-                returnOriginMapY: target.mapY,
-                arrivesAt: returnArrivesAt,
-                defenderArmyAtBattleStart: outcome.defenderArmyAtBattleStart,
-                resolvedAttackPower: outcome.targetLoss,
-                resolvedDefensePower: outcome.defensePower,
-                attackerSurvivors: outcome.attackerSurvivors,
-                attackerRetired: outcome.attackerRetired,
-                attackerReturned,
-                defenderLosses: outcome.defenderLosses,
-                pointsLooted: unitReward.gold,
-                foodLooted: unitReward.food,
-                armyLooted: unitReward.army,
-              },
-            });
-          } else {
-            await db.attackUnit.update({
-              where: {
-                id: targetUnit.id,
-              },
-              data: {
-                resolvedAt: tickAt,
-                defenderArmyAtBattleStart: outcome.defenderArmyAtBattleStart,
-                resolvedAttackPower: outcome.targetLoss,
-                resolvedDefensePower: outcome.defensePower,
-                attackerSurvivors: outcome.attackerSurvivors,
-                attackerRetired: outcome.attackerRetired,
-                attackerReturned,
-                defenderLosses: outcome.defenderLosses,
-                pointsLooted: unitReward.gold,
-                foodLooted: unitReward.food,
-                armyLooted: unitReward.army,
-              },
-            });
-            resolvedAttackUnits += 1;
-          }
-
+        if (!targetAttacker || !outcome) {
+          await db.attackUnit.update({
+            where: {
+              id: targetUnit.id,
+            },
+            data: {
+              resolvedAt: tickAt,
+              defenderArmyAtBattleStart: null,
+              resolvedAttackPower: 0,
+              resolvedDefensePower: 0,
+              attackerSurvivors: 0,
+              attackerRetired: targetUnit.armyAmount,
+              attackerReturned: 0,
+              defenderLosses: 0,
+              pointsLooted: 0,
+              foodLooted: 0,
+              armyLooted: 0,
+            },
+          });
+          resolvedAttackUnits += 1;
           resolvedBatchAttackUnitIds.add(targetUnit.id);
-        }
-
-        continue;
-      }
-
-      if (target?.isNpc) {
-        const targetUnits = getPendingTargetUnits(target.id);
-
-        for (const targetUnit of targetUnits) {
-          const targetAttacker = fortressLookup.get(
-            targetUnit.attackerFortressId
-          );
-          const attackerReturned = targetUnit.armyAmount;
-
-          if (targetAttacker && attackerReturned > 0) {
-            const returnArrivesAt = getAttackArrivalAt({
-              launchedAt: tickAt,
-              origin: {
-                mapX: target.mapX,
-                mapY: target.mapY,
-              },
-              target: {
-                mapX: targetAttacker.mapX,
-                mapY: targetAttacker.mapY,
-              },
-              attackerRace: getEffectiveRace(targetAttacker),
-              raceBuffTier,
-              speedMultiplier:
-                getDwarfSpeedMultiplier(targetAttacker) *
-                getOrkSpeedMultiplier(targetAttacker),
-            });
-
-            await db.attackUnit.update({
-              where: {
-                id: targetUnit.id,
-              },
-              data: {
-                recalledAt: tickAt,
-                returnOriginMapX: target.mapX,
-                returnOriginMapY: target.mapY,
-                arrivesAt: returnArrivesAt,
-                defenderArmyAtBattleStart: null,
-                resolvedAttackPower: targetUnit.armyAmount,
-                resolvedDefensePower: 0,
-                attackerSurvivors: targetUnit.armyAmount,
-                attackerRetired: 0,
-                attackerReturned,
-                defenderLosses: 0,
-                pointsLooted: 0,
-                foodLooted: 0,
-                armyLooted: 0,
-              },
-            });
-          } else {
-            await db.attackUnit.update({
-              where: {
-                id: targetUnit.id,
-              },
-              data: {
-                resolvedAt: tickAt,
-                defenderArmyAtBattleStart: null,
-                resolvedAttackPower: targetUnit.armyAmount,
-                resolvedDefensePower: 0,
-                attackerSurvivors: targetUnit.armyAmount,
-                attackerRetired: 0,
-                attackerReturned,
-                defenderLosses: 0,
-                pointsLooted: 0,
-                foodLooted: 0,
-                armyLooted: 0,
-              },
-            });
-            resolvedAttackUnits += 1;
-          }
-
-          resolvedBatchAttackUnitIds.add(targetUnit.id);
-        }
-
-        if (destroyedMegaTargets.has(target.id)) {
           continue;
         }
 
-        let destroyer: {
-          unitId: string;
-          attacker: NonNullable<typeof attacker>;
-        } | null = null;
-        for (const targetUnit of targetUnits) {
-          const targetAttacker = fortressLookup.get(
-            targetUnit.attackerFortressId
-          );
-
-          if (!targetAttacker) {
-            continue;
-          }
-
-          const targetHealth = currentHealth.get(target.id) ?? target.health;
-          const targetLoss = Math.min(
-            targetHealth,
-            targetUnit.armyAmount *
-              getFortressAttackDamage(targetAttacker.level)
-          );
-
-          if (targetLoss <= 0) {
-            continue;
-          }
-
-          const nextHealth = targetHealth - targetLoss;
-          currentHealth.set(target.id, nextHealth);
-
-          if (nextHealth <= 0 && !destroyer) {
-            destroyer = {
-              unitId: targetUnit.id,
-              attacker: targetAttacker,
-            };
-          }
-
-          scoreEvents.push({
-            cycleId,
-            fortressId: target.id,
-            actorId: targetAttacker.ownerId,
-            targetFortressId: target.id,
-            eventType: ScoreEventType.MEGA_DAMAGE,
-            delta: -targetLoss,
-            createdAt: tickAt,
+        if (attackerReturned > 0) {
+          const returnArrivesAt = getAttackArrivalAt({
+            launchedAt: tickAt,
+            origin: {
+              mapX: target.mapX,
+              mapY: target.mapY,
+            },
+            target: {
+              mapX: targetAttacker.mapX,
+              mapY: targetAttacker.mapY,
+            },
+            attackerRace: getEffectiveRace(targetAttacker),
+            raceBuffTier,
+            speedMultiplier:
+              getDwarfSpeedMultiplier(targetAttacker) *
+              getOrkSpeedMultiplier(targetAttacker),
           });
+
+          await db.attackUnit.update({
+            where: {
+              id: targetUnit.id,
+            },
+            data: {
+              recalledAt: tickAt,
+              returnOriginMapX: target.mapX,
+              returnOriginMapY: target.mapY,
+              arrivesAt: returnArrivesAt,
+              defenderArmyAtBattleStart: outcome.defenderArmyAtBattleStart,
+              resolvedAttackPower: outcome.targetLoss,
+              resolvedDefensePower: outcome.defensePower,
+              attackerSurvivors: outcome.attackerSurvivors,
+              attackerRetired: outcome.attackerRetired,
+              attackerReturned,
+              defenderLosses: outcome.defenderLosses,
+              pointsLooted: unitReward.gold,
+              foodLooted: unitReward.food,
+              armyLooted: unitReward.army,
+            },
+          });
+        } else {
+          await db.attackUnit.update({
+            where: {
+              id: targetUnit.id,
+            },
+            data: {
+              resolvedAt: tickAt,
+              defenderArmyAtBattleStart: outcome.defenderArmyAtBattleStart,
+              resolvedAttackPower: outcome.targetLoss,
+              resolvedDefensePower: outcome.defensePower,
+              attackerSurvivors: outcome.attackerSurvivors,
+              attackerRetired: outcome.attackerRetired,
+              attackerReturned,
+              defenderLosses: outcome.defenderLosses,
+              pointsLooted: unitReward.gold,
+              foodLooted: unitReward.food,
+              armyLooted: unitReward.army,
+            },
+          });
+          resolvedAttackUnits += 1;
         }
 
-        if ((currentHealth.get(target.id) ?? target.health) <= 0) {
-          if (!destroyer) {
-            continue;
-          }
+        resolvedBatchAttackUnitIds.add(targetUnit.id);
+      }
 
-          const destroyCount = cycle.megaFortressDestroyCount;
-          const destroyReward = getMegaFortressDestroyReward(destroyCount);
-          const nextMegaHealth = getNextMegaFortressHealth(destroyCount);
-          const unlocksUpgrades = !cycle.upgradesUnlockedAt;
-          const attackerPoints =
-            (currentPoints.get(destroyer.attacker.id) ??
-              destroyer.attacker.points) + destroyReward;
-          const attackerFood =
-            (currentFood.get(destroyer.attacker.id) ??
-              destroyer.attacker.food) + destroyReward;
+      continue;
+    }
 
-          currentPoints.set(destroyer.attacker.id, attackerPoints);
-          currentFood.set(destroyer.attacker.id, attackerFood);
-          currentHealth.set(target.id, nextMegaHealth);
-          destroyedMegaTargets.add(target.id);
+    if (target?.isNpc) {
+      const targetUnits = getPendingTargetUnits(target.id);
 
+      for (const targetUnit of targetUnits) {
+        const targetAttacker = fortressLookup.get(
+          targetUnit.attackerFortressId
+        );
+        const attackerReturned = targetUnit.armyAmount;
+
+        if (targetAttacker && attackerReturned > 0) {
+          const returnArrivesAt = getAttackArrivalAt({
+            launchedAt: tickAt,
+            origin: {
+              mapX: target.mapX,
+              mapY: target.mapY,
+            },
+            target: {
+              mapX: targetAttacker.mapX,
+              mapY: targetAttacker.mapY,
+            },
+            attackerRace: getEffectiveRace(targetAttacker),
+            raceBuffTier,
+            speedMultiplier:
+              getDwarfSpeedMultiplier(targetAttacker) *
+              getOrkSpeedMultiplier(targetAttacker),
+          });
+
+          await db.attackUnit.update({
+            where: {
+              id: targetUnit.id,
+            },
+            data: {
+              recalledAt: tickAt,
+              returnOriginMapX: target.mapX,
+              returnOriginMapY: target.mapY,
+              arrivesAt: returnArrivesAt,
+              defenderArmyAtBattleStart: null,
+              resolvedAttackPower: targetUnit.armyAmount,
+              resolvedDefensePower: 0,
+              attackerSurvivors: targetUnit.armyAmount,
+              attackerRetired: 0,
+              attackerReturned,
+              defenderLosses: 0,
+              pointsLooted: 0,
+              foodLooted: 0,
+              armyLooted: 0,
+            },
+          });
+        } else {
+          await db.attackUnit.update({
+            where: {
+              id: targetUnit.id,
+            },
+            data: {
+              resolvedAt: tickAt,
+              defenderArmyAtBattleStart: null,
+              resolvedAttackPower: targetUnit.armyAmount,
+              resolvedDefensePower: 0,
+              attackerSurvivors: targetUnit.armyAmount,
+              attackerRetired: 0,
+              attackerReturned,
+              defenderLosses: 0,
+              pointsLooted: 0,
+              foodLooted: 0,
+              armyLooted: 0,
+            },
+          });
+          resolvedAttackUnits += 1;
+        }
+
+        resolvedBatchAttackUnitIds.add(targetUnit.id);
+      }
+
+      if (destroyedMegaTargets.has(target.id)) {
+        continue;
+      }
+
+      let destroyer: {
+        unitId: string;
+        attacker: NonNullable<typeof attacker>;
+      } | null = null;
+      for (const targetUnit of targetUnits) {
+        const targetAttacker = fortressLookup.get(
+          targetUnit.attackerFortressId
+        );
+
+        if (!targetAttacker) {
+          continue;
+        }
+
+        const targetHealth = currentHealth.get(target.id) ?? target.health;
+        const targetLoss = Math.min(
+          targetHealth,
+          targetUnit.armyAmount * getFortressAttackDamage(targetAttacker.level)
+        );
+
+        if (targetLoss <= 0) {
+          continue;
+        }
+
+        const nextHealth = targetHealth - targetLoss;
+        currentHealth.set(target.id, nextHealth);
+
+        if (nextHealth <= 0 && !destroyer) {
+          destroyer = {
+            unitId: targetUnit.id,
+            attacker: targetAttacker,
+          };
+        }
+
+        scoreEvents.push({
+          cycleId,
+          fortressId: target.id,
+          actorId: targetAttacker.ownerId,
+          targetFortressId: target.id,
+          eventType: ScoreEventType.MEGA_DAMAGE,
+          delta: -targetLoss,
+          createdAt: tickAt,
+        });
+      }
+
+      if ((currentHealth.get(target.id) ?? target.health) <= 0) {
+        if (!destroyer) {
+          continue;
+        }
+
+        const destroyCount = cycle.megaFortressDestroyCount;
+        const destroyReward = getMegaFortressDestroyReward(destroyCount);
+        const nextMegaHealth = getNextMegaFortressHealth(destroyCount);
+        const unlocksUpgrades = !cycle.upgradesUnlockedAt;
+        const attackerPoints =
+          (currentPoints.get(destroyer.attacker.id) ??
+            destroyer.attacker.points) + destroyReward;
+        const attackerFood =
+          (currentFood.get(destroyer.attacker.id) ?? destroyer.attacker.food) +
+          destroyReward;
+
+        currentPoints.set(destroyer.attacker.id, attackerPoints);
+        currentFood.set(destroyer.attacker.id, attackerFood);
+        currentHealth.set(target.id, nextMegaHealth);
+        destroyedMegaTargets.add(target.id);
+
+        scoreEvents.push({
+          cycleId,
+          fortressId: destroyer.attacker.id,
+          actorId: destroyer.attacker.ownerId,
+          targetFortressId: target.id,
+          eventType: ScoreEventType.MEGA_DESTROY_BONUS,
+          delta: destroyReward,
+          createdAt: tickAt,
+        });
+
+        const upgradeData: Prisma.FortressUpdateInput = {};
+
+        if (unlocksUpgrades && canFortressLevelUp(destroyer.attacker.level)) {
+          upgradeData.level = destroyer.attacker.level + 1;
           scoreEvents.push({
             cycleId,
             fortressId: destroyer.attacker.id,
             actorId: destroyer.attacker.ownerId,
             targetFortressId: target.id,
-            eventType: ScoreEventType.MEGA_DESTROY_BONUS,
-            delta: destroyReward,
+            eventType: ScoreEventType.FORTRESS_UPGRADE_SLAYER_BONUS,
+            delta: 0,
             createdAt: tickAt,
           });
+        }
 
-          const upgradeData: Prisma.FortressUpdateInput = {};
-
-          if (unlocksUpgrades && canFortressLevelUp(destroyer.attacker.level)) {
-            upgradeData.level = destroyer.attacker.level + 1;
-            scoreEvents.push({
-              cycleId,
-              fortressId: destroyer.attacker.id,
-              actorId: destroyer.attacker.ownerId,
-              targetFortressId: target.id,
-              eventType: ScoreEventType.FORTRESS_UPGRADE_SLAYER_BONUS,
-              delta: 0,
-              createdAt: tickAt,
-            });
-          }
-
-          await db.cycle.update({
-            where: {
-              id: cycleId,
+        await db.cycle.update({
+          where: {
+            id: cycleId,
+          },
+          data: {
+            crownedFortressId: cycle.crownedFortressId ?? destroyer.attacker.id,
+            upgradesUnlockedAt: cycle.upgradesUnlockedAt ?? tickAt,
+            megaFortressDestroyCount: {
+              increment: 1,
             },
-            data: {
-              crownedFortressId:
-                cycle.crownedFortressId ?? destroyer.attacker.id,
-              upgradesUnlockedAt: cycle.upgradesUnlockedAt ?? tickAt,
-              megaFortressDestroyCount: {
-                increment: 1,
-              },
-            },
-          });
+          },
+        });
 
-          if (Object.keys(upgradeData).length > 0) {
-            await db.fortress.update({
-              where: {
-                id: destroyer.attacker.id,
-              },
-              data: upgradeData,
-            });
-          }
-
+        if (Object.keys(upgradeData).length > 0) {
           await db.fortress.update({
             where: {
-              id: target.id,
+              id: destroyer.attacker.id,
             },
-            data: {
-              health: nextMegaHealth,
-              maxHealth: nextMegaHealth,
-            },
-          });
-
-          await reshuffleActiveFortressPositions({
-            db: db,
-            cycleId,
-            seed: buildFortressSpawnSeed({
-              cycleId,
-              activeStartedAt: gameplayStartedAt,
-              tickAt,
-              purpose: "tick:mega-destroy-reshuffle",
-              entropy: destroyer.unitId,
-            }),
+            data: upgradeData,
           });
         }
 
-        continue;
-      }
-
-      if (!attacker || !target) {
-        await db.attackUnit.update({
+        await db.fortress.update({
           where: {
-            id: unit.id,
+            id: target.id,
           },
           data: {
-            resolvedAt: tickAt,
+            health: nextMegaHealth,
+            maxHealth: nextMegaHealth,
           },
         });
 
-        resolvedAttackUnits += 1;
-        resolvedBatchAttackUnitIds.add(unit.id);
-        continue;
+        await reshuffleActiveFortressPositions({
+          db: db,
+          cycleId,
+          seed: buildFortressSpawnSeed({
+            cycleId,
+            activeStartedAt: gameplayStartedAt,
+            tickAt,
+            purpose: "tick:mega-destroy-reshuffle",
+            entropy: destroyer.unitId,
+          }),
+        });
       }
-      const defenderArmy = currentArmy.get(target.id) ?? target.army;
-      const defenderGold = currentGold.get(target.id) ?? target.gold;
-      const defenderFood = currentFood.get(target.id) ?? target.food;
-      const defenderArmyAtBattleStart = defenderArmy;
-      const attackerRace = getEffectiveRace(attacker);
-      const defenderRace = getEffectiveRace(target);
-      const attackerWaaagh =
-        attackerRace === "ORKS" &&
-        raceBuffTier >= 3 &&
-        isRaceAbilityActive(
-          attacker.raceAbilityActivations,
-          RaceAbilityKind.ORK_WAAAGH,
-          tickAt
-        );
-      const defenderWaaagh =
-        defenderRace === "ORKS" &&
-        raceBuffTier >= 3 &&
-        isRaceAbilityActive(
-          target.raceAbilityActivations,
-          RaceAbilityKind.ORK_WAAAGH,
-          tickAt
-        );
-      const attackerStim =
-        attackerRace === "SPACE_MURINES" &&
-        raceBuffTier >= 2 &&
-        isRaceAbilityActive(
-          attacker.raceAbilityActivations,
-          RaceAbilityKind.SPACE_MURINE_STIM,
-          tickAt
-        );
-      const defenderStim =
-        defenderRace === "SPACE_MURINES" &&
-        raceBuffTier >= 2 &&
-        isRaceAbilityActive(
-          target.raceAbilityActivations,
-          RaceAbilityKind.SPACE_MURINE_STIM,
-          tickAt
-        );
-      const dwarfAttackMultiplier =
-        attackerRace === "DWARFS" && raceBuffTier >= 2
-          ? getDwarfGrudgeMultiplier(attacker.dwarfGrudges, target.id)
-          : 1;
-      const dwarfDefenseMultiplier =
-        defenderRace === "DWARFS" && raceBuffTier >= 2
-          ? getDwarfGrudgeMultiplier(target.dwarfGrudges, attacker.id)
-          : 1;
-      const attackerDeepMiningCombat =
-        attackerRace === "DWARFS" &&
-        (dwarfCombatSurgedThisTick.has(attacker.id) ||
-          isRaceAbilityActive(
-            attacker.raceAbilityActivations,
-            RaceAbilityKind.DWARF_COMBAT_SURGE,
-            tickAt
-          ));
-      const defenderDeepMiningCombat =
-        defenderRace === "DWARFS" &&
-        (dwarfCombatSurgedThisTick.has(target.id) ||
-          isRaceAbilityActive(
-            target.raceAbilityActivations,
-            RaceAbilityKind.DWARF_COMBAT_SURGE,
-            tickAt
-          ));
-      const attackerOrkAttackInvestmentMultiplier =
-        attackerRace === "ORKS"
-          ? getOrkWaaaghAttackInvestmentMultiplier({
-              waaaghActive: attackerWaaagh,
-              investments: attacker.orkWaaaghInvestments,
-            })
-          : 1;
-      const attackerOrkBossAttackMultiplier =
-        attackerRace === "ORKS"
-          ? getOrkBossOrderAttackMultiplier(attacker.orkBossOrders, tickAt)
-          : 1;
-      const defenderOrkBossDefenseMultiplier =
-        defenderRace === "ORKS"
-          ? getOrkBossOrderDefenseMultiplier(target.orkBossOrders, tickAt)
-          : 1;
-      const attackerOrkCarryMultiplier =
-        attackerRace === "ORKS"
-          ? getOrkBossOrderCarryMultiplier(attacker.orkBossOrders, tickAt)
-          : 1;
-      const outcome = calculateRaidOutcome({
-        attackArmy: unit.armyAmount,
-        attackerRace,
-        defenderArmy,
-        defenderDbLevel: target.level,
-        defenderRace,
-        defenderCastleSpecializations: countCastleSpecializations(
-          target.castleUpgradeSpecializations
-        ),
-        attackPowerMultiplier:
-          (attackerWaaagh ? 4 : 1) *
-          attackerOrkAttackInvestmentMultiplier *
-          attackerOrkBossAttackMultiplier *
-          dwarfAttackMultiplier *
-          (attackerDeepMiningCombat ? DWARF_DEEP_MINING_COMBAT_MULTIPLIER : 1),
-        defensePowerMultiplier:
-          (defenderWaaagh ? 4 : 1) *
-          defenderOrkBossDefenseMultiplier *
-          dwarfDefenseMultiplier *
-          (defenderDeepMiningCombat ? DWARF_DEEP_MINING_COMBAT_MULTIPLIER : 1),
-        preventAttackerCasualties: attackerStim,
-        preventDefenderLosses: defenderStim,
-        carryCapacityMultiplier: attackerOrkCarryMultiplier,
-        defenderGold,
-        defenderFood,
+
+      continue;
+    }
+
+    if (!attacker || !target) {
+      await db.attackUnit.update({
+        where: {
+          id: unit.id,
+        },
+        data: {
+          resolvedAt: tickAt,
+        },
       });
 
-      if (outcome.attackerReturned > 0) {
-        const returnArrivesAt = getAttackArrivalAt({
-          launchedAt: tickAt,
-          origin: {
-            mapX: target.mapX,
-            mapY: target.mapY,
-          },
-          target: {
-            mapX: attacker.mapX,
-            mapY: attacker.mapY,
-          },
-          attackerRace: attackerRace,
-          raceBuffTier,
-          speedMultiplier:
-            getDwarfSpeedMultiplier(attacker) * getOrkSpeedMultiplier(attacker),
-          waaagh: getOrkWaaghActive(attacker),
-        });
+      resolvedAttackUnits += 1;
+      resolvedBatchAttackUnitIds.add(unit.id);
+      continue;
+    }
+    const defenderArmy = currentArmy.get(target.id) ?? target.army;
+    const defenderGold = currentGold.get(target.id) ?? target.gold;
+    const defenderFood = currentFood.get(target.id) ?? target.food;
+    const defenderArmyAtBattleStart = defenderArmy;
+    const attackerRace = getEffectiveRace(attacker);
+    const defenderRace = getEffectiveRace(target);
+    const attackerWaaagh =
+      attackerRace === "ORKS" &&
+      raceBuffTier >= 3 &&
+      isRaceAbilityActive(
+        attacker.raceAbilityActivations,
+        RaceAbilityKind.ORK_WAAAGH,
+        tickAt
+      );
+    const defenderWaaagh =
+      defenderRace === "ORKS" &&
+      raceBuffTier >= 3 &&
+      isRaceAbilityActive(
+        target.raceAbilityActivations,
+        RaceAbilityKind.ORK_WAAAGH,
+        tickAt
+      );
+    const attackerStim =
+      attackerRace === "SPACE_MURINES" &&
+      raceBuffTier >= 2 &&
+      isRaceAbilityActive(
+        attacker.raceAbilityActivations,
+        RaceAbilityKind.SPACE_MURINE_STIM,
+        tickAt
+      );
+    const defenderStim =
+      defenderRace === "SPACE_MURINES" &&
+      raceBuffTier >= 2 &&
+      isRaceAbilityActive(
+        target.raceAbilityActivations,
+        RaceAbilityKind.SPACE_MURINE_STIM,
+        tickAt
+      );
+    const dwarfAttackMultiplier =
+      attackerRace === "DWARFS" && raceBuffTier >= 2
+        ? getDwarfGrudgeMultiplier(attacker.dwarfGrudges, target.id)
+        : 1;
+    const dwarfDefenseMultiplier =
+      defenderRace === "DWARFS" && raceBuffTier >= 2
+        ? getDwarfGrudgeMultiplier(target.dwarfGrudges, attacker.id)
+        : 1;
+    const attackerDeepMiningCombat =
+      attackerRace === "DWARFS" &&
+      (dwarfCombatSurgedThisTick.has(attacker.id) ||
+        isRaceAbilityActive(
+          attacker.raceAbilityActivations,
+          RaceAbilityKind.DWARF_COMBAT_SURGE,
+          tickAt
+        ));
+    const defenderDeepMiningCombat =
+      defenderRace === "DWARFS" &&
+      (dwarfCombatSurgedThisTick.has(target.id) ||
+        isRaceAbilityActive(
+          target.raceAbilityActivations,
+          RaceAbilityKind.DWARF_COMBAT_SURGE,
+          tickAt
+        ));
+    const attackerOrkAttackInvestmentMultiplier =
+      attackerRace === "ORKS"
+        ? getOrkWaaaghAttackInvestmentMultiplier({
+            waaaghActive: attackerWaaagh,
+            investments: attacker.orkWaaaghInvestments,
+          })
+        : 1;
+    const attackerOrkBossAttackMultiplier =
+      attackerRace === "ORKS"
+        ? getOrkBossOrderAttackMultiplier(attacker.orkBossOrders, tickAt)
+        : 1;
+    const defenderOrkBossDefenseMultiplier =
+      defenderRace === "ORKS"
+        ? getOrkBossOrderDefenseMultiplier(target.orkBossOrders, tickAt)
+        : 1;
+    const attackerOrkCarryMultiplier =
+      attackerRace === "ORKS"
+        ? getOrkBossOrderCarryMultiplier(attacker.orkBossOrders, tickAt)
+        : 1;
+    const outcome = calculateRaidOutcome({
+      attackArmy: unit.armyAmount,
+      attackerRace,
+      defenderArmy,
+      defenderDbLevel: target.level,
+      defenderRace,
+      defenderCastleSpecializations: countCastleSpecializations(
+        target.castleUpgradeSpecializations
+      ),
+      attackPowerMultiplier:
+        (attackerWaaagh ? 4 : 1) *
+        attackerOrkAttackInvestmentMultiplier *
+        attackerOrkBossAttackMultiplier *
+        dwarfAttackMultiplier *
+        (attackerDeepMiningCombat ? DWARF_DEEP_MINING_COMBAT_MULTIPLIER : 1),
+      defensePowerMultiplier:
+        (defenderWaaagh ? 4 : 1) *
+        defenderOrkBossDefenseMultiplier *
+        dwarfDefenseMultiplier *
+        (defenderDeepMiningCombat ? DWARF_DEEP_MINING_COMBAT_MULTIPLIER : 1),
+      preventAttackerCasualties: attackerStim,
+      preventDefenderLosses: defenderStim,
+      carryCapacityMultiplier: attackerOrkCarryMultiplier,
+      defenderGold,
+      defenderFood,
+    });
 
-        await db.attackUnit.update({
-          where: {
-            id: unit.id,
-          },
-          data: {
-            recalledAt: tickAt,
-            returnOriginMapX: target.mapX,
-            returnOriginMapY: target.mapY,
-            arrivesAt: returnArrivesAt,
-            defenderArmyAtBattleStart,
-            resolvedAttackPower: outcome.attackPower,
-            resolvedDefensePower: outcome.defensePower,
-            attackerSurvivors: outcome.attackerSurvivors,
-            attackerRetired: outcome.attackerRetired,
-            attackerReturned: outcome.attackerReturned,
-            defenderLosses: outcome.defenderLosses,
-            pointsLooted: outcome.goldLooted,
-            foodLooted: outcome.foodLooted,
-            armyLooted: 0,
-          },
-        });
-      } else {
-        await db.attackUnit.update({
-          where: {
-            id: unit.id,
-          },
-          data: {
-            resolvedAt: tickAt,
-            defenderArmyAtBattleStart,
-            resolvedAttackPower: outcome.attackPower,
-            resolvedDefensePower: outcome.defensePower,
-            attackerSurvivors: outcome.attackerSurvivors,
-            attackerRetired: outcome.attackerRetired,
-            attackerReturned: outcome.attackerReturned,
-            defenderLosses: outcome.defenderLosses,
-            pointsLooted: outcome.goldLooted,
-            foodLooted: outcome.foodLooted,
-            armyLooted: 0,
-          },
-        });
-        resolvedAttackUnits += 1;
-      }
+    if (outcome.attackerReturned > 0) {
+      const returnArrivesAt = getAttackArrivalAt({
+        launchedAt: tickAt,
+        origin: {
+          mapX: target.mapX,
+          mapY: target.mapY,
+        },
+        target: {
+          mapX: attacker.mapX,
+          mapY: attacker.mapY,
+        },
+        attackerRace: attackerRace,
+        raceBuffTier,
+        speedMultiplier:
+          getDwarfSpeedMultiplier(attacker) * getOrkSpeedMultiplier(attacker),
+        waaagh: getOrkWaaghActive(attacker),
+      });
 
+      await db.attackUnit.update({
+        where: {
+          id: unit.id,
+        },
+        data: {
+          recalledAt: tickAt,
+          returnOriginMapX: target.mapX,
+          returnOriginMapY: target.mapY,
+          arrivesAt: returnArrivesAt,
+          defenderArmyAtBattleStart,
+          resolvedAttackPower: outcome.attackPower,
+          resolvedDefensePower: outcome.defensePower,
+          attackerSurvivors: outcome.attackerSurvivors,
+          attackerRetired: outcome.attackerRetired,
+          attackerReturned: outcome.attackerReturned,
+          defenderLosses: outcome.defenderLosses,
+          pointsLooted: outcome.goldLooted,
+          foodLooted: outcome.foodLooted,
+          armyLooted: 0,
+        },
+      });
+    } else {
+      await db.attackUnit.update({
+        where: {
+          id: unit.id,
+        },
+        data: {
+          resolvedAt: tickAt,
+          defenderArmyAtBattleStart,
+          resolvedAttackPower: outcome.attackPower,
+          resolvedDefensePower: outcome.defensePower,
+          attackerSurvivors: outcome.attackerSurvivors,
+          attackerRetired: outcome.attackerRetired,
+          attackerReturned: outcome.attackerReturned,
+          defenderLosses: outcome.defenderLosses,
+          pointsLooted: outcome.goldLooted,
+          foodLooted: outcome.foodLooted,
+          armyLooted: 0,
+        },
+      });
+      resolvedAttackUnits += 1;
+    }
+
+    currentArmy.set(
+      target.id,
+      Math.max(0, defenderArmy - outcome.defenderLosses)
+    );
+    currentGold.set(
+      attacker.id,
+      (currentGold.get(attacker.id) ?? attacker.gold) + outcome.goldLooted
+    );
+    currentGold.set(target.id, Math.max(0, defenderGold - outcome.goldLooted));
+    const strongerTogether =
+      attackerRace === "ORKS" && raceBuffTier >= 1 && outcome.defenderLosses > 0
+        ? Math.floor(
+            outcome.defenderLosses *
+              getOrkStrongerTogetherRate({
+                waaaghActive: attackerWaaagh,
+                investments: attacker.orkWaaaghInvestments,
+              })
+          )
+        : 0;
+    currentFood.set(
+      attacker.id,
+      (currentFood.get(attacker.id) ?? attacker.food) + outcome.foodLooted
+    );
+    currentFood.set(target.id, Math.max(0, defenderFood - outcome.foodLooted));
+    if (strongerTogether > 0) {
       currentArmy.set(
-        target.id,
-        Math.max(0, defenderArmy - outcome.defenderLosses)
-      );
-      currentGold.set(
         attacker.id,
-        (currentGold.get(attacker.id) ?? attacker.gold) +
-          outcome.goldLooted
+        (currentArmy.get(attacker.id) ?? attacker.army) + strongerTogether
       );
-      currentGold.set(
-        target.id,
-        Math.max(0, defenderGold - outcome.goldLooted)
-      );
-      const strongerTogether =
-        attackerRace === "ORKS" &&
-        raceBuffTier >= 1 &&
-        outcome.defenderLosses > 0
-          ? Math.floor(
-              outcome.defenderLosses *
-                getOrkStrongerTogetherRate({
-                  waaaghActive: attackerWaaagh,
-                  investments: attacker.orkWaaaghInvestments,
-                })
-            )
-          : 0;
-      currentFood.set(
-        attacker.id,
-        (currentFood.get(attacker.id) ?? attacker.food) + outcome.foodLooted
-      );
-      currentFood.set(
-        target.id,
-        Math.max(0, defenderFood - outcome.foodLooted)
-      );
-      if (strongerTogether > 0) {
-        currentArmy.set(
-          attacker.id,
-          (currentArmy.get(attacker.id) ?? attacker.army) + strongerTogether
-        );
-      }
+    }
 
-      if (
-        outcome.outcome === "ATTACKER_WIN" &&
-        isRealOrkPlayerFortress(attacker) &&
-        !target.isNpc
-      ) {
-        await applyOrkScrapDelta({
-          db,
+    if (
+      outcome.outcome === "ATTACKER_WIN" &&
+      isRealOrkPlayerFortress(attacker) &&
+      !target.isNpc
+    ) {
+      await applyOrkScrapDelta({
+        db,
+        cycleId,
+        fortressId: attacker.id,
+        delta: getOrkDirectRaidScrap({
+          defenderLosses: outcome.defenderLosses,
+          goldLooted: outcome.goldLooted,
+          foodLooted: outcome.foodLooted,
+        }),
+        reason: OrkScrapEventReason.DIRECT_RAID,
+        now: tickAt,
+        targetFortressId: target.id,
+        attackUnitId: unit.id,
+      });
+    }
+
+    if (outcome.goldLooted > 0) {
+      scoreEvents.push(
+        {
+          cycleId,
+          fortressId: target.id,
+          actorId: attacker.ownerId,
+          targetFortressId: target.id,
+          eventType: ScoreEventType.ATTACK_TARGET,
+          delta: -outcome.goldLooted,
+          createdAt: tickAt,
+        },
+        {
           cycleId,
           fortressId: attacker.id,
-          delta: getOrkDirectRaidScrap({
-            defenderLosses: outcome.defenderLosses,
-            goldLooted: outcome.goldLooted,
-            foodLooted: outcome.foodLooted,
-          }),
-          reason: OrkScrapEventReason.DIRECT_RAID,
-          now: tickAt,
+          actorId: attacker.ownerId,
           targetFortressId: target.id,
-          attackUnitId: unit.id,
-        });
-      }
-
-      if (outcome.goldLooted > 0) {
-        scoreEvents.push(
-          {
-            cycleId,
-            fortressId: target.id,
-            actorId: attacker.ownerId,
-            targetFortressId: target.id,
-            eventType: ScoreEventType.ATTACK_TARGET,
-            delta: -outcome.goldLooted,
-            createdAt: tickAt,
-          },
-          {
-            cycleId,
-            fortressId: attacker.id,
-            actorId: attacker.ownerId,
-            targetFortressId: target.id,
-            eventType: ScoreEventType.ATTACK_TARGET,
-            delta: outcome.goldLooted,
-            createdAt: tickAt,
-          }
-        );
-      }
-    }
-
-    const ownedTiles = await db.mapHexOwnership.findMany({
-      where: {
-        cycleId,
-      },
-      select: {
-        ownerFortressId: true,
-        tileId: true,
-      },
-    });
-    const tileBonusesByFortressId = new Map<
-      string,
-      { gold: number; points: number; food: number; army: number }
-    >();
-
-    for (const ownership of ownedTiles) {
-      if (isHomeOfATile(ownership.tileId)) {
-        continue;
-      }
-
-      const tile = getTileById(ownership.tileId);
-      const bonus = getTileBonus(tile, {
-        tileId: ownership.tileId,
-        cycleId,
-        at: tickAt,
-      });
-      const current =
-        tileBonusesByFortressId.get(ownership.ownerFortressId) ?? {
-          gold: 0,
-          points: 0,
-          food: 0,
-          army: 0,
-        };
-
-      tileBonusesByFortressId.set(ownership.ownerFortressId, {
-        gold: current.gold + bonus.gold,
-        points: current.points + bonus.points,
-        food: current.food + bonus.food,
-        army: current.army + bonus.army,
-      });
-    }
-
-    const homeOfAHolders = await db.homeOfAHolder.findMany({
-      where: {
-        cycleId,
-      },
-      select: {
-        fortressId: true,
-        bannerFortressId: true,
-        contributionWeight: true,
-      },
-    });
-    const homeBannerFortressId = homeOfAHolders[0]?.bannerFortressId ?? null;
-
-    if (homeBannerFortressId) {
-      const sharedPool = Math.floor(HOME_OF_A_POINT_INCOME / 2);
-      const bannerBase = HOME_OF_A_POINT_INCOME - sharedPool;
-      const totalWeight = homeOfAHolders.reduce(
-        (sum, holder) => sum + Math.max(0, holder.contributionWeight),
-        0
-      );
-      const homeIncomeByFortressId = new Map<string, number>([
-        [homeBannerFortressId, bannerBase],
-      ]);
-      let distributedSharedPoints = 0;
-
-      if (totalWeight > 0) {
-        for (const holder of homeOfAHolders) {
-          const weightedShare = Math.floor(
-            (sharedPool * Math.max(0, holder.contributionWeight)) / totalWeight
-          );
-
-          if (weightedShare <= 0) {
-            continue;
-          }
-
-          distributedSharedPoints += weightedShare;
-          homeIncomeByFortressId.set(
-            holder.fortressId,
-            (homeIncomeByFortressId.get(holder.fortressId) ?? 0) +
-              weightedShare
-          );
+          eventType: ScoreEventType.ATTACK_TARGET,
+          delta: outcome.goldLooted,
+          createdAt: tickAt,
         }
-      }
+      );
+    }
+  }
 
-      const remainder = sharedPool - distributedSharedPoints;
+  const ownedTiles = await db.mapHexOwnership.findMany({
+    where: {
+      cycleId,
+    },
+    select: {
+      ownerFortressId: true,
+      tileId: true,
+    },
+  });
+  const tileGarrisons = await db.fortressGarrison.findMany({
+    where: {
+      cycleId,
+      army: {
+        gt: 0,
+      },
+      tileId: {
+        in: ownedTiles.map((ownership) => ownership.tileId),
+      },
+    },
+    orderBy: [{ army: "desc" }, { createdAt: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      tileId: true,
+      fortressId: true,
+      army: true,
+      createdAt: true,
+    },
+  });
+  type TileGarrisonBonusCandidate = {
+    id: string;
+    tileId: string;
+    fortressId: string;
+    army: number;
+    createdAt: Date;
+  };
+  const garrisonsByTileId = new Map<string, TileGarrisonBonusCandidate[]>();
 
-      if (remainder > 0) {
-        homeIncomeByFortressId.set(
-          homeBannerFortressId,
-          (homeIncomeByFortressId.get(homeBannerFortressId) ?? 0) + remainder
+  for (const garrison of tileGarrisons) {
+    const current = garrisonsByTileId.get(garrison.tileId) ?? [];
+
+    current.push(garrison);
+    garrisonsByTileId.set(garrison.tileId, current);
+  }
+
+  const tileBonusesByFortressId = new Map<
+    string,
+    { gold: number; points: number; food: number; army: number }
+  >();
+
+  for (const ownership of ownedTiles) {
+    if (isHomeOfATile(ownership.tileId)) {
+      continue;
+    }
+
+    const tile = getTileById(ownership.tileId);
+    const bonus = getTileBonus(tile, {
+      tileId: ownership.tileId,
+      cycleId,
+      at: tickAt,
+    });
+    const occupyingGarrison = (
+      garrisonsByTileId.get(ownership.tileId) ?? []
+    ).find((garrison) => garrison.fortressId !== ownership.ownerFortressId);
+    const bonusFortressId =
+      occupyingGarrison?.fortressId ?? ownership.ownerFortressId;
+    const current = tileBonusesByFortressId.get(bonusFortressId) ?? {
+      gold: 0,
+      points: 0,
+      food: 0,
+      army: 0,
+    };
+
+    tileBonusesByFortressId.set(bonusFortressId, {
+      gold: current.gold + bonus.gold,
+      points: current.points + bonus.points,
+      food: current.food + bonus.food,
+      army: current.army + bonus.army,
+    });
+  }
+
+  const homeOfAHolders = await db.homeOfAHolder.findMany({
+    where: {
+      cycleId,
+    },
+    select: {
+      fortressId: true,
+      bannerFortressId: true,
+      contributionWeight: true,
+    },
+  });
+  const homeBannerFortressId = homeOfAHolders[0]?.bannerFortressId ?? null;
+
+  if (homeBannerFortressId) {
+    const sharedPool = Math.floor(HOME_OF_A_POINT_INCOME / 2);
+    const bannerBase = HOME_OF_A_POINT_INCOME - sharedPool;
+    const totalWeight = homeOfAHolders.reduce(
+      (sum, holder) => sum + Math.max(0, holder.contributionWeight),
+      0
+    );
+    const homeIncomeByFortressId = new Map<string, number>([
+      [homeBannerFortressId, bannerBase],
+    ]);
+    let distributedSharedPoints = 0;
+
+    if (totalWeight > 0) {
+      for (const holder of homeOfAHolders) {
+        const weightedShare = Math.floor(
+          (sharedPool * Math.max(0, holder.contributionWeight)) / totalWeight
         );
-      }
 
-      for (const [fortressId, income] of homeIncomeByFortressId) {
-        if (income <= 0 || !fortressLookup.has(fortressId)) {
+        if (weightedShare <= 0) {
           continue;
         }
 
-        const currentArmyCount =
-          currentArmy.get(fortressId) ?? fortressLookup.get(fortressId)?.army ?? 0;
-        currentArmy.set(
-          fortressId,
-          Math.max(0, currentArmyCount - HOME_OF_A_ARMY_DRAIN_PER_TICK)
+        distributedSharedPoints += weightedShare;
+        homeIncomeByFortressId.set(
+          holder.fortressId,
+          (homeIncomeByFortressId.get(holder.fortressId) ?? 0) + weightedShare
         );
-
-        currentPoints.set(
-          fortressId,
-          (currentPoints.get(fortressId) ?? 0) + income
-        );
-        scoreEvents.push({
-          cycleId,
-          fortressId,
-          eventType: ScoreEventType.GROW_TICK,
-          delta: income,
-          createdAt: tickAt,
-        });
       }
     }
 
-    // ========================================================================
-    // FORTRESS PRODUCTION PHASE
-    // ========================================================================
-    // Each fortress produces resources (gold, food, army) based on its
-    // worker assignments, level, and specializations.
-    //
-    // This phase:
-    // 1. Calculates base production using calculateTickProduction()
-    // 2. Applies race ability modifiers (DWARF_ECONOMY_HALT, DWARF_ECONOMY_SURGE)
-    // 3. Combines production with territory tile bonuses
-    // 4. Records production in currentGold/currentFood/currentArmy maps
-    // 5. Creates score events for non-zero production
-    //
-    // See castle-production.ts and balance.ts for production calculation details.
-    // ========================================================================
+    const remainder = sharedPool - distributedSharedPoints;
 
-    for (const fortress of fortresses) {
-      if (fortress.isNpc) {
+    if (remainder > 0) {
+      homeIncomeByFortressId.set(
+        homeBannerFortressId,
+        (homeIncomeByFortressId.get(homeBannerFortressId) ?? 0) + remainder
+      );
+    }
+
+    for (const [fortressId, income] of homeIncomeByFortressId) {
+      if (income <= 0 || !fortressLookup.has(fortressId)) {
         continue;
       }
 
-      // Calculate base fortress production (gold, food, army).
-      // This is a pure function based on worker assignments, level, race, and specializations.
-      const production = calculateTickProduction({
-        ...fortress,
-        race: getEffectiveRace(fortress),
-        food: currentFood.get(fortress.id) ?? fortress.food,
-        castleSpecializations: countCastleSpecializations(
-          fortress.castleUpgradeSpecializations
-        ),
-      });
-
-      // Check for DWARF race ability modifiers that affect economy
-      const economyHalted =
-        getEffectiveRace(fortress) === "DWARFS" &&
-        (dwarfEconomyHaltedThisTick.has(fortress.id) ||
-          isRaceAbilityActive(
-            fortress.raceAbilityActivations,
-            RaceAbilityKind.DWARF_ECONOMY_HALT,
-            tickAt
-          ));
-      const economySurged =
-        getEffectiveRace(fortress) === "DWARFS" &&
-        (dwarfEconomySurgedThisTick.has(fortress.id) ||
-          isRaceAbilityActive(
-            fortress.raceAbilityActivations,
-            RaceAbilityKind.DWARF_ECONOMY_SURGE,
-            tickAt
-          ));
-
-      // Apply race ability modifiers to production
-      // DWARF_ECONOMY_HALT: reduces all production to 0
-      // DWARF_ECONOMY_SURGE: multiplies production by DWARF_DEEP_MINING_ECONOMY_MULTIPLIER
-      const producedGold = economyHalted
-        ? 0
-        : Math.floor(
-            production.goldProduced *
-              (economySurged ? DWARF_DEEP_MINING_ECONOMY_MULTIPLIER : 1)
-          );
-      const producedFood = economyHalted
-        ? 0
-        : Math.floor(
-            production.foodProduced *
-              (economySurged ? DWARF_DEEP_MINING_ECONOMY_MULTIPLIER : 1)
-          );
-      const recruitmentResult = economyHalted
-        ? {
-            unitsCreated: 0,
-            newQueue:
-              currentRecruitmentQueue.get(fortress.id) ??
-              fortress.recruitmentQueue,
-          }
-        : processRecruitmentQueue(
-            currentRecruitmentQueue.get(fortress.id) ??
-              fortress.recruitmentQueue,
-            Math.floor(
-              fortress.recruitersAssigned *
-                (economySurged ? DWARF_DEEP_MINING_ECONOMY_MULTIPLIER : 1)
-            ),
-            getEffectiveRace(fortress)
-          );
-      const armyProduced = recruitmentResult.unitsCreated;
-
-      const currentArmyValue = currentArmy.get(fortress.id) ?? fortress.army;
-      // Calculate final food/army state after production, upkeep, and starvation.
-      const activeArmyUpkeep = Math.floor(getArmyUpkeepCost(currentArmyValue));
-      const foodBeforeUpkeep =
-        (currentFood.get(fortress.id) ?? fortress.food) + producedFood;
-      const starvationArmyLoss =
-        !economyHalted &&
-        fortress.fortressKind === FortressKind.PLAYER &&
-        activeArmyUpkeep > 0 &&
-        foodBeforeUpkeep < activeArmyUpkeep
-          ? getStarvationArmyLoss(currentArmyValue)
-          : 0;
-      const foodAfterProduction = economyHalted
-        ? currentFood.get(fortress.id) ?? fortress.food
-        : Math.max(0, foodBeforeUpkeep - activeArmyUpkeep);
-
-      const tileBonus = tileBonusesByFortressId.get(fortress.id) ?? {
-        gold: 0,
-        points: 0,
-        food: 0,
-        army: 0,
-      };
-
-      // Record produced resources in accumulator maps for database update
-      currentGold.set(
-        fortress.id,
-        (currentGold.get(fortress.id) ?? fortress.gold) +
-          producedGold +
-          tileBonus.gold
-      );
-      currentPoints.set(
-        fortress.id,
-        (currentPoints.get(fortress.id) ?? 0) + tileBonus.points
-      );
-      currentFood.set(
-        fortress.id,
-        Math.max(0, foodAfterProduction + tileBonus.food)
-      );
+      const currentArmyCount =
+        currentArmy.get(fortressId) ??
+        fortressLookup.get(fortressId)?.army ??
+        0;
       currentArmy.set(
-        fortress.id,
-        Math.max(0, currentArmyValue - starvationArmyLoss) +
-          armyProduced +
-          tileBonus.army
+        fortressId,
+        Math.max(0, currentArmyCount - HOME_OF_A_ARMY_DRAIN_PER_TICK)
       );
-      currentRecruitmentQueue.set(fortress.id, recruitmentResult.newQueue);
 
-      // Create score events for tile bonuses
-      // Production from workers is recorded via GROW_TICK events (see fortress action handling)
-      if (tileBonus.points > 0) {
-        scoreEvents.push({
-          cycleId,
-          fortressId: fortress.id,
-          actorId: fortress.ownerId,
-          eventType: ScoreEventType.GROW_TICK,
-          delta: tileBonus.points,
-          createdAt: tickAt,
-        });
-      }
-      // TODO: add a dedicated resource history model for food and army deltas.
-    }
-
-    const fortressUpdates: Array<{
-      id: string;
-      data: {
-        points: number;
-        gold: number;
-        food: number;
-        army: number;
-        recruitmentQueue: number;
-        health: number;
-      };
-    }> = [];
-
-    for (const fortress of fortresses) {
-      const nextPoints = currentPoints.get(fortress.id) ?? fortress.points;
-      const nextGold = currentGold.get(fortress.id) ?? fortress.gold;
-      const nextFood = currentFood.get(fortress.id) ?? fortress.food;
-      const nextArmy = currentArmy.get(fortress.id) ?? fortress.army;
-      const nextRecruitmentQueue =
-        currentRecruitmentQueue.get(fortress.id) ?? fortress.recruitmentQueue;
-      const nextHealth = currentHealth.get(fortress.id) ?? fortress.health;
-
-      if (
-        nextPoints === fortress.points &&
-        nextGold === fortress.gold &&
-        nextFood === fortress.food &&
-        nextArmy === fortress.army &&
-        nextRecruitmentQueue === fortress.recruitmentQueue &&
-        nextHealth === fortress.health
-      ) {
-        continue;
-      }
-
-      fortressUpdates.push({
-        id: fortress.id,
-        data: {
-          points: nextPoints,
-          gold: nextGold,
-          food: nextFood,
-          army: nextArmy,
-          recruitmentQueue: nextRecruitmentQueue,
-          health: nextHealth,
-        },
+      currentPoints.set(
+        fortressId,
+        (currentPoints.get(fortressId) ?? 0) + income
+      );
+      scoreEvents.push({
+        cycleId,
+        fortressId,
+        eventType: ScoreEventType.GROW_TICK,
+        delta: income,
+        createdAt: tickAt,
       });
     }
+  }
 
-    const fortressUpdateChunkSize = 25;
-    for (let i = 0; i < fortressUpdates.length; i += fortressUpdateChunkSize) {
-      const chunk = fortressUpdates.slice(i, i + fortressUpdateChunkSize);
-      await Promise.all(
-        chunk.map((update) =>
-          db.fortress.update({
-            where: { id: update.id },
-            data: update.data,
-          })
-        )
-      );
+  // ========================================================================
+  // FORTRESS PRODUCTION PHASE
+  // ========================================================================
+  // Each fortress produces resources (gold, food, army) based on its
+  // worker assignments, level, and specializations.
+  //
+  // This phase:
+  // 1. Calculates base production using calculateTickProduction()
+  // 2. Applies race ability modifiers (DWARF_ECONOMY_HALT, DWARF_ECONOMY_SURGE)
+  // 3. Combines production with territory tile bonuses
+  // 4. Records production in currentGold/currentFood/currentArmy maps
+  // 5. Creates score events for non-zero production
+  //
+  // See castle-production.ts and balance.ts for production calculation details.
+  // ========================================================================
+
+  for (const fortress of fortresses) {
+    if (fortress.isNpc) {
+      continue;
     }
 
-    if (scoreEvents.length > 0) {
-      await db.scoreEvent.createMany({
-        data: scoreEvents,
-      });
-    }
-
-    const battlefieldResult = await processActiveBattlefields({
-      db,
-      cycleId,
-      tickAt,
+    // Calculate base fortress production (gold, food, army).
+    // This is a pure function based on worker assignments, level, race, and specializations.
+    const production = calculateTickProduction({
+      ...fortress,
+      race: getEffectiveRace(fortress),
+      food: currentFood.get(fortress.id) ?? fortress.food,
+      castleSpecializations: countCastleSpecializations(
+        fortress.castleUpgradeSpecializations
+      ),
     });
 
-    // Apply garrison maintenance drain.
-    // Unicorn garrisons drain every other tick to support the new tile-holding loop.
+    // Check for DWARF race ability modifiers that affect economy
+    const economyHalted =
+      getEffectiveRace(fortress) === "DWARFS" &&
+      (dwarfEconomyHaltedThisTick.has(fortress.id) ||
+        isRaceAbilityActive(
+          fortress.raceAbilityActivations,
+          RaceAbilityKind.DWARF_ECONOMY_HALT,
+          tickAt
+        ));
+    const economySurged =
+      getEffectiveRace(fortress) === "DWARFS" &&
+      (dwarfEconomySurgedThisTick.has(fortress.id) ||
+        isRaceAbilityActive(
+          fortress.raceAbilityActivations,
+          RaceAbilityKind.DWARF_ECONOMY_SURGE,
+          tickAt
+        ));
+
+    // Apply race ability modifiers to production
+    // DWARF_ECONOMY_HALT: reduces all production to 0
+    // DWARF_ECONOMY_SURGE: multiplies production by DWARF_DEEP_MINING_ECONOMY_MULTIPLIER
+    const producedGold = economyHalted
+      ? 0
+      : Math.floor(
+          production.goldProduced *
+            (economySurged ? DWARF_DEEP_MINING_ECONOMY_MULTIPLIER : 1)
+        );
+    const producedFood = economyHalted
+      ? 0
+      : Math.floor(
+          production.foodProduced *
+            (economySurged ? DWARF_DEEP_MINING_ECONOMY_MULTIPLIER : 1)
+        );
+    const recruitmentResult = economyHalted
+      ? {
+          unitsCreated: 0,
+          newQueue:
+            currentRecruitmentQueue.get(fortress.id) ??
+            fortress.recruitmentQueue,
+        }
+      : processRecruitmentQueue(
+          currentRecruitmentQueue.get(fortress.id) ?? fortress.recruitmentQueue,
+          Math.floor(
+            fortress.recruitersAssigned *
+              (economySurged ? DWARF_DEEP_MINING_ECONOMY_MULTIPLIER : 1)
+          ),
+          getEffectiveRace(fortress)
+        );
+    const armyProduced = recruitmentResult.unitsCreated;
+
+    const currentArmyValue = currentArmy.get(fortress.id) ?? fortress.army;
+    // Calculate final food/army state after production, upkeep, and starvation.
+    const activeArmyUpkeep = Math.floor(getArmyUpkeepCost(currentArmyValue));
+    const foodBeforeUpkeep =
+      (currentFood.get(fortress.id) ?? fortress.food) + producedFood;
+    const starvationArmyLoss =
+      !economyHalted &&
+      fortress.fortressKind === FortressKind.PLAYER &&
+      activeArmyUpkeep > 0 &&
+      foodBeforeUpkeep < activeArmyUpkeep
+        ? getStarvationArmyLoss(currentArmyValue)
+        : 0;
+    const foodAfterProduction = economyHalted
+      ? (currentFood.get(fortress.id) ?? fortress.food)
+      : Math.max(0, foodBeforeUpkeep - activeArmyUpkeep);
+
+    const tileBonus = tileBonusesByFortressId.get(fortress.id) ?? {
+      gold: 0,
+      points: 0,
+      food: 0,
+      army: 0,
+    };
+
+    // Record produced resources in accumulator maps for database update
+    currentGold.set(
+      fortress.id,
+      (currentGold.get(fortress.id) ?? fortress.gold) +
+        producedGold +
+        tileBonus.gold
+    );
+    currentPoints.set(
+      fortress.id,
+      (currentPoints.get(fortress.id) ?? 0) + tileBonus.points
+    );
+    currentFood.set(
+      fortress.id,
+      Math.max(0, foodAfterProduction + tileBonus.food)
+    );
+    currentArmy.set(
+      fortress.id,
+      Math.max(0, currentArmyValue - starvationArmyLoss) +
+        armyProduced +
+        tileBonus.army
+    );
+    currentRecruitmentQueue.set(fortress.id, recruitmentResult.newQueue);
+
+    // Create score events for tile bonuses
+    // Production from workers is recorded via GROW_TICK events (see fortress action handling)
+    if (tileBonus.points > 0) {
+      scoreEvents.push({
+        cycleId,
+        fortressId: fortress.id,
+        actorId: fortress.ownerId,
+        eventType: ScoreEventType.GROW_TICK,
+        delta: tileBonus.points,
+        createdAt: tickAt,
+      });
+    }
+    // TODO: add a dedicated resource history model for food and army deltas.
+  }
+
+  const fortressUpdates: Array<{
+    id: string;
+    data: {
+      points: number;
+      gold: number;
+      food: number;
+      army: number;
+      recruitmentQueue: number;
+      health: number;
+    };
+  }> = [];
+
+  for (const fortress of fortresses) {
+    const nextPoints = currentPoints.get(fortress.id) ?? fortress.points;
+    const nextGold = currentGold.get(fortress.id) ?? fortress.gold;
+    const nextFood = currentFood.get(fortress.id) ?? fortress.food;
+    const nextArmy = currentArmy.get(fortress.id) ?? fortress.army;
+    const nextRecruitmentQueue =
+      currentRecruitmentQueue.get(fortress.id) ?? fortress.recruitmentQueue;
+    const nextHealth = currentHealth.get(fortress.id) ?? fortress.health;
+
+    if (
+      nextPoints === fortress.points &&
+      nextGold === fortress.gold &&
+      nextFood === fortress.food &&
+      nextArmy === fortress.army &&
+      nextRecruitmentQueue === fortress.recruitmentQueue &&
+      nextHealth === fortress.health
+    ) {
+      continue;
+    }
+
+    fortressUpdates.push({
+      id: fortress.id,
+      data: {
+        points: nextPoints,
+        gold: nextGold,
+        food: nextFood,
+        army: nextArmy,
+        recruitmentQueue: nextRecruitmentQueue,
+        health: nextHealth,
+      },
+    });
+  }
+
+  const fortressUpdateChunkSize = 25;
+  for (let i = 0; i < fortressUpdates.length; i += fortressUpdateChunkSize) {
+    const chunk = fortressUpdates.slice(i, i + fortressUpdateChunkSize);
+    await Promise.all(
+      chunk.map((update) =>
+        db.fortress.update({
+          where: { id: update.id },
+          data: update.data,
+        })
+      )
+    );
+  }
+
+  if (scoreEvents.length > 0) {
+    await db.scoreEvent.createMany({
+      data: scoreEvents,
+    });
+  }
+
+  const battlefieldResult = await processActiveBattlefields({
+    db,
+    cycleId,
+    tickAt,
+  });
+
+  // Apply garrison maintenance drain.
+  // Unicorn garrisons drain every other tick to support the new tile-holding loop.
+  await db.fortressGarrison.updateMany({
+    where: {
+      cycleId,
+      army: {
+        gt: 0,
+      },
+      fortress: {
+        race: {
+          not: "UNSTABLE_UNICORNS",
+        },
+      },
+    },
+    data: {
+      army: {
+        decrement: 1,
+      },
+    },
+  });
+
+  if (tickAt.getUTCMinutes() % 2 === 0) {
     await db.fortressGarrison.updateMany({
       where: {
         cycleId,
@@ -3327,9 +3365,7 @@ async function processCycleTick(
           gt: 0,
         },
         fortress: {
-          race: {
-            not: "UNSTABLE_UNICORNS",
-          },
+          race: "UNSTABLE_UNICORNS",
         },
       },
       data: {
@@ -3338,39 +3374,22 @@ async function processCycleTick(
         },
       },
     });
+  }
 
-    if (tickAt.getUTCMinutes() % 2 === 0) {
-      await db.fortressGarrison.updateMany({
-        where: {
-          cycleId,
-          army: {
-            gt: 0,
-          },
-          fortress: {
-            race: "UNSTABLE_UNICORNS",
-          },
-        },
-        data: {
-          army: {
-            decrement: 1,
-          },
-        },
-      });
-    }
-
-    // Delete garrisons with 0 army
-    await db.fortressGarrison.deleteMany({
-      where: {
-        cycleId,
-        army: {
-          lte: 0,
-        },
+  // Delete garrisons with 0 army
+  await db.fortressGarrison.deleteMany({
+    where: {
+      cycleId,
+      army: {
+        lte: 0,
       },
-    });
+    },
+  });
 
   return {
     processed: true,
-    scoreEventsCreated: scoreEvents.length + battlefieldResult.scoreEventsCreated,
+    scoreEventsCreated:
+      scoreEvents.length + battlefieldResult.scoreEventsCreated,
     launchedAttackUnits: 0,
     resolvedAttackUnits: resolvedAttackUnits + battlefieldResult.resolved,
   };

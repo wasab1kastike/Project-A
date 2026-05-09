@@ -1134,6 +1134,36 @@ export async function getHomePageState({
         (unit) => unit.attackerFortress.id === playerFortress.id
       ).length
     : 0;
+  let playerInFlightArmy = 0;
+  let playerBattlefieldArmy = 0;
+  let playerGarrisonArmy = 0;
+
+  if (playerFortress) {
+    for (const unit of cycle.attackUnits) {
+      if (unit.attackerFortress.id === playerFortress.id) {
+        playerInFlightArmy += unit.armyAmount ?? 0;
+      }
+    }
+
+    for (const battlefield of cycle.battlefields) {
+      for (const participant of battlefield.participants) {
+        if (participant.fortressId === playerFortress.id) {
+          playerBattlefieldArmy += Math.max(0, participant.armyRemaining);
+        }
+      }
+    }
+
+    for (const garrison of playerFortress.garrisons) {
+      playerGarrisonArmy += Math.max(0, garrison.army);
+    }
+  }
+
+  const playerAllUnits = playerFortress
+    ? playerFortress.army +
+      playerInFlightArmy +
+      playerBattlefieldArmy +
+      playerGarrisonArmy
+    : 0;
   const maxSimultaneousAttacks = playerFortress
     ? getMaxSimultaneousAttacks(
         playerFortress.level,
@@ -1934,6 +1964,51 @@ export async function getHomePageState({
         : []
     )
   );
+  type TileGarrisonSummary = {
+    id: string;
+    tileId: string;
+    fortressId: string;
+    fortressName: string;
+    commanderName: string;
+    ownerId: string;
+    army: number;
+    createdAt: Date;
+  };
+  const allGarrisons: TileGarrisonSummary[] = [];
+
+  for (const fortress of cycle.fortresses) {
+    for (const garrison of fortress.garrisons) {
+      allGarrisons.push({
+        id: garrison.id,
+        tileId: garrison.tileId,
+        army: garrison.army,
+        createdAt: garrison.createdAt,
+        fortressId: fortress.id,
+        fortressName: fortress.name,
+        commanderName: fortress.commanderName,
+        ownerId: fortress.ownerId,
+      });
+    }
+  }
+
+  const garrisonsByTileId = new Map<string, TileGarrisonSummary[]>();
+
+  for (const garrison of allGarrisons) {
+    const current = garrisonsByTileId.get(garrison.tileId) ?? [];
+
+    current.push(garrison);
+    garrisonsByTileId.set(garrison.tileId, current);
+  }
+
+  for (const garrisons of garrisonsByTileId.values()) {
+    garrisons.sort(
+      (left, right) =>
+        right.army - left.army ||
+        left.createdAt.getTime() - right.createdAt.getTime() ||
+        left.id.localeCompare(right.id)
+    );
+  }
+
   const homeOwnership =
     cycle.mapHexOwnerships.find((ownership) =>
       isHomeOfATile(ownership.tileId)
@@ -2142,19 +2217,37 @@ export async function getHomePageState({
     isHomeOfA: boolean;
     pointIncome: number | null;
     holders: typeof homeHolders;
+    occupyingGarrison: {
+      fortressId: string;
+      fortressName: string;
+      commanderName: string;
+      army: number;
+      isCurrentUser: boolean;
+    } | null;
     ownGarrison: {
       id: string;
       army: number;
       canRecall: boolean;
       recallDisabledReason: string | null;
       canInstantRecall: boolean;
+      canTorch: boolean;
+      torchDisabledReason: string | null;
     } | null;
   }> = cycle.mapHexOwnerships.map((ownership) => {
     const tile = getTileById(ownership.tileId);
+    const occupyingGarrison =
+      (garrisonsByTileId.get(ownership.tileId) ?? []).find(
+        (garrison) => garrison.fortressId !== ownership.ownerFortressId
+      ) ?? null;
     const ownGarrison =
       playerFortress?.garrisons.find(
         (garrison) => garrison.tileId === ownership.tileId
       ) ?? null;
+    const canTorchOwnGarrison =
+      Boolean(ownGarrison) &&
+      !isHomeOfATile(ownership.tileId) &&
+      ownership.ownerFortressId !== playerFortress?.id &&
+      !activeBattleTileIds.has(ownership.tileId);
     const claimState = tile
       ? getTileClaimState(tile)
       : {
@@ -2203,6 +2296,15 @@ export async function getHomePageState({
       isHomeOfA: isHomeOfATile(ownership.tileId),
       pointIncome: bonus.points > 0 ? bonus.points : null,
       holders: isHomeOfATile(ownership.tileId) ? homeHolders : [],
+      occupyingGarrison: occupyingGarrison
+        ? {
+            fortressId: occupyingGarrison.fortressId,
+            fortressName: occupyingGarrison.fortressName,
+            commanderName: occupyingGarrison.commanderName,
+            army: occupyingGarrison.army,
+            isCurrentUser: occupyingGarrison.ownerId === userId,
+          }
+        : null,
       ownGarrison: ownGarrison
         ? {
             id: ownGarrison.id,
@@ -2216,6 +2318,16 @@ export async function getHomePageState({
               (!latestGarrisonInstantRecallUse ||
                 getHelsinkiHourKey(latestGarrisonInstantRecallUse.usedAt) !==
                   currentHourKey),
+            canTorch: canTorchOwnGarrison,
+            torchDisabledReason: canTorchOwnGarrison
+              ? null
+              : isHomeOfATile(ownership.tileId)
+                ? "Home of A cannot be torched."
+                : ownership.ownerFortressId === playerFortress?.id
+                  ? "You cannot torch your own tile."
+                  : activeBattleTileIds.has(ownership.tileId)
+                    ? "That tile is already contested."
+                    : "That garrison cannot torch this tile.",
           }
         : null,
     };
@@ -2257,6 +2369,7 @@ export async function getHomePageState({
       isHomeOfA: true,
       pointIncome: HOME_OF_A_POINT_INCOME,
       holders: [],
+      occupyingGarrison: null,
       ownGarrison: null,
     });
   }
@@ -2302,6 +2415,7 @@ export async function getHomePageState({
       isHomeOfA: false,
       pointIncome: bonus.points > 0 ? bonus.points : null,
       holders: [],
+      occupyingGarrison: null,
       ownGarrison: null,
     });
   }
@@ -2419,6 +2533,7 @@ export async function getHomePageState({
           ),
           food: playerFortress.food,
           army: playerFortress.army,
+          allUnits: playerAllUnits,
           recruitmentQueue: playerFortress.recruitmentQueue,
           minersAssigned: playerFortress.minersAssigned,
           farmersAssigned: playerFortress.farmersAssigned,
@@ -2463,6 +2578,7 @@ export async function getHomePageState({
           ),
           food: playerFortress.food,
           army: playerFortress.army,
+          allUnits: playerAllUnits,
           recruitmentQueue: playerFortress.recruitmentQueue,
           minersAssigned: playerFortress.minersAssigned,
           farmersAssigned: playerFortress.farmersAssigned,
