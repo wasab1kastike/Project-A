@@ -312,9 +312,8 @@ const HexTileMap = memo(function HexTileMap({
   selectedTileId?: string | null;
   onSelectMapHex?: (tileId: string) => void;
 }) {
-  const ownershipByTileId = useMemo(
-    () => new Map(mapHexes.map((ownership) => [ownership.tileId, ownership])),
-    [mapHexes]
+  const ownershipByTileId = new Map(
+    mapHexes.map((ownership) => [ownership.tileId, ownership])
   );
   const tileTapStateRef = useRef<TileTapState | null>(null);
 
@@ -567,7 +566,7 @@ const AttackUnitsLayer = memo(function AttackUnitsLayer({
 
     const interval = window.setInterval(() => {
       setNowMs(Date.now());
-    }, 500);
+    }, 250);
 
     return () => window.clearInterval(interval);
   }, [attackUnits.length]);

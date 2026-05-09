@@ -394,23 +394,14 @@ export async function launchAttackUnit({
     return null;
   }
 
-  const updatedFortresses = await db.fortress.updateMany({
+  await db.fortress.update({
     where: {
       id: attacker.id,
-      army: {
-        gte: armyAmount,
-      },
     },
     data: {
-      army: {
-        decrement: armyAmount,
-      },
+      army: attacker.army - armyAmount,
     },
   });
-
-  if (updatedFortresses.count !== 1) {
-    throw new GameError("Your army changed. Try sending a smaller force.");
-  }
 
   return db.attackUnit.create({
     data: {
