@@ -38,7 +38,10 @@ import {
   isFortressRace,
   type FortressRace,
 } from "@/lib/game/races";
-import { convertGoldToPoints, getGoldToPointsRatio } from "@/lib/game/currency";
+import {
+  convertGoldToPoints,
+  getGoldToPointsRatio,
+} from "@/lib/game/currency";
 import { getBuildingUpgradeComparison } from "@/lib/game/specializations";
 import styles from "./page.module.css";
 
@@ -60,12 +63,12 @@ type PlayerSummary = {
   farmersAssigned: number;
   recruitersAssigned: number;
   race: string | null;
-  factionSuppression: {
-    runeFortressId: string | null;
-    ownerName: string;
-    ownerCommanderName: string;
-    activeUntil: Date;
-  } | null;
+    factionSuppression: {
+      runeFortressId: string | null;
+      ownerName: string;
+      ownerCommanderName: string;
+      activeUntil: Date;
+    } | null;
   canRename: boolean;
   canSetAction: boolean;
   locationShuffleCost: number | null;
@@ -154,10 +157,8 @@ type PlayerSummary = {
     }[];
     canActivateStim: boolean;
     canActivateUnicornShatteredReality: boolean;
-    unicornShatteredRealityDisabledReason: string | null;
     stimActiveUntil: Date | null;
     canClaimUnicornTeleport: boolean;
-    unicornTeleportClaimDisabledReason: string | null;
     hasUnicornTeleportToken: boolean;
     canActivateDeepMining: boolean;
     canActivateRuneOfGrudges: boolean;
@@ -402,14 +403,12 @@ function getBuildingUpgradeBenefitPreview({
     case "DEFENSE":
       return `Defense multiplier x${comparison.currentMultiplier.toFixed(2)} -> x${comparison.nextMultiplier.toFixed(2)} (+${comparison.percentageIncrease.toFixed(2)}%).`;
     case "POINTS": {
-      const diff =
-        projectedProduction.goldProduced - currentProduction.goldProduced;
+      const diff = projectedProduction.goldProduced - currentProduction.goldProduced;
 
       return `Gold per tick +${currentProduction.goldProduced} -> +${projectedProduction.goldProduced} (${diff >= 0 ? "+" : ""}${diff}/tick).`;
     }
     case "FOOD": {
-      const diff =
-        projectedProduction.foodProduced - currentProduction.foodProduced;
+      const diff = projectedProduction.foodProduced - currentProduction.foodProduced;
 
       return `Food per tick +${currentProduction.foodProduced} -> +${projectedProduction.foodProduced} (${diff >= 0 ? "+" : ""}${diff}/tick).`;
     }
@@ -506,13 +505,7 @@ export function CastleManagement({
   const armyUpkeep = Math.floor(getArmyUpkeepCost(playerSummary.army));
   const pointsFromGold = convertGoldToPoints(goldToConvert);
   const canConvertGoldToPoints =
-    pointsFromGold > 0 &&
-    goldToConvert > 0 &&
-    goldToConvert <= playerSummary.gold;
-  const shatteredRealityDisabledReason =
-    playerSummary.raceBuffs.unicornShatteredRealityDisabledReason;
-  const unicornTeleportClaimDisabledReason =
-    playerSummary.raceBuffs.unicornTeleportClaimDisabledReason;
+    pointsFromGold > 0 && goldToConvert > 0 && goldToConvert <= playerSummary.gold;
 
   function setWorker(key: keyof typeof workers, value: number) {
     setWorkerError(null);
@@ -618,8 +611,7 @@ export function CastleManagement({
             />
           </label>
           <p className={styles.muted}>
-            Rate: {getGoldToPointsRatio()} gold = 1 point. This converts{" "}
-            {goldToConvert} gold into {pointsFromGold} points.
+            Rate: {getGoldToPointsRatio()} gold = 1 point. This converts {goldToConvert} gold into {pointsFromGold} points.
           </p>
           <button type="submit" disabled={!canConvertGoldToPoints}>
             Convert gold to points
@@ -708,8 +700,7 @@ export function CastleManagement({
                   })}
                 </small>
                 <small>
-                  Next level:{" "}
-                  {getBuildingUpgradeBenefitPreview({
+                  Next level: {getBuildingUpgradeBenefitPreview({
                     key: building.key,
                     level: buildingLevel,
                     currentProduction: production,
@@ -829,9 +820,7 @@ export function CastleManagement({
           </label>
           <p className={styles.muted}>
             Tick preview: +{production.goldProduced} gold, +
-            {production.foodProduced} food,{" "}
-            {recruitmentProgress.recruiterCapacityPerTick} queue capacity, -
-            {armyUpkeep} food upkeep.
+            {production.foodProduced} food, {recruitmentProgress.recruiterCapacityPerTick} queue capacity, -{armyUpkeep} food upkeep.
           </p>
           {workerError ? <p className={styles.error}>{workerError}</p> : null}
           <button type="submit" disabled={workerPending || !playerSummary.race}>
@@ -905,17 +894,14 @@ export function CastleManagement({
                       {playerSummary.raceBuffs.orkScrapEvents.map((event) => (
                         <li key={event.id}>
                           {event.delta > 0 ? "+" : ""}
-                          {event.delta} Scrap:{" "}
-                          {event.reason.replaceAll("_", " ")}
+                          {event.delta} Scrap: {event.reason.replaceAll("_", " ")}
                           {event.targetName ? ` vs ${event.targetName}` : ""}
                           {event.tileId ? ` on tile ${event.tileId}` : ""}
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <p className={styles.muted}>
-                      No Scrap has been recorded yet.
-                    </p>
+                    <p className={styles.muted}>No Scrap has been recorded yet.</p>
                   )}
                 </article>
 
@@ -988,10 +974,7 @@ export function CastleManagement({
                   ) : null}
                   <div className={styles.form}>
                     {playerSummary.raceBuffs.orkBossOrders.map((order) => (
-                      <form
-                        key={order.kind}
-                        action={activateOrkBossOrderAction}
-                      >
+                      <form key={order.kind} action={activateOrkBossOrderAction}>
                         <input type="hidden" name="kind" value={order.kind} />
                         <button
                           type="submit"
@@ -1024,19 +1007,12 @@ export function CastleManagement({
                   <button
                     type="submit"
                     disabled={
-                      !playerSummary.raceBuffs
-                        .canActivateUnicornShatteredReality
+                      !playerSummary.raceBuffs.canActivateUnicornShatteredReality
                     }
-                    title={shatteredRealityDisabledReason ?? undefined}
                   >
                     Trigger Shattered Reality (daily)
                   </button>
                 </form>
-                {shatteredRealityDisabledReason ? (
-                  <p className={styles.muted}>
-                    {shatteredRealityDisabledReason}
-                  </p>
-                ) : null}
                 <p className={styles.muted}>
                   Rolls a random chaos omen: surge your forces, scatter
                   garrisons home with loss, or backfire your own army.
@@ -1069,24 +1045,16 @@ export function CastleManagement({
                     </button>
                   </form>
                 ) : (
-                  <>
-                    <form action={claimUnicornTeleportAction}>
-                      <button
-                        type="submit"
-                        disabled={
-                          !playerSummary.raceBuffs.canClaimUnicornTeleport
-                        }
-                        title={unicornTeleportClaimDisabledReason ?? undefined}
-                      >
-                        Claim Unicorn teleport
-                      </button>
-                    </form>
-                    {unicornTeleportClaimDisabledReason ? (
-                      <p className={styles.muted}>
-                        {unicornTeleportClaimDisabledReason}
-                      </p>
-                    ) : null}
-                  </>
+                  <form action={claimUnicornTeleportAction}>
+                    <button
+                      type="submit"
+                      disabled={
+                        !playerSummary.raceBuffs.canClaimUnicornTeleport
+                      }
+                    >
+                      Claim Unicorn teleport
+                    </button>
+                  </form>
                 )}
               </>
             ) : null}
@@ -1100,8 +1068,8 @@ export function CastleManagement({
                     </span>
                   </div>
                   <p>
-                    Grudges add attack and defense pressure against chosen enemy
-                    fortresses.
+                    Grudges add attack and defense pressure against chosen
+                    enemy fortresses.
                   </p>
                   {playerSummary.raceBuffs.dwarfGrudges.length > 0 ? (
                     <ul className={styles.noteList}>
@@ -1114,7 +1082,9 @@ export function CastleManagement({
                       ))}
                     </ul>
                   ) : (
-                    <p className={styles.muted}>No grudges locked yet.</p>
+                    <p className={styles.muted}>
+                      No grudges locked yet.
+                    </p>
                   )}
                   {playerSummary.raceBuffs.canChooseDwarfGrudge ? (
                     <form
@@ -1137,7 +1107,9 @@ export function CastleManagement({
                             ))}
                         </select>
                       </label>
-                      <button type="submit">Set first grudge</button>
+                      <button type="submit">
+                        Set first grudge
+                      </button>
                     </form>
                   ) : null}
                   {playerSummary.raceBuffs.canChooseDwarfTierThree ? (
@@ -1157,8 +1129,7 @@ export function CastleManagement({
                             {targets
                               .filter(
                                 (target) =>
-                                  !target.isNpc &&
-                                  target.id !== playerSummary.id
+                                  !target.isNpc && target.id !== playerSummary.id
                               )
                               .map((target) => (
                                 <option key={target.id} value={target.id}>
@@ -1177,7 +1148,9 @@ export function CastleManagement({
                   <div className={styles.buildingCardHeader}>
                     <strong>Rune of Grudges</strong>
                     <span>
-                      {playerSummary.dwarfRuneOfGrudges ? "Active" : "Ready"}
+                      {playerSummary.dwarfRuneOfGrudges
+                        ? "Active"
+                        : "Ready"}
                     </span>
                   </div>
                   {playerSummary.dwarfRuneOfGrudges ? (
@@ -1185,22 +1158,15 @@ export function CastleManagement({
                       <p>
                         Targeting {playerSummary.dwarfRuneOfGrudges.targetName}(
                         {playerSummary.dwarfRuneOfGrudges.targetCommanderName}).
-                        Upkeep{" "}
-                        {
-                          playerSummary.dwarfRuneOfGrudges
-                            .maintenanceGoldPerTick
-                        }
-                        gold per tick until{" "}
-                        {formatTime(
+                        Upkeep {playerSummary.dwarfRuneOfGrudges.maintenanceGoldPerTick}
+                        gold per tick until {formatTime(
                           playerSummary.dwarfRuneOfGrudges.activeUntil
                         )}
                         .
                       </p>
                       <small>
-                        Rune fortress{" "}
-                        {playerSummary.dwarfRuneOfGrudges.runeFortressId}
-                        has {playerSummary.dwarfRuneOfGrudges.runeHealth} health
-                        and
+                        Rune fortress {playerSummary.dwarfRuneOfGrudges.runeFortressId}
+                        has {playerSummary.dwarfRuneOfGrudges.runeHealth} health and
                         {playerSummary.dwarfRuneOfGrudges.runeArmy} army.
                       </small>
                     </>
@@ -1226,14 +1192,11 @@ export function CastleManagement({
                         </select>
                       </label>
                       <p className={styles.muted}>
-                        Costs 250 gold upfront and 25 gold per tick while
-                        active.
-                      </p>
+                      Costs 250 gold upfront and 25 gold per tick while active.
+                    </p>
                       <button
                         type="submit"
-                        disabled={
-                          !playerSummary.raceBuffs.canActivateRuneOfGrudges
-                        }
+                        disabled={!playerSummary.raceBuffs.canActivateRuneOfGrudges}
                       >
                         Raise Rune of Grudges
                       </button>
@@ -1256,16 +1219,14 @@ export function CastleManagement({
                   </p>
                   {playerSummary.raceBuffs.deepMiningLatest ? (
                     <small>
-                      Last result:{" "}
-                      {playerSummary.raceBuffs.deepMiningLatest.outcome}
+                      Last result: {playerSummary.raceBuffs.deepMiningLatest.outcome}
                       {playerSummary.raceBuffs.deepMiningLatest.resolvedAt
                         ? ` resolved at ${formatTime(
                             playerSummary.raceBuffs.deepMiningLatest.resolvedAt
                           )}.`
                         : playerSummary.raceBuffs.deepMiningLatest.activeUntil
                           ? ` resolves at ${formatTime(
-                              playerSummary.raceBuffs.deepMiningLatest
-                                .activeUntil
+                              playerSummary.raceBuffs.deepMiningLatest.activeUntil
                             )}.`
                           : " resolves later."}
                     </small>

@@ -82,12 +82,7 @@ import {
   getDedicatedCosmeticSpriteAssetGaps,
   getDefaultRaceCosmeticVariant,
 } from "./cosmetic-sprites";
-import {
-  getNextHelsinkiNoonAfter,
-  getRaceBuffTier,
-  getUnicornShatteredRealityAvailability,
-  getUnicornTeleportClaimAvailability,
-} from "./race-buffs";
+import { getNextHelsinkiNoonAfter, getRaceBuffTier } from "./race-buffs";
 import {
   HEX_SPAWN_TILES,
   MAP_WORLD_HEIGHT,
@@ -112,7 +107,6 @@ import {
 } from "./mega-fortress";
 import { getAdminDashboardState } from "./admin-dashboard";
 import { getCycleHistoryPageState } from "./history";
-import { getCastlePageState } from "./castle-read-model";
 import { getHomePageState } from "./read-model";
 import {
   editRegistrationFortressName,
@@ -145,7 +139,6 @@ import {
   getBattlefieldProgressDelta,
   processActiveBattlefields,
 } from "./battlefields";
-import { launchAttackUnit } from "./attack-units";
 import {
   getTileBonus,
   getTileClaimCost,
@@ -853,10 +846,7 @@ test("neutral tile claim spends gold and applies tick bonus", async (context) =>
     },
   });
 
-  assert.equal(
-    completedProject.completedAt?.toISOString(),
-    "2026-04-20T12:11:00.000Z"
-  );
+  assert.equal(completedProject.completedAt?.toISOString(), "2026-04-20T12:11:00.000Z");
 });
 
 test("owned tile attack creates a targetTileId battlefield", async (context) => {
@@ -1186,10 +1176,7 @@ test("other players can reinforce castle defense", async (context) => {
   });
 
   assert.equal(launchedUnit.reinforcementSide, BattlefieldSide.DEFENDER);
-  assert.equal(
-    reloadedBattlefield.defenderBannerFortressId,
-    reinforcerFortress.id
-  );
+  assert.equal(reloadedBattlefield.defenderBannerFortressId, reinforcerFortress.id);
 });
 
 test("other players can reinforce tile defense", async (context) => {
@@ -1299,10 +1286,7 @@ test("other players can reinforce tile defense", async (context) => {
   });
 
   assert.equal(launchedUnit.reinforcementSide, BattlefieldSide.DEFENDER);
-  assert.equal(
-    reloadedBattlefield.defenderBannerFortressId,
-    reinforcerFortress.id
-  );
+  assert.equal(reloadedBattlefield.defenderBannerFortressId, reinforcerFortress.id);
 });
 
 test("neutral Home of A accepts defender reinforcements and lets them recall", async (context) => {
@@ -1312,14 +1296,8 @@ test("neutral Home of A accepts defender reinforcements and lets them recall", a
     return;
   }
 
-  const attacker = await createUser(
-    prisma,
-    "home-defender-attacker@example.com"
-  );
-  const defender = await createUser(
-    prisma,
-    "home-defender-defender@example.com"
-  );
+  const attacker = await createUser(prisma, "home-defender-attacker@example.com");
+  const defender = await createUser(prisma, "home-defender-defender@example.com");
   const cycle = await seedActiveCommunityWishCycle(prisma, [
     {
       userId: attacker.id,
@@ -1943,10 +1921,7 @@ test("race schema readiness error message is concise for cron logs", async (cont
       () => ensureRaceSchemaReadiness(isolated),
       (error: unknown) => {
         assert.equal(error instanceof RaceSchemaReadinessError, true);
-        assert.match(
-          String((error as Error).message),
-          /Race schema preflight failed/
-        );
+        assert.match(String((error as Error).message), /Race schema preflight failed/);
         assert.match(String((error as Error).message), /Run Prisma migrations/);
         return true;
       }
@@ -1984,10 +1959,7 @@ test("runGameTick fails fast on race schema drift before processing minutes", as
         RaceSchemaReadinessError,
       true
     );
-    assert.match(
-      formatTickRunnerError(runnerError),
-      /"stage":"schema-preflight"/
-    );
+    assert.match(formatTickRunnerError(runnerError), /"stage":"schema-preflight"/);
     assert.equal(await isolated.gameTick.count(), 0);
 
     const reloadedCycle = await isolated.cycle.findUniqueOrThrow({
@@ -2075,154 +2047,6 @@ test("race buff tiers unlock tier 2 at active start and tier 3 at next Helsinki 
       isActiveSeason: false,
     }),
     0
-  );
-});
-
-test("unicorn availability helpers expose the expected disabled reasons", () => {
-  const activeStartedAt = new Date("2026-04-20T07:00:00.000Z");
-  const beforeTierThree = new Date("2026-04-20T08:59:00.000Z");
-  const tierThreeAt = new Date("2026-04-20T09:00:00.000Z");
-  const sameHourClaim = new Date("2026-04-20T09:12:00.000Z");
-
-  const shatteredRealityBeforeUnlock = getUnicornShatteredRealityAvailability({
-    race: "UNSTABLE_UNICORNS",
-    activeStartedAt,
-    now: beforeTierThree,
-    isActiveSeason: true,
-    latestUseAt: null,
-  });
-  const shatteredRealityUnlocked = getUnicornShatteredRealityAvailability({
-    race: "UNSTABLE_UNICORNS",
-    activeStartedAt,
-    now: tierThreeAt,
-    isActiveSeason: true,
-    latestUseAt: null,
-  });
-  const teleportClaimBlockedByToken = getUnicornTeleportClaimAvailability({
-    race: "UNSTABLE_UNICORNS",
-    activeStartedAt,
-    now: tierThreeAt,
-    isActiveSeason: true,
-    hasActiveTeleportToken: true,
-    hasActiveTemporaryTeleport: false,
-    latestClaimAt: null,
-  });
-  const teleportClaimBlockedByTemporaryTeleport =
-    getUnicornTeleportClaimAvailability({
-      race: "UNSTABLE_UNICORNS",
-      activeStartedAt,
-      now: tierThreeAt,
-      isActiveSeason: true,
-      hasActiveTeleportToken: false,
-      hasActiveTemporaryTeleport: true,
-      latestClaimAt: null,
-    });
-  const teleportClaimBlockedByHourLimit = getUnicornTeleportClaimAvailability({
-    race: "UNSTABLE_UNICORNS",
-    activeStartedAt,
-    now: sameHourClaim,
-    isActiveSeason: true,
-    hasActiveTeleportToken: false,
-    hasActiveTemporaryTeleport: false,
-    latestClaimAt: new Date("2026-04-20T09:02:00.000Z"),
-  });
-  const teleportClaimAvailable = getUnicornTeleportClaimAvailability({
-    race: "UNSTABLE_UNICORNS",
-    activeStartedAt,
-    now: tierThreeAt,
-    isActiveSeason: true,
-    hasActiveTeleportToken: false,
-    hasActiveTemporaryTeleport: false,
-    latestClaimAt: null,
-  });
-
-  assert.equal(shatteredRealityBeforeUnlock.canUse, false);
-  assert.equal(
-    shatteredRealityBeforeUnlock.disabledReason,
-    "Shattered Reality unlocks at Tier 3 race buffs."
-  );
-  assert.equal(shatteredRealityUnlocked.canUse, true);
-  assert.equal(shatteredRealityUnlocked.disabledReason, null);
-  assert.equal(teleportClaimBlockedByToken.canUse, false);
-  assert.equal(
-    teleportClaimBlockedByToken.disabledReason,
-    "You already have an unused free teleport token."
-  );
-  assert.equal(teleportClaimBlockedByTemporaryTeleport.canUse, false);
-  assert.equal(
-    teleportClaimBlockedByTemporaryTeleport.disabledReason,
-    "Your previous Unicorn teleport has not returned home yet."
-  );
-  assert.equal(teleportClaimBlockedByHourLimit.canUse, false);
-  assert.equal(
-    teleportClaimBlockedByHourLimit.disabledReason,
-    "Free teleport has already been claimed this hour."
-  );
-  assert.equal(teleportClaimAvailable.canUse, true);
-  assert.equal(teleportClaimAvailable.disabledReason, null);
-});
-
-test("unicorn read models expose the same disabled reasons in home and castle state", async (context) => {
-  const prisma = getPrismaOrSkip(context);
-
-  if (!prisma) {
-    return;
-  }
-
-  const cycle = await seedOpenCycle(prisma);
-  const unicorn = await createUser(prisma, "unicorn-read-model@example.com");
-
-  await joinRegistrationCycle({
-    db: prisma,
-    userId: unicorn.id,
-    commanderName: "Unicorn Reader",
-    fortressName: "Reading Keep",
-  });
-  await runGameTick({
-    db: prisma,
-    now: new Date("2026-04-20T08:00:00.000Z"),
-  });
-  await prisma.cycle.update({
-    where: {
-      id: cycle.id,
-    },
-    data: {
-      activeStartedAt: new Date("2026-04-20T07:00:00.000Z"),
-    },
-  });
-  await selectFortressRace({
-    db: prisma,
-    userId: unicorn.id,
-    race: FortressRace.UNSTABLE_UNICORNS,
-    now: new Date("2026-04-20T08:59:00.000Z"),
-  });
-
-  const homeState = await getHomePageState({
-    db: prisma,
-    userId: unicorn.id,
-    now: new Date("2026-04-20T08:59:00.000Z"),
-  });
-  const castleState = await getCastlePageState({
-    db: prisma,
-    userId: unicorn.id,
-    now: new Date("2026-04-20T08:59:00.000Z"),
-  });
-
-  assert.equal(
-    homeState.playerSummary?.raceBuffs.canActivateUnicornShatteredReality,
-    false
-  );
-  assert.equal(
-    homeState.playerSummary?.raceBuffs.unicornShatteredRealityDisabledReason,
-    "Shattered Reality unlocks at Tier 3 race buffs."
-  );
-  assert.equal(
-    castleState.playerSummary?.raceBuffs.canActivateUnicornShatteredReality,
-    false
-  );
-  assert.equal(
-    castleState.playerSummary?.raceBuffs.unicornShatteredRealityDisabledReason,
-    "Shattered Reality unlocks at Tier 3 race buffs."
   );
 });
 
@@ -2532,26 +2356,6 @@ test("free unicorn teleport creates a temporary move and home decoy", async (con
   assert.equal(
     unicornState.playerSummary?.raceBuffs.canClaimUnicornTeleport,
     false
-  );
-  assert.equal(
-    unicornState.playerSummary?.raceBuffs.unicornTeleportClaimDisabledReason,
-    "Your previous Unicorn teleport has not returned home yet."
-  );
-
-  const unicornCastleState = await getCastlePageState({
-    db: prisma,
-    userId: unicorn.id,
-    now: new Date("2026-04-20T12:04:00.000Z"),
-  });
-
-  assert.equal(
-    unicornCastleState.playerSummary?.raceBuffs.canClaimUnicornTeleport,
-    false
-  );
-  assert.equal(
-    unicornCastleState.playerSummary?.raceBuffs
-      .unicornTeleportClaimDisabledReason,
-    "Your previous Unicorn teleport has not returned home yet."
   );
 
   await claimUnicornTeleport({
@@ -5736,80 +5540,6 @@ test("action updates persist and self-targeting is rejected", async (context) =>
 
   assert.ok(activeAttackUnit);
   assert.equal(activeAttackUnit?.armyAmount, 5);
-});
-
-test("stale army launches fail without overdrawing idle army", async (context) => {
-  const prisma = getPrismaOrSkip(context);
-
-  if (!prisma) {
-    return;
-  }
-
-  const attacker = await createUser(prisma, "stale-launch-attacker@example.com");
-  const defender = await createUser(prisma, "stale-launch-defender@example.com");
-  const cycle = await seedActiveCommunityWishCycle(prisma, [
-    {
-      userId: attacker.id,
-      commanderName: "Stale Attacker",
-      fortressName: "Stale Keep",
-      points: 100,
-    },
-    {
-      userId: defender.id,
-      commanderName: "Stale Defender",
-      fortressName: "Fresh Keep",
-      points: 100,
-    },
-  ]);
-  const [attackerFortress, defenderFortress] = await Promise.all([
-    prisma.fortress.findUniqueOrThrow({
-      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: attacker.id } },
-    }),
-    prisma.fortress.findUniqueOrThrow({
-      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: defender.id } },
-    }),
-  ]);
-
-  await prisma.fortress.update({
-    where: {
-      id: attackerFortress.id,
-    },
-    data: {
-      army: 3,
-      race: FortressRace.DWARFS,
-    },
-  });
-
-  await assert.rejects(
-    () =>
-      launchAttackUnit({
-        db: prisma,
-        cycle,
-        attacker: {
-          ...attackerFortress,
-          army: 10,
-          race: FortressRace.DWARFS,
-        },
-        target: defenderFortress,
-        launchedAt: new Date("2026-04-20T12:01:00.000Z"),
-        armyAmount: 5,
-      }),
-    /Your army changed/
-  );
-
-  const refreshedAttacker = await prisma.fortress.findUniqueOrThrow({
-    where: {
-      id: attackerFortress.id,
-    },
-  });
-  const attackUnitCount = await prisma.attackUnit.count({
-    where: {
-      attackerFortressId: attackerFortress.id,
-    },
-  });
-
-  assert.equal(refreshedAttacker.army, 3);
-  assert.equal(attackUnitCount, 0);
 });
 
 test("resolved battle reports are exposed to involved players", async (context) => {

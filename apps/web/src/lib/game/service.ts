@@ -37,7 +37,10 @@ import {
   instantRecallGarrison as instantRecallGarrisonRecord,
 } from "./attack-units";
 import { GameError } from "./errors";
-import { assertWorkerAssignments, getDisplayedCastleLevel } from "./balance";
+import {
+  assertWorkerAssignments,
+  getDisplayedCastleLevel,
+} from "./balance";
 import { getRecruitmentCost } from "./army-recruitment";
 import { isFortressRace, type FortressRace } from "./races";
 import { ensureCommanderRegistrationColumn } from "./schema-guards";
@@ -52,8 +55,6 @@ import {
   getHelsinkiHourKey,
   getRaceAbilityActiveUntil,
   getRaceBuffTier,
-  getUnicornShatteredRealityAvailability,
-  getUnicornTeleportClaimAvailability,
 } from "./race-buffs";
 import { addHours, addMinutes } from "./time";
 import {
@@ -673,9 +674,7 @@ export async function setFortressAction({
     }
 
     if (sentArmy > fortress.army) {
-      throw new GameError(
-        "You do not have enough army to send that many units."
-      );
+      throw new GameError("You do not have enough army to send that many units.");
     }
 
     const target = await tx.fortress.findFirst({
@@ -739,7 +738,10 @@ export async function setFortressAction({
     ))
       ? null
       : fortress.race;
-    const maxAttacks = getMaxSimultaneousAttacks(fortress.level, effectiveRace);
+    const maxAttacks = getMaxSimultaneousAttacks(
+      fortress.level,
+      effectiveRace
+    );
 
     if (outboundAttackCount >= maxAttacks) {
       throw new GameError(
@@ -1004,9 +1006,7 @@ export async function attackMapHex({
     }
 
     if (sentArmy > attacker.army) {
-      throw new GameError(
-        "You do not have enough army to send that many units."
-      );
+      throw new GameError("You do not have enough army to send that many units.");
     }
 
     const ownership = await tx.mapHexOwnership.findUnique({
@@ -1016,17 +1016,8 @@ export async function attackMapHex({
           tileId,
         },
       },
-      select: {
-        id: true,
-        ownerFortressId: true,
-      },
-    });
-
-    const ownedTileFortress = ownership
-      ? await tx.fortress.findUnique({
-          where: {
-            id: ownership.ownerFortressId,
-          },
+      include: {
+        ownerFortress: {
           select: {
             id: true,
             name: true,
@@ -1037,16 +1028,9 @@ export async function attackMapHex({
             mapY: true,
             race: true,
           },
-        })
-      : null;
-
-    if (ownership && !ownedTileFortress) {
-      await tx.mapHexOwnership.delete({
-        where: {
-          id: ownership.id,
         },
-      });
-    }
+      },
+    });
 
     const isHomeOfA = isHomeOfATile(tileId);
 
@@ -1114,7 +1098,7 @@ export async function attackMapHex({
           },
         })
       : null;
-    const targetFortress = ownedTileFortress ?? neutralHomeTarget;
+    const targetFortress = ownership?.ownerFortress ?? neutralHomeTarget;
 
     if (!targetFortress) {
       throw new GameError("Home of A is not available in this cycle yet.");
@@ -1126,9 +1110,7 @@ export async function attackMapHex({
           ...targetFortress,
           mapX: homePosition.mapX,
           mapY: homePosition.mapY,
-          army: ownedTileFortress
-            ? targetFortress.army
-            : HOME_OF_A_NEUTRAL_DEFENSE,
+          army: ownership ? targetFortress.army : HOME_OF_A_NEUTRAL_DEFENSE,
         }
       : targetFortress;
 
@@ -1138,9 +1120,7 @@ export async function attackMapHex({
         targetFortressId: targetFortress.id,
         targetTileId: tileId,
         attackerBannerFortressId: attacker.id,
-        defenderBannerFortressId: ownedTileFortress
-          ? ownership?.ownerFortressId ?? null
-          : null,
+        defenderBannerFortressId: ownership?.ownerFortressId ?? null,
         attackerArmyRemaining: 0,
         defenderArmyRemaining: battlefieldTarget.army,
         pointsReward: 0,
@@ -1162,9 +1142,7 @@ export async function attackMapHex({
     });
 
     if (!launchedUnit) {
-      throw new GameError(
-        "That tile attack would arrive after the cycle ends."
-      );
+      throw new GameError("That tile attack would arrive after the cycle ends.");
     }
 
     await tx.attackUnit.update({
@@ -1548,9 +1526,7 @@ export async function recruitArmy({
       const cycle = await getCurrentCycle(tx);
 
       if (!cycle || !isGameplayWindowOpen(cycle, now)) {
-        throw new GameError(
-          "Army recruitment is only available during gameplay."
-        );
+        throw new GameError("Army recruitment is only available during gameplay.");
       }
 
       const fortress = await tx.fortress.findUnique({
@@ -1623,9 +1599,7 @@ export async function shuffleFortressLocation({
     const cycle = await getCurrentCycle(tx);
 
     if (!cycle || !isGameplayWindowOpen(cycle, now)) {
-      throw new GameError(
-        "Fortress relocation is only available during gameplay."
-      );
+      throw new GameError("Fortress relocation is only available during gameplay.");
     }
 
     const fortress = await tx.fortress.findUnique({
@@ -1695,9 +1669,7 @@ export async function shuffleFortressLocation({
     }
 
     const shuffleCost =
-      locationShuffleCount === 0 || freeTeleport
-        ? 0
-        : ACTIVE_LOCATION_SHUFFLE_COST;
+      locationShuffleCount === 0 || freeTeleport ? 0 : ACTIVE_LOCATION_SHUFFLE_COST;
 
     if (shuffleCost > 0 && fortress.gold < shuffleCost) {
       throw new GameError(
@@ -1916,9 +1888,7 @@ export async function purchaseFortressUpgrade({
     const cycle = await getCurrentCycle(tx);
 
     if (!cycle || !isGameplayWindowOpen(cycle, now)) {
-      throw new GameError(
-        "Castle upgrades are only available during gameplay."
-      );
+      throw new GameError("Castle upgrades are only available during gameplay.");
     }
 
     const fortress = await tx.fortress.findUnique({
@@ -1952,9 +1922,7 @@ export async function purchaseFortressUpgrade({
     });
 
     if (activeUpgradeProject) {
-      throw new GameError(
-        "Your castle already has an upgrade under construction."
-      );
+      throw new GameError("Your castle already has an upgrade under construction.");
     }
 
     const buildingLevels = countCastleSpecializations(
@@ -2047,9 +2015,7 @@ export async function choosePendingUpgradeSpecialization({
     const cycle = await getCurrentCycle(tx);
 
     if (!cycle || !isGameplayWindowOpen(cycle, now)) {
-      throw new GameError(
-        "Castle specialization is only available during gameplay."
-      );
+      throw new GameError("Castle specialization is only available during gameplay.");
     }
 
     const fortress = await tx.fortress.findUnique({
@@ -2065,10 +2031,7 @@ export async function choosePendingUpgradeSpecialization({
       throw new GameError("You are not participating in the active cycle.");
     }
 
-    const pendingLevel = await getPendingUpgradeSpecializationLevel(
-      tx,
-      fortress
-    );
+    const pendingLevel = await getPendingUpgradeSpecializationLevel(tx, fortress);
 
     if (pendingLevel === null) {
       throw new GameError("You do not have a pending castle specialization.");
@@ -2100,9 +2063,7 @@ export async function chooseDwarfGrudge({
     const cycle = await getCurrentCycle(tx);
 
     if (!cycle || cycle.status !== CycleStatus.ACTIVE) {
-      throw new GameError(
-        "Grudge Book is only available during the active season."
-      );
+      throw new GameError("Grudge Book is only available during the active season.");
     }
 
     if (
@@ -2134,9 +2095,7 @@ export async function chooseDwarfGrudge({
     }
 
     if (targetFortressId === fortress.id) {
-      throw new GameError(
-        "You cannot add your own fortress to the Grudge Book."
-      );
+      throw new GameError("You cannot add your own fortress to the Grudge Book.");
     }
 
     const target = await tx.fortress.findFirst({
@@ -2202,9 +2161,7 @@ export async function chooseDwarfTierThreeGrudge({
     const cycle = await getCurrentCycle(tx);
 
     if (!cycle || cycle.status !== CycleStatus.ACTIVE) {
-      throw new GameError(
-        "Grudge Book is only available during the active season."
-      );
+      throw new GameError("Grudge Book is only available during the active season.");
     }
 
     if (
@@ -2253,9 +2210,7 @@ export async function chooseDwarfTierThreeGrudge({
 
     if (doubleExisting) {
       if (firstGrudge.bonusMultiplier >= 2) {
-        throw new GameError(
-          "Your first Grudge Book target is already doubled."
-        );
+        throw new GameError("Your first Grudge Book target is already doubled.");
       }
 
       return tx.dwarfGrudge.update({
@@ -2269,9 +2224,7 @@ export async function chooseDwarfTierThreeGrudge({
     }
 
     if (!targetFortressId || targetFortressId === fortress.id) {
-      throw new GameError(
-        "Choose a second player fortress for the Grudge Book."
-      );
+      throw new GameError("Choose a second player fortress for the Grudge Book.");
     }
 
     const target = await tx.fortress.findFirst({
@@ -2660,9 +2613,7 @@ export async function activateRaceAbility({
     const cycle = await getCurrentCycle(tx);
 
     if (!cycle || cycle.status !== CycleStatus.ACTIVE) {
-      throw new GameError(
-        "Race abilities are only available during the active season."
-      );
+      throw new GameError("Race abilities are only available during the active season.");
     }
 
     if (
@@ -2772,9 +2723,7 @@ export async function activateOrkBossOrder({
     const cycle = await getCurrentCycle(tx);
 
     if (!cycle || cycle.status !== CycleStatus.ACTIVE) {
-      throw new GameError(
-        "Boss Orders are only available during the active season."
-      );
+      throw new GameError("Boss Orders are only available during the active season.");
     }
 
     const fortress = await tx.fortress.findUnique({
@@ -2812,9 +2761,7 @@ export async function activateOrkBossOrder({
     }
 
     if (fortress.gold < config.goldCost) {
-      throw new GameError(
-        `You need ${config.goldCost} gold for that Boss Order.`
-      );
+      throw new GameError(`You need ${config.goldCost} gold for that Boss Order.`);
     }
 
     const bank = await tx.orkScrapBank.upsert({
@@ -2834,9 +2781,7 @@ export async function activateOrkBossOrder({
     });
 
     if (bank.scrap < config.scrapCost) {
-      throw new GameError(
-        `You need ${config.scrapCost} Scrap for that Boss Order.`
-      );
+      throw new GameError(`You need ${config.scrapCost} Scrap for that Boss Order.`);
     }
 
     await tx.fortress.update({
@@ -2890,7 +2835,9 @@ export async function buyPointsWithGold({
     const cycle = await getCurrentCycle(tx);
 
     if (!cycle || !isActiveWindowOpen(cycle, now)) {
-      throw new GameError("You can only convert gold during the ACTIVE phase.");
+      throw new GameError(
+        "You can only convert gold during the ACTIVE phase."
+      );
     }
 
     const fortress = await tx.fortress.findUnique({
@@ -2962,9 +2909,7 @@ export async function investOrkWaaaghScrap({
     const cycle = await getCurrentCycle(tx);
 
     if (!cycle || cycle.status !== CycleStatus.ACTIVE) {
-      throw new GameError(
-        "WAAAGH investments are only available during the active season."
-      );
+      throw new GameError("WAAAGH investments are only available during the active season.");
     }
 
     const fortress = await tx.fortress.findUnique({
@@ -3005,9 +2950,7 @@ export async function investOrkWaaaghScrap({
     });
 
     if (!waaagh) {
-      throw new GameError(
-        "WAAAGH must be active before you can feed it Scrap."
-      );
+      throw new GameError("WAAAGH must be active before you can feed it Scrap.");
     }
 
     if (
@@ -3086,10 +3029,18 @@ export async function claimUnicornTeleport({
   return db.$transaction(async (tx) => {
     const cycle = await getCurrentCycle(tx);
 
-    if (!cycle) {
-      throw new GameError(
-        "Unicorn teleport is only available during the active season."
-      );
+    if (!cycle || cycle.status !== CycleStatus.ACTIVE) {
+      throw new GameError("Unicorn teleport is only available during the active season.");
+    }
+
+    if (
+      getRaceBuffTier({
+        activeStartedAt: cycle.activeStartedAt,
+        now,
+        isActiveSeason: true,
+      }) < 1
+    ) {
+      throw new GameError("Free hourly teleport has not unlocked yet.");
     }
 
     const fortress = await tx.fortress.findUnique({
@@ -3121,18 +3072,11 @@ export async function claimUnicornTeleport({
       },
     });
 
-    const activeTemporaryTeleport = await tx.unicornTemporaryTeleport.findFirst(
-      {
-        where: {
-          fortressId: fortress.id,
-          returnedAt: null,
-        },
-        select: {
-          id: true,
-        },
-      }
-    );
+    if (existingToken) {
+      throw new GameError("You already have an unused free teleport token.");
+    }
 
+    const hourKey = getHelsinkiHourKey(now);
     const latestClaim = await tx.raceAbilityActivation.findFirst({
       where: {
         fortressId: fortress.id,
@@ -3144,20 +3088,8 @@ export async function claimUnicornTeleport({
       },
     });
 
-    const availability = getUnicornTeleportClaimAvailability({
-      race: fortress.race,
-      activeStartedAt: cycle.activeStartedAt,
-      now,
-      isActiveSeason: cycle.status === CycleStatus.ACTIVE,
-      hasActiveTeleportToken: existingToken !== null,
-      hasActiveTemporaryTeleport: activeTemporaryTeleport !== null,
-      latestClaimAt: latestClaim?.usedAt ?? null,
-    });
-
-    if (!availability.canUse) {
-      throw new GameError(
-        availability.disabledReason ?? "Unable to claim free teleport."
-      );
+    if (latestClaim && getHelsinkiHourKey(latestClaim.usedAt) === hourKey) {
+      throw new GameError("Free teleport has already been claimed this hour.");
     }
 
     return tx.raceAbilityActivation.create({
@@ -3185,10 +3117,18 @@ export async function activateUnicornShatteredReality({
   return db.$transaction(async (tx) => {
     const cycle = await getCurrentCycle(tx);
 
-    if (!cycle) {
-      throw new GameError(
-        "Shattered Reality is only available during the active season."
-      );
+    if (!cycle || cycle.status !== CycleStatus.ACTIVE) {
+      throw new GameError("Shattered Reality is only available during the active season.");
+    }
+
+    const raceBuffTier = getRaceBuffTier({
+      activeStartedAt: cycle.activeStartedAt,
+      now,
+      isActiveSeason: true,
+    });
+
+    if (raceBuffTier < 3) {
+      throw new GameError("Shattered Reality unlocks at Tier 3 race buffs.");
     }
 
     const fortress = await tx.fortress.findUnique({
@@ -3207,11 +3147,10 @@ export async function activateUnicornShatteredReality({
     });
 
     if (!fortress || fortress.isNpc || fortress.race !== "UNSTABLE_UNICORNS") {
-      throw new GameError(
-        "Only Unstable Unicorns can activate Shattered Reality."
-      );
+      throw new GameError("Only Unstable Unicorns can activate Shattered Reality.");
     }
 
+    const dayKey = getHelsinkiDayKey(now);
     const latestUse = await tx.raceAbilityActivation.findFirst({
       where: {
         fortressId: fortress.id,
@@ -3223,18 +3162,8 @@ export async function activateUnicornShatteredReality({
       },
     });
 
-    const availability = getUnicornShatteredRealityAvailability({
-      race: fortress.race,
-      activeStartedAt: cycle?.activeStartedAt ?? null,
-      now,
-      isActiveSeason: Boolean(cycle && cycle.status === CycleStatus.ACTIVE),
-      latestUseAt: latestUse?.usedAt ?? null,
-    });
-
-    if (!availability.canUse) {
-      throw new GameError(
-        availability.disabledReason ?? "Unable to activate Shattered Reality."
-      );
+    if (latestUse && getHelsinkiDayKey(latestUse.usedAt) === dayKey) {
+      throw new GameError("Shattered Reality has already been activated today.");
     }
 
     const garrisons = await tx.fortressGarrison.findMany({
@@ -3380,8 +3309,7 @@ export async function activateUnicornShatteredReality({
 
     return {
       omen,
-      summary:
-        "Chaotic Backfire: reality cracked and your armies took 18% losses.",
+      summary: "Chaotic Backfire: reality cracked and your armies took 18% losses.",
     };
   });
 }

@@ -43,7 +43,6 @@ Project-A is a browser-based multiplayer strategy game where each season evolves
 - [Changelog policy](docs/changelog-policy.md#required-entry-format)
 - [Current game design](docs/game-design.md)
 - [Patch notes policy](docs/patch-notes-policy.md)
-- [Privacy and retention policy](docs/privacy-retention-policy.md)
 - [Map overhaul changelog entry](docs/changelog-policy.md#map-overhaul-log)
 - [Known hosting constraints for GitHub Pages](docs/github-pages-hosting.md#constraints-to-account-for)
 
@@ -74,21 +73,6 @@ npm run dev
 ```
 
 4. Open [http://localhost:3000](http://localhost:3000).
-
-## Deployment security checklist
-
-- Set production-only secrets in Render (or your host), not in repo files.
-- Required: `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `ADMIN_EMAIL`.
-- Render-managed: `AUTH_SECRET` can be generated, and `DATABASE_URL` should come from managed Postgres.
-- Keep `AUTH_URL` explicit for custom domains.
-- Production boot fails if auth configuration is missing or placeholder values are used.
-- Production boot also fails when `DATABASE_URL` still uses `postgres:postgres` defaults.
-- CSP blocks inline scripts and inline styles in production. Prefer CSS modules and React handlers.
-- Socket connection rate limiting trusts `X-Forwarded-For` only in trusted cases:
-  - non-production
-  - Render (when `RENDER_EXTERNAL_URL` exists)
-  - explicit opt-in via `TRUST_PROXY_HEADERS=true`
-- Local Docker Postgres in `docker-compose.yml` is dev-only and bound to localhost.
 
 ## Useful scripts
 
@@ -134,11 +118,9 @@ npx prisma db seed
 
 - Google login is configured with `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET`
 - Session signing uses `AUTH_SECRET`
-- Database-backed sessions expire after 7 days and rotate at most every 12 hours of activity
 - Set `AUTH_URL` for any deployment where the public URL should be explicit
-- `RENDER_EXTERNAL_URL` is accepted as the production auth origin on Render, so `AUTH_URL` is only needed for custom domains or other explicit origins
 - Production boot now fails fast if `AUTH_SECRET`, Google OAuth credentials, or a server-side auth origin are missing
-- The first admin is bootstrapped via `ADMIN_EMAIL` during the seed flow
+- The first admin is bootstrapped via `ADMIN_EMAIL`
 - Admin access is enforced from the `User.role` field in the database
 - `trustHost` is enabled for proxy-based deployments such as Render
 
@@ -146,9 +128,8 @@ npx prisma db seed
 
 1. Create a Google OAuth client for the app.
 2. Set the values in `apps/web/.env.local` for local development or in Render for deployed environments.
-   - For Render, set `AUTH_SECRET`, `AUTH_GOOGLE_ID`, and `AUTH_GOOGLE_SECRET` explicitly.
-   - Also set `ADMIN_EMAIL` if you want the seed flow to bootstrap the first admin account.
-   - The app falls back to Render's runtime `RENDER_EXTERNAL_URL` if `AUTH_URL` is unset.
+   - For Render, set `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, and `ADMIN_EMAIL` explicitly.
+   - For Render, the app falls back to Render's runtime `RENDER_EXTERNAL_URL` if `AUTH_URL` is unset.
    - If you later add a custom domain, set `AUTH_URL` to that public HTTPS origin explicitly.
    - `ALLOWED_ORIGINS` is optional and only needed if you want websocket access from additional trusted origins beyond the auth/render URL set.
 3. Add these callback URLs to the Google OAuth app:

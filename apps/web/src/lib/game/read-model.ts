@@ -53,13 +53,14 @@ import {
   getHelsinkiDayKey,
   getHelsinkiHourKey,
   getNextHelsinkiNoonAfter,
-  getUnicornShatteredRealityAvailability,
-  getUnicornTeleportClaimAvailability,
   getRaceBuffTier,
 } from "./race-buffs";
 import { countCastleSpecializations } from "./specializations";
 import { DWARF_DEEP_MINING_RUNE_BOUNTY } from "./dwarf-deep-mining";
-import { ORK_BOSS_ORDER_CONFIG, ORK_WAAAGH_INVESTMENT_CONFIG } from "./orks";
+import {
+  ORK_BOSS_ORDER_CONFIG,
+  ORK_WAAAGH_INVESTMENT_CONFIG,
+} from "./orks";
 import { HEX_TILES, type HexTile } from "./map-hex";
 import {
   TILE_CLAIM_DURATION_MINUTES,
@@ -1182,7 +1183,8 @@ export async function getHomePageState({
   const latestUnicornShatteredRealityUse = playerFortress
     ? playerFortress.raceAbilityActivations.find(
         (activation) =>
-          activation.kind === ("UNICORN_SHATTERED_REALITY" as RaceAbilityKind)
+          activation.kind ===
+          ("UNICORN_SHATTERED_REALITY" as RaceAbilityKind)
       )
     : null;
   const activeUnicornTeleportToken = playerFortress
@@ -1219,23 +1221,6 @@ export async function getHomePageState({
   const latestDwarfDeepMiningRoll = playerFortress?.deepMiningRolls[0] ?? null;
   const currentDayKey = getHelsinkiDayKey(now);
   const currentHourKey = getHelsinkiHourKey(now);
-  const unicornShatteredRealityAvailability =
-    getUnicornShatteredRealityAvailability({
-      race: playerFortress?.race ?? null,
-      activeStartedAt: cycle.activeStartedAt,
-      now,
-      isActiveSeason: cycle.status === CycleStatus.ACTIVE,
-      latestUseAt: latestUnicornShatteredRealityUse?.usedAt ?? null,
-    });
-  const unicornTeleportClaimAvailability = getUnicornTeleportClaimAvailability({
-    race: playerFortress?.race ?? null,
-    activeStartedAt: cycle.activeStartedAt,
-    now,
-    isActiveSeason: cycle.status === CycleStatus.ACTIVE,
-    hasActiveTeleportToken: activeUnicornTeleportToken !== null,
-    hasActiveTemporaryTeleport: activeUnicornTemporaryTeleport !== null,
-    latestClaimAt: latestUnicornTeleportClaim?.usedAt ?? null,
-  });
   const legacyBattleReports = playerFortress
     ? (
         await db.attackUnit.findMany({
@@ -1312,89 +1297,37 @@ export async function getHomePageState({
             },
           },
         })
-      )
-        .map((unit) => {
-          const attackerReturned = unit.attackerReturned ?? unit.armyAmount;
-          const isBattlefieldOpenerResolution =
-            !unit.recalledAt &&
-            unit.targetFortress.fortressKind !== FortressKind.LOOT_CAMP &&
-            unit.defenderArmyAtBattleStart !== null &&
-            (unit.resolvedAttackPower ?? 0) === 0 &&
-            (unit.resolvedDefensePower ?? 0) === 0 &&
-            (unit.attackerSurvivors ?? 0) === unit.armyAmount &&
-            (unit.attackerRetired ?? 0) === 0 &&
-            (unit.attackerReturned ?? 0) === 0 &&
-            (unit.defenderLosses ?? 0) === 0 &&
-            (unit.pointsLooted ?? 0) === 0 &&
-            (unit.foodLooted ?? 0) === 0 &&
-            (unit.armyLooted ?? 0) === 0;
+      ).map((unit) => {
+        const attackerReturned = unit.attackerReturned ?? unit.armyAmount;
+        const isBattlefieldOpenerResolution =
+          !unit.recalledAt &&
+          unit.targetFortress.fortressKind !== FortressKind.LOOT_CAMP &&
+          unit.defenderArmyAtBattleStart !== null &&
+          (unit.resolvedAttackPower ?? 0) === 0 &&
+          (unit.resolvedDefensePower ?? 0) === 0 &&
+          (unit.attackerSurvivors ?? 0) === unit.armyAmount &&
+          (unit.attackerRetired ?? 0) === 0 &&
+          (unit.attackerReturned ?? 0) === 0 &&
+          (unit.defenderLosses ?? 0) === 0 &&
+          (unit.pointsLooted ?? 0) === 0 &&
+          (unit.foodLooted ?? 0) === 0 &&
+          (unit.armyLooted ?? 0) === 0;
 
-          if (isBattlefieldOpenerResolution) {
-            return null;
-          }
+        if (isBattlefieldOpenerResolution) {
+          return null;
+        }
 
-          if (
-            unit.recalledAt &&
-            unit.defenderArmyAtBattleStart === null &&
-            (unit.resolvedAttackPower ?? 0) === 0 &&
-            (unit.resolvedDefensePower ?? 0) === 0 &&
-            (unit.defenderLosses ?? 0) === 0 &&
-            (unit.pointsLooted ?? 0) === 0 &&
-            (unit.foodLooted ?? 0) === 0
-          ) {
-            return {
-              type: "RECALLED" as const,
-              id: unit.id,
-              launchedAt: unit.launchedAt,
-              resolvedAt: unit.resolvedAt ?? unit.launchedAt,
-              attackerName: unit.attackerFortress.name,
-              attackerCommanderName: unit.attackerFortress.commanderName,
-              attackerOwnerId: unit.attackerFortress.ownerId,
-              defenderName: unit.targetFortress.name,
-              defenderCommanderName: unit.targetFortress.commanderName,
-              defenderOwnerId: unit.targetFortress.ownerId,
-              sentArmy: unit.armyAmount,
-              defenderArmyEstimate: "recalled",
-              defenderDbLevel: unit.targetFortress.level,
-              defenseBonusPercent: 0,
-              defenseMultiplier: 1,
-              resolvedAttackPower: unit.resolvedAttackPower ?? 0,
-              resolvedDefensePowerEstimate: "0",
-              outcome: "RECALLED" as const,
-              attackerSurvivors: unit.attackerSurvivors ?? attackerReturned,
-              attackerRetired: unit.attackerRetired ?? 0,
-              attackerReturned,
-              defenderLosses: unit.defenderLosses ?? 0,
-              pointsLooted: unit.pointsLooted ?? 0,
-              foodLooted: unit.foodLooted ?? 0,
-              armyLooted: unit.armyLooted ?? 0,
-              reportLines: formatRaidRecallReport({
-                attackerName: unit.attackerFortress.name,
-                sentArmy: unit.armyAmount,
-                returnedArmy: attackerReturned,
-                lostArmy: unit.attackerRetired ?? 0,
-              }),
-            };
-          }
-
-          const resolvedAttackPower =
-            unit.resolvedAttackPower ?? unit.armyAmount;
-          const resolvedDefensePower = unit.resolvedDefensePower ?? 0;
-          const defenderDbLevel = unit.targetFortress.level;
-          const defenderCastleSpecializationCounts = countCastleSpecializations(
-            unit.targetFortress.castleUpgradeSpecializations
-          );
-          const outcome: "ATTACKER_WIN" | "DEFENDER_WIN" =
-            unit.targetFortress.fortressKind === FortressKind.LOOT_CAMP
-              ? resolvedAttackPower > 0
-                ? "ATTACKER_WIN"
-                : "DEFENDER_WIN"
-              : resolvedAttackPower > resolvedDefensePower
-                ? "ATTACKER_WIN"
-                : "DEFENDER_WIN";
-
+        if (
+          unit.recalledAt &&
+          unit.defenderArmyAtBattleStart === null &&
+          (unit.resolvedAttackPower ?? 0) === 0 &&
+          (unit.resolvedDefensePower ?? 0) === 0 &&
+          (unit.defenderLosses ?? 0) === 0 &&
+          (unit.pointsLooted ?? 0) === 0 &&
+          (unit.foodLooted ?? 0) === 0
+        ) {
           return {
-            type: "BATTLE" as const,
+            type: "RECALLED" as const,
             id: unit.id,
             launchedAt: unit.launchedAt,
             resolvedAt: unit.resolvedAt ?? unit.launchedAt,
@@ -1405,23 +1338,90 @@ export async function getHomePageState({
             defenderCommanderName: unit.targetFortress.commanderName,
             defenderOwnerId: unit.targetFortress.ownerId,
             sentArmy: unit.armyAmount,
-            defenderArmyEstimate: formatApproximateForce(
-              unit.defenderArmyAtBattleStart
-            ),
+            defenderArmyEstimate: "recalled",
+            defenderDbLevel: unit.targetFortress.level,
+            defenseBonusPercent: 0,
+            defenseMultiplier: 1,
+            resolvedAttackPower: unit.resolvedAttackPower ?? 0,
+            resolvedDefensePowerEstimate: "0",
+            outcome: "RECALLED" as const,
+            attackerSurvivors: unit.attackerSurvivors ?? attackerReturned,
+            attackerRetired: unit.attackerRetired ?? 0,
+            attackerReturned,
+            defenderLosses: unit.defenderLosses ?? 0,
+            pointsLooted: unit.pointsLooted ?? 0,
+            foodLooted: unit.foodLooted ?? 0,
+            armyLooted: unit.armyLooted ?? 0,
+            reportLines: formatRaidRecallReport({
+              attackerName: unit.attackerFortress.name,
+              sentArmy: unit.armyAmount,
+              returnedArmy: attackerReturned,
+              lostArmy: unit.attackerRetired ?? 0,
+            }),
+          };
+        }
+
+        const resolvedAttackPower = unit.resolvedAttackPower ?? unit.armyAmount;
+        const resolvedDefensePower = unit.resolvedDefensePower ?? 0;
+        const defenderDbLevel = unit.targetFortress.level;
+        const defenderCastleSpecializationCounts = countCastleSpecializations(
+          unit.targetFortress.castleUpgradeSpecializations
+        );
+        const outcome: "ATTACKER_WIN" | "DEFENDER_WIN" =
+          unit.targetFortress.fortressKind === FortressKind.LOOT_CAMP
+            ? resolvedAttackPower > 0
+              ? "ATTACKER_WIN"
+              : "DEFENDER_WIN"
+            : resolvedAttackPower > resolvedDefensePower
+              ? "ATTACKER_WIN"
+              : "DEFENDER_WIN";
+
+        return {
+          type: "BATTLE" as const,
+          id: unit.id,
+          launchedAt: unit.launchedAt,
+          resolvedAt: unit.resolvedAt ?? unit.launchedAt,
+          attackerName: unit.attackerFortress.name,
+          attackerCommanderName: unit.attackerFortress.commanderName,
+          attackerOwnerId: unit.attackerFortress.ownerId,
+          defenderName: unit.targetFortress.name,
+          defenderCommanderName: unit.targetFortress.commanderName,
+          defenderOwnerId: unit.targetFortress.ownerId,
+          sentArmy: unit.armyAmount,
+          defenderArmyEstimate: formatApproximateForce(
+            unit.defenderArmyAtBattleStart
+          ),
+          defenderDbLevel,
+          defenseBonusPercent: getDefenseBonusPercent(
             defenderDbLevel,
-            defenseBonusPercent: getDefenseBonusPercent(
-              defenderDbLevel,
-              unit.targetFortress.race,
-              defenderCastleSpecializationCounts
-            ),
-            defenseMultiplier: getFortressDefenseMultiplier(
-              defenderDbLevel,
-              unit.targetFortress.race,
-              defenderCastleSpecializationCounts
-            ),
-            resolvedAttackPower,
-            resolvedDefensePowerEstimate:
-              formatApproximateForce(resolvedDefensePower),
+            unit.targetFortress.race,
+            defenderCastleSpecializationCounts
+          ),
+          defenseMultiplier: getFortressDefenseMultiplier(
+            defenderDbLevel,
+            unit.targetFortress.race,
+            defenderCastleSpecializationCounts
+          ),
+          resolvedAttackPower,
+          resolvedDefensePowerEstimate:
+            formatApproximateForce(resolvedDefensePower),
+          outcome,
+          attackerSurvivors: unit.attackerSurvivors ?? 0,
+          attackerRetired: unit.attackerRetired ?? 0,
+          attackerReturned: unit.attackerReturned ?? 0,
+          defenderLosses: unit.defenderLosses ?? 0,
+          pointsLooted: unit.pointsLooted ?? 0,
+          foodLooted: unit.foodLooted ?? 0,
+          armyLooted: unit.armyLooted ?? 0,
+          reportLines: formatRaidBattleReport({
+            attackerName: unit.attackerFortress.name,
+            defenderName: unit.targetFortress.name,
+            sentArmy: unit.armyAmount,
+            defenderArmyAtBattleStart: unit.defenderArmyAtBattleStart,
+            defenderDbLevel,
+            defenderRace: unit.targetFortress.race,
+            defenderCastleSpecializations: defenderCastleSpecializationCounts,
+            resolvedDefensePower,
             outcome,
             attackerSurvivors: unit.attackerSurvivors ?? 0,
             attackerRetired: unit.attackerRetired ?? 0,
@@ -1430,33 +1430,16 @@ export async function getHomePageState({
             pointsLooted: unit.pointsLooted ?? 0,
             foodLooted: unit.foodLooted ?? 0,
             armyLooted: unit.armyLooted ?? 0,
-            reportLines: formatRaidBattleReport({
-              attackerName: unit.attackerFortress.name,
-              defenderName: unit.targetFortress.name,
-              sentArmy: unit.armyAmount,
-              defenderArmyAtBattleStart: unit.defenderArmyAtBattleStart,
-              defenderDbLevel,
-              defenderRace: unit.targetFortress.race,
-              defenderCastleSpecializations: defenderCastleSpecializationCounts,
-              resolvedDefensePower,
-              outcome,
-              attackerSurvivors: unit.attackerSurvivors ?? 0,
-              attackerRetired: unit.attackerRetired ?? 0,
-              attackerReturned: unit.attackerReturned ?? 0,
-              defenderLosses: unit.defenderLosses ?? 0,
-              pointsLooted: unit.pointsLooted ?? 0,
-              foodLooted: unit.foodLooted ?? 0,
-              armyLooted: unit.armyLooted ?? 0,
-              defenderIsUnicornDecoy:
-                unit.targetFortress.fortressKind === FortressKind.UNICORN_DECOY,
-              defenderDecoyLevel: unit.targetFortress.unicornDecoyLevel,
-              defenderIsLootCamp:
-                unit.targetFortress.fortressKind === FortressKind.LOOT_CAMP,
-              defenderLootCampVariant: unit.targetFortress.lootCampVariant,
-            }),
-          };
-        })
-        .filter((report) => report !== null)
+            defenderIsUnicornDecoy:
+              unit.targetFortress.fortressKind === FortressKind.UNICORN_DECOY,
+            defenderDecoyLevel: unit.targetFortress.unicornDecoyLevel,
+            defenderIsLootCamp:
+              unit.targetFortress.fortressKind === FortressKind.LOOT_CAMP,
+            defenderLootCampVariant: unit.targetFortress.lootCampVariant,
+          }),
+        };
+      })
+      .filter((report) => report !== null)
     : [];
   const battlefieldReports = playerFortress
     ? (
@@ -2117,7 +2100,12 @@ export async function getHomePageState({
     biome: string | null;
     claimedAt: Date | null;
     ownerFortressId: string | null;
-    ownerRace: "DWARFS" | "UNSTABLE_UNICORNS" | "ORKS" | "SPACE_MURINES" | null;
+    ownerRace:
+      | "DWARFS"
+      | "UNSTABLE_UNICORNS"
+      | "ORKS"
+      | "SPACE_MURINES"
+      | null;
     ownerName: string;
     ownerCommanderName: string;
     isCurrentUser: boolean;
@@ -2509,11 +2497,9 @@ export async function getHomePageState({
                 targetName:
                   latestDwarfRuneOfGrudges.targetFortress?.name ?? null,
                 targetCommanderName:
-                  latestDwarfRuneOfGrudges.targetFortress?.commanderName ??
-                  null,
+                  latestDwarfRuneOfGrudges.targetFortress?.commanderName ?? null,
                 runeFortressId: latestDwarfRuneOfGrudges.runeFortressId,
-                runeHealth:
-                  latestDwarfRuneOfGrudges.runeFortress?.health ?? null,
+                runeHealth: latestDwarfRuneOfGrudges.runeFortress?.health ?? null,
                 runeArmy: latestDwarfRuneOfGrudges.runeFortress?.army ?? null,
                 activeUntil: latestDwarfRuneOfGrudges.activeUntil,
                 goldCost: latestDwarfRuneOfGrudges.goldCost,
@@ -2561,7 +2547,8 @@ export async function getHomePageState({
               bonusMultiplier: grudge.bonusMultiplier,
             })),
             canChooseDwarfGrudge:
-              playerFortress.race === "DWARFS" && raceBuffTier >= 2,
+              playerFortress.race === "DWARFS" &&
+              raceBuffTier >= 2,
             canChooseDwarfTierThree:
               playerFortress.race === "DWARFS" &&
               raceBuffTier >= 3 &&
@@ -2571,7 +2558,8 @@ export async function getHomePageState({
               raceBuffTier >= 3 &&
               (!latestWaaaghUse ||
                 getHelsinkiDayKey(latestWaaaghUse.usedAt) !== currentDayKey),
-            waaaghActiveUntil: activeWaaagh?.activeUntil ?? null,
+            waaaghActiveUntil:
+              activeWaaagh?.activeUntil ?? null,
             orkScrap: playerFortress.orkScrapBank?.scrap ?? 0,
             orkScrapEvents: playerFortress.orkScrapEvents.map((event) => ({
               id: event.id,
@@ -2580,7 +2568,8 @@ export async function getHomePageState({
               balanceAfter: event.balanceAfter,
               tileId: event.tileId,
               targetName: event.targetFortress?.name ?? null,
-              targetCommanderName: event.targetFortress?.commanderName ?? null,
+              targetCommanderName:
+                event.targetFortress?.commanderName ?? null,
               createdAt: event.createdAt,
             })),
             activeOrkBossOrder: activeOrkBossOrder
@@ -2675,12 +2664,19 @@ export async function getHomePageState({
                 getHelsinkiHourKey(latestGarrisonInstantRecallUse.usedAt) !==
                   currentHourKey),
             canActivateUnicornShatteredReality:
-              unicornShatteredRealityAvailability.canUse,
-            unicornShatteredRealityDisabledReason:
-              unicornShatteredRealityAvailability.disabledReason,
-            canClaimUnicornTeleport: unicornTeleportClaimAvailability.canUse,
-            unicornTeleportClaimDisabledReason:
-              unicornTeleportClaimAvailability.disabledReason,
+              playerFortress.race === "UNSTABLE_UNICORNS" &&
+              raceBuffTier >= 3 &&
+              (!latestUnicornShatteredRealityUse ||
+                getHelsinkiDayKey(latestUnicornShatteredRealityUse.usedAt) !==
+                  currentDayKey),
+            canClaimUnicornTeleport:
+              playerFortress.race === "UNSTABLE_UNICORNS" &&
+              raceBuffTier >= 1 &&
+              activeUnicornTeleportToken === null &&
+              activeUnicornTemporaryTeleport === null &&
+              (!latestUnicornTeleportClaim ||
+                getHelsinkiHourKey(latestUnicornTeleportClaim.usedAt) !==
+                  currentHourKey),
             hasUnicornTeleportToken: activeUnicornTeleportToken !== null,
             unicornTeleportTokenExpiresAt:
               activeUnicornTeleportToken?.expiresAt ?? null,
@@ -2709,8 +2705,9 @@ export async function getHomePageState({
               playerFortress.race === "SPACE_MURINES" &&
               raceBuffTier >= 2 &&
               (!latestGarrisonInstantRecallUse ||
-                getHelsinkiHourKey(latestGarrisonInstantRecallUse.usedAt) !==
-                  currentHourKey),
+                getHelsinkiHourKey(
+                  latestGarrisonInstantRecallUse.usedAt
+                ) !== currentHourKey),
           })),
         }
       : null,

@@ -19,10 +19,6 @@ const LOCAL_ALLOWED_ORIGINS = [
 const CONNECTION_WINDOW_MS = 60_000;
 const MAX_CONNECTIONS_PER_WINDOW = isProduction ? 20 : 60;
 const REALTIME_WATCHER_INTERVAL_MS = 1_000;
-const trustProxyHeaders =
-  !isProduction ||
-  Boolean(process.env.RENDER_EXTERNAL_URL) ||
-  process.env.TRUST_PROXY_HEADERS === "true";
 const prisma = new PrismaClient(
   process.env.DATABASE_URL
     ? {
@@ -35,10 +31,6 @@ const prisma = new PrismaClient(
     : undefined
 );
 const connectionAttemptsByIp = new Map();
-
-function isLikelyIpAddress(value) {
-  return /^[a-f0-9:.]+$/i.test(value);
-}
 
 function parseOrigin(origin) {
   if (!origin) {
@@ -180,16 +172,10 @@ async function getSocketUser(request) {
 }
 
 function getClientIp(request) {
-  if (trustProxyHeaders) {
-    const forwardedFor = request.headers["x-forwarded-for"];
+  const forwardedFor = request.headers["x-forwarded-for"];
 
-    if (typeof forwardedFor === "string" && forwardedFor.length > 0) {
-      const clientIp = forwardedFor.split(",")[0]?.trim();
-
-      if (clientIp && isLikelyIpAddress(clientIp)) {
-        return clientIp;
-      }
-    }
+  if (typeof forwardedFor === "string" && forwardedFor.length > 0) {
+    return forwardedFor.split(",")[0]?.trim() ?? "unknown";
   }
 
   return request.socket.remoteAddress ?? "unknown";

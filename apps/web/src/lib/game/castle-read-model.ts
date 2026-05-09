@@ -26,16 +26,13 @@ import {
   getFortressUpgradeDurationMinutes,
   getMaxSimultaneousAttacks,
 } from "./upgrades";
-import {
-  getRaceBuffTier,
-  getHelsinkiDayKey,
-  getHelsinkiHourKey,
-  getUnicornShatteredRealityAvailability,
-  getUnicornTeleportClaimAvailability,
-} from "./race-buffs";
+import { getRaceBuffTier, getHelsinkiDayKey, getHelsinkiHourKey } from "./race-buffs";
 import { countCastleSpecializations } from "./specializations";
 import { DWARF_DEEP_MINING_RUNE_BOUNTY } from "./dwarf-deep-mining";
-import { ORK_BOSS_ORDER_CONFIG, ORK_WAAAGH_INVESTMENT_CONFIG } from "./orks";
+import {
+  ORK_BOSS_ORDER_CONFIG,
+  ORK_WAAAGH_INVESTMENT_CONFIG,
+} from "./orks";
 import { getTileById, isHomeOfATile, sumTileBonuses } from "./territory";
 
 const BUILDING_SPECIALIZATIONS = [
@@ -326,13 +323,8 @@ export async function getCastlePageState({
     };
   }
 
-  const playerFortresses = cycle.fortresses.filter(
-    (fortress) => !fortress.isNpc
-  );
-  const remainingSlots = Math.max(
-    0,
-    ACTIVE_PLAYER_CAP - playerFortresses.length
-  );
+  const playerFortresses = cycle.fortresses.filter((fortress) => !fortress.isNpc);
+  const remainingSlots = Math.max(0, ACTIVE_PLAYER_CAP - playerFortresses.length);
   const playerFortress =
     playerFortresses.find((fortress) => fortress.ownerId === userId) ?? null;
   const targetLookup = new Map(
@@ -455,14 +447,11 @@ export async function getCastlePageState({
     buildingUpgradeOptions?.[CastleUpgradeSpecialization.DEFENSE]?.nextCost ??
     null;
   const pendingUpgradeSpecializationLevel = null;
-  const activeCastleUpgradeProject =
-    playerFortress?.castleUpgradeProjects[0] ?? null;
+  const activeCastleUpgradeProject = playerFortress?.castleUpgradeProjects[0] ?? null;
   const canAffordUpgrade =
     buildingUpgradeOptions !== null &&
     Object.values(buildingUpgradeOptions).some((option) => {
-      return (
-        option.nextCost !== null && playerFortress!.gold >= option.nextCost
-      );
+      return option.nextCost !== null && playerFortress!.gold >= option.nextCost;
     });
   const locationShuffleCount = playerFortress
     ? await getFortressLocationShuffleCount(db, playerFortress.id)
@@ -473,20 +462,14 @@ export async function getCastlePageState({
       : ACTIVE_LOCATION_SHUFFLE_COST
     : null;
   const hasOutgoingAttackUnits = playerFortress
-    ? cycle.attackUnits.some(
-        (unit) => unit.attackerFortress.id === playerFortress.id
-      )
+    ? cycle.attackUnits.some((unit) => unit.attackerFortress.id === playerFortress.id)
     : false;
   const outboundAttackUnitCount = playerFortress
-    ? cycle.attackUnits.filter(
-        (unit) => unit.attackerFortress.id === playerFortress.id
-      ).length
+    ? cycle.attackUnits.filter((unit) => unit.attackerFortress.id === playerFortress.id)
+        .length
     : 0;
   const maxSimultaneousAttacks = playerFortress
-    ? getMaxSimultaneousAttacks(
-        playerFortress.level,
-        getEffectiveRace(playerFortress)
-      )
+    ? getMaxSimultaneousAttacks(playerFortress.level, getEffectiveRace(playerFortress))
     : MAX_SIMULTANEOUS_ATTACKS_BASE;
 
   const latestWaaaghUse = playerFortress
@@ -531,7 +514,8 @@ export async function getCastlePageState({
   const latestUnicornShatteredRealityUse = playerFortress
     ? playerFortress.raceAbilityActivations.find(
         (activation) =>
-          activation.kind === ("UNICORN_SHATTERED_REALITY" as RaceAbilityKind)
+          activation.kind ===
+          ("UNICORN_SHATTERED_REALITY" as RaceAbilityKind)
       )
     : null;
   const activeUnicornTeleportToken = playerFortress
@@ -544,8 +528,7 @@ export async function getCastlePageState({
         );
       }) ?? null)
     : null;
-  const activeUnicornTemporaryTeleport =
-    playerFortress?.unicornTemporaryTeleports[0] ?? null;
+  const activeUnicornTemporaryTeleport = playerFortress?.unicornTemporaryTeleports[0] ?? null;
   const latestUnicornTeleportClaim = playerFortress
     ? playerFortress.raceAbilityActivations.find(
         (activation) => activation.kind === RaceAbilityKind.UNICORN_TELEPORT
@@ -568,23 +551,6 @@ export async function getCastlePageState({
   const latestDwarfDeepMiningRoll = playerFortress?.deepMiningRolls[0] ?? null;
   const currentDayKey = getHelsinkiDayKey(now);
   const currentHourKey = getHelsinkiHourKey(now);
-  const unicornShatteredRealityAvailability =
-    getUnicornShatteredRealityAvailability({
-      race: playerFortress?.race ?? null,
-      activeStartedAt: cycle.activeStartedAt,
-      now,
-      isActiveSeason: cycle.status === CycleStatus.ACTIVE,
-      latestUseAt: latestUnicornShatteredRealityUse?.usedAt ?? null,
-    });
-  const unicornTeleportClaimAvailability = getUnicornTeleportClaimAvailability({
-    race: playerFortress?.race ?? null,
-    activeStartedAt: cycle.activeStartedAt,
-    now,
-    isActiveSeason: cycle.status === CycleStatus.ACTIVE,
-    hasActiveTeleportToken: activeUnicornTeleportToken !== null,
-    hasActiveTemporaryTeleport: activeUnicornTemporaryTeleport !== null,
-    latestClaimAt: latestUnicornTeleportClaim?.usedAt ?? null,
-  });
   const ownedNormalTiles = playerFortress
     ? (
         await db.mapHexOwnership.findMany({
@@ -731,9 +697,7 @@ export async function getCastlePageState({
           currentTargetId: playerFortress.targetFortressId,
           currentTargetName: playerFortress.targetFortressId
             ? (() => {
-                const target = targetLookup.get(
-                  playerFortress.targetFortressId
-                );
+                const target = targetLookup.get(playerFortress.targetFortressId);
 
                 return target ? target.name : null;
               })()
@@ -790,16 +754,12 @@ export async function getCastlePageState({
             : null,
           dwarfRuneOfGrudges: latestDwarfRuneOfGrudges
             ? {
-                targetFortressId:
-                  latestDwarfRuneOfGrudges.targetFortressId ?? null,
-                targetName:
-                  latestDwarfRuneOfGrudges.targetFortress?.name ?? null,
+                targetFortressId: latestDwarfRuneOfGrudges.targetFortressId ?? null,
+                targetName: latestDwarfRuneOfGrudges.targetFortress?.name ?? null,
                 targetCommanderName:
-                  latestDwarfRuneOfGrudges.targetFortress?.commanderName ??
-                  null,
+                  latestDwarfRuneOfGrudges.targetFortress?.commanderName ?? null,
                 runeFortressId: latestDwarfRuneOfGrudges.runeFortressId,
-                runeHealth:
-                  latestDwarfRuneOfGrudges.runeFortress?.health ?? null,
+                runeHealth: latestDwarfRuneOfGrudges.runeFortress?.health ?? null,
                 runeArmy: latestDwarfRuneOfGrudges.runeFortress?.army ?? null,
                 activeUntil: latestDwarfRuneOfGrudges.activeUntil,
                 goldCost: latestDwarfRuneOfGrudges.goldCost,
@@ -847,8 +807,7 @@ export async function getCastlePageState({
                     ? "Boss Orders are only available during gameplay."
                     : activeOrkBossOrder
                       ? "Another Boss Order is already active."
-                      : (playerFortress.orkScrapBank?.scrap ?? 0) <
-                          config.scrapCost
+                      : (playerFortress.orkScrapBank?.scrap ?? 0) < config.scrapCost
                         ? `Needs ${config.scrapCost} Scrap.`
                         : playerFortress.gold < config.goldCost
                           ? `Needs ${config.goldCost} gold.`
@@ -879,7 +838,7 @@ export async function getCastlePageState({
                       : alreadyActive
                         ? "This WAAAGH investment is already active."
                         : (playerFortress.orkScrapBank?.scrap ?? 0) <
-                            config.scrapCost
+                              config.scrapCost
                           ? `Needs ${config.scrapCost} Scrap.`
                           : null;
 
@@ -900,18 +859,25 @@ export async function getCastlePageState({
               (!latestStimUse ||
                 getHelsinkiDayKey(latestStimUse.usedAt) !== currentDayKey),
             canActivateUnicornShatteredReality:
-              unicornShatteredRealityAvailability.canUse,
-            unicornShatteredRealityDisabledReason:
-              unicornShatteredRealityAvailability.disabledReason,
+              playerFortress.race === "UNSTABLE_UNICORNS" &&
+              raceBuffTier >= 3 &&
+              (!latestUnicornShatteredRealityUse ||
+                getHelsinkiDayKey(latestUnicornShatteredRealityUse.usedAt) !==
+                  currentDayKey),
             stimActiveUntil:
               latestStimUse &&
               latestStimUse.activeFrom <= now &&
               latestStimUse.activeUntil > now
                 ? latestStimUse.activeUntil
                 : null,
-            canClaimUnicornTeleport: unicornTeleportClaimAvailability.canUse,
-            unicornTeleportClaimDisabledReason:
-              unicornTeleportClaimAvailability.disabledReason,
+            canClaimUnicornTeleport:
+              playerFortress.race === "UNSTABLE_UNICORNS" &&
+              raceBuffTier >= 1 &&
+              activeUnicornTeleportToken === null &&
+              activeUnicornTemporaryTeleport === null &&
+              (!latestUnicornTeleportClaim ||
+                getHelsinkiHourKey(latestUnicornTeleportClaim.usedAt) !==
+                  currentHourKey),
             hasUnicornTeleportToken: activeUnicornTeleportToken !== null,
             canActivateDeepMining:
               playerFortress.race === "DWARFS" &&
@@ -967,8 +933,7 @@ export async function getCastlePageState({
           ownedTileSummary,
           growPerTick: calculateTickProduction({
             ...playerFortress,
-            castleSpecializations:
-              playerCastleSpecializationCounts ?? undefined,
+            castleSpecializations: playerCastleSpecializationCounts ?? undefined,
           }).goldProduced,
           attackDamage: getFortressAttackDamage(playerFortress.level),
           garrisons: playerFortress.garrisons.map((garrison) => ({
