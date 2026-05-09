@@ -1,15 +1,8 @@
 import { seedProjectA } from "../src/lib/game/bootstrap";
 import { PrismaClient } from "../src/lib/prisma-client";
+import { createPrismaClientOptions } from "../src/lib/prisma-options";
 
-const prisma = new PrismaClient({
-  datasources: process.env.DATABASE_URL
-    ? {
-        db: {
-          url: process.env.DATABASE_URL,
-        },
-      }
-    : undefined,
-});
+const prisma = new PrismaClient(createPrismaClientOptions());
 const unsafeAdminEmailPlaceholders = new Set(["admin@example.com", "replace-me"]);
 
 function getAdminEmail() {

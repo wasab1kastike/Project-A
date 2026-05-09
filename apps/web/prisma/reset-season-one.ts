@@ -4,16 +4,9 @@ import {
   TESTING_DURATION_HOURS,
   TESTING_ENDS_BEFORE_ACTIVE_HOURS,
 } from "../src/lib/game/constants";
+import { createPrismaClientOptions } from "../src/lib/prisma-options";
 
-const prisma = new PrismaClient({
-  datasources: process.env.DATABASE_URL
-    ? {
-        db: {
-          url: process.env.DATABASE_URL,
-        },
-      }
-    : undefined,
-});
+const prisma = new PrismaClient(createPrismaClientOptions());
 
 const activeStartsAt = new Date(
   process.env.SEASON_ONE_ACTIVE_STARTS_AT ?? "2026-04-23T09:00:00.000Z"

@@ -57,11 +57,14 @@ jobs:
         run: npm run db:deploy
 
       - name: Reset game state and open registration
+        working-directory: apps/web
         run: |
           node --input-type=module <<'EOF'
+          import { PrismaPg } from "@prisma/adapter-pg";
           import { PrismaClient, CycleStatus } from "@prisma/client";
 
-          const prisma = new PrismaClient();
+          const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+          const prisma = new PrismaClient({ adapter });
           const registrationStartedAt = new Date(process.env.REGISTRATION_STARTS_AT);
           const activeStartsAt = new Date(process.env.ACTIVE_STARTS_AT);
           const testingStartedAt = new Date(

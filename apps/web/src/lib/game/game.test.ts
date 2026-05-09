@@ -23,6 +23,7 @@ import {
   ScoreEventType,
   WinnerRequestStatus,
 } from "@/lib/prisma-client";
+import { createPrismaClientOptions } from "@/lib/prisma-options";
 import "./balance.test";
 import "./battle-report.test";
 import "./season-announcement.test";
@@ -4444,13 +4445,7 @@ async function setupDatabase() {
     stdio: "pipe",
   });
 
-  const client = new PrismaClient({
-    datasources: {
-      db: {
-        url: databaseUrl,
-      },
-    },
-  });
+  const client = new PrismaClient(createPrismaClientOptions(databaseUrl));
 
   await client.$connect();
 

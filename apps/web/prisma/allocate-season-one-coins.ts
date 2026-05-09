@@ -1,18 +1,8 @@
 import { mintSeasonArcadeCoins } from "../src/lib/game/arcade";
 import { CycleStatus, PrismaClient } from "../src/lib/prisma-client";
+import { createPrismaClientOptions } from "../src/lib/prisma-options";
 
-const defaultDatabaseUrl =
-  "postgresql://postgres:postgres@localhost:5432/project_a?schema=public";
-
-process.env.DATABASE_URL ??= defaultDatabaseUrl;
-
-const prisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: process.env.DATABASE_URL,
-    },
-  },
-});
+const prisma = new PrismaClient(createPrismaClientOptions());
 
 async function main() {
   const seasonOneHistory = await prisma.cycleHistory.findFirst({

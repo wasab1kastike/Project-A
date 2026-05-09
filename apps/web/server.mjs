@@ -1,5 +1,6 @@
 import http from "node:http";
 import next from "next";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 import { Server } from "socket.io";
 
@@ -20,17 +21,12 @@ const CONNECTION_WINDOW_MS = 60_000;
 const MAX_CONNECTIONS_PER_WINDOW = isProduction ? 20 : 60;
 const REALTIME_WATCHER_INTERVAL_MS = 5_000;
 const REFRESH_BROADCAST_COOLDOWN_MS = 5_000;
-const prisma = new PrismaClient(
-  process.env.DATABASE_URL
-    ? {
-        datasources: {
-          db: {
-            url: process.env.DATABASE_URL,
-          },
-        },
-      }
-    : undefined
-);
+const defaultDatabaseUrl =
+  "postgresql://postgres:postgres@localhost:5432/project_a?schema=public";
+const adapter = new PrismaPg({
+  connectionString: process.env.DATABASE_URL ?? defaultDatabaseUrl,
+});
+const prisma = new PrismaClient({ adapter });
 const connectionAttemptsByIp = new Map();
 let lastRefreshBroadcastAt = 0;
 let queuedRefreshBroadcast = null;
