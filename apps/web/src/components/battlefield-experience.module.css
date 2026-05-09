@@ -435,6 +435,30 @@
   width: 100%;
 }
 
+.recallPanel {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid rgba(248, 191, 87, 0.22);
+  border-radius: 8px;
+  background: rgba(248, 191, 87, 0.08);
+}
+
+.recallPanelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+}
+
+.recallPanelHeader strong {
+  color: var(--text-primary);
+}
+
 .compactList {
   display: grid;
   gap: 5px;

@@ -11,7 +11,9 @@ import {
   instantRecallAttackUnitAction,
   joinBattlefieldAction,
   markChatReadAction,
+  recallBattlefieldArmyAction,
   recallAttackUnitAction,
+  recallGarrisonArmyAction,
 } from "@/app/game-actions";
 import { ChatPanel } from "./chat-panel";
 import {
@@ -104,6 +106,8 @@ type ActiveBattlefield = {
   } | null;
   participantCount: number;
   currentUserSide: "ATTACKER" | "DEFENDER" | null;
+  canRecall: boolean;
+  recallDisabledReason: string | null;
   incomingReinforcements: Array<{
     id: string;
     side: "ATTACKER" | "DEFENDER";
@@ -273,6 +277,18 @@ export function BattlefieldExperience({
   const [battleJoinArmyById, setBattleJoinArmyById] = useState<
     Record<string, number>
   >({});
+  const [battleRecallArmyById, setBattleRecallArmyById] = useState<
+    Record<string, number>
+  >({});
+  const [garrisonRecallArmyById, setGarrisonRecallArmyById] = useState<
+    Record<string, number>
+  >({});
+  const [battleRecallPendingId, setBattleRecallPendingId] = useState<
+    string | null
+  >(null);
+  const [garrisonRecallPendingId, setGarrisonRecallPendingId] = useState<
+    string | null
+  >(null);
   const [optimisticAttackUnits, setOptimisticAttackUnits] = useState<
     AttackUnitMarker[]
   >([]);
@@ -362,9 +378,11 @@ export function BattlefieldExperience({
 
     const serverAttackUnitIds = new Set(attackUnits.map((unit) => unit.id));
 
-    setOptimisticAttackUnits((currentUnits) =>
-      currentUnits.filter((unit) => !serverAttackUnitIds.has(unit.id))
-    );
+    queueMicrotask(() => {
+      setOptimisticAttackUnits((currentUnits) =>
+        currentUnits.filter((unit) => !serverAttackUnitIds.has(unit.id))
+      );
+    });
   }, [attackUnits, optimisticAttackUnits.length]);
 
   const visibleAttackUnits = useMemo(() => {
@@ -413,6 +431,7 @@ export function BattlefieldExperience({
     selectedOwnership?.bonus ??
     (selectedTileIsHomeOfA ? getHomeOfABonus() : getTileBonus(selectedTile));
   const selectedPendingClaim = selectedOwnership?.pendingClaim ?? null;
+  const selectedOwnGarrison = selectedOwnership?.ownGarrison ?? null;
   const selectedClaimCost =
     !selectedTileIsHomeOfA && !selectedOwnership?.ownerFortressId
       ? (selectedOwnership?.claimCost ?? null)
@@ -440,6 +459,26 @@ export function BattlefieldExperience({
     return Math.min(
       Math.max(1, battleJoinArmyById[battlefieldId] ?? 1),
       playerSummary.army
+    );
+  }
+  function getBattleRecallArmy(battlefield: ActiveBattlefield) {
+    if (battlefield.ownArmyRemaining <= 0) {
+      return 0;
+    }
+
+    return Math.min(
+      Math.max(1, battleRecallArmyById[battlefield.id] ?? battlefield.ownArmyRemaining),
+      battlefield.ownArmyRemaining
+    );
+  }
+  function getGarrisonRecallArmy(garrison: NonNullable<MapHexOwnershipMarker["ownGarrison"]>) {
+    if (garrison.army <= 0) {
+      return 0;
+    }
+
+    return Math.min(
+      Math.max(1, garrisonRecallArmyById[garrison.id] ?? garrison.army),
+      garrison.army
     );
   }
 
@@ -618,6 +657,52 @@ export function BattlefieldExperience({
       }
 
       router.refresh();
+    },
+    [router]
+  );
+
+  const handleRecallBattlefieldArmy = useCallback(
+    async (battlefield: ActiveBattlefield, armyAmount: number) => {
+      setBattleRecallPendingId(battlefield.id);
+
+      try {
+        const result = await recallBattlefieldArmyAction(
+          battlefield.id,
+          armyAmount
+        );
+
+        if (!result.ok) {
+          window.alert(result.error);
+          return;
+        }
+
+        router.refresh();
+      } finally {
+        setBattleRecallPendingId(null);
+      }
+    },
+    [router]
+  );
+
+  const handleRecallGarrisonArmy = useCallback(
+    async (
+      garrison: NonNullable<MapHexOwnershipMarker["ownGarrison"]>,
+      armyAmount: number
+    ) => {
+      setGarrisonRecallPendingId(garrison.id);
+
+      try {
+        const result = await recallGarrisonArmyAction(garrison.id, armyAmount);
+
+        if (!result.ok) {
+          window.alert(result.error);
+          return;
+        }
+
+        router.refresh();
+      } finally {
+        setGarrisonRecallPendingId(null);
+      }
     },
     [router]
   );
@@ -878,6 +963,58 @@ export function BattlefieldExperience({
         </ul>
       ) : null}
 
+      {selectedOwnGarrison ? (
+        <div className={styles.recallPanel}>
+          <div className={styles.recallPanelHeader}>
+            <span>Your garrison</span>
+            <strong>{selectedOwnGarrison.army} army</strong>
+          </div>
+          {selectedOwnGarrison.army > 0 ? (
+            <label className={styles.tileArmyControl}>
+              <span>
+                Recall: {getGarrisonRecallArmy(selectedOwnGarrison)}/
+                {selectedOwnGarrison.army}
+              </span>
+              <input
+                type="range"
+                min={1}
+                max={Math.max(1, selectedOwnGarrison.army)}
+                step={1}
+                value={Math.max(1, getGarrisonRecallArmy(selectedOwnGarrison))}
+                onChange={(event) => {
+                  const nextArmy = Number(event.currentTarget.value);
+                  setGarrisonRecallArmyById((current) => ({
+                    ...current,
+                    [selectedOwnGarrison.id]: Number.isFinite(nextArmy)
+                      ? Math.floor(nextArmy)
+                      : 1,
+                  }));
+                }}
+              />
+            </label>
+          ) : null}
+          <button
+            className={styles.secondaryButton}
+            type="button"
+            disabled={
+              !selectedOwnGarrison.canRecall ||
+              garrisonRecallPendingId === selectedOwnGarrison.id
+            }
+            title={selectedOwnGarrison.recallDisabledReason ?? undefined}
+            onClick={() => {
+              void handleRecallGarrisonArmy(
+                selectedOwnGarrison,
+                getGarrisonRecallArmy(selectedOwnGarrison)
+              );
+            }}
+          >
+            {garrisonRecallPendingId === selectedOwnGarrison.id
+              ? "Recalling..."
+              : `Recall ${getGarrisonRecallArmy(selectedOwnGarrison)} army`}
+          </button>
+        </div>
+      ) : null}
+
       {selectedActiveBattlefieldId ? (
         <p className={styles.helper}>
           This tile already has an active battlefield. Use the battle card to
@@ -985,6 +1122,7 @@ export function BattlefieldExperience({
                         ? "Choose a side to reinforce"
                         : "No idle army";
                 const joinAmount = getBattleJoinArmy(battlefield.id);
+                const recallAmount = getBattleRecallArmy(battlefield);
 
                 return (
                   <article
@@ -1079,6 +1217,57 @@ export function BattlefieldExperience({
                         .
                       </p>
                     )}
+                    {battlefield.currentUserSide ? (
+                      <div className={styles.recallPanel}>
+                        {battlefield.ownArmyRemaining > 0 ? (
+                          <label className={styles.battlefieldArmyControl}>
+                            <span>
+                              Recall: {recallAmount}/
+                              {battlefield.ownArmyRemaining}
+                            </span>
+                            <input
+                              type="range"
+                              min={1}
+                              max={Math.max(1, battlefield.ownArmyRemaining)}
+                              step={1}
+                              value={Math.max(1, recallAmount)}
+                              onChange={(event) => {
+                                const nextArmy = Number(
+                                  event.currentTarget.value
+                                );
+                                setBattleRecallArmyById((current) => ({
+                                  ...current,
+                                  [battlefield.id]: Number.isFinite(nextArmy)
+                                    ? Math.floor(nextArmy)
+                                    : 1,
+                                }));
+                              }}
+                            />
+                          </label>
+                        ) : null}
+                        <button
+                          className={styles.secondaryButton}
+                          type="button"
+                          disabled={
+                            !battlefield.canRecall ||
+                            battleRecallPendingId === battlefield.id
+                          }
+                          title={
+                            battlefield.recallDisabledReason ?? undefined
+                          }
+                          onClick={() => {
+                            void handleRecallBattlefieldArmy(
+                              battlefield,
+                              recallAmount
+                            );
+                          }}
+                        >
+                          {battleRecallPendingId === battlefield.id
+                            ? "Recalling..."
+                            : `Recall ${recallAmount} army`}
+                        </button>
+                      </div>
+                    ) : null}
                     {battlefield.incomingReinforcements.length > 0 ? (
                       <ul className={styles.compactList}>
                         {battlefield.incomingReinforcements

@@ -74,7 +74,7 @@ test("raid preview shows loot camp reward, timer, and defending army", () => {
 
   assert.deepEqual(lines, [
     "Available army: 80. Sent army: 20.",
-    "Target: Rich Loot Camp test, strength 500, defending army 40, rewards gold.",
+    "Target: Rich Loot Camp test, strength 500, defending army 40, rewards gold and food with very few points.",
     "Loot camps vanish after 30 minutes, fight back, and pay only when destroyed.",
   ]);
 });
@@ -158,7 +158,7 @@ test("loot camp report includes counterattack details and health damage", () => 
 
   assert.match(lines[1] ?? "", /defending army was 12/);
   assert.match(lines[2] ?? "", /Camp health was reduced by 100/);
-  assert.match(lines[3] ?? "", /100 army and race cooldown reset/);
+  assert.match(lines[3] ?? "", /100 army, and race cooldown reset/);
 });
 
 test("recall report includes returned army without battle details", () => {

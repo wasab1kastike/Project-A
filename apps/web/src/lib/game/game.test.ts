@@ -121,7 +121,9 @@ import {
   purchaseFortressUpgrade,
   registerCommanderName,
   renameActiveFortress,
+  recallBattlefieldArmy,
   recallAttackUnit,
+  recallGarrisonArmy,
   selectFortressRace,
   setFortressAction,
   activateRaceAbility,
@@ -1813,10 +1815,270 @@ test("Home of A tick income splits banner half and holder army share", async (co
     prisma.fortress.findUniqueOrThrow({ where: { id: allyFortress.id } }),
   ]);
 
-  assert.equal(reloadedBanner.points, 17);
-  assert.equal(reloadedAlly.points, 8);
+  assert.equal(reloadedBanner.points, 12);
+  assert.equal(reloadedAlly.points, 5);
   assert.equal(reloadedBanner.army, 10 - HOME_OF_A_ARMY_DRAIN_PER_TICK);
   assert.equal(reloadedAlly.army, 10 - HOME_OF_A_ARMY_DRAIN_PER_TICK);
+});
+
+test("players can partially recall their active battlefield army", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const attacker = await createUser(prisma, "battlefield-recall@example.com");
+  const spectator = await createUser(
+    prisma,
+    "battlefield-recall-denied@example.com"
+  );
+  const cycle = await seedActiveCommunityWishCycle(
+    prisma,
+    [
+      {
+        userId: attacker.id,
+        commanderName: "Recall Banner",
+        fortressName: "Recall Keep",
+        points: 0,
+      },
+      {
+        userId: spectator.id,
+        commanderName: "Recall Spectator",
+        fortressName: "Recall Watch",
+        points: 0,
+      },
+    ],
+    new Date("2026-04-20T14:00:00.000Z")
+  );
+  const [attackerFortress, spectatorFortress] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: attacker.id } },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: spectator.id } },
+    }),
+  ]);
+  await prisma.fortress.updateMany({
+    where: {
+      id: {
+        in: [attackerFortress.id, spectatorFortress.id],
+      },
+    },
+    data: {
+      army: 0,
+      minersAssigned: 0,
+      farmersAssigned: 0,
+      recruitersAssigned: 0,
+    },
+  });
+  const home = await ensureMegaFortress({
+    db: prisma,
+    cycleId: cycle.id,
+    seed: "test-battlefield-recall",
+  });
+  const battlefield = await prisma.battlefield.create({
+    data: {
+      cycleId: cycle.id,
+      targetTileId: HOME_OF_A_TILE_ID,
+      targetFortressId: home.id,
+      attackerBannerFortressId: attackerFortress.id,
+      defenderBannerFortressId: null,
+      attackerArmyRemaining: 80,
+      defenderArmyRemaining: 100,
+      startedAt: new Date("2026-04-20T12:01:00.000Z"),
+      participants: {
+        create: {
+          fortressId: attackerFortress.id,
+          side: BattlefieldSide.ATTACKER,
+          armyCommitted: 100,
+          armyRemaining: 80,
+        },
+      },
+    },
+  });
+
+  await assert.rejects(
+    () =>
+      recallBattlefieldArmy({
+        db: prisma,
+        userId: spectator.id,
+        battlefieldId: battlefield.id,
+        armyAmount: 1,
+        now: new Date("2026-04-20T12:02:00.000Z"),
+      }),
+    /not available/
+  );
+  await assert.rejects(
+    () =>
+      recallBattlefieldArmy({
+        db: prisma,
+        userId: attacker.id,
+        battlefieldId: battlefield.id,
+        armyAmount: 81,
+        now: new Date("2026-04-20T12:02:00.000Z"),
+      }),
+    /more army/
+  );
+
+  const returning = await recallBattlefieldArmy({
+    db: prisma,
+    userId: attacker.id,
+    battlefieldId: battlefield.id,
+    armyAmount: 30,
+    now: new Date("2026-04-20T12:02:00.000Z"),
+  });
+  const [participant, reloadedBattlefield] = await Promise.all([
+    prisma.battlefieldParticipant.findUniqueOrThrow({
+      where: {
+        battlefieldId_fortressId: {
+          battlefieldId: battlefield.id,
+          fortressId: attackerFortress.id,
+        },
+      },
+    }),
+    prisma.battlefield.findUniqueOrThrow({ where: { id: battlefield.id } }),
+  ]);
+
+  assert.equal(participant.armyRemaining, 50);
+  assert.equal(participant.armyCommitted, 70);
+  assert.equal(reloadedBattlefield.attackerArmyRemaining, 50);
+  assert.equal(returning.recalledAt?.toISOString(), "2026-04-20T12:02:00.000Z");
+
+  await runGameTick({
+    db: prisma,
+    now: returning.arrivesAt,
+  });
+
+  const reloadedAttacker = await prisma.fortress.findUniqueOrThrow({
+    where: { id: attackerFortress.id },
+  });
+  const reloadedSpectator = await prisma.fortress.findUniqueOrThrow({
+    where: { id: spectatorFortress.id },
+  });
+
+  assert.equal(reloadedAttacker.army, 30);
+  assert.equal(reloadedSpectator.army, 0);
+});
+
+test("players can partially or fully recall won-tile garrisons", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const owner = await createUser(prisma, "garrison-recall@example.com");
+  const outsider = await createUser(prisma, "garrison-recall-outsider@example.com");
+  const cycle = await seedActiveCommunityWishCycle(
+    prisma,
+    [
+      {
+        userId: owner.id,
+        commanderName: "Garrison Owner",
+        fortressName: "Garrison Keep",
+        points: 0,
+      },
+      {
+        userId: outsider.id,
+        commanderName: "Garrison Outsider",
+        fortressName: "Outsider Keep",
+        points: 0,
+      },
+    ],
+    new Date("2026-04-20T14:00:00.000Z")
+  );
+  const ownerFortress = await prisma.fortress.findUniqueOrThrow({
+    where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: owner.id } },
+  });
+  await prisma.fortress.updateMany({
+    where: {
+      cycleId: cycle.id,
+    },
+    data: {
+      army: 0,
+      minersAssigned: 0,
+      farmersAssigned: 0,
+      recruitersAssigned: 0,
+    },
+  });
+  const home = await ensureMegaFortress({
+    db: prisma,
+    cycleId: cycle.id,
+    seed: "test-garrison-recall",
+  });
+  const battlefield = await prisma.battlefield.create({
+    data: {
+      cycleId: cycle.id,
+      targetTileId: HOME_OF_A_TILE_ID,
+      targetFortressId: home.id,
+      attackerBannerFortressId: ownerFortress.id,
+      status: "RESOLVED",
+      startedAt: new Date("2026-04-20T12:01:00.000Z"),
+      resolvedAt: new Date("2026-04-20T12:02:00.000Z"),
+    },
+  });
+  const garrison = await prisma.fortressGarrison.create({
+    data: {
+      cycleId: cycle.id,
+      fortressId: ownerFortress.id,
+      battlefieldId: battlefield.id,
+      tileId: HOME_OF_A_TILE_ID,
+      army: 60,
+    },
+  });
+
+  await assert.rejects(
+    () =>
+      recallGarrisonArmy({
+        db: prisma,
+        userId: outsider.id,
+        garrisonId: garrison.id,
+        armyAmount: 1,
+        now: new Date("2026-04-20T12:03:00.000Z"),
+      }),
+    /not available/
+  );
+
+  const firstReturn = await recallGarrisonArmy({
+    db: prisma,
+    userId: owner.id,
+    garrisonId: garrison.id,
+    armyAmount: 25,
+    now: new Date("2026-04-20T12:03:00.000Z"),
+  });
+  const partialGarrison = await prisma.fortressGarrison.findUniqueOrThrow({
+    where: { id: garrison.id },
+  });
+
+  assert.equal(partialGarrison.army, 35);
+
+  const secondReturn = await recallGarrisonArmy({
+    db: prisma,
+    userId: owner.id,
+    garrisonId: garrison.id,
+    armyAmount: 35,
+    now: new Date("2026-04-20T12:04:00.000Z"),
+  });
+  const deletedGarrison = await prisma.fortressGarrison.findUnique({
+    where: { id: garrison.id },
+  });
+
+  assert.equal(deletedGarrison, null);
+
+  await runGameTick({
+    db: prisma,
+    now:
+      firstReturn.arrivesAt > secondReturn.arrivesAt
+        ? firstReturn.arrivesAt
+        : secondReturn.arrivesAt,
+  });
+
+  const reloadedOwner = await prisma.fortress.findUniqueOrThrow({
+    where: { id: ownerFortress.id },
+  });
+
+  assert.equal(reloadedOwner.army, 60);
 });
 
 test("tick CLI summary includes attack launch and resolution counts", () => {
@@ -3267,14 +3529,17 @@ test("loot camp raids apply variant rewards without mega fortress progression", 
   });
 
   assert.equal(classic.attackUnit.foodLooted, 100);
-  assert.equal(classic.attackUnit.pointsLooted, 0);
+  assert.equal(classic.attackUnit.pointsLooted, 25);
   assert.equal(rich.attackUnit.pointsLooted, 100);
-  assert.equal(rich.attackUnit.foodLooted, 0);
+  assert.equal(rich.attackUnit.foodLooted, 40);
+  assert.equal(chaos.attackUnit.pointsLooted, 15);
+  assert.equal(chaos.attackUnit.foodLooted, 25);
   assert.equal(chaos.attackUnit.armyLooted, 100);
   assert.ok(refreshedAttacker.food >= 100);
   assert.ok(refreshedAttacker.gold >= 100);
   assert.ok(refreshedAttacker.army >= 100);
   assert.equal(richRewardEvents.length, 1);
+  assert.equal(richRewardEvents[0].delta, 2);
   assert.ok(latestWaaagh.usedAt < waaaghUsedAt);
   assert.equal(refreshedCycle.megaFortressDestroyCount, 0);
   assert.equal(refreshedCycle.upgradesUnlockedAt, null);

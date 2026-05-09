@@ -329,7 +329,7 @@ export default function WikiPage() {
               </ul>
             </section>
             <section>
-              <h3>What's new this season</h3>
+              <h3>What&apos;s new this season</h3>
               <ul className={styles.noteList}>
                 {WHAT_IS_NEW_THIS_SEASON.map((entry) => (
                   <li key={entry}>{entry}</li>

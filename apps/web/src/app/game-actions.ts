@@ -51,7 +51,9 @@ import {
   recruitArmy,
   registerCommanderName,
   renameActiveFortress,
+  recallBattlefieldArmy,
   recallAttackUnit,
+  recallGarrisonArmy,
   instantRecallGarrison,
   selectFortressRace,
   setFortressAction,
@@ -385,6 +387,74 @@ export async function instantRecallGarrisonAction(garrisonId: string) {
     });
     emitProjectARefresh("garrison-recall");
     revalidatePath("/");
+    return {
+      ok: true,
+    } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
+export async function recallBattlefieldArmyAction(
+  battlefieldId: string,
+  armyAmount: number
+) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await recallBattlefieldArmy({
+      userId,
+      battlefieldId,
+      armyAmount,
+    });
+    emitProjectARefresh("battlefield-recall");
+    revalidatePath("/");
+    revalidatePath("/castle");
+    return {
+      ok: true,
+    } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
+export async function recallGarrisonArmyAction(
+  garrisonId: string,
+  armyAmount: number
+) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await recallGarrisonArmy({
+      userId,
+      garrisonId,
+      armyAmount,
+    });
+    emitProjectARefresh("garrison-recall");
+    revalidatePath("/");
+    revalidatePath("/castle");
     return {
       ok: true,
     } satisfies InlineActionResult;

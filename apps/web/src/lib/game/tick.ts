@@ -2337,7 +2337,11 @@ async function processCycleTick(
           currentGold.set(
             destroyer.attacker.id,
             (currentGold.get(destroyer.attacker.id) ??
-              destroyer.attacker.gold) + reward.points
+              destroyer.attacker.gold) + reward.gold
+          );
+          currentPoints.set(
+            destroyer.attacker.id,
+            (currentPoints.get(destroyer.attacker.id) ?? 0) + reward.points
           );
           currentFood.set(
             destroyer.attacker.id,
@@ -2395,10 +2399,11 @@ async function processCycleTick(
           const unitReward = unitGetsReward
             ? reward
             : {
-                points: 0,
-                food: 0,
-                army: 0,
-              };
+              points: 0,
+              gold: 0,
+              food: 0,
+              army: 0,
+            };
 
           if (!targetAttacker || !outcome) {
             await db.attackUnit.update({
@@ -2458,7 +2463,7 @@ async function processCycleTick(
                 attackerRetired: outcome.attackerRetired,
                 attackerReturned,
                 defenderLosses: outcome.defenderLosses,
-                pointsLooted: unitReward.points,
+                pointsLooted: unitReward.gold,
                 foodLooted: unitReward.food,
                 armyLooted: unitReward.army,
               },
@@ -2477,7 +2482,7 @@ async function processCycleTick(
                 attackerRetired: outcome.attackerRetired,
                 attackerReturned,
                 defenderLosses: outcome.defenderLosses,
-                pointsLooted: unitReward.points,
+                pointsLooted: unitReward.gold,
                 foodLooted: unitReward.food,
                 armyLooted: unitReward.army,
               },

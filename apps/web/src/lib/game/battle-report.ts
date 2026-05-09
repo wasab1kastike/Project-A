@@ -94,11 +94,11 @@ export function formatRaidAttackPreview(input: RaidPreviewInput) {
     if (input.targetIsLootCamp) {
       const reward =
         input.targetLootCampVariant === "CLASSIC"
-          ? "food"
+          ? "food with a little gold"
         : input.targetLootCampVariant === "RICH"
-            ? "gold"
+            ? "gold and food with very few points"
             : input.targetLootCampVariant === "CHAOS"
-              ? "army and race cooldown reset"
+              ? "army, supplies, and race cooldown reset"
               : "loot";
 
       lines.push(
@@ -166,11 +166,11 @@ export function formatRaidBattleReport(input: RaidBattleReportInput) {
   if (input.defenderIsLootCamp) {
     const rewardLine =
       input.defenderLootCampVariant === "CLASSIC"
-        ? `Loot gained: ${input.foodLooted} food.`
+        ? `Loot gained: ${input.pointsLooted} gold and ${input.foodLooted} food.`
         : input.defenderLootCampVariant === "RICH"
-          ? `Loot gained: ${input.pointsLooted} gold.`
+          ? `Loot gained: ${input.pointsLooted} gold and ${input.foodLooted} food.`
           : input.defenderLootCampVariant === "CHAOS"
-            ? `Loot gained: ${input.armyLooted ?? 0} army and race cooldown reset.`
+            ? `Loot gained: ${input.pointsLooted} gold, ${input.foodLooted} food, ${input.armyLooted ?? 0} army, and race cooldown reset.`
             : "Loot gained: 0.";
 
     return [

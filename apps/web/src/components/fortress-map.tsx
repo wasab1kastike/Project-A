@@ -130,6 +130,13 @@ type MapHexOwnershipMarker = {
   };
   isHomeOfA?: boolean;
   pointIncome?: number | null;
+  ownGarrison?: {
+    id: string;
+    army: number;
+    canRecall: boolean;
+    recallDisabledReason: string | null;
+    canInstantRecall: boolean;
+  } | null;
   holders?: Array<{
     fortressName: string;
     commanderName: string;

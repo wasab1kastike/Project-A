@@ -2142,8 +2142,19 @@ export async function getHomePageState({
     isHomeOfA: boolean;
     pointIncome: number | null;
     holders: typeof homeHolders;
+    ownGarrison: {
+      id: string;
+      army: number;
+      canRecall: boolean;
+      recallDisabledReason: string | null;
+      canInstantRecall: boolean;
+    } | null;
   }> = cycle.mapHexOwnerships.map((ownership) => {
     const tile = getTileById(ownership.tileId);
+    const ownGarrison =
+      playerFortress?.garrisons.find(
+        (garrison) => garrison.tileId === ownership.tileId
+      ) ?? null;
     const claimState = tile
       ? getTileClaimState(tile)
       : {
@@ -2192,6 +2203,21 @@ export async function getHomePageState({
       isHomeOfA: isHomeOfATile(ownership.tileId),
       pointIncome: bonus.points > 0 ? bonus.points : null,
       holders: isHomeOfATile(ownership.tileId) ? homeHolders : [],
+      ownGarrison: ownGarrison
+        ? {
+            id: ownGarrison.id,
+            army: ownGarrison.army,
+            canRecall: ownGarrison.army > 0,
+            recallDisabledReason:
+              ownGarrison.army > 0 ? null : "No garrison army remains.",
+            canInstantRecall:
+              playerFortress?.race === "SPACE_MURINES" &&
+              raceBuffTier >= 2 &&
+              (!latestGarrisonInstantRecallUse ||
+                getHelsinkiHourKey(latestGarrisonInstantRecallUse.usedAt) !==
+                  currentHourKey),
+          }
+        : null,
     };
   });
 
@@ -2231,6 +2257,7 @@ export async function getHomePageState({
       isHomeOfA: true,
       pointIncome: HOME_OF_A_POINT_INCOME,
       holders: [],
+      ownGarrison: null,
     });
   }
 
@@ -2275,6 +2302,7 @@ export async function getHomePageState({
       isHomeOfA: false,
       pointIncome: bonus.points > 0 ? bonus.points : null,
       holders: [],
+      ownGarrison: null,
     });
   }
 
@@ -2705,6 +2733,9 @@ export async function getHomePageState({
             army: garrison.army,
             tileId: garrison.tileId,
             createdAt: garrison.createdAt,
+            canRecall: garrison.army > 0,
+            recallDisabledReason:
+              garrison.army > 0 ? null : "No garrison army remains.",
             canInstantRecall:
               playerFortress.race === "SPACE_MURINES" &&
               raceBuffTier >= 2 &&
@@ -2840,6 +2871,9 @@ export async function getHomePageState({
                 at: now,
               })
           : null;
+      const canRecallOwnArmy =
+        Boolean(currentParticipant) &&
+        (currentParticipant?.armyRemaining ?? 0) > 0;
 
       return {
         id: battlefield.id,
@@ -2882,6 +2916,12 @@ export async function getHomePageState({
           : null,
         participantCount: battlefield.participants.length,
         currentUserSide: currentParticipant?.side ?? null,
+        canRecall: canRecallOwnArmy,
+        recallDisabledReason: canRecallOwnArmy
+          ? null
+          : currentParticipant
+            ? "No committed army remains to recall."
+            : "Join this battlefield before recalling army.",
         incomingReinforcements: battlefield.incomingReinforcements.map(
           (unit) => ({
             id: unit.id,

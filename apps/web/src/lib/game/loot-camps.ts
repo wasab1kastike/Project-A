@@ -23,6 +23,7 @@ export const LOOT_CAMP_MAX_SPAWNS_PER_HOUR = 3;
 
 export type LootCampReward = {
   points: number;
+  gold: number;
   food: number;
   army: number;
   resetRaceCooldown: boolean;
@@ -179,7 +180,8 @@ export function getLootCampReward(
 ): LootCampReward {
   if (variant === LootCampVariant.CLASSIC) {
     return {
-      points: 0,
+      points: 1,
+      gold: Math.floor(strength * 0.25),
       food: strength,
       army: 0,
       resetRaceCooldown: false,
@@ -188,8 +190,9 @@ export function getLootCampReward(
 
   if (variant === LootCampVariant.RICH) {
     return {
-      points: strength,
-      food: 0,
+      points: Math.max(1, Math.floor(strength * 0.02)),
+      gold: strength,
+      food: Math.floor(strength * 0.4),
       army: 0,
       resetRaceCooldown: false,
     };
@@ -198,7 +201,8 @@ export function getLootCampReward(
   if (variant === LootCampVariant.CHAOS) {
     return {
       points: 0,
-      food: 0,
+      gold: Math.floor(strength * 0.15),
+      food: Math.floor(strength * 0.25),
       army: strength,
       resetRaceCooldown: true,
     };
@@ -206,6 +210,7 @@ export function getLootCampReward(
 
   return {
     points: 0,
+    gold: 0,
     food: 0,
     army: 0,
     resetRaceCooldown: false,
