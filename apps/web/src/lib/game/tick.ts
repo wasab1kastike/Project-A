@@ -16,6 +16,7 @@ import {
   HOME_OF_A_POINT_INCOME,
   MEGA_FORTRESS_DESTROY_BONUS,
   MEGA_FORTRESS_HEALTH,
+  ACTIVE_DURATION_HOURS,
   TESTING_DURATION_HOURS,
   TESTING_ENDS_BEFORE_ACTIVE_HOURS,
 } from "./constants";
@@ -643,7 +644,7 @@ async function restartEmptyRegistrationCycle(
         testingStartedAt,
         testingEndsAt,
         activeStartedAt: null,
-        activeEndsAt: getNextHelsinkiWeekdayAtHour(registrationEndsAt, 0, 12),
+        activeEndsAt: addHours(registrationEndsAt, ACTIVE_DURATION_HOURS),
       },
     });
 
@@ -693,7 +694,7 @@ async function startTestingCycle(cycleId: string, now: Date, db: PrismaClient) {
         testingStartedAt,
         testingEndsAt,
         activeStartedAt,
-        activeEndsAt: getNextHelsinkiWeekdayAtHour(activeStartedAt, 0, 12),
+        activeEndsAt: addHours(activeStartedAt, ACTIVE_DURATION_HOURS),
         joiningLockedAt: null,
       },
     });
@@ -756,7 +757,7 @@ async function completeTestingCycle(
     }
 
     const activeStartedAt = cycle.activeStartedAt;
-    const activeEndsAt = getNextHelsinkiWeekdayAtHour(activeStartedAt, 0, 12);
+    const activeEndsAt = addHours(activeStartedAt, ACTIVE_DURATION_HOURS);
 
     await tx.attackUnit.deleteMany({
       where: {

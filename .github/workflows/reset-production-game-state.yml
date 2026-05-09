@@ -3,16 +3,21 @@ name: Reset Production Game State
 on:
   workflow_dispatch:
     inputs:
+      registration_starts_at:
+        description: "Season registration start in UTC ISO format"
+        required: true
+        default: "2026-05-09T21:00:00.000Z"
       active_starts_at:
         description: "Season active start in UTC ISO format"
         required: true
-        default: "2026-04-23T09:00:00.000Z"
+        default: "2026-05-11T09:00:00.000Z"
 
 jobs:
   reset-production-game-state:
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+      REGISTRATION_STARTS_AT: ${{ inputs.registration_starts_at }}
       ACTIVE_STARTS_AT: ${{ inputs.active_starts_at }}
     steps:
       - name: Validate required inputs
@@ -22,7 +27,7 @@ jobs:
             exit 1
           fi
 
-          node -e "const d = new Date(process.env.ACTIVE_STARTS_AT); if (!Number.isFinite(d.getTime())) { console.error('Invalid ACTIVE_STARTS_AT'); process.exit(1); } if (d <= new Date()) { console.error('ACTIVE_STARTS_AT must be in the future'); process.exit(1); }"
+          node -e "const registration = new Date(process.env.REGISTRATION_STARTS_AT); const active = new Date(process.env.ACTIVE_STARTS_AT); if (!Number.isFinite(registration.getTime())) { console.error('Invalid REGISTRATION_STARTS_AT'); process.exit(1); } if (!Number.isFinite(active.getTime())) { console.error('Invalid ACTIVE_STARTS_AT'); process.exit(1); } if (registration <= new Date()) { console.error('REGISTRATION_STARTS_AT must be in the future'); process.exit(1); } if (active <= registration) { console.error('ACTIVE_STARTS_AT must be after REGISTRATION_STARTS_AT'); process.exit(1); }"
 
       - name: Normalize database URL
         run: |
@@ -57,12 +62,17 @@ jobs:
           import { PrismaClient, CycleStatus } from "@prisma/client";
 
           const prisma = new PrismaClient();
+          const registrationStartedAt = new Date(process.env.REGISTRATION_STARTS_AT);
           const activeStartsAt = new Date(process.env.ACTIVE_STARTS_AT);
-          const registrationStartedAt = new Date();
-          registrationStartedAt.setSeconds(0, 0);
-          const testingStartedAt = new Date(activeStartsAt.getTime() - 24 * 60 * 60 * 1000);
-          const testingEndsAt = new Date(activeStartsAt.getTime() - 1 * 60 * 60 * 1000);
-          const activeEndsAt = new Date(activeStartsAt.getTime() + 72 * 60 * 60 * 1000);
+          const testingStartedAt = new Date(
+            activeStartsAt.getTime() - 24 * 60 * 60 * 1000
+          );
+          const testingEndsAt = new Date(
+            activeStartsAt.getTime() - 1 * 60 * 60 * 1000
+          );
+          const activeEndsAt = new Date(
+            activeStartsAt.getTime() + 24 * 14 * 60 * 60 * 1000
+          );
 
           await prisma.$transaction(async (tx) => {
             await tx.attackUnit.deleteMany();

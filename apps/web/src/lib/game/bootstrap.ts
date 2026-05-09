@@ -7,6 +7,7 @@ import {
 import { addHours, floorToMinute } from "./time";
 import { getNextHelsinkiWeekdayAtHour } from "./calendar";
 import {
+  ACTIVE_DURATION_HOURS,
   TESTING_DURATION_HOURS,
   TESTING_ENDS_BEFORE_ACTIVE_HOURS,
 } from "./constants";
@@ -74,7 +75,7 @@ export async function ensureOpenRegistrationCycle(
       testingStartedAt,
       testingEndsAt,
       activeStartedAt: null,
-      activeEndsAt: getNextHelsinkiWeekdayAtHour(registrationEndsAt, 0, 12),
+      activeEndsAt: addHours(registrationEndsAt, ACTIVE_DURATION_HOURS),
     },
   });
 }

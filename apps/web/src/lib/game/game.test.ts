@@ -55,6 +55,7 @@ import {
 } from "./arcade";
 import {
   ACTIVE_LOCATION_SHUFFLE_COST,
+  ACTIVE_DURATION_HOURS,
   ACTIVE_PLAYER_CAP,
   ARCADE_SEASON_BASE_COINS,
   ARCADE_SEASON_POINTS_BONUS_CAP,
@@ -5196,7 +5197,7 @@ test("non-empty registration transitions to active exactly once", async (context
   );
   assert.equal(
     transitioned.activeEndsAt?.toISOString(),
-    "2026-04-23T12:00:00.000Z"
+    addHours(transitioned.activeStartedAt!, ACTIVE_DURATION_HOURS).toISOString()
   );
 });
 
