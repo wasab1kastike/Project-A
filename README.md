@@ -143,7 +143,7 @@ npx prisma db seed
 - Players sign in with Google
 - Each season begins with `REGISTRATION (24h)`
 - Joining is open during `REGISTRATION`, and remains open in `ACTIVE` while player slots remain before the active deadline
-- Active play runs for `ACTIVE (72h)`
+- Active play runs for `ACTIVE (2 weeks)`
 - Winner is resolved in `RESOLUTION`
 - The next season begins with a fresh registration phase
 
@@ -162,7 +162,7 @@ The game is now a castle-economy and battlefield-control loop:
 - active army, not queued army, consumes food upkeep at 0.25 food per unit per tick
 - neutral tiles are acquired through connected 10-minute claim projects, while owned tiles and Home of A create battlefields that players can attack or reinforce
 - direct attacks and battlefield reinforcements both count against the player's simultaneous outbound attack cap
-- Home of A is conquered through the center tile, starts against neutral defense, pays point income to holders, and drains 1 army per holder per tick while controlled
+- Home of A is conquered through the center tile, starts against neutral defense, pays about 1k points per hour to holders, and drains 1 army per holder per tick while controlled
 - battle results are resolved after economy updates so loot, casualties, rewards, and tile ownership are persisted coherently
 - battle-log badges show unread/new reports rather than the total number of historical entries
 - Render Cron runs `npm run game:tick` once per minute in production

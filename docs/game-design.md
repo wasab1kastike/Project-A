@@ -27,14 +27,14 @@
 - Global chat with timestamps
 - Chat rate limit: 6 messages per minute per user
 - Top 3 leaderboard visible
-- Cycle timer: 72h
+- Cycle timer: registration 24h, testing 24h, active 2 weeks
 - Player action persists while offline
 - Castle upgrades are available during gameplay and use gold
 - Castle levels cost 500 / 1500 / 3000 / 5000 / 7500 / 10500 / 14000 / 18000 / 22500 gold
 - Each castle level adds +1 growth per grow tick and +2 attack damage
 - Home of A is a center-tile control battle, not a normal neutral claim
 - First Home of A capture fights 10,000 neutral defense through the center tile
-- The controlling Home of A banner alliance earns 25 points per tick while it holds the center
+- The controlling Home of A banner alliance earns 17 points per tick while it holds the center, about 1,020 points per hour
 - Each active Home of A holder loses 1 army per tick while the banner is held
 - Home of A tile battles share battlefield resolution rules with other tile battles where possible
 - Battle-log badges count unread/new reports only, not total historical entries
@@ -60,6 +60,7 @@
 - Temporary map objectives rotate onto normal tiles and add extra point income while active.
 - Players can join an active battlefield as attacker or defender if they have idle army and are not violating same-side/conflicting-side restrictions.
 - Reinforcements are represented by `AttackUnit` rows and now obey the same outbound attack cap as direct attacks.
+- Players can partially recall their own remaining active battlefield army or won-tile garrisons; recalled forces travel home and already-suffered losses stay lost.
 - Dwarf defenders receive an extra 25% defensive multiplier when defending owned tiles or Home of A.
 - Battlefield resolution is applied after fortress economy persistence in the tick, preventing stale economy writes from overwriting loot, casualty, reward, or ownership results.
 

@@ -45,7 +45,6 @@ import { RACE_DEFINITIONS } from "@/lib/game/races";
 import {
   TEMPORARY_MAP_OBJECTIVE_INTERVAL_HOURS,
   TILE_CLAIM_DURATION_MINUTES,
-  TILE_CLAIM_MAX_ACTIVE_PROJECTS,
   TILE_CLAIM_OWNED_TILE_COST_STEP,
 } from "@/lib/game/territory";
 
@@ -123,7 +122,7 @@ const SEASON_FLOW = [
       "Sandbox mode: test workers, race picks, and attacks. Progress resets before real combat.",
   },
   {
-    phase: "Active season (72h)",
+    phase: "Active season (2 weeks)",
     description:
       "Real economy, real raids, real grudges. If it explodes here, it counts.",
   },
@@ -145,31 +144,85 @@ const QUICKSTART_STEPS = [
   "Watch the center tile. Home of A income can swing a close season.",
 ] as const;
 
-const LATEST_UPDATES = [
-  "Dwarfs now play as a fortified economy race: slower movement, stronger owned-tile defense, a better grudge book, deliberate Rune of Grudges pressure, and a delayed gold-funded Deep Mining gamble.",
-  "Race identities are now sharper: Unicorns lean harder into hidden movement and chaos teleports, Space Murines into disciplined STIM/recall windows and attack slots, and ORKS into Scrap-powered tempo swings.",
-  "Army recruitment is now order-based: buy units with gold, wait for recruiters to process the queue, then pay food upkeep only after units become active.",
-  "Recruiter worker previews now show queue throughput and active-army upkeep instead of implying passive free army production.",
-  "Desktop tile selection now uses the same direct click/tap behavior as mobile, so PC players can inspect and buy tiles from the map.",
-  "Neutral tile acquisition is now a timed project: only connected neutral spawn tiles can be acquired, and each fortress may run one acquisition at a time.",
-  "Battle-log badges now count unread/new reports only instead of every historical entry.",
-  "Battlefield reinforcements now obey the same simultaneous outbound attack cap as direct attacks.",
-  "Battlefield rewards, casualties, loot, and tile transfers now persist after economy ticks instead of being overwritten by stale production writes.",
-  "Owned tile battles now keep the tile bonus context in view, and Dwarfs gain extra defensive leverage when holding territory or Home of A.",
-  "Loot camps now stay on the battlefield for 30 minutes, show clearer reward/strength/defender info, and fight back with variant-scaled defending armies.",
-  "Loot camps now spawn around the battlefield during gameplay. Classic camps pay food, Rich camps pay gold, and Chaos camps pay army plus a race cooldown reset.",
-  "Unstable Unicorn teleport now lasts 1 hour, leaves an attackable decoy at home, then returns the castle on the first tick after the timer ends.",
-  "Unicorn decoys now mimic normal player fort visuals for other players.",
-  "Orks now earn Scrap from fighting, spend it on Boss Orders, and can feed an active WAAAGH for extra pressure.",
-  "Space Murines keep STIM at Tier 2, while Instant Recall is a separate Tier 3 unlock.",
-  "Attack recall and return reports are more explicit, so recalled armies and post-raid returning units are easier to track.",
-  "Raid loot caps are now 70% of target gold and 70% of target food per raid.",
+const SEASON_START_STEPS = [
+  "Pick your race early. Race is locked for the whole season, so your first choice defines your economy and combat style.",
+  "Claim connected neutral land as soon as you can. Tile claims take 10 minutes and must connect to your castle or owned territory.",
+  "Spend enough gold to get army rolling, then keep recruiters assigned so queued units finish on time.",
+  "Use battlefields for contested land and Home of A. Those targets are fought, not claimed, and reinforcements also count toward your outbound cap.",
+  "Expect defender wins on equal power. If a fight looks even, the defender keeps the tile or fortress.",
+] as const;
+
+const WHAT_IS_NEW_THIS_SEASON = [
+  "Race choice is now a real season-start decision: pick once, then build around it.",
+  "Neutral land claims are timed projects, so expansion is a short planning step rather than an instant click.",
+  "Direct attacks and battlefield reinforcements share the same outbound attack limit.",
+  "Battlefield sends now feel like real unit launches instead of abstract joins.",
+  "Home of A is still the center control objective, but it is conquered through battle rather than a normal claim.",
+] as const;
+
+const RACE_TOKENS = [
+  {
+    key: "DWARFS",
+    tokenSrc: "/assets/token-dwarf.png",
+    role: "Fortified economy",
+    opening:
+      "Slow, stubborn, and excellent at turning nearby land into a defended income base.",
+  },
+  {
+    key: "UNSTABLE_UNICORNS",
+    tokenSrc: "/assets/token-unstable-unicorns.png",
+    role: "Hidden movement",
+    opening:
+      "Fast pressure, fakeouts, and teleport tricks. Great if you like making the map feel unsafe.",
+  },
+  {
+    key: "SPACE_MURINES",
+    tokenSrc: "/assets/token-space-murines.png",
+    role: "Disciplined strikes",
+    opening:
+      "Reliable combat windows, stronger attack capacity, and clean extraction tools.",
+  },
+  {
+    key: "ORKS",
+    tokenSrc: "/assets/token-orks.png",
+    role: "Scrap tempo",
+    opening:
+      "Win fights, bank Scrap, and convert momentum into Boss Orders and WAAAGH pressure.",
+  },
+] as const;
+
+const MAP_LEGEND = [
+  {
+    label: "Claimable",
+    tone: "claimable",
+    description: "Neutral connected land you can start claiming.",
+  },
+  {
+    label: "Owned",
+    tone: "owned",
+    description: "Your territory, paying its tile bonus each tick.",
+  },
+  {
+    label: "Contested",
+    tone: "contested",
+    description: "A tile or fortress currently being fought over.",
+  },
+  {
+    label: "Battlefield",
+    tone: "battlefield",
+    description: "A fight players can reinforce from either side.",
+  },
+  {
+    label: "Home of A",
+    tone: "home",
+    description: "Center objective. Always fought for, never claimed.",
+  },
 ] as const;
 
 const LOOT_CAMP_VARIANTS = [
-  "Classic Loot Camp: pays food equal to its strength when destroyed.",
-  "Rich Loot Camp: pays gold equal to its strength when destroyed.",
-  "Chaos Loot Camp: pays army equal to its strength and resets the destroyer's current race ability cooldown.",
+  "Classic Loot Camp: pays mostly food, some gold, and only a token point reward.",
+  "Rich Loot Camp: pays mostly gold with some food and very few points.",
+  "Chaos Loot Camp: pays army, supplies, and resets the destroyer's current race ability cooldown.",
 ] as const;
 
 const RECRUITMENT_RULES = [
@@ -185,6 +238,7 @@ const BATTLEFIELD_RULES = [
   `Direct attacks and battlefield reinforcements share the same outbound cap: base ${MAX_SIMULTANEOUS_ATTACKS_BASE}, modified by castle level and race.`,
   "Joining a battlefield sends a visible unit toward that battle and reserves the army while it travels.",
   "A player cannot join both sides of the same unresolved battlefield.",
+  "Equal attack and defense power still counts as a defender win.",
   "Resolved tile battlefields can transfer tile ownership to the winning side.",
   "Owned-tile and Home of A defenders get the tile's native bonus, and Dwarf defenders get an extra x1.25 defensive multiplier on those fights.",
   "Battle results are applied after economy persistence, so loot, casualties, and rewards should not be lost to the same tick's production update.",
@@ -193,7 +247,7 @@ const BATTLEFIELD_RULES = [
 
 const TILE_CONTROL_RULES = [
   `Neutral spawnable tiles are acquired through a ${TILE_CLAIM_DURATION_MINUTES}-minute claim project, not instantly.`,
-  `Each fortress can run ${TILE_CLAIM_MAX_ACTIVE_PROJECTS} neutral tile acquisition project at a time.`,
+  "Each fortress can run only one active neutral tile acquisition project at a time.",
   "A neutral tile must be connected to your castle tile or your existing owned territory before you can claim it.",
   `Claim cost starts at 25 gold, scales with distance, adds biome premiums, and increases by ${TILE_CLAIM_OWNED_TILE_COST_STEP} gold per owned or pending tile.`,
   `Temporary map objectives rotate every ${TEMPORARY_MAP_OBJECTIVE_INTERVAL_HOURS} hours and add bonus point income to selected normal tiles while active.`,
@@ -258,17 +312,103 @@ export default function WikiPage() {
 
       <section className={styles.stack}>
         <article className={styles.card}>
-          <span className={styles.sectionLabel}>Latest changes</span>
-          <h2>What changed recently</h2>
+          <span className={styles.sectionLabel}>Season start</span>
+          <h2>What to do in the first few minutes</h2>
           <p>
-            These are the current rules players are most likely to notice on the
-            battlefield.
+            The opening of a season is about locking in your identity, getting
+            your economy online, and expanding into nearby land before the map
+            gets crowded.
           </p>
-          <ul className={styles.noteList}>
-            {LATEST_UPDATES.map((entry) => (
-              <li key={entry}>{entry}</li>
+          <div className={styles.twoCol}>
+            <section>
+              <h3>Season-start checklist</h3>
+              <ul className={styles.noteList}>
+                {SEASON_START_STEPS.map((step) => (
+                  <li key={step}>{step}</li>
+                ))}
+              </ul>
+            </section>
+            <section>
+              <h3>What's new this season</h3>
+              <ul className={styles.noteList}>
+                {WHAT_IS_NEW_THIS_SEASON.map((entry) => (
+                  <li key={entry}>{entry}</li>
+                ))}
+              </ul>
+            </section>
+          </div>
+        </article>
+
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>Race tokens</span>
+          <h2>Pick the fantasy you want to play</h2>
+          <p>
+            Each race is a season-long commitment. Use these tokens as the fast
+            read, then scroll down for exact bonuses and active abilities.
+          </p>
+          <div className={styles.tokenGrid}>
+            {RACE_TOKENS.map((token) => {
+              const race = RACE_DEFINITIONS.find(
+                (definition) => definition.key === token.key
+              );
+
+              if (!race) {
+                return null;
+              }
+
+              return (
+                <section className={styles.tokenCard} key={token.key}>
+                  <div className={styles.tokenFrame}>
+                    <img src={token.tokenSrc} alt="" />
+                  </div>
+                  <div>
+                    <span className={styles.tokenRole}>{token.role}</span>
+                    <h3>{race.displayName}</h3>
+                    <p>{token.opening}</p>
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        </article>
+
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>Map legend</span>
+          <h2>Claim, hold, contest</h2>
+          <p>
+            The map has two different verbs: claim neutral connected land, or
+            fight over owned land and special objectives.
+          </p>
+          <div className={styles.legendGrid}>
+            {MAP_LEGEND.map((entry) => (
+              <section className={styles.legendItem} key={entry.label}>
+                <span
+                  aria-hidden="true"
+                  className={`${styles.legendMark} ${
+                    styles[`legendMark${entry.tone}`]
+                  }`}
+                />
+                <div>
+                  <h3>{entry.label}</h3>
+                  <p>{entry.description}</p>
+                </div>
+              </section>
             ))}
-          </ul>
+          </div>
+        </article>
+
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>Patch notes</span>
+          <h2>Recent changes live there now</h2>
+          <p>
+            This wiki is the stable rulebook. Patch notes carry the longer
+            change history when you want to see what moved between deploys.
+          </p>
+          <div className={styles.navRow}>
+            <Link className={styles.linkButton} href="/patch-notes">
+              Open patch notes
+            </Link>
+          </div>
         </article>
 
         <article className={styles.card}>
@@ -562,6 +702,10 @@ export default function WikiPage() {
                   their battlefield resolves.
                 </li>
                 <li>
+                  Your own active battlefield army and won-tile garrisons can be
+                  partially recalled, with surviving troops marching home.
+                </li>
+                <li>
                   The selected tile panel shows current owner, bonus, claim
                   status, contest state, and action limits.
                 </li>
@@ -598,6 +742,12 @@ export default function WikiPage() {
         <article className={styles.card}>
           <span className={styles.sectionLabel}>Combat</span>
           <h2>How raids resolve</h2>
+          <p>
+            Combat is split between direct attacks, battlefield joins, and tile
+            control fights. The important part is that the send is visible,
+            tied fights favor the defender, and battlefields can move the map as
+            well as the army count.
+          </p>
           <div className={styles.twoCol}>
             <section>
               <h3>PvP power check</h3>
@@ -643,6 +793,10 @@ export default function WikiPage() {
                 {BATTLEFIELD_RULES.map((entry) => (
                   <li key={entry}>{entry}</li>
                 ))}
+                <li>
+                  Battlefields are where players defend or contest a target
+                  instead of trying to claim it as neutral land.
+                </li>
               </ul>
             </section>
           </div>

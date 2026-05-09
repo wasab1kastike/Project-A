@@ -8,7 +8,11 @@
 .stack,
 .card,
 .raceGrid,
+.tokenGrid,
+.legendGrid,
 .raceCard,
+.tokenCard,
+.legendItem,
 .twoCol,
 .navRow,
 .raceHeader,
@@ -89,11 +93,112 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.tokenGrid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .raceCard {
   padding: 18px;
   border: 1px solid var(--border-soft);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.02);
+}
+
+.tokenCard {
+  align-content: start;
+  min-height: 100%;
+  padding: 16px;
+  border: 1px solid var(--border-soft);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255, 198, 88, 0.14), transparent 54%),
+    rgba(255, 255, 255, 0.025);
+}
+
+.tokenFrame {
+  display: grid;
+  place-items: center;
+  min-height: 124px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0)),
+    rgba(5, 10, 16, 0.36);
+  overflow: hidden;
+}
+
+.tokenFrame img {
+  width: min(112px, 72%);
+  height: auto;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.36));
+}
+
+.tokenRole {
+  display: inline-flex;
+  width: fit-content;
+  margin-bottom: 6px;
+  color: var(--accent-strong);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tokenCard h3,
+.legendItem h3 {
+  font-size: 1rem;
+}
+
+.tokenCard p,
+.legendItem p {
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.legendGrid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.legendItem {
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  padding: 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.legendMark {
+  width: 18px;
+  height: 18px;
+  margin-top: 4px;
+  border: 2px solid currentColor;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 18px currentColor;
+}
+
+.legendMarkclaimable {
+  color: #72d787;
+}
+
+.legendMarkowned {
+  color: #5da8ff;
+}
+
+.legendMarkcontested {
+  color: #ffce5c;
+}
+
+.legendMarkbattlefield {
+  color: #ff6a55;
+  border-radius: 50%;
+}
+
+.legendMarkhome {
+  color: #f4d36a;
+  transform: rotate(45deg);
 }
 
 .raceHeader {
@@ -151,6 +256,8 @@
 
 @media (max-width: 840px) {
   .raceGrid,
+  .tokenGrid,
+  .legendGrid,
   .twoCol {
     grid-template-columns: 1fr;
   }
