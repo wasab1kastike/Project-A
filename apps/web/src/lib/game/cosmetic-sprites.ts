@@ -62,16 +62,16 @@ const DEDICATED_UNIT_SKINS: Readonly<Record<string, DedicatedCosmeticSprite>> = 
 const DEDICATED_FORTRESS_SKINS: Readonly<
   Record<string, DedicatedCosmeticSprite>
 > = {
-  "ice-fortress": { src: "/assets/sprite-castle-ice-fortress.png" },
-  "lava-citadel": { src: "/assets/sprite-castle-lava-citadel.png" },
-  "forest-keep": { src: "/assets/sprite-castle-forest-citadel.png" },
-  "void-castle": { src: "/assets/sprite-castle-void-castle.png" },
-  "frosthold-bastion": { src: "/assets/sprite-castle-frost-bastion.png" },
+  "ice-fortress": { src: "/assets/sprite-castle-ice-fortress.webp" },
+  "lava-citadel": { src: "/assets/sprite-castle-lava-citadel.webp" },
+  "forest-keep": { src: "/assets/sprite-castle-forest-citadel.webp" },
+  "void-castle": { src: "/assets/sprite-castle-void-castle.webp" },
+  "frosthold-bastion": { src: "/assets/sprite-castle-frost-bastion.webp" },
   "molten-stronghold": {
-    src: "/assets/sprite-castle-molten-stronghold.png",
+    src: "/assets/sprite-castle-molten-stronghold.webp",
   },
-  "desert-fortress": { src: "/assets/sprite-castle-Desert-Fortress.png" },
-  "crystal-citadel": { src: "/assets/sprite-castle-Crystal-Citadel.png" },
+  "desert-fortress": { src: "/assets/sprite-castle-Desert-Fortress.webp" },
+  "crystal-citadel": { src: "/assets/sprite-castle-Crystal-Citadel.webp" },
   "cyber-fortress": { src: "/assets/sprite-fortress-Cyber-Fortress.png" },
   "swamp-keep": { src: "/assets/sprite-fortress-Swamp-Keep.png" },
   "mechanical-drill-fortress": {
@@ -81,10 +81,10 @@ const DEDICATED_FORTRESS_SKINS: Readonly<
     src: "/assets/sprite-fortress-Ancient-Mire-Temple.png",
   },
   "unstable-unicorn-1": {
-    src: "/assets/sprite-castle-unstable-unicorn-1.png",
+    src: "/assets/sprite-castle-unstable-unicorn-1.webp",
   },
   "unstable-unicorn-2": {
-    src: "/assets/sprite-castle-unstable-unicorn-2.png",
+    src: "/assets/sprite-castle-unstable-unicorn-2.webp",
   },
 };
 

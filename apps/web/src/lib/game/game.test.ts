@@ -3227,12 +3227,12 @@ test("cosmetic sprite styles resolve known shop skins", () => {
     backgroundPosition: "center",
   });
   assert.deepEqual(getCosmeticSpriteStyle("FORTRESS", "forest-keep"), {
-    backgroundImage: 'url("/assets/sprite-castle-forest-citadel.png")',
+    backgroundImage: 'url("/assets/sprite-castle-forest-citadel.webp")',
     backgroundSize: "contain",
     backgroundPosition: "center",
   });
   assert.deepEqual(getCosmeticSpriteStyle("FORTRESS", "frosthold-bastion"), {
-    backgroundImage: 'url("/assets/sprite-castle-frost-bastion.png")',
+    backgroundImage: 'url("/assets/sprite-castle-frost-bastion.webp")',
     backgroundSize: "contain",
     backgroundPosition: "center",
   });
@@ -3242,12 +3242,12 @@ test("cosmetic sprite styles resolve known shop skins", () => {
     backgroundPosition: "center",
   });
   assert.deepEqual(getCosmeticSpriteStyle("FORTRESS", "desert-fortress"), {
-    backgroundImage: 'url("/assets/sprite-castle-Desert-Fortress.png")',
+    backgroundImage: 'url("/assets/sprite-castle-Desert-Fortress.webp")',
     backgroundSize: "contain",
     backgroundPosition: "center",
   });
   assert.deepEqual(getCosmeticSpriteStyle("FORTRESS", "crystal-citadel"), {
-    backgroundImage: 'url("/assets/sprite-castle-Crystal-Citadel.png")',
+    backgroundImage: 'url("/assets/sprite-castle-Crystal-Citadel.webp")',
     backgroundSize: "contain",
     backgroundPosition: "center",
   });
