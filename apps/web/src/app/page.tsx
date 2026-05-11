@@ -320,11 +320,11 @@ export default async function Home({
       ? {
           title: "Build phase is open.",
           description:
-            "Claim a fortress and wait for the next season to begin.",
+            "Claim a fortress and wait for the season to begin.",
           nextAction: state.playerFortress
-            ? "You are locked in. Testing opens for the final 24 hours before season start."
-            : "Join before testing starts to take part in the next season.",
-          timerLabel: "Testing starts",
+            ? "You are locked in. The season starts today."
+            : "Join before the season starts.",
+          timerLabel: "Season",
           battlefieldTitle: "Build phase map",
           battlefieldDescription:
             "Fortresses appear as players join the build phase.",
