@@ -600,24 +600,20 @@ export async function recruitArmyAction(input: { unitCount: number }) {
   }
 }
 
-export async function selectFortressRaceAction(
-  race: string
-): Promise<InlineActionResult> {
-  const session = await auth();
-  const userId = session?.user?.id;
-
-  if (!userId) {
-    return { ok: false, error: "You need to sign in before selecting a race." };
-  }
+export async function selectFortressRaceAction(formData: FormData) {
+  const userId = await requireUserId();
 
   try {
-    await selectFortressRace({ userId, race });
+    await selectFortressRace({
+      userId,
+      race: getString(formData, "race"),
+    });
     emitProjectARefresh("race-selection");
-    revalidatePath("/");
-    return { ok: true };
   } catch (error) {
-    return { ok: false, error: getActionErrorMessage(error) };
+    redirectToHome("error", getActionErrorMessage(error));
   }
+
+  finishAction("Race locked for this season.");
 }
 
 export async function joinFortressAction(formData: FormData) {
@@ -655,142 +651,118 @@ export async function editRegistrationFortressNameAction(formData: FormData) {
   finishAction("Registration fortress name updated.");
 }
 
-export async function renameFortressAction(
-  fortressName: string
-): Promise<InlineActionResult> {
-  const session = await auth();
-  const userId = session?.user?.id;
-
-  if (!userId) {
-    return { ok: false, error: "You need to sign in before renaming." };
-  }
+export async function renameFortressAction(formData: FormData) {
+  const userId = await requireUserId();
 
   try {
-    await renameActiveFortress({ userId, fortressName });
+    await renameActiveFortress({
+      userId,
+      fortressName: getString(formData, "fortressName"),
+    });
     emitProjectARefresh("active-rename");
-    revalidatePath("/");
-    return { ok: true };
   } catch (error) {
-    return { ok: false, error: getActionErrorMessage(error) };
+    redirectToHome("error", getActionErrorMessage(error));
   }
+
+  finishAction("Fortress renamed and 10 gold spent.");
 }
 
-export async function buyPointsWithGoldAction(
-  goldAmount: number
-): Promise<InlineActionResult> {
-  const session = await auth();
-  const userId = session?.user?.id;
+export async function buyPointsWithGoldAction(formData: FormData) {
+  const userId = await requireUserId();
 
-  if (!userId) {
-    return { ok: false, error: "You need to sign in before converting gold." };
-  }
+  const goldAmount = getNumber(formData, "goldAmount", 0);
+  let goldSpent = goldAmount;
+  let pointsGained = 0;
 
   if (goldAmount <= 0) {
-    return { ok: false, error: "Gold amount must be greater than 0." };
+    redirectToHome("error", "Gold amount must be greater than 0.");
   }
 
   try {
-    const result = await buyPointsWithGold({ userId, goldAmount });
+    const result = await buyPointsWithGold({
+      userId,
+      goldAmount,
+    });
+    goldSpent = result.goldSpent;
+    pointsGained = result.pointsGained;
     emitProjectARefresh("gold-to-points-conversion");
     revalidatePath("/");
-    return { ok: true };
   } catch (error) {
-    return { ok: false, error: getActionErrorMessage(error) };
+    redirectToHome("error", getActionErrorMessage(error));
   }
+
+  finishAction(`Spent ${goldSpent} gold to gain ${pointsGained} points.`);
 }
 
-export async function purchaseFortressUpgradeAction(
-  specialization: string
-): Promise<InlineActionResult> {
-  const session = await auth();
-  const userId = session?.user?.id;
-
-  if (!userId) {
-    return { ok: false, error: "You need to sign in before upgrading." };
-  }
+export async function purchaseFortressUpgradeAction(formData: FormData) {
+  const userId = await requireUserId();
 
   try {
-    await purchaseFortressUpgrade({ userId, specialization });
+    await purchaseFortressUpgrade({
+      userId,
+      specialization: getString(formData, "specialization"),
+    });
     emitProjectARefresh("castle-upgrade");
-    revalidatePath("/");
-    return { ok: true };
   } catch (error) {
-    return { ok: false, error: getActionErrorMessage(error) };
+    redirectToHome("error", getActionErrorMessage(error));
   }
+
+  finishAction("Castle upgrade started. It will complete on a future tick.");
 }
 
 export async function choosePendingUpgradeSpecializationAction(
-  specialization: string
-): Promise<InlineActionResult> {
-  const session = await auth();
-  const userId = session?.user?.id;
-
-  if (!userId) {
-    return { ok: false, error: "You need to sign in before locking specialization." };
-  }
+  formData: FormData
+) {
+  const userId = await requireUserId();
 
   try {
-    await choosePendingUpgradeSpecialization({ userId, specialization });
+    await choosePendingUpgradeSpecialization({
+      userId,
+      specialization: getString(formData, "specialization"),
+    });
     emitProjectARefresh("castle-upgrade-specialization");
-    revalidatePath("/");
-    return { ok: true };
   } catch (error) {
-    return { ok: false, error: getActionErrorMessage(error) };
+    redirectToHome("error", getActionErrorMessage(error));
   }
+
+  finishAction("Castle specialization locked.");
 }
 
-export async function chooseDwarfGrudgeAction(
-  targetFortressId: string
-): Promise<InlineActionResult> {
-  const session = await auth();
-  const userId = session?.user?.id;
-
-  if (!userId) {
-    return { ok: false, error: "You need to sign in before choosing a grudge." };
-  }
+export async function chooseDwarfGrudgeAction(formData: FormData) {
+  const userId = await requireUserId();
 
   try {
-    await chooseDwarfGrudge({ userId, targetFortressId });
+    await chooseDwarfGrudge({
+      userId,
+      targetFortressId: getString(formData, "targetFortressId"),
+    });
     emitProjectARefresh("dwarf-grudge");
-    revalidatePath("/");
-    return { ok: true };
   } catch (error) {
-    return { ok: false, error: getActionErrorMessage(error) };
+    redirectToHome("error", getActionErrorMessage(error));
   }
+
+  finishAction("Grudge Book updated.");
 }
 
-export async function chooseDwarfTierThreeGrudgeAction(
-  targetFortressId?: string,
-  doubleExisting?: boolean
-): Promise<InlineActionResult> {
-  const session = await auth();
-  const userId = session?.user?.id;
-
-  if (!userId) {
-    return { ok: false, error: "You need to sign in before choosing a tier-three grudge." };
-  }
+export async function chooseDwarfTierThreeGrudgeAction(formData: FormData) {
+  const userId = await requireUserId();
 
   try {
     await chooseDwarfTierThreeGrudge({
       userId,
-      targetFortressId: targetFortressId || undefined,
-      doubleExisting: doubleExisting ?? false,
+      targetFortressId: getString(formData, "targetFortressId") || undefined,
+      doubleExisting: getString(formData, "choice") === "double",
     });
     emitProjectARefresh("dwarf-grudge-tier-three");
-    revalidatePath("/");
-    return { ok: true };
   } catch (error) {
-    return { ok: false, error: getActionErrorMessage(error) };
+    redirectToHome("error", getActionErrorMessage(error));
   }
+
+  finishAction("Grudge Book updated.");
 }
 
-export async function activateWaaaghAction(): Promise<InlineActionResult> {
-  const session = await auth();
-  const userId = session?.user?.id;
-
-  if (!userId) {
-    return { ok: false, error: "You need to sign in before activating WAAAGH." };
-  }
+export async function activateWaaaghAction() {
+  const userId = await requireUserId();
 
   try {
     await activateRaceAbility({
@@ -798,31 +770,27 @@ export async function activateWaaaghAction(): Promise<InlineActionResult> {
       kind: RaceAbilityKind.ORK_WAAAGH,
     });
     emitProjectARefresh("ork-waaagh");
-    revalidatePath("/");
-    return { ok: true };
   } catch (error) {
-    return { ok: false, error: getActionErrorMessage(error) };
+    redirectToHome("error", getActionErrorMessage(error));
   }
+
+  finishAction("WAAAGH activated for one hour.");
 }
 
-export async function activateOrkBossOrderAction(
-  kind: OrkBossOrderKind
-): Promise<InlineActionResult> {
-  const session = await auth();
-  const userId = session?.user?.id;
-
-  if (!userId) {
-    return { ok: false, error: "You need to sign in before activating a boss order." };
-  }
+export async function activateOrkBossOrderAction(formData: FormData) {
+  const userId = await requireUserId();
 
   try {
-    await activateOrkBossOrder({ userId, kind });
+    await activateOrkBossOrder({
+      userId,
+      kind: getString(formData, "kind") as OrkBossOrderKind,
+    });
     emitProjectARefresh("ork-boss-order");
-    revalidatePath("/");
-    return { ok: true };
   } catch (error) {
-    return { ok: false, error: getActionErrorMessage(error) };
+    redirectToHome("error", getActionErrorMessage(error));
   }
+
+  finishAction("Boss Order shouted.");
 }
 
 export async function investOrkWaaaghScrapAction(formData: FormData) {
@@ -982,34 +950,34 @@ export async function registerCommanderNameAction(formData: FormData) {
   finishAction("In-game nick registered.");
 }
 
-export async function setFortressActionAction(
-  action: "ATTACK" | "GROW",
-  targetFortressId?: string,
-  sentArmy = 1
-): Promise<InlineActionResult> {
-  const session = await auth();
-  const userId = session?.user?.id;
-
-  if (!userId) {
-    return { ok: false, error: "You need to sign in before setting an action." };
-  }
+export async function setFortressActionAction(formData: FormData) {
+  const userId = await requireUserId();
+  const actionInput = getString(formData, "action");
+  const targetFortressId = getString(formData, "targetFortressId");
+  const sentArmy = getNumber(formData, "sentArmy", 1);
 
   try {
-    const fortressAction =
-      action === FortressAction.ATTACK ? FortressAction.ATTACK : FortressAction.GROW;
+    const action =
+      actionInput === FortressAction.ATTACK
+        ? FortressAction.ATTACK
+        : FortressAction.GROW;
 
     await setFortressAction({
       userId,
-      action: fortressAction,
+      action,
       targetFortressId: targetFortressId || undefined,
       sentArmy,
     });
     emitProjectARefresh("action-update");
-    revalidatePath("/");
-    return { ok: true };
   } catch (error) {
-    return { ok: false, error: getActionErrorMessage(error) };
+    redirectToHome("error", getActionErrorMessage(error));
   }
+
+  finishAction(
+    actionInput === FortressAction.ATTACK
+      ? "Attack launched."
+      : "Fortress growth continues."
+  );
 }
 
 export async function submitCommunityWishProposalAction(formData: FormData) {
