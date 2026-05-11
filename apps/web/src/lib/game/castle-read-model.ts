@@ -33,6 +33,7 @@ import {
   getUnicornShatteredRealityAvailability,
   getUnicornTeleportClaimAvailability,
 } from "./race-buffs";
+import { addHours } from "./time";
 import { countCastleSpecializations } from "./specializations";
 import { DWARF_DEEP_MINING_RUNE_BOUNTY } from "./dwarf-deep-mining";
 import { ORK_BOSS_ORDER_CONFIG, ORK_WAAAGH_INVESTMENT_CONFIG } from "./orks";
@@ -566,6 +567,7 @@ export async function getCastlePageState({
   const latestDwarfDeepMiningRoll = playerFortress?.deepMiningRolls[0] ?? null;
   const currentDayKey = getHelsinkiDayKey(now);
   const currentHourKey = getHelsinkiHourKey(now);
+  const dwarfDeepMiningCooldownStartedAt = addHours(now, -1);
   const unicornShatteredRealityAvailability =
     getUnicornShatteredRealityAvailability({
       race: playerFortress?.race ?? null,
@@ -890,8 +892,8 @@ export async function getCastlePageState({
             canActivateDeepMining:
               playerFortress.race === "DWARFS" &&
               (!latestDwarfDeepMiningUse ||
-                getHelsinkiHourKey(latestDwarfDeepMiningUse.usedAt) !==
-                  currentHourKey),
+                latestDwarfDeepMiningUse.usedAt <=
+                  dwarfDeepMiningCooldownStartedAt),
             canActivateRuneOfGrudges:
               playerFortress.race === "DWARFS" &&
               raceBuffTier >= 3 &&

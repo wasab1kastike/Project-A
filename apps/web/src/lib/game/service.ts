@@ -2902,7 +2902,7 @@ export async function activateDwarfDeepMining({
         throw new GameError("You do not have enough gold to commit that much.");
       }
 
-      const hourKey = getHelsinkiHourKey(now);
+      const deepMiningCooldownStartedAt = addHours(now, -1);
       const latestUse = await tx.raceAbilityActivation.findFirst({
         where: {
           fortressId: fortress.id,
@@ -2914,8 +2914,10 @@ export async function activateDwarfDeepMining({
         },
       });
 
-      if (latestUse && getHelsinkiHourKey(latestUse.usedAt) === hourKey) {
-        throw new GameError("Deep Mining has already been used this hour.");
+      if (latestUse && latestUse.usedAt > deepMiningCooldownStartedAt) {
+        throw new GameError(
+          "Deep Mining can only be used once every 60 minutes."
+        );
       }
 
       const roll = rollDwarfDeepMining(rollValue);

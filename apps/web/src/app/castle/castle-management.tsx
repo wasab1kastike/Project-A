@@ -378,15 +378,44 @@ function formatSignedValue(value: number) {
 }
 
 function formatDeepMiningImpact({
+  outcome,
+  committedGold,
   goldDelta,
   armyDelta,
   recruitmentQueueDelta,
+  activeUntil,
 }: {
+  outcome: string;
+  committedGold: number;
   goldDelta: number;
   armyDelta: number;
   recruitmentQueueDelta: number;
+  activeUntil: Date | null;
 }) {
-  return `${formatSignedValue(goldDelta)} gold, ${formatSignedValue(armyDelta)} army, ${formatSignedValue(recruitmentQueueDelta)} queue`;
+  if (outcome === "ORE_SURGE") {
+    return activeUntil
+      ? `+50% economy until ${formatTime(activeUntil)}`
+      : "+50% economy for one hour";
+  }
+
+  if (outcome === "BATTLE_RUNES") {
+    return activeUntil
+      ? `+25% combat until ${formatTime(activeUntil)}`
+      : "+25% combat for one hour";
+  }
+
+  if (outcome === "SHAFT_COLLAPSE") {
+    return activeUntil
+      ? `economy halted until ${formatTime(activeUntil)}`
+      : "economy halted for one hour";
+  }
+
+  const fallbackQueueDelta =
+    outcome === "FACTION_SEAL" && recruitmentQueueDelta === 0
+      ? Math.min(250, Math.max(25, Math.floor(committedGold / 2)))
+      : recruitmentQueueDelta;
+
+  return `${formatSignedValue(goldDelta)} gold, ${formatSignedValue(armyDelta)} army, ${formatSignedValue(fallbackQueueDelta)} queue`;
 }
 
 function getBuildingEffect({
@@ -1424,10 +1453,13 @@ export function CastleManagement({
                                 ? ` resolves at ${formatTime(expedition.activeUntil)}`
                                 : " resolves later"}
                             {` (${formatDeepMiningImpact({
+                              outcome: expedition.outcome,
+                              committedGold: expedition.committedGold,
                               goldDelta: expedition.goldDelta,
                               armyDelta: expedition.armyDelta,
                               recruitmentQueueDelta:
                                 expedition.recruitmentQueueDelta,
+                              activeUntil: expedition.activeUntil,
                             })})`}
                             .
                           </li>
