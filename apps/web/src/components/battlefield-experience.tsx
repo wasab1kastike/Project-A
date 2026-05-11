@@ -23,7 +23,11 @@ import {
   type MapFortress,
   type MapHexOwnershipMarker,
 } from "./fortress-map";
-import { HEX_TILES, type HexBiome } from "@/lib/game/map-hex";
+import {
+  HEX_TILES,
+  snapMapPointToHex,
+  type HexBiome,
+} from "@/lib/game/map-hex";
 import {
   getHomeOfABonus,
   getTileBonus,
@@ -287,6 +291,9 @@ export function BattlefieldExperience({
   const markChatReadPendingRef = useRef(false);
   const selectedTargetId = null;
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
+  const [selectedBattleTileId, setSelectedBattleTileId] = useState<
+    string | null
+  >(null);
   const [tileAttackArmy, setTileAttackArmy] = useState(1);
   const [battleJoinArmyById, setBattleJoinArmyById] = useState<
     Record<string, number>
@@ -484,6 +491,27 @@ export function BattlefieldExperience({
           (battlefield) => battlefield.targetTileId === selectedTileId
         )?.id ?? null)
       : null);
+  const selectedTileBattlefields = useMemo(
+    () =>
+      selectedBattleTileId
+        ? battlefields.filter(
+            (battlefield) => battlefield.targetTileId === selectedBattleTileId
+          )
+        : [],
+    [battlefields, selectedBattleTileId]
+  );
+  const hasActiveBattleForTileId = useCallback(
+    (tileId: string) => {
+      const ownership = mapHexByTileId.get(tileId);
+
+      if (ownership?.activeBattlefieldId) {
+        return true;
+      }
+
+      return battlefields.some((battlefield) => battlefield.targetTileId === tileId);
+    },
+    [battlefields, mapHexByTileId]
+  );
   const currentOwnerId = playerFortress?.ownerId ?? null;
   const clampedTileAttackArmy =
     playerSummary && playerSummary.army > 0
@@ -772,23 +800,54 @@ export function BattlefieldExperience({
 
   const handleSelectFortress = useCallback(
     (fortress: MapFortress) => {
+      let tileId: string | null = null;
+
       if (fortress.isCurrentUser) {
         setSelectedFortressId(fortress.id);
-        return;
+        tileId = snapMapPointToHex({
+          x: fortress.mapX,
+          y: fortress.mapY,
+        }).tile.id;
       }
 
       const homeTileId = homeTileIdRef.current;
 
       if (homeTileId && fortress.fortressKind === "MEGA") {
-        setSelectedTileId(homeTileId);
+        tileId = homeTileId;
       }
+
+      if (!tileId && !fortress.isCurrentUser) {
+        tileId = snapMapPointToHex({
+          x: fortress.mapX,
+          y: fortress.mapY,
+        }).tile.id;
+      }
+
+      if (!tileId) {
+        setSelectedBattleTileId(null);
+        return;
+      }
+
+      setSelectedTileId(tileId);
+      setSelectedBattleTileId(hasActiveBattleForTileId(tileId) ? tileId : null);
     },
-    []
+    [hasActiveBattleForTileId]
   );
 
   const handleSelectMapHex = useCallback((tileId: string) => {
     setSelectedTileId(tileId);
-  }, []);
+    setSelectedBattleTileId(hasActiveBattleForTileId(tileId) ? tileId : null);
+  }, [hasActiveBattleForTileId]);
+
+  useEffect(() => {
+    if (!selectedBattleTileId) {
+      return;
+    }
+
+    if (!hasActiveBattleForTileId(selectedBattleTileId)) {
+      setSelectedBattleTileId(null);
+    }
+  }, [hasActiveBattleForTileId, selectedBattleTileId]);
 
   const actionButtons = (
     <div
@@ -929,7 +988,10 @@ export function BattlefieldExperience({
           type="button"
           className={styles.closeButton}
           aria-label="Close tile details"
-          onClick={() => setSelectedTileId(null)}
+          onClick={() => {
+            setSelectedTileId(null);
+            setSelectedBattleTileId(null);
+          }}
         >
           Close
         </button>
@@ -1206,16 +1268,16 @@ export function BattlefieldExperience({
   ) : null;
 
   const battlefieldsPanel =
-    battlefields.length > 0 || battleReports.length > 0 ? (
+    selectedTileBattlefields.length > 0 ? (
       <aside className={styles.battlefieldPanel} aria-label="Active battles">
-        {battlefields.length > 0 ? (
+        {selectedTileBattlefields.length > 0 ? (
           <>
             <div className={styles.sectionHeading}>
               <span className={styles.label}>Battles</span>
-              <strong>{battlefields.length}</strong>
+              <strong>{selectedTileBattlefields.length}</strong>
             </div>
             <div className={styles.battlefieldList}>
-              {battlefields.slice(0, 4).map((battlefield) => {
+              {selectedTileBattlefields.slice(0, 4).map((battlefield) => {
                 const currentSide =
                   battlefield.currentUserSide === "ATTACKER"
                     ? "Joined attack"
