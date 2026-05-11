@@ -1069,6 +1069,59 @@ test("owned tile attack creates a targetTileId battlefield", async (context) => 
   );
 });
 
+test("owned tile attack rejects when targeting your own tile", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const user = await createUser(prisma, "tile-own-attack-block@example.com");
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: user.id,
+      commanderName: "Tile Owner",
+      fortressName: "Owner Keep",
+      points: 100,
+    },
+  ]);
+  const fortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: user.id,
+      },
+    },
+  });
+  const tile = HEX_SPAWN_TILES.find((candidate) => candidate.spawnable);
+
+  assert.ok(tile);
+
+  await prisma.fortress.update({
+    where: { id: fortress.id },
+    data: { race: FortressRace.ORKS, army: 20 },
+  });
+  await prisma.mapHexOwnership.create({
+    data: {
+      cycleId: cycle.id,
+      tileId: tile.id,
+      ownerFortressId: fortress.id,
+    },
+  });
+
+  await assert.rejects(
+    () =>
+      attackMapHex({
+        userId: user.id,
+        tileId: tile.id,
+        sentArmy: 5,
+        now: new Date("2026-04-20T12:01:00.000Z"),
+        db: prisma,
+      }),
+    /already own that tile/
+  );
+});
+
 test("reinforcement travels before joining a battlefield", async (context) => {
   const prisma = getPrismaOrSkip(context);
 

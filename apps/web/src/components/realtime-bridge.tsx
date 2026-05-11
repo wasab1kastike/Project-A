@@ -9,7 +9,7 @@ type RealtimeBridgeProps = {
   enabled: boolean;
 };
 
-const FALLBACK_REFRESH_INTERVAL_MS = 10_000;
+const FALLBACK_REFRESH_INTERVAL_MS = 5_000;
 
 export function RealtimeBridge({ enabled }: RealtimeBridgeProps) {
   const router = useRouter();

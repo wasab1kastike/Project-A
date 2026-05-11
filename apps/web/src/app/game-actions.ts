@@ -147,6 +147,14 @@ function finishArcadeAction(
   redirectToArcade("notice", notice, details);
 }
 
+function notifyAndRevalidate(reason: string, paths: string[] = ["/"]) {
+  for (const path of new Set(paths)) {
+    revalidatePath(path);
+  }
+
+  emitProjectARefresh(reason);
+}
+
 type InlineActionResult =
   | {
       ok: true;
@@ -197,8 +205,7 @@ export async function attackFromMapAction(
       targetFortressId,
       sentArmy,
     });
-    emitProjectARefresh("map-attack");
-    revalidatePath("/");
+    notifyAndRevalidate("map-attack");
     return {
       ok: true,
     } satisfies InlineActionResult;
@@ -243,9 +250,7 @@ export async function claimMapHexAction(tileId: string) {
       });
     }
 
-    emitProjectARefresh("map-hex-claim");
-    revalidatePath("/");
-    revalidatePath("/castle");
+    notifyAndRevalidate("map-hex-claim", ["/", "/castle"]);
     return {
       ok: true,
     } satisfies InlineActionResult;
@@ -274,9 +279,7 @@ export async function attackMapHexAction(tileId: string, sentArmy = 1) {
       tileId,
       sentArmy,
     });
-    emitProjectARefresh("map-hex-attack");
-    revalidatePath("/");
-    revalidatePath("/castle");
+    notifyAndRevalidate("map-hex-attack", ["/", "/castle"]);
     return {
       ok: true,
       launchedAttackUnit: result.launchedAttackUnit,
@@ -305,9 +308,7 @@ export async function relocateCastleToTileAction(tileId: string) {
       userId,
       destinationTileId: tileId,
     });
-    emitProjectARefresh("castle-yeet-map");
-    revalidatePath("/");
-    revalidatePath("/castle");
+    notifyAndRevalidate("castle-yeet-map", ["/", "/castle"]);
     return {
       ok: true,
     } satisfies InlineActionResult;
@@ -341,8 +342,7 @@ export async function joinBattlefieldAction(
           : BattlefieldSide.ATTACKER,
       armyAmount,
     });
-    emitProjectARefresh("battlefield-join");
-    revalidatePath("/");
+      notifyAndRevalidate("battlefield-join");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -365,8 +365,7 @@ export async function recallAttackUnitAction(attackUnitId: string) {
       userId,
       attackUnitId,
     });
-    emitProjectARefresh("map-recall");
-    revalidatePath("/");
+    notifyAndRevalidate("map-recall");
     return {
       ok: true,
     } satisfies InlineActionResult;
@@ -395,8 +394,7 @@ export async function instantRecallAttackUnitAction(attackUnitId: string) {
       attackUnitId,
       instant: true,
     });
-    emitProjectARefresh("map-recall");
-    revalidatePath("/");
+    notifyAndRevalidate("map-recall");
     return {
       ok: true,
     } satisfies InlineActionResult;
@@ -424,8 +422,7 @@ export async function instantRecallGarrisonAction(garrisonId: string) {
       userId,
       garrisonId,
     });
-    emitProjectARefresh("garrison-recall");
-    revalidatePath("/");
+    notifyAndRevalidate("garrison-recall");
     return {
       ok: true,
     } satisfies InlineActionResult;
@@ -457,9 +454,7 @@ export async function recallBattlefieldArmyAction(
       battlefieldId,
       armyAmount,
     });
-    emitProjectARefresh("battlefield-recall");
-    revalidatePath("/");
-    revalidatePath("/castle");
+    notifyAndRevalidate("battlefield-recall", ["/", "/castle"]);
     return {
       ok: true,
     } satisfies InlineActionResult;
@@ -491,9 +486,7 @@ export async function recallGarrisonArmyAction(
       garrisonId,
       armyAmount,
     });
-    emitProjectARefresh("garrison-recall");
-    revalidatePath("/");
-    revalidatePath("/castle");
+    notifyAndRevalidate("garrison-recall", ["/", "/castle"]);
     return {
       ok: true,
     } satisfies InlineActionResult;
@@ -521,9 +514,7 @@ export async function torchOccupiedMapHexAction(garrisonId: string) {
       userId,
       garrisonId,
     });
-    emitProjectARefresh("map-hex-torch");
-    revalidatePath("/");
-    revalidatePath("/castle");
+    notifyAndRevalidate("map-hex-torch", ["/", "/castle"]);
     return {
       ok: true,
     } satisfies InlineActionResult;
@@ -557,8 +548,7 @@ export async function updateWorkerAssignmentAction(input: {
       farmersAssigned: input.farmersAssigned,
       recruitersAssigned: input.recruitersAssigned,
     });
-    emitProjectARefresh("worker-assignment");
-    revalidatePath("/");
+    notifyAndRevalidate("worker-assignment");
     return {
       ok: true,
     } satisfies InlineActionResult;
@@ -586,9 +576,7 @@ export async function recruitArmyAction(input: { unitCount: number }) {
       userId,
       unitCount: input.unitCount,
     });
-    emitProjectARefresh("army-recruitment");
-    revalidatePath("/");
-    revalidatePath("/castle");
+    notifyAndRevalidate("army-recruitment", ["/", "/castle"]);
     return {
       ok: true,
     } satisfies InlineActionResult;
@@ -612,8 +600,7 @@ export async function selectFortressRaceAction(
 
   try {
     await selectFortressRace({ userId, race });
-    emitProjectARefresh("race-selection");
-    revalidatePath("/");
+    notifyAndRevalidate("race-selection");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -1089,8 +1076,7 @@ export async function setFortressActionAction(
       targetFortressId: targetFortressId || undefined,
       sentArmy,
     });
-    emitProjectARefresh("action-update");
-    revalidatePath("/");
+    notifyAndRevalidate("action-update");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
