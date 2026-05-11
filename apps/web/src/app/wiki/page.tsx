@@ -577,7 +577,10 @@ export default function WikiPage() {
             <h3>Active-season utility costs</h3>
             <ul className={styles.noteList}>
               <li>Rename costs {ACTIVE_RENAME_COST} gold.</li>
-              <li>Manual Castle Yeet is paused for now.</li>
+              <li>
+                Manual Castle Yeet now starts from the Battlefield map and costs
+                gold to relocate your castle to a chosen spawnable tile.
+              </li>
               <li>
                 Unicorn teleport remains available through race abilities and
                 returns home after 1 hour.

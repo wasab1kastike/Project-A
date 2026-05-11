@@ -228,6 +228,8 @@ const LOOT_CAMP_FIGHT_BACK_NOTICE_STORAGE_KEY =
   "project-a:loot-camp-fight-back-notice:2026-04-30";
 const SEA_MOUNTAIN_CLAIM_NOTICE_STORAGE_KEY =
   "project-a:sea-mountain-claim-notice:2026-05-11";
+const CASTLE_YEET_NOTICE_STORAGE_KEY =
+  "project-a:castle-yeet-notice:2026-05-11";
 const BIOME_LABELS: Record<HexBiome, string> = {
   water: "Sea",
   coast: "Coast",
@@ -1823,6 +1825,11 @@ export function BattlefieldExperience({
             storageKey={SEA_MOUNTAIN_CLAIM_NOTICE_STORAGE_KEY}
           />
         ) : null}
+        <NoticeToast
+          autoDismissMs={5000}
+          message="Castle Yeet is live: arm it from the Battlefield map, then pick a destination tile to relocate your castle."
+          storageKey={CASTLE_YEET_NOTICE_STORAGE_KEY}
+        />
         <FortressMap
           className={immersive ? styles.fullMap : undefined}
           fortresses={mapFortresses}

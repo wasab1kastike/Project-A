@@ -8,9 +8,10 @@ export type PatchNotesRelease = {
 export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
   {
     date: "2026-05-11",
-    title: "Sea tiles, mountain claims, and instant attack markers",
+    title: "Sea tiles, mountain claims, Castle Yeet, and instant attack markers",
     newFeatures: [
       "Sea and mountain tiles can now be claimed — they cost more and take longer, but pay out higher rewards.",
+      "Castle Yeet now uses the Battlefield map: arm the move, pick a destination tile, and relocate your castle there for gold.",
       "Attack markers now appear and start moving the moment you click send, with no waiting for the next game tick.",
     ],
     bugFixes: [
