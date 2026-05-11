@@ -46,6 +46,8 @@ import { RACE_DEFINITIONS } from "@/lib/game/races";
 import {
   TEMPORARY_MAP_OBJECTIVE_INTERVAL_HOURS,
   TILE_CLAIM_DURATION_MINUTES,
+  TILE_CLAIM_SEA_DURATION_MINUTES,
+  TILE_CLAIM_MOUNTAINS_DURATION_MINUTES,
   TILE_CLAIM_OWNED_TILE_COST_STEP,
 } from "@/lib/game/territory";
 
@@ -248,7 +250,7 @@ const BATTLEFIELD_RULES = [
 ] as const;
 
 const TILE_CONTROL_RULES = [
-  `Neutral spawnable tiles are acquired through a ${TILE_CLAIM_DURATION_MINUTES}-minute claim project, not instantly.`,
+  `Neutral tiles are acquired through a claim project: ${TILE_CLAIM_DURATION_MINUTES} min for most biomes, ${TILE_CLAIM_MOUNTAINS_DURATION_MINUTES} min for mountains, and ${TILE_CLAIM_SEA_DURATION_MINUTES} min for sea tiles.`,
   "Each fortress can run only one active neutral tile acquisition project at a time.",
   "A neutral tile must be connected to your castle tile or your existing owned territory before you can claim it.",
   `Claim cost starts at 25 gold, scales with distance, adds biome premiums, and increases by ${TILE_CLAIM_OWNED_TILE_COST_STEP} gold per owned or pending tile.`,

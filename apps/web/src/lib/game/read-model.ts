@@ -62,12 +62,12 @@ import { DWARF_DEEP_MINING_RUNE_BOUNTY } from "./dwarf-deep-mining";
 import { ORK_BOSS_ORDER_CONFIG, ORK_WAAAGH_INVESTMENT_CONFIG } from "./orks";
 import { HEX_TILES, type HexTile } from "./map-hex";
 import {
-  TILE_CLAIM_DURATION_MINUTES,
   TILE_CLAIM_MAX_ACTIVE_PROJECTS,
   TILE_CLAIM_OWNED_TILE_COST_STEP,
   getHomeOfABonus,
   getTileBonus,
   getTileClaimCost,
+  getTileClaimDurationMinutes,
   getTileById,
   isHomeOfATile,
   isTileConnectedToFortressOrOwnedTiles,
@@ -2178,7 +2178,7 @@ export async function getHomePageState({
     return {
       pendingClaim,
       claimCost,
-      claimDurationMinutes: TILE_CLAIM_DURATION_MINUTES,
+      claimDurationMinutes: getTileClaimDurationMinutes(tile.biome),
       sizeSurcharge,
       isConnectedToPlayerTerritory,
       canClaim: claimDisabledReason === null,

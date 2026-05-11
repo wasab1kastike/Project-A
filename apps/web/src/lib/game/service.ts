@@ -74,10 +74,10 @@ import {
   rollDwarfDeepMining,
 } from "./dwarf-deep-mining";
 import {
-  TILE_CLAIM_DURATION_MINUTES,
   TILE_CLAIM_MAX_ACTIVE_PROJECTS,
   getTileById,
   getTileClaimCost,
+  getTileClaimDurationMinutes,
   isHomeOfATile,
   isTileConnectedToFortressOrOwnedTiles,
 } from "./territory";
@@ -990,7 +990,7 @@ export async function claimNeutralMapHex({
         tileId,
         goldCost: claimCost,
         startedAt: now,
-        completesAt: addMinutes(now, TILE_CLAIM_DURATION_MINUTES),
+        completesAt: addMinutes(now, getTileClaimDurationMinutes(tile.biome)),
       },
       select: {
         id: true,

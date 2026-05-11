@@ -28,7 +28,15 @@ export type TemporaryMapObjective = {
 };
 
 export const TILE_CLAIM_DURATION_MINUTES = 10;
+export const TILE_CLAIM_SEA_DURATION_MINUTES = 25;
+export const TILE_CLAIM_MOUNTAINS_DURATION_MINUTES = 20;
 export const TILE_CLAIM_MAX_ACTIVE_PROJECTS = 1;
+
+export function getTileClaimDurationMinutes(biome: HexBiome): number {
+  if (biome === "water") return TILE_CLAIM_SEA_DURATION_MINUTES;
+  if (biome === "mountains") return TILE_CLAIM_MOUNTAINS_DURATION_MINUTES;
+  return TILE_CLAIM_DURATION_MINUTES;
+}
 export const TILE_CLAIM_OWNED_TILE_COST_STEP = 10;
 
 const EMPTY_BONUS: TileBonus = {
@@ -42,21 +50,21 @@ const EMPTY_BONUS: TileBonus = {
 
 const BIOME_BONUSES: Record<HexBiome, TileBonus> = {
   water: {
-    gold: 1,
+    gold: 3,
     points: 0,
-    food: 4,
+    food: 6,
     army: 0,
     defensePercent: 0,
-    label: "+1 gold, +4 food / tick",
+    label: "+3 gold, +6 food / tick",
   },
   lake: EMPTY_BONUS,
   mountains: {
-    gold: 2,
+    gold: 4,
     points: 0,
     food: 1,
     army: 0,
-    defensePercent: 2,
-    label: "+2 gold, +1 food / tick, +2% defense",
+    defensePercent: 3,
+    label: "+4 gold, +1 food / tick, +3% defense",
   },
   plains: {
     gold: 1,
