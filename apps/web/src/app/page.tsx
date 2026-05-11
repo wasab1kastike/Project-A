@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Session } from "next-auth";
 import styles from "./page.module.css";
 import { auth, isAuthConfigured } from "@/auth";
+import { CompensationLootBoxAnnouncement } from "@/components/compensation-loot-box-announcement";
 import { SessionActions } from "@/components/session-actions";
 import { BattlefieldExperience } from "@/components/battlefield-experience";
 import { DismissiblePhaseCard } from "@/components/dismissible-phase-card";
@@ -439,6 +440,7 @@ export default async function Home({
       />
       <GodEmperorGiftNotice fortressName={state.playerSummary?.name} />
       <WappuDelayAnnouncement userId={session?.user?.id ?? null} />
+      <CompensationLootBoxAnnouncement userId={session?.user?.id ?? null} />
 
       <div className={styles.mapLayer}>
         <BattlefieldExperience
