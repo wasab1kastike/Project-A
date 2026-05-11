@@ -620,36 +620,83 @@ export async function selectFortressRaceAction(
   }
 }
 
-export async function joinFortressAction(formData: FormData) {
-  const userId = await requireUserId();
+export async function joinFortressAction(
+  commanderName: string,
+  fortressName: string,
+  race: string
+): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return { ok: false, error: "You need to sign in before joining." };
+  }
 
   try {
     await joinRegistrationCycle({
       userId,
-      commanderName: getString(formData, "commanderName"),
-      fortressName: getString(formData, "fortressName"),
-      race: getString(formData, "race"),
+      commanderName,
+      fortressName,
+      race,
     });
     emitProjectARefresh("join");
+    revalidatePath("/");
+    return { ok: true };
   } catch (error) {
-    redirectToHome("error", getActionErrorMessage(error));
+    return { ok: false, error: getActionErrorMessage(error) };
+  }
+}
+
+export async function joinFortressFormAction(formData: FormData) {
+  const result = await joinFortressAction(
+    getString(formData, "commanderName"),
+    getString(formData, "fortressName"),
+    getString(formData, "race")
+  );
+
+  if (!result.ok) {
+    redirectToHome("error", result.error);
   }
 
   finishAction("You joined the registration cycle.");
 }
 
-export async function editRegistrationFortressNameAction(formData: FormData) {
-  const userId = await requireUserId();
+export async function editRegistrationFortressNameAction(
+  commanderName: string,
+  fortressName: string
+): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before updating registration.",
+    };
+  }
 
   try {
     await editRegistrationFortressName({
       userId,
-      commanderName: getString(formData, "commanderName"),
-      fortressName: getString(formData, "fortressName"),
+      commanderName,
+      fortressName,
     });
     emitProjectARefresh("registration-rename");
+    revalidatePath("/");
+    return { ok: true };
   } catch (error) {
-    redirectToHome("error", getActionErrorMessage(error));
+    return { ok: false, error: getActionErrorMessage(error) };
+  }
+}
+
+export async function editRegistrationFortressNameFormAction(formData: FormData) {
+  const result = await editRegistrationFortressNameAction(
+    getString(formData, "commanderName"),
+    getString(formData, "fortressName")
+  );
+
+  if (!result.ok) {
+    redirectToHome("error", result.error);
   }
 
   finishAction("Registration fortress name updated.");
@@ -985,17 +1032,36 @@ export async function useUnicornTeleportAction(): Promise<InlineActionResult> {
   }
 }
 
-export async function registerCommanderNameAction(formData: FormData) {
-  const userId = await requireUserId();
+export async function registerCommanderNameAction(
+  commanderName: string
+): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return { ok: false, error: "You need to sign in before registering nick." };
+  }
 
   try {
     await registerCommanderName({
       userId,
-      commanderName: getString(formData, "commanderName"),
+      commanderName,
     });
     emitProjectARefresh("commander-name");
+    revalidatePath("/");
+    return { ok: true };
   } catch (error) {
-    redirectToHome("error", getActionErrorMessage(error));
+    return { ok: false, error: getActionErrorMessage(error) };
+  }
+}
+
+export async function registerCommanderNameFormAction(formData: FormData) {
+  const result = await registerCommanderNameAction(
+    getString(formData, "commanderName")
+  );
+
+  if (!result.ok) {
+    redirectToHome("error", result.error);
   }
 
   finishAction("In-game nick registered.");
@@ -1031,13 +1097,22 @@ export async function setFortressActionAction(
   }
 }
 
-export async function submitCommunityWishProposalAction(formData: FormData) {
-  const userId = await requireUserId();
-  const cycleId = getString(formData, "cycleId");
-  const requestText = getString(formData, "requestText");
+export async function submitCommunityWishProposalAction(
+  cycleId: string,
+  requestText: string
+): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before submitting a community wish.",
+    };
+  }
 
   if (!cycleId) {
-    redirectToHome("error", "Community wish is missing its cycle reference.");
+    return { ok: false, error: "Community wish is missing its cycle reference." };
   }
 
   try {
@@ -1047,32 +1122,48 @@ export async function submitCommunityWishProposalAction(formData: FormData) {
       requestText,
     });
     emitProjectARefresh("community-wish-proposal");
+    revalidatePath("/");
+    revalidatePath("/history");
+    revalidatePath("/admin");
+    return { ok: true };
   } catch (error) {
-    redirectToHome("error", getActionErrorMessage(error));
+    return { ok: false, error: getActionErrorMessage(error) };
+  }
+}
+
+export async function submitCommunityWishProposalFormAction(formData: FormData) {
+  const result = await submitCommunityWishProposalAction(
+    getString(formData, "cycleId"),
+    getString(formData, "requestText")
+  );
+
+  if (!result.ok) {
+    redirectToHome("error", result.error);
   }
 
-  revalidatePath("/history");
-  revalidatePath("/admin");
   finishAction("Community wish proposal saved.");
 }
 
-export async function saveCommunityWishVotesAction(formData: FormData) {
-  const userId = await requireUserId();
-  const cycleId = getString(formData, "cycleId");
+export async function saveCommunityWishVotesAction(
+  cycleId: string,
+  allocations: Array<{ proposalId: string; votes: number }>
+): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
 
-  if (!cycleId) {
-    redirectToHome(
-      "error",
-      "Community wish vote is missing its cycle reference."
-    );
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before saving community votes.",
+    };
   }
 
-  const allocations = Array.from(formData.entries())
-    .filter(([key]) => key.startsWith("proposalVotes:"))
-    .map(([key, value]) => ({
-      proposalId: key.slice("proposalVotes:".length),
-      votes: typeof value === "string" ? Number(value) : 0,
-    }));
+  if (!cycleId) {
+    return {
+      ok: false,
+      error: "Community wish vote is missing its cycle reference.",
+    };
+  }
 
   try {
     await saveCommunityWishVotes({
@@ -1081,12 +1172,30 @@ export async function saveCommunityWishVotesAction(formData: FormData) {
       allocations,
     });
     emitProjectARefresh("community-wish-vote");
+    revalidatePath("/");
+    revalidatePath("/history");
+    revalidatePath("/admin");
+    return { ok: true };
   } catch (error) {
-    redirectToHome("error", getActionErrorMessage(error));
+    return { ok: false, error: getActionErrorMessage(error) };
+  }
+}
+
+export async function saveCommunityWishVotesFormAction(formData: FormData) {
+  const cycleId = getString(formData, "cycleId");
+  const allocations = Array.from(formData.entries())
+    .filter(([key]) => key.startsWith("proposalVotes:"))
+    .map(([key, value]) => ({
+      proposalId: key.slice("proposalVotes:".length),
+      votes: typeof value === "string" ? Number(value) : 0,
+    }));
+
+  const result = await saveCommunityWishVotesAction(cycleId, allocations);
+
+  if (!result.ok) {
+    redirectToHome("error", result.error);
   }
 
-  revalidatePath("/history");
-  revalidatePath("/admin");
   finishAction("Community wish votes saved.");
 }
 

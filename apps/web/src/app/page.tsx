@@ -13,10 +13,10 @@ import { SeasonUpdateAnnouncement } from "@/components/season-update-announcemen
 import { SeasonTimer } from "@/components/season-timer";
 import { WappuDelayAnnouncement } from "@/components/wappu-delay-announcement";
 import {
-  joinFortressAction,
-  saveCommunityWishVotesAction,
-  registerCommanderNameAction,
-  submitCommunityWishProposalAction,
+  joinFortressFormAction,
+  saveCommunityWishVotesFormAction,
+  registerCommanderNameFormAction,
+  submitCommunityWishProposalFormAction,
 } from "@/app/game-actions";
 import { getContextualActionHint } from "@/lib/game/action-hints";
 import { COMMUNITY_WISH_MAX_LENGTH } from "@/lib/game/community-wishes";
@@ -526,7 +526,7 @@ export default async function Home({
                 <p>{state.communityWish.submissionHint}</p>
                 {state.communityWish.canSubmit ? (
                   <form
-                    action={submitCommunityWishProposalAction}
+                    action={submitCommunityWishProposalFormAction}
                     className={styles.form}
                   >
                     <input
@@ -587,7 +587,7 @@ export default async function Home({
                 ) : null}
                 {state.communityWish.canVote ? (
                   <form
-                    action={saveCommunityWishVotesAction}
+                    action={saveCommunityWishVotesFormAction}
                     className={styles.voteForm}
                   >
                     <input
@@ -825,7 +825,7 @@ export default async function Home({
 
           {showJoinCard && !blockingMessage ? (
             <div className={styles.joinModal} role="dialog" aria-modal="true">
-              <form action={joinFortressAction} className={styles.joinForm}>
+              <form action={joinFortressFormAction} className={styles.joinForm}>
                 <div className={styles.joinModalHeader}>
                   <span className={styles.sectionLabel}>
                     Choose your trouble
@@ -907,7 +907,7 @@ export default async function Home({
           ) : null}
 
           {showCommanderNameCard && !blockingMessage ? (
-            <form action={registerCommanderNameAction} className={styles.form}>
+            <form action={registerCommanderNameFormAction} className={styles.form}>
               <label className={styles.field}>
                 <span>In-game nick</span>
                 <input

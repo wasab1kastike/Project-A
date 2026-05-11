@@ -16,7 +16,7 @@ import {
   choosePendingUpgradeSpecializationAction,
   claimUnicornTeleportAction,
   purchaseFortressUpgradeAction,
-  registerCommanderNameAction,
+  registerCommanderNameFormAction,
   renameFortressAction,
   recruitArmyAction,
   selectFortressRaceAction,
@@ -1449,7 +1449,7 @@ export function CastleManagement({
         <div className={styles.form}>
           {playerSummary.canRegisterCommanderName ? (
             <form
-              action={registerCommanderNameAction}
+              action={registerCommanderNameFormAction}
               className={styles.inlineForm}
             >
               <input
