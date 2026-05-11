@@ -231,7 +231,7 @@ export async function getCastlePageState({
           },
           deepMiningRolls: {
             orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-            take: 1,
+            take: 3,
             select: {
               outcome: true,
               committedGold: true,
@@ -916,6 +916,20 @@ export async function getCastlePageState({
                     latestDwarfDeepMiningRoll.runeFortress?.army ?? null,
                 }
               : null,
+            deepMiningHistory: playerFortress.deepMiningRolls.map((roll) => ({
+              outcome: roll.outcome,
+              committedGold: roll.committedGold,
+              goldDelta: roll.goldDelta,
+              armyDelta: roll.armyDelta,
+              recruitmentQueueDelta: roll.recruitmentQueueDelta,
+              resolvedAt: roll.resolvedAt,
+              activeUntil: roll.activeUntil,
+              createdAt: roll.createdAt,
+              targetName: roll.targetFortress?.name ?? null,
+              runeFortressId: roll.runeFortressId,
+              runeHealth: roll.runeFortress?.health ?? null,
+              runeArmy: roll.runeFortress?.army ?? null,
+            })),
             dwarfGrudges: playerFortress.dwarfGrudges.map((grudge) => ({
               targetFortressId: grudge.targetFortressId,
               targetName: grudge.targetFortress.name,

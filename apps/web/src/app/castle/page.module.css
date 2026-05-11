@@ -141,6 +141,13 @@
   line-height: 1.5;
 }
 
+.compactList {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
 .buildingCard span,
 .buildingChoice small {
   color: #9be7ef;

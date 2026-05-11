@@ -176,6 +176,20 @@ type PlayerSummary = {
       runeHealth: number | null;
       runeArmy: number | null;
     } | null;
+    deepMiningHistory: {
+      outcome: string;
+      committedGold: number;
+      goldDelta: number;
+      armyDelta: number;
+      recruitmentQueueDelta: number;
+      resolvedAt: Date | null;
+      activeUntil: Date | null;
+      createdAt: Date;
+      targetName: string | null;
+      runeFortressId: string | null;
+      runeHealth: number | null;
+      runeArmy: number | null;
+    }[];
     dwarfGrudges: {
       targetFortressId: string;
       targetName: string;
@@ -1380,22 +1394,29 @@ export function CastleManagement({
                     Invest gold now and resolve the mine later. Bigger
                     commitments wait longer and can swing harder.
                   </p>
-                  {playerSummary.raceBuffs.deepMiningLatest ? (
-                    <small>
-                      Last result:{" "}
-                      {playerSummary.raceBuffs.deepMiningLatest.outcome}
-                      {playerSummary.raceBuffs.deepMiningLatest.resolvedAt
-                        ? ` resolved at ${formatTime(
-                            playerSummary.raceBuffs.deepMiningLatest.resolvedAt
-                          )}.`
-                        : playerSummary.raceBuffs.deepMiningLatest.activeUntil
-                          ? ` resolves at ${formatTime(
-                              playerSummary.raceBuffs.deepMiningLatest
-                                .activeUntil
-                            )}.`
-                          : " resolves later."}
-                    </small>
-                  ) : null}
+                  {playerSummary.raceBuffs.deepMiningHistory.length > 0 ? (
+                    <ul className={styles.compactList}>
+                      {playerSummary.raceBuffs.deepMiningHistory.map(
+                        (expedition, index) => (
+                          <li
+                            key={`${expedition.createdAt.toISOString()}-${index}`}
+                          >
+                            {expedition.outcome.replaceAll("_", " ")}:
+                            {expedition.resolvedAt
+                              ? ` resolved at ${formatTime(expedition.resolvedAt)}`
+                              : expedition.activeUntil
+                                ? ` resolves at ${formatTime(expedition.activeUntil)}`
+                                : " resolves later"}
+                            .
+                          </li>
+                        )
+                      )}
+                    </ul>
+                  ) : (
+                    <p className={styles.muted}>
+                      No deep mining expeditions recorded yet.
+                    </p>
+                  )}
                   <form
                     action={activateDwarfDeepMiningFormAction}
                     className={styles.form}
