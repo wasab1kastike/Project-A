@@ -91,6 +91,7 @@ export type TickSummary = {
   resolvedCommunityWishVotes: number;
   nextRegistrationCyclesCreated: number;
   processedMinutes: number;
+  skippedCatchUpMinutes?: number;
   scoreEventsCreated: number;
   launchedAttackUnits: number;
   resolvedAttackUnits: number;
@@ -107,6 +108,28 @@ const TICK_TRANSACTION_OPTIONS = {
   maxWait: 10_000,
   timeout: 60_000,
 } satisfies Parameters<PrismaClient["$transaction"]>[1];
+
+const DEFAULT_MAX_CATCH_UP_MINUTES = 10;
+
+function getConfiguredMaxCatchUpMinutes() {
+  const rawValue = process.env.GAME_TICK_MAX_CATCH_UP_MINUTES;
+
+  if (!rawValue) {
+    return DEFAULT_MAX_CATCH_UP_MINUTES;
+  }
+
+  const parsed = Number(rawValue);
+
+  if (!Number.isFinite(parsed)) {
+    return DEFAULT_MAX_CATCH_UP_MINUTES;
+  }
+
+  return Math.max(0, Math.floor(parsed));
+}
+
+function countDueMinutes(from: Date, to: Date) {
+  return Math.max(0, Math.floor((to.getTime() - from.getTime()) / 60_000) + 1);
+}
 
 export type TickHealth = "ok" | "lagging" | "stalled";
 
@@ -3398,9 +3421,11 @@ async function processCycleTick(
 export async function runGameTick({
   now = new Date(),
   db = prisma,
+  maxCatchUpMinutes = getConfiguredMaxCatchUpMinutes(),
 }: {
   now?: Date;
   db?: PrismaClient;
+  maxCatchUpMinutes?: number | null;
 } = {}): Promise<TickSummary> {
   try {
     await ensureRaceSchemaReadiness(db);
@@ -3421,6 +3446,7 @@ export async function runGameTick({
     resolvedCommunityWishVotes: 0,
     nextRegistrationCyclesCreated: 0,
     processedMinutes: 0,
+    skippedCatchUpMinutes: 0,
     scoreEventsCreated: 0,
     launchedAttackUnits: 0,
     resolvedAttackUnits: 0,
@@ -3583,9 +3609,37 @@ export async function runGameTick({
     );
 
     if (lastDueTickAt && nextTickAt <= lastDueTickAt) {
+      const totalDueMinutes = countDueMinutes(nextTickAt, lastDueTickAt);
+      const effectiveLastDueTickAt =
+        maxCatchUpMinutes === null
+          ? lastDueTickAt
+          : addMinutes(
+              nextTickAt,
+              Math.min(totalDueMinutes, maxCatchUpMinutes) - 1
+            );
+      const skippedMinutes =
+        maxCatchUpMinutes === null
+          ? 0
+          : Math.max(0, totalDueMinutes - maxCatchUpMinutes);
+
+      if (skippedMinutes > 0) {
+        summary.skippedCatchUpMinutes =
+          (summary.skippedCatchUpMinutes ?? 0) + skippedMinutes;
+        console.warn(
+          JSON.stringify({
+            event: "tick-catch-up-capped",
+            cycleId: cycle.id,
+            nextTickAt: nextTickAt.toISOString(),
+            lastDueTickAt: lastDueTickAt.toISOString(),
+            processedThisRun: maxCatchUpMinutes,
+            remainingBacklogMinutes: skippedMinutes,
+          })
+        );
+      }
+
       for (
         let tickAt = nextTickAt;
-        tickAt <= lastDueTickAt;
+        tickAt <= effectiveLastDueTickAt;
         tickAt = addMinutes(tickAt, 1)
       ) {
         let result: ProcessCycleTickResult;

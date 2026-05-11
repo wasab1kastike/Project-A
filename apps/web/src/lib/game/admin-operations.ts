@@ -187,6 +187,7 @@ export async function runManualCatchUpTick({
   return runGameTick({
     now: floorToMinute(now),
     db,
+    maxCatchUpMinutes: null,
   });
 }
 

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Session } from "next-auth";
 import { auth } from "@/auth";
 import {
   equipCosmeticUnlockAction,
@@ -86,8 +87,16 @@ export default async function ShopPage({
   searchParams?: SearchParams;
 }) {
   const params = (await searchParams) ?? {};
-  const session = await auth();
+  let session: Session | null = null;
   let state: ArcadeHubState = getDegradedShopState();
+  let runtimeError: string | null = null;
+
+  try {
+    session = await auth();
+  } catch (error) {
+    console.error("Failed to load shop session", error);
+    runtimeError = "Sign-in status is temporarily unavailable.";
+  }
 
   try {
     state = await getArcadeHubState({
@@ -95,6 +104,8 @@ export default async function ShopPage({
     });
   } catch (error) {
     console.error("Failed to load shop hub", error);
+    runtimeError =
+      "The shop is temporarily unavailable. Please try again in a moment.";
   }
 
   const revealSlot =
@@ -150,6 +161,9 @@ export default async function ShopPage({
             Browse featured crates, open them from your stash, and build out
             your cosmetic collection throughout the current cycle.
           </p>
+          {runtimeError ? (
+            <p className={styles.errorBanner}>{runtimeError}</p>
+          ) : null}
           <div className={styles.marketBanner}>
             <span className={styles.marketPill}>Featured crates</span>
             <span className={styles.marketPill}>Cosmetics only</span>
@@ -314,7 +328,10 @@ export default async function ShopPage({
                           name="slot"
                           value={ArcadeCosmeticSlot.UNIT}
                         />
-                        <button className={styles.secondaryButton} type="submit">
+                        <button
+                          className={styles.secondaryButton}
+                          type="submit"
+                        >
                           Use default
                         </button>
                       </form>
@@ -387,7 +404,10 @@ export default async function ShopPage({
                           name="slot"
                           value={ArcadeCosmeticSlot.FORTRESS}
                         />
-                        <button className={styles.secondaryButton} type="submit">
+                        <button
+                          className={styles.secondaryButton}
+                          type="submit"
+                        >
                           Use default
                         </button>
                       </form>

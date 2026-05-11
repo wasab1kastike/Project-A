@@ -9,7 +9,15 @@ type RealtimeBridgeProps = {
   enabled: boolean;
 };
 
-const FALLBACK_REFRESH_INTERVAL_MS = 5_000;
+const FALLBACK_REFRESH_INTERVAL_MS = 15_000;
+const FALLBACK_REFRESH_JITTER_MS = 5_000;
+
+function getFallbackRefreshDelay() {
+  return (
+    FALLBACK_REFRESH_INTERVAL_MS +
+    Math.floor(Math.random() * FALLBACK_REFRESH_JITTER_MS)
+  );
+}
 
 export function RealtimeBridge({ enabled }: RealtimeBridgeProps) {
   const router = useRouter();
@@ -20,6 +28,7 @@ export function RealtimeBridge({ enabled }: RealtimeBridgeProps) {
     }
 
     let pollingInterval: ReturnType<typeof setInterval> | null = null;
+    let pollingTimeout: ReturnType<typeof setTimeout> | null = null;
     let refreshPending = false;
 
     const refreshView = () => {
@@ -35,24 +44,49 @@ export function RealtimeBridge({ enabled }: RealtimeBridgeProps) {
     };
 
     const startPollingFallback = () => {
-      if (pollingInterval !== null) {
+      if (document.visibilityState !== "visible") {
         return;
       }
 
-      pollingInterval = setInterval(() => {
-        refreshView();
-      }, FALLBACK_REFRESH_INTERVAL_MS);
+      if (pollingInterval !== null || pollingTimeout !== null) {
+        return;
+      }
 
-      refreshView();
+      pollingTimeout = setTimeout(() => {
+        pollingTimeout = null;
+        refreshView();
+
+        pollingInterval = setInterval(() => {
+          if (document.visibilityState === "visible") {
+            refreshView();
+          }
+        }, getFallbackRefreshDelay());
+      }, getFallbackRefreshDelay());
     };
 
     const stopPollingFallback = () => {
+      if (pollingTimeout !== null) {
+        clearTimeout(pollingTimeout);
+        pollingTimeout = null;
+      }
+
       if (pollingInterval === null) {
         return;
       }
 
       clearInterval(pollingInterval);
       pollingInterval = null;
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && !socket.connected) {
+        startPollingFallback();
+        return;
+      }
+
+      if (document.visibilityState !== "visible") {
+        stopPollingFallback();
+      }
     };
 
     const socket = io({
@@ -85,7 +119,10 @@ export function RealtimeBridge({ enabled }: RealtimeBridgeProps) {
       startPollingFallback();
     });
 
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       stopPollingFallback();
       socket.disconnect();
     };

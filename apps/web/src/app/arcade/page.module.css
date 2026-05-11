@@ -100,6 +100,16 @@
   color: #516473;
 }
 
+.errorBanner {
+  margin: 0;
+  border: 1px solid rgba(185, 28, 28, 0.22);
+  border-radius: 8px;
+  background: rgba(254, 226, 226, 0.72);
+  padding: 10px 12px;
+  color: #991b1b;
+  font-weight: 700;
+}
+
 .marketBanner {
   display: flex;
   flex-wrap: wrap;

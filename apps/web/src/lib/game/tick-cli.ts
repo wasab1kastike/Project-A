@@ -11,6 +11,7 @@ export function formatTickSummary(summary: TickSummary) {
     `Community wish votes resolved: ${summary.resolvedCommunityWishVotes}`,
     `Next registration cycles created: ${summary.nextRegistrationCyclesCreated}`,
     `Minutes processed: ${summary.processedMinutes}`,
+    `Catch-up minutes deferred: ${summary.skippedCatchUpMinutes ?? 0}`,
     `Score events created: ${summary.scoreEventsCreated}`,
     `Attack units launched: ${summary.launchedAttackUnits}`,
     `Attack units resolved: ${summary.resolvedAttackUnits}`,

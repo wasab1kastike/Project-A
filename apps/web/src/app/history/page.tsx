@@ -1,9 +1,11 @@
 import Link from "next/link";
+import type { Session } from "next-auth";
 import styles from "./page.module.css";
 import { auth } from "@/auth";
 import { EXPLOIT_HALL_OF_FAME_ENTRIES } from "@/lib/game/exploit-hall-of-fame";
 import { getCycleHistoryPageState } from "@/lib/game/history";
 import { PATCH_NOTES_PAGE_HREF } from "@/lib/game/site-navigation";
+import { WINNER_REQUEST_POLICY_URL } from "@/lib/game/winner-requests";
 
 export const dynamic = "force-dynamic";
 
@@ -39,23 +41,41 @@ export default async function HistoryPage({
 }: {
   searchParams?: SearchParams;
 }) {
-  const session = await auth();
+  let session: Session | null = null;
   const params = (await searchParams) ?? {};
   const error = getSearchValue(params.error);
   const notice = getSearchValue(params.notice);
   const activeTab = getHistoryTab(params.tab);
-  const state = await getCycleHistoryPageState({
-    userId: session?.user?.id,
-  });
-  const seasonIndex = [...state.entries]
-    .reverse()
-    .map((entry, index) => ({
-      cycleId: entry.cycleId,
-      seasonName: formatSeasonName(index + 1),
-      winnerFortressName: entry.winnerFortressName,
-      communityWishSnapshot:
-        entry.communityWishSnapshot ?? "No community wish recorded.",
-    }));
+  let runtimeError: string | null = null;
+
+  try {
+    session = await auth();
+  } catch (caughtError) {
+    console.error("Failed to load history session", caughtError);
+    runtimeError = "Sign-in status is temporarily unavailable.";
+  }
+
+  let state: Awaited<ReturnType<typeof getCycleHistoryPageState>> = {
+    entries: [],
+    policyUrl: WINNER_REQUEST_POLICY_URL,
+  };
+
+  try {
+    state = await getCycleHistoryPageState({
+      userId: session?.user?.id,
+    });
+  } catch (caughtError) {
+    console.error("Failed to load history page state", caughtError);
+    runtimeError =
+      "Season history is temporarily unavailable. Please try again in a moment.";
+  }
+  const seasonIndex = [...state.entries].reverse().map((entry, index) => ({
+    cycleId: entry.cycleId,
+    seasonName: formatSeasonName(index + 1),
+    winnerFortressName: entry.winnerFortressName,
+    communityWishSnapshot:
+      entry.communityWishSnapshot ?? "No community wish recorded.",
+  }));
 
   return (
     <main className={styles.page}>
@@ -112,6 +132,9 @@ export default async function HistoryPage({
       </section>
 
       {error ? <p className={styles.errorBanner}>{error}</p> : null}
+      {runtimeError ? (
+        <p className={styles.errorBanner}>{runtimeError}</p>
+      ) : null}
       {notice ? <p className={styles.noticeBanner}>{notice}</p> : null}
 
       {activeTab === "seasons" ? (

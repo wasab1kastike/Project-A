@@ -293,83 +293,88 @@ model Cycle {
   history                       CycleHistory?
 
   @@index([status])
+  @@index([resolvedAt, createdAt], map: "Cycle_resolvedAt_createdAt_idx")
+  @@index([status, registrationEndsAt], map: "Cycle_status_registrationEndsAt_idx")
+  @@index([status, testingEndsAt], map: "Cycle_status_testingEndsAt_idx")
+  @@index([status, activeStartedAt], map: "Cycle_status_activeStartedAt_idx")
+  @@index([updatedAt], map: "Cycle_updatedAt_idx")
   @@index([winnerId])
   @@index([crownedFortressId])
 }
 
 model Fortress {
-  id                           String                              @id @default(cuid())
-  cycleId                      String
-  ownerId                      String
-  commanderName                String
-  commanderNameRegisteredAt    DateTime?
-  name                         String
-  points                       Int                                 @default(0)
-  gold                         Int                                 @default(0)
-  level                        Int                                 @default(0)
-  food                         Int                                 @default(0)
-  army                         Int                                 @default(0)
-  recruitmentQueue             Int                                 @default(0)
-  minersAssigned               Int                                 @default(10)
-  farmersAssigned              Int                                 @default(10)
-  recruitersAssigned           Int                                 @default(5)
-  race                         FortressRace?
-  fortressKind                 FortressKind                        @default(PLAYER)
-  lootCampVariant              LootCampVariant?
-  isNpc                        Boolean                             @default(false)
-  health                       Int                                 @default(0)
-  maxHealth                    Int                                 @default(0)
-  expiresAt                    DateTime?
-  sizeTiles                    Int                                 @default(1)
-  iconLabel                    String?
-  unicornDecoySourceFortressId String?
-  unicornDecoyLevel            Int?
-  currentAction                FortressAction                      @default(GROW)
-  targetFortressId             String?
-  unitSpriteVariant            String                              @default("unit-1")
-  locationShuffleCount         Int                                 @default(0)
-  mapX                         Int
-  mapY                         Int
-  joinedAt                     DateTime                            @default(now())
-  createdAt                    DateTime                            @default(now())
-  updatedAt                    DateTime                            @updatedAt
-  cycle                        Cycle                               @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  owner                        User                                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  targetFortress               Fortress?                           @relation("FortressTarget", fields: [targetFortressId], references: [id], onDelete: SetNull)
-  attackers                    Fortress[]                          @relation("FortressTarget")
-  unicornDecoySourceFortress   Fortress?                           @relation("UnicornDecoySource", fields: [unicornDecoySourceFortressId], references: [id], onDelete: Cascade)
-  unicornDecoys                Fortress[]                          @relation("UnicornDecoySource")
-  outboundAttackUnits          AttackUnit[]                        @relation("AttackUnitAttacker")
-  inboundAttackUnits           AttackUnit[]                        @relation("AttackUnitTarget")
-  crownedCycles                Cycle[]                             @relation("CycleCrownedFortress")
-  scoreEventsAsFortress        ScoreEvent[]                        @relation("ScoreEventFortress")
-  scoreEventsAsTarget          ScoreEvent[]                        @relation("ScoreEventTargetFortress")
-  castleUpgradeSpecializations CastleUpgradeSpecializationChoice[]
-  castleUpgradeProjects        CastleUpgradeProject[]
-  raceAbilityActivations       RaceAbilityActivation[]
-  orkScrapBank                 OrkScrapBank?
-  orkScrapEvents               OrkScrapEvent[]                    @relation("OrkScrapEventFortress")
-  orkScrapTargetedEvents       OrkScrapEvent[]                    @relation("OrkScrapEventTargetFortress")
-  orkBossOrders                OrkBossOrder[]
-  orkWaaaghInvestments         OrkWaaaghInvestment[]
-  targetedRaceAbilityActivations RaceAbilityActivation[] @relation("RaceAbilityTargetFortress")
-  runeRaceAbilityActivations   RaceAbilityActivation[] @relation("RaceAbilityRuneFortress")
-  dwarfGrudges                 DwarfGrudge[]                       @relation("DwarfGrudgeOwner")
-  grudgedBy                    DwarfGrudge[]                       @relation("DwarfGrudgeTarget")
-  deepMiningRolls              DwarfDeepMiningRoll[]               @relation("DwarfDeepMiningOwner")
-  deepMiningRuneRolls          DwarfDeepMiningRoll[]               @relation("DwarfDeepMiningRune")
-  deepMiningTargetedBy         DwarfDeepMiningRoll[]               @relation("DwarfDeepMiningTarget")
-  ownedMapHexes                MapHexOwnership[]                   @relation("MapHexOwner")
-  mapHexClaimProjects          MapHexClaimProject[]                @relation("MapHexClaimProjectFortress")
-  homeOfAHoldings              HomeOfAHolder[]                     @relation("HomeOfAHolderFortress")
-  homeOfABannerHoldings        HomeOfAHolder[]                     @relation("HomeOfABannerFortress")
-  attackerBannerBattlefields   Battlefield[]                       @relation("BattlefieldAttackerBanner")
-  defenderBannerBattlefields   Battlefield[]                       @relation("BattlefieldDefenderBanner")
-  targetedBattlefields         Battlefield[]                       @relation("BattlefieldTargetFortress")
-  battlefieldParticipants      BattlefieldParticipant[]
-  unicornTemporaryTeleports    UnicornTemporaryTeleport[]          @relation("UnicornTeleportFortress")
-  unicornTemporaryTeleportDecoy UnicornTemporaryTeleport?           @relation("UnicornTeleportDecoy")
-  garrisons                    FortressGarrison[]
+  id                             String                              @id @default(cuid())
+  cycleId                        String
+  ownerId                        String
+  commanderName                  String
+  commanderNameRegisteredAt      DateTime?
+  name                           String
+  points                         Int                                 @default(0)
+  gold                           Int                                 @default(0)
+  level                          Int                                 @default(0)
+  food                           Int                                 @default(0)
+  army                           Int                                 @default(0)
+  recruitmentQueue               Int                                 @default(0)
+  minersAssigned                 Int                                 @default(10)
+  farmersAssigned                Int                                 @default(10)
+  recruitersAssigned             Int                                 @default(5)
+  race                           FortressRace?
+  fortressKind                   FortressKind                        @default(PLAYER)
+  lootCampVariant                LootCampVariant?
+  isNpc                          Boolean                             @default(false)
+  health                         Int                                 @default(0)
+  maxHealth                      Int                                 @default(0)
+  expiresAt                      DateTime?
+  sizeTiles                      Int                                 @default(1)
+  iconLabel                      String?
+  unicornDecoySourceFortressId   String?
+  unicornDecoyLevel              Int?
+  currentAction                  FortressAction                      @default(GROW)
+  targetFortressId               String?
+  unitSpriteVariant              String                              @default("unit-1")
+  locationShuffleCount           Int                                 @default(0)
+  mapX                           Int
+  mapY                           Int
+  joinedAt                       DateTime                            @default(now())
+  createdAt                      DateTime                            @default(now())
+  updatedAt                      DateTime                            @updatedAt
+  cycle                          Cycle                               @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  owner                          User                                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  targetFortress                 Fortress?                           @relation("FortressTarget", fields: [targetFortressId], references: [id], onDelete: SetNull)
+  attackers                      Fortress[]                          @relation("FortressTarget")
+  unicornDecoySourceFortress     Fortress?                           @relation("UnicornDecoySource", fields: [unicornDecoySourceFortressId], references: [id], onDelete: Cascade)
+  unicornDecoys                  Fortress[]                          @relation("UnicornDecoySource")
+  outboundAttackUnits            AttackUnit[]                        @relation("AttackUnitAttacker")
+  inboundAttackUnits             AttackUnit[]                        @relation("AttackUnitTarget")
+  crownedCycles                  Cycle[]                             @relation("CycleCrownedFortress")
+  scoreEventsAsFortress          ScoreEvent[]                        @relation("ScoreEventFortress")
+  scoreEventsAsTarget            ScoreEvent[]                        @relation("ScoreEventTargetFortress")
+  castleUpgradeSpecializations   CastleUpgradeSpecializationChoice[]
+  castleUpgradeProjects          CastleUpgradeProject[]
+  raceAbilityActivations         RaceAbilityActivation[]
+  orkScrapBank                   OrkScrapBank?
+  orkScrapEvents                 OrkScrapEvent[]                     @relation("OrkScrapEventFortress")
+  orkScrapTargetedEvents         OrkScrapEvent[]                     @relation("OrkScrapEventTargetFortress")
+  orkBossOrders                  OrkBossOrder[]
+  orkWaaaghInvestments           OrkWaaaghInvestment[]
+  targetedRaceAbilityActivations RaceAbilityActivation[]             @relation("RaceAbilityTargetFortress")
+  runeRaceAbilityActivations     RaceAbilityActivation[]             @relation("RaceAbilityRuneFortress")
+  dwarfGrudges                   DwarfGrudge[]                       @relation("DwarfGrudgeOwner")
+  grudgedBy                      DwarfGrudge[]                       @relation("DwarfGrudgeTarget")
+  deepMiningRolls                DwarfDeepMiningRoll[]               @relation("DwarfDeepMiningOwner")
+  deepMiningRuneRolls            DwarfDeepMiningRoll[]               @relation("DwarfDeepMiningRune")
+  deepMiningTargetedBy           DwarfDeepMiningRoll[]               @relation("DwarfDeepMiningTarget")
+  ownedMapHexes                  MapHexOwnership[]                   @relation("MapHexOwner")
+  mapHexClaimProjects            MapHexClaimProject[]                @relation("MapHexClaimProjectFortress")
+  homeOfAHoldings                HomeOfAHolder[]                     @relation("HomeOfAHolderFortress")
+  homeOfABannerHoldings          HomeOfAHolder[]                     @relation("HomeOfABannerFortress")
+  attackerBannerBattlefields     Battlefield[]                       @relation("BattlefieldAttackerBanner")
+  defenderBannerBattlefields     Battlefield[]                       @relation("BattlefieldDefenderBanner")
+  targetedBattlefields           Battlefield[]                       @relation("BattlefieldTargetFortress")
+  battlefieldParticipants        BattlefieldParticipant[]
+  unicornTemporaryTeleports      UnicornTemporaryTeleport[]          @relation("UnicornTeleportFortress")
+  unicornTemporaryTeleportDecoy  UnicornTemporaryTeleport?           @relation("UnicornTeleportDecoy")
+  garrisons                      FortressGarrison[]
 
   @@unique([cycleId, ownerId])
   @@unique([cycleId, commanderName])
@@ -378,27 +383,29 @@ model Fortress {
   @@index([cycleId, isNpc])
   @@index([cycleId, fortressKind])
   @@index([cycleId, fortressKind, expiresAt])
+  @@index([cycleId, joinedAt], map: "Fortress_cycleId_joinedAt_idx")
+  @@index([updatedAt], map: "Fortress_updatedAt_idx")
   @@index([unicornDecoySourceFortressId, createdAt])
   @@index([ownerId])
 }
 
 model UnicornTemporaryTeleport {
-  id             String    @id @default(cuid())
-  cycleId        String
-  fortressId     String
+  id              String    @id @default(cuid())
+  cycleId         String
+  fortressId      String
   decoyFortressId String?   @unique
-  originMapX     Int
-  originMapY     Int
-  temporaryMapX  Int
-  temporaryMapY  Int
-  startedAt      DateTime
-  returnAt       DateTime
-  returnedAt     DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  cycle          Cycle     @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  fortress       Fortress  @relation("UnicornTeleportFortress", fields: [fortressId], references: [id], onDelete: Cascade)
-  decoyFortress  Fortress? @relation("UnicornTeleportDecoy", fields: [decoyFortressId], references: [id], onDelete: SetNull)
+  originMapX      Int
+  originMapY      Int
+  temporaryMapX   Int
+  temporaryMapY   Int
+  startedAt       DateTime
+  returnAt        DateTime
+  returnedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  cycle           Cycle     @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress        Fortress  @relation("UnicornTeleportFortress", fields: [fortressId], references: [id], onDelete: Cascade)
+  decoyFortress   Fortress? @relation("UnicornTeleportDecoy", fields: [decoyFortressId], references: [id], onDelete: SetNull)
 
   @@index([cycleId, returnAt, returnedAt])
   @@index([fortressId, returnedAt])
@@ -440,7 +447,7 @@ model MapHexClaimProject {
 }
 
 model CastleUpgradeProject {
-  id             String                       @id @default(cuid())
+  id             String                      @id @default(cuid())
   cycleId        String
   fortressId     String
   level          Int
@@ -449,27 +456,27 @@ model CastleUpgradeProject {
   startedAt      DateTime
   completesAt    DateTime
   completedAt    DateTime?
-  createdAt      DateTime                     @default(now())
-  updatedAt      DateTime                     @updatedAt
-  cycle          Cycle                        @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  fortress       Fortress                     @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+  createdAt      DateTime                    @default(now())
+  updatedAt      DateTime                    @updatedAt
+  cycle          Cycle                       @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress       Fortress                    @relation(fields: [fortressId], references: [id], onDelete: Cascade)
 
   @@index([cycleId, completesAt, completedAt])
   @@index([fortressId, completedAt])
 }
 
 model HomeOfAHolder {
-  id                String   @id @default(cuid())
-  cycleId           String
-  fortressId        String
-  bannerFortressId  String
+  id                 String   @id @default(cuid())
+  cycleId            String
+  fortressId         String
+  bannerFortressId   String
   contributionWeight Int
-  capturedAt        DateTime @default(now())
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  cycle             Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  fortress          Fortress @relation("HomeOfAHolderFortress", fields: [fortressId], references: [id], onDelete: Cascade)
-  bannerFortress    Fortress @relation("HomeOfABannerFortress", fields: [bannerFortressId], references: [id], onDelete: Cascade)
+  capturedAt         DateTime @default(now())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  cycle              Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress           Fortress @relation("HomeOfAHolderFortress", fields: [fortressId], references: [id], onDelete: Cascade)
+  bannerFortress     Fortress @relation("HomeOfABannerFortress", fields: [bannerFortressId], references: [id], onDelete: Cascade)
 
   @@unique([cycleId, fortressId])
   @@index([cycleId, bannerFortressId])
@@ -477,32 +484,33 @@ model HomeOfAHolder {
 }
 
 model Battlefield {
-  id                       String                    @id @default(cuid())
+  id                       String                   @id @default(cuid())
   cycleId                  String
   targetFortressId         String?
   targetTileId             String?
   attackerBannerFortressId String
   defenderBannerFortressId String?
-  status                   BattlefieldStatus         @default(ACTIVE)
-  progress                 Int                       @default(0)
-  attackerArmyRemaining    Int                       @default(0)
-  defenderArmyRemaining    Int                       @default(0)
-  pointsReward             Int                       @default(0)
-  foodReward               Int                       @default(0)
+  status                   BattlefieldStatus        @default(ACTIVE)
+  progress                 Int                      @default(0)
+  attackerArmyRemaining    Int                      @default(0)
+  defenderArmyRemaining    Int                      @default(0)
+  pointsReward             Int                      @default(0)
+  foodReward               Int                      @default(0)
   resolvedWinnerSide       BattlefieldSide?
-  startedAt                DateTime                  @default(now())
+  startedAt                DateTime                 @default(now())
   resolvedAt               DateTime?
-  createdAt                DateTime                  @default(now())
-  updatedAt                DateTime                  @updatedAt
-  cycle                    Cycle                     @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  targetFortress           Fortress?                 @relation("BattlefieldTargetFortress", fields: [targetFortressId], references: [id], onDelete: Cascade)
-  attackerBannerFortress   Fortress                  @relation("BattlefieldAttackerBanner", fields: [attackerBannerFortressId], references: [id], onDelete: Cascade)
-  defenderBannerFortress   Fortress?                 @relation("BattlefieldDefenderBanner", fields: [defenderBannerFortressId], references: [id], onDelete: SetNull)
+  createdAt                DateTime                 @default(now())
+  updatedAt                DateTime                 @updatedAt
+  cycle                    Cycle                    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  targetFortress           Fortress?                @relation("BattlefieldTargetFortress", fields: [targetFortressId], references: [id], onDelete: Cascade)
+  attackerBannerFortress   Fortress                 @relation("BattlefieldAttackerBanner", fields: [attackerBannerFortressId], references: [id], onDelete: Cascade)
+  defenderBannerFortress   Fortress?                @relation("BattlefieldDefenderBanner", fields: [defenderBannerFortressId], references: [id], onDelete: SetNull)
   participants             BattlefieldParticipant[]
-  incomingReinforcements   AttackUnit[]              @relation("BattlefieldReinforcements")
+  incomingReinforcements   AttackUnit[]             @relation("BattlefieldReinforcements")
   garrisons                FortressGarrison[]
 
   @@index([cycleId, status])
+  @@index([cycleId, status, startedAt], map: "Battlefield_cycleId_status_startedAt_idx")
   @@index([targetFortressId, status])
   @@index([targetTileId, status])
 }
@@ -526,21 +534,21 @@ model BattlefieldParticipant {
 }
 
 model DwarfDeepMiningRoll {
-  id               String                  @id @default(cuid())
-  fortressId       String
-  targetFortressId String?
-  runeFortressId   String?                 @unique
-  outcome          DwarfDeepMiningOutcome
-  committedGold    Int                     @default(0)
-  goldDelta        Int                     @default(0)
-  armyDelta        Int                     @default(0)
-  recruitmentQueueDelta Int                @default(0)
-  resolvedAt       DateTime?
-  activeUntil      DateTime?
-  createdAt        DateTime                @default(now())
-  fortress         Fortress                @relation("DwarfDeepMiningOwner", fields: [fortressId], references: [id], onDelete: Cascade)
-  targetFortress   Fortress?               @relation("DwarfDeepMiningTarget", fields: [targetFortressId], references: [id], onDelete: SetNull)
-  runeFortress     Fortress?               @relation("DwarfDeepMiningRune", fields: [runeFortressId], references: [id], onDelete: SetNull)
+  id                    String                 @id @default(cuid())
+  fortressId            String
+  targetFortressId      String?
+  runeFortressId        String?                @unique
+  outcome               DwarfDeepMiningOutcome
+  committedGold         Int                    @default(0)
+  goldDelta             Int                    @default(0)
+  armyDelta             Int                    @default(0)
+  recruitmentQueueDelta Int                    @default(0)
+  resolvedAt            DateTime?
+  activeUntil           DateTime?
+  createdAt             DateTime               @default(now())
+  fortress              Fortress               @relation("DwarfDeepMiningOwner", fields: [fortressId], references: [id], onDelete: Cascade)
+  targetFortress        Fortress?              @relation("DwarfDeepMiningTarget", fields: [targetFortressId], references: [id], onDelete: SetNull)
+  runeFortress          Fortress?              @relation("DwarfDeepMiningRune", fields: [runeFortressId], references: [id], onDelete: SetNull)
 
   @@index([fortressId, createdAt])
   @@index([targetFortressId, activeUntil])
@@ -560,23 +568,23 @@ model CastleUpgradeSpecializationChoice {
 }
 
 model RaceAbilityActivation {
-  id                    String          @id @default(cuid())
-  fortressId            String
-  kind                  RaceAbilityKind
-  activeFrom            DateTime
-  activeUntil           DateTime
-  usedAt                DateTime        @default(now())
-  expiresAt             DateTime?
-  consumedAt            DateTime?
-  targetFortressId      String?
-  runeFortressId        String?
-  goldCost              Int             @default(0)
-  maintenanceGoldPerTick Int             @default(0)
-  createdAt             DateTime        @default(now())
-  fortress              Fortress        @relation(fields: [fortressId], references: [id], onDelete: Cascade)
-  targetFortress        Fortress?       @relation("RaceAbilityTargetFortress", fields: [targetFortressId], references: [id], onDelete: SetNull)
-  runeFortress          Fortress?       @relation("RaceAbilityRuneFortress", fields: [runeFortressId], references: [id], onDelete: SetNull)
-  orkWaaaghInvestments  OrkWaaaghInvestment[]
+  id                     String                @id @default(cuid())
+  fortressId             String
+  kind                   RaceAbilityKind
+  activeFrom             DateTime
+  activeUntil            DateTime
+  usedAt                 DateTime              @default(now())
+  expiresAt              DateTime?
+  consumedAt             DateTime?
+  targetFortressId       String?
+  runeFortressId         String?
+  goldCost               Int                   @default(0)
+  maintenanceGoldPerTick Int                   @default(0)
+  createdAt              DateTime              @default(now())
+  fortress               Fortress              @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+  targetFortress         Fortress?             @relation("RaceAbilityTargetFortress", fields: [targetFortressId], references: [id], onDelete: SetNull)
+  runeFortress           Fortress?             @relation("RaceAbilityRuneFortress", fields: [runeFortressId], references: [id], onDelete: SetNull)
+  orkWaaaghInvestments   OrkWaaaghInvestment[]
 
   @@index([fortressId, kind, usedAt])
   @@index([fortressId, kind, activeUntil])
@@ -600,24 +608,24 @@ model OrkScrapBank {
 }
 
 model OrkScrapEvent {
-  id               String              @id @default(cuid())
-  cycleId          String
-  fortressId       String
-  reason           OrkScrapEventReason
-  delta            Int
-  balanceAfter     Int
-  targetFortressId String?
-  tileId           String?
-  battlefieldId    String?
-  attackUnitId     String?
-  bossOrderId      String?
+  id                 String               @id @default(cuid())
+  cycleId            String
+  fortressId         String
+  reason             OrkScrapEventReason
+  delta              Int
+  balanceAfter       Int
+  targetFortressId   String?
+  tileId             String?
+  battlefieldId      String?
+  attackUnitId       String?
+  bossOrderId        String?
   waaaghInvestmentId String?
-  createdAt        DateTime            @default(now())
-  cycle            Cycle               @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  fortress         Fortress            @relation("OrkScrapEventFortress", fields: [fortressId], references: [id], onDelete: Cascade)
-  targetFortress   Fortress?           @relation("OrkScrapEventTargetFortress", fields: [targetFortressId], references: [id], onDelete: SetNull)
-  bossOrder        OrkBossOrder?        @relation(fields: [bossOrderId], references: [id], onDelete: SetNull)
-  waaaghInvestment OrkWaaaghInvestment? @relation(fields: [waaaghInvestmentId], references: [id], onDelete: SetNull)
+  createdAt          DateTime             @default(now())
+  cycle              Cycle                @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress           Fortress             @relation("OrkScrapEventFortress", fields: [fortressId], references: [id], onDelete: Cascade)
+  targetFortress     Fortress?            @relation("OrkScrapEventTargetFortress", fields: [targetFortressId], references: [id], onDelete: SetNull)
+  bossOrder          OrkBossOrder?        @relation(fields: [bossOrderId], references: [id], onDelete: SetNull)
+  waaaghInvestment   OrkWaaaghInvestment? @relation(fields: [waaaghInvestmentId], references: [id], onDelete: SetNull)
 
   @@index([cycleId, fortressId, createdAt])
   @@index([targetFortressId])
@@ -677,41 +685,43 @@ model DwarfGrudge {
 }
 
 model AttackUnit {
-  id                        String    @id @default(cuid())
-  cycleId                   String
-  attackerFortressId        String
-  targetFortressId          String
+  id                         String           @id @default(cuid())
+  cycleId                    String
+  attackerFortressId         String
+  targetFortressId           String
   reinforcementBattlefieldId String?
-  reinforcementSide         BattlefieldSide?
-  armyAmount                Int       @default(1)
-  defenderArmyAtBattleStart Int?
-  resolvedAttackPower       Int?
-  resolvedDefensePower      Int?
-  attackerSurvivors         Int?
-  attackerRetired           Int?
-  attackerReturned          Int?
-  defenderLosses            Int?
-  pointsLooted              Int?
-  foodLooted                Int?
-  armyLooted                Int?
-  launchedAt                DateTime
-  arrivesAt                 DateTime
-  recalledAt                DateTime?
-  returnOriginMapX          Int?
-  returnOriginMapY          Int?
-  resolvedAt                DateTime?
-  cancelledAt               DateTime?
-  createdAt                 DateTime  @default(now())
-  updatedAt                 DateTime  @updatedAt
-  cycle                     Cycle     @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  attackerFortress          Fortress  @relation("AttackUnitAttacker", fields: [attackerFortressId], references: [id], onDelete: Cascade)
-  targetFortress            Fortress  @relation("AttackUnitTarget", fields: [targetFortressId], references: [id], onDelete: Cascade)
-  reinforcementBattlefield  Battlefield? @relation("BattlefieldReinforcements", fields: [reinforcementBattlefieldId], references: [id], onDelete: SetNull)
+  reinforcementSide          BattlefieldSide?
+  armyAmount                 Int              @default(1)
+  defenderArmyAtBattleStart  Int?
+  resolvedAttackPower        Int?
+  resolvedDefensePower       Int?
+  attackerSurvivors          Int?
+  attackerRetired            Int?
+  attackerReturned           Int?
+  defenderLosses             Int?
+  pointsLooted               Int?
+  foodLooted                 Int?
+  armyLooted                 Int?
+  launchedAt                 DateTime
+  arrivesAt                  DateTime
+  recalledAt                 DateTime?
+  returnOriginMapX           Int?
+  returnOriginMapY           Int?
+  resolvedAt                 DateTime?
+  cancelledAt                DateTime?
+  createdAt                  DateTime         @default(now())
+  updatedAt                  DateTime         @updatedAt
+  cycle                      Cycle            @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  attackerFortress           Fortress         @relation("AttackUnitAttacker", fields: [attackerFortressId], references: [id], onDelete: Cascade)
+  targetFortress             Fortress         @relation("AttackUnitTarget", fields: [targetFortressId], references: [id], onDelete: Cascade)
+  reinforcementBattlefield   Battlefield?     @relation("BattlefieldReinforcements", fields: [reinforcementBattlefieldId], references: [id], onDelete: SetNull)
 
   @@index([cycleId, arrivesAt])
+  @@index([cycleId, resolvedAt, cancelledAt, launchedAt], map: "AttackUnit_cycleId_resolvedAt_cancelledAt_launchedAt_idx")
   @@index([reinforcementBattlefieldId, arrivesAt])
   @@index([attackerFortressId, resolvedAt, cancelledAt])
   @@index([targetFortressId])
+  @@index([updatedAt, id], map: "AttackUnit_updatedAt_id_idx")
 }
 
 model ChatMessage {
@@ -735,6 +745,7 @@ model ChatMessage {
 
   @@index([cycleId, createdAt])
   @@index([authorId, createdAt])
+  @@index([createdAt, id], map: "ChatMessage_createdAt_id_idx")
 }
 
 model ScoreEvent {
@@ -949,17 +960,17 @@ model CycleHistory {
 }
 
 model FortressGarrison {
-  id          String     @id @default(cuid())
-  cycleId     String
-  fortressId  String
+  id            String      @id @default(cuid())
+  cycleId       String
+  fortressId    String
   battlefieldId String
-  tileId      String
-  army        Int
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  cycle       Cycle      @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  fortress    Fortress   @relation(fields: [fortressId], references: [id], onDelete: Cascade)
-  battlefield Battlefield @relation(fields: [battlefieldId], references: [id], onDelete: Cascade)
+  tileId        String
+  army          Int
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  cycle         Cycle       @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress      Fortress    @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+  battlefield   Battlefield @relation(fields: [battlefieldId], references: [id], onDelete: Cascade)
 
   @@unique([battlefieldId, fortressId])
   @@index([cycleId, tileId])
