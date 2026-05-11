@@ -56,7 +56,6 @@ import {
   purchaseArcadeLootBox,
 } from "./arcade";
 import {
-  ACTIVE_LOCATION_SHUFFLE_COST,
   ACTIVE_DURATION_HOURS,
   ACTIVE_PLAYER_CAP,
   ARCADE_SEASON_BASE_COINS,
@@ -75,6 +74,7 @@ import {
   ARCADE_LOOT_BOX_SKINS,
   ARCADE_UNIT_LOOT_BOX_SKINS_LEGACY,
   FORTRESS_LEVEL_UP_COSTS,
+  getActiveLocationShuffleCost,
   MAX_FORTRESS_LEVEL,
   UNIT_SPRITE_VARIANTS,
 } from "./constants";
@@ -7517,7 +7517,7 @@ test("Dwarf Deep Mining rune is contested and bounty destruction ends suppressio
   assert.equal(clearedState.playerSummary?.race, FortressRace.ORKS);
 });
 
-test("location shuffle is free once, then costs 50 gold", async (context) => {
+test("location shuffle costs 1000 gold and increases by 1000 each time", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -7635,9 +7635,12 @@ test("location shuffle is free once, then costs 50 gold", async (context) => {
     },
   });
 
-  assert.equal(freeShuffle.shuffleCost, 0);
+  assert.equal(freeShuffle.shuffleCost, getActiveLocationShuffleCost(0));
   assert.equal(freeShuffle.cancelledAttackUnitCount, 0);
-  assert.equal(afterFreeShuffle.points, beforeFreeShuffle.points);
+  assert.equal(
+    afterFreeShuffle.points,
+    beforeFreeShuffle.points - getActiveLocationShuffleCost(0)
+  );
   assert.equal(
     await getFortressLocationShuffleCount(prisma, attackerFortress.id),
     1
@@ -7692,10 +7695,12 @@ test("location shuffle is free once, then costs 50 gold", async (context) => {
     },
   });
 
-  assert.equal(secondShuffle.shuffleCost, ACTIVE_LOCATION_SHUFFLE_COST);
+  assert.equal(secondShuffle.shuffleCost, getActiveLocationShuffleCost(1));
   assert.equal(
     afterSecondShuffle.points,
-    beforeFreeShuffle.points - ACTIVE_LOCATION_SHUFFLE_COST
+    beforeFreeShuffle.points -
+      getActiveLocationShuffleCost(0) -
+      getActiveLocationShuffleCost(1)
   );
   assert.equal(
     await getFortressLocationShuffleCount(prisma, attackerFortress.id),
@@ -7705,8 +7710,13 @@ test("location shuffle is free once, then costs 50 gold", async (context) => {
     { x: afterSecondShuffle.mapX, y: afterSecondShuffle.mapY },
     { x: afterFreeShuffle.mapX, y: afterFreeShuffle.mapY }
   );
-  assert.equal(shuffleCostEvents.length, 1);
-  assert.equal(shuffleCostEvents[0]?.delta, -ACTIVE_LOCATION_SHUFFLE_COST);
+  assert.equal(shuffleCostEvents.length, 2);
+  assert.deepEqual(
+    shuffleCostEvents.map((event) => event.delta).sort((left, right) => left - right),
+    [-getActiveLocationShuffleCost(1), -getActiveLocationShuffleCost(0)].sort(
+      (left, right) => left - right
+    )
+  );
 });
 
 test("location shuffle keeps in-flight armies and rejects insufficient paid gold", async (context) => {
@@ -7805,7 +7815,7 @@ test("location shuffle keeps in-flight armies and rejects insufficient paid gold
     data: {
       currentAction: FortressAction.GROW,
       targetFortressId: null,
-      gold: ACTIVE_LOCATION_SHUFFLE_COST - 1,
+      gold: getActiveLocationShuffleCost(1) - 1,
     },
   });
   await prisma.$executeRaw`
@@ -7821,7 +7831,7 @@ test("location shuffle keeps in-flight armies and rejects insufficient paid gold
         userId: attacker.id,
         now: new Date("2026-04-20T12:06:00.000Z"),
       }),
-    /at least 50 gold/
+    /at least 2000 gold/
   );
 });
 
@@ -11865,8 +11875,11 @@ test("read model exposes location shuffle cost and outgoing warning state", asyn
     now: new Date("2026-04-20T12:05:30.000Z"),
   });
 
-  assert.equal(freeState.playerSummary?.locationShuffleCost, 0);
-  assert.equal(freeState.playerSummary?.freeLocationShuffleAvailable, true);
+  assert.equal(
+    freeState.playerSummary?.locationShuffleCost,
+    getActiveLocationShuffleCost(0)
+  );
+  assert.equal(freeState.playerSummary?.freeLocationShuffleAvailable, false);
   assert.equal(freeState.playerSummary?.hasOutgoingAttackUnits, true);
   assert.equal(freeState.playerSummary?.canShuffleLocation, true);
 
@@ -11878,7 +11891,7 @@ test("read model exposes location shuffle cost and outgoing warning state", asyn
       },
     },
     data: {
-      gold: ACTIVE_LOCATION_SHUFFLE_COST - 1,
+      gold: getActiveLocationShuffleCost(1) - 1,
       currentAction: FortressAction.GROW,
       targetFortressId: null,
     },
@@ -11908,7 +11921,7 @@ test("read model exposes location shuffle cost and outgoing warning state", asyn
 
   assert.equal(
     paidState.playerSummary?.locationShuffleCost,
-    ACTIVE_LOCATION_SHUFFLE_COST
+    getActiveLocationShuffleCost(1)
   );
   assert.equal(paidState.playerSummary?.freeLocationShuffleAvailable, false);
   assert.equal(paidState.playerSummary?.hasOutgoingAttackUnits, false);

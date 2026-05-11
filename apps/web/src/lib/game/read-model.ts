@@ -15,12 +15,12 @@ import {
   type PrismaClient,
 } from "@/lib/prisma-client";
 import {
-  ACTIVE_LOCATION_SHUFFLE_COST,
   ACTIVE_PLAYER_CAP,
   HOME_OF_A_POINT_INCOME,
   HOME_OF_A_TILE_ID,
   MAX_SIMULTANEOUS_ATTACKS_BASE,
   NPC_SYSTEM_USER_EMAIL,
+  getActiveLocationShuffleCost,
 } from "./constants";
 import {
   calculateTickProduction,
@@ -1120,9 +1120,7 @@ export async function getHomePageState({
     ? await getFortressLocationShuffleCount(db, playerFortress.id)
     : 0;
   const locationShuffleCost = playerFortress
-    ? locationShuffleCount === 0
-      ? 0
-      : ACTIVE_LOCATION_SHUFFLE_COST
+    ? getActiveLocationShuffleCost(locationShuffleCount)
     : null;
   const hasOutgoingAttackUnits = playerFortress
     ? cycle.attackUnits.some(
@@ -2601,7 +2599,7 @@ export async function getHomePageState({
           isTestingPhase: cycle.status === CycleStatus.TESTING,
           canSetAction: gameplayOpen && playerFortress.race !== null,
           locationShuffleCost,
-          freeLocationShuffleAvailable: locationShuffleCount === 0,
+          freeLocationShuffleAvailable: false,
           hasOutgoingAttackUnits,
           outboundAttackUnitCount,
           maxSimultaneousAttacks,

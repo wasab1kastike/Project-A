@@ -16,10 +16,10 @@ import {
 } from "@/lib/prisma-client";
 import { prisma } from "@/lib/prisma";
 import {
-  ACTIVE_LOCATION_SHUFFLE_COST,
   ACTIVE_PLAYER_CAP,
   ACTIVE_RENAME_COST,
   HOME_OF_A_NEUTRAL_DEFENSE,
+  getActiveLocationShuffleCost,
 } from "./constants";
 import {
   getAttackArrivalAt,
@@ -2130,14 +2130,13 @@ export async function shuffleFortressLocation({
       }
     }
 
-    const shuffleCost =
-      locationShuffleCount === 0 || freeTeleport
-        ? 0
-        : ACTIVE_LOCATION_SHUFFLE_COST;
+    const shuffleCost = freeTeleport
+      ? 0
+      : getActiveLocationShuffleCost(locationShuffleCount);
 
     if (shuffleCost > 0 && fortress.gold < shuffleCost) {
       throw new GameError(
-        `You need at least ${ACTIVE_LOCATION_SHUFFLE_COST} gold to relocate again.`
+        `You need at least ${shuffleCost} gold to relocate right now.`
       );
     }
 
