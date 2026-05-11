@@ -219,6 +219,8 @@ type HomeOfAState = {
 
 const LOOT_CAMP_FIGHT_BACK_NOTICE_STORAGE_KEY =
   "project-a:loot-camp-fight-back-notice:2026-04-30";
+const SEA_MOUNTAIN_CLAIM_NOTICE_STORAGE_KEY =
+  "project-a:sea-mountain-claim-notice:2026-05-11";
 const BIOME_LABELS: Record<HexBiome, string> = {
   water: "Sea",
   coast: "Coast",
@@ -1564,6 +1566,13 @@ export function BattlefieldExperience({
             autoDismissMs={null}
             message="Loot camps fight back now. Check their defending army before sending troops."
             storageKey={LOOT_CAMP_FIGHT_BACK_NOTICE_STORAGE_KEY}
+          />
+        ) : null}
+        {playerSummary ? (
+          <NoticeToast
+            autoDismissMs={null}
+            message="New territory unlocked: sea and mountain tiles are now claimable. Yes, even the wet ones. Yes, it costs more. Worth it."
+            storageKey={SEA_MOUNTAIN_CLAIM_NOTICE_STORAGE_KEY}
           />
         ) : null}
         <FortressMap

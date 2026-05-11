@@ -7,6 +7,17 @@ export type PatchNotesRelease = {
 
 export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
   {
+    date: "2026-05-11",
+    title: "Sea tiles, mountain claims, and instant attack markers",
+    newFeatures: [
+      "Sea and mountain tiles can now be claimed — they cost more and take longer, but pay out higher rewards.",
+      "Attack markers now appear and start moving the moment you click send, with no waiting for the next game tick.",
+    ],
+    bugFixes: [
+      "Fixed attack markers for all outbound map attacks, not only Home of A assaults.",
+    ],
+  },
+  {
     date: "2026-05-07",
     title: "Army upkeep reduced",
     newFeatures: [],
