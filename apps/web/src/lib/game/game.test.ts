@@ -1037,6 +1037,35 @@ test("owned tile attack creates a targetTileId battlefield", async (context) => 
     reloaded.incomingReinforcements[0]?.reinforcementSide,
     BattlefieldSide.ATTACKER
   );
+
+  // Units targeting an enemy tile should route to the tile coordinates, not
+  // the defending player's castle location.
+  assert.equal(
+    battlefield.launchedAttackUnit.target.mapX,
+    Math.round(tile.xPercent)
+  );
+  assert.equal(
+    battlefield.launchedAttackUnit.target.mapY,
+    Math.round(tile.yPercent)
+  );
+
+  // Arrival time must be computed from the tile position.
+  const reloadedAttacker = await prisma.fortress.findUniqueOrThrow({
+    where: { id: attackerFortress.id },
+  });
+  const expectedArrivesAt = getAttackArrivalAt({
+    launchedAt: new Date("2026-04-20T12:01:00.000Z"),
+    origin: { mapX: reloadedAttacker.mapX, mapY: reloadedAttacker.mapY },
+    target: {
+      mapX: Math.round(tile.xPercent),
+      mapY: Math.round(tile.yPercent),
+    },
+    attackerRace: "ORKS",
+  });
+  assert.equal(
+    reloaded.incomingReinforcements[0]?.arrivesAt.toISOString(),
+    expectedArrivesAt.toISOString()
+  );
 });
 
 test("reinforcement travels before joining a battlefield", async (context) => {

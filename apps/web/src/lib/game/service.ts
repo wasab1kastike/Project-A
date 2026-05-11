@@ -1178,7 +1178,11 @@ export async function attackMapHex({
           mapY: homePosition.mapY,
           army: ownership ? targetFortress.army : HOME_OF_A_NEUTRAL_DEFENSE,
         }
-      : targetFortress;
+      : {
+          ...targetFortress,
+          mapX: Math.round(tile.xPercent),
+          mapY: Math.round(tile.yPercent),
+        };
 
     const battlefield = await tx.battlefield.create({
       data: {

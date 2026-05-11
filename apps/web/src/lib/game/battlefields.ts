@@ -11,7 +11,8 @@ import { GameError } from "./errors";
 import { countCastleSpecializations } from "./specializations";
 import { launchAttackUnit } from "./attack-units";
 import { getDwarfGrudgeMultiplier } from "./race-buffs";
-import { isHomeOfATile } from "./territory";
+import { getTileById, isHomeOfATile } from "./territory";
+import { getHomeOfAMapPosition } from "./mega-fortress";
 import { getMaxSimultaneousAttacks } from "./upgrades";
 import {
   applyOrkScrapDelta,
@@ -489,11 +490,25 @@ export async function joinBattlefield({
       });
     }
 
+    const tilePosition = battlefield.targetTileId
+      ? isHomeOfATile(battlefield.targetTileId)
+        ? getHomeOfAMapPosition()
+        : (() => {
+            const t = getTileById(battlefield.targetTileId);
+            return t
+              ? { mapX: Math.round(t.xPercent), mapY: Math.round(t.yPercent) }
+              : null;
+          })()
+      : null;
+    const reinforcementTarget = tilePosition
+      ? { ...battlefield.targetFortress, ...tilePosition }
+      : battlefield.targetFortress;
+
     const launchedUnit = await launchAttackUnit({
       db: tx,
       cycle: battlefield.cycle,
       attacker: fortress,
-      target: battlefield.targetFortress,
+      target: reinforcementTarget,
       launchedAt: now,
       armyAmount,
     });

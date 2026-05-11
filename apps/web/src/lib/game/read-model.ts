@@ -694,6 +694,11 @@ export async function getHomePageState({
               mapY: true,
             },
           },
+          reinforcementBattlefield: {
+            select: {
+              targetTileId: true,
+            },
+          },
         },
       },
       mapHexOwnerships: {
@@ -3057,57 +3062,65 @@ export async function getHomePageState({
         ),
       };
     }),
-    attackUnits: cycle.attackUnits.map((unit) => ({
-      id: unit.id,
-      armyAmount:
-        unit.attackerFortress.race === "UNSTABLE_UNICORNS" &&
-        !suppressedFortressIds.has(unit.attackerFortress.id) &&
-        unit.attackerFortress.ownerId !== userId
-          ? null
-          : unit.armyAmount,
-      launchedAt: unit.launchedAt,
-      arrivesAt: unit.arrivesAt,
-      recalledAt: unit.recalledAt,
-      returnOrigin:
-        unit.returnOriginMapX !== null && unit.returnOriginMapY !== null
-          ? {
-              mapX: unit.returnOriginMapX,
-              mapY: unit.returnOriginMapY,
-            }
-          : null,
-      canRecall:
-        Boolean(userId) &&
-        unit.attackerFortress.ownerId === userId &&
-        unit.recalledAt === null,
-      canInstantRecall:
-        Boolean(userId) &&
-        unit.attackerFortress.ownerId === userId &&
-        unit.recalledAt === null &&
-        unit.attackerFortress.race === "SPACE_MURINES" &&
-        raceBuffTier >= 3 &&
-        (!latestInstantRecallUse ||
-          getHelsinkiHourKey(latestInstantRecallUse.usedAt) !== currentHourKey),
-      attacker: {
-        id: unit.attackerFortress.id,
-        name: unit.attackerFortress.name,
-        mapX: unit.attackerFortress.mapX,
-        mapY: unit.attackerFortress.mapY,
-        race: suppressedFortressIds.has(unit.attackerFortress.id)
-          ? null
-          : unit.attackerFortress.race,
-        unitSpriteVariant: normalizeUnitSpriteVariant(
-          unit.attackerFortress.unitSpriteVariant
-        ),
-        unitCosmeticVariant:
-          unit.attackerFortress.owner?.unitCosmeticVariant ?? null,
-      },
-      target: {
-        id: unit.targetFortress.id,
-        name: unit.targetFortress.name,
-        mapX: unit.targetFortress.mapX,
-        mapY: unit.targetFortress.mapY,
-      },
-    })),
+    attackUnits: cycle.attackUnits.map((unit) => {
+      const tileTargetId = unit.reinforcementBattlefield?.targetTileId ?? null;
+      const tileTarget = tileTargetId ? getTileById(tileTargetId) : null;
+      return {
+        id: unit.id,
+        armyAmount:
+          unit.attackerFortress.race === "UNSTABLE_UNICORNS" &&
+          !suppressedFortressIds.has(unit.attackerFortress.id) &&
+          unit.attackerFortress.ownerId !== userId
+            ? null
+            : unit.armyAmount,
+        launchedAt: unit.launchedAt,
+        arrivesAt: unit.arrivesAt,
+        recalledAt: unit.recalledAt,
+        returnOrigin:
+          unit.returnOriginMapX !== null && unit.returnOriginMapY !== null
+            ? {
+                mapX: unit.returnOriginMapX,
+                mapY: unit.returnOriginMapY,
+              }
+            : null,
+        canRecall:
+          Boolean(userId) &&
+          unit.attackerFortress.ownerId === userId &&
+          unit.recalledAt === null,
+        canInstantRecall:
+          Boolean(userId) &&
+          unit.attackerFortress.ownerId === userId &&
+          unit.recalledAt === null &&
+          unit.attackerFortress.race === "SPACE_MURINES" &&
+          raceBuffTier >= 3 &&
+          (!latestInstantRecallUse ||
+            getHelsinkiHourKey(latestInstantRecallUse.usedAt) !== currentHourKey),
+        attacker: {
+          id: unit.attackerFortress.id,
+          name: unit.attackerFortress.name,
+          mapX: unit.attackerFortress.mapX,
+          mapY: unit.attackerFortress.mapY,
+          race: suppressedFortressIds.has(unit.attackerFortress.id)
+            ? null
+            : unit.attackerFortress.race,
+          unitSpriteVariant: normalizeUnitSpriteVariant(
+            unit.attackerFortress.unitSpriteVariant
+          ),
+          unitCosmeticVariant:
+            unit.attackerFortress.owner?.unitCosmeticVariant ?? null,
+        },
+        target: {
+          id: unit.targetFortress.id,
+          name: unit.targetFortress.name,
+          mapX: tileTarget
+            ? Math.round(tileTarget.xPercent)
+            : unit.targetFortress.mapX,
+          mapY: tileTarget
+            ? Math.round(tileTarget.yPercent)
+            : unit.targetFortress.mapY,
+        },
+      };
+    }),
     chat: {
       messages: chatMessages,
       canPost: Boolean(userId),
