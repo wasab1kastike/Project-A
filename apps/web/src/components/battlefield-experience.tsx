@@ -998,7 +998,9 @@ export function BattlefieldExperience({
                       ? homeOfA?.canAttack
                         ? "Attackable"
                         : "Center control"
-                      : "Claimable"}
+                      : selectedCanClaim
+                        ? "Claimable"
+                        : "Unavailable"}
           </dd>
         </div>
       </dl>
@@ -1114,21 +1116,26 @@ export function BattlefieldExperience({
         {!selectedOwnership?.ownerFortressId &&
         !selectedPendingClaim &&
         !selectedTileIsHomeOfA ? (
-          <button
-            className={styles.secondaryButton}
-            type="button"
-            disabled={
-              mapActionPending ||
-              !selectedCanClaim ||
-              selectedClaimCost === null
-            }
-            title={selectedClaimDisabledReason ?? undefined}
-            onClick={() => {
-              void handleClaimMapHex(selectedTile.id);
-            }}
-          >
-            Claim tile
-          </button>
+          <>
+            <button
+              className={styles.secondaryButton}
+              type="button"
+              disabled={
+                mapActionPending ||
+                !selectedCanClaim ||
+                selectedClaimCost === null
+              }
+              title={selectedClaimDisabledReason ?? undefined}
+              onClick={() => {
+                void handleClaimMapHex(selectedTile.id);
+              }}
+            >
+              Claim tile
+            </button>
+            {selectedClaimDisabledReason ? (
+              <p className={styles.helper}>{selectedClaimDisabledReason}</p>
+            ) : null}
+          </>
         ) : null}
 
         {(selectedOwnership?.canAttack ||

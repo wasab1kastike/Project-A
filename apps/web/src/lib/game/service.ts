@@ -1796,6 +1796,10 @@ export async function selectFortressRace({
       }
 
       if (fortress.race) {
+        if (fortress.race === race) {
+          return fortress;
+        }
+
         throw new GameError("Your race is locked for this season.");
       }
 
