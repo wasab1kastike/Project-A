@@ -19,20 +19,22 @@ const LOCAL_ALLOWED_ORIGINS = [
 ];
 const CONNECTION_WINDOW_MS = 60_000;
 const MAX_CONNECTIONS_PER_WINDOW = isProduction ? 20 : 60;
-const REALTIME_WATCHER_INTERVAL_MS = 5_000;
-const REALTIME_WATCHER_QUERY_TIMEOUT_MS = 4_000;
+const REALTIME_WATCHER_ENABLED =
+  process.env.REALTIME_WATCHER_ENABLED === "true";
+const REALTIME_WATCHER_INTERVAL_MS = 15_000;
+const REALTIME_WATCHER_QUERY_TIMEOUT_MS = 1_000;
 const REFRESH_BROADCAST_COOLDOWN_MS = 2_000;
 const defaultDatabaseUrl =
   "postgresql://postgres:postgres@localhost:5432/project_a?schema=public";
 const adapter = new PrismaPg(
   {
     connectionString: process.env.DATABASE_URL ?? defaultDatabaseUrl,
-    max: Number(process.env.PRISMA_POOL_MAX ?? 5),
+    max: Number(process.env.REALTIME_PRISMA_POOL_MAX ?? 1),
     connectionTimeoutMillis: Number(
-      process.env.PRISMA_POOL_CONNECTION_TIMEOUT_MS ?? 5_000
+      process.env.REALTIME_PRISMA_POOL_CONNECTION_TIMEOUT_MS ?? 1_000
     ),
     idleTimeoutMillis: Number(
-      process.env.PRISMA_POOL_IDLE_TIMEOUT_MS ?? 10_000
+      process.env.REALTIME_PRISMA_POOL_IDLE_TIMEOUT_MS ?? 5_000
     ),
   },
   {
@@ -476,9 +478,13 @@ async function main() {
   nextRequestHandler = handle;
   nextReady = true;
 
-  startWatcher(io).catch((error) => {
-    console.error("Project-A realtime watcher failed to start", error);
-  });
+  if (REALTIME_WATCHER_ENABLED) {
+    startWatcher(io).catch((error) => {
+      console.error("Project-A realtime watcher failed to start", error);
+    });
+  } else {
+    console.log("Project-A realtime watcher disabled.");
+  }
 
   const shutdown = async () => {
     await prisma.$disconnect();

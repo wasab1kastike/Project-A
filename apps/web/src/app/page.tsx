@@ -32,6 +32,10 @@ export const dynamic = "force-dynamic";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
+const HOMEPAGE_DATA_TIMEOUT_MS = Number(
+  process.env.HOMEPAGE_DATA_TIMEOUT_MS ?? 1_500
+);
+
 const dateTimeFormatter = new Intl.DateTimeFormat("en-US", {
   dateStyle: "medium",
   timeStyle: "short",
@@ -160,6 +164,22 @@ function normalizeProgress(progress: number) {
   return Math.min(100, Math.max(0, Math.round(progress)));
 }
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string) {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timeout !== null) {
+      clearTimeout(timeout);
+    }
+  });
+}
+
 function getDegradedHomePageState(): HomePageState {
   return {
     isSpectator: true,
@@ -224,10 +244,14 @@ export default async function Home({
     "Palvelussa on tilapainen hairio. Yrita hetken kuluttua uudelleen.";
 
   try {
-    session = await auth();
-    state = await getHomePageState({
-      userId: session?.user?.id,
-    });
+    session = await withTimeout(auth(), HOMEPAGE_DATA_TIMEOUT_MS, "auth");
+    state = await withTimeout(
+      getHomePageState({
+        userId: session?.user?.id,
+      }),
+      HOMEPAGE_DATA_TIMEOUT_MS,
+      "homepage state"
+    );
     runtimeError = null;
   } catch (caughtError) {
     console.error("Failed to load homepage state", caughtError);
@@ -319,8 +343,7 @@ export default async function Home({
     state.phase?.status === "REGISTRATION"
       ? {
           title: "Build phase is open.",
-          description:
-            "Claim a fortress and wait for the season to begin.",
+          description: "Claim a fortress and wait for the season to begin.",
           nextAction: state.playerFortress
             ? "You are locked in. The season starts today."
             : "Join before the season starts.",
@@ -408,7 +431,12 @@ export default async function Home({
 
   return (
     <main className={styles.page}>
-      <RealtimeBridge enabled={Boolean(state.cycle)} />
+      <RealtimeBridge
+        enabled={
+          Boolean(state.cycle) &&
+          process.env.NEXT_PUBLIC_REALTIME_ENABLED === "true"
+        }
+      />
       <GodEmperorGiftNotice fortressName={state.playerSummary?.name} />
       <WappuDelayAnnouncement userId={session?.user?.id ?? null} />
 
@@ -907,7 +935,10 @@ export default async function Home({
           ) : null}
 
           {showCommanderNameCard && !blockingMessage ? (
-            <form action={registerCommanderNameFormAction} className={styles.form}>
+            <form
+              action={registerCommanderNameFormAction}
+              className={styles.form}
+            >
               <label className={styles.field}>
                 <span>In-game nick</span>
                 <input
