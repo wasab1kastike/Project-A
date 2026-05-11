@@ -319,26 +319,34 @@ export async function relocateCastleToTileAction(tileId: string) {
   }
 }
 
-export async function joinBattlefieldAction(formData: FormData) {
-  const userId = await requireUserId();
-  const sideInput = getString(formData, "side");
+export async function joinBattlefieldAction(
+  battlefieldId: string,
+  side: "ATTACKER" | "DEFENDER",
+  armyAmount: number
+): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return { ok: false, error: "You need to sign in before joining a battlefield." };
+  }
 
   try {
     await joinBattlefield({
       userId,
-      battlefieldId: getString(formData, "battlefieldId"),
+      battlefieldId,
       side:
-        sideInput === BattlefieldSide.DEFENDER
+        side === BattlefieldSide.DEFENDER
           ? BattlefieldSide.DEFENDER
           : BattlefieldSide.ATTACKER,
-      armyAmount: getNumber(formData, "armyAmount", 1),
+      armyAmount,
     });
     emitProjectARefresh("battlefield-join");
+    revalidatePath("/");
+    return { ok: true };
   } catch (error) {
-    redirectToHome("error", getActionErrorMessage(error));
+    return { ok: false, error: getActionErrorMessage(error) };
   }
-
-  finishAction("Army committed to battlefield.");
 }
 
 export async function recallAttackUnitAction(attackUnitId: string) {

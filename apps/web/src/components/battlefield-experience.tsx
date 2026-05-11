@@ -313,6 +313,9 @@ export function BattlefieldExperience({
   const [battleRecallPendingId, setBattleRecallPendingId] = useState<
     string | null
   >(null);
+  const [battleJoinPendingId, setBattleJoinPendingId] = useState<
+    string | null
+  >(null);
   const [garrisonRecallPendingId, setGarrisonRecallPendingId] = useState<
     string | null
   >(null);
@@ -639,6 +642,26 @@ export function BattlefieldExperience({
       playerSummary.army
     );
   }
+
+  async function handleJoinBattlefield(
+    battlefieldId: string,
+    side: "ATTACKER" | "DEFENDER",
+    armyAmount: number
+  ) {
+    if (battleJoinPendingId) return;
+    setBattleJoinPendingId(battlefieldId + ":" + side);
+    try {
+      const result = await joinBattlefieldAction(battlefieldId, side, armyAmount);
+      if (result.ok) {
+        router.refresh();
+      } else {
+        window.alert(result.error);
+      }
+    } finally {
+      setBattleJoinPendingId(null);
+    }
+  }
+
   function getBattleRecallArmy(battlefield: ActiveBattlefield) {
     if (battlefield.ownArmyRemaining <= 0) {
       return 0;
@@ -1720,54 +1743,52 @@ export function BattlefieldExperience({
                           </label>
                         ) : null}
                         <div className={styles.battlefieldJoinGrid}>
-                          <form action={joinBattlefieldAction}>
-                            <input
-                              name="battlefieldId"
-                              type="hidden"
-                              value={battlefield.id}
-                            />
-                            <input name="side" type="hidden" value="ATTACKER" />
-                            <input
-                              name="armyAmount"
-                              type="hidden"
-                              value={joinAmount}
-                            />
-                            <button
-                              className={styles.secondaryButton}
-                              type="submit"
-                              disabled={!battlefield.canJoinAttacker}
-                              title={
-                                battlefield.joinAttackerDisabledReason ??
-                                undefined
-                              }
-                            >
-                              Reinforce attack ({joinAmount})
-                            </button>
-                          </form>
-                          <form action={joinBattlefieldAction}>
-                            <input
-                              name="battlefieldId"
-                              type="hidden"
-                              value={battlefield.id}
-                            />
-                            <input name="side" type="hidden" value="DEFENDER" />
-                            <input
-                              name="armyAmount"
-                              type="hidden"
-                              value={joinAmount}
-                            />
-                            <button
-                              className={styles.secondaryButton}
-                              type="submit"
-                              disabled={!battlefield.canJoinDefender}
-                              title={
-                                battlefield.joinDefenderDisabledReason ??
-                                undefined
-                              }
-                            >
-                              Reinforce defense ({joinAmount})
-                            </button>
-                          </form>
+                          <button
+                            className={styles.secondaryButton}
+                            type="button"
+                            disabled={
+                              !battlefield.canJoinAttacker ||
+                              battleJoinPendingId === battlefield.id + ":ATTACKER"
+                            }
+                            title={
+                              battlefield.joinAttackerDisabledReason ??
+                              undefined
+                            }
+                            onClick={() =>
+                              handleJoinBattlefield(
+                                battlefield.id,
+                                "ATTACKER",
+                                joinAmount
+                              )
+                            }
+                          >
+                            {battleJoinPendingId === battlefield.id + ":ATTACKER"
+                              ? "Reinforcing…"
+                              : `Reinforce attack (${joinAmount})`}
+                          </button>
+                          <button
+                            className={styles.secondaryButton}
+                            type="button"
+                            disabled={
+                              !battlefield.canJoinDefender ||
+                              battleJoinPendingId === battlefield.id + ":DEFENDER"
+                            }
+                            title={
+                              battlefield.joinDefenderDisabledReason ??
+                              undefined
+                            }
+                            onClick={() =>
+                              handleJoinBattlefield(
+                                battlefield.id,
+                                "DEFENDER",
+                                joinAmount
+                              )
+                            }
+                          >
+                            {battleJoinPendingId === battlefield.id + ":DEFENDER"
+                              ? "Reinforcing…"
+                              : `Reinforce defense (${joinAmount})`}
+                          </button>
                         </div>
                       </>
                     ) : null}
