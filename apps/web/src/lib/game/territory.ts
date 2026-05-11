@@ -34,7 +34,9 @@ export const TILE_CLAIM_MAX_ACTIVE_PROJECTS = 1;
 
 export function getTileClaimDurationMinutes(biome: HexBiome): number {
   if (biome === "water") return TILE_CLAIM_SEA_DURATION_MINUTES;
-  if (biome === "mountains") return TILE_CLAIM_MOUNTAINS_DURATION_MINUTES;
+  if (biome === "mountains" || biome === "lake") {
+    return TILE_CLAIM_MOUNTAINS_DURATION_MINUTES;
+  }
   return TILE_CLAIM_DURATION_MINUTES;
 }
 export const TILE_CLAIM_OWNED_TILE_COST_STEP = 10;
@@ -57,7 +59,14 @@ const BIOME_BONUSES: Record<HexBiome, TileBonus> = {
     defensePercent: 0,
     label: "+3 gold, +6 food / tick",
   },
-  lake: EMPTY_BONUS,
+  lake: {
+    gold: 2,
+    points: 0,
+    food: 2,
+    army: 0,
+    defensePercent: 0,
+    label: "+2 gold, +2 food / tick",
+  },
   mountains: {
     gold: 4,
     points: 0,
@@ -410,7 +419,7 @@ export function getTileClaimCost({
       ? 12
       : tile.biome === "water"
         ? 18
-        : tile.biome === "mountains"
+        : tile.biome === "mountains" || tile.biome === "lake"
           ? 16
       : tile.biome === "marsh" || tile.biome === "coast"
         ? 8

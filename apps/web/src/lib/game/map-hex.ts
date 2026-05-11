@@ -153,7 +153,7 @@ export function generateHexTiles() {
         yPercent,
         biome,
         spawnable: biome !== "water" && biome !== "lake" && biome !== "mountains",
-        claimable: biome !== "lake",
+        claimable: true,
       });
 
       col += 1;

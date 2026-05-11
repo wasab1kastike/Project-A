@@ -7,12 +7,14 @@ import {
 } from "./constants";
 import { HEX_SPAWN_TILES, HEX_TILES } from "./map-hex";
 import {
+  TILE_CLAIM_MOUNTAINS_DURATION_MINUTES,
   TILE_CLAIM_OWNED_TILE_COST_STEP,
   getAdjacentTileIds,
   getTemporaryMapObjectives,
   getTileBonus,
   getTileById,
   getTileClaimCost,
+  getTileClaimDurationMinutes,
   isTileConnectedToFortressOrOwnedTiles,
   isHomeOfATile,
 } from "./territory";
@@ -31,6 +33,14 @@ test("spawnable land tiles always provide economic value", () => {
     );
     assert.equal(bonus.points, 0);
   }
+});
+
+test("lake tiles stay non-spawnable but are claimable", () => {
+  const lakeTile = HEX_TILES.find((candidate) => candidate.biome === "lake");
+
+  assert.ok(lakeTile && lakeTile.biome === "lake");
+  assert.equal(lakeTile.spawnable, false);
+  assert.equal(lakeTile.claimable, true);
 });
 
 test("temporary map objectives are deterministic per cycle and window", () => {
@@ -190,10 +200,12 @@ test("deep sea costs extra to claim and mountains are cheaper for dwarfs", () =>
   const waterTile = HEX_TILES.find((candidate) => candidate.biome === "water");
   const plainsTile = HEX_SPAWN_TILES.find((candidate) => candidate.biome === "plains");
   const mountainTile = HEX_TILES.find((candidate) => candidate.biome === "mountains");
+  const lakeTile = HEX_TILES.find((candidate) => candidate.biome === "lake");
 
   assert.ok(waterTile && waterTile.biome === "water");
   assert.ok(plainsTile);
   assert.ok(mountainTile && mountainTile.biome === "mountains");
+  assert.ok(lakeTile && lakeTile.biome === "lake");
 
   const baseOrigin = {
     mapX: waterTile.xPercent,
@@ -230,6 +242,54 @@ test("deep sea costs extra to claim and mountains are cheaper for dwarfs", () =>
     },
     race: "DWARFS",
   });
+  const lakeHumanCost = getTileClaimCost({
+    tile: lakeTile,
+    origin: {
+      mapX: lakeTile.xPercent,
+      mapY: lakeTile.yPercent,
+    },
+    race: "ORKS",
+  });
+  const lakeDwarfCost = getTileClaimCost({
+    tile: lakeTile,
+    origin: {
+      mapX: lakeTile.xPercent,
+      mapY: lakeTile.yPercent,
+    },
+    race: "DWARFS",
+  });
 
   assert.ok(mountainDwarfCost < mountainHumanCost);
+  assert.equal(lakeHumanCost, mountainHumanCost);
+  assert.equal(lakeDwarfCost, lakeHumanCost);
+});
+
+test("lakes use mountain claim duration and provide a unique small bonus", () => {
+  assert.equal(
+    getTileClaimDurationMinutes("lake"),
+    TILE_CLAIM_MOUNTAINS_DURATION_MINUTES
+  );
+
+  const lakeTile = HEX_TILES.find((candidate) => candidate.biome === "lake");
+
+  assert.ok(lakeTile);
+
+  const lakeBonus = getTileBonus(lakeTile);
+
+  assert.deepEqual(
+    {
+      gold: lakeBonus.gold,
+      food: lakeBonus.food,
+      points: lakeBonus.points,
+      army: lakeBonus.army,
+      defensePercent: lakeBonus.defensePercent,
+    },
+    {
+      gold: 2,
+      food: 2,
+      points: 0,
+      army: 0,
+      defensePercent: 0,
+    }
+  );
 });

@@ -1843,7 +1843,7 @@ export function BattlefieldExperience({
         {playerSummary ? (
           <NoticeToast
             autoDismissMs={null}
-            message="New territory unlocked: sea and mountain tiles are now claimable. Yes, even the wet ones. Yes, it costs more. Worth it."
+            message="New territory unlocked: sea, mountain, and lake tiles are now claimable. Yes, even the wet ones. Yes, it costs more. Worth it."
             storageKey={SEA_MOUNTAIN_CLAIM_NOTICE_STORAGE_KEY}
           />
         ) : null}
