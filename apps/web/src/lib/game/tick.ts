@@ -104,8 +104,8 @@ type ProcessCycleTickResult = {
 };
 
 const TICK_TRANSACTION_OPTIONS = {
-  maxWait: 5_000,
-  timeout: 15_000,
+  maxWait: 10_000,
+  timeout: 60_000,
 } satisfies Parameters<PrismaClient["$transaction"]>[1];
 
 export type TickHealth = "ok" | "lagging" | "stalled";
@@ -650,7 +650,7 @@ async function restartEmptyRegistrationCycle(
     });
 
     return true;
-  });
+  }, TICK_TRANSACTION_OPTIONS);
 }
 
 async function startTestingCycle(cycleId: string, now: Date, db: PrismaClient) {
@@ -724,7 +724,7 @@ async function startTestingCycle(cycleId: string, now: Date, db: PrismaClient) {
     });
 
     return true;
-  });
+  }, TICK_TRANSACTION_OPTIONS);
 }
 
 async function completeTestingCycle(
@@ -895,7 +895,7 @@ async function completeTestingCycle(
       },
     });
     await ensureMegaFortress({
-      db: db,
+      db: tx,
       cycleId,
       seed: buildFortressSpawnSeed({
         cycleId,
@@ -907,7 +907,7 @@ async function completeTestingCycle(
     });
 
     return true;
-  });
+  }, TICK_TRANSACTION_OPTIONS);
 }
 
 function compareTieBreakCandidates(
@@ -1169,20 +1169,20 @@ async function resolveExpiredActiveCycle(
     await createCommunityWishVoteEntitlements({
       cycleId: cycle.id,
       rankedFortresses,
-      db: db,
+      db: tx,
     });
 
     await mintSeasonArcadeCoins({
       cycleId: cycle.id,
       now: resolutionEndedAt,
-      db: db,
+      db: tx,
       rankedFortresses,
     });
 
     await ensureOpenRegistrationCycle(tx, resolutionEndedAt);
 
     return { resolved: true, createdNextCycle: true };
-  });
+  }, TICK_TRANSACTION_OPTIONS);
 }
 
 async function processCycleTick(
