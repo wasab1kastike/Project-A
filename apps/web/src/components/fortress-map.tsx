@@ -478,7 +478,7 @@ function HexTileMap({
                     }, ${bonus.label}`
             }
             onPointerDown={(event) =>
-              handleTilePointerDown(event, tile.id, tile.spawnable)
+              handleTilePointerDown(event, tile.id, tile.claimable)
             }
             onPointerMove={(event) => handleTilePointerMove(event, tile.id)}
             onPointerUp={(event) => handleTilePointerUp(event, tile.id)}
