@@ -712,7 +712,7 @@ async function startTestingCycle(cycleId: string, now: Date, db: PrismaClient) {
     });
 
     await ensureMegaFortress({
-      db: db,
+      db: tx,
       cycleId: cycle.id,
       seed: buildFortressSpawnSeed({
         cycleId: cycle.id,
