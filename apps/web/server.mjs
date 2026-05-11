@@ -20,16 +20,36 @@ const LOCAL_ALLOWED_ORIGINS = [
 const CONNECTION_WINDOW_MS = 60_000;
 const MAX_CONNECTIONS_PER_WINDOW = isProduction ? 20 : 60;
 const REALTIME_WATCHER_INTERVAL_MS = 5_000;
+const REALTIME_WATCHER_QUERY_TIMEOUT_MS = 4_000;
 const REFRESH_BROADCAST_COOLDOWN_MS = 2_000;
 const defaultDatabaseUrl =
   "postgresql://postgres:postgres@localhost:5432/project_a?schema=public";
-const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL ?? defaultDatabaseUrl,
-});
+const adapter = new PrismaPg(
+  {
+    connectionString: process.env.DATABASE_URL ?? defaultDatabaseUrl,
+    max: Number(process.env.PRISMA_POOL_MAX ?? 5),
+    connectionTimeoutMillis: Number(
+      process.env.PRISMA_POOL_CONNECTION_TIMEOUT_MS ?? 5_000
+    ),
+    idleTimeoutMillis: Number(
+      process.env.PRISMA_POOL_IDLE_TIMEOUT_MS ?? 10_000
+    ),
+  },
+  {
+    onPoolError(error) {
+      console.error("Project-A realtime database pool error", error);
+    },
+    onConnectionError(error) {
+      console.error("Project-A realtime database connection error", error);
+    },
+  }
+);
 const prisma = new PrismaClient({ adapter });
 const connectionAttemptsByIp = new Map();
 let lastRefreshBroadcastAt = 0;
 let queuedRefreshBroadcast = null;
+let nextRequestHandler = null;
+let nextReady = false;
 
 function parseOrigin(origin) {
   if (!origin) {
@@ -217,8 +237,24 @@ function emitRefresh(io, reason = "server") {
   });
 }
 
+function withTimeout(promise, timeoutMs, label) {
+  let timeout = null;
+
+  const timeoutPromise = new Promise((_, reject) => {
+    timeout = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timeout !== null) {
+      clearTimeout(timeout);
+    }
+  });
+}
+
 async function getRealtimeSnapshot() {
-  const [cycle, fortress, attackUnit, chatMessage] = await Promise.all([
+  const snapshot = Promise.all([
     prisma.cycle.findFirst({
       orderBy: { updatedAt: "desc" },
       select: {
@@ -256,6 +292,11 @@ async function getRealtimeSnapshot() {
       },
     }),
   ]);
+  const [cycle, fortress, attackUnit, chatMessage] = await withTimeout(
+    snapshot,
+    REALTIME_WATCHER_QUERY_TIMEOUT_MS,
+    "Project-A realtime snapshot"
+  );
 
   return JSON.stringify({
     cycleId: cycle?.id ?? null,
@@ -325,17 +366,31 @@ async function main() {
   const app = next({ dev, hostname: host, port });
   const handle = app.getRequestHandler();
 
-  await app.prepare();
-
   const server = http.createServer((request, response) => {
-    if (request.url === "/api/health") {
+    const pathname = request.url?.split("?")[0];
+
+    if (pathname === "/api/health") {
       response.statusCode = 200;
       response.setHeader("Content-Type", "application/json");
-      response.end(JSON.stringify({ status: "ok" }));
+      response.setHeader("Cache-Control", "no-store");
+      response.end(
+        JSON.stringify({
+          status: "ok",
+          nextReady,
+          uptime: Math.round(process.uptime()),
+        })
+      );
       return;
     }
 
-    handle(request, response).catch((error) => {
+    if (!nextRequestHandler) {
+      response.statusCode = 503;
+      response.setHeader("Retry-After", "3");
+      response.end("Project-A is starting");
+      return;
+    }
+
+    nextRequestHandler(request, response).catch((error) => {
       console.error("Next request failed", error);
       response.statusCode = 500;
       response.end("Internal Server Error");
@@ -380,7 +435,11 @@ async function main() {
       socket.data.userRole = user.role;
       next();
     } catch (error) {
-      next(error instanceof Error ? error : new Error("Socket authentication failed."));
+      next(
+        error instanceof Error
+          ? error
+          : new Error("Socket authentication failed.")
+      );
     }
   });
 
@@ -406,10 +465,19 @@ async function main() {
     });
   });
 
-  await startWatcher(io);
+  server.keepAliveTimeout = 120_000;
+  server.headersTimeout = 125_000;
 
   server.listen(port, host, () => {
     console.log(`> Project-A ready on http://${host}:${port}`);
+  });
+
+  await app.prepare();
+  nextRequestHandler = handle;
+  nextReady = true;
+
+  startWatcher(io).catch((error) => {
+    console.error("Project-A realtime watcher failed to start", error);
   });
 
   const shutdown = async () => {
@@ -423,6 +491,14 @@ async function main() {
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
 }
+
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled promise rejection", reason);
+});
+
+process.on("uncaughtExceptionMonitor", (error) => {
+  console.error("Uncaught exception", error);
+});
 
 main().catch((error) => {
   console.error("Failed to start Project-A server", error);
