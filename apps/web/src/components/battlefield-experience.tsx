@@ -307,6 +307,21 @@ export function BattlefieldExperience({
   const [optimisticAttackUnits, setOptimisticAttackUnits] = useState<
     AttackUnitMarker[]
   >([]);
+  const mapActionPendingRef = useRef(mapActionPending);
+  const playerFortressIdRef = useRef<string | null>(playerFortress?.id ?? null);
+  const homeTileIdRef = useRef<string | null>(homeOfA?.tileId ?? null);
+
+  useEffect(() => {
+    mapActionPendingRef.current = mapActionPending;
+  }, [mapActionPending]);
+
+  useEffect(() => {
+    playerFortressIdRef.current = playerFortress?.id ?? null;
+  }, [playerFortress?.id]);
+
+  useEffect(() => {
+    homeTileIdRef.current = homeOfA?.tileId ?? null;
+  }, [homeOfA?.tileId]);
 
   useEffect(() => {
     if (!topActionsContainerId) {
@@ -561,7 +576,7 @@ export function BattlefieldExperience({
 
   const handleConfirmAttackTarget = useCallback(
     async (fortress: MapFortress, sentArmy: number) => {
-      if (!fortress.isTargetable || mapActionPending) {
+      if (!fortress.isTargetable || mapActionPendingRef.current) {
         return;
       }
 
@@ -572,7 +587,7 @@ export function BattlefieldExperience({
         return;
       }
 
-      setSelectedFortressId(playerFortress?.id ?? null);
+      setSelectedFortressId(playerFortressIdRef.current);
       setMapActionPending(true);
 
       try {
@@ -588,7 +603,7 @@ export function BattlefieldExperience({
         setMapActionPending(false);
       }
     },
-    [getAttackValidationError, mapActionPending, playerFortress?.id, router]
+    [getAttackValidationError, router]
   );
 
   async function handleClaimMapHex(tileId: string) {
@@ -760,11 +775,13 @@ export function BattlefieldExperience({
         return;
       }
 
-      if (homeOfA && fortress.fortressKind === "MEGA") {
-        setSelectedTileId(homeOfA.tileId);
+      const homeTileId = homeTileIdRef.current;
+
+      if (homeTileId && fortress.fortressKind === "MEGA") {
+        setSelectedTileId(homeTileId);
       }
     },
-    [homeOfA]
+    []
   );
 
   const handleSelectMapHex = useCallback((tileId: string) => {
