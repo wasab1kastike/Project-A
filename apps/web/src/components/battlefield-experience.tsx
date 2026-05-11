@@ -649,7 +649,7 @@ export function BattlefieldExperience({
         return;
       }
 
-      if (isHomeOfATile(tileId) && result.launchedAttackUnit) {
+      if (result.launchedAttackUnit) {
         setOptimisticAttackUnits((currentUnits) => {
           const nextUnit: AttackUnitMarker = {
             ...result.launchedAttackUnit,
