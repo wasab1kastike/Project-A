@@ -163,6 +163,15 @@
   cursor: pointer;
 }
 
+.highlightedTeleportTile polygon {
+  stroke: rgba(130, 255, 181, 0.94);
+  stroke-width: 7px;
+  filter:
+    drop-shadow(0 0 10px rgba(130, 255, 181, 0.46))
+    drop-shadow(0 0 18px rgba(130, 255, 181, 0.22));
+  animation: teleportTargetPulse 1.65s ease-in-out infinite;
+}
+
 .ownedTile polygon {
   stroke: var(--owned-tile-stroke, rgba(247, 196, 95, 0.72));
   stroke-width: 5px;
@@ -412,6 +421,19 @@
 
   50% {
     stroke-opacity: 1;
+  }
+}
+
+@keyframes teleportTargetPulse {
+  0%,
+  100% {
+    stroke-opacity: 0.6;
+    transform: scale(1);
+  }
+
+  50% {
+    stroke-opacity: 1;
+    transform: scale(1.01);
   }
 }
 

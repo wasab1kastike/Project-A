@@ -590,6 +590,42 @@ export function BattlefieldExperience({
     : "Select a destination tile to relocate your castle.";
   const locationShuffleCost = playerSummary?.locationShuffleCost ?? null;
   const canShuffleLocation = playerSummary?.canShuffleLocation ?? false;
+  const castleYeetTargetTileIds = useMemo(() => {
+    if (!castleYeetArmed || !canShuffleLocation) {
+      return [];
+    }
+
+    const currentFortress = playerFortress
+      ? mapFortresses.find((fortress) => fortress.id === playerFortress.id) ??
+        null
+      : null;
+    const currentTileId = currentFortress
+      ? snapMapPointToHex({
+          x: currentFortress.mapX,
+          y: currentFortress.mapY,
+        }).tile.id
+      : null;
+    const occupiedTileIds = new Set(
+      mapFortresses.map((fortress) => {
+        return snapMapPointToHex({
+          x: fortress.mapX,
+          y: fortress.mapY,
+        }).tile.id;
+      })
+    );
+
+    return HEX_TILES.filter((tile) => {
+      if (!tile.spawnable) {
+        return false;
+      }
+
+      if (currentTileId && tile.id === currentTileId) {
+        return false;
+      }
+
+      return !occupiedTileIds.has(tile.id);
+    }).map((tile) => tile.id);
+  }, [castleYeetArmed, canShuffleLocation, mapFortresses, playerFortress]);
 
   function getBattleJoinArmy(battlefieldId: string) {
     if (!playerSummary || playerSummary.army <= 0) {
@@ -1337,7 +1373,7 @@ export function BattlefieldExperience({
                 </button>
                 <p className={styles.helper}>
                   {selectedCastleYeetError ??
-                    "Relocate to the selected map tile."}
+                    "Green tiles are valid Castle Yeet destinations."}
                 </p>
               </>
             ) : null}
@@ -1795,6 +1831,7 @@ export function BattlefieldExperience({
           selectedFortressId={selectedFortressId}
           selectedTargetId={selectedTargetId}
           selectedTileId={selectedTileId}
+          highlightedTileIds={castleYeetTargetTileIds}
           onSelectFortress={handleSelectFortress}
           onConfirmAttackTarget={handleConfirmAttackTarget}
           onSelectMapHex={handleSelectMapHex}

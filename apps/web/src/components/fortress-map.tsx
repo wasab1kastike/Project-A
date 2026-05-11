@@ -750,6 +750,7 @@ export const FortressMap = memo(function FortressMap({
   selectedFortressId,
   selectedTargetId,
   selectedTileId,
+  highlightedTileIds = [],
   onSelectFortress,
   onConfirmAttackTarget,
   onSelectMapHex,
