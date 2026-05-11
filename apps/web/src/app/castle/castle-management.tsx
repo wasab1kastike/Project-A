@@ -373,6 +373,22 @@ function formatTime(value: Date) {
   });
 }
 
+function formatSignedValue(value: number) {
+  return `${value >= 0 ? "+" : ""}${value}`;
+}
+
+function formatDeepMiningImpact({
+  goldDelta,
+  armyDelta,
+  recruitmentQueueDelta,
+}: {
+  goldDelta: number;
+  armyDelta: number;
+  recruitmentQueueDelta: number;
+}) {
+  return `${formatSignedValue(goldDelta)} gold, ${formatSignedValue(armyDelta)} army, ${formatSignedValue(recruitmentQueueDelta)} queue`;
+}
+
 function getBuildingEffect({
   key,
   level,
@@ -1407,6 +1423,12 @@ export function CastleManagement({
                               : expedition.activeUntil
                                 ? ` resolves at ${formatTime(expedition.activeUntil)}`
                                 : " resolves later"}
+                            {` (${formatDeepMiningImpact({
+                              goldDelta: expedition.goldDelta,
+                              armyDelta: expedition.armyDelta,
+                              recruitmentQueueDelta:
+                                expedition.recruitmentQueueDelta,
+                            })})`}
                             .
                           </li>
                         )
