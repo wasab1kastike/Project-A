@@ -618,6 +618,48 @@ export function CastleManagement({
     await handleInlineResult(await activateOrkBossOrderAction(kind as never));
   }
 
+  async function investOrkWaaaghScrapFormAction(formData: FormData): Promise<void> {
+    const kind = getStringValue(formData, "kind");
+    await handleInlineResult(await investOrkWaaaghScrapAction(kind));
+  }
+
+  async function activateStimFormAction(): Promise<void> {
+    await handleInlineResult(await activateStimAction());
+  }
+
+  async function activateUnicornShatteredRealityFormAction(): Promise<void> {
+    await handleInlineResult(await activateUnicornShatteredRealityAction());
+  }
+
+  async function useUnicornTeleportFormAction(): Promise<void> {
+    await handleInlineResult(await useUnicornTeleportAction());
+  }
+
+  async function claimUnicornTeleportFormAction(): Promise<void> {
+    await handleInlineResult(await claimUnicornTeleportAction());
+  }
+
+  async function activateDwarfRuneOfGrudgesFormAction(
+    formData: FormData
+  ): Promise<void> {
+    await handleInlineResult(
+      await activateDwarfRuneOfGrudgesAction(
+        getStringValue(formData, "targetFortressId")
+      )
+    );
+  }
+
+  async function activateDwarfDeepMiningFormAction(
+    formData: FormData
+  ): Promise<void> {
+    const committedGold = Number(getStringValue(formData, "committedGold"));
+    await handleInlineResult(
+      await activateDwarfDeepMiningAction(
+        Number.isFinite(committedGold) ? committedGold : 0
+      )
+    );
+  }
+
   async function chooseDwarfGrudgeFormAction(formData: FormData): Promise<void> {
     await handleInlineResult(
       await chooseDwarfGrudgeAction(getStringValue(formData, "targetFortressId"))
@@ -1025,7 +1067,7 @@ export function CastleManagement({
                       (investment) => (
                         <form
                           key={investment.kind}
-                          action={investOrkWaaaghScrapAction}
+                          action={investOrkWaaaghScrapFormAction}
                         >
                           <input
                             type="hidden"
@@ -1093,7 +1135,7 @@ export function CastleManagement({
               </div>
             ) : null}
             {playerSummary.race === "SPACE_MURINES" ? (
-              <form action={activateStimAction}>
+              <form action={activateStimFormAction}>
                 <button
                   type="submit"
                   disabled={!playerSummary.raceBuffs.canActivateStim}
@@ -1104,7 +1146,7 @@ export function CastleManagement({
             ) : null}
             {playerSummary.race === "UNSTABLE_UNICORNS" ? (
               <>
-                <form action={activateUnicornShatteredRealityAction}>
+                <form action={activateUnicornShatteredRealityFormAction}>
                   <button
                     type="submit"
                     disabled={
@@ -1144,7 +1186,7 @@ export function CastleManagement({
                   </p>
                 ) : null}
                 {playerSummary.raceBuffs.hasUnicornTeleportToken ? (
-                  <form action={useUnicornTeleportAction}>
+                  <form action={useUnicornTeleportFormAction}>
                     <button
                       type="submit"
                       disabled={playerSummary.activeUnicornTeleport !== null}
@@ -1154,7 +1196,7 @@ export function CastleManagement({
                   </form>
                 ) : (
                   <>
-                    <form action={claimUnicornTeleportAction}>
+                    <form action={claimUnicornTeleportFormAction}>
                       <button
                         type="submit"
                         disabled={
@@ -1290,7 +1332,7 @@ export function CastleManagement({
                     </>
                   ) : (
                     <form
-                      action={activateDwarfRuneOfGrudgesAction}
+                      action={activateDwarfRuneOfGrudgesFormAction}
                       className={styles.form}
                     >
                       <label>
@@ -1355,7 +1397,7 @@ export function CastleManagement({
                     </small>
                   ) : null}
                   <form
-                    action={activateDwarfDeepMiningAction}
+                    action={activateDwarfDeepMiningFormAction}
                     className={styles.form}
                   >
                     <label>

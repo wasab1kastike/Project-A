@@ -825,24 +825,36 @@ export async function activateOrkBossOrderAction(
   }
 }
 
-export async function investOrkWaaaghScrapAction(formData: FormData) {
-  const userId = await requireUserId();
+export async function investOrkWaaaghScrapAction(
+  kind: string
+): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return { ok: false, error: "You need to sign in before investing Scrap." };
+  }
 
   try {
     await investOrkWaaaghScrap({
       userId,
-      kind: getString(formData, "kind") as OrkWaaaghInvestmentKind,
+      kind: kind as OrkWaaaghInvestmentKind,
     });
     emitProjectARefresh("ork-waaagh-investment");
+    revalidatePath("/");
+    return { ok: true };
   } catch (error) {
-    redirectToHome("error", getActionErrorMessage(error));
+    return { ok: false, error: getActionErrorMessage(error) };
   }
-
-  finishAction("WAAAGH fed with Scrap.");
 }
 
-export async function activateStimAction() {
-  const userId = await requireUserId();
+export async function activateStimAction(): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return { ok: false, error: "You need to sign in before activating STIM." };
+  }
 
   try {
     await activateRaceAbility({
@@ -850,92 +862,100 @@ export async function activateStimAction() {
       kind: RaceAbilityKind.SPACE_MURINE_STIM,
     });
     emitProjectARefresh("space-murine-stim");
+    revalidatePath("/");
+    return { ok: true };
   } catch (error) {
-    redirectToHome("error", getActionErrorMessage(error));
+    return { ok: false, error: getActionErrorMessage(error) };
   }
-
-  finishAction("STIM activated for one hour.");
 }
 
-export async function activateDwarfDeepMiningAction(formData: FormData) {
-  const userId = await requireUserId();
-  let notice: string;
+export async function activateDwarfDeepMiningAction(
+  committedGold: number
+): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return { ok: false, error: "You need to sign in before starting Deep Mining." };
+  }
 
   try {
-    const result = await activateDwarfDeepMining({
+    await activateDwarfDeepMining({
       userId,
-      committedGold: getNumber(formData, "committedGold", 0),
+      committedGold,
     });
     emitProjectARefresh("dwarf-deep-mining");
-
-    notice = `${result.label}: ${result.committedGold} gold committed, resolves at ${result.resolveAt.toLocaleTimeString(
-      [],
-      {
-        hour: "2-digit",
-        minute: "2-digit",
-      }
-    )}.`;
+    revalidatePath("/");
+    return { ok: true };
   } catch (error) {
-    redirectToHome("error", getActionErrorMessage(error));
+    return { ok: false, error: getActionErrorMessage(error) };
   }
-
-  finishAction(notice);
 }
 
-export async function activateDwarfRuneOfGrudgesAction(formData: FormData) {
-  const userId = await requireUserId();
+export async function activateDwarfRuneOfGrudgesAction(
+  targetFortressId: string
+): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return { ok: false, error: "You need to sign in before raising a rune." };
+  }
 
   try {
-    const result = await activateDwarfRuneOfGrudges({
+    await activateDwarfRuneOfGrudges({
       userId,
-      targetFortressId: getString(formData, "targetFortressId"),
+      targetFortressId,
     });
     emitProjectARefresh("dwarf-rune-grudges");
-
-    finishAction(
-      `Rune of Grudges raised against ${result.targetName} for 6 hours.`
-    );
+    revalidatePath("/");
+    return { ok: true };
   } catch (error) {
-    redirectToHome("error", getActionErrorMessage(error));
+    return { ok: false, error: getActionErrorMessage(error) };
   }
 }
 
-export async function claimUnicornTeleportAction() {
-  const userId = await requireUserId();
-  let notice: string;
+export async function claimUnicornTeleportAction(): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return { ok: false, error: "You need to sign in before claiming Unicorn teleport." };
+  }
 
   try {
     await claimUnicornTeleport({
       userId,
     });
-    const result = await shuffleFortressLocation({
+    await shuffleFortressLocation({
       userId,
       useFreeTeleport: true,
     });
     emitProjectARefresh("unicorn-teleport-activate");
-
-    notice =
-      result.cancelledAttackUnitCount > 0
-        ? "Free Unicorn teleport fired for 1 hour and left an attackable decoy at home. Outgoing attacks were canceled."
-        : "Free Unicorn teleport fired for 1 hour and left an attackable decoy at home.";
+    revalidatePath("/");
+    return { ok: true };
   } catch (error) {
-    redirectToHome("error", getActionErrorMessage(error));
+    return { ok: false, error: getActionErrorMessage(error) };
   }
-
-  finishAction(notice);
 }
 
-export async function activateUnicornShatteredRealityAction() {
-  const userId = await requireUserId();
+export async function activateUnicornShatteredRealityAction(): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return { ok: false, error: "You need to sign in before triggering Shattered Reality." };
+  }
 
   try {
-    const result = await activateUnicornShatteredReality({
+    await activateUnicornShatteredReality({
       userId,
     });
     emitProjectARefresh("unicorn-shattered-reality");
-    finishAction(`Shattered Reality: ${result.summary}`);
+    revalidatePath("/");
+    return { ok: true };
   } catch (error) {
-    redirectToHome("error", getActionErrorMessage(error));
+    return { ok: false, error: getActionErrorMessage(error) };
   }
 }
 
@@ -944,26 +964,25 @@ export async function shuffleFortressLocationAction() {
   redirectToHome("error", "Castle Yeet is paused for now.");
 }
 
-export async function useUnicornTeleportAction() {
-  const userId = await requireUserId();
-  let notice: string;
+export async function useUnicornTeleportAction(): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return { ok: false, error: "You need to sign in before using Unicorn teleport." };
+  }
 
   try {
-    const result = await shuffleFortressLocation({
+    await shuffleFortressLocation({
       userId,
       useFreeTeleport: true,
     });
     emitProjectARefresh("unicorn-teleport-use");
-
-    notice =
-      result.cancelledAttackUnitCount > 0
-        ? "Free Unicorn teleport fired for 1 hour and left an attackable decoy at home. Outgoing attacks were canceled."
-        : "Free Unicorn teleport fired for 1 hour and left an attackable decoy at home.";
+    revalidatePath("/");
+    return { ok: true };
   } catch (error) {
-    redirectToHome("error", getActionErrorMessage(error));
+    return { ok: false, error: getActionErrorMessage(error) };
   }
-
-  finishAction(notice);
 }
 
 export async function registerCommanderNameAction(formData: FormData) {
