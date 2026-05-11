@@ -658,36 +658,12 @@ export async function getCastlePageState({
 
             return {
               id: fortress.id,
-              commanderName: getDisplayName(
-                disguisedSource?.commanderName ?? fortress.commanderName,
-                fortress.id === cycle.crownedFortressId &&
-                  !(disguisedSource ? false : fortress.isNpc)
-              ),
               name: getDisplayName(
                 disguisedSource?.name ?? fortress.name,
                 fortress.id === cycle.crownedFortressId &&
                   !(disguisedSource ? false : fortress.isNpc)
               ),
-              rawName: disguisedSource?.name ?? fortress.name,
-              level: fortress.level,
-              race: disguisedSource?.race ?? fortress.race,
-              points: disguisedSource?.points ?? fortress.points,
               isNpc: disguisedSource ? false : fortress.isNpc,
-              fortressKind: disguisedSource
-                ? FortressKind.PLAYER
-                : fortress.fortressKind,
-              lootCampVariant: fortress.lootCampVariant,
-              expiresAt: fortress.expiresAt,
-              unicornDecoyLevel: canRevealUnicornDecoy
-                ? fortress.unicornDecoyLevel
-                : null,
-              health: fortress.health,
-              maxHealth: fortress.maxHealth,
-              army: fortress.army,
-              castleSpecializationCounts: countCastleSpecializations(
-                fortress.castleUpgradeSpecializations
-              ),
-              currentAction: fortress.currentAction,
             };
           })
       : [];
