@@ -11,6 +11,7 @@ import {
   instantRecallAttackUnitAction,
   joinBattlefieldAction,
   markChatReadAction,
+  relocateCastleToTileAction,
   recallBattlefieldArmyAction,
   recallAttackUnitAction,
   recallGarrisonArmyAction,
@@ -73,6 +74,8 @@ type PlayerSummary = {
   allUnits: number;
   race: string | null;
   canSetAction: boolean;
+  locationShuffleCost: number | null;
+  canShuffleLocation: boolean;
   outboundAttackUnitCount: number;
   maxSimultaneousAttacks: number;
 };
@@ -294,6 +297,7 @@ export function BattlefieldExperience({
   const [selectedBattleTileId, setSelectedBattleTileId] = useState<
     string | null
   >(null);
+  const [castleYeetArmed, setCastleYeetArmed] = useState(false);
   const [tileAttackArmy, setTileAttackArmy] = useState(1);
   const [battleJoinArmyById, setBattleJoinArmyById] = useState<
     Record<string, number>
@@ -500,6 +504,34 @@ export function BattlefieldExperience({
         : [],
     [battlefields, selectedBattleTileId]
   );
+  const occupiedFortressTileIds = useMemo(() => {
+    return new Set(
+      mapFortresses.map((fortress) => {
+        return snapMapPointToHex({
+          x: fortress.mapX,
+          y: fortress.mapY,
+        }).tile.id;
+      })
+    );
+  }, [mapFortresses]);
+  const playerFortressTileId = useMemo(() => {
+    if (!playerFortress) {
+      return null;
+    }
+
+    const currentFortress = mapFortresses.find((fortress) => {
+      return fortress.id === playerFortress.id;
+    });
+
+    if (!currentFortress) {
+      return null;
+    }
+
+    return snapMapPointToHex({
+      x: currentFortress.mapX,
+      y: currentFortress.mapY,
+    }).tile.id;
+  }, [mapFortresses, playerFortress]);
   const hasActiveBattleForTileId = useCallback(
     (tileId: string) => {
       const ownership = mapHexByTileId.get(tileId);
@@ -517,6 +549,48 @@ export function BattlefieldExperience({
     playerSummary && playerSummary.army > 0
       ? Math.min(Math.max(1, tileAttackArmy), playerSummary.army)
       : 0;
+
+  const getCastleYeetValidationError = useCallback(
+    (tileId: string) => {
+      if (!gameplayOpen) {
+        return "Fortress relocation is only available during gameplay.";
+      }
+
+      if (!playerSummary?.canShuffleLocation) {
+        return "Castle Yeet is unavailable right now.";
+      }
+
+      if (!playerSummary.race) {
+        return "Choose a race from Castle before relocating.";
+      }
+
+      if (playerFortressTileId && tileId === playerFortressTileId) {
+        return "Choose a different destination tile.";
+      }
+
+      if (
+        occupiedFortressTileIds.has(tileId) &&
+        (!playerFortressTileId || tileId !== playerFortressTileId)
+      ) {
+        return "That destination tile is occupied right now.";
+      }
+
+      return null;
+    },
+    [
+      gameplayOpen,
+      occupiedFortressTileIds,
+      playerFortressTileId,
+      playerSummary,
+    ]
+  );
+
+  const selectedCastleYeetError = selectedTileId
+    ? getCastleYeetValidationError(selectedTileId)
+    : "Select a destination tile to relocate your castle.";
+  const locationShuffleCost = playerSummary?.locationShuffleCost ?? null;
+  const canShuffleLocation = playerSummary?.canShuffleLocation ?? false;
+
   function getBattleJoinArmy(battlefieldId: string) {
     if (!playerSummary || playerSummary.army <= 0) {
       return 0;
@@ -704,6 +778,35 @@ export function BattlefieldExperience({
     }
   }
 
+  async function handleRelocateCastleToTile(tileId: string) {
+    if (!castleYeetArmed || mapActionPending || !gameplayOpen) {
+      return;
+    }
+
+    const validationError = getCastleYeetValidationError(tileId);
+
+    if (validationError) {
+      window.alert(validationError);
+      return;
+    }
+
+    setMapActionPending(true);
+
+    try {
+      const result = await relocateCastleToTileAction(tileId);
+
+      if (!result.ok) {
+        window.alert(result.error);
+        return;
+      }
+
+      setCastleYeetArmed(false);
+      router.refresh();
+    } finally {
+      setMapActionPending(false);
+    }
+  }
+
   const handleRecallAttackUnit = useCallback(
     async (attackUnit: AttackUnitMarker) => {
       const result = await recallAttackUnitAction(attackUnit.id);
@@ -838,6 +941,12 @@ export function BattlefieldExperience({
     setSelectedTileId(tileId);
     setSelectedBattleTileId(hasActiveBattleForTileId(tileId) ? tileId : null);
   }, [hasActiveBattleForTileId]);
+
+  useEffect(() => {
+    if (!playerSummary?.canShuffleLocation || !gameplayOpen) {
+      setCastleYeetArmed(false);
+    }
+  }, [gameplayOpen, playerSummary?.canShuffleLocation]);
 
   useEffect(() => {
     if (!selectedBattleTileId) {
@@ -1194,6 +1303,47 @@ export function BattlefieldExperience({
       ) : null}
 
       <div className={styles.tileActions}>
+        {locationShuffleCost !== null ? (
+          <>
+            <button
+              className={styles.secondaryButton}
+              type="button"
+              disabled={
+                mapActionPending ||
+                !gameplayOpen ||
+                !canShuffleLocation
+              }
+              onClick={() => {
+                setCastleYeetArmed((current) => !current);
+              }}
+            >
+              {castleYeetArmed
+                ? "Cancel Castle Yeet targeting"
+                : `Castle Yeet (${locationShuffleCost} gold)`}
+            </button>
+            {castleYeetArmed ? (
+              <>
+                <button
+                  className={styles.secondaryButton}
+                  type="button"
+                  disabled={mapActionPending || selectedCastleYeetError !== null}
+                  onClick={() => {
+                    if (selectedTile) {
+                      void handleRelocateCastleToTile(selectedTile.id);
+                    }
+                  }}
+                >
+                  Teleport castle to selected tile
+                </button>
+                <p className={styles.helper}>
+                  {selectedCastleYeetError ??
+                    "Relocate to the selected map tile."}
+                </p>
+              </>
+            ) : null}
+          </>
+        ) : null}
+
         {!selectedOwnership?.ownerFortressId &&
         !selectedPendingClaim &&
         !selectedTileIsHomeOfA ? (

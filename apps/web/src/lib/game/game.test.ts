@@ -154,6 +154,7 @@ import {
 import {
   getTileBonus,
   getTileClaimCost,
+  getTileById,
   isHomeOfATile,
   isTileConnectedToFortressOrOwnedTiles,
 } from "./territory";
@@ -7861,6 +7862,216 @@ test("location shuffle keeps in-flight armies and rejects insufficient paid gold
         now: new Date("2026-04-20T12:06:00.000Z"),
       }),
     /at least 2000 gold/
+  );
+});
+
+test("location shuffle supports paid manual destination tile selection", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const attacker = await createUser(
+    prisma,
+    "shuffle-manual-attacker@example.com"
+  );
+  const target = await createUser(prisma, "shuffle-manual-target@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: attacker.id,
+    fortressName: "Manual Alpha",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: target.id,
+    fortressName: "Manual Beta",
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const attackerFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: attacker.id,
+      },
+    },
+  });
+  const otherFortresses = await prisma.fortress.findMany({
+    where: {
+      cycleId: cycle.id,
+      id: {
+        not: attackerFortress.id,
+      },
+    },
+    select: {
+      mapX: true,
+      mapY: true,
+    },
+  });
+  const occupiedKeys = new Set(
+    otherFortresses.map((fortress) => getRenderedMapPositionKey(fortress))
+  );
+  const currentKey = getRenderedMapPositionKey(attackerFortress);
+
+  const destinationTile = HEX_SPAWN_TILES.find((tile) => {
+    const key = getRenderedMapPositionKey({
+      x: tile.xPercent,
+      y: tile.yPercent,
+    });
+
+    return key !== currentKey && !occupiedKeys.has(key);
+  });
+
+  assert.ok(destinationTile);
+
+  await prisma.fortress.update({
+    where: {
+      id: attackerFortress.id,
+    },
+    data: {
+      race: FortressRace.DWARFS,
+      gold: getActiveLocationShuffleCost(0) + 50,
+    },
+  });
+
+  const shuffleResult = await shuffleFortressLocation({
+    db: prisma,
+    userId: attacker.id,
+    destinationTileId: destinationTile.id,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+  });
+  const movedFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: attackerFortress.id,
+    },
+  });
+
+  assert.equal(shuffleResult.shuffleCost, getActiveLocationShuffleCost(0));
+  assert.equal(
+    getRenderedMapPositionKey(movedFortress),
+    getRenderedMapPositionKey({
+      x: destinationTile.xPercent,
+      y: destinationTile.yPercent,
+    })
+  );
+  assert.equal(
+    movedFortress.gold,
+    getActiveLocationShuffleCost(0) + 50 - getActiveLocationShuffleCost(0)
+  );
+  assert.equal(
+    await getFortressLocationShuffleCount(prisma, attackerFortress.id),
+    1
+  );
+});
+
+test("location shuffle rejects invalid paid manual destination tiles", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const attacker = await createUser(
+    prisma,
+    "shuffle-manual-invalid-attacker@example.com"
+  );
+  const target = await createUser(
+    prisma,
+    "shuffle-manual-invalid-target@example.com"
+  );
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: attacker.id,
+    fortressName: "Manual Invalid Alpha",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: target.id,
+    fortressName: "Manual Invalid Beta",
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const attackerFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: attacker.id,
+      },
+    },
+  });
+  const targetFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: target.id,
+      },
+    },
+  });
+
+  await prisma.fortress.update({
+    where: {
+      id: attackerFortress.id,
+    },
+    data: {
+      race: FortressRace.DWARFS,
+      gold: 5_000,
+    },
+  });
+
+  const attackerTileId = snapMapPointToHex({
+    x: attackerFortress.mapX,
+    y: attackerFortress.mapY,
+  }).tile.id;
+  const occupiedTileId = snapMapPointToHex({
+    x: targetFortress.mapX,
+    y: targetFortress.mapY,
+  }).tile.id;
+  const attackerTile = getTileById(attackerTileId);
+
+  assert.ok(attackerTile);
+
+  await assert.rejects(
+    () =>
+      shuffleFortressLocation({
+        db: prisma,
+        userId: attacker.id,
+        destinationTileId: attackerTileId,
+        now: new Date("2026-04-20T12:01:00.000Z"),
+      }),
+    /different destination tile/
+  );
+
+  await assert.rejects(
+    () =>
+      shuffleFortressLocation({
+        db: prisma,
+        userId: attacker.id,
+        destinationTileId: occupiedTileId,
+        now: new Date("2026-04-20T12:01:10.000Z"),
+      }),
+    /occupied right now/
+  );
+
+  await assert.rejects(
+    () =>
+      shuffleFortressLocation({
+        db: prisma,
+        userId: attacker.id,
+        destinationTileId: "invalid:tile",
+        now: new Date("2026-04-20T12:01:20.000Z"),
+      }),
+    /valid destination tile/
   );
 });
 

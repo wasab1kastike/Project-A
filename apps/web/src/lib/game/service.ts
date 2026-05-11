@@ -2051,11 +2051,13 @@ export async function recruitArmy({
 export async function shuffleFortressLocation({
   userId,
   useFreeTeleport = false,
+  destinationTileId,
   now = new Date(),
   db = prisma,
 }: {
   userId: string;
   useFreeTeleport?: boolean;
+  destinationTileId?: string | null;
   now?: Date;
   db?: PrismaClient;
 }) {
@@ -2114,6 +2116,12 @@ export async function shuffleFortressLocation({
       throw new GameError("You do not have an active Unicorn teleport token.");
     }
 
+    if (useFreeTeleport && destinationTileId) {
+      throw new GameError(
+        "Unicorn teleport destination is chosen randomly right now."
+      );
+    }
+
     if (useFreeTeleport) {
       const activeTemporaryTeleport =
         await tx.unicornTemporaryTeleport.findFirst({
@@ -2165,30 +2173,59 @@ export async function shuffleFortressLocation({
 
     let nextPosition;
 
-    try {
-      nextPosition = takeOpenSpawnPoint(
-        buildFortressSpawnSeed({
-          cycleId: cycle.id,
-          purpose: "active:player-location-shuffle",
-          activeStartedAt: cycle.activeStartedAt,
-          tickAt: now,
-          entropy: `${fortress.id}:${locationShuffleCount + 1}`,
-        }),
-        {
-          excludedKeys,
-          referencePoints: otherFortresses.map((otherFortress) => ({
-            x: otherFortress.mapX,
-            y: otherFortress.mapY,
-          })),
-          minSeparationDistance: 9,
-          preferredEdgePadding: ACTIVE_EDGE_PADDING,
-          scoreRandomness: 10,
-        }
-      );
-    } catch {
-      throw new GameError(
-        "No alternate fortress location is available right now."
-      );
+    if (destinationTileId) {
+      const destinationTile = getTileById(destinationTileId);
+
+      if (!destinationTile) {
+        throw new GameError("Choose a valid destination tile.");
+      }
+
+      if (!destinationTile.spawnable) {
+        throw new GameError("Castle Yeet can only land on a spawnable tile.");
+      }
+
+      const selectedPosition = {
+        x: destinationTile.xPercent,
+        y: destinationTile.yPercent,
+      };
+      const currentRenderedKey = getRenderedMapPositionKey(fortress);
+      const destinationRenderedKey = getRenderedMapPositionKey(selectedPosition);
+
+      if (destinationRenderedKey === currentRenderedKey) {
+        throw new GameError("Choose a different destination tile.");
+      }
+
+      if (excludedKeys.has(destinationRenderedKey)) {
+        throw new GameError("That destination tile is occupied right now.");
+      }
+
+      nextPosition = selectedPosition;
+    } else {
+      try {
+        nextPosition = takeOpenSpawnPoint(
+          buildFortressSpawnSeed({
+            cycleId: cycle.id,
+            purpose: "active:player-location-shuffle",
+            activeStartedAt: cycle.activeStartedAt,
+            tickAt: now,
+            entropy: `${fortress.id}:${locationShuffleCount + 1}`,
+          }),
+          {
+            excludedKeys,
+            referencePoints: otherFortresses.map((otherFortress) => ({
+              x: otherFortress.mapX,
+              y: otherFortress.mapY,
+            })),
+            minSeparationDistance: 9,
+            preferredEdgePadding: ACTIVE_EDGE_PADDING,
+            scoreRandomness: 10,
+          }
+        );
+      } catch {
+        throw new GameError(
+          "No alternate fortress location is available right now."
+        );
+      }
     }
 
     const cancelledAttackUnitCount = 0;

@@ -289,6 +289,36 @@ export async function attackMapHexAction(tileId: string, sentArmy = 1) {
   }
 }
 
+export async function relocateCastleToTileAction(tileId: string) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await shuffleFortressLocation({
+      userId,
+      destinationTileId: tileId,
+    });
+    emitProjectARefresh("castle-yeet-map");
+    revalidatePath("/");
+    revalidatePath("/castle");
+    return {
+      ok: true,
+    } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
 export async function joinBattlefieldAction(formData: FormData) {
   const userId = await requireUserId();
   const sideInput = getString(formData, "side");

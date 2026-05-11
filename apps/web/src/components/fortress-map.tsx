@@ -191,6 +191,7 @@ type FortressMapProps = {
   selectedFortressId?: string | null;
   selectedTargetId?: string | null;
   selectedTileId?: string | null;
+  highlightedTileIds?: string[];
   onSelectFortress?: (fortress: MapFortress) => void;
   onConfirmAttackTarget?: (
     fortress: MapFortress,
@@ -321,14 +322,20 @@ function DwarfRuneSprite() {
 function HexTileMap({
   mapHexes,
   selectedTileId,
+  highlightedTileIds = [],
   onSelectMapHex,
 }: {
   mapHexes: MapHexOwnershipMarker[];
   selectedTileId?: string | null;
+  highlightedTileIds?: string[];
   onSelectMapHex?: (tileId: string) => void;
 }) {
   const ownershipByTileId = new Map(
     mapHexes.map((ownership) => [ownership.tileId, ownership])
+  );
+  const highlightedTileIdSet = useMemo(
+    () => new Set(highlightedTileIds),
+    [highlightedTileIds]
   );
   const tileTapStateRef = useRef<TileTapState | null>(null);
 
@@ -445,6 +452,10 @@ function HexTileMap({
           styles.hexTile,
           styles[`${tile.biome}Tile`],
           tile.spawnable ? styles.spawnableTile : "",
+          tile.claimable ? styles.selectableTile : "",
+          highlightedTileIdSet.has(tile.id)
+            ? styles.highlightedTeleportTile
+            : "",
           isOwnedTile ? styles.ownedTile : "",
           isOwnedTile && ownership?.ownerRace
             ? (OWNED_TILE_RACE_CLASS_BY_RACE[ownership.ownerRace] ?? "")
@@ -1291,6 +1302,7 @@ export const FortressMap = memo(function FortressMap({
           <HexTileMap
             mapHexes={mapHexes}
             selectedTileId={selectedTileId}
+            highlightedTileIds={highlightedTileIds}
             onSelectMapHex={onSelectMapHex}
           />
           <AttackUnitsLayer

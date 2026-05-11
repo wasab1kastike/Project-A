@@ -158,7 +158,7 @@
   stroke: rgba(6, 16, 18, 0.82);
 }
 
-.spawnableTile {
+.selectableTile {
   pointer-events: auto;
   cursor: pointer;
 }
