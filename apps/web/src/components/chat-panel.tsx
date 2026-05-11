@@ -1,3 +1,7 @@
+"use client";
+
+import { useActionState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { sendChatMessageAction } from "@/app/game-actions";
 import { ChatMessageList } from "./chat-message-list";
 import { GiphyGifPicker } from "./giphy-gif-picker";
@@ -42,6 +46,17 @@ export function ChatPanel({
   maxLength,
   postHint,
 }: ChatPanelProps) {
+  const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
+  const [state, formAction, isPending] = useActionState(sendChatMessageAction, null);
+
+  useEffect(() => {
+    if (state?.ok) {
+      formRef.current?.reset();
+      router.refresh();
+    }
+  }, [state, router]);
+
   function renderMessages(
     sourceMessages: ChatPanelProps["messages"]
   ) {
@@ -109,7 +124,8 @@ export function ChatPanel({
       {canPost ? (
         <div className={styles.form}>
           <form
-            action={sendChatMessageAction}
+            ref={formRef}
+            action={formAction}
             id="chat-text-message-form"
             className={styles.textForm}
           >
@@ -123,17 +139,21 @@ export function ChatPanel({
                 required
               />
             </label>
+            {state?.ok === false ? (
+              <p className={styles.formError}>{state.error}</p>
+            ) : null}
           </form>
           <div className={styles.formFooter}>
             <p>Max {maxLength} characters. Limit: 6 messages/min.</p>
             <div className={styles.composerActions}>
-              <GiphyGifPicker />
+              <GiphyGifPicker onSent={() => router.refresh()} />
               <button
                 className={styles.primaryButton}
                 form="chat-text-message-form"
                 type="submit"
+                disabled={isPending}
               >
-                Send message
+                {isPending ? "Sending…" : "Send message"}
               </button>
             </div>
           </div>

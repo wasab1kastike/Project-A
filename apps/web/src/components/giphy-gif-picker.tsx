@@ -83,7 +83,7 @@ function isGifResult(gif: GifResult | null): gif is GifResult {
   return gif !== null;
 }
 
-export function GiphyGifPicker() {
+export function GiphyGifPicker({ onSent }: { onSent?: () => void }) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [offset, setOffset] = useState(0);
@@ -177,22 +177,34 @@ export function GiphyGifPicker() {
           {error ? <p className={styles.gifHint}>{error}</p> : null}
           <div className={styles.gifGrid}>
             {results.map((gif) => (
-              <form action={sendChatGifMessageAction} key={gif.id}>
-                <input type="hidden" name="providerId" value={gif.id} />
-                <input type="hidden" name="title" value={gif.title} />
-                <input type="hidden" name="previewUrl" value={gif.previewUrl} />
-                <input type="hidden" name="displayUrl" value={gif.displayUrl} />
-                <input type="hidden" name="width" value={gif.width} />
-                <input type="hidden" name="height" value={gif.height} />
-                <input type="hidden" name="sourceUrl" value={gif.sourceUrl} />
-                <button
-                  type="submit"
-                  className={styles.gifOption}
-                  aria-label={`Send ${gif.title}`}
-                >
-                  <img src={gif.previewUrl} alt="" loading="lazy" />
-                </button>
-              </form>
+              <button
+                key={gif.id}
+                type="button"
+                className={styles.gifOption}
+                aria-label={`Send ${gif.title}`}
+                disabled={isPending}
+                onClick={() => {
+                  startTransition(async () => {
+                    const result = await sendChatGifMessageAction({
+                      providerId: gif.id,
+                      title: gif.title,
+                      previewUrl: gif.previewUrl,
+                      displayUrl: gif.displayUrl,
+                      width: gif.width,
+                      height: gif.height,
+                      sourceUrl: gif.sourceUrl,
+                    });
+                    if (result.ok) {
+                      setIsOpen(false);
+                      onSent?.();
+                    } else {
+                      setError(result.error ?? "Failed to send GIF.");
+                    }
+                  });
+                }}
+              >
+                <img src={gif.previewUrl} alt="" loading="lazy" />
+              </button>
             ))}
           </div>
           {hasMore ? (

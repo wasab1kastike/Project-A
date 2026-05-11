@@ -146,6 +146,12 @@
   align-items: center;
 }
 
+.formError {
+  color: var(--text-error, #f87171);
+  font-size: 0.85rem;
+  margin-top: 4px;
+}
+
 .composerActions {
   display: inline-flex;
   align-items: center;

@@ -1184,8 +1184,16 @@ export async function unequipCosmeticAction(formData: FormData) {
   finishArcadeAction("Using default skin.");
 }
 
-export async function sendChatMessageAction(formData: FormData) {
-  const userId = await requireUserId();
+export async function sendChatMessageAction(
+  _prevState: InlineActionResult | null,
+  formData: FormData
+): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return { ok: false, error: "You need to sign in before posting." };
+  }
 
   try {
     await sendChatMessage({
@@ -1193,37 +1201,37 @@ export async function sendChatMessageAction(formData: FormData) {
       body: getString(formData, "body"),
     });
     emitProjectARefresh("chat-message");
+    revalidatePath("/");
+    return { ok: true };
   } catch (error) {
-    redirectToHome("error", getActionErrorMessage(error));
+    return { ok: false, error: getActionErrorMessage(error) };
   }
-
-  revalidatePath("/");
-  redirect("/");
 }
 
-export async function sendChatGifMessageAction(formData: FormData) {
-  const userId = await requireUserId();
+export async function sendChatGifMessageAction(gif: {
+  providerId: string;
+  title: string;
+  previewUrl: string;
+  displayUrl: string;
+  width: number;
+  height: number;
+  sourceUrl: string;
+}): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
 
-  try {
-    await sendChatGifMessage({
-      userId,
-      gif: {
-        providerId: getString(formData, "providerId"),
-        title: getString(formData, "title"),
-        previewUrl: getString(formData, "previewUrl"),
-        displayUrl: getString(formData, "displayUrl"),
-        width: Number(getString(formData, "width")),
-        height: Number(getString(formData, "height")),
-        sourceUrl: getString(formData, "sourceUrl"),
-      },
-    });
-    emitProjectARefresh("chat-message");
-  } catch (error) {
-    redirectToHome("error", getActionErrorMessage(error));
+  if (!userId) {
+    return { ok: false, error: "You need to sign in before posting." };
   }
 
-  revalidatePath("/");
-  redirect("/");
+  try {
+    await sendChatGifMessage({ userId, gif });
+    emitProjectARefresh("chat-message");
+    revalidatePath("/");
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: getActionErrorMessage(error) };
+  }
 }
 
 export async function markChatReadAction() {
