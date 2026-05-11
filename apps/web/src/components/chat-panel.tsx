@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { sendChatMessageAction } from "@/app/game-actions";
 import { ChatMessageList } from "./chat-message-list";
@@ -38,6 +38,7 @@ type ChatPanelProps = {
   canPost: boolean;
   maxLength: number;
   postHint: string | null;
+  authorName: string;
 };
 
 export function ChatPanel({
@@ -45,21 +46,64 @@ export function ChatPanel({
   canPost,
   maxLength,
   postHint,
+  authorName,
 }: ChatPanelProps) {
   const router = useRouter();
-  const formRef = useRef<HTMLFormElement>(null);
-  const [state, formAction, isPending] = useActionState(sendChatMessageAction, null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [pendingMessages, setPendingMessages] = useState<
+    ChatPanelProps["messages"]
+  >([]);
 
+  // Once the server data updates (after router.refresh), clear the optimistic messages.
   useEffect(() => {
-    if (state?.ok) {
-      formRef.current?.reset();
-      router.refresh();
+    if (pendingMessages.length > 0) {
+      setPendingMessages([]);
     }
-  }, [state, router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages]);
 
-  function renderMessages(
-    sourceMessages: ChatPanelProps["messages"]
-  ) {
+  const displayMessages = [...messages, ...pendingMessages];
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const body = textareaRef.current?.value?.trim();
+    if (!body || isPending) return;
+
+    // Show message instantly.
+    setPendingMessages((prev) => [
+      ...prev,
+      {
+        id: `pending-${Date.now()}`,
+        type: "TEXT",
+        body,
+        gif: null,
+        createdAt: new Date(),
+        authorName,
+        isCurrentUser: true,
+        isSystem: false,
+      },
+    ]);
+    if (textareaRef.current) textareaRef.current.value = "";
+    setError(null);
+
+    const formData = new FormData();
+    formData.set("body", body);
+
+    startTransition(async () => {
+      const result = await sendChatMessageAction(null, formData);
+      if (result.ok) {
+        router.refresh();
+      } else {
+        setPendingMessages([]);
+        if (textareaRef.current) textareaRef.current.value = body;
+        setError(result.error);
+      }
+    });
+  }
+
+  function renderMessages(sourceMessages: ChatPanelProps["messages"]) {
     return sourceMessages.map((message) => {
       const variant = getChatMessageVariant(message);
 
@@ -111,27 +155,27 @@ export function ChatPanel({
         <p>Signed-in users can post. Guests are read-only.</p>
       </div>
 
-      <ChatMessageList messageCount={messages.length}>
-        {messages.length === 0 ? (
+      <ChatMessageList messageCount={displayMessages.length}>
+        {displayMessages.length === 0 ? (
           <p className={styles.emptyState}>
             No messages yet. Start the channel.
           </p>
         ) : (
-          renderMessages(messages)
+          renderMessages(displayMessages)
         )}
       </ChatMessageList>
 
       {canPost ? (
         <div className={styles.form}>
           <form
-            ref={formRef}
-            action={formAction}
+            onSubmit={handleSubmit}
             id="chat-text-message-form"
             className={styles.textForm}
           >
             <label className={styles.field}>
               <span>Message</span>
               <textarea
+                ref={textareaRef}
                 name="body"
                 rows={3}
                 maxLength={maxLength}
@@ -139,8 +183,8 @@ export function ChatPanel({
                 required
               />
             </label>
-            {state?.ok === false ? (
-              <p className={styles.formError}>{state.error}</p>
+            {error ? (
+              <p className={styles.formError}>{error}</p>
             ) : null}
           </form>
           <div className={styles.formFooter}>

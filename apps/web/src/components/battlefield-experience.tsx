@@ -1078,6 +1078,7 @@ export function BattlefieldExperience({
           canPost={chat.canPost}
           maxLength={chat.maxLength}
           postHint={chat.postHint}
+          authorName={playerSummary?.name ?? ""}
         />
       </div>
     </aside>
