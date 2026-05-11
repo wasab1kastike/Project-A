@@ -111,7 +111,7 @@ export function ChatPanel({
         <p>Signed-in users can post. Guests are read-only.</p>
       </div>
 
-      <ChatMessageList hasMessages={messages.length > 0}>
+      <ChatMessageList messageCount={messages.length}>
         {messages.length === 0 ? (
           <p className={styles.emptyState}>
             No messages yet. Start the channel.

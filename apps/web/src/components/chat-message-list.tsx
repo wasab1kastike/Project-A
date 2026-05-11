@@ -6,30 +6,31 @@ import styles from "./chat-panel.module.css";
 
 type ChatMessageListProps = {
   children: ReactNode;
-  hasMessages: boolean;
+  messageCount: number;
 };
 
 export function ChatMessageList({
   children,
-  hasMessages,
+  messageCount,
 }: ChatMessageListProps) {
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const shouldScrollOnMountRef = useRef(hasMessages);
+  const prevCountRef = useRef(messageCount);
 
   useLayoutEffect(() => {
-    if (!shouldScrollOnMountRef.current) {
-      return;
+    const el = messagesRef.current;
+    if (!el) return;
+
+    const isInitialRender = prevCountRef.current === messageCount;
+    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 200;
+
+    if (isInitialRender || isNearBottom) {
+      el.scrollTop = el.scrollHeight;
+      messagesEndRef.current?.scrollIntoView({ block: "end" });
     }
 
-    const messagesElement = messagesRef.current;
-
-    if (messagesElement) {
-      messagesElement.scrollTop = messagesElement.scrollHeight;
-    }
-
-    messagesEndRef.current?.scrollIntoView({ block: "end" });
-  }, []);
+    prevCountRef.current = messageCount;
+  }, [messageCount]);
 
   return (
     <div className={styles.messages} ref={messagesRef}>
