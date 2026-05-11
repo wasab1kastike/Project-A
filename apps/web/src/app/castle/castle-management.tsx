@@ -570,6 +570,85 @@ export function CastleManagement({
     }
   }
 
+  function getStringValue(formData: FormData, key: string) {
+    const value = formData.get(key);
+    return typeof value === "string" ? value : "";
+  }
+
+  async function handleInlineResult(result: { ok: true } | { ok: false; error: string }) {
+    if (!result.ok) {
+      window.alert(result.error);
+      return;
+    }
+
+    router.refresh();
+  }
+
+  async function buyPointsWithGoldFormAction(formData: FormData): Promise<void> {
+    const goldAmount = Number(getStringValue(formData, "goldAmount"));
+    await handleInlineResult(
+      await buyPointsWithGoldAction(Number.isFinite(goldAmount) ? goldAmount : 0)
+    );
+  }
+
+  async function purchaseFortressUpgradeFormAction(
+    formData: FormData
+  ): Promise<void> {
+    await handleInlineResult(
+      await purchaseFortressUpgradeAction(getStringValue(formData, "specialization"))
+    );
+  }
+
+  async function choosePendingUpgradeSpecializationFormAction(
+    formData: FormData
+  ): Promise<void> {
+    await handleInlineResult(
+      await choosePendingUpgradeSpecializationAction(
+        getStringValue(formData, "specialization")
+      )
+    );
+  }
+
+  async function activateWaaaghFormAction(): Promise<void> {
+    await handleInlineResult(await activateWaaaghAction());
+  }
+
+  async function activateOrkBossOrderFormAction(formData: FormData): Promise<void> {
+    const kind = getStringValue(formData, "kind");
+    await handleInlineResult(await activateOrkBossOrderAction(kind as never));
+  }
+
+  async function chooseDwarfGrudgeFormAction(formData: FormData): Promise<void> {
+    await handleInlineResult(
+      await chooseDwarfGrudgeAction(getStringValue(formData, "targetFortressId"))
+    );
+  }
+
+  async function chooseDwarfTierThreeGrudgeFormAction(
+    formData: FormData
+  ): Promise<void> {
+    const choice = getStringValue(formData, "choice");
+    const targetFortressId = getStringValue(formData, "targetFortressId");
+    await handleInlineResult(
+      await chooseDwarfTierThreeGrudgeAction(
+        targetFortressId || undefined,
+        choice === "double"
+      )
+    );
+  }
+
+  async function selectFortressRaceFormAction(formData: FormData): Promise<void> {
+    await handleInlineResult(
+      await selectFortressRaceAction(getStringValue(formData, "race"))
+    );
+  }
+
+  async function renameFortressFormAction(formData: FormData): Promise<void> {
+    await handleInlineResult(
+      await renameFortressAction(getStringValue(formData, "fortressName"))
+    );
+  }
+
   return (
     <div className={styles.castleGrid}>
       <section className={styles.panel}>
@@ -604,7 +683,7 @@ export function CastleManagement({
             <dd>x{playerSummary.defenseMultiplier.toFixed(2)}</dd>
           </div>
         </dl>
-        <form action={buyPointsWithGoldAction} className={styles.form}>
+        <form action={buyPointsWithGoldFormAction} className={styles.form}>
           <label>
             Buy points with gold
             <input
@@ -733,7 +812,7 @@ export function CastleManagement({
                   upgradeOption.nextCost !== null &&
                   playerSummary.pendingUpgradeSpecializationLevel === null ? (
                   <form
-                    action={purchaseFortressUpgradeAction}
+                    action={purchaseFortressUpgradeFormAction}
                     className={styles.form}
                   >
                     <input
@@ -765,7 +844,7 @@ export function CastleManagement({
         </div>
         {playerSummary.pendingUpgradeSpecializationLevel !== null ? (
           <form
-            action={choosePendingUpgradeSpecializationAction}
+            action={choosePendingUpgradeSpecializationFormAction}
             className={styles.form}
           >
             <p>
@@ -933,7 +1012,7 @@ export function CastleManagement({
                         : "Tier 3 daily"}
                     </span>
                   </div>
-                  <form action={activateWaaaghAction}>
+                  <form action={activateWaaaghFormAction}>
                     <button
                       type="submit"
                       disabled={!playerSummary.raceBuffs.canActivateWaaagh}
@@ -995,7 +1074,7 @@ export function CastleManagement({
                     {playerSummary.raceBuffs.orkBossOrders.map((order) => (
                       <form
                         key={order.kind}
-                        action={activateOrkBossOrderAction}
+                        action={activateOrkBossOrderFormAction}
                       >
                         <input type="hidden" name="kind" value={order.kind} />
                         <button
@@ -1123,7 +1202,7 @@ export function CastleManagement({
                   )}
                   {playerSummary.raceBuffs.canChooseDwarfGrudge ? (
                     <form
-                      action={chooseDwarfGrudgeAction}
+                      action={chooseDwarfGrudgeFormAction}
                       className={styles.form}
                     >
                       <label>
@@ -1147,12 +1226,12 @@ export function CastleManagement({
                   ) : null}
                   {playerSummary.raceBuffs.canChooseDwarfTierThree ? (
                     <div className={styles.form}>
-                      <form action={chooseDwarfTierThreeGrudgeAction}>
+                      <form action={chooseDwarfTierThreeGrudgeFormAction}>
                         <input name="choice" type="hidden" value="double" />
                         <button type="submit">Double first grudge</button>
                       </form>
                       <form
-                        action={chooseDwarfTierThreeGrudgeAction}
+                        action={chooseDwarfTierThreeGrudgeFormAction}
                         className={styles.form}
                       >
                         <label>
@@ -1307,7 +1386,7 @@ export function CastleManagement({
             {RACE_DEFINITIONS.map((race) => (
               <form
                 key={race.key}
-                action={selectFortressRaceAction}
+                action={selectFortressRaceFormAction}
                 className={styles.raceCard}
               >
                 <input name="race" type="hidden" value={race.key} />
@@ -1340,7 +1419,7 @@ export function CastleManagement({
               <button type="submit">Register nick</button>
             </form>
           ) : null}
-          <form action={renameFortressAction} className={styles.inlineForm}>
+          <form action={renameFortressFormAction} className={styles.inlineForm}>
             <input
               name="fortressName"
               defaultValue={playerSummary.name}

@@ -38,6 +38,33 @@ export function ActiveCommandCenter({
     currentTargetId ?? ""
   );
 
+  function getStringValue(formData: FormData, key: string) {
+    const value = formData.get(key);
+    return typeof value === "string" ? value : "";
+  }
+
+  async function setFortressActionFormAction(formData: FormData): Promise<void> {
+    const actionValue = getStringValue(formData, "action") === "ATTACK" ? "ATTACK" : "GROW";
+    const targetValue = getStringValue(formData, "targetFortressId");
+    const result = await setFortressActionAction(
+      actionValue,
+      targetValue || undefined,
+      1
+    );
+
+    if (!result.ok) {
+      window.alert(result.error);
+    }
+  }
+
+  async function renameFortressFormAction(formData: FormData): Promise<void> {
+    const result = await renameFortressAction(getStringValue(formData, "fortressName"));
+
+    if (!result.ok) {
+      window.alert(result.error);
+    }
+  }
+
   return (
     <div className={styles.layout}>
       <div className={styles.mapPanel}>
@@ -70,7 +97,7 @@ export function ActiveCommandCenter({
       </div>
 
       <div className={styles.forms}>
-        <form action={setFortressActionAction} className={styles.form}>
+        <form action={setFortressActionFormAction} className={styles.form}>
           <span className={styles.label}>Castle</span>
           <label className={styles.field}>
             <span>Command</span>
@@ -122,7 +149,7 @@ export function ActiveCommandCenter({
           </button>
         </form>
 
-        <form action={renameFortressAction} className={styles.form}>
+        <form action={renameFortressFormAction} className={styles.form}>
           <span className={styles.label}>Rename</span>
           <label className={styles.field}>
             <span>Fortress name</span>
