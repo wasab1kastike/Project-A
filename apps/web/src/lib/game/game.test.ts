@@ -12415,6 +12415,88 @@ test("chat messages are visible to spectators in read-only mode", async (context
   );
 });
 
+test("chat read model includes only the current cycle messages and unread count", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const currentUser = await createUser(prisma, "chat-scope-self@example.com");
+  const otherUser = await createUser(prisma, "chat-scope-other@example.com");
+
+  const previousCycle = await seedOpenCycle(
+    prisma,
+    new Date("2026-04-19T12:00:00.000Z")
+  );
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: currentUser.id,
+    commanderName: "Old Guard",
+    fortressName: "Old Guard",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: otherUser.id,
+    commanderName: "Old Herald",
+    fortressName: "Old Herald",
+  });
+
+  await sendChatMessage({
+    db: prisma,
+    userId: otherUser.id,
+    body: "From an old cycle.",
+    now: new Date("2026-04-19T12:03:00.000Z"),
+  });
+
+  await prisma.cycle.update({
+    where: {
+      id: previousCycle.id,
+    },
+    data: {
+      status: CycleStatus.RESOLUTION,
+      resolvedAt: new Date("2026-04-19T13:00:00.000Z"),
+      activeEndsAt: new Date("2026-04-19T13:00:00.000Z"),
+    },
+  });
+
+  await seedOpenCycle(prisma, new Date("2026-04-19T14:00:00.000Z"));
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: currentUser.id,
+    commanderName: "New Guard",
+    fortressName: "New Guard",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: otherUser.id,
+    commanderName: "New Herald",
+    fortressName: "New Herald",
+  });
+
+  await sendChatMessage({
+    db: prisma,
+    userId: otherUser.id,
+    body: "From the current cycle.",
+    now: new Date("2026-04-19T14:03:00.000Z"),
+  });
+
+  const state = await getHomePageState({
+    db: prisma,
+    userId: currentUser.id,
+  });
+
+  assert.equal(state.chat.messages.length, 1);
+  assert.equal(state.chat.messages[0]?.body, "From the current cycle.");
+  assert.equal(state.chat.unreadCount, 1);
+  assert.equal(
+    state.chat.latestMessageAt?.toISOString(),
+    "2026-04-19T14:03:00.000Z"
+  );
+});
+
 test("read model maps system-authored WAAAGH announcements to system chat messages", async (context) => {
   const prisma = getPrismaOrSkip(context);
 

@@ -1833,6 +1833,9 @@ export async function getHomePageState({
     };
   });
   const globalChatMessages = await db.chatMessage.findMany({
+    where: {
+      cycleId: cycle.id,
+    },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: getChatLimits().limit,
     select: {
@@ -1892,6 +1895,7 @@ export async function getHomePageState({
   const unreadCount = currentUser
     ? await db.chatMessage.count({
         where: {
+          cycleId: cycle.id,
           authorId: {
             not: userId,
           },
