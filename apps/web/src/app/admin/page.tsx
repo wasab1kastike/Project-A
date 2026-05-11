@@ -8,6 +8,7 @@ import {
   resolveCommunityWishTieAction,
   reviewWinnerRequestAction,
   runManualCatchUpTickAction,
+  startNewSeasonAction,
   toggleJoiningLockAction,
   updateCommunityWishFulfillmentProgressAction,
   updateWinnerRequestFulfillmentProgressAction,
@@ -211,6 +212,25 @@ export default async function AdminPage({
                 disabled={!state.currentCycle}
               >
                 Emergency reset
+              </button>
+            </form>
+
+            <form action={startNewSeasonAction} className={styles.inlineForm}>
+              <input
+                type="number"
+                name="hourOfDay"
+                placeholder="Hour (0-23)"
+                min="0"
+                max="23"
+                defaultValue="13"
+                required
+              />
+              <button
+                className={styles.primaryButton}
+                type="submit"
+                disabled={!state.currentCycle}
+              >
+                Start new season
               </button>
             </form>
 

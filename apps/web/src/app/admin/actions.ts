@@ -11,6 +11,7 @@ import {
   forceEndCurrentCycle,
   runManualCatchUpTick,
   setRegistrationJoiningLock,
+  startNewSeasonWithActiveAt,
 } from "@/lib/game/admin-operations";
 import {
   adminResolveCommunityWishTie,
@@ -218,4 +219,37 @@ export async function updateCommunityWishFulfillmentProgressAction(
   }
 
   finishAction("Community wish progress updated.");
+}
+
+export async function startNewSeasonAction(formData: FormData) {
+  await requireAdminSession();
+  const hoursInput = getString(formData, "hourOfDay");
+  const hour = getNumber(formData, "hourOfDay");
+
+  if (!Number.isFinite(hour) || hour < 0 || hour > 23) {
+    redirectToAdmin("error", "Enter a valid hour (0-23) for season start time.");
+  }
+
+  try {
+    const now = new Date();
+    const activeStartTime = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      hour,
+      0,
+      0,
+      0
+    );
+
+    const result = await startNewSeasonWithActiveAt({
+      activeStartTime,
+    });
+
+    emitProjectARefresh("admin-new-season");
+  } catch (error) {
+    redirectToAdmin("error", getActionErrorMessage(error));
+  }
+
+  finishAction(`New season started! Registration now open, active phase at ${hour}:00 today.`);
 }
