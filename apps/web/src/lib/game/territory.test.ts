@@ -5,7 +5,7 @@ import {
   TEMPORARY_MAP_OBJECTIVE_INTERVAL_HOURS,
   TEMPORARY_MAP_OBJECTIVE_POINT_VALUES,
 } from "./constants";
-import { HEX_SPAWN_TILES } from "./map-hex";
+import { HEX_SPAWN_TILES, HEX_TILES } from "./map-hex";
 import {
   TILE_CLAIM_OWNED_TILE_COST_STEP,
   getAdjacentTileIds,
@@ -184,4 +184,52 @@ test("tile claim cost increases with distance and owned or pending count", () =>
     }) - nearCost,
     3 * TILE_CLAIM_OWNED_TILE_COST_STEP
   );
+});
+
+test("deep sea costs extra to claim and mountains are cheaper for dwarfs", () => {
+  const waterTile = HEX_TILES.find((candidate) => candidate.biome === "water");
+  const plainsTile = HEX_SPAWN_TILES.find((candidate) => candidate.biome === "plains");
+  const mountainTile = HEX_TILES.find((candidate) => candidate.biome === "mountains");
+
+  assert.ok(waterTile && waterTile.biome === "water");
+  assert.ok(plainsTile);
+  assert.ok(mountainTile && mountainTile.biome === "mountains");
+
+  const baseOrigin = {
+    mapX: waterTile.xPercent,
+    mapY: waterTile.yPercent,
+  };
+
+  const waterCost = getTileClaimCost({
+    tile: waterTile,
+    origin: baseOrigin,
+  });
+  const plainsCost = getTileClaimCost({
+    tile: plainsTile,
+    origin: {
+      mapX: plainsTile.xPercent,
+      mapY: plainsTile.yPercent,
+    },
+  });
+
+  assert.ok(waterCost > plainsCost);
+
+  const mountainHumanCost = getTileClaimCost({
+    tile: mountainTile,
+    origin: {
+      mapX: mountainTile.xPercent,
+      mapY: mountainTile.yPercent,
+    },
+    race: "ORKS",
+  });
+  const mountainDwarfCost = getTileClaimCost({
+    tile: mountainTile,
+    origin: {
+      mapX: mountainTile.xPercent,
+      mapY: mountainTile.yPercent,
+    },
+    race: "DWARFS",
+  });
+
+  assert.ok(mountainDwarfCost < mountainHumanCost);
 });

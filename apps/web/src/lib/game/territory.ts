@@ -41,15 +41,22 @@ const EMPTY_BONUS: TileBonus = {
 };
 
 const BIOME_BONUSES: Record<HexBiome, TileBonus> = {
-  water: EMPTY_BONUS,
-  lake: EMPTY_BONUS,
-  mountains: {
-    gold: 0,
+  water: {
+    gold: 1,
     points: 0,
-    food: 0,
+    food: 4,
     army: 0,
     defensePercent: 0,
-    label: "Impassable",
+    label: "+1 gold, +4 food / tick",
+  },
+  lake: EMPTY_BONUS,
+  mountains: {
+    gold: 2,
+    points: 0,
+    food: 1,
+    army: 0,
+    defensePercent: 2,
+    label: "+2 gold, +1 food / tick, +2% defense",
   },
   plains: {
     gold: 1,
@@ -379,21 +386,29 @@ export function getHomeOfABonus(): TileBonus {
 export function getTileClaimCost({
   tile,
   origin,
+  race = null,
   ownedTileCount = 0,
   pendingClaimCount = 0,
 }: {
   tile: HexTile;
   origin: { mapX: number; mapY: number };
+  race?: "DWARFS" | "UNSTABLE_UNICORNS" | "ORKS" | "SPACE_MURINES" | null;
   ownedTileCount?: number;
   pendingClaimCount?: number;
 }) {
   const distance = Math.hypot(tile.xPercent - origin.mapX, tile.yPercent - origin.mapY);
-  const biomePremium =
+  const baseBiomePremium =
     tile.biome === "hills" || tile.biome === "forest"
       ? 12
+      : tile.biome === "water"
+        ? 18
+        : tile.biome === "mountains"
+          ? 16
       : tile.biome === "marsh" || tile.biome === "coast"
         ? 8
         : 0;
+  const raceDiscount = tile.biome === "mountains" && race === "DWARFS" ? 10 : 0;
+  const biomePremium = Math.max(0, baseBiomePremium - raceDiscount);
   const sizeSurcharge =
     (ownedTileCount + pendingClaimCount) * TILE_CLAIM_OWNED_TILE_COST_STEP;
 

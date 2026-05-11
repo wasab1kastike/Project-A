@@ -27,6 +27,7 @@ export type HexTile = {
   yPercent: number;
   biome: HexBiome;
   spawnable: boolean;
+  claimable: boolean;
 };
 
 export type MapPoint = {
@@ -152,6 +153,7 @@ export function generateHexTiles() {
         yPercent,
         biome,
         spawnable: biome !== "water" && biome !== "lake" && biome !== "mountains",
+        claimable: biome !== "lake",
       });
 
       col += 1;

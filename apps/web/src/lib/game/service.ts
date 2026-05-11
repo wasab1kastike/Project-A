@@ -860,6 +860,7 @@ export async function claimNeutralMapHex({
         id: true,
         ownerId: true,
         gold: true,
+        race: true,
         mapX: true,
         mapY: true,
       },
@@ -871,7 +872,7 @@ export async function claimNeutralMapHex({
 
     const tile = getTileById(tileId);
 
-    if (!tile || !tile.spawnable) {
+    if (!tile || !tile.claimable) {
       throw new GameError("That map tile cannot be claimed.");
     }
 
@@ -951,6 +952,7 @@ export async function claimNeutralMapHex({
     const claimCost = getTileClaimCost({
       tile,
       origin: fortress,
+      race: fortress.race,
       ownedTileCount: ownedNormalTileIds.length,
       pendingClaimCount: activeOwnClaimCount,
     });
@@ -1025,7 +1027,7 @@ export async function attackMapHex({
 
     const tile = getTileById(tileId);
 
-    if (!tile || !tile.spawnable) {
+    if (!tile || !tile.claimable) {
       throw new GameError("That map tile cannot be attacked.");
     }
 

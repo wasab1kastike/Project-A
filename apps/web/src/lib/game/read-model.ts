@@ -2120,6 +2120,7 @@ export async function getHomePageState({
       ? getTileClaimCost({
           tile,
           origin: playerFortress,
+          race: playerFortress.race,
           ownedTileCount: ownedNormalTiles.length,
           pendingClaimCount: activeOwnClaimCount,
         })
@@ -2145,7 +2146,7 @@ export async function getHomePageState({
         return "Join the cycle to claim tiles.";
       }
 
-      if (!tile.spawnable) {
+      if (!tile.claimable) {
         return "That map tile cannot be claimed.";
       }
 
@@ -2376,7 +2377,7 @@ export async function getHomePageState({
 
   for (const tile of HEX_TILES) {
     if (
-      !tile.spawnable ||
+      !tile.claimable ||
       isHomeOfATile(tile.id) ||
       claimedTileIds.has(tile.id)
     ) {
