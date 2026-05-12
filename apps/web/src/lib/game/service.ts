@@ -827,6 +827,47 @@ export async function setFortressAction({
       throw new GameError("That attack would arrive after the cycle ends.");
     }
 
+    if (target.fortressKind === FortressKind.PLAYER && !target.isNpc) {
+      const battlefield =
+        (await tx.battlefield.findFirst({
+          where: {
+            cycleId: cycle.id,
+            targetFortressId: target.id,
+            targetTileId: null,
+            status: BattlefieldStatus.ACTIVE,
+          },
+          select: {
+            id: true,
+          },
+        })) ??
+        (await tx.battlefield.create({
+          data: {
+            cycleId: cycle.id,
+            targetFortressId: target.id,
+            attackerBannerFortressId: fortress.id,
+            defenderBannerFortressId: target.id,
+            attackerArmyRemaining: 0,
+            defenderArmyRemaining: target.army,
+            pointsReward: Math.floor(target.gold * 0.7),
+            foodReward: Math.floor(target.food * 0.7),
+            startedAt: now,
+          },
+          select: {
+            id: true,
+          },
+        }));
+
+      await tx.attackUnit.update({
+        where: {
+          id: launchedUnit.id,
+        },
+        data: {
+          reinforcementBattlefieldId: battlefield.id,
+          reinforcementSide: BattlefieldSide.ATTACKER,
+        },
+      });
+    }
+
     return updatedFortress;
   });
 }
