@@ -8,14 +8,17 @@ export type PatchNotesRelease = {
 export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
   {
     date: "2026-05-12",
-    title: "PvP defense and battlefield rewards",
+    title: "PvP defense, smoother refreshes, and recall stability",
     newFeatures: [
       "Players can now fortify owned tiles, including Home of A, by sending idle army that travels to the tile and defends it until recalled or killed.",
       "Castle battlefield wins now pay attackers from stolen gold and food in the defender's bank, plus a smaller gold reward based on killed enemy units.",
+      "Gameplay actions now refresh more smoothly, so state updates feel more responsive during active play.",
     ],
     bugFixes: [
       "Owned tile battles now only use army that players explicitly send to the defense; idle castle army no longer defends nearby tiles for free.",
       "PvP battlefield rewards now go only to the winning side, so losers no longer receive reward events after a resolved fight.",
+      "Fixed a tile-garrison recall failure that could show a generic service error instead of completing or returning a proper gameplay message.",
+      "Reduced unnecessary broad page revalidation in gameplay actions to lower refresh load and avoid extra heavy rerenders.",
     ],
   },
   {
