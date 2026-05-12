@@ -7,6 +7,17 @@ export type PatchNotesRelease = {
 
 export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
   {
+    date: "2026-05-12",
+    title: "PvP defense and battlefield rewards",
+    newFeatures: [
+      "Castle battlefield wins now pay attackers from stolen gold and food in the defender's bank, plus a smaller gold reward based on killed enemy units.",
+    ],
+    bugFixes: [
+      "Owned tile battles now only use army that players explicitly send to the defense; idle castle army no longer defends nearby tiles for free.",
+      "PvP battlefield rewards now go only to the winning side, so losers no longer receive reward events after a resolved fight.",
+    ],
+  },
+  {
     date: "2026-05-11",
     title: "Sea tiles, mountain claims, Castle Yeet, and instant attack markers",
     newFeatures: [
@@ -21,7 +32,9 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
   {
     date: "2026-05-07",
     title: "Army upkeep reduced",
-    newFeatures: [],
+    newFeatures: [
+      "Army upkeep has been rebalanced so larger standing armies are easier to maintain.",
+    ],
     bugFixes: [
       "Army upkeep reduced to 0.01 food per unit per tick — 1 food now sustains 100 active army units.",
     ],
