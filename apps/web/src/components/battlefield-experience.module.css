@@ -227,7 +227,8 @@
 
 .immersiveOverlayUi .drawer,
 .immersiveOverlayUi .floatingActions,
-.immersiveOverlayUi .tilePanel {
+.immersiveOverlayUi .tilePanel,
+.immersiveOverlayUi .battlefieldPanel {
   position: fixed;
   pointer-events: auto;
 }
@@ -259,22 +260,23 @@
   position: absolute;
   z-index: 11;
   left: 16px;
-  top: 16px;
+  top: 50%;
   display: grid;
   gap: 8px;
   width: min(390px, calc(100% - 32px));
-  max-height: min(52%, 430px);
+  max-height: min(60%, 520px);
   overflow: auto;
   padding: 12px;
   border: 1px solid rgba(247, 196, 95, 0.32);
   border-radius: 8px;
   background:
-    linear-gradient(180deg, rgba(18, 36, 50, 0.92), rgba(11, 22, 32, 0.9)),
-    rgba(12, 25, 35, 0.9);
+    linear-gradient(180deg, rgba(34, 62, 82, 0.93), rgba(14, 28, 40, 0.9)),
+    rgba(18, 34, 48, 0.9);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.09),
     0 12px 34px rgba(0, 0, 0, 0.26);
   backdrop-filter: blur(12px);
+  transform: translateY(-42%);
 }
 
 .tilePanel {
@@ -363,8 +365,8 @@
   border: 1px solid rgba(126, 214, 224, 0.34);
   border-radius: 8px;
   background:
-    linear-gradient(180deg, rgba(21, 44, 58, 0.78), rgba(11, 24, 34, 0.74)),
-    rgba(11, 24, 34, 0.76);
+    linear-gradient(180deg, rgba(34, 62, 80, 0.82), rgba(13, 29, 41, 0.76)),
+    rgba(13, 29, 41, 0.78);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
@@ -689,8 +691,10 @@
   .battlefieldPanel {
     left: 10px;
     right: 10px;
+    top: 50%;
     width: auto;
-    max-height: 44%;
+    max-height: min(56dvh, 500px);
+    transform: translateY(-50%);
   }
 
   .tilePanel {
