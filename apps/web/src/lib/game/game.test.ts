@@ -2766,6 +2766,8 @@ test("players can fortify owned tiles and arrival creates a non-draining garriso
   ]);
 
   assert.equal(afterLaunch.army, 30);
+  assert.equal(fortifyUnit.attackerFortressId, fortress.id);
+  assert.equal(fortifyUnit.targetFortressId, fortress.id);
   assert.equal(fortifyUnit.fortifyTargetTileId, tile.id);
 
   await runGameTick({
@@ -2858,6 +2860,8 @@ test("players can fortify owned Home of A", async (context) => {
   });
 
   assert.equal(launched.target.name, "Home of A");
+  assert.equal(attackUnit.attackerFortressId, fortress.id);
+  assert.equal(attackUnit.targetFortressId, fortress.id);
   assert.equal(attackUnit.fortifyTargetTileId, HOME_OF_A_TILE_ID);
 });
 

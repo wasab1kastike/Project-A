@@ -51,7 +51,6 @@ import {
 } from "./spawn-layout";
 import {
   getHelsinkiDayKey,
-  getHelsinkiHourKey,
   getRaceAbilityActiveUntil,
   getRaceBuffTier,
   getUnicornShatteredRealityAvailability,
@@ -1561,6 +1560,7 @@ export async function fortifyMapHex({
       target,
       launchedAt: now,
       armyAmount,
+      fortifyTargetTileId: tileId,
     });
 
     if (!launchedUnit) {
@@ -1569,17 +1569,8 @@ export async function fortifyMapHex({
       );
     }
 
-    const fortifyUnit = await tx.attackUnit.update({
-      where: {
-        id: launchedUnit.id,
-      },
-      data: {
-        fortifyTargetTileId: tileId,
-      },
-    });
-
     return toAttackUnitLaunchMarker({
-      unit: fortifyUnit,
+      unit: launchedUnit,
       attacker: fortress,
       target: {
         id: tileId,

@@ -348,6 +348,7 @@ export async function launchAttackUnit({
   target,
   launchedAt,
   armyAmount = 1,
+  fortifyTargetTileId = null,
 }: {
   db: DatabaseClient;
   cycle: AttackCycle;
@@ -355,6 +356,7 @@ export async function launchAttackUnit({
   target: AttackFortress;
   launchedAt: Date;
   armyAmount?: number;
+  fortifyTargetTileId?: string | null;
 }) {
   if (!Number.isInteger(armyAmount) || armyAmount <= 0) {
     throw new GameError("You must send at least 1 army.");
@@ -408,6 +410,7 @@ export async function launchAttackUnit({
       cycleId: cycle.id,
       attackerFortressId: attacker.id,
       targetFortressId: target.id,
+      fortifyTargetTileId,
       armyAmount,
       launchedAt,
       arrivesAt,

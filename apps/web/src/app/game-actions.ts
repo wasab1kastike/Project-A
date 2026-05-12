@@ -316,6 +316,15 @@ export async function fortifyMapHexAction(tileId: string, armyAmount = 1) {
       launchedAttackUnit,
     } satisfies MapHexAttackActionResult;
   } catch (error) {
+    if (!(error instanceof GameError)) {
+      console.error("fortifyMapHexAction failed", {
+        tileId,
+        armyAmount,
+        userId,
+        error,
+      });
+    }
+
     return {
       ok: false,
       error: getActionErrorMessage(error),
