@@ -103,6 +103,22 @@ type ActiveBattlefield = {
   defenderArmyLabel: string;
   attackerCasualties: number;
   defenderCasualties: number;
+  armyDelta: number;
+  attackerSharePercent: number;
+  incomingAttackerArmy: number;
+  incomingDefenderArmy: number;
+  incomingArmyDelta: number;
+  battleAgeMinutes: number;
+  nextIncomingEtaMinutes: number | null;
+  nextIncomingSide: "ATTACKER" | "DEFENDER";
+  attackerToDefenderLossRatio: number | null;
+  momentumScore: number;
+  momentumTier:
+    | "ATTACKER_STRONG"
+    | "ATTACKER_EDGE"
+    | "EVEN"
+    | "DEFENDER_EDGE"
+    | "DEFENDER_STRONG";
   ownArmyCommitted: number;
   ownArmyRemaining: number;
   ownIncomingArmy: number;
@@ -195,17 +211,46 @@ function getBattlePressure(battlefield: ActiveBattlefield): {
   label: "Attack favored" | "Defense favored" | "Even fight";
   tone: "attacker" | "defender" | "even";
 } {
-  const attacker = Math.max(0, battlefield.attackerArmyRemaining ?? 0);
-  const defender = Math.max(0, battlefield.defenderArmyRemaining ?? 0);
-  const total = attacker + defender;
-
-  if (total <= 0 || Math.abs(attacker - defender) / total < 0.12) {
-    return { label: "Even fight", tone: "even" };
+  if (battlefield.momentumTier === "ATTACKER_STRONG") {
+    return { label: "Attack favored", tone: "attacker" };
   }
 
-  return attacker > defender
-    ? { label: "Attack favored", tone: "attacker" }
-    : { label: "Defense favored", tone: "defender" };
+  if (battlefield.momentumTier === "ATTACKER_EDGE") {
+    return { label: "Attack favored", tone: "attacker" };
+  }
+
+  if (battlefield.momentumTier === "DEFENDER_STRONG") {
+    return { label: "Defense favored", tone: "defender" };
+  }
+
+  if (battlefield.momentumTier === "DEFENDER_EDGE") {
+    return { label: "Defense favored", tone: "defender" };
+  }
+
+  return { label: "Even fight", tone: "even" };
+}
+
+function formatBattleMinutes(value: number) {
+  if (value < 60) {
+    return `${value}m`;
+  }
+
+  const hours = Math.floor(value / 60);
+  const minutes = value % 60;
+
+  if (minutes === 0) {
+    return `${hours}h`;
+  }
+
+  return `${hours}h ${minutes}m`;
+}
+
+function formatLossRatio(value: number | null) {
+  if (value === null) {
+    return "-";
+  }
+
+  return `${value.toFixed(2)}:1`;
 }
 
 type HomeOfAState = {
@@ -1826,6 +1871,25 @@ export function BattlefieldExperience({
                         <span>{battlefield.progress}%</span>
                       </span>
                     </div>
+                    <div className={styles.battleSignals}>
+                      <span className={styles.signalChip}>
+                        Live {formatBattleMinutes(battlefield.battleAgeMinutes)}
+                      </span>
+                      <span className={styles.signalChip}>
+                        Army delta {battlefield.armyDelta >= 0 ? "+" : ""}
+                        {battlefield.armyDelta}
+                      </span>
+                      <span className={styles.signalChip}>
+                        Incoming {battlefield.incomingArmyDelta >= 0 ? "+" : ""}
+                        {battlefield.incomingArmyDelta}
+                      </span>
+                      <span className={styles.signalChip}>
+                        Next wave{" "}
+                        {battlefield.nextIncomingEtaMinutes === null
+                          ? "-"
+                          : `${battlefield.nextIncomingEtaMinutes}m (${battlefield.nextIncomingSide.toLowerCase()})`}
+                      </span>
+                    </div>
                     <progress value={battlefield.progress} max={100} />
                     {(() => {
                       const totalArmy =
@@ -1878,6 +1942,34 @@ export function BattlefieldExperience({
                               ) : null}
                             </div>
                           </div>
+                          <dl className={styles.battleTacticalGrid}>
+                            <div>
+                              <dt>Pressure split</dt>
+                              <dd>{battlefield.attackerSharePercent}% attack</dd>
+                            </div>
+                            <div>
+                              <dt>Loss ratio A:D</dt>
+                              <dd>
+                                {formatLossRatio(
+                                  battlefield.attackerToDefenderLossRatio
+                                )}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>Incoming A/D</dt>
+                              <dd>
+                                {battlefield.incomingAttackerArmy}/
+                                {battlefield.incomingDefenderArmy}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>Momentum</dt>
+                              <dd>
+                                {battlefield.momentumScore >= 0 ? "+" : ""}
+                                {battlefield.momentumScore}
+                              </dd>
+                            </div>
+                          </dl>
                         </>
                       );
                     })()}

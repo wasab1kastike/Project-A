@@ -3078,6 +3078,75 @@ export async function getHomePageState({
       const canRecallOwnArmy =
         Boolean(currentParticipant) &&
         (currentParticipant?.armyRemaining ?? 0) > 0;
+      const incomingAttackerArmy = battlefield.incomingReinforcements
+        .filter(
+          (unit) =>
+            (unit.reinforcementSide ?? BattlefieldSide.ATTACKER) ===
+            BattlefieldSide.ATTACKER
+        )
+        .reduce((sum, unit) => sum + Math.max(0, unit.armyAmount ?? 0), 0);
+      const incomingDefenderArmy = battlefield.incomingReinforcements
+        .filter(
+          (unit) =>
+            (unit.reinforcementSide ?? BattlefieldSide.ATTACKER) ===
+            BattlefieldSide.DEFENDER
+        )
+        .reduce((sum, unit) => sum + Math.max(0, unit.armyAmount ?? 0), 0);
+      const attackerArmyRemaining = Math.max(0, battlefield.attackerArmyRemaining);
+      const defenderArmyRemaining = Math.max(0, battlefield.defenderArmyRemaining);
+      const totalArmyRemaining = attackerArmyRemaining + defenderArmyRemaining;
+      const armyDelta = attackerArmyRemaining - defenderArmyRemaining;
+      const attackerSharePercent =
+        totalArmyRemaining > 0
+          ? Math.round((attackerArmyRemaining / totalArmyRemaining) * 100)
+          : 50;
+      const incomingArmyDelta = incomingAttackerArmy - incomingDefenderArmy;
+      const battleAgeMinutes = Math.max(
+        0,
+        Math.floor((now.getTime() - battlefield.startedAt.getTime()) / 60_000)
+      );
+      const nextIncomingReinforcement =
+        battlefield.incomingReinforcements.length > 0
+          ? battlefield.incomingReinforcements[0]
+          : null;
+      const nextIncomingEtaMinutes = nextIncomingReinforcement
+        ? Math.max(
+            0,
+            Math.ceil(
+              (nextIncomingReinforcement.arrivesAt.getTime() - now.getTime()) /
+                60_000
+            )
+          )
+        : null;
+      const attackerLosses = Math.max(0, attackerCasualties);
+      const defenderLosses = Math.max(
+        0,
+        defenderParticipantCasualties + nativeDefenderCasualties
+      );
+      const attackerToDefenderLossRatio =
+        defenderLosses > 0 ? attackerLosses / defenderLosses : null;
+      const armyEdge = totalArmyRemaining > 0 ? armyDelta / totalArmyRemaining : 0;
+      const incomingTotal = incomingAttackerArmy + incomingDefenderArmy;
+      const incomingEdge = incomingTotal > 0 ? incomingArmyDelta / incomingTotal : 0;
+      const progressEdge = (Math.max(0, Math.min(100, battlefield.progress)) - 50) / 50;
+      const momentumScore = Number(
+        (armyEdge * 0.6 + incomingEdge * 0.25 + progressEdge * 0.15).toFixed(2)
+      );
+      const momentumTier: 
+        | "ATTACKER_STRONG"
+        | "ATTACKER_EDGE"
+        | "EVEN"
+        | "DEFENDER_EDGE"
+        | "DEFENDER_STRONG" =
+        momentumScore >= 0.42
+          ? "ATTACKER_STRONG"
+          : momentumScore >= 0.14
+            ? "ATTACKER_EDGE"
+            : momentumScore <= -0.42
+              ? "DEFENDER_STRONG"
+              : momentumScore <= -0.14
+                ? "DEFENDER_EDGE"
+                : "EVEN";
 
       return {
         id: battlefield.id,
@@ -3090,19 +3159,31 @@ export async function getHomePageState({
             ? `Tile ${battlefield.targetTileId}`
             : (battlefield.targetFortress?.name ?? "Battlefield"),
         progress: battlefield.progress,
-        attackerArmyRemaining: battlefield.attackerArmyRemaining,
-        defenderArmyRemaining: battlefield.defenderArmyRemaining,
+        attackerArmyRemaining,
+        defenderArmyRemaining,
         attackerArmyLabel:
           currentParticipant?.side === BattlefieldSide.ATTACKER
-            ? `${battlefield.attackerArmyRemaining}`
-            : formatApproximateForce(battlefield.attackerArmyRemaining),
+            ? `${attackerArmyRemaining}`
+            : formatApproximateForce(attackerArmyRemaining),
         defenderArmyLabel:
           currentParticipant?.side === BattlefieldSide.DEFENDER
-            ? `${battlefield.defenderArmyRemaining}`
-            : formatApproximateForce(battlefield.defenderArmyRemaining),
-        attackerCasualties,
-        defenderCasualties:
-          defenderParticipantCasualties + nativeDefenderCasualties,
+            ? `${defenderArmyRemaining}`
+            : formatApproximateForce(defenderArmyRemaining),
+        attackerCasualties: attackerLosses,
+        defenderCasualties: defenderLosses,
+        armyDelta,
+        attackerSharePercent,
+        incomingAttackerArmy,
+        incomingDefenderArmy,
+        incomingArmyDelta,
+        battleAgeMinutes,
+        nextIncomingEtaMinutes,
+        nextIncomingSide:
+          nextIncomingReinforcement?.reinforcementSide ??
+          BattlefieldSide.ATTACKER,
+        attackerToDefenderLossRatio,
+        momentumScore,
+        momentumTier,
         ownArmyCommitted: currentParticipant?.armyCommitted ?? 0,
         ownArmyRemaining: currentParticipant?.armyRemaining ?? 0,
         ownIncomingArmy,

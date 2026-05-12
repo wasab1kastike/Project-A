@@ -364,6 +364,26 @@
   width: 100%;
 }
 
+.battleSignals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.signalChip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 7px;
+  border: 1px solid rgba(103, 196, 207, 0.2);
+  border-radius: 999px;
+  background: rgba(103, 196, 207, 0.08);
+  color: rgba(214, 235, 241, 0.9);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.02em;
+}
+
 .battleMeta {
   display: inline-flex;
   align-items: center;
@@ -455,6 +475,35 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   opacity: 0.7;
+}
+
+.battleTacticalGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+}
+
+.battleTacticalGrid div {
+  min-width: 0;
+  padding: 7px;
+  border: 1px solid rgba(103, 196, 207, 0.14);
+  border-radius: 7px;
+  background: rgba(3, 10, 16, 0.38);
+}
+
+.battleTacticalGrid dt {
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.6rem;
+  text-transform: uppercase;
+}
+
+.battleTacticalGrid dd {
+  margin: 3px 0 0;
+  color: var(--text-primary);
+  font-weight: 800;
+  font-size: 0.76rem;
 }
 
 .yourForcePanel {
@@ -659,5 +708,9 @@
   .battlefieldJoinGrid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .battleTacticalGrid {
+    grid-template-columns: 1fr;
   }
 }
