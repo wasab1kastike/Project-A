@@ -8,6 +8,7 @@ import {
   DwarfDeepMiningOutcome,
   RaceAbilityKind,
   OrkScrapEventReason,
+  ChatMessageType,
 } from "@/lib/prisma-client";
 import { prisma } from "@/lib/prisma";
 import { ensureOpenRegistrationCycle } from "./bootstrap";
@@ -33,6 +34,7 @@ import {
   ensureActiveCycleMegaFortress,
   ensureMegaFortress,
   reshuffleActiveFortressPositions,
+  ensureNpcSystemUser,
 } from "./mega-fortress";
 import { getAttackArrivalAt } from "./attacks";
 import { buildFortressSpawnSeed } from "./spawn-layout";
@@ -929,6 +931,18 @@ async function completeTestingCycle(
       }),
     });
 
+    // Announce eternal goblins feature
+    const systemUser = await ensureNpcSystemUser(tx);
+    await tx.chatMessage.create({
+      data: {
+        cycleId,
+        authorId: systemUser.id,
+        type: ChatMessageType.TEXT,
+        body: "🧌 ETERNAL GOBLINS: The goblin horde has achieved immortality! Goblins shall prowl the realm eternal, never vanishing unless slain by worthy warriors. The age of temporal goblin existence is over. Fear the eternal horde! 🧌",
+        createdAt: activeStartedAt,
+      },
+    });
+
     return true;
   }, TICK_TRANSACTION_OPTIONS);
 }
@@ -1326,11 +1340,13 @@ async function processCycleTick(
     tickAt,
   });
 
-  await expireLootCamps({
-    db: db,
-    cycleId,
-    tickAt,
-  });
+  // Eternal goblins: loot camps no longer expire from timers
+  // They only disappear when killed by players
+  // await expireLootCamps({
+  //   db: db,
+  //   cycleId,
+  //   tickAt,
+  // });
   await db.fortress.updateMany({
     where: {
       cycleId,
