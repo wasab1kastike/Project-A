@@ -1744,11 +1744,7 @@ export async function getHomePageState({
       fortress.fortressKind === FortressKind.LOOT_CAMP ||
       fortress.fortressKind === FortressKind.DWARF_RUNE
     ) {
-      return (
-        fortress.health > 0 &&
-        fortress.expiresAt !== null &&
-        fortress.expiresAt > now
-      );
+      return fortress.health > 0;
     }
 
     return (
@@ -3075,6 +3071,7 @@ export async function getHomePageState({
                 at: now,
               })
           : null;
+      const defenseBuffPercent = targetTileBonus?.defensePercent ?? 0;
       const canRecallOwnArmy =
         Boolean(currentParticipant) &&
         (currentParticipant?.armyRemaining ?? 0) > 0;
@@ -3184,6 +3181,8 @@ export async function getHomePageState({
         attackerToDefenderLossRatio,
         momentumScore,
         momentumTier,
+        attackBuffPercent: 0,
+        defenseBuffPercent,
         ownArmyCommitted: currentParticipant?.armyCommitted ?? 0,
         ownArmyRemaining: currentParticipant?.armyRemaining ?? 0,
         ownIncomingArmy,

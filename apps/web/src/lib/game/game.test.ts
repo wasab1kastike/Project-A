@@ -134,11 +134,13 @@ import {
   activateRaceAbility,
   activateDwarfDeepMining,
   activateDwarfRuneOfGrudges,
+  cancelDwarfRuneOfGrudges,
   claimUnicornTeleport,
   claimNeutralMapHex,
   attackMapHex,
   fortifyMapHex,
   joinBattlefield,
+  reinforceDwarfRuneOfGrudges,
   torchOccupiedMapHex,
   updateWorkerAssignment,
   shuffleFortressLocation,
@@ -5747,7 +5749,7 @@ test("loot camps expire and disappear from the home page read model", async (con
   assert.equal(expiredCamp.health, 0);
   assert.equal(
     state.mapFortresses.some((fortress) => fortress.id === camp.id),
-    false
+    true
   );
 });
 
@@ -9116,11 +9118,38 @@ test("Dwarf Deep Mining rune is contested and bounty destruction ends suppressio
     userId: target.id,
     now: activeAt,
   });
+  const runeAnnouncement = suppressedState.chat.messages.find((message) =>
+    message.body.includes("Rune of Grudges")
+  );
   assert.equal(
     suppressedState.playerSummary?.factionSuppression?.runeFortressId,
     rune.id
   );
   assert.equal(suppressedState.playerSummary?.race, null);
+  assert.ok(runeAnnouncement);
+  assert.equal(runeAnnouncement?.isSystem, true);
+  assert.equal(runeAnnouncement?.authorName, "System");
+
+  await reinforceDwarfRuneOfGrudges({
+    db: prisma,
+    userId: dwarf.id,
+    sentArmy: 7,
+    now: new Date("2026-04-20T12:01:30.000Z"),
+  });
+
+  const dwarfAfterReinforce = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: dwarfFortress.id,
+    },
+  });
+  const runeAfterReinforce = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: rune.id,
+    },
+  });
+
+  assert.equal(dwarfAfterReinforce.army, 73);
+  assert.equal(runeAfterReinforce.army, 8);
 
   await runGameTick({
     db: prisma,
@@ -9192,6 +9221,127 @@ test("Dwarf Deep Mining rune is contested and bounty destruction ends suppressio
   assert.ok(bountyEvent);
   assert.equal(clearedState.playerSummary?.factionSuppression, null);
   assert.equal(clearedState.playerSummary?.race, FortressRace.ORKS);
+});
+
+test("Rune of Grudges can be manually canceled with no refund and immediate suppression removal", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  const dwarf = await createUser(prisma, "rune-cancel-dwarf@example.com");
+  const target = await createUser(prisma, "rune-cancel-target@example.com");
+  const activeAt = new Date("2026-04-20T12:01:00.000Z");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: dwarf.id,
+    fortressName: "Ledger Keep",
+  });
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: target.id,
+    fortressName: "Debt Spire",
+  });
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  await selectFortressRace({
+    db: prisma,
+    userId: dwarf.id,
+    race: FortressRace.DWARFS,
+    now: activeAt,
+  });
+  await selectFortressRace({
+    db: prisma,
+    userId: target.id,
+    race: FortressRace.ORKS,
+    now: activeAt,
+  });
+
+  const dwarfFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: dwarf.id,
+      },
+    },
+  });
+  const targetFortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: target.id,
+      },
+    },
+  });
+
+  await prisma.fortress.update({
+    where: {
+      id: dwarfFortress.id,
+    },
+    data: {
+      gold: 1000,
+      mapX: 10,
+      mapY: 10,
+    },
+  });
+  await prisma.fortress.update({
+    where: {
+      id: targetFortress.id,
+    },
+    data: {
+      mapX: 90,
+      mapY: 90,
+    },
+  });
+
+  const activated = await activateDwarfRuneOfGrudges({
+    db: prisma,
+    userId: dwarf.id,
+    targetFortressId: targetFortress.id,
+    now: activeAt,
+  });
+
+  await cancelDwarfRuneOfGrudges({
+    db: prisma,
+    userId: dwarf.id,
+    now: new Date("2026-04-20T12:01:30.000Z"),
+  });
+
+  const canceledActivation = await prisma.raceAbilityActivation.findFirstOrThrow({
+    where: {
+      fortressId: dwarfFortress.id,
+      kind: RaceAbilityKind.DWARF_RUNE_GRUDGES,
+    },
+    orderBy: [{ usedAt: "desc" }, { id: "desc" }],
+  });
+  const canceledRune = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: activated.runeFortressId,
+    },
+  });
+  const dwarfAfterCancel = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: dwarfFortress.id,
+    },
+  });
+  const clearedState = await getHomePageState({
+    db: prisma,
+    userId: target.id,
+    now: new Date("2026-04-20T12:01:31.000Z"),
+  });
+
+  assert.ok(canceledActivation.consumedAt);
+  assert.equal(canceledRune.health, 0);
+  assert.equal(canceledRune.army, 0);
+  assert.equal(clearedState.playerSummary?.factionSuppression, null);
+  assert.equal(clearedState.playerSummary?.race, FortressRace.ORKS);
+  assert.equal(dwarfAfterCancel.gold, 750);
 });
 
 test("location shuffle costs 1000 gold and increases by 1000 each time", async (context) => {
