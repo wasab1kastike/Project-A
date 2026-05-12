@@ -863,20 +863,43 @@ export async function setFortressAction({
     }
 
     if (target.fortressKind === FortressKind.DWARF_RUNE) {
-      const runeRoll = await tx.dwarfDeepMiningRoll.findUnique({
-        where: {
-          runeFortressId: target.id,
-        },
-        select: {
-          fortress: {
-            select: {
-              ownerId: true,
+      const [runeRoll, runeActivation] = await Promise.all([
+        tx.dwarfDeepMiningRoll.findUnique({
+          where: {
+            runeFortressId: target.id,
+          },
+          select: {
+            fortress: {
+              select: {
+                ownerId: true,
+              },
             },
           },
-        },
-      });
+        }),
+        tx.raceAbilityActivation.findFirst({
+          where: {
+            kind: RaceAbilityKind.DWARF_RUNE_GRUDGES,
+            runeFortressId: target.id,
+            consumedAt: null,
+            activeUntil: {
+              gt: now,
+            },
+          },
+          select: {
+            fortress: {
+              select: {
+                ownerId: true,
+                id: true,
+              },
+            },
+          },
+        }),
+      ]);
 
-      if (runeRoll?.fortress && runeRoll.fortress.ownerId === fortress.ownerId) {
+      if (
+        runeRoll?.fortress?.ownerId === fortress.ownerId ||
+        runeActivation?.fortress?.ownerId === fortress.ownerId
+      ) {
         throw new GameError("You cannot attack your own Dwarf rune.");
       }
     }
@@ -930,7 +953,26 @@ export async function setFortressAction({
       throw new GameError("That attack would arrive after the cycle ends.");
     }
 
-    if (target.fortressKind === FortressKind.PLAYER && !target.isNpc) {
+    if (
+      (target.fortressKind === FortressKind.PLAYER && !target.isNpc) ||
+      target.fortressKind === FortressKind.DWARF_RUNE
+    ) {
+      const runeActivation =
+        target.fortressKind === FortressKind.DWARF_RUNE
+          ? await tx.raceAbilityActivation.findFirst({
+              where: {
+                kind: RaceAbilityKind.DWARF_RUNE_GRUDGES,
+                runeFortressId: target.id,
+                consumedAt: null,
+                activeUntil: {
+                  gt: now,
+                },
+              },
+              select: {
+                fortressId: true,
+              },
+            })
+          : null;
       const battlefield =
         (await tx.battlefield.findFirst({
           where: {
@@ -948,7 +990,10 @@ export async function setFortressAction({
             cycleId: cycle.id,
             targetFortressId: target.id,
             attackerBannerFortressId: fortress.id,
-            defenderBannerFortressId: target.id,
+            defenderBannerFortressId:
+              target.fortressKind === FortressKind.DWARF_RUNE
+                ? runeActivation?.fortressId ?? null
+                : target.id,
             attackerArmyRemaining: 0,
             defenderArmyRemaining: target.army,
             pointsReward: Math.floor(target.gold * 0.7),
@@ -3758,14 +3803,39 @@ export async function activateDwarfRuneOfGrudges({
         id: true,
       },
     });
-    const runeNameSuffix = `${now.getTime().toString(36)}-${target.id.slice(-4)}`;
+
+    const runeBaseName = `${fortress.name}-${target.name}`;
+    const runeBaseCommanderName = `${fortress.commanderName}-${target.commanderName}`;
+    let runeName = runeBaseName;
+    let runeCommanderName = runeBaseCommanderName;
+    let suffix = 2;
+
+    while (true) {
+      const existing = await tx.fortress.findFirst({
+        where: {
+          cycleId: cycle.id,
+          OR: [{ name: runeName }, { commanderName: runeCommanderName }],
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (!existing) {
+        break;
+      }
+
+      runeName = `${runeBaseName}-${suffix}`;
+      runeCommanderName = `${runeBaseCommanderName}-${suffix}`;
+      suffix += 1;
+    }
 
     const rune = await tx.fortress.create({
       data: {
         cycleId: cycle.id,
         ownerId: runeOwner.id,
-        commanderName: `${fortress.commanderName} Rune ${runeNameSuffix}`,
-        name: `${fortress.name} Rune ${runeNameSuffix}`,
+        commanderName: runeCommanderName,
+        name: runeName,
         fortressKind: FortressKind.DWARF_RUNE,
         isNpc: true,
         health: 1,

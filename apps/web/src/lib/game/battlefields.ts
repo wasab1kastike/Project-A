@@ -21,6 +21,7 @@ import {
   getOrkTileBattleScrap,
   isRealOrkPlayerFortress,
 } from "./orks";
+import { DWARF_DEEP_MINING_RUNE_BOUNTY } from "./dwarf-deep-mining";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -880,6 +881,9 @@ export async function processActiveBattlefields({
     const scoreEvents: Prisma.ScoreEventCreateManyInput[] = [];
 
     const isTileBattle = battlefield.targetTileId !== null;
+    const isRuneBattle =
+      !isTileBattle &&
+      battlefield.targetFortress?.fortressKind === "DWARF_RUNE";
     const attackerKilled =
       attackerParticipantLosses.appliedLosses +
       Math.max(0, attackerArmyAfter - outcome.attackerReturned);
@@ -958,6 +962,54 @@ export async function processActiveBattlefields({
         },
         data: fortressUpdateData,
       });
+
+      if (isRuneBattle && winnerSide === BattlefieldSide.ATTACKER) {
+        await db.fortress.update({
+          where: {
+            id: battlefield.targetFortressId,
+          },
+          data: {
+            health: 0,
+            army: 0,
+            expiresAt: tickAt,
+          },
+        });
+
+        await db.raceAbilityActivation.updateMany({
+          where: {
+            kind: "DWARF_RUNE_GRUDGES",
+            runeFortressId: battlefield.targetFortressId,
+            consumedAt: null,
+            activeUntil: {
+              gt: tickAt,
+            },
+          },
+          data: {
+            consumedAt: tickAt,
+            activeUntil: tickAt,
+          },
+        });
+
+        await db.fortress.update({
+          where: {
+            id: battlefield.attackerBannerFortressId,
+          },
+          data: {
+            gold: {
+              increment: DWARF_DEEP_MINING_RUNE_BOUNTY,
+            },
+          },
+        });
+
+        scoreEvents.push({
+          cycleId,
+          fortressId: battlefield.attackerBannerFortressId,
+          targetFortressId: battlefield.targetFortressId,
+          eventType: ScoreEventType.DWARF_RUNE_BOUNTY,
+          delta: DWARF_DEEP_MINING_RUNE_BOUNTY,
+          createdAt: tickAt,
+        });
+      }
     }
 
     // Handle defender fortress army losses for owned Home of A battles
