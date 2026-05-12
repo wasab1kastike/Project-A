@@ -1233,7 +1233,7 @@ export async function attackMapHex({
         attackerBannerFortressId: attacker.id,
         defenderBannerFortressId: ownership?.ownerFortressId ?? null,
         attackerArmyRemaining: 0,
-        defenderArmyRemaining: battlefieldTarget.army,
+        defenderArmyRemaining: isHomeOfA ? battlefieldTarget.army : 0,
         pointsReward: 0,
         foodReward: 0,
         startedAt: now,

@@ -1033,6 +1033,7 @@ test("owned tile attack creates a targetTileId battlefield", async (context) => 
 
   assert.equal(reloaded.targetTileId, tile.id);
   assert.equal(reloaded.targetFortressId, defenderFortress.id);
+  assert.equal(reloaded.defenderArmyRemaining, 0);
   assert.equal(reloaded.incomingReinforcements.length, 1);
   assert.equal(
     reloaded.incomingReinforcements[0]?.reinforcementSide,
@@ -1981,6 +1982,98 @@ test("tile battle transfers ownership on attacker win", async (context) => {
   assert.equal(resolved.resolvedWinnerSide, BattlefieldSide.ATTACKER);
 });
 
+test("tile battle does not use idle castle army as implicit defense", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const attacker = await createUser(
+    prisma,
+    "tile-no-implicit-defense-attacker@example.com"
+  );
+  const defender = await createUser(
+    prisma,
+    "tile-no-implicit-defense-defender@example.com"
+  );
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: attacker.id,
+      commanderName: "Tile No Implicit Attacker",
+      fortressName: "No Implicit Attacker Keep",
+      points: 100,
+    },
+    {
+      userId: defender.id,
+      commanderName: "Tile No Implicit Defender",
+      fortressName: "No Implicit Defender Keep",
+      points: 100,
+    },
+  ]);
+  const [attackerFortress, defenderFortress] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: attacker.id } },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: defender.id } },
+    }),
+  ]);
+  const tile = HEX_SPAWN_TILES.find((candidate) => candidate.spawnable);
+
+  assert.ok(tile);
+
+  await prisma.fortress.update({
+    where: { id: defenderFortress.id },
+    data: { army: 500 },
+  });
+  await prisma.mapHexOwnership.create({
+    data: {
+      cycleId: cycle.id,
+      tileId: tile.id,
+      ownerFortressId: defenderFortress.id,
+    },
+  });
+  const battlefield = await prisma.battlefield.create({
+    data: {
+      cycleId: cycle.id,
+      targetTileId: tile.id,
+      targetFortressId: defenderFortress.id,
+      attackerBannerFortressId: attackerFortress.id,
+      defenderBannerFortressId: defenderFortress.id,
+      progress: 99,
+      attackerArmyRemaining: 1,
+      defenderArmyRemaining: 0,
+      pointsReward: 25,
+      startedAt: new Date("2026-04-20T12:01:00.000Z"),
+      participants: {
+        create: {
+          fortressId: attackerFortress.id,
+          side: BattlefieldSide.ATTACKER,
+          armyCommitted: 1,
+          armyRemaining: 1,
+        },
+      },
+    },
+  });
+
+  await processActiveBattlefields({
+    db: prisma,
+    cycleId: cycle.id,
+    tickAt: new Date("2026-04-20T12:02:00.000Z"),
+  });
+
+  const ownership = await prisma.mapHexOwnership.findUniqueOrThrow({
+    where: { cycleId_tileId: { cycleId: cycle.id, tileId: tile.id } },
+  });
+  const resolved = await prisma.battlefield.findUniqueOrThrow({
+    where: { id: battlefield.id },
+  });
+
+  assert.equal(ownership.ownerFortressId, attackerFortress.id);
+  assert.equal(resolved.resolvedWinnerSide, BattlefieldSide.ATTACKER);
+});
+
 test("tile battle keeps ownership on defender win", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
@@ -2060,6 +2153,337 @@ test("tile battle keeps ownership on defender win", async (context) => {
   });
 
   assert.equal(ownership.ownerFortressId, defenderFortress.id);
+});
+
+test("defender battlefield win pays only defenders based on killed attackers", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const attacker = await createUser(
+    prisma,
+    "battlefield-defender-reward-attacker@example.com"
+  );
+  const defender = await createUser(
+    prisma,
+    "battlefield-defender-reward-defender@example.com"
+  );
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: attacker.id,
+      commanderName: "Reward Attacker",
+      fortressName: "Reward Attacker Keep",
+      points: 100,
+    },
+    {
+      userId: defender.id,
+      commanderName: "Reward Defender",
+      fortressName: "Reward Defender Keep",
+      points: 100,
+    },
+  ]);
+  const [attackerFortress, defenderFortress] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: attacker.id } },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: defender.id } },
+    }),
+  ]);
+
+  await prisma.fortress.updateMany({
+    where: {
+      id: {
+        in: [attackerFortress.id, defenderFortress.id],
+      },
+    },
+    data: {
+      gold: 100,
+      food: 100,
+      army: 0,
+      minersAssigned: 0,
+      farmersAssigned: 0,
+      recruitersAssigned: 0,
+    },
+  });
+  const battlefield = await prisma.battlefield.create({
+    data: {
+      cycleId: cycle.id,
+      targetFortressId: defenderFortress.id,
+      attackerBannerFortressId: attackerFortress.id,
+      defenderBannerFortressId: defenderFortress.id,
+      progress: 99,
+      attackerArmyRemaining: 10,
+      defenderArmyRemaining: 100,
+      startedAt: new Date("2026-04-20T12:01:00.000Z"),
+      participants: {
+        create: [
+          {
+            fortressId: attackerFortress.id,
+            side: BattlefieldSide.ATTACKER,
+            armyCommitted: 10,
+            armyRemaining: 10,
+          },
+          {
+            fortressId: defenderFortress.id,
+            side: BattlefieldSide.DEFENDER,
+            armyCommitted: 100,
+            armyRemaining: 100,
+          },
+        ],
+      },
+    },
+  });
+
+  await processActiveBattlefields({
+    db: prisma,
+    cycleId: cycle.id,
+    tickAt: new Date("2026-04-20T12:02:00.000Z"),
+  });
+
+  const [resolved, reloadedAttacker, reloadedDefender, rewardEvents] =
+    await Promise.all([
+      prisma.battlefield.findUniqueOrThrow({ where: { id: battlefield.id } }),
+      prisma.fortress.findUniqueOrThrow({ where: { id: attackerFortress.id } }),
+      prisma.fortress.findUniqueOrThrow({ where: { id: defenderFortress.id } }),
+      prisma.scoreEvent.findMany({
+        where: {
+          cycleId: cycle.id,
+          eventType: ScoreEventType.BATTLEFIELD_REWARD,
+        },
+      }),
+    ]);
+  const attackerKilled = 10 - resolved.attackerArmyRemaining;
+  const expectedReward = Math.floor(attackerKilled * 0.2);
+
+  assert.equal(resolved.resolvedWinnerSide, BattlefieldSide.DEFENDER);
+  assert.equal(reloadedAttacker.gold, 100);
+  assert.equal(reloadedDefender.gold, 100 + expectedReward);
+  assert.deepEqual(
+    rewardEvents.map((event) => [event.fortressId, event.delta]),
+    [[defenderFortress.id, expectedReward]]
+  );
+});
+
+test("attacker tile win pays kill reward without stealing castle bank", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const attacker = await createUser(
+    prisma,
+    "tile-kill-reward-attacker@example.com"
+  );
+  const defender = await createUser(
+    prisma,
+    "tile-kill-reward-defender@example.com"
+  );
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: attacker.id,
+      commanderName: "Tile Reward Attacker",
+      fortressName: "Tile Reward Attacker Keep",
+      points: 100,
+    },
+    {
+      userId: defender.id,
+      commanderName: "Tile Reward Defender",
+      fortressName: "Tile Reward Defender Keep",
+      points: 100,
+    },
+  ]);
+  const [attackerFortress, defenderFortress] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: attacker.id } },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: defender.id } },
+    }),
+  ]);
+  const tile = HEX_SPAWN_TILES.find((candidate) => candidate.spawnable);
+
+  assert.ok(tile);
+
+  await prisma.fortress.update({
+    where: { id: attackerFortress.id },
+    data: { gold: 100, food: 100, army: 0 },
+  });
+  await prisma.fortress.update({
+    where: { id: defenderFortress.id },
+    data: { gold: 1000, food: 1000, army: 500 },
+  });
+  await prisma.mapHexOwnership.create({
+    data: {
+      cycleId: cycle.id,
+      tileId: tile.id,
+      ownerFortressId: defenderFortress.id,
+    },
+  });
+  const battlefield = await prisma.battlefield.create({
+    data: {
+      cycleId: cycle.id,
+      targetTileId: tile.id,
+      targetFortressId: defenderFortress.id,
+      attackerBannerFortressId: attackerFortress.id,
+      defenderBannerFortressId: defenderFortress.id,
+      progress: 99,
+      attackerArmyRemaining: 100,
+      defenderArmyRemaining: 10,
+      startedAt: new Date("2026-04-20T12:01:00.000Z"),
+      participants: {
+        create: [
+          {
+            fortressId: attackerFortress.id,
+            side: BattlefieldSide.ATTACKER,
+            armyCommitted: 100,
+            armyRemaining: 100,
+          },
+          {
+            fortressId: defenderFortress.id,
+            side: BattlefieldSide.DEFENDER,
+            armyCommitted: 10,
+            armyRemaining: 10,
+          },
+        ],
+      },
+    },
+  });
+
+  await processActiveBattlefields({
+    db: prisma,
+    cycleId: cycle.id,
+    tickAt: new Date("2026-04-20T12:02:00.000Z"),
+  });
+
+  const [resolved, reloadedAttacker, reloadedDefender, rewardEvents] =
+    await Promise.all([
+      prisma.battlefield.findUniqueOrThrow({ where: { id: battlefield.id } }),
+      prisma.fortress.findUniqueOrThrow({ where: { id: attackerFortress.id } }),
+      prisma.fortress.findUniqueOrThrow({ where: { id: defenderFortress.id } }),
+      prisma.scoreEvent.findMany({
+        where: {
+          cycleId: cycle.id,
+          eventType: ScoreEventType.TILE_BATTLE_REWARD,
+        },
+      }),
+    ]);
+  const defenderKilled = 10 - resolved.defenderArmyRemaining;
+  const expectedReward = Math.floor(defenderKilled * 0.2);
+
+  assert.equal(resolved.resolvedWinnerSide, BattlefieldSide.ATTACKER);
+  assert.equal(reloadedAttacker.gold, 100 + expectedReward);
+  assert.equal(reloadedAttacker.food, 100);
+  assert.equal(reloadedDefender.gold, 1000);
+  assert.equal(reloadedDefender.food, 1000);
+  assert.deepEqual(
+    rewardEvents.map((event) => [event.fortressId, event.delta]),
+    [[attackerFortress.id, expectedReward]]
+  );
+});
+
+test("attacker castle win pays kill reward and steals bank resources", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const attacker = await createUser(
+    prisma,
+    "castle-kill-steal-attacker@example.com"
+  );
+  const defender = await createUser(
+    prisma,
+    "castle-kill-steal-defender@example.com"
+  );
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: attacker.id,
+      commanderName: "Castle Steal Attacker",
+      fortressName: "Castle Steal Attacker Keep",
+      points: 100,
+    },
+    {
+      userId: defender.id,
+      commanderName: "Castle Steal Defender",
+      fortressName: "Castle Steal Defender Keep",
+      points: 100,
+    },
+  ]);
+  const [attackerFortress, defenderFortress] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: attacker.id } },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: defender.id } },
+    }),
+  ]);
+
+  await prisma.fortress.update({
+    where: { id: attackerFortress.id },
+    data: { gold: 100, food: 100, army: 0 },
+  });
+  await prisma.fortress.update({
+    where: { id: defenderFortress.id },
+    data: { gold: 1000, food: 1000, army: 10, level: 0 },
+  });
+  const battlefield = await prisma.battlefield.create({
+    data: {
+      cycleId: cycle.id,
+      targetFortressId: defenderFortress.id,
+      attackerBannerFortressId: attackerFortress.id,
+      defenderBannerFortressId: defenderFortress.id,
+      progress: 99,
+      attackerArmyRemaining: 100,
+      defenderArmyRemaining: 10,
+      startedAt: new Date("2026-04-20T12:01:00.000Z"),
+      participants: {
+        create: {
+          fortressId: attackerFortress.id,
+          side: BattlefieldSide.ATTACKER,
+          armyCommitted: 100,
+          armyRemaining: 100,
+        },
+      },
+    },
+  });
+
+  await processActiveBattlefields({
+    db: prisma,
+    cycleId: cycle.id,
+    tickAt: new Date("2026-04-20T12:02:00.000Z"),
+  });
+
+  const [resolved, reloadedAttacker, reloadedDefender, rewardEvents] =
+    await Promise.all([
+      prisma.battlefield.findUniqueOrThrow({ where: { id: battlefield.id } }),
+      prisma.fortress.findUniqueOrThrow({ where: { id: attackerFortress.id } }),
+      prisma.fortress.findUniqueOrThrow({ where: { id: defenderFortress.id } }),
+      prisma.scoreEvent.findMany({
+        where: {
+          cycleId: cycle.id,
+          eventType: ScoreEventType.BATTLEFIELD_REWARD,
+        },
+      }),
+    ]);
+  const defenderKilled = 10 - resolved.defenderArmyRemaining;
+  const expectedKillReward = Math.floor(defenderKilled * 0.2);
+  const stolenGold = 1000 - reloadedDefender.gold;
+  const stolenFood = 1000 - reloadedDefender.food;
+
+  assert.equal(resolved.resolvedWinnerSide, BattlefieldSide.ATTACKER);
+  assert.ok(stolenGold > 0);
+  assert.ok(stolenFood > 0);
+  assert.equal(reloadedAttacker.gold, 100 + expectedKillReward + stolenGold);
+  assert.equal(reloadedAttacker.food, 100 + stolenFood);
+  assert.deepEqual(
+    rewardEvents.map((event) => [event.fortressId, event.delta]),
+    [[attackerFortress.id, expectedKillReward + stolenGold]]
+  );
 });
 
 test("Home of A is centered and cannot be neutral claimed", async (context) => {

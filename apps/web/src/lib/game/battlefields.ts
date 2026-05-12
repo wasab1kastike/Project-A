@@ -653,7 +653,9 @@ export async function processActiveBattlefields({
     const storedDefenderArmy =
       battlefield.defenderArmyRemaining > 0
         ? battlefield.defenderArmyRemaining
-        : (battlefield.targetFortress?.army ?? 0);
+        : battlefield.targetTileId !== null
+          ? 0
+          : (battlefield.targetFortress?.army ?? 0);
     const nativeDefenderArmyBefore = Math.max(
       0,
       storedDefenderArmy - defenderParticipantArmyBefore
@@ -850,19 +852,34 @@ export async function processActiveBattlefields({
     const scoreEvents: Prisma.ScoreEventCreateManyInput[] = [];
 
     const isTileBattle = battlefield.targetTileId !== null;
+    const attackerKilled =
+      attackerParticipantLosses.appliedLosses +
+      Math.max(0, attackerArmyAfter - outcome.attackerReturned);
+    const defenderKilled =
+      defenderParticipantLosses.appliedLosses +
+      defenderNativeLosses +
+      outcome.defenderLosses;
+    const enemyKilled =
+      winnerSide === BattlefieldSide.ATTACKER ? defenderKilled : attackerKilled;
+    const killRewardPool = Math.floor(enemyKilled * 0.2);
+    const castleBankGoldLooted =
+      !isTileBattle && winnerSide === BattlefieldSide.ATTACKER
+        ? outcome.goldLooted
+        : 0;
+    const castleBankFoodLooted =
+      !isTileBattle && winnerSide === BattlefieldSide.ATTACKER
+        ? outcome.foodLooted
+        : 0;
 
     for (const participant of winningParticipants) {
       const share =
         winnerArmyTotal > 0 ? participant.armyCommitted / winnerArmyTotal : 0;
-      const rewardPool = isTileBattle
-        ? 0
-        : outcome.goldLooted + battlefield.pointsReward;
-      const reward =
-        winnerSide === BattlefieldSide.ATTACKER
-          ? Math.floor(rewardPool * share)
-          : Math.max(1, Math.floor(participant.armyCommitted * 0.2));
+      const killReward = Math.floor(killRewardPool * share);
+      const goldLootShare = Math.floor(castleBankGoldLooted * share);
+      const foodLootShare = Math.floor(castleBankFoodLooted * share);
+      const goldReward = killReward + goldLootShare;
 
-      if (reward <= 0) {
+      if (goldReward <= 0 && foodLootShare <= 0) {
         continue;
       }
 
@@ -872,20 +889,25 @@ export async function processActiveBattlefields({
         },
         data: {
           gold: {
-            increment: reward,
+            increment: goldReward,
+          },
+          food: {
+            increment: foodLootShare,
           },
         },
       });
-      scoreEvents.push({
-        cycleId,
-        fortressId: participant.fortressId,
-        targetFortressId: battlefield.targetFortressId,
-        eventType: isTileBattle
-          ? ScoreEventType.TILE_BATTLE_REWARD
-          : ScoreEventType.BATTLEFIELD_REWARD,
-        delta: reward,
-        createdAt: tickAt,
-      });
+      if (goldReward > 0) {
+        scoreEvents.push({
+          cycleId,
+          fortressId: participant.fortressId,
+          targetFortressId: battlefield.targetFortressId,
+          eventType: isTileBattle
+            ? ScoreEventType.TILE_BATTLE_REWARD
+            : ScoreEventType.BATTLEFIELD_REWARD,
+          delta: goldReward,
+          createdAt: tickAt,
+        });
+      }
     }
 
     if (battlefield.targetFortressId) {
@@ -897,11 +919,11 @@ export async function processActiveBattlefields({
       if (!isTileBattle) {
         fortressUpdateData.gold = {
           decrement:
-            winnerSide === BattlefieldSide.ATTACKER ? outcome.goldLooted : 0,
+            winnerSide === BattlefieldSide.ATTACKER ? castleBankGoldLooted : 0,
         };
         fortressUpdateData.food = {
           decrement:
-            winnerSide === BattlefieldSide.ATTACKER ? outcome.foodLooted : 0,
+            winnerSide === BattlefieldSide.ATTACKER ? castleBankFoodLooted : 0,
         };
       }
 
