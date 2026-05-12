@@ -8,6 +8,19 @@ export type PatchNotesRelease = {
 export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
   {
     date: "2026-05-12",
+    title: "Race tiers now depend on controlled biome tiles",
+    newFeatures: [
+      "Race tier progression now comes from map control: Tier 1/2/3 unlock at 3/6/9 owned tiles in each race's required biomes.",
+      "Biome requirements are now race-specific: Dwarfs use mountains, ORKS use plains or lake, Space Murines use sea or coast, and Unstable Unicorns use marsh or forest.",
+      "Castle and Wiki guidance now show the new tile-based race tier path so unlock timing is easier to understand in-game.",
+    ],
+    bugFixes: [
+      "Race ability unlock checks now use owned biome tiles instead of noon-based timing, fixing mismatches between displayed tier info and actual ability availability.",
+      "Combat and travel speed effects that depend on race tier now evaluate the attacker's current biome-tier state more consistently during tick resolution and attack routing.",
+    ],
+  },
+  {
+    date: "2026-05-12",
     title: "PvP defense, smoother refreshes, and recall stability",
     newFeatures: [
       "Players can now fortify owned tiles, including Home of A, by sending idle army that travels to the tile and defends it until recalled or killed.",
