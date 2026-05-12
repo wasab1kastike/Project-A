@@ -1317,7 +1317,11 @@ export async function attackMapHex({
         };
 
     const initialDefenderArmyRemaining =
-      isHomeOfA && !ownership ? battlefieldTarget.army : 0;
+      isHomeOfA && !ownership
+        ? battlefieldTarget.army
+        : ownership
+          ? targetFortress.army
+          : 0;
     const battlefield = await tx.battlefield.create({
       data: {
         cycleId: cycle.id,
@@ -2218,9 +2222,19 @@ export async function updateWorkerAssignment({
         throw new GameError("You are not participating in the active cycle.");
       }
 
+      const ownedTileBiomes = await getOwnedTileBiomesForFortress({
+        db: tx,
+        cycleId: cycle.id,
+        fortressId: fortress.id,
+      });
+      const extraPopulation = ownedTileBiomes.filter(
+        (biome) => biome === "lake"
+      ).length;
+
       assertWorkerAssignments({
         level: fortress.level,
         race: fortress.race,
+        extraPopulation,
         minersAssigned,
         farmersAssigned,
         recruitersAssigned,
