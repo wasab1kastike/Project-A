@@ -148,7 +148,13 @@ function finishArcadeAction(
   redirectToArcade("notice", notice, details);
 }
 
-function notifyAndRevalidate(reason: string, paths: string[] = ["/"]) {
+const GAMEPLAY_REVALIDATE_PATHS = ["/", "/castle"];
+const COMMUNITY_REVALIDATE_PATHS = ["/", "/history", "/admin"];
+
+function notifyAndRevalidate(
+  reason: string,
+  paths: string[] = GAMEPLAY_REVALIDATE_PATHS
+) {
   for (const path of new Set(paths)) {
     revalidatePath(path);
   }
@@ -382,7 +388,7 @@ export async function joinBattlefieldAction(
           : BattlefieldSide.ATTACKER,
       armyAmount,
     });
-      notifyAndRevalidate("battlefield-join");
+    notifyAndRevalidate("battlefield-join");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -666,8 +672,7 @@ export async function joinFortressAction(
       fortressName,
       race,
     });
-    emitProjectARefresh("join");
-    revalidatePath("/");
+    notifyAndRevalidate("join");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -708,8 +713,7 @@ export async function editRegistrationFortressNameAction(
       commanderName,
       fortressName,
     });
-    emitProjectARefresh("registration-rename");
-    revalidatePath("/");
+    notifyAndRevalidate("registration-rename");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -741,8 +745,7 @@ export async function renameFortressAction(
 
   try {
     await renameActiveFortress({ userId, fortressName });
-    emitProjectARefresh("active-rename");
-    revalidatePath("/");
+    notifyAndRevalidate("active-rename");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -764,9 +767,8 @@ export async function buyPointsWithGoldAction(
   }
 
   try {
-    const result = await buyPointsWithGold({ userId, goldAmount });
-    emitProjectARefresh("gold-to-points-conversion");
-    revalidatePath("/");
+    await buyPointsWithGold({ userId, goldAmount });
+    notifyAndRevalidate("gold-to-points-conversion");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -785,8 +787,7 @@ export async function purchaseFortressUpgradeAction(
 
   try {
     await purchaseFortressUpgrade({ userId, specialization });
-    emitProjectARefresh("castle-upgrade");
-    revalidatePath("/");
+    notifyAndRevalidate("castle-upgrade");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -805,8 +806,7 @@ export async function choosePendingUpgradeSpecializationAction(
 
   try {
     await choosePendingUpgradeSpecialization({ userId, specialization });
-    emitProjectARefresh("castle-upgrade-specialization");
-    revalidatePath("/");
+    notifyAndRevalidate("castle-upgrade-specialization");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -825,8 +825,7 @@ export async function chooseDwarfGrudgeAction(
 
   try {
     await chooseDwarfGrudge({ userId, targetFortressId });
-    emitProjectARefresh("dwarf-grudge");
-    revalidatePath("/");
+    notifyAndRevalidate("dwarf-grudge");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -850,8 +849,7 @@ export async function chooseDwarfTierThreeGrudgeAction(
       targetFortressId: targetFortressId || undefined,
       doubleExisting: doubleExisting ?? false,
     });
-    emitProjectARefresh("dwarf-grudge-tier-three");
-    revalidatePath("/");
+    notifyAndRevalidate("dwarf-grudge-tier-three");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -871,8 +869,7 @@ export async function activateWaaaghAction(): Promise<InlineActionResult> {
       userId,
       kind: RaceAbilityKind.ORK_WAAAGH,
     });
-    emitProjectARefresh("ork-waaagh");
-    revalidatePath("/");
+    notifyAndRevalidate("ork-waaagh");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -891,8 +888,7 @@ export async function activateOrkBossOrderAction(
 
   try {
     await activateOrkBossOrder({ userId, kind });
-    emitProjectARefresh("ork-boss-order");
-    revalidatePath("/");
+    notifyAndRevalidate("ork-boss-order");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -914,8 +910,7 @@ export async function investOrkWaaaghScrapAction(
       userId,
       kind: kind as OrkWaaaghInvestmentKind,
     });
-    emitProjectARefresh("ork-waaagh-investment");
-    revalidatePath("/");
+    notifyAndRevalidate("ork-waaagh-investment");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -935,8 +930,7 @@ export async function activateStimAction(): Promise<InlineActionResult> {
       userId,
       kind: RaceAbilityKind.SPACE_MURINE_STIM,
     });
-    emitProjectARefresh("space-murine-stim");
-    revalidatePath("/");
+    notifyAndRevalidate("space-murine-stim");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -958,8 +952,7 @@ export async function activateDwarfDeepMiningAction(
       userId,
       committedGold,
     });
-    emitProjectARefresh("dwarf-deep-mining");
-    revalidatePath("/");
+    notifyAndRevalidate("dwarf-deep-mining");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -981,8 +974,7 @@ export async function activateDwarfRuneOfGrudgesAction(
       userId,
       targetFortressId,
     });
-    emitProjectARefresh("dwarf-rune-grudges");
-    revalidatePath("/");
+    notifyAndRevalidate("dwarf-rune-grudges");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -1005,8 +997,7 @@ export async function claimUnicornTeleportAction(): Promise<InlineActionResult> 
       userId,
       useFreeTeleport: true,
     });
-    emitProjectARefresh("unicorn-teleport-activate");
-    revalidatePath("/");
+    notifyAndRevalidate("unicorn-teleport-activate");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -1025,8 +1016,7 @@ export async function activateUnicornShatteredRealityAction(): Promise<InlineAct
     await activateUnicornShatteredReality({
       userId,
     });
-    emitProjectARefresh("unicorn-shattered-reality");
-    revalidatePath("/");
+    notifyAndRevalidate("unicorn-shattered-reality");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -1051,8 +1041,7 @@ export async function useUnicornTeleportAction(): Promise<InlineActionResult> {
       userId,
       useFreeTeleport: true,
     });
-    emitProjectARefresh("unicorn-teleport-use");
-    revalidatePath("/");
+    notifyAndRevalidate("unicorn-teleport-use");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -1074,8 +1063,7 @@ export async function registerCommanderNameAction(
       userId,
       commanderName,
     });
-    emitProjectARefresh("commander-name");
-    revalidatePath("/");
+    notifyAndRevalidate("commander-name");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -1147,10 +1135,7 @@ export async function submitCommunityWishProposalAction(
       userId,
       requestText,
     });
-    emitProjectARefresh("community-wish-proposal");
-    revalidatePath("/");
-    revalidatePath("/history");
-    revalidatePath("/admin");
+    notifyAndRevalidate("community-wish-proposal", COMMUNITY_REVALIDATE_PATHS);
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -1197,10 +1182,7 @@ export async function saveCommunityWishVotesAction(
       userId,
       allocations,
     });
-    emitProjectARefresh("community-wish-vote");
-    revalidatePath("/");
-    revalidatePath("/history");
-    revalidatePath("/admin");
+    notifyAndRevalidate("community-wish-vote", COMMUNITY_REVALIDATE_PATHS);
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -1394,8 +1376,7 @@ export async function sendChatMessageAction(
       userId,
       body: getString(formData, "body"),
     });
-    emitProjectARefresh("chat-message");
-    revalidatePath("/");
+    notifyAndRevalidate("chat-message", ["/"]);
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -1420,8 +1401,7 @@ export async function sendChatGifMessageAction(gif: {
 
   try {
     await sendChatGifMessage({ userId, gif });
-    emitProjectARefresh("chat-message");
-    revalidatePath("/");
+    notifyAndRevalidate("chat-message", ["/"]);
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
