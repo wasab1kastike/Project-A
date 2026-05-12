@@ -89,6 +89,7 @@ import {
 import {
   getNextHelsinkiNoonAfter,
   getRaceBuffTier,
+  getRaceTierTileCount,
   getUnicornShatteredRealityAvailability,
   getUnicornTeleportClaimAvailability,
 } from "./race-buffs";
@@ -779,6 +780,7 @@ test("territory bonuses and claim costs are deterministic", () => {
     points: 0,
     food: 2,
     army: 0,
+    population: 0,
     defensePercent: 0,
     label: "+1 gold, +2 food / tick",
   });
@@ -1492,6 +1494,91 @@ test("reinforcement travels before joining a battlefield", async (context) => {
 
   assert.equal(participant?.side, BattlefieldSide.ATTACKER);
   assert.equal(participant?.armyCommitted, 5);
+});
+
+test("late reinforcement returns home if battlefield has already resolved", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const attacker = await createUser(
+    prisma,
+    "late-reinforce-attacker@example.com"
+  );
+  const defender = await createUser(
+    prisma,
+    "late-reinforce-defender@example.com"
+  );
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: attacker.id,
+      commanderName: "Late Marcher",
+      fortressName: "Late March Keep",
+      points: 100,
+    },
+    {
+      userId: defender.id,
+      commanderName: "Fast Resolver",
+      fortressName: "Fast Resolve Keep",
+      points: 100,
+    },
+  ]);
+  const [attackerFortress, defenderFortress] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: attacker.id } },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: defender.id } },
+    }),
+  ]);
+
+  await prisma.fortress.update({
+    where: { id: attackerFortress.id },
+    data: { race: FortressRace.ORKS, army: 20 },
+  });
+  await prisma.fortress.update({
+    where: { id: defenderFortress.id },
+    data: { race: FortressRace.DWARFS, army: 10 },
+  });
+
+  const battlefield = await prisma.battlefield.create({
+    data: {
+      cycleId: cycle.id,
+      targetFortressId: defenderFortress.id,
+      attackerBannerFortressId: attackerFortress.id,
+      defenderBannerFortressId: defenderFortress.id,
+      startedAt: new Date("2026-04-20T12:01:00.000Z"),
+    },
+  });
+
+  const launchedUnit = await joinBattlefield({
+    userId: attacker.id,
+    battlefieldId: battlefield.id,
+    side: BattlefieldSide.ATTACKER,
+    armyAmount: 4,
+    now: new Date("2026-04-20T12:02:00.000Z"),
+    db: prisma,
+  });
+
+  await prisma.battlefield.update({
+    where: { id: battlefield.id },
+    data: { status: BattlefieldStatus.RESOLVED },
+  });
+
+  await runGameTick({ now: launchedUnit.arrivesAt, db: prisma });
+
+  const reloadedAttacker = await prisma.fortress.findUniqueOrThrow({
+    where: { id: attackerFortress.id },
+  });
+  const reloadedUnit = await prisma.attackUnit.findUniqueOrThrow({
+    where: { id: launchedUnit.id },
+  });
+
+  assert.equal(reloadedAttacker.army, 20);
+  assert.notEqual(reloadedUnit.resolvedAt, null);
+  assert.equal(reloadedUnit.attackerReturned, 4);
 });
 
 test("player cannot join both battlefield sides including pending reinforcements", async (context) => {
@@ -4387,6 +4474,13 @@ test("race buff tiers unlock from owned race biome tiles", () => {
   const activeStartedAt = new Date("2026-04-20T09:00:00.000Z");
 
   assert.equal(
+    getRaceTierTileCount({
+      race: "DWARFS",
+      ownedTileBiomes: ["mountains", "mountains", "plains"],
+    }),
+    2
+  );
+  assert.equal(
     getRaceBuffTier({
       activeStartedAt,
       now: new Date("2026-04-20T08:59:00.000Z"),
@@ -4442,6 +4536,20 @@ test("race buff tiers unlock from owned race biome tiles", () => {
       ],
     }),
     3
+  );
+  assert.equal(
+    getRaceTierTileCount({
+      race: "DWARFS",
+      ownedTileBiomes: [
+        "mountains",
+        "mountains",
+        "mountains",
+        "mountains",
+        "mountains",
+        "mountains",
+      ],
+    }),
+    6
   );
   assert.equal(
     getRaceBuffTier({

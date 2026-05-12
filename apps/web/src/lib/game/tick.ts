@@ -1908,6 +1908,17 @@ async function processCycleTick(
                   },
                 },
         });
+      } else {
+        await db.fortress.update({
+          where: {
+            id: unit.attackerFortressId,
+          },
+          data: {
+            army: {
+              increment: unit.armyAmount,
+            },
+          },
+        });
       }
 
       await db.attackUnit.update({
@@ -1921,7 +1932,7 @@ async function processCycleTick(
           resolvedDefensePower: 0,
           attackerSurvivors: unit.armyAmount,
           attackerRetired: 0,
-          attackerReturned: 0,
+          attackerReturned: battlefield?.status === "ACTIVE" ? 0 : unit.armyAmount,
           defenderLosses: 0,
           pointsLooted: 0,
           foodLooted: 0,
