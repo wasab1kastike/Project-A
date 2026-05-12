@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useRefreshView } from "@/lib/refresh-helpers";
 import { sendChatMessageAction } from "@/app/game-actions";
 import { ChatMessageList } from "./chat-message-list";
 import { GiphyGifPicker } from "./giphy-gif-picker";
@@ -49,6 +50,7 @@ export function ChatPanel({
   authorName,
 }: ChatPanelProps) {
   const router = useRouter();
+  const refreshView = useRefreshView();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -94,7 +96,7 @@ export function ChatPanel({
     startTransition(async () => {
       const result = await sendChatMessageAction(null, formData);
       if (result.ok) {
-        router.refresh();
+        refreshView();
       } else {
         setPendingMessages([]);
         if (textareaRef.current) textareaRef.current.value = body;
@@ -190,7 +192,7 @@ export function ChatPanel({
           <div className={styles.formFooter}>
             <p>Max {maxLength} characters. Limit: 6 messages/min.</p>
             <div className={styles.composerActions}>
-              <GiphyGifPicker onSent={() => router.refresh()} />
+              <GiphyGifPicker onSent={() => refreshView()} />
               <button
                 className={styles.primaryButton}
                 form="chat-text-message-form"

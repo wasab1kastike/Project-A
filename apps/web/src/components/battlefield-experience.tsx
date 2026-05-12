@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import { useRefreshView } from "@/lib/refresh-helpers";
 
 import {
   attackFromMapAction,
@@ -277,6 +278,7 @@ export function BattlefieldExperience({
   topActionsContainerId?: string;
 }) {
   const router = useRouter();
+  const refreshView = useRefreshView();
   const [chatOpen, setChatOpen] = useState(false);
   const [battleLogOpen, setBattleLogOpen] = useState(false);
   const [unreadChatCount, setUnreadChatCount] = useState(chat.unreadCount);
@@ -714,7 +716,7 @@ export function BattlefieldExperience({
     try {
       const result = await joinBattlefieldAction(battlefieldId, side, armyAmount);
       if (result.ok) {
-        router.refresh();
+        refreshView();
       } else {
         window.alert(result.error);
       }
@@ -824,7 +826,7 @@ export function BattlefieldExperience({
           return;
         }
 
-        router.refresh();
+        refreshView();
       } finally {
         setMapActionPending(false);
       }
@@ -847,7 +849,7 @@ export function BattlefieldExperience({
         return;
       }
 
-      router.refresh();
+      refreshView();
     } finally {
       setMapActionPending(false);
     }
@@ -894,7 +896,7 @@ export function BattlefieldExperience({
         });
       }
 
-      router.refresh();
+      refreshView();
     } finally {
       setMapActionPending(false);
     }
@@ -941,7 +943,7 @@ export function BattlefieldExperience({
         });
       }
 
-      router.refresh();
+      refreshView();
     } finally {
       setMapActionPending(false);
     }
@@ -970,7 +972,7 @@ export function BattlefieldExperience({
       }
 
       setCastleYeetArmed(false);
-      router.refresh();
+      refreshView();
     } finally {
       setMapActionPending(false);
     }
@@ -985,9 +987,9 @@ export function BattlefieldExperience({
         return;
       }
 
-      router.refresh();
+      refreshView();
     },
-    [router]
+    [refreshView]
   );
 
   const handleInstantRecallAttackUnit = useCallback(
@@ -999,9 +1001,9 @@ export function BattlefieldExperience({
         return;
       }
 
-      router.refresh();
+      refreshView();
     },
-    [router]
+    [refreshView]
   );
 
   const handleRecallBattlefieldArmy = useCallback(
@@ -1019,12 +1021,12 @@ export function BattlefieldExperience({
           return;
         }
 
-        router.refresh();
+        refreshView();
       } finally {
         setBattleRecallPendingId(null);
       }
     },
-    [router]
+    [refreshView]
   );
 
   const handleRecallGarrisonArmy = useCallback(
@@ -1042,12 +1044,12 @@ export function BattlefieldExperience({
           return;
         }
 
-        router.refresh();
+        refreshView();
       } finally {
         setGarrisonRecallPendingId(null);
       }
     },
-    [router]
+    [refreshView]
   );
 
   const handleTorchOccupiedMapHex = useCallback(
@@ -1062,12 +1064,12 @@ export function BattlefieldExperience({
           return;
         }
 
-        router.refresh();
+        refreshView();
       } finally {
         setGarrisonTorchPendingId(null);
       }
     },
-    [router]
+    [refreshView]
   );
 
   const handleSelectFortress = useCallback(

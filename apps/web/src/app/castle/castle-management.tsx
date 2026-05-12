@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type FormEvent } from "react";
+import { useRefreshView } from "@/lib/refresh-helpers";
 
 import {
   activateDwarfDeepMiningAction,
@@ -517,6 +518,7 @@ export function CastleManagement({
   targets: CommandTarget[];
 }) {
   const router = useRouter();
+  const refreshView = useRefreshView();
   const [workers, setWorkers] = useState({
     minersAssigned: playerSummary.minersAssigned,
     farmersAssigned: playerSummary.farmersAssigned,
@@ -602,7 +604,7 @@ export function CastleManagement({
         return;
       }
 
-      router.refresh();
+      refreshView();
     } finally {
       setWorkerPending(false);
     }
@@ -623,7 +625,7 @@ export function CastleManagement({
         return;
       }
 
-      router.refresh();
+      refreshView();
     } finally {
       setRecruitPending(false);
     }
@@ -640,7 +642,7 @@ export function CastleManagement({
       return;
     }
 
-    router.refresh();
+    refreshView();
   }
 
   async function buyPointsWithGoldFormAction(formData: FormData): Promise<void> {
