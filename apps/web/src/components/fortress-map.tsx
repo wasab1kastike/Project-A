@@ -656,6 +656,7 @@ function AttackUnitsLayer({
                 top: `${anchorPoint.y}%`,
               }}
               onPointerDown={(event) => event.stopPropagation()}
+              onDragStart={(event) => event.preventDefault()}
               onClick={(event) => {
                 event.stopPropagation();
                 setSelectedUnitId((currentId) =>
@@ -685,6 +686,7 @@ function AttackUnitsLayer({
             {selected ? (
               <div
                 className={styles.attackUnitPopover}
+                data-attack-unit-popover
                 style={{
                   left: `${anchorPoint.x}%`,
                   top: `${anchorPoint.y}%`,
@@ -1209,10 +1211,14 @@ export const FortressMap = memo(function FortressMap({
           }
 
           const isInPopover = (event.target as HTMLElement).closest(
-            "[data-target-popover]"
+            "[data-target-popover], [data-attack-unit-popover]"
           );
           if (isInPopover) {
             return;
+          }
+
+          if (event.pointerType === "mouse" && event.button === 0) {
+            event.preventDefault();
           }
 
           setPendingTargetId(null);
@@ -1414,6 +1420,7 @@ export const FortressMap = memo(function FortressMap({
                     onPointerCancel={(event) =>
                       clearMarkerTap(event, fortress.id)
                     }
+                    onDragStart={(event) => event.preventDefault()}
                     onClick={(event) => {
                       if (event.detail !== 0 || suppressClickRef.current) {
                         event.preventDefault();
