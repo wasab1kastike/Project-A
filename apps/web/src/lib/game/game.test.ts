@@ -5700,21 +5700,21 @@ test("loot camp defending army scales by variant", () => {
   assert.equal(getLootCampDefenseArmy(LootCampVariant.CHAOS, 10000), 1200);
 });
 
-test("loot camps expire and disappear from the home page read model", async (context) => {
+test("eternal goblins: loot camps persist until killed", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
     return;
   }
 
-  const player = await createUser(prisma, "loot-expiry-player@example.com");
+  const player = await createUser(prisma, "eternal-goblin-player@example.com");
   const cycle = await seedActiveCommunityWishCycle(
     prisma,
     [
       {
         userId: player.id,
-        commanderName: "Loot Expiry",
-        fortressName: "Loot Expiry Keep",
+        commanderName: "Eternal Goblin",
+        fortressName: "Eternal Keep",
         points: 0,
       },
     ],
@@ -5727,7 +5727,7 @@ test("loot camps expire and disappear from the home page read model", async (con
     now: new Date("2026-04-20T12:00:00.000Z"),
     mapX: 45,
     mapY: 45,
-    suffix: "expiry",
+    suffix: "eternal",
   });
 
   await runGameTick({
@@ -5740,16 +5740,35 @@ test("loot camps expire and disappear from the home page read model", async (con
       id: camp.id,
     },
   });
-  const state = await getHomePageState({
+  let state = await getHomePageState({
     db: prisma,
     userId: player.id,
     now: new Date("2026-04-20T12:31:00.000Z"),
   });
 
-  assert.equal(expiredCamp.health, 0);
+  // Camp should still be alive and visible after timer expiry (eternal goblins)
+  assert.equal(expiredCamp.health, 100);
   assert.equal(
     state.mapFortresses.some((fortress) => fortress.id === camp.id),
     true
+  );
+
+  // Kill the camp
+  await prisma.fortress.update({
+    where: { id: camp.id },
+    data: { health: 0 },
+  });
+
+  state = await getHomePageState({
+    db: prisma,
+    userId: player.id,
+    now: new Date("2026-04-20T12:31:00.000Z"),
+  });
+
+  // Camp should disappear when killed (health = 0)
+  assert.equal(
+    state.mapFortresses.some((fortress) => fortress.id === camp.id),
+    false
   );
 });
 
