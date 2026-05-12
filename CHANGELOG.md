@@ -1,6 +1,16 @@
 # Changelog
 
 ## 2026-05-12
+- Change: Fixed Rune of Grudges activation to avoid database constraint collision by assigning each rune a unique temporary owner and name suffix.
+- Change: Revamped battles card with tactical metrics showing unit counts, engagement metrics, and live battle state.
+- Change: Scoped battles panel to selected contested tile or castle to reduce noise and improve focus.
+- Change: Added crossed swords battle indicator to active battlefields on the map for immediate visual recognition.
+- Change: Scaled castle relocation cost by 1000 gold per prior relocation to discourage repeat shuffles.
+- User impact: Rune of Grudges activation no longer fails with a generic season error; players can now raise runes as intended.
+- User impact: Battlefield card now displays tactical metrics for better battle awareness and decision-making.
+- User impact: Battles panel filters to selected contested location, reducing clutter and improving UI clarity.
+- User impact: Active battlefields are now visually distinguished on the map with crossed swords indicators.
+- User impact: Castle relocation becomes progressively more expensive, adding economic friction to map manipulation.
 - Change: Fixed direct PvP castle battle selection so active castle-targeted battlefields open from the attacked castle marker.
 - Change: Fixed owned-tile defense reinforcements so tile owners can reinforce contested tiles without tripping the attack-unit self-target guard.
 - Change: Fixed castle-owner defense reinforcements and battlefield recalls so return/reinforcement travel rows no longer violate the self-target guard.
