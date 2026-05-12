@@ -2651,6 +2651,8 @@ test("attacker castle win pays kill reward and steals bank resources", async (co
   assert.equal(resolved.resolvedWinnerSide, BattlefieldSide.ATTACKER);
   assert.ok(stolenGold > 0);
   assert.ok(stolenFood > 0);
+  assert.equal(resolved.pointsReward, stolenGold);
+  assert.equal(resolved.foodReward, stolenFood);
   assert.equal(reloadedAttacker.gold, 100 + expectedKillReward + stolenGold);
   assert.equal(reloadedAttacker.food, 100 + stolenFood);
   assert.deepEqual(

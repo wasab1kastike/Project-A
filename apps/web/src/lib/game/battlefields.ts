@@ -1094,6 +1094,8 @@ export async function processActiveBattlefields({
           0,
           targetDefenderArmy - outcome.defenderLosses
         ),
+        pointsReward: isTileBattle ? battlefield.pointsReward : castleBankGoldLooted,
+        foodReward: isTileBattle ? battlefield.foodReward : castleBankFoodLooted,
         resolvedWinnerSide: winnerSide,
         resolvedAt: tickAt,
       },

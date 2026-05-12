@@ -92,6 +92,7 @@ function formatBattlefieldReportLines({
   incomingCount,
   arrivedReinforcementCount,
   pointsReward,
+  foodReward,
 }: {
   targetName: string;
   targetTileId: string | null;
@@ -106,6 +107,7 @@ function formatBattlefieldReportLines({
   incomingCount: number;
   arrivedReinforcementCount: number;
   pointsReward: number;
+  foodReward: number;
 }) {
   const targetLabel = targetTileId ? `tile ${targetTileId}` : targetName;
   const lines = [
@@ -137,8 +139,10 @@ function formatBattlefieldReportLines({
       );
     }
 
-    if (pointsReward > 0 && !targetTileId) {
-      lines.push(`Battlefield reward paid out: ${pointsReward} gold.`);
+    if ((pointsReward > 0 || foodReward > 0) && !targetTileId) {
+      lines.push(
+        `Castle loot paid out: ${pointsReward} gold and ${foodReward} food.`
+      );
     }
   } else {
     lines.push(
@@ -1535,6 +1539,7 @@ export async function getHomePageState({
             attackerArmyRemaining: true,
             defenderArmyRemaining: true,
             pointsReward: true,
+            foodReward: true,
             startedAt: true,
             resolvedAt: true,
             resolvedWinnerSide: true,
@@ -1687,7 +1692,10 @@ export async function getHomePageState({
             battlefield.resolvedWinnerSide === BattlefieldSide.ATTACKER
               ? battlefield.pointsReward
               : 0,
-          foodLooted: 0,
+          foodLooted:
+            battlefield.resolvedWinnerSide === BattlefieldSide.ATTACKER
+              ? battlefield.foodReward
+              : 0,
           armyLooted: 0,
           reportLines: [
             ...formatBattlefieldReportLines({
@@ -1707,6 +1715,7 @@ export async function getHomePageState({
               incomingCount: incomingReinforcements.length,
               arrivedReinforcementCount: arrivedReinforcements.length,
               pointsReward: battlefield.pointsReward,
+              foodReward: battlefield.foodReward,
             }),
             ...joinedLines,
             ...reinforcementLines,
