@@ -5,8 +5,6 @@
   border: 1px solid var(--border-soft);
   border-radius: 8px;
   background: #071018;
-  -webkit-user-select: none;
-  user-select: none;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.04),
     0 22px 56px rgba(2, 9, 15, 0.32);
@@ -74,9 +72,6 @@
   inset: 0;
   touch-action: none;
   cursor: grab;
-  -webkit-user-drag: none;
-  -webkit-user-select: none;
-  user-select: none;
 }
 
 .dragging {
@@ -90,9 +85,6 @@
   transform-origin: center;
   will-change: transform;
   background: #1f3329;
-  -webkit-user-drag: none;
-  -webkit-user-select: none;
-  user-select: none;
 }
 
 .hexMap {
@@ -102,14 +94,6 @@
   height: 100%;
   pointer-events: none;
   shape-rendering: crispEdges;
-  -webkit-user-drag: none;
-  -webkit-user-select: none;
-  user-select: none;
-}
-
-.viewportContent *,
-.hexMap * {
-  -webkit-user-drag: none;
 }
 
 .mapBase {
@@ -217,9 +201,22 @@
 }
 
 .objectiveTile polygon {
-  stroke: rgba(109, 217, 255, 0.8);
-  stroke-width: 6px;
-  filter: drop-shadow(0 0 8px rgba(109, 217, 255, 0.45));
+  stroke: rgba(156, 233, 255, 0.96);
+  stroke-width: 7px;
+  stroke-linejoin: round;
+  filter:
+    drop-shadow(0 0 10px rgba(109, 217, 255, 0.75))
+    drop-shadow(0 0 20px rgba(109, 217, 255, 0.45));
+  animation: objectiveTilePulse 1.6s ease-in-out infinite;
+}
+
+.objectiveTile.ownedTile polygon {
+  stroke: rgba(255, 241, 173, 0.98);
+  stroke-width: 8px;
+  filter:
+    drop-shadow(0 0 11px rgba(255, 226, 127, 0.8))
+    drop-shadow(0 0 24px rgba(109, 217, 255, 0.42));
+  animation: objectiveOwnedTilePulse 1.5s ease-in-out infinite;
 }
 
 .ownTile polygon {
@@ -285,9 +282,6 @@
     top 900ms linear;
   filter: drop-shadow(0 9px 0 rgba(0, 0, 0, 0.28))
     drop-shadow(0 0 10px rgba(255, 196, 95, 0.2));
-  -webkit-user-drag: none;
-  -webkit-user-select: none;
-  user-select: none;
 }
 
 .attackUnit:hover,
@@ -315,9 +309,6 @@
   background-repeat: no-repeat;
   background-size: 300% 200%;
   image-rendering: pixelated;
-  -webkit-user-drag: none;
-  -webkit-user-select: none;
-  user-select: none;
 }
 
 .attackUnitAmount {
@@ -336,9 +327,6 @@
   font-weight: 800;
   line-height: 18px;
   text-align: center;
-  -webkit-user-drag: none;
-  -webkit-user-select: none;
-  user-select: none;
 }
 
 .attackUnitPopover {
@@ -449,6 +437,40 @@
   }
 }
 
+@keyframes objectiveTilePulse {
+  0%,
+  100% {
+    stroke-opacity: 0.72;
+    filter:
+      drop-shadow(0 0 8px rgba(109, 217, 255, 0.62))
+      drop-shadow(0 0 16px rgba(109, 217, 255, 0.32));
+  }
+
+  50% {
+    stroke-opacity: 1;
+    filter:
+      drop-shadow(0 0 13px rgba(109, 217, 255, 0.92))
+      drop-shadow(0 0 26px rgba(109, 217, 255, 0.56));
+  }
+}
+
+@keyframes objectiveOwnedTilePulse {
+  0%,
+  100% {
+    stroke-opacity: 0.78;
+    filter:
+      drop-shadow(0 0 8px rgba(255, 226, 127, 0.68))
+      drop-shadow(0 0 15px rgba(109, 217, 255, 0.28));
+  }
+
+  50% {
+    stroke-opacity: 1;
+    filter:
+      drop-shadow(0 0 14px rgba(255, 226, 127, 0.96))
+      drop-shadow(0 0 26px rgba(109, 217, 255, 0.48));
+  }
+}
+
 @keyframes teleportTargetPulse {
   0%,
   100% {
@@ -511,9 +533,6 @@
   cursor: default;
   z-index: 4;
   overflow: visible;
-  -webkit-user-drag: none;
-  -webkit-user-select: none;
-  user-select: none;
 }
 
 .selectionPulse {
@@ -535,9 +554,6 @@
   transition:
     opacity 180ms ease,
     transform 180ms ease;
-  -webkit-user-drag: none;
-  -webkit-user-select: none;
-  user-select: none;
 }
 
 .spriteFrame {
@@ -551,9 +567,6 @@
   background: transparent;
   filter: drop-shadow(0 15px 12px rgba(0, 0, 0, 0.22));
   overflow: visible;
-  -webkit-user-drag: none;
-  -webkit-user-select: none;
-  user-select: none;
 }
 
 .spriteFrame::before {
@@ -584,9 +597,6 @@
   background-position: center;
   background-size: contain;
   transform: translate(-50%, -50%);
-  -webkit-user-drag: none;
-  -webkit-user-select: none;
-  user-select: none;
 }
 
 .fortressSprite {
@@ -637,9 +647,6 @@
   font-family: var(--font-ibm-plex-mono);
   font-size: 0.74rem;
   line-height: 1;
-  -webkit-user-drag: none;
-  -webkit-user-select: none;
-  user-select: none;
 }
 
 .raceToken {
@@ -659,9 +666,6 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
   image-rendering: pixelated;
   pointer-events: none;
-  -webkit-user-drag: none;
-  -webkit-user-select: none;
-  user-select: none;
 }
 
 .megaMarker {
@@ -770,9 +774,6 @@
   background-size: contain;
   image-rendering: pixelated;
   transform: translate(-50%, -50%);
-  -webkit-user-drag: none;
-  -webkit-user-select: none;
-  user-select: none;
 }
 
 .lootCampSprite {
@@ -780,9 +781,6 @@
   height: 82px;
   image-rendering: pixelated;
   background-image: url("/assets/sprite-goblin-standard.png");
-  -webkit-user-drag: none;
-  -webkit-user-select: none;
-  user-select: none;
 }
 
 .lootCampSprite[data-variant="RICH"] {
@@ -870,9 +868,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   transform: translateX(-50%);
-  -webkit-user-drag: none;
-  -webkit-user-select: none;
-  user-select: none;
 }
 
 .crownBadge {
@@ -891,9 +886,6 @@
   text-transform: uppercase;
   pointer-events: none;
   transform: translateX(-50%);
-  -webkit-user-drag: none;
-  -webkit-user-select: none;
-  user-select: none;
 }
 
 .targetPopover {
