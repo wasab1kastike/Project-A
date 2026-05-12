@@ -123,6 +123,7 @@ import {
   editRegistrationFortressName,
   joinRegistrationCycle,
   purchaseFortressUpgrade,
+  recallAllUnits,
   registerCommanderName,
   renameActiveFortress,
   recallBattlefieldArmy,
@@ -3651,6 +3652,150 @@ test("players can partially or fully recall won-tile garrisons", async (context)
   });
 
   assert.equal(reloadedOwner.army, 60);
+});
+
+test("players can recall all eligible traveling, battlefield, and garrison units", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const owner = await createUser(prisma, "recall-all-owner@example.com");
+  const outsider = await createUser(prisma, "recall-all-outsider@example.com");
+  const cycle = await seedActiveCommunityWishCycle(
+    prisma,
+    [
+      {
+        userId: owner.id,
+        commanderName: "Recall All Owner",
+        fortressName: "Recall All Keep",
+        points: 0,
+      },
+      {
+        userId: outsider.id,
+        commanderName: "Recall All Outsider",
+        fortressName: "Outside Keep",
+        points: 0,
+      },
+    ],
+    new Date("2026-04-20T14:00:00.000Z")
+  );
+  const [ownerFortress, outsiderFortress] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: owner.id } },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: outsider.id } },
+    }),
+  ]);
+  const home = await ensureMegaFortress({
+    db: prisma,
+    cycleId: cycle.id,
+    seed: "test-recall-all",
+  });
+
+  const outgoingAttackUnit = await prisma.attackUnit.create({
+    data: {
+      cycleId: cycle.id,
+      attackerFortressId: ownerFortress.id,
+      targetFortressId: outsiderFortress.id,
+      armyAmount: 12,
+      launchedAt: new Date("2026-04-20T12:00:00.000Z"),
+      arrivesAt: new Date("2026-04-20T12:20:00.000Z"),
+    },
+  });
+
+  const battlefield = await prisma.battlefield.create({
+    data: {
+      cycleId: cycle.id,
+      targetTileId: HOME_OF_A_TILE_ID,
+      targetFortressId: home.id,
+      attackerBannerFortressId: ownerFortress.id,
+      defenderBannerFortressId: null,
+      attackerArmyRemaining: 30,
+      defenderArmyRemaining: 100,
+      startedAt: new Date("2026-04-20T12:01:00.000Z"),
+      participants: {
+        create: {
+          fortressId: ownerFortress.id,
+          side: BattlefieldSide.ATTACKER,
+          armyCommitted: 30,
+          armyRemaining: 30,
+        },
+      },
+    },
+  });
+
+  const garrison = await prisma.fortressGarrison.create({
+    data: {
+      cycleId: cycle.id,
+      fortressId: ownerFortress.id,
+      battlefieldId: battlefield.id,
+      tileId: HOME_OF_A_TILE_ID,
+      army: 25,
+    },
+  });
+
+  const result = await recallAllUnits({
+    db: prisma,
+    userId: owner.id,
+    now: new Date("2026-04-20T12:05:00.000Z"),
+  });
+
+  assert.deepEqual(result, {
+    recalledAttackUnits: 1,
+    recalledBattlefieldArmy: 30,
+    recalledGarrisonArmy: 25,
+  });
+
+  const [reloadedOutgoingUnit, reloadedBattlefield, participant, deletedGarrison] =
+    await Promise.all([
+      prisma.attackUnit.findUniqueOrThrow({ where: { id: outgoingAttackUnit.id } }),
+      prisma.battlefield.findUniqueOrThrow({ where: { id: battlefield.id } }),
+      prisma.battlefieldParticipant.findUnique({
+        where: {
+          battlefieldId_fortressId: {
+            battlefieldId: battlefield.id,
+            fortressId: ownerFortress.id,
+          },
+        },
+      }),
+      prisma.fortressGarrison.findUnique({ where: { id: garrison.id } }),
+    ]);
+
+  assert.ok(reloadedOutgoingUnit.recalledAt);
+  assert.equal(reloadedBattlefield.attackerArmyRemaining, 0);
+  assert.equal(participant, null);
+  assert.equal(deletedGarrison, null);
+});
+
+test("recallAllUnits rejects when player has no recallable units", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const owner = await createUser(prisma, "recall-all-empty@example.com");
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: owner.id,
+      commanderName: "Recall Empty",
+      fortressName: "Empty Keep",
+      points: 0,
+    },
+  ]);
+
+  await assert.rejects(
+    () =>
+      recallAllUnits({
+        db: prisma,
+        userId: owner.id,
+        now: new Date(cycle.activeStartedAt ?? new Date()),
+      }),
+    /No units are currently available to recall/
+  );
 });
 
 test("occupied tiles pay their bonus to the largest external garrison", async (context) => {

@@ -1749,139 +1749,12 @@ export async function recallBattlefieldArmy({
         throw new GameError("The battlefield is not accepting active actions.");
       }
 
-      const battlefield = await tx.battlefield.findUnique({
-        where: {
-          id: battlefieldId,
-        },
-        select: {
-          id: true,
-          cycleId: true,
-          targetFortressId: true,
-          targetTileId: true,
-          status: true,
-          participants: {
-            where: {
-              fortress: {
-                ownerId: userId,
-              },
-            },
-            select: {
-              id: true,
-              side: true,
-              armyRemaining: true,
-              fortress: {
-                select: {
-                  id: true,
-                  ownerId: true,
-                  mapX: true,
-                  mapY: true,
-                  race: true,
-                },
-              },
-            },
-          },
-          targetFortress: {
-            select: {
-              id: true,
-              mapX: true,
-              mapY: true,
-            },
-          },
-        },
-      });
-
-      const participant = battlefield?.participants[0] ?? null;
-
-      if (
-        !battlefield ||
-        battlefield.cycleId !== cycle.id ||
-        battlefield.status !== BattlefieldStatus.ACTIVE ||
-        !participant
-      ) {
-        throw new GameError(
-          "That battlefield army is not available to recall."
-        );
-      }
-
-      const recalledArmy = normalizeRecallAmount(
-        armyAmount,
-        participant.armyRemaining
-      );
-      const targetTile = battlefield.targetTileId
-        ? getTileById(battlefield.targetTileId)
-        : null;
-      const homePosition =
-        battlefield.targetTileId && isHomeOfATile(battlefield.targetTileId)
-          ? getHomeOfAMapPosition()
-          : null;
-      const origin = homePosition
-        ? {
-            mapX: homePosition.mapX,
-            mapY: homePosition.mapY,
-          }
-        : targetTile
-          ? {
-              mapX: Math.round(targetTile.xPercent),
-              mapY: Math.round(targetTile.yPercent),
-            }
-          : battlefield.targetFortress
-            ? {
-                mapX: battlefield.targetFortress.mapX,
-                mapY: battlefield.targetFortress.mapY,
-              }
-            : {
-                mapX: participant.fortress.mapX,
-                mapY: participant.fortress.mapY,
-              };
-
-      if (recalledArmy === participant.armyRemaining) {
-        await tx.battlefieldParticipant.delete({
-          where: {
-            id: participant.id,
-          },
-        });
-      } else {
-        await tx.battlefieldParticipant.update({
-          where: {
-            id: participant.id,
-          },
-          data: {
-            armyRemaining: {
-              decrement: recalledArmy,
-            },
-            armyCommitted: {
-              decrement: recalledArmy,
-            },
-          },
-        });
-      }
-
-      await tx.battlefield.update({
-        where: {
-          id: battlefield.id,
-        },
-        data:
-          participant.side === BattlefieldSide.ATTACKER
-            ? {
-                attackerArmyRemaining: {
-                  decrement: recalledArmy,
-                },
-              }
-            : {
-                defenderArmyRemaining: {
-                  decrement: recalledArmy,
-                },
-              },
-      });
-
-      return createReturningArmyMarker({
-        db: tx,
+      return recallBattlefieldArmyWithCycle({
+        tx,
         cycle,
-        fortress: participant.fortress,
-        origin,
-        targetFortressId:
-          battlefield.targetFortressId ?? participant.fortress.id,
-        armyAmount: recalledArmy,
+        userId,
+        battlefieldId,
+        armyAmount,
         now,
       });
     },
@@ -1889,6 +1762,156 @@ export async function recallBattlefieldArmy({
       isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     }
   );
+}
+
+async function recallBattlefieldArmyWithCycle({
+  tx,
+  cycle,
+  userId,
+  battlefieldId,
+  armyAmount,
+  now,
+}: {
+  tx: Prisma.TransactionClient;
+  cycle: {
+    id: string;
+    status: CycleStatus;
+    activeStartedAt: Date | null;
+  };
+  userId: string;
+  battlefieldId: string;
+  armyAmount: number;
+  now: Date;
+}) {
+  const battlefield = await tx.battlefield.findUnique({
+    where: {
+      id: battlefieldId,
+    },
+    select: {
+      id: true,
+      cycleId: true,
+      targetFortressId: true,
+      targetTileId: true,
+      status: true,
+      participants: {
+        where: {
+          fortress: {
+            ownerId: userId,
+          },
+        },
+        select: {
+          id: true,
+          side: true,
+          armyRemaining: true,
+          fortress: {
+            select: {
+              id: true,
+              ownerId: true,
+              mapX: true,
+              mapY: true,
+              race: true,
+            },
+          },
+        },
+      },
+      targetFortress: {
+        select: {
+          id: true,
+          mapX: true,
+          mapY: true,
+        },
+      },
+    },
+  });
+
+  const participant = battlefield?.participants[0] ?? null;
+
+  if (
+    !battlefield ||
+    battlefield.cycleId !== cycle.id ||
+    battlefield.status !== BattlefieldStatus.ACTIVE ||
+    !participant
+  ) {
+    throw new GameError("That battlefield army is not available to recall.");
+  }
+
+  const recalledArmy = normalizeRecallAmount(armyAmount, participant.armyRemaining);
+  const targetTile = battlefield.targetTileId
+    ? getTileById(battlefield.targetTileId)
+    : null;
+  const homePosition =
+    battlefield.targetTileId && isHomeOfATile(battlefield.targetTileId)
+      ? getHomeOfAMapPosition()
+      : null;
+  const origin = homePosition
+    ? {
+        mapX: homePosition.mapX,
+        mapY: homePosition.mapY,
+      }
+    : targetTile
+      ? {
+          mapX: Math.round(targetTile.xPercent),
+          mapY: Math.round(targetTile.yPercent),
+        }
+      : battlefield.targetFortress
+        ? {
+            mapX: battlefield.targetFortress.mapX,
+            mapY: battlefield.targetFortress.mapY,
+          }
+        : {
+            mapX: participant.fortress.mapX,
+            mapY: participant.fortress.mapY,
+          };
+
+  if (recalledArmy === participant.armyRemaining) {
+    await tx.battlefieldParticipant.delete({
+      where: {
+        id: participant.id,
+      },
+    });
+  } else {
+    await tx.battlefieldParticipant.update({
+      where: {
+        id: participant.id,
+      },
+      data: {
+        armyRemaining: {
+          decrement: recalledArmy,
+        },
+        armyCommitted: {
+          decrement: recalledArmy,
+        },
+      },
+    });
+  }
+
+  await tx.battlefield.update({
+    where: {
+      id: battlefield.id,
+    },
+    data:
+      participant.side === BattlefieldSide.ATTACKER
+        ? {
+            attackerArmyRemaining: {
+              decrement: recalledArmy,
+            },
+          }
+        : {
+            defenderArmyRemaining: {
+              decrement: recalledArmy,
+            },
+          },
+  });
+
+  return createReturningArmyMarker({
+    db: tx,
+    cycle,
+    fortress: participant.fortress,
+    origin,
+    targetFortressId: battlefield.targetFortressId ?? participant.fortress.id,
+    armyAmount: recalledArmy,
+    now,
+  });
 }
 
 export async function recallGarrisonArmy({
@@ -1916,84 +1939,250 @@ export async function recallGarrisonArmy({
         throw new GameError("The battlefield is not accepting active actions.");
       }
 
-      const garrison = await tx.fortressGarrison.findUnique({
+      return recallGarrisonArmyWithCycle({
+        tx,
+        cycle,
+        userId,
+        garrisonId,
+        armyAmount,
+        now,
+      });
+    },
+    {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    }
+  );
+}
+
+async function recallGarrisonArmyWithCycle({
+  tx,
+  cycle,
+  userId,
+  garrisonId,
+  armyAmount,
+  now,
+}: {
+  tx: Prisma.TransactionClient;
+  cycle: {
+    id: string;
+    status: CycleStatus;
+    activeStartedAt: Date | null;
+  };
+  userId: string;
+  garrisonId: string;
+  armyAmount: number;
+  now: Date;
+}) {
+  const garrison = await tx.fortressGarrison.findUnique({
+    where: {
+      id: garrisonId,
+    },
+    select: {
+      id: true,
+      cycleId: true,
+      tileId: true,
+      army: true,
+      fortress: {
+        select: {
+          id: true,
+          ownerId: true,
+          mapX: true,
+          mapY: true,
+          race: true,
+        },
+      },
+    },
+  });
+
+  if (
+    !garrison ||
+    !garrison.fortress ||
+    garrison.cycleId !== cycle.id ||
+    garrison.fortress.ownerId !== userId
+  ) {
+    throw new GameError("That garrison is not available to recall.");
+  }
+
+  const recalledArmy = normalizeRecallAmount(armyAmount, garrison.army);
+  const tile = getTileById(garrison.tileId);
+  const homePosition = isHomeOfATile(garrison.tileId) ? getHomeOfAMapPosition() : null;
+  const origin = homePosition
+    ? {
+        mapX: homePosition.mapX,
+        mapY: homePosition.mapY,
+      }
+    : tile
+      ? {
+          mapX: Math.round(tile.xPercent),
+          mapY: Math.round(tile.yPercent),
+        }
+      : {
+          mapX: garrison.fortress.mapX,
+          mapY: garrison.fortress.mapY,
+        };
+
+  if (recalledArmy === garrison.army) {
+    await tx.fortressGarrison.delete({
+      where: {
+        id: garrison.id,
+      },
+    });
+  } else {
+    await tx.fortressGarrison.update({
+      where: {
+        id: garrison.id,
+      },
+      data: {
+        army: {
+          decrement: recalledArmy,
+        },
+      },
+    });
+  }
+
+  return createReturningArmyMarker({
+    db: tx,
+    cycle,
+    fortress: garrison.fortress,
+    origin,
+    targetFortressId: garrison.fortress.id,
+    armyAmount: recalledArmy,
+    now,
+  });
+}
+
+export type RecallAllUnitsResult = {
+  recalledAttackUnits: number;
+  recalledBattlefieldArmy: number;
+  recalledGarrisonArmy: number;
+};
+
+export async function recallAllUnits({
+  userId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(
+    async (tx) => {
+      const cycle = await getCurrentCycle(tx);
+
+      if (
+        !cycle ||
+        (cycle.status !== CycleStatus.ACTIVE &&
+          cycle.status !== CycleStatus.TESTING)
+      ) {
+        throw new GameError("The battlefield is not accepting active actions.");
+      }
+
+      let recalledAttackUnits = 0;
+      let recalledBattlefieldArmy = 0;
+      let recalledGarrisonArmy = 0;
+
+      const attackUnits = await tx.attackUnit.findMany({
         where: {
-          id: garrisonId,
+          cycleId: cycle.id,
+          attackerFortress: {
+            ownerId: userId,
+          },
+          resolvedAt: null,
+          cancelledAt: null,
+          recalledAt: null,
+          arrivesAt: {
+            gt: now,
+          },
         },
         select: {
           id: true,
-          cycleId: true,
-          tileId: true,
-          army: true,
-          fortress: {
-            select: {
-              id: true,
-              ownerId: true,
-              mapX: true,
-              mapY: true,
-              race: true,
-            },
-          },
         },
       });
 
-      if (
-        !garrison ||
-        !garrison.fortress ||
-        garrison.cycleId !== cycle.id ||
-        garrison.fortress.ownerId !== userId
-      ) {
-        throw new GameError("That garrison is not available to recall.");
+      for (const attackUnit of attackUnits) {
+        await recallAttackUnitRecord({
+          db: tx,
+          cycle,
+          userId,
+          attackUnitId: attackUnit.id,
+          now,
+        });
+        recalledAttackUnits += 1;
       }
 
-      const recalledArmy = normalizeRecallAmount(armyAmount, garrison.army);
-      const tile = getTileById(garrison.tileId);
-      const homePosition = isHomeOfATile(garrison.tileId)
-        ? getHomeOfAMapPosition()
-        : null;
-      const origin = homePosition
-        ? {
-            mapX: homePosition.mapX,
-            mapY: homePosition.mapY,
-          }
-        : tile
-          ? {
-              mapX: Math.round(tile.xPercent),
-              mapY: Math.round(tile.yPercent),
-            }
-          : {
-              mapX: garrison.fortress.mapX,
-              mapY: garrison.fortress.mapY,
-            };
-
-      if (recalledArmy === garrison.army) {
-        await tx.fortressGarrison.delete({
-          where: {
-            id: garrison.id,
+      const participants = await tx.battlefieldParticipant.findMany({
+        where: {
+          fortress: {
+            ownerId: userId,
           },
-        });
-      } else {
-        await tx.fortressGarrison.update({
-          where: {
-            id: garrison.id,
+          armyRemaining: {
+            gt: 0,
           },
-          data: {
-            army: {
-              decrement: recalledArmy,
-            },
+          battlefield: {
+            cycleId: cycle.id,
+            status: BattlefieldStatus.ACTIVE,
           },
-        });
-      }
-
-      return createReturningArmyMarker({
-        db: tx,
-        cycle,
-        fortress: garrison.fortress,
-        origin,
-        targetFortressId: garrison.fortress.id,
-        armyAmount: recalledArmy,
-        now,
+        },
+        select: {
+          battlefieldId: true,
+          armyRemaining: true,
+        },
       });
+
+      for (const participant of participants) {
+        await recallBattlefieldArmyWithCycle({
+          tx,
+          cycle,
+          userId,
+          battlefieldId: participant.battlefieldId,
+          armyAmount: participant.armyRemaining,
+          now,
+        });
+        recalledBattlefieldArmy += participant.armyRemaining;
+      }
+
+      const garrisons = await tx.fortressGarrison.findMany({
+        where: {
+          cycleId: cycle.id,
+          army: {
+            gt: 0,
+          },
+          fortress: {
+            ownerId: userId,
+          },
+        },
+        select: {
+          id: true,
+          army: true,
+        },
+      });
+
+      for (const garrison of garrisons) {
+        await recallGarrisonArmyWithCycle({
+          tx,
+          cycle,
+          userId,
+          garrisonId: garrison.id,
+          armyAmount: garrison.army,
+          now,
+        });
+        recalledGarrisonArmy += garrison.army;
+      }
+
+      if (
+        recalledAttackUnits === 0 &&
+        recalledBattlefieldArmy === 0 &&
+        recalledGarrisonArmy === 0
+      ) {
+        throw new GameError("No units are currently available to recall.");
+      }
+
+      return {
+        recalledAttackUnits,
+        recalledBattlefieldArmy,
+        recalledGarrisonArmy,
+      } satisfies RecallAllUnitsResult;
     },
     {
       isolationLevel: Prisma.TransactionIsolationLevel.Serializable,

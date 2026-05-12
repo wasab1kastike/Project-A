@@ -14,6 +14,7 @@ import {
   joinBattlefieldAction,
   markChatReadAction,
   relocateCastleToTileAction,
+  recallAllUnitsAction,
   recallBattlefieldArmyAction,
   recallAttackUnitAction,
   recallGarrisonArmyAction,
@@ -327,6 +328,7 @@ export function BattlefieldExperience({
   const [battleJoinPendingId, setBattleJoinPendingId] = useState<
     string | null
   >(null);
+  const [recallAllPending, setRecallAllPending] = useState(false);
   const [garrisonRecallPendingId, setGarrisonRecallPendingId] = useState<
     string | null
   >(null);
@@ -479,6 +481,27 @@ export function BattlefieldExperience({
   const hasUnreadBattleReports = unreadBattleReportCount > 0;
   const battleLogCountLabel =
     unreadBattleReportCount > 99 ? "99+" : unreadBattleReportCount.toString();
+  const recallableAttackUnitCount = useMemo(
+    () => attackUnits.filter((attackUnit) => attackUnit.canRecall).length,
+    [attackUnits]
+  );
+  const recallableBattlefieldCount = useMemo(
+    () =>
+      battlefields.filter(
+        (battlefield) => battlefield.canRecall && battlefield.ownArmyRemaining > 0
+      ).length,
+    [battlefields]
+  );
+  const recallableGarrisonCount = useMemo(
+    () =>
+      mapHexes.filter(
+        (hex) => Boolean(hex.ownGarrison?.canRecall) && (hex.ownGarrison?.army ?? 0) > 0
+      ).length,
+    [mapHexes]
+  );
+  const totalRecallableSources =
+    recallableAttackUnitCount + recallableBattlefieldCount + recallableGarrisonCount;
+  const hasRecallableUnits = totalRecallableSources > 0;
   const mapHexByTileId = useMemo(
     () => new Map(mapHexes.map((ownership) => [ownership.tileId, ownership])),
     [mapHexes]
@@ -1052,6 +1075,27 @@ export function BattlefieldExperience({
     [refreshView]
   );
 
+  const handleRecallAllUnits = useCallback(async () => {
+    if (recallAllPending || !hasRecallableUnits) {
+      return;
+    }
+
+    setRecallAllPending(true);
+
+    try {
+      const result = await recallAllUnitsAction();
+
+      if (!result.ok) {
+        window.alert(result.error);
+        return;
+      }
+
+      refreshView();
+    } finally {
+      setRecallAllPending(false);
+    }
+  }, [hasRecallableUnits, recallAllPending, refreshView]);
+
   const handleTorchOccupiedMapHex = useCallback(
     async (garrison: NonNullable<MapHexOwnershipMarker["ownGarrison"]>) => {
       setGarrisonTorchPendingId(garrison.id);
@@ -1251,6 +1295,25 @@ export function BattlefieldExperience({
           ) : null}
         </button>
       ) : null}
+      <button
+        type="button"
+        className={styles.overlayButton}
+        disabled={!hasRecallableUnits || recallAllPending}
+        title={
+          hasRecallableUnits
+            ? undefined
+            : "No traveling, battlefield, or garrison units are available to recall."
+        }
+        onClick={() => {
+          void handleRecallAllUnits();
+        }}
+      >
+        <span className={styles.overlayButtonLabel}>
+          {recallAllPending
+            ? "Recalling all..."
+            : `Recall all units (${totalRecallableSources})`}
+        </span>
+      </button>
     </div>
   );
 

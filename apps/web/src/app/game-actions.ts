@@ -52,6 +52,7 @@ import {
   recruitArmy,
   registerCommanderName,
   renameActiveFortress,
+  recallAllUnits,
   recallBattlefieldArmy,
   recallAttackUnit,
   recallGarrisonArmy,
@@ -533,6 +534,33 @@ export async function recallGarrisonArmyAction(
       armyAmount,
     });
     notifyAndRevalidate("garrison-recall", ["/", "/castle"]);
+    return {
+      ok: true,
+    } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
+export async function recallAllUnitsAction() {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await recallAllUnits({
+      userId,
+    });
+    notifyAndRevalidate("all-units-recall", ["/", "/castle"]);
     return {
       ok: true,
     } satisfies InlineActionResult;
