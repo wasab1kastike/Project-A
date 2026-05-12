@@ -119,6 +119,8 @@ type ActiveBattlefield = {
     | "EVEN"
     | "DEFENDER_EDGE"
     | "DEFENDER_STRONG";
+  attackBuffPercent: number;
+  defenseBuffPercent: number;
   ownArmyCommitted: number;
   ownArmyRemaining: number;
   ownIncomingArmy: number;
@@ -655,7 +657,7 @@ export function BattlefieldExperience({
   const activeBattleFortressIds = useMemo(
     () =>
       battlefields
-        .filter((battlefield) => battlefield.targetTileId === null)
+        .filter((battlefield) => battlefield.targetFortressId !== null)
         .flatMap((battlefield) => [
           battlefield.targetFortressId,
           battlefield.attackerBanner.id,
@@ -668,10 +670,9 @@ export function BattlefieldExperience({
     (fortressId: string) => {
       return battlefields.some(
         (battlefield) =>
-          battlefield.targetTileId === null &&
-          (battlefield.targetFortressId === fortressId ||
+          battlefield.targetFortressId === fortressId ||
             battlefield.attackerBanner.id === fortressId ||
-            battlefield.defenderBanner?.id === fortressId)
+            battlefield.defenderBanner?.id === fortressId
       );
     },
     [battlefields]
@@ -1889,6 +1890,11 @@ export function BattlefieldExperience({
                           ? "-"
                           : `${battlefield.nextIncomingEtaMinutes}m (${battlefield.nextIncomingSide.toLowerCase()})`}
                       </span>
+                      <span className={styles.signalChip}>
+                        Buffs A {battlefield.attackBuffPercent >= 0 ? "+" : ""}
+                        {battlefield.attackBuffPercent}% / D +
+                        {battlefield.defenseBuffPercent}%
+                      </span>
                     </div>
                     <progress value={battlefield.progress} max={100} />
                     {(() => {
@@ -1967,6 +1973,15 @@ export function BattlefieldExperience({
                               <dd>
                                 {battlefield.momentumScore >= 0 ? "+" : ""}
                                 {battlefield.momentumScore}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>Buffs A / D</dt>
+                              <dd>
+                                {battlefield.attackBuffPercent >= 0 ? "+" : ""}
+                                {battlefield.attackBuffPercent}% /
+                                {battlefield.defenseBuffPercent >= 0 ? " +" : " "}
+                                {battlefield.defenseBuffPercent}%
                               </dd>
                             </div>
                           </dl>

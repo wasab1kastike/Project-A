@@ -101,11 +101,11 @@ type MapHexOwnershipMarker = {
   isCurrentUser: boolean;
   hasActiveBattle: boolean;
   canAttack: boolean;
-  canFortify?: boolean;
-  fortifyDisabledReason?: string | null;
   claimCost: number | null;
   claimDurationMinutes?: number;
   sizeSurcharge?: number;
+  canFortify?: boolean;
+  fortifyDisabledReason?: string | null;
   isConnectedToPlayerTerritory?: boolean;
   canClaim?: boolean;
   claimDisabledReason?: string | null;
@@ -591,7 +591,7 @@ function AttackUnitsLayer({
       return;
     }
 
-    queueMicrotask(() => setNowMs(Date.now()));
+    setNowMs(Date.now());
 
     const interval = window.setInterval(() => {
       setNowMs(Date.now());
@@ -656,7 +656,6 @@ function AttackUnitsLayer({
                 top: `${anchorPoint.y}%`,
               }}
               onPointerDown={(event) => event.stopPropagation()}
-              onDragStart={(event) => event.preventDefault()}
               onClick={(event) => {
                 event.stopPropagation();
                 setSelectedUnitId((currentId) =>
@@ -686,7 +685,6 @@ function AttackUnitsLayer({
             {selected ? (
               <div
                 className={styles.attackUnitPopover}
-                data-attack-unit-popover
                 style={{
                   left: `${anchorPoint.x}%`,
                   top: `${anchorPoint.y}%`,
@@ -769,10 +767,6 @@ export const FortressMap = memo(function FortressMap({
   const userAdjustedViewRef = useRef(false);
   const pointerCacheRef = useRef<Map<number, Point>>(new Map());
   const markerTapStateRef = useRef<MarkerTapState | null>(null);
-  const activeBattleFortressIdSet = useMemo(
-    () => new Set(activeBattleFortressIds),
-    [activeBattleFortressIds]
-  );
   const pinchStateRef = useRef<{
     startScale: number;
     startTranslateX: number;
@@ -987,10 +981,12 @@ export const FortressMap = memo(function FortressMap({
 
   const activateFortress = useCallback(
     (fortress: MapFortress) => {
+      const hasActiveBattle = activeBattleFortressIds.includes(fortress.id);
+
       if (
         fortress.isCurrentUser ||
         fortress.fortressKind === "MEGA" ||
-        activeBattleFortressIdSet.has(fortress.id)
+        hasActiveBattle
       ) {
         setPendingTargetId(null);
         onSelectFortress?.(fortress);
@@ -1003,7 +999,7 @@ export const FortressMap = memo(function FortressMap({
         );
       }
     },
-    [activeBattleFortressIdSet, onSelectFortress]
+    [activeBattleFortressIds, onSelectFortress]
   );
 
   const handleMarkerPointerDown = useCallback(
@@ -1211,14 +1207,10 @@ export const FortressMap = memo(function FortressMap({
           }
 
           const isInPopover = (event.target as HTMLElement).closest(
-            "[data-target-popover], [data-attack-unit-popover]"
+            "[data-target-popover]"
           );
           if (isInPopover) {
             return;
-          }
-
-          if (event.pointerType === "mouse" && event.button === 0) {
-            event.preventDefault();
           }
 
           setPendingTargetId(null);
@@ -1346,7 +1338,7 @@ export const FortressMap = memo(function FortressMap({
                 (Boolean(onSelectFortress) &&
                   fortress.fortressKind === "MEGA") ||
                 (Boolean(onSelectFortress) &&
-                  activeBattleFortressIdSet.has(fortress.id)) ||
+                  activeBattleFortressIds.includes(fortress.id)) ||
                 (Boolean(onConfirmAttackTarget) && fortress.isTargetable);
               const variant = getSpriteVariant(fortress);
               const isMega = fortress.fortressKind === "MEGA";
@@ -1420,7 +1412,6 @@ export const FortressMap = memo(function FortressMap({
                     onPointerCancel={(event) =>
                       clearMarkerTap(event, fortress.id)
                     }
-                    onDragStart={(event) => event.preventDefault()}
                     onClick={(event) => {
                       if (event.detail !== 0 || suppressClickRef.current) {
                         event.preventDefault();
