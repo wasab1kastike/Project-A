@@ -968,18 +968,13 @@ export async function processActiveBattlefields({
       battlefield.targetFortressId &&
       winnerSide === BattlefieldSide.ATTACKER
     ) {
-      const defenderArmyLosses =
-        defenderParticipantLosses.appliedLosses +
-        defenderNativeLosses +
-        outcome.defenderLosses;
-
       await db.fortress.update({
         where: {
           id: battlefield.targetFortressId,
         },
         data: {
           army: {
-            decrement: defenderArmyLosses,
+              decrement: outcome.defenderLosses,
           },
         },
       });
