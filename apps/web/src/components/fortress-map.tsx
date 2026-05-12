@@ -101,6 +101,8 @@ type MapHexOwnershipMarker = {
   isCurrentUser: boolean;
   hasActiveBattle: boolean;
   canAttack: boolean;
+  canFortify?: boolean;
+  fortifyDisabledReason?: string | null;
   claimCost: number | null;
   claimDurationMinutes?: number;
   sizeSurcharge?: number;

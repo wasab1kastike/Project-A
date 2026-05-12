@@ -190,6 +190,66 @@ export type AttackMapHexResult = {
   launchedAttackUnit: AttackUnitLaunchMarker;
 };
 
+function toAttackUnitLaunchMarker({
+  unit,
+  attacker,
+  target,
+}: {
+  unit: {
+    id: string;
+    armyAmount: number;
+    launchedAt: Date;
+    arrivesAt: Date;
+    recalledAt: Date | null;
+    returnOriginMapX: number | null;
+    returnOriginMapY: number | null;
+  };
+  attacker: {
+    id: string;
+    name: string;
+    mapX: number;
+    mapY: number;
+    unitSpriteVariant?: string | null;
+    owner?: {
+      unitCosmeticVariant: string | null;
+    } | null;
+  };
+  target: {
+    id: string;
+    name: string;
+    mapX: number;
+    mapY: number;
+  };
+}): AttackUnitLaunchMarker {
+  return {
+    id: unit.id,
+    armyAmount: unit.armyAmount,
+    launchedAt: unit.launchedAt,
+    arrivesAt: unit.arrivesAt,
+    recalledAt: unit.recalledAt,
+    returnOrigin:
+      unit.returnOriginMapX !== null && unit.returnOriginMapY !== null
+        ? {
+            mapX: unit.returnOriginMapX,
+            mapY: unit.returnOriginMapY,
+          }
+        : null,
+    canRecall: true,
+    canInstantRecall: false,
+    attacker: {
+      id: attacker.id,
+      name: attacker.name,
+      mapX: attacker.mapX,
+      mapY: attacker.mapY,
+      unitSpriteVariant: normalizeUnitSpriteVariant(
+        attacker.unitSpriteVariant ?? ""
+      ),
+      unitCosmeticVariant: attacker.owner?.unitCosmeticVariant ?? null,
+    },
+    target,
+  };
+}
+
 const PUBLIC_NAME_MAX_LENGTH = 32;
 const ACTIVE_EDGE_PADDING = 15;
 const SERVICE_TRANSACTION_OPTIONS = {
@@ -1225,6 +1285,8 @@ export async function attackMapHex({
           mapY: Math.round(tile.yPercent),
         };
 
+    const initialDefenderArmyRemaining =
+      isHomeOfA && !ownership ? battlefieldTarget.army : 0;
     const battlefield = await tx.battlefield.create({
       data: {
         cycleId: cycle.id,
@@ -1233,7 +1295,7 @@ export async function attackMapHex({
         attackerBannerFortressId: attacker.id,
         defenderBannerFortressId: ownership?.ownerFortressId ?? null,
         attackerArmyRemaining: 0,
-        defenderArmyRemaining: isHomeOfA ? battlefieldTarget.army : 0,
+        defenderArmyRemaining: initialDefenderArmyRemaining,
         pointsReward: 0,
         foodReward: 0,
         startedAt: now,
@@ -1242,6 +1304,81 @@ export async function attackMapHex({
         id: true,
       },
     });
+
+    if (ownership) {
+      const tileGarrisons = await tx.fortressGarrison.findMany({
+        where: {
+          cycleId: cycle.id,
+          tileId,
+          army: {
+            gt: 0,
+          },
+          fortressId: {
+            not: attacker.id,
+          },
+        },
+        select: {
+          id: true,
+          fortressId: true,
+          army: true,
+          maintenanceDrains: true,
+        },
+      });
+      const garrisonsByFortressId = new Map<
+        string,
+        { army: number; maintenanceDrains: boolean }
+      >();
+
+      for (const garrison of tileGarrisons) {
+        const current = garrisonsByFortressId.get(garrison.fortressId) ?? {
+          army: 0,
+          maintenanceDrains: false,
+        };
+
+        garrisonsByFortressId.set(garrison.fortressId, {
+          army: current.army + garrison.army,
+          maintenanceDrains:
+            current.maintenanceDrains || garrison.maintenanceDrains,
+        });
+      }
+
+      const defendingGarrisonArmy = Array.from(
+        garrisonsByFortressId.values()
+      ).reduce((sum, garrison) => sum + garrison.army, 0);
+
+      if (defendingGarrisonArmy > 0) {
+        await tx.battlefieldParticipant.createMany({
+          data: Array.from(garrisonsByFortressId.entries()).map(
+            ([fortressId, garrison]) => ({
+              battlefieldId: battlefield.id,
+              fortressId,
+              side: BattlefieldSide.DEFENDER,
+              armyCommitted: garrison.army,
+              armyRemaining: garrison.army,
+              maintenanceDrains: garrison.maintenanceDrains,
+              joinedAt: now,
+            })
+          ),
+        });
+        await tx.battlefield.update({
+          where: {
+            id: battlefield.id,
+          },
+          data: {
+            defenderArmyRemaining: {
+              increment: defendingGarrisonArmy,
+            },
+          },
+        });
+        await tx.fortressGarrison.deleteMany({
+          where: {
+            id: {
+              in: tileGarrisons.map((garrison) => garrison.id),
+            },
+          },
+        });
+      }
+    }
 
     const launchedUnit = await launchAttackUnit({
       db: tx,
@@ -1270,40 +1407,187 @@ export async function attackMapHex({
 
     return {
       battlefieldId: battlefield.id,
-      launchedAttackUnit: {
-        id: launchedUnit.id,
-        armyAmount: launchedUnit.armyAmount,
-        launchedAt: launchedUnit.launchedAt,
-        arrivesAt: launchedUnit.arrivesAt,
-        recalledAt: launchedUnit.recalledAt,
-        returnOrigin:
-          launchedUnit.returnOriginMapX !== null &&
-          launchedUnit.returnOriginMapY !== null
-            ? {
-                mapX: launchedUnit.returnOriginMapX,
-                mapY: launchedUnit.returnOriginMapY,
-              }
-            : null,
-        canRecall: true,
-        canInstantRecall: false,
-        attacker: {
-          id: attacker.id,
-          name: attacker.name,
-          mapX: attacker.mapX,
-          mapY: attacker.mapY,
-          unitSpriteVariant: normalizeUnitSpriteVariant(
-            attacker.unitSpriteVariant
-          ),
-          unitCosmeticVariant: attacker.owner?.unitCosmeticVariant ?? null,
-        },
+      launchedAttackUnit: toAttackUnitLaunchMarker({
+        unit: launchedUnit,
+        attacker,
         target: {
           id: targetFortress.id,
           name: targetFortress.name,
           mapX: battlefieldTarget.mapX,
           mapY: battlefieldTarget.mapY,
         },
-      },
+      }),
     };
+  });
+}
+
+export async function fortifyMapHex({
+  userId,
+  tileId,
+  armyAmount,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  tileId: string;
+  armyAmount: number;
+  now?: Date;
+  db?: PrismaClient;
+}): Promise<AttackUnitLaunchMarker> {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("The current cycle is not accepting fortifications.");
+    }
+
+    const tile = getTileById(tileId);
+
+    if (!tile && !isHomeOfATile(tileId)) {
+      throw new GameError("That map tile cannot be fortified.");
+    }
+
+    if (!Number.isInteger(armyAmount) || armyAmount <= 0) {
+      throw new GameError("Fortify with at least 1 army.");
+    }
+
+    const fortress = await tx.fortress.findUnique({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: userId,
+        },
+      },
+      select: {
+        id: true,
+        ownerId: true,
+        name: true,
+        points: true,
+        army: true,
+        level: true,
+        race: true,
+        mapX: true,
+        mapY: true,
+        unitSpriteVariant: true,
+        owner: {
+          select: {
+            unitCosmeticVariant: true,
+          },
+        },
+      },
+    });
+
+    if (!fortress) {
+      throw new GameError("You are not participating in the active cycle.");
+    }
+
+    if (fortress.army < armyAmount) {
+      throw new GameError(
+        "You do not have enough idle army to fortify that tile."
+      );
+    }
+
+    const ownership = await tx.mapHexOwnership.findUnique({
+      where: {
+        cycleId_tileId: {
+          cycleId: cycle.id,
+          tileId,
+        },
+      },
+      select: {
+        ownerFortressId: true,
+      },
+    });
+
+    if (!ownership || ownership.ownerFortressId !== fortress.id) {
+      throw new GameError("You can only fortify tiles you own.");
+    }
+
+    const activeBattle = await tx.battlefield.findFirst({
+      where: {
+        cycleId: cycle.id,
+        targetTileId: tileId,
+        status: BattlefieldStatus.ACTIVE,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (activeBattle) {
+      throw new GameError("That tile is already contested.");
+    }
+
+    const outboundAttackCount = await tx.attackUnit.count({
+      where: {
+        attackerFortressId: fortress.id,
+        resolvedAt: null,
+        cancelledAt: null,
+      },
+    });
+    const effectiveRace = (await isFortressFactionSuppressed(
+      tx,
+      fortress.id,
+      now
+    ))
+      ? null
+      : fortress.race;
+    const maxAttacks = getMaxSimultaneousAttacks(
+      fortress.level,
+      effectiveRace
+    );
+
+    if (outboundAttackCount >= maxAttacks) {
+      throw new GameError(
+        `You have reached the maximum number of simultaneous attacks (${maxAttacks}).`
+      );
+    }
+
+    const tilePosition = isHomeOfATile(tileId)
+      ? getHomeOfAMapPosition()
+      : {
+          mapX: Math.round(tile?.xPercent ?? fortress.mapX),
+          mapY: Math.round(tile?.yPercent ?? fortress.mapY),
+        };
+    const target = {
+      ...fortress,
+      mapX: tilePosition.mapX,
+      mapY: tilePosition.mapY,
+    };
+    const launchedUnit = await launchAttackUnit({
+      db: tx,
+      cycle,
+      attacker: fortress,
+      target,
+      launchedAt: now,
+      armyAmount,
+    });
+
+    if (!launchedUnit) {
+      throw new GameError(
+        "That fortification would arrive after the cycle ends."
+      );
+    }
+
+    const fortifyUnit = await tx.attackUnit.update({
+      where: {
+        id: launchedUnit.id,
+      },
+      data: {
+        fortifyTargetTileId: tileId,
+      },
+    });
+
+    return toAttackUnitLaunchMarker({
+      unit: fortifyUnit,
+      attacker: fortress,
+      target: {
+        id: tileId,
+        name: isHomeOfATile(tileId) ? "Home of A" : `Tile ${tileId}`,
+        mapX: tilePosition.mapX,
+        mapY: tilePosition.mapY,
+      },
+    });
   });
 }
 

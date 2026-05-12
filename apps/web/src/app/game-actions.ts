@@ -43,6 +43,7 @@ import {
   choosePendingUpgradeSpecialization,
   attackMapHex,
   claimNeutralMapHex,
+  fortifyMapHex,
   claimUnicornTeleport,
   activateUnicornShatteredReality,
   joinBattlefield,
@@ -283,6 +284,36 @@ export async function attackMapHexAction(tileId: string, sentArmy = 1) {
     return {
       ok: true,
       launchedAttackUnit: result.launchedAttackUnit,
+    } satisfies MapHexAttackActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies MapHexAttackActionResult;
+  }
+}
+
+export async function fortifyMapHexAction(tileId: string, armyAmount = 1) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies MapHexAttackActionResult;
+  }
+
+  try {
+    const launchedAttackUnit = await fortifyMapHex({
+      userId,
+      tileId,
+      armyAmount,
+    });
+    notifyAndRevalidate("map-hex-fortify", ["/", "/castle"]);
+    return {
+      ok: true,
+      launchedAttackUnit,
     } satisfies MapHexAttackActionResult;
   } catch (error) {
     return {

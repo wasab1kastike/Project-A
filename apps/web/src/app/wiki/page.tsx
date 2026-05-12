@@ -241,6 +241,7 @@ const RECRUITMENT_RULES = [
 const BATTLEFIELD_RULES = [
   `Direct attacks and battlefield reinforcements share the same outbound cap: base ${MAX_SIMULTANEOUS_ATTACKS_BASE}, modified by castle level and race.`,
   "Joining a battlefield sends a visible unit toward that battle and reserves the army while it travels.",
+  "Fortifying an owned tile sends idle army there as a visible movement; once it arrives, that garrison defends the tile until recalled or killed.",
   "A player cannot join both sides of the same unresolved battlefield.",
   "Equal attack and defense power still counts as a defender win.",
   "Resolved tile battlefields can transfer tile ownership to the winning side.",
@@ -705,12 +706,13 @@ export default function WikiPage() {
                   tiles are the main army-income biome.
                 </li>
                 <li>
-                  Owned tiles can be attacked, reinforced, and transferred when
-                  their battlefield resolves.
+                  Owned tiles can be fortified, attacked, reinforced, and
+                  transferred when their battlefield resolves.
                 </li>
                 <li>
-                  Your own active battlefield army and won-tile garrisons can be
-                  partially recalled, with surviving troops marching home.
+                  Fortified garrisons stay on the tile without maintenance
+                  drain and can be partially recalled, with surviving troops
+                  marching home.
                 </li>
                 <li>
                   The selected tile panel shows current owner, bonus, claim

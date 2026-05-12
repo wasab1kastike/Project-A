@@ -62,6 +62,7 @@ import { countCastleSpecializations } from "./specializations";
 import { DWARF_DEEP_MINING_RUNE_BOUNTY } from "./dwarf-deep-mining";
 import { ORK_BOSS_ORDER_CONFIG, ORK_WAAAGH_INVESTMENT_CONFIG } from "./orks";
 import { HEX_TILES, type HexTile } from "./map-hex";
+import { getHomeOfAMapPosition } from "./mega-fortress";
 import {
   TILE_CLAIM_MAX_ACTIVE_PROJECTS,
   TILE_CLAIM_OWNED_TILE_COST_STEP,
@@ -669,6 +670,7 @@ export async function getHomePageState({
           launchedAt: true,
           arrivesAt: true,
           recalledAt: true,
+          fortifyTargetTileId: true,
           returnOriginMapX: true,
           returnOriginMapY: true,
           attackerFortress: {
@@ -2066,6 +2068,36 @@ export async function getHomePageState({
 
     return null;
   };
+  const getTileFortifyDisabledReason = (ownership: {
+    tileId: string;
+    ownerFortressId: string | null;
+  }) => {
+    if (!gameplayOpen) {
+      return "Tiles can only be fortified during gameplay.";
+    }
+
+    if (!playerFortress) {
+      return "Join the cycle to fortify tiles.";
+    }
+
+    if (ownership.ownerFortressId !== playerFortress.id) {
+      return "You can only fortify tiles you own.";
+    }
+
+    if (playerFortress.army <= 0) {
+      return "You need idle army to fortify tiles.";
+    }
+
+    if (activeBattleTileIds.has(ownership.tileId)) {
+      return "This tile is already contested.";
+    }
+
+    if (outboundAttackUnitCount >= maxSimultaneousAttacks) {
+      return `You have reached the maximum number of simultaneous movements (${maxSimultaneousAttacks}).`;
+    }
+
+    return null;
+  };
   const ownedNormalTiles = playerFortress
     ? cycle.mapHexOwnerships
         .filter(
@@ -2208,6 +2240,8 @@ export async function getHomePageState({
     isCurrentUser: boolean;
     hasActiveBattle: boolean;
     canAttack: boolean;
+    canFortify: boolean;
+    fortifyDisabledReason: string | null;
     claimCost: number | null;
     sizeSurcharge: number;
     isConnectedToPlayerTerritory: boolean;
@@ -2293,6 +2327,8 @@ export async function getHomePageState({
         playerFortress.army > 0 &&
         ownership.ownerFortressId !== playerFortress.id &&
         !activeBattleTileIds.has(ownership.tileId),
+      canFortify: getTileFortifyDisabledReason(ownership) === null,
+      fortifyDisabledReason: getTileFortifyDisabledReason(ownership),
       claimCost: claimState.claimCost,
       sizeSurcharge: claimState.sizeSurcharge,
       isConnectedToPlayerTerritory: claimState.isConnectedToPlayerTerritory,
@@ -2356,6 +2392,8 @@ export async function getHomePageState({
       isCurrentUser: false,
       hasActiveBattle: activeBattleTileIds.has(HOME_OF_A_TILE_ID),
       canAttack: canAttackHomeOfA,
+      canFortify: false,
+      fortifyDisabledReason: "Home of A must be conquered before fortifying.",
       claimCost: null,
       sizeSurcharge: 0,
       isConnectedToPlayerTerritory: false,
@@ -2413,6 +2451,8 @@ export async function getHomePageState({
       isCurrentUser: pendingClaim?.isCurrentUser ?? false,
       hasActiveBattle: activeBattleTileIds.has(tile.id),
       canAttack: false,
+      canFortify: false,
+      fortifyDisabledReason: "Claim this tile before fortifying it.",
       claimCost: claimState.claimCost,
       sizeSurcharge: claimState.sizeSurcharge,
       isConnectedToPlayerTerritory: claimState.isConnectedToPlayerTerritory,
@@ -3083,8 +3123,14 @@ export async function getHomePageState({
       };
     }),
     attackUnits: cycle.attackUnits.map((unit) => {
-      const tileTargetId = unit.reinforcementBattlefield?.targetTileId ?? null;
+      const tileTargetId =
+        unit.fortifyTargetTileId ??
+        unit.reinforcementBattlefield?.targetTileId ??
+        null;
       const tileTarget = tileTargetId ? getTileById(tileTargetId) : null;
+      const homeTarget = tileTargetId && isHomeOfATile(tileTargetId)
+        ? getHomeOfAMapPosition()
+        : null;
       return {
         id: unit.id,
         armyAmount:
@@ -3130,12 +3176,20 @@ export async function getHomePageState({
             unit.attackerFortress.owner?.unitCosmeticVariant ?? null,
         },
         target: {
-          id: unit.targetFortress.id,
-          name: unit.targetFortress.name,
-          mapX: tileTarget
+          id: unit.fortifyTargetTileId ?? unit.targetFortress.id,
+          name: unit.fortifyTargetTileId
+            ? isHomeOfATile(unit.fortifyTargetTileId)
+              ? "Home of A"
+              : `Tile ${unit.fortifyTargetTileId}`
+            : unit.targetFortress.name,
+          mapX: homeTarget
+            ? homeTarget.mapX
+            : tileTarget
             ? Math.round(tileTarget.xPercent)
             : unit.targetFortress.mapX,
-          mapY: tileTarget
+          mapY: homeTarget
+            ? homeTarget.mapY
+            : tileTarget
             ? Math.round(tileTarget.yPercent)
             : unit.targetFortress.mapY,
         },

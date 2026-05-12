@@ -1743,6 +1743,7 @@ async function processCycleTick(
       targetFortressId: true,
       reinforcementBattlefieldId: true,
       reinforcementSide: true,
+      fortifyTargetTileId: true,
       armyAmount: true,
       arrivesAt: true,
       recalledAt: true,
@@ -1763,6 +1764,67 @@ async function processCycleTick(
 
   const resolvedBatchAttackUnitIds = new Set<string>();
   for (const unit of dueAttackUnits) {
+    if (unit.fortifyTargetTileId) {
+      const existingGarrison = await db.fortressGarrison.findFirst({
+        where: {
+          cycleId,
+          fortressId: unit.attackerFortressId,
+          tileId: unit.fortifyTargetTileId,
+          maintenanceDrains: false,
+        },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: {
+          id: true,
+        },
+      });
+
+      if (existingGarrison) {
+        await db.fortressGarrison.update({
+          where: {
+            id: existingGarrison.id,
+          },
+          data: {
+            army: {
+              increment: unit.armyAmount,
+            },
+          },
+        });
+      } else {
+        await db.fortressGarrison.create({
+          data: {
+            cycleId,
+            fortressId: unit.attackerFortressId,
+            battlefieldId: null,
+            tileId: unit.fortifyTargetTileId,
+            army: unit.armyAmount,
+            maintenanceDrains: false,
+          },
+        });
+      }
+
+      await db.attackUnit.update({
+        where: {
+          id: unit.id,
+        },
+        data: {
+          resolvedAt: tickAt,
+          defenderArmyAtBattleStart: null,
+          resolvedAttackPower: 0,
+          resolvedDefensePower: 0,
+          attackerSurvivors: unit.armyAmount,
+          attackerRetired: 0,
+          attackerReturned: 0,
+          defenderLosses: 0,
+          pointsLooted: 0,
+          foodLooted: 0,
+          armyLooted: 0,
+        },
+      });
+      resolvedBatchAttackUnitIds.add(unit.id);
+      resolvedAttackUnits += 1;
+      continue;
+    }
+
     if (unit.reinforcementBattlefieldId && unit.reinforcementSide) {
       const battlefield = await db.battlefield.findUnique({
         where: {
@@ -1796,6 +1858,7 @@ async function processCycleTick(
             side: unit.reinforcementSide,
             armyCommitted: unit.armyAmount,
             armyRemaining: unit.armyAmount,
+            maintenanceDrains: true,
             joinedAt: tickAt,
           },
         });
@@ -3367,6 +3430,7 @@ async function processCycleTick(
       army: {
         gt: 0,
       },
+      maintenanceDrains: true,
       fortress: {
         race: {
           not: "UNSTABLE_UNICORNS",
@@ -3387,6 +3451,7 @@ async function processCycleTick(
         army: {
           gt: 0,
         },
+        maintenanceDrains: true,
         fortress: {
           race: "UNSTABLE_UNICORNS",
         },

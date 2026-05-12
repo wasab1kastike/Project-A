@@ -522,6 +522,7 @@ model BattlefieldParticipant {
   side          BattlefieldSide
   armyCommitted Int
   armyRemaining Int
+  maintenanceDrains Boolean    @default(true)
   joinedAt      DateTime        @default(now())
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
@@ -691,6 +692,7 @@ model AttackUnit {
   targetFortressId           String
   reinforcementBattlefieldId String?
   reinforcementSide          BattlefieldSide?
+  fortifyTargetTileId        String?
   armyAmount                 Int              @default(1)
   defenderArmyAtBattleStart  Int?
   resolvedAttackPower        Int?
@@ -717,6 +719,7 @@ model AttackUnit {
   reinforcementBattlefield   Battlefield?     @relation("BattlefieldReinforcements", fields: [reinforcementBattlefieldId], references: [id], onDelete: SetNull)
 
   @@index([cycleId, arrivesAt])
+  @@index([fortifyTargetTileId, arrivesAt])
   @@index([cycleId, resolvedAt, cancelledAt, launchedAt], map: "AttackUnit_cycleId_resolvedAt_cancelledAt_launchedAt_idx")
   @@index([reinforcementBattlefieldId, arrivesAt])
   @@index([attackerFortressId, resolvedAt, cancelledAt])
@@ -963,14 +966,15 @@ model FortressGarrison {
   id            String      @id @default(cuid())
   cycleId       String
   fortressId    String
-  battlefieldId String
+  battlefieldId String?
   tileId        String
   army          Int
+  maintenanceDrains Boolean @default(true)
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
   cycle         Cycle       @relation(fields: [cycleId], references: [id], onDelete: Cascade)
   fortress      Fortress    @relation(fields: [fortressId], references: [id], onDelete: Cascade)
-  battlefield   Battlefield @relation(fields: [battlefieldId], references: [id], onDelete: Cascade)
+  battlefield   Battlefield? @relation(fields: [battlefieldId], references: [id], onDelete: Cascade)
 
   @@unique([battlefieldId, fortressId])
   @@index([cycleId, tileId])

@@ -303,6 +303,7 @@ export async function createBattlefieldFromAttackUnit({
       side: BattlefieldSide.ATTACKER,
       armyCommitted: unit.armyAmount,
       armyRemaining: unit.armyAmount,
+      maintenanceDrains: true,
       joinedAt: tickAt,
     },
   });
@@ -622,6 +623,7 @@ export async function processActiveBattlefields({
           side: true,
           armyRemaining: true,
           armyCommitted: true,
+          maintenanceDrains: true,
         },
       },
     },
@@ -910,22 +912,19 @@ export async function processActiveBattlefields({
       }
     }
 
-    if (battlefield.targetFortressId) {
+    if (battlefield.targetFortressId && !isTileBattle) {
       const fortressUpdateData: Prisma.FortressUpdateInput = {
         army: Math.max(0, targetDefenderArmy - outcome.defenderLosses),
       };
 
-      // Only apply gold/food losses for direct fortress battles, not tile battles
-      if (!isTileBattle) {
-        fortressUpdateData.gold = {
-          decrement:
-            winnerSide === BattlefieldSide.ATTACKER ? castleBankGoldLooted : 0,
-        };
-        fortressUpdateData.food = {
-          decrement:
-            winnerSide === BattlefieldSide.ATTACKER ? castleBankFoodLooted : 0,
-        };
-      }
+      fortressUpdateData.gold = {
+        decrement:
+          winnerSide === BattlefieldSide.ATTACKER ? castleBankGoldLooted : 0,
+      };
+      fortressUpdateData.food = {
+        decrement:
+          winnerSide === BattlefieldSide.ATTACKER ? castleBankFoodLooted : 0,
+      };
 
       await db.fortress.update({
         where: {
@@ -935,34 +934,43 @@ export async function processActiveBattlefields({
       });
     }
 
-    if (
-      winnerSide === BattlefieldSide.ATTACKER &&
-      battlefield.targetTileId !== null
-    ) {
-      await db.mapHexOwnership.upsert({
-        where: {
-          cycleId_tileId: {
+    if (battlefield.targetTileId !== null) {
+      if (winnerSide === BattlefieldSide.ATTACKER) {
+        await db.mapHexOwnership.upsert({
+          where: {
+            cycleId_tileId: {
+              cycleId,
+              tileId: battlefield.targetTileId,
+            },
+          },
+          create: {
             cycleId,
             tileId: battlefield.targetTileId,
+            ownerFortressId: battlefield.attackerBannerFortressId,
+            claimedAt: tickAt,
           },
-        },
-        create: {
-          cycleId,
-          tileId: battlefield.targetTileId,
-          ownerFortressId: battlefield.attackerBannerFortressId,
-          claimedAt: tickAt,
-        },
-        update: {
-          ownerFortressId: battlefield.attackerBannerFortressId,
-          claimedAt: tickAt,
-        },
-      });
+          update: {
+            ownerFortressId: battlefield.attackerBannerFortressId,
+            claimedAt: tickAt,
+          },
+        });
+      }
 
-      // Create garrisons for each attacker participant with surviving army
-      for (const participant of attackerParticipants) {
+      const garrisonParticipants =
+        winnerSide === BattlefieldSide.ATTACKER
+          ? attackerParticipants
+          : defenderParticipants;
+      const garrisonLosses =
+        winnerSide === BattlefieldSide.ATTACKER
+          ? attackerParticipantLosses.lossesByParticipantId
+          : defenderParticipantLosses.lossesByParticipantId;
+
+      // Create garrisons for each winning participant with surviving army.
+      for (const participant of garrisonParticipants) {
         const surviving = Math.max(
           0,
-          (participant.armyRemaining ?? 0) - (attackerParticipantLosses.lossesByParticipantId.get(participant.id) ?? 0)
+          (participant.armyRemaining ?? 0) -
+            (garrisonLosses.get(participant.id) ?? 0)
         );
 
         if (surviving > 0) {
@@ -979,17 +987,20 @@ export async function processActiveBattlefields({
               fortressId: participant.fortressId,
               tileId: battlefield.targetTileId,
               army: surviving,
+              maintenanceDrains: participant.maintenanceDrains,
             },
             update: {
               army: {
                 increment: surviving,
               },
+              maintenanceDrains: participant.maintenanceDrains,
             },
           });
         }
       }
 
       if (
+        winnerSide === BattlefieldSide.ATTACKER &&
         battlefield.attackerBannerFortress &&
         isRealOrkPlayerFortress(battlefield.attackerBannerFortress)
       ) {
@@ -1008,7 +1019,10 @@ export async function processActiveBattlefields({
         });
       }
 
-      if (isHomeOfATile(battlefield.targetTileId)) {
+      if (
+        winnerSide === BattlefieldSide.ATTACKER &&
+        isHomeOfATile(battlefield.targetTileId)
+      ) {
         await db.homeOfAHolder.deleteMany({
           where: {
             cycleId,

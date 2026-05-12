@@ -10,6 +10,7 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
     date: "2026-05-12",
     title: "PvP defense and battlefield rewards",
     newFeatures: [
+      "Players can now fortify owned tiles, including Home of A, by sending idle army that travels to the tile and defends it until recalled or killed.",
       "Castle battlefield wins now pay attackers from stolen gold and food in the defender's bank, plus a smaller gold reward based on killed enemy units.",
     ],
     bugFixes: [

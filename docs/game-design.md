@@ -58,6 +58,7 @@
 - Each fortress may run only one active neutral tile claim at a time.
 - Home of A cannot be neutral-claimed; players must fight for the center objective through a battlefield.
 - Owned tiles are contested through battlefield attacks and can transfer ownership when the battlefield resolves.
+- Players can fortify owned tiles, including Home of A after capture, by sending idle army that travels to the tile and becomes a persistent non-decaying garrison until recalled or killed.
 - Temporary map objectives rotate onto normal tiles and add extra point income while active.
 - Players can join an active battlefield as attacker or defender if they have idle army and are not violating same-side/conflicting-side restrictions.
 - Reinforcements are represented by `AttackUnit` rows and now obey the same outbound attack cap as direct attacks.

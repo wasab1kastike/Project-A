@@ -8,6 +8,7 @@ import {
   attackFromMapAction,
   attackMapHexAction,
   claimMapHexAction,
+  fortifyMapHexAction,
   instantRecallAttackUnitAction,
   joinBattlefieldAction,
   markChatReadAction,
@@ -301,6 +302,7 @@ export function BattlefieldExperience({
   >(null);
   const [castleYeetArmed, setCastleYeetArmed] = useState(false);
   const [tileAttackArmy, setTileAttackArmy] = useState(1);
+  const [tileFortifyArmy, setTileFortifyArmy] = useState(1);
   const [battleJoinArmyById, setBattleJoinArmyById] = useState<
     Record<string, number>
   >({});
@@ -553,6 +555,10 @@ export function BattlefieldExperience({
   const clampedTileAttackArmy =
     playerSummary && playerSummary.army > 0
       ? Math.min(Math.max(1, tileAttackArmy), playerSummary.army)
+      : 0;
+  const clampedTileFortifyArmy =
+    playerSummary && playerSummary.army > 0
+      ? Math.min(Math.max(1, tileFortifyArmy), playerSummary.army)
       : 0;
 
   const getCastleYeetValidationError = useCallback(
@@ -808,6 +814,53 @@ export function BattlefieldExperience({
 
     try {
       const result = await attackMapHexAction(tileId, sentArmy);
+
+      if (!result.ok) {
+        window.alert(result.error);
+        return;
+      }
+
+      if (result.launchedAttackUnit) {
+        setOptimisticAttackUnits((currentUnits) => {
+          const nextUnit: AttackUnitMarker = {
+            ...result.launchedAttackUnit,
+            launchedAt: new Date(result.launchedAttackUnit.launchedAt),
+            arrivesAt: new Date(result.launchedAttackUnit.arrivesAt),
+            recalledAt: result.launchedAttackUnit.recalledAt
+              ? new Date(result.launchedAttackUnit.recalledAt)
+              : null,
+          };
+
+          if (currentUnits.some((unit) => unit.id === nextUnit.id)) {
+            return currentUnits;
+          }
+
+          return [...currentUnits, nextUnit];
+        });
+      }
+
+      router.refresh();
+    } finally {
+      setMapActionPending(false);
+    }
+  }
+
+  async function handleFortifyMapHex(tileId: string, armyAmount: number) {
+    if (mapActionPending || !gameplayOpen) {
+      return;
+    }
+
+    const validationError = getAttackValidationError(armyAmount);
+
+    if (validationError) {
+      window.alert(validationError);
+      return;
+    }
+
+    setMapActionPending(true);
+
+    try {
+      const result = await fortifyMapHexAction(tileId, armyAmount);
 
       if (!result.ok) {
         window.alert(result.error);
@@ -1474,6 +1527,53 @@ export function BattlefieldExperience({
               ? homeOfA?.attackDisabledReason
               : selectedOwnership?.attackDisabledReason}
           </p>
+        ) : null}
+
+        {selectedOwnership?.isCurrentUser ? (
+          <>
+            <label className={styles.tileArmyControl}>
+              <span>
+                Fortify: {clampedTileFortifyArmy}/{playerSummary?.army ?? 0}
+              </span>
+              <input
+                type="range"
+                min={1}
+                max={Math.max(1, playerSummary?.army ?? 1)}
+                step={1}
+                value={Math.max(1, clampedTileFortifyArmy)}
+                disabled={!playerSummary || playerSummary.army <= 0}
+                onChange={(event) => {
+                  const nextArmy = Number(event.currentTarget.value);
+                  setTileFortifyArmy(
+                    Number.isFinite(nextArmy) ? Math.floor(nextArmy) : 1
+                  );
+                }}
+              />
+            </label>
+            <button
+              className={styles.secondaryButton}
+              type="button"
+              disabled={
+                mapActionPending ||
+                clampedTileFortifyArmy <= 0 ||
+                !selectedOwnership.canFortify
+              }
+              title={selectedOwnership.fortifyDisabledReason ?? undefined}
+              onClick={() => {
+                void handleFortifyMapHex(
+                  selectedTile.id,
+                  clampedTileFortifyArmy
+                );
+              }}
+            >
+              Fortify with {clampedTileFortifyArmy} army
+            </button>
+            {selectedOwnership.fortifyDisabledReason ? (
+              <p className={styles.helper}>
+                {selectedOwnership.fortifyDisabledReason}
+              </p>
+            ) : null}
+          </>
         ) : null}
       </div>
     </aside>
