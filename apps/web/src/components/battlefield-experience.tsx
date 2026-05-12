@@ -90,6 +90,7 @@ type PlayerFortress = {
 type ActiveBattlefield = {
   id: string;
   targetTileId: string | null;
+  targetFortressId: string | null;
   targetTileBiome: string | null;
   targetTileBonusLabel: string | null;
   targetName: string;
@@ -300,6 +301,9 @@ export function BattlefieldExperience({
   const [selectedBattleTileId, setSelectedBattleTileId] = useState<
     string | null
   >(null);
+  const [selectedBattleFortressId, setSelectedBattleFortressId] = useState<
+    string | null
+  >(null);
   const [castleYeetArmed, setCastleYeetArmed] = useState(false);
   const [tileAttackArmy, setTileAttackArmy] = useState(1);
   const [tileFortifyArmy, setTileFortifyArmy] = useState(1);
@@ -502,14 +506,25 @@ export function BattlefieldExperience({
           (battlefield) => battlefield.targetTileId === selectedTileId
         )?.id ?? null)
       : null);
-  const selectedTileBattlefields = useMemo(
-    () =>
-      selectedBattleTileId
-        ? battlefields.filter(
-            (battlefield) => battlefield.targetTileId === selectedBattleTileId
-          )
-        : [],
-    [battlefields, selectedBattleTileId]
+  const selectedBattlefields = useMemo(
+    () => {
+      if (selectedBattleTileId) {
+        return battlefields.filter(
+          (battlefield) => battlefield.targetTileId === selectedBattleTileId
+        );
+      }
+
+      if (selectedBattleFortressId) {
+        return battlefields.filter(
+          (battlefield) =>
+            battlefield.targetTileId === null &&
+            battlefield.targetFortressId === selectedBattleFortressId
+        );
+      }
+
+      return [];
+    },
+    [battlefields, selectedBattleFortressId, selectedBattleTileId]
   );
   const occupiedFortressTileIds = useMemo(() => {
     return new Set(
@@ -550,6 +565,24 @@ export function BattlefieldExperience({
       return battlefields.some((battlefield) => battlefield.targetTileId === tileId);
     },
     [battlefields, mapHexByTileId]
+  );
+  const activeBattleFortressIds = useMemo(
+    () =>
+      battlefields
+        .filter((battlefield) => battlefield.targetTileId === null)
+        .map((battlefield) => battlefield.targetFortressId)
+        .filter((fortressId): fortressId is string => fortressId !== null),
+    [battlefields]
+  );
+  const hasActiveBattleForFortressId = useCallback(
+    (fortressId: string) => {
+      return battlefields.some(
+        (battlefield) =>
+          battlefield.targetTileId === null &&
+          battlefield.targetFortressId === fortressId
+      );
+    },
+    [battlefields]
   );
   const currentOwnerId = playerFortress?.ownerId ?? null;
   const clampedTileAttackArmy =
@@ -1042,23 +1075,30 @@ export function BattlefieldExperience({
 
       if (!tileId) {
         setSelectedBattleTileId(null);
+        setSelectedBattleFortressId(
+          hasActiveBattleForFortressId(fortress.id) ? fortress.id : null
+        );
         return;
       }
 
       setSelectedTileId(tileId);
       setSelectedBattleTileId(hasActiveBattleForTileId(tileId) ? tileId : null);
+      setSelectedBattleFortressId(
+        hasActiveBattleForFortressId(fortress.id) ? fortress.id : null
+      );
     },
-    [hasActiveBattleForTileId]
+    [hasActiveBattleForFortressId, hasActiveBattleForTileId]
   );
 
   const handleSelectMapHex = useCallback((tileId: string) => {
     setSelectedTileId(tileId);
     setSelectedBattleTileId(hasActiveBattleForTileId(tileId) ? tileId : null);
+    setSelectedBattleFortressId(null);
   }, [hasActiveBattleForTileId]);
 
   useEffect(() => {
     if (!playerSummary?.canShuffleLocation || !gameplayOpen) {
-      setCastleYeetArmed(false);
+      queueMicrotask(() => setCastleYeetArmed(false));
     }
   }, [gameplayOpen, playerSummary?.canShuffleLocation]);
 
@@ -1068,9 +1108,19 @@ export function BattlefieldExperience({
     }
 
     if (!hasActiveBattleForTileId(selectedBattleTileId)) {
-      setSelectedBattleTileId(null);
+      queueMicrotask(() => setSelectedBattleTileId(null));
     }
   }, [hasActiveBattleForTileId, selectedBattleTileId]);
+
+  useEffect(() => {
+    if (!selectedBattleFortressId) {
+      return;
+    }
+
+    if (!hasActiveBattleForFortressId(selectedBattleFortressId)) {
+      queueMicrotask(() => setSelectedBattleFortressId(null));
+    }
+  }, [hasActiveBattleForFortressId, selectedBattleFortressId]);
 
   const actionButtons = (
     <div
@@ -1580,16 +1630,16 @@ export function BattlefieldExperience({
   ) : null;
 
   const battlefieldsPanel =
-    selectedTileBattlefields.length > 0 ? (
+    selectedBattlefields.length > 0 ? (
       <aside className={styles.battlefieldPanel} aria-label="Active battles">
-        {selectedTileBattlefields.length > 0 ? (
+        {selectedBattlefields.length > 0 ? (
           <>
             <div className={styles.sectionHeading}>
               <span className={styles.label}>Battles</span>
-              <strong>{selectedTileBattlefields.length}</strong>
+              <strong>{selectedBattlefields.length}</strong>
             </div>
             <div className={styles.battlefieldList}>
-              {selectedTileBattlefields.slice(0, 4).map((battlefield) => {
+              {selectedBattlefields.slice(0, 4).map((battlefield) => {
                 const currentSide =
                   battlefield.currentUserSide === "ATTACKER"
                     ? "Joined attack"
@@ -1960,6 +2010,7 @@ export function BattlefieldExperience({
           selectedFortressId={selectedFortressId}
           selectedTargetId={selectedTargetId}
           selectedTileId={selectedTileId}
+          activeBattleFortressIds={activeBattleFortressIds}
           highlightedTileIds={castleYeetTargetTileIds}
           onSelectFortress={handleSelectFortress}
           onConfirmAttackTarget={handleConfirmAttackTarget}

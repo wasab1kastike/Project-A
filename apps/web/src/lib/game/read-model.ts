@@ -779,6 +779,7 @@ export async function getHomePageState({
         select: {
           id: true,
           targetTileId: true,
+          targetFortressId: true,
           progress: true,
           attackerArmyRemaining: true,
           defenderArmyRemaining: true,
@@ -3058,6 +3059,7 @@ export async function getHomePageState({
       return {
         id: battlefield.id,
         targetTileId: battlefield.targetTileId,
+        targetFortressId: battlefield.targetFortressId,
         targetTileBiome: targetTile?.biome ?? null,
         targetTileBonusLabel: targetTileBonus?.label ?? null,
         targetName:

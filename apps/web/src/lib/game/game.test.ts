@@ -1270,6 +1270,7 @@ test("direct player castle attack creates a visible battlefield before arrival",
   );
 
   assert.ok(defenderBattlefield);
+  assert.equal(defenderBattlefield.targetFortressId, defenderFortress.id);
   assert.equal(defenderBattlefield.canJoinDefender, true);
   assert.equal(defenderBattlefield.targetName, "Shield Keep");
   assert.equal(defenderBattlefield.incomingReinforcements.length, 1);
@@ -1278,6 +1279,7 @@ test("direct player castle attack creates a visible battlefield before arrival",
     BattlefieldSide.ATTACKER
   );
   assert.ok(allyBattlefield);
+  assert.equal(allyBattlefield.targetFortressId, defenderFortress.id);
   assert.equal(allyBattlefield.canJoinDefender, true);
 
   await runGameTick({

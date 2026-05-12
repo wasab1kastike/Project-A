@@ -193,6 +193,7 @@ type FortressMapProps = {
   selectedFortressId?: string | null;
   selectedTargetId?: string | null;
   selectedTileId?: string | null;
+  activeBattleFortressIds?: string[];
   highlightedTileIds?: string[];
   onSelectFortress?: (fortress: MapFortress) => void;
   onConfirmAttackTarget?: (
@@ -590,7 +591,7 @@ function AttackUnitsLayer({
       return;
     }
 
-    setNowMs(Date.now());
+    queueMicrotask(() => setNowMs(Date.now()));
 
     const interval = window.setInterval(() => {
       setNowMs(Date.now());
@@ -752,6 +753,7 @@ export const FortressMap = memo(function FortressMap({
   selectedFortressId,
   selectedTargetId,
   selectedTileId,
+  activeBattleFortressIds = [],
   highlightedTileIds = [],
   onSelectFortress,
   onConfirmAttackTarget,
@@ -765,6 +767,10 @@ export const FortressMap = memo(function FortressMap({
   const userAdjustedViewRef = useRef(false);
   const pointerCacheRef = useRef<Map<number, Point>>(new Map());
   const markerTapStateRef = useRef<MarkerTapState | null>(null);
+  const activeBattleFortressIdSet = useMemo(
+    () => new Set(activeBattleFortressIds),
+    [activeBattleFortressIds]
+  );
   const pinchStateRef = useRef<{
     startScale: number;
     startTranslateX: number;
@@ -1329,6 +1335,8 @@ export const FortressMap = memo(function FortressMap({
                 (Boolean(onSelectFortress) && fortress.isCurrentUser) ||
                 (Boolean(onSelectFortress) &&
                   fortress.fortressKind === "MEGA") ||
+                (Boolean(onSelectFortress) &&
+                  activeBattleFortressIdSet.has(fortress.id)) ||
                 (Boolean(onConfirmAttackTarget) && fortress.isTargetable);
               const variant = getSpriteVariant(fortress);
               const isMega = fortress.fortressKind === "MEGA";

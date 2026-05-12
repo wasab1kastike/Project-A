@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-05-12
+- Change: Fixed direct PvP castle battle selection so active castle-targeted battlefields open from the attacked castle marker.
+- User impact: Players can now see ongoing castle PvP battles and join attacker or defender reinforcements from the battlefield card.
+
 ## 2026-05-09
 - Change: Added starvation attrition for active army upkeep. If a player cannot pay the rounded food upkeep, food drops to zero and active home army loses 2% that tick.
 - User impact: Oversized standing armies now shrink under food shortages, while queued units and newly completed same-tick recruits remain exempt until they become active for future upkeep checks.
