@@ -30,6 +30,7 @@ import {
   getRaceBuffTier,
   getHelsinkiDayKey,
   getHelsinkiHourKey,
+  getRaceTierTileCount,
   getUnicornShatteredRealityAvailability,
   getUnicornTeleportClaimAvailability,
 } from "./race-buffs";
@@ -371,6 +372,10 @@ export async function getCastlePageState({
         .map((ownership) => getTileById(ownership.tileId)?.biome ?? null)
         .filter((biome): biome is NonNullable<typeof biome> => biome !== null)
     : [];
+  const playerOwnedTileCount = getRaceTierTileCount({
+    race: playerFortress?.race,
+    ownedTileBiomes: playerOwnedTileBiomes,
+  });
 
   const raceBuffTier = getRaceBuffTier({
     activeStartedAt: cycle.activeStartedAt,
@@ -631,6 +636,7 @@ export async function getCastlePageState({
     pointIncome: ownedTileBonuses.points,
     foodIncome: ownedTileBonuses.food,
     armyIncome: ownedTileBonuses.army,
+    workerPoolBonus: ownedTileBonuses.population,
     defenseBonusPercent: ownedTileBonuses.defensePercent,
   };
 
@@ -710,7 +716,7 @@ export async function getCastlePageState({
           population: getFortressPopulation(
             playerFortress.level,
             getEffectiveRace(playerFortress)
-          ),
+          ) + ownedTileSummary.workerPoolBonus,
           defenseMultiplier: getFortressDefenseMultiplier(
             playerFortress.level,
             getEffectiveRace(playerFortress),
@@ -805,6 +811,7 @@ export async function getCastlePageState({
             : null,
           raceBuffs: {
             tier: raceBuffTier,
+            matchingTileCount: playerOwnedTileCount,
             canActivateWaaagh:
               playerFortress.race === "ORKS" &&
               raceBuffTier >= 2 &&

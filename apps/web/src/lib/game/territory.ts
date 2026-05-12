@@ -13,6 +13,7 @@ export type TileBonus = {
   points: number;
   food: number;
   army: number;
+  population: number;
   defensePercent: number;
   label: string;
 };
@@ -46,6 +47,7 @@ const EMPTY_BONUS: TileBonus = {
   points: 0,
   food: 0,
   army: 0,
+  population: 0,
   defensePercent: 0,
   label: "No bonus",
 };
@@ -56,6 +58,7 @@ const BIOME_BONUSES: Record<HexBiome, TileBonus> = {
     points: 0,
     food: 6,
     army: 0,
+    population: 0,
     defensePercent: 0,
     label: "+3 gold, +6 food / tick",
   },
@@ -64,14 +67,16 @@ const BIOME_BONUSES: Record<HexBiome, TileBonus> = {
     points: 0,
     food: 2,
     army: 0,
+    population: 1,
     defensePercent: 0,
-    label: "+2 gold, +2 food / tick",
+    label: "+2 gold, +2 food / tick, +1 worker pool",
   },
   mountains: {
     gold: 4,
     points: 0,
     food: 1,
     army: 0,
+    population: 0,
     defensePercent: 3,
     label: "+4 gold, +1 food / tick, +3% defense",
   },
@@ -80,6 +85,7 @@ const BIOME_BONUSES: Record<HexBiome, TileBonus> = {
     points: 0,
     food: 2,
     army: 0,
+    population: 0,
     defensePercent: 0,
     label: "+1 gold, +2 food / tick",
   },
@@ -88,6 +94,7 @@ const BIOME_BONUSES: Record<HexBiome, TileBonus> = {
     points: 0,
     food: 2,
     army: 0,
+    population: 0,
     defensePercent: 1,
     label: "+1 gold, +2 food / tick, +1% defense",
   },
@@ -96,6 +103,7 @@ const BIOME_BONUSES: Record<HexBiome, TileBonus> = {
     points: 0,
     food: 0,
     army: 0,
+    population: 0,
     defensePercent: 1,
     label: "+3 gold / tick, +1% defense",
   },
@@ -104,6 +112,7 @@ const BIOME_BONUSES: Record<HexBiome, TileBonus> = {
     points: 0,
     food: 1,
     army: 0,
+    population: 0,
     defensePercent: 0,
     label: "+2 gold, +1 food / tick",
   },
@@ -112,6 +121,7 @@ const BIOME_BONUSES: Record<HexBiome, TileBonus> = {
     points: 0,
     food: 3,
     army: 1,
+    population: 0,
     defensePercent: 0,
     label: "+1 gold, +3 food, +1 army / tick",
   },
@@ -143,6 +153,7 @@ function formatBonusLabel({
   points,
   food,
   army,
+  population,
   defensePercent,
 }: Omit<TileBonus, "label">) {
   const incomeParts: string[] = [];
@@ -165,6 +176,7 @@ function formatBonusLabel({
 
   const effectParts = [
     incomeParts.length > 0 ? `${incomeParts.join(", ")} / tick` : null,
+    population > 0 ? `+${population} worker pool` : null,
     defensePercent > 0 ? `+${defensePercent}% defense` : null,
   ].filter((part): part is string => part !== null);
 
@@ -177,6 +189,7 @@ function combineTileBonuses(base: TileBonus, extra: Omit<TileBonus, "label">): T
     points: base.points + extra.points,
     food: base.food + extra.food,
     army: base.army + extra.army,
+    population: base.population + extra.population,
     defensePercent: base.defensePercent + extra.defensePercent,
   };
 
@@ -376,6 +389,7 @@ export function getTileBonus(
     points: objective.points,
     food: 0,
     army: 0,
+    population: 0,
     defensePercent: 0,
   });
 
@@ -395,6 +409,7 @@ export function getHomeOfABonus(): TileBonus {
     points: HOME_OF_A_POINT_INCOME,
     food: 0,
     army: 0,
+    population: 0,
     defensePercent: 0,
     label: `Home of A control: +${HOME_OF_A_POINT_INCOME} points / tick, -${HOME_OF_A_ARMY_DRAIN_PER_TICK} army / tick for each holder`,
   };
@@ -452,6 +467,7 @@ export function sumTileBonuses(
         points: total.points + bonus.points,
         food: total.food + bonus.food,
         army: total.army + bonus.army,
+        population: total.population + bonus.population,
         defensePercent: total.defensePercent + bonus.defensePercent,
       };
     },
@@ -460,6 +476,7 @@ export function sumTileBonuses(
       points: 0,
       food: 0,
       army: 0,
+      population: 0,
       defensePercent: 0,
     }
   );

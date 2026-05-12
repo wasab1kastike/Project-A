@@ -19,13 +19,17 @@ export const RACE_TIER_BIOMES: Record<FortressRace, readonly HexBiome[]> = {
   UNSTABLE_UNICORNS: ["marsh", "forest"],
 };
 
-function getRaceTierTileCount({
+export function getRaceTierTileCount({
   race,
   ownedTileBiomes,
 }: {
-  race: FortressRace;
+  race: FortressRace | null | undefined;
   ownedTileBiomes: readonly HexBiome[];
 }) {
+  if (!race) {
+    return 0;
+  }
+
   const requiredBiomes = new Set(RACE_TIER_BIOMES[race]);
 
   return ownedTileBiomes.filter((biome) => requiredBiomes.has(biome)).length;

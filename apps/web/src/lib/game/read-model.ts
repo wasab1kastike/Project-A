@@ -2151,6 +2151,7 @@ export async function getHomePageState({
     pointIncome: ownedTileBonuses.points,
     foodIncome: ownedTileBonuses.food,
     armyIncome: ownedTileBonuses.army,
+    workerPoolBonus: ownedTileBonuses.population,
     defenseBonusPercent: ownedTileBonuses.defensePercent,
   };
   const getPendingClaimPayload = (tileId: string) => {
@@ -2593,10 +2594,11 @@ export async function getHomePageState({
           gold: playerFortress.gold,
           level: playerFortress.level,
           displayedCastleLevel: getDisplayedCastleLevel(playerFortress.level),
-          population: getFortressPopulation(
-            playerFortress.level,
-            getEffectiveRace(playerFortress)
-          ),
+          population:
+            getFortressPopulation(
+              playerFortress.level,
+              getEffectiveRace(playerFortress)
+            ) + ownedTileSummary.workerPoolBonus,
           defenseMultiplier: getFortressDefenseMultiplier(
             playerFortress.level,
             getEffectiveRace(playerFortress),
@@ -2638,10 +2640,11 @@ export async function getHomePageState({
           gold: playerFortress.gold,
           level: playerFortress.level,
           displayedCastleLevel: getDisplayedCastleLevel(playerFortress.level),
-          population: getFortressPopulation(
-            playerFortress.level,
-            getEffectiveRace(playerFortress)
-          ),
+          population:
+            getFortressPopulation(
+              playerFortress.level,
+              getEffectiveRace(playerFortress)
+            ) + ownedTileSummary.workerPoolBonus,
           defenseMultiplier: getFortressDefenseMultiplier(
             playerFortress.level,
             getEffectiveRace(playerFortress),

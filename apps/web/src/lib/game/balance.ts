@@ -87,6 +87,7 @@ export const MAX_FOOD_LOOT_PERCENT = 0.7;
 export type WorkerAssignmentLike = {
   level: number;
   race?: FortressRace | null;
+  extraPopulation?: number;
   castleSpecializations?: Partial<CastleSpecializationCounts>;
   minersAssigned: number;
   farmersAssigned: number;
@@ -338,7 +339,9 @@ export function getEffectiveDefendingArmy(
  * current population, and total assigned workers.
  */
 export function validateWorkerAssignments(input: WorkerAssignmentLike) {
-  const population = getFortressPopulation(input.level, input.race);
+  const basePopulation = getFortressPopulation(input.level, input.race);
+  const extraPopulation = Math.max(0, input.extraPopulation ?? 0);
+  const population = basePopulation + extraPopulation;
   const totalAssigned =
     input.minersAssigned + input.farmersAssigned + input.recruitersAssigned;
   const isValid =

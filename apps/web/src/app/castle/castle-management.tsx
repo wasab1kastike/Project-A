@@ -40,6 +40,7 @@ import {
   isFortressRace,
   type FortressRace,
 } from "@/lib/game/races";
+import { RACE_TIER_TILE_THRESHOLDS } from "@/lib/game/race-buffs";
 import { convertGoldToPoints, getGoldToPointsRatio } from "@/lib/game/currency";
 import { getBuildingUpgradeComparison } from "@/lib/game/specializations";
 import styles from "./page.module.css";
@@ -113,6 +114,7 @@ type PlayerSummary = {
   } | null;
   raceBuffs: {
     tier: number;
+    matchingTileCount: number;
     canActivateWaaagh: boolean;
     waaaghActiveUntil: Date | null;
     orkScrap: number;
@@ -213,6 +215,7 @@ type PlayerSummary = {
     pointIncome: number;
     foodIncome: number;
     armyIncome: number;
+    workerPoolBonus: number;
     defenseBonusPercent: number;
   };
   growPerTick: number;
@@ -562,6 +565,7 @@ export function CastleManagement({
   const validation = validateWorkerAssignments({
     level: playerSummary.level,
     race: playerSummary.race as never,
+    extraPopulation: playerSummary.ownedTileSummary.workerPoolBonus,
     ...workers,
   });
   const assigned =
@@ -843,6 +847,10 @@ export function CastleManagement({
           <div>
             <dt>Army/tick</dt>
             <dd>+{playerSummary.ownedTileSummary.armyIncome}</dd>
+          </div>
+          <div>
+            <dt>Worker pool</dt>
+            <dd>+{playerSummary.ownedTileSummary.workerPoolBonus}</dd>
           </div>
           <div>
             <dt>Defense</dt>
@@ -1380,7 +1388,11 @@ export function CastleManagement({
                   <div className={styles.buildingCardHeader}>
                     <strong>Rune of Grudges</strong>
                     <span>
-                      {playerSummary.dwarfRuneOfGrudges ? "Active" : "Ready"}
+                      {playerSummary.dwarfRuneOfGrudges
+                        ? "Active"
+                        : playerSummary.raceBuffs.canActivateRuneOfGrudges
+                          ? "Ready"
+                          : `Locked: Tier ${playerSummary.raceBuffs.tier}`}
                     </span>
                   </div>
                   {playerSummary.dwarfRuneOfGrudges ? (
@@ -1412,6 +1424,13 @@ export function CastleManagement({
                       action={activateDwarfRuneOfGrudgesFormAction}
                       className={styles.form}
                     >
+                      <p className={styles.muted}>
+                        Current race tier: {playerSummary.raceBuffs.tier}. You
+                        control {playerSummary.raceBuffs.matchingTileCount}{" "}
+                        mountain tiles. Rune of Grudges unlocks at Tier 2 ({
+                          RACE_TIER_TILE_THRESHOLDS.tier2
+                        } mountains).
+                      </p>
                       <label>
                         Target fortress
                         <select name="targetFortressId" required>
