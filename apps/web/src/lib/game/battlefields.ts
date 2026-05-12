@@ -382,6 +382,19 @@ export async function joinBattlefield({
             race: true,
           },
         },
+        attackerBannerFortress: {
+          select: {
+            id: true,
+            ownerId: true,
+            points: true,
+            gold: true,
+            army: true,
+            level: true,
+            mapX: true,
+            mapY: true,
+            race: true,
+          },
+        },
       },
     });
 
@@ -501,8 +514,12 @@ export async function joinBattlefield({
               : null;
           })()
       : null;
+    const travelTargetFortress =
+      tilePosition && battlefield.targetFortress.id === fortress.id
+        ? battlefield.attackerBannerFortress
+        : battlefield.targetFortress;
     const reinforcementTarget = tilePosition
-      ? { ...battlefield.targetFortress, ...tilePosition }
+      ? { ...travelTargetFortress, ...tilePosition }
       : battlefield.targetFortress;
 
     const launchedUnit = await launchAttackUnit({

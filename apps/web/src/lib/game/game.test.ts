@@ -1783,6 +1783,96 @@ test("other players can reinforce tile defense", async (context) => {
   );
 });
 
+test("tile owners can reinforce their own tile defense", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const attacker = await createUser(
+    prisma,
+    "own-tile-def-attacker@example.com"
+  );
+  const defender = await createUser(
+    prisma,
+    "own-tile-def-owner@example.com"
+  );
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: attacker.id,
+      commanderName: "Owner Tile Raider",
+      fortressName: "Raider Hold",
+      points: 100,
+    },
+    {
+      userId: defender.id,
+      commanderName: "Owner Tile Guard",
+      fortressName: "Guard Hold",
+      points: 100,
+    },
+  ]);
+  const [attackerFortress, defenderFortress] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: {
+        cycleId_ownerId: { cycleId: cycle.id, ownerId: attacker.id },
+      },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: {
+        cycleId_ownerId: { cycleId: cycle.id, ownerId: defender.id },
+      },
+    }),
+  ]);
+  const tile = HEX_SPAWN_TILES.find((candidate) => candidate.spawnable);
+
+  assert.ok(tile);
+
+  await prisma.fortress.updateMany({
+    where: {
+      id: {
+        in: [attackerFortress.id, defenderFortress.id],
+      },
+    },
+    data: {
+      race: FortressRace.DWARFS,
+      army: 20,
+    },
+  });
+  await prisma.mapHexOwnership.create({
+    data: {
+      cycleId: cycle.id,
+      tileId: tile.id,
+      ownerFortressId: defenderFortress.id,
+    },
+  });
+
+  const battlefield = await prisma.battlefield.create({
+    data: {
+      cycleId: cycle.id,
+      targetFortressId: defenderFortress.id,
+      targetTileId: tile.id,
+      attackerBannerFortressId: attackerFortress.id,
+      defenderBannerFortressId: defenderFortress.id,
+      startedAt: new Date("2026-04-20T12:01:00.000Z"),
+    },
+  });
+
+  const launchedUnit = await joinBattlefield({
+    userId: defender.id,
+    battlefieldId: battlefield.id,
+    side: BattlefieldSide.DEFENDER,
+    armyAmount: 5,
+    now: new Date("2026-04-20T12:02:00.000Z"),
+    db: prisma,
+  });
+
+  assert.equal(launchedUnit.reinforcementSide, BattlefieldSide.DEFENDER);
+  assert.equal(launchedUnit.reinforcementBattlefieldId, battlefield.id);
+  assert.equal(launchedUnit.attackerFortressId, defenderFortress.id);
+  assert.equal(launchedUnit.targetFortressId, attackerFortress.id);
+});
+
 test("neutral Home of A accepts defender reinforcements and lets them recall", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
