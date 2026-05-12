@@ -585,7 +585,7 @@ export async function getCastlePageState({
           activation.kind === RaceAbilityKind.DWARF_RUNE_GRUDGES &&
           activation.consumedAt === null &&
           activation.activeUntil > now
-      )
+      ) ?? null
     : null;
   const latestDwarfDeepMiningRoll = playerFortress?.deepMiningRolls[0] ?? null;
   const currentDayKey = getHelsinkiDayKey(now);
