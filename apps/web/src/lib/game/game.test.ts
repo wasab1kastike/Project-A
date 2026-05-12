@@ -1670,6 +1670,85 @@ test("other players can reinforce castle defense", async (context) => {
   );
 });
 
+test("castle owners can reinforce their own castle defense", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const attacker = await createUser(
+    prisma,
+    "own-castle-def-attacker@example.com"
+  );
+  const defender = await createUser(
+    prisma,
+    "own-castle-def-owner@example.com"
+  );
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: attacker.id,
+      commanderName: "Castle Raider",
+      fortressName: "Raid Hall",
+      points: 100,
+    },
+    {
+      userId: defender.id,
+      commanderName: "Castle Guard",
+      fortressName: "Guard Hall",
+      points: 100,
+    },
+  ]);
+  const [attackerFortress, defenderFortress] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: {
+        cycleId_ownerId: { cycleId: cycle.id, ownerId: attacker.id },
+      },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: {
+        cycleId_ownerId: { cycleId: cycle.id, ownerId: defender.id },
+      },
+    }),
+  ]);
+
+  await prisma.fortress.updateMany({
+    where: {
+      id: {
+        in: [attackerFortress.id, defenderFortress.id],
+      },
+    },
+    data: {
+      race: FortressRace.DWARFS,
+      army: 20,
+    },
+  });
+
+  const battlefield = await prisma.battlefield.create({
+    data: {
+      cycleId: cycle.id,
+      targetFortressId: defenderFortress.id,
+      attackerBannerFortressId: attackerFortress.id,
+      defenderBannerFortressId: defenderFortress.id,
+      startedAt: new Date("2026-04-20T12:01:00.000Z"),
+    },
+  });
+
+  const launchedUnit = await joinBattlefield({
+    userId: defender.id,
+    battlefieldId: battlefield.id,
+    side: BattlefieldSide.DEFENDER,
+    armyAmount: 5,
+    now: new Date("2026-04-20T12:02:00.000Z"),
+    db: prisma,
+  });
+
+  assert.equal(launchedUnit.reinforcementSide, BattlefieldSide.DEFENDER);
+  assert.equal(launchedUnit.reinforcementBattlefieldId, battlefield.id);
+  assert.equal(launchedUnit.attackerFortressId, defenderFortress.id);
+  assert.equal(launchedUnit.targetFortressId, attackerFortress.id);
+});
+
 test("other players can reinforce tile defense", async (context) => {
   const prisma = getPrismaOrSkip(context);
 

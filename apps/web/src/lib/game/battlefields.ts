@@ -514,13 +514,18 @@ export async function joinBattlefield({
               : null;
           })()
       : null;
+    const targetPosition = tilePosition ?? {
+      mapX: battlefield.targetFortress.mapX,
+      mapY: battlefield.targetFortress.mapY,
+    };
     const travelTargetFortress =
-      tilePosition && battlefield.targetFortress.id === fortress.id
+      battlefield.targetFortress.id === fortress.id
         ? battlefield.attackerBannerFortress
         : battlefield.targetFortress;
-    const reinforcementTarget = tilePosition
-      ? { ...travelTargetFortress, ...tilePosition }
-      : battlefield.targetFortress;
+    const reinforcementTarget = {
+      ...travelTargetFortress,
+      ...targetPosition,
+    };
 
     const launchedUnit = await launchAttackUnit({
       db: tx,
