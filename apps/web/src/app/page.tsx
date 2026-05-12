@@ -33,9 +33,15 @@ export const dynamic = "force-dynamic";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
-const HOMEPAGE_DATA_TIMEOUT_MS = Number(
-  process.env.HOMEPAGE_DATA_TIMEOUT_MS ?? 1_500
+const DEFAULT_HOMEPAGE_DATA_TIMEOUT_MS = 8_000;
+const configuredHomepageDataTimeoutMs = Number(
+  process.env.HOMEPAGE_DATA_TIMEOUT_MS
 );
+const HOMEPAGE_DATA_TIMEOUT_MS =
+  Number.isFinite(configuredHomepageDataTimeoutMs) &&
+  configuredHomepageDataTimeoutMs > 0
+    ? configuredHomepageDataTimeoutMs
+    : DEFAULT_HOMEPAGE_DATA_TIMEOUT_MS;
 
 const dateTimeFormatter = new Intl.DateTimeFormat("en-US", {
   dateStyle: "medium",
