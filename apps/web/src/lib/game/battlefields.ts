@@ -965,7 +965,8 @@ export async function processActiveBattlefields({
       battlefield.targetTileId !== null &&
       isHomeOfATile(battlefield.targetTileId) &&
       battlefield.defenderBannerFortressId &&
-      battlefield.targetFortressId
+      battlefield.targetFortressId &&
+      winnerSide === BattlefieldSide.ATTACKER
     ) {
       const defenderArmyLosses =
         defenderParticipantLosses.appliedLosses +
