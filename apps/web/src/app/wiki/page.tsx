@@ -53,21 +53,21 @@ import {
 
 const RACE_ABILITY_NOTES: Record<string, readonly string[]> = {
   DWARFS: [
-    "Tier 2+: Grudge Book unlocks. Pick or replace one enemy fortress and gain +25% attack and defense against that target in direct combat and tile battles.",
-    "Tier 3: Add a second grudge target or double your first target for a total x1.5 grudge multiplier against that one enemy.",
+    "Tier 1 (3 mountains): Grudge Book unlocks. Pick or replace one enemy fortress and gain +25% attack and defense against that target in direct combat and tile battles.",
+    "Tier 2 (6 mountains): Add a second grudge target or double your first target for a total x1.5 grudge multiplier against that one enemy.",
     "Deep Mining: once per Helsinki hour during active season. Commit 150-600 gold, then wait 10/20/30 minutes based on commitment size. Roll table favors gold, food, recruitment bursts, combat surge, army gains/losses, production halts, and partial gold loss. Rune suppression no longer comes from Deep Mining.",
-    "Rune of Grudges: Tier 3 active ability. Pay 250 gold upfront and 25 gold per tick upkeep for up to 6 hours to raise an attackable Dwarf rune that suppresses a single enemy fortress until the rune dies or upkeep fails.",
+    "Rune of Grudges: Tier 2 active ability (6 mountains). Pay 250 gold upfront and 25 gold per tick upkeep for up to 6 hours to raise an attackable Dwarf rune that suppresses a single enemy fortress until the rune dies or upkeep fails.",
   ],
   UNSTABLE_UNICORNS: [
     "Tier 1: Enemies cannot see your army size while your units are in transit.",
-    "Tier 1+: Faster attack travel from Unicorn speed tech.",
-    "Tier 2+: Claim one free teleport token per hour.",
-    "Tier 3: Shattered Reality unlocks once per Helsinki day and rolls a random omen that can surge, scatter, or backfire armies.",
+    "Tier 1+ (3 marsh/forest): Faster attack travel from Unicorn speed tech.",
+    "Tier 1+ (3 marsh/forest): Claim one free teleport token per hour.",
+    "Tier 2 (6 marsh/forest): Shattered Reality unlocks once per Helsinki day and rolls a random omen that can surge, scatter, or backfire armies.",
     "Using a free teleport leaves attackable decoy castles behind. For other players, decoys look like normal player fortresses. Decoys collapse when hit and can destroy part of the attacking army.",
   ],
   SPACE_MURINES: [
-    "Tier 2+: STIM unlocks (1 hour, once per Helsinki day). During STIM, your outgoing attacks keep all sent troops and attacks against you cause no defender losses.",
-    "Tier 3+: First Instant Recall each Helsinki hour returns immediately, losing 5% of sent troops, minimum 1.",
+    "Tier 1+ (3 sea/coast): STIM unlocks (1 hour, once per Helsinki day). During STIM, your outgoing attacks keep all sent troops and attacks against you cause no defender losses.",
+    "Tier 2+ (6 sea/coast): First Instant Recall each Helsinki hour returns immediately, losing 5% of sent troops, minimum 1.",
     `Attack slots scale as ${MAX_SIMULTANEOUS_ATTACKS_BASE} + 2 x castle level.`,
   ],
   ORKS: [
@@ -75,10 +75,18 @@ const RACE_ABILITY_NOTES: Record<string, readonly string[]> = {
     "Boss Orders: spend Scrap and gold on one active short-term order at a time: More Dakka, Loot Wagons, or Patch Da Fort.",
     "Scrap-Fueled WAAAGH: while WAAAGH is active, spend Scrap once per investment to extend it, boost attack power, or improve Stronger Together.",
     "Tier 1: Stronger Together — 15% of killed defenders join your idle army after each successful raid.",
-    "Tier 3+: WAAAGH unlocks (once per day, lasts 1 hour) — x4 attack and defense power, 2x movement speed.",
+    "Tier 2+ (6 plains/lake): WAAAGH unlocks (once per day, lasts 1 hour) — x4 attack and defense power, 2x movement speed.",
     "Passive economy/combat identity: +6 carry capacity per surviving attacker, +1 army per 10 recruiters.",
   ],
 };
+
+const RACE_TIER_PATH = [
+  "Tier 0: before active season starts or before controlling enough race tiles.",
+  "Tier 1: control 3 race-biome tiles.",
+  "Tier 2: control 6 race-biome tiles.",
+  "Tier 3: control 9 race-biome tiles.",
+  "Race biomes: Dwarfs mountains, ORKS plains/lake, Space Murines sea/coast, Unicorns marsh/forest.",
+] as const;
 
 const CASTLE_SPECIALIZATIONS = [
   "Mine: +10% gold production per pick.",
@@ -89,9 +97,9 @@ const CASTLE_SPECIALIZATIONS = [
 
 const ATTACK_MULTIPLIERS = [
   "Base PvP/PvE battle power: sent army x 1.",
-  "ORKS WAAAGH (T3): x4 attack and defense power, 2x movement speed while active. Scrap can extend or intensify a current WAAAGH.",
+  "ORKS WAAAGH (T2): x4 attack and defense power, 2x movement speed while active. Scrap can extend or intensify a current WAAAGH.",
   "Dwarf Grudge Book: x1.25 attack power against the chosen target.",
-  "Dwarf tier 3 doubled grudge: x1.5 attack power against that target.",
+  "Dwarf tier 2 doubled grudge: x1.5 attack power against that target.",
 ] as const;
 
 const PVP_FORMULAS = [
@@ -503,6 +511,11 @@ export default function WikiPage() {
             defines your passive economy/combat profile plus tier-based race
             actions.
           </p>
+          <ul className={styles.noteList}>
+            {RACE_TIER_PATH.map((entry) => (
+              <li key={entry}>{entry}</li>
+            ))}
+          </ul>
           <div className={styles.raceGrid}>
             {RACE_DEFINITIONS.map((race) => (
               <section className={styles.raceCard} key={race.key}>

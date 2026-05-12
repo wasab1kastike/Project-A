@@ -1251,11 +1251,6 @@ async function processCycleTick(
     cycle.status === CycleStatus.TESTING
       ? cycle.testingStartedAt!
       : cycle.activeStartedAt!;
-  const raceBuffTier = getRaceBuffTier({
-    activeStartedAt: cycle.activeStartedAt,
-    now: tickAt,
-    isActiveSeason: cycle.status === CycleStatus.ACTIVE,
-  });
 
   await ensureActiveCycleMegaFortress({
     db: db,
@@ -1446,6 +1441,32 @@ async function processCycleTick(
       },
     },
   });
+  const mapHexOwnerships = await db.mapHexOwnership.findMany({
+    where: {
+      cycleId,
+    },
+    select: {
+      ownerFortressId: true,
+      tileId: true,
+    },
+  });
+  const ownedBiomeLookup = new Map<string, Array<"water" | "coast" | "plains" | "forest" | "hills" | "mountains" | "marsh" | "lake">>();
+
+  for (const ownership of mapHexOwnerships) {
+    if (isHomeOfATile(ownership.tileId)) {
+      continue;
+    }
+
+    const biome = getTileById(ownership.tileId)?.biome;
+
+    if (!biome) {
+      continue;
+    }
+
+    const ownedBiomes = ownedBiomeLookup.get(ownership.ownerFortressId) ?? [];
+    ownedBiomes.push(biome);
+    ownedBiomeLookup.set(ownership.ownerFortressId, ownedBiomes);
+  }
   const activeRuneSuppressions = await db.raceAbilityActivation.findMany({
     where: {
       kind: RaceAbilityKind.DWARF_RUNE_GRUDGES,
@@ -1562,9 +1583,17 @@ async function processCycleTick(
     getRaceModifiers(fortress.race).travelSpeedMultiplier;
   const getOrkSpeedMultiplier = (fortress: (typeof fortresses)[number]) =>
     getOrkBossOrderSpeedMultiplier(fortress.orkBossOrders, tickAt);
+  const getFortressRaceBuffTier = (fortress: (typeof fortresses)[number]) =>
+    getRaceBuffTier({
+      activeStartedAt: cycle.activeStartedAt,
+      now: tickAt,
+      isActiveSeason: cycle.status === CycleStatus.ACTIVE,
+      race: getEffectiveRace(fortress),
+      ownedTileBiomes: ownedBiomeLookup.get(fortress.id) ?? [],
+    });
   const getOrkWaaghActive = (fortress: (typeof fortresses)[number]) =>
     getEffectiveRace(fortress) === "ORKS" &&
-    raceBuffTier >= 3 &&
+    getFortressRaceBuffTier(fortress) >= 2 &&
     isRaceAbilityActive(
       fortress.raceAbilityActivations,
       RaceAbilityKind.ORK_WAAAGH,
@@ -2020,7 +2049,7 @@ async function processCycleTick(
               mapY: targetAttacker.mapY,
             },
             attackerRace: getEffectiveRace(targetAttacker),
-            raceBuffTier,
+            raceBuffTier: getFortressRaceBuffTier(targetAttacker),
             speedMultiplier:
               getDwarfSpeedMultiplier(targetAttacker) *
               getOrkSpeedMultiplier(targetAttacker),
@@ -2274,7 +2303,7 @@ async function processCycleTick(
               mapY: targetAttacker.mapY,
             },
             attackerRace: getEffectiveRace(targetAttacker),
-            raceBuffTier,
+            raceBuffTier: getFortressRaceBuffTier(targetAttacker),
             speedMultiplier:
               getDwarfSpeedMultiplier(targetAttacker) *
               getOrkSpeedMultiplier(targetAttacker),
@@ -2521,7 +2550,7 @@ async function processCycleTick(
               mapY: targetAttacker.mapY,
             },
             attackerRace: getEffectiveRace(targetAttacker),
-            raceBuffTier,
+            raceBuffTier: getFortressRaceBuffTier(targetAttacker),
             speedMultiplier:
               getDwarfSpeedMultiplier(targetAttacker) *
               getOrkSpeedMultiplier(targetAttacker),
@@ -2597,7 +2626,7 @@ async function processCycleTick(
               mapY: targetAttacker.mapY,
             },
             attackerRace: getEffectiveRace(targetAttacker),
-            raceBuffTier,
+            raceBuffTier: getFortressRaceBuffTier(targetAttacker),
             speedMultiplier:
               getDwarfSpeedMultiplier(targetAttacker) *
               getOrkSpeedMultiplier(targetAttacker),
@@ -2811,9 +2840,11 @@ async function processCycleTick(
     const defenderArmyAtBattleStart = defenderArmy;
     const attackerRace = getEffectiveRace(attacker);
     const defenderRace = getEffectiveRace(target);
+    const attackerRaceBuffTier = getFortressRaceBuffTier(attacker);
+    const defenderRaceBuffTier = getFortressRaceBuffTier(target);
     const attackerWaaagh =
       attackerRace === "ORKS" &&
-      raceBuffTier >= 3 &&
+      attackerRaceBuffTier >= 2 &&
       isRaceAbilityActive(
         attacker.raceAbilityActivations,
         RaceAbilityKind.ORK_WAAAGH,
@@ -2821,7 +2852,7 @@ async function processCycleTick(
       );
     const defenderWaaagh =
       defenderRace === "ORKS" &&
-      raceBuffTier >= 3 &&
+      defenderRaceBuffTier >= 2 &&
       isRaceAbilityActive(
         target.raceAbilityActivations,
         RaceAbilityKind.ORK_WAAAGH,
@@ -2829,7 +2860,7 @@ async function processCycleTick(
       );
     const attackerStim =
       attackerRace === "SPACE_MURINES" &&
-      raceBuffTier >= 2 &&
+      attackerRaceBuffTier >= 1 &&
       isRaceAbilityActive(
         attacker.raceAbilityActivations,
         RaceAbilityKind.SPACE_MURINE_STIM,
@@ -2837,18 +2868,18 @@ async function processCycleTick(
       );
     const defenderStim =
       defenderRace === "SPACE_MURINES" &&
-      raceBuffTier >= 2 &&
+      defenderRaceBuffTier >= 1 &&
       isRaceAbilityActive(
         target.raceAbilityActivations,
         RaceAbilityKind.SPACE_MURINE_STIM,
         tickAt
       );
     const dwarfAttackMultiplier =
-      attackerRace === "DWARFS" && raceBuffTier >= 2
+      attackerRace === "DWARFS" && attackerRaceBuffTier >= 1
         ? getDwarfGrudgeMultiplier(attacker.dwarfGrudges, target.id)
         : 1;
     const dwarfDefenseMultiplier =
-      defenderRace === "DWARFS" && raceBuffTier >= 2
+      defenderRace === "DWARFS" && defenderRaceBuffTier >= 1
         ? getDwarfGrudgeMultiplier(target.dwarfGrudges, attacker.id)
         : 1;
     const attackerDeepMiningCombat =
@@ -2925,7 +2956,7 @@ async function processCycleTick(
           mapY: attacker.mapY,
         },
         attackerRace: attackerRace,
-        raceBuffTier,
+        raceBuffTier: attackerRaceBuffTier,
         speedMultiplier:
           getDwarfSpeedMultiplier(attacker) * getOrkSpeedMultiplier(attacker),
         waaagh: getOrkWaaghActive(attacker),
@@ -2984,7 +3015,9 @@ async function processCycleTick(
     );
     currentGold.set(target.id, Math.max(0, defenderGold - outcome.goldLooted));
     const strongerTogether =
-      attackerRace === "ORKS" && raceBuffTier >= 1 && outcome.defenderLosses > 0
+      attackerRace === "ORKS" &&
+      attackerRaceBuffTier >= 1 &&
+      outcome.defenderLosses > 0
         ? Math.floor(
             outcome.defenderLosses *
               getOrkStrongerTogetherRate({

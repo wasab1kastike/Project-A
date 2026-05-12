@@ -4383,15 +4383,16 @@ test("attack presentation keeps units moving until the impact window", () => {
   assert.equal(impacting.progress, 0.92);
 });
 
-test("race buff tiers unlock tier 2 at active start and tier 3 at next Helsinki noon", () => {
+test("race buff tiers unlock from owned race biome tiles", () => {
   const activeStartedAt = new Date("2026-04-20T09:00:00.000Z");
-  const tierThreeAt = getNextHelsinkiNoonAfter(activeStartedAt);
 
   assert.equal(
     getRaceBuffTier({
       activeStartedAt,
       now: new Date("2026-04-20T08:59:00.000Z"),
       isActiveSeason: true,
+      race: "DWARFS",
+      ownedTileBiomes: ["mountains", "mountains", "mountains"],
     }),
     0
   );
@@ -4400,22 +4401,55 @@ test("race buff tiers unlock tier 2 at active start and tier 3 at next Helsinki 
       activeStartedAt,
       now: activeStartedAt,
       isActiveSeason: true,
+      race: "DWARFS",
+      ownedTileBiomes: ["mountains", "mountains", "mountains"],
+    }),
+    1
+  );
+  assert.equal(
+    getRaceBuffTier({
+      activeStartedAt,
+      now: activeStartedAt,
+      isActiveSeason: true,
+      race: "DWARFS",
+      ownedTileBiomes: [
+        "mountains",
+        "mountains",
+        "mountains",
+        "mountains",
+        "mountains",
+        "mountains",
+      ],
     }),
     2
   );
   assert.equal(
     getRaceBuffTier({
       activeStartedAt,
-      now: tierThreeAt,
+      now: activeStartedAt,
       isActiveSeason: true,
+      race: "DWARFS",
+      ownedTileBiomes: [
+        "mountains",
+        "mountains",
+        "mountains",
+        "mountains",
+        "mountains",
+        "mountains",
+        "mountains",
+        "mountains",
+        "mountains",
+      ],
     }),
     3
   );
   assert.equal(
     getRaceBuffTier({
       activeStartedAt,
-      now: tierThreeAt,
+      now: activeStartedAt,
       isActiveSeason: false,
+      race: "DWARFS",
+      ownedTileBiomes: ["mountains", "mountains", "mountains"],
     }),
     0
   );
@@ -4423,29 +4457,39 @@ test("race buff tiers unlock tier 2 at active start and tier 3 at next Helsinki 
 
 test("unicorn availability helpers expose the expected disabled reasons", () => {
   const activeStartedAt = new Date("2026-04-20T07:00:00.000Z");
-  const beforeTierThree = new Date("2026-04-20T08:59:00.000Z");
-  const tierThreeAt = new Date("2026-04-20T09:00:00.000Z");
+  const beforeTierTwo = new Date("2026-04-20T08:59:00.000Z");
+  const tierTwoAt = new Date("2026-04-20T09:00:00.000Z");
   const sameHourClaim = new Date("2026-04-20T09:12:00.000Z");
 
   const shatteredRealityBeforeUnlock = getUnicornShatteredRealityAvailability({
     race: "UNSTABLE_UNICORNS",
     activeStartedAt,
-    now: beforeTierThree,
+    now: beforeTierTwo,
     isActiveSeason: true,
+    ownedTileBiomes: ["forest", "forest", "forest", "forest", "forest"],
     latestUseAt: null,
   });
   const shatteredRealityUnlocked = getUnicornShatteredRealityAvailability({
     race: "UNSTABLE_UNICORNS",
     activeStartedAt,
-    now: tierThreeAt,
+    now: tierTwoAt,
     isActiveSeason: true,
+    ownedTileBiomes: [
+      "forest",
+      "forest",
+      "forest",
+      "forest",
+      "forest",
+      "forest",
+    ],
     latestUseAt: null,
   });
   const teleportClaimBlockedByToken = getUnicornTeleportClaimAvailability({
     race: "UNSTABLE_UNICORNS",
     activeStartedAt,
-    now: tierThreeAt,
+    now: tierTwoAt,
     isActiveSeason: true,
+    ownedTileBiomes: ["forest", "forest", "forest"],
     hasActiveTeleportToken: true,
     hasActiveTemporaryTeleport: false,
     latestClaimAt: null,
@@ -4454,8 +4498,9 @@ test("unicorn availability helpers expose the expected disabled reasons", () => 
     getUnicornTeleportClaimAvailability({
       race: "UNSTABLE_UNICORNS",
       activeStartedAt,
-      now: tierThreeAt,
+      now: tierTwoAt,
       isActiveSeason: true,
+      ownedTileBiomes: ["forest", "forest", "forest"],
       hasActiveTeleportToken: false,
       hasActiveTemporaryTeleport: true,
       latestClaimAt: null,
@@ -4465,6 +4510,7 @@ test("unicorn availability helpers expose the expected disabled reasons", () => 
     activeStartedAt,
     now: sameHourClaim,
     isActiveSeason: true,
+    ownedTileBiomes: ["forest", "forest", "forest"],
     hasActiveTeleportToken: false,
     hasActiveTemporaryTeleport: false,
     latestClaimAt: new Date("2026-04-20T09:02:00.000Z"),
@@ -4472,8 +4518,9 @@ test("unicorn availability helpers expose the expected disabled reasons", () => 
   const teleportClaimAvailable = getUnicornTeleportClaimAvailability({
     race: "UNSTABLE_UNICORNS",
     activeStartedAt,
-    now: tierThreeAt,
+    now: tierTwoAt,
     isActiveSeason: true,
+    ownedTileBiomes: ["forest", "forest", "forest"],
     hasActiveTeleportToken: false,
     hasActiveTemporaryTeleport: false,
     latestClaimAt: null,
@@ -4482,7 +4529,7 @@ test("unicorn availability helpers expose the expected disabled reasons", () => 
   assert.equal(shatteredRealityBeforeUnlock.canUse, false);
   assert.equal(
     shatteredRealityBeforeUnlock.disabledReason,
-    "Shattered Reality unlocks at Tier 3 race buffs."
+    "Shattered Reality unlocks at Tier 2 race buffs."
   );
   assert.equal(shatteredRealityUnlocked.canUse, true);
   assert.equal(shatteredRealityUnlocked.disabledReason, null);
@@ -4557,7 +4604,7 @@ test("unicorn read models expose the same disabled reasons in home and castle st
   );
   assert.equal(
     homeState.playerSummary?.raceBuffs.unicornShatteredRealityDisabledReason,
-    "Shattered Reality unlocks at Tier 3 race buffs."
+    "Shattered Reality unlocks at Tier 2 race buffs."
   );
   assert.equal(
     castleState.playerSummary?.raceBuffs.canActivateUnicornShatteredReality,
@@ -4565,11 +4612,11 @@ test("unicorn read models expose the same disabled reasons in home and castle st
   );
   assert.equal(
     castleState.playerSummary?.raceBuffs.unicornShatteredRealityDisabledReason,
-    "Shattered Reality unlocks at Tier 3 race buffs."
+    "Shattered Reality unlocks at Tier 2 race buffs."
   );
 });
 
-test("unicorn tier 2 travel speed halves attack travel time", () => {
+test("unicorn tier 1 travel speed halves attack travel time", () => {
   const origin = { mapX: 0, mapY: 0 };
   const target = { mapX: 120, mapY: 0 };
 
@@ -4577,7 +4624,7 @@ test("unicorn tier 2 travel speed halves attack travel time", () => {
   assert.equal(
     getAttackTravelMinutes(origin, target, {
       attackerRace: "UNSTABLE_UNICORNS",
-      raceBuffTier: 2,
+      raceBuffTier: 1,
     }),
     25
   );

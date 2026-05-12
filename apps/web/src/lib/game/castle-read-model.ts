@@ -355,11 +355,29 @@ export async function getCastlePageState({
     cycle.activeEndsAt !== null &&
     cycle.activeEndsAt > now;
   const gameplayOpen = testingOpen || activeOpen;
+  const playerOwnedTileBiomes = playerFortress
+    ? (
+        await db.mapHexOwnership.findMany({
+          where: {
+            cycleId: cycle.id,
+            ownerFortressId: playerFortress.id,
+          },
+          select: {
+            tileId: true,
+          },
+        })
+      )
+        .filter((ownership) => !isHomeOfATile(ownership.tileId))
+        .map((ownership) => getTileById(ownership.tileId)?.biome ?? null)
+        .filter((biome): biome is NonNullable<typeof biome> => biome !== null)
+    : [];
 
   const raceBuffTier = getRaceBuffTier({
     activeStartedAt: cycle.activeStartedAt,
     now,
     isActiveSeason: cycle.status === CycleStatus.ACTIVE,
+    race: playerFortress?.race ?? null,
+    ownedTileBiomes: playerOwnedTileBiomes,
   });
   const activeRuneSuppressions = await db.raceAbilityActivation.findMany({
     where: {
@@ -574,6 +592,7 @@ export async function getCastlePageState({
       activeStartedAt: cycle.activeStartedAt,
       now,
       isActiveSeason: cycle.status === CycleStatus.ACTIVE,
+      ownedTileBiomes: playerOwnedTileBiomes,
       latestUseAt: latestUnicornShatteredRealityUse?.usedAt ?? null,
     });
   const unicornTeleportClaimAvailability = getUnicornTeleportClaimAvailability({
@@ -581,6 +600,7 @@ export async function getCastlePageState({
     activeStartedAt: cycle.activeStartedAt,
     now,
     isActiveSeason: cycle.status === CycleStatus.ACTIVE,
+    ownedTileBiomes: playerOwnedTileBiomes,
     hasActiveTeleportToken: activeUnicornTeleportToken !== null,
     hasActiveTemporaryTeleport: activeUnicornTemporaryTeleport !== null,
     latestClaimAt: latestUnicornTeleportClaim?.usedAt ?? null,
@@ -787,7 +807,7 @@ export async function getCastlePageState({
             tier: raceBuffTier,
             canActivateWaaagh:
               playerFortress.race === "ORKS" &&
-              raceBuffTier >= 3 &&
+              raceBuffTier >= 2 &&
               (!latestWaaaghUse ||
                 getHelsinkiDayKey(latestWaaaghUse.usedAt) !== currentDayKey),
             waaaghActiveUntil: activeWaaagh?.activeUntil ?? null,
@@ -872,7 +892,7 @@ export async function getCastlePageState({
             ),
             canActivateStim:
               playerFortress.race === "SPACE_MURINES" &&
-              raceBuffTier >= 2 &&
+              raceBuffTier >= 1 &&
               (!latestStimUse ||
                 getHelsinkiDayKey(latestStimUse.usedAt) !== currentDayKey),
             canActivateUnicornShatteredReality:
@@ -896,7 +916,7 @@ export async function getCastlePageState({
                   dwarfDeepMiningCooldownStartedAt),
             canActivateRuneOfGrudges:
               playerFortress.race === "DWARFS" &&
-              raceBuffTier >= 3 &&
+              raceBuffTier >= 2 &&
               latestDwarfRuneOfGrudges === null,
             deepMiningLatest: latestDwarfDeepMiningRoll
               ? {
@@ -940,10 +960,10 @@ export async function getCastlePageState({
               bonusMultiplier: grudge.bonusMultiplier,
             })),
             canChooseDwarfGrudge:
-              playerFortress.race === "DWARFS" && raceBuffTier >= 2,
+              playerFortress.race === "DWARFS" && raceBuffTier >= 1,
             canChooseDwarfTierThree:
               playerFortress.race === "DWARFS" &&
-              raceBuffTier >= 3 &&
+              raceBuffTier >= 2 &&
               playerFortress.dwarfGrudges.length > 0,
           },
           activeUnicornTeleport: activeUnicornTemporaryTeleport
@@ -968,7 +988,7 @@ export async function getCastlePageState({
             createdAt: garrison.createdAt,
             canInstantRecall:
               playerFortress.race === "SPACE_MURINES" &&
-              raceBuffTier >= 2 &&
+              raceBuffTier >= 1 &&
               (!latestGarrisonInstantRecallUse ||
                 getHelsinkiHourKey(latestGarrisonInstantRecallUse.usedAt) !==
                   currentHourKey),

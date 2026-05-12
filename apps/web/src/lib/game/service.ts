@@ -94,6 +94,31 @@ import {
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
+async function getOwnedTileBiomesForFortress({
+  db,
+  cycleId,
+  fortressId,
+}: {
+  db: DatabaseClient;
+  cycleId: string;
+  fortressId: string;
+}) {
+  const ownerships = await db.mapHexOwnership.findMany({
+    where: {
+      cycleId,
+      ownerFortressId: fortressId,
+    },
+    select: {
+      tileId: true,
+    },
+  });
+
+  return ownerships
+    .filter((ownership) => !isHomeOfATile(ownership.tileId))
+    .map((ownership) => getTileById(ownership.tileId)?.biome ?? null)
+    .filter((biome): biome is NonNullable<typeof biome> => biome !== null);
+}
+
 function normalizeRecallAmount(armyAmount: number, availableArmy: number) {
   if (!Number.isInteger(armyAmount) || armyAmount <= 0) {
     throw new GameError("Recall at least 1 army.");
@@ -128,10 +153,17 @@ async function createReturningArmyMarker({
   armyAmount: number;
   now: Date;
 }) {
+  const ownedTileBiomes = await getOwnedTileBiomesForFortress({
+    db,
+    cycleId: cycle.id,
+    fortressId: fortress.id,
+  });
   const raceBuffTier = getRaceBuffTier({
     activeStartedAt: cycle.activeStartedAt ?? null,
     now,
     isActiveSeason: cycle.status === CycleStatus.ACTIVE,
+    race: fortress.race,
+    ownedTileBiomes,
   });
   const arrivesAt = getAttackArrivalAt({
     launchedAt: now,
@@ -2899,16 +2931,6 @@ export async function chooseDwarfGrudge({
       );
     }
 
-    if (
-      getRaceBuffTier({
-        activeStartedAt: cycle.activeStartedAt,
-        now,
-        isActiveSeason: true,
-      }) < 2
-    ) {
-      throw new GameError("Grudge Book has not unlocked yet.");
-    }
-
     const fortress = await tx.fortress.findUnique({
       where: {
         cycleId_ownerId: {
@@ -2925,6 +2947,24 @@ export async function chooseDwarfGrudge({
 
     if (!fortress || fortress.isNpc || fortress.race !== "DWARFS") {
       throw new GameError("Only Dwarfs can use the Grudge Book.");
+    }
+
+    const ownedTileBiomes = await getOwnedTileBiomesForFortress({
+      db: tx,
+      cycleId: cycle.id,
+      fortressId: fortress.id,
+    });
+
+    if (
+      getRaceBuffTier({
+        activeStartedAt: cycle.activeStartedAt,
+        now,
+        isActiveSeason: true,
+        race: fortress.race,
+        ownedTileBiomes,
+      }) < 1
+    ) {
+      throw new GameError("Grudge Book has not unlocked yet.");
     }
 
     if (targetFortressId === fortress.id) {
@@ -3001,16 +3041,6 @@ export async function chooseDwarfTierThreeGrudge({
       );
     }
 
-    if (
-      getRaceBuffTier({
-        activeStartedAt: cycle.activeStartedAt,
-        now,
-        isActiveSeason: true,
-      }) < 3
-    ) {
-      throw new GameError("The second Grudge Book entry has not unlocked yet.");
-    }
-
     const fortress = await tx.fortress.findUnique({
       where: {
         cycleId_ownerId: {
@@ -3037,6 +3067,24 @@ export async function chooseDwarfTierThreeGrudge({
 
     if (!fortress || fortress.isNpc || fortress.race !== "DWARFS") {
       throw new GameError("Only Dwarfs can use the Grudge Book.");
+    }
+
+    const ownedTileBiomes = await getOwnedTileBiomesForFortress({
+      db: tx,
+      cycleId: cycle.id,
+      fortressId: fortress.id,
+    });
+
+    if (
+      getRaceBuffTier({
+        activeStartedAt: cycle.activeStartedAt,
+        now,
+        isActiveSeason: true,
+        race: fortress.race,
+        ownedTileBiomes,
+      }) < 2
+    ) {
+      throw new GameError("The second Grudge Book entry has not unlocked yet.");
     }
 
     const firstGrudge = fortress.dwarfGrudges[0];
@@ -3307,16 +3355,6 @@ export async function activateDwarfRuneOfGrudges({
       );
     }
 
-    if (
-      getRaceBuffTier({
-        activeStartedAt: cycle.activeStartedAt,
-        now,
-        isActiveSeason: true,
-      }) < 3
-    ) {
-      throw new GameError("Rune of Grudges has not unlocked yet.");
-    }
-
     const fortress = await tx.fortress.findUnique({
       where: {
         cycleId_ownerId: {
@@ -3340,6 +3378,24 @@ export async function activateDwarfRuneOfGrudges({
 
     if (!fortress || fortress.isNpc || fortress.race !== "DWARFS") {
       throw new GameError("Only Dwarfs can raise the Rune of Grudges.");
+    }
+
+    const ownedTileBiomes = await getOwnedTileBiomesForFortress({
+      db: tx,
+      cycleId: cycle.id,
+      fortressId: fortress.id,
+    });
+
+    if (
+      getRaceBuffTier({
+        activeStartedAt: cycle.activeStartedAt,
+        now,
+        isActiveSeason: true,
+        race: fortress.race,
+        ownedTileBiomes,
+      }) < 2
+    ) {
+      throw new GameError("Rune of Grudges has not unlocked yet.");
     }
 
     const activeRune = await tx.raceAbilityActivation.findFirst({
@@ -3461,16 +3517,6 @@ export async function activateRaceAbility({
       );
     }
 
-    if (
-      getRaceBuffTier({
-        activeStartedAt: cycle.activeStartedAt,
-        now,
-        isActiveSeason: true,
-      }) < 2
-    ) {
-      throw new GameError("Race abilities have not unlocked yet.");
-    }
-
     const fortress = await tx.fortress.findUnique({
       where: {
         cycleId_ownerId: {
@@ -3489,6 +3535,24 @@ export async function activateRaceAbility({
 
     if (!fortress || fortress.isNpc) {
       throw new GameError("You are not participating in the active cycle.");
+    }
+
+    const ownedTileBiomes = await getOwnedTileBiomesForFortress({
+      db: tx,
+      cycleId: cycle.id,
+      fortressId: fortress.id,
+    });
+
+    if (
+      getRaceBuffTier({
+        activeStartedAt: cycle.activeStartedAt,
+        now,
+        isActiveSeason: true,
+        race: fortress.race,
+        ownedTileBiomes,
+      }) < 1
+    ) {
+      throw new GameError("Race abilities have not unlocked yet.");
     }
 
     const expectedRace =
@@ -3945,6 +4009,11 @@ export async function claimUnicornTeleport({
       activeStartedAt: cycle.activeStartedAt,
       now,
       isActiveSeason: cycle.status === CycleStatus.ACTIVE,
+      ownedTileBiomes: await getOwnedTileBiomesForFortress({
+        db: tx,
+        cycleId: cycle.id,
+        fortressId: fortress.id,
+      }),
       hasActiveTeleportToken: existingToken !== null,
       hasActiveTemporaryTeleport: activeTemporaryTeleport !== null,
       latestClaimAt: latestClaim?.usedAt ?? null,
@@ -4024,6 +4093,11 @@ export async function activateUnicornShatteredReality({
       activeStartedAt: cycle?.activeStartedAt ?? null,
       now,
       isActiveSeason: Boolean(cycle && cycle.status === CycleStatus.ACTIVE),
+      ownedTileBiomes: await getOwnedTileBiomesForFortress({
+        db: tx,
+        cycleId: cycle.id,
+        fortressId: fortress.id,
+      }),
       latestUseAt: latestUse?.usedAt ?? null,
     });
 

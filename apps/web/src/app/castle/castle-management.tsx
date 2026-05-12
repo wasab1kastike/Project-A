@@ -354,6 +354,15 @@ const EMPTY_BUILDING_COUNTS: Record<BuildingSpecialization, number> = {
   MILITARY: 0,
 };
 
+const RACE_TIER_BIOME_REQUIREMENTS: Record<FortressRace, string> = {
+  DWARFS: "Mountains",
+  ORKS: "Plains or Lake",
+  SPACE_MURINES: "Sea or Coast",
+  UNSTABLE_UNICORNS: "Marsh or Forest",
+};
+
+const RACE_TIER_THRESHOLDS_LABEL = "Tier 1/2/3 at 3/6/9 matching tiles";
+
 function getBuildingsForRace(race: string | null): readonly BuildingMetadata[] {
   const raceKey: BuildingRaceKey =
     race && isFortressRace(race) ? race : "DEFAULT";
@@ -1076,6 +1085,13 @@ export function CastleManagement({
         </div>
         {playerSummary.race ? (
           <div className={styles.form}>
+            <p className={styles.muted}>
+              Current race tier: {playerSummary.raceBuffs.tier}. Upgrade path:
+              {" "}
+              {isFortressRace(playerSummary.race)
+                ? `${RACE_TIER_THRESHOLDS_LABEL}. Required biomes: ${RACE_TIER_BIOME_REQUIREMENTS[playerSummary.race]}.`
+                : "control 3/6/9 tiles of your race biomes."}
+            </p>
             {playerSummary.race === "ORKS" ? (
               <div className={styles.buildingGrid}>
                 <article className={styles.buildingCard}>
@@ -1112,7 +1128,7 @@ export function CastleManagement({
                     <span>
                       {playerSummary.raceBuffs.waaaghActiveUntil
                         ? `Active until ${playerSummary.raceBuffs.waaaghActiveUntil.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-                        : "Tier 3 daily"}
+                        : "Tier 2 daily"}
                     </span>
                   </div>
                   <form action={activateWaaaghFormAction}>
@@ -1511,6 +1527,10 @@ export function CastleManagement({
                 <input name="race" type="hidden" value={race.key} />
                 <strong>{race.displayName}</strong>
                 <p>{race.flavorText}</p>
+                <p className={styles.muted}>{RACE_TIER_THRESHOLDS_LABEL}</p>
+                <p className={styles.muted}>
+                  Required biomes: {RACE_TIER_BIOME_REQUIREMENTS[race.key]}.
+                </p>
                 <button type="submit">Lock race</button>
               </form>
             ))}

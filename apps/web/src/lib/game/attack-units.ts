@@ -5,6 +5,7 @@ import { getHelsinkiHourKey, getRaceBuffTier } from "./race-buffs";
 import { getRaceModifiers } from "./races";
 import type { FortressRace } from "./races";
 import { getOrkBossOrderSpeedMultiplier } from "./orks";
+import { getTileById, isHomeOfATile } from "./territory";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -25,6 +26,31 @@ export type AttackCycle = {
   activeEndsAt: Date | null;
 };
 
+async function getOwnedTileBiomesForFortress({
+  db,
+  cycleId,
+  fortressId,
+}: {
+  db: DatabaseClient;
+  cycleId: string;
+  fortressId: string;
+}) {
+  const ownerships = await db.mapHexOwnership.findMany({
+    where: {
+      cycleId,
+      ownerFortressId: fortressId,
+    },
+    select: {
+      tileId: true,
+    },
+  });
+
+  return ownerships
+    .filter((ownership) => !isHomeOfATile(ownership.tileId))
+    .map((ownership) => getTileById(ownership.tileId)?.biome ?? null)
+    .filter((biome): biome is NonNullable<typeof biome> => biome !== null);
+}
+
 async function getOrkWaaghActive({
   db,
   fortress,
@@ -36,7 +62,7 @@ async function getOrkWaaghActive({
   now: Date;
   raceBuffTier: number;
 }) {
-  if (fortress.race !== "ORKS" || raceBuffTier < 3) {
+  if (fortress.race !== "ORKS" || raceBuffTier < 2) {
     return false;
   }
 
@@ -302,10 +328,17 @@ export async function recallAttackUnit({
     }
   }
 
+  const ownedTileBiomes = await getOwnedTileBiomesForFortress({
+    db,
+    cycleId: cycle.id,
+    fortressId: attackUnit.attackerFortress.id,
+  });
   const raceBuffTier = getRaceBuffTier({
     activeStartedAt: cycle.activeStartedAt ?? null,
     now,
     isActiveSeason: cycle.status === "ACTIVE",
+    race: attackUnit.attackerFortress.race,
+    ownedTileBiomes,
   });
   const arrivesAt = getAttackArrivalAt({
     launchedAt: now,
@@ -366,10 +399,17 @@ export async function launchAttackUnit({
     throw new GameError("You do not have enough army to send that many units.");
   }
 
+  const ownedTileBiomes = await getOwnedTileBiomesForFortress({
+    db,
+    cycleId: cycle.id,
+    fortressId: attacker.id,
+  });
   const buffTier = getRaceBuffTier({
     activeStartedAt: cycle.activeStartedAt ?? null,
     now: launchedAt,
     isActiveSeason: cycle.status === "ACTIVE",
+    race: attacker.race,
+    ownedTileBiomes,
   });
   const arrivesAt = getAttackArrivalAt({
     launchedAt,

@@ -52,7 +52,6 @@ import {
 import {
   getHelsinkiDayKey,
   getHelsinkiHourKey,
-  getNextHelsinkiNoonAfter,
   getUnicornShatteredRealityAvailability,
   getUnicornTeleportClaimAvailability,
   getRaceBuffTier,
@@ -1006,15 +1005,25 @@ export async function getHomePageState({
     cycle.fortresses.map((fortress) => [fortress.id, fortress])
   );
   const playerFortressId = playerFortress?.id ?? null;
+  const playerOwnedTileBiomes = playerFortress
+    ? cycle.mapHexOwnerships
+        .filter(
+          (ownership) =>
+            ownership.ownerFortressId === playerFortress.id &&
+            !isHomeOfATile(ownership.tileId)
+        )
+        .map((ownership) => getTileById(ownership.tileId)?.biome ?? null)
+        .filter((biome): biome is NonNullable<typeof biome> => biome !== null)
+    : [];
   const upgradesUnlocked = gameplayOpen;
   const raceBuffTier = getRaceBuffTier({
     activeStartedAt: cycle.activeStartedAt,
     now,
     isActiveSeason: cycle.status === CycleStatus.ACTIVE,
+    race: playerFortress?.race ?? null,
+    ownedTileBiomes: playerOwnedTileBiomes,
   });
-  const raceTierThreeUnlocksAt = cycle.activeStartedAt
-    ? getNextHelsinkiNoonAfter(cycle.activeStartedAt)
-    : null;
+  const raceTierThreeUnlocksAt = null;
   const activeRuneSuppressions = await db.raceAbilityActivation.findMany({
     where: {
       kind: RaceAbilityKind.DWARF_RUNE_GRUDGES,
@@ -1267,6 +1276,7 @@ export async function getHomePageState({
       activeStartedAt: cycle.activeStartedAt,
       now,
       isActiveSeason: cycle.status === CycleStatus.ACTIVE,
+      ownedTileBiomes: playerOwnedTileBiomes,
       latestUseAt: latestUnicornShatteredRealityUse?.usedAt ?? null,
     });
   const unicornTeleportClaimAvailability = getUnicornTeleportClaimAvailability({
@@ -1274,6 +1284,7 @@ export async function getHomePageState({
     activeStartedAt: cycle.activeStartedAt,
     now,
     isActiveSeason: cycle.status === CycleStatus.ACTIVE,
+    ownedTileBiomes: playerOwnedTileBiomes,
     hasActiveTeleportToken: activeUnicornTeleportToken !== null,
     hasActiveTemporaryTeleport: activeUnicornTemporaryTeleport !== null,
     latestClaimAt: latestUnicornTeleportClaim?.usedAt ?? null,
@@ -2370,7 +2381,7 @@ export async function getHomePageState({
               ownGarrison.army > 0 ? null : "No garrison army remains.",
             canInstantRecall:
               playerFortress?.race === "SPACE_MURINES" &&
-              raceBuffTier >= 2 &&
+              raceBuffTier >= 1 &&
               (!latestGarrisonInstantRecallUse ||
                 getHelsinkiHourKey(latestGarrisonInstantRecallUse.usedAt) !==
                   currentHourKey),
@@ -2769,7 +2780,7 @@ export async function getHomePageState({
                   dwarfDeepMiningCooldownStartedAt),
             canActivateRuneOfGrudges:
               playerFortress.race === "DWARFS" &&
-              raceBuffTier >= 3 &&
+              raceBuffTier >= 2 &&
               latestDwarfRuneOfGrudges === null,
             dwarfGrudges: playerFortress.dwarfGrudges.map((grudge) => ({
               targetFortressId: grudge.targetFortressId,
@@ -2779,14 +2790,14 @@ export async function getHomePageState({
               bonusMultiplier: grudge.bonusMultiplier,
             })),
             canChooseDwarfGrudge:
-              playerFortress.race === "DWARFS" && raceBuffTier >= 2,
+              playerFortress.race === "DWARFS" && raceBuffTier >= 1,
             canChooseDwarfTierThree:
               playerFortress.race === "DWARFS" &&
-              raceBuffTier >= 3 &&
+              raceBuffTier >= 2 &&
               playerFortress.dwarfGrudges.length > 0,
             canActivateWaaagh:
               playerFortress.race === "ORKS" &&
-              raceBuffTier >= 3 &&
+              raceBuffTier >= 2 &&
               (!latestWaaaghUse ||
                 getHelsinkiDayKey(latestWaaaghUse.usedAt) !== currentDayKey),
             waaaghActiveUntil: activeWaaagh?.activeUntil ?? null,
@@ -2871,7 +2882,7 @@ export async function getHomePageState({
             ),
             canActivateStim:
               playerFortress.race === "SPACE_MURINES" &&
-              raceBuffTier >= 2 &&
+              raceBuffTier >= 1 &&
               (!latestStimUse ||
                 getHelsinkiDayKey(latestStimUse.usedAt) !== currentDayKey),
             stimActiveUntil:
@@ -2882,13 +2893,13 @@ export async function getHomePageState({
                 : null,
             canInstantRecall:
               playerFortress.race === "SPACE_MURINES" &&
-              raceBuffTier >= 3 &&
+              raceBuffTier >= 2 &&
               (!latestInstantRecallUse ||
                 getHelsinkiHourKey(latestInstantRecallUse.usedAt) !==
                   currentHourKey),
             canInstantRecallGarrison:
               playerFortress.race === "SPACE_MURINES" &&
-              raceBuffTier >= 2 &&
+              raceBuffTier >= 1 &&
               (!latestGarrisonInstantRecallUse ||
                 getHelsinkiHourKey(latestGarrisonInstantRecallUse.usedAt) !==
                   currentHourKey),
@@ -2928,7 +2939,7 @@ export async function getHomePageState({
               garrison.army > 0 ? null : "No garrison army remains.",
             canInstantRecall:
               playerFortress.race === "SPACE_MURINES" &&
-              raceBuffTier >= 2 &&
+              raceBuffTier >= 1 &&
               (!latestGarrisonInstantRecallUse ||
                 getHelsinkiHourKey(latestGarrisonInstantRecallUse.usedAt) !==
                   currentHourKey),
@@ -3169,7 +3180,7 @@ export async function getHomePageState({
           unit.attackerFortress.ownerId === userId &&
           unit.recalledAt === null &&
           unit.attackerFortress.race === "SPACE_MURINES" &&
-          raceBuffTier >= 3 &&
+          raceBuffTier >= 2 &&
           (!latestInstantRecallUse ||
             getHelsinkiHourKey(latestInstantRecallUse.usedAt) !== currentHourKey),
         attacker: {

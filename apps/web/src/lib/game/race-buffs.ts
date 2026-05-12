@@ -1,9 +1,35 @@
 import { RaceAbilityKind } from "@/lib/prisma-client";
+import type { HexBiome } from "./map-hex";
 import { type FortressRace } from "./races";
 import { addHours } from "./time";
 
 const HELSINKI_TIME_ZONE = "Europe/Helsinki";
 const DWARF_GRUDGE_BONUS = 0.25;
+
+export const RACE_TIER_TILE_THRESHOLDS = {
+  tier1: 3,
+  tier2: 6,
+  tier3: 9,
+} as const;
+
+export const RACE_TIER_BIOMES: Record<FortressRace, readonly HexBiome[]> = {
+  DWARFS: ["mountains"],
+  ORKS: ["plains", "lake"],
+  SPACE_MURINES: ["water", "coast"],
+  UNSTABLE_UNICORNS: ["marsh", "forest"],
+};
+
+function getRaceTierTileCount({
+  race,
+  ownedTileBiomes,
+}: {
+  race: FortressRace;
+  ownedTileBiomes: readonly HexBiome[];
+}) {
+  const requiredBiomes = new Set(RACE_TIER_BIOMES[race]);
+
+  return ownedTileBiomes.filter((biome) => requiredBiomes.has(biome)).length;
+}
 
 function getHelsinkiParts(value: Date) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -86,16 +112,41 @@ export function getRaceBuffTier({
   activeStartedAt,
   now,
   isActiveSeason,
+  race,
+  ownedTileBiomes = [],
 }: {
   activeStartedAt: Date | null;
   now: Date;
   isActiveSeason: boolean;
+  race?: FortressRace | null;
+  ownedTileBiomes?: readonly HexBiome[];
 }) {
   if (!isActiveSeason || !activeStartedAt || now < activeStartedAt) {
     return 0;
   }
 
-  return now >= getNextHelsinkiNoonAfter(activeStartedAt) ? 3 : 2;
+  if (!race) {
+    return 0;
+  }
+
+  const matchedTileCount = getRaceTierTileCount({
+    race,
+    ownedTileBiomes,
+  });
+
+  if (matchedTileCount >= RACE_TIER_TILE_THRESHOLDS.tier3) {
+    return 3;
+  }
+
+  if (matchedTileCount >= RACE_TIER_TILE_THRESHOLDS.tier2) {
+    return 2;
+  }
+
+  if (matchedTileCount >= RACE_TIER_TILE_THRESHOLDS.tier1) {
+    return 1;
+  }
+
+  return 0;
 }
 
 type UnicornAvailability = {
@@ -108,6 +159,7 @@ type UnicornAvailabilityBase = {
   activeStartedAt: Date | null;
   now: Date;
   isActiveSeason: boolean;
+  ownedTileBiomes?: readonly HexBiome[];
 };
 
 function getUnicornActiveSeasonReason({
@@ -127,6 +179,7 @@ export function getUnicornShatteredRealityAvailability({
   activeStartedAt,
   now,
   isActiveSeason,
+  ownedTileBiomes,
   latestUseAt,
 }: UnicornAvailabilityBase & {
   latestUseAt: Date | null;
@@ -157,11 +210,13 @@ export function getUnicornShatteredRealityAvailability({
       activeStartedAt,
       now,
       isActiveSeason,
-    }) < 3
+      race,
+      ownedTileBiomes,
+    }) < 2
   ) {
     return {
       canUse: false,
-      disabledReason: "Shattered Reality unlocks at Tier 3 race buffs.",
+      disabledReason: "Shattered Reality unlocks at Tier 2 race buffs.",
     };
   }
 
@@ -186,6 +241,7 @@ export function getUnicornTeleportClaimAvailability({
   activeStartedAt,
   now,
   isActiveSeason,
+  ownedTileBiomes,
   hasActiveTeleportToken,
   hasActiveTemporaryTeleport,
   latestClaimAt,
@@ -220,6 +276,8 @@ export function getUnicornTeleportClaimAvailability({
       activeStartedAt,
       now,
       isActiveSeason,
+      race,
+      ownedTileBiomes,
     }) < 1
   ) {
     return {

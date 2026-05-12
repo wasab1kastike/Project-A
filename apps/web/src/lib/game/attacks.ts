@@ -26,7 +26,7 @@ export function getAttackTravelMinutes(
   const speedMultiplier =
     (options?.speedMultiplier ?? 1) *
     (options?.attackerRace === "UNSTABLE_UNICORNS" &&
-    (options.raceBuffTier ?? 0) >= 2
+    (options.raceBuffTier ?? 0) >= 1
       ? 2
       : 1) *
     (options?.waaagh ? 2 : 1);
