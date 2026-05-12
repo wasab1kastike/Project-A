@@ -4,9 +4,11 @@
 - Change: Fixed direct PvP castle battle selection so active castle-targeted battlefields open from the attacked castle marker.
 - Change: Fixed owned-tile defense reinforcements so tile owners can reinforce contested tiles without tripping the attack-unit self-target guard.
 - Change: Fixed castle-owner defense reinforcements and battlefield recalls so return/reinforcement travel rows no longer violate the self-target guard.
+- Change: Fixed castle marker clicks for active or incoming castle battles so clicking any involved castle opens the battle card.
 - User impact: Players can now see ongoing castle PvP battles and join attacker or defender reinforcements from the battlefield card.
 - User impact: Defending your own tile no longer fails with a generic season update error when sending reinforcements.
 - User impact: Players can reinforce their own castle defense and recall committed battlefield army again.
+- User impact: Castle battle cards now open from castle markers the same way tile battle cards open from contested tiles.
 
 ## 2026-05-09
 - Change: Added starvation attrition for active army upkeep. If a player cannot pay the rounded food upkeep, food drops to zero and active home army loses 2% that tick.

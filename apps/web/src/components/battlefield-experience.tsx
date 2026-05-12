@@ -518,7 +518,9 @@ export function BattlefieldExperience({
         return battlefields.filter(
           (battlefield) =>
             battlefield.targetTileId === null &&
-            battlefield.targetFortressId === selectedBattleFortressId
+            (battlefield.targetFortressId === selectedBattleFortressId ||
+              battlefield.attackerBanner.id === selectedBattleFortressId ||
+              battlefield.defenderBanner?.id === selectedBattleFortressId)
         );
       }
 
@@ -570,7 +572,11 @@ export function BattlefieldExperience({
     () =>
       battlefields
         .filter((battlefield) => battlefield.targetTileId === null)
-        .map((battlefield) => battlefield.targetFortressId)
+        .flatMap((battlefield) => [
+          battlefield.targetFortressId,
+          battlefield.attackerBanner.id,
+          battlefield.defenderBanner?.id ?? null,
+        ])
         .filter((fortressId): fortressId is string => fortressId !== null),
     [battlefields]
   );
@@ -579,7 +585,9 @@ export function BattlefieldExperience({
       return battlefields.some(
         (battlefield) =>
           battlefield.targetTileId === null &&
-          battlefield.targetFortressId === fortressId
+          (battlefield.targetFortressId === fortressId ||
+            battlefield.attackerBanner.id === fortressId ||
+            battlefield.defenderBanner?.id === fortressId)
       );
     },
     [battlefields]

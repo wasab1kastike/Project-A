@@ -985,7 +985,11 @@ export const FortressMap = memo(function FortressMap({
 
   const activateFortress = useCallback(
     (fortress: MapFortress) => {
-      if (fortress.isCurrentUser || fortress.fortressKind === "MEGA") {
+      if (
+        fortress.isCurrentUser ||
+        fortress.fortressKind === "MEGA" ||
+        activeBattleFortressIdSet.has(fortress.id)
+      ) {
         setPendingTargetId(null);
         onSelectFortress?.(fortress);
         return;
@@ -997,7 +1001,7 @@ export const FortressMap = memo(function FortressMap({
         );
       }
     },
-    [onSelectFortress]
+    [activeBattleFortressIdSet, onSelectFortress]
   );
 
   const handleMarkerPointerDown = useCallback(
