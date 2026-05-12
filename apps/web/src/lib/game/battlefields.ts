@@ -678,7 +678,11 @@ export async function processActiveBattlefields({
       battlefield.defenderArmyRemaining > 0
         ? battlefield.defenderArmyRemaining
         : battlefield.targetTileId !== null
-          ? 0
+          ? // Home of A owned by a fortress uses the fortress's army as native defense
+            isHomeOfATile(battlefield.targetTileId) &&
+            battlefield.defenderBannerFortressId
+            ? (battlefield.targetFortress?.army ?? 0)
+            : 0
           : (battlefield.targetFortress?.army ?? 0);
     const nativeDefenderArmyBefore = Math.max(
       0,
@@ -953,6 +957,30 @@ export async function processActiveBattlefields({
           id: battlefield.targetFortressId,
         },
         data: fortressUpdateData,
+      });
+    }
+
+    // Handle defender fortress army losses for owned Home of A battles
+    if (
+      battlefield.targetTileId !== null &&
+      isHomeOfATile(battlefield.targetTileId) &&
+      battlefield.defenderBannerFortressId &&
+      battlefield.targetFortressId
+    ) {
+      const defenderArmyLosses =
+        defenderParticipantLosses.appliedLosses +
+        defenderNativeLosses +
+        outcome.defenderLosses;
+
+      await db.fortress.update({
+        where: {
+          id: battlefield.targetFortressId,
+        },
+        data: {
+          army: {
+            decrement: defenderArmyLosses,
+          },
+        },
       });
     }
 
