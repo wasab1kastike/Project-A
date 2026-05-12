@@ -298,6 +298,9 @@ export function BattlefieldExperience({
   const markChatReadPendingRef = useRef(false);
   const selectedTargetId = null;
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
+  const [selectedBattlefieldId, setSelectedBattlefieldId] = useState<
+    string | null
+  >(null);
   const [selectedBattleTileId, setSelectedBattleTileId] = useState<
     string | null
   >(null);
@@ -508,6 +511,12 @@ export function BattlefieldExperience({
       : null);
   const selectedBattlefields = useMemo(
     () => {
+      if (selectedBattlefieldId) {
+        return battlefields.filter(
+          (battlefield) => battlefield.id === selectedBattlefieldId
+        );
+      }
+
       if (selectedBattleTileId) {
         return battlefields.filter(
           (battlefield) => battlefield.targetTileId === selectedBattleTileId
@@ -526,7 +535,12 @@ export function BattlefieldExperience({
 
       return [];
     },
-    [battlefields, selectedBattleFortressId, selectedBattleTileId]
+    [
+      battlefields,
+      selectedBattlefieldId,
+      selectedBattleFortressId,
+      selectedBattleTileId,
+    ]
   );
   const occupiedFortressTileIds = useMemo(() => {
     return new Set(
@@ -1060,6 +1074,8 @@ export function BattlefieldExperience({
     (fortress: MapFortress) => {
       let tileId: string | null = null;
 
+      setSelectedBattlefieldId(null);
+
       if (fortress.isCurrentUser) {
         setSelectedFortressId(fortress.id);
         tileId = snapMapPointToHex({
@@ -1099,16 +1115,58 @@ export function BattlefieldExperience({
   );
 
   const handleSelectMapHex = useCallback((tileId: string) => {
+    setSelectedBattlefieldId(null);
     setSelectedTileId(tileId);
     setSelectedBattleTileId(hasActiveBattleForTileId(tileId) ? tileId : null);
     setSelectedBattleFortressId(null);
   }, [hasActiveBattleForTileId]);
+
+  const handleViewBattleReport = useCallback(
+    (report: BattleReport) => {
+      const battlefield = battlefields.find(
+        (candidate) => candidate.id === report.id
+      );
+
+      if (!battlefield) {
+        return;
+      }
+
+      setSelectedBattlefieldId(battlefield.id);
+      setSelectedBattleTileId(battlefield.targetTileId);
+      setSelectedBattleFortressId(
+        battlefield.targetTileId === null
+          ? (battlefield.targetFortressId ?? battlefield.attackerBanner.id)
+          : null
+      );
+
+      if (battlefield.targetTileId) {
+        setSelectedTileId(battlefield.targetTileId);
+      }
+
+      setBattleLogOpen(false);
+    },
+    [battlefields]
+  );
 
   useEffect(() => {
     if (!playerSummary?.canShuffleLocation || !gameplayOpen) {
       queueMicrotask(() => setCastleYeetArmed(false));
     }
   }, [gameplayOpen, playerSummary?.canShuffleLocation]);
+
+  useEffect(() => {
+    if (!selectedBattlefieldId) {
+      return;
+    }
+
+    if (
+      !battlefields.some(
+        (battlefield) => battlefield.id === selectedBattlefieldId
+      )
+    ) {
+      queueMicrotask(() => setSelectedBattlefieldId(null));
+    }
+  }, [battlefields, selectedBattlefieldId]);
 
   useEffect(() => {
     if (!selectedBattleTileId) {
@@ -1236,19 +1294,34 @@ export function BattlefieldExperience({
           <strong>{battleReports.length}</strong>
         </div>
         <div className={styles.battlefieldList}>
-          {battleReports.slice(0, 12).map((report) => (
-            <article key={report.id} className={styles.battlefieldCard}>
-              <div className={styles.battlefieldCardHeader}>
-                <strong>{report.targetName ?? "Battle report"}</strong>
-                <span>{getBattleOutcomeLabel(report, currentOwnerId)}</span>
-              </div>
-              <ul className={styles.compactList}>
-                {(report.reportLines ?? []).slice(0, 4).map((line) => (
-                  <li key={line}>{line}</li>
-                ))}
-              </ul>
-            </article>
-          ))}
+          {battleReports.slice(0, 12).map((report) => {
+            const canViewBattle =
+              report.outcome === "IN_PROGRESS" &&
+              battlefields.some((battlefield) => battlefield.id === report.id);
+
+            return (
+              <article key={report.id} className={styles.battlefieldCard}>
+                <div className={styles.battlefieldCardHeader}>
+                  <strong>{report.targetName ?? "Battle report"}</strong>
+                  <span>{getBattleOutcomeLabel(report, currentOwnerId)}</span>
+                </div>
+                <ul className={styles.compactList}>
+                  {(report.reportLines ?? []).slice(0, 4).map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+                {canViewBattle ? (
+                  <button
+                    type="button"
+                    className={styles.secondaryButton}
+                    onClick={() => handleViewBattleReport(report)}
+                  >
+                    View fight
+                  </button>
+                ) : null}
+              </article>
+            );
+          })}
         </div>
       </div>
     </aside>
