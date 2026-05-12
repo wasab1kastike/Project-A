@@ -38,6 +38,7 @@ import {
   activateDwarfRuneOfGrudges,
   activateOrkBossOrder,
   activateRaceAbility,
+  cancelDwarfRuneOfGrudges,
   chooseDwarfGrudge,
   chooseDwarfTierThreeGrudge,
   choosePendingUpgradeSpecialization,
@@ -49,6 +50,7 @@ import {
   joinBattlefield,
   joinRegistrationCycle,
   purchaseFortressUpgrade,
+  reinforceDwarfRuneOfGrudges,
   recruitArmy,
   registerCommanderName,
   renameActiveFortress,
@@ -1003,6 +1005,53 @@ export async function activateDwarfRuneOfGrudgesAction(
       targetFortressId,
     });
     notifyAndRevalidate("dwarf-rune-grudges");
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: getActionErrorMessage(error) };
+  }
+}
+
+export async function reinforceDwarfRuneOfGrudgesAction(
+  sentArmy: number
+): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before reinforcing your rune.",
+    };
+  }
+
+  try {
+    await reinforceDwarfRuneOfGrudges({
+      userId,
+      sentArmy,
+    });
+    notifyAndRevalidate("dwarf-rune-grudges-reinforce");
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: getActionErrorMessage(error) };
+  }
+}
+
+export async function cancelDwarfRuneOfGrudgesAction(): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before canceling your rune.",
+    };
+  }
+
+  try {
+    await cancelDwarfRuneOfGrudges({
+      userId,
+    });
+    notifyAndRevalidate("dwarf-rune-grudges-cancel");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };

@@ -8,6 +8,7 @@ import {
   activateDwarfDeepMiningAction,
   activateDwarfRuneOfGrudgesAction,
   activateOrkBossOrderAction,
+  cancelDwarfRuneOfGrudgesAction,
   chooseDwarfGrudgeAction,
   chooseDwarfTierThreeGrudgeAction,
   investOrkWaaaghScrapAction,
@@ -17,6 +18,7 @@ import {
   choosePendingUpgradeSpecializationAction,
   claimUnicornTeleportAction,
   purchaseFortressUpgradeAction,
+  reinforceDwarfRuneOfGrudgesAction,
   registerCommanderNameFormAction,
   renameFortressAction,
   recruitArmyAction,
@@ -723,6 +725,21 @@ export function CastleManagement({
     );
   }
 
+  async function reinforceDwarfRuneOfGrudgesFormAction(
+    formData: FormData
+  ): Promise<void> {
+    const sentArmy = Number(getStringValue(formData, "sentArmy"));
+    await handleInlineResult(
+      await reinforceDwarfRuneOfGrudgesAction(
+        Number.isFinite(sentArmy) ? sentArmy : 0
+      )
+    );
+  }
+
+  async function cancelDwarfRuneOfGrudgesFormAction(): Promise<void> {
+    await handleInlineResult(await cancelDwarfRuneOfGrudgesAction());
+  }
+
   async function activateDwarfDeepMiningFormAction(
     formData: FormData
   ): Promise<void> {
@@ -1418,6 +1435,34 @@ export function CastleManagement({
                         and
                         {playerSummary.dwarfRuneOfGrudges.runeArmy} army.
                       </small>
+                      <form
+                        action={reinforceDwarfRuneOfGrudgesFormAction}
+                        className={styles.form}
+                      >
+                        <label>
+                          Reinforcement army
+                          <input
+                            type="number"
+                            name="sentArmy"
+                            min={1}
+                            max={playerSummary.army}
+                            defaultValue={Math.min(Math.max(1, playerSummary.army), 10)}
+                            required
+                          />
+                        </label>
+                        <button type="submit" disabled={playerSummary.army < 1}>
+                          Reinforce rune
+                        </button>
+                      </form>
+                      <form
+                        action={cancelDwarfRuneOfGrudgesFormAction}
+                        className={styles.form}
+                      >
+                        <p className={styles.muted}>
+                          Canceling ends suppression immediately and gives no refund.
+                        </p>
+                        <button type="submit">Cancel rune</button>
+                      </form>
                     </>
                   ) : (
                     <form

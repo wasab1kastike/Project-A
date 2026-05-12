@@ -94,6 +94,18 @@ import {
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
+const DWARF_RUNE_OF_GRUDGES_ANNOUNCEMENTS = [
+  "Rune of Grudges flares to life. {ownerFortress} just pinned {targetFortress} to the wall of grudges.",
+  "The Book of Grudges has a fresh page: {ownerCommander} formally blames {targetCommander} for everything.",
+  "Stone drums thunder: {ownerFortress} raised the Rune of Grudges, and {targetFortress} is now officially unpopular.",
+  "Breaking news from the mountain halls: {ownerCommander} etched {targetCommander} into a very permanent grudge.",
+  "Another petty masterpiece: Rune of Grudges active. {targetFortress} is now under premium dwarven disapproval.",
+] as const;
+
+function pickRandomItem<T>(items: readonly T[]): T {
+  return items[Math.floor(Math.random() * items.length)] ?? items[0];
+}
+
 async function getOwnedTileBiomesForFortress({
   db,
   cycleId,
@@ -3398,6 +3410,92 @@ async function isFortressFactionSuppressed(
   return Boolean(suppression);
 }
 
+async function getActiveDwarfRuneOfGrudgesContext({
+  tx,
+  userId,
+  now,
+}: {
+  tx: DatabaseClient;
+  userId: string;
+  now: Date;
+}) {
+  const cycle = await getCurrentCycle(tx);
+
+  if (!cycle || cycle.status !== CycleStatus.ACTIVE) {
+    throw new GameError(
+      "Rune of Grudges is only available during the active season."
+    );
+  }
+
+  const fortress = await tx.fortress.findUnique({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: userId,
+      },
+    },
+    select: {
+      id: true,
+      race: true,
+      isNpc: true,
+      army: true,
+      level: true,
+    },
+  });
+
+  if (!fortress || fortress.isNpc || fortress.race !== "DWARFS") {
+    throw new GameError("Only Dwarfs can command the Rune of Grudges.");
+  }
+
+  const activation = await tx.raceAbilityActivation.findFirst({
+    where: {
+      fortressId: fortress.id,
+      kind: RaceAbilityKind.DWARF_RUNE_GRUDGES,
+      consumedAt: null,
+      activeUntil: {
+        gt: now,
+      },
+    },
+    orderBy: [{ activeUntil: "desc" }, { id: "desc" }],
+    select: {
+      id: true,
+      runeFortressId: true,
+      targetFortressId: true,
+      runeFortress: {
+        select: {
+          id: true,
+          health: true,
+          army: true,
+          expiresAt: true,
+        },
+      },
+    },
+  });
+
+  if (!activation?.runeFortressId || !activation.runeFortress) {
+    throw new GameError("You do not have an active Rune of Grudges.");
+  }
+
+  const runeFortressId = activation.runeFortressId;
+
+  if (
+    activation.runeFortress.health <= 0 ||
+    !activation.runeFortress.expiresAt ||
+    activation.runeFortress.expiresAt <= now
+  ) {
+    throw new GameError("Your Rune of Grudges is no longer active.");
+  }
+
+  return {
+    cycle,
+    fortress,
+    activation: {
+      ...activation,
+      runeFortressId,
+    },
+  };
+}
+
 export async function activateDwarfDeepMining({
   userId,
   committedGold,
@@ -3632,6 +3730,7 @@ export async function activateDwarfRuneOfGrudges({
       select: {
         id: true,
         name: true,
+        commanderName: true,
         ownerId: true,
         mapX: true,
         mapY: true,
@@ -3697,6 +3796,26 @@ export async function activateDwarfRuneOfGrudges({
       },
     });
 
+    const systemUser = await ensureNpcSystemUser(tx);
+    const announcementTemplate = pickRandomItem(
+      DWARF_RUNE_OF_GRUDGES_ANNOUNCEMENTS
+    );
+    const announcementBody = announcementTemplate
+      .replaceAll("{ownerFortress}", fortress.name)
+      .replaceAll("{targetFortress}", target.name)
+      .replaceAll("{ownerCommander}", fortress.commanderName)
+      .replaceAll("{targetCommander}", target.commanderName);
+
+    await tx.chatMessage.create({
+      data: {
+        cycleId: cycle.id,
+        authorId: systemUser.id,
+        type: ChatMessageType.TEXT,
+        body: `Rune of Grudges: ${announcementBody}`,
+        createdAt: now,
+      },
+    });
+
     return {
       targetFortressId: target.id,
       targetName: target.name,
@@ -3704,6 +3823,140 @@ export async function activateDwarfRuneOfGrudges({
       activeUntil: addHours(now, DWARF_RUNE_OF_GRUDGES_MAX_DURATION_HOURS),
       goldCost: DWARF_RUNE_OF_GRUDGES_ACTIVATION_GOLD,
       maintenanceGoldPerTick: DWARF_RUNE_OF_GRUDGES_MAINTENANCE_GOLD,
+    };
+  });
+}
+
+export async function reinforceDwarfRuneOfGrudges({
+  userId,
+  sentArmy,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  sentArmy: number;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    if (!Number.isInteger(sentArmy) || sentArmy <= 0) {
+      throw new GameError("You must send at least 1 army.");
+    }
+
+    const { cycle, fortress, activation } =
+      await getActiveDwarfRuneOfGrudgesContext({
+        tx,
+        userId,
+        now,
+      });
+
+    if (!isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("The current cycle is not accepting active actions.");
+    }
+
+    if (sentArmy > fortress.army) {
+      throw new GameError(
+        "You do not have enough army to send that many units."
+      );
+    }
+
+    const outboundAttackCount = await tx.attackUnit.count({
+      where: {
+        attackerFortressId: fortress.id,
+        resolvedAt: null,
+        cancelledAt: null,
+      },
+    });
+
+    const effectiveRace = (await isFortressFactionSuppressed(
+      tx,
+      fortress.id,
+      now
+    ))
+      ? null
+      : fortress.race;
+    const maxAttacks = getMaxSimultaneousAttacks(fortress.level, effectiveRace);
+
+    if (outboundAttackCount >= maxAttacks) {
+      throw new GameError(
+        `You have reached the maximum number of simultaneous attacks (${maxAttacks}). Upgrade your castle for more slots.`
+      );
+    }
+
+    await tx.fortress.update({
+      where: {
+        id: fortress.id,
+      },
+      data: {
+        army: {
+          decrement: sentArmy,
+        },
+      },
+    });
+
+    const runeFortress = await tx.fortress.update({
+      where: {
+        id: activation.runeFortressId,
+      },
+      data: {
+        army: {
+          increment: sentArmy,
+        },
+      },
+      select: {
+        id: true,
+        army: true,
+      },
+    });
+
+    return {
+      runeFortressId: runeFortress.id,
+      sentArmy,
+      runeArmy: runeFortress.army,
+    };
+  });
+}
+
+export async function cancelDwarfRuneOfGrudges({
+  userId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const { activation } = await getActiveDwarfRuneOfGrudgesContext({
+      tx,
+      userId,
+      now,
+    });
+
+    await tx.raceAbilityActivation.update({
+      where: {
+        id: activation.id,
+      },
+      data: {
+        consumedAt: now,
+        activeUntil: now,
+      },
+    });
+
+    await tx.fortress.update({
+      where: {
+        id: activation.runeFortressId,
+      },
+      data: {
+        health: 0,
+        army: 0,
+        expiresAt: now,
+      },
+    });
+
+    return {
+      runeFortressId: activation.runeFortressId,
+      cancelledAt: now,
     };
   });
 }
