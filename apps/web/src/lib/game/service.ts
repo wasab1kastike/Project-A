@@ -832,7 +832,7 @@ export async function setFortressAction({
         },
       });
 
-      if (runeRoll?.fortress.ownerId === fortress.ownerId) {
+      if (runeRoll?.fortress && runeRoll.fortress.ownerId === fortress.ownerId) {
         throw new GameError("You cannot attack your own Dwarf rune.");
       }
     }
@@ -1903,6 +1903,7 @@ export async function recallGarrisonArmy({
 
       if (
         !garrison ||
+        !garrison.fortress ||
         garrison.cycleId !== cycle.id ||
         garrison.fortress.ownerId !== userId
       ) {
@@ -2004,6 +2005,7 @@ export async function torchOccupiedMapHex({
 
       if (
         !garrison ||
+        !garrison.fortress ||
         garrison.cycleId !== cycle.id ||
         garrison.fortress.ownerId !== userId
       ) {
