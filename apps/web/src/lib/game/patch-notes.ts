@@ -8,6 +8,18 @@ export type PatchNotesRelease = {
 export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
   {
     date: "2026-05-12",
+    title: "Home of A battle reliability fixes",
+    newFeatures: [
+      "Battle resolution now handles Home of A defender state more consistently when players join either side during an active fight.",
+    ],
+    bugFixes: [
+      "Fixed owned Home of A battles that could resolve unexpectedly instead of continuing normal tick-by-tick attrition.",
+      "Fixed defender army accounting in Home of A fights so NPC/native defenders and joined player defenders no longer consume each other's army pools.",
+      "Fixed late reinforcements so armies that arrive after a battlefield has already resolved now return safely instead of disappearing.",
+    ],
+  },
+  {
+    date: "2026-05-12",
     title: "Race tiers now depend on controlled biome tiles",
     newFeatures: [
       "Race tier progression now comes from map control: Tier 1/2/3 unlock at 3/6/9 owned tiles in each race's required biomes.",
