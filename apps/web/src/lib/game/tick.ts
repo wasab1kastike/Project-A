@@ -106,6 +106,48 @@ type ProcessCycleTickResult = {
   resolvedAttackUnits: number;
 };
 
+const ETERNAL_GOBLINS_ANNOUNCEMENT_MARKER = "ETERNAL GOBLINS:";
+const ETERNAL_GOBLINS_ANNOUNCEMENT_BODY =
+  "🧌 ETERNAL GOBLINS: The goblin horde has achieved immortality! Goblins shall prowl the realm eternal, never vanishing unless slain by worthy warriors. The age of temporal goblin existence is over. Fear the eternal horde! 🧌";
+
+async function ensureEternalGoblinsAnnouncement({
+  db,
+  cycleId,
+  createdAt,
+}: {
+  db: PrismaClient | Prisma.TransactionClient;
+  cycleId: string;
+  createdAt: Date;
+}) {
+  const existingAnnouncement = await db.chatMessage.findFirst({
+    where: {
+      cycleId,
+      type: ChatMessageType.TEXT,
+      body: {
+        contains: ETERNAL_GOBLINS_ANNOUNCEMENT_MARKER,
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (existingAnnouncement) {
+    return;
+  }
+
+  const systemUser = await ensureNpcSystemUser(db);
+  await db.chatMessage.create({
+    data: {
+      cycleId,
+      authorId: systemUser.id,
+      type: ChatMessageType.TEXT,
+      body: ETERNAL_GOBLINS_ANNOUNCEMENT_BODY,
+      createdAt,
+    },
+  });
+}
+
 const TICK_TRANSACTION_OPTIONS = {
   maxWait: 10_000,
   timeout: 60_000,
@@ -931,16 +973,11 @@ async function completeTestingCycle(
       }),
     });
 
-    // Announce eternal goblins feature
-    const systemUser = await ensureNpcSystemUser(tx);
-    await tx.chatMessage.create({
-      data: {
-        cycleId,
-        authorId: systemUser.id,
-        type: ChatMessageType.TEXT,
-        body: "🧌 ETERNAL GOBLINS: The goblin horde has achieved immortality! Goblins shall prowl the realm eternal, never vanishing unless slain by worthy warriors. The age of temporal goblin existence is over. Fear the eternal horde! 🧌",
-        createdAt: activeStartedAt,
-      },
+    // Announce eternal goblins feature in chat at activation time.
+    await ensureEternalGoblinsAnnouncement({
+      db: tx,
+      cycleId,
+      createdAt: now,
     });
 
     return true;
@@ -1265,6 +1302,15 @@ async function processCycleTick(
     cycle.status === CycleStatus.TESTING
       ? cycle.testingStartedAt!
       : cycle.activeStartedAt!;
+
+  if (cycle.status === CycleStatus.ACTIVE) {
+    // Backfill once for already-running active cycles so the announcement appears after deployment.
+    await ensureEternalGoblinsAnnouncement({
+      db,
+      cycleId,
+      createdAt: tickAt,
+    });
+  }
 
   await ensureActiveCycleMegaFortress({
     db: db,
