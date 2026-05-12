@@ -3653,12 +3653,20 @@ export async function activateDwarfRuneOfGrudges({
       },
     });
 
+    const runeOwner = await tx.user.create({
+      data: {},
+      select: {
+        id: true,
+      },
+    });
+    const runeNameSuffix = `${now.getTime().toString(36)}-${target.id.slice(-4)}`;
+
     const rune = await tx.fortress.create({
       data: {
         cycleId: cycle.id,
-        ownerId: fortress.ownerId,
-        commanderName: `${fortress.commanderName} Rune`,
-        name: `${fortress.name} Rune`,
+        ownerId: runeOwner.id,
+        commanderName: `${fortress.commanderName} Rune ${runeNameSuffix}`,
+        name: `${fortress.name} Rune ${runeNameSuffix}`,
         fortressKind: FortressKind.DWARF_RUNE,
         isNpc: true,
         health: 1,
