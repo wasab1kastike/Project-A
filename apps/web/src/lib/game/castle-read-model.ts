@@ -416,10 +416,16 @@ export async function getCastlePageState({
       },
     },
   });
+
+  // Track rune suppression for each fortress
   const suppressedFortressIds = new Set(
     activeRuneSuppressions
       .map((suppression) => suppression.targetFortressId)
       .filter((id): id is string => Boolean(id))
+  );
+  // Map of fortressId -> true if rune suppressed
+  const runeSuppressedMap = Object.fromEntries(
+    Array.from(suppressedFortressIds).map((id) => [id, true])
   );
   const playerSuppression =
     playerFortress && suppressedFortressIds.has(playerFortress.id)
@@ -427,10 +433,15 @@ export async function getCastlePageState({
           (suppression) => suppression.targetFortressId === playerFortress.id
         ) ?? null)
       : null;
-  const getEffectiveRace = (fortress: {
+
+  // Helper: returns { effectiveRace, isRuneSuppressed }
+  const getSuppressionState = (fortress: {
     id: string;
     race: "DWARFS" | "UNSTABLE_UNICORNS" | "SPACE_MURINES" | "ORKS" | null;
-  }) => (suppressedFortressIds.has(fortress.id) ? null : fortress.race);
+  }) => ({
+    effectiveRace: suppressedFortressIds.has(fortress.id) ? null : fortress.race,
+    isRuneSuppressed: !!runeSuppressedMap[fortress.id],
+  });
 
   const playerCastleSpecializationCounts = playerFortress
     ? countCastleSpecializations(playerFortress.castleUpgradeSpecializations)
@@ -982,11 +993,16 @@ export async function getCastlePageState({
               }
             : null,
           ownedTileSummary,
-          growPerTick: calculateTickProduction({
-            ...playerFortress,
-            castleSpecializations:
-              playerCastleSpecializationCounts ?? undefined,
-          }).goldProduced,
+          // Use suppression state for rune of grudges
+          growPerTick: (() => {
+            const { effectiveRace, isRuneSuppressed } = getSuppressionState(playerFortress);
+            return calculateTickProduction({
+              ...playerFortress,
+              race: effectiveRace,
+              isRuneSuppressed,
+              castleSpecializations: playerCastleSpecializationCounts ?? undefined,
+            }).goldProduced;
+          })(),
           attackDamage: getFortressAttackDamage(playerFortress.level),
           garrisons: playerFortress.garrisons.map((garrison) => ({
             id: garrison.id,

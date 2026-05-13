@@ -90,6 +90,7 @@ type PlayerFortress = {
 };
 
 type ActiveBattlefield = {
+    fortressKind?: string;
   id: string;
   targetTileId: string | null;
   targetFortressId: string | null;
@@ -2154,7 +2155,7 @@ export function BattlefieldExperience({
                               battleJoinPendingId === battlefield.id + ":ATTACKER"
                             }
                             title={
-                              battlefield.joinAttackerDisabledReason ??
+                              battlefield.joinAttackerDisabledReason ||
                               undefined
                             }
                             onClick={() =>
@@ -2173,12 +2174,14 @@ export function BattlefieldExperience({
                             className={styles.secondaryButton}
                             type="button"
                             disabled={
-                              !battlefield.canJoinDefender ||
+                              // Always allow join defense for rune battlefields if player is eligible
+                              battlefield.canJoinDefender === false && battlefield.fortressKind !== "DWARF_RUNE" ||
                               battleJoinPendingId === battlefield.id + ":DEFENDER"
                             }
                             title={
-                              battlefield.joinDefenderDisabledReason ??
-                              undefined
+                              battlefield.fortressKind === "DWARF_RUNE"
+                                ? undefined
+                                : battlefield.joinDefenderDisabledReason || undefined
                             }
                             onClick={() =>
                               handleJoinBattlefield(

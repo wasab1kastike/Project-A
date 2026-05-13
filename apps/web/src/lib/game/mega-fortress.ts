@@ -1,3 +1,64 @@
+// Explicit state machine for mega fortress lifecycle
+// Mega fortress always exists, never destroyed. Handles control and point allocation.
+export async function updateMegaFortressState({ db, cycleId, tickAt }: { db: DatabaseClient; cycleId: string; tickAt: Date }) {
+  let mega = await db.fortress.findFirst({
+    where: { cycleId, isNpc: true, fortressKind: FortressKind.MEGA },
+  });
+  if (!mega) {
+    mega = await ensureMegaFortress({ db, cycleId, seed: buildFortressSpawnSeed({ cycleId, purpose: "init-mega", activeStartedAt: tickAt }) });
+  }
+
+  // Find the active battlefield for the mega fortress
+  const battlefield = await db.battlefield.findFirst({
+    where: {
+      cycleId,
+      targetFortressId: mega.id,
+      status: "ACTIVE",
+    },
+    include: {
+      participants: true,
+      defenderBannerFortress: true,
+    },
+  });
+
+  if (!battlefield) {
+    // Not yet conquered, still NPC controlled, no points awarded
+    return { state: "npc-controlled" };
+  }
+
+  // Controller: defender banner, or participant with most army committed if no banner
+  let controllerFortressId = battlefield.defenderBannerFortressId;
+  if (!controllerFortressId && battlefield.participants.length > 0) {
+    const defenders = battlefield.participants.filter(p => p.side === "DEFENDER");
+    if (defenders.length > 0) {
+      controllerFortressId = defenders.reduce((max, p) => (p.armyCommitted > max.armyCommitted ? p : max), defenders[0]).fortressId;
+    }
+  }
+  if (!controllerFortressId) {
+    // No defenders, no points awarded
+    return { state: "uncontrolled" };
+  }
+
+  // Award points per tick to controller
+  const CONTROLLER_POINTS_PER_TICK = 10; // TODO: adjust as needed
+  await db.fortress.update({
+    where: { id: controllerFortressId },
+    data: { points: { increment: CONTROLLER_POINTS_PER_TICK } },
+  });
+
+  // Award points to other defenders
+  const DEFENDER_POINTS_PER_TICK = 3; // TODO: adjust as needed
+  for (const participant of battlefield.participants) {
+    if (participant.side === "DEFENDER" && participant.fortressId !== controllerFortressId) {
+      await db.fortress.update({
+        where: { id: participant.fortressId },
+        data: { points: { increment: DEFENDER_POINTS_PER_TICK } },
+      });
+    }
+  }
+
+  return { state: "controlled", controllerFortressId };
+}
 import {
   CycleStatus,
   FortressAction,

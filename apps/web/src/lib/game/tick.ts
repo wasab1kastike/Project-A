@@ -1313,10 +1313,8 @@ async function processCycleTick(
     });
   }
 
-  await ensureActiveCycleMegaFortress({
-    db: db,
-    cycleId,
-  });
+  // Explicit mega fortress state machine
+  await updateMegaFortressState({ db, cycleId, tickAt });
 
   const firstTickAt = getFirstTickAt(gameplayStartedAt);
   const lastDueTickAt = getLastDueTickAt(
@@ -3343,9 +3341,12 @@ async function processCycleTick(
 
     // Calculate base fortress production (gold, food, army).
     // This is a pure function based on worker assignments, level, race, and specializations.
+    // Use new suppression state for rune of grudges
+    const { effectiveRace, isRuneSuppressed } = getSuppressionState(fortress);
     const production = calculateTickProduction({
       ...fortress,
-      race: getEffectiveRace(fortress),
+      race: effectiveRace,
+      isRuneSuppressed,
       food: currentFood.get(fortress.id) ?? fortress.food,
       castleSpecializations: countCastleSpecializations(
         fortress.castleUpgradeSpecializations

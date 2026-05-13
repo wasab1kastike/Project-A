@@ -166,7 +166,15 @@ export type ProductionValidation = {
 export function validateProduction(
   fortress: FortressEconomyLike
 ): ProductionValidation {
-  const production = calculateTickProduction(fortress);
+  // Use suppression state for rune of grudges
+  const { effectiveRace, isRuneSuppressed } = typeof getSuppressionState === "function"
+    ? getSuppressionState(fortress)
+    : { effectiveRace: fortress.race, isRuneSuppressed: false };
+  const production = calculateTickProduction({
+    ...fortress,
+    race: effectiveRace,
+    isRuneSuppressed,
+  });
 
   let status: ProductionHealthStatus = "healthy";
   let reason: string | undefined;

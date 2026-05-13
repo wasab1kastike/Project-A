@@ -1,3 +1,18 @@
+// Centralized defender assignment logic
+export async function assignDefenderBannerIfNeeded({ tx, battlefieldId, fortressId }: { tx: PrismaClient; battlefieldId: string; fortressId: string }) {
+  const battlefield = await tx.battlefield.findUnique({
+    where: { id: battlefieldId },
+    select: { defenderBannerFortressId: true },
+  });
+  if (battlefield && !battlefield.defenderBannerFortressId) {
+    await tx.battlefield.update({
+      where: { id: battlefieldId },
+      data: { defenderBannerFortressId: fortressId },
+    });
+    return true;
+  }
+  return false;
+}
 import {
   BattlefieldSide,
   BattlefieldStatus,
@@ -249,16 +264,19 @@ export async function createBattlefieldFromAttackUnit({
     },
   });
 
-  if (!unit || unit.resolvedAt) {
-    return null;
-  }
-
+  // Only the army present in the fortress at the moment of attack is committed to defense.
+  // Any new idle army produced or arriving after this point will NOT join defense automatically.
+  // Players must explicitly reinforce if they want to commit more army.
   const existing = await db.battlefield.findFirst({
     where: {
       cycleId: unit.cycleId,
       targetFortressId: unit.targetFortressId,
       status: BattlefieldStatus.ACTIVE,
     },
+    select: {
+      id: true,
+    },
+  });
     select: {
       id: true,
     },
@@ -491,18 +509,8 @@ export async function joinBattlefield({
       );
     }
 
-    if (
-      side === BattlefieldSide.DEFENDER &&
-      !battlefield.defenderBannerFortressId
-    ) {
-      await tx.battlefield.update({
-        where: {
-          id: battlefield.id,
-        },
-        data: {
-          defenderBannerFortressId: fortress.id,
-        },
-      });
+    if (side === BattlefieldSide.DEFENDER) {
+      await assignDefenderBannerIfNeeded({ tx, battlefieldId: battlefield.id, fortressId: fortress.id });
     }
 
     const tilePosition = battlefield.targetTileId
@@ -592,6 +600,8 @@ export async function processActiveBattlefields({
             },
           },
         },
+      // Defensive check: No new idle army should be swept into defense after battle start.
+      // If you see defenderArmyRemaining increase without explicit reinforcement, investigate immediately.
       },
       defenderBannerFortress: {
         select: {

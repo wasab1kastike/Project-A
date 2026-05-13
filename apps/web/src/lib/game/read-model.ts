@@ -1652,6 +1652,7 @@ export async function getHomePageState({
 
         return {
           type: "BATTLEFIELD" as const,
+            fortressKind: battlefield.targetFortress?.fortressKind ?? undefined,
           id: battlefield.id,
           launchedAt: battlefield.startedAt,
           resolvedAt: battlefield.resolvedAt ?? battlefield.startedAt,
@@ -2924,11 +2925,16 @@ export async function getHomePageState({
               }
             : null,
           ownedTileSummary,
-          growPerTick: calculateTickProduction({
-            ...playerFortress,
-            castleSpecializations:
-              playerCastleSpecializationCounts ?? undefined,
-          }).goldProduced,
+          // Use suppression state for rune of grudges
+          growPerTick: (() => {
+            const { effectiveRace, isRuneSuppressed } = getSuppressionState(playerFortress);
+            return calculateTickProduction({
+              ...playerFortress,
+              race: effectiveRace,
+              isRuneSuppressed,
+              castleSpecializations: playerCastleSpecializationCounts ?? undefined,
+            }).goldProduced;
+          })(),
           attackDamage: getFortressAttackDamage(playerFortress.level),
           garrisons: playerFortress.garrisons.map((garrison) => ({
             id: garrison.id,

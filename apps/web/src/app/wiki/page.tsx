@@ -56,7 +56,7 @@ const RACE_ABILITY_NOTES: Record<string, readonly string[]> = {
     "Tier 1 (3 mountains): Grudge Book unlocks. Pick or replace one enemy fortress and gain +25% attack and defense against that target in direct combat and tile battles.",
     "Tier 2 (6 mountains): Add a second grudge target or double your first target for a total x1.5 grudge multiplier against that one enemy.",
     "Deep Mining: once per Helsinki hour during active season. Commit 150-600 gold, then wait 10/20/30 minutes based on commitment size. Roll table favors gold, food, recruitment bursts, combat surge, army gains/losses, production halts, and partial gold loss. Rune suppression no longer comes from Deep Mining.",
-    "Rune of Grudges: Tier 2 active ability (6 mountains). Pay 250 gold upfront and 25 gold per tick upkeep for up to 6 hours to raise an attackable Dwarf rune that suppresses a single enemy fortress until the rune dies or upkeep fails.",
+    "Rune of Grudges: Tier 2 active ability (6 mountains). Pay 250 gold upfront and 25 gold per tick upkeep for up to 6 hours to raise an attackable Dwarf rune that suppresses a single enemy fortress: disables all race abilities and halves the target's economy until the rune dies or upkeep fails.",
   ],
   UNSTABLE_UNICORNS: [
     "Tier 1: Enemies cannot see your army size while your units are in transit.",

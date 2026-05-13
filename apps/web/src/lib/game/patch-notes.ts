@@ -1,3 +1,11 @@
+  {
+    date: "2026-05-13",
+    title: "Rune of Grudges nerf: disables race, halves economy",
+    newFeatures: [
+      "Rune of Grudges now disables all race-based abilities and bonuses for the target fortress, but only halves its economic production (gold, food, army) instead of fully suppressing it.",
+    ],
+    bugFixes: [],
+  },
 export type PatchNotesRelease = {
   date: string;
   title?: string;

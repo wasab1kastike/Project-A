@@ -439,7 +439,11 @@ export function assertWorkerAssignments(input: WorkerAssignmentLike) {
  *
  * RETURNS: TickProductionResult with all calculated values
  */
-export function calculateTickProduction(fortressLike: FortressEconomyLike) {
+/**
+ * Extended: pass { isRuneSuppressed } to halve economy if rune suppressed.
+ * fortressLike: FortressEconomyLike & { isRuneSuppressed?: boolean }
+ */
+export function calculateTickProduction(fortressLike: FortressEconomyLike & { isRuneSuppressed?: boolean }) {
   const raceModifiers = getRaceModifiers(fortressLike.race);
   const minersAssigned = clampNonNegative(fortressLike.minersAssigned);
   const farmersAssigned = clampNonNegative(fortressLike.farmersAssigned);
@@ -475,9 +479,17 @@ export function calculateTickProduction(fortressLike: FortressEconomyLike) {
   const baseArmyRequested =
     recruitersAssigned * ARMY_PER_RECRUITER +
     Math.floor(recruitersAssigned / 10) * raceModifiers.armyPerTenRecruiters;
-  const goldProduced = Math.floor(baseGoldProduced * goldMultiplier);
-  const foodProduced = Math.floor(baseFoodProduced * foodMultiplier);
-  const armyRequested = Math.floor(baseArmyRequested * armyMultiplier);
+  let goldProduced = Math.floor(baseGoldProduced * goldMultiplier);
+  let foodProduced = Math.floor(baseFoodProduced * foodMultiplier);
+  let armyRequested = Math.floor(baseArmyRequested * armyMultiplier);
+
+  // If rune suppressed, halve economy (but keep race null for race checks)
+  if (fortressLike.isRuneSuppressed) {
+    goldProduced = Math.floor(goldProduced * 0.5);
+    foodProduced = Math.floor(foodProduced * 0.5);
+    armyRequested = Math.floor(armyRequested * 0.5);
+  }
+
   const availableFood = clampNonNegative(fortressLike.food) + foodProduced;
   const armyProduced = Math.min(
     armyRequested,
