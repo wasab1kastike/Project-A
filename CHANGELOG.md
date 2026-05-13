@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-05-13
+- Fix: Idle army in castles no longer auto-joins tile defense after a battle starts. Only the army present at the moment of attack is committed to defense; new idle army must be explicitly sent as reinforcements.
+- Polish: Added backend comments and defensive checks to clarify and enforce correct defender assignment logic.
+- User impact: Players can still reinforce ongoing battles by sending idle army, but new idle army will not join defense automatically unless committed.
+
 ## 2026-05-12
 - Change: Fixed Rune of Grudges activation to avoid database constraint collision by assigning each rune a unique temporary owner and name suffix.
 - Change: Revamped battles card with tactical metrics showing unit counts, engagement metrics, and live battle state.
