@@ -263,6 +263,9 @@ export async function createBattlefieldFromAttackUnit({
       },
     },
   });
+  if (!unit) {
+    throw new Error(`Attack unit not found for id: ${attackUnitId}`);
+  }
 
   // Only the army present in the fortress at the moment of attack is committed to defense.
   // Any new idle army produced or arriving after this point will NOT join defense automatically.
@@ -273,10 +276,7 @@ export async function createBattlefieldFromAttackUnit({
       targetFortressId: unit.targetFortressId,
       status: BattlefieldStatus.ACTIVE,
     },
-    select: {
-      id: true,
-    },
-  });
+
     select: {
       id: true,
     },
@@ -369,7 +369,8 @@ export async function joinBattlefield({
       throw new GameError("Commit at least 1 army.");
     }
 
-    const battlefield = await tx.battlefield.findUnique({
+    // Try to find the battlefield
+    let battlefield = await tx.battlefield.findUnique({
       where: {
         id: battlefieldId,
       },
@@ -399,6 +400,8 @@ export async function joinBattlefield({
             mapX: true,
             mapY: true,
             race: true,
+            fortressKind: true,
+            isNpc: true,
           },
         },
         attackerBannerFortress: {
@@ -417,14 +420,72 @@ export async function joinBattlefield({
       },
     });
 
-    if (!battlefield || battlefield.status !== BattlefieldStatus.ACTIVE) {
-      throw new GameError("That battlefield is no longer active.");
+    // If not found and this is Home of A, create a persistent defense battlefield
+    if (!battlefield && battlefieldId.startsWith("mega-fortress")) {
+      // Find the mega fortress
+      const mega = await tx.fortress.findFirst({
+        where: { cycleId: battlefieldId.split(":")[1], fortressKind: "MEGA" },
+      });
+      if (!mega) throw new GameError("Mega Fortress not found.");
+      battlefield = await tx.battlefield.create({
+        data: {
+          id: battlefieldId,
+          cycleId: mega.cycleId,
+          targetFortressId: mega.id,
+          status: BattlefieldStatus.ACTIVE,
+          startedAt: now,
+          defenderBannerFortressId: null,
+          attackerBannerFortressId: null,
+        },
+        select: {
+          id: true,
+          cycleId: true,
+          status: true,
+          targetTileId: true,
+          targetFortressId: true,
+          defenderBannerFortressId: true,
+          cycle: {
+            select: {
+              id: true,
+              status: true,
+              activeStartedAt: true,
+              activeEndsAt: true,
+            },
+          },
+          targetFortress: {
+            select: {
+              id: true,
+              ownerId: true,
+              points: true,
+              gold: true,
+              army: true,
+              level: true,
+              mapX: true,
+              mapY: true,
+              race: true,
+              fortressKind: true,
+              isNpc: true,
+            },
+          },
+          attackerBannerFortress: {
+            select: {
+              id: true,
+              ownerId: true,
+              points: true,
+              gold: true,
+              army: true,
+              level: true,
+              mapX: true,
+              mapY: true,
+              race: true,
+            },
+          },
+        },
+      });
     }
 
-    if (!battlefield.targetFortress) {
-      throw new GameError(
-        "That battlefield cannot receive reinforcements yet."
-      );
+    if (!battlefield || !battlefield.targetFortress) {
+      throw new GameError("That battlefield cannot receive reinforcements yet.");
     }
 
     const fortress = await tx.fortress.findUnique({
@@ -473,7 +534,7 @@ export async function joinBattlefield({
     const existing = await tx.battlefieldParticipant.findUnique({
       where: {
         battlefieldId_fortressId: {
-          battlefieldId,
+          battlefieldId: battlefield.id,
           fortressId: fortress.id,
         },
       },

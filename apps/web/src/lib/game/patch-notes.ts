@@ -1,11 +1,3 @@
-  {
-    date: "2026-05-13",
-    title: "Rune of Grudges nerf: disables race, halves economy",
-    newFeatures: [
-      "Rune of Grudges now disables all race-based abilities and bonuses for the target fortress, but only halves its economic production (gold, food, army) instead of fully suppressing it.",
-    ],
-    bugFixes: [],
-  },
 export type PatchNotesRelease = {
   date: string;
   title?: string;
@@ -15,16 +7,12 @@ export type PatchNotesRelease = {
 
 export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
   {
-    date: "2026-05-12",
-    title: "Home of A battle reliability fixes",
+    date: "2026-05-13",
+    title: "Rune of Grudges nerf: disables race, halves economy",
     newFeatures: [
-      "Battle resolution now handles Home of A defender state more consistently when players join either side during an active fight.",
+      "Rune of Grudges now disables all race-based abilities and bonuses for the target fortress, but only halves its economic production (gold, food, army) instead of fully suppressing it.",
     ],
-    bugFixes: [
-      "Fixed owned Home of A battles that could resolve unexpectedly instead of continuing normal tick-by-tick attrition.",
-      "Fixed defender army accounting in Home of A fights so NPC/native defenders and joined player defenders no longer consume each other's army pools.",
-      "Fixed late reinforcements so armies that arrive after a battlefield has already resolved now return safely instead of disappearing.",
-    ],
+    bugFixes: [],
   },
   {
     date: "2026-05-12",
