@@ -13,13 +13,13 @@ import {
 import { prisma } from "@/lib/prisma";
 import { ensureOpenRegistrationCycle } from "./bootstrap";
 import {
-  HOME_OF_A_ARMY_DRAIN_PER_TICK,
   HOME_OF_A_POINT_INCOME,
   MEGA_FORTRESS_DESTROY_BONUS,
   MEGA_FORTRESS_HEALTH,
   ACTIVE_DURATION_HOURS,
   TESTING_DURATION_HOURS,
   TESTING_ENDS_BEFORE_ACTIVE_HOURS,
+  getHomeOfAArmyDrainPerTick,
 } from "./constants";
 import { mintSeasonArcadeCoins } from "./arcade";
 import {
@@ -1517,7 +1517,19 @@ async function processCycleTick(
       tileId: true,
     },
   });
-  const ownedBiomeLookup = new Map<string, Array<"water" | "coast" | "plains" | "forest" | "hills" | "mountains" | "marsh" | "lake">>();
+  const ownedBiomeLookup = new Map<
+    string,
+    Array<
+      | "water"
+      | "coast"
+      | "plains"
+      | "forest"
+      | "hills"
+      | "mountains"
+      | "marsh"
+      | "lake"
+    >
+  >();
 
   for (const ownership of mapHexOwnerships) {
     if (isHomeOfATile(ownership.tileId)) {
@@ -1999,7 +2011,8 @@ async function processCycleTick(
           resolvedDefensePower: 0,
           attackerSurvivors: unit.armyAmount,
           attackerRetired: 0,
-          attackerReturned: battlefield?.status === "ACTIVE" ? 0 : unit.armyAmount,
+          attackerReturned:
+            battlefield?.status === "ACTIVE" ? 0 : unit.armyAmount,
           defenderLosses: 0,
           pointsLooted: 0,
           foodLooted: 0,
@@ -3249,6 +3262,7 @@ async function processCycleTick(
       fortressId: true,
       bannerFortressId: true,
       contributionWeight: true,
+      capturedAt: true,
     },
   });
   const homeBannerFortressId = homeOfAHolders[0]?.bannerFortressId ?? null;
@@ -3292,19 +3306,27 @@ async function processCycleTick(
       );
     }
 
+    const holderByFortressId = new Map(
+      homeOfAHolders.map((holder) => [holder.fortressId, holder])
+    );
+
     for (const [fortressId, income] of homeIncomeByFortressId) {
       if (income <= 0 || !fortressLookup.has(fortressId)) {
         continue;
       }
 
+      const holder = holderByFortressId.get(fortressId);
+      const armyDrain = holder
+        ? getHomeOfAArmyDrainPerTick({
+            capturedAt: holder.capturedAt,
+            tickAt,
+          })
+        : 0;
       const currentArmyCount =
         currentArmy.get(fortressId) ??
         fortressLookup.get(fortressId)?.army ??
         0;
-      currentArmy.set(
-        fortressId,
-        Math.max(0, currentArmyCount - HOME_OF_A_ARMY_DRAIN_PER_TICK)
-      );
+      currentArmy.set(fortressId, Math.max(0, currentArmyCount - armyDrain));
 
       currentPoints.set(
         fortressId,

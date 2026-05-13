@@ -313,6 +313,106 @@
   margin-top: 2px;
 }
 
+.homeOfAStatus {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid rgba(247, 196, 95, 0.32);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(48, 38, 14, 0.68), rgba(18, 24, 24, 0.72)),
+    rgba(8, 16, 25, 0.72);
+}
+
+.homeOfAStatus[data-status="contested"] {
+  border-color: rgba(248, 95, 95, 0.42);
+  background:
+    linear-gradient(180deg, rgba(62, 24, 24, 0.72), rgba(18, 24, 24, 0.72)),
+    rgba(8, 16, 25, 0.72);
+}
+
+.homeOfAStatusHeader,
+.homeOfAHolder {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.homeOfAStatusHeader strong {
+  display: block;
+  margin-top: 2px;
+}
+
+.homeOfAStatusBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid rgba(247, 196, 95, 0.32);
+  border-radius: 999px;
+  background: rgba(247, 196, 95, 0.12);
+  color: #f8bf57;
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.64rem;
+  text-transform: uppercase;
+}
+
+.homeOfAMetrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.homeOfAMetrics div {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid rgba(247, 196, 95, 0.16);
+  border-radius: 8px;
+  background: rgba(4, 10, 16, 0.42);
+}
+
+.homeOfAMetrics dt {
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.64rem;
+  text-transform: uppercase;
+}
+
+.homeOfAMetrics dd {
+  margin: 4px 0 0;
+  font-weight: 800;
+}
+
+.homeOfAHolderList {
+  display: grid;
+  gap: 6px;
+}
+
+.homeOfAHolder {
+  padding: 8px;
+  border: 1px solid rgba(226, 232, 240, 0.12);
+  border-radius: 8px;
+  background: rgba(3, 10, 16, 0.34);
+}
+
+.homeOfAHolder div {
+  display: grid;
+  gap: 2px;
+}
+
+.homeOfAHolder span {
+  color: var(--text-muted);
+  font-size: 0.74rem;
+}
+
+.homeOfAHolder div:last-child {
+  justify-items: end;
+  text-align: right;
+  font-family: var(--font-ibm-plex-mono);
+}
+
 .tileStats {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -715,6 +815,19 @@
 
   .tileStats {
     grid-template-columns: 1fr;
+  }
+
+  .homeOfAMetrics {
+    grid-template-columns: 1fr;
+  }
+
+  .homeOfAHolder {
+    display: grid;
+  }
+
+  .homeOfAHolder div:last-child {
+    justify-items: start;
+    text-align: left;
   }
 
   .battlefieldJoinGrid {

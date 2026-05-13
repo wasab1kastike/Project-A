@@ -18,15 +18,7 @@ export const BASE_FORTRESS_GROWTH = 1;
 export const FORTRESS_ATTACK_DAMAGE_PER_LEVEL = 2;
 export const FORTRESS_GROWTH_PER_LEVEL = 1;
 export const FORTRESS_LEVEL_UP_COSTS = [
-  500,
-  1500,
-  3000,
-  5000,
-  7500,
-  10500,
-  14000,
-  18000,
-  22500,
+  500, 1500, 3000, 5000, 7500, 10500, 14000, 18000, 22500,
 ] as const;
 export const FORTRESS_UPGRADE_BASE_MINUTES = 15;
 export const MAX_FORTRESS_LEVEL = FORTRESS_LEVEL_UP_COSTS.length;
@@ -40,9 +32,28 @@ export const NPC_SYSTEM_USER_EMAIL = "npc@project-a.local";
 export const HOME_OF_A_TILE_ID = "20:15";
 export const HOME_OF_A_POINT_INCOME = 17;
 export const HOME_OF_A_NEUTRAL_DEFENSE = 10_000;
-export const HOME_OF_A_ARMY_DRAIN_PER_TICK = 1;
+export const HOME_OF_A_ARMY_DRAIN_BASE = 10;
+export const HOME_OF_A_ARMY_DRAIN_INCREASE_PER_TICK = 1;
 export const TEMPORARY_MAP_OBJECTIVE_INTERVAL_HOURS = 12;
 export const TEMPORARY_MAP_OBJECTIVE_POINT_VALUES = [4, 6, 8] as const;
+
+export function getHomeOfAArmyDrainPerTick({
+  capturedAt,
+  tickAt,
+}: {
+  capturedAt: Date;
+  tickAt: Date;
+}) {
+  const heldTicks = Math.max(
+    0,
+    Math.floor((tickAt.getTime() - capturedAt.getTime()) / 60_000)
+  );
+
+  return (
+    HOME_OF_A_ARMY_DRAIN_BASE +
+    heldTicks * HOME_OF_A_ARMY_DRAIN_INCREASE_PER_TICK
+  );
+}
 
 export const UNIT_SPRITE_VARIANTS = [
   "unit-1",
@@ -125,7 +136,8 @@ export const ARCADE_FORTRESS_LOOT_BOX_SKINS_SET_2 = [
     variant: "desert-fortress",
     name: "Desert Fortress",
     rarity: "Common",
-    description: "Sun-scorched stronghold built from sandstone and stubbornness.",
+    description:
+      "Sun-scorched stronghold built from sandstone and stubbornness.",
     slot: ArcadeCosmeticSlot.FORTRESS,
   },
   {
@@ -139,7 +151,8 @@ export const ARCADE_FORTRESS_LOOT_BOX_SKINS_SET_2 = [
     variant: "cyber-fortress",
     name: "Cyber Fortress",
     rarity: "Legendary",
-    description: "Reinforced machine citadel powered by neon cores and steel logic.",
+    description:
+      "Reinforced machine citadel powered by neon cores and steel logic.",
     slot: ArcadeCosmeticSlot.FORTRESS,
   },
   {
@@ -160,7 +173,8 @@ export const ARCADE_FORTRESS_LOOT_BOX_SKINS_SET_2 = [
     variant: "ancient-mire-temple",
     name: "Ancient Mire Temple",
     rarity: "Rare",
-    description: "Forgotten jungle-water ruin reclaimed by nature and old magic.",
+    description:
+      "Forgotten jungle-water ruin reclaimed by nature and old magic.",
     slot: ArcadeCosmeticSlot.FORTRESS,
   },
 ] as const satisfies readonly ArcadeLootBoxSkin[];
@@ -252,16 +266,14 @@ export const ARCADE_UNIT_LOOT_BOX_SKINS_SET_1 = [
     variant: "thunder-berserker",
     name: "Thunder Berserker",
     rarity: "Epic",
-    description:
-      "Storm-fueled warrior whose rage crackles with lightning.",
+    description: "Storm-fueled warrior whose rage crackles with lightning.",
     slot: ArcadeCosmeticSlot.UNIT,
   },
   {
     variant: "cactus-ranger",
     name: "Cactus Ranger",
     rarity: "Common",
-    description:
-      "Desert archer hardened by heat, sand, and sarcasm.",
+    description: "Desert archer hardened by heat, sand, and sarcasm.",
     slot: ArcadeCosmeticSlot.UNIT,
   },
 ] as const satisfies readonly ArcadeLootBoxSkin[];
@@ -271,32 +283,28 @@ export const ARCADE_UNIT_LOOT_BOX_SKINS_SET_2 = [
     variant: "vampire-rogue",
     name: "Vampire Rogue",
     rarity: "Rare",
-    description:
-      "Elegant predator striking from shadow before dawn arrives.",
+    description: "Elegant predator striking from shadow before dawn arrives.",
     slot: ArcadeCosmeticSlot.UNIT,
   },
   {
     variant: "angel-paladin",
     name: "Angel Paladin",
     rarity: "Legendary",
-    description:
-      "Winged champion carrying radiant justice into battle.",
+    description: "Winged champion carrying radiant justice into battle.",
     slot: ArcadeCosmeticSlot.UNIT,
   },
   {
     variant: "goblin-engineer",
     name: "Goblin Engineer",
     rarity: "Common",
-    description:
-      "Small inventor with dangerous tools and zero hesitation.",
+    description: "Small inventor with dangerous tools and zero hesitation.",
     slot: ArcadeCosmeticSlot.UNIT,
   },
   {
     variant: "sand-necromancer",
     name: "Sand Necromancer",
     rarity: "Rare",
-    description:
-      "Desert sorcerer raising what the dunes buried long ago.",
+    description: "Desert sorcerer raising what the dunes buried long ago.",
     slot: ArcadeCosmeticSlot.UNIT,
   },
 ] as const satisfies readonly ArcadeLootBoxSkin[];
@@ -306,32 +314,28 @@ export const ARCADE_UNIT_LOOT_BOX_SKINS_SET_3 = [
     variant: "mushroom-druid",
     name: "Mushroom Druid",
     rarity: "Common",
-    description:
-      "Forest sage who commands spores, roots, and strange growth.",
+    description: "Forest sage who commands spores, roots, and strange growth.",
     slot: ArcadeCosmeticSlot.UNIT,
   },
   {
     variant: "neon-assassin",
     name: "Neon Assassin",
     rarity: "Epic",
-    description:
-      "Silent killer enhanced by glowing forbidden tech.",
+    description: "Silent killer enhanced by glowing forbidden tech.",
     slot: ArcadeCosmeticSlot.UNIT,
   },
   {
     variant: "frost-giant-warrior",
     name: "Frost Giant Warrior",
     rarity: "Legendary",
-    description:
-      "Massive northern brute carrying winter into every fight.",
+    description: "Massive northern brute carrying winter into every fight.",
     slot: ArcadeCosmeticSlot.UNIT,
   },
   {
     variant: "lava-shaman",
     name: "Lava Shaman",
     rarity: "Epic",
-    description:
-      "Fire mystic channeling molten wrath through ancient rites.",
+    description: "Fire mystic channeling molten wrath through ancient rites.",
     slot: ArcadeCosmeticSlot.UNIT,
   },
 ] as const satisfies readonly ArcadeLootBoxSkin[];
@@ -341,32 +345,28 @@ export const ARCADE_UNIT_LOOT_BOX_SKINS_SET_4 = [
     variant: "royal-musketeer",
     name: "Royal Musketeer",
     rarity: "Rare",
-    description:
-      "Noble marksman whose aim is as sharp as his manners.",
+    description: "Noble marksman whose aim is as sharp as his manners.",
     slot: ArcadeCosmeticSlot.UNIT,
   },
   {
     variant: "beekeeper-lancer",
     name: "Beekeeper Lancer",
     rarity: "Common",
-    description:
-      "Spear fighter protected by a furious royal swarm.",
+    description: "Spear fighter protected by a furious royal swarm.",
     slot: ArcadeCosmeticSlot.UNIT,
   },
   {
     variant: "steam-mech-soldier",
     name: "Steam Mech Soldier",
     rarity: "Rare",
-    description:
-      "Brass war machine powered by relentless engines.",
+    description: "Brass war machine powered by relentless engines.",
     slot: ArcadeCosmeticSlot.UNIT,
   },
   {
     variant: "shadow-monk",
     name: "Shadow Monk",
     rarity: "Epic",
-    description:
-      "Silent martial artist striking with void-touched discipline.",
+    description: "Silent martial artist striking with void-touched discipline.",
     slot: ArcadeCosmeticSlot.UNIT,
   },
 ] as const satisfies readonly ArcadeLootBoxSkin[];
@@ -384,8 +384,7 @@ export const ARCADE_UNIT_LOOT_BOX_SKINS_SET_5 = [
     variant: "crimson-vanguard",
     name: "Crimson Vanguard",
     rarity: "Rare",
-    description:
-      "Veteran shock soldier leading charges with blade and fury.",
+    description: "Veteran shock soldier leading charges with blade and fury.",
     slot: ArcadeCosmeticSlot.UNIT,
   },
   {
@@ -400,8 +399,7 @@ export const ARCADE_UNIT_LOOT_BOX_SKINS_SET_5 = [
     variant: "high-marshal-aurex",
     name: "High Marshal Aurex",
     rarity: "Legendary",
-    description:
-      "Elite commander whose presence alone raises morale.",
+    description: "Elite commander whose presence alone raises morale.",
     slot: ArcadeCosmeticSlot.UNIT,
   },
 ] as const satisfies readonly ArcadeLootBoxSkin[];
@@ -411,24 +409,21 @@ export const ARCADE_UNIT_LOOT_BOX_SKINS_SET_6 = [
     variant: "brood-gaunt",
     name: "Brood Gaunt",
     rarity: "Common",
-    description:
-      "Fast swarm creature bred to overwhelm with numbers.",
+    description: "Fast swarm creature bred to overwhelm with numbers.",
     slot: ArcadeCosmeticSlot.UNIT,
   },
   {
     variant: "venom-shrieker",
     name: "Venom Shrieker",
     rarity: "Rare",
-    description:
-      "Winged bio-beast spitting corrosive living ammunition.",
+    description: "Winged bio-beast spitting corrosive living ammunition.",
     slot: ArcadeCosmeticSlot.UNIT,
   },
   {
     variant: "tunnel-ravager",
     name: "Tunnel Ravager",
     rarity: "Epic",
-    description:
-      "Burrowing horror erupting beneath enemy lines.",
+    description: "Burrowing horror erupting beneath enemy lines.",
     slot: ArcadeCosmeticSlot.UNIT,
   },
   {
@@ -470,11 +465,7 @@ export const ARCADE_SEASON_BASE_COINS = 300;
 export const ARCADE_SEASON_POINTS_BONUS_DIVISOR = 100;
 export const ARCADE_SEASON_POINTS_BONUS_CAP = 100;
 export const ARCADE_SEASON_RANK_BONUS_BY_POSITION = [
-  100,
-  80,
-  60,
-  40,
-  20,
+  100, 80, 60, 40, 20,
 ] as const;
 
 export function getArcadeSeasonRankBonus(rank: number) {

@@ -11,7 +11,8 @@ import {
   FORTRESS_ATTACK_DAMAGE_PER_LEVEL,
   FORTRESS_GROWTH_PER_LEVEL,
   FORTRESS_LEVEL_UP_COSTS,
-  HOME_OF_A_ARMY_DRAIN_PER_TICK,
+  HOME_OF_A_ARMY_DRAIN_BASE,
+  HOME_OF_A_ARMY_DRAIN_INCREASE_PER_TICK,
   HOME_OF_A_NEUTRAL_DEFENSE,
   HOME_OF_A_POINT_INCOME,
   HOME_OF_A_TILE_ID,
@@ -711,21 +712,21 @@ export default function WikiPage() {
               <h3>What owned tiles do</h3>
               <ul className={styles.noteList}>
                 <li>
-                  Tile bonuses come from biome and can include gold, food,
-                  army, defense, or temporary objective points.
+                  Tile bonuses come from biome and can include gold, food, army,
+                  defense, or temporary objective points.
                 </li>
                 <li>
-                  Forest and hills are better defensive holds, while marsh
-                  tiles are the main army-income biome.
+                  Forest and hills are better defensive holds, while marsh tiles
+                  are the main army-income biome.
                 </li>
                 <li>
                   Owned tiles can be fortified, attacked, reinforced, and
                   transferred when their battlefield resolves.
                 </li>
                 <li>
-                  Fortified garrisons stay on the tile without maintenance
-                  drain and can be partially recalled, with surviving troops
-                  marching home.
+                  Fortified garrisons stay on the tile without maintenance drain
+                  and can be partially recalled, with surviving troops marching
+                  home.
                 </li>
                 <li>
                   The selected tile panel shows current owner, bonus, claim
@@ -755,8 +756,10 @@ export default function WikiPage() {
               army contribution.
             </li>
             <li>
-              Every active Home of A holder loses {HOME_OF_A_ARMY_DRAIN_PER_TICK} army
-              per tick while the banner is held.
+              Every active Home of A holder starts at -
+              {HOME_OF_A_ARMY_DRAIN_BASE} army per tick, then loses{" "}
+              {HOME_OF_A_ARMY_DRAIN_INCREASE_PER_TICK} more army per tick for
+              each tick held.
             </li>
           </ul>
         </article>
@@ -766,9 +769,9 @@ export default function WikiPage() {
           <h2>How raids resolve</h2>
           <p>
             Combat is split between direct attacks, battlefield joins, and tile
-            control fights. The important part is that the send is visible,
-            tied fights favor the defender, and battlefields can move the map as
-            well as the army count.
+            control fights. The important part is that the send is visible, tied
+            fights favor the defender, and battlefields can move the map as well
+            as the army count.
           </p>
           <div className={styles.twoCol}>
             <section>
@@ -836,9 +839,7 @@ export default function WikiPage() {
                   {WINNING_ATTACKER_BASE_SURVIVAL_FACTOR} and{" "}
                   {WINNING_ATTACKER_MARGIN_SURVIVAL_FACTOR}).
                 </li>
-                <li>
-                  Surviving attackers return home after a win.
-                </li>
+                <li>Surviving attackers return home after a win.</li>
                 <li>
                   Survivors carry {CARRY_CAPACITY_PER_SURVIVOR} loot each before
                   race bonuses.

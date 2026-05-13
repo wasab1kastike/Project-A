@@ -7,6 +7,15 @@ export type PatchNotesRelease = {
 
 export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
   {
+    date: "2026-05-13",
+    title: "Home of A status and escalating drain",
+    newFeatures: [
+      "Selecting the Home of A center tile now shows clearer control, holder, income, and drain status in one place.",
+      "Home of A holder drain now starts at 10 army per tick and rises by 1 each tick held.",
+    ],
+    bugFixes: [],
+  },
+  {
     date: "2026-05-12",
     title: "Home of A battle reliability fixes",
     newFeatures: [
@@ -48,7 +57,8 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
   },
   {
     date: "2026-05-11",
-    title: "Sea tiles, mountain claims, Castle Yeet, and instant attack markers",
+    title:
+      "Sea tiles, mountain claims, Castle Yeet, and instant attack markers",
     newFeatures: [
       "Sea and mountain tiles can now be claimed — they cost more and take longer, but pay out higher rewards.",
       "Castle Yeet now uses the Battlefield map: arm the move, pick a destination tile, and relocate your castle there for gold.",

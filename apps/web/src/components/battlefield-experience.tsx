@@ -255,19 +255,43 @@ function formatLossRatio(value: number | null) {
   return `${value.toFixed(2)}:1`;
 }
 
+function formatHeldDuration(capturedAt: Date) {
+  const heldMinutes = Math.max(
+    0,
+    Math.floor((Date.now() - new Date(capturedAt).getTime()) / 60_000)
+  );
+
+  if (heldMinutes < 60) {
+    return `${heldMinutes}m held`;
+  }
+
+  const hours = Math.floor(heldMinutes / 60);
+  const minutes = heldMinutes % 60;
+
+  return minutes === 0 ? `${hours}h held` : `${hours}h ${minutes}m held`;
+}
+
 type HomeOfAState = {
   tileId: string;
   pointIncome: number;
+  status: "NEUTRAL" | "CONTROLLED" | "CONTESTED";
+  statusLabel: string;
+  incomeLabel: string;
+  drainLabel: string;
+  holderCount: number;
   ownerFortressId: string | null;
   ownerName: string;
   ownerCommanderName: string;
   bannerFortressId: string | null;
   bannerName: string | null;
+  isCurrentUserHolder: boolean;
   holders: Array<{
     fortressId: string;
     fortressName: string;
     commanderName: string;
     contributionWeight: number;
+    capturedAt: Date;
+    currentDrainPerTick: number;
     isCurrentUser: boolean;
   }>;
   activeBattlefieldId: string | null;
@@ -372,9 +396,9 @@ export function BattlefieldExperience({
   const [battleRecallPendingId, setBattleRecallPendingId] = useState<
     string | null
   >(null);
-  const [battleJoinPendingId, setBattleJoinPendingId] = useState<
-    string | null
-  >(null);
+  const [battleJoinPendingId, setBattleJoinPendingId] = useState<string | null>(
+    null
+  );
   const [recallAllPending, setRecallAllPending] = useState(false);
   const [garrisonRecallPendingId, setGarrisonRecallPendingId] = useState<
     string | null
@@ -535,19 +559,24 @@ export function BattlefieldExperience({
   const recallableBattlefieldCount = useMemo(
     () =>
       battlefields.filter(
-        (battlefield) => battlefield.canRecall && battlefield.ownArmyRemaining > 0
+        (battlefield) =>
+          battlefield.canRecall && battlefield.ownArmyRemaining > 0
       ).length,
     [battlefields]
   );
   const recallableGarrisonCount = useMemo(
     () =>
       mapHexes.filter(
-        (hex) => Boolean(hex.ownGarrison?.canRecall) && (hex.ownGarrison?.army ?? 0) > 0
+        (hex) =>
+          Boolean(hex.ownGarrison?.canRecall) &&
+          (hex.ownGarrison?.army ?? 0) > 0
       ).length,
     [mapHexes]
   );
   const totalRecallableSources =
-    recallableAttackUnitCount + recallableBattlefieldCount + recallableGarrisonCount;
+    recallableAttackUnitCount +
+    recallableBattlefieldCount +
+    recallableGarrisonCount;
   const hasRecallableUnits = totalRecallableSources > 0;
   const mapHexByTileId = useMemo(
     () => new Map(mapHexes.map((ownership) => [ownership.tileId, ownership])),
@@ -581,39 +610,36 @@ export function BattlefieldExperience({
           (battlefield) => battlefield.targetTileId === selectedTileId
         )?.id ?? null)
       : null);
-  const selectedBattlefields = useMemo(
-    () => {
-      if (selectedBattlefieldId) {
-        return battlefields.filter(
-          (battlefield) => battlefield.id === selectedBattlefieldId
-        );
-      }
+  const selectedBattlefields = useMemo(() => {
+    if (selectedBattlefieldId) {
+      return battlefields.filter(
+        (battlefield) => battlefield.id === selectedBattlefieldId
+      );
+    }
 
-      if (selectedBattleTileId) {
-        return battlefields.filter(
-          (battlefield) => battlefield.targetTileId === selectedBattleTileId
-        );
-      }
+    if (selectedBattleTileId) {
+      return battlefields.filter(
+        (battlefield) => battlefield.targetTileId === selectedBattleTileId
+      );
+    }
 
-      if (selectedBattleFortressId) {
-        return battlefields.filter(
-          (battlefield) =>
-            battlefield.targetTileId === null &&
-            (battlefield.targetFortressId === selectedBattleFortressId ||
-              battlefield.attackerBanner.id === selectedBattleFortressId ||
-              battlefield.defenderBanner?.id === selectedBattleFortressId)
-        );
-      }
+    if (selectedBattleFortressId) {
+      return battlefields.filter(
+        (battlefield) =>
+          battlefield.targetTileId === null &&
+          (battlefield.targetFortressId === selectedBattleFortressId ||
+            battlefield.attackerBanner.id === selectedBattleFortressId ||
+            battlefield.defenderBanner?.id === selectedBattleFortressId)
+      );
+    }
 
-      return [];
-    },
-    [
-      battlefields,
-      selectedBattlefieldId,
-      selectedBattleFortressId,
-      selectedBattleTileId,
-    ]
-  );
+    return [];
+  }, [
+    battlefields,
+    selectedBattlefieldId,
+    selectedBattleFortressId,
+    selectedBattleTileId,
+  ]);
   const occupiedFortressTileIds = useMemo(() => {
     return new Set(
       mapFortresses.map((fortress) => {
@@ -650,7 +676,9 @@ export function BattlefieldExperience({
         return true;
       }
 
-      return battlefields.some((battlefield) => battlefield.targetTileId === tileId);
+      return battlefields.some(
+        (battlefield) => battlefield.targetTileId === tileId
+      );
     },
     [battlefields, mapHexByTileId]
   );
@@ -671,8 +699,8 @@ export function BattlefieldExperience({
       return battlefields.some(
         (battlefield) =>
           battlefield.targetFortressId === fortressId ||
-            battlefield.attackerBanner.id === fortressId ||
-            battlefield.defenderBanner?.id === fortressId
+          battlefield.attackerBanner.id === fortressId ||
+          battlefield.defenderBanner?.id === fortressId
       );
     },
     [battlefields]
@@ -714,12 +742,7 @@ export function BattlefieldExperience({
 
       return null;
     },
-    [
-      gameplayOpen,
-      occupiedFortressTileIds,
-      playerFortressTileId,
-      playerSummary,
-    ]
+    [gameplayOpen, occupiedFortressTileIds, playerFortressTileId, playerSummary]
   );
 
   const selectedCastleYeetError = selectedTileId
@@ -733,8 +756,8 @@ export function BattlefieldExperience({
     }
 
     const currentFortress = playerFortress
-      ? mapFortresses.find((fortress) => fortress.id === playerFortress.id) ??
-        null
+      ? (mapFortresses.find((fortress) => fortress.id === playerFortress.id) ??
+        null)
       : null;
     const currentTileId = currentFortress
       ? snapMapPointToHex({
@@ -783,7 +806,11 @@ export function BattlefieldExperience({
     if (battleJoinPendingId) return;
     setBattleJoinPendingId(battlefieldId + ":" + side);
     try {
-      const result = await joinBattlefieldAction(battlefieldId, side, armyAmount);
+      const result = await joinBattlefieldAction(
+        battlefieldId,
+        side,
+        armyAmount
+      );
       if (result.ok) {
         refreshView();
       } else {
@@ -1206,12 +1233,15 @@ export function BattlefieldExperience({
     [hasActiveBattleForFortressId, hasActiveBattleForTileId]
   );
 
-  const handleSelectMapHex = useCallback((tileId: string) => {
-    setSelectedBattlefieldId(null);
-    setSelectedTileId(tileId);
-    setSelectedBattleTileId(hasActiveBattleForTileId(tileId) ? tileId : null);
-    setSelectedBattleFortressId(null);
-  }, [hasActiveBattleForTileId]);
+  const handleSelectMapHex = useCallback(
+    (tileId: string) => {
+      setSelectedBattlefieldId(null);
+      setSelectedTileId(tileId);
+      setSelectedBattleTileId(hasActiveBattleForTileId(tileId) ? tileId : null);
+      setSelectedBattleFortressId(null);
+    },
+    [hasActiveBattleForTileId]
+  );
 
   const handleViewBattleReport = useCallback(
     (report: BattleReport) => {
@@ -1463,6 +1493,75 @@ export function BattlefieldExperience({
         </button>
       </div>
 
+      {selectedTileIsHomeOfA && homeOfA ? (
+        <section
+          className={styles.homeOfAStatus}
+          aria-label="Home of A status"
+          data-status={homeOfA.status.toLowerCase()}
+        >
+          <div className={styles.homeOfAStatusHeader}>
+            <div>
+              <span className={styles.label}>Status</span>
+              <strong>{homeOfA.statusLabel}</strong>
+            </div>
+            <span className={styles.homeOfAStatusBadge}>
+              {homeOfA.status.toLowerCase()}
+            </span>
+          </div>
+          <dl className={styles.homeOfAMetrics}>
+            <div>
+              <dt>Income</dt>
+              <dd>{homeOfA.incomeLabel}</dd>
+            </div>
+            <div>
+              <dt>Current drain</dt>
+              <dd>{homeOfA.drainLabel}</dd>
+            </div>
+            <div>
+              <dt>Banner</dt>
+              <dd>{homeOfA.bannerName ?? homeOfA.ownerName}</dd>
+            </div>
+            <div>
+              <dt>Holders</dt>
+              <dd>
+                {homeOfA.holderCount}
+                {homeOfA.isCurrentUserHolder ? " including you" : ""}
+              </dd>
+            </div>
+          </dl>
+          {homeOfA.holders.length > 0 ? (
+            <div className={styles.homeOfAHolderList}>
+              {homeOfA.holders.map((holder) => (
+                <article
+                  className={styles.homeOfAHolder}
+                  key={holder.fortressId}
+                >
+                  <div>
+                    <strong>
+                      {holder.fortressName}
+                      {holder.isCurrentUser ? " (you)" : ""}
+                    </strong>
+                    <span>{holder.commanderName}</span>
+                  </div>
+                  <div>
+                    <span>Weight {holder.contributionWeight}</span>
+                    <span>
+                      -{holder.currentDrainPerTick} / tick ·{" "}
+                      {formatHeldDuration(holder.capturedAt)}
+                    </span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className={styles.helper}>
+              Home of A is unclaimed. The first attackers fight neutral defense
+              before control and holder drain begin.
+            </p>
+          )}
+        </section>
+      ) : null}
+
       <dl className={styles.tileStats}>
         <div>
           <dt>Owner</dt>
@@ -1666,9 +1765,7 @@ export function BattlefieldExperience({
               className={styles.secondaryButton}
               type="button"
               disabled={
-                mapActionPending ||
-                !gameplayOpen ||
-                !canShuffleLocation
+                mapActionPending || !gameplayOpen || !canShuffleLocation
               }
               onClick={() => {
                 setCastleYeetArmed((current) => !current);
@@ -1683,7 +1780,9 @@ export function BattlefieldExperience({
                 <button
                   className={styles.secondaryButton}
                   type="button"
-                  disabled={mapActionPending || selectedCastleYeetError !== null}
+                  disabled={
+                    mapActionPending || selectedCastleYeetError !== null
+                  }
                   onClick={() => {
                     if (selectedTile) {
                       void handleRelocateCastleToTile(selectedTile.id);
@@ -1951,7 +2050,9 @@ export function BattlefieldExperience({
                           <dl className={styles.battleTacticalGrid}>
                             <div>
                               <dt>Pressure split</dt>
-                              <dd>{battlefield.attackerSharePercent}% attack</dd>
+                              <dd>
+                                {battlefield.attackerSharePercent}% attack
+                              </dd>
                             </div>
                             <div>
                               <dt>Loss ratio A:D</dt>
@@ -1980,7 +2081,9 @@ export function BattlefieldExperience({
                               <dd>
                                 {battlefield.attackBuffPercent >= 0 ? "+" : ""}
                                 {battlefield.attackBuffPercent}% /
-                                {battlefield.defenseBuffPercent >= 0 ? " +" : " "}
+                                {battlefield.defenseBuffPercent >= 0
+                                  ? " +"
+                                  : " "}
                                 {battlefield.defenseBuffPercent}%
                               </dd>
                             </div>
@@ -2151,7 +2254,8 @@ export function BattlefieldExperience({
                             type="button"
                             disabled={
                               !battlefield.canJoinAttacker ||
-                              battleJoinPendingId === battlefield.id + ":ATTACKER"
+                              battleJoinPendingId ===
+                                battlefield.id + ":ATTACKER"
                             }
                             title={
                               battlefield.joinAttackerDisabledReason ??
@@ -2165,7 +2269,8 @@ export function BattlefieldExperience({
                               )
                             }
                           >
-                            {battleJoinPendingId === battlefield.id + ":ATTACKER"
+                            {battleJoinPendingId ===
+                            battlefield.id + ":ATTACKER"
                               ? "Reinforcing…"
                               : `Reinforce attack (${joinAmount})`}
                           </button>
@@ -2174,7 +2279,8 @@ export function BattlefieldExperience({
                             type="button"
                             disabled={
                               !battlefield.canJoinDefender ||
-                              battleJoinPendingId === battlefield.id + ":DEFENDER"
+                              battleJoinPendingId ===
+                                battlefield.id + ":DEFENDER"
                             }
                             title={
                               battlefield.joinDefenderDisabledReason ??
@@ -2188,7 +2294,8 @@ export function BattlefieldExperience({
                               )
                             }
                           >
-                            {battleJoinPendingId === battlefield.id + ":DEFENDER"
+                            {battleJoinPendingId ===
+                            battlefield.id + ":DEFENDER"
                               ? "Reinforcing…"
                               : `Reinforce defense (${joinAmount})`}
                           </button>

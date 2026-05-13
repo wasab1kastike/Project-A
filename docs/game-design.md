@@ -36,7 +36,7 @@
 - Home of A is a center-tile control battle, not a normal neutral claim
 - First Home of A capture fights 10,000 neutral defense through the center tile
 - The controlling Home of A banner alliance earns 17 points per tick while it holds the center, about 1,020 points per hour
-- Each active Home of A holder loses 1 army per tick while the banner is held
+- Each active Home of A holder loses 10 army on the first held tick, then 1 more army per tick for each tick held
 - Home of A tile battles share battlefield resolution rules with other tile battles where possible
 - Battle-log badges count unread/new reports only, not total historical entries
 

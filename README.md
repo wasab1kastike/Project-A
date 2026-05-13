@@ -162,7 +162,7 @@ The game is now a castle-economy and battlefield-control loop:
 - active army, not queued army, consumes food upkeep at 0.01 food per unit per tick; if upkeep cannot be paid, food falls to zero and active army loses 2% that tick
 - neutral tiles are acquired through connected 10-minute claim projects, while owned tiles and Home of A create battlefields that players can attack or reinforce
 - direct attacks and battlefield reinforcements both count against the player's simultaneous outbound attack cap
-- Home of A is conquered through the center tile, starts against neutral defense, pays about 1k points per hour to holders, and drains 1 army per holder per tick while controlled
+- Home of A is conquered through the center tile, starts against neutral defense, pays about 1k points per hour to holders, and drains each holder for 10 army on the first held tick, rising by 1 each tick held
 - battle results are resolved after economy updates so loot, casualties, rewards, and tile ownership are persisted coherently
 - battle-log badges show unread/new reports rather than the total number of historical entries
 - Render Cron runs `npm run game:tick` once per minute in production

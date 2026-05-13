@@ -62,7 +62,8 @@ import {
   ARCADE_SEASON_BASE_COINS,
   ARCADE_SEASON_POINTS_BONUS_CAP,
   ARCADE_SEASON_POINTS_BONUS_DIVISOR,
-  HOME_OF_A_ARMY_DRAIN_PER_TICK,
+  HOME_OF_A_ARMY_DRAIN_BASE,
+  HOME_OF_A_ARMY_DRAIN_INCREASE_PER_TICK,
   HOME_OF_A_NEUTRAL_DEFENSE,
   getArcadeSeasonRankBonus,
   ARCADE_FORTRESS_LOOT_BOX_SKINS_SET_1,
@@ -1166,24 +1167,23 @@ test("direct player castle attack creates a visible battlefield before arrival",
       points: 100,
     },
   ]);
-  const [attackerFortress, defenderFortress, allyFortress] =
-    await Promise.all([
-      prisma.fortress.findUniqueOrThrow({
-        where: {
-          cycleId_ownerId: { cycleId: cycle.id, ownerId: attacker.id },
-        },
-      }),
-      prisma.fortress.findUniqueOrThrow({
-        where: {
-          cycleId_ownerId: { cycleId: cycle.id, ownerId: defender.id },
-        },
-      }),
-      prisma.fortress.findUniqueOrThrow({
-        where: {
-          cycleId_ownerId: { cycleId: cycle.id, ownerId: ally.id },
-        },
-      }),
-    ]);
+  const [attackerFortress, defenderFortress, allyFortress] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: {
+        cycleId_ownerId: { cycleId: cycle.id, ownerId: attacker.id },
+      },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: {
+        cycleId_ownerId: { cycleId: cycle.id, ownerId: defender.id },
+      },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: {
+        cycleId_ownerId: { cycleId: cycle.id, ownerId: ally.id },
+      },
+    }),
+  ]);
 
   await prisma.fortress.update({
     where: { id: attackerFortress.id },
@@ -1344,24 +1344,23 @@ test("direct player castle attacks reuse an active castle battlefield", async (c
       points: 100,
     },
   ]);
-  const [firstFortress, secondFortress, defenderFortress] =
-    await Promise.all([
-      prisma.fortress.findUniqueOrThrow({
-        where: {
-          cycleId_ownerId: { cycleId: cycle.id, ownerId: firstAttacker.id },
-        },
-      }),
-      prisma.fortress.findUniqueOrThrow({
-        where: {
-          cycleId_ownerId: { cycleId: cycle.id, ownerId: secondAttacker.id },
-        },
-      }),
-      prisma.fortress.findUniqueOrThrow({
-        where: {
-          cycleId_ownerId: { cycleId: cycle.id, ownerId: defender.id },
-        },
-      }),
-    ]);
+  const [firstFortress, secondFortress, defenderFortress] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: {
+        cycleId_ownerId: { cycleId: cycle.id, ownerId: firstAttacker.id },
+      },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: {
+        cycleId_ownerId: { cycleId: cycle.id, ownerId: secondAttacker.id },
+      },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: {
+        cycleId_ownerId: { cycleId: cycle.id, ownerId: defender.id },
+      },
+    }),
+  ]);
 
   await prisma.fortress.updateMany({
     where: {
@@ -1771,10 +1770,7 @@ test("castle owners can reinforce their own castle defense", async (context) => 
     prisma,
     "own-castle-def-attacker@example.com"
   );
-  const defender = await createUser(
-    prisma,
-    "own-castle-def-owner@example.com"
-  );
+  const defender = await createUser(prisma, "own-castle-def-owner@example.com");
   const cycle = await seedActiveCommunityWishCycle(prisma, [
     {
       userId: attacker.id,
@@ -1963,10 +1959,7 @@ test("tile owners can reinforce their own tile defense", async (context) => {
     prisma,
     "own-tile-def-attacker@example.com"
   );
-  const defender = await createUser(
-    prisma,
-    "own-tile-def-owner@example.com"
-  );
+  const defender = await createUser(prisma, "own-tile-def-owner@example.com");
   const cycle = await seedActiveCommunityWishCycle(prisma, [
     {
       userId: attacker.id,
@@ -2935,6 +2928,7 @@ test("Home of A tick income splits banner half and holder army share", async (co
       },
     },
     data: {
+      army: 40,
       minersAssigned: 0,
       farmersAssigned: 0,
       recruitersAssigned: 0,
@@ -2948,6 +2942,7 @@ test("Home of A tick income splits banner half and holder army share", async (co
       ownerFortressId: bannerFortress.id,
     },
   });
+  const capturedAt = new Date("2026-04-20T12:01:00.000Z");
   await prisma.homeOfAHolder.createMany({
     data: [
       {
@@ -2955,12 +2950,14 @@ test("Home of A tick income splits banner half and holder army share", async (co
         fortressId: bannerFortress.id,
         bannerFortressId: bannerFortress.id,
         contributionWeight: 30,
+        capturedAt,
       },
       {
         cycleId: cycle.id,
         fortressId: allyFortress.id,
         bannerFortressId: bannerFortress.id,
         contributionWeight: 70,
+        capturedAt,
       },
     ],
   });
@@ -2977,8 +2974,37 @@ test("Home of A tick income splits banner half and holder army share", async (co
 
   assert.equal(reloadedBanner.points, 12);
   assert.equal(reloadedAlly.points, 5);
-  assert.equal(reloadedBanner.army, 10 - HOME_OF_A_ARMY_DRAIN_PER_TICK);
-  assert.equal(reloadedAlly.army, 10 - HOME_OF_A_ARMY_DRAIN_PER_TICK);
+  assert.equal(reloadedBanner.army, 40 - HOME_OF_A_ARMY_DRAIN_BASE);
+  assert.equal(reloadedAlly.army, 40 - HOME_OF_A_ARMY_DRAIN_BASE);
+
+  await prisma.fortress.update({
+    where: {
+      id: allyFortress.id,
+    },
+    data: {
+      army: 3,
+    },
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:02:00.000Z"),
+  });
+
+  const [secondTickBanner, secondTickAlly] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({ where: { id: bannerFortress.id } }),
+    prisma.fortress.findUniqueOrThrow({ where: { id: allyFortress.id } }),
+  ]);
+  const secondTickDrain =
+    HOME_OF_A_ARMY_DRAIN_BASE + HOME_OF_A_ARMY_DRAIN_INCREASE_PER_TICK;
+
+  assert.equal(secondTickBanner.points, 24);
+  assert.equal(secondTickAlly.points, 10);
+  assert.equal(
+    secondTickBanner.army,
+    40 - HOME_OF_A_ARMY_DRAIN_BASE - secondTickDrain
+  );
+  assert.equal(secondTickAlly.army, 0);
 });
 
 test("players can fortify owned tiles and arrival creates a non-draining garrison", async (context) => {
@@ -3135,7 +3161,10 @@ test("fortified garrisons are consumed into owned tile defense", async (context)
     return;
   }
 
-  const attacker = await createUser(prisma, "fortify-attack-attacker@example.com");
+  const attacker = await createUser(
+    prisma,
+    "fortify-attack-attacker@example.com"
+  );
   const owner = await createUser(prisma, "fortify-attack-owner@example.com");
   const cycle = await seedActiveCommunityWishCycle(prisma, [
     {
@@ -3227,8 +3256,14 @@ test("defender tile win restores fortified survivors as non-draining garrison", 
     return;
   }
 
-  const attacker = await createUser(prisma, "fortify-restore-attacker@example.com");
-  const defender = await createUser(prisma, "fortify-restore-defender@example.com");
+  const attacker = await createUser(
+    prisma,
+    "fortify-restore-attacker@example.com"
+  );
+  const defender = await createUser(
+    prisma,
+    "fortify-restore-defender@example.com"
+  );
   const cycle = await seedActiveCommunityWishCycle(prisma, [
     {
       userId: attacker.id,
@@ -3386,8 +3421,12 @@ test("fortified garrisons skip maintenance drain", async (context) => {
       tileId: "asc",
     },
   });
-  const fortified = garrisons.find((garrison) => garrison.tileId === firstTile.id);
-  const draining = garrisons.find((garrison) => garrison.tileId === secondTile.id);
+  const fortified = garrisons.find(
+    (garrison) => garrison.tileId === firstTile.id
+  );
+  const draining = garrisons.find(
+    (garrison) => garrison.tileId === secondTile.id
+  );
 
   assert.equal(fortified?.army, 10);
   assert.equal(draining?.army, 9);
@@ -3751,20 +3790,26 @@ test("players can recall all eligible traveling, battlefield, and garrison units
     recalledGarrisonArmy: 25,
   });
 
-  const [reloadedOutgoingUnit, reloadedBattlefield, participant, deletedGarrison] =
-    await Promise.all([
-      prisma.attackUnit.findUniqueOrThrow({ where: { id: outgoingAttackUnit.id } }),
-      prisma.battlefield.findUniqueOrThrow({ where: { id: battlefield.id } }),
-      prisma.battlefieldParticipant.findUnique({
-        where: {
-          battlefieldId_fortressId: {
-            battlefieldId: battlefield.id,
-            fortressId: ownerFortress.id,
-          },
+  const [
+    reloadedOutgoingUnit,
+    reloadedBattlefield,
+    participant,
+    deletedGarrison,
+  ] = await Promise.all([
+    prisma.attackUnit.findUniqueOrThrow({
+      where: { id: outgoingAttackUnit.id },
+    }),
+    prisma.battlefield.findUniqueOrThrow({ where: { id: battlefield.id } }),
+    prisma.battlefieldParticipant.findUnique({
+      where: {
+        battlefieldId_fortressId: {
+          battlefieldId: battlefield.id,
+          fortressId: ownerFortress.id,
         },
-      }),
-      prisma.fortressGarrison.findUnique({ where: { id: garrison.id } }),
-    ]);
+      },
+    }),
+    prisma.fortressGarrison.findUnique({ where: { id: garrison.id } }),
+  ]);
 
   assert.ok(reloadedOutgoingUnit.recalledAt);
   assert.equal(reloadedBattlefield.attackerArmyRemaining, 0);
@@ -9332,13 +9377,14 @@ test("Rune of Grudges can be manually canceled with no refund and immediate supp
     now: new Date("2026-04-20T12:01:30.000Z"),
   });
 
-  const canceledActivation = await prisma.raceAbilityActivation.findFirstOrThrow({
-    where: {
-      fortressId: dwarfFortress.id,
-      kind: RaceAbilityKind.DWARF_RUNE_GRUDGES,
-    },
-    orderBy: [{ usedAt: "desc" }, { id: "desc" }],
-  });
+  const canceledActivation =
+    await prisma.raceAbilityActivation.findFirstOrThrow({
+      where: {
+        fortressId: dwarfFortress.id,
+        kind: RaceAbilityKind.DWARF_RUNE_GRUDGES,
+      },
+      orderBy: [{ usedAt: "desc" }, { id: "desc" }],
+    });
   const canceledRune = await prisma.fortress.findUniqueOrThrow({
     where: {
       id: activated.runeFortressId,
@@ -9558,7 +9604,9 @@ test("location shuffle costs 1000 gold and increases by 1000 each time", async (
   );
   assert.equal(shuffleCostEvents.length, 2);
   assert.deepEqual(
-    shuffleCostEvents.map((event) => event.delta).sort((left, right) => left - right),
+    shuffleCostEvents
+      .map((event) => event.delta)
+      .sort((left, right) => left - right),
     [-getActiveLocationShuffleCost(1), -getActiveLocationShuffleCost(0)].sort(
       (left, right) => left - right
     )
@@ -10817,12 +10865,7 @@ test("starving active army loses attrition when food cannot cover upkeep", async
     where: {
       cycleId: cycle.id,
       ownerId: {
-        in: [
-          starvingUser.id,
-          exactUser.id,
-          queuedUser.id,
-          recruitingUser.id,
-        ],
+        in: [starvingUser.id, exactUser.id, queuedUser.id, recruitingUser.id],
       },
     },
     select: {

@@ -16,11 +16,14 @@ import {
 } from "@/lib/prisma-client";
 import {
   ACTIVE_PLAYER_CAP,
+  HOME_OF_A_ARMY_DRAIN_BASE,
+  HOME_OF_A_ARMY_DRAIN_INCREASE_PER_TICK,
   HOME_OF_A_POINT_INCOME,
   HOME_OF_A_TILE_ID,
   MAX_SIMULTANEOUS_ATTACKS_BASE,
   NPC_SYSTEM_USER_EMAIL,
   getActiveLocationShuffleCost,
+  getHomeOfAArmyDrainPerTick,
 } from "./constants";
 import {
   calculateTickProduction,
@@ -1259,12 +1262,12 @@ export async function getHomePageState({
       )
     : null;
   const latestDwarfRuneOfGrudges = playerFortress
-    ? playerFortress.raceAbilityActivations.find(
+    ? (playerFortress.raceAbilityActivations.find(
         (activation) =>
           activation.kind === RaceAbilityKind.DWARF_RUNE_GRUDGES &&
           activation.consumedAt === null &&
           activation.activeUntil > now
-      ) ?? null
+      ) ?? null)
     : null;
   const latestDwarfDeepMiningRoll = playerFortress?.deepMiningRolls[0] ?? null;
   const currentDayKey = getHelsinkiDayKey(now);
@@ -1844,15 +1847,13 @@ export async function getHomePageState({
         gameplayOpen &&
         fortress.id !== playerFortressId &&
         fortress.fortressKind !== FortressKind.MEGA &&
-        (
-          fortress.fortressKind === FortressKind.LOOT_CAMP
-            ? fortress.health > 0 &&
-              fortress.expiresAt !== null &&
-              fortress.expiresAt > now
-            : fortress.fortressKind === FortressKind.DWARF_RUNE
-              ? fortress.health > 0 && runeOwnerId !== playerFortressId
-              : true
-        ),
+        (fortress.fortressKind === FortressKind.LOOT_CAMP
+          ? fortress.health > 0 &&
+            fortress.expiresAt !== null &&
+            fortress.expiresAt > now
+          : fortress.fortressKind === FortressKind.DWARF_RUNE
+            ? fortress.health > 0 && runeOwnerId !== playerFortressId
+            : true),
     };
   });
   const globalChatMessages = await db.chatMessage.findMany({
@@ -2052,9 +2053,23 @@ export async function getHomePageState({
     fortressName: holder.fortress.name,
     commanderName: holder.fortress.commanderName,
     contributionWeight: holder.contributionWeight,
+    capturedAt: holder.capturedAt,
+    currentDrainPerTick: getHomeOfAArmyDrainPerTick({
+      capturedAt: holder.capturedAt,
+      tickAt: now,
+    }),
     isCurrentUser: holder.fortress.ownerId === userId,
   }));
   const homeBanner = cycle.homeOfAHolders[0]?.bannerFortress ?? null;
+  const homeStatus: "NEUTRAL" | "CONTROLLED" | "CONTESTED" = homeActiveBattle
+    ? "CONTESTED"
+    : homeOwnership?.ownerFortressId
+      ? "CONTROLLED"
+      : "NEUTRAL";
+  const homeCurrentDrain = homeHolders.reduce(
+    (maxDrain, holder) => Math.max(maxDrain, holder.currentDrainPerTick),
+    HOME_OF_A_ARMY_DRAIN_BASE
+  );
   const canAttackHomeOfA =
     gameplayOpen &&
     playerFortress !== null &&
@@ -2968,12 +2983,26 @@ export async function getHomePageState({
     homeOfA: {
       tileId: HOME_OF_A_TILE_ID,
       pointIncome: HOME_OF_A_POINT_INCOME,
+      status: homeStatus,
+      statusLabel:
+        homeStatus === "CONTESTED"
+          ? "Battle in progress"
+          : homeStatus === "CONTROLLED"
+            ? `Controlled by ${homeOwnership?.ownerFortress.name ?? "Unknown"}`
+            : "Unclaimed center objective",
+      incomeLabel: `+${HOME_OF_A_POINT_INCOME} points / tick`,
+      drainLabel:
+        homeHolders.length > 0
+          ? `-${homeCurrentDrain} army / tick now, +${HOME_OF_A_ARMY_DRAIN_INCREASE_PER_TICK} each tick held`
+          : `Starts at -${HOME_OF_A_ARMY_DRAIN_BASE} army / tick, +${HOME_OF_A_ARMY_DRAIN_INCREASE_PER_TICK} each tick held`,
+      holderCount: homeHolders.length,
       ownerFortressId: homeOwnership?.ownerFortressId ?? null,
       ownerName: homeOwnership?.ownerFortress.name ?? "Neutral",
       ownerCommanderName:
         homeOwnership?.ownerFortress.commanderName ?? "Home of A",
       bannerFortressId: homeBanner?.id ?? null,
       bannerName: homeBanner?.name ?? null,
+      isCurrentUserHolder: homeHolders.some((holder) => holder.isCurrentUser),
       holders: homeHolders,
       activeBattlefieldId: homeActiveBattle?.id ?? null,
       canAttack: canAttackHomeOfA,
@@ -3091,8 +3120,14 @@ export async function getHomePageState({
             BattlefieldSide.DEFENDER
         )
         .reduce((sum, unit) => sum + Math.max(0, unit.armyAmount ?? 0), 0);
-      const attackerArmyRemaining = Math.max(0, battlefield.attackerArmyRemaining);
-      const defenderArmyRemaining = Math.max(0, battlefield.defenderArmyRemaining);
+      const attackerArmyRemaining = Math.max(
+        0,
+        battlefield.attackerArmyRemaining
+      );
+      const defenderArmyRemaining = Math.max(
+        0,
+        battlefield.defenderArmyRemaining
+      );
       const totalArmyRemaining = attackerArmyRemaining + defenderArmyRemaining;
       const armyDelta = attackerArmyRemaining - defenderArmyRemaining;
       const attackerSharePercent =
@@ -3124,14 +3159,17 @@ export async function getHomePageState({
       );
       const attackerToDefenderLossRatio =
         defenderLosses > 0 ? attackerLosses / defenderLosses : null;
-      const armyEdge = totalArmyRemaining > 0 ? armyDelta / totalArmyRemaining : 0;
+      const armyEdge =
+        totalArmyRemaining > 0 ? armyDelta / totalArmyRemaining : 0;
       const incomingTotal = incomingAttackerArmy + incomingDefenderArmy;
-      const incomingEdge = incomingTotal > 0 ? incomingArmyDelta / incomingTotal : 0;
-      const progressEdge = (Math.max(0, Math.min(100, battlefield.progress)) - 50) / 50;
+      const incomingEdge =
+        incomingTotal > 0 ? incomingArmyDelta / incomingTotal : 0;
+      const progressEdge =
+        (Math.max(0, Math.min(100, battlefield.progress)) - 50) / 50;
       const momentumScore = Number(
         (armyEdge * 0.6 + incomingEdge * 0.25 + progressEdge * 0.15).toFixed(2)
       );
-      const momentumTier: 
+      const momentumTier:
         | "ATTACKER_STRONG"
         | "ATTACKER_EDGE"
         | "EVEN"
@@ -3235,9 +3273,10 @@ export async function getHomePageState({
         unit.reinforcementBattlefield?.targetTileId ??
         null;
       const tileTarget = tileTargetId ? getTileById(tileTargetId) : null;
-      const homeTarget = tileTargetId && isHomeOfATile(tileTargetId)
-        ? getHomeOfAMapPosition()
-        : null;
+      const homeTarget =
+        tileTargetId && isHomeOfATile(tileTargetId)
+          ? getHomeOfAMapPosition()
+          : null;
       return {
         id: unit.id,
         armyAmount:
@@ -3267,7 +3306,8 @@ export async function getHomePageState({
           unit.attackerFortress.race === "SPACE_MURINES" &&
           raceBuffTier >= 2 &&
           (!latestInstantRecallUse ||
-            getHelsinkiHourKey(latestInstantRecallUse.usedAt) !== currentHourKey),
+            getHelsinkiHourKey(latestInstantRecallUse.usedAt) !==
+              currentHourKey),
         attacker: {
           id: unit.attackerFortress.id,
           name: unit.attackerFortress.name,
@@ -3292,13 +3332,13 @@ export async function getHomePageState({
           mapX: homeTarget
             ? homeTarget.mapX
             : tileTarget
-            ? Math.round(tileTarget.xPercent)
-            : unit.targetFortress.mapX,
+              ? Math.round(tileTarget.xPercent)
+              : unit.targetFortress.mapX,
           mapY: homeTarget
             ? homeTarget.mapY
             : tileTarget
-            ? Math.round(tileTarget.yPercent)
-            : unit.targetFortress.mapY,
+              ? Math.round(tileTarget.yPercent)
+              : unit.targetFortress.mapY,
         },
       };
     }),

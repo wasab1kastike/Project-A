@@ -1,6 +1,7 @@
 import { HEX_TILES, type HexBiome, type HexTile } from "./map-hex";
 import {
-  HOME_OF_A_ARMY_DRAIN_PER_TICK,
+  HOME_OF_A_ARMY_DRAIN_BASE,
+  HOME_OF_A_ARMY_DRAIN_INCREASE_PER_TICK,
   HOME_OF_A_POINT_INCOME,
   HOME_OF_A_TILE_ID,
   TEMPORARY_MAP_OBJECTIVE_INTERVAL_HOURS,
@@ -183,7 +184,10 @@ function formatBonusLabel({
   return effectParts.length > 0 ? effectParts.join(", ") : "No bonus";
 }
 
-function combineTileBonuses(base: TileBonus, extra: Omit<TileBonus, "label">): TileBonus {
+function combineTileBonuses(
+  base: TileBonus,
+  extra: Omit<TileBonus, "label">
+): TileBonus {
   const combined = {
     gold: base.gold + extra.gold,
     points: base.points + extra.points,
@@ -411,7 +415,7 @@ export function getHomeOfABonus(): TileBonus {
     army: 0,
     population: 0,
     defensePercent: 0,
-    label: `Home of A control: +${HOME_OF_A_POINT_INCOME} points / tick, -${HOME_OF_A_ARMY_DRAIN_PER_TICK} army / tick for each holder`,
+    label: `Home of A control: +${HOME_OF_A_POINT_INCOME} points / tick, drain starts at -${HOME_OF_A_ARMY_DRAIN_BASE} army / tick and rises +${HOME_OF_A_ARMY_DRAIN_INCREASE_PER_TICK} each tick held`,
   };
 }
 
@@ -428,7 +432,10 @@ export function getTileClaimCost({
   ownedTileCount?: number;
   pendingClaimCount?: number;
 }) {
-  const distance = Math.hypot(tile.xPercent - origin.mapX, tile.yPercent - origin.mapY);
+  const distance = Math.hypot(
+    tile.xPercent - origin.mapX,
+    tile.yPercent - origin.mapY
+  );
   const baseBiomePremium =
     tile.biome === "hills" || tile.biome === "forest"
       ? 12
@@ -436,9 +443,9 @@ export function getTileClaimCost({
         ? 18
         : tile.biome === "mountains" || tile.biome === "lake"
           ? 16
-      : tile.biome === "marsh" || tile.biome === "coast"
-        ? 8
-        : 0;
+          : tile.biome === "marsh" || tile.biome === "coast"
+            ? 8
+            : 0;
   const raceDiscount = tile.biome === "mountains" && race === "DWARFS" ? 10 : 0;
   const biomePremium = Math.max(0, baseBiomePremium - raceDiscount);
   const sizeSurcharge =
