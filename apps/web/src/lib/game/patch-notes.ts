@@ -13,7 +13,9 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
       "Selecting the Home of A center tile now shows clearer control, holder, income, and drain status in one place.",
       "Home of A holder drain now starts at 10 army per tick and rises by 1 each tick held.",
     ],
-    bugFixes: [],
+    bugFixes: [
+      "Recalling Home of A holding army now updates the holder list and removes that fortress from holder drain when no army remains at the center.",
+    ],
   },
   {
     date: "2026-05-12",

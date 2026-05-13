@@ -761,6 +761,11 @@ export default function WikiPage() {
               {HOME_OF_A_ARMY_DRAIN_INCREASE_PER_TICK} more army per tick for
               each tick held.
             </li>
+            <li>
+              Recalling Home of A holding army reduces that fortress&apos;s
+              holder contribution; once no holding army remains, it leaves the
+              holder list and stops paying holder drain.
+            </li>
           </ul>
         </article>
 
