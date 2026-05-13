@@ -1,3 +1,11 @@
+// Fallback getSuppressionState for deployment (returns no suppression)
+function getSuppressionState(fortress: { race?: string | null }) {
+  const allowed = ["DWARFS", "UNSTABLE_UNICORNS", "SPACE_MURINES", "ORKS"];
+  const effectiveRace = allowed.includes(fortress.race as string)
+    ? (fortress.race as "DWARFS" | "UNSTABLE_UNICORNS" | "SPACE_MURINES" | "ORKS")
+    : null;
+  return { effectiveRace, isRuneSuppressed: false };
+}
 /**
  * Fortress Validation Utilities
  *

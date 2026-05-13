@@ -1,5 +1,8 @@
 // Centralized defender assignment logic
-export async function assignDefenderBannerIfNeeded({ tx, battlefieldId, fortressId }: { tx: PrismaClient; battlefieldId: string; fortressId: string }) {
+
+
+// Centralized defender assignment logic
+export async function assignDefenderBannerIfNeeded({ tx, battlefieldId, fortressId }: { tx: DatabaseClient; battlefieldId: string; fortressId: string }) {
   const battlefield = await tx.battlefield.findUnique({
     where: { id: battlefieldId },
     select: { defenderBannerFortressId: true },
@@ -282,24 +285,24 @@ export async function createBattlefieldFromAttackUnit({
     },
   });
 
-  const battlefield =
-    existing ??
-    (await db.battlefield.create({
-      data: {
-        cycleId: unit.cycleId,
-        targetFortressId: unit.targetFortressId,
-        attackerBannerFortressId: unit.attackerFortressId,
-        defenderBannerFortressId: unit.targetFortressId,
-        attackerArmyRemaining: unit.armyAmount,
-        defenderArmyRemaining: unit.targetFortress.army,
-        pointsReward: Math.floor(unit.targetFortress.gold * 0.7),
-        foodReward: Math.floor(unit.targetFortress.food * 0.7),
-        startedAt: tickAt,
-      },
-      select: {
-        id: true,
-      },
-    }));
+    const battlefield =
+      existing ??
+      (await db.battlefield.create({
+        data: {
+          cycleId: unit.cycleId,
+          targetFortressId: unit.targetFortressId,
+          attackerBannerFortressId: unit.attackerFortressId,
+          defenderBannerFortressId: unit.targetFortressId,
+          attackerArmyRemaining: unit.armyAmount,
+          defenderArmyRemaining: unit.targetFortress.army,
+          pointsReward: Math.floor(unit.targetFortress.gold * 0.7),
+          foodReward: Math.floor(unit.targetFortress.food * 0.7),
+          startedAt: tickAt,
+        },
+        select: {
+          id: true,
+        },
+      }));
 
   await db.battlefieldParticipant.upsert({
     where: {
@@ -427,16 +430,18 @@ export async function joinBattlefield({
         where: { cycleId: battlefieldId.split(":")[1], fortressKind: "MEGA" },
       });
       if (!mega) throw new GameError("Mega Fortress not found.");
-      battlefield = await tx.battlefield.create({
+      await tx.battlefield.create({
         data: {
           id: battlefieldId,
           cycleId: mega.cycleId,
           targetFortressId: mega.id,
           status: BattlefieldStatus.ACTIVE,
           startedAt: now,
-          defenderBannerFortressId: null,
-          attackerBannerFortressId: null,
+          attackerBannerFortressId: mega.id,
         },
+      });
+      battlefield = await tx.battlefield.findUnique({
+        where: { id: battlefieldId },
         select: {
           id: true,
           cycleId: true,

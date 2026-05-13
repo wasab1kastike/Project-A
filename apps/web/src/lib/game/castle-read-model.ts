@@ -1,3 +1,7 @@
+// Returns the effective race for a fortress, considering suppression (no suppression logic here, just returns race)
+function getEffectiveRace(fortress: { race: "DWARFS" | "UNSTABLE_UNICORNS" | "SPACE_MURINES" | "ORKS" | null }) {
+  return fortress.race;
+}
 import { prisma } from "@/lib/prisma";
 import {
   CastleUpgradeSpecialization,
