@@ -14,6 +14,7 @@ import { prisma } from "@/lib/prisma";
 import { ensureOpenRegistrationCycle } from "./bootstrap";
 import {
   HOME_OF_A_POINT_INCOME,
+  HOME_OF_A_TILE_ID,
   MEGA_FORTRESS_DESTROY_BONUS,
   MEGA_FORTRESS_HEALTH,
   ACTIVE_DURATION_HOURS,
@@ -3254,6 +3255,12 @@ async function processCycleTick(
     });
   }
 
+  const homeGarrisonByFortressId = new Map(
+    (garrisonsByTileId.get(HOME_OF_A_TILE_ID) ?? []).map((garrison) => [
+      garrison.fortressId,
+      garrison,
+    ])
+  );
   const homeOfAHolders = await db.homeOfAHolder.findMany({
     where: {
       cycleId,
@@ -3265,12 +3272,16 @@ async function processCycleTick(
       capturedAt: true,
     },
   });
-  const homeBannerFortressId = homeOfAHolders[0]?.bannerFortressId ?? null;
+  const activeHomeOfAHolders = homeOfAHolders.filter(
+    (holder) => (homeGarrisonByFortressId.get(holder.fortressId)?.army ?? 0) > 0
+  );
+  const homeBannerFortressId =
+    activeHomeOfAHolders[0]?.bannerFortressId ?? null;
 
   if (homeBannerFortressId) {
     const sharedPool = Math.floor(HOME_OF_A_POINT_INCOME / 2);
     const bannerBase = HOME_OF_A_POINT_INCOME - sharedPool;
-    const totalWeight = homeOfAHolders.reduce(
+    const totalWeight = activeHomeOfAHolders.reduce(
       (sum, holder) => sum + Math.max(0, holder.contributionWeight),
       0
     );
@@ -3280,7 +3291,7 @@ async function processCycleTick(
     let distributedSharedPoints = 0;
 
     if (totalWeight > 0) {
-      for (const holder of homeOfAHolders) {
+      for (const holder of activeHomeOfAHolders) {
         const weightedShare = Math.floor(
           (sharedPool * Math.max(0, holder.contributionWeight)) / totalWeight
         );
@@ -3306,27 +3317,10 @@ async function processCycleTick(
       );
     }
 
-    const holderByFortressId = new Map(
-      homeOfAHolders.map((holder) => [holder.fortressId, holder])
-    );
-
     for (const [fortressId, income] of homeIncomeByFortressId) {
       if (income <= 0 || !fortressLookup.has(fortressId)) {
         continue;
       }
-
-      const holder = holderByFortressId.get(fortressId);
-      const armyDrain = holder
-        ? getHomeOfAArmyDrainPerTick({
-            capturedAt: holder.capturedAt,
-            tickAt,
-          })
-        : 0;
-      const currentArmyCount =
-        currentArmy.get(fortressId) ??
-        fortressLookup.get(fortressId)?.army ??
-        0;
-      currentArmy.set(fortressId, Math.max(0, currentArmyCount - armyDrain));
 
       currentPoints.set(
         fortressId,
@@ -3339,6 +3333,57 @@ async function processCycleTick(
         delta: income,
         createdAt: tickAt,
       });
+    }
+
+    for (const holder of activeHomeOfAHolders) {
+      const garrison = homeGarrisonByFortressId.get(holder.fortressId);
+
+      if (!garrison) {
+        continue;
+      }
+
+      const armyDrain = getHomeOfAArmyDrainPerTick({
+        capturedAt: holder.capturedAt,
+        tickAt,
+      });
+      const drainedArmy = Math.min(garrison.army, armyDrain);
+      const nextArmy = Math.max(0, garrison.army - drainedArmy);
+      const nextContributionWeight = Math.max(
+        0,
+        Math.min(holder.contributionWeight, garrison.army) - drainedArmy
+      );
+
+      await db.fortressGarrison.update({
+        where: {
+          id: garrison.id,
+        },
+        data: {
+          army: nextArmy,
+        },
+      });
+
+      if (nextContributionWeight <= 0) {
+        await db.homeOfAHolder.delete({
+          where: {
+            cycleId_fortressId: {
+              cycleId,
+              fortressId: holder.fortressId,
+            },
+          },
+        });
+      } else if (nextContributionWeight !== holder.contributionWeight) {
+        await db.homeOfAHolder.update({
+          where: {
+            cycleId_fortressId: {
+              cycleId,
+              fortressId: holder.fortressId,
+            },
+          },
+          data: {
+            contributionWeight: nextContributionWeight,
+          },
+        });
+      }
     }
   }
 

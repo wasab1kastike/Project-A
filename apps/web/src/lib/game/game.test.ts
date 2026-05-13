@@ -2942,6 +2942,22 @@ test("Home of A tick income splits banner half and holder army share", async (co
       ownerFortressId: bannerFortress.id,
     },
   });
+  await prisma.fortressGarrison.createMany({
+    data: [
+      {
+        cycleId: cycle.id,
+        fortressId: bannerFortress.id,
+        tileId: HOME_OF_A_TILE_ID,
+        army: 30,
+      },
+      {
+        cycleId: cycle.id,
+        fortressId: allyFortress.id,
+        tileId: HOME_OF_A_TILE_ID,
+        army: 70,
+      },
+    ],
+  });
   const capturedAt = new Date("2026-04-20T12:01:00.000Z");
   await prisma.homeOfAHolder.createMany({
     data: [
@@ -2967,19 +2983,45 @@ test("Home of A tick income splits banner half and holder army share", async (co
     now: new Date("2026-04-20T12:01:00.000Z"),
   });
 
-  const [reloadedBanner, reloadedAlly] = await Promise.all([
+  const [reloadedBanner, reloadedAlly, firstTickGarrisons] = await Promise.all([
     prisma.fortress.findUniqueOrThrow({ where: { id: bannerFortress.id } }),
     prisma.fortress.findUniqueOrThrow({ where: { id: allyFortress.id } }),
+    prisma.fortressGarrison.findMany({
+      where: {
+        cycleId: cycle.id,
+        tileId: HOME_OF_A_TILE_ID,
+      },
+      orderBy: { fortressId: "asc" },
+    }),
   ]);
 
   assert.equal(reloadedBanner.points, 12);
   assert.equal(reloadedAlly.points, 5);
-  assert.equal(reloadedBanner.army, 40 - HOME_OF_A_ARMY_DRAIN_BASE);
-  assert.equal(reloadedAlly.army, 40 - HOME_OF_A_ARMY_DRAIN_BASE);
+  assert.equal(reloadedBanner.army, 40);
+  assert.equal(reloadedAlly.army, 40);
+  assert.deepEqual(
+    firstTickGarrisons
+      .map((garrison) => [garrison.fortressId, garrison.army])
+      .sort(),
+    [
+      [allyFortress.id, 70 - HOME_OF_A_ARMY_DRAIN_BASE],
+      [bannerFortress.id, 30 - HOME_OF_A_ARMY_DRAIN_BASE],
+    ].sort()
+  );
 
   await prisma.fortress.update({
     where: {
       id: allyFortress.id,
+    },
+    data: {
+      army: 3,
+    },
+  });
+  await prisma.fortressGarrison.updateMany({
+    where: {
+      cycleId: cycle.id,
+      tileId: HOME_OF_A_TILE_ID,
+      fortressId: allyFortress.id,
     },
     data: {
       army: 3,
@@ -2991,20 +3033,31 @@ test("Home of A tick income splits banner half and holder army share", async (co
     now: new Date("2026-04-20T12:02:00.000Z"),
   });
 
-  const [secondTickBanner, secondTickAlly] = await Promise.all([
-    prisma.fortress.findUniqueOrThrow({ where: { id: bannerFortress.id } }),
-    prisma.fortress.findUniqueOrThrow({ where: { id: allyFortress.id } }),
-  ]);
+  const [secondTickBanner, secondTickAlly, secondTickGarrisons] =
+    await Promise.all([
+      prisma.fortress.findUniqueOrThrow({ where: { id: bannerFortress.id } }),
+      prisma.fortress.findUniqueOrThrow({ where: { id: allyFortress.id } }),
+      prisma.fortressGarrison.findMany({
+        where: {
+          cycleId: cycle.id,
+          tileId: HOME_OF_A_TILE_ID,
+        },
+        orderBy: { fortressId: "asc" },
+      }),
+    ]);
   const secondTickDrain =
     HOME_OF_A_ARMY_DRAIN_BASE + HOME_OF_A_ARMY_DRAIN_INCREASE_PER_TICK;
 
   assert.equal(secondTickBanner.points, 24);
   assert.equal(secondTickAlly.points, 10);
-  assert.equal(
-    secondTickBanner.army,
-    40 - HOME_OF_A_ARMY_DRAIN_BASE - secondTickDrain
+  assert.equal(secondTickBanner.army, 40);
+  assert.equal(secondTickAlly.army, 3);
+  assert.deepEqual(
+    secondTickGarrisons
+      .map((garrison) => [garrison.fortressId, garrison.army])
+      .sort(),
+    [[bannerFortress.id, 30 - HOME_OF_A_ARMY_DRAIN_BASE - secondTickDrain]]
   );
-  assert.equal(secondTickAlly.army, 0);
 });
 
 test("players can fortify owned tiles and arrival creates a non-draining garrison", async (context) => {
