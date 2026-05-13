@@ -1844,15 +1844,15 @@ export async function getHomePageState({
         gameplayOpen &&
         fortress.id !== playerFortressId &&
         fortress.fortressKind !== FortressKind.MEGA &&
-        (fortress.fortressKind !== FortressKind.DWARF_RUNE ||
-          runeOwnerId !== playerFortressId) &&
-        (fortress.fortressKind === FortressKind.LOOT_CAMP
-          ? fortress.health > 0 &&
-            fortress.expiresAt !== null &&
-            fortress.expiresAt > now
-          : fortress.fortressKind === FortressKind.DWARF_RUNE
-            ? fortress.health > 0
-            : true),
+        (
+          fortress.fortressKind === FortressKind.LOOT_CAMP
+            ? fortress.health > 0 &&
+              fortress.expiresAt !== null &&
+              fortress.expiresAt > now
+            : fortress.fortressKind === FortressKind.DWARF_RUNE
+              ? fortress.health > 0 && runeOwnerId !== playerFortressId
+              : true
+        ),
     };
   });
   const globalChatMessages = await db.chatMessage.findMany({
