@@ -111,6 +111,14 @@ type ProcessCycleTickResult = {
 const ETERNAL_GOBLINS_ANNOUNCEMENT_MARKER = "ETERNAL GOBLINS:";
 const ETERNAL_GOBLINS_ANNOUNCEMENT_BODY =
   "🧌 ETERNAL GOBLINS: The goblin horde has achieved immortality! Goblins shall prowl the realm eternal, never vanishing unless slain by worthy warriors. The age of temporal goblin existence is over. Fear the eternal horde! 🧌";
+const HOME_OF_A_COMPENSATION_TARGETS = ["UNIBONK", "BEEFSTEW", "TERO"];
+const HOME_OF_A_COMPENSATION_ARMY = 50_000;
+const HOME_OF_A_COMPENSATION_MARKER = "HOME OF A ACCOUNTING INCIDENT:";
+const HOME_OF_A_COMPENSATION_BODY =
+  "HOME OF A ACCOUNTING INCIDENT: A has inspected the sacred drain pipes and discovered 150,000 troops doing laps in the wrong dimension. UniBonk, BEEFSTEW, and Tero each receive 50,000 replacement units. Please welcome them back as heroes, not as victims of divine spreadsheet plumbing.";
+const HOME_OF_A_COMPENSATION_ACTIVE_STARTED_BEFORE = new Date(
+  "2026-05-14T00:00:00.000Z"
+);
 
 async function ensureEternalGoblinsAnnouncement({
   db,
@@ -148,6 +156,86 @@ async function ensureEternalGoblinsAnnouncement({
       createdAt,
     },
   });
+}
+
+async function ensureHomeOfADrainCompensation({
+  db,
+  cycleId,
+  activeStartedAt,
+  createdAt,
+}: {
+  db: PrismaClient;
+  cycleId: string;
+  activeStartedAt: Date;
+  createdAt: Date;
+}) {
+  if (activeStartedAt >= HOME_OF_A_COMPENSATION_ACTIVE_STARTED_BEFORE) {
+    return;
+  }
+
+  await db.$transaction(async (tx) => {
+    const existingAnnouncement = await tx.chatMessage.findFirst({
+      where: {
+        cycleId,
+        type: ChatMessageType.TEXT,
+        body: {
+          contains: HOME_OF_A_COMPENSATION_MARKER,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (existingAnnouncement) {
+      return;
+    }
+
+    const fortresses = await tx.fortress.findMany({
+      where: {
+        cycleId,
+        isNpc: false,
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+    const targetFortresses = fortresses.filter((fortress) =>
+      HOME_OF_A_COMPENSATION_TARGETS.includes(
+        fortress.name.trim().toUpperCase()
+      )
+    );
+
+    if (targetFortresses.length !== HOME_OF_A_COMPENSATION_TARGETS.length) {
+      return;
+    }
+
+    for (const fortress of targetFortresses) {
+      await tx.fortress.update({
+        where: {
+          id: fortress.id,
+        },
+        data: {
+          army: {
+            increment: HOME_OF_A_COMPENSATION_ARMY,
+          },
+        },
+      });
+    }
+
+    const systemUser = await ensureNpcSystemUser(tx);
+
+    await tx.chatMessage.create({
+      data: {
+        cycleId,
+        authorId: systemUser.id,
+        type: ChatMessageType.TEXT,
+        body: HOME_OF_A_COMPENSATION_BODY,
+        createdAt,
+      },
+    });
+  }, TICK_TRANSACTION_OPTIONS);
 }
 
 const TICK_TRANSACTION_OPTIONS = {
@@ -1310,6 +1398,12 @@ async function processCycleTick(
     await ensureEternalGoblinsAnnouncement({
       db,
       cycleId,
+      createdAt: tickAt,
+    });
+    await ensureHomeOfADrainCompensation({
+      db,
+      cycleId,
+      activeStartedAt: cycle.activeStartedAt!,
       createdAt: tickAt,
     });
   }
