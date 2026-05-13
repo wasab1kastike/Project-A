@@ -16,6 +16,7 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
     bugFixes: [
       "Recalling Home of A holding army now updates the holder list and removes that fortress from holder drain when no army remains at the center.",
       "Abandoned Home of A no longer resets to the original neutral defense after the NPC has already been defeated.",
+      "Regular tile battles now count only army actually committed to that tile; idle castle army no longer appears as free tile defense.",
     ],
   },
   {

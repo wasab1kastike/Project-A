@@ -675,14 +675,18 @@ export async function processActiveBattlefields({
       (sum, participant) => sum + participant.armyRemaining,
       0
     );
-    const storedDefenderArmy =
-      battlefield.defenderArmyRemaining > 0
+    const isRegularTileBattle =
+      battlefield.targetTileId !== null &&
+      !isHomeOfATile(battlefield.targetTileId);
+    const storedDefenderArmy = isRegularTileBattle
+      ? defenderParticipantArmyBefore
+      : battlefield.defenderArmyRemaining > 0
         ? battlefield.defenderArmyRemaining
         : battlefield.targetTileId !== null &&
-          isHomeOfATile(battlefield.targetTileId) &&
-          battlefield.defenderBannerFortressId
-        ? (battlefield.targetFortress?.army ?? 0)
-        : 0;
+            isHomeOfATile(battlefield.targetTileId) &&
+            battlefield.defenderBannerFortressId
+          ? (battlefield.targetFortress?.army ?? 0)
+          : 0;
     const nativeDefenderArmyBefore = Math.max(
       0,
       storedDefenderArmy - defenderParticipantArmyBefore
@@ -735,7 +739,8 @@ export async function processActiveBattlefields({
       tickAt,
       attackerArmy: attackerArmyBefore,
       defenderArmy: defenderArmyBefore,
-      attackerPowerMultiplier: attackerGrudgeMultiplier * attackerBossOrderMultiplier,
+      attackerPowerMultiplier:
+        attackerGrudgeMultiplier * attackerBossOrderMultiplier,
       defenderPowerMultiplier:
         defenderGrudgeMultiplier *
         defenderTileDefenseMultiplier *
@@ -841,7 +846,8 @@ export async function processActiveBattlefields({
             defenderRace: null,
             defenderGold: battlefield.targetFortress?.gold ?? 0,
             defenderFood: battlefield.targetFortress?.food ?? 0,
-            attackPowerMultiplier: attackerGrudgeMultiplier * attackerBossOrderMultiplier,
+            attackPowerMultiplier:
+              attackerGrudgeMultiplier * attackerBossOrderMultiplier,
             defensePowerMultiplier:
               defenderGrudgeMultiplier *
               defenderTileDefenseMultiplier *
@@ -857,7 +863,8 @@ export async function processActiveBattlefields({
                   battlefield.targetFortress.castleUpgradeSpecializations
                 )
               : undefined,
-            attackPowerMultiplier: attackerGrudgeMultiplier * attackerBossOrderMultiplier,
+            attackPowerMultiplier:
+              attackerGrudgeMultiplier * attackerBossOrderMultiplier,
             defensePowerMultiplier:
               defenderGrudgeMultiplier *
               defenderTileDefenseMultiplier *
@@ -1024,7 +1031,7 @@ export async function processActiveBattlefields({
         },
         data: {
           army: {
-              decrement: outcome.defenderLosses,
+            decrement: outcome.defenderLosses,
           },
         },
       });
@@ -1168,8 +1175,12 @@ export async function processActiveBattlefields({
           0,
           targetDefenderArmy - outcome.defenderLosses
         ),
-        pointsReward: isTileBattle ? battlefield.pointsReward : castleBankGoldLooted,
-        foodReward: isTileBattle ? battlefield.foodReward : castleBankFoodLooted,
+        pointsReward: isTileBattle
+          ? battlefield.pointsReward
+          : castleBankGoldLooted,
+        foodReward: isTileBattle
+          ? battlefield.foodReward
+          : castleBankFoodLooted,
         resolvedWinnerSide: winnerSide,
         resolvedAt: tickAt,
       },

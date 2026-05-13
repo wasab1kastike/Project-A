@@ -1403,7 +1403,7 @@ export async function attackMapHex({
     const initialDefenderArmyRemaining =
       isHomeOfA && !ownership
         ? battlefieldTarget.army
-        : effectiveOwnership
+        : isHomeOfA && effectiveOwnership
           ? targetFortress.army
           : 0;
     const battlefield = await tx.battlefield.create({
