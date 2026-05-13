@@ -1,3 +1,37 @@
+// Remove any loot camp that is not attackable (expired, blocked, or invalid)
+export async function cleanupUnattackableLootCamps({ db, cycleId, tickAt }: { db: DatabaseClient; cycleId: string; tickAt: Date }) {
+  // Find all loot camps in this cycle
+  const lootCamps = await db.fortress.findMany({
+    where: {
+      cycleId,
+      fortressKind: FortressKind.LOOT_CAMP,
+    },
+    select: {
+      id: true,
+      health: true,
+      expiresAt: true,
+      mapX: true,
+      mapY: true,
+    },
+  });
+  for (const camp of lootCamps) {
+    const isAttackable = camp.health > 0 && (!camp.expiresAt || camp.expiresAt > tickAt);
+    // Check for tile occupation by another fortress (should not happen, but double-check)
+    const blockingFortress = await db.fortress.findFirst({
+      where: {
+        cycleId,
+        mapX: camp.mapX,
+        mapY: camp.mapY,
+        id: { not: camp.id },
+        health: { gt: 0 },
+      },
+      select: { id: true },
+    });
+    if (!isAttackable || blockingFortress) {
+      await db.fortress.delete({ where: { id: camp.id } });
+    }
+  }
+}
 import { createHash } from "node:crypto";
 import {
   FortressKind,

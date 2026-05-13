@@ -75,6 +75,7 @@ import {
   getLootCampReward,
   resetAttackerRaceAbilityCooldown,
   spawnScheduledLootCamps,
+  cleanupUnattackableLootCamps,
 } from "./loot-camps";
 import {
   createBattlefieldFromAttackUnit,
@@ -1408,12 +1409,16 @@ async function processCycleTick(
       health: 0,
     },
   });
+
   await spawnScheduledLootCamps({
     db: db,
     cycleId,
     activeStartedAt: gameplayStartedAt,
     tickAt,
   });
+
+  // Cleanup any unattackable loot camps (old or new)
+  await cleanupUnattackableLootCamps({ db, cycleId, tickAt });
 
   const fortresses = await db.fortress.findMany({
     where: {
