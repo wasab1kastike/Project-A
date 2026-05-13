@@ -3641,6 +3641,15 @@ test("players can partially or fully recall won-tile garrisons", async (context)
       army: 60,
     },
   });
+  await prisma.homeOfAHolder.create({
+    data: {
+      cycleId: cycle.id,
+      fortressId: ownerFortress.id,
+      bannerFortressId: ownerFortress.id,
+      contributionWeight: 60,
+      capturedAt: new Date("2026-04-20T12:02:00.000Z"),
+    },
+  });
 
   await assert.rejects(
     () =>
@@ -3664,8 +3673,17 @@ test("players can partially or fully recall won-tile garrisons", async (context)
   const partialGarrison = await prisma.fortressGarrison.findUniqueOrThrow({
     where: { id: garrison.id },
   });
+  const partialHolder = await prisma.homeOfAHolder.findUniqueOrThrow({
+    where: {
+      cycleId_fortressId: {
+        cycleId: cycle.id,
+        fortressId: ownerFortress.id,
+      },
+    },
+  });
 
   assert.equal(partialGarrison.army, 35);
+  assert.equal(partialHolder.contributionWeight, 35);
 
   const secondReturn = await recallGarrisonArmy({
     db: prisma,
@@ -3677,8 +3695,26 @@ test("players can partially or fully recall won-tile garrisons", async (context)
   const deletedGarrison = await prisma.fortressGarrison.findUnique({
     where: { id: garrison.id },
   });
+  const deletedHolder = await prisma.homeOfAHolder.findUnique({
+    where: {
+      cycleId_fortressId: {
+        cycleId: cycle.id,
+        fortressId: ownerFortress.id,
+      },
+    },
+  });
 
   assert.equal(deletedGarrison, null);
+  assert.equal(deletedHolder, null);
+
+  const recalledHomeState = await getHomePageState({
+    db: prisma,
+    userId: owner.id,
+    now: new Date("2026-04-20T12:05:00.000Z"),
+  });
+
+  assert.equal(recalledHomeState.homeOfA?.holderCount, 0);
+  assert.deepEqual(recalledHomeState.homeOfA?.holders, []);
 
   await runGameTick({
     db: prisma,

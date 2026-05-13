@@ -2048,11 +2048,23 @@ export async function getHomePageState({
     cycle.battlefields.find(
       (battlefield) => battlefield.targetTileId === HOME_OF_A_TILE_ID
     ) ?? null;
-  const homeHolders = cycle.homeOfAHolders.map((holder) => ({
+  const homeGarrisonArmyByFortressId = new Map(
+    (garrisonsByTileId.get(HOME_OF_A_TILE_ID) ?? []).map((garrison) => [
+      garrison.fortressId,
+      garrison.army,
+    ])
+  );
+  const activeHomeHolders = cycle.homeOfAHolders.filter(
+    (holder) => (homeGarrisonArmyByFortressId.get(holder.fortressId) ?? 0) > 0
+  );
+  const homeHolders = activeHomeHolders.map((holder) => ({
     fortressId: holder.fortressId,
     fortressName: holder.fortress.name,
     commanderName: holder.fortress.commanderName,
-    contributionWeight: holder.contributionWeight,
+    contributionWeight: Math.min(
+      holder.contributionWeight,
+      homeGarrisonArmyByFortressId.get(holder.fortressId) ?? 0
+    ),
     capturedAt: holder.capturedAt,
     currentDrainPerTick: getHomeOfAArmyDrainPerTick({
       capturedAt: holder.capturedAt,
@@ -2060,7 +2072,7 @@ export async function getHomePageState({
     }),
     isCurrentUser: holder.fortress.ownerId === userId,
   }));
-  const homeBanner = cycle.homeOfAHolders[0]?.bannerFortress ?? null;
+  const homeBanner = activeHomeHolders[0]?.bannerFortress ?? null;
   const homeStatus: "NEUTRAL" | "CONTROLLED" | "CONTESTED" = homeActiveBattle
     ? "CONTESTED"
     : homeOwnership?.ownerFortressId

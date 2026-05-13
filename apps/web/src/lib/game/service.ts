@@ -992,7 +992,7 @@ export async function setFortressAction({
             attackerBannerFortressId: fortress.id,
             defenderBannerFortressId:
               target.fortressKind === FortressKind.DWARF_RUNE
-                ? runeActivation?.fortressId ?? null
+                ? (runeActivation?.fortressId ?? null)
                 : target.id,
             attackerArmyRemaining: 0,
             defenderArmyRemaining: target.army,
@@ -1624,10 +1624,7 @@ export async function fortifyMapHex({
     ))
       ? null
       : fortress.race;
-    const maxAttacks = getMaxSimultaneousAttacks(
-      fortress.level,
-      effectiveRace
-    );
+    const maxAttacks = getMaxSimultaneousAttacks(fortress.level, effectiveRace);
 
     if (outboundAttackCount >= maxAttacks) {
       throw new GameError(
@@ -1892,7 +1889,10 @@ async function recallBattlefieldArmyWithCycle({
     throw new GameError("That battlefield army is not available to recall.");
   }
 
-  const recalledArmy = normalizeRecallAmount(armyAmount, participant.armyRemaining);
+  const recalledArmy = normalizeRecallAmount(
+    armyAmount,
+    participant.armyRemaining
+  );
   const targetTile = battlefield.targetTileId
     ? getTileById(battlefield.targetTileId)
     : null;
@@ -2062,7 +2062,9 @@ async function recallGarrisonArmyWithCycle({
 
   const recalledArmy = normalizeRecallAmount(armyAmount, garrison.army);
   const tile = getTileById(garrison.tileId);
-  const homePosition = isHomeOfATile(garrison.tileId) ? getHomeOfAMapPosition() : null;
+  const homePosition = isHomeOfATile(garrison.tileId)
+    ? getHomeOfAMapPosition()
+    : null;
   const origin = homePosition
     ? {
         mapX: homePosition.mapX,
@@ -2095,6 +2097,45 @@ async function recallGarrisonArmyWithCycle({
         },
       },
     });
+  }
+
+  if (isHomeOfATile(garrison.tileId)) {
+    const holder = await tx.homeOfAHolder.findUnique({
+      where: {
+        cycleId_fortressId: {
+          cycleId: cycle.id,
+          fortressId: garrison.fortress.id,
+        },
+      },
+      select: {
+        id: true,
+        contributionWeight: true,
+      },
+    });
+
+    if (holder) {
+      const nextContributionWeight =
+        recalledArmy === garrison.army
+          ? 0
+          : Math.max(0, holder.contributionWeight - recalledArmy);
+
+      if (nextContributionWeight <= 0) {
+        await tx.homeOfAHolder.delete({
+          where: {
+            id: holder.id,
+          },
+        });
+      } else {
+        await tx.homeOfAHolder.update({
+          where: {
+            id: holder.id,
+          },
+          data: {
+            contributionWeight: nextContributionWeight,
+          },
+        });
+      }
+    }
   }
 
   return createReturningArmyMarker({
@@ -2799,7 +2840,8 @@ export async function shuffleFortressLocation({
         y: destinationTile.yPercent,
       };
       const currentRenderedKey = getRenderedMapPositionKey(fortress);
-      const destinationRenderedKey = getRenderedMapPositionKey(selectedPosition);
+      const destinationRenderedKey =
+        getRenderedMapPositionKey(selectedPosition);
 
       if (destinationRenderedKey === currentRenderedKey) {
         throw new GameError("Choose a different destination tile.");
