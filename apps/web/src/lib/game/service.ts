@@ -19,6 +19,7 @@ import {
   ACTIVE_PLAYER_CAP,
   ACTIVE_RENAME_COST,
   HOME_OF_A_NEUTRAL_DEFENSE,
+  HOME_OF_A_TILE_ID,
   getActiveLocationShuffleCost,
 } from "./constants";
 import {
@@ -1289,11 +1290,32 @@ export async function attackMapHex({
 
     const isHomeOfA = isHomeOfATile(tileId);
 
-    if (!ownership && !isHomeOfA) {
+    const homeHasActiveHolders = isHomeOfA
+      ? (await tx.fortressGarrison.count({
+          where: {
+            cycleId: cycle.id,
+            tileId: HOME_OF_A_TILE_ID,
+            army: {
+              gt: 0,
+            },
+            fortress: {
+              homeOfAHoldings: {
+                some: {
+                  cycleId: cycle.id,
+                },
+              },
+            },
+          },
+        })) > 0
+      : false;
+    const effectiveOwnership =
+      isHomeOfA && ownership && !homeHasActiveHolders ? null : ownership;
+
+    if (!effectiveOwnership && !isHomeOfA) {
       throw new GameError("Neutral tiles must be claimed, not attacked.");
     }
 
-    if (ownership?.ownerFortressId === attacker.id) {
+    if (effectiveOwnership?.ownerFortressId === attacker.id) {
       throw new GameError("You already own that tile.");
     }
 
@@ -1353,7 +1375,8 @@ export async function attackMapHex({
           },
         })
       : null;
-    const targetFortress = ownership?.ownerFortress ?? neutralHomeTarget;
+    const targetFortress =
+      effectiveOwnership?.ownerFortress ?? neutralHomeTarget;
 
     if (!targetFortress) {
       throw new GameError("Home of A is not available in this cycle yet.");
@@ -1365,7 +1388,11 @@ export async function attackMapHex({
           ...targetFortress,
           mapX: homePosition.mapX,
           mapY: homePosition.mapY,
-          army: ownership ? targetFortress.army : HOME_OF_A_NEUTRAL_DEFENSE,
+          army: effectiveOwnership
+            ? targetFortress.army
+            : ownership
+              ? 0
+              : HOME_OF_A_NEUTRAL_DEFENSE,
         }
       : {
           ...targetFortress,
@@ -1376,7 +1403,7 @@ export async function attackMapHex({
     const initialDefenderArmyRemaining =
       isHomeOfA && !ownership
         ? battlefieldTarget.army
-        : ownership
+        : effectiveOwnership
           ? targetFortress.army
           : 0;
     const battlefield = await tx.battlefield.create({
@@ -1385,7 +1412,7 @@ export async function attackMapHex({
         targetFortressId: targetFortress.id,
         targetTileId: tileId,
         attackerBannerFortressId: attacker.id,
-        defenderBannerFortressId: ownership?.ownerFortressId ?? null,
+        defenderBannerFortressId: effectiveOwnership?.ownerFortressId ?? null,
         attackerArmyRemaining: 0,
         defenderArmyRemaining: initialDefenderArmyRemaining,
         pointsReward: 0,
@@ -1397,7 +1424,7 @@ export async function attackMapHex({
       },
     });
 
-    if (ownership) {
+    if (effectiveOwnership) {
       const tileGarrisons = await tx.fortressGarrison.findMany({
         where: {
           cycleId: cycle.id,

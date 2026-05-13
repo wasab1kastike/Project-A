@@ -3641,6 +3641,14 @@ test("players can partially or fully recall won-tile garrisons", async (context)
       army: 60,
     },
   });
+  await prisma.mapHexOwnership.create({
+    data: {
+      cycleId: cycle.id,
+      tileId: HOME_OF_A_TILE_ID,
+      ownerFortressId: ownerFortress.id,
+      claimedAt: new Date("2026-04-20T12:02:00.000Z"),
+    },
+  });
   await prisma.homeOfAHolder.create({
     data: {
       cycleId: cycle.id,
@@ -3714,6 +3722,9 @@ test("players can partially or fully recall won-tile garrisons", async (context)
   });
 
   assert.equal(recalledHomeState.homeOfA?.holderCount, 0);
+  assert.equal(recalledHomeState.homeOfA?.status, "NEUTRAL");
+  assert.equal(recalledHomeState.homeOfA?.neutralDefenseArmy, 0);
+  assert.equal(recalledHomeState.homeOfA?.canAttack, true);
   assert.deepEqual(recalledHomeState.homeOfA?.holders, []);
 
   await runGameTick({

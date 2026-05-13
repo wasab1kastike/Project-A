@@ -766,6 +766,11 @@ export default function WikiPage() {
               holder contribution; once no holding army remains, it leaves the
               holder list and stops paying holder drain.
             </li>
+            <li>
+              The neutral defense only protects the first capture. If Home of A
+              is later abandoned, the next attackers fight the current holders,
+              not the original neutral defender.
+            </li>
           </ul>
         </article>
 

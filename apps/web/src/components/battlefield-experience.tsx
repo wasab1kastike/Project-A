@@ -278,6 +278,7 @@ type HomeOfAState = {
   statusLabel: string;
   incomeLabel: string;
   drainLabel: string;
+  neutralDefenseArmy: number;
   holderCount: number;
   ownerFortressId: string | null;
   ownerName: string;
@@ -1555,8 +1556,9 @@ export function BattlefieldExperience({
             </div>
           ) : (
             <p className={styles.helper}>
-              Home of A is unclaimed. The first attackers fight neutral defense
-              before control and holder drain begin.
+              {homeOfA.neutralDefenseArmy > 0
+                ? `Home of A is unclaimed. The first attackers fight ${homeOfA.neutralDefenseArmy} neutral defense before control and holder drain begin.`
+                : "Home of A is open. No holder army is defending it, so the next attackers can take control without fighting the old neutral defense."}
             </p>
           )}
         </section>

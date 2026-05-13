@@ -18,6 +18,7 @@ import {
   ACTIVE_PLAYER_CAP,
   HOME_OF_A_ARMY_DRAIN_BASE,
   HOME_OF_A_ARMY_DRAIN_INCREASE_PER_TICK,
+  HOME_OF_A_NEUTRAL_DEFENSE,
   HOME_OF_A_POINT_INCOME,
   HOME_OF_A_TILE_ID,
   MAX_SIMULTANEOUS_ATTACKS_BASE,
@@ -2073,9 +2074,11 @@ export async function getHomePageState({
     isCurrentUser: holder.fortress.ownerId === userId,
   }));
   const homeBanner = activeHomeHolders[0]?.bannerFortress ?? null;
+  const homeHasActiveControl = Boolean(homeOwnership && homeHolders.length > 0);
+  const homeNeutralDefenseArmy = homeOwnership ? 0 : HOME_OF_A_NEUTRAL_DEFENSE;
   const homeStatus: "NEUTRAL" | "CONTROLLED" | "CONTESTED" = homeActiveBattle
     ? "CONTESTED"
-    : homeOwnership?.ownerFortressId
+    : homeHasActiveControl
       ? "CONTROLLED"
       : "NEUTRAL";
   const homeCurrentDrain = homeHolders.reduce(
@@ -2086,7 +2089,8 @@ export async function getHomePageState({
     gameplayOpen &&
     playerFortress !== null &&
     playerFortress.army > 0 &&
-    homeOwnership?.ownerFortressId !== playerFortress.id &&
+    (!homeHasActiveControl ||
+      homeOwnership?.ownerFortressId !== playerFortress.id) &&
     !activeBattleTileIds.has(HOME_OF_A_TILE_ID);
   const getTileAttackDisabledReason = (ownership: {
     tileId: string;
@@ -2326,6 +2330,9 @@ export async function getHomePageState({
     } | null;
   }> = cycle.mapHexOwnerships.map((ownership) => {
     const tile = getTileById(ownership.tileId);
+    const isHomeOwnership = isHomeOfATile(ownership.tileId);
+    const homeOwnershipHasActiveControl =
+      isHomeOwnership && homeHasActiveControl;
     const occupyingGarrison =
       (garrisonsByTileId.get(ownership.tileId) ?? []).find(
         (garrison) => garrison.fortressId !== ownership.ownerFortressId
@@ -2336,7 +2343,7 @@ export async function getHomePageState({
       ) ?? null;
     const canTorchOwnGarrison =
       Boolean(ownGarrison) &&
-      !isHomeOfATile(ownership.tileId) &&
+      !isHomeOwnership &&
       ownership.ownerFortressId !== playerFortress?.id &&
       !activeBattleTileIds.has(ownership.tileId);
     const claimState = tile
@@ -2349,7 +2356,7 @@ export async function getHomePageState({
           canClaim: false,
           claimDisabledReason: "That map tile cannot be claimed.",
         };
-    const bonus = isHomeOfATile(ownership.tileId)
+    const bonus = isHomeOwnership
       ? getHomeOfABonus()
       : getTileBonus(tile, {
           tileId: ownership.tileId,
@@ -2362,20 +2369,43 @@ export async function getHomePageState({
       tileId: ownership.tileId,
       biome: tile?.biome ?? null,
       claimedAt: ownership.claimedAt,
-      ownerFortressId: ownership.ownerFortressId,
-      ownerRace: ownership.ownerFortress.race,
-      ownerName: ownership.ownerFortress.name,
-      ownerCommanderName: ownership.ownerFortress.commanderName,
-      isCurrentUser: ownership.ownerFortress.ownerId === userId,
+      ownerFortressId:
+        isHomeOwnership && !homeOwnershipHasActiveControl
+          ? null
+          : ownership.ownerFortressId,
+      ownerRace:
+        isHomeOwnership && !homeOwnershipHasActiveControl
+          ? null
+          : ownership.ownerFortress.race,
+      ownerName:
+        isHomeOwnership && !homeOwnershipHasActiveControl
+          ? "Neutral"
+          : ownership.ownerFortress.name,
+      ownerCommanderName:
+        isHomeOwnership && !homeOwnershipHasActiveControl
+          ? "Home of A"
+          : ownership.ownerFortress.commanderName,
+      isCurrentUser:
+        !isHomeOwnership || homeOwnershipHasActiveControl
+          ? ownership.ownerFortress.ownerId === userId
+          : false,
       hasActiveBattle: activeBattleTileIds.has(ownership.tileId),
       canAttack:
         gameplayOpen &&
         playerFortress !== null &&
         playerFortress.army > 0 &&
-        ownership.ownerFortressId !== playerFortress.id &&
+        (isHomeOwnership && !homeOwnershipHasActiveControl
+          ? true
+          : ownership.ownerFortressId !== playerFortress.id) &&
         !activeBattleTileIds.has(ownership.tileId),
-      canFortify: getTileFortifyDisabledReason(ownership) === null,
-      fortifyDisabledReason: getTileFortifyDisabledReason(ownership),
+      canFortify:
+        isHomeOwnership && !homeOwnershipHasActiveControl
+          ? false
+          : getTileFortifyDisabledReason(ownership) === null,
+      fortifyDisabledReason:
+        isHomeOwnership && !homeOwnershipHasActiveControl
+          ? "Home of A must be controlled before fortifying."
+          : getTileFortifyDisabledReason(ownership),
       claimCost: claimState.claimCost,
       sizeSurcharge: claimState.sizeSurcharge,
       isConnectedToPlayerTerritory: claimState.isConnectedToPlayerTerritory,
@@ -2384,11 +2414,24 @@ export async function getHomePageState({
       pendingClaim: claimState.pendingClaim,
       activeBattlefieldId:
         activeBattlefieldByTileId.get(ownership.tileId)?.id ?? null,
-      attackDisabledReason: getTileAttackDisabledReason(ownership),
+      attackDisabledReason:
+        isHomeOwnership && !homeOwnershipHasActiveControl
+          ? canAttackHomeOfA
+            ? null
+            : !gameplayOpen
+              ? "Home of A can only be attacked during gameplay."
+              : !playerFortress
+                ? "Join the cycle to attack Home of A."
+                : playerFortress.army <= 0
+                  ? "You need idle army to attack Home of A."
+                  : activeBattleTileIds.has(HOME_OF_A_TILE_ID)
+                    ? "Home of A is already contested."
+                    : null
+          : getTileAttackDisabledReason(ownership),
       bonus,
-      isHomeOfA: isHomeOfATile(ownership.tileId),
+      isHomeOfA: isHomeOwnership,
       pointIncome: bonus.points > 0 ? bonus.points : null,
-      holders: isHomeOfATile(ownership.tileId) ? homeHolders : [],
+      holders: isHomeOwnership ? homeHolders : [],
       occupyingGarrison: occupyingGarrison
         ? {
             fortressId: occupyingGarrison.fortressId,
@@ -3001,17 +3044,27 @@ export async function getHomePageState({
           ? "Battle in progress"
           : homeStatus === "CONTROLLED"
             ? `Controlled by ${homeOwnership?.ownerFortress.name ?? "Unknown"}`
-            : "Unclaimed center objective",
+            : homeOwnership
+              ? "Open center objective"
+              : "Unclaimed center objective",
       incomeLabel: `+${HOME_OF_A_POINT_INCOME} points / tick`,
       drainLabel:
         homeHolders.length > 0
           ? `-${homeCurrentDrain} army / tick now, +${HOME_OF_A_ARMY_DRAIN_INCREASE_PER_TICK} each tick held`
-          : `Starts at -${HOME_OF_A_ARMY_DRAIN_BASE} army / tick, +${HOME_OF_A_ARMY_DRAIN_INCREASE_PER_TICK} each tick held`,
+          : homeOwnership
+            ? "No holder drain while no army holds Home of A"
+            : `Starts at -${HOME_OF_A_ARMY_DRAIN_BASE} army / tick, +${HOME_OF_A_ARMY_DRAIN_INCREASE_PER_TICK} each tick held`,
+      neutralDefenseArmy: homeNeutralDefenseArmy,
       holderCount: homeHolders.length,
-      ownerFortressId: homeOwnership?.ownerFortressId ?? null,
-      ownerName: homeOwnership?.ownerFortress.name ?? "Neutral",
-      ownerCommanderName:
-        homeOwnership?.ownerFortress.commanderName ?? "Home of A",
+      ownerFortressId: homeHasActiveControl
+        ? (homeOwnership?.ownerFortressId ?? null)
+        : null,
+      ownerName: homeHasActiveControl
+        ? (homeOwnership?.ownerFortress.name ?? "Neutral")
+        : "Neutral",
+      ownerCommanderName: homeHasActiveControl
+        ? (homeOwnership?.ownerFortress.commanderName ?? "Home of A")
+        : "Home of A",
       bannerFortressId: homeBanner?.id ?? null,
       bannerName: homeBanner?.name ?? null,
       isCurrentUserHolder: homeHolders.some((holder) => holder.isCurrentUser),
@@ -3026,7 +3079,8 @@ export async function getHomePageState({
             ? "Join the cycle to attack Home of A."
             : playerFortress.army <= 0
               ? "You need idle army to attack Home of A."
-              : homeOwnership?.ownerFortressId === playerFortress.id
+              : homeHasActiveControl &&
+                  homeOwnership?.ownerFortressId === playerFortress.id
                 ? "Your banner already controls Home of A."
                 : activeBattleTileIds.has(HOME_OF_A_TILE_ID)
                   ? "Home of A is already contested."
