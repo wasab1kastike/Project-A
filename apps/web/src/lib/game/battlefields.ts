@@ -678,13 +678,11 @@ export async function processActiveBattlefields({
     const storedDefenderArmy =
       battlefield.defenderArmyRemaining > 0
         ? battlefield.defenderArmyRemaining
-        : battlefield.targetTileId !== null
-          ? // Home of A owned by a fortress uses the fortress's army as native defense
-            isHomeOfATile(battlefield.targetTileId) &&
-            battlefield.defenderBannerFortressId
-            ? (battlefield.targetFortress?.army ?? 0)
-            : 0
-          : (battlefield.targetFortress?.army ?? 0);
+        : battlefield.targetTileId !== null &&
+          isHomeOfATile(battlefield.targetTileId) &&
+          battlefield.defenderBannerFortressId
+        ? (battlefield.targetFortress?.army ?? 0)
+        : 0;
     const nativeDefenderArmyBefore = Math.max(
       0,
       storedDefenderArmy - defenderParticipantArmyBefore

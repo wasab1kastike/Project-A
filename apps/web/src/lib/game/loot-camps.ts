@@ -369,7 +369,7 @@ export async function spawnScheduledLootCamps({
       },
     });
 
-    await db.fortress.create({
+    const lootCamp = await db.fortress.create({
       data: {
         cycleId,
         ownerId: npcUser.id,
@@ -394,6 +394,27 @@ export async function spawnScheduledLootCamps({
         joinedAt: tickAt,
       },
     });
+
+    // Post-spawn attackability check: ensure the loot camp is attackable
+    // Criteria: health > 0, not expired, not blocked by another fortress
+    const isAttackable = lootCamp.health > 0 && (!lootCamp.expiresAt || lootCamp.expiresAt > tickAt);
+    // Check for tile occupation by another fortress (should not happen, but double-check)
+    const blockingFortress = await db.fortress.findFirst({
+      where: {
+        cycleId,
+        mapX: lootCamp.mapX,
+        mapY: lootCamp.mapY,
+        id: { not: lootCamp.id },
+        health: { gt: 0 },
+      },
+      select: { id: true },
+    });
+
+    if (!isAttackable || blockingFortress) {
+      // Remove the unattackable or blocked loot camp
+      await db.fortress.delete({ where: { id: lootCamp.id } });
+      continue;
+    }
     spawned += 1;
   }
 
