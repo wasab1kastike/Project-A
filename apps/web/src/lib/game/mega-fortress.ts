@@ -39,6 +39,39 @@ export async function updateMegaFortressState({ db, cycleId, tickAt }: { db: Dat
     return { state: "uncontrolled" };
   }
 
+  // Escalating unit drain: 1 + ticksHeld
+  // Track how many ticks the fortress has been held by the current controller
+  let ticksHeld = battlefield.ticksHeld ?? 0;
+  if (battlefield.lastControllerFortressId !== controllerFortressId) {
+    // Controller changed, reset counter
+    ticksHeld = 0;
+  }
+  ticksHeld++;
+
+  // Save ticksHeld and lastControllerFortressId to battlefield (if schema allows)
+  try {
+    await db.battlefield.update({
+      where: { id: battlefield.id },
+      data: {
+        ticksHeld,
+        lastControllerFortressId: controllerFortressId,
+      },
+    });
+  } catch {}
+
+  // Drain units from all defenders (including controller)
+  const drainAmount = 1 + ticksHeld;
+  for (const participant of battlefield.participants) {
+    if (participant.side === "DEFENDER") {
+      await db.fortress.update({
+        where: { id: participant.fortressId },
+        data: {
+          army: { decrement: drainAmount },
+        },
+      });
+    }
+  }
+
   // Award points per tick to controller
   const CONTROLLER_POINTS_PER_TICK = 10; // TODO: adjust as needed
   await db.fortress.update({
@@ -57,7 +90,7 @@ export async function updateMegaFortressState({ db, cycleId, tickAt }: { db: Dat
     }
   }
 
-  return { state: "controlled", controllerFortressId };
+  return { state: "controlled", controllerFortressId, ticksHeld, drainAmount };
 }
 import {
   CycleStatus,

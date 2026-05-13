@@ -4,6 +4,8 @@
 
 Phase 1 refactored and documented the castle production system, created validation utilities, and designed the order-based army recruitment system. That recruitment design is now live: players buy army orders with gold, recruiters process the queue over ticks, and active army pays food upkeep.
 
+- 2026-05-13: Mega Fortress (Home of A) now drains defending units at an escalating rate: 1 + 1 per tick held. The longer a fortress holds the Mega Fortress, the more units are drained from all defenders each tick. The battlefield UI now shows persistent Mega Fortress control, defenders, and point rewards at the top of the screen. Defending the Mega Fortress becomes riskier over time, requiring active reinforcement and coordination. Players can always see who controls the Mega Fortress and how points and drain are applied.
+
 ### What Was Accomplished
 
 #### 1. Castle Production System Documentation & Organization
