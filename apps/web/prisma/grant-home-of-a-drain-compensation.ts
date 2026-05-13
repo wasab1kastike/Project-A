@@ -8,7 +8,7 @@ const ARMY_GRANT = 50_000;
 const SYSTEM_EMAIL = "npc@project-a.local";
 const SYSTEM_NAME = "Project-A NPC";
 const CHAT_BODY =
-  "A has reviewed the battlefield accounting scrolls and found three suspiciously army-shaped holes. UniBonk, BEEFSTEW, and Tero each receive 50,000 replacement troops. Please pretend these units marched in heroically and were not recovered from an incorrectly labelled bucket behind Home of A.";
+  "HOME OF A ACCOUNTING INCIDENT: A has inspected the sacred drain pipes and discovered 150,000 troops doing laps in the wrong dimension. UniBonk, BEEFSTEW, and Tero each receive 50,000 replacement units. Please welcome them back as heroes, not as victims of divine spreadsheet plumbing.";
 
 async function main() {
   const connectionString = process.env.DATABASE_URL;
