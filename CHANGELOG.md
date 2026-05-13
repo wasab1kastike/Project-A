@@ -1,14 +1,5 @@
 # Changelog
 
-## 2026-05-13
-- Fix: Idle army in castles no longer auto-joins tile defense after a battle starts. Only the army present at the moment of attack is committed to defense; new idle army must be explicitly sent as reinforcements.
-- Polish: Added backend comments and defensive checks to clarify and enforce correct defender assignment logic.
-- User impact: Players can still reinforce ongoing battles by sending idle army, but new idle army will not join defense automatically unless committed.
-
-- Change: Mega Fortress (Home of A) now drains defending units at an escalating rate: 1 + 1 per tick held. The longer a fortress holds the Mega Fortress, the more units are drained from all defenders each tick.
-- Polish: Battlefield UI now shows persistent Mega Fortress control, defenders, and point rewards at the top of the screen.
-- User impact: Defending the Mega Fortress becomes riskier over time, requiring active reinforcement and coordination. Players can always see who controls the Mega Fortress and how points and drain are applied.
-
 ## 2026-05-12
 - Change: Fixed Rune of Grudges activation to avoid database constraint collision by assigning each rune a unique temporary owner and name suffix.
 - Change: Revamped battles card with tactical metrics showing unit counts, engagement metrics, and live battle state.

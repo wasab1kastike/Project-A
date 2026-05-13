@@ -1,11 +1,3 @@
-// Fallback getSuppressionState for deployment (returns no suppression)
-function getSuppressionState(fortress: { race?: string | null }) {
-  const allowed = ["DWARFS", "UNSTABLE_UNICORNS", "SPACE_MURINES", "ORKS"];
-  const effectiveRace = allowed.includes(fortress.race as string)
-    ? (fortress.race as "DWARFS" | "UNSTABLE_UNICORNS" | "SPACE_MURINES" | "ORKS")
-    : null;
-  return { effectiveRace, isRuneSuppressed: false };
-}
 /**
  * Fortress Validation Utilities
  *
@@ -174,15 +166,7 @@ export type ProductionValidation = {
 export function validateProduction(
   fortress: FortressEconomyLike
 ): ProductionValidation {
-  // Use suppression state for rune of grudges
-  const { effectiveRace, isRuneSuppressed } = typeof getSuppressionState === "function"
-    ? getSuppressionState(fortress)
-    : { effectiveRace: fortress.race, isRuneSuppressed: false };
-  const production = calculateTickProduction({
-    ...fortress,
-    race: effectiveRace,
-    isRuneSuppressed,
-  });
+  const production = calculateTickProduction(fortress);
 
   let status: ProductionHealthStatus = "healthy";
   let reason: string | undefined;

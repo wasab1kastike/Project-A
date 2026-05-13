@@ -1,7 +1,3 @@
-// Returns the effective race for a fortress, considering suppression (no suppression logic here, just returns race)
-function getEffectiveRace(fortress: { race: "DWARFS" | "UNSTABLE_UNICORNS" | "SPACE_MURINES" | "ORKS" | null }) {
-  return fortress.race;
-}
 import { prisma } from "@/lib/prisma";
 import {
   CastleUpgradeSpecialization,
@@ -420,16 +416,10 @@ export async function getCastlePageState({
       },
     },
   });
-
-  // Track rune suppression for each fortress
   const suppressedFortressIds = new Set(
     activeRuneSuppressions
       .map((suppression) => suppression.targetFortressId)
       .filter((id): id is string => Boolean(id))
-  );
-  // Map of fortressId -> true if rune suppressed
-  const runeSuppressedMap = Object.fromEntries(
-    Array.from(suppressedFortressIds).map((id) => [id, true])
   );
   const playerSuppression =
     playerFortress && suppressedFortressIds.has(playerFortress.id)
@@ -437,15 +427,10 @@ export async function getCastlePageState({
           (suppression) => suppression.targetFortressId === playerFortress.id
         ) ?? null)
       : null;
-
-  // Helper: returns { effectiveRace, isRuneSuppressed }
-  const getSuppressionState = (fortress: {
+  const getEffectiveRace = (fortress: {
     id: string;
     race: "DWARFS" | "UNSTABLE_UNICORNS" | "SPACE_MURINES" | "ORKS" | null;
-  }) => ({
-    effectiveRace: suppressedFortressIds.has(fortress.id) ? null : fortress.race,
-    isRuneSuppressed: !!runeSuppressedMap[fortress.id],
-  });
+  }) => (suppressedFortressIds.has(fortress.id) ? null : fortress.race);
 
   const playerCastleSpecializationCounts = playerFortress
     ? countCastleSpecializations(playerFortress.castleUpgradeSpecializations)
@@ -997,16 +982,11 @@ export async function getCastlePageState({
               }
             : null,
           ownedTileSummary,
-          // Use suppression state for rune of grudges
-          growPerTick: (() => {
-            const { effectiveRace, isRuneSuppressed } = getSuppressionState(playerFortress);
-            return calculateTickProduction({
-              ...playerFortress,
-              race: effectiveRace,
-              isRuneSuppressed,
-              castleSpecializations: playerCastleSpecializationCounts ?? undefined,
-            }).goldProduced;
-          })(),
+          growPerTick: calculateTickProduction({
+            ...playerFortress,
+            castleSpecializations:
+              playerCastleSpecializationCounts ?? undefined,
+          }).goldProduced,
           attackDamage: getFortressAttackDamage(playerFortress.level),
           garrisons: playerFortress.garrisons.map((garrison) => ({
             id: garrison.id,

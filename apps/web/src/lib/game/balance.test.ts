@@ -1,27 +1,3 @@
-test("rune of grudges halves economy but disables race functions", () => {
-  // DWARF with 20 miners, normally 22 gold (20 + 2 bonus)
-  const normal = calculateTickProduction({
-    level: 0,
-    race: "DWARFS",
-    food: 0,
-    minersAssigned: 20,
-    farmersAssigned: 0,
-    recruitersAssigned: 0,
-  });
-  // Simulate rune suppression: disables race, halves economy
-  const suppressed = calculateTickProduction({
-    level: 0,
-    race: null, // race functions disabled
-    isRuneSuppressed: true,
-    food: 0,
-    minersAssigned: 20,
-    farmersAssigned: 0,
-    recruitersAssigned: 0,
-  });
-  // DWARF: 22 gold, suppressed: 10 gold (half of base 20, no race bonus)
-  assert.equal(normal.goldProduced, 22);
-  assert.equal(suppressed.goldProduced, 10);
-});
 import assert from "node:assert/strict";
 import test from "node:test";
 import {

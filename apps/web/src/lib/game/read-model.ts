@@ -1,7 +1,3 @@
-// Fallback for getSuppressionState to unblock build
-function getSuppressionState(_fortress: any) {
-  return { effectiveRace: undefined, isRuneSuppressed: false };
-}
 import { prisma } from "@/lib/prisma";
 import {
   ChatMessageType,
@@ -537,7 +533,6 @@ export async function getHomePageState({
                 select: {
                   name: true,
                   commanderName: true,
-                  fortressKind: true,
                 },
               },
               runeFortress: {
@@ -1565,7 +1560,6 @@ export async function getHomePageState({
                 name: true,
                 commanderName: true,
                 ownerId: true,
-                fortressKind: true,
               },
             },
             attackerBannerFortress: {
@@ -1658,7 +1652,6 @@ export async function getHomePageState({
 
         return {
           type: "BATTLEFIELD" as const,
-            fortressKind: battlefield.targetFortress?.fortressKind ?? undefined,
           id: battlefield.id,
           launchedAt: battlefield.startedAt,
           resolvedAt: battlefield.resolvedAt ?? battlefield.startedAt,
@@ -2931,16 +2924,11 @@ export async function getHomePageState({
               }
             : null,
           ownedTileSummary,
-          // Use suppression state for rune of grudges
-          growPerTick: (() => {
-            const { effectiveRace, isRuneSuppressed } = getSuppressionState(playerFortress);
-            return calculateTickProduction({
-              ...playerFortress,
-              race: effectiveRace,
-              isRuneSuppressed,
-              castleSpecializations: playerCastleSpecializationCounts ?? undefined,
-            }).goldProduced;
-          })(),
+          growPerTick: calculateTickProduction({
+            ...playerFortress,
+            castleSpecializations:
+              playerCastleSpecializationCounts ?? undefined,
+          }).goldProduced,
           attackDamage: getFortressAttackDamage(playerFortress.level),
           garrisons: playerFortress.garrisons.map((garrison) => ({
             id: garrison.id,

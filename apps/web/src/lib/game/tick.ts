@@ -1,8 +1,3 @@
-// Fallback for getSuppressionState to unblock build
-function getSuppressionState(_fortress: any) {
-  return { effectiveRace: undefined, isRuneSuppressed: false };
-}
-import { updateMegaFortressState } from "./mega-fortress";
 import {
   CycleStatus,
   FortressKind,
@@ -1318,8 +1313,10 @@ async function processCycleTick(
     });
   }
 
-  // Explicit mega fortress state machine
-  await updateMegaFortressState({ db, cycleId, tickAt });
+  await ensureActiveCycleMegaFortress({
+    db: db,
+    cycleId,
+  });
 
   const firstTickAt = getFirstTickAt(gameplayStartedAt);
   const lastDueTickAt = getLastDueTickAt(
@@ -3346,12 +3343,9 @@ async function processCycleTick(
 
     // Calculate base fortress production (gold, food, army).
     // This is a pure function based on worker assignments, level, race, and specializations.
-    // Use new suppression state for rune of grudges
-    const { effectiveRace, isRuneSuppressed } = getSuppressionState(fortress);
     const production = calculateTickProduction({
       ...fortress,
-      race: effectiveRace,
-      isRuneSuppressed,
+      race: getEffectiveRace(fortress),
       food: currentFood.get(fortress.id) ?? fortress.food,
       castleSpecializations: countCastleSpecializations(
         fortress.castleUpgradeSpecializations

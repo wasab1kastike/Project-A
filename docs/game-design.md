@@ -91,8 +91,3 @@
   - all player fortresses may then buy levels if they can afford the next cost;
   - the first slayer gets one free level immediately, up to the normal level cap;
   - later boss kills escalate HP and reward, but do not grant more free levels or move the crown.
-
-### Mega Fortress (Home of A) Escalating Drain
-- The Mega Fortress now drains defending units at an escalating rate: 1 + 1 per tick held. The longer a fortress holds the Mega Fortress, the more units are drained from all defenders each tick.
-- The battlefield UI now shows persistent Mega Fortress control, defenders, and point rewards at the top of the screen.
-- Defending the Mega Fortress becomes riskier over time, requiring active reinforcement and coordination. Players can always see who controls the Mega Fortress and how points and drain are applied.

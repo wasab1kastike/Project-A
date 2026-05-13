@@ -90,7 +90,6 @@ type PlayerFortress = {
 };
 
 type ActiveBattlefield = {
-    fortressKind?: string;
   id: string;
   targetTileId: string | null;
   targetFortressId: string | null;
@@ -2155,7 +2154,7 @@ export function BattlefieldExperience({
                               battleJoinPendingId === battlefield.id + ":ATTACKER"
                             }
                             title={
-                              battlefield.joinAttackerDisabledReason ||
+                              battlefield.joinAttackerDisabledReason ??
                               undefined
                             }
                             onClick={() =>
@@ -2174,14 +2173,12 @@ export function BattlefieldExperience({
                             className={styles.secondaryButton}
                             type="button"
                             disabled={
-                              // Always allow join defense for rune battlefields if player is eligible
-                              battlefield.canJoinDefender === false && battlefield.fortressKind !== "DWARF_RUNE" ||
+                              !battlefield.canJoinDefender ||
                               battleJoinPendingId === battlefield.id + ":DEFENDER"
                             }
                             title={
-                              battlefield.fortressKind === "DWARF_RUNE"
-                                ? undefined
-                                : battlefield.joinDefenderDisabledReason || undefined
+                              battlefield.joinDefenderDisabledReason ??
+                              undefined
                             }
                             onClick={() =>
                               handleJoinBattlefield(
@@ -2223,49 +2220,6 @@ export function BattlefieldExperience({
     ? createPortal(actionButtons, topActionsRoot)
     : null;
 
-  // Home of A (Mega Fortress) persistent status panel
-  const homeOfAPanel = homeOfA ? (
-    <section className={styles.homeOfAPanel} aria-label="Mega Fortress status">
-      <div className={styles.homeOfAHeader}>
-        <span className={styles.label}>Mega Fortress</span>
-        <strong>
-          {homeOfA.ownerFortressId
-            ? `Controlled by ${homeOfA.ownerName} (${homeOfA.ownerCommanderName})`
-            : "NPC-controlled (unconquered)"}
-        </strong>
-        <span className={styles.pointsPerTick}>
-          +{homeOfA.pointIncome} points / tick
-        </span>
-      </div>
-      {homeOfA.holders.length > 0 ? (
-        <div className={styles.homeOfADefenders}>
-          <span className={styles.label}>Defending Fortresses:</span>
-          <ul className={styles.compactList}>
-            {homeOfA.holders.map((holder) => (
-              <li key={holder.fortressId}>
-                {holder.isCurrentUser ? <b>(You) </b> : null}
-                {holder.fortressName} ({holder.commanderName})
-                {typeof holder.contributionWeight === "number"
-                  ? ` · Defense weight: ${holder.contributionWeight}`
-                  : null}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-      {homeOfA.activeBattlefieldId ? (
-        <div className={styles.homeOfABattleAlert}>
-          <span role="img" aria-label="Battle">⚔️</span> Mega Fortress is under attack!
-        </div>
-      ) : null}
-      {!homeOfA.ownerFortressId ? (
-        <div className={styles.helper}>
-          The Mega Fortress is currently NPC-controlled. Conquer it to start earning points!
-        </div>
-      ) : null}
-    </section>
-  ) : null;
-
   return (
     <section
       className={`${styles.experience} ${immersive ? styles.immersive : ""}`}
@@ -2279,8 +2233,6 @@ export function BattlefieldExperience({
         </div>
         {!immersive && !topActionsRoot ? actionButtons : null}
       </div>
-
-      {homeOfAPanel}
 
       <div className={styles.mapStage}>
         {!immersive && !topActionsRoot ? actionButtons : null}
