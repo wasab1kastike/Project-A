@@ -300,9 +300,7 @@ export async function getCastlePageState({
             },
           },
         },
-      },
-      // attackUnits block removed; it was misplaced at the top level
-    }
+      }
   });
 
   if (!cycle) {
