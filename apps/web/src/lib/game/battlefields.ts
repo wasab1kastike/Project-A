@@ -296,6 +296,68 @@ async function incrementUnitsKilledForParticipants<
   }
 }
 
+function distributeReturnedArmyToParticipants<
+  TParticipant extends {
+    id: string;
+    fortressId: string;
+    armyRemaining: number;
+    armyCommitted: number;
+  },
+>(
+  participants: TParticipant[],
+  totalReturnedArmy: number,
+  lossesByParticipantId: Map<string, number>
+) {
+  const survivors = participants
+    .map((participant) => ({
+      participant,
+      survivingArmy: Math.max(
+        0,
+        participant.armyRemaining -
+          (lossesByParticipantId.get(participant.id) ?? 0)
+      ),
+    }))
+    .filter((entry) => entry.survivingArmy > 0)
+    .sort(
+      (left, right) =>
+        right.survivingArmy - left.survivingArmy ||
+        right.participant.armyCommitted - left.participant.armyCommitted ||
+        left.participant.id.localeCompare(right.participant.id)
+    );
+  const survivingTotal = survivors.reduce(
+    (sum, entry) => sum + entry.survivingArmy,
+    0
+  );
+
+  if (totalReturnedArmy <= 0 || survivingTotal <= 0) {
+    return new Map<string, number>();
+  }
+
+  const cappedReturnedArmy = Math.min(totalReturnedArmy, survivingTotal);
+  const returnedByFortressId = new Map<string, number>();
+  let distributedArmy = 0;
+
+  for (const [index, entry] of survivors.entries()) {
+    const returnedArmy =
+      index === survivors.length - 1
+        ? cappedReturnedArmy - distributedArmy
+        : Math.floor((cappedReturnedArmy * entry.survivingArmy) / survivingTotal);
+
+    if (returnedArmy <= 0) {
+      continue;
+    }
+
+    returnedByFortressId.set(
+      entry.participant.fortressId,
+      (returnedByFortressId.get(entry.participant.fortressId) ?? 0) +
+        returnedArmy
+    );
+    distributedArmy += returnedArmy;
+  }
+
+  return returnedByFortressId;
+}
+
 export async function createBattlefieldFromAttackUnit({
   db,
   attackUnitId,
@@ -1773,6 +1835,32 @@ export async function processActiveBattlefields({
             },
           });
         }
+      }
+    }
+
+    if (
+      !isTileBattle &&
+      !isHomeBossBattle &&
+      winnerSide === BattlefieldSide.ATTACKER &&
+      outcome.attackerReturned > 0
+    ) {
+      const returnedArmyByFortressId = distributeReturnedArmyToParticipants(
+        attackerParticipants,
+        outcome.attackerReturned,
+        attackerParticipantLosses.lossesByParticipantId
+      );
+
+      for (const [fortressId, returnedArmy] of returnedArmyByFortressId) {
+        await db.fortress.update({
+          where: {
+            id: fortressId,
+          },
+          data: {
+            army: {
+              increment: returnedArmy,
+            },
+          },
+        });
       }
     }
 
