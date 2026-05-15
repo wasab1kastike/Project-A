@@ -172,12 +172,14 @@ export async function getCastlePageState({
           },
         },
       },
-      orkScrapBank: {
-        select: {
-          scrap: true,
-        },
-      },
-      orkScrapEvents: {
+      fortresses: {
+        include: {
+          orkScrapBank: {
+            select: {
+              scrap: true,
+            },
+          },
+          orkScrapEvents: {
             orderBy: [{ createdAt: "desc" }, { id: "desc" }],
             take: 5,
             select: {
@@ -212,6 +214,8 @@ export async function getCastlePageState({
               activeUntil: true,
             },
           },
+        },
+      },
           orkWaaaghInvestments: {
             where: {
               waaaghActivation: {
