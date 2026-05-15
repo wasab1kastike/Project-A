@@ -56,6 +56,8 @@ If a local database is unavailable, DB-backed tests may skip. Say that clearly i
 - Home of A attackers should not lose their sent army just because they defeated the boss.
 - Race-specific behavior should be intentional and documented. If a core system such as upgrades changes, verify it works consistently for all races unless the design explicitly says otherwise.
 - PvP castle wins should provide visible rewards when rewards exist: a small points transfer if the defender has points, plus loot based on army size.
+- Leaderboard title holders are derived from active-season rankings, not stored as permanent ownership. Points, units killed, current normal tiles owned, and goblins killed each have a live title and buff.
+- Home of A HP damage should not count as units killed or goblins killed. Goblins killed means final blows on loot camps.
 
 ## Live State
 
@@ -75,6 +77,8 @@ Gameplay-facing changes usually need docs updates in the same commit:
 - Patch notes data: `apps/web/src/lib/game/patch-notes.ts`
 
 If the user asks for a global notification, make it player-facing, short, and a little humorous. Still keep the actual rule text clear.
+
+One-time game announcements should use a versioned localStorage key so players see them once and can reopen them from the HUD when practical.
 
 ## Database And Production Safety
 

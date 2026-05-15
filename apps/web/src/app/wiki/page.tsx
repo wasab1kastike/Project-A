@@ -453,7 +453,8 @@ export default function WikiPage() {
           <p>
             The leaderboard also tracks units killed, current tiles owned, and
             goblins killed. The live leader in each category gets a title and a
-            buff while they hold it.
+            buff while they hold it. A one-time in-game announcement explains
+            the title rules, and the Leaderboard Titles button can reopen it.
           </p>
           <div className={styles.twoCol}>
             <section>

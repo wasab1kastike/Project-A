@@ -9,6 +9,7 @@ import { SessionActions } from "@/components/session-actions";
 import { BattlefieldExperience } from "@/components/battlefield-experience";
 import { DismissiblePhaseCard } from "@/components/dismissible-phase-card";
 import { GodEmperorGiftNotice } from "@/components/god-emperor-gift-notice";
+import { LeaderboardAnnouncement } from "@/components/leaderboard-announcement";
 import { NoticeToast } from "@/components/notice-toast";
 import { PreviousSeasonWinnerCard } from "@/components/previous-season-winner-card";
 import { RealtimeBridge } from "@/components/realtime-bridge";
@@ -483,6 +484,10 @@ function HomeClientContent({
           <span className={styles.accountChip}>
             {session?.user ? userLabel : "Guest"}
           </span>
+          <LeaderboardAnnouncement
+            triggerClassName={styles.hudButton}
+            userId={session?.user?.id ?? null}
+          />
           <SeasonUpdateAnnouncement userId={session?.user?.id ?? null} />
           {state.playerSummary ? (
             <Link className={styles.hudButton} href="/castle">

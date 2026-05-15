@@ -12,6 +12,7 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
     newFeatures: [
       "The leaderboard now tracks points, units killed, current tiles owned, and goblins killed.",
       "Each live category leader gets a title and buff: Crown Accountant, Butcher, Landlord, or Goblin Bonker.",
+      "A one-time leaderboard announcement now explains the new titles and buffs in-game.",
       "Home of A is now a center-tile daily boss instead of a conquerable control tile.",
       "Killing Home of A now rewards the top damage dealer with points, food, army, and a 12-hour combat and economy buff.",
       "Global chat now announces the fortress that bonked Home of A hardest, including the reward and respawn timer.",
