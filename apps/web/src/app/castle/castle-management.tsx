@@ -1050,7 +1050,20 @@ export function CastleManagement({
           <p className={styles.muted}>
             Tick preview: +{production.goldProduced} gold, +
             {production.foodProduced} food,{" "}
-            {recruitmentProgress.recruiterCapacityPerTick} queue capacity, -
+            {(() => {
+              // Match backend: base + race bonus, then apply specialization multiplier, then floor
+              const recruiters = workers.recruitersAssigned;
+              const race = playerSummary.race;
+              // Get race bonus per 10 recruiters
+              const raceBonus = (() => {
+                if (race === "ORKS" || race === "SPACE_MURINES") return 1;
+                if (race === "DWARFS" || race === "UNSTABLE_UNICORNS") return 0;
+                return 0;
+              })();
+              const base = recruiters + Math.floor(recruiters / 10) * raceBonus;
+              const multiplier = getCastleSpecializationMultiplier(castleSpecializationCounts[CastleUpgradeSpecialization.MILITARY]);
+              return Math.floor(base * multiplier);
+            })()} queue capacity, -
             {armyUpkeep} food upkeep. If unpaid, active army loses{" "}
             {starvationAttritionPercent}%.
           </p>
