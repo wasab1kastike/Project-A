@@ -177,7 +177,7 @@ export async function getCastlePageState({
           scrap: true,
         },
       },
-          orkScrapEvents: {
+      orkScrapEvents: {
             orderBy: [{ createdAt: "desc" }, { id: "desc" }],
             take: 5,
             select: {
