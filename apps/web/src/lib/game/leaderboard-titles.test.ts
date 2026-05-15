@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { CycleStatus, FortressKind } from "@/lib/prisma-client";
 import {
   getLeaderboardTitleAttackMultiplier,
+  getLeaderboardTitleCastleLootMultiplier,
   getLeaderboardTitleHolders,
   getLeaderboardTitleLootCampRewardMultiplier,
   getLeaderboardTitleTileIncomeMultipliers,
@@ -19,6 +20,7 @@ function fortress(
     points: 0,
     unitsKilled: 0,
     goblinsKilled: 0,
+    resourcesStolen: 0,
     joinedAt: new Date("2026-05-15T00:00:00.000Z"),
     isNpc: false,
     fortressKind: FortressKind.PLAYER,
@@ -32,12 +34,14 @@ test("leaderboard title holders are active-season category leaders", () => {
     fortress("kills", { points: 10, unitsKilled: 20 }),
     fortress("tiles", { points: 20 }),
     fortress("goblins", { points: 30, goblinsKilled: 3 }),
+    fortress("loot", { points: 40, resourcesStolen: 200 }),
   ];
   const tileCounts = new Map([
     ["points", 1],
     ["kills", 2],
     ["tiles", 8],
     ["goblins", 3],
+    ["loot", 4],
   ]);
 
   assert.deepEqual(
@@ -51,6 +55,7 @@ test("leaderboard title holders are active-season category leaders", () => {
       unitsKilled: "kills",
       tilesOwned: "tiles",
       goblinsKilled: "goblins",
+      resourcesStolen: "loot",
     }
   );
 });
@@ -76,6 +81,7 @@ test("title buffs stack by category holder", () => {
     unitsKilled: "leader",
     tilesOwned: "leader",
     goblinsKilled: "leader",
+    resourcesStolen: "leader",
   } as const;
 
   assert.equal(getLeaderboardTitleAttackMultiplier(holders, "leader"), 1.1);
@@ -83,6 +89,7 @@ test("title buffs stack by category holder", () => {
     getLeaderboardTitleLootCampRewardMultiplier(holders, "leader"),
     1.25
   );
+  assert.equal(getLeaderboardTitleCastleLootMultiplier(holders, "leader"), 1.1);
   assert.deepEqual(getLeaderboardTitleTileIncomeMultipliers(holders, "leader"), {
     resource: 1.1,
     points: 1.1,

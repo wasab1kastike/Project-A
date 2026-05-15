@@ -56,6 +56,7 @@ function getDegradedHomePageState(): HomePageState {
       unitsKilled: [],
       tilesOwned: [],
       goblinsKilled: [],
+      resourcesStolen: [],
     },
     leaderboardTitles: [],
     mapFortresses: [],

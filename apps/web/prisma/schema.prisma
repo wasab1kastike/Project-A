@@ -316,6 +316,7 @@ model Fortress {
   gold                           Int                                 @default(0)
   unitsKilled                    Int                                 @default(0)
   goblinsKilled                  Int                                 @default(0)
+  resourcesStolen                Int                                 @default(0)
   level                          Int                                 @default(0)
   food                           Int                                 @default(0)
   army                           Int                                 @default(0)

@@ -56,8 +56,8 @@ If a local database is unavailable, DB-backed tests may skip. Say that clearly i
 - Home of A attackers should not lose their sent army just because they defeated the boss.
 - Race-specific behavior should be intentional and documented. If a core system such as upgrades changes, verify it works consistently for all races unless the design explicitly says otherwise.
 - PvP castle wins should provide visible rewards when rewards exist: a small points transfer if the defender has points, plus loot based on army size.
-- Leaderboard title holders are derived from active-season rankings, not stored as permanent ownership. Points, units killed, current normal tiles owned, and goblins killed each have a live title and buff.
-- Home of A HP damage should not count as units killed or goblins killed. Goblins killed means final blows on loot camps.
+- Leaderboard title holders are derived from active-season rankings, not stored as permanent ownership. Points, units killed, current normal tiles owned, goblins killed, and resources stolen from player castles each have a live title and buff.
+- Home of A HP damage should not count as units killed or goblins killed. Goblins killed means final blows on loot camps. Resources stolen means gold, food, and score points taken from real player castles only.
 
 ## Live State
 

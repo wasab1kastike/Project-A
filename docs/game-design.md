@@ -27,8 +27,8 @@
 - Gold, food, points, and army never go below zero
 - Global chat with timestamps
 - Chat rate limit: 6 messages per minute per user
-- Top 3 leaderboard visible for points, units killed, tiles owned, and goblins killed
-- Category leaders hold live titles: Crown Accountant, Butcher, Landlord, and Goblin Bonker
+- Top 3 leaderboard visible for points, units killed, tiles owned, goblins killed, and resources stolen from player castles
+- Category leaders hold live titles: Crown Accountant, Butcher, Landlord, Goblin Bonker, and Loot Lord
 - Title buffs are active only during the live season and update as rankings change
 - Cycle timer: registration 24h, testing 24h, active 2 weeks
 - Player action persists while offline
@@ -48,8 +48,10 @@
 - Butcher is the units-killed leader and receives +10% attack power.
 - Landlord is the current normal-tile leader and receives +10% tile resource income.
 - Goblin Bonker is the loot-camp destruction leader and receives +25% loot-camp rewards.
+- Loot Lord is the player-castle resources-stolen leader and receives +10% stolen castle gold, food, and score points.
 - Units killed come from direct attacks and battlefield losses; Home of A HP damage does not count.
 - Goblins killed count final blows on loot camps, not every defending unit killed there.
+- Resources stolen count only gold, food, and score points taken from real player castles. Loot camps, Home of A, tile income, and generated kill rewards do not count.
 
 ## Economy & recruitment
 

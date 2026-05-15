@@ -451,10 +451,11 @@ export default function WikiPage() {
             upgrades, rename, claims, and utility costs.
           </p>
           <p>
-            The leaderboard also tracks units killed, current tiles owned, and
-            goblins killed. The live leader in each category gets a title and a
-            buff while they hold it. A one-time in-game announcement explains
-            the title rules, and the Leaderboard Titles button can reopen it.
+            The leaderboard also tracks units killed, current tiles owned,
+            goblins killed, and resources stolen from player castles. The live
+            leader in each category gets a title and a buff while they hold it.
+            A one-time in-game announcement shows current title holders and your
+            own scores, and the Leaderboard button can reopen it.
           </p>
           <div className={styles.twoCol}>
             <section>
@@ -488,7 +489,8 @@ export default function WikiPage() {
                 <li>
                   Crown Accountant gets +10% points from tile income, Butcher
                   gets +10% attack power, Landlord gets +10% tile resource
-                  income, and Goblin Bonker gets +25% loot-camp rewards.
+                  income, Goblin Bonker gets +25% loot-camp rewards, and Loot
+                  Lord gets +10% stolen castle loot.
                 </li>
                 <li>
                   Season arcade coins: {ARCADE_SEASON_BASE_COINS} base, plus 1

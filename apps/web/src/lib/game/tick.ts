@@ -92,6 +92,7 @@ import {
 } from "./battlefields";
 import {
   getLeaderboardTitleAttackMultiplier,
+  getLeaderboardTitleCastleLootMultiplier,
   getLeaderboardTitleHolders,
   getLeaderboardTitleLootCampRewardMultiplier,
   getLeaderboardTitleTileIncomeMultipliers,
@@ -1119,6 +1120,7 @@ async function completeTestingCycle(
         gold: 0,
         unitsKilled: 0,
         goblinsKilled: 0,
+        resourcesStolen: 0,
         level: 0,
         food: 0,
         army: 0,
@@ -1666,6 +1668,7 @@ async function processCycleTick(
       gold: true,
       unitsKilled: true,
       goblinsKilled: true,
+      resourcesStolen: true,
       level: true,
       food: true,
       army: true,
@@ -1826,6 +1829,9 @@ async function processCycleTick(
   );
   const currentGoblinsKilled = new Map(
     fortresses.map((fortress) => [fortress.id, fortress.goblinsKilled])
+  );
+  const currentResourcesStolen = new Map(
+    fortresses.map((fortress) => [fortress.id, fortress.resourcesStolen])
   );
   const currentGold = new Map(
     fortresses.map((fortress) => [fortress.id, fortress.gold])
@@ -3549,6 +3555,22 @@ async function processCycleTick(
       defenderGold,
       defenderFood,
     });
+    const stealsFromPlayerCastle =
+      !target.isNpc && target.fortressKind === FortressKind.PLAYER;
+    const castleLootMultiplier = stealsFromPlayerCastle
+      ? getLeaderboardTitleCastleLootMultiplier(
+          leaderboardTitleHolders,
+          attacker.id
+        )
+      : 1;
+    const goldLooted = Math.min(
+      defenderGold,
+      Math.floor(outcome.goldLooted * castleLootMultiplier)
+    );
+    const foodLooted = Math.min(
+      defenderFood,
+      Math.floor(outcome.foodLooted * castleLootMultiplier)
+    );
 
     if (outcome.attackerReturned > 0) {
       const returnArrivesAt = getAttackArrivalAt({
@@ -3584,8 +3606,8 @@ async function processCycleTick(
           attackerRetired: outcome.attackerRetired,
           attackerReturned: outcome.attackerReturned,
           defenderLosses: outcome.defenderLosses,
-          pointsLooted: outcome.goldLooted,
-          foodLooted: outcome.foodLooted,
+          pointsLooted: goldLooted,
+          foodLooted,
           armyLooted: 0,
         },
       });
@@ -3603,8 +3625,8 @@ async function processCycleTick(
           attackerRetired: outcome.attackerRetired,
           attackerReturned: outcome.attackerReturned,
           defenderLosses: outcome.defenderLosses,
-          pointsLooted: outcome.goldLooted,
-          foodLooted: outcome.foodLooted,
+          pointsLooted: goldLooted,
+          foodLooted,
           armyLooted: 0,
         },
       });
@@ -3632,9 +3654,9 @@ async function processCycleTick(
     }
     currentGold.set(
       attacker.id,
-      (currentGold.get(attacker.id) ?? attacker.gold) + outcome.goldLooted
+      (currentGold.get(attacker.id) ?? attacker.gold) + goldLooted
     );
-    currentGold.set(target.id, Math.max(0, defenderGold - outcome.goldLooted));
+    currentGold.set(target.id, Math.max(0, defenderGold - goldLooted));
     const strongerTogether =
       attackerRace === "ORKS" &&
       attackerRaceBuffTier >= 1 &&
@@ -3649,9 +3671,20 @@ async function processCycleTick(
         : 0;
     currentFood.set(
       attacker.id,
-      (currentFood.get(attacker.id) ?? attacker.food) + outcome.foodLooted
+      (currentFood.get(attacker.id) ?? attacker.food) + foodLooted
     );
-    currentFood.set(target.id, Math.max(0, defenderFood - outcome.foodLooted));
+    currentFood.set(target.id, Math.max(0, defenderFood - foodLooted));
+    if (stealsFromPlayerCastle) {
+      const stolenResources = goldLooted + foodLooted;
+
+      if (stolenResources > 0) {
+        currentResourcesStolen.set(
+          attacker.id,
+          (currentResourcesStolen.get(attacker.id) ??
+            attacker.resourcesStolen) + stolenResources
+        );
+      }
+    }
     if (strongerTogether > 0) {
       currentArmy.set(
         attacker.id,
@@ -3670,8 +3703,8 @@ async function processCycleTick(
         fortressId: attacker.id,
         delta: getOrkDirectRaidScrap({
           defenderLosses: outcome.defenderLosses,
-          goldLooted: outcome.goldLooted,
-          foodLooted: outcome.foodLooted,
+          goldLooted,
+          foodLooted,
         }),
         reason: OrkScrapEventReason.DIRECT_RAID,
         now: tickAt,
@@ -3680,7 +3713,7 @@ async function processCycleTick(
       });
     }
 
-    if (outcome.goldLooted > 0) {
+    if (goldLooted > 0) {
       scoreEvents.push(
         {
           cycleId,
@@ -3688,7 +3721,7 @@ async function processCycleTick(
           actorId: attacker.ownerId,
           targetFortressId: target.id,
           eventType: ScoreEventType.ATTACK_TARGET,
-          delta: -outcome.goldLooted,
+          delta: -goldLooted,
           createdAt: tickAt,
         },
         {
@@ -3697,7 +3730,7 @@ async function processCycleTick(
           actorId: attacker.ownerId,
           targetFortressId: target.id,
           eventType: ScoreEventType.ATTACK_TARGET,
-          delta: outcome.goldLooted,
+          delta: goldLooted,
           createdAt: tickAt,
         }
       );
@@ -3947,6 +3980,7 @@ async function processCycleTick(
       points: number;
       unitsKilled: number;
       goblinsKilled: number;
+      resourcesStolen: number;
       gold: number;
       food: number;
       army: number;
@@ -3961,6 +3995,8 @@ async function processCycleTick(
       currentUnitsKilled.get(fortress.id) ?? fortress.unitsKilled;
     const nextGoblinsKilled =
       currentGoblinsKilled.get(fortress.id) ?? fortress.goblinsKilled;
+    const nextResourcesStolen =
+      currentResourcesStolen.get(fortress.id) ?? fortress.resourcesStolen;
     const nextGold = currentGold.get(fortress.id) ?? fortress.gold;
     const nextFood = currentFood.get(fortress.id) ?? fortress.food;
     const nextArmy = currentArmy.get(fortress.id) ?? fortress.army;
@@ -3972,6 +4008,7 @@ async function processCycleTick(
       nextPoints === fortress.points &&
       nextUnitsKilled === fortress.unitsKilled &&
       nextGoblinsKilled === fortress.goblinsKilled &&
+      nextResourcesStolen === fortress.resourcesStolen &&
       nextGold === fortress.gold &&
       nextFood === fortress.food &&
       nextArmy === fortress.army &&
@@ -3987,6 +4024,7 @@ async function processCycleTick(
         points: nextPoints,
         unitsKilled: nextUnitsKilled,
         goblinsKilled: nextGoblinsKilled,
+        resourcesStolen: nextResourcesStolen,
         gold: nextGold,
         food: nextFood,
         army: nextArmy,

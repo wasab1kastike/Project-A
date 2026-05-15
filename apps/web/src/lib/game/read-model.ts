@@ -476,6 +476,7 @@ export async function getHomePageState({
           gold: true,
           unitsKilled: true,
           goblinsKilled: true,
+          resourcesStolen: true,
           level: true,
           food: true,
           army: true,
@@ -922,6 +923,7 @@ export async function getHomePageState({
         unitsKilled: [],
         tilesOwned: [],
         goblinsKilled: [],
+        resourcesStolen: [],
       },
       leaderboardTitles: [],
       mapFortresses: [],
@@ -1082,6 +1084,7 @@ export async function getHomePageState({
       unitsKilled: fortress.unitsKilled,
       tilesOwned: tileCountsByFortressId.get(fortress.id) ?? 0,
       goblinsKilled: fortress.goblinsKilled,
+      resourcesStolen: fortress.resourcesStolen,
       metric: getLeaderboardMetric(category, fortress, tileCountsByFortressId),
       rank: index + 1,
       title: isTitleHolder ? config.title : null,
@@ -3115,14 +3118,38 @@ export async function getHomePageState({
       isCurrentUser: fortress.ownerId === userId,
     })),
     leaderboards,
-    leaderboardTitles: LEADERBOARD_TITLE_CONFIGS.map((config) => ({
-      category: config.category,
-      label: config.label,
-      title: config.title,
-      metricLabel: config.metricLabel,
-      buffLabel: config.buffLabel,
-      holderFortressId: leaderboardTitleHolders[config.category] ?? null,
-    })),
+    leaderboardTitles: LEADERBOARD_TITLE_CONFIGS.map((config) => {
+      const holderFortressId = leaderboardTitleHolders[config.category] ?? null;
+      const holder = holderFortressId
+        ? playerFortresses.find((fortress) => fortress.id === holderFortressId)
+        : null;
+
+      return {
+        category: config.category,
+        label: config.label,
+        title: config.title,
+        metricLabel: config.metricLabel,
+        buffLabel: config.buffLabel,
+        holderFortressId,
+        holderName: holder
+          ? getDisplayName(holder.name, holder.id === cycle.crownedFortressId)
+          : null,
+        holderMetric: holder
+          ? getLeaderboardMetric(
+              config.category,
+              holder,
+              tileCountsByFortressId
+            )
+          : null,
+        currentUserMetric: playerFortress
+          ? getLeaderboardMetric(
+              config.category,
+              playerFortress,
+              tileCountsByFortressId
+            )
+          : null,
+      };
+    }),
     mapFortresses,
     mapHexes: mappedMapHexes,
     homeOfA: {

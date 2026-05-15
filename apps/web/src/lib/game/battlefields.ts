@@ -37,6 +37,7 @@ import { ensureBattlefieldPointRewardColumn } from "./schema-guards";
 import { addHours } from "./time";
 import {
   getLeaderboardTitleAttackMultiplier,
+  getLeaderboardTitleCastleLootMultiplier,
   getLeaderboardTitleHolders,
 } from "./leaderboard-titles";
 
@@ -841,6 +842,7 @@ export async function processActiveBattlefields({
       points: true,
       unitsKilled: true,
       goblinsKilled: true,
+      resourcesStolen: true,
       joinedAt: true,
       isNpc: true,
       fortressKind: true,
@@ -1297,6 +1299,13 @@ export async function processActiveBattlefields({
     const enemyKilled =
       winnerSide === BattlefieldSide.ATTACKER ? defenderKilled : attackerKilled;
     const killRewardPool = isHomeBossBattle ? 0 : Math.floor(enemyKilled * 0.2);
+    const stealsFromPlayerCastle =
+      !isTileBattle &&
+      !isRuneBattle &&
+      winnerSide === BattlefieldSide.ATTACKER &&
+      battlefield.targetFortress &&
+      !battlefield.targetFortress.isNpc &&
+      battlefield.targetFortress.fortressKind === FortressKind.PLAYER;
     const castleBankGoldLooted =
       !isTileBattle && winnerSide === BattlefieldSide.ATTACKER
         ? outcome.goldLooted
@@ -1322,20 +1331,70 @@ export async function processActiveBattlefields({
           )
         : 0;
 
+    let distributedGoldLoot = 0;
+    let distributedFoodLoot = 0;
     let distributedPointLoot = 0;
+    let distributedBaseGoldLoot = 0;
+    let distributedBaseFoodLoot = 0;
+    let distributedBasePointLoot = 0;
 
     for (const [participantIndex, participant] of winningParticipants.entries()) {
+      const isLastParticipant =
+        participantIndex === winningParticipants.length - 1;
       const share =
         winnerArmyTotal > 0 ? participant.armyCommitted / winnerArmyTotal : 0;
       const killReward = Math.floor(killRewardPool * share);
-      const goldLootShare = Math.floor(castleBankGoldLooted * share);
-      const foodLootShare = Math.floor(castleBankFoodLooted * share);
-      const pointLootShare =
-        participantIndex === winningParticipants.length - 1
-          ? castlePointsLooted - distributedPointLoot
+      const baseGoldLootShare = isLastParticipant
+        ? castleBankGoldLooted - distributedBaseGoldLoot
+        : Math.floor(castleBankGoldLooted * share);
+      const baseFoodLootShare = isLastParticipant
+        ? castleBankFoodLooted - distributedBaseFoodLoot
+        : Math.floor(castleBankFoodLooted * share);
+      const basePointLootShare =
+        isLastParticipant
+          ? castlePointsLooted - distributedBasePointLoot
           : Math.floor(castlePointsLooted * share);
+      const castleLootMultiplier = stealsFromPlayerCastle
+        ? getLeaderboardTitleCastleLootMultiplier(
+            leaderboardTitleHolders,
+            participant.fortressId
+          )
+        : 1;
+      const goldLootShare = Math.min(
+        Math.max(
+          0,
+          (battlefield.targetFortress?.gold ?? castleBankGoldLooted) -
+            distributedGoldLoot
+        ),
+        Math.floor(baseGoldLootShare * castleLootMultiplier)
+      );
+      const foodLootShare = Math.min(
+        Math.max(
+          0,
+          (battlefield.targetFortress?.food ?? castleBankFoodLooted) -
+            distributedFoodLoot
+        ),
+        Math.floor(baseFoodLootShare * castleLootMultiplier)
+      );
+      const pointLootShare = Math.min(
+        Math.max(
+          0,
+          (battlefield.targetFortress?.points ?? castlePointsLooted) -
+            distributedPointLoot
+        ),
+        Math.floor(basePointLootShare * castleLootMultiplier)
+      );
       const goldReward = killReward + goldLootShare;
+      distributedBaseGoldLoot += baseGoldLootShare;
+      distributedBaseFoodLoot += baseFoodLootShare;
+      distributedBasePointLoot += basePointLootShare;
+      distributedGoldLoot += goldLootShare;
+      distributedFoodLoot += foodLootShare;
       distributedPointLoot += pointLootShare;
+      const resourcesStolen =
+        stealsFromPlayerCastle
+          ? goldLootShare + foodLootShare + pointLootShare
+          : 0;
 
       if (goldReward <= 0 && foodLootShare <= 0 && pointLootShare <= 0) {
         continue;
@@ -1355,6 +1414,13 @@ export async function processActiveBattlefields({
           food: {
             increment: foodLootShare,
           },
+          ...(resourcesStolen > 0
+            ? {
+                resourcesStolen: {
+                  increment: resourcesStolen,
+                },
+              }
+            : {}),
         },
       });
       if (pointLootShare > 0) {
@@ -1381,6 +1447,16 @@ export async function processActiveBattlefields({
       }
     }
 
+    const targetGoldLooted = stealsFromPlayerCastle
+      ? distributedGoldLoot
+      : castleBankGoldLooted;
+    const targetFoodLooted = stealsFromPlayerCastle
+      ? distributedFoodLoot
+      : castleBankFoodLooted;
+    const targetPointsLooted = stealsFromPlayerCastle
+      ? distributedPointLoot
+      : castlePointsLooted;
+
     if (battlefield.targetFortressId && !isTileBattle) {
       const fortressUpdateData: Prisma.FortressUpdateInput = {
         army: Math.max(0, targetDefenderArmy - outcome.defenderLosses),
@@ -1388,15 +1464,15 @@ export async function processActiveBattlefields({
 
       fortressUpdateData.gold = {
         decrement:
-          winnerSide === BattlefieldSide.ATTACKER ? castleBankGoldLooted : 0,
+          winnerSide === BattlefieldSide.ATTACKER ? targetGoldLooted : 0,
       };
       fortressUpdateData.food = {
         decrement:
-          winnerSide === BattlefieldSide.ATTACKER ? castleBankFoodLooted : 0,
+          winnerSide === BattlefieldSide.ATTACKER ? targetFoodLooted : 0,
       };
       fortressUpdateData.points = {
         decrement:
-          winnerSide === BattlefieldSide.ATTACKER ? castlePointsLooted : 0,
+          winnerSide === BattlefieldSide.ATTACKER ? targetPointsLooted : 0,
       };
 
       await db.fortress.update({
@@ -1715,11 +1791,11 @@ export async function processActiveBattlefields({
           : Math.max(0, targetDefenderArmy - outcome.defenderLosses),
         pointsReward: isTileBattle
           ? battlefield.pointsReward
-          : castleBankGoldLooted,
+          : targetGoldLooted,
         foodReward: isTileBattle
           ? battlefield.foodReward
-          : castleBankFoodLooted,
-        pointReward: isTileBattle ? 0 : castlePointsLooted,
+          : targetFoodLooted,
+        pointReward: isTileBattle ? 0 : targetPointsLooted,
         resolvedWinnerSide: winnerSide,
         resolvedAt: tickAt,
       },

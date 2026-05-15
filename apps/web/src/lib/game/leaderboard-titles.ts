@@ -4,13 +4,15 @@ export type LeaderboardCategory =
   | "points"
   | "unitsKilled"
   | "tilesOwned"
-  | "goblinsKilled";
+  | "goblinsKilled"
+  | "resourcesStolen";
 
 export type LeaderboardTitleKey =
   | "CROWN_ACCOUNTANT"
   | "BUTCHER"
   | "LANDLORD"
-  | "GOBLIN_BONKER";
+  | "GOBLIN_BONKER"
+  | "LOOT_LORD";
 
 export type LeaderboardTitleConfig = {
   category: LeaderboardCategory;
@@ -30,6 +32,7 @@ export type RankedLeaderboardEntry = {
   unitsKilled: number;
   tilesOwned: number;
   goblinsKilled: number;
+  resourcesStolen: number;
   metric: number;
   rank: number;
   title: string | null;
@@ -45,6 +48,7 @@ export type LeaderboardFortress = {
   points: number;
   unitsKilled: number;
   goblinsKilled: number;
+  resourcesStolen: number;
   joinedAt: Date;
   isNpc: boolean;
   fortressKind: FortressKind;
@@ -87,6 +91,14 @@ export const LEADERBOARD_TITLE_CONFIGS = [
     metricLabel: "goblins",
     buffLabel: "+25% loot camp rewards",
   },
+  {
+    category: "resourcesStolen",
+    titleKey: "LOOT_LORD",
+    label: "Resources stolen",
+    title: "Loot Lord",
+    metricLabel: "stolen",
+    buffLabel: "+10% castle loot",
+  },
 ] as const satisfies readonly LeaderboardTitleConfig[];
 
 export const LEADERBOARD_TITLE_CONFIG_BY_CATEGORY = Object.fromEntries(
@@ -97,12 +109,13 @@ export const LEADERBOARD_TITLE_ATTACK_MULTIPLIER = 1.1;
 export const LEADERBOARD_TITLE_TILE_INCOME_MULTIPLIER = 1.1;
 export const LEADERBOARD_TITLE_POINT_INCOME_MULTIPLIER = 1.1;
 export const LEADERBOARD_TITLE_LOOT_CAMP_REWARD_MULTIPLIER = 1.25;
+export const LEADERBOARD_TITLE_CASTLE_LOOT_MULTIPLIER = 1.1;
 
 export function getLeaderboardMetric(
   category: LeaderboardCategory,
   fortress: Pick<
     LeaderboardFortress,
-    "id" | "points" | "unitsKilled" | "goblinsKilled"
+    "id" | "points" | "unitsKilled" | "goblinsKilled" | "resourcesStolen"
   >,
   tileCountsByFortressId: Map<string, number>
 ) {
@@ -116,6 +129,10 @@ export function getLeaderboardMetric(
 
   if (category === "goblinsKilled") {
     return fortress.goblinsKilled;
+  }
+
+  if (category === "resourcesStolen") {
+    return fortress.resourcesStolen;
   }
 
   return tileCountsByFortressId.get(fortress.id) ?? 0;
@@ -221,6 +238,15 @@ export function getLeaderboardTitleLootCampRewardMultiplier(
 ) {
   return hasLeaderboardTitle(holders, fortressId, "goblinsKilled")
     ? LEADERBOARD_TITLE_LOOT_CAMP_REWARD_MULTIPLIER
+    : 1;
+}
+
+export function getLeaderboardTitleCastleLootMultiplier(
+  holders: LeaderboardTitleHolders,
+  fortressId: string
+) {
+  return hasLeaderboardTitle(holders, fortressId, "resourcesStolen")
+    ? LEADERBOARD_TITLE_CASTLE_LOOT_MULTIPLIER
     : 1;
 }
 

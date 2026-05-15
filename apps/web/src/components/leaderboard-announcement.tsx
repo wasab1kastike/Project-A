@@ -2,36 +2,26 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import type { HomePageState } from "@/lib/game/read-model";
 import styles from "./season-update-announcement.module.css";
 
 const STORAGE_PREFIX = "project-a:leaderboard-announcement";
-const ANNOUNCEMENT_KEY = "2026-05-15-title-leaderboards";
+const ANNOUNCEMENT_KEY = "2026-05-15-loot-lord-live-leaderboard";
 
-const TITLE_ROWS = [
-  {
-    title: "Crown Accountant",
-    body: "Most points. Gets +10% points from tile income.",
-  },
-  {
-    title: "Butcher",
-    body: "Most units killed. Gets +10% attack power.",
-  },
-  {
-    title: "Landlord",
-    body: "Most normal tiles owned. Gets +10% tile resource income.",
-  },
-  {
-    title: "Goblin Bonker",
-    body: "Most loot camps destroyed. Gets +25% loot-camp rewards.",
-  },
-];
+type LeaderboardTitleSummary = HomePageState["leaderboardTitles"][number];
+
+function formatScore(value: number | null, metricLabel: string) {
+  return value === null ? "No score yet" : `${value.toLocaleString()} ${metricLabel}`;
+}
 
 export function LeaderboardAnnouncement({
   userId,
+  leaderboardTitles,
   triggerClassName,
   triggerLabel = "Leaderboard",
 }: {
   userId: string | null;
+  leaderboardTitles: LeaderboardTitleSummary[];
   triggerClassName?: string;
   triggerLabel?: string;
 }) {
@@ -110,22 +100,47 @@ export function LeaderboardAnnouncement({
                 <div>
                   <h2 id={titleId}>Titles now come with paperwork.</h2>
                   <p id={descriptionId}>
-                    The leaderboard now tracks points, units killed, tiles
-                    owned, and goblins bonked. Lead a category to hold its title
-                    and buff until someone rudely becomes better at it.
+                    The leaderboard tracks points, units killed, tiles owned,
+                    goblins bonked, and castle loot stolen. Lead a category to
+                    hold its title and buff until someone rudely becomes better
+                    at it.
                   </p>
                 </div>
-                <div className={styles.sectionGrid}>
-                  {TITLE_ROWS.map((row) => (
-                    <article className={styles.updateSection} key={row.title}>
-                      <h3>{row.title}</h3>
-                      <p>{row.body}</p>
+                <div className={styles.leaderboardRows}>
+                  {leaderboardTitles.map((row) => (
+                    <article className={styles.leaderboardRow} key={row.category}>
+                      <div className={styles.leaderboardTitleCell}>
+                        <h3>{row.title}</h3>
+                        <p>
+                          {row.label}. {row.buffLabel}.
+                        </p>
+                      </div>
+                      <div className={styles.leaderboardScoreCell}>
+                        <span>Holder</span>
+                        <strong>{row.holderName ?? "No holder yet"}</strong>
+                        <small>
+                          {formatScore(row.holderMetric, row.metricLabel)}
+                        </small>
+                      </div>
+                      <div className={styles.leaderboardScoreCell}>
+                        <span>Your score</span>
+                        {row.currentUserMetric === null ? (
+                          <strong>Join a fortress to compete</strong>
+                        ) : (
+                          <>
+                            <strong>
+                              {row.currentUserMetric.toLocaleString()}
+                            </strong>
+                            <small>{row.metricLabel}</small>
+                          </>
+                        )}
+                      </div>
                     </article>
                   ))}
                 </div>
                 <p className={styles.footer}>
-                  The crown is live, the ledger is watching, and the goblins
-                  have filed a complaint.
+                  The crown is live, the ledger is watching, and the loot
+                  receipts are admissible evidence.
                 </p>
                 <div className={styles.actions}>
                   <button

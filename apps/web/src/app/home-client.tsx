@@ -485,6 +485,7 @@ function HomeClientContent({
             {session?.user ? userLabel : "Guest"}
           </span>
           <LeaderboardAnnouncement
+            leaderboardTitles={state.leaderboardTitles}
             triggerClassName={styles.hudButton}
             userId={session?.user?.id ?? null}
           />

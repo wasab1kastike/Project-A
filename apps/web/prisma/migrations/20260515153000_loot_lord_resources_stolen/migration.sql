@@ -1,0 +1,2 @@
+ALTER TABLE "Fortress"
+ADD COLUMN "resourcesStolen" INTEGER NOT NULL DEFAULT 0;
