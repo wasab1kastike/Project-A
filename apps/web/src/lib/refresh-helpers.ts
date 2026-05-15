@@ -1,5 +1,6 @@
-import { startTransition, useState } from "react";
+import { startTransition, useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useOptionalLiveGameStateRefresh } from "@/components/live-game-state";
 
 /**
  * Creates a safe refresh helper for a component.
@@ -8,19 +9,30 @@ import { useRouter } from "next/navigation";
  */
 export function useRefreshView() {
   const router = useRouter();
+  const refreshGameState = useOptionalLiveGameStateRefresh();
   const [refreshPending, setRefreshPending] = useState(false);
 
-  const refreshView = () => {
+  const refreshView = useCallback(async () => {
     if (refreshPending) {
       return;
     }
 
     setRefreshPending(true);
-    startTransition(() => {
-      router.refresh();
+
+    try {
+      const refreshed = refreshGameState
+        ? await refreshGameState("inline-action")
+        : false;
+
+      if (!refreshed) {
+        startTransition(() => {
+          router.refresh();
+        });
+      }
+    } finally {
       setRefreshPending(false);
-    });
-  };
+    }
+  }, [refreshGameState, refreshPending, router]);
 
   return refreshView;
 }

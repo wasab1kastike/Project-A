@@ -4,6 +4,7 @@ import { startTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { io } from "socket.io-client";
 import { PROJECT_A_REFRESH_EVENT } from "@/lib/realtime";
+import { useLiveGameStateRefresh } from "./live-game-state";
 
 type RealtimeBridgeProps = {
   enabled: boolean;
@@ -21,6 +22,7 @@ function getFallbackRefreshDelay() {
 
 export function RealtimeBridge({ enabled }: RealtimeBridgeProps) {
   const router = useRouter();
+  const refreshGameState = useLiveGameStateRefresh();
 
   useEffect(() => {
     if (!enabled) {
@@ -31,14 +33,19 @@ export function RealtimeBridge({ enabled }: RealtimeBridgeProps) {
     let pollingTimeout: ReturnType<typeof setTimeout> | null = null;
     let refreshPending = false;
 
-    const refreshView = () => {
+    const refreshView = (reason?: string) => {
       if (refreshPending) {
         return;
       }
 
       refreshPending = true;
-      startTransition(() => {
-        router.refresh();
+      void refreshGameState(reason).then((refreshed) => {
+        if (!refreshed) {
+          startTransition(() => {
+            router.refresh();
+          });
+        }
+
         refreshPending = false;
       });
     };
@@ -54,7 +61,7 @@ export function RealtimeBridge({ enabled }: RealtimeBridgeProps) {
 
       pollingTimeout = setTimeout(() => {
         pollingTimeout = null;
-        refreshView();
+        refreshView("polling-fallback");
 
         pollingInterval = setInterval(() => {
           if (document.visibilityState === "visible") {
@@ -103,12 +110,12 @@ export function RealtimeBridge({ enabled }: RealtimeBridgeProps) {
         return;
       }
 
-      refreshView();
+      refreshView(payload?.reason ?? "socket-event");
     });
 
     socket.on("connect", () => {
       stopPollingFallback();
-      refreshView();
+      refreshView("socket-connect");
     });
 
     socket.on("connect_error", () => {
@@ -126,7 +133,7 @@ export function RealtimeBridge({ enabled }: RealtimeBridgeProps) {
       stopPollingFallback();
       socket.disconnect();
     };
-  }, [enabled, router]);
+  }, [enabled, refreshGameState, router]);
 
   return null;
 }

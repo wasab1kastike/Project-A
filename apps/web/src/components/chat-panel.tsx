@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { useRefreshView } from "@/lib/refresh-helpers";
 import { sendChatMessageAction } from "@/app/game-actions";
 import { ChatMessageList } from "./chat-message-list";
@@ -49,7 +48,6 @@ export function ChatPanel({
   postHint,
   authorName,
 }: ChatPanelProps) {
-  const router = useRouter();
   const refreshView = useRefreshView();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isPending, startTransition] = useTransition();
@@ -58,7 +56,7 @@ export function ChatPanel({
     ChatPanelProps["messages"]
   >([]);
 
-  // Once the server data updates (after router.refresh), clear the optimistic messages.
+  // Once live state includes the posted message, clear the optimistic copy.
   useEffect(() => {
     if (pendingMessages.length > 0) {
       setPendingMessages([]);

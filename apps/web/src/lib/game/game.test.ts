@@ -25,6 +25,7 @@ import {
   WinnerRequestStatus,
 } from "@/lib/prisma-client";
 import { createPrismaClientOptions } from "@/lib/prisma-options";
+import { reviveGameStateDates } from "@/lib/live-state-serialization";
 import "./balance.test";
 import "./battle-report.test";
 import "./season-announcement.test";
@@ -296,6 +297,30 @@ test("Home of A daily boss health and reward scale by kill count", () => {
   );
   assert.equal(getHomeOfABossReward(10_000), 2_500);
   assert.equal(getHomeOfABossReward(50_000), 12_500);
+});
+
+test("live game state date revival restores nested API timestamps", () => {
+  const revived = reviveGameStateDates<{
+    cycle: { activeEndsAt: unknown };
+    chat: { messages: Array<{ createdAt: unknown }> };
+    unchanged: string;
+  }>({
+    cycle: {
+      activeEndsAt: "2026-05-15T12:00:00.000Z",
+    },
+    chat: {
+      messages: [
+        {
+          createdAt: "2026-05-15T12:01:00.000Z",
+        },
+      ],
+    },
+    unchanged: "not-a-date",
+  });
+
+  assert.ok(revived.cycle.activeEndsAt instanceof Date);
+  assert.ok(revived.chat.messages[0]?.createdAt instanceof Date);
+  assert.equal(revived.unchanged, "not-a-date");
 });
 
 async function getFortressLocationShuffleCount(
