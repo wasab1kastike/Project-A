@@ -167,7 +167,7 @@ export async function getCastlePageState({
                   army: true,
                   expiresAt: true,
                 },
-              }
+              },
           orkScrapBank: {
             select: {
               scrap: true,
