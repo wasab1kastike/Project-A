@@ -84,7 +84,10 @@ import {
 } from "./battlefields";
 import { getTileBonus, getTileById, isHomeOfATile } from "./territory";
 import { recalculateReturningAttackRoutes } from "./fortress-relocation";
-import { ensureRaceSchemaReadiness } from "./schema-guards";
+import {
+  ensureHomeOfABossSchema,
+  ensureRaceSchemaReadiness,
+} from "./schema-guards";
 
 export type TickSummary = {
   restartedRegistrationCycles: number;
@@ -3821,6 +3824,7 @@ export async function runGameTick({
   maxCatchUpMinutes?: number | null;
 } = {}): Promise<TickSummary> {
   try {
+    await ensureHomeOfABossSchema(db);
     await ensureRaceSchemaReadiness(db);
   } catch (error) {
     throw new TickRunnerError({

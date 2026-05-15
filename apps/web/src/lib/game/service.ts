@@ -43,7 +43,10 @@ import { GameError } from "./errors";
 import { assertWorkerAssignments, getDisplayedCastleLevel } from "./balance";
 import { getRecruitmentCost } from "./army-recruitment";
 import { isFortressRace, type FortressRace } from "./races";
-import { ensureCommanderRegistrationColumn } from "./schema-guards";
+import {
+  ensureCommanderRegistrationColumn,
+  ensureHomeOfABossSchema,
+} from "./schema-guards";
 import {
   buildFortressSpawnSeed,
   getFortressSpawnLayout,
@@ -1208,6 +1211,8 @@ export async function attackMapHex({
   now?: Date;
   db?: PrismaClient;
 }): Promise<AttackMapHexResult> {
+  await ensureHomeOfABossSchema(db);
+
   return db.$transaction(async (tx) => {
     const cycle = await getCurrentCycle(tx);
 

@@ -39,6 +39,7 @@ import {
 } from "./battle-report";
 import {
   ensureCommanderRegistrationColumn,
+  ensureHomeOfABossSchema,
   ensureLastReadChatColumn,
 } from "./schema-guards";
 import { classifyTickHealth, getActiveCycleMinutesBehind } from "./tick";
@@ -354,6 +355,7 @@ export async function getHomePageState({
 }) {
   await Promise.all([
     ensureCommanderRegistrationColumn(db),
+    ensureHomeOfABossSchema(db),
     ensureLastReadChatColumn(db),
   ]);
 
