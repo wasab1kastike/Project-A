@@ -301,19 +301,7 @@ export async function getCastlePageState({
           },
         },
       },
-      attackUnits: {
-        where: {
-          resolvedAt: null,
-          recalledAt: null,
-        },
-        select: {
-          attackerFortress: {
-            select: {
-              id: true,
-            },
-          },
-        },
-      },
+      // attackUnits block removed; it was misplaced at the top level
     },
   });
 
