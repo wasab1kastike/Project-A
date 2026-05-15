@@ -1528,17 +1528,6 @@ export function BattlefieldExperience({
               <dt>Buff</dt>
               <dd>{homeOfA.drainLabel}</dd>
             </div>
-            <div>
-              <dt>Respawn</dt>
-              <dd>
-                {homeOfA.respawnsAt
-                  ? new Date(homeOfA.respawnsAt).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })
-                  : "Available"}
-              </dd>
-            </div>
           </dl>
           <p className={styles.helper}>
             {homeOfA.canAttack

@@ -79,6 +79,17 @@ import {
 
 export type HomePageState = Awaited<ReturnType<typeof getHomePageState>>;
 
+const helsinkiTimeFormatter = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Europe/Helsinki",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
+function formatHelsinkiTime(value: Date) {
+  return helsinkiTimeFormatter.format(value);
+}
+
 function formatBattlefieldReportLines({
   targetName,
   targetTileId,
@@ -3031,10 +3042,7 @@ export async function getHomePageState({
         homeStatus === "ALIVE"
           ? `Boss alive: ${homeBoss?.health ?? 0}/${homeBoss?.maxHealth ?? 0} HP`
           : homeRespawnsAt && homeRespawnsAt > now
-            ? `Defeated. Respawns at ${homeRespawnsAt.toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}`
+            ? `Defeated. Respawns at ${formatHelsinkiTime(homeRespawnsAt)}`
             : "Respawning soon",
       incomeLabel: `Kill reward: ${homeReward} points, food, and army`,
       drainLabel: "Killer receives a 12h +25% combat and economy buff",
