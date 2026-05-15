@@ -153,14 +153,17 @@ export function canAffordRecruitment(
 export function calculateRecruitmentProgress(
   queueRemaining: number,
   recruitersAssigned: number,
-  race?: FortressRace | null
+  race?: FortressRace | null,
+  capacityMultiplier = 1
 ): RecruitmentProgress {
   const raceModifiers = getRaceModifiers(race);
   const baseCapacity = recruitersAssigned * RECRUITMENT_RATE_PER_RECRUITER;
   const bonusCapacity =
     Math.floor(recruitersAssigned / 10) *
     raceModifiers.armyPerTenRecruiters;
-  const recruiterCapacityPerTick = baseCapacity + bonusCapacity;
+  const recruiterCapacityPerTick = Math.floor(
+    (baseCapacity + bonusCapacity) * Math.max(0, capacityMultiplier)
+  );
 
   if (recruiterCapacityPerTick <= 0) {
     return {
@@ -202,12 +205,14 @@ export function calculateRecruitmentProgress(
 export function processRecruitmentQueue(
   queueRemaining: number,
   recruitersAssigned: number,
-  race?: FortressRace | null
+  race?: FortressRace | null,
+  capacityMultiplier = 1
 ): { unitsCreated: number; newQueue: number } {
   const progress = calculateRecruitmentProgress(
     queueRemaining,
     recruitersAssigned,
-    race
+    race,
+    capacityMultiplier
   );
   const unitsCreated = Math.min(
     queueRemaining,

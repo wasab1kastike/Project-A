@@ -79,6 +79,18 @@ test("race modifiers increase recruitment speed", () => {
   assert.equal(orkProgress.recruiterCapacityPerTick, 11);
 });
 
+test("recruitment capacity multiplier applies after race bonuses", () => {
+  const progress = calculateRecruitmentProgress(1000, 49, "SPACE_MURINES", 1.7);
+
+  // Base 49 + race bonus floor(49 / 10) = 53, then 70% military bonus.
+  assert.equal(progress.recruiterCapacityPerTick, 90);
+  assert.equal(progress.ticksToComplete, 12);
+
+  const tick = processRecruitmentQueue(1000, 49, "SPACE_MURINES", 1.7);
+  assert.equal(tick.unitsCreated, 90);
+  assert.equal(tick.newQueue, 910);
+});
+
 test("recruitment queue processes one tick at a time", () => {
   // Tick 1: 100 queue, 10 recruiters → 10 created, 90 remaining
   const tick1 = processRecruitmentQueue(100, 10);

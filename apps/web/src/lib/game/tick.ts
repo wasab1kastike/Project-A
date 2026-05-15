@@ -9,6 +9,7 @@ import {
   RaceAbilityKind,
   OrkScrapEventReason,
   ChatMessageType,
+  CastleUpgradeSpecialization,
 } from "@/lib/prisma-client";
 import { prisma } from "@/lib/prisma";
 import { ensureOpenRegistrationCycle } from "./bootstrap";
@@ -53,7 +54,10 @@ import {
   isRaceAbilityActive,
 } from "./race-buffs";
 import { getRaceModifiers } from "./races";
-import { countCastleSpecializations } from "./specializations";
+import {
+  countCastleSpecializations,
+  getCastleSpecializationMultiplier,
+} from "./specializations";
 import {
   applyOrkScrapDelta,
   getOrkBossOrderAttackMultiplier,
@@ -3643,13 +3647,14 @@ async function processCycleTick(
 
     // Calculate base fortress production (gold, food, army).
     // This is a pure function based on worker assignments, level, race, and specializations.
+    const castleSpecializations = countCastleSpecializations(
+      fortress.castleUpgradeSpecializations
+    );
     const production = calculateTickProduction({
       ...fortress,
       race: getEffectiveRace(fortress),
       food: currentFood.get(fortress.id) ?? fortress.food,
-      castleSpecializations: countCastleSpecializations(
-        fortress.castleUpgradeSpecializations
-      ),
+      castleSpecializations,
     });
 
     // Check for DWARF race ability modifiers that affect economy
@@ -3695,8 +3700,11 @@ async function processCycleTick(
         }
       : processRecruitmentQueue(
           currentRecruitmentQueue.get(fortress.id) ?? fortress.recruitmentQueue,
-          Math.floor(fortress.recruitersAssigned * economyMultiplier),
-          getEffectiveRace(fortress)
+          fortress.recruitersAssigned,
+          getEffectiveRace(fortress),
+          getCastleSpecializationMultiplier(
+            castleSpecializations[CastleUpgradeSpecialization.MILITARY]
+          ) * economyMultiplier
         );
     const armyProduced = recruitmentResult.unitsCreated;
 
