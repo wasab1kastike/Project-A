@@ -172,12 +172,11 @@ export async function getCastlePageState({
           },
         },
       },
-    },
-    orkScrapBank: {
-            select: {
-              scrap: true,
-            },
-          },
+      orkScrapBank: {
+        select: {
+          scrap: true,
+        },
+      },
           orkScrapEvents: {
             orderBy: [{ createdAt: "desc" }, { id: "desc" }],
             take: 5,
