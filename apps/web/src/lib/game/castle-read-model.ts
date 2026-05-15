@@ -92,86 +92,88 @@ export async function getCastlePageState({
     orderBy: {
       createdAt: "desc",
     },
-    select: {
-      ownerId: true,
-      commanderName: true,
-      commanderNameRegisteredAt: true,
-      name: true,
-      points: true,
-      gold: true,
-      level: true,
-      food: true,
-      army: true,
-      recruitmentQueue: true,
-      minersAssigned: true,
-      farmersAssigned: true,
-      recruitersAssigned: true,
-      race: true,
-      fortressKind: true,
-      lootCampVariant: true,
-      expiresAt: true,
-      unicornDecoySourceFortressId: true,
-      unicornDecoyLevel: true,
-      currentAction: true,
-      targetFortressId: true,
-      isNpc: true,
-      health: true,
-      maxHealth: true,
-      joinedAt: true,
-      castleUpgradeSpecializations: {
-        orderBy: {
-          level: "asc",
-        },
-        select: {
-          level: true,
-          specialization: true,
-        },
-      },
-      castleUpgradeProjects: {
-        where: {
-          completedAt: null,
-        },
-        orderBy: [{ startedAt: "asc" }, { id: "asc" }],
-        take: 1,
-        select: {
-          level: true,
-          specialization: true,
-          goldCost: true,
-          startedAt: true,
-          completesAt: true,
-        },
-      },
-      raceAbilityActivations: {
-        orderBy: [{ usedAt: "desc" }, { id: "desc" }],
+    include: {
+      fortresses: {
+        orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
         select: {
           id: true,
-          kind: true,
-          activeFrom: true,
-          activeUntil: true,
-          usedAt: true,
+          ownerId: true,
+          commanderName: true,
+          commanderNameRegisteredAt: true,
+          name: true,
+          points: true,
+          gold: true,
+          level: true,
+          food: true,
+          army: true,
+          recruitmentQueue: true,
+          minersAssigned: true,
+          farmersAssigned: true,
+          recruitersAssigned: true,
+          race: true,
+          fortressKind: true,
+          lootCampVariant: true,
           expiresAt: true,
-          consumedAt: true,
+          unicornDecoySourceFortressId: true,
+          unicornDecoyLevel: true,
+          currentAction: true,
           targetFortressId: true,
-          runeFortressId: true,
-          goldCost: true,
-          maintenanceGoldPerTick: true,
-          targetFortress: {
+          isNpc: true,
+          health: true,
+          maxHealth: true,
+          joinedAt: true,
+          castleUpgradeSpecializations: {
+            orderBy: {
+              level: "asc",
+            },
             select: {
-              name: true,
-              commanderName: true,
+              level: true,
+              specialization: true,
             },
           },
-          runeFortress: {
+          castleUpgradeProjects: {
+            where: {
+              completedAt: null,
+            },
+            orderBy: [{ startedAt: "asc" }, { id: "asc" }],
+            take: 1,
             select: {
-              health: true,
-              army: true,
+              level: true,
+              specialization: true,
+              goldCost: true,
+              startedAt: true,
+              completesAt: true,
+            },
+          },
+          raceAbilityActivations: {
+            orderBy: [{ usedAt: "desc" }, { id: "desc" }],
+            select: {
+              id: true,
+              kind: true,
+              activeFrom: true,
+              activeUntil: true,
+              usedAt: true,
               expiresAt: true,
+              consumedAt: true,
+              targetFortressId: true,
+              runeFortressId: true,
+              goldCost: true,
+              maintenanceGoldPerTick: true,
+              targetFortress: {
+                select: {
+                  name: true,
+                  commanderName: true,
+                },
+              },
+              runeFortress: {
+                select: {
+                  health: true,
+                  army: true,
+                  expiresAt: true,
+                },
+              },
             },
           },
-        },
-      },
-      fortresses: {
-        include: {
           orkScrapBank: {
             select: {
               scrap: true,
@@ -212,9 +214,6 @@ export async function getCastlePageState({
               activeUntil: true,
             },
           },
-        },
-      },
-    },
           orkWaaaghInvestments: {
             where: {
               waaaghActivation: {
@@ -302,6 +301,19 @@ export async function getCastlePageState({
               points: true,
               level: true,
               race: true,
+            },
+          },
+        },
+      },
+      attackUnits: {
+        where: {
+          resolvedAt: null,
+          recalledAt: null,
+        },
+        select: {
+          attackerFortress: {
+            select: {
+              id: true,
             },
           },
         },

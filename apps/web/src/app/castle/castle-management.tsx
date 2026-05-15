@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type FormEvent } from "react";
 import { useRefreshView } from "@/lib/refresh-helpers";
+import { CastleUpgradeSpecialization } from "@/lib/prisma-client";
 
 import {
   activateDwarfDeepMiningAction,
@@ -44,7 +45,10 @@ import {
 } from "@/lib/game/races";
 import { RACE_TIER_TILE_THRESHOLDS } from "@/lib/game/race-buffs";
 import { convertGoldToPoints, getGoldToPointsRatio } from "@/lib/game/currency";
-import { getBuildingUpgradeComparison } from "@/lib/game/specializations";
+import {
+  getBuildingUpgradeComparison,
+  getCastleSpecializationMultiplier,
+} from "@/lib/game/specializations";
 import styles from "./page.module.css";
 
 type PlayerSummary = {
@@ -1061,7 +1065,9 @@ export function CastleManagement({
                 return 0;
               })();
               const base = recruiters + Math.floor(recruiters / 10) * raceBonus;
-              const multiplier = getCastleSpecializationMultiplier(castleSpecializationCounts[CastleUpgradeSpecialization.MILITARY]);
+              const multiplier = getCastleSpecializationMultiplier(
+                castleSpecializationCounts[CastleUpgradeSpecialization.MILITARY]
+              );
               return Math.floor(base * multiplier);
             })()} queue capacity, -
             {armyUpkeep} food upkeep. If unpaid, active army loses{" "}
