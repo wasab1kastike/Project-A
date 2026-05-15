@@ -10,6 +10,8 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
     date: "2026-05-15",
     title: "Home of A daily boss",
     newFeatures: [
+      "The leaderboard now tracks points, units killed, current tiles owned, and goblins killed.",
+      "Each live category leader gets a title and buff: Crown Accountant, Butcher, Landlord, or Goblin Bonker.",
       "Home of A is now a center-tile daily boss instead of a conquerable control tile.",
       "Killing Home of A now rewards the top damage dealer with points, food, army, and a 12-hour combat and economy buff.",
       "Global chat now announces the fortress that bonked Home of A hardest, including the reward and respawn timer.",

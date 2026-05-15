@@ -51,6 +51,13 @@ function getDegradedHomePageState(): HomePageState {
     playerFortress: null,
     playerSummary: null,
     leaderboard: [],
+    leaderboards: {
+      points: [],
+      unitsKilled: [],
+      tilesOwned: [],
+      goblinsKilled: [],
+    },
+    leaderboardTitles: [],
     mapFortresses: [],
     mapHexes: [],
     homeOfA: null,

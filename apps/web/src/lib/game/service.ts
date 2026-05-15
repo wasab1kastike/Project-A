@@ -3169,6 +3169,7 @@ export async function purchaseFortressUpgrade({
       include: {
         castleUpgradeSpecializations: {
           select: {
+            level: true,
             specialization: true,
           },
         },
@@ -3742,6 +3743,7 @@ export async function activateDwarfDeepMining({
           mapY: true,
           castleUpgradeSpecializations: {
             select: {
+              level: true,
               specialization: true,
             },
           },

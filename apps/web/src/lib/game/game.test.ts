@@ -28,6 +28,7 @@ import { createPrismaClientOptions } from "@/lib/prisma-options";
 import { reviveGameStateDates } from "@/lib/live-state-serialization";
 import "./balance.test";
 import "./battle-report.test";
+import "./leaderboard-titles.test";
 import "./season-announcement.test";
 import {
   forceEndCurrentCycle,

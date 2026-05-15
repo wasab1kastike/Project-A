@@ -2,6 +2,7 @@ import {
   BattlefieldSide,
   BattlefieldStatus,
   ChatMessageType,
+  CycleStatus,
   FortressKind,
   OrkScrapEventReason,
   Prisma,
@@ -34,6 +35,10 @@ import {
 import { DWARF_DEEP_MINING_RUNE_BOUNTY } from "./dwarf-deep-mining";
 import { ensureBattlefieldPointRewardColumn } from "./schema-guards";
 import { addHours } from "./time";
+import {
+  getLeaderboardTitleAttackMultiplier,
+  getLeaderboardTitleHolders,
+} from "./leaderboard-titles";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -221,6 +226,75 @@ function distributeLosses<
   };
 }
 
+async function incrementUnitsKilledForParticipants<
+  TParticipant extends {
+    fortressId: string;
+    armyCommitted: number;
+    fortress: {
+      isNpc: boolean;
+      fortressKind: FortressKind;
+    };
+  },
+>({
+  db,
+  participants,
+  totalKills,
+}: {
+  db: DatabaseClient;
+  participants: TParticipant[];
+  totalKills: number;
+}) {
+  if (totalKills <= 0) {
+    return;
+  }
+
+  const eligibleParticipants = [...participants]
+    .filter(
+      (participant) =>
+        participant.armyCommitted > 0 &&
+        !participant.fortress.isNpc &&
+        participant.fortress.fortressKind === FortressKind.PLAYER
+    )
+    .sort(
+      (left, right) =>
+        right.armyCommitted - left.armyCommitted ||
+        left.fortressId.localeCompare(right.fortressId)
+    );
+  const committedArmy = eligibleParticipants.reduce(
+    (sum, participant) => sum + participant.armyCommitted,
+    0
+  );
+
+  if (committedArmy <= 0) {
+    return;
+  }
+
+  let distributedKills = 0;
+
+  for (const [index, participant] of eligibleParticipants.entries()) {
+    const kills =
+      index === eligibleParticipants.length - 1
+        ? totalKills - distributedKills
+        : Math.floor((totalKills * participant.armyCommitted) / committedArmy);
+
+    if (kills <= 0) {
+      continue;
+    }
+
+    distributedKills += kills;
+    await db.fortress.update({
+      where: {
+        id: participant.fortressId,
+      },
+      data: {
+        unitsKilled: {
+          increment: kills,
+        },
+      },
+    });
+  }
+}
+
 export async function createBattlefieldFromAttackUnit({
   db,
   attackUnitId,
@@ -269,6 +343,7 @@ export async function createBattlefieldFromAttackUnit({
           },
           castleUpgradeSpecializations: {
             select: {
+              level: true,
               specialization: true,
             },
           },
@@ -703,6 +778,7 @@ export async function processActiveBattlefields({
           },
           castleUpgradeSpecializations: {
             select: {
+              level: true,
               specialization: true,
             },
           },
@@ -719,6 +795,8 @@ export async function processActiveBattlefields({
           fortress: {
             select: {
               ownerId: true,
+              isNpc: true,
+              fortressKind: true,
               raceAbilityActivations: {
                 where: {
                   kind: RaceAbilityKind.HOME_OF_A_BOSS_BUFF,
@@ -747,10 +825,53 @@ export async function processActiveBattlefields({
     },
     select: {
       id: true,
+      status: true,
       megaFortressDestroyCount: true,
       crownedFortressId: true,
       upgradesUnlockedAt: true,
     },
+  });
+  const titleFortresses = await db.fortress.findMany({
+    where: {
+      cycleId,
+    },
+    select: {
+      id: true,
+      name: true,
+      points: true,
+      unitsKilled: true,
+      goblinsKilled: true,
+      joinedAt: true,
+      isNpc: true,
+      fortressKind: true,
+    },
+  });
+  const titleOwnerships = await db.mapHexOwnership.findMany({
+    where: {
+      cycleId,
+    },
+    select: {
+      ownerFortressId: true,
+      tileId: true,
+    },
+  });
+  const titleTileCountsByFortressId = new Map<string, number>();
+
+  for (const ownership of titleOwnerships) {
+    if (isHomeOfATile(ownership.tileId)) {
+      continue;
+    }
+
+    titleTileCountsByFortressId.set(
+      ownership.ownerFortressId,
+      (titleTileCountsByFortressId.get(ownership.ownerFortressId) ?? 0) + 1
+    );
+  }
+
+  const leaderboardTitleHolders = getLeaderboardTitleHolders({
+    fortresses: titleFortresses,
+    tileCountsByFortressId: titleTileCountsByFortressId,
+    cycleStatus: cycle?.status ?? CycleStatus.RESOLUTION,
   });
 
   let resolved = 0;
@@ -869,10 +990,39 @@ export async function processActiveBattlefields({
 
       return effectiveArmy / totalArmy;
     };
+    const getParticipantTitleAttackMultiplier = (
+      participants: typeof battlefield.participants
+    ) => {
+      const totalArmy = participants.reduce(
+        (sum, participant) => sum + participant.armyRemaining,
+        0
+      );
+
+      if (totalArmy <= 0) {
+        return 1;
+      }
+
+      const effectiveArmy = participants.reduce(
+        (sum, participant) =>
+          sum +
+          participant.armyRemaining *
+            getLeaderboardTitleAttackMultiplier(
+              leaderboardTitleHolders,
+              participant.fortressId
+            ),
+        0
+      );
+
+      return effectiveArmy / totalArmy;
+    };
     const attackerHomeBossBuffMultiplier =
       getParticipantHomeBossBuffMultiplier(attackerParticipants);
     const defenderHomeBossBuffMultiplier =
       getParticipantHomeBossBuffMultiplier(defenderParticipants);
+    const attackerTitleAttackMultiplier =
+      getParticipantTitleAttackMultiplier(attackerParticipants);
+    const defenderTitleAttackMultiplier =
+      getParticipantTitleAttackMultiplier(defenderParticipants);
     const attrition = getBattlefieldAttrition({
       battlefieldId: battlefield.id,
       tickAt,
@@ -881,12 +1031,14 @@ export async function processActiveBattlefields({
       attackerPowerMultiplier:
         attackerGrudgeMultiplier *
         attackerBossOrderMultiplier *
-        attackerHomeBossBuffMultiplier,
+        attackerHomeBossBuffMultiplier *
+        attackerTitleAttackMultiplier,
       defenderPowerMultiplier:
         defenderGrudgeMultiplier *
         defenderTileDefenseMultiplier *
         defenderBossOrderMultiplier *
-        defenderHomeBossBuffMultiplier,
+        defenderHomeBossBuffMultiplier *
+        defenderTitleAttackMultiplier,
     });
     const attackerParticipantLosses = distributeLosses(
       attackerParticipants,
@@ -1130,6 +1282,18 @@ export async function processActiveBattlefields({
       defenderParticipantLosses.appliedLosses +
       defenderNativeLosses +
       outcome.defenderLosses;
+    if (!isHomeBossBattle) {
+      await incrementUnitsKilledForParticipants({
+        db,
+        participants: attackerParticipants,
+        totalKills: defenderKilled,
+      });
+      await incrementUnitsKilledForParticipants({
+        db,
+        participants: defenderParticipants,
+        totalKills: attackerKilled,
+      });
+    }
     const enemyKilled =
       winnerSide === BattlefieldSide.ATTACKER ? defenderKilled : attackerKilled;
     const killRewardPool = isHomeBossBattle ? 0 : Math.floor(enemyKilled * 0.2);

@@ -41,7 +41,11 @@ import {
 import { getAttackArrivalAt } from "./attacks";
 import { buildFortressSpawnSeed } from "./spawn-layout";
 import { addHours, addMinutes, floorToMinute } from "./time";
-import { calculateRaidOutcome, calculateTickProduction } from "./balance";
+import {
+  calculateRaidOutcome,
+  calculateTickProduction,
+  getDisplayedCastleLevel,
+} from "./balance";
 import {
   getArmyUpkeepCost,
   getStarvationArmyLoss,
@@ -86,6 +90,12 @@ import {
   createBattlefieldFromAttackUnit,
   processActiveBattlefields,
 } from "./battlefields";
+import {
+  getLeaderboardTitleAttackMultiplier,
+  getLeaderboardTitleHolders,
+  getLeaderboardTitleLootCampRewardMultiplier,
+  getLeaderboardTitleTileIncomeMultipliers,
+} from "./leaderboard-titles";
 import { getTileBonus, getTileById, isHomeOfATile } from "./territory";
 import { recalculateReturningAttackRoutes } from "./fortress-relocation";
 import {
@@ -527,6 +537,12 @@ async function processDueCastleUpgradeProjects({
         select: {
           level: true,
           isNpc: true,
+          castleUpgradeSpecializations: {
+            select: {
+              level: true,
+              specialization: true,
+            },
+          },
         },
       });
 
@@ -541,6 +557,18 @@ async function processDueCastleUpgradeProjects({
         });
         return;
       }
+
+      const currentSpecializationLevel = countCastleSpecializations(
+        fortress.castleUpgradeSpecializations
+      )[project.specialization];
+      const maxCompletedLevel =
+        project.specialization === "DEFENSE"
+          ? currentSpecializationLevel + 1
+          : getDisplayedCastleLevel(fortress.level);
+      const completedLevel = Math.min(
+        maxCompletedLevel,
+        Math.max(project.level, currentSpecializationLevel + 1)
+      );
 
       if (project.specialization === "DEFENSE") {
         await tx.fortress.update({
@@ -558,12 +586,12 @@ async function processDueCastleUpgradeProjects({
           fortressId_specialization_level: {
             fortressId: project.fortressId,
             specialization: project.specialization,
-            level: project.level,
+            level: completedLevel,
           },
         },
         create: {
           fortressId: project.fortressId,
-          level: project.level,
+          level: completedLevel,
           specialization: project.specialization,
           createdAt: tickAt,
         },
@@ -1089,6 +1117,8 @@ async function completeTestingCycle(
       data: {
         points: 0,
         gold: 0,
+        unitsKilled: 0,
+        goblinsKilled: 0,
         level: 0,
         food: 0,
         army: 0,
@@ -1630,9 +1660,12 @@ async function processCycleTick(
     orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
     select: {
       id: true,
+      name: true,
       ownerId: true,
       points: true,
       gold: true,
+      unitsKilled: true,
+      goblinsKilled: true,
       level: true,
       food: true,
       army: true,
@@ -1655,6 +1688,7 @@ async function processCycleTick(
       joinedAt: true,
       castleUpgradeSpecializations: {
         select: {
+          level: true,
           specialization: true,
         },
       },
@@ -1720,6 +1754,7 @@ async function processCycleTick(
       tileId: true,
     },
   });
+  const ownedTileCountsByFortressId = new Map<string, number>();
   const ownedBiomeLookup = new Map<
     string,
     Array<
@@ -1738,6 +1773,11 @@ async function processCycleTick(
     if (isHomeOfATile(ownership.tileId)) {
       continue;
     }
+
+    ownedTileCountsByFortressId.set(
+      ownership.ownerFortressId,
+      (ownedTileCountsByFortressId.get(ownership.ownerFortressId) ?? 0) + 1
+    );
 
     const biome = getTileById(ownership.tileId)?.biome;
 
@@ -1781,6 +1821,12 @@ async function processCycleTick(
   const currentPoints = new Map(
     fortresses.map((fortress) => [fortress.id, fortress.points])
   );
+  const currentUnitsKilled = new Map(
+    fortresses.map((fortress) => [fortress.id, fortress.unitsKilled])
+  );
+  const currentGoblinsKilled = new Map(
+    fortresses.map((fortress) => [fortress.id, fortress.goblinsKilled])
+  );
   const currentGold = new Map(
     fortresses.map((fortress) => [fortress.id, fortress.gold])
   );
@@ -1796,6 +1842,11 @@ async function processCycleTick(
   const currentHealth = new Map(
     fortresses.map((fortress) => [fortress.id, fortress.health])
   );
+  const leaderboardTitleHolders = getLeaderboardTitleHolders({
+    fortresses,
+    tileCountsByFortressId: ownedTileCountsByFortressId,
+    cycleStatus: cycle.status,
+  });
   const fortressLookup = new Map(
     fortresses.map((fortress) => [fortress.id, fortress])
   );
@@ -1912,6 +1963,7 @@ async function processCycleTick(
           mapY: true,
           castleUpgradeSpecializations: {
             select: {
+              level: true,
               specialization: true,
             },
           },
@@ -2486,12 +2538,16 @@ async function processCycleTick(
           defenderDbLevel: 0,
           defenderRace: null,
           attackPowerMultiplier:
-            getEffectiveRace(targetAttacker) === "ORKS"
+            (getEffectiveRace(targetAttacker) === "ORKS"
               ? getOrkBossOrderAttackMultiplier(
                   targetAttacker.orkBossOrders,
                   tickAt
                 )
-              : 1,
+              : 1) *
+            getLeaderboardTitleAttackMultiplier(
+              leaderboardTitleHolders,
+              targetAttacker.id
+            ),
           defenderPoints: 0,
           defenderFood: 0,
         });
@@ -2501,6 +2557,13 @@ async function processCycleTick(
         );
 
         currentArmy.set(target.id, defenderArmyAfterBattle);
+        if (outcome.defenderLosses > 0) {
+          currentUnitsKilled.set(
+            targetAttacker.id,
+            (currentUnitsKilled.get(targetAttacker.id) ??
+              targetAttacker.unitsKilled) + outcome.defenderLosses
+          );
+        }
         runeOutcomes.set(targetUnit.id, {
           attackPower: outcome.attackPower,
           defensePower: outcome.defensePower,
@@ -2704,8 +2767,15 @@ async function processCycleTick(
             targetAttacker.raceAbilityActivations,
             tickAt
           )
-            ? HOME_OF_A_BOSS_BUFF_MULTIPLIER
-            : 1,
+            ? HOME_OF_A_BOSS_BUFF_MULTIPLIER *
+              getLeaderboardTitleAttackMultiplier(
+                leaderboardTitleHolders,
+                targetAttacker.id
+              )
+            : getLeaderboardTitleAttackMultiplier(
+                leaderboardTitleHolders,
+                targetAttacker.id
+              ),
           defenderPoints: 0,
           defenderFood: 0,
         });
@@ -2723,6 +2793,13 @@ async function processCycleTick(
         );
 
         currentArmy.set(target.id, defenderArmyAfterBattle);
+        if (outcome.defenderLosses > 0) {
+          currentUnitsKilled.set(
+            targetAttacker.id,
+            (currentUnitsKilled.get(targetAttacker.id) ??
+              targetAttacker.unitsKilled) + outcome.defenderLosses
+          );
+        }
         lootCampOutcomes.set(targetUnit.id, {
           attackPower: outcome.attackPower,
           defensePower: outcome.defensePower,
@@ -2752,34 +2829,50 @@ async function processCycleTick(
           : null;
 
       if (destroyed && destroyer && reward) {
+        const rewardMultiplier = getLeaderboardTitleLootCampRewardMultiplier(
+          leaderboardTitleHolders,
+          destroyer.attacker.id
+        );
+        const boostedReward = {
+          ...reward,
+          gold: Math.floor(reward.gold * rewardMultiplier),
+          points: Math.floor(reward.points * rewardMultiplier),
+          food: Math.floor(reward.food * rewardMultiplier),
+          army: Math.floor(reward.army * rewardMultiplier),
+        };
+        currentGoblinsKilled.set(
+          destroyer.attacker.id,
+          (currentGoblinsKilled.get(destroyer.attacker.id) ??
+            destroyer.attacker.goblinsKilled) + 1
+        );
         currentGold.set(
           destroyer.attacker.id,
           (currentGold.get(destroyer.attacker.id) ?? destroyer.attacker.gold) +
-            reward.gold
+            boostedReward.gold
         );
         currentPoints.set(
           destroyer.attacker.id,
-          (currentPoints.get(destroyer.attacker.id) ?? 0) + reward.points
+          (currentPoints.get(destroyer.attacker.id) ?? 0) + boostedReward.points
         );
         currentFood.set(
           destroyer.attacker.id,
           (currentFood.get(destroyer.attacker.id) ?? destroyer.attacker.food) +
-            reward.food
+            boostedReward.food
         );
         currentArmy.set(
           destroyer.attacker.id,
           (currentArmy.get(destroyer.attacker.id) ?? destroyer.attacker.army) +
-            reward.army
+            boostedReward.army
         );
 
-        if (reward.points > 0) {
+        if (boostedReward.points > 0) {
           scoreEvents.push({
             cycleId,
             fortressId: destroyer.attacker.id,
             actorId: destroyer.attacker.ownerId,
             targetFortressId: target.id,
             eventType: ScoreEventType.LOOT_CAMP_REWARD,
-            delta: reward.points,
+            delta: boostedReward.points,
             createdAt: tickAt,
           });
         }
@@ -2806,6 +2899,41 @@ async function processCycleTick(
         }
       }
 
+      const unitRewardBase =
+        destroyed && destroyer && reward
+          ? {
+              ...reward,
+              gold: Math.floor(
+                reward.gold *
+                  getLeaderboardTitleLootCampRewardMultiplier(
+                    leaderboardTitleHolders,
+                    destroyer.attacker.id
+                  )
+              ),
+              points: Math.floor(
+                reward.points *
+                  getLeaderboardTitleLootCampRewardMultiplier(
+                    leaderboardTitleHolders,
+                    destroyer.attacker.id
+                  )
+              ),
+              food: Math.floor(
+                reward.food *
+                  getLeaderboardTitleLootCampRewardMultiplier(
+                    leaderboardTitleHolders,
+                    destroyer.attacker.id
+                  )
+              ),
+              army: Math.floor(
+                reward.army *
+                  getLeaderboardTitleLootCampRewardMultiplier(
+                    leaderboardTitleHolders,
+                    destroyer.attacker.id
+                  )
+              ),
+            }
+          : null;
+
       for (const targetUnit of targetUnits) {
         const targetAttacker = fortressLookup.get(
           targetUnit.attackerFortressId
@@ -2815,7 +2943,7 @@ async function processCycleTick(
         const unitGetsReward =
           Boolean(destroyer) && targetUnit.id === destroyer?.unitId && reward;
         const unitReward = unitGetsReward
-          ? reward
+          ? (unitRewardBase ?? reward)
           : {
               points: 0,
               gold: 0,
@@ -2977,7 +3105,11 @@ async function processCycleTick(
                 getFortressAttackDamage(targetAttacker.level) *
                 (hasHomeOfABossBuff(targetAttacker.raceAbilityActivations, tickAt)
                   ? HOME_OF_A_BOSS_BUFF_MULTIPLIER
-                  : 1)
+                  : 1) *
+                getLeaderboardTitleAttackMultiplier(
+                  leaderboardTitleHolders,
+                  targetAttacker.id
+                )
             )
           );
 
@@ -3400,7 +3532,11 @@ async function processCycleTick(
         attackerOrkBossAttackMultiplier *
         dwarfAttackMultiplier *
         (attackerDeepMiningCombat ? DWARF_DEEP_MINING_COMBAT_MULTIPLIER : 1) *
-        (attackerHomeBossBuff ? HOME_OF_A_BOSS_BUFF_MULTIPLIER : 1),
+        (attackerHomeBossBuff ? HOME_OF_A_BOSS_BUFF_MULTIPLIER : 1) *
+        getLeaderboardTitleAttackMultiplier(
+          leaderboardTitleHolders,
+          attacker.id
+        ),
       defensePowerMultiplier:
         (defenderWaaagh ? 4 : 1) *
         defenderOrkBossDefenseMultiplier *
@@ -3479,6 +3615,21 @@ async function processCycleTick(
       target.id,
       Math.max(0, defenderArmy - outcome.defenderLosses)
     );
+    if (outcome.defenderLosses > 0) {
+      currentUnitsKilled.set(
+        attacker.id,
+        (currentUnitsKilled.get(attacker.id) ?? attacker.unitsKilled) +
+          outcome.defenderLosses
+      );
+    }
+    const attackerLosses = Math.max(0, unit.armyAmount - outcome.attackerReturned);
+    if (attackerLosses > 0 && !target.isNpc) {
+      currentUnitsKilled.set(
+        target.id,
+        (currentUnitsKilled.get(target.id) ?? target.unitsKilled) +
+          attackerLosses
+      );
+    }
     currentGold.set(
       attacker.id,
       (currentGold.get(attacker.id) ?? attacker.gold) + outcome.goldLooted
@@ -3618,6 +3769,18 @@ async function processCycleTick(
     ).find((garrison) => garrison.fortressId !== ownership.ownerFortressId);
     const bonusFortressId =
       occupyingGarrison?.fortressId ?? ownership.ownerFortressId;
+    const titleMultipliers = getLeaderboardTitleTileIncomeMultipliers(
+      leaderboardTitleHolders,
+      bonusFortressId
+    );
+    const boostedBonus = {
+      gold: Math.floor(bonus.gold * titleMultipliers.resource),
+      points: Math.floor(
+        bonus.points * titleMultipliers.resource * titleMultipliers.points
+      ),
+      food: Math.floor(bonus.food * titleMultipliers.resource),
+      army: Math.floor(bonus.army * titleMultipliers.resource),
+    };
     const current = tileBonusesByFortressId.get(bonusFortressId) ?? {
       gold: 0,
       points: 0,
@@ -3626,10 +3789,10 @@ async function processCycleTick(
     };
 
     tileBonusesByFortressId.set(bonusFortressId, {
-      gold: current.gold + bonus.gold,
-      points: current.points + bonus.points,
-      food: current.food + bonus.food,
-      army: current.army + bonus.army,
+      gold: current.gold + boostedBonus.gold,
+      points: current.points + boostedBonus.points,
+      food: current.food + boostedBonus.food,
+      army: current.army + boostedBonus.army,
     });
   }
 
@@ -3782,6 +3945,8 @@ async function processCycleTick(
     id: string;
     data: {
       points: number;
+      unitsKilled: number;
+      goblinsKilled: number;
       gold: number;
       food: number;
       army: number;
@@ -3792,6 +3957,10 @@ async function processCycleTick(
 
   for (const fortress of fortresses) {
     const nextPoints = currentPoints.get(fortress.id) ?? fortress.points;
+    const nextUnitsKilled =
+      currentUnitsKilled.get(fortress.id) ?? fortress.unitsKilled;
+    const nextGoblinsKilled =
+      currentGoblinsKilled.get(fortress.id) ?? fortress.goblinsKilled;
     const nextGold = currentGold.get(fortress.id) ?? fortress.gold;
     const nextFood = currentFood.get(fortress.id) ?? fortress.food;
     const nextArmy = currentArmy.get(fortress.id) ?? fortress.army;
@@ -3801,6 +3970,8 @@ async function processCycleTick(
 
     if (
       nextPoints === fortress.points &&
+      nextUnitsKilled === fortress.unitsKilled &&
+      nextGoblinsKilled === fortress.goblinsKilled &&
       nextGold === fortress.gold &&
       nextFood === fortress.food &&
       nextArmy === fortress.army &&
@@ -3814,6 +3985,8 @@ async function processCycleTick(
       id: fortress.id,
       data: {
         points: nextPoints,
+        unitsKilled: nextUnitsKilled,
+        goblinsKilled: nextGoblinsKilled,
         gold: nextGold,
         food: nextFood,
         army: nextArmy,

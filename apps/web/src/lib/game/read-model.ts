@@ -61,6 +61,15 @@ import {
 import { addHours } from "./time";
 import { countCastleSpecializations } from "./specializations";
 import { DWARF_DEEP_MINING_RUNE_BOUNTY } from "./dwarf-deep-mining";
+import {
+  LEADERBOARD_TITLE_CONFIG_BY_CATEGORY,
+  LEADERBOARD_TITLE_CONFIGS,
+  compareLeaderboardFortresses,
+  getLeaderboardMetric,
+  getLeaderboardTitleHolders,
+  type LeaderboardCategory,
+  type RankedLeaderboardEntry,
+} from "./leaderboard-titles";
 import { ORK_BOSS_ORDER_CONFIG, ORK_WAAAGH_INVESTMENT_CONFIG } from "./orks";
 import { HEX_TILES, type HexTile } from "./map-hex";
 import { getHomeOfAMapPosition } from "./mega-fortress";
@@ -465,6 +474,8 @@ export async function getHomePageState({
           name: true,
           points: true,
           gold: true,
+          unitsKilled: true,
+          goblinsKilled: true,
           level: true,
           food: true,
           army: true,
@@ -906,6 +917,13 @@ export async function getHomePageState({
       playerFortress: null,
       playerSummary: null,
       leaderboard: [],
+      leaderboards: {
+        points: [],
+        unitsKilled: [],
+        tilesOwned: [],
+        goblinsKilled: [],
+      },
+      leaderboardTitles: [],
       mapFortresses: [],
       mapHexes: [],
       homeOfA: null,
@@ -1023,6 +1041,67 @@ export async function getHomePageState({
   const sortedFortresses = [...playerFortresses].sort(
     compareByLeaderboardOrder
   );
+  const tileCountsByFortressId = new Map<string, number>();
+
+  for (const ownership of cycle.mapHexOwnerships) {
+    if (isHomeOfATile(ownership.tileId)) {
+      continue;
+    }
+
+    tileCountsByFortressId.set(
+      ownership.ownerFortressId,
+      (tileCountsByFortressId.get(ownership.ownerFortressId) ?? 0) + 1
+    );
+  }
+
+  const leaderboardTitleHolders = getLeaderboardTitleHolders({
+    fortresses: playerFortresses,
+    tileCountsByFortressId,
+    cycleStatus: cycle.status,
+  });
+  const mapLeaderboardEntry = (
+    category: LeaderboardCategory,
+    fortress: (typeof playerFortresses)[number],
+    index: number
+  ): RankedLeaderboardEntry => {
+    const config = LEADERBOARD_TITLE_CONFIG_BY_CATEGORY[category];
+    const isTitleHolder = leaderboardTitleHolders[category] === fortress.id;
+
+    return {
+      id: fortress.id,
+      commanderName: getDisplayName(
+        fortress.commanderName,
+        fortress.id === cycle.crownedFortressId
+      ),
+      name: getDisplayName(
+        fortress.name,
+        fortress.id === cycle.crownedFortressId
+      ),
+      rawName: fortress.name,
+      points: fortress.points,
+      unitsKilled: fortress.unitsKilled,
+      tilesOwned: tileCountsByFortressId.get(fortress.id) ?? 0,
+      goblinsKilled: fortress.goblinsKilled,
+      metric: getLeaderboardMetric(category, fortress, tileCountsByFortressId),
+      rank: index + 1,
+      title: isTitleHolder ? config.title : null,
+      buffLabel: isTitleHolder ? config.buffLabel : null,
+      isTitleHolder,
+      isSlayerOfA: fortress.id === cycle.crownedFortressId,
+      isCurrentUser: fortress.ownerId === userId,
+    };
+  };
+  const leaderboards = Object.fromEntries(
+    LEADERBOARD_TITLE_CONFIGS.map((config) => [
+      config.category,
+      [...playerFortresses]
+        .sort(compareLeaderboardFortresses(config.category, tileCountsByFortressId))
+        .slice(0, 3)
+        .map((fortress, index) =>
+          mapLeaderboardEntry(config.category, fortress, index)
+        ),
+    ])
+  ) as Record<LeaderboardCategory, RankedLeaderboardEntry[]>;
   const targetLookup = new Map(
     cycle.fortresses.map((fortress) => [fortress.id, fortress])
   );
@@ -1380,6 +1459,7 @@ export async function getHomePageState({
                 maxHealth: true,
                 castleUpgradeSpecializations: {
                   select: {
+                    level: true,
                     specialization: true,
                   },
                 },
@@ -3033,6 +3113,15 @@ export async function getHomePageState({
       rank: index + 1,
       isSlayerOfA: fortress.id === cycle.crownedFortressId,
       isCurrentUser: fortress.ownerId === userId,
+    })),
+    leaderboards,
+    leaderboardTitles: LEADERBOARD_TITLE_CONFIGS.map((config) => ({
+      category: config.category,
+      label: config.label,
+      title: config.title,
+      metricLabel: config.metricLabel,
+      buffLabel: config.buffLabel,
+      holderFortressId: leaderboardTitleHolders[config.category] ?? null,
     })),
     mapFortresses,
     mapHexes: mappedMapHexes,

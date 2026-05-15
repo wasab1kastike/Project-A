@@ -1017,6 +1017,42 @@
   list-style: none;
 }
 
+.leaderboardHeader {
+  display: grid;
+  gap: 6px;
+}
+
+.leaderboardTabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.leaderboardTabs::-webkit-scrollbar {
+  display: none;
+}
+
+.leaderboardTabs button {
+  flex: 0 0 auto;
+  min-height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  background: rgba(8, 16, 25, 0.52);
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.leaderboardTabs .activeLeaderboardTab {
+  border-color: rgba(247, 196, 95, 0.42);
+  background: rgba(247, 196, 95, 0.14);
+  color: var(--foreground);
+}
+
 .leaderboardList li {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto auto;
@@ -1047,6 +1083,13 @@
 .leaderboardList .currentLeader {
   border-color: rgba(247, 196, 95, 0.36);
   background: rgba(247, 196, 95, 0.12);
+}
+
+.leaderboardBuff {
+  margin: 0;
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.68rem;
 }
 
 .wishList {

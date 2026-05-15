@@ -27,7 +27,9 @@
 - Gold, food, points, and army never go below zero
 - Global chat with timestamps
 - Chat rate limit: 6 messages per minute per user
-- Top 3 leaderboard visible
+- Top 3 leaderboard visible for points, units killed, tiles owned, and goblins killed
+- Category leaders hold live titles: Crown Accountant, Butcher, Landlord, and Goblin Bonker
+- Title buffs are active only during the live season and update as rankings change
 - Cycle timer: registration 24h, testing 24h, active 2 weeks
 - Player action persists while offline
 - Castle upgrades are available during gameplay and use gold
@@ -39,6 +41,15 @@
 - The top damage dealer when Home of A dies receives points, food, and army equal to boss max HP / 4, plus a 12-hour +25% combat and economy buff
 - Home of A stays dead for 24 hours after each kill, then respawns at the next HP tier
 - Battle-log badges count unread/new reports only, not total historical entries
+
+## Leaderboard titles
+
+- Crown Accountant is the points leader and receives +10% points from tile income.
+- Butcher is the units-killed leader and receives +10% attack power.
+- Landlord is the current normal-tile leader and receives +10% tile resource income.
+- Goblin Bonker is the loot-camp destruction leader and receives +25% loot-camp rewards.
+- Units killed come from direct attacks and battlefield losses; Home of A HP damage does not count.
+- Goblins killed count final blows on loot camps, not every defending unit killed there.
 
 ## Economy & recruitment
 

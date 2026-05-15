@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import type { Session } from "next-auth";
 import styles from "./page.module.css";
 import { CompensationLootBoxAnnouncement } from "@/components/compensation-loot-box-announcement";
@@ -26,6 +27,7 @@ import {
 } from "@/app/game-actions";
 import { getContextualActionHint } from "@/lib/game/action-hints";
 import type { HomePageState } from "@/lib/game/read-model";
+import type { LeaderboardCategory } from "@/lib/game/leaderboard-titles";
 import { RACE_DEFINITIONS, type FortressRace } from "@/lib/game/races";
 import {
   PATCH_NOTES_PAGE_HREF,
@@ -217,7 +219,16 @@ function HomeClientContent({
         fortress.race === race.key
     ).length,
   }));
+  const [selectedLeaderboardCategory, setSelectedLeaderboardCategory] =
+    useState<LeaderboardCategory>("points");
+  const selectedLeaderboardTitle =
+    state.leaderboardTitles.find(
+      (title) => title.category === selectedLeaderboardCategory
+    ) ?? state.leaderboardTitles[0];
   const leaderboard = state.leaderboard.slice(0, 3);
+  const categoryLeaderboard =
+    state.leaderboards[selectedLeaderboardCategory]?.slice(0, 3) ??
+    leaderboard;
   const isGameplayPhase =
     state.phase?.status === "ACTIVE" || state.phase?.status === "TESTING";
   const tickDelayMinutes = state.cycle?.tickDelayMinutes ?? null;
@@ -995,26 +1006,53 @@ function HomeClientContent({
         </section>
 
         <section className={styles.leaderboardStrip}>
-          <span className={styles.sectionLabel}>Top 3</span>
-          {leaderboard.length > 0 ? (
+          <div className={styles.leaderboardHeader}>
+            <span className={styles.sectionLabel}>Top 3</span>
+            <div className={styles.leaderboardTabs} role="tablist">
+              {state.leaderboardTitles.map((title) => (
+                <button
+                  key={title.category}
+                  type="button"
+                  className={
+                    title.category === selectedLeaderboardCategory
+                      ? styles.activeLeaderboardTab
+                      : ""
+                  }
+                  onClick={() => setSelectedLeaderboardCategory(title.category)}
+                >
+                  {title.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {categoryLeaderboard.length > 0 ? (
             <ol className={styles.leaderboardList}>
-              {leaderboard.map((entry) => (
+              {categoryLeaderboard.map((entry) => (
                 <li
                   key={entry.id}
                   className={entry.isCurrentUser ? styles.currentLeader : ""}
                 >
                   <span>#{entry.rank}</span>
                   <strong>{entry.name}</strong>
-                  {entry.isSlayerOfA ? (
+                  {entry.title ? (
+                    <small className={styles.crownBadge}>{entry.title}</small>
+                  ) : entry.isSlayerOfA ? (
                     <small className={styles.crownBadge}>Slayer of A</small>
                   ) : null}
-                  <em>{entry.points} pts</em>
+                  <em>
+                    {entry.metric} {selectedLeaderboardTitle?.metricLabel ?? "pts"}
+                  </em>
                 </li>
               ))}
             </ol>
           ) : (
             <p>No fortresses yet.</p>
           )}
+          {selectedLeaderboardTitle ? (
+            <p className={styles.leaderboardBuff}>
+              {selectedLeaderboardTitle.title}: {selectedLeaderboardTitle.buffLabel}
+            </p>
+          ) : null}
         </section>
       </footer>
     </main>

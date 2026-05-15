@@ -450,6 +450,11 @@ export default function WikiPage() {
             {MEGA_FORTRESS_NAME} boss kills. Gold is the castle currency for
             upgrades, rename, claims, and utility costs.
           </p>
+          <p>
+            The leaderboard also tracks units killed, current tiles owned, and
+            goblins killed. The live leader in each category gets a title and a
+            buff while they hold it.
+          </p>
           <div className={styles.twoCol}>
             <section>
               <h3>Victory rules</h3>
@@ -478,6 +483,11 @@ export default function WikiPage() {
                 <li>
                   The community can also propose and vote on a community wish
                   after the season.
+                </li>
+                <li>
+                  Crown Accountant gets +10% points from tile income, Butcher
+                  gets +10% attack power, Landlord gets +10% tile resource
+                  income, and Goblin Bonker gets +25% loot-camp rewards.
                 </li>
                 <li>
                   Season arcade coins: {ARCADE_SEASON_BASE_COINS} base, plus 1
@@ -724,6 +734,10 @@ export default function WikiPage() {
                   transferred when their battlefield resolves.
                 </li>
                 <li>
+                  The Landlord title uses current normal tiles owned, excluding
+                  {` ${MEGA_FORTRESS_NAME}`}.
+                </li>
+                <li>
                   Fortified garrisons stay on the tile without maintenance drain
                   and can be partially recalled, with surviving troops marching
                   home.
@@ -808,6 +822,13 @@ export default function WikiPage() {
                 <li>
                   Space Murine STIM changes casualties and defender losses, but
                   does not increase attack power.
+                </li>
+                <li>
+                  Units killed come from direct attacks and battlefields. Boss
+                  HP damage against {MEGA_FORTRESS_NAME} does not count.
+                </li>
+                <li>
+                  Goblins killed count final blows on loot camps.
                 </li>
                 <li>
                   Unstable Unicorn speed changes travel time and visibility, not

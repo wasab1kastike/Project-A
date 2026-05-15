@@ -10,6 +10,20 @@ import {
   getFortressPopulation,
   validateWorkerAssignments,
 } from "./balance";
+import { countCastleSpecializations } from "./specializations";
+
+test("castle specialization counts use stored upgrade levels", () => {
+  const counts = countCastleSpecializations([
+    { specialization: "POINTS", level: 1 },
+    { specialization: "POINTS", level: 3 },
+    { specialization: "FOOD", level: 2 },
+  ]);
+
+  assert.equal(counts.POINTS, 3);
+  assert.equal(counts.FOOD, 2);
+  assert.equal(counts.MILITARY, 0);
+  assert.equal(counts.DEFENSE, 0);
+});
 
 test("balance helpers derive castle level, population, and defense from db level", () => {
   assert.equal(getDisplayedCastleLevel(0), 1);
