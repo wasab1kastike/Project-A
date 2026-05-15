@@ -2913,32 +2913,18 @@ async function processCycleTick(
             const attackerReturned = targetUnit.armyAmount;
 
             if (targetAttacker && attackerReturned > 0) {
-              const returnArrivesAt = getAttackArrivalAt({
-                launchedAt: tickAt,
-                origin: {
-                  mapX: target.mapX,
-                  mapY: target.mapY,
-                },
-                target: {
-                  mapX: targetAttacker.mapX,
-                  mapY: targetAttacker.mapY,
-                },
-                attackerRace: getEffectiveRace(targetAttacker),
-                raceBuffTier: getFortressRaceBuffTier(targetAttacker),
-                speedMultiplier:
-                  getDwarfSpeedMultiplier(targetAttacker) *
-                  getOrkSpeedMultiplier(targetAttacker),
-              });
+              currentArmy.set(
+                targetAttacker.id,
+                (currentArmy.get(targetAttacker.id) ?? targetAttacker.army) +
+                  attackerReturned
+              );
 
               await db.attackUnit.update({
                 where: {
                   id: targetUnit.id,
                 },
                 data: {
-                  recalledAt: tickAt,
-                  returnOriginMapX: target.mapX,
-                  returnOriginMapY: target.mapY,
-                  arrivesAt: returnArrivesAt,
+                  resolvedAt: tickAt,
                   defenderArmyAtBattleStart: null,
                   resolvedAttackPower: 0,
                   resolvedDefensePower: 0,
@@ -2951,6 +2937,7 @@ async function processCycleTick(
                   armyLooted: 0,
                 },
               });
+              resolvedAttackUnits += 1;
             }
 
             resolvedBatchAttackUnitIds.add(targetUnit.id);
@@ -3018,32 +3005,18 @@ async function processCycleTick(
           }
 
           if (attackerReturned > 0) {
-            const returnArrivesAt = getAttackArrivalAt({
-              launchedAt: tickAt,
-              origin: {
-                mapX: target.mapX,
-                mapY: target.mapY,
-              },
-              target: {
-                mapX: targetAttacker.mapX,
-                mapY: targetAttacker.mapY,
-              },
-              attackerRace: getEffectiveRace(targetAttacker),
-              raceBuffTier: getFortressRaceBuffTier(targetAttacker),
-              speedMultiplier:
-                getDwarfSpeedMultiplier(targetAttacker) *
-                getOrkSpeedMultiplier(targetAttacker),
-            });
+            currentArmy.set(
+              targetAttacker.id,
+              (currentArmy.get(targetAttacker.id) ?? targetAttacker.army) +
+                attackerReturned
+            );
 
             await db.attackUnit.update({
               where: {
                 id: targetUnit.id,
               },
               data: {
-                recalledAt: tickAt,
-                returnOriginMapX: target.mapX,
-                returnOriginMapY: target.mapY,
-                arrivesAt: returnArrivesAt,
+                resolvedAt: tickAt,
                 defenderArmyAtBattleStart: null,
                 resolvedAttackPower: targetLoss,
                 resolvedDefensePower: 0,
@@ -3056,6 +3029,7 @@ async function processCycleTick(
                 armyLooted: 0,
               },
             });
+            resolvedAttackUnits += 1;
           }
 
           resolvedBatchAttackUnitIds.add(targetUnit.id);
