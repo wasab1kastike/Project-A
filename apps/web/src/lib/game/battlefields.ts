@@ -24,8 +24,11 @@ import {
   isRealOrkPlayerFortress,
 } from "./orks";
 import { DWARF_DEEP_MINING_RUNE_BOUNTY } from "./dwarf-deep-mining";
+import { ensureBattlefieldPointRewardColumn } from "./schema-guards";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
+
+const CASTLE_PVP_POINT_LOOT_PERCENT = 0.05;
 
 function hashBattleTick(value: string) {
   let hash = 2166136261;
@@ -568,6 +571,8 @@ export async function processActiveBattlefields({
   cycleId: string;
   tickAt: Date;
 }) {
+  await ensureBattlefieldPointRewardColumn(db);
+
   const battlefields = await db.battlefield.findMany({
     where: {
       cycleId,
@@ -970,16 +975,39 @@ export async function processActiveBattlefields({
       !isTileBattle && winnerSide === BattlefieldSide.ATTACKER
         ? outcome.foodLooted
         : 0;
+    const castlePointsLooted =
+      !isTileBattle &&
+      !isRuneBattle &&
+      winnerSide === BattlefieldSide.ATTACKER &&
+      battlefield.targetFortress
+        ? Math.min(
+            battlefield.targetFortress.points,
+            Math.max(
+              1,
+              Math.floor(
+                battlefield.targetFortress.points *
+                  CASTLE_PVP_POINT_LOOT_PERCENT
+              )
+            )
+          )
+        : 0;
 
-    for (const participant of winningParticipants) {
+    let distributedPointLoot = 0;
+
+    for (const [participantIndex, participant] of winningParticipants.entries()) {
       const share =
         winnerArmyTotal > 0 ? participant.armyCommitted / winnerArmyTotal : 0;
       const killReward = Math.floor(killRewardPool * share);
       const goldLootShare = Math.floor(castleBankGoldLooted * share);
       const foodLootShare = Math.floor(castleBankFoodLooted * share);
+      const pointLootShare =
+        participantIndex === winningParticipants.length - 1
+          ? castlePointsLooted - distributedPointLoot
+          : Math.floor(castlePointsLooted * share);
       const goldReward = killReward + goldLootShare;
+      distributedPointLoot += pointLootShare;
 
-      if (goldReward <= 0 && foodLootShare <= 0) {
+      if (goldReward <= 0 && foodLootShare <= 0 && pointLootShare <= 0) {
         continue;
       }
 
@@ -991,11 +1019,24 @@ export async function processActiveBattlefields({
           gold: {
             increment: goldReward,
           },
+          points: {
+            increment: pointLootShare,
+          },
           food: {
             increment: foodLootShare,
           },
         },
       });
+      if (pointLootShare > 0) {
+        scoreEvents.push({
+          cycleId,
+          fortressId: participant.fortressId,
+          targetFortressId: battlefield.targetFortressId,
+          eventType: ScoreEventType.BATTLEFIELD_REWARD,
+          delta: pointLootShare,
+          createdAt: tickAt,
+        });
+      }
       if (goldReward > 0) {
         scoreEvents.push({
           cycleId,
@@ -1022,6 +1063,10 @@ export async function processActiveBattlefields({
       fortressUpdateData.food = {
         decrement:
           winnerSide === BattlefieldSide.ATTACKER ? castleBankFoodLooted : 0,
+      };
+      fortressUpdateData.points = {
+        decrement:
+          winnerSide === BattlefieldSide.ATTACKER ? castlePointsLooted : 0,
       };
 
       await db.fortress.update({
@@ -1216,6 +1261,7 @@ export async function processActiveBattlefields({
         foodReward: isTileBattle
           ? battlefield.foodReward
           : castleBankFoodLooted,
+        pointReward: isTileBattle ? 0 : castlePointsLooted,
         resolvedWinnerSide: winnerSide,
         resolvedAt: tickAt,
       },

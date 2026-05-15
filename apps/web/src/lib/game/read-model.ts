@@ -38,6 +38,7 @@ import {
   formatRaidRecallReport,
 } from "./battle-report";
 import {
+  ensureBattlefieldPointRewardColumn,
   ensureCommanderRegistrationColumn,
   ensureHomeOfABossSchema,
   ensureLastReadChatColumn,
@@ -93,6 +94,7 @@ function formatBattlefieldReportLines({
   arrivedReinforcementCount,
   pointsReward,
   foodReward,
+  pointReward = 0,
 }: {
   targetName: string;
   targetTileId: string | null;
@@ -108,6 +110,7 @@ function formatBattlefieldReportLines({
   arrivedReinforcementCount: number;
   pointsReward: number;
   foodReward: number;
+  pointReward?: number;
 }) {
   const targetLabel = targetTileId ? `tile ${targetTileId}` : targetName;
   const lines = [
@@ -143,6 +146,9 @@ function formatBattlefieldReportLines({
       lines.push(
         `Castle loot paid out: ${pointsReward} gold and ${foodReward} food.`
       );
+    }
+    if (pointReward > 0 && !targetTileId) {
+      lines.push(`Score stolen: ${pointReward} points.`);
     }
   } else {
     lines.push(
@@ -354,6 +360,7 @@ export async function getHomePageState({
   db?: PrismaClient;
 }) {
   await Promise.all([
+    ensureBattlefieldPointRewardColumn(db),
     ensureCommanderRegistrationColumn(db),
     ensureHomeOfABossSchema(db),
     ensureLastReadChatColumn(db),
@@ -1551,6 +1558,7 @@ export async function getHomePageState({
             progress: true,
             attackerArmyRemaining: true,
             defenderArmyRemaining: true,
+            pointReward: true,
             pointsReward: true,
             foodReward: true,
             startedAt: true,
@@ -1703,7 +1711,7 @@ export async function getHomePageState({
           defenderLosses: 0,
           pointsLooted:
             battlefield.resolvedWinnerSide === BattlefieldSide.ATTACKER
-              ? battlefield.pointsReward
+              ? battlefield.pointReward
               : 0,
           foodLooted:
             battlefield.resolvedWinnerSide === BattlefieldSide.ATTACKER
@@ -1729,6 +1737,7 @@ export async function getHomePageState({
               arrivedReinforcementCount: arrivedReinforcements.length,
               pointsReward: battlefield.pointsReward,
               foodReward: battlefield.foodReward,
+              pointReward: battlefield.pointReward,
             }),
             ...joinedLines,
             ...reinforcementLines,

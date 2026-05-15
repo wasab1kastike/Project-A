@@ -516,6 +516,7 @@ model Battlefield {
   progress                 Int                      @default(0)
   attackerArmyRemaining    Int                      @default(0)
   defenderArmyRemaining    Int                      @default(0)
+  pointReward              Int                      @default(0)
   pointsReward             Int                      @default(0)
   foodReward               Int                      @default(0)
   resolvedWinnerSide       BattlefieldSide?

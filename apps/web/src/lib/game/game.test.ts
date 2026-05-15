@@ -2741,19 +2741,28 @@ test("attacker castle win pays kill reward and steals bank resources", async (co
     ]);
   const defenderKilled = 10 - resolved.defenderArmyRemaining;
   const expectedKillReward = Math.floor(defenderKilled * 0.2);
+  const stolenPoints = 100 - reloadedDefender.points;
   const stolenGold = 1000 - reloadedDefender.gold;
   const stolenFood = 1000 - reloadedDefender.food;
 
   assert.equal(resolved.resolvedWinnerSide, BattlefieldSide.ATTACKER);
+  assert.equal(stolenPoints, 5);
   assert.ok(stolenGold > 0);
   assert.ok(stolenFood > 0);
+  assert.equal(resolved.pointReward, stolenPoints);
   assert.equal(resolved.pointsReward, stolenGold);
   assert.equal(resolved.foodReward, stolenFood);
+  assert.equal(reloadedAttacker.points, 105);
   assert.equal(reloadedAttacker.gold, 100 + expectedKillReward + stolenGold);
   assert.equal(reloadedAttacker.food, 100 + stolenFood);
   assert.deepEqual(
-    rewardEvents.map((event) => [event.fortressId, event.delta]),
-    [[attackerFortress.id, expectedKillReward + stolenGold]]
+    rewardEvents
+      .map((event) => [event.fortressId, event.delta])
+      .sort((left, right) => Number(left[1]) - Number(right[1])),
+    [
+      [attackerFortress.id, stolenPoints],
+      [attackerFortress.id, expectedKillReward + stolenGold],
+    ].sort((left, right) => Number(left[1]) - Number(right[1]))
   );
 });
 

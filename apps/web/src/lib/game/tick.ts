@@ -85,6 +85,7 @@ import {
 import { getTileBonus, getTileById, isHomeOfATile } from "./territory";
 import { recalculateReturningAttackRoutes } from "./fortress-relocation";
 import {
+  ensureBattlefieldPointRewardColumn,
   ensureHomeOfABossSchema,
   ensureRaceSchemaReadiness,
 } from "./schema-guards";
@@ -3875,6 +3876,7 @@ export async function runGameTick({
   maxCatchUpMinutes?: number | null;
 } = {}): Promise<TickSummary> {
   try {
+    await ensureBattlefieldPointRewardColumn(db);
     await ensureHomeOfABossSchema(db);
     await ensureRaceSchemaReadiness(db);
   } catch (error) {

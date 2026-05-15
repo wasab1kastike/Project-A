@@ -6,6 +6,7 @@ type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 let commanderRegistrationColumnPromise: Promise<void> | null = null;
 let lastReadChatColumnPromise: Promise<void> | null = null;
 let homeOfABossSchemaPromise: Promise<void> | null = null;
+let battlefieldPointRewardColumnPromise: Promise<void> | null = null;
 
 const REQUIRED_DWARF_DEEP_MINING_ROLL_COLUMNS = [
   "committedGold",
@@ -156,6 +157,12 @@ async function addLastReadChatColumn(db: DatabaseClient) {
   );
 }
 
+async function addBattlefieldPointRewardColumn(db: DatabaseClient) {
+  await db.$executeRawUnsafe(
+    'ALTER TABLE "Battlefield" ADD COLUMN IF NOT EXISTS "pointReward" INTEGER NOT NULL DEFAULT 0'
+  );
+}
+
 async function ensureHomeOfABossSchemaObjects(db: DatabaseClient) {
   await db.$executeRawUnsafe(
     `ALTER TYPE "RaceAbilityKind" ADD VALUE IF NOT EXISTS 'HOME_OF_A_BOSS_BUFF'`
@@ -251,4 +258,16 @@ export async function ensureHomeOfABossSchema(db: DatabaseClient = prisma) {
 
   homeOfABossSchemaPromise ??= ensureHomeOfABossSchemaObjects(db);
   await homeOfABossSchemaPromise;
+}
+
+export async function ensureBattlefieldPointRewardColumn(
+  db: DatabaseClient = prisma
+) {
+  if (db !== prisma) {
+    await addBattlefieldPointRewardColumn(db);
+    return;
+  }
+
+  battlefieldPointRewardColumnPromise ??= addBattlefieldPointRewardColumn(db);
+  await battlefieldPointRewardColumnPromise;
 }

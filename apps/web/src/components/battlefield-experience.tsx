@@ -1452,7 +1452,7 @@ export function BattlefieldExperience({
                   <span>{getBattleOutcomeLabel(report, currentOwnerId)}</span>
                 </div>
                 <ul className={styles.compactList}>
-                  {(report.reportLines ?? []).slice(0, 4).map((line) => (
+                  {(report.reportLines ?? []).slice(0, 6).map((line) => (
                     <li key={line}>{line}</li>
                   ))}
                 </ul>
