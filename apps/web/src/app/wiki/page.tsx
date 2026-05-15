@@ -11,14 +11,14 @@ import {
   FORTRESS_ATTACK_DAMAGE_PER_LEVEL,
   FORTRESS_GROWTH_PER_LEVEL,
   FORTRESS_LEVEL_UP_COSTS,
-  HOME_OF_A_ARMY_DRAIN_BASE,
-  HOME_OF_A_ARMY_DRAIN_INCREASE_PER_TICK,
-  HOME_OF_A_NEUTRAL_DEFENSE,
-  HOME_OF_A_POINT_INCOME,
+  HOME_OF_A_BOSS_BUFF_HOURS,
+  HOME_OF_A_BOSS_RESPAWN_HOURS,
   HOME_OF_A_TILE_ID,
   MAX_SIMULTANEOUS_ATTACKS_BASE,
   MEGA_FORTRESS_NAME,
   getArcadeSeasonRankBonus,
+  getHomeOfABossHealth,
+  getHomeOfABossReward,
 } from "@/lib/game/constants";
 import {
   CARRY_CAPACITY_PER_SURVIVOR,
@@ -72,7 +72,7 @@ const RACE_ABILITY_NOTES: Record<string, readonly string[]> = {
     `Attack slots scale as ${MAX_SIMULTANEOUS_ATTACKS_BASE} + 2 x castle level.`,
   ],
   ORKS: [
-    "Scrap: ORKS earn Scrap from successful raids, tile battle wins, Home of A captures, and loot camp destruction.",
+    "Scrap: ORKS earn Scrap from successful raids, tile battle wins, Home of A boss kills, and loot camp destruction.",
     "Boss Orders: spend Scrap and gold on one active short-term order at a time: More Dakka, Loot Wagons, or Patch Da Fort.",
     "Scrap-Fueled WAAAGH: while WAAAGH is active, spend Scrap once per investment to extend it, boost attack power, or improve Stronger Together.",
     "Tier 1: Stronger Together — 15% of killed defenders join your idle army after each successful raid.",
@@ -116,11 +116,11 @@ const PVE_FORMULAS = [
   `Fortress health damage per surviving hit = sent army x (${BASE_FORTRESS_ATTACK_DAMAGE} + attacker castle level x ${FORTRESS_ATTACK_DAMAGE_PER_LEVEL}).`,
   "Attacker castle level affects PvE health damage, not the initial army-vs-army battle power check.",
   "Loot camps first compare attack power against the camp defending army. If the attacker wins, the camp loses health.",
-  `${MEGA_FORTRESS_NAME} is conquered through the center map tile as a timed control battle that starts against ${HOME_OF_A_NEUTRAL_DEFENSE} neutral defense.`,
+  `${MEGA_FORTRESS_NAME} is attacked through the center map tile as a daily boss with scaling HP and a 24-hour respawn.`,
 ] as const;
 
 const homeOfALore =
-  "Home of A is the center-map control point. Banners fight over it through timed tile battles, and the controlling alliance earns points every tick while each holder also bleeds army to keep the banner planted.";
+  "Home of A is the center-map daily boss. Armies damage it through the center tile, and the top damage dealer when it dies earns resources plus a temporary combat and economy buff.";
 
 const SEASON_FLOW = [
   {
@@ -153,14 +153,14 @@ const QUICKSTART_STEPS = [
   "Watch the map for temporary loot camps. They expire fast but can pay food, gold, or army.",
   "Scout your first target before sending a huge army. Ties go to defender.",
   "Do not spend all gold on one thing. Keep a reserve for rename and upgrades.",
-  "Watch the center tile. Home of A income can swing a close season.",
+  "Watch the center tile. Home of A boss rewards can swing a close season.",
 ] as const;
 
 const SEASON_START_STEPS = [
   "Pick your race early. Race is locked for the whole season, so your first choice defines your economy and combat style.",
   "Claim connected neutral land as soon as you can. Tile claims take 10 minutes and must connect to your castle or owned territory.",
   "Spend enough gold to get army rolling, then keep recruiters assigned so queued units finish on time.",
-  "Use battlefields for contested land and Home of A. Those targets are fought, not claimed, and reinforcements also count toward your outbound cap.",
+  "Use battlefields for contested land, and use the center tile action for Home of A. Both reserve army while units travel.",
   "Expect defender wins on equal power. If a fight looks even, the defender keeps the tile or fortress.",
 ] as const;
 
@@ -169,7 +169,7 @@ const WHAT_IS_NEW_THIS_SEASON = [
   "Neutral land claims are timed projects, so expansion is a short planning step rather than an instant click.",
   "Direct attacks and battlefield reinforcements share the same outbound attack limit.",
   "Battlefield sends now feel like real unit launches instead of abstract joins.",
-  "Home of A is still the center control objective, but it is conquered through battle rather than a normal claim.",
+  "Home of A is now a center daily boss attacked through the tile action rather than a normal claim.",
 ] as const;
 
 const RACE_TOKENS = [
@@ -254,7 +254,7 @@ const BATTLEFIELD_RULES = [
   "A player cannot join both sides of the same unresolved battlefield.",
   "Equal attack and defense power still counts as a defender win.",
   "Resolved tile battlefields can transfer tile ownership to the winning side.",
-  "Owned-tile and Home of A defenders get the tile's native bonus, and Dwarf defenders get an extra x1.25 defensive multiplier on those fights.",
+  "Owned-tile defenders get the tile's native bonus, and Dwarf defenders get an extra x1.25 defensive multiplier on those fights.",
   "Battle results are applied after economy persistence, so loot, casualties, and rewards should not be lost to the same tick's production update.",
   "The battle log badge shows reports you have not seen yet, not the total report archive.",
 ] as const;
@@ -265,7 +265,7 @@ const TILE_CONTROL_RULES = [
   "A neutral tile must be connected to your castle tile or your existing owned territory before you can claim it.",
   `Claim cost starts at 25 gold, scales with distance, adds biome premiums, and increases by ${TILE_CLAIM_OWNED_TILE_COST_STEP} gold per owned or pending tile.`,
   `Temporary map objectives rotate every ${TEMPORARY_MAP_OBJECTIVE_INTERVAL_HOURS} hours and add bonus point income to selected normal tiles while active.`,
-  "Home of A cannot be claimed. It must be attacked through the center tile and held through battlefield control.",
+  "Home of A cannot be claimed or fortified. It must be attacked through the center tile as a daily boss.",
 ] as const;
 
 const FAQ_ENTRIES = [
@@ -447,7 +447,7 @@ export default function WikiPage() {
           <p>
             The main goal is to end the active season with the most points.
             Points come from map objectives: owned tiles and{" "}
-            {MEGA_FORTRESS_NAME} center control. Gold is the castle currency for
+            {MEGA_FORTRESS_NAME} boss kills. Gold is the castle currency for
             upgrades, rename, claims, and utility costs.
           </p>
           <div className={styles.twoCol}>
@@ -463,8 +463,8 @@ export default function WikiPage() {
                   reached that final score first.
                 </li>
                 <li>
-                  Capturing {MEGA_FORTRESS_NAME} is not required to win, but its
-                  center income can swing the score race.
+                  Killing {MEGA_FORTRESS_NAME} is not required to win, but its
+                  resource payout and temporary buff can swing the score race.
                 </li>
               </ul>
             </section>
@@ -739,37 +739,35 @@ export default function WikiPage() {
 
         <article className={styles.card}>
           <span className={styles.sectionLabel}>Home of A</span>
-          <h2>Center control objective</h2>
+          <h2>Center daily boss</h2>
           <p>{homeOfALore}</p>
           <ul className={styles.noteList}>
             <li>Always sits on center tile {HOME_OF_A_TILE_ID}.</li>
             <li>
-              First capture fights neutral defense strength{" "}
-              {HOME_OF_A_NEUTRAL_DEFENSE}.
+              Boss HP starts at {getHomeOfABossHealth(0)} and scales to{" "}
+              {getHomeOfABossHealth(1)}, {getHomeOfABossHealth(2)},{" "}
+              {getHomeOfABossHealth(3)}, then +50,000 per later kill.
             </li>
             <li>
-              The controlling banner alliance earns {HOME_OF_A_POINT_INCOME}{" "}
-              points per tick.
+              The top damage dealer on kill receives{" "}
+              {getHomeOfABossReward(getHomeOfABossHealth(0))} points, food, and
+              army on the first kill; later rewards are boss max HP / 4.
             </li>
             <li>
-              Banner owner gets half the income; the rest is split by capture
-              army contribution.
+              The reward winner also receives a {HOME_OF_A_BOSS_BUFF_HOURS}
+              -hour +25% combat and economy buff.
             </li>
             <li>
-              Every active Home of A holder starts at -
-              {HOME_OF_A_ARMY_DRAIN_BASE} army per tick, then loses{" "}
-              {HOME_OF_A_ARMY_DRAIN_INCREASE_PER_TICK} more army per tick for
-              each tick held.
+              When Home of A falls, global chat announces the top damage dealer,
+              reward, buff, and respawn timer.
             </li>
             <li>
-              Recalling Home of A holding army reduces that fortress&apos;s
-              holder contribution; once no holding army remains, it leaves the
-              holder list and stops paying holder drain.
+              After death, Home of A cannot be attacked until it respawns{" "}
+              {HOME_OF_A_BOSS_RESPAWN_HOURS} hours later.
             </li>
             <li>
-              The neutral defense only protects the first capture. If Home of A
-              is later abandoned, the next attackers fight the current holders,
-              not the original neutral defender.
+              Home of A does not create ownership, holder drain, or garrison
+              defense.
             </li>
           </ul>
         </article>

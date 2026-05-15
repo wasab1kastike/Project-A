@@ -25,9 +25,12 @@ export const MAX_FORTRESS_LEVEL = FORTRESS_LEVEL_UP_COSTS.length;
 export const MAX_SIMULTANEOUS_ATTACKS_BASE = 2;
 export const MEGA_FORTRESS_NAME = "Home of A";
 export const MEGA_FORTRESS_ICON_LABEL = "A-";
-export const MEGA_FORTRESS_HEALTH = 1000;
+export const MEGA_FORTRESS_HEALTH = 10_000;
 export const MEGA_FORTRESS_SIZE_TILES = 4;
 export const MEGA_FORTRESS_DESTROY_BONUS = 500;
+export const HOME_OF_A_BOSS_RESPAWN_HOURS = 24;
+export const HOME_OF_A_BOSS_BUFF_HOURS = 12;
+export const HOME_OF_A_BOSS_BUFF_MULTIPLIER = 1.25;
 export const NPC_SYSTEM_USER_EMAIL = "npc@project-a.local";
 export const HOME_OF_A_TILE_ID = "20:15";
 export const HOME_OF_A_POINT_INCOME = 17;
@@ -53,6 +56,20 @@ export function getHomeOfAArmyDrainPerTick({
     HOME_OF_A_ARMY_DRAIN_BASE +
     heldTicks * HOME_OF_A_ARMY_DRAIN_INCREASE_PER_TICK
   );
+}
+
+export function getHomeOfABossHealth(killCount: number) {
+  const normalizedKillCount = Math.max(0, Math.floor(killCount));
+  const healthLadder = [10_000, 20_000, 50_000, 100_000] as const;
+
+  return (
+    healthLadder[normalizedKillCount] ??
+    100_000 + (normalizedKillCount - 3) * 50_000
+  );
+}
+
+export function getHomeOfABossReward(maxHealth: number) {
+  return Math.max(0, Math.floor(maxHealth / 4));
 }
 
 export const UNIT_SPRITE_VARIANTS = [

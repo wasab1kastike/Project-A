@@ -77,6 +77,8 @@ import {
   ARCADE_UNIT_LOOT_BOX_SKINS_LEGACY,
   FORTRESS_LEVEL_UP_COSTS,
   getActiveLocationShuffleCost,
+  getHomeOfABossHealth,
+  getHomeOfABossReward,
   MAX_FORTRESS_LEVEL,
   UNIT_SPRITE_VARIANTS,
 } from "./constants";
@@ -285,6 +287,15 @@ test("contextual action hint points idle army at active battles before economy c
 
   assert.equal(hint.label, "Reinforce");
   assert.equal(hint.tone, "opportunity");
+});
+
+test("Home of A daily boss health and reward scale by kill count", () => {
+  assert.deepEqual(
+    [0, 1, 2, 3, 4, 5].map((killCount) => getHomeOfABossHealth(killCount)),
+    [10_000, 20_000, 50_000, 100_000, 150_000, 200_000]
+  );
+  assert.equal(getHomeOfABossReward(10_000), 2_500);
+  assert.equal(getHomeOfABossReward(50_000), 12_500);
 });
 
 async function getFortressLocationShuffleCount(
@@ -1033,6 +1044,7 @@ test("owned tile attack creates a targetTileId battlefield", async (context) => 
     now: new Date("2026-04-20T12:01:00.000Z"),
     db: prisma,
   });
+  assert.ok(battlefield.battlefieldId);
 
   const reloaded = await prisma.battlefield.findUniqueOrThrow({
     where: { id: battlefield.battlefieldId },
@@ -1472,6 +1484,7 @@ test("reinforcement travels before joining a battlefield", async (context) => {
     now: new Date("2026-04-20T12:01:00.000Z"),
     db: prisma,
   });
+  assert.ok(battlefield.battlefieldId);
   const unit = await prisma.attackUnit.findFirstOrThrow({
     where: { reinforcementBattlefieldId: battlefield.battlefieldId },
   });

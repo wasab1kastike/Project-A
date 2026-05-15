@@ -13,14 +13,15 @@ import {
 import { prisma } from "@/lib/prisma";
 import { ensureOpenRegistrationCycle } from "./bootstrap";
 import {
-  HOME_OF_A_POINT_INCOME,
   HOME_OF_A_TILE_ID,
-  MEGA_FORTRESS_DESTROY_BONUS,
-  MEGA_FORTRESS_HEALTH,
+  HOME_OF_A_BOSS_BUFF_HOURS,
+  HOME_OF_A_BOSS_BUFF_MULTIPLIER,
+  HOME_OF_A_BOSS_RESPAWN_HOURS,
   ACTIVE_DURATION_HOURS,
   TESTING_DURATION_HOURS,
   TESTING_ENDS_BEFORE_ACTIVE_HOURS,
-  getHomeOfAArmyDrainPerTick,
+  getHomeOfABossHealth,
+  getHomeOfABossReward,
 } from "./constants";
 import { mintSeasonArcadeCoins } from "./arcade";
 import {
@@ -34,7 +35,6 @@ import {
   ensureCurrentMapLayout,
   ensureActiveCycleMegaFortress,
   ensureMegaFortress,
-  reshuffleActiveFortressPositions,
   ensureNpcSystemUser,
 } from "./mega-fortress";
 import { getAttackArrivalAt } from "./attacks";
@@ -119,6 +119,22 @@ const HOME_OF_A_COMPENSATION_BODY =
 const HOME_OF_A_COMPENSATION_ACTIVE_STARTED_BEFORE = new Date(
   "2026-05-14T00:00:00.000Z"
 );
+
+function getHomeOfABossDefeatAnnouncement({
+  fortressName,
+  commanderName,
+  reward,
+  buffHours,
+  respawnHours,
+}: {
+  fortressName: string;
+  commanderName: string;
+  reward: number;
+  buffHours: number;
+  respawnHours: number;
+}) {
+  return `HOME OF A HAS BEEN BONKED: ${fortressName} dealt the most damage, so ${commanderName} gets ${reward} points, ${reward} food, ${reward} army, and ${buffHours} hours of suspiciously divine swagger. A is now lying down for ${respawnHours} hours and insisting this was all part of the plan.`;
+}
 
 async function ensureEternalGoblinsAnnouncement({
   db,
@@ -735,12 +751,19 @@ function getLastDueTickAt(
   return lastDueTickAt;
 }
 
-function getMegaFortressDestroyReward(destroyCount: number) {
-  return MEGA_FORTRESS_DESTROY_BONUS * (destroyCount + 1);
-}
-
-function getNextMegaFortressHealth(destroyCount: number) {
-  return MEGA_FORTRESS_HEALTH * (destroyCount + 2);
+function hasHomeOfABossBuff(
+  activations: Array<{
+    kind: RaceAbilityKind;
+    activeFrom: Date;
+    activeUntil: Date;
+  }>,
+  tickAt: Date
+) {
+  return isRaceAbilityActive(
+    activations,
+    RaceAbilityKind.HOME_OF_A_BOSS_BUFF,
+    tickAt
+  );
 }
 
 async function restartEmptyRegistrationCycle(
@@ -1048,6 +1071,7 @@ async function completeTestingCycle(
         winnerId: null,
         crownedFortressId: null,
         upgradesUnlockedAt: null,
+        homeOfABossRespawnsAt: null,
         megaFortressDestroyCount: 0,
       },
     });
@@ -1368,6 +1392,7 @@ async function processCycleTick(
       activeEndsAt: true,
       upgradesUnlockedAt: true,
       crownedFortressId: true,
+      homeOfABossRespawnsAt: true,
       megaFortressDestroyCount: true,
     },
   });
@@ -1412,6 +1437,30 @@ async function processCycleTick(
     db: db,
     cycleId,
   });
+
+  if (cycle.homeOfABossRespawnsAt && cycle.homeOfABossRespawnsAt <= tickAt) {
+    const respawnHealth = getHomeOfABossHealth(cycle.megaFortressDestroyCount);
+
+    await db.fortress.updateMany({
+      where: {
+        cycleId,
+        fortressKind: FortressKind.MEGA,
+        isNpc: true,
+      },
+      data: {
+        health: respawnHealth,
+        maxHealth: respawnHealth,
+      },
+    });
+    await db.cycle.update({
+      where: {
+        id: cycleId,
+      },
+      data: {
+        homeOfABossRespawnsAt: null,
+      },
+    });
+  }
 
   const firstTickAt = getFirstTickAt(gameplayStartedAt);
   const lastDueTickAt = getLastDueTickAt(
@@ -2583,6 +2632,12 @@ async function processCycleTick(
           defenderDbLevel: 0,
           defenderHasCastle: false,
           defenderRace: null,
+          attackPowerMultiplier: hasHomeOfABossBuff(
+            targetAttacker.raceAbilityActivations,
+            tickAt
+          )
+            ? HOME_OF_A_BOSS_BUFF_MULTIPLIER
+            : 1,
           defenderPoints: 0,
           defenderFood: 0,
         });
@@ -2794,6 +2849,270 @@ async function processCycleTick(
     if (target?.isNpc) {
       const targetUnits = getPendingTargetUnits(target.id);
 
+      if (target.fortressKind === FortressKind.MEGA) {
+        if ((currentHealth.get(target.id) ?? target.health) <= 0) {
+          for (const targetUnit of targetUnits) {
+            const targetAttacker = fortressLookup.get(
+              targetUnit.attackerFortressId
+            );
+            const attackerReturned = targetUnit.armyAmount;
+
+            if (targetAttacker && attackerReturned > 0) {
+              const returnArrivesAt = getAttackArrivalAt({
+                launchedAt: tickAt,
+                origin: {
+                  mapX: target.mapX,
+                  mapY: target.mapY,
+                },
+                target: {
+                  mapX: targetAttacker.mapX,
+                  mapY: targetAttacker.mapY,
+                },
+                attackerRace: getEffectiveRace(targetAttacker),
+                raceBuffTier: getFortressRaceBuffTier(targetAttacker),
+                speedMultiplier:
+                  getDwarfSpeedMultiplier(targetAttacker) *
+                  getOrkSpeedMultiplier(targetAttacker),
+              });
+
+              await db.attackUnit.update({
+                where: {
+                  id: targetUnit.id,
+                },
+                data: {
+                  recalledAt: tickAt,
+                  returnOriginMapX: target.mapX,
+                  returnOriginMapY: target.mapY,
+                  arrivesAt: returnArrivesAt,
+                  defenderArmyAtBattleStart: null,
+                  resolvedAttackPower: 0,
+                  resolvedDefensePower: 0,
+                  attackerSurvivors: targetUnit.armyAmount,
+                  attackerRetired: 0,
+                  attackerReturned,
+                  defenderLosses: 0,
+                  pointsLooted: 0,
+                  foodLooted: 0,
+                  armyLooted: 0,
+                },
+              });
+            }
+
+            resolvedBatchAttackUnitIds.add(targetUnit.id);
+          }
+
+          continue;
+        }
+
+        for (const targetUnit of targetUnits) {
+          const targetAttacker = fortressLookup.get(
+            targetUnit.attackerFortressId
+          );
+          const attackerReturned = targetUnit.armyAmount;
+
+          if (!targetAttacker) {
+            continue;
+          }
+
+          const targetHealth = currentHealth.get(target.id) ?? target.health;
+          const targetLoss = Math.min(
+            targetHealth,
+            Math.floor(
+              targetUnit.armyAmount *
+                getFortressAttackDamage(targetAttacker.level) *
+                (hasHomeOfABossBuff(targetAttacker.raceAbilityActivations, tickAt)
+                  ? HOME_OF_A_BOSS_BUFF_MULTIPLIER
+                  : 1)
+            )
+          );
+
+          if (targetLoss > 0) {
+            currentHealth.set(target.id, targetHealth - targetLoss);
+            await db.homeOfABossDamageContribution.upsert({
+              where: {
+                cycleId_bossGeneration_fortressId: {
+                  cycleId,
+                  bossGeneration: cycle.megaFortressDestroyCount,
+                  fortressId: targetAttacker.id,
+                },
+              },
+              create: {
+                cycleId,
+                bossGeneration: cycle.megaFortressDestroyCount,
+                fortressId: targetAttacker.id,
+                damage: targetLoss,
+                firstDamagedAt: tickAt,
+                lastDamagedAt: tickAt,
+              },
+              update: {
+                damage: {
+                  increment: targetLoss,
+                },
+                lastDamagedAt: tickAt,
+              },
+            });
+            scoreEvents.push({
+              cycleId,
+              fortressId: target.id,
+              actorId: targetAttacker.ownerId,
+              targetFortressId: target.id,
+              eventType: ScoreEventType.MEGA_DAMAGE,
+              delta: -targetLoss,
+              createdAt: tickAt,
+            });
+          }
+
+          if (attackerReturned > 0) {
+            const returnArrivesAt = getAttackArrivalAt({
+              launchedAt: tickAt,
+              origin: {
+                mapX: target.mapX,
+                mapY: target.mapY,
+              },
+              target: {
+                mapX: targetAttacker.mapX,
+                mapY: targetAttacker.mapY,
+              },
+              attackerRace: getEffectiveRace(targetAttacker),
+              raceBuffTier: getFortressRaceBuffTier(targetAttacker),
+              speedMultiplier:
+                getDwarfSpeedMultiplier(targetAttacker) *
+                getOrkSpeedMultiplier(targetAttacker),
+            });
+
+            await db.attackUnit.update({
+              where: {
+                id: targetUnit.id,
+              },
+              data: {
+                recalledAt: tickAt,
+                returnOriginMapX: target.mapX,
+                returnOriginMapY: target.mapY,
+                arrivesAt: returnArrivesAt,
+                defenderArmyAtBattleStart: null,
+                resolvedAttackPower: targetLoss,
+                resolvedDefensePower: 0,
+                attackerSurvivors: targetUnit.armyAmount,
+                attackerRetired: 0,
+                attackerReturned,
+                defenderLosses: 0,
+                pointsLooted: 0,
+                foodLooted: 0,
+                armyLooted: 0,
+              },
+            });
+          }
+
+          resolvedBatchAttackUnitIds.add(targetUnit.id);
+        }
+
+        if ((currentHealth.get(target.id) ?? target.health) <= 0) {
+          const winnerContribution =
+            await db.homeOfABossDamageContribution.findFirst({
+              where: {
+                cycleId,
+                bossGeneration: cycle.megaFortressDestroyCount,
+              },
+              orderBy: [
+                { damage: "desc" },
+                { firstDamagedAt: "asc" },
+                { fortressId: "asc" },
+              ],
+              include: {
+                fortress: {
+                  select: {
+                    id: true,
+                    ownerId: true,
+                    name: true,
+                    commanderName: true,
+                    points: true,
+                    food: true,
+                    army: true,
+                  },
+                },
+              },
+            });
+
+          if (winnerContribution) {
+            const reward = getHomeOfABossReward(target.maxHealth);
+
+            currentPoints.set(
+              winnerContribution.fortressId,
+              (currentPoints.get(winnerContribution.fortressId) ??
+                winnerContribution.fortress.points) + reward
+            );
+            currentFood.set(
+              winnerContribution.fortressId,
+              (currentFood.get(winnerContribution.fortressId) ??
+                winnerContribution.fortress.food) + reward
+            );
+            currentArmy.set(
+              winnerContribution.fortressId,
+              (currentArmy.get(winnerContribution.fortressId) ??
+                winnerContribution.fortress.army) + reward
+            );
+            scoreEvents.push({
+              cycleId,
+              fortressId: winnerContribution.fortressId,
+              actorId: winnerContribution.fortress.ownerId,
+              targetFortressId: target.id,
+              eventType: ScoreEventType.MEGA_DESTROY_BONUS,
+              delta: reward,
+              createdAt: tickAt,
+            });
+            await db.raceAbilityActivation.create({
+              data: {
+                fortressId: winnerContribution.fortressId,
+                kind: RaceAbilityKind.HOME_OF_A_BOSS_BUFF,
+                activeFrom: tickAt,
+                activeUntil: addHours(tickAt, HOME_OF_A_BOSS_BUFF_HOURS),
+                usedAt: tickAt,
+                expiresAt: addHours(tickAt, HOME_OF_A_BOSS_BUFF_HOURS),
+                targetFortressId: target.id,
+              },
+            });
+            const systemUser = await ensureNpcSystemUser(db);
+            await db.chatMessage.create({
+              data: {
+                cycleId,
+                authorId: systemUser.id,
+                type: ChatMessageType.TEXT,
+                body: getHomeOfABossDefeatAnnouncement({
+                  fortressName: winnerContribution.fortress.name,
+                  commanderName: winnerContribution.fortress.commanderName,
+                  reward,
+                  buffHours: HOME_OF_A_BOSS_BUFF_HOURS,
+                  respawnHours: HOME_OF_A_BOSS_RESPAWN_HOURS,
+                }),
+                createdAt: tickAt,
+              },
+            });
+            await db.cycle.update({
+              where: {
+                id: cycleId,
+              },
+              data: {
+                crownedFortressId:
+                  cycle.crownedFortressId ?? winnerContribution.fortressId,
+                upgradesUnlockedAt: cycle.upgradesUnlockedAt ?? tickAt,
+                homeOfABossRespawnsAt: addHours(
+                  tickAt,
+                  HOME_OF_A_BOSS_RESPAWN_HOURS
+                ),
+                megaFortressDestroyCount: {
+                  increment: 1,
+                },
+              },
+            });
+          }
+
+          currentHealth.set(target.id, 0);
+          destroyedMegaTargets.add(target.id);
+        }
+
+        continue;
+      }
+
       for (const targetUnit of targetUnits) {
         const targetAttacker = fortressLookup.get(
           targetUnit.attackerFortressId
@@ -2862,145 +3181,6 @@ async function processCycleTick(
         }
 
         resolvedBatchAttackUnitIds.add(targetUnit.id);
-      }
-
-      if (destroyedMegaTargets.has(target.id)) {
-        continue;
-      }
-
-      let destroyer: {
-        unitId: string;
-        attacker: NonNullable<typeof attacker>;
-      } | null = null;
-      for (const targetUnit of targetUnits) {
-        const targetAttacker = fortressLookup.get(
-          targetUnit.attackerFortressId
-        );
-
-        if (!targetAttacker) {
-          continue;
-        }
-
-        const targetHealth = currentHealth.get(target.id) ?? target.health;
-        const targetLoss = Math.min(
-          targetHealth,
-          targetUnit.armyAmount * getFortressAttackDamage(targetAttacker.level)
-        );
-
-        if (targetLoss <= 0) {
-          continue;
-        }
-
-        const nextHealth = targetHealth - targetLoss;
-        currentHealth.set(target.id, nextHealth);
-
-        if (nextHealth <= 0 && !destroyer) {
-          destroyer = {
-            unitId: targetUnit.id,
-            attacker: targetAttacker,
-          };
-        }
-
-        scoreEvents.push({
-          cycleId,
-          fortressId: target.id,
-          actorId: targetAttacker.ownerId,
-          targetFortressId: target.id,
-          eventType: ScoreEventType.MEGA_DAMAGE,
-          delta: -targetLoss,
-          createdAt: tickAt,
-        });
-      }
-
-      if ((currentHealth.get(target.id) ?? target.health) <= 0) {
-        if (!destroyer) {
-          continue;
-        }
-
-        const destroyCount = cycle.megaFortressDestroyCount;
-        const destroyReward = getMegaFortressDestroyReward(destroyCount);
-        const nextMegaHealth = getNextMegaFortressHealth(destroyCount);
-        const unlocksUpgrades = !cycle.upgradesUnlockedAt;
-        const attackerPoints =
-          (currentPoints.get(destroyer.attacker.id) ??
-            destroyer.attacker.points) + destroyReward;
-        const attackerFood =
-          (currentFood.get(destroyer.attacker.id) ?? destroyer.attacker.food) +
-          destroyReward;
-
-        currentPoints.set(destroyer.attacker.id, attackerPoints);
-        currentFood.set(destroyer.attacker.id, attackerFood);
-        currentHealth.set(target.id, nextMegaHealth);
-        destroyedMegaTargets.add(target.id);
-
-        scoreEvents.push({
-          cycleId,
-          fortressId: destroyer.attacker.id,
-          actorId: destroyer.attacker.ownerId,
-          targetFortressId: target.id,
-          eventType: ScoreEventType.MEGA_DESTROY_BONUS,
-          delta: destroyReward,
-          createdAt: tickAt,
-        });
-
-        const upgradeData: Prisma.FortressUpdateInput = {};
-
-        if (unlocksUpgrades && canFortressLevelUp(destroyer.attacker.level)) {
-          upgradeData.level = destroyer.attacker.level + 1;
-          scoreEvents.push({
-            cycleId,
-            fortressId: destroyer.attacker.id,
-            actorId: destroyer.attacker.ownerId,
-            targetFortressId: target.id,
-            eventType: ScoreEventType.FORTRESS_UPGRADE_SLAYER_BONUS,
-            delta: 0,
-            createdAt: tickAt,
-          });
-        }
-
-        await db.cycle.update({
-          where: {
-            id: cycleId,
-          },
-          data: {
-            crownedFortressId: cycle.crownedFortressId ?? destroyer.attacker.id,
-            upgradesUnlockedAt: cycle.upgradesUnlockedAt ?? tickAt,
-            megaFortressDestroyCount: {
-              increment: 1,
-            },
-          },
-        });
-
-        if (Object.keys(upgradeData).length > 0) {
-          await db.fortress.update({
-            where: {
-              id: destroyer.attacker.id,
-            },
-            data: upgradeData,
-          });
-        }
-
-        await db.fortress.update({
-          where: {
-            id: target.id,
-          },
-          data: {
-            health: nextMegaHealth,
-            maxHealth: nextMegaHealth,
-          },
-        });
-
-        await reshuffleActiveFortressPositions({
-          db: db,
-          cycleId,
-          seed: buildFortressSpawnSeed({
-            cycleId,
-            activeStartedAt: gameplayStartedAt,
-            tickAt,
-            purpose: "tick:mega-destroy-reshuffle",
-            entropy: destroyer.unitId,
-          }),
-        });
       }
 
       continue;
@@ -3103,6 +3283,14 @@ async function processCycleTick(
       attackerRace === "ORKS"
         ? getOrkBossOrderCarryMultiplier(attacker.orkBossOrders, tickAt)
         : 1;
+    const attackerHomeBossBuff = hasHomeOfABossBuff(
+      attacker.raceAbilityActivations,
+      tickAt
+    );
+    const defenderHomeBossBuff = hasHomeOfABossBuff(
+      target.raceAbilityActivations,
+      tickAt
+    );
     const outcome = calculateRaidOutcome({
       attackArmy: unit.armyAmount,
       attackerRace,
@@ -3117,12 +3305,14 @@ async function processCycleTick(
         attackerOrkAttackInvestmentMultiplier *
         attackerOrkBossAttackMultiplier *
         dwarfAttackMultiplier *
-        (attackerDeepMiningCombat ? DWARF_DEEP_MINING_COMBAT_MULTIPLIER : 1),
+        (attackerDeepMiningCombat ? DWARF_DEEP_MINING_COMBAT_MULTIPLIER : 1) *
+        (attackerHomeBossBuff ? HOME_OF_A_BOSS_BUFF_MULTIPLIER : 1),
       defensePowerMultiplier:
         (defenderWaaagh ? 4 : 1) *
         defenderOrkBossDefenseMultiplier *
         dwarfDefenseMultiplier *
-        (defenderDeepMiningCombat ? DWARF_DEEP_MINING_COMBAT_MULTIPLIER : 1),
+        (defenderDeepMiningCombat ? DWARF_DEEP_MINING_COMBAT_MULTIPLIER : 1) *
+        (defenderHomeBossBuff ? HOME_OF_A_BOSS_BUFF_MULTIPLIER : 1),
       preventAttackerCasualties: attackerStim,
       preventDefenderLosses: defenderStim,
       carryCapacityMultiplier: attackerOrkCarryMultiplier,
@@ -3349,138 +3539,6 @@ async function processCycleTick(
     });
   }
 
-  const homeGarrisonByFortressId = new Map(
-    (garrisonsByTileId.get(HOME_OF_A_TILE_ID) ?? []).map((garrison) => [
-      garrison.fortressId,
-      garrison,
-    ])
-  );
-  const homeOfAHolders = await db.homeOfAHolder.findMany({
-    where: {
-      cycleId,
-    },
-    select: {
-      fortressId: true,
-      bannerFortressId: true,
-      contributionWeight: true,
-      capturedAt: true,
-    },
-  });
-  const activeHomeOfAHolders = homeOfAHolders.filter(
-    (holder) => (homeGarrisonByFortressId.get(holder.fortressId)?.army ?? 0) > 0
-  );
-  const homeBannerFortressId =
-    activeHomeOfAHolders[0]?.bannerFortressId ?? null;
-
-  if (homeBannerFortressId) {
-    const sharedPool = Math.floor(HOME_OF_A_POINT_INCOME / 2);
-    const bannerBase = HOME_OF_A_POINT_INCOME - sharedPool;
-    const totalWeight = activeHomeOfAHolders.reduce(
-      (sum, holder) => sum + Math.max(0, holder.contributionWeight),
-      0
-    );
-    const homeIncomeByFortressId = new Map<string, number>([
-      [homeBannerFortressId, bannerBase],
-    ]);
-    let distributedSharedPoints = 0;
-
-    if (totalWeight > 0) {
-      for (const holder of activeHomeOfAHolders) {
-        const weightedShare = Math.floor(
-          (sharedPool * Math.max(0, holder.contributionWeight)) / totalWeight
-        );
-
-        if (weightedShare <= 0) {
-          continue;
-        }
-
-        distributedSharedPoints += weightedShare;
-        homeIncomeByFortressId.set(
-          holder.fortressId,
-          (homeIncomeByFortressId.get(holder.fortressId) ?? 0) + weightedShare
-        );
-      }
-    }
-
-    const remainder = sharedPool - distributedSharedPoints;
-
-    if (remainder > 0) {
-      homeIncomeByFortressId.set(
-        homeBannerFortressId,
-        (homeIncomeByFortressId.get(homeBannerFortressId) ?? 0) + remainder
-      );
-    }
-
-    for (const [fortressId, income] of homeIncomeByFortressId) {
-      if (income <= 0 || !fortressLookup.has(fortressId)) {
-        continue;
-      }
-
-      currentPoints.set(
-        fortressId,
-        (currentPoints.get(fortressId) ?? 0) + income
-      );
-      scoreEvents.push({
-        cycleId,
-        fortressId,
-        eventType: ScoreEventType.GROW_TICK,
-        delta: income,
-        createdAt: tickAt,
-      });
-    }
-
-    for (const holder of activeHomeOfAHolders) {
-      const garrison = homeGarrisonByFortressId.get(holder.fortressId);
-
-      if (!garrison) {
-        continue;
-      }
-
-      const armyDrain = getHomeOfAArmyDrainPerTick({
-        capturedAt: holder.capturedAt,
-        tickAt,
-      });
-      const drainedArmy = Math.min(garrison.army, armyDrain);
-      const nextArmy = Math.max(0, garrison.army - drainedArmy);
-      const nextContributionWeight = Math.max(
-        0,
-        Math.min(holder.contributionWeight, garrison.army) - drainedArmy
-      );
-
-      await db.fortressGarrison.update({
-        where: {
-          id: garrison.id,
-        },
-        data: {
-          army: nextArmy,
-        },
-      });
-
-      if (nextContributionWeight <= 0) {
-        await db.homeOfAHolder.delete({
-          where: {
-            cycleId_fortressId: {
-              cycleId,
-              fortressId: holder.fortressId,
-            },
-          },
-        });
-      } else if (nextContributionWeight !== holder.contributionWeight) {
-        await db.homeOfAHolder.update({
-          where: {
-            cycleId_fortressId: {
-              cycleId,
-              fortressId: holder.fortressId,
-            },
-          },
-          data: {
-            contributionWeight: nextContributionWeight,
-          },
-        });
-      }
-    }
-  }
-
   // ========================================================================
   // FORTRESS PRODUCTION PHASE
   // ========================================================================
@@ -3530,22 +3588,23 @@ async function processCycleTick(
           RaceAbilityKind.DWARF_ECONOMY_SURGE,
           tickAt
         ));
+    const homeBossEconomyBuff = hasHomeOfABossBuff(
+      fortress.raceAbilityActivations,
+      tickAt
+    );
+    const economyMultiplier =
+      (economySurged ? DWARF_DEEP_MINING_ECONOMY_MULTIPLIER : 1) *
+      (homeBossEconomyBuff ? HOME_OF_A_BOSS_BUFF_MULTIPLIER : 1);
 
     // Apply race ability modifiers to production
     // DWARF_ECONOMY_HALT: reduces all production to 0
     // DWARF_ECONOMY_SURGE: multiplies production by DWARF_DEEP_MINING_ECONOMY_MULTIPLIER
     const producedGold = economyHalted
       ? 0
-      : Math.floor(
-          production.goldProduced *
-            (economySurged ? DWARF_DEEP_MINING_ECONOMY_MULTIPLIER : 1)
-        );
+      : Math.floor(production.goldProduced * economyMultiplier);
     const producedFood = economyHalted
       ? 0
-      : Math.floor(
-          production.foodProduced *
-            (economySurged ? DWARF_DEEP_MINING_ECONOMY_MULTIPLIER : 1)
-        );
+      : Math.floor(production.foodProduced * economyMultiplier);
     const recruitmentResult = economyHalted
       ? {
           unitsCreated: 0,
@@ -3555,10 +3614,7 @@ async function processCycleTick(
         }
       : processRecruitmentQueue(
           currentRecruitmentQueue.get(fortress.id) ?? fortress.recruitmentQueue,
-          Math.floor(
-            fortress.recruitersAssigned *
-              (economySurged ? DWARF_DEEP_MINING_ECONOMY_MULTIPLIER : 1)
-          ),
+          Math.floor(fortress.recruitersAssigned * economyMultiplier),
           getEffectiveRace(fortress)
         );
     const armyProduced = recruitmentResult.unitsCreated;

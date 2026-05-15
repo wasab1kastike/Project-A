@@ -160,9 +160,9 @@ The game is now a castle-economy and battlefield-control loop:
 - miners produce gold, farmers produce food, and recruiters process queued army orders instead of passively creating army
 - recruiting army costs 1 gold per unit up front; queued units complete over ticks based on assigned recruiters and race bonuses
 - active army, not queued army, consumes food upkeep at 0.01 food per unit per tick; if upkeep cannot be paid, food falls to zero and active army loses 2% that tick
-- neutral tiles are acquired through connected 10-minute claim projects, while owned tiles and Home of A create battlefields that players can attack or reinforce
+- neutral tiles are acquired through connected 10-minute claim projects, while owned tiles create battlefields that players can attack or reinforce
 - direct attacks and battlefield reinforcements both count against the player's simultaneous outbound attack cap
-- Home of A is conquered through the center tile, starts against neutral defense, pays about 1k points per hour to holders, and drains each holder for 10 army on the first held tick, rising by 1 each tick held
+- Home of A is a center-tile daily boss: players damage it through the tile action, the top damage dealer on kill receives points, food, army, and a 12-hour +25% combat/economy buff, and the boss respawns 24 hours later with scaled HP
 - battle results are resolved after economy updates so loot, casualties, rewards, and tile ownership are persisted coherently
 - battle-log badges show unread/new reports rather than the total number of historical entries
 - Render Cron runs `npm run game:tick` once per minute in production

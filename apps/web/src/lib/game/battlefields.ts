@@ -4,13 +4,15 @@ import {
   OrkScrapEventReason,
   Prisma,
   PrismaClient,
+  RaceAbilityKind,
   ScoreEventType,
 } from "@/lib/prisma-client";
 import { calculateRaidOutcome } from "./balance";
 import { GameError } from "./errors";
 import { countCastleSpecializations } from "./specializations";
 import { launchAttackUnit } from "./attack-units";
-import { getDwarfGrudgeMultiplier } from "./race-buffs";
+import { getDwarfGrudgeMultiplier, isRaceAbilityActive } from "./race-buffs";
+import { HOME_OF_A_BOSS_BUFF_MULTIPLIER } from "./constants";
 import { getTileById, isHomeOfATile } from "./territory";
 import { getHomeOfAMapPosition } from "./mega-fortress";
 import { getMaxSimultaneousAttacks } from "./upgrades";
@@ -647,6 +649,26 @@ export async function processActiveBattlefields({
           armyRemaining: true,
           armyCommitted: true,
           maintenanceDrains: true,
+          fortress: {
+            select: {
+              raceAbilityActivations: {
+                where: {
+                  kind: RaceAbilityKind.HOME_OF_A_BOSS_BUFF,
+                  activeFrom: {
+                    lte: tickAt,
+                  },
+                  activeUntil: {
+                    gt: tickAt,
+                  },
+                },
+                select: {
+                  kind: true,
+                  activeFrom: true,
+                  activeUntil: true,
+                },
+              },
+            },
+          },
         },
       },
     },
@@ -734,17 +756,52 @@ export async function processActiveBattlefields({
               tickAt
             )
           : 1;
+    const getParticipantHomeBossBuffMultiplier = (
+      participants: typeof battlefield.participants
+    ) => {
+      const totalArmy = participants.reduce(
+        (sum, participant) => sum + participant.armyRemaining,
+        0
+      );
+
+      if (totalArmy <= 0) {
+        return 1;
+      }
+
+      const effectiveArmy = participants.reduce((sum, participant) => {
+        const buffed = isRaceAbilityActive(
+          participant.fortress.raceAbilityActivations,
+          RaceAbilityKind.HOME_OF_A_BOSS_BUFF,
+          tickAt
+        );
+
+        return (
+          sum +
+          participant.armyRemaining *
+            (buffed ? HOME_OF_A_BOSS_BUFF_MULTIPLIER : 1)
+        );
+      }, 0);
+
+      return effectiveArmy / totalArmy;
+    };
+    const attackerHomeBossBuffMultiplier =
+      getParticipantHomeBossBuffMultiplier(attackerParticipants);
+    const defenderHomeBossBuffMultiplier =
+      getParticipantHomeBossBuffMultiplier(defenderParticipants);
     const attrition = getBattlefieldAttrition({
       battlefieldId: battlefield.id,
       tickAt,
       attackerArmy: attackerArmyBefore,
       defenderArmy: defenderArmyBefore,
       attackerPowerMultiplier:
-        attackerGrudgeMultiplier * attackerBossOrderMultiplier,
+        attackerGrudgeMultiplier *
+        attackerBossOrderMultiplier *
+        attackerHomeBossBuffMultiplier,
       defenderPowerMultiplier:
         defenderGrudgeMultiplier *
         defenderTileDefenseMultiplier *
-        defenderBossOrderMultiplier,
+        defenderBossOrderMultiplier *
+        defenderHomeBossBuffMultiplier,
     });
     const attackerParticipantLosses = distributeLosses(
       attackerParticipants,
@@ -847,11 +904,14 @@ export async function processActiveBattlefields({
             defenderGold: battlefield.targetFortress?.gold ?? 0,
             defenderFood: battlefield.targetFortress?.food ?? 0,
             attackPowerMultiplier:
-              attackerGrudgeMultiplier * attackerBossOrderMultiplier,
+              attackerGrudgeMultiplier *
+              attackerBossOrderMultiplier *
+              attackerHomeBossBuffMultiplier,
             defensePowerMultiplier:
               defenderGrudgeMultiplier *
               defenderTileDefenseMultiplier *
-              defenderBossOrderMultiplier,
+              defenderBossOrderMultiplier *
+              defenderHomeBossBuffMultiplier,
           })
         : calculateRaidOutcome({
             attackArmy: attackerArmyAfter,
@@ -864,11 +924,14 @@ export async function processActiveBattlefields({
                 )
               : undefined,
             attackPowerMultiplier:
-              attackerGrudgeMultiplier * attackerBossOrderMultiplier,
+              attackerGrudgeMultiplier *
+              attackerBossOrderMultiplier *
+              attackerHomeBossBuffMultiplier,
             defensePowerMultiplier:
               defenderGrudgeMultiplier *
               defenderTileDefenseMultiplier *
-              defenderBossOrderMultiplier,
+              defenderBossOrderMultiplier *
+              defenderHomeBossBuffMultiplier,
             defenderGold: battlefield.targetFortress?.gold ?? 0,
             defenderFood: battlefield.targetFortress?.food ?? 0,
           });
@@ -1038,7 +1101,9 @@ export async function processActiveBattlefields({
     }
 
     if (battlefield.targetTileId !== null) {
-      if (winnerSide === BattlefieldSide.ATTACKER) {
+      const isHomeTileBattle = isHomeOfATile(battlefield.targetTileId);
+
+      if (!isHomeTileBattle && winnerSide === BattlefieldSide.ATTACKER) {
         await db.mapHexOwnership.upsert({
           where: {
             cycleId_tileId: {
@@ -1068,44 +1133,47 @@ export async function processActiveBattlefields({
           ? attackerParticipantLosses.lossesByParticipantId
           : defenderParticipantLosses.lossesByParticipantId;
 
-      // Create garrisons for each winning participant with surviving army.
-      for (const participant of garrisonParticipants) {
-        const surviving = Math.max(
-          0,
-          (participant.armyRemaining ?? 0) -
-            (garrisonLosses.get(participant.id) ?? 0)
-        );
+      if (!isHomeTileBattle) {
+        // Create garrisons for each winning participant with surviving army.
+        for (const participant of garrisonParticipants) {
+          const surviving = Math.max(
+            0,
+            (participant.armyRemaining ?? 0) -
+              (garrisonLosses.get(participant.id) ?? 0)
+          );
 
-        if (surviving > 0) {
-          await db.fortressGarrison.upsert({
-            where: {
-              battlefieldId_fortressId: {
+          if (surviving > 0) {
+            await db.fortressGarrison.upsert({
+              where: {
+                battlefieldId_fortressId: {
+                  battlefieldId: battlefield.id,
+                  fortressId: participant.fortressId,
+                },
+              },
+              create: {
+                cycleId,
                 battlefieldId: battlefield.id,
                 fortressId: participant.fortressId,
+                tileId: battlefield.targetTileId,
+                army: surviving,
+                maintenanceDrains: participant.maintenanceDrains,
               },
-            },
-            create: {
-              cycleId,
-              battlefieldId: battlefield.id,
-              fortressId: participant.fortressId,
-              tileId: battlefield.targetTileId,
-              army: surviving,
-              maintenanceDrains: participant.maintenanceDrains,
-            },
-            update: {
-              army: {
-                increment: surviving,
+              update: {
+                army: {
+                  increment: surviving,
+                },
+                maintenanceDrains: participant.maintenanceDrains,
               },
-              maintenanceDrains: participant.maintenanceDrains,
-            },
-          });
+            });
+          }
         }
       }
 
       if (
         winnerSide === BattlefieldSide.ATTACKER &&
         battlefield.attackerBannerFortress &&
-        isRealOrkPlayerFortress(battlefield.attackerBannerFortress)
+        isRealOrkPlayerFortress(battlefield.attackerBannerFortress) &&
+        !isHomeTileBattle
       ) {
         await applyOrkScrapDelta({
           db,
@@ -1124,42 +1192,9 @@ export async function processActiveBattlefields({
 
       if (
         winnerSide === BattlefieldSide.ATTACKER &&
-        isHomeOfATile(battlefield.targetTileId)
+        isHomeTileBattle
       ) {
-        await db.homeOfAHolder.deleteMany({
-          where: {
-            cycleId,
-          },
-        });
-
-        const winningWeight = winningParticipants.reduce(
-          (sum, participant) => sum + Math.max(0, participant.armyCommitted),
-          0
-        );
-        const holders =
-          winningWeight > 0
-            ? winningParticipants
-                .filter((participant) => participant.armyCommitted > 0)
-                .map((participant) => ({
-                  cycleId,
-                  fortressId: participant.fortressId,
-                  bannerFortressId: battlefield.attackerBannerFortressId,
-                  contributionWeight: participant.armyCommitted,
-                  capturedAt: tickAt,
-                }))
-            : [
-                {
-                  cycleId,
-                  fortressId: battlefield.attackerBannerFortressId,
-                  bannerFortressId: battlefield.attackerBannerFortressId,
-                  contributionWeight: 1,
-                  capturedAt: tickAt,
-                },
-              ];
-
-        await db.homeOfAHolder.createMany({
-          data: holders,
-        });
+        await db.homeOfAHolder.deleteMany({ where: { cycleId } });
       }
     }
 

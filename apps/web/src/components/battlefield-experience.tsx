@@ -274,7 +274,7 @@ function formatHeldDuration(capturedAt: Date) {
 type HomeOfAState = {
   tileId: string;
   pointIncome: number;
-  status: "NEUTRAL" | "CONTROLLED" | "CONTESTED";
+  status: "ALIVE" | "DEFEATED";
   statusLabel: string;
   incomeLabel: string;
   drainLabel: string;
@@ -296,6 +296,10 @@ type HomeOfAState = {
     isCurrentUser: boolean;
   }>;
   activeBattlefieldId: string | null;
+  bossHealth: number;
+  bossMaxHealth: number;
+  bossReward: number;
+  respawnsAt: Date | null;
   canAttack: boolean;
   attackDisabledReason: string | null;
 } | null;
@@ -1511,56 +1515,36 @@ export function BattlefieldExperience({
           </div>
           <dl className={styles.homeOfAMetrics}>
             <div>
-              <dt>Income</dt>
+              <dt>Health</dt>
+              <dd>
+                {homeOfA.bossHealth}/{homeOfA.bossMaxHealth} HP
+              </dd>
+            </div>
+            <div>
+              <dt>Reward</dt>
               <dd>{homeOfA.incomeLabel}</dd>
             </div>
             <div>
-              <dt>Current drain</dt>
+              <dt>Buff</dt>
               <dd>{homeOfA.drainLabel}</dd>
             </div>
             <div>
-              <dt>Banner</dt>
-              <dd>{homeOfA.bannerName ?? homeOfA.ownerName}</dd>
-            </div>
-            <div>
-              <dt>Holders</dt>
+              <dt>Respawn</dt>
               <dd>
-                {homeOfA.holderCount}
-                {homeOfA.isCurrentUserHolder ? " including you" : ""}
+                {homeOfA.respawnsAt
+                  ? new Date(homeOfA.respawnsAt).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+                  : "Available"}
               </dd>
             </div>
           </dl>
-          {homeOfA.holders.length > 0 ? (
-            <div className={styles.homeOfAHolderList}>
-              {homeOfA.holders.map((holder) => (
-                <article
-                  className={styles.homeOfAHolder}
-                  key={holder.fortressId}
-                >
-                  <div>
-                    <strong>
-                      {holder.fortressName}
-                      {holder.isCurrentUser ? " (you)" : ""}
-                    </strong>
-                    <span>{holder.commanderName}</span>
-                  </div>
-                  <div>
-                    <span>Weight {holder.contributionWeight}</span>
-                    <span>
-                      -{holder.currentDrainPerTick} / tick ·{" "}
-                      {formatHeldDuration(holder.capturedAt)}
-                    </span>
-                  </div>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <p className={styles.helper}>
-              {homeOfA.neutralDefenseArmy > 0
-                ? `Home of A is unclaimed. The first attackers fight ${homeOfA.neutralDefenseArmy} neutral defense before control and holder drain begin.`
-                : "Home of A is open. No holder army is defending it, so the next attackers can take control without fighting the old neutral defense."}
-            </p>
-          )}
+          <p className={styles.helper}>
+            {homeOfA.canAttack
+              ? "Send army to damage the boss. The top damage dealer when it dies receives the reward."
+              : (homeOfA.attackDisabledReason ?? "Home of A is unavailable.")}
+          </p>
         </section>
       ) : null}
 

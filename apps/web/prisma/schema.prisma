@@ -52,6 +52,7 @@ enum CastleUpgradeSpecialization {
 }
 
 enum RaceAbilityKind {
+  HOME_OF_A_BOSS_BUFF
   DWARF_DEEP_MINING_COOLDOWN
   DWARF_ECONOMY_SURGE
   DWARF_COMBAT_SURGE
@@ -263,6 +264,7 @@ model Cycle {
   winnerId                      String?
   crownedFortressId             String?
   upgradesUnlockedAt            DateTime?
+  homeOfABossRespawnsAt         DateTime?
   megaFortressDestroyCount      Int                            @default(0)
   mapLayoutVersion              Int                            @default(1)
   createdAt                     DateTime                       @default(now())
@@ -290,6 +292,7 @@ model Cycle {
   buildArcadeRuns               BuildArcadeRun[]
   arcadeTransactions            ArcadeTransaction[]
   fortressGarrisons             FortressGarrison[]
+  homeOfABossDamageContributions HomeOfABossDamageContribution[]
   history                       CycleHistory?
 
   @@index([status])
@@ -368,6 +371,7 @@ model Fortress {
   mapHexClaimProjects            MapHexClaimProject[]                @relation("MapHexClaimProjectFortress")
   homeOfAHoldings                HomeOfAHolder[]                     @relation("HomeOfAHolderFortress")
   homeOfABannerHoldings          HomeOfAHolder[]                     @relation("HomeOfABannerFortress")
+  homeOfABossDamageContributions HomeOfABossDamageContribution[]
   attackerBannerBattlefields     Battlefield[]                       @relation("BattlefieldAttackerBanner")
   defenderBannerBattlefields     Battlefield[]                       @relation("BattlefieldDefenderBanner")
   targetedBattlefields           Battlefield[]                       @relation("BattlefieldTargetFortress")
@@ -481,6 +485,24 @@ model HomeOfAHolder {
   @@unique([cycleId, fortressId])
   @@index([cycleId, bannerFortressId])
   @@index([fortressId])
+}
+
+model HomeOfABossDamageContribution {
+  id             String   @id @default(cuid())
+  cycleId        String
+  bossGeneration Int
+  fortressId     String
+  damage         Int      @default(0)
+  firstDamagedAt DateTime
+  lastDamagedAt  DateTime
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  cycle          Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress       Fortress @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+
+  @@unique([cycleId, bossGeneration, fortressId])
+  @@index([cycleId, bossGeneration, damage, firstDamagedAt])
+  @@index([fortressId, cycleId])
 }
 
 model Battlefield {

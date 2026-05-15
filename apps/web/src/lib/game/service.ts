@@ -18,9 +18,9 @@ import { prisma } from "@/lib/prisma";
 import {
   ACTIVE_PLAYER_CAP,
   ACTIVE_RENAME_COST,
-  HOME_OF_A_NEUTRAL_DEFENSE,
   HOME_OF_A_TILE_ID,
   getActiveLocationShuffleCost,
+  getHomeOfABossHealth,
 } from "./constants";
 import {
   getAttackArrivalAt,
@@ -230,7 +230,7 @@ export type AttackUnitLaunchMarker = {
 };
 
 export type AttackMapHexResult = {
-  battlefieldId: string;
+  battlefieldId: string | null;
   launchedAttackUnit: AttackUnitLaunchMarker;
 };
 
@@ -1067,7 +1067,7 @@ export async function claimNeutralMapHex({
     }
 
     if (isHomeOfATile(tileId)) {
-      throw new GameError("Home of A must be conquered, not claimed.");
+      throw new GameError("Home of A is a daily boss and cannot be claimed.");
     }
 
     const [existing, activeClaimOnTile, activeOwnClaimCount] =
@@ -1356,12 +1356,44 @@ export async function attackMapHex({
       );
     }
 
-    const neutralHomeTarget = isHomeOfA
-      ? await tx.fortress.findFirst({
+    if (isHomeOfA) {
+      const homePosition = getHomeOfAMapPosition();
+      let homeBoss = await tx.fortress.findFirst({
+        where: {
+          cycleId: cycle.id,
+          fortressKind: FortressKind.MEGA,
+          isNpc: true,
+        },
+        select: {
+          id: true,
+          name: true,
+          ownerId: true,
+          points: true,
+          army: true,
+          health: true,
+          maxHealth: true,
+          mapX: true,
+          mapY: true,
+          race: true,
+        },
+      });
+
+      if (!homeBoss) {
+        throw new GameError("Home of A is not available in this cycle yet.");
+      }
+
+      if (cycle.homeOfABossRespawnsAt && cycle.homeOfABossRespawnsAt <= now) {
+        const respawnHealth = getHomeOfABossHealth(
+          cycle.megaFortressDestroyCount
+        );
+
+        homeBoss = await tx.fortress.update({
           where: {
-            cycleId: cycle.id,
-            fortressKind: FortressKind.MEGA,
-            isNpc: true,
+            id: homeBoss.id,
+          },
+          data: {
+            health: respawnHealth,
+            maxHealth: respawnHealth,
           },
           select: {
             id: true,
@@ -1369,43 +1401,73 @@ export async function attackMapHex({
             ownerId: true,
             points: true,
             army: true,
+            health: true,
+            maxHealth: true,
             mapX: true,
             mapY: true,
             race: true,
           },
-        })
-      : null;
-    const targetFortress =
-      effectiveOwnership?.ownerFortress ?? neutralHomeTarget;
+        });
+        await tx.cycle.update({
+          where: {
+            id: cycle.id,
+          },
+          data: {
+            homeOfABossRespawnsAt: null,
+          },
+        });
+      }
 
-    if (!targetFortress) {
-      throw new GameError("Home of A is not available in this cycle yet.");
-    }
+      if (homeBoss.health <= 0) {
+        throw new GameError("Home of A is defeated and waiting to respawn.");
+      }
 
-    const homePosition = getHomeOfAMapPosition();
-    const battlefieldTarget = isHomeOfA
-      ? {
-          ...targetFortress,
+      const launchedUnit = await launchAttackUnit({
+        db: tx,
+        cycle,
+        attacker,
+        target: {
+          ...homeBoss,
           mapX: homePosition.mapX,
           mapY: homePosition.mapY,
-          army: effectiveOwnership
-            ? targetFortress.army
-            : ownership
-              ? 0
-              : HOME_OF_A_NEUTRAL_DEFENSE,
-        }
-      : {
-          ...targetFortress,
-          mapX: Math.round(tile.xPercent),
-          mapY: Math.round(tile.yPercent),
-        };
+        },
+        launchedAt: now,
+        armyAmount: sentArmy,
+      });
 
-    const initialDefenderArmyRemaining =
-      isHomeOfA && !ownership
-        ? battlefieldTarget.army
-        : isHomeOfA && effectiveOwnership
-          ? targetFortress.army
-          : 0;
+      if (!launchedUnit) {
+        throw new GameError(
+          "That Home of A attack would arrive after the cycle ends."
+        );
+      }
+
+      return {
+        battlefieldId: null,
+        launchedAttackUnit: toAttackUnitLaunchMarker({
+          unit: launchedUnit,
+          attacker,
+          target: {
+            id: homeBoss.id,
+            name: homeBoss.name,
+            mapX: homePosition.mapX,
+            mapY: homePosition.mapY,
+          },
+        }),
+      };
+    }
+
+    const targetFortress = effectiveOwnership?.ownerFortress ?? null;
+
+    if (!targetFortress) {
+      throw new GameError("That tile has no attack target.");
+    }
+
+    const battlefieldTarget = {
+      ...targetFortress,
+      mapX: Math.round(tile.xPercent),
+      mapY: Math.round(tile.yPercent),
+    };
+
     const battlefield = await tx.battlefield.create({
       data: {
         cycleId: cycle.id,
@@ -1414,7 +1476,7 @@ export async function attackMapHex({
         attackerBannerFortressId: attacker.id,
         defenderBannerFortressId: effectiveOwnership?.ownerFortressId ?? null,
         attackerArmyRemaining: 0,
-        defenderArmyRemaining: initialDefenderArmyRemaining,
+        defenderArmyRemaining: 0,
         pointsReward: 0,
         foodReward: 0,
         startedAt: now,
@@ -1564,6 +1626,10 @@ export async function fortifyMapHex({
 
     if (!tile && !isHomeOfATile(tileId)) {
       throw new GameError("That map tile cannot be fortified.");
+    }
+
+    if (isHomeOfATile(tileId)) {
+      throw new GameError("Home of A is a daily boss and cannot be fortified.");
     }
 
     if (!Number.isInteger(armyAmount) || armyAmount <= 0) {

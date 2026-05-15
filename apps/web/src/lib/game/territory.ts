@@ -1,8 +1,5 @@
 import { HEX_TILES, type HexBiome, type HexTile } from "./map-hex";
 import {
-  HOME_OF_A_ARMY_DRAIN_BASE,
-  HOME_OF_A_ARMY_DRAIN_INCREASE_PER_TICK,
-  HOME_OF_A_POINT_INCOME,
   HOME_OF_A_TILE_ID,
   TEMPORARY_MAP_OBJECTIVE_INTERVAL_HOURS,
   TEMPORARY_MAP_OBJECTIVE_POINT_VALUES,
@@ -410,12 +407,12 @@ export function isHomeOfATile(tileId: string) {
 export function getHomeOfABonus(): TileBonus {
   return {
     gold: 0,
-    points: HOME_OF_A_POINT_INCOME,
+    points: 0,
     food: 0,
     army: 0,
     population: 0,
     defensePercent: 0,
-    label: `Home of A control: +${HOME_OF_A_POINT_INCOME} points / tick, drain starts at -${HOME_OF_A_ARMY_DRAIN_BASE} army / tick and rises +${HOME_OF_A_ARMY_DRAIN_INCREASE_PER_TICK} each tick held`,
+    label: "Home of A daily boss: kill it for points, food, army, and a 12h buff",
   };
 }
 

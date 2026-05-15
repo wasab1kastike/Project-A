@@ -175,7 +175,7 @@ export function getContextualActionHint(input: ActionHintInput): ActionHint {
   ) {
     return {
       label: "Home of A",
-      message: "Home of A is open. Send army to contest the center objective.",
+      message: "Home of A is alive. Send army to damage the daily boss.",
       tone: "opportunity",
     };
   }

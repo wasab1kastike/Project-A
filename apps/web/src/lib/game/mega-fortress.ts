@@ -7,9 +7,8 @@ import {
 } from "@/lib/prisma-client";
 import {
   CURRENT_MAP_LAYOUT_VERSION,
-  HOME_OF_A_NEUTRAL_DEFENSE,
   HOME_OF_A_TILE_ID,
-  MEGA_FORTRESS_HEALTH,
+  getHomeOfABossHealth,
   MEGA_FORTRESS_ICON_LABEL,
   MEGA_FORTRESS_NAME,
   MEGA_FORTRESS_SIZE_TILES,
@@ -141,6 +140,20 @@ export async function ensureMegaFortress({
   seed: string;
 }) {
   await ensureCommanderRegistrationColumn(db);
+  const cycle = await db.cycle.findUnique({
+    where: {
+      id: cycleId,
+    },
+    select: {
+      megaFortressDestroyCount: true,
+      homeOfABossRespawnsAt: true,
+    },
+  });
+  const bossHealth = getHomeOfABossHealth(cycle?.megaFortressDestroyCount ?? 0);
+  const isWaitingForRespawn =
+    cycle?.homeOfABossRespawnsAt !== null &&
+    cycle?.homeOfABossRespawnsAt !== undefined &&
+    cycle.homeOfABossRespawnsAt > new Date();
 
   const existingMega = await db.fortress.findFirst({
     where: {
@@ -158,7 +171,8 @@ export async function ensureMegaFortress({
       existingMega.iconLabel !== MEGA_FORTRESS_ICON_LABEL ||
       existingMega.mapX !== homePosition.mapX ||
       existingMega.mapY !== homePosition.mapY ||
-      existingMega.army !== HOME_OF_A_NEUTRAL_DEFENSE
+      existingMega.army !== 0 ||
+      existingMega.maxHealth !== bossHealth
     ) {
       return db.fortress.update({
         where: {
@@ -170,7 +184,9 @@ export async function ensureMegaFortress({
           commanderNameRegisteredAt: new Date(),
           iconLabel: MEGA_FORTRESS_ICON_LABEL,
           food: 0,
-          army: HOME_OF_A_NEUTRAL_DEFENSE,
+          army: 0,
+          health: isWaitingForRespawn ? existingMega.health : bossHealth,
+          maxHealth: bossHealth,
           minersAssigned: 0,
           farmersAssigned: 0,
           recruitersAssigned: 0,
@@ -194,14 +210,14 @@ export async function ensureMegaFortress({
       commanderNameRegisteredAt: new Date(),
       name: MEGA_FORTRESS_NAME,
       food: 0,
-      army: HOME_OF_A_NEUTRAL_DEFENSE,
+      army: 0,
       minersAssigned: 0,
       farmersAssigned: 0,
       recruitersAssigned: 0,
       isNpc: true,
       fortressKind: FortressKind.MEGA,
-      health: MEGA_FORTRESS_HEALTH,
-      maxHealth: MEGA_FORTRESS_HEALTH,
+      health: bossHealth,
+      maxHealth: bossHealth,
       sizeTiles: MEGA_FORTRESS_SIZE_TILES,
       iconLabel: MEGA_FORTRESS_ICON_LABEL,
       mapX: homePosition.mapX,

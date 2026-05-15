@@ -7,6 +7,19 @@ export type PatchNotesRelease = {
 
 export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
   {
+    date: "2026-05-15",
+    title: "Home of A daily boss",
+    newFeatures: [
+      "Home of A is now a center-tile daily boss instead of a conquerable control tile.",
+      "Killing Home of A now rewards the top damage dealer with points, food, army, and a 12-hour combat and economy buff.",
+      "Global chat now announces the fortress that bonked Home of A hardest, including the reward and respawn timer.",
+    ],
+    bugFixes: [
+      "Home of A no longer uses ownership, holder drain, garrison defense, fortify, or control-income behavior.",
+      "Center-tile attacks now damage the boss directly instead of creating a battlefield.",
+    ],
+  },
+  {
     date: "2026-05-13",
     title: "Home of A status and escalating drain",
     newFeatures: [
