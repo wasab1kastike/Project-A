@@ -46,6 +46,7 @@ export type RaidBattleReportInput = {
   defenderDecoyLevel?: number | null;
   defenderIsLootCamp?: boolean;
   defenderLootCampVariant?: string | null;
+  defenderIsHomeOfABoss?: boolean;
 };
 
 export type RaidRecallReportInput = {
@@ -179,6 +180,22 @@ export function formatRaidBattleReport(input: RaidBattleReportInput) {
       input.outcome === "ATTACKER_WIN"
         ? `${input.attackerSurvivors} survived, ${input.attackerReturned} returned, ${input.attackerRetired} retired. Camp health was reduced by ${input.resolvedAttackPower ?? 0}.`
         : `The camp fought back. Your sent army was lost, and the camp lost ${input.defenderLosses} defenders.`,
+      rewardLine,
+    ];
+  }
+
+  if (input.defenderIsHomeOfABoss) {
+    const rewardLine =
+      input.pointsLooted > 0 ||
+      input.foodLooted > 0 ||
+      (input.armyLooted ?? 0) > 0
+        ? `Boss reward: ${input.pointsLooted} points, ${input.foodLooted} food, and ${input.armyLooted ?? 0} army.`
+        : "Boss damage recorded. The top damage dealer gets the reward when Home of A falls.";
+
+    return [
+      `Boss raid! ${input.attackerName} hit ${input.defenderName} with ${input.sentArmy} troops.`,
+      `Home of A took ${input.resolvedAttackPower ?? 0} damage from this march.`,
+      `${input.attackerReturned} returned. Home of A does not drop normal raid loot.`,
       rewardLine,
     ];
   }

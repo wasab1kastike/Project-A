@@ -161,6 +161,55 @@ test("loot camp report includes counterattack details and health damage", () => 
   assert.match(lines[3] ?? "", /100 army, and race cooldown reset/);
 });
 
+test("home of A boss report shows damage attribution and reward payout", () => {
+  const pendingLines = formatRaidBattleReport({
+    attackerName: "North Keep",
+    defenderName: "Home of A",
+    sentArmy: 1000,
+    defenderArmyAtBattleStart: null,
+    defenderDbLevel: 0,
+    resolvedAttackPower: 1000,
+    resolvedDefensePower: 0,
+    outcome: "ATTACKER_WIN",
+    attackerSurvivors: 1000,
+    attackerRetired: 0,
+    attackerReturned: 1000,
+    defenderLosses: 0,
+    pointsLooted: 0,
+    foodLooted: 0,
+    armyLooted: 0,
+    defenderIsHomeOfABoss: true,
+  });
+
+  assert.match(pendingLines[0] ?? "", /Boss raid!/);
+  assert.match(pendingLines[1] ?? "", /1000 damage/);
+  assert.doesNotMatch(pendingLines.join(" "), /0 gold and 0 food/);
+  assert.match(pendingLines[3] ?? "", /top damage dealer/);
+
+  const rewardLines = formatRaidBattleReport({
+    attackerName: "North Keep",
+    defenderName: "Home of A",
+    sentArmy: 1000,
+    defenderArmyAtBattleStart: null,
+    defenderDbLevel: 0,
+    resolvedAttackPower: 1000,
+    resolvedDefensePower: 0,
+    outcome: "ATTACKER_WIN",
+    attackerSurvivors: 1000,
+    attackerRetired: 0,
+    attackerReturned: 1000,
+    defenderLosses: 0,
+    pointsLooted: 2500,
+    foodLooted: 2500,
+    armyLooted: 2500,
+    defenderIsHomeOfABoss: true,
+  });
+
+  assert.match(rewardLines[3] ?? "", /2500 points/);
+  assert.match(rewardLines[3] ?? "", /2500 food/);
+  assert.match(rewardLines[3] ?? "", /2500 army/);
+});
+
 test("recall report includes returned army without battle details", () => {
   const lines = formatRaidRecallReport({
     attackerName: "North Keep",

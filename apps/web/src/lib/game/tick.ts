@@ -3126,6 +3126,58 @@ async function processCycleTick(
                 targetFortressId: target.id,
               },
             });
+            const rewardReportUnit =
+              targetUnits.find(
+                (unit) =>
+                  unit.attackerFortressId === winnerContribution.fortressId
+              ) ??
+              (await db.attackUnit.findFirst({
+                where: {
+                  cycleId,
+                  targetFortressId: target.id,
+                  attackerFortressId: winnerContribution.fortressId,
+                  OR: [
+                    {
+                      resolvedAt: {
+                        not: null,
+                      },
+                    },
+                    {
+                      recalledAt: {
+                        not: null,
+                      },
+                    },
+                  ],
+                  cancelledAt: null,
+                },
+                orderBy: [
+                  {
+                    resolvedAt: "desc",
+                  },
+                  {
+                    arrivesAt: "desc",
+                  },
+                  {
+                    id: "desc",
+                  },
+                ],
+                select: {
+                  id: true,
+                },
+              }));
+
+            if (rewardReportUnit) {
+              await db.attackUnit.update({
+                where: {
+                  id: rewardReportUnit.id,
+                },
+                data: {
+                  pointsLooted: reward,
+                  foodLooted: reward,
+                  armyLooted: reward,
+                },
+              });
+            }
             const systemUser = await ensureNpcSystemUser(db);
             await db.chatMessage.create({
               data: {

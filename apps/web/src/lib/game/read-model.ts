@@ -1515,6 +1515,8 @@ export async function getHomePageState({
               defenderIsLootCamp:
                 unit.targetFortress.fortressKind === FortressKind.LOOT_CAMP,
               defenderLootCampVariant: unit.targetFortress.lootCampVariant,
+              defenderIsHomeOfABoss:
+                unit.targetFortress.fortressKind === FortressKind.MEGA,
             }),
           };
         })
