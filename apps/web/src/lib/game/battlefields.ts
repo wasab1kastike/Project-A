@@ -1,6 +1,8 @@
 import {
   BattlefieldSide,
   BattlefieldStatus,
+  ChatMessageType,
+  FortressKind,
   OrkScrapEventReason,
   Prisma,
   PrismaClient,
@@ -12,9 +14,15 @@ import { GameError } from "./errors";
 import { countCastleSpecializations } from "./specializations";
 import { launchAttackUnit } from "./attack-units";
 import { getDwarfGrudgeMultiplier, isRaceAbilityActive } from "./race-buffs";
-import { HOME_OF_A_BOSS_BUFF_MULTIPLIER } from "./constants";
+import {
+  HOME_OF_A_BOSS_BUFF_HOURS,
+  HOME_OF_A_BOSS_BUFF_MULTIPLIER,
+  HOME_OF_A_BOSS_RESPAWN_HOURS,
+  HOME_OF_A_TILE_ID,
+  getHomeOfABossReward,
+} from "./constants";
 import { getTileById, isHomeOfATile } from "./territory";
-import { getHomeOfAMapPosition } from "./mega-fortress";
+import { ensureNpcSystemUser, getHomeOfAMapPosition } from "./mega-fortress";
 import { getMaxSimultaneousAttacks } from "./upgrades";
 import {
   applyOrkScrapDelta,
@@ -25,10 +33,23 @@ import {
 } from "./orks";
 import { DWARF_DEEP_MINING_RUNE_BOUNTY } from "./dwarf-deep-mining";
 import { ensureBattlefieldPointRewardColumn } from "./schema-guards";
+import { addHours } from "./time";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
 const CASTLE_PVP_POINT_LOOT_PERCENT = 0.05;
+
+function getHomeOfABossDefeatAnnouncement({
+  fortressName,
+  commanderName,
+  reward,
+}: {
+  fortressName: string;
+  commanderName: string;
+  reward: number;
+}) {
+  return `Home of A has been defeated by ${commanderName} of ${fortressName}. The accounting shrine coughed up ${reward} points, ${reward} food, ${reward} army, and a 12h buff. A will be back after a 24h dramatic nap.`;
+}
 
 function hashBattleTick(value: string) {
   let hash = 2166136261;
@@ -233,6 +254,8 @@ export async function createBattlefieldFromAttackUnit({
           points: true,
           gold: true,
           food: true,
+          health: true,
+          maxHealth: true,
           level: true,
           race: true,
           isNpc: true,
@@ -269,24 +292,53 @@ export async function createBattlefieldFromAttackUnit({
     },
   });
 
+  const isHomeOfABossTarget =
+    unit.targetFortress.isNpc &&
+    unit.targetFortress.fortressKind === FortressKind.MEGA;
+  const bossReward = isHomeOfABossTarget
+    ? getHomeOfABossReward(unit.targetFortress.maxHealth)
+    : 0;
   const battlefield =
     existing ??
     (await db.battlefield.create({
       data: {
         cycleId: unit.cycleId,
         targetFortressId: unit.targetFortressId,
+        targetTileId: isHomeOfABossTarget ? HOME_OF_A_TILE_ID : null,
         attackerBannerFortressId: unit.attackerFortressId,
-        defenderBannerFortressId: unit.targetFortressId,
+        defenderBannerFortressId: isHomeOfABossTarget
+          ? null
+          : unit.targetFortressId,
         attackerArmyRemaining: unit.armyAmount,
-        defenderArmyRemaining: unit.targetFortress.army,
-        pointsReward: Math.floor(unit.targetFortress.gold * 0.7),
-        foodReward: Math.floor(unit.targetFortress.food * 0.7),
+        defenderArmyRemaining: isHomeOfABossTarget
+          ? unit.targetFortress.health
+          : unit.targetFortress.army,
+        pointReward: isHomeOfABossTarget ? bossReward : 0,
+        pointsReward: isHomeOfABossTarget
+          ? bossReward
+          : Math.floor(unit.targetFortress.gold * 0.7),
+        foodReward: isHomeOfABossTarget
+          ? bossReward
+          : Math.floor(unit.targetFortress.food * 0.7),
         startedAt: tickAt,
       },
       select: {
         id: true,
       },
     }));
+
+  if (existing) {
+    await db.battlefield.update({
+      where: {
+        id: battlefield.id,
+      },
+      data: {
+        attackerArmyRemaining: {
+          increment: unit.armyAmount,
+        },
+      },
+    });
+  }
 
   await db.battlefieldParticipant.upsert({
     where: {
@@ -412,6 +464,14 @@ export async function joinBattlefield({
       throw new GameError(
         "That battlefield cannot receive reinforcements yet."
       );
+    }
+
+    if (
+      battlefield.targetTileId &&
+      isHomeOfATile(battlefield.targetTileId) &&
+      side === BattlefieldSide.DEFENDER
+    ) {
+      throw new GameError("Home of A has no defender side.");
     }
 
     const fortress = await tx.fortress.findUnique({
@@ -628,6 +688,8 @@ export async function processActiveBattlefields({
           points: true,
           gold: true,
           food: true,
+          health: true,
+          maxHealth: true,
           level: true,
           race: true,
           isNpc: true,
@@ -656,6 +718,7 @@ export async function processActiveBattlefields({
           maintenanceDrains: true,
           fortress: {
             select: {
+              ownerId: true,
               raceAbilityActivations: {
                 where: {
                   kind: RaceAbilityKind.HOME_OF_A_BOSS_BUFF,
@@ -676,6 +739,17 @@ export async function processActiveBattlefields({
           },
         },
       },
+    },
+  });
+  const cycle = await db.cycle.findUnique({
+    where: {
+      id: cycleId,
+    },
+    select: {
+      id: true,
+      megaFortressDestroyCount: true,
+      crownedFortressId: true,
+      upgradesUnlockedAt: true,
     },
   });
 
@@ -702,10 +776,16 @@ export async function processActiveBattlefields({
       (sum, participant) => sum + participant.armyRemaining,
       0
     );
+    const isHomeBossBattle =
+      battlefield.targetTileId !== null &&
+      isHomeOfATile(battlefield.targetTileId) &&
+      battlefield.targetFortress?.fortressKind === FortressKind.MEGA;
     const isRegularTileBattle =
       battlefield.targetTileId !== null &&
       !isHomeOfATile(battlefield.targetTileId);
-    const storedDefenderArmy = isRegularTileBattle
+    const storedDefenderArmy = isHomeBossBattle
+      ? battlefield.defenderArmyRemaining
+      : isRegularTileBattle
       ? defenderParticipantArmyBefore
       : battlefield.defenderArmyRemaining > 0
         ? battlefield.defenderArmyRemaining
@@ -827,6 +907,79 @@ export async function processActiveBattlefields({
       nativeDefenderArmyBefore,
       attrition.defenderLosses - defenderParticipantLosses.appliedLosses
     );
+    if (isHomeBossBattle && cycle && defenderNativeLosses > 0) {
+      const weightedAttackers = attackerParticipants
+        .filter((participant) => participant.armyRemaining > 0)
+        .map((participant) => {
+          const buffed = isRaceAbilityActive(
+            participant.fortress.raceAbilityActivations,
+            RaceAbilityKind.HOME_OF_A_BOSS_BUFF,
+            tickAt
+          );
+
+          return {
+            participant,
+            weight:
+              participant.armyRemaining *
+              (buffed ? HOME_OF_A_BOSS_BUFF_MULTIPLIER : 1),
+          };
+        });
+      const totalWeight = weightedAttackers.reduce(
+        (sum, entry) => sum + entry.weight,
+        0
+      );
+      let distributedDamage = 0;
+
+      for (const [index, entry] of weightedAttackers.entries()) {
+        const damage =
+          index === weightedAttackers.length - 1
+            ? defenderNativeLosses - distributedDamage
+            : Math.floor((defenderNativeLosses * entry.weight) / totalWeight);
+
+        if (damage <= 0) {
+          continue;
+        }
+
+        distributedDamage += damage;
+        await db.homeOfABossDamageContribution.upsert({
+          where: {
+            cycleId_bossGeneration_fortressId: {
+              cycleId,
+              bossGeneration: cycle.megaFortressDestroyCount,
+              fortressId: entry.participant.fortressId,
+            },
+          },
+          create: {
+            cycleId,
+            bossGeneration: cycle.megaFortressDestroyCount,
+            fortressId: entry.participant.fortressId,
+            damage,
+            firstDamagedAt: tickAt,
+            lastDamagedAt: tickAt,
+          },
+          update: {
+            damage: {
+              increment: damage,
+            },
+            lastDamagedAt: tickAt,
+          },
+        });
+        if (battlefield.targetFortressId) {
+          scoreEventsCreated += 1;
+          await db.scoreEvent.create({
+            data: {
+              cycleId,
+              fortressId: battlefield.targetFortressId,
+              actorId: entry.participant.fortress.ownerId,
+              targetFortressId: battlefield.targetFortressId,
+              eventType: ScoreEventType.MEGA_DAMAGE,
+              delta: -damage,
+              createdAt: tickAt,
+            },
+          });
+        }
+      }
+    }
     const attackerArmy = attackerParticipants.reduce(
       (sum, participant) => sum + participant.armyRemaining,
       0
@@ -849,6 +1002,16 @@ export async function processActiveBattlefields({
     );
     const targetDefenderArmy =
       nativeDefenderArmyAfter + defenderParticipantArmyAfter;
+    if (isHomeBossBattle && battlefield.targetFortressId) {
+      await db.fortress.update({
+        where: {
+          id: battlefield.targetFortressId,
+        },
+        data: {
+          health: targetDefenderArmy,
+        },
+      });
+    }
     const attritionUpdates = [
       ...Array.from(attackerParticipantLosses.lossesByParticipantId.entries()),
       ...Array.from(defenderParticipantLosses.lossesByParticipantId.entries()),
@@ -940,8 +1103,11 @@ export async function processActiveBattlefields({
             defenderGold: battlefield.targetFortress?.gold ?? 0,
             defenderFood: battlefield.targetFortress?.food ?? 0,
           });
-    const winnerSide =
-      outcome.outcome === "ATTACKER_WIN"
+    const winnerSide = isHomeBossBattle
+      ? targetDefenderArmy <= 0 && attackerArmyAfter > 0
+        ? BattlefieldSide.ATTACKER
+        : BattlefieldSide.DEFENDER
+      : outcome.outcome === "ATTACKER_WIN"
         ? BattlefieldSide.ATTACKER
         : BattlefieldSide.DEFENDER;
     const winningParticipants = battlefield.participants.filter(
@@ -966,7 +1132,7 @@ export async function processActiveBattlefields({
       outcome.defenderLosses;
     const enemyKilled =
       winnerSide === BattlefieldSide.ATTACKER ? defenderKilled : attackerKilled;
-    const killRewardPool = Math.floor(enemyKilled * 0.2);
+    const killRewardPool = isHomeBossBattle ? 0 : Math.floor(enemyKilled * 0.2);
     const castleBankGoldLooted =
       !isTileBattle && winnerSide === BattlefieldSide.ATTACKER
         ? outcome.goldLooted
@@ -1217,8 +1383,7 @@ export async function processActiveBattlefields({
       if (
         winnerSide === BattlefieldSide.ATTACKER &&
         battlefield.attackerBannerFortress &&
-        isRealOrkPlayerFortress(battlefield.attackerBannerFortress) &&
-        !isHomeTileBattle
+        isRealOrkPlayerFortress(battlefield.attackerBannerFortress)
       ) {
         await applyOrkScrapDelta({
           db,
@@ -1243,6 +1408,134 @@ export async function processActiveBattlefields({
       }
     }
 
+    if (isHomeBossBattle && battlefield.targetFortressId) {
+      for (const participant of attackerParticipants) {
+        const surviving = Math.max(
+          0,
+          participant.armyRemaining -
+            (attackerParticipantLosses.lossesByParticipantId.get(
+              participant.id
+            ) ?? 0)
+        );
+
+        if (surviving > 0) {
+          await db.fortress.update({
+            where: {
+              id: participant.fortressId,
+            },
+            data: {
+              army: {
+                increment: surviving,
+              },
+            },
+          });
+        }
+      }
+
+      if (
+        cycle &&
+        winnerSide === BattlefieldSide.ATTACKER &&
+        targetDefenderArmy <= 0
+      ) {
+        const winnerContribution =
+          await db.homeOfABossDamageContribution.findFirst({
+            where: {
+              cycleId,
+              bossGeneration: cycle.megaFortressDestroyCount,
+            },
+            orderBy: [
+              { damage: "desc" },
+              { firstDamagedAt: "asc" },
+              { fortressId: "asc" },
+            ],
+            include: {
+              fortress: {
+                select: {
+                  id: true,
+                  ownerId: true,
+                  name: true,
+                  commanderName: true,
+                },
+              },
+            },
+          });
+
+        if (winnerContribution) {
+          const reward = getHomeOfABossReward(
+            battlefield.targetFortress?.maxHealth ?? 0
+          );
+
+          await db.fortress.update({
+            where: {
+              id: winnerContribution.fortressId,
+            },
+            data: {
+              points: {
+                increment: reward,
+              },
+              food: {
+                increment: reward,
+              },
+              army: {
+                increment: reward,
+              },
+            },
+          });
+          scoreEvents.push({
+            cycleId,
+            fortressId: winnerContribution.fortressId,
+            actorId: winnerContribution.fortress.ownerId,
+            targetFortressId: battlefield.targetFortressId,
+            eventType: ScoreEventType.MEGA_DESTROY_BONUS,
+            delta: reward,
+            createdAt: tickAt,
+          });
+          await db.raceAbilityActivation.create({
+            data: {
+              fortressId: winnerContribution.fortressId,
+              kind: RaceAbilityKind.HOME_OF_A_BOSS_BUFF,
+              activeFrom: tickAt,
+              activeUntil: addHours(tickAt, HOME_OF_A_BOSS_BUFF_HOURS),
+              usedAt: tickAt,
+              expiresAt: addHours(tickAt, HOME_OF_A_BOSS_BUFF_HOURS),
+              targetFortressId: battlefield.targetFortressId,
+            },
+          });
+          const systemUser = await ensureNpcSystemUser(db);
+          await db.chatMessage.create({
+            data: {
+              cycleId,
+              authorId: systemUser.id,
+              type: ChatMessageType.TEXT,
+              body: getHomeOfABossDefeatAnnouncement({
+                fortressName: winnerContribution.fortress.name,
+                commanderName: winnerContribution.fortress.commanderName,
+                reward,
+              }),
+              createdAt: tickAt,
+            },
+          });
+          await db.cycle.update({
+            where: {
+              id: cycleId,
+            },
+            data: {
+              crownedFortressId:
+                cycle.crownedFortressId ?? winnerContribution.fortressId,
+              upgradesUnlockedAt: cycle.upgradesUnlockedAt ?? tickAt,
+              homeOfABossRespawnsAt: addHours(
+                tickAt,
+                HOME_OF_A_BOSS_RESPAWN_HOURS
+              ),
+              megaFortressDestroyCount: {
+                increment: 1,
+              },
+            },
+          });
+        }
+      }
+    }
+
     await db.battlefield.update({
       where: {
         id: battlefield.id,
@@ -1250,11 +1543,12 @@ export async function processActiveBattlefields({
       data: {
         status: BattlefieldStatus.RESOLVED,
         progress: earlyResolved ? nextProgress : 100,
-        attackerArmyRemaining: outcome.attackerReturned,
-        defenderArmyRemaining: Math.max(
-          0,
-          targetDefenderArmy - outcome.defenderLosses
-        ),
+        attackerArmyRemaining: isHomeBossBattle
+          ? attackerArmyAfter
+          : outcome.attackerReturned,
+        defenderArmyRemaining: isHomeBossBattle
+          ? targetDefenderArmy
+          : Math.max(0, targetDefenderArmy - outcome.defenderLosses),
         pointsReward: isTileBattle
           ? battlefield.pointsReward
           : castleBankGoldLooted,

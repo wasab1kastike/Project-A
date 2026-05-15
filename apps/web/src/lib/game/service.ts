@@ -1335,7 +1335,7 @@ export async function attackMapHex({
       },
     });
 
-    if (activeBattle) {
+    if (activeBattle && !isHomeOfA) {
       throw new GameError("That tile is already contested.");
     }
 
@@ -1446,8 +1446,20 @@ export async function attackMapHex({
         );
       }
 
+      if (activeBattle) {
+        await tx.attackUnit.update({
+          where: {
+            id: launchedUnit.id,
+          },
+          data: {
+            reinforcementBattlefieldId: activeBattle.id,
+            reinforcementSide: BattlefieldSide.ATTACKER,
+          },
+        });
+      }
+
       return {
-        battlefieldId: null,
+        battlefieldId: activeBattle?.id ?? null,
         launchedAttackUnit: toAttackUnitLaunchMarker({
           unit: launchedUnit,
           attacker,

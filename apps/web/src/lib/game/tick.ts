@@ -2229,12 +2229,21 @@ async function processCycleTick(
 
     const target = fortressLookup.get(unit.targetFortressId);
 
-    if (
-      unit.recalledAt ||
-      !target ||
-      target.isNpc ||
-      target.fortressKind !== FortressKind.PLAYER
-    ) {
+    if (unit.recalledAt || !target) {
+      continue;
+    }
+
+    if (target.isNpc || target.fortressKind !== FortressKind.PLAYER) {
+      if (target.fortressKind === FortressKind.MEGA) {
+        await createBattlefieldFromAttackUnit({
+          db,
+          attackUnitId: unit.id,
+          tickAt,
+        });
+        resolvedBatchAttackUnitIds.add(unit.id);
+        resolvedAttackUnits += 1;
+      }
+
       continue;
     }
 

@@ -815,6 +815,8 @@ export async function getHomePageState({
               name: true,
               commanderName: true,
               army: true,
+              health: true,
+              maxHealth: true,
             },
           },
           attackerBannerFortress: {
@@ -3100,22 +3102,34 @@ export async function getHomePageState({
             Math.max(0, participant.armyCommitted - participant.armyRemaining),
           0
         );
+      const isHomeBossBattle =
+        battlefield.targetTileId !== null &&
+        isHomeOfATile(battlefield.targetTileId);
       const nativeDefenderCasualties = battlefield.targetFortress
-        ? Math.max(
-            0,
-            battlefield.targetFortress.army - battlefield.defenderArmyRemaining
-          )
+        ? isHomeBossBattle
+          ? Math.max(
+              0,
+              battlefield.targetFortress.maxHealth -
+                battlefield.defenderArmyRemaining
+            )
+          : Math.max(
+              0,
+              battlefield.targetFortress.army -
+                battlefield.defenderArmyRemaining
+            )
         : 0;
       const canJoinAttacker =
         gameplayOpen &&
         playerFortress !== null &&
         playerFortress.army > 0 &&
-        currentParticipant?.side !== BattlefieldSide.DEFENDER;
+        currentParticipant?.side !== BattlefieldSide.DEFENDER &&
+        !isHomeBossBattle;
       const canJoinDefender =
         gameplayOpen &&
         playerFortress !== null &&
         playerFortress.army > 0 &&
-        currentParticipant?.side !== BattlefieldSide.ATTACKER;
+        currentParticipant?.side !== BattlefieldSide.ATTACKER &&
+        !isHomeBossBattle;
       const getJoinDisabledReason = (side: BattlefieldSide) => {
         if (side === BattlefieldSide.ATTACKER && canJoinAttacker) {
           return null;
@@ -3137,6 +3151,12 @@ export async function getHomePageState({
           return "No idle army available.";
         }
 
+        if (isHomeBossBattle) {
+          return side === BattlefieldSide.ATTACKER
+            ? "Use the center tile action to send more army."
+            : "Home of A has no defender side.";
+        }
+
         return currentParticipant?.side === BattlefieldSide.ATTACKER
           ? "Already committed to attack."
           : "Already committed to defense.";
@@ -3147,7 +3167,7 @@ export async function getHomePageState({
           : null;
       const targetTileBonus =
         battlefield.targetTileId !== null
-          ? isHomeOfATile(battlefield.targetTileId)
+          ? isHomeBossBattle
             ? getHomeOfABonus()
             : getTileBonus(targetTile, {
                 tileId: battlefield.targetTileId,
@@ -3246,7 +3266,9 @@ export async function getHomePageState({
         targetTileBonusLabel: targetTileBonus?.label ?? null,
         targetName:
           battlefield.targetTileId !== null
-            ? `Tile ${battlefield.targetTileId}`
+            ? isHomeBossBattle
+              ? "Home of A"
+              : `Tile ${battlefield.targetTileId}`
             : (battlefield.targetFortress?.name ?? "Battlefield"),
         progress: battlefield.progress,
         attackerArmyRemaining,

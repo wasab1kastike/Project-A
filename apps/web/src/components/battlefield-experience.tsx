@@ -1717,8 +1717,9 @@ export function BattlefieldExperience({
 
       {selectedActiveBattlefieldId ? (
         <p className={styles.helper}>
-          This tile already has an active battlefield. Use the battle card to
-          read pressure, reinforce, or recall your committed army.
+          {selectedTileIsHomeOfA
+            ? "Home of A is already being fought. Send more army from here or use the battle card to recall committed army."
+            : "This tile already has an active battlefield. Use the battle card to read pressure, reinforce, or recall your committed army."}
         </p>
       ) : null}
 
@@ -1802,7 +1803,7 @@ export function BattlefieldExperience({
 
         {(selectedOwnership?.canAttack ||
           (selectedTileIsHomeOfA && homeOfA?.canAttack)) &&
-        !selectedActiveBattlefieldId ? (
+        (!selectedActiveBattlefieldId || selectedTileIsHomeOfA) ? (
           <>
             <label className={styles.tileArmyControl}>
               <span>

@@ -754,6 +754,11 @@ export default function WikiPage() {
               army on the first kill; later rewards are boss max HP / 4.
             </li>
             <li>
+              Attacks open or reinforce a center-tile boss battle. Damage is
+              applied over battlefield ticks, and Home of A only falls when its
+              HP reaches 0.
+            </li>
+            <li>
               The reward winner also receives a {HOME_OF_A_BOSS_BUFF_HOURS}
               -hour +25% combat and economy buff.
             </li>
