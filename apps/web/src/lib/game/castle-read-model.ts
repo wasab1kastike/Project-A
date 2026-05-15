@@ -93,10 +93,7 @@ export async function getCastlePageState({
       createdAt: "desc",
     },
     include: {
-      fortresses: {
-        orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
-        select: {
-          id: true,
+        return { playerSummary: null, availableTargets: [] };
           ownerId: true,
           commanderName: true,
           commanderNameRegisteredAt: true,
