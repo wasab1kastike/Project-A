@@ -172,7 +172,8 @@ export async function getCastlePageState({
           },
         },
       },
-      orkScrapBank: {
+    },
+    orkScrapBank: {
             select: {
               scrap: true,
             },
