@@ -306,7 +306,7 @@ export async function getCastlePageState({
           },
         },
       },
-    }
+    },
   });
 
   if (!cycle) {
