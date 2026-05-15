@@ -93,7 +93,6 @@ export async function getCastlePageState({
       createdAt: "desc",
     },
     include: {
-        return { playerSummary: null, availableTargets: [] };
           ownerId: true,
           commanderName: true,
           commanderNameRegisteredAt: true,
