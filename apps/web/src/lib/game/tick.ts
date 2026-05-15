@@ -122,6 +122,9 @@ const HOME_OF_A_COMPENSATION_BODY =
 const HOME_OF_A_COMPENSATION_ACTIVE_STARTED_BEFORE = new Date(
   "2026-05-14T00:00:00.000Z"
 );
+const HOME_OF_A_BOSS_REVAMP_MARKER = "HOME OF A RENOVATION NOTICE:";
+const HOME_OF_A_BOSS_REVAMP_BODY =
+  "HOME OF A RENOVATION NOTICE: A has fired the center tile landlord and replaced the lease agreement with a health bar. No more ownership, holder drain, fortifying, or banner squatting: Home of A is now a daily boss. Attack the center tile, pile up damage, and the top damage dealer gets loot plus 12 hours of divine paperwork-based swagger. After defeat, A takes a 24-hour nap and returns with more hit points and absolutely no lessons learned.";
 
 function getHomeOfABossDefeatAnnouncement({
   fortressName,
@@ -172,6 +175,44 @@ async function ensureEternalGoblinsAnnouncement({
       authorId: systemUser.id,
       type: ChatMessageType.TEXT,
       body: ETERNAL_GOBLINS_ANNOUNCEMENT_BODY,
+      createdAt,
+    },
+  });
+}
+
+async function ensureHomeOfABossRevampAnnouncement({
+  db,
+  cycleId,
+  createdAt,
+}: {
+  db: PrismaClient | Prisma.TransactionClient;
+  cycleId: string;
+  createdAt: Date;
+}) {
+  const existingAnnouncement = await db.chatMessage.findFirst({
+    where: {
+      cycleId,
+      type: ChatMessageType.TEXT,
+      body: {
+        contains: HOME_OF_A_BOSS_REVAMP_MARKER,
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (existingAnnouncement) {
+    return;
+  }
+
+  const systemUser = await ensureNpcSystemUser(db);
+  await db.chatMessage.create({
+    data: {
+      cycleId,
+      authorId: systemUser.id,
+      type: ChatMessageType.TEXT,
+      body: HOME_OF_A_BOSS_REVAMP_BODY,
       createdAt,
     },
   });
@@ -1096,6 +1137,11 @@ async function completeTestingCycle(
       cycleId,
       createdAt: now,
     });
+    await ensureHomeOfABossRevampAnnouncement({
+      db: tx,
+      cycleId,
+      createdAt: now,
+    });
 
     return true;
   }, TICK_TRANSACTION_OPTIONS);
@@ -1424,6 +1470,11 @@ async function processCycleTick(
   if (cycle.status === CycleStatus.ACTIVE) {
     // Backfill once for already-running active cycles so the announcement appears after deployment.
     await ensureEternalGoblinsAnnouncement({
+      db,
+      cycleId,
+      createdAt: tickAt,
+    });
+    await ensureHomeOfABossRevampAnnouncement({
       db,
       cycleId,
       createdAt: tickAt,
