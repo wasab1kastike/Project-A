@@ -24,15 +24,18 @@ export function isCastleUpgradeSpecialization(
   );
 }
 
+
+// Accepts choices with at least { specialization, level }
 export function countCastleSpecializations(
-  choices: Array<{ specialization: CastleUpgradeSpecialization }>
+  choices: Array<{ specialization: CastleUpgradeSpecialization; level?: number }>
 ) {
   const counts = { ...EMPTY_CASTLE_SPECIALIZATION_COUNTS };
-
   for (const choice of choices) {
-    counts[choice.specialization] += 1;
+    // Use the highest level for each specialization
+    const lvl = typeof choice.level === 'number' ? choice.level : 1;
+    // Store max(level, previous)
+    counts[choice.specialization] = Math.max(counts[choice.specialization], lvl);
   }
-
   return counts;
 }
 
