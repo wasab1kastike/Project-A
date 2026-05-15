@@ -537,14 +537,16 @@ async function processDueCastleUpgradeProjects({
         return;
       }
 
-      await tx.fortress.update({
-        where: {
-          id: project.fortressId,
-        },
-        data: {
-          level: fortress.level + 1,
-        },
-      });
+      if (project.specialization === "DEFENSE") {
+        await tx.fortress.update({
+          where: {
+            id: project.fortressId,
+          },
+          data: {
+            level: fortress.level + 1,
+          },
+        });
+      }
 
       await tx.castleUpgradeSpecializationChoice.upsert({
         where: {

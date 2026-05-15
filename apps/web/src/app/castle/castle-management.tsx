@@ -964,9 +964,11 @@ export function CastleManagement({
                     <p>
                       Upgrade costs {upgradeOption?.nextCost} gold and{" "}
                       {upgradeOption?.nextDurationMinutes} minutes.
-                      {upgradeOption?.maxLevel !== null
+                      {building.key === "DEFENSE"
+                        ? " Raises castle level."
+                        : upgradeOption?.maxLevel !== null
                         ? ` Max level: ${upgradeOption?.maxLevel}.`
-                        : " Raises castle level cap."}
+                        : ""}
                     </p>
                     <button
                       type="submit"
