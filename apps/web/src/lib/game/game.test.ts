@@ -160,6 +160,7 @@ import { formatTickRunnerError, formatTickSummary } from "./tick-cli";
 import {
   getBattlefieldAttrition,
   getBattlefieldProgressDelta,
+  getHomeOfABossBattleDamage,
   processActiveBattlefields,
 } from "./battlefields";
 import {
@@ -894,6 +895,31 @@ test("battlefield attrition is deterministic and has minimum losses", () => {
       attackerLosses: 0,
       defenderLosses: 0,
     }
+  );
+});
+
+test("Home of A boss battle damage does not imply attacker losses", () => {
+  assert.equal(
+    getHomeOfABossBattleDamage({
+      attackerArmy: 20_000,
+      bossHealth: 20_000,
+    }),
+    600
+  );
+  assert.equal(
+    getHomeOfABossBattleDamage({
+      attackerArmy: 20_000,
+      attackPowerMultiplier: 1.25,
+      bossHealth: 20_000,
+    }),
+    750
+  );
+  assert.equal(
+    getHomeOfABossBattleDamage({
+      attackerArmy: 20_000,
+      bossHealth: 300,
+    }),
+    300
   );
 });
 

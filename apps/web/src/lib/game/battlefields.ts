@@ -44,6 +44,7 @@ import {
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
 const CASTLE_PVP_POINT_LOOT_PERCENT = 0.05;
+const HOME_OF_A_BOSS_DAMAGE_PER_TICK_RATE = 0.03;
 
 function getHomeOfABossDefeatAnnouncement({
   fortressName,
@@ -156,6 +157,33 @@ export function getBattlefieldAttrition({
       )
     ),
   };
+}
+
+export function getHomeOfABossBattleDamage({
+  attackerArmy,
+  attackPowerMultiplier = 1,
+  bossHealth,
+}: {
+  attackerArmy: number;
+  attackPowerMultiplier?: number;
+  bossHealth: number;
+}) {
+  const effectiveAttackArmy = Math.max(
+    0,
+    Math.floor(attackerArmy * Math.max(0, attackPowerMultiplier))
+  );
+
+  if (effectiveAttackArmy <= 0 || bossHealth <= 0) {
+    return 0;
+  }
+
+  return Math.min(
+    bossHealth,
+    Math.max(
+      1,
+      Math.floor(effectiveAttackArmy * HOME_OF_A_BOSS_DAMAGE_PER_TICK_RATE)
+    )
+  );
 }
 
 function distributeLosses<
@@ -1087,23 +1115,34 @@ export async function processActiveBattlefields({
       getParticipantTitleAttackMultiplier(attackerParticipants);
     const defenderTitleAttackMultiplier =
       getParticipantTitleAttackMultiplier(defenderParticipants);
-    const attrition = getBattlefieldAttrition({
-      battlefieldId: battlefield.id,
-      tickAt,
-      attackerArmy: attackerArmyBefore,
-      defenderArmy: defenderArmyBefore,
-      attackerPowerMultiplier:
-        attackerGrudgeMultiplier *
-        attackerBossOrderMultiplier *
-        attackerHomeBossBuffMultiplier *
-        attackerTitleAttackMultiplier,
-      defenderPowerMultiplier:
-        defenderGrudgeMultiplier *
-        defenderTileDefenseMultiplier *
-        defenderBossOrderMultiplier *
-        defenderHomeBossBuffMultiplier *
-        defenderTitleAttackMultiplier,
-    });
+    const attackerPowerMultiplier =
+      attackerGrudgeMultiplier *
+      attackerBossOrderMultiplier *
+      attackerHomeBossBuffMultiplier *
+      attackerTitleAttackMultiplier;
+    const defenderPowerMultiplier =
+      defenderGrudgeMultiplier *
+      defenderTileDefenseMultiplier *
+      defenderBossOrderMultiplier *
+      defenderHomeBossBuffMultiplier *
+      defenderTitleAttackMultiplier;
+    const attrition = isHomeBossBattle
+      ? {
+          attackerLosses: 0,
+          defenderLosses: getHomeOfABossBattleDamage({
+            attackerArmy: attackerArmyBefore,
+            attackPowerMultiplier: attackerPowerMultiplier,
+            bossHealth: nativeDefenderArmyBefore,
+          }),
+        }
+      : getBattlefieldAttrition({
+          battlefieldId: battlefield.id,
+          tickAt,
+          attackerArmy: attackerArmyBefore,
+          defenderArmy: defenderArmyBefore,
+          attackerPowerMultiplier,
+          defenderPowerMultiplier,
+        });
     const attackerParticipantLosses = distributeLosses(
       attackerParticipants,
       attrition.attackerLosses
