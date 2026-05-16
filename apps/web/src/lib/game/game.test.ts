@@ -189,6 +189,12 @@ import {
 } from "./schema-guards";
 import { getChatMessageVariant } from "@/components/chat-panel-helpers";
 import { POST as openClawGodChatPOST } from "@/app/api/openclaw/god-chat/route";
+import { GET as openClawGodSnapshotGET } from "@/app/api/openclaw/god-snapshot/route";
+import { getGodSnapshot } from "./god-snapshot";
+import {
+  sanitizeGodMessage,
+  selectUnhandledEvent,
+} from "@/lib/openclaw/god-runner";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = resolve(__dirname, "../../..");
@@ -1250,6 +1256,36 @@ test("OpenClaw god chat route rejects missing configuration and invalid secrets"
   }
 });
 
+test("OpenClaw god snapshot route rejects missing configuration and invalid secrets", async () => {
+  const originalSecret = process.env.OPENCLAW_GOD_SHARED_SECRET;
+
+  try {
+    delete process.env.OPENCLAW_GOD_SHARED_SECRET;
+
+    const missingConfigResponse = await openClawGodSnapshotGET(
+      new Request("http://localhost/api/openclaw/god-snapshot")
+    );
+    assert.equal(missingConfigResponse.status, 503);
+
+    process.env.OPENCLAW_GOD_SHARED_SECRET = "test-secret";
+
+    const invalidSecretResponse = await openClawGodSnapshotGET(
+      new Request("http://localhost/api/openclaw/god-snapshot", {
+        headers: {
+          "x-openclaw-god-secret": "wrong-secret",
+        },
+      })
+    );
+    assert.equal(invalidSecretResponse.status, 401);
+  } finally {
+    if (originalSecret === undefined) {
+      delete process.env.OPENCLAW_GOD_SHARED_SECRET;
+    } else {
+      process.env.OPENCLAW_GOD_SHARED_SECRET = originalSecret;
+    }
+  }
+});
+
 test("God Emperor chat creates a divine message in the current cycle", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
@@ -1287,6 +1323,68 @@ test("God Emperor chat creates a divine message in the current cycle", async (co
 
   assert.equal(state.chat.messages.at(-1)?.authorName, "God Emperor A");
   assert.equal(state.chat.messages.at(-1)?.isSystem, true);
+});
+
+test("God Emperor snapshot exposes public vision and stable event keys", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  await seedOpenCycle(prisma);
+  await sendGodEmperorChatMessage({
+    db: prisma,
+    body: "The throne sees only what the battlefield shows.",
+    now: new Date("2026-04-19T12:10:00.000Z"),
+  });
+
+  const snapshot = await getGodSnapshot({
+    db: prisma,
+    now: new Date("2026-04-19T12:11:00.000Z"),
+  });
+  const serializedSnapshot = JSON.stringify(snapshot);
+
+  assert.equal(snapshot.ok, true);
+  assert.equal(snapshot.identity.name, GOD_EMPEROR_CHAT_AUTHOR_NAME);
+  assert.ok(snapshot.cycle);
+  assert.ok(snapshot.events.some((event) => event.key.startsWith("cycle:")));
+  assert.equal(snapshot.recentChat.at(-1)?.authorName, "God Emperor A");
+  assert.doesNotMatch(serializedSnapshot, /ownerId/);
+  assert.doesNotMatch(serializedSnapshot, /email/i);
+});
+
+test("God runner dedupes event keys and normalizes generated messages", () => {
+  const selected = selectUnhandledEvent(
+    [
+      {
+        key: "already-handled",
+        kind: "leaderboard",
+        title: "Handled",
+        summary: "Handled event.",
+        priority: 100,
+        occurredAt: null,
+      },
+      {
+        key: "new-event",
+        kind: "battlefield",
+        title: "New",
+        summary: "New event.",
+        priority: 80,
+        occurredAt: null,
+      },
+    ],
+    {
+      "already-handled": "2026-04-19T12:00:00.000Z",
+    }
+  );
+
+  assert.equal(selected?.key, "new-event");
+  assert.equal(
+    sanitizeGodMessage("  <think>hidden plan</think>  The sky   answers.  "),
+    "The sky answers."
+  );
+  assert.equal(sanitizeGodMessage("x".repeat(400)).length, 280);
 });
 
 test("God Emperor chat validates body and current cycle", async (context) => {

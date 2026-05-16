@@ -12,6 +12,8 @@ build/
 
 *.log
 npm-debug.log*
+.openclaw-god-runner-state.json
+apps/web/.openclaw-god-runner-state.json
 
 .DS_Store
 Thumbs.db

@@ -138,9 +138,18 @@ npx prisma db seed
    - `https://project-a-web.onrender.com/api/auth/callback/google`
 4. Start the app and verify sign-in, sign-out, and admin access with the seeded `ADMIN_EMAIL` account.
 
-## OpenClaw God Emperor chat
+## OpenClaw God Emperor AI
 
-Project-A can accept phase-1 divine narration from a locally running OpenClaw process. Set `OPENCLAW_GOD_SHARED_SECRET` on the web app, then have OpenClaw POST into the game from WSL:
+Project-A phase 1 gives a locally running OpenClaw process vision and a mouth only. The AI can read public world state and speak in global chat as `God Emperor A`; it cannot change gameplay state.
+
+Set `OPENCLAW_GOD_SHARED_SECRET` on the web app, then read the public-safe snapshot:
+
+```bash
+curl http://localhost:3000/api/openclaw/god-snapshot \
+  -H "x-openclaw-god-secret: $OPENCLAW_GOD_SHARED_SECRET"
+```
+
+OpenClaw can post narration from WSL:
 
 ```bash
 curl -X POST http://localhost:3000/api/openclaw/god-chat \
@@ -149,7 +158,20 @@ curl -X POST http://localhost:3000/api/openclaw/god-chat \
   -d '{"body":"The God Emperor A watches the battlefield."}'
 ```
 
-Accepted messages appear in global chat as `God Emperor A`. This phase is narration only and does not change gameplay state.
+For the local Ollama loop, run OpenClaw or a scheduler against the one-shot runner:
+
+```bash
+cd apps/web
+PROJECT_A_GOD_BASE_URL=http://localhost:3000 \
+OPENCLAW_GOD_SHARED_SECRET="$OPENCLAW_GOD_SHARED_SECRET" \
+OLLAMA_BASE_URL=http://127.0.0.1:11434 \
+GOD_LLM_MODEL=qwen3.6:27b \
+npm run god:run
+```
+
+The runner polls `/api/openclaw/god-snapshot`, chooses one new stable event key, asks Ollama for a short in-character line, posts it through `/api/openclaw/god-chat`, and stores local dedupe memory in `.openclaw-god-runner-state.json`.
+
+On Render, set `OPENCLAW_GOD_SHARED_SECRET` for `project-a-web`, deploy, then smoke test the snapshot and chat endpoints against the production URL with the same header.
 
 ## Product loop
 

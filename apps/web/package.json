@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "node server.mjs",
     "game:tick": "tsx src/lib/game/tick-cli.ts",
+    "god:run": "tsx src/lib/openclaw/god-runner.ts",
     "lint": "eslint",
     "test:game": "tsx --test src/lib/game/game.test.ts",
     "typecheck": "tsc --noEmit",
