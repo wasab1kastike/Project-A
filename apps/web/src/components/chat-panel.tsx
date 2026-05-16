@@ -59,7 +59,7 @@ export function ChatPanel({
   // Once live state includes the posted message, clear the optimistic copy.
   useEffect(() => {
     if (pendingMessages.length > 0) {
-      setPendingMessages([]);
+      queueMicrotask(() => setPendingMessages([]));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages]);
@@ -120,7 +120,7 @@ export function ChatPanel({
         >
           <div className={styles.messageMeta}>
             {message.isSystem ? (
-              <span className={styles.systemLabel}>System</span>
+              <span className={styles.systemLabel}>{message.authorName}</span>
             ) : (
               <strong>{message.authorName}</strong>
             )}

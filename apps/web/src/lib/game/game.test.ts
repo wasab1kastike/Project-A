@@ -36,7 +36,12 @@ import {
   setRegistrationJoiningLock,
 } from "./admin-operations";
 import { seedProjectA } from "./bootstrap";
-import { markChatRead, sendChatGifMessage, sendChatMessage } from "./chat";
+import {
+  markChatRead,
+  sendChatGifMessage,
+  sendChatMessage,
+  sendGodEmperorChatMessage,
+} from "./chat";
 import {
   COMMUNITY_WISH_MAX_LENGTH,
   adminResolveCommunityWishTie,
@@ -72,6 +77,8 @@ import {
   CURRENT_MAP_LAYOUT_VERSION,
   HOME_OF_A_POINT_INCOME,
   HOME_OF_A_TILE_ID,
+  GOD_EMPEROR_CHAT_AUTHOR_NAME,
+  GOD_EMPEROR_USER_EMAIL,
   MEGA_FORTRESS_DESTROY_BONUS,
   MEGA_FORTRESS_HEALTH,
   NPC_SYSTEM_USER_EMAIL,
@@ -92,7 +99,6 @@ import {
   getDefaultRaceCosmeticVariant,
 } from "./cosmetic-sprites";
 import {
-  getNextHelsinkiNoonAfter,
   getRaceBuffTier,
   getRaceTierTileCount,
   getUnicornShatteredRealityAvailability,
@@ -182,6 +188,7 @@ import {
   getRaceSchemaReadiness,
 } from "./schema-guards";
 import { getChatMessageVariant } from "@/components/chat-panel-helpers";
+import { POST as openClawGodChatPOST } from "@/app/api/openclaw/god-chat/route";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = resolve(__dirname, "../../..");
@@ -1192,6 +1199,156 @@ test("owned tile attack rejects when targeting your own tile", async (context) =
         db: prisma,
       }),
     /already own that tile/
+  );
+});
+
+test("OpenClaw god chat route rejects missing configuration and invalid secrets", async () => {
+  const originalSecret = process.env.OPENCLAW_GOD_SHARED_SECRET;
+
+  try {
+    delete process.env.OPENCLAW_GOD_SHARED_SECRET;
+
+    const missingConfigResponse = await openClawGodChatPOST(
+      new Request("http://localhost/api/openclaw/god-chat", {
+        method: "POST",
+        body: JSON.stringify({ body: "The sky listens." }),
+      })
+    );
+    assert.equal(missingConfigResponse.status, 503);
+
+    process.env.OPENCLAW_GOD_SHARED_SECRET = "test-secret";
+
+    const invalidSecretResponse = await openClawGodChatPOST(
+      new Request("http://localhost/api/openclaw/god-chat", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-openclaw-god-secret": "wrong-secret",
+        },
+        body: JSON.stringify({ body: "The sky listens." }),
+      })
+    );
+    assert.equal(invalidSecretResponse.status, 401);
+
+    const invalidBodyResponse = await openClawGodChatPOST(
+      new Request("http://localhost/api/openclaw/god-chat", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-openclaw-god-secret": "test-secret",
+        },
+        body: JSON.stringify({ message: "Wrong field." }),
+      })
+    );
+    assert.equal(invalidBodyResponse.status, 400);
+  } finally {
+    if (originalSecret === undefined) {
+      delete process.env.OPENCLAW_GOD_SHARED_SECRET;
+    } else {
+      process.env.OPENCLAW_GOD_SHARED_SECRET = originalSecret;
+    }
+  }
+});
+
+test("God Emperor chat creates a divine message in the current cycle", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+
+  const message = await sendGodEmperorChatMessage({
+    db: prisma,
+    body: "  The God Emperor A watches   the battlefield.  ",
+    now: new Date("2026-04-19T12:10:00.000Z"),
+  });
+
+  assert.equal(message.body, "The God Emperor A watches the battlefield.");
+
+  const stored = await prisma.chatMessage.findUniqueOrThrow({
+    where: {
+      id: message.id,
+    },
+    include: {
+      author: true,
+    },
+  });
+
+  assert.equal(stored.cycleId, cycle.id);
+  assert.equal(stored.author.email, GOD_EMPEROR_USER_EMAIL);
+  assert.equal(stored.author.name, GOD_EMPEROR_CHAT_AUTHOR_NAME);
+
+  const state = await getHomePageState({
+    db: prisma,
+    now: new Date("2026-04-19T12:11:00.000Z"),
+  });
+
+  assert.equal(state.chat.messages.at(-1)?.authorName, "God Emperor A");
+  assert.equal(state.chat.messages.at(-1)?.isSystem, true);
+});
+
+test("God Emperor chat validates body and current cycle", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  await assert.rejects(
+    sendGodEmperorChatMessage({
+      db: prisma,
+      body: "No cycle yet.",
+    }),
+    /Chat is unavailable until a cycle exists/
+  );
+
+  await seedOpenCycle(prisma);
+
+  await assert.rejects(
+    sendGodEmperorChatMessage({
+      db: prisma,
+      body: "   ",
+    }),
+    /Chat message cannot be empty/
+  );
+
+  await assert.rejects(
+    sendGodEmperorChatMessage({
+      db: prisma,
+      body: "x".repeat(281),
+    }),
+    /Chat message must be 280 characters or fewer/
+  );
+});
+
+test("God Emperor chat has a defensive rate limit", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  await seedOpenCycle(prisma);
+
+  const now = new Date("2026-04-19T12:10:00.000Z");
+
+  for (let index = 0; index < 6; index += 1) {
+    await sendGodEmperorChatMessage({
+      db: prisma,
+      body: `Divine decree ${index + 1}`,
+      now,
+    });
+  }
+
+  await assert.rejects(
+    sendGodEmperorChatMessage({
+      db: prisma,
+      body: "Divine decree 7",
+      now,
+    }),
+    /God Emperor chat is limited to 6 messages per minute/
   );
 });
 

@@ -4,6 +4,10 @@ import {
   type Prisma,
   type PrismaClient,
 } from "@/lib/prisma-client";
+import {
+  GOD_EMPEROR_CHAT_AUTHOR_NAME,
+  GOD_EMPEROR_USER_EMAIL,
+} from "./constants";
 import { GameError } from "./errors";
 import { ensureLastReadChatColumn } from "./schema-guards";
 
@@ -11,6 +15,7 @@ const CHAT_MESSAGE_MAX_LENGTH = 280;
 const CHAT_MESSAGES_LIMIT = 40;
 const CHAT_RATE_LIMIT_WINDOW_MS = 60_000;
 const CHAT_RATE_LIMIT_COUNT = 6;
+const GOD_EMPEROR_RATE_LIMIT_COUNT = 6;
 const CHAT_GIF_PROVIDER = "giphy";
 const CHAT_GIF_TITLE_MAX_LENGTH = 160;
 const CHAT_GIF_ID_MAX_LENGTH = 120;
@@ -49,6 +54,21 @@ async function getCurrentCycle(db: DatabaseClient) {
     },
     orderBy: {
       createdAt: "desc",
+    },
+  });
+}
+
+async function ensureGodEmperorUser(db: DatabaseClient) {
+  return db.user.upsert({
+    where: {
+      email: GOD_EMPEROR_USER_EMAIL,
+    },
+    update: {
+      name: GOD_EMPEROR_CHAT_AUTHOR_NAME,
+    },
+    create: {
+      email: GOD_EMPEROR_USER_EMAIL,
+      name: GOD_EMPEROR_CHAT_AUTHOR_NAME,
     },
   });
 }
@@ -132,6 +152,56 @@ export async function sendChatGifMessage({
         gifWidth: normalizedGif.width,
         gifHeight: normalizedGif.height,
         gifSourceUrl: normalizedGif.sourceUrl,
+        createdAt: now,
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+  });
+}
+
+export async function sendGodEmperorChatMessage({
+  body,
+  now = new Date(),
+  db = prisma,
+}: {
+  body: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  const normalizedBody = normalizeChatBody(body);
+
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle) {
+      throw new GameError("Chat is unavailable until a cycle exists.");
+    }
+
+    const godEmperor = await ensureGodEmperorUser(tx);
+
+    await assertWithinChatRateLimit({
+      tx,
+      cycleId: cycle.id,
+      userId: godEmperor.id,
+      now,
+      limit: GOD_EMPEROR_RATE_LIMIT_COUNT,
+      message: "God Emperor chat is limited to 6 messages per minute.",
+    });
+
+    return tx.chatMessage.create({
+      data: {
+        cycleId: cycle.id,
+        authorId: godEmperor.id,
+        type: ChatMessageType.TEXT,
+        body: normalizedBody,
         createdAt: now,
       },
       include: {
@@ -249,11 +319,15 @@ async function assertWithinChatRateLimit({
   cycleId,
   userId,
   now,
+  limit = CHAT_RATE_LIMIT_COUNT,
+  message = "Chat is limited to 6 messages per minute.",
 }: {
   tx: DatabaseClient;
   cycleId: string;
   userId: string;
   now: Date;
+  limit?: number;
+  message?: string;
 }) {
   const rateLimitBoundary = new Date(now.getTime() - CHAT_RATE_LIMIT_WINDOW_MS);
   const recentMessageCount = await tx.chatMessage.count({
@@ -266,8 +340,8 @@ async function assertWithinChatRateLimit({
     },
   });
 
-  if (recentMessageCount >= CHAT_RATE_LIMIT_COUNT) {
-    throw new GameError("Chat is limited to 6 messages per minute.");
+  if (recentMessageCount >= limit) {
+    throw new GameError(message);
   }
 }
 

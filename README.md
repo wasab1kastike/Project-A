@@ -138,6 +138,19 @@ npx prisma db seed
    - `https://project-a-web.onrender.com/api/auth/callback/google`
 4. Start the app and verify sign-in, sign-out, and admin access with the seeded `ADMIN_EMAIL` account.
 
+## OpenClaw God Emperor chat
+
+Project-A can accept phase-1 divine narration from a locally running OpenClaw process. Set `OPENCLAW_GOD_SHARED_SECRET` on the web app, then have OpenClaw POST into the game from WSL:
+
+```bash
+curl -X POST http://localhost:3000/api/openclaw/god-chat \
+  -H "content-type: application/json" \
+  -H "x-openclaw-god-secret: $OPENCLAW_GOD_SHARED_SECRET" \
+  -d '{"body":"The God Emperor A watches the battlefield."}'
+```
+
+Accepted messages appear in global chat as `God Emperor A`. This phase is narration only and does not change gameplay state.
+
 ## Product loop
 
 - Players sign in with Google

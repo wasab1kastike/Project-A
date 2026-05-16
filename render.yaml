@@ -34,6 +34,9 @@ services:
       # Used by the seed flow to create the first admin account.
       - key: ADMIN_EMAIL
         sync: false
+      # Shared secret for inbound OpenClaw God Emperor chat narration.
+      - key: OPENCLAW_GOD_SHARED_SECRET
+        sync: false
 
   - type: cron
     name: project-a-game-tick
