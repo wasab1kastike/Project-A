@@ -1452,7 +1452,7 @@ test("God runner prioritizes leaderboard changes over battlefield churn", () => 
   assert.equal(selected?.key, "leader-event");
 });
 
-test("God runner skips tiny repeated leaderboard bumps from the same leader", () => {
+test("God runner skips repeated event topics after one divine comment", () => {
   const selected = selectUnhandledEvent(
     [
       {
@@ -1493,6 +1493,14 @@ test("God runner skips tiny repeated leaderboard bumps from the same leader", ()
           priority: 120,
           occurredAt: null,
         },
+        {
+          key: "cycle:test-cycle:leader:fortress-b:90000",
+          kind: "leaderboard",
+          title: "Leaderboard lead",
+          summary: "Aarocorn leads with 90000 points.",
+          priority: 120,
+          occurredAt: null,
+        },
       ],
       {
         "cycle:test-cycle:leader:fortress-a:130115":
@@ -1502,7 +1510,26 @@ test("God runner skips tiny repeated leaderboard bumps from the same leader", ()
         now: new Date("2026-04-19T12:20:00.000Z"),
       }
     )?.key,
-    "cycle:test-cycle:leader:fortress-a:131200"
+    "cycle:test-cycle:leader:fortress-b:90000"
+  );
+  assert.equal(
+    selectUnhandledEvent(
+      [
+        {
+          key: "cycle:test-cycle:battlefield:battle-a:55:0:0:0:0:DEFENDER_EDGE",
+          kind: "battlefield",
+          title: "Tile 7:11",
+          summary: "Tile 7:11: DEFENDER_EDGE at 55% progress.",
+          priority: 100,
+          occurredAt: null,
+        },
+      ],
+      {},
+      {
+        recentTopicKeys: ["cycle:test-cycle:battlefield:battle-a"],
+      }
+    ),
+    undefined
   );
 });
 
@@ -1549,8 +1576,16 @@ test("God runner rejects generic narration for concrete events", () => {
     /sees the scoreboard shift/i
   );
   assert.doesNotMatch(buildFallbackGodMessage(leaderboardEvent), /leads with/i);
-  assert.match(buildFallbackGodMessage(leaderboardEvent), /Crown audit/);
-  assert.match(buildFallbackGodMessage(leaderboardEvent), /stacked 130115/);
+  assert.doesNotMatch(buildFallbackGodMessage(leaderboardEvent), /\d+\s+points/i);
+  assert.match(buildFallbackGodMessage(leaderboardEvent), /Crown omen/);
+  assert.match(buildFallbackGodMessage(leaderboardEvent), /DA BOYZ/);
+  assert.equal(
+    sanitizeGodMessage(
+      "Aarocorn leads with 164258 points and the crown sweats.",
+      "Fallback."
+    ),
+    "Aarocorn leads with a suspicious pile of points and the crown sweats."
+  );
   assert.equal(
     sanitizeGodMessage(
       "A spicy admin database roast says DA BOYZ wins.",
@@ -1602,6 +1637,8 @@ test("God runner prompt includes public player names and race labels", () => {
   assert.match(prompt, /imperial, deadpan, petty/);
   assert.match(prompt, /spicy public in-game roasts/);
   assert.match(prompt, /never attack a real person/);
+  assert.doesNotMatch(prompt, /130115/);
+  assert.match(prompt, /Never include exact score or point totals/);
 });
 
 test("God runner dry-run previews without posting or marking handled", async () => {

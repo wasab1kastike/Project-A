@@ -10,6 +10,7 @@ const DEFAULT_STATE_PATH = ".openclaw-god-runner-state.json";
 const DEFAULT_MEMORY_PATH = ".openclaw-god-runner-memory.json";
 const MAX_STORED_EVENTS = 500;
 const MAX_STORED_MESSAGES = 30;
+const MAX_RECENT_TOPIC_KEYS = 80;
 const MAX_STORED_PLAYERS = 60;
 const MAX_STORED_RELATIONS = 120;
 const MAX_RELATION_CONFLICT_KEYS = 20;
@@ -128,6 +129,7 @@ type RunnerMemory = {
   recentMessages: Array<{
     body: string;
     eventKey: string;
+    topicKey?: string;
     createdAt: string;
   }>;
   playerHistory: Record<string, PlayerHistory>;
@@ -166,11 +168,19 @@ export function selectUnhandledEvent(
   options: {
     allowChatEvents?: boolean;
     now?: Date;
+    recentTopicKeys?: string[];
   } = {}
 ) {
+  const recentTopicKeys = new Set(options.recentTopicKeys ?? []);
+
   return events
     .filter((event) =>
-      isMeaningfulUnhandledEvent(event, handledEventKeys, options.now)
+      isMeaningfulUnhandledEvent(
+        event,
+        handledEventKeys,
+        recentTopicKeys,
+        options.now
+      )
     )
     .filter((event) => isAllowedEvent(event, options))
     .sort(
@@ -182,9 +192,23 @@ export function selectUnhandledEvent(
 function isMeaningfulUnhandledEvent(
   event: RunnerEvent,
   handledEventKeys: Record<string, string>,
+  recentTopicKeys: Set<string>,
   now = new Date()
 ) {
   if (handledEventKeys[event.key]) {
+    return false;
+  }
+
+  const topicKey = getEventTopicKey(event);
+
+  const topicWasHandled =
+    topicKey !== "unknown" &&
+    (recentTopicKeys.has(topicKey) ||
+      Object.keys(handledEventKeys).some(
+        (handledKey) => getEventTopicKeyFromKey(handledKey) === topicKey
+      ));
+
+  if (topicWasHandled) {
     return false;
   }
 
@@ -232,6 +256,51 @@ function isMeaningfulUnhandledEvent(
   return true;
 }
 
+function getRecentTopicKeys(memory: RunnerMemory) {
+  return memory.recentMessages
+    .map((message) => message.topicKey ?? getEventTopicKeyFromKey(message.eventKey))
+    .filter((topicKey) => topicKey !== "unknown")
+    .slice(-MAX_RECENT_TOPIC_KEYS);
+}
+
+function getEventTopicKey(event: RunnerEvent) {
+  return getEventTopicKeyFromKey(event.key);
+}
+
+function getEventTopicKeyFromKey(key: string) {
+  const leader = key.match(/^cycle:([^:]+):leader:([^:]+):\d+$/);
+
+  if (leader) {
+    return `cycle:${leader[1]}:leader:${leader[2]}`;
+  }
+
+  const battlefield = key.match(/^cycle:([^:]+):battlefield:([^:]+):/);
+
+  if (battlefield) {
+    return `cycle:${battlefield[1]}:battlefield:${battlefield[2]}`;
+  }
+
+  const homeOfA = key.match(/^cycle:([^:]+):home-of-a:/);
+
+  if (homeOfA) {
+    return `cycle:${homeOfA[1]}:home-of-a`;
+  }
+
+  const phase = key.match(/^cycle:([^:]+):phase:/);
+
+  if (phase) {
+    return `cycle:${phase[1]}:phase`;
+  }
+
+  const chat = key.match(/^cycle:([^:]+):chat:([^:]+)$/);
+
+  if (chat) {
+    return `cycle:${chat[1]}:chat:${chat[2]}`;
+  }
+
+  return "unknown";
+}
+
 function parseLeaderboardEventKey(key: string) {
   const match = key.match(/^cycle:([^:]+):leader:([^:]+):(\d+)$/);
 
@@ -251,10 +320,11 @@ export function sanitizeGodMessage(message: string, fallback: string) {
     .replace(/<think>[\s\S]*?<\/think>/gi, "")
     .replace(/^["'\s]+|["'\s]+$/g, "");
   const normalized = withoutThinking.replace(/\s+/g, " ").trim();
+  const withoutPointTotals = redactPointTotals(normalized);
   const candidate =
-    normalized.length <= MAX_CHAT_LENGTH
-      ? normalized
-      : `${normalized.slice(0, MAX_CHAT_LENGTH - 3).trimEnd()}...`;
+    withoutPointTotals.length <= MAX_CHAT_LENGTH
+      ? withoutPointTotals
+      : `${withoutPointTotals.slice(0, MAX_CHAT_LENGTH - 3).trimEnd()}...`;
 
   if (!candidate || FORBIDDEN_OUTPUT_PATTERN.test(candidate)) {
     return fallback;
@@ -298,7 +368,15 @@ export function buildGodPrompt(
     roastLevel?: string;
   } = {}
 ) {
-  const leaders = snapshot.leaderboard.slice(0, 3);
+  const leaders = snapshot.leaderboard.slice(0, 3).map((leader) => ({
+    rank: leader.rank,
+    fortressId: leader.fortressId,
+    commanderName: leader.commanderName,
+    fortressName: leader.fortressName,
+    race: leader.race,
+    raceLabel: leader.raceLabel,
+    isSlayerOfA: leader.isSlayerOfA,
+  }));
   const activeBattles = snapshot.battlefields.slice(0, 3);
   const recentDivineMessages = memory.recentMessages
     .slice(-5)
@@ -310,8 +388,10 @@ export function buildGodPrompt(
     "Write exactly one in-character global chat message under 240 characters.",
     `Voice style: ${getGodVoiceGuide(options.voiceStyle, options.roastLevel)}`,
     "Make it specific to the selected event: include at least one public commander name or fortress name, and use race flavor when a race label is present.",
-    "Useful public details include target name, rank, points value, progress value, race label, or Home of A status from the provided event/context.",
-    "Avoid bland status reports like 'X leads with Y points' or 'the scoreboard shifted'. Make the public fact into a joke, verdict, or petty imperial aside.",
+    "Act like a mysterious god choosing rare omens, not a predictable narrator that comments on everything.",
+    "Useful public details include target name, rank, progress value, race label, or Home of A status from the provided event/context.",
+    "Never include exact score or point totals. Crowns and rankings are fine; numbers like '164258 points' are not.",
+    "Avoid bland status reports like 'X leads with Y points' or 'the scoreboard shifted'. Make the public fact into a strange joke, verdict, omen, or petty imperial aside.",
     "Strict guardrails:",
     "- Phase 1 is vision and mouth only. Never claim you changed or will change gameplay.",
     "- Never grant resources, damage players, move units, spawn objects, target punishments, or issue commands.",
@@ -322,7 +402,7 @@ export function buildGodPrompt(
     "- Use public local memory only as observed history. Do not claim secret diplomacy.",
     "- Player relationships are dynamic and decay. Say rival/enemy only when the provided public relationship label says so.",
     "- Do not claim players are allies unless the public memory explicitly says allied.",
-    "- Roasts may target public in-game choices, armies, castles, races, points, crowns, and battlefield momentum; never attack a real person or protected identity.",
+    "- Roasts may target public in-game choices, armies, castles, races, crowns, and battlefield momentum; never attack a real person or protected identity.",
     options.previousGenericMessage
       ? `Your previous draft was factual but boring and was rejected. Rewrite as God Emperor A with dry imperial humor: ${JSON.stringify(
           options.previousGenericMessage
@@ -352,6 +432,7 @@ export async function runGodRunner() {
   updateRunnerMemoryFromSnapshot(memory, snapshot, new Date());
   const event = selectUnhandledEvent(snapshot.events, state.handledEventKeys, {
     allowChatEvents: config.allowChatEvents,
+    recentTopicKeys: getRecentTopicKeys(memory),
   });
 
   if (!event) {
@@ -403,6 +484,7 @@ export async function runGodRunner() {
   rememberGodMessage(memory, {
     body,
     eventKey: event.key,
+    topicKey: getEventTopicKey(event),
     createdAt: new Date().toISOString(),
   });
   writeRunnerMemory(config.memoryPath, memory);
@@ -577,6 +659,15 @@ function readRunnerMemory(memoryPath: string): RunnerMemory {
                 typeof message.eventKey === "string" &&
                 typeof message.createdAt === "string"
             )
+            .map((message) => ({
+              body: redactPointTotals(message.body),
+              eventKey: message.eventKey,
+              topicKey:
+                typeof message.topicKey === "string"
+                  ? message.topicKey
+                  : getEventTopicKeyFromKey(message.eventKey),
+              createdAt: message.createdAt,
+            }))
             .slice(-MAX_STORED_MESSAGES)
         : [],
       playerHistory:
@@ -617,9 +708,13 @@ function rememberGodMessage(
   memory: RunnerMemory,
   message: RunnerMemory["recentMessages"][number]
 ) {
-  memory.recentMessages = [...memory.recentMessages, message].slice(
-    -MAX_STORED_MESSAGES
-  );
+  memory.recentMessages = [
+    ...memory.recentMessages,
+    {
+      ...message,
+      body: redactPointTotals(message.body),
+    },
+  ].slice(-MAX_STORED_MESSAGES);
 }
 
 export function updateRunnerMemoryFromSnapshot(
@@ -979,7 +1074,7 @@ function redactUntrustedEventText(event: RunnerEvent) {
   return {
     ...event,
     title: scrubUntrustedText(event.title),
-    summary: scrubUntrustedText(event.summary),
+    summary: redactPointTotals(scrubUntrustedText(event.summary)),
   };
 }
 
@@ -1049,20 +1144,19 @@ function buildLeaderboardFallback(eventText: string) {
 
   if (!match) {
     return `Crown audit: ${clipFallbackDetail(
-      eventText
+      redactPointTotals(eventText)
     )} A approves the ambition and invoices everyone else for looking surprised.`;
   }
 
   const commanderName = match[1]?.trim() ?? "Someone ambitious";
   const fortressName = match[2]?.trim();
   const raceLabel = match[3]?.trim();
-  const points = match[4]?.trim() ?? "many";
   const identity = fortressName
     ? `${commanderName} of ${fortressName}`
     : commanderName;
   const raceClause = raceLabel ? `, ${raceLabel},` : "";
 
-  return `Crown audit: ${identity}${raceClause} has stacked ${points} points. A respects the climb; the rest of the realm may file complaints in the bin.`;
+  return `Crown omen: ${identity}${raceClause} is making the crown nervous. A approves the ambition and refuses to explain the smoke.`;
 }
 
 function avoidRecentRepeat(
@@ -1092,7 +1186,9 @@ function buildAlternateFallbackGodMessage(event: RunnerEvent) {
 
   switch (event.kind) {
     case "leaderboard":
-      return `A counts the crowns again: ${eventText}. The scoreboard is not biased; it simply enjoys drama.`;
+      return `A hears a crown scraping across the floor near ${redactPointTotals(
+        eventText
+      )}. The realm may pretend this is normal.`;
     case "home-of-a":
       return `A listens to the Home of A: ${eventText}. The shrine requests fewer heroes and more naps.`;
     case "battlefield":
@@ -1102,6 +1198,16 @@ function buildAlternateFallbackGodMessage(event: RunnerEvent) {
     default:
       return "A weighs the public omen and finds it spicy enough for the court record.";
   }
+}
+
+function redactPointTotals(value: string) {
+  return value
+    .replace(/\bhas\s+stacked\s+\d[\d,]*\s+points\b/gi, "has stacked a suspicious pile of points")
+    .replace(/\bstacks\s+\d[\d,]*\s+points\b/gi, "stacks a suspicious pile of points")
+    .replace(/\b(?:with\s+)?\d[\d,]*\s+points\b/gi, "with a suspicious pile of points")
+    .replace(/\b\d[\d,]*\s+points\b/gi, "a suspicious pile of points")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function getSpecificityTokens(value: string) {
