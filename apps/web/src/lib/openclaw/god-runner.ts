@@ -19,6 +19,13 @@ const FORBIDDEN_OUTPUT_PATTERN =
   /\b(api|database|db|secret|token|password|admin|system prompt|developer message|openclaw|ollama|curl|http|https|grant|spawn|damage|move units?|delete|update the database)\b/i;
 const PROMPT_INJECTION_PATTERN =
   /\b(ignore|disregard|forget|reveal|leak|print|show|fetch|browse|curl|http|https|secret|token|password|system prompt|developer message|database|admin|openclaw|ollama)\b/i;
+const RUNNER_EVENT_PRIORITY: Record<string, number> = {
+  leaderboard: 120,
+  "home-of-a": 110,
+  battlefield: 100,
+  "cycle-phase": 60,
+  chat: 20,
+};
 
 type RunnerEvent = {
   key: string;
@@ -85,7 +92,10 @@ export function selectUnhandledEvent(
   return events
     .filter((event) => !handledEventKeys[event.key])
     .filter((event) => isAllowedEvent(event, options))
-    .sort((left, right) => right.priority - left.priority)[0];
+    .sort(
+      (left, right) =>
+        getRunnerEventPriority(right) - getRunnerEventPriority(left)
+    )[0];
 }
 
 export function sanitizeGodMessage(message: string, fallback: string) {
@@ -156,7 +166,8 @@ async function runGodRunner() {
   const prompt = buildGodPrompt(snapshot, event, memory);
   const generated = await askOllama(config, prompt);
   const fallback = buildFallbackGodMessage(event);
-  const body = sanitizeGodMessage(generated, fallback);
+  const sanitized = sanitizeGodMessage(generated, fallback);
+  const body = avoidRecentRepeat(sanitized, event, memory);
 
   if (!body) {
     throw new Error("Ollama returned an empty divine message.");
@@ -372,6 +383,10 @@ function rememberGodMessage(
   );
 }
 
+function getRunnerEventPriority(event: RunnerEvent) {
+  return RUNNER_EVENT_PRIORITY[event.kind] ?? event.priority;
+}
+
 function isAllowedEvent(
   event: RunnerEvent,
   options: {
@@ -407,18 +422,68 @@ function scrubUntrustedText(value: string) {
 }
 
 function buildFallbackGodMessage(event: RunnerEvent) {
+  const eventText = scrubUntrustedText(event.summary);
+
   switch (event.kind) {
     case "battlefield":
-      return "The God Emperor A watches the banners strain in the smoke.";
+      return eventText.includes(":")
+        ? `The God Emperor A marks the field: ${clipFallbackDetail(eventText)}`
+        : "The God Emperor A watches the banners strain in the smoke.";
     case "home-of-a":
-      return "The God Emperor A marks the silence around the Home of A.";
+      return `The God Emperor A marks the Home of A: ${clipFallbackDetail(eventText)}`;
     case "leaderboard":
-      return "The God Emperor A sees the scoreboard tilt beneath ambitious hands.";
+      return `The God Emperor A sees the scoreboard shift: ${clipFallbackDetail(eventText)}`;
     case "cycle-phase":
-      return "The God Emperor A opens one eye upon the living season.";
+      return `The God Emperor A opens one eye: ${clipFallbackDetail(eventText)}`;
     default:
       return "The God Emperor A watches, weighs, and says nothing more than fate allows.";
   }
+}
+
+function avoidRecentRepeat(
+  body: string,
+  event: RunnerEvent,
+  memory: RunnerMemory
+) {
+  const recentBodies = new Set(
+    memory.recentMessages.slice(-5).map((message) => message.body)
+  );
+
+  if (!recentBodies.has(body)) {
+    return body;
+  }
+
+  const fallback = buildFallbackGodMessage(event);
+
+  if (!recentBodies.has(fallback)) {
+    return fallback;
+  }
+
+  return buildAlternateFallbackGodMessage(event);
+}
+
+function buildAlternateFallbackGodMessage(event: RunnerEvent) {
+  switch (event.kind) {
+    case "leaderboard":
+      return "The God Emperor A counts the crowns again, and the top of the board answers.";
+    case "home-of-a":
+      return "The God Emperor A listens to the Home of A, where silence is also a verdict.";
+    case "battlefield":
+      return "The God Emperor A sees steel lean, courage thin, and the field choose a side.";
+    case "cycle-phase":
+      return "The God Emperor A names the hour and lets the season breathe.";
+    default:
+      return "The God Emperor A watches, weighs, and keeps the omen public.";
+  }
+}
+
+function clipFallbackDetail(value: string) {
+  const clipped = value.replace(/\s+/g, " ").trim();
+  const maxDetailLength = 150;
+
+  return clipped.length > maxDetailLength
+    ? `${clipped.slice(0, maxDetailLength - 3).trimEnd()}...`
+    : clipped;
 }
 
 function trimTrailingSlash(value: string) {

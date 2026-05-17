@@ -1420,6 +1420,32 @@ test("God runner ignores player-chat events and unsafe generated claims by defau
   );
 });
 
+test("God runner prioritizes leaderboard changes over battlefield churn", () => {
+  const selected = selectUnhandledEvent(
+    [
+      {
+        key: "battle-event",
+        kind: "battlefield",
+        title: "Tile 7:11",
+        summary: "Tile 7:11: DEFENDER_STRONG at 99% progress.",
+        priority: 100,
+        occurredAt: null,
+      },
+      {
+        key: "leader-event",
+        kind: "leaderboard",
+        title: "Leaderboard lead",
+        summary: "DA BOYZ leads with 130115 points.",
+        priority: 80,
+        occurredAt: null,
+      },
+    ],
+    {}
+  );
+
+  assert.equal(selected?.key, "leader-event");
+});
+
 test("God Emperor chat validates body and current cycle", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
