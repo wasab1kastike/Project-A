@@ -24,19 +24,10 @@ export async function GET(request: Request) {
     const snapshot = await getGodSnapshot();
 
     return NextResponse.json(snapshot);
-  } catch (error) {
-    const detail =
-      error instanceof Error ? error.message : "Unknown snapshot error.";
-
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "Something went wrong while reading divine vision.",
-        detail,
-      },
-      {
-        status: 500,
-      }
+  } catch {
+    return openClawJsonError(
+      "Something went wrong while reading divine vision.",
+      500
     );
   }
 }
