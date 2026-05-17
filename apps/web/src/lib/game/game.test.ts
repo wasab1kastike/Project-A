@@ -1452,6 +1452,60 @@ test("God runner prioritizes leaderboard changes over battlefield churn", () => 
   assert.equal(selected?.key, "leader-event");
 });
 
+test("God runner skips tiny repeated leaderboard bumps from the same leader", () => {
+  const selected = selectUnhandledEvent(
+    [
+      {
+        key: "cycle:test-cycle:leader:fortress-a:130180",
+        kind: "leaderboard",
+        title: "Leaderboard lead",
+        summary: "DA BOYZ leads with 130180 points.",
+        priority: 120,
+        occurredAt: null,
+      },
+      {
+        key: "battle-event",
+        kind: "battlefield",
+        title: "Tile 7:11",
+        summary: "Tile 7:11: DEFENDER_STRONG at 99% progress.",
+        priority: 100,
+        occurredAt: null,
+      },
+    ],
+    {
+      "cycle:test-cycle:leader:fortress-a:130115":
+        "2026-04-19T12:00:00.000Z",
+    },
+    {
+      now: new Date("2026-04-19T12:20:00.000Z"),
+    }
+  );
+
+  assert.equal(selected?.key, "battle-event");
+  assert.equal(
+    selectUnhandledEvent(
+      [
+        {
+          key: "cycle:test-cycle:leader:fortress-a:131200",
+          kind: "leaderboard",
+          title: "Leaderboard lead",
+          summary: "DA BOYZ leads with 131200 points.",
+          priority: 120,
+          occurredAt: null,
+        },
+      ],
+      {
+        "cycle:test-cycle:leader:fortress-a:130115":
+          "2026-04-19T12:00:00.000Z",
+      },
+      {
+        now: new Date("2026-04-19T12:20:00.000Z"),
+      }
+    )?.key,
+    "cycle:test-cycle:leader:fortress-a:131200"
+  );
+});
+
 test("God runner rejects generic narration for concrete events", () => {
   const leaderboardEvent = {
     key: "leader-event",
