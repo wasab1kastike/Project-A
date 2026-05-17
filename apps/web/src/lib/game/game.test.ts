@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { after, before, beforeEach, test, type TestContext } from "node:test";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -192,8 +193,10 @@ import { POST as openClawGodChatPOST } from "@/app/api/openclaw/god-chat/route";
 import { GET as openClawGodSnapshotGET } from "@/app/api/openclaw/god-snapshot/route";
 import { getGodSnapshot } from "./god-snapshot";
 import {
+  buildFallbackGodMessage,
   buildGodPrompt,
   isGenericGodMessage,
+  runGodRunner,
   sanitizeGodMessage,
   selectUnhandledEvent,
   updateRunnerMemoryFromSnapshot,
@@ -1473,6 +1476,32 @@ test("God runner rejects generic narration for concrete events", () => {
     ),
     false
   );
+  assert.equal(
+    isGenericGodMessage(
+      "Aarocorn leads with 164258 points.",
+      leaderboardEvent
+    ),
+    true
+  );
+  assert.equal(
+    isGenericGodMessage(
+      "The God Emperor A sees the scoreboard shift: Aarocorn leads with 164258 points.",
+      leaderboardEvent
+    ),
+    true
+  );
+  assert.doesNotMatch(
+    buildFallbackGodMessage(leaderboardEvent),
+    /sees the scoreboard shift/i
+  );
+  assert.match(buildFallbackGodMessage(leaderboardEvent), /Crown audit/);
+  assert.equal(
+    sanitizeGodMessage(
+      "A spicy admin database roast says DA BOYZ wins.",
+      "Fallback."
+    ),
+    "Fallback."
+  );
 });
 
 test("God runner prompt includes public player names and race labels", () => {
@@ -1514,6 +1543,106 @@ test("God runner prompt includes public player names and race labels", () => {
   assert.match(prompt, /DA BOYZEZ ZITY/);
   assert.match(prompt, /ORKS/);
   assert.match(prompt, /use race flavor/);
+  assert.match(prompt, /imperial, deadpan, petty/);
+  assert.match(prompt, /spicy public in-game roasts/);
+  assert.match(prompt, /never attack a real person/);
+});
+
+test("God runner dry-run previews without posting or marking handled", async () => {
+  const previousFetch = globalThis.fetch;
+  const previousEnv = {
+    OPENCLAW_GOD_SHARED_SECRET: process.env.OPENCLAW_GOD_SHARED_SECRET,
+    PROJECT_A_GOD_BASE_URL: process.env.PROJECT_A_GOD_BASE_URL,
+    OLLAMA_BASE_URL: process.env.OLLAMA_BASE_URL,
+    GOD_LLM_MODEL: process.env.GOD_LLM_MODEL,
+    GOD_RUNNER_STATE_PATH: process.env.GOD_RUNNER_STATE_PATH,
+    GOD_RUNNER_MEMORY_PATH: process.env.GOD_RUNNER_MEMORY_PATH,
+    GOD_RUNNER_DRY_RUN: process.env.GOD_RUNNER_DRY_RUN,
+  };
+  const tempDir = mkdtempSync(resolve(tmpdir(), "project-a-god-runner-"));
+  const statePath = resolve(tempDir, "state.json");
+  const memoryPath = resolve(tempDir, "memory.json");
+  const calls: string[] = [];
+
+  process.env.OPENCLAW_GOD_SHARED_SECRET = "test-secret";
+  process.env.PROJECT_A_GOD_BASE_URL = "http://project.test";
+  process.env.OLLAMA_BASE_URL = "http://ollama.test";
+  process.env.GOD_LLM_MODEL = "qwen3.6:27b";
+  process.env.GOD_RUNNER_STATE_PATH = statePath;
+  process.env.GOD_RUNNER_MEMORY_PATH = memoryPath;
+  process.env.GOD_RUNNER_DRY_RUN = "true";
+
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    calls.push(url);
+
+    if (url.endsWith("/api/openclaw/god-snapshot")) {
+      return Response.json({
+        cycle: {
+          status: "ACTIVE",
+          phaseLabel: "Season live",
+          deadline: null,
+        },
+        homeOfA: null,
+        leaderboard: [
+          {
+            rank: 1,
+            fortressId: "fortress-a",
+            commanderName: "Aarocorn",
+            fortressName: "UniBonk",
+            race: "UNSTABLE_UNICORNS",
+            raceLabel: "Unstable Unicorns",
+            points: 164258,
+            isSlayerOfA: true,
+          },
+        ],
+        battlefields: [],
+        recentChat: [],
+        events: [
+          {
+            key: "leader-event",
+            kind: "leaderboard",
+            title: "Leaderboard lead",
+            summary:
+              "Aarocorn of UniBonk, Unstable Unicorns, leads with 164258 points.",
+            priority: 80,
+            occurredAt: null,
+          },
+        ],
+      });
+    }
+
+    if (url.endsWith("/api/chat")) {
+      return Response.json({
+        message: {
+          content:
+            "Aarocorn stacks 164258 points; A respects the crown and mourns the scoreboard's posture.",
+        },
+      });
+    }
+
+    return new Response("Unexpected call", { status: 500 });
+  }) as typeof fetch;
+
+  try {
+    await runGodRunner();
+
+    assert.ok(calls.some((url) => url.endsWith("/api/openclaw/god-snapshot")));
+    assert.ok(calls.some((url) => url.endsWith("/api/chat")));
+    assert.ok(!calls.some((url) => url.endsWith("/api/openclaw/god-chat")));
+    assert.equal(existsSync(statePath), false);
+    assert.equal(existsSync(memoryPath), false);
+  } finally {
+    globalThis.fetch = previousFetch;
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+    rmSync(tempDir, { force: true, recursive: true });
+  }
 });
 
 test("God runner builds public player history and conflict memory", () => {

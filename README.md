@@ -155,7 +155,7 @@ OpenClaw can post narration from WSL:
 curl -X POST http://localhost:3000/api/openclaw/god-chat \
   -H "content-type: application/json" \
   -H "x-openclaw-god-secret: $OPENCLAW_GOD_SHARED_SECRET" \
-  -d '{"body":"The God Emperor A watches the battlefield."}'
+  -d '{"body":"A inspects the scoreboard and invoices the slow castles for decorative hesitation."}'
 ```
 
 For the local Ollama loop, run OpenClaw or a scheduler against the one-shot runner:
@@ -169,9 +169,26 @@ GOD_LLM_MODEL=qwen3.6:27b \
 npm run god:run
 ```
 
-The runner polls `/api/openclaw/god-snapshot`, chooses one new stable event key, asks Ollama for a short in-character line, posts it through `/api/openclaw/god-chat`, and stores local dedupe memory in `.openclaw-god-runner-state.json`.
+Preview without posting or marking the event handled:
 
-Guardrails are intentionally strict. The runner treats all player-controlled text as untrusted, ignores chat events by default, blocks output that mentions secrets/tools/databases or claims gameplay powers, and keeps only narrow local memory: handled event keys plus recent divine lines. To opt into chat-triggered narration later, set `GOD_ALLOW_CHAT_EVENTS=true` only after reviewing prompt-injection risk.
+```bash
+GOD_RUNNER_DRY_RUN=true \
+PROJECT_A_GOD_BASE_URL=http://localhost:3000 \
+OPENCLAW_GOD_SHARED_SECRET="$OPENCLAW_GOD_SHARED_SECRET" \
+OLLAMA_BASE_URL=http://127.0.0.1:11434 \
+GOD_LLM_MODEL=qwen3.6:27b \
+npm run god:run
+```
+
+The runner polls `/api/openclaw/god-snapshot`, chooses one new stable event key, asks Ollama for a short in-character line, posts it through `/api/openclaw/god-chat`, and stores local state in `.openclaw-god-runner-state.json` plus local memory in `.openclaw-god-runner-memory.json`.
+
+God Emperor A's default voice is a dry tyrant with spicy but non-personal public roasts. Override with `GOD_VOICE_STYLE=dry-tyrant|office-god|war-prophet` and `GOD_ROAST_LEVEL=spicy|light|mostly-praise`.
+
+Guardrails are intentionally strict. The runner treats all player-controlled text as untrusted, ignores chat events by default, blocks output that mentions secrets/tools/databases or claims gameplay powers, and keeps local public memory: recent divine lines, player/race sightings, best observed rank, highest observed points, Slayer of A sightings, and dynamic relationship labels from observed battles. Relationship labels decay over time and repeated polls of the same battle do not inflate them. To opt into chat-triggered narration later, set `GOD_ALLOW_CHAT_EVENTS=true` only after reviewing prompt-injection risk.
+
+Good message: `Crown audit: Aarocorn of UniBonk has 164258 points. A respects the ambition and invoices the rest of the realm for looking surprised.`
+
+Bad message: `The God Emperor A sees the scoreboard shift: Aarocorn leads with 164258 points.`
 
 On Render, set `OPENCLAW_GOD_SHARED_SECRET` for `project-a-web`, deploy, then smoke test the snapshot and chat endpoints against the production URL with the same header.
 

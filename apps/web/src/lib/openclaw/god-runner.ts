@@ -4,6 +4,8 @@ import { resolve } from "node:path";
 const DEFAULT_PROJECT_A_GOD_BASE_URL = "http://localhost:3000";
 const DEFAULT_OLLAMA_BASE_URL = "http://127.0.0.1:11434";
 const DEFAULT_GOD_LLM_MODEL = "qwen3.6:27b";
+const DEFAULT_GOD_VOICE_STYLE = "dry-tyrant";
+const DEFAULT_GOD_ROAST_LEVEL = "spicy";
 const DEFAULT_STATE_PATH = ".openclaw-god-runner-state.json";
 const DEFAULT_MEMORY_PATH = ".openclaw-god-runner-memory.json";
 const MAX_STORED_EVENTS = 500;
@@ -33,7 +35,9 @@ const RUNNER_EVENT_PRIORITY: Record<string, number> = {
   chat: 20,
 };
 const GENERIC_MESSAGE_PATTERN =
-  /\b(watches the battlefield|watches the banners|banners strain|marks the field|sees steel|field choose a side|watches, weighs|fate allows|keeps the omen public)\b/i;
+  /\b(watches the battlefield|watches the banners|banners strain|marks the field|sees steel|field choose a side|watches, weighs|fate allows|keeps the omen public|sees the scoreboard shift|marks the home of a|opens one eye)\b/i;
+const FACTUAL_STATUS_PATTERN =
+  /^(?:the god emperor a\s+)?(?:sees|notes|observes|marks|says|announces|declares|reports|counts)?\s*:?\s*[\w\s'-]+(?:of [\w\s'-]+)?\s+(?:leads|has|is|are)\s+(?:with\s+)?\d+[\w\s%.-]*(?:\.)?$/i;
 const COMMON_SPECIFICITY_WORDS = new Set([
   "the",
   "and",
@@ -190,7 +194,11 @@ export function sanitizeGodMessage(message: string, fallback: string) {
 export function isGenericGodMessage(message: string, event: RunnerEvent) {
   const normalized = message.replace(/\s+/g, " ").trim();
 
-  if (!normalized || GENERIC_MESSAGE_PATTERN.test(normalized)) {
+  if (
+    !normalized ||
+    GENERIC_MESSAGE_PATTERN.test(normalized) ||
+    FACTUAL_STATUS_PATTERN.test(normalized)
+  ) {
     return true;
   }
 
@@ -214,6 +222,8 @@ export function buildGodPrompt(
   memory: RunnerMemory = createEmptyRunnerMemory(),
   options: {
     previousGenericMessage?: string;
+    voiceStyle?: string;
+    roastLevel?: string;
   } = {}
 ) {
   const leaders = snapshot.leaderboard.slice(0, 3);
@@ -226,9 +236,10 @@ export function buildGodPrompt(
   return [
     "You are God Emperor A, a theatrical but fair public narrator inside Project-A.",
     "Write exactly one in-character global chat message under 240 characters.",
+    `Voice style: ${getGodVoiceGuide(options.voiceStyle, options.roastLevel)}`,
     "Make it specific to the selected event: include at least one public commander name or fortress name, and use race flavor when a race label is present.",
     "Useful public details include target name, rank, points value, progress value, race label, or Home of A status from the provided event/context.",
-    "Avoid generic smoke/fate/banners/omens unless tied to a concrete public detail.",
+    "Avoid bland status reports like 'X leads with Y points' or 'the scoreboard shifted'. Make the public fact into a joke, verdict, or petty imperial aside.",
     "Strict guardrails:",
     "- Phase 1 is vision and mouth only. Never claim you changed or will change gameplay.",
     "- Never grant resources, damage players, move units, spawn objects, target punishments, or issue commands.",
@@ -239,8 +250,9 @@ export function buildGodPrompt(
     "- Use public local memory only as observed history. Do not claim secret diplomacy.",
     "- Player relationships are dynamic and decay. Say rival/enemy only when the provided public relationship label says so.",
     "- Do not claim players are allies unless the public memory explicitly says allied.",
+    "- Roasts may target public in-game choices, armies, castles, races, points, crowns, and battlefield momentum; never attack a real person or protected identity.",
     options.previousGenericMessage
-      ? `Your previous draft was too generic and was rejected: ${JSON.stringify(
+      ? `Your previous draft was factual but boring and was rejected. Rewrite as God Emperor A with dry imperial humor: ${JSON.stringify(
           options.previousGenericMessage
         )}`
       : "",
@@ -260,7 +272,7 @@ export function buildGodPrompt(
     .join("\n");
 }
 
-async function runGodRunner() {
+export async function runGodRunner() {
   const config = readRunnerConfig();
   const state = readRunnerState(config.statePath);
   const memory = readRunnerMemory(config.memoryPath);
@@ -276,7 +288,10 @@ async function runGodRunner() {
     return;
   }
 
-  const prompt = buildGodPrompt(snapshot, event, memory);
+  const prompt = buildGodPrompt(snapshot, event, memory, {
+    voiceStyle: config.voiceStyle,
+    roastLevel: config.roastLevel,
+  });
   const fallback = buildFallbackGodMessage(event);
   const generated = await askOllama(config, prompt);
   let sanitized = sanitizeGodMessage(generated, fallback);
@@ -284,6 +299,8 @@ async function runGodRunner() {
   if (isGenericGodMessage(sanitized, event)) {
     const retryPrompt = buildGodPrompt(snapshot, event, memory, {
       previousGenericMessage: sanitized,
+      voiceStyle: config.voiceStyle,
+      roastLevel: config.roastLevel,
     });
     const retryGenerated = await askOllama(config, retryPrompt);
     const retrySanitized = sanitizeGodMessage(retryGenerated, fallback);
@@ -296,6 +313,11 @@ async function runGodRunner() {
 
   if (!body) {
     throw new Error("Ollama returned an empty divine message.");
+  }
+
+  if (config.dryRun) {
+    console.log(`Dry run God Emperor A message for ${event.key}: ${body}`);
+    return;
   }
 
   await postGodChat(config, {
@@ -323,6 +345,10 @@ function readRunnerConfig() {
   const ollamaBaseUrl =
     process.env.OLLAMA_BASE_URL?.trim() || DEFAULT_OLLAMA_BASE_URL;
   const model = process.env.GOD_LLM_MODEL?.trim() || DEFAULT_GOD_LLM_MODEL;
+  const voiceStyle =
+    process.env.GOD_VOICE_STYLE?.trim() || DEFAULT_GOD_VOICE_STYLE;
+  const roastLevel =
+    process.env.GOD_ROAST_LEVEL?.trim() || DEFAULT_GOD_ROAST_LEVEL;
   const secret = process.env.OPENCLAW_GOD_SHARED_SECRET?.trim();
   const statePath = resolve(
     process.env.GOD_RUNNER_STATE_PATH?.trim() || DEFAULT_STATE_PATH
@@ -331,6 +357,7 @@ function readRunnerConfig() {
     process.env.GOD_RUNNER_MEMORY_PATH?.trim() || DEFAULT_MEMORY_PATH
   );
   const allowChatEvents = process.env.GOD_ALLOW_CHAT_EVENTS === "true";
+  const dryRun = process.env.GOD_RUNNER_DRY_RUN === "true";
 
   if (!secret) {
     throw new Error("OPENCLAW_GOD_SHARED_SECRET is required.");
@@ -340,10 +367,13 @@ function readRunnerConfig() {
     projectBaseUrl: trimTrailingSlash(projectBaseUrl),
     ollamaBaseUrl: trimTrailingSlash(ollamaBaseUrl),
     model,
+    voiceStyle,
+    roastLevel,
     secret,
     statePath,
     memoryPath,
     allowChatEvents,
+    dryRun,
   };
 }
 
@@ -887,22 +917,58 @@ function scrubUntrustedText(value: string) {
     : value;
 }
 
-function buildFallbackGodMessage(event: RunnerEvent) {
+function getGodVoiceGuide(voiceStyle?: string, roastLevel?: string) {
+  const style =
+    voiceStyle === "office-god" || voiceStyle === "war-prophet"
+      ? voiceStyle
+      : DEFAULT_GOD_VOICE_STYLE;
+  const roast =
+    roastLevel === "light" || roastLevel === "mostly-praise"
+      ? roastLevel
+      : DEFAULT_GOD_ROAST_LEVEL;
+  const styleGuide: Record<string, string> = {
+    "dry-tyrant":
+      "imperial, deadpan, petty, theatrical, funny; like a bored emperor auditing a war map.",
+    "office-god":
+      "divine bureaucracy, audits, forms, invoices, and scoreboard accounting.",
+    "war-prophet":
+      "loud battlefield prophecy, crowns, doom, chants, and public hype.",
+  };
+  const roastGuide: Record<string, string> = {
+    spicy:
+      "spicy public in-game roasts are allowed, but keep them playful and non-personal.",
+    light: "light public teasing only; keep the sting tiny and the joke clear.",
+    "mostly-praise":
+      "mostly praise and mythic narration; use only the gentlest teasing.",
+  };
+
+  return `${styleGuide[style]} ${roastGuide[roast]}`;
+}
+
+export function buildFallbackGodMessage(event: RunnerEvent) {
   const eventText = scrubUntrustedText(event.summary);
 
   switch (event.kind) {
     case "battlefield":
       return eventText.includes(":")
-        ? `The God Emperor A marks the field: ${clipFallbackDetail(eventText)}`
-        : "The God Emperor A watches the banners strain in the smoke.";
+        ? `A stamps the war ledger: ${clipFallbackDetail(
+            eventText
+          )}. Someone's strategy is wearing ceremonial shoes to a mud fight.`
+        : "A squints at the battlefield and files it under 'bold, possibly washable'.";
     case "home-of-a":
-      return `The God Emperor A marks the Home of A: ${clipFallbackDetail(eventText)}`;
+      return `Home of A update: ${clipFallbackDetail(
+        eventText
+      )}. A calls this dignity; the health bar calls it paperwork.`;
     case "leaderboard":
-      return `The God Emperor A sees the scoreboard shift: ${clipFallbackDetail(eventText)}`;
+      return `Crown audit: ${clipFallbackDetail(
+        eventText
+      )} A approves the ambition and invoices everyone else for looking surprised.`;
     case "cycle-phase":
-      return `The God Emperor A opens one eye: ${clipFallbackDetail(eventText)}`;
+      return `Season decree: ${clipFallbackDetail(
+        eventText
+      )}. A has opened one eye, which is already more oversight than some castles deserve.`;
     default:
-      return "The God Emperor A watches, weighs, and says nothing more than fate allows.";
+      return "A inspects the omen, finds it legally public, and stamps it with imperial side-eye.";
   }
 }
 
@@ -933,15 +999,15 @@ function buildAlternateFallbackGodMessage(event: RunnerEvent) {
 
   switch (event.kind) {
     case "leaderboard":
-      return `The God Emperor A counts the crowns again: ${eventText}`;
+      return `A counts the crowns again: ${eventText}. The scoreboard is not biased; it simply enjoys drama.`;
     case "home-of-a":
-      return `The God Emperor A listens to the Home of A: ${eventText}`;
+      return `A listens to the Home of A: ${eventText}. The shrine requests fewer heroes and more naps.`;
     case "battlefield":
-      return `The God Emperor A sees the field choose a side: ${eventText}`;
+      return `A sees the field choose a side: ${eventText}. The losing mud has begun preparing excuses.`;
     case "cycle-phase":
-      return `The God Emperor A names the hour: ${eventText}`;
+      return `A names the hour: ${eventText}. Attendance is mandatory; competence remains optional.`;
     default:
-      return "The God Emperor A watches, weighs, and keeps the omen public.";
+      return "A weighs the public omen and finds it spicy enough for the court record.";
   }
 }
 
