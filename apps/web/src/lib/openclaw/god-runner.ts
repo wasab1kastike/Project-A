@@ -16,6 +16,8 @@ const MAX_RELATION_CONFLICT_KEYS = 20;
 const RELATION_SCORE_HALF_LIFE_HOURS = 48;
 const RIVAL_SCORE_THRESHOLD = 0.75;
 const ENEMY_SCORE_THRESHOLD = 2.5;
+const LEADERBOARD_REPEAT_COOLDOWN_MS = 60 * 60 * 1000;
+const LEADERBOARD_REPEAT_POINT_DELTA = 1000;
 const MAX_CHAT_LENGTH = 280;
 const SAFE_EVENT_KINDS = new Set([
   "battlefield",
@@ -163,15 +165,85 @@ export function selectUnhandledEvent(
   handledEventKeys: Record<string, string>,
   options: {
     allowChatEvents?: boolean;
+    now?: Date;
   } = {}
 ) {
   return events
-    .filter((event) => !handledEventKeys[event.key])
+    .filter((event) =>
+      isMeaningfulUnhandledEvent(event, handledEventKeys, options.now)
+    )
     .filter((event) => isAllowedEvent(event, options))
     .sort(
       (left, right) =>
         getRunnerEventPriority(right) - getRunnerEventPriority(left)
     )[0];
+}
+
+function isMeaningfulUnhandledEvent(
+  event: RunnerEvent,
+  handledEventKeys: Record<string, string>,
+  now = new Date()
+) {
+  if (handledEventKeys[event.key]) {
+    return false;
+  }
+
+  if (event.kind !== "leaderboard") {
+    return true;
+  }
+
+  const currentLeader = parseLeaderboardEventKey(event.key);
+
+  if (!currentLeader) {
+    return true;
+  }
+
+  const nowMs = now.getTime();
+
+  for (const [handledKey, handledAt] of Object.entries(handledEventKeys)) {
+    const previousLeader = parseLeaderboardEventKey(handledKey);
+
+    if (
+      !previousLeader ||
+      previousLeader.cycleId !== currentLeader.cycleId ||
+      previousLeader.fortressId !== currentLeader.fortressId
+    ) {
+      continue;
+    }
+
+    const handledAtMs = Date.parse(handledAt);
+
+    if (!Number.isFinite(handledAtMs)) {
+      continue;
+    }
+
+    const pointDelta = Math.abs(currentLeader.points - previousLeader.points);
+    const ageMs = nowMs - handledAtMs;
+
+    if (
+      ageMs >= 0 &&
+      ageMs < LEADERBOARD_REPEAT_COOLDOWN_MS &&
+      pointDelta < LEADERBOARD_REPEAT_POINT_DELTA
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function parseLeaderboardEventKey(key: string) {
+  const match = key.match(/^cycle:([^:]+):leader:([^:]+):(\d+)$/);
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    cycleId: match[1],
+    fortressId: match[2],
+    points: Number(match[3]),
+  };
 }
 
 export function sanitizeGodMessage(message: string, fallback: string) {
