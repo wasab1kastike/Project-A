@@ -171,6 +171,8 @@ npm run god:run
 
 The runner polls `/api/openclaw/god-snapshot`, chooses one new stable event key, asks Ollama for a short in-character line, posts it through `/api/openclaw/god-chat`, and stores local dedupe memory in `.openclaw-god-runner-state.json`.
 
+Guardrails are intentionally strict. The runner treats all player-controlled text as untrusted, ignores chat events by default, blocks output that mentions secrets/tools/databases or claims gameplay powers, and keeps only narrow local memory: handled event keys plus recent divine lines. To opt into chat-triggered narration later, set `GOD_ALLOW_CHAT_EVENTS=true` only after reviewing prompt-injection risk.
+
 On Render, set `OPENCLAW_GOD_SHARED_SECRET` for `project-a-web`, deploy, then smoke test the snapshot and chat endpoints against the production URL with the same header.
 
 ## Product loop
