@@ -1563,6 +1563,7 @@ test("God runner builds public player history and conflict memory", () => {
     battlefields: [
       {
         targetName: "Tile 7:11",
+        id: "battle-one",
         progress: 64,
         momentumTier: "ATTACKER_EDGE",
         participantCount: 2,
@@ -1578,16 +1579,54 @@ test("God runner builds public player history and conflict memory", () => {
     events: [battleEvent],
   };
 
-  updateRunnerMemoryFromSnapshot(memory, snapshot, new Date("2026-05-17"));
-  updateRunnerMemoryFromSnapshot(memory, snapshot, new Date("2026-05-18"));
+  updateRunnerMemoryFromSnapshot(
+    memory,
+    snapshot,
+    new Date("2026-05-17T10:00:00.000Z")
+  );
+  updateRunnerMemoryFromSnapshot(
+    memory,
+    snapshot,
+    new Date("2026-05-17T10:05:00.000Z")
+  );
 
-  const prompt = buildGodPrompt(snapshot, battleEvent, memory);
+  const repeatedPrompt = buildGodPrompt(snapshot, battleEvent, memory);
 
-  assert.match(prompt, /highestPoints/);
-  assert.match(prompt, /observed enemies/);
-  assert.match(prompt, /DA BOYZ of DA BOYZEZ ZITY/);
-  assert.match(prompt, /Aarocorn of UniBonk/);
-  assert.match(prompt, /Allies require explicit future memory/);
+  assert.match(repeatedPrompt, /highestPoints/);
+  assert.match(repeatedPrompt, /"publicRelationship":"observed rivals"/);
+  assert.doesNotMatch(
+    repeatedPrompt,
+    /"publicRelationship":"observed enemies"/
+  );
+  assert.match(repeatedPrompt, /DA BOYZ of DA BOYZEZ ZITY/);
+  assert.match(repeatedPrompt, /Aarocorn of UniBonk/);
+  assert.match(repeatedPrompt, /repeated polls of the same battle/);
+
+  updateRunnerMemoryFromSnapshot(
+    memory,
+    {
+      ...snapshot,
+      battlefields: [
+        {
+          ...snapshot.battlefields[0],
+          id: "battle-two",
+          targetName: "Tile 8:12",
+        },
+        {
+          ...snapshot.battlefields[0],
+          id: "battle-three",
+          targetName: "Tile 9:13",
+        },
+      ],
+    },
+    new Date("2026-05-18T01:00:00.000Z")
+  );
+
+  const feudPrompt = buildGodPrompt(snapshot, battleEvent, memory);
+
+  assert.match(feudPrompt, /observed enemies/);
+  assert.match(feudPrompt, /dynamicConflictScore/);
+  assert.match(feudPrompt, /Allies require explicit future memory/);
 });
 
 test("God Emperor chat validates body and current cycle", async (context) => {
