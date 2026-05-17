@@ -192,6 +192,7 @@ import { POST as openClawGodChatPOST } from "@/app/api/openclaw/god-chat/route";
 import { GET as openClawGodSnapshotGET } from "@/app/api/openclaw/god-snapshot/route";
 import { getGodSnapshot } from "./god-snapshot";
 import {
+  isGenericGodMessage,
   sanitizeGodMessage,
   selectUnhandledEvent,
 } from "@/lib/openclaw/god-runner";
@@ -1444,6 +1445,32 @@ test("God runner prioritizes leaderboard changes over battlefield churn", () => 
   );
 
   assert.equal(selected?.key, "leader-event");
+});
+
+test("God runner rejects generic narration for concrete events", () => {
+  const leaderboardEvent = {
+    key: "leader-event",
+    kind: "leaderboard",
+    title: "Leaderboard lead",
+    summary: "DA BOYZ leads with 130115 points.",
+    priority: 80,
+    occurredAt: null,
+  };
+
+  assert.equal(
+    isGenericGodMessage(
+      "The God Emperor A watches the banners strain in the smoke.",
+      leaderboardEvent
+    ),
+    true
+  );
+  assert.equal(
+    isGenericGodMessage(
+      "The God Emperor A counts DA BOYZ at 130115 points and finds the crown restless.",
+      leaderboardEvent
+    ),
+    false
+  );
 });
 
 test("God Emperor chat validates body and current cycle", async (context) => {
