@@ -195,6 +195,8 @@ import { getGodSnapshot } from "./god-snapshot";
 import {
   buildFallbackGodMessage,
   buildGodPrompt,
+  getDefaultCadenceConfig,
+  getEventImportance,
   isGenericGodMessage,
   runGodRunner,
   sanitizeGodMessage,
@@ -1373,9 +1375,9 @@ test("God runner dedupes event keys and normalizes generated messages", () => {
       },
       {
         key: "new-event",
-        kind: "battlefield",
+        kind: "home-of-a",
         title: "New",
-        summary: "New event.",
+        summary: "Boss alive: 100/50000 HP",
         priority: 80,
         occurredAt: null,
       },
@@ -1530,6 +1532,105 @@ test("God runner skips repeated event topics after one divine comment", () => {
       }
     ),
     undefined
+  );
+});
+
+test("God runner sparse cadence skips routine events and allows major omens", () => {
+  const cadence = getDefaultCadenceConfig();
+  const now = new Date("2026-04-19T12:20:00.000Z");
+
+  assert.equal(cadence.minPostIntervalMinutes, 15);
+  assert.equal(cadence.maxPostsPerHour, 2);
+  assert.equal(cadence.minEventImportance, 70);
+  assert.ok(
+    getEventImportance({
+      key: "cycle:test-cycle:home-of-a:ALIVE:3000:no-respawn",
+      kind: "home-of-a",
+      title: "Home of A",
+      summary: "Boss alive: 3000/50000 HP",
+      priority: 90,
+      occurredAt: null,
+    }) >= 90
+  );
+  assert.ok(
+    getEventImportance({
+      key: "cycle:test-cycle:battlefield:battle-a:50:10:10:0:0:ATTACKER_EDGE",
+      kind: "battlefield",
+      title: "Tile 7:11",
+      summary: "Tile 7:11: ATTACKER_EDGE at 50% progress.",
+      priority: 100,
+      occurredAt: null,
+    }) < cadence.minEventImportance
+  );
+  assert.equal(
+    selectUnhandledEvent(
+      [
+        {
+          key: "cycle:test-cycle:leader:fortress-a:130180",
+          kind: "leaderboard",
+          title: "Leaderboard lead",
+          summary: "DA BOYZ leads with 130180 points.",
+          priority: 120,
+          occurredAt: null,
+        },
+      ],
+      {},
+      {
+        cadence,
+        now,
+        recentMessages: [
+          {
+            body: "Recent omen.",
+            eventKey: "older-event",
+            createdAt: "2026-04-19T12:10:00.000Z",
+          },
+        ],
+      }
+    ),
+    undefined
+  );
+  assert.equal(
+    selectUnhandledEvent(
+      [
+        {
+          key: "cycle:test-cycle:leader:fortress-a:130180",
+          kind: "leaderboard",
+          title: "Leaderboard lead",
+          summary: "DA BOYZ leads with 130180 points.",
+          priority: 120,
+          occurredAt: null,
+        },
+      ],
+      {
+        "cycle:test-cycle:leader:fortress-a:130115":
+          "2026-04-19T11:00:00.000Z",
+      },
+      {
+        cadence,
+        now,
+      }
+    ),
+    undefined
+  );
+  assert.equal(
+    selectUnhandledEvent(
+      [
+        {
+          key: "cycle:test-cycle:home-of-a:ALIVE:3000:no-respawn",
+          kind: "home-of-a",
+          title: "Home of A",
+          summary: "Boss alive: 3000/50000 HP",
+          priority: 90,
+          occurredAt: null,
+        },
+      ],
+      {},
+      {
+        cadence,
+        now,
+      }
+    )?.kind,
+    "home-of-a"
   );
 });
 
@@ -1797,7 +1898,14 @@ test("God runner builds public player history and conflict memory", () => {
         defenderRaceLabel: "Unstable Unicorns",
       },
     ],
-    recentChat: [],
+    recentChat: [
+      {
+        authorName: "DA BOYZ",
+        body: "We had a deal beefstew but the lake remembers the grudge.",
+        createdAt: "2026-05-17T10:03:00.000Z",
+        isSystem: false,
+      },
+    ],
     events: [battleEvent],
   };
 
@@ -1814,7 +1922,7 @@ test("God runner builds public player history and conflict memory", () => {
 
   const repeatedPrompt = buildGodPrompt(snapshot, battleEvent, memory);
 
-  assert.match(repeatedPrompt, /highestPoints/);
+  assert.match(repeatedPrompt, /highestPointsBand/);
   assert.match(repeatedPrompt, /"publicRelationship":"observed rivals"/);
   assert.doesNotMatch(
     repeatedPrompt,
@@ -1823,6 +1931,9 @@ test("God runner builds public player history and conflict memory", () => {
   assert.match(repeatedPrompt, /DA BOYZ of DA BOYZEZ ZITY/);
   assert.match(repeatedPrompt, /Aarocorn of UniBonk/);
   assert.match(repeatedPrompt, /repeated polls of the same battle/);
+  assert.match(repeatedPrompt, /homeOfAInvolvement/);
+  assert.match(repeatedPrompt, /recentBattleRoles/);
+  assert.doesNotMatch(repeatedPrompt, /130115|111561/);
 
   updateRunnerMemoryFromSnapshot(
     memory,

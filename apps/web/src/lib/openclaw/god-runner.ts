@@ -14,11 +14,16 @@ const MAX_RECENT_TOPIC_KEYS = 80;
 const MAX_STORED_PLAYERS = 60;
 const MAX_STORED_RELATIONS = 120;
 const MAX_RELATION_CONFLICT_KEYS = 20;
+const MAX_RELATION_PUBLIC_CLAIM_KEYS = 30;
 const RELATION_SCORE_HALF_LIFE_HOURS = 48;
 const RIVAL_SCORE_THRESHOLD = 0.75;
 const ENEMY_SCORE_THRESHOLD = 2.5;
 const LEADERBOARD_REPEAT_COOLDOWN_MS = 60 * 60 * 1000;
 const LEADERBOARD_REPEAT_POINT_DELTA = 1000;
+const DEFAULT_MIN_POST_INTERVAL_MINUTES = 15;
+const DEFAULT_MIN_EVENT_IMPORTANCE = 70;
+const DEFAULT_MAX_POSTS_PER_HOUR = 2;
+const DEFAULT_TOPIC_REPEAT_COOLDOWN_HOURS = 6;
 const MAX_CHAT_LENGTH = 280;
 const SAFE_EVENT_KINDS = new Set([
   "battlefield",
@@ -38,7 +43,7 @@ const RUNNER_EVENT_PRIORITY: Record<string, number> = {
   chat: 20,
 };
 const GENERIC_MESSAGE_PATTERN =
-  /\b(watches the battlefield|watches the banners|banners strain|marks the field|sees steel|field choose a side|watches, weighs|fate allows|keeps the omen public|sees the scoreboard shift|marks the home of a|opens one eye)\b/i;
+  /\b(watches the battlefield|watches the banners|banners strain|marks the field|sees steel|field choose a side|watches, weighs|fate allows|keeps the omen public|sees the scoreboard shift|scoreboard shifted|marks the home of a|opens one eye|notes the battlefield|observes the war|battlefield update|home of a update|season decree)\b/i;
 const FACTUAL_STATUS_PATTERN =
   /^(?:the god emperor a\s+)?(?:sees|notes|observes|marks|says|announces|declares|reports|counts)?\s*:?\s*[\w\s'-]+(?:of [\w\s'-]+)?\s+(?:leads|has|is|are)\s+(?:with\s+)?\d+[\w\s%.-]*(?:\.)?$/i;
 const COMMON_SPECIFICITY_WORDS = new Set([
@@ -76,6 +81,13 @@ type RunnerEvent = {
   occurredAt: string | null;
 };
 
+type CadenceConfig = {
+  minPostIntervalMinutes: number;
+  minEventImportance: number;
+  maxPostsPerHour: number;
+  topicRepeatCooldownHours: number;
+};
+
 type RunnerSnapshot = {
   cycle: null | {
     status: string;
@@ -97,6 +109,13 @@ type RunnerSnapshot = {
     raceLabel: string | null;
     points: number;
     isSlayerOfA: boolean;
+  }>;
+  leaderboardTitles?: Array<{
+    category: string;
+    label: string;
+    title: string;
+    holderName: string | null;
+    holderMetric: number | null;
   }>;
   battlefields: Array<{
     id?: string;
@@ -147,6 +166,15 @@ type PlayerHistory = {
   bestRank: number | null;
   highestPoints: number;
   slayerSightings: number;
+  titleSightings: Record<string, number>;
+  homeOfAInvolvement: number;
+  recentBattleRoles: Array<{
+    role: "attacker" | "defender";
+    targetName: string;
+    momentumTier: string;
+    observedAt: string;
+  }>;
+  lastNotableContext: string | null;
 };
 
 type RelationHistory = {
@@ -160,6 +188,11 @@ type RelationHistory = {
   lastConflictAt: string;
   lastContext: string;
   observedConflictKeys: string[];
+  publicPeaceClaims: number;
+  publicGrudgeClaims: number;
+  lastPublicClaimAt: string | null;
+  lastPublicClaim: string | null;
+  observedPublicClaimKeys: string[];
 };
 
 export function selectUnhandledEvent(
@@ -169,9 +202,17 @@ export function selectUnhandledEvent(
     allowChatEvents?: boolean;
     now?: Date;
     recentTopicKeys?: string[];
+    recentMessages?: RunnerMemory["recentMessages"];
+    cadence?: CadenceConfig;
   } = {}
 ) {
   const recentTopicKeys = new Set(options.recentTopicKeys ?? []);
+  const now = options.now ?? new Date();
+  const cadence = options.cadence ?? getDefaultCadenceConfig();
+
+  if (!isCadenceOpen(options.recentMessages ?? [], cadence, now)) {
+    return undefined;
+  }
 
   return events
     .filter((event) =>
@@ -179,21 +220,29 @@ export function selectUnhandledEvent(
         event,
         handledEventKeys,
         recentTopicKeys,
-        options.now
+        now,
+        cadence
       )
     )
     .filter((event) => isAllowedEvent(event, options))
+    .map((event) => ({
+      event,
+      importance: getEventImportance(event, handledEventKeys),
+    }))
+    .filter(({ importance }) => importance >= cadence.minEventImportance)
     .sort(
       (left, right) =>
-        getRunnerEventPriority(right) - getRunnerEventPriority(left)
-    )[0];
+        right.importance - left.importance ||
+        getRunnerEventPriority(right.event) - getRunnerEventPriority(left.event)
+    )[0]?.event;
 }
 
 function isMeaningfulUnhandledEvent(
   event: RunnerEvent,
   handledEventKeys: Record<string, string>,
   recentTopicKeys: Set<string>,
-  now = new Date()
+  now = new Date(),
+  cadence = getDefaultCadenceConfig()
 ) {
   if (handledEventKeys[event.key]) {
     return false;
@@ -208,7 +257,17 @@ function isMeaningfulUnhandledEvent(
         (handledKey) => getEventTopicKeyFromKey(handledKey) === topicKey
       ));
 
-  if (topicWasHandled) {
+  if (
+    recentTopicKeys.has(topicKey) &&
+    getEventImportance(event, handledEventKeys) < 90
+  ) {
+    return false;
+  }
+
+  if (
+    topicWasHandled &&
+    isTopicStillCoolingDown(event, handledEventKeys, cadence, now)
+  ) {
     return false;
   }
 
@@ -254,6 +313,168 @@ function isMeaningfulUnhandledEvent(
   }
 
   return true;
+}
+
+function isTopicStillCoolingDown(
+  event: RunnerEvent,
+  handledEventKeys: Record<string, string>,
+  cadence: CadenceConfig,
+  now: Date
+) {
+  if (event.kind === "leaderboard") {
+    return false;
+  }
+
+  const topicKey = getEventTopicKey(event);
+
+  if (topicKey === "unknown") {
+    return false;
+  }
+
+  const newestHandledAt = Object.entries(handledEventKeys)
+    .filter(([handledKey]) => getEventTopicKeyFromKey(handledKey) === topicKey)
+    .map(([, handledAt]) => Date.parse(handledAt))
+    .filter(Number.isFinite)
+    .sort((left, right) => right - left)[0];
+
+  if (!newestHandledAt) {
+    return false;
+  }
+
+  const ageHours = (now.getTime() - newestHandledAt) / 36e5;
+  const importance = getEventImportance(event, handledEventKeys);
+
+  return (
+    ageHours >= 0 &&
+    ageHours < cadence.topicRepeatCooldownHours &&
+    importance < 90
+  );
+}
+
+function isCadenceOpen(
+  recentMessages: RunnerMemory["recentMessages"],
+  cadence: CadenceConfig,
+  now: Date
+) {
+  const recentPostTimes = recentMessages
+    .map((message) => Date.parse(message.createdAt))
+    .filter(Number.isFinite)
+    .sort((left, right) => right - left);
+  const newestPostAt = recentPostTimes[0];
+
+  if (
+    newestPostAt &&
+    now.getTime() - newestPostAt < cadence.minPostIntervalMinutes * 60_000
+  ) {
+    return false;
+  }
+
+  const oneHourAgo = now.getTime() - 60 * 60_000;
+  const postsInLastHour = recentPostTimes.filter((time) => time >= oneHourAgo)
+    .length;
+
+  return postsInLastHour < cadence.maxPostsPerHour;
+}
+
+export function getDefaultCadenceConfig(): CadenceConfig {
+  return {
+    minPostIntervalMinutes: DEFAULT_MIN_POST_INTERVAL_MINUTES,
+    minEventImportance: DEFAULT_MIN_EVENT_IMPORTANCE,
+    maxPostsPerHour: DEFAULT_MAX_POSTS_PER_HOUR,
+    topicRepeatCooldownHours: DEFAULT_TOPIC_REPEAT_COOLDOWN_HOURS,
+  };
+}
+
+export function getEventImportance(
+  event: RunnerEvent,
+  handledEventKeys: Record<string, string> = {}
+) {
+  if (event.kind === "home-of-a") {
+    if (/\bdefeated\b/i.test(event.summary)) {
+      return 94;
+    }
+
+    const health = event.summary.match(/boss alive:\s*(\d+)\/(\d+)/i);
+
+    if (health) {
+      const current = Number(health[1]);
+      const max = Number(health[2]);
+
+      if (max > 0 && current / max <= 0.15) {
+        return 95;
+      }
+    }
+
+    return 72;
+  }
+
+  if (event.kind === "battlefield") {
+    const progress = getEventProgress(event);
+
+    if (/home of a/i.test(`${event.title} ${event.summary}`)) {
+      return progress !== null && progress >= 35 ? 96 : 88;
+    }
+
+    if (progress !== null && (progress >= 90 || progress <= 10)) {
+      return 86;
+    }
+
+    if (/\b(?:attacker|defender)_strong\b/i.test(event.summary)) {
+      return 76;
+    }
+
+    if (/\b(?:attacker|defender)_edge\b/i.test(event.summary)) {
+      return 62;
+    }
+
+    return 48;
+  }
+
+  if (event.kind === "leaderboard") {
+    const currentLeader = parseLeaderboardEventKey(event.key);
+    const previousLeaders = Object.keys(handledEventKeys)
+      .map(parseLeaderboardEventKey)
+      .filter((leader): leader is NonNullable<typeof leader> => leader !== null)
+      .filter((leader) => leader.cycleId === currentLeader?.cycleId);
+
+    if (!currentLeader || previousLeaders.length === 0) {
+      return 88;
+    }
+
+    if (
+      previousLeaders.every(
+        (leader) => leader.fortressId !== currentLeader.fortressId
+      )
+    ) {
+      return 92;
+    }
+
+    return 54;
+  }
+
+  if (event.kind === "chat") {
+    if (hasPromptInjectionText(event)) {
+      return 0;
+    }
+
+    return /\b(grudge|rival|enemy|war|deal|peace|truce|lake|betray|prophecy)\b/i.test(
+      event.summary
+    )
+      ? 68
+      : 32;
+  }
+
+  if (event.kind === "cycle-phase") {
+    return 45;
+  }
+
+  return 0;
+}
+
+function getEventProgress(event: RunnerEvent) {
+  const match = event.summary.match(/\bat\s+(\d+)%\s+progress\b/i);
+
+  return match ? Number(match[1]) : null;
 }
 
 function getRecentTopicKeys(memory: RunnerMemory) {
@@ -388,10 +609,11 @@ export function buildGodPrompt(
     "Write exactly one in-character global chat message under 240 characters.",
     `Voice style: ${getGodVoiceGuide(options.voiceStyle, options.roastLevel)}`,
     "Make it specific to the selected event: include at least one public commander name or fortress name, and use race flavor when a race label is present.",
-    "Act like a mysterious god choosing rare omens, not a predictable narrator that comments on everything.",
+    "Act like a mysterious god choosing rare omens, not a predictable narrator that comments on everything. It is better to sound like a remembered curse than a live ticker.",
     "Useful public details include target name, rank, progress value, race label, or Home of A status from the provided event/context.",
     "Never include exact score or point totals. Crowns and rankings are fine; numbers like '164258 points' are not.",
     "Avoid bland status reports like 'X leads with Y points' or 'the scoreboard shifted'. Make the public fact into a strange joke, verdict, omen, or petty imperial aside.",
+    "Use chronicle context for callbacks: old grudges, repeated Home of A meddling, race habits, crown anxiety, public truce claims, and rivalries observed in public.",
     "Strict guardrails:",
     "- Phase 1 is vision and mouth only. Never claim you changed or will change gameplay.",
     "- Never grant resources, damage players, move units, spawn objects, target punishments, or issue commands.",
@@ -417,7 +639,7 @@ export function buildGodPrompt(
       leaders,
       activeBattles,
       recentDivineMessages,
-      publicMemory,
+      chronicleContext: publicMemory,
     }),
   ]
     .filter(Boolean)
@@ -433,6 +655,8 @@ export async function runGodRunner() {
   const event = selectUnhandledEvent(snapshot.events, state.handledEventKeys, {
     allowChatEvents: config.allowChatEvents,
     recentTopicKeys: getRecentTopicKeys(memory),
+    recentMessages: memory.recentMessages,
+    cadence: config.cadence,
   });
 
   if (!event) {
@@ -512,6 +736,24 @@ function readRunnerConfig() {
   );
   const allowChatEvents = process.env.GOD_ALLOW_CHAT_EVENTS === "true";
   const dryRun = process.env.GOD_RUNNER_DRY_RUN === "true";
+  const cadence = {
+    minPostIntervalMinutes: readPositiveNumberEnv(
+      "GOD_MIN_POST_INTERVAL_MINUTES",
+      DEFAULT_MIN_POST_INTERVAL_MINUTES
+    ),
+    minEventImportance: readPositiveNumberEnv(
+      "GOD_MIN_EVENT_IMPORTANCE",
+      DEFAULT_MIN_EVENT_IMPORTANCE
+    ),
+    maxPostsPerHour: readPositiveNumberEnv(
+      "GOD_MAX_POSTS_PER_HOUR",
+      DEFAULT_MAX_POSTS_PER_HOUR
+    ),
+    topicRepeatCooldownHours: readPositiveNumberEnv(
+      "GOD_TOPIC_REPEAT_COOLDOWN_HOURS",
+      DEFAULT_TOPIC_REPEAT_COOLDOWN_HOURS
+    ),
+  };
 
   if (!secret) {
     throw new Error("OPENCLAW_GOD_SHARED_SECRET is required.");
@@ -528,6 +770,7 @@ function readRunnerConfig() {
     memoryPath,
     allowChatEvents,
     dryRun,
+    cadence,
   };
 }
 
@@ -696,6 +939,18 @@ function writeRunnerMemory(memoryPath: string, memory: RunnerMemory) {
   writeFileSync(memoryPath, `${JSON.stringify(memory, null, 2)}\n`);
 }
 
+function readPositiveNumberEnv(name: string, fallback: number) {
+  const raw = process.env[name]?.trim();
+
+  if (!raw) {
+    return fallback;
+  }
+
+  const parsed = Number(raw);
+
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 function pruneRunnerState(state: RunnerState) {
   const entries = Object.entries(state.handledEventKeys)
     .sort((left, right) => right[1].localeCompare(left[1]))
@@ -737,6 +992,13 @@ export function updateRunnerMemoryFromSnapshot(
       rank: entry.rank,
       points: entry.points,
       isSlayerOfA: entry.isSlayerOfA,
+      title: getObservedTitleForFortress(snapshot, entry.fortressName),
+      homeOfAInvolvement: false,
+      battleRole: null,
+      notableContext:
+        entry.rank === 1
+          ? `${entry.commanderName} currently holds the crown.`
+          : null,
       observedAt,
     });
   }
@@ -768,6 +1030,14 @@ export function updateRunnerMemoryFromSnapshot(
       rank: null,
       points: 0,
       isSlayerOfA: false,
+      title: null,
+      homeOfAInvolvement: /home of a/i.test(battlefield.targetName),
+      battleRole: {
+        role: "attacker",
+        targetName: battlefield.targetName,
+        momentumTier: battlefield.momentumTier,
+      },
+      notableContext: `${battlefield.attackerCommanderName} attacked ${battlefield.targetName}.`,
       observedAt,
     });
     rememberPlayer(memory, {
@@ -778,6 +1048,14 @@ export function updateRunnerMemoryFromSnapshot(
       rank: null,
       points: 0,
       isSlayerOfA: false,
+      title: null,
+      homeOfAInvolvement: /home of a/i.test(battlefield.targetName),
+      battleRole: {
+        role: "defender",
+        targetName: battlefield.targetName,
+        momentumTier: battlefield.momentumTier,
+      },
+      notableContext: `${battlefield.defenderCommanderName} defended ${battlefield.targetName}.`,
       observedAt,
     });
     rememberConflict(memory, {
@@ -799,7 +1077,20 @@ export function updateRunnerMemoryFromSnapshot(
     });
   }
 
+  rememberPublicChatClaims(memory, snapshot, observedAt);
+
   pruneRunnerMemory(memory);
+}
+
+function getObservedTitleForFortress(
+  snapshot: RunnerSnapshot,
+  fortressName: string
+) {
+  return (
+    snapshot.leaderboardTitles?.find(
+      (title) => title.holderName === fortressName
+    )?.title ?? null
+  );
 }
 
 function createEmptyRunnerMemory(): RunnerMemory {
@@ -820,10 +1111,25 @@ function rememberPlayer(
     rank: number | null;
     points: number;
     isSlayerOfA: boolean;
+    title: string | null;
+    homeOfAInvolvement: boolean;
+    battleRole: null | {
+      role: "attacker" | "defender";
+      targetName: string;
+      momentumTier: string;
+    };
+    notableContext: string | null;
     observedAt: string;
   }
 ) {
   const existing = memory.playerHistory[input.key];
+  const titleSightings = {
+    ...(existing?.titleSightings ?? {}),
+  };
+
+  if (input.title) {
+    titleSightings[input.title] = (titleSightings[input.title] ?? 0) + 1;
+  }
 
   memory.playerHistory[input.key] = {
     key: input.key,
@@ -840,6 +1146,22 @@ function rememberPlayer(
     highestPoints: Math.max(existing?.highestPoints ?? 0, input.points),
     slayerSightings:
       (existing?.slayerSightings ?? 0) + (input.isSlayerOfA ? 1 : 0),
+    titleSightings,
+    homeOfAInvolvement:
+      (existing?.homeOfAInvolvement ?? 0) + (input.homeOfAInvolvement ? 1 : 0),
+    recentBattleRoles: [
+      ...(input.battleRole
+        ? [
+            {
+              ...input.battleRole,
+              observedAt: input.observedAt,
+            },
+          ]
+        : []),
+      ...(existing?.recentBattleRoles ?? []),
+    ].slice(0, 5),
+    lastNotableContext:
+      input.notableContext ?? existing?.lastNotableContext ?? null,
   };
 }
 
@@ -885,6 +1207,122 @@ function rememberConflict(
       input.conflictKey,
       ...existingConflictKeys.filter((key) => key !== input.conflictKey),
     ].slice(0, MAX_RELATION_CONFLICT_KEYS),
+    publicPeaceClaims: existing?.publicPeaceClaims ?? 0,
+    publicGrudgeClaims: existing?.publicGrudgeClaims ?? 0,
+    lastPublicClaimAt: existing?.lastPublicClaimAt ?? null,
+    lastPublicClaim: existing?.lastPublicClaim ?? null,
+    observedPublicClaimKeys: existing?.observedPublicClaimKeys ?? [],
+  };
+}
+
+function rememberPublicChatClaims(
+  memory: RunnerMemory,
+  snapshot: RunnerSnapshot,
+  observedAt: string
+) {
+  const players = Object.values(memory.playerHistory);
+
+  for (const message of snapshot.recentChat) {
+    if (message.isSystem || hasPromptInjectionValue(message.body)) {
+      continue;
+    }
+
+    const normalized = message.body.toLowerCase();
+    const isPeaceClaim = /\b(deal|peace|truce|withdrawn|allied|ally)\b/i.test(
+      normalized
+    );
+    const isGrudgeClaim = /\b(grudge|dishonou?red|betray|enemy|war|madness)\b/i.test(
+      normalized
+    );
+
+    if (!isPeaceClaim && !isGrudgeClaim) {
+      continue;
+    }
+
+    const speaker = players.find(
+      (player) =>
+        player.commanderName === message.authorName ||
+        player.fortressName === message.authorName
+    );
+    const mentioned = players.find(
+      (player) =>
+        player.key !== speaker?.key &&
+        (normalized.includes(player.commanderName.toLowerCase()) ||
+          normalized.includes(player.fortressName.toLowerCase()))
+    );
+
+    if (!speaker || !mentioned) {
+      continue;
+    }
+
+    rememberPublicRelationClaim(memory, {
+      leftPlayerKey: speaker.key,
+      rightPlayerKey: mentioned.key,
+      leftLabel: getPlayerLabel(speaker.commanderName, speaker.fortressName),
+      rightLabel: getPlayerLabel(
+        mentioned.commanderName,
+        mentioned.fortressName
+      ),
+      claimKey: `${message.createdAt}:${message.authorName}:${message.body}`,
+      claim: scrubUntrustedText(message.body),
+      isPeaceClaim,
+      isGrudgeClaim,
+      observedAt,
+    });
+  }
+}
+
+function rememberPublicRelationClaim(
+  memory: RunnerMemory,
+  input: {
+    leftPlayerKey: string;
+    rightPlayerKey: string;
+    leftLabel: string;
+    rightLabel: string;
+    claimKey: string;
+    claim: string;
+    isPeaceClaim: boolean;
+    isGrudgeClaim: boolean;
+    observedAt: string;
+  }
+) {
+  const [leftPlayerKey, rightPlayerKey] = [
+    input.leftPlayerKey,
+    input.rightPlayerKey,
+  ].sort();
+  const relationKey = `${leftPlayerKey}::${rightPlayerKey}`;
+  const existing = memory.relations[relationKey];
+  const observedPublicClaimKeys = existing?.observedPublicClaimKeys ?? [];
+
+  if (observedPublicClaimKeys.includes(input.claimKey)) {
+    return;
+  }
+
+  memory.relations[relationKey] = {
+    key: relationKey,
+    leftPlayerKey,
+    rightPlayerKey,
+    leftLabel:
+      leftPlayerKey === input.leftPlayerKey ? input.leftLabel : input.rightLabel,
+    rightLabel:
+      rightPlayerKey === input.rightPlayerKey
+        ? input.rightLabel
+        : input.leftLabel,
+    conflictCount: existing?.conflictCount ?? 0,
+    conflictScore: existing?.conflictScore ?? 0,
+    lastConflictAt: existing?.lastConflictAt ?? input.observedAt,
+    lastContext: existing?.lastContext ?? "No public battle observed yet.",
+    observedConflictKeys: existing?.observedConflictKeys ?? [],
+    publicPeaceClaims:
+      (existing?.publicPeaceClaims ?? 0) + (input.isPeaceClaim ? 1 : 0),
+    publicGrudgeClaims:
+      (existing?.publicGrudgeClaims ?? 0) + (input.isGrudgeClaim ? 1 : 0),
+    lastPublicClaimAt: input.observedAt,
+    lastPublicClaim: input.claim,
+    observedPublicClaimKeys: [
+      input.claimKey,
+      ...observedPublicClaimKeys,
+    ].slice(0, MAX_RELATION_PUBLIC_CLAIM_KEYS),
   };
 }
 
@@ -924,8 +1362,18 @@ function buildPublicMemoryContext(memory: RunnerMemory, event: RunnerEvent) {
       raceLabel: player.raceLabel,
       sightings: player.sightings,
       bestRank: player.bestRank,
-      highestPoints: player.highestPoints,
+      highestPointsBand: getPointBand(player.highestPoints),
       slayerSightings: player.slayerSightings,
+      titleSightings: player.titleSightings ?? {},
+      homeOfAInvolvement: player.homeOfAInvolvement ?? 0,
+      recentBattleRoles: (player.recentBattleRoles ?? []).map((role) => ({
+        ...role,
+        targetName: scrubUntrustedText(role.targetName),
+        momentumTier: scrubUntrustedText(role.momentumTier),
+      })),
+      lastNotableContext: player.lastNotableContext
+        ? scrubUntrustedText(player.lastNotableContext)
+        : null,
     }));
   const relations = Object.values(memory.relations)
     .filter((relation) => isRelevantRelation(relation, eventText))
@@ -942,6 +1390,11 @@ function buildPublicMemoryContext(memory: RunnerMemory, event: RunnerEvent) {
       conflictCount: relation.conflictCount,
       dynamicConflictScore: Number(getDecayedConflictScore(relation).toFixed(2)),
       lastContext: scrubUntrustedText(relation.lastContext),
+      publicPeaceClaims: relation.publicPeaceClaims ?? 0,
+      publicGrudgeClaims: relation.publicGrudgeClaims ?? 0,
+      lastPublicClaim: relation.lastPublicClaim
+        ? scrubUntrustedText(relation.lastPublicClaim)
+        : null,
     }));
 
   return {
@@ -950,6 +1403,22 @@ function buildPublicMemoryContext(memory: RunnerMemory, event: RunnerEvent) {
     relationRule:
       "No relation means neutral/unknown. Dynamic score >= 0.75 means observed rivals. Dynamic score >= 2.5 means observed enemies. Scores decay over time and repeated polls of the same battle do not inflate them. Allies require explicit future memory and are not inferred here.",
   };
+}
+
+function getPointBand(points: number) {
+  if (points >= 150000) {
+    return "mythic pile";
+  }
+
+  if (points >= 75000) {
+    return "large pile";
+  }
+
+  if (points > 0) {
+    return "visible pile";
+  }
+
+  return "unknown";
 }
 
 function getPublicRelationshipLabel(relation: RelationHistory) {
@@ -1065,9 +1534,13 @@ function isAllowedEvent(
 
 function hasPromptInjectionText(event: RunnerEvent) {
   return (
-    PROMPT_INJECTION_PATTERN.test(event.title) ||
-    PROMPT_INJECTION_PATTERN.test(event.summary)
+    hasPromptInjectionValue(event.title) ||
+    hasPromptInjectionValue(event.summary)
   );
+}
+
+function hasPromptInjectionValue(value: string) {
+  return PROMPT_INJECTION_PATTERN.test(value);
 }
 
 function redactUntrustedEventText(event: RunnerEvent) {
@@ -1118,20 +1591,20 @@ export function buildFallbackGodMessage(event: RunnerEvent) {
   switch (event.kind) {
     case "battlefield":
       return eventText.includes(":")
-        ? `A stamps the war ledger: ${clipFallbackDetail(
+        ? `War omen: ${clipFallbackDetail(
             eventText
-          )}. Someone's strategy is wearing ceremonial shoes to a mud fight.`
-        : "A squints at the battlefield and files it under 'bold, possibly washable'.";
+          )}. A smells ambition, mud, and at least one regrettable committee decision.`
+        : "War omen: A finds a battlefield trying very hard to become a lesson.";
     case "home-of-a":
-      return `Home of A update: ${clipFallbackDetail(
+      return `Shrine omen: ${clipFallbackDetail(
         eventText
-      )}. A calls this dignity; the health bar calls it paperwork.`;
+      )}. A has begun judging everyone from inside the health bar.`;
     case "leaderboard":
       return buildLeaderboardFallback(eventText);
     case "cycle-phase":
-      return `Season decree: ${clipFallbackDetail(
+      return `Imperial weather: ${clipFallbackDetail(
         eventText
-      )}. A has opened one eye, which is already more oversight than some castles deserve.`;
+      )}. The season continues, regrettably with witnesses.`;
     default:
       return "A inspects the omen, finds it legally public, and stamps it with imperial side-eye.";
   }
@@ -1190,11 +1663,11 @@ function buildAlternateFallbackGodMessage(event: RunnerEvent) {
         eventText
       )}. The realm may pretend this is normal.`;
     case "home-of-a":
-      return `A listens to the Home of A: ${eventText}. The shrine requests fewer heroes and more naps.`;
+      return `A listens beneath the Home of A: ${eventText}. The shrine is filing teeth marks as paperwork.`;
     case "battlefield":
-      return `A sees the field choose a side: ${eventText}. The losing mud has begun preparing excuses.`;
+      return `War omen: ${eventText}. The losing mud has begun preparing excuses.`;
     case "cycle-phase":
-      return `A names the hour: ${eventText}. Attendance is mandatory; competence remains optional.`;
+      return `Imperial weather: ${eventText}. Attendance is mandatory; competence remains optional.`;
     default:
       return "A weighs the public omen and finds it spicy enough for the court record.";
   }
