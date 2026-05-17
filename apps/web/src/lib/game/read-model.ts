@@ -838,6 +838,7 @@ export async function getHomePageState({
               id: true,
               name: true,
               commanderName: true,
+              race: true,
             },
           },
           defenderBannerFortress: {
@@ -845,6 +846,7 @@ export async function getHomePageState({
               id: true,
               name: true,
               commanderName: true,
+              race: true,
             },
           },
           participants: {
@@ -1678,6 +1680,7 @@ export async function getHomePageState({
                 name: true,
                 commanderName: true,
                 ownerId: true,
+                race: true,
               },
             },
             defenderBannerFortress: {
@@ -1686,6 +1689,7 @@ export async function getHomePageState({
                 name: true,
                 commanderName: true,
                 ownerId: true,
+                race: true,
               },
             },
             participants: {
@@ -3119,6 +3123,7 @@ export async function getHomePageState({
       ),
       rawName: fortress.name,
       points: fortress.points,
+      race: fortress.race,
       rank: index + 1,
       isSlayerOfA: fortress.id === cycle.crownedFortressId,
       isCurrentUser: fortress.ownerId === userId,
@@ -3428,12 +3433,14 @@ export async function getHomePageState({
           id: battlefield.attackerBannerFortress.id,
           name: battlefield.attackerBannerFortress.name,
           commanderName: battlefield.attackerBannerFortress.commanderName,
+          race: battlefield.attackerBannerFortress.race,
         },
         defenderBanner: battlefield.defenderBannerFortress
           ? {
               id: battlefield.defenderBannerFortress.id,
               name: battlefield.defenderBannerFortress.name,
               commanderName: battlefield.defenderBannerFortress.commanderName,
+              race: battlefield.defenderBannerFortress.race,
             }
           : null,
         participantCount: battlefield.participants.length,

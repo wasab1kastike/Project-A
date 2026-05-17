@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@/lib/prisma-client";
 import { prisma } from "@/lib/prisma";
 import { GOD_EMPEROR_CHAT_AUTHOR_NAME } from "./constants";
+import { getRaceDefinition, type FortressRace } from "./races";
 import { getHomePageState, type HomePageState } from "./read-model";
 
 export type GodSnapshotEvent = {
@@ -44,6 +45,8 @@ export type GodSnapshot = {
     fortressId: string;
     commanderName: string;
     fortressName: string;
+    race: FortressRace | null;
+    raceLabel: string | null;
     points: number;
     isSlayerOfA: boolean;
   }>;
@@ -78,7 +81,13 @@ export type GodSnapshot = {
     nextIncomingEtaMinutes: number | null;
     startedAt: Date;
     attackerBannerName: string;
+    attackerCommanderName: string;
+    attackerRace: FortressRace | null;
+    attackerRaceLabel: string | null;
     defenderBannerName: string | null;
+    defenderCommanderName: string | null;
+    defenderRace: FortressRace | null;
+    defenderRaceLabel: string | null;
   }>;
   recentChat: Array<{
     id: string;
@@ -131,6 +140,8 @@ export async function getGodSnapshot({
     fortressId: entry.id,
     commanderName: entry.commanderName,
     fortressName: entry.name,
+    race: entry.race,
+    raceLabel: getPublicRaceLabel(entry.race),
     points: entry.points,
     isSlayerOfA: entry.isSlayerOfA,
   }));
@@ -157,7 +168,13 @@ export async function getGodSnapshot({
     nextIncomingEtaMinutes: battlefield.nextIncomingEtaMinutes,
     startedAt: battlefield.startedAt,
     attackerBannerName: battlefield.attackerBanner.name,
+    attackerCommanderName: battlefield.attackerBanner.commanderName,
+    attackerRace: battlefield.attackerBanner.race,
+    attackerRaceLabel: getPublicRaceLabel(battlefield.attackerBanner.race),
     defenderBannerName: battlefield.defenderBanner?.name ?? null,
+    defenderCommanderName: battlefield.defenderBanner?.commanderName ?? null,
+    defenderRace: battlefield.defenderBanner?.race ?? null,
+    defenderRaceLabel: getPublicRaceLabel(battlefield.defenderBanner?.race),
   }));
   const recentChat = state.chat.messages
     .slice(-10)
@@ -239,7 +256,9 @@ function buildGodSnapshotEvents({
       key: `cycle:${cycleKey}:leader:${leader.fortressId}:${leader.points}`,
       kind: "leaderboard",
       title: "Leaderboard lead",
-      summary: `${leader.commanderName} leads with ${leader.points} points.`,
+      summary: `${leader.commanderName} of ${leader.fortressName}${formatRaceClause(
+        leader.raceLabel
+      )} leads with ${leader.points} points.`,
       priority: 80,
       occurredAt: null,
     });
@@ -279,7 +298,15 @@ function buildGodSnapshotEvents({
       ].join(":"),
       kind: "battlefield",
       title: battlefield.targetName,
-      summary: `${battlefield.targetName}: ${battlefield.momentumTier} at ${battlefield.progress}% progress.`,
+      summary: `${battlefield.targetName}: ${battlefield.attackerCommanderName} of ${battlefield.attackerBannerName}${formatRaceClause(
+        battlefield.attackerRaceLabel
+      )} presses ${battlefield.defenderCommanderName ?? "the defenders"}${
+        battlefield.defenderBannerName
+          ? ` of ${battlefield.defenderBannerName}${formatRaceClause(
+              battlefield.defenderRaceLabel
+            )}`
+          : ""
+      }; ${battlefield.momentumTier} at ${battlefield.progress}% progress.`,
       priority: 100,
       occurredAt: battlefield.startedAt,
     });
@@ -304,13 +331,23 @@ function buildGodSnapshotEvents({
   return events.sort((left, right) => right.priority - left.priority);
 }
 
+function getPublicRaceLabel(race: FortressRace | null | undefined) {
+  return getRaceDefinition(race)?.displayName ?? null;
+}
+
+function formatRaceClause(raceLabel: string | null) {
+  return raceLabel ? `, ${raceLabel},` : "";
+}
+
 function buildScoreHighlights(
   cycleKey: string,
   leaderboard: GodSnapshot["leaderboard"]
 ) {
   return leaderboard.slice(0, 3).map((entry) => ({
     key: `cycle:${cycleKey}:score:${entry.rank}:${entry.fortressId}:${entry.points}`,
-    summary: `#${entry.rank} ${entry.commanderName} has ${entry.points} points.`,
+    summary: `#${entry.rank} ${entry.commanderName} of ${entry.fortressName}${formatRaceClause(
+      entry.raceLabel
+    )} has ${entry.points} points.`,
   }));
 }
 
@@ -320,6 +357,8 @@ function buildBattleHighlights(
 ) {
   return battlefields.slice(0, 5).map((battlefield) => ({
     key: `cycle:${cycleKey}:battle:${battlefield.id}:${battlefield.progress}:${battlefield.momentumTier}`,
-    summary: `${battlefield.targetName} is ${battlefield.momentumTier} with ${battlefield.participantCount} participants.`,
+    summary: `${battlefield.targetName} has ${battlefield.attackerCommanderName} of ${battlefield.attackerBannerName}${formatRaceClause(
+      battlefield.attackerRaceLabel
+    )} in ${battlefield.momentumTier} with ${battlefield.participantCount} participants.`,
   }));
 }

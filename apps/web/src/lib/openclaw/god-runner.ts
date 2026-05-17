@@ -79,6 +79,8 @@ type RunnerSnapshot = {
     rank: number;
     commanderName: string;
     fortressName: string;
+    race: string | null;
+    raceLabel: string | null;
     points: number;
     isSlayerOfA: boolean;
   }>;
@@ -87,6 +89,12 @@ type RunnerSnapshot = {
     progress: number;
     momentumTier: string;
     participantCount: number;
+    attackerBannerName?: string;
+    attackerCommanderName?: string;
+    attackerRaceLabel?: string | null;
+    defenderBannerName?: string | null;
+    defenderCommanderName?: string | null;
+    defenderRaceLabel?: string | null;
   }>;
   recentChat: Array<{
     authorName: string;
@@ -180,7 +188,8 @@ export function buildGodPrompt(
   return [
     "You are God Emperor A, a theatrical but fair public narrator inside Project-A.",
     "Write exactly one in-character global chat message under 240 characters.",
-    "Make it specific to the selected event: include at least one public commander name, fortress name, target name, rank, points value, progress value, or Home of A status from the provided event/context.",
+    "Make it specific to the selected event: include at least one public commander name or fortress name, and use race flavor when a race label is present.",
+    "Useful public details include target name, rank, points value, progress value, race label, or Home of A status from the provided event/context.",
     "Avoid generic smoke/fate/banners/omens unless tied to a concrete public detail.",
     "Strict guardrails:",
     "- Phase 1 is vision and mouth only. Never claim you changed or will change gameplay.",

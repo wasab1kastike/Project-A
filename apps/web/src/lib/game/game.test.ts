@@ -192,6 +192,7 @@ import { POST as openClawGodChatPOST } from "@/app/api/openclaw/god-chat/route";
 import { GET as openClawGodSnapshotGET } from "@/app/api/openclaw/god-snapshot/route";
 import { getGodSnapshot } from "./god-snapshot";
 import {
+  buildGodPrompt,
   isGenericGodMessage,
   sanitizeGodMessage,
   selectUnhandledEvent,
@@ -1471,6 +1472,47 @@ test("God runner rejects generic narration for concrete events", () => {
     ),
     false
   );
+});
+
+test("God runner prompt includes public player names and race labels", () => {
+  const event = {
+    key: "leader-event",
+    kind: "leaderboard",
+    title: "Leaderboard lead",
+    summary: "DA BOYZ of DA BOYZEZ ZITY, ORKS, leads with 130115 points.",
+    priority: 80,
+    occurredAt: null,
+  };
+  const prompt = buildGodPrompt(
+    {
+      cycle: {
+        status: "ACTIVE",
+        phaseLabel: "Season live",
+        deadline: null,
+      },
+      homeOfA: null,
+      leaderboard: [
+        {
+          rank: 1,
+          commanderName: "DA BOYZ",
+          fortressName: "DA BOYZEZ ZITY",
+          race: "ORKS",
+          raceLabel: "ORKS",
+          points: 130115,
+          isSlayerOfA: false,
+        },
+      ],
+      battlefields: [],
+      recentChat: [],
+      events: [event],
+    },
+    event
+  );
+
+  assert.match(prompt, /DA BOYZ/);
+  assert.match(prompt, /DA BOYZEZ ZITY/);
+  assert.match(prompt, /ORKS/);
+  assert.match(prompt, /use race flavor/);
 });
 
 test("God Emperor chat validates body and current cycle", async (context) => {
