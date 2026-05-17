@@ -196,6 +196,7 @@ import {
   isGenericGodMessage,
   sanitizeGodMessage,
   selectUnhandledEvent,
+  updateRunnerMemoryFromSnapshot,
 } from "@/lib/openclaw/god-runner";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -1513,6 +1514,80 @@ test("God runner prompt includes public player names and race labels", () => {
   assert.match(prompt, /DA BOYZEZ ZITY/);
   assert.match(prompt, /ORKS/);
   assert.match(prompt, /use race flavor/);
+});
+
+test("God runner builds public player history and conflict memory", () => {
+  const memory = {
+    recentMessages: [],
+    playerHistory: {},
+    relations: {},
+  };
+  const battleEvent = {
+    key: "battle-event",
+    kind: "battlefield",
+    title: "Tile 7:11",
+    summary:
+      "Tile 7:11: DA BOYZ of DA BOYZEZ ZITY, ORKS, presses Aarocorn of UniBonk, Unstable Unicorns; ATTACKER_EDGE at 64% progress.",
+    priority: 100,
+    occurredAt: null,
+  };
+  const snapshot = {
+    cycle: {
+      status: "ACTIVE",
+      phaseLabel: "Season live",
+      deadline: null,
+    },
+    homeOfA: null,
+    leaderboard: [
+      {
+        rank: 1,
+        fortressId: "fortress-a",
+        commanderName: "DA BOYZ",
+        fortressName: "DA BOYZEZ ZITY",
+        race: "ORKS",
+        raceLabel: "ORKS",
+        points: 130115,
+        isSlayerOfA: false,
+      },
+      {
+        rank: 2,
+        fortressId: "fortress-b",
+        commanderName: "Aarocorn",
+        fortressName: "UniBonk",
+        race: "UNSTABLE_UNICORNS",
+        raceLabel: "Unstable Unicorns",
+        points: 111561,
+        isSlayerOfA: true,
+      },
+    ],
+    battlefields: [
+      {
+        targetName: "Tile 7:11",
+        progress: 64,
+        momentumTier: "ATTACKER_EDGE",
+        participantCount: 2,
+        attackerBannerName: "DA BOYZEZ ZITY",
+        attackerCommanderName: "DA BOYZ",
+        attackerRaceLabel: "ORKS",
+        defenderBannerName: "UniBonk",
+        defenderCommanderName: "Aarocorn",
+        defenderRaceLabel: "Unstable Unicorns",
+      },
+    ],
+    recentChat: [],
+    events: [battleEvent],
+  };
+
+  updateRunnerMemoryFromSnapshot(memory, snapshot, new Date("2026-05-17"));
+  updateRunnerMemoryFromSnapshot(memory, snapshot, new Date("2026-05-18"));
+
+  const prompt = buildGodPrompt(snapshot, battleEvent, memory);
+
+  assert.match(prompt, /highestPoints/);
+  assert.match(prompt, /observed enemies/);
+  assert.match(prompt, /DA BOYZ of DA BOYZEZ ZITY/);
+  assert.match(prompt, /Aarocorn of UniBonk/);
+  assert.match(prompt, /Allies require explicit future memory/);
 });
 
 test("God Emperor chat validates body and current cycle", async (context) => {
