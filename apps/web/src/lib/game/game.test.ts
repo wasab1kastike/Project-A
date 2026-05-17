@@ -1494,7 +1494,9 @@ test("God runner rejects generic narration for concrete events", () => {
     buildFallbackGodMessage(leaderboardEvent),
     /sees the scoreboard shift/i
   );
+  assert.doesNotMatch(buildFallbackGodMessage(leaderboardEvent), /leads with/i);
   assert.match(buildFallbackGodMessage(leaderboardEvent), /Crown audit/);
+  assert.match(buildFallbackGodMessage(leaderboardEvent), /stacked 130115/);
   assert.equal(
     sanitizeGodMessage(
       "A spicy admin database roast says DA BOYZ wins.",

@@ -960,9 +960,7 @@ export function buildFallbackGodMessage(event: RunnerEvent) {
         eventText
       )}. A calls this dignity; the health bar calls it paperwork.`;
     case "leaderboard":
-      return `Crown audit: ${clipFallbackDetail(
-        eventText
-      )} A approves the ambition and invoices everyone else for looking surprised.`;
+      return buildLeaderboardFallback(eventText);
     case "cycle-phase":
       return `Season decree: ${clipFallbackDetail(
         eventText
@@ -970,6 +968,29 @@ export function buildFallbackGodMessage(event: RunnerEvent) {
     default:
       return "A inspects the omen, finds it legally public, and stamps it with imperial side-eye.";
   }
+}
+
+function buildLeaderboardFallback(eventText: string) {
+  const match = eventText.match(
+    /^(.+?)(?: of (.+?))?(?:, ([^,]+),)? leads with (\d+) points\.?$/i
+  );
+
+  if (!match) {
+    return `Crown audit: ${clipFallbackDetail(
+      eventText
+    )} A approves the ambition and invoices everyone else for looking surprised.`;
+  }
+
+  const commanderName = match[1]?.trim() ?? "Someone ambitious";
+  const fortressName = match[2]?.trim();
+  const raceLabel = match[3]?.trim();
+  const points = match[4]?.trim() ?? "many";
+  const identity = fortressName
+    ? `${commanderName} of ${fortressName}`
+    : commanderName;
+  const raceClause = raceLabel ? `, ${raceLabel},` : "";
+
+  return `Crown audit: ${identity}${raceClause} has stacked ${points} points. A respects the climb; the rest of the realm may file complaints in the bin.`;
 }
 
 function avoidRecentRepeat(
