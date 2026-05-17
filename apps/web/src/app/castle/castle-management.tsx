@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useMemo, useState, type FormEvent } from "react";
 import { useRefreshView } from "@/lib/refresh-helpers";
 import { CastleUpgradeSpecialization } from "@/lib/prisma-client";
@@ -25,7 +24,7 @@ import {
   recruitArmyAction,
   selectFortressRaceAction,
   updateWorkerAssignmentAction,
-  useUnicornTeleportAction,
+  useUnicornTeleportAction as activateUnicornTeleportAction,
   buyPointsWithGoldAction,
 } from "@/app/game-actions";
 import {
@@ -535,7 +534,6 @@ export function CastleManagement({
   playerSummary: PlayerSummary;
   targets: CommandTarget[];
 }) {
-  const router = useRouter();
   const refreshView = useRefreshView();
   const [workers, setWorkers] = useState({
     minersAssigned: playerSummary.minersAssigned,
@@ -716,7 +714,7 @@ export function CastleManagement({
   }
 
   async function useUnicornTeleportFormAction(): Promise<void> {
-    await handleInlineResult(await useUnicornTeleportAction());
+    await handleInlineResult(await activateUnicornTeleportAction());
   }
 
   async function claimUnicornTeleportFormAction(): Promise<void> {

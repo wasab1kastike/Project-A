@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { type PrismaClient } from "@/lib/prisma-client";
-import { NPC_SYSTEM_USER_EMAIL } from "./constants";
+import { GOD_EMPEROR_USER_EMAIL, NPC_SYSTEM_USER_EMAIL } from "./constants";
 import { classifyTickHealth, getActiveCycleMinutesBehind } from "./tick";
 import { WINNER_REQUEST_POLICY_URL } from "./winner-requests";
 
@@ -84,8 +84,10 @@ export async function getAdminDashboardState({
 
   const users = await db.user.findMany({
     where: {
-      email: {
-        not: NPC_SYSTEM_USER_EMAIL,
+      NOT: {
+        email: {
+          in: [NPC_SYSTEM_USER_EMAIL, GOD_EMPEROR_USER_EMAIL],
+        },
       },
     },
     orderBy: [{ role: "desc" }, { createdAt: "asc" }],

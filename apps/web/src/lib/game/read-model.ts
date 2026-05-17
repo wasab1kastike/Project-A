@@ -20,6 +20,8 @@ import {
   MAX_SIMULTANEOUS_ATTACKS_BASE,
   NPC_SYSTEM_USER_EMAIL,
   getActiveLocationShuffleCost,
+  GOD_EMPEROR_CHAT_AUTHOR_NAME,
+  GOD_EMPEROR_USER_EMAIL,
   getHomeOfABossReward,
 } from "./constants";
 import {
@@ -1991,7 +1993,9 @@ export async function getHomePageState({
   });
   const latestMessageAt = globalChatMessages[0]?.createdAt ?? null;
   const chatMessages = [...globalChatMessages].reverse().map((message) => ({
-    isSystem: message.author.email === NPC_SYSTEM_USER_EMAIL,
+    isSystem:
+      message.author.email === NPC_SYSTEM_USER_EMAIL ||
+      message.author.email === GOD_EMPEROR_USER_EMAIL,
     id: message.id,
     type: message.type,
     body: message.body,
@@ -2017,9 +2021,11 @@ export async function getHomePageState({
         : null,
     createdAt: message.createdAt,
     authorName:
-      message.author.email === NPC_SYSTEM_USER_EMAIL
-        ? "System"
-        : (commanderNameByOwnerId.get(message.author.id) ?? "Spectator"),
+      message.author.email === GOD_EMPEROR_USER_EMAIL
+        ? GOD_EMPEROR_CHAT_AUTHOR_NAME
+        : message.author.email === NPC_SYSTEM_USER_EMAIL
+          ? "System"
+          : (commanderNameByOwnerId.get(message.author.id) ?? "Spectator"),
     isCurrentUser: message.author.id === userId,
   }));
   const unreadCount = currentUser

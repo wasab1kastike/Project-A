@@ -591,8 +591,6 @@ function AttackUnitsLayer({
       return;
     }
 
-    setNowMs(Date.now());
-
     const interval = window.setInterval(() => {
       setNowMs(Date.now());
     }, 250);
