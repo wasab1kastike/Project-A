@@ -23,4 +23,4 @@ export {
   ScoreEventType,
   UserRole,
   WinnerRequestStatus,
-} from "../../node_modules/.prisma/client";
+} from "../../../../node_modules/.prisma/client";
