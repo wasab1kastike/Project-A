@@ -206,6 +206,7 @@ import {
   isGenericGodMessage,
   runGodRunner,
   sanitizeGodMessage,
+  selectDiaryOmenEvent,
   selectUnhandledEvent,
   updateRunnerMemoryFromSnapshot,
 } from "@/lib/openclaw/god-runner";
@@ -1755,6 +1756,13 @@ test("God runner rejects generic narration for concrete events", () => {
     ),
     "Fallback."
   );
+  assert.equal(
+    sanitizeGodMessage(
+      "A will punish UniBonk with server-enforced penalties.",
+      "Fallback."
+    ),
+    "Fallback."
+  );
 });
 
 test("God runner prompt includes public player names and race labels", () => {
@@ -1799,6 +1807,8 @@ test("God runner prompt includes public player names and race labels", () => {
   assert.match(prompt, /imperial, deadpan, petty/);
   assert.match(prompt, /spicy public in-game roasts/);
   assert.match(prompt, /never attack a real person/);
+  assert.match(prompt, /roleplay-only public commands/);
+  assert.match(prompt, /Never claim rewards, penalties, forced targets/);
   assert.doesNotMatch(prompt, /130115/);
   assert.match(prompt, /Never include exact score or point totals/);
 });
@@ -1843,7 +1853,7 @@ test("God runner daily omen plan is deterministic per Helsinki date and cycle", 
   assert.deepEqual(first.slotMinutes, second.slotMinutes);
   assert.notDeepEqual(first.slotMinutes, nextCycle.slotMinutes);
   assert.ok(first.slotMinutes.length >= 1);
-  assert.ok(first.slotMinutes.length <= 4);
+  assert.ok(first.slotMinutes.length <= 3);
   assert.ok(
     first.slotMinutes.every((slot) => slot >= 8 * 60 && slot < 23 * 60)
   );
@@ -1960,10 +1970,12 @@ test("God runner observes public memory without speaking outside omen slots", as
     const memory = JSON.parse(readFileSync(memoryPath, "utf8")) as {
       observedEvents: Array<{ key: string; summary: string }>;
       playerHistory: Record<string, unknown>;
+      divineAttitudes: Record<string, { attitude: string }>;
     };
     assert.equal(memory.observedEvents.at(0)?.key, "leader-event");
     assert.doesNotMatch(memory.observedEvents.at(0)?.summary ?? "", /164258/);
     assert.ok(Object.keys(memory.playerHistory).length > 0);
+    assert.ok(Object.keys(memory.divineAttitudes).length > 0);
   } finally {
     globalThis.fetch = previousFetch;
     for (const [key, value] of Object.entries(previousEnv)) {
@@ -2083,6 +2095,8 @@ test("God runner builds public player history and conflict memory", () => {
     observedEvents: [],
     playerHistory: {},
     relations: {},
+    divineAttitudes: {},
+    divineDirectives: [],
   };
   const battleEvent = {
     key: "battle-event",
@@ -2203,6 +2217,152 @@ test("God runner builds public player history and conflict memory", () => {
   assert.match(feudPrompt, /observed enemies/);
   assert.match(feudPrompt, /dynamicConflictScore/);
   assert.match(feudPrompt, /Allies require explicit future memory/);
+  assert.match(feudPrompt, /divineAttitudes/);
+  assert.match(feudPrompt, /attackCount/);
+  assert.match(feudPrompt, /notableTargets/);
+});
+
+test("God runner prefers chronicle story patterns over routine fresh events", () => {
+  const now = new Date("2026-05-18T10:00:00.000Z");
+  const memory = {
+    recentMessages: [],
+    observedEvents: [
+      {
+        key: "cycle:test:leader:fortress-c:1000",
+        topicKey: "cycle:test:leader:fortress-c",
+        kind: "leaderboard",
+        title: "Leaderboard lead",
+        summary: "Someone leads with a suspicious pile of points.",
+        importance: 88,
+        involvedPlayers: ["Someone of Somewhere"],
+        observedAt: "2026-05-18T09:55:00.000Z",
+        usedAt: null,
+      },
+    ],
+    playerHistory: {},
+    relations: {
+      "fortress-a::fortress-b": {
+        key: "fortress-a::fortress-b",
+        leftPlayerKey: "fortress-a",
+        rightPlayerKey: "fortress-b",
+        leftLabel: "DA BOYZ of DA BOYZEZ ZITY",
+        rightLabel: "Aarocorn of UniBonk",
+        conflictCount: 3,
+        conflictScore: 3,
+        lastConflictAt: "2026-05-18T09:50:00.000Z",
+        lastContext: "Tile 7:11: ATTACKER_STRONG at 91%",
+        observedConflictKeys: ["battle-three", "battle-two", "battle-one"],
+        publicPeaceClaims: 0,
+        publicGrudgeClaims: 1,
+        lastPublicClaimAt: "2026-05-18T09:45:00.000Z",
+        lastPublicClaim: "The grudge is public.",
+        observedPublicClaimKeys: ["claim-one"],
+      },
+    },
+    divineAttitudes: {},
+    divineDirectives: [],
+  };
+  const event = selectDiaryOmenEvent(
+    memory,
+    { handledEventKeys: {}, dailyOmenPlans: {} },
+    {
+      recentMessages: memory.recentMessages,
+      cadence: {
+        ...getDefaultCadenceConfig(),
+        minEventImportance: 70,
+      },
+      now,
+    }
+  );
+
+  assert.equal(event?.kind, "chronicle");
+  assert.match(event?.summary ?? "", /observed enemies/);
+});
+
+test("God runner exposes roleplay directive memory without mechanical power", () => {
+  const now = new Date("2026-05-20T10:00:00.000Z");
+  const event = {
+    key: "chronicle:directive:one:ignored",
+    kind: "chronicle",
+    title: "Divine command chronicle",
+    summary:
+      "UniBonk appears to have ignored a roleplay-only divine command: Humble UniBonk.",
+    priority: 94,
+    occurredAt: now.toISOString(),
+  };
+  const memory = {
+    recentMessages: [],
+    observedEvents: [],
+    playerHistory: {
+      "fortress-b": {
+        key: "fortress-b",
+        commanderName: "Aarocorn",
+        fortressName: "UniBonk",
+        raceLabel: "Unstable Unicorns",
+        firstSeenAt: "2026-05-18T10:00:00.000Z",
+        lastSeenAt: "2026-05-20T10:00:00.000Z",
+        sightings: 3,
+        bestRank: 1,
+        highestPoints: 200000,
+        slayerSightings: 1,
+        titleSightings: {},
+        homeOfAInvolvement: 0,
+        attackCount: 0,
+        defenseCount: 0,
+        notableTargets: {},
+        recentBattleRoles: [],
+        lastNotableContext: "Aarocorn currently holds the crown.",
+      },
+    },
+    relations: {},
+    divineAttitudes: {
+      "fortress-b": {
+        playerKey: "fortress-b",
+        label: "Aarocorn of UniBonk",
+        attitude: "disfavored" as const,
+        favorScore: 2,
+        mockScore: 1,
+        disfavorScore: 4,
+        lastReason: "Aarocorn of UniBonk appeared to ignore a divine suggestion.",
+        updatedAt: now.toISOString(),
+        evidenceKeys: ["directive-one:ignored"],
+      },
+    },
+    divineDirectives: [
+      {
+        key: "directive-one",
+        body: "Humble UniBonk; the crown has grown audible.",
+        targetPlayerKey: "fortress-b",
+        targetLabel: "Aarocorn of UniBonk",
+        status: "ignored" as const,
+        issuedAt: "2026-05-18T09:00:00.000Z",
+        resolvedAt: now.toISOString(),
+        evidenceKey: "directive-one:ignored",
+      },
+    ],
+  };
+  const prompt = buildGodPrompt(
+    {
+      cycle: {
+        status: "ACTIVE",
+        phaseLabel: "Season live",
+        deadline: null,
+      },
+      homeOfA: null,
+      leaderboard: [],
+      battlefields: [],
+      recentChat: [],
+      events: [event],
+    },
+    event,
+    memory,
+    { now }
+  );
+
+  assert.match(prompt, /roleplay-only public suggestions/);
+  assert.match(prompt, /disfavored/);
+  assert.match(prompt, /Humble UniBonk/);
+  assert.doesNotMatch(prompt, /200000/);
 });
 
 test("God Emperor chat validates body and current cycle", async (context) => {

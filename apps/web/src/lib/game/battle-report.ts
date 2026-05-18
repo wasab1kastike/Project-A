@@ -51,6 +51,8 @@ export type RaidBattleReportInput = {
    * Optional special event highlight for battle log (e.g. rare loot, unique effect).
    */
   specialEvent?: string;
+  mvpName?: string;
+  mvpRole?: string;
 };
 
 export type RaidRecallReportInput = {
@@ -158,9 +160,9 @@ export function formatRaidBattleReport(input: RaidBattleReportInput) {
   // MVP and special event highlights (if available in input)
 
   // Helper for MVP line
-  function getMvpLine(input: any) {
-    if (input.mvpName) {
-      return `MVP: ${input.mvpName} (${input.mvpRole ?? "top contributor"})`;
+  function getMvpLine(report: RaidBattleReportInput) {
+    if (report.mvpName) {
+      return `MVP: ${report.mvpName} (${report.mvpRole ?? "top contributor"})`;
     }
     return null;
   }
