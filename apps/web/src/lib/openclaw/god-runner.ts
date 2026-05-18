@@ -2186,7 +2186,7 @@ function buildLeaderboardFallback(eventText: string) {
 
 function buildBattlefieldFallback(eventText: string) {
   const match = normalizeFallbackDetail(eventText).match(
-    /^(.+?):\s*(.+?)(?:;\s*[A-Z_]+\s+at\s+\d+%\s+progress\.?)?$/i
+    /^(.+):\s+(.+?)(?:;\s*[A-Z_]+\s+at\s+\d+%\s+progress\.?)?$/i
   );
 
   if (!match) {
