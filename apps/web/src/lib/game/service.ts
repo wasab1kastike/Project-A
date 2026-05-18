@@ -1002,7 +1002,10 @@ export async function setFortressAction({
             defenderArmyRemaining: target.army,
             pointsReward: Math.floor(target.gold * 0.7),
             foodReward: Math.floor(target.food * 0.7),
-            startedAt: now,
+            startedAt:
+              target.fortressKind === FortressKind.PLAYER && !target.isNpc
+                ? addHours(launchedUnit.arrivesAt, 1)
+                : now,
           },
           select: {
             id: true,
@@ -1600,6 +1603,14 @@ export async function attackMapHex({
       data: {
         reinforcementBattlefieldId: battlefield.id,
         reinforcementSide: BattlefieldSide.ATTACKER,
+      },
+    });
+    await tx.battlefield.update({
+      where: {
+        id: battlefield.id,
+      },
+      data: {
+        startedAt: addHours(launchedUnit.arrivesAt, 1),
       },
     });
 
