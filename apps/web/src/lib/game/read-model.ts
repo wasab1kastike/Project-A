@@ -87,6 +87,7 @@ import {
   isTileConnectedToFortressOrOwnedTiles,
   sumTileBonuses,
 } from "./territory";
+import { getBattlefieldCasualtyBudget } from "./battlefields";
 
 export type HomePageState = Awaited<ReturnType<typeof getHomePageState>>;
 
@@ -111,9 +112,12 @@ function formatBattlefieldReportLines({
   defenderBannerName,
   attackerArmyRemaining,
   defenderArmyRemaining,
+  attackerLosses,
+  defenderLosses,
   participantCount,
   incomingCount,
   arrivedReinforcementCount,
+  casualtiesPerTick,
   pointsReward,
   foodReward,
   pointReward = 0,
@@ -127,9 +131,12 @@ function formatBattlefieldReportLines({
   defenderBannerName: string | null;
   attackerArmyRemaining: number;
   defenderArmyRemaining: number;
+  attackerLosses: number;
+  defenderLosses: number;
   participantCount: number;
   incomingCount: number;
   arrivedReinforcementCount: number;
+  casualtiesPerTick: number;
   pointsReward: number;
   foodReward: number;
   pointReward?: number;
@@ -155,6 +162,9 @@ function formatBattlefieldReportLines({
     lines.push(
       `Final result: ${winnerLabel} won with ${attackerArmyRemaining} attacker army and ${defenderArmyRemaining} defender army remaining.`
     );
+    lines.push(
+      `Casualties: attackers lost ${attackerLosses}, defenders lost ${defenderLosses}.`
+    );
 
     if (targetTileId) {
       lines.push(
@@ -174,7 +184,7 @@ function formatBattlefieldReportLines({
     }
   } else {
     lines.push(
-      `Battle progress continues with ${attackerArmyRemaining} attacker army and ${defenderArmyRemaining} defender army committed; attrition is applied each tick.`
+      `Battle continues with ${attackerArmyRemaining} attacker army and ${defenderArmyRemaining} defender army committed; current casualty pace is ${casualtiesPerTick} total units per tick.`
     );
   }
 
@@ -1672,6 +1682,7 @@ export async function getHomePageState({
                 name: true,
                 commanderName: true,
                 ownerId: true,
+                maxHealth: true,
               },
             },
             attackerBannerFortress: {
@@ -1763,6 +1774,39 @@ export async function getHomePageState({
           (unit) =>
             `${unit.attackerFortress.name} reinforcement arrived for ${(unit.reinforcementSide ?? BattlefieldSide.ATTACKER).toLowerCase()} with ${unit.armyAmount} army.`
         );
+        const battleAgeMinutes = Math.max(
+          0,
+          Math.floor((now.getTime() - battlefield.startedAt.getTime()) / 60_000)
+        );
+        const casualtiesPerTick = getBattlefieldCasualtyBudget(battleAgeMinutes);
+        const attackerLosses = battlefield.participants
+          .filter((participant) => participant.side === BattlefieldSide.ATTACKER)
+          .reduce(
+            (sum, participant) =>
+              sum +
+              Math.max(0, participant.armyCommitted - participant.armyRemaining),
+            0
+          );
+        const defenderParticipantLosses = battlefield.participants
+          .filter((participant) => participant.side === BattlefieldSide.DEFENDER)
+          .reduce(
+            (sum, participant) =>
+              sum +
+              Math.max(0, participant.armyCommitted - participant.armyRemaining),
+            0
+          );
+        const defenderNativeLosses =
+          battlefield.targetTileId !== null &&
+          isHomeOfATile(battlefield.targetTileId) &&
+          battlefield.targetFortress
+            ? Math.max(
+                0,
+                battlefield.targetFortress.maxHealth -
+                  battlefield.defenderArmyRemaining
+              )
+            : 0;
+        const defenderLosses =
+          defenderParticipantLosses + defenderNativeLosses;
 
         return {
           type: "BATTLEFIELD" as const,
@@ -1799,7 +1843,7 @@ export async function getHomePageState({
           defenderDbLevel: 0,
           defenseBonusPercent: 0,
           defenseMultiplier: 1,
-          resolvedAttackPower: battlefield.attackerArmyRemaining,
+          resolvedAttackPower: attackerLosses + defenderLosses,
           resolvedDefensePowerEstimate: formatApproximateForce(
             battlefield.defenderArmyRemaining
           ),
@@ -1812,7 +1856,7 @@ export async function getHomePageState({
           attackerSurvivors: battlefield.attackerArmyRemaining,
           attackerRetired: 0,
           attackerReturned: battlefield.attackerArmyRemaining,
-          defenderLosses: 0,
+          defenderLosses,
           pointsLooted:
             battlefield.resolvedWinnerSide === BattlefieldSide.ATTACKER
               ? battlefield.pointReward
@@ -1836,9 +1880,12 @@ export async function getHomePageState({
                 null,
               attackerArmyRemaining: battlefield.attackerArmyRemaining,
               defenderArmyRemaining: battlefield.defenderArmyRemaining,
+              attackerLosses,
+              defenderLosses,
               participantCount: battlefield.participants.length,
               incomingCount: incomingReinforcements.length,
               arrivedReinforcementCount: arrivedReinforcements.length,
+              casualtiesPerTick,
               pointsReward: battlefield.pointsReward,
               foodReward: battlefield.foodReward,
               pointReward: battlefield.pointReward,
@@ -3339,6 +3386,10 @@ export async function getHomePageState({
         0,
         Math.floor((now.getTime() - battlefield.startedAt.getTime()) / 60_000)
       );
+      const casualtiesPerTick = getBattlefieldCasualtyBudget(battleAgeMinutes);
+      const battleIntensityPercent = Math.round(
+        ((casualtiesPerTick - 100) / 900) * 100
+      );
       const nextIncomingReinforcement =
         battlefield.incomingReinforcements.length > 0
           ? battlefield.incomingReinforcements[0]
@@ -3364,10 +3415,8 @@ export async function getHomePageState({
       const incomingTotal = incomingAttackerArmy + incomingDefenderArmy;
       const incomingEdge =
         incomingTotal > 0 ? incomingArmyDelta / incomingTotal : 0;
-      const progressEdge =
-        (Math.max(0, Math.min(100, battlefield.progress)) - 50) / 50;
       const momentumScore = Number(
-        (armyEdge * 0.6 + incomingEdge * 0.25 + progressEdge * 0.15).toFixed(2)
+        (armyEdge * 0.75 + incomingEdge * 0.25).toFixed(2)
       );
       const momentumTier:
         | "ATTACKER_STRONG"
@@ -3416,6 +3465,8 @@ export async function getHomePageState({
         incomingDefenderArmy,
         incomingArmyDelta,
         battleAgeMinutes,
+        casualtiesPerTick,
+        battleIntensityPercent,
         nextIncomingEtaMinutes,
         nextIncomingSide:
           nextIncomingReinforcement?.reinforcementSide ??

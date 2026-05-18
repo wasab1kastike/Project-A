@@ -109,6 +109,8 @@ type ActiveBattlefield = {
   incomingDefenderArmy: number;
   incomingArmyDelta: number;
   battleAgeMinutes: number;
+  casualtiesPerTick: number;
+  battleIntensityPercent: number;
   nextIncomingEtaMinutes: number | null;
   nextIncomingSide: "ATTACKER" | "DEFENDER";
   attackerToDefenderLossRatio: number | null;
@@ -1944,12 +1946,19 @@ export function BattlefieldExperience({
                         >
                           {pressure.label}
                         </span>
-                        <span>{battlefield.progress}%</span>
+                        <span>
+                          A {battlefield.attackerArmyLabel} / D{" "}
+                          {battlefield.defenderArmyLabel}
+                        </span>
                       </span>
                     </div>
                     <div className={styles.battleSignals}>
                       <span className={styles.signalChip}>
                         Live {formatBattleMinutes(battlefield.battleAgeMinutes)}
+                      </span>
+                      <span className={styles.signalChip}>
+                        Pace {battlefield.casualtiesPerTick}/tick (
+                        {battlefield.battleIntensityPercent}%)
                       </span>
                       <span className={styles.signalChip}>
                         Army delta {battlefield.armyDelta >= 0 ? "+" : ""}
@@ -1971,7 +1980,6 @@ export function BattlefieldExperience({
                         {battlefield.defenseBuffPercent}%
                       </span>
                     </div>
-                    <progress value={battlefield.progress} max={100} />
                     {(() => {
                       const totalArmy =
                         (battlefield.attackerArmyRemaining ?? 0) +

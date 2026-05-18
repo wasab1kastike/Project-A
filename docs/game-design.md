@@ -75,6 +75,9 @@
 - Temporary map objectives rotate onto normal tiles and add extra point income while active.
 - Players can join an active battlefield as attacker or defender if they have idle army and are not violating same-side/conflicting-side restrictions.
 - Reinforcements are represented by `AttackUnit` rows and now obey the same outbound attack cap as direct attacks.
+- Battlefield casualties apply every tick and ramp from 100 total units per tick to 1000 after one hour.
+- Battlefields resolve only when one side runs out of army; high progress no longer triggers a separate instant combat roll.
+- Reinforcements that arrive after a battlefield has resolved return home intact.
 - Players can partially recall their own remaining active battlefield army or won-tile garrisons; recalled forces travel home and already-suffered losses stay lost.
 - Dwarf defenders receive an extra 25% defensive multiplier when defending owned normal tiles.
 - Battlefield resolution is applied after fortress economy persistence in the tick, preventing stale economy writes from overwriting loot, casualty, reward, or ownership results.

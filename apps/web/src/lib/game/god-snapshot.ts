@@ -78,6 +78,8 @@ export type GodSnapshot = {
     momentumTier: string;
     participantCount: number;
     battleAgeMinutes: number;
+    casualtiesPerTick: number;
+    battleIntensityPercent: number;
     nextIncomingEtaMinutes: number | null;
     startedAt: Date;
     attackerBannerName: string;
@@ -165,6 +167,8 @@ export async function getGodSnapshot({
     momentumTier: battlefield.momentumTier,
     participantCount: battlefield.participantCount,
     battleAgeMinutes: battlefield.battleAgeMinutes,
+    casualtiesPerTick: battlefield.casualtiesPerTick,
+    battleIntensityPercent: battlefield.battleIntensityPercent,
     nextIncomingEtaMinutes: battlefield.nextIncomingEtaMinutes,
     startedAt: battlefield.startedAt,
     attackerBannerName: battlefield.attackerBanner.name,
@@ -289,12 +293,12 @@ function buildGodSnapshotEvents({
         cycleKey,
         "battlefield",
         battlefield.id,
-        battlefield.progress,
         battlefield.attackerArmyRemaining,
         battlefield.defenderArmyRemaining,
         battlefield.incomingAttackerArmy,
         battlefield.incomingDefenderArmy,
         battlefield.momentumTier,
+        battlefield.casualtiesPerTick,
       ].join(":"),
       kind: "battlefield",
       title: battlefield.targetName,
@@ -306,7 +310,7 @@ function buildGodSnapshotEvents({
               battlefield.defenderRaceLabel
             )}`
           : ""
-      }; ${battlefield.momentumTier} at ${battlefield.progress}% progress.`,
+      }; ${battlefield.momentumTier} with ${battlefield.attackerArmyRemaining} attacker army vs ${battlefield.defenderArmyRemaining} defender army after ${battlefield.battleAgeMinutes}m. Casualty pace ${battlefield.casualtiesPerTick}/tick.`,
       priority: 100,
       occurredAt: battlefield.startedAt,
     });
@@ -356,9 +360,9 @@ function buildBattleHighlights(
   battlefields: GodSnapshot["battlefields"]
 ) {
   return battlefields.slice(0, 5).map((battlefield) => ({
-    key: `cycle:${cycleKey}:battle:${battlefield.id}:${battlefield.progress}:${battlefield.momentumTier}`,
+    key: `cycle:${cycleKey}:battle:${battlefield.id}:${battlefield.attackerArmyRemaining}:${battlefield.defenderArmyRemaining}:${battlefield.momentumTier}:${battlefield.casualtiesPerTick}`,
     summary: `${battlefield.targetName} has ${battlefield.attackerCommanderName} of ${battlefield.attackerBannerName}${formatRaceClause(
       battlefield.attackerRaceLabel
-    )} in ${battlefield.momentumTier} with ${battlefield.participantCount} participants.`,
+    )} in ${battlefield.momentumTier} with ${battlefield.participantCount} participants and ${battlefield.casualtiesPerTick}/tick casualty pace.`,
   }));
 }

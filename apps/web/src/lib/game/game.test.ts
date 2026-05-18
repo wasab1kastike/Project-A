@@ -166,6 +166,7 @@ import {
 import { formatTickRunnerError, formatTickSummary } from "./tick-cli";
 import {
   getBattlefieldAttrition,
+  getBattlefieldCasualtyBudget,
   getBattlefieldProgressDelta,
   getHomeOfABossBattleDamage,
   processActiveBattlefields,
@@ -885,32 +886,68 @@ test("battlefield progress advances by one to five percent per tick", () => {
   );
 });
 
-test("battlefield attrition is deterministic and has minimum losses", () => {
-  const tickAt = new Date("2026-05-05T12:00:00.000Z");
+test("battlefield casualty budget ramps from 100 to 1000 per tick", () => {
+  assert.equal(getBattlefieldCasualtyBudget(0), 100);
+  assert.equal(getBattlefieldCasualtyBudget(30), 550);
+  assert.equal(getBattlefieldCasualtyBudget(60), 1000);
+  assert.equal(getBattlefieldCasualtyBudget(90), 1000);
+});
+
+test("battlefield attrition is deterministic and respects the tick budget", () => {
   const attrition = getBattlefieldAttrition({
-    battlefieldId: "battlefield-attrition-test",
-    tickAt,
-    attackerArmy: 2,
-    defenderArmy: 3,
+    battleAgeMinutes: 30,
+    attackerArmy: 1000,
+    defenderArmy: 1000,
   });
 
-  assert.ok(attrition.attackerLosses >= 1);
-  assert.ok(attrition.defenderLosses >= 1);
-  assert.ok(attrition.attackerLosses <= 2);
-  assert.ok(attrition.defenderLosses <= 3);
+  assert.equal(attrition.attackerLosses + attrition.defenderLosses, 550);
+  assert.equal(attrition.attackerLosses, 275);
+  assert.equal(attrition.defenderLosses, 275);
   assert.deepEqual(
     attrition,
     getBattlefieldAttrition({
-      battlefieldId: "battlefield-attrition-test",
-      tickAt,
-      attackerArmy: 2,
-      defenderArmy: 3,
+      battleAgeMinutes: 30,
+      attackerArmy: 1000,
+      defenderArmy: 1000,
     })
+  );
+  const attackerFavored = getBattlefieldAttrition({
+    battleAgeMinutes: 60,
+    attackerArmy: 1000,
+    defenderArmy: 1000,
+    attackerPowerMultiplier: 2,
+  });
+
+  assert.equal(
+    attackerFavored.attackerLosses + attackerFavored.defenderLosses,
+    1000
+  );
+  assert.ok(attackerFavored.defenderLosses > attackerFavored.attackerLosses);
+  assert.deepEqual(
+    getBattlefieldAttrition({
+      battleAgeMinutes: 60,
+      attackerArmy: 1,
+      defenderArmy: 1,
+    }),
+    {
+      attackerLosses: 1,
+      defenderLosses: 1,
+    }
   );
   assert.deepEqual(
     getBattlefieldAttrition({
-      battlefieldId: "battlefield-attrition-test",
-      tickAt,
+      battleAgeMinutes: 60,
+      attackerArmy: 90,
+      defenderArmy: 10,
+      attackerPowerMultiplier: 4,
+    }),
+    {
+      attackerLosses: 2,
+      defenderLosses: 10,
+    }
+  );
+  assert.deepEqual(
+    getBattlefieldAttrition({
       attackerArmy: 0,
       defenderArmy: 3,
     }),
@@ -1415,7 +1452,7 @@ test("God runner ignores player-chat events and unsafe generated claims by defau
         key: "battle-event",
         kind: "battlefield",
         title: "Tile 7:11",
-        summary: "Tile 7:11: DEFENDER_STRONG at 99% progress.",
+        summary: "Tile 7:11: DEFENDER_STRONG with 120 attacker army vs 450 defender army. Casualty pace 100/tick.",
         priority: 80,
         occurredAt: null,
       },
@@ -1437,7 +1474,7 @@ test("God runner prioritizes leaderboard changes over battlefield churn", () => 
         key: "battle-event",
         kind: "battlefield",
         title: "Tile 7:11",
-        summary: "Tile 7:11: DEFENDER_STRONG at 99% progress.",
+        summary: "Tile 7:11: DEFENDER_STRONG with 120 attacker army vs 450 defender army. Casualty pace 100/tick.",
         priority: 100,
         occurredAt: null,
       },
@@ -1471,7 +1508,7 @@ test("God runner skips repeated event topics after one divine comment", () => {
         key: "battle-event",
         kind: "battlefield",
         title: "Tile 7:11",
-        summary: "Tile 7:11: DEFENDER_STRONG at 99% progress.",
+        summary: "Tile 7:11: DEFENDER_STRONG with 120 attacker army vs 450 defender army. Casualty pace 100/tick.",
         priority: 100,
         occurredAt: null,
       },
@@ -1523,7 +1560,7 @@ test("God runner skips repeated event topics after one divine comment", () => {
           key: "cycle:test-cycle:battlefield:battle-a:55:0:0:0:0:DEFENDER_EDGE",
           kind: "battlefield",
           title: "Tile 7:11",
-          summary: "Tile 7:11: DEFENDER_EDGE at 55% progress.",
+          summary: "Tile 7:11: DEFENDER_EDGE with 90 attacker army vs 120 defender army. Casualty pace 550/tick.",
           priority: 100,
           occurredAt: null,
         },
@@ -1559,7 +1596,7 @@ test("God runner sparse cadence skips routine events and allows major omens", ()
       key: "cycle:test-cycle:battlefield:battle-a:50:10:10:0:0:ATTACKER_EDGE",
       kind: "battlefield",
       title: "Tile 7:11",
-      summary: "Tile 7:11: ATTACKER_EDGE at 50% progress.",
+      summary: "Tile 7:11: ATTACKER_EDGE with 140 attacker army vs 100 defender army. Casualty pace 550/tick.",
       priority: 100,
       occurredAt: null,
     }) < cadence.minEventImportance
@@ -1650,7 +1687,7 @@ test("God runner rejects generic narration for concrete events", () => {
     kind: "battlefield",
     title: "Tile 19:0",
     summary:
-      "Tile 19:0: Artoisti of Artoism of King in the mountains, Dwarfs, presses COOKERS of BEEFSTEW, Dwarfs,; DEFENDER_STRONG at 14% progress.",
+      "Tile 19:0: Artoisti of Artoism of King in the mountains, Dwarfs, presses COOKERS of BEEFSTEW, Dwarfs; DEFENDER_STRONG with 40 attacker army vs 120 defender army. Casualty pace 235/tick.",
     priority: 100,
     occurredAt: null,
   };
@@ -2044,7 +2081,7 @@ test("God runner builds public player history and conflict memory", () => {
     kind: "battlefield",
     title: "Tile 7:11",
     summary:
-      "Tile 7:11: DA BOYZ of DA BOYZEZ ZITY, ORKS, presses Aarocorn of UniBonk, Unstable Unicorns; ATTACKER_EDGE at 64% progress.",
+      "Tile 7:11: DA BOYZ of DA BOYZEZ ZITY, ORKS, presses Aarocorn of UniBonk, Unstable Unicorns; ATTACKER_EDGE with 180 attacker army vs 120 defender army. Casualty pace 700/tick.",
     priority: 100,
     occurredAt: null,
   };
@@ -2114,7 +2151,9 @@ test("God runner builds public player history and conflict memory", () => {
     new Date("2026-05-17T10:05:00.000Z")
   );
 
-  const repeatedPrompt = buildGodPrompt(snapshot, battleEvent, memory);
+  const repeatedPrompt = buildGodPrompt(snapshot, battleEvent, memory, {
+    now: new Date("2026-05-17T10:05:00.000Z"),
+  });
 
   assert.match(repeatedPrompt, /highestPointsBand/);
   assert.match(repeatedPrompt, /"publicRelationship":"observed rivals"/);
@@ -2149,7 +2188,9 @@ test("God runner builds public player history and conflict memory", () => {
     new Date("2026-05-18T01:00:00.000Z")
   );
 
-  const feudPrompt = buildGodPrompt(snapshot, battleEvent, memory);
+  const feudPrompt = buildGodPrompt(snapshot, battleEvent, memory, {
+    now: new Date("2026-05-18T01:00:00.000Z"),
+  });
 
   assert.match(feudPrompt, /observed enemies/);
   assert.match(feudPrompt, /dynamicConflictScore/);
@@ -2668,6 +2709,87 @@ test("late reinforcement returns home if battlefield has already resolved", asyn
   });
 
   assert.equal(reloadedAttacker.army, 20);
+  assert.notEqual(reloadedUnit.resolvedAt, null);
+  assert.equal(reloadedUnit.attackerReturned, 4);
+});
+
+test("late defender reinforcement returns home if battlefield has already resolved", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const attacker = await createUser(
+    prisma,
+    "late-defender-reinforce-attacker@example.com"
+  );
+  const defender = await createUser(
+    prisma,
+    "late-defender-reinforce-defender@example.com"
+  );
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: attacker.id,
+      commanderName: "Resolved Attacker",
+      fortressName: "Resolved Attack Keep",
+      points: 100,
+    },
+    {
+      userId: defender.id,
+      commanderName: "Late Defender",
+      fortressName: "Late Defense Keep",
+      points: 100,
+    },
+  ]);
+  const [attackerFortress, defenderFortress] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: attacker.id } },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: defender.id } },
+    }),
+  ]);
+
+  await prisma.fortress.update({
+    where: { id: defenderFortress.id },
+    data: { army: 20 },
+  });
+
+  const battlefield = await prisma.battlefield.create({
+    data: {
+      cycleId: cycle.id,
+      targetFortressId: defenderFortress.id,
+      attackerBannerFortressId: attackerFortress.id,
+      defenderBannerFortressId: defenderFortress.id,
+      startedAt: new Date("2026-04-20T12:01:00.000Z"),
+    },
+  });
+
+  const launchedUnit = await joinBattlefield({
+    userId: defender.id,
+    battlefieldId: battlefield.id,
+    side: BattlefieldSide.DEFENDER,
+    armyAmount: 4,
+    now: new Date("2026-04-20T12:02:00.000Z"),
+    db: prisma,
+  });
+
+  await prisma.battlefield.update({
+    where: { id: battlefield.id },
+    data: { status: BattlefieldStatus.RESOLVED },
+  });
+
+  await runGameTick({ now: launchedUnit.arrivesAt, db: prisma });
+
+  const reloadedDefender = await prisma.fortress.findUniqueOrThrow({
+    where: { id: defenderFortress.id },
+  });
+  const reloadedUnit = await prisma.attackUnit.findUniqueOrThrow({
+    where: { id: launchedUnit.id },
+  });
+
+  assert.equal(reloadedDefender.army, 20);
   assert.notEqual(reloadedUnit.resolvedAt, null);
   assert.equal(reloadedUnit.attackerReturned, 4);
 });
@@ -3327,6 +3449,269 @@ test("tile battle transfers ownership on attacker win", async (context) => {
   assert.equal(resolved.resolvedWinnerSide, BattlefieldSide.ATTACKER);
 });
 
+test("battlefield at high progress stays active while both sides survive", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const attacker = await createUser(
+    prisma,
+    "battlefield-progress-attacker@example.com"
+  );
+  const defender = await createUser(
+    prisma,
+    "battlefield-progress-defender@example.com"
+  );
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: attacker.id,
+      commanderName: "Progress Attacker",
+      fortressName: "Progress Attacker Keep",
+      points: 100,
+    },
+    {
+      userId: defender.id,
+      commanderName: "Progress Defender",
+      fortressName: "Progress Defender Keep",
+      points: 100,
+    },
+  ]);
+  const [attackerFortress, defenderFortress] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: attacker.id } },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: defender.id } },
+    }),
+  ]);
+  const battlefield = await prisma.battlefield.create({
+    data: {
+      cycleId: cycle.id,
+      targetFortressId: defenderFortress.id,
+      attackerBannerFortressId: attackerFortress.id,
+      defenderBannerFortressId: defenderFortress.id,
+      progress: 99,
+      attackerArmyRemaining: 1000,
+      defenderArmyRemaining: 1000,
+      startedAt: new Date("2026-04-20T12:01:00.000Z"),
+      participants: {
+        create: [
+          {
+            fortressId: attackerFortress.id,
+            side: BattlefieldSide.ATTACKER,
+            armyCommitted: 1000,
+            armyRemaining: 1000,
+          },
+          {
+            fortressId: defenderFortress.id,
+            side: BattlefieldSide.DEFENDER,
+            armyCommitted: 1000,
+            armyRemaining: 1000,
+          },
+        ],
+      },
+    },
+  });
+
+  await processActiveBattlefields({
+    db: prisma,
+    cycleId: cycle.id,
+    tickAt: new Date("2026-04-20T12:02:00.000Z"),
+  });
+
+  const reloaded = await prisma.battlefield.findUniqueOrThrow({
+    where: { id: battlefield.id },
+  });
+
+  assert.equal(reloaded.status, BattlefieldStatus.ACTIVE);
+  assert.equal(reloaded.resolvedWinnerSide, null);
+  assert.ok(reloaded.attackerArmyRemaining > 0);
+  assert.ok(reloaded.defenderArmyRemaining > 0);
+});
+
+test("simultaneous battlefield wipe resolves as defender win", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const attacker = await createUser(
+    prisma,
+    "battlefield-wipe-attacker@example.com"
+  );
+  const defender = await createUser(
+    prisma,
+    "battlefield-wipe-defender@example.com"
+  );
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: attacker.id,
+      commanderName: "Wipe Attacker",
+      fortressName: "Wipe Attack Keep",
+      points: 100,
+    },
+    {
+      userId: defender.id,
+      commanderName: "Wipe Defender",
+      fortressName: "Wipe Defense Keep",
+      points: 100,
+    },
+  ]);
+  const [attackerFortress, defenderFortress] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: attacker.id } },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: defender.id } },
+    }),
+  ]);
+  const battlefield = await prisma.battlefield.create({
+    data: {
+      cycleId: cycle.id,
+      targetFortressId: defenderFortress.id,
+      attackerBannerFortressId: attackerFortress.id,
+      defenderBannerFortressId: defenderFortress.id,
+      progress: 99,
+      attackerArmyRemaining: 1,
+      defenderArmyRemaining: 1,
+      startedAt: new Date("2026-04-20T11:00:00.000Z"),
+      participants: {
+        create: [
+          {
+            fortressId: attackerFortress.id,
+            side: BattlefieldSide.ATTACKER,
+            armyCommitted: 1,
+            armyRemaining: 1,
+          },
+          {
+            fortressId: defenderFortress.id,
+            side: BattlefieldSide.DEFENDER,
+            armyCommitted: 1,
+            armyRemaining: 1,
+          },
+        ],
+      },
+    },
+  });
+
+  await processActiveBattlefields({
+    db: prisma,
+    cycleId: cycle.id,
+    tickAt: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const resolved = await prisma.battlefield.findUniqueOrThrow({
+    where: { id: battlefield.id },
+  });
+
+  assert.equal(resolved.status, BattlefieldStatus.RESOLVED);
+  assert.equal(resolved.resolvedWinnerSide, BattlefieldSide.DEFENDER);
+  assert.equal(resolved.attackerArmyRemaining, 0);
+  assert.equal(resolved.defenderArmyRemaining, 0);
+});
+
+test("battlefield attrition splits defender losses between native and participant army", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const attacker = await createUser(
+    prisma,
+    "battlefield-native-attacker@example.com"
+  );
+  const defender = await createUser(
+    prisma,
+    "battlefield-native-defender@example.com"
+  );
+  const ally = await createUser(prisma, "battlefield-native-ally@example.com");
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: attacker.id,
+      commanderName: "Native Attacker",
+      fortressName: "Native Attack Keep",
+      points: 100,
+    },
+    {
+      userId: defender.id,
+      commanderName: "Native Defender",
+      fortressName: "Native Defense Keep",
+      points: 100,
+    },
+    {
+      userId: ally.id,
+      commanderName: "Native Ally",
+      fortressName: "Native Ally Keep",
+      points: 100,
+    },
+  ]);
+  const [attackerFortress, defenderFortress, allyFortress] =
+    await Promise.all([
+      prisma.fortress.findUniqueOrThrow({
+        where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: attacker.id } },
+      }),
+      prisma.fortress.findUniqueOrThrow({
+        where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: defender.id } },
+      }),
+      prisma.fortress.findUniqueOrThrow({
+        where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: ally.id } },
+      }),
+    ]);
+  const battlefield = await prisma.battlefield.create({
+    data: {
+      cycleId: cycle.id,
+      targetFortressId: defenderFortress.id,
+      attackerBannerFortressId: attackerFortress.id,
+      defenderBannerFortressId: defenderFortress.id,
+      attackerArmyRemaining: 1000,
+      defenderArmyRemaining: 200,
+      startedAt: new Date("2026-04-20T12:00:00.000Z"),
+      participants: {
+        create: [
+          {
+            fortressId: attackerFortress.id,
+            side: BattlefieldSide.ATTACKER,
+            armyCommitted: 1000,
+            armyRemaining: 1000,
+          },
+          {
+            fortressId: allyFortress.id,
+            side: BattlefieldSide.DEFENDER,
+            armyCommitted: 100,
+            armyRemaining: 100,
+          },
+        ],
+      },
+    },
+  });
+
+  await processActiveBattlefields({
+    db: prisma,
+    cycleId: cycle.id,
+    tickAt: new Date("2026-04-20T12:01:00.000Z"),
+  });
+
+  const [reloaded, allyParticipant] = await Promise.all([
+    prisma.battlefield.findUniqueOrThrow({ where: { id: battlefield.id } }),
+    prisma.battlefieldParticipant.findUniqueOrThrow({
+      where: {
+        battlefieldId_fortressId: {
+          battlefieldId: battlefield.id,
+          fortressId: allyFortress.id,
+        },
+      },
+    }),
+  ]);
+
+  assert.equal(reloaded.status, BattlefieldStatus.ACTIVE);
+  assert.equal(reloaded.defenderArmyRemaining, 104);
+  assert.equal(allyParticipant.armyRemaining, 52);
+});
+
 test("tile battle does not use idle castle army as implicit defense", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
@@ -3881,6 +4266,73 @@ test("Home of A is centered and cannot be neutral claimed", async (context) => {
       }),
     /must be conquered/
   );
+});
+
+test("Home of A battlefield stays active at high progress while HP remains", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const attacker = await createUser(prisma, "home-progress-attacker@example.com");
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: attacker.id,
+      commanderName: "Home Progress",
+      fortressName: "Home Progress Keep",
+      points: 100,
+    },
+  ]);
+  const attackerFortress = await prisma.fortress.findUniqueOrThrow({
+    where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: attacker.id } },
+  });
+  const home = await ensureMegaFortress({
+    db: prisma,
+    cycleId: cycle.id,
+    seed: "test-home-progress",
+  });
+
+  await prisma.fortress.update({
+    where: { id: home.id },
+    data: { health: 1000, maxHealth: 1000 },
+  });
+  const battlefield = await prisma.battlefield.create({
+    data: {
+      cycleId: cycle.id,
+      targetTileId: HOME_OF_A_TILE_ID,
+      targetFortressId: home.id,
+      attackerBannerFortressId: attackerFortress.id,
+      defenderBannerFortressId: null,
+      progress: 99,
+      attackerArmyRemaining: 100,
+      defenderArmyRemaining: 1000,
+      startedAt: new Date("2026-04-20T12:00:00.000Z"),
+      participants: {
+        create: {
+          fortressId: attackerFortress.id,
+          side: BattlefieldSide.ATTACKER,
+          armyCommitted: 100,
+          armyRemaining: 100,
+        },
+      },
+    },
+  });
+
+  await processActiveBattlefields({
+    db: prisma,
+    cycleId: cycle.id,
+    tickAt: new Date("2026-04-20T12:01:00.000Z"),
+  });
+
+  const [reloadedBattlefield, reloadedHome] = await Promise.all([
+    prisma.battlefield.findUniqueOrThrow({ where: { id: battlefield.id } }),
+    prisma.fortress.findUniqueOrThrow({ where: { id: home.id } }),
+  ]);
+
+  assert.equal(reloadedBattlefield.status, BattlefieldStatus.ACTIVE);
+  assert.equal(reloadedBattlefield.resolvedWinnerSide, null);
+  assert.ok(reloadedHome.health > 0);
 });
 
 test("Home of A first capture creates ownership and holder shares", async (context) => {
