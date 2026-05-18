@@ -137,6 +137,10 @@ type RunnerSnapshot = {
     id?: string;
     targetName: string;
     progress: number;
+    attackerArmyRemaining?: number;
+    defenderArmyRemaining?: number;
+    casualtiesPerTick?: number;
+    battleAgeMinutes?: number;
     momentumTier: string;
     participantCount: number;
     startedAt?: string;
@@ -626,6 +630,7 @@ export function buildGodPrompt(
     previousGenericMessage?: string;
     voiceStyle?: string;
     roastLevel?: string;
+    now?: Date;
   } = {}
 ) {
   const leaders = snapshot.leaderboard.slice(0, 3).map((leader) => ({
@@ -641,7 +646,7 @@ export function buildGodPrompt(
   const recentDivineMessages = memory.recentMessages
     .slice(-5)
     .map((message) => message.body);
-  const publicMemory = buildPublicMemoryContext(memory, event);
+  const publicMemory = buildPublicMemoryContext(memory, event, options.now);
   const diaryContext = buildDiaryContext(memory, event);
 
   return [
@@ -650,7 +655,7 @@ export function buildGodPrompt(
     `Voice style: ${getGodVoiceGuide(options.voiceStyle, options.roastLevel)}`,
     "Make it specific to the selected event: include at least one public commander name or fortress name, and use race flavor when a race label is present.",
     "Act like a mysterious god choosing rare omens, not a predictable narrator that comments on everything. It is better to sound like a remembered curse than a live ticker.",
-    "Useful public details include target name, rank, progress value, race label, or Home of A status from the provided event/context.",
+    "Useful public details include target name, rank, surviving army, casualty pace, race label, or Home of A status from the provided event/context.",
     "Never include exact score or point totals. Crowns and rankings are fine; numbers like '164258 points' are not.",
     "Avoid bland status reports like 'X leads with Y points' or 'the scoreboard shifted'. Make the public fact into a strange joke, verdict, omen, or petty imperial aside.",
     "Use chronicle context for callbacks: old grudges, repeated Home of A meddling, race habits, crown anxiety, public truce claims, and rivalries observed in public.",
@@ -737,6 +742,7 @@ export async function runGodRunner() {
   const prompt = buildGodPrompt(snapshot, event, memory, {
     voiceStyle: config.voiceStyle,
     roastLevel: config.roastLevel,
+    now,
   });
   const fallback = buildFallbackGodMessage(event);
   const generated = await askOllama(config, prompt);
@@ -747,6 +753,7 @@ export async function runGodRunner() {
       previousGenericMessage: sanitized,
       voiceStyle: config.voiceStyle,
       roastLevel: config.roastLevel,
+      now,
     });
     const retryGenerated = await askOllama(config, retryPrompt);
     const retrySanitized = sanitizeGodMessage(retryGenerated, fallback);
@@ -1867,8 +1874,13 @@ function buildDiaryContext(memory: RunnerMemory, event: RunnerEvent) {
   };
 }
 
-function buildPublicMemoryContext(memory: RunnerMemory, event: RunnerEvent) {
+function buildPublicMemoryContext(
+  memory: RunnerMemory,
+  event: RunnerEvent,
+  now = new Date()
+) {
   const eventText = `${event.title} ${event.summary}`.toLowerCase();
+  const nowIso = now.toISOString();
   const playerHistory = Object.values(memory.playerHistory)
     .filter((player) => isRelevantPlayer(player, eventText))
     .sort((left, right) => {
@@ -1902,16 +1914,19 @@ function buildPublicMemoryContext(memory: RunnerMemory, event: RunnerEvent) {
     .filter((relation) => isRelevantRelation(relation, eventText))
     .sort(
       (left, right) =>
-        getDecayedConflictScore(right) - getDecayedConflictScore(left) ||
+        getDecayedConflictScore(right, nowIso) -
+          getDecayedConflictScore(left, nowIso) ||
         right.lastConflictAt.localeCompare(left.lastConflictAt)
     )
     .slice(0, 5)
     .map((relation) => ({
       left: scrubUntrustedText(relation.leftLabel),
       right: scrubUntrustedText(relation.rightLabel),
-      publicRelationship: getPublicRelationshipLabel(relation),
+      publicRelationship: getPublicRelationshipLabel(relation, nowIso),
       conflictCount: relation.conflictCount,
-      dynamicConflictScore: Number(getDecayedConflictScore(relation).toFixed(2)),
+      dynamicConflictScore: Number(
+        getDecayedConflictScore(relation, nowIso).toFixed(2)
+      ),
       lastContext: scrubUntrustedText(relation.lastContext),
       publicPeaceClaims: relation.publicPeaceClaims ?? 0,
       publicGrudgeClaims: relation.publicGrudgeClaims ?? 0,
@@ -1944,8 +1959,8 @@ function getPointBand(points: number) {
   return "unknown";
 }
 
-function getPublicRelationshipLabel(relation: RelationHistory) {
-  const score = getDecayedConflictScore(relation);
+function getPublicRelationshipLabel(relation: RelationHistory, now?: string) {
+  const score = getDecayedConflictScore(relation, now);
 
   if (score >= ENEMY_SCORE_THRESHOLD) {
     return "observed enemies";
@@ -2186,7 +2201,7 @@ function buildLeaderboardFallback(eventText: string) {
 
 function buildBattlefieldFallback(eventText: string) {
   const match = normalizeFallbackDetail(eventText).match(
-    /^(.+):\s+(.+?)(?:;\s*[A-Z_]+\s+at\s+\d+%\s+progress\.?)?$/i
+    /^(.+):\s+(.+?)(?:;\s*[A-Z_]+(?:\s+.*)?\.?)?$/i
   );
 
   if (!match) {
@@ -2279,7 +2294,10 @@ function clipFallbackDetail(value: string) {
   const maxDetailLength = 150;
 
   return clipped.length > maxDetailLength
-    ? `${clipped.slice(0, maxDetailLength - 3).trimEnd()}...`
+    ? `${clipped
+        .slice(0, maxDetailLength - 3)
+        .trimEnd()
+        .replace(/[.,;:]+$/g, "")}...`
     : clipped;
 }
 

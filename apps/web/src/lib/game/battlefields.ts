@@ -105,8 +105,6 @@ export function getBattlefieldAttrition({
   attackerPowerMultiplier = 1,
   defenderPowerMultiplier = 1,
 }: {
-  battlefieldId?: string;
-  tickAt?: Date;
   battleAgeMinutes?: number;
   attackerArmy: number;
   defenderArmy: number;
