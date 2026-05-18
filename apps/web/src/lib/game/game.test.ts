@@ -29,6 +29,7 @@ import { createPrismaClientOptions } from "@/lib/prisma-options";
 import { reviveGameStateDates } from "@/lib/live-state-serialization";
 import "./balance.test";
 import "./battle-report.test";
+import "./battlefield-rules.test";
 import "./leaderboard-titles.test";
 import "./season-announcement.test";
 import {
@@ -169,6 +170,8 @@ import {
   getBattlefieldCasualtyBudget,
   getBattlefieldProgressDelta,
   getHomeOfABossBattleDamage,
+} from "./battlefield-rules";
+import {
   processActiveBattlefields,
 } from "./battlefields";
 import {

@@ -36,7 +36,6 @@ import {
 } from "./race-buffs";
 import { addHours } from "./time";
 import { countCastleSpecializations } from "./specializations";
-import { DWARF_DEEP_MINING_RUNE_BOUNTY } from "./dwarf-deep-mining";
 import { ORK_BOSS_ORDER_CONFIG, ORK_WAAAGH_INVESTMENT_CONFIG } from "./orks";
 import { getTileById, isHomeOfATile, sumTileBonuses } from "./territory";
 
@@ -340,8 +339,6 @@ export async function getCastlePageState({
   const targetLookup = new Map(
     cycle.fortresses.map((fortress) => [fortress.id, fortress])
   );
-  const playerFortressId = playerFortress?.id ?? null;
-
   const registrationOpen =
     cycle.status === CycleStatus.REGISTRATION && cycle.registrationEndsAt > now;
   const testingOpen =
@@ -535,12 +532,6 @@ export async function getCastlePageState({
   const latestStimUse = playerFortress
     ? playerFortress.raceAbilityActivations.find(
         (activation) => activation.kind === RaceAbilityKind.SPACE_MURINE_STIM
-      )
-    : null;
-  const latestInstantRecallUse = playerFortress
-    ? playerFortress.raceAbilityActivations.find(
-        (activation) =>
-          activation.kind === RaceAbilityKind.SPACE_MURINE_INSTANT_RECALL
       )
     : null;
   const latestGarrisonInstantRecallUse = playerFortress

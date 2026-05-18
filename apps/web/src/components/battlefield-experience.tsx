@@ -257,22 +257,6 @@ function formatLossRatio(value: number | null) {
   return `${value.toFixed(2)}:1`;
 }
 
-function formatHeldDuration(capturedAt: Date) {
-  const heldMinutes = Math.max(
-    0,
-    Math.floor((Date.now() - new Date(capturedAt).getTime()) / 60_000)
-  );
-
-  if (heldMinutes < 60) {
-    return `${heldMinutes}m held`;
-  }
-
-  const hours = Math.floor(heldMinutes / 60);
-  const minutes = heldMinutes % 60;
-
-  return minutes === 0 ? `${hours}h held` : `${hours}h ${minutes}m held`;
-}
-
 type HomeOfAState = {
   tileId: string;
   pointIncome: number;

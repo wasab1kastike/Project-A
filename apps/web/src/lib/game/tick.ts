@@ -14,7 +14,6 @@ import {
 import { prisma } from "@/lib/prisma";
 import { ensureOpenRegistrationCycle } from "./bootstrap";
 import {
-  HOME_OF_A_TILE_ID,
   HOME_OF_A_BOSS_BUFF_HOURS,
   HOME_OF_A_BOSS_BUFF_MULTIPLIER,
   HOME_OF_A_BOSS_RESPAWN_HOURS,
@@ -51,7 +50,7 @@ import {
   getStarvationArmyLoss,
   processRecruitmentQueue,
 } from "./army-recruitment";
-import { canFortressLevelUp, getFortressAttackDamage } from "./upgrades";
+import { getFortressAttackDamage } from "./upgrades";
 import {
   getDwarfGrudgeMultiplier,
   getRaceBuffTier,
@@ -80,7 +79,6 @@ import {
   DWARF_DEEP_MINING_RUNE_BOUNTY,
 } from "./dwarf-deep-mining";
 import {
-  expireLootCamps,
   getLootCampReward,
   resetAttackerRaceAbilityCooldown,
   spawnScheduledLootCamps,
@@ -2096,6 +2094,8 @@ async function processCycleTick(
     });
   }
 
+  // === ARRIVAL PHASE: Process all due attack units (arrivals, reinforcements, direct attacks) ===
+  // This must happen BEFORE any battlefield is resolved!
   const dueAttackUnits = await db.attackUnit.findMany({
     where: {
       cycleId,
@@ -2133,6 +2133,7 @@ async function processCycleTick(
 
   const resolvedBatchAttackUnitIds = new Set<string>();
   for (const unit of dueAttackUnits) {
+    // All arrivals are processed and committed to their battlefields before any battlefield is resolved.
     if (unit.fortifyTargetTileId) {
       const existingGarrison = await db.fortressGarrison.findFirst({
         where: {
@@ -2314,6 +2315,7 @@ async function processCycleTick(
     resolvedAttackUnits += 1;
   }
 
+  // All due arrivals are now processed. Only after this, resolve battlefields.
   const dueAttackUnitsByTargetId = new Map<string, typeof dueAttackUnits>();
   for (const dueAttackUnit of dueAttackUnits) {
     const targetUnits =
@@ -4053,6 +4055,8 @@ async function processCycleTick(
     });
   }
 
+  // === BATTLEFIELD RESOLUTION PHASE ===
+  // Only now, after all arrivals are processed, resolve battlefields.
   const battlefieldResult = await processActiveBattlefields({
     db,
     cycleId,

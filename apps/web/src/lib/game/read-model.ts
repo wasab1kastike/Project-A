@@ -87,7 +87,7 @@ import {
   isTileConnectedToFortressOrOwnedTiles,
   sumTileBonuses,
 } from "./territory";
-import { getBattlefieldCasualtyBudget } from "./battlefields";
+import { getBattlefieldCasualtyBudget } from "./battlefield-rules";
 
 export type HomePageState = Awaited<ReturnType<typeof getHomePageState>>;
 
