@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useEffect,
   type ReactNode,
 } from "react";
 import type { HomePageState } from "@/lib/game/read-model";
@@ -23,6 +24,8 @@ const LiveGameStateContext =
   createContext<LiveGameStateContextValue | null>(null);
 
 const GAME_STATE_FETCH_TIMEOUT_MS = 8_000;
+const SYNC_RETRY_BASE_DELAY_MS = 4000;
+const SYNC_RETRY_MAX_DELAY_MS = 60000;
 
 async function fetchGameState(reason?: string) {
   const searchParams = new URLSearchParams();
@@ -64,8 +67,11 @@ export function LiveGameStateProvider({
   const [state, setState] = useState(initialState);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshError, setLastRefreshError] = useState<string | null>(null);
+  const [syncRetryCount, setSyncRetryCount] = useState(0);
   const refreshPromiseRef = useRef<Promise<boolean> | null>(null);
+  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Enhanced refresh with retry
   const refreshGameState = useCallback(async (reason?: string) => {
     if (refreshPromiseRef.current) {
       return refreshPromiseRef.current;
@@ -78,6 +84,7 @@ export function LiveGameStateProvider({
         const nextState = await fetchGameState(reason);
         setState(nextState);
         setLastRefreshError(null);
+        setSyncRetryCount(0);
         return true;
       } catch (error) {
         setLastRefreshError(
@@ -85,6 +92,7 @@ export function LiveGameStateProvider({
             ? error.message
             : "Game state refresh failed."
         );
+        setSyncRetryCount((c) => c + 1);
         return false;
       } finally {
         setIsRefreshing(false);
@@ -95,6 +103,42 @@ export function LiveGameStateProvider({
     refreshPromiseRef.current = refreshPromise;
     return refreshPromise;
   }, []);
+
+  // Automatic background retry when sync fails
+  useEffect(() => {
+    if (!lastRefreshError) {
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
+      return;
+    }
+    // Exponential backoff for retries
+    const delay = Math.min(
+      SYNC_RETRY_BASE_DELAY_MS * Math.pow(2, syncRetryCount),
+      SYNC_RETRY_MAX_DELAY_MS
+    );
+    retryTimeoutRef.current = setTimeout(() => {
+      refreshGameState("auto-retry");
+    }, delay);
+    return () => {
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
+    };
+  }, [lastRefreshError, syncRetryCount, refreshGameState]);
+
+  // Listen for manual retry events from UI
+  useEffect(() => {
+    const handler = () => {
+      refreshGameState("manual-retry");
+    };
+    window.addEventListener("manual-sync-retry", handler);
+    return () => {
+      window.removeEventListener("manual-sync-retry", handler);
+    };
+  }, [refreshGameState]);
 
   const value = useMemo(
     () => ({

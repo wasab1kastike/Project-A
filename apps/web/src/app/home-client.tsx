@@ -445,6 +445,13 @@ function HomeClientContent({
           ) : lastRefreshError ? (
             <span className={`${styles.tickStatus} ${styles.tickStatusWarning}`}>
               Live sync delayed
+              <button
+                className={styles.retrySyncButton}
+                onClick={() => window.dispatchEvent(new CustomEvent("manual-sync-retry"))}
+                style={{ marginLeft: 8 }}
+              >
+                Retry sync
+              </button>
             </span>
           ) : null}
           <dl className={styles.hudStats}>

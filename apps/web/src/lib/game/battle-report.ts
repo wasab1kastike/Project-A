@@ -150,18 +150,29 @@ export function formatRaidAttackPreview(input: RaidPreviewInput) {
 }
 
 export function formatRaidBattleReport(input: RaidBattleReportInput) {
+  // Enhanced battle report for richer, clearer feedback
+  // MVP and special event highlights (if available in input)
+
+  // Helper for MVP line
+  function getMvpLine(input: any) {
+    if (input.mvpName) {
+      return `MVP: ${input.mvpName} (${input.mvpRole ?? "top contributor"})`;
+    }
+    return null;
+  }
+
   if (input.defenderIsUnicornDecoy) {
     const decoyLevel = Math.max(1, input.defenderDecoyLevel ?? 1);
     const lostArmy = input.sentArmy - input.attackerReturned;
-
-    return [
-      `Teleport decoy collapsed. ${input.attackerName} hit ${input.defenderName} with ${input.sentArmy} troops.`,
-      `The unstable copy was castle level ${decoyLevel} and dealt up to ${
-        200 * decoyLevel
-      } army backlash.`,
+    const lines = [
+      `Teleport decoy collapsed! ${input.attackerName} hit ${input.defenderName} with ${input.sentArmy} troops.`,
+      `The unstable copy was castle level ${decoyLevel} and dealt up to ${200 * decoyLevel} army backlash.`,
       `${input.attackerReturned} returned. ${lostArmy} troops were lost to the decoy.`,
       "Loot gained: 0 gold and 0 food.",
     ];
+    const mvp = getMvpLine(input);
+    if (mvp) lines.push(mvp);
+    return lines;
   }
 
   if (input.defenderIsLootCamp) {
@@ -174,14 +185,17 @@ export function formatRaidBattleReport(input: RaidBattleReportInput) {
             ? `Loot gained: ${input.pointsLooted} gold, ${input.foodLooted} food, ${input.armyLooted ?? 0} army, and race cooldown reset.`
             : "Loot gained: 0.";
 
-    return [
-      `Loot camp raid. ${input.attackerName} hit ${input.defenderName} with ${input.sentArmy} troops.`,
-      `Camp defending army was ${input.defenderArmyAtBattleStart ?? 0}, with defense power ${input.resolvedDefensePower}.`,
+    const lines = [
+      `Loot camp raid! ${input.attackerName} hit ${input.defenderName} with ${input.sentArmy} troops.`,
+      `Camp defending army: ${input.defenderArmyAtBattleStart ?? 0}, defense power: ${input.resolvedDefensePower}.`,
       input.outcome === "ATTACKER_WIN"
-        ? `${input.attackerSurvivors} survived, ${input.attackerReturned} returned, ${input.attackerRetired} retired. Camp health was reduced by ${input.resolvedAttackPower ?? 0}.`
+        ? `${input.attackerSurvivors} survived, ${input.attackerReturned} returned, ${input.attackerRetired} retired. Camp health reduced by ${input.resolvedAttackPower ?? 0}.`
         : `The camp fought back. Your sent army was lost, and the camp lost ${input.defenderLosses} defenders.`,
       rewardLine,
     ];
+    const mvp = getMvpLine(input);
+    if (mvp) lines.push(mvp);
+    return lines;
   }
 
   if (input.defenderIsHomeOfABoss) {
@@ -192,12 +206,15 @@ export function formatRaidBattleReport(input: RaidBattleReportInput) {
         ? `Boss reward: ${input.pointsLooted} points, ${input.foodLooted} food, and ${input.armyLooted ?? 0} army.`
         : "Boss damage recorded. The top damage dealer gets the reward when Home of A falls.";
 
-    return [
+    const lines = [
       `Boss raid! ${input.attackerName} hit ${input.defenderName} with ${input.sentArmy} troops.`,
       `Home of A took ${input.resolvedAttackPower ?? 0} damage from this march.`,
       `${input.attackerReturned} returned. Home of A does not drop normal raid loot.`,
       rewardLine,
     ];
+    const mvp = getMvpLine(input);
+    if (mvp) lines.push(mvp);
+    return lines;
   }
 
   const defenseBonusPercent = getDefenseBonusPercent(
@@ -214,7 +231,7 @@ export function formatRaidBattleReport(input: RaidBattleReportInput) {
     input.resolvedDefensePower
   );
 
-  return [
+  const lines = [
     isVictory
       ? `Raid victory! ${input.attackerName} hit ${input.defenderName} with ${input.sentArmy} troops.`
       : `Raid failed. ${input.attackerName} hit ${input.defenderName} with ${input.sentArmy} troops.`,
@@ -230,6 +247,12 @@ export function formatRaidBattleReport(input: RaidBattleReportInput) {
       : `Your sent army was lost. Defender lost ${input.defenderLosses} troops.`,
     `Loot gained: ${input.pointsLooted} gold and ${input.foodLooted} food.`,
   ];
+  // Add MVP line if available
+  const mvp = getMvpLine(input);
+  if (mvp) lines.push(mvp);
+  // Add special event highlights if present
+  if (input.specialEvent) lines.push(`Special event: ${input.specialEvent}`);
+  return lines;
 }
 
 export function formatRaidRecallReport(input: RaidRecallReportInput) {
