@@ -111,11 +111,15 @@ export default async function Home({
 
   let session: Session | null = null;
   let state: HomePageState = getDegradedHomePageState();
-  let runtimeError: string | null =
-    "Palvelussa on tilapainen hairio. Yrita hetken kuluttua uudelleen.";
+  let runtimeError: string | null = null;
 
   try {
     session = await withTimeout(auth(), HOMEPAGE_DATA_TIMEOUT_MS, "auth");
+  } catch (caughtError) {
+    console.error("Failed to load homepage session", caughtError);
+  }
+
+  try {
     state = await withTimeout(
       getHomePageState({
         userId: session?.user?.id,
@@ -123,9 +127,10 @@ export default async function Home({
       HOMEPAGE_DATA_TIMEOUT_MS,
       "homepage state"
     );
-    runtimeError = null;
   } catch (caughtError) {
     console.error("Failed to load homepage state", caughtError);
+    runtimeError =
+      "Palvelussa on tilapainen hairio. Yrita hetken kuluttua uudelleen.";
   }
 
   return (
