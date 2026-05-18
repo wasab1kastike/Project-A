@@ -1944,7 +1944,10 @@ export function BattlefieldExperience({
                         >
                           {pressure.label}
                         </span>
-                        <span>{battlefield.progress}%</span>
+                        <span>
+                          A {battlefield.attackerArmyLabel} / D{" "}
+                          {battlefield.defenderArmyLabel}
+                        </span>
                       </span>
                     </div>
                     <div className={styles.battleSignals}>
@@ -1971,7 +1974,6 @@ export function BattlefieldExperience({
                         {battlefield.defenseBuffPercent}%
                       </span>
                     </div>
-                    <progress value={battlefield.progress} max={100} />
                     {(() => {
                       const totalArmy =
                         (battlefield.attackerArmyRemaining ?? 0) +

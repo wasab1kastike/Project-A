@@ -21,6 +21,8 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
     bugFixes: [
       "Home of A no longer uses ownership, holder drain, garrison defense, fortify, or control-income behavior.",
       "Center-tile attacks now create or reinforce a slower Home of A boss battlefield instead of instantly resolving damage.",
+      "Battlefields now resolve through escalating tick casualties instead of a final instant combat roll at high progress.",
+      "Reinforcements that arrive after their battlefield has resolved now return home intact on both attack and defense.",
       "Battle reports now show more lines so castle loot and stolen-score details are visible in the report card.",
     ],
   },

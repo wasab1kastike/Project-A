@@ -10,9 +10,12 @@ import {
   RaceAbilityKind,
   ScoreEventType,
 } from "@/lib/prisma-client";
-import { calculateRaidOutcome } from "./balance";
+import {
+  CARRY_CAPACITY_PER_SURVIVOR,
+  MAX_FOOD_LOOT_PERCENT,
+  MAX_POINT_LOOT_PERCENT,
+} from "./balance";
 import { GameError } from "./errors";
-import { countCastleSpecializations } from "./specializations";
 import { launchAttackUnit } from "./attack-units";
 import { getDwarfGrudgeMultiplier, isRaceAbilityActive } from "./race-buffs";
 import {
@@ -45,6 +48,9 @@ type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
 const CASTLE_PVP_POINT_LOOT_PERCENT = 0.05;
 const HOME_OF_A_BOSS_DAMAGE_PER_TICK_RATE = 0.03;
+const BATTLEFIELD_START_CASUALTIES_PER_TICK = 100;
+const BATTLEFIELD_MAX_CASUALTIES_PER_TICK = 1000;
+const BATTLEFIELD_CASUALTY_RAMP_MINUTES = 60;
 
 function getHomeOfABossDefeatAnnouncement({
   fortressName,
@@ -79,16 +85,29 @@ export function getBattlefieldProgressDelta({
   return 1 + (hashBattleTick(`${battlefieldId}:${tickAt.toISOString()}`) % 5);
 }
 
+export function getBattlefieldCasualtyBudget(battleAgeMinutes: number) {
+  const clampedAgeMinutes = Math.max(
+    0,
+    Math.min(BATTLEFIELD_CASUALTY_RAMP_MINUTES, Math.floor(battleAgeMinutes))
+  );
+  const ramp =
+    (clampedAgeMinutes / BATTLEFIELD_CASUALTY_RAMP_MINUTES) *
+    (BATTLEFIELD_MAX_CASUALTIES_PER_TICK -
+      BATTLEFIELD_START_CASUALTIES_PER_TICK);
+
+  return BATTLEFIELD_START_CASUALTIES_PER_TICK + Math.floor(ramp);
+}
+
 export function getBattlefieldAttrition({
-  battlefieldId,
-  tickAt,
+  battleAgeMinutes = 0,
   attackerArmy,
   defenderArmy,
   attackerPowerMultiplier = 1,
   defenderPowerMultiplier = 1,
 }: {
-  battlefieldId: string;
-  tickAt: Date;
+  battlefieldId?: string;
+  tickAt?: Date;
+  battleAgeMinutes?: number;
   attackerArmy: number;
   defenderArmy: number;
   attackerPowerMultiplier?: number;
@@ -101,12 +120,6 @@ export function getBattlefieldAttrition({
     };
   }
 
-  const attackerPressure =
-    2 +
-    (hashBattleTick(`${battlefieldId}:attacker:${tickAt.toISOString()}`) % 5);
-  const defenderPressure =
-    2 +
-    (hashBattleTick(`${battlefieldId}:defender:${tickAt.toISOString()}`) % 5);
   const effectiveAttackerArmy = Math.max(
     1,
     Math.floor(attackerArmy * Math.max(0, attackerPowerMultiplier))
@@ -115,47 +128,32 @@ export function getBattlefieldAttrition({
     1,
     Math.floor(defenderArmy * Math.max(0, defenderPowerMultiplier))
   );
+  const casualtyBudget = Math.min(
+    attackerArmy + defenderArmy,
+    getBattlefieldCasualtyBudget(battleAgeMinutes)
+  );
+  const totalPressure = effectiveAttackerArmy + effectiveDefenderArmy;
 
-  // Sublinear attrition: losses = 2.3 * army^0.28 * pressure/4
-  // Calibrated so equal armies of 1k resolve in ~1h, 10k ~5h, 100k ~24h
-  const ATTRITION_SCALE = 2.3;
-  const ATTRITION_EXPONENT = 0.28;
-  const PRESSURE_BASE = 4;
-  // Faster resolution when force sizes are uneven.
-  // ratio 1.0 => 1.0x (unchanged), ratio 2.0 => 1.5x (~40 min for 1k vs 2k)
-  const imbalanceRatio =
-    Math.max(effectiveAttackerArmy, effectiveDefenderArmy) /
-    Math.max(1, Math.min(effectiveAttackerArmy, effectiveDefenderArmy));
-  const imbalanceSpeedMultiplier = Math.min(
-    2.5,
-    1 + (imbalanceRatio - 1) * 0.5
+  if (casualtyBudget <= 0 || totalPressure <= 0) {
+    return {
+      attackerLosses: 0,
+      defenderLosses: 0,
+    };
+  }
+
+  const attackerLossShare = effectiveDefenderArmy / totalPressure;
+  const attackerLosses = Math.min(
+    attackerArmy,
+    Math.floor(casualtyBudget * attackerLossShare)
+  );
+  const defenderLosses = Math.min(
+    defenderArmy,
+    casualtyBudget - Math.floor(casualtyBudget * attackerLossShare)
   );
 
   return {
-    attackerLosses: Math.min(
-      attackerArmy,
-      Math.max(
-        1,
-        Math.floor(
-          ATTRITION_SCALE *
-            Math.pow(effectiveDefenderArmy, ATTRITION_EXPONENT) *
-            (defenderPressure / PRESSURE_BASE) *
-            imbalanceSpeedMultiplier
-        )
-      )
-    ),
-    defenderLosses: Math.min(
-      defenderArmy,
-      Math.max(
-        1,
-        Math.floor(
-          ATTRITION_SCALE *
-            Math.pow(effectiveAttackerArmy, ATTRITION_EXPONENT) *
-            (attackerPressure / PRESSURE_BASE) *
-            imbalanceSpeedMultiplier
-        )
-      )
-    ),
+    attackerLosses,
+    defenderLosses,
   };
 }
 
@@ -384,6 +382,58 @@ function distributeReturnedArmyToParticipants<
   }
 
   return returnedByFortressId;
+}
+
+function calculateBattlefieldCastleLoot({
+  survivingAttackers,
+  defenderGold,
+  defenderFood,
+}: {
+  survivingAttackers: number;
+  defenderGold: number;
+  defenderFood: number;
+}) {
+  const lootCapacity = Math.max(
+    0,
+    Math.floor(survivingAttackers * CARRY_CAPACITY_PER_SURVIVOR)
+  );
+  const goldLootCap = Math.floor(
+    Math.max(0, defenderGold) * MAX_POINT_LOOT_PERCENT
+  );
+  const foodLootCap = Math.floor(
+    Math.max(0, defenderFood) * MAX_FOOD_LOOT_PERCENT
+  );
+  let goldLooted = Math.min(goldLootCap, Math.ceil(lootCapacity / 2));
+  let foodLooted = Math.min(
+    foodLootCap,
+    Math.max(0, lootCapacity - goldLooted)
+  );
+  let remainingCapacity = lootCapacity - goldLooted - foodLooted;
+
+  while (remainingCapacity > 0) {
+    const goldRemaining = goldLootCap - goldLooted;
+    const foodRemaining = foodLootCap - foodLooted;
+
+    if (goldRemaining <= 0 && foodRemaining <= 0) {
+      break;
+    }
+
+    if (goldRemaining >= foodRemaining) {
+      const extraGold = Math.min(remainingCapacity, goldRemaining);
+      goldLooted += extraGold;
+      remainingCapacity -= extraGold;
+      continue;
+    }
+
+    const extraFood = Math.min(remainingCapacity, foodRemaining);
+    foodLooted += extraFood;
+    remainingCapacity -= extraFood;
+  }
+
+  return {
+    goldLooted,
+    foodLooted,
+  };
 }
 
 export async function createBattlefieldFromAttackUnit({
@@ -970,6 +1020,10 @@ export async function processActiveBattlefields({
   let scoreEventsCreated = 0;
 
   for (const battlefield of battlefields) {
+    const battleAgeMinutes = Math.max(
+      0,
+      Math.floor((tickAt.getTime() - battlefield.startedAt.getTime()) / 60_000)
+    );
     const progressDelta = getBattlefieldProgressDelta({
       battlefieldId: battlefield.id,
       tickAt,
@@ -1136,8 +1190,7 @@ export async function processActiveBattlefields({
           }),
         }
       : getBattlefieldAttrition({
-          battlefieldId: battlefield.id,
-          tickAt,
+          battleAgeMinutes,
           attackerArmy: attackerArmyBefore,
           defenderArmy: defenderArmyBefore,
           attackerPowerMultiplier,
@@ -1286,8 +1339,8 @@ export async function processActiveBattlefields({
     }
 
     const engaged = attackerArmyBefore > 0 && defenderArmyBefore > 0;
-    const earlyResolved =
-      engaged && (attackerArmyAfter <= 0 || targetDefenderArmy <= 0);
+    const battlefieldResolved =
+      targetDefenderArmy <= 0 || (engaged && attackerArmyAfter <= 0);
 
     if (attackerArmyBefore <= 0 && targetDefenderArmy > 0) {
       await db.battlefield.update({
@@ -1303,7 +1356,7 @@ export async function processActiveBattlefields({
       continue;
     }
 
-    if (nextProgress < 100 && !earlyResolved) {
+    if (!battlefieldResolved) {
       await db.battlefield.update({
         where: {
           id: battlefield.id,
@@ -1317,59 +1370,26 @@ export async function processActiveBattlefields({
       continue;
     }
 
-    const outcome =
+    const winnerSide =
       targetDefenderArmy <= 0 && attackerArmyAfter > 0
-        ? calculateRaidOutcome({
-            attackArmy: attackerArmyAfter,
-            defenderArmy: 0,
-            defenderDbLevel: 0,
-            defenderRace: null,
-            defenderGold: battlefield.targetFortress?.gold ?? 0,
-            defenderFood: battlefield.targetFortress?.food ?? 0,
-            attackPowerMultiplier:
-              attackerGrudgeMultiplier *
-              attackerBossOrderMultiplier *
-              attackerHomeBossBuffMultiplier,
-            defensePowerMultiplier:
-              defenderGrudgeMultiplier *
-              defenderTileDefenseMultiplier *
-              defenderBossOrderMultiplier *
-              defenderHomeBossBuffMultiplier,
-          })
-        : calculateRaidOutcome({
-            attackArmy: attackerArmyAfter,
-            defenderArmy: targetDefenderArmy,
-            defenderDbLevel: battlefield.targetFortress?.level ?? 0,
-            defenderRace: battlefield.targetFortress?.race ?? null,
-            defenderCastleSpecializations: battlefield.targetFortress
-              ? countCastleSpecializations(
-                  battlefield.targetFortress.castleUpgradeSpecializations
-                )
-              : undefined,
-            attackPowerMultiplier:
-              attackerGrudgeMultiplier *
-              attackerBossOrderMultiplier *
-              attackerHomeBossBuffMultiplier,
-            defensePowerMultiplier:
-              defenderGrudgeMultiplier *
-              defenderTileDefenseMultiplier *
-              defenderBossOrderMultiplier *
-              defenderHomeBossBuffMultiplier,
-            defenderGold: battlefield.targetFortress?.gold ?? 0,
-            defenderFood: battlefield.targetFortress?.food ?? 0,
-          });
-    const winnerSide = isHomeBossBattle
-      ? targetDefenderArmy <= 0 && attackerArmyAfter > 0
-        ? BattlefieldSide.ATTACKER
-        : BattlefieldSide.DEFENDER
-      : outcome.outcome === "ATTACKER_WIN"
         ? BattlefieldSide.ATTACKER
         : BattlefieldSide.DEFENDER;
+    const participantLosses =
+      winnerSide === BattlefieldSide.ATTACKER
+        ? attackerParticipantLosses.lossesByParticipantId
+        : defenderParticipantLosses.lossesByParticipantId;
+    const getParticipantSurvivors = (
+      participant: (typeof battlefield.participants)[number]
+    ) =>
+      Math.max(
+        0,
+        participant.armyRemaining - (participantLosses.get(participant.id) ?? 0)
+      );
     const winningParticipants = battlefield.participants.filter(
       (participant) => participant.side === winnerSide
     );
     const winnerArmyTotal = winningParticipants.reduce(
-      (sum, participant) => sum + participant.armyCommitted,
+      (sum, participant) => sum + getParticipantSurvivors(participant),
       0
     );
     const scoreEvents: Prisma.ScoreEventCreateManyInput[] = [];
@@ -1378,13 +1398,9 @@ export async function processActiveBattlefields({
     const isRuneBattle =
       !isTileBattle &&
       battlefield.targetFortress?.fortressKind === "DWARF_RUNE";
-    const attackerKilled =
-      attackerParticipantLosses.appliedLosses +
-      Math.max(0, attackerArmyAfter - outcome.attackerReturned);
+    const attackerKilled = attackerParticipantLosses.appliedLosses;
     const defenderKilled =
-      defenderParticipantLosses.appliedLosses +
-      defenderNativeLosses +
-      outcome.defenderLosses;
+      defenderParticipantLosses.appliedLosses + defenderNativeLosses;
     if (!isHomeBossBattle) {
       await incrementUnitsKilledForParticipants({
         db,
@@ -1407,13 +1423,21 @@ export async function processActiveBattlefields({
       battlefield.targetFortress &&
       !battlefield.targetFortress.isNpc &&
       battlefield.targetFortress.fortressKind === FortressKind.PLAYER;
+    const castleLoot =
+      !isTileBattle && winnerSide === BattlefieldSide.ATTACKER
+        ? calculateBattlefieldCastleLoot({
+            survivingAttackers: attackerArmyAfter,
+            defenderGold: battlefield.targetFortress?.gold ?? 0,
+            defenderFood: battlefield.targetFortress?.food ?? 0,
+          })
+        : { goldLooted: 0, foodLooted: 0 };
     const castleBankGoldLooted =
       !isTileBattle && winnerSide === BattlefieldSide.ATTACKER
-        ? outcome.goldLooted
+        ? castleLoot.goldLooted
         : 0;
     const castleBankFoodLooted =
       !isTileBattle && winnerSide === BattlefieldSide.ATTACKER
-        ? outcome.foodLooted
+        ? castleLoot.foodLooted
         : 0;
     const castlePointsLooted =
       !isTileBattle &&
@@ -1443,7 +1467,9 @@ export async function processActiveBattlefields({
       const isLastParticipant =
         participantIndex === winningParticipants.length - 1;
       const share =
-        winnerArmyTotal > 0 ? participant.armyCommitted / winnerArmyTotal : 0;
+        winnerArmyTotal > 0
+          ? getParticipantSurvivors(participant) / winnerArmyTotal
+          : 0;
       const killReward = Math.floor(killRewardPool * share);
       const baseGoldLootShare = isLastParticipant
         ? castleBankGoldLooted - distributedBaseGoldLoot
@@ -1560,7 +1586,7 @@ export async function processActiveBattlefields({
 
     if (battlefield.targetFortressId && !isTileBattle) {
       const fortressUpdateData: Prisma.FortressUpdateInput = {
-        army: Math.max(0, targetDefenderArmy - outcome.defenderLosses),
+        army: Math.max(0, targetDefenderArmy),
       };
 
       fortressUpdateData.gold = {
@@ -1646,7 +1672,7 @@ export async function processActiveBattlefields({
         },
         data: {
           army: {
-            decrement: outcome.defenderLosses,
+            decrement: defenderNativeLosses,
           },
         },
       });
@@ -1881,11 +1907,11 @@ export async function processActiveBattlefields({
       !isTileBattle &&
       !isHomeBossBattle &&
       winnerSide === BattlefieldSide.ATTACKER &&
-      outcome.attackerReturned > 0
+      attackerArmyAfter > 0
     ) {
       const returnedArmyByFortressId = distributeReturnedArmyToParticipants(
         attackerParticipants,
-        outcome.attackerReturned,
+        attackerArmyAfter,
         attackerParticipantLosses.lossesByParticipantId
       );
 
@@ -1909,13 +1935,9 @@ export async function processActiveBattlefields({
       },
       data: {
         status: BattlefieldStatus.RESOLVED,
-        progress: earlyResolved ? nextProgress : 100,
-        attackerArmyRemaining: isHomeBossBattle
-          ? attackerArmyAfter
-          : outcome.attackerReturned,
-        defenderArmyRemaining: isHomeBossBattle
-          ? targetDefenderArmy
-          : Math.max(0, targetDefenderArmy - outcome.defenderLosses),
+        progress: nextProgress,
+        attackerArmyRemaining: attackerArmyAfter,
+        defenderArmyRemaining: targetDefenderArmy,
         pointsReward: isTileBattle
           ? battlefield.pointsReward
           : targetGoldLooted,
