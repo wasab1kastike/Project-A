@@ -1,0 +1,44 @@
+name: Grant May 18 Combat Compensation
+
+on:
+  workflow_dispatch:
+
+jobs:
+  grant-may-18-combat-compensation:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+    steps:
+      - name: Validate required secrets
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "::error::Missing required GitHub secret PRODUCTION_DATABASE_URL"
+            exit 1
+          fi
+
+      - name: Normalize database URL
+        run: |
+          node --input-type=module <<'EOF' >> "$GITHUB_ENV"
+          const url = new URL(process.env.DATABASE_URL);
+
+          if (!url.searchParams.has("sslmode")) {
+            url.searchParams.set("sslmode", "require");
+          }
+
+          console.log(`DATABASE_URL=${url.toString()}`);
+          EOF
+
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Grant combat compensation
+        run: npm run db:grant-may-18-combat-compensation

@@ -22,6 +22,7 @@
     "db:generate": "npm run db:generate --workspace web",
     "db:migrate": "npm run db:migrate --workspace web",
     "db:seed": "npm run db:seed --workspace web",
+    "db:grant-may-18-combat-compensation": "npm run db:grant-may-18-combat-compensation --workspace web",
     "db:reset-season-one": "npm run db:reset-season-one --workspace web",
     "db:allocate-season-one-coins": "npm run db:allocate-season-one-coins --workspace web",
     "db:studio": "npm run db:studio --workspace web",
