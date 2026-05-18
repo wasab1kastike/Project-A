@@ -2146,11 +2146,7 @@ export function buildFallbackGodMessage(event: RunnerEvent) {
 
   switch (event.kind) {
     case "battlefield":
-      return eventText.includes(":")
-        ? `War omen: ${clipFallbackDetail(
-            eventText
-          )}. A smells ambition, mud, and at least one regrettable committee decision.`
-        : "War omen: A finds a battlefield trying very hard to become a lesson.";
+      return buildBattlefieldFallback(eventText);
     case "home-of-a":
       return `Shrine omen: ${clipFallbackDetail(
         eventText
@@ -2188,6 +2184,31 @@ function buildLeaderboardFallback(eventText: string) {
   return `Crown omen: ${identity}${raceClause} is making the crown nervous. A approves the ambition and refuses to explain the smoke.`;
 }
 
+function buildBattlefieldFallback(eventText: string) {
+  const match = normalizeFallbackDetail(eventText).match(
+    /^(.+?):\s*(.+?)(?:;\s*[A-Z_]+\s+at\s+\d+%\s+progress\.?)?$/i
+  );
+
+  if (!match) {
+    return "A lowers one candle over the war map. Somewhere, a battlefield is teaching expensive humility.";
+  }
+
+  const targetName = match[1]?.trim() ?? "the contested dirt";
+  const actors = match[2]?.trim();
+
+  if (!actors) {
+    return `A lowers one candle over ${clipFallbackDetail(
+      targetName
+    )}. The mud has begun taking witness statements.`;
+  }
+
+  return `A lowers one candle over ${clipFallbackDetail(
+    targetName
+  )}: ${clipFallbackDetail(
+    actors
+  )}. The mud has requested a quieter war.`;
+}
+
 function avoidRecentRepeat(
   body: string,
   event: RunnerEvent,
@@ -2211,7 +2232,9 @@ function avoidRecentRepeat(
 }
 
 function buildAlternateFallbackGodMessage(event: RunnerEvent) {
-  const eventText = clipFallbackDetail(scrubUntrustedText(event.summary));
+  const eventText = clipFallbackDetail(
+    normalizeFallbackDetail(scrubUntrustedText(event.summary))
+  );
 
   switch (event.kind) {
     case "leaderboard":
@@ -2252,12 +2275,21 @@ function getSpecificityTokens(value: string) {
 }
 
 function clipFallbackDetail(value: string) {
-  const clipped = value.replace(/\s+/g, " ").trim();
+  const clipped = normalizeFallbackDetail(value);
   const maxDetailLength = 150;
 
   return clipped.length > maxDetailLength
     ? `${clipped.slice(0, maxDetailLength - 3).trimEnd()}...`
     : clipped;
+}
+
+function normalizeFallbackDetail(value: string) {
+  return value
+    .replace(/,\s*;/g, ";")
+    .replace(/\s+([,.;:])/g, "$1")
+    .replace(/([.;:]){2,}/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function trimTrailingSlash(value: string) {
