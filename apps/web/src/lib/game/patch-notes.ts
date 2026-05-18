@@ -7,6 +7,17 @@ export type PatchNotesRelease = {
 
 export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
   {
+    date: "2026-05-18",
+    title: "Battlefield preparation window",
+    newFeatures: [
+      "Player castle and owned-tile battlefields now give defenders a one-hour preparation window after the first attacking army arrives before casualties begin.",
+      "Pre-start battlefields now show when combat starts instead of showing live casualty pace early.",
+    ],
+    bugFixes: [
+      "Battlefield resolution now skips future-start fights so visible setup time cannot cause early casualties or ownership changes.",
+    ],
+  },
+  {
     date: "2026-05-15",
     title: "Home of A daily boss",
     newFeatures: [

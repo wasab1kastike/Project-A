@@ -232,6 +232,7 @@ The game is now a castle-economy and battlefield-control loop:
 - active army, not queued army, consumes food upkeep at 0.01 food per unit per tick; if upkeep cannot be paid, food falls to zero and active army loses 2% that tick
 - neutral tiles are acquired through connected 10-minute claim projects, while owned tiles create battlefields that players can attack or reinforce
 - direct attacks and battlefield reinforcements both count against the player's simultaneous outbound attack cap
+- player castle and owned-tile battlefields become visible immediately, but combat casualties start one hour after the first attacking army arrives so defenders have time to respond
 - active battlefield casualties are applied every tick, ramping from 100 total units per tick to 1000 after one hour; fights resolve only when one side runs out
 - reinforcements that arrive after their battlefield has already resolved return home intact
 - the leaderboard tracks points, units killed, current tiles owned, goblins killed, and resources stolen from player castles; each live category leader gets a title and small buff, including Loot Lord for castle raiders

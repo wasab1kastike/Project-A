@@ -251,6 +251,7 @@ const BATTLEFIELD_RULES = [
   `Direct attacks and battlefield reinforcements share the same outbound cap: base ${MAX_SIMULTANEOUS_ATTACKS_BASE}, modified by castle level and race.`,
   "Joining a battlefield sends a visible unit toward that battle and reserves the army while it travels.",
   "Fortifying an owned tile sends idle army there as a visible movement; once it arrives, that garrison defends the tile until recalled or killed.",
+  "Player castle and owned-tile battlefields show up immediately, but casualties start one hour after the first attacking army arrives.",
   "A player cannot join both sides of the same unresolved battlefield.",
   "Equal attack and defense power still counts as a defender win.",
   "Battlefield casualties tick up over time: 100 total units per tick at the start, ramping to 1000 total units per tick after one hour.",

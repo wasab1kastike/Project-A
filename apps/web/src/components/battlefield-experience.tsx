@@ -109,6 +109,7 @@ type ActiveBattlefield = {
   incomingDefenderArmy: number;
   incomingArmyDelta: number;
   battleAgeMinutes: number;
+  battleStartsInMinutes: number;
   casualtiesPerTick: number;
   battleIntensityPercent: number;
   nextIncomingEtaMinutes: number | null;
@@ -1938,7 +1939,9 @@ export function BattlefieldExperience({
                     </div>
                     <div className={styles.battleSignals}>
                       <span className={styles.signalChip}>
-                        Live {formatBattleMinutes(battlefield.battleAgeMinutes)}
+                        {battlefield.battleStartsInMinutes > 0
+                          ? `Starts in ${formatBattleMinutes(battlefield.battleStartsInMinutes)}`
+                          : `Live ${formatBattleMinutes(battlefield.battleAgeMinutes)}`}
                       </span>
                       <span className={styles.signalChip}>
                         Pace {battlefield.casualtiesPerTick}/tick (

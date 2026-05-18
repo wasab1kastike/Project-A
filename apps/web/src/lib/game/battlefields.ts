@@ -340,6 +340,7 @@ export async function createBattlefieldFromAttackUnit({
       id: true,
       cycleId: true,
       armyAmount: true,
+      arrivesAt: true,
       resolvedAt: true,
       attackerFortressId: true,
       targetFortressId: true,
@@ -423,7 +424,11 @@ export async function createBattlefieldFromAttackUnit({
         foodReward: isHomeOfABossTarget
           ? bossReward
           : Math.floor(unit.targetFortress.food * 0.7),
-        startedAt: tickAt,
+        startedAt:
+          unit.targetFortress.fortressKind === FortressKind.PLAYER &&
+          !unit.targetFortress.isNpc
+            ? addHours(unit.arrivesAt, 1)
+            : tickAt,
       },
       select: {
         id: true,
@@ -740,6 +745,9 @@ export async function processActiveBattlefields({
     where: {
       cycleId,
       status: BattlefieldStatus.ACTIVE,
+      startedAt: {
+        lte: tickAt,
+      },
     },
     include: {
       attackerBannerFortress: {
