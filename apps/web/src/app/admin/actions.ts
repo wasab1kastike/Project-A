@@ -223,7 +223,6 @@ export async function updateCommunityWishFulfillmentProgressAction(
 
 export async function startNewSeasonAction(formData: FormData) {
   await requireAdminSession();
-  const hoursInput = getString(formData, "hourOfDay");
   const hour = getNumber(formData, "hourOfDay");
 
   if (!Number.isFinite(hour) || hour < 0 || hour > 23) {
@@ -242,7 +241,7 @@ export async function startNewSeasonAction(formData: FormData) {
       0
     );
 
-    const result = await startNewSeasonWithActiveAt({
+    await startNewSeasonWithActiveAt({
       activeStartTime,
     });
 

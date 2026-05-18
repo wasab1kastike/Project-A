@@ -6,7 +6,6 @@
  * validation for common game operations.
  */
 
-import { GameError } from "./errors";
 import {
   assertWorkerAssignments,
   calculateTickProduction,
@@ -19,8 +18,7 @@ import {
   canFortressLevelUp,
   getMaxSimultaneousAttacks,
 } from "./upgrades";
-import { getRaceModifiers, type FortressRace } from "./races";
-import type { CastleSpecializationCounts } from "./specializations";
+import type { FortressRace } from "./races";
 
 // ============================================================================
 // UPGRADE VALIDATION

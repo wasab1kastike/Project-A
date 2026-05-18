@@ -14,7 +14,6 @@ import {
 import { prisma } from "@/lib/prisma";
 import { ensureOpenRegistrationCycle } from "./bootstrap";
 import {
-  HOME_OF_A_TILE_ID,
   HOME_OF_A_BOSS_BUFF_HOURS,
   HOME_OF_A_BOSS_BUFF_MULTIPLIER,
   HOME_OF_A_BOSS_RESPAWN_HOURS,
@@ -51,7 +50,7 @@ import {
   getStarvationArmyLoss,
   processRecruitmentQueue,
 } from "./army-recruitment";
-import { canFortressLevelUp, getFortressAttackDamage } from "./upgrades";
+import { getFortressAttackDamage } from "./upgrades";
 import {
   getDwarfGrudgeMultiplier,
   getRaceBuffTier,
@@ -80,7 +79,6 @@ import {
   DWARF_DEEP_MINING_RUNE_BOUNTY,
 } from "./dwarf-deep-mining";
 import {
-  expireLootCamps,
   getLootCampReward,
   resetAttackerRaceAbilityCooldown,
   spawnScheduledLootCamps,

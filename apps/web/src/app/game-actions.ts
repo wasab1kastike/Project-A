@@ -75,16 +75,6 @@ function getString(formData: FormData, key: string) {
   return typeof value === "string" ? value : "";
 }
 
-function getNumber(formData: FormData, key: string, fallback: number) {
-  const value = getString(formData, key);
-
-  if (!value) {
-    return fallback;
-  }
-
-  return Number(value);
-}
-
 function redirectToHome(
   kind: "error" | "notice",
   message: string,
