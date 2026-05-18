@@ -35,6 +35,16 @@ npm run build --workspace web
 
 If a local database is unavailable, DB-backed tests may skip. Say that clearly in the final result.
 
+## Refactor And Cleanup Workflow
+
+- Refactor one feature or workflow slice at a time; avoid broad cleanup sweeps.
+- Start by preserving current behavior with focused tests or existing regression coverage before moving code.
+- Prefer extracting pure gameplay rules from persistence-heavy modules such as `service.ts`, `tick.ts`, and read models into feature-owned helpers.
+- Keep public server actions, API routes, Prisma schema, and UI behavior stable unless the requested slice explicitly changes them.
+- Avoid unrelated formatting churn and cosmetic rewrites.
+- Useful first slices include battlefield combat, castle economy, recruitment, Home of A, loot camps, leaderboard titles, realtime state, shop/cosmetics, and admin tools.
+- For meaningful cleanup passes, normally run `npm run test:game --workspace web`, `npm run typecheck --workspace web`, and `npm run build --workspace web`.
+
 ## Git And Deployment
 
 - The active deployment branch is `main`.
