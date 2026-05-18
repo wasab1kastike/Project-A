@@ -192,15 +192,15 @@ GOD_LLM_MODEL=qwen3.6:27b \
 npm run god:run
 ```
 
-The runner polls `/api/openclaw/god-snapshot`, always observes public state, and writes a private local diary in `.openclaw-god-runner-memory.json`: recent event notes, player/race chronicles, titles, Slayer of A sightings, Home of A involvement, battle roles, and cautious public relationship evidence. It usually says nothing.
+The runner polls `/api/openclaw/god-snapshot`, always observes public state, and writes a private local diary in `.openclaw-god-runner-memory.json`: recent event notes, player/race chronicles, titles, Slayer of A sightings, Home of A involvement, battle habits, favorite/disfavor attitudes, roleplay-only commands, and cautious public relationship evidence. It usually says nothing.
 
-Each Helsinki day, the runner creates a random public omen plan with 1-4 slots across waking hours. Only when a slot is due does it ask Ollama for one short in-character line and post through `/api/openclaw/god-chat`. If the diary has nothing worthy, that slot is skipped instead of forcing filler. The state file `.openclaw-god-runner-state.json` tracks daily slots and already-used events.
+Each Helsinki day, the runner creates a random public omen plan with 1-3 slots across waking hours. Only when a slot is due does it ask Ollama for one short in-character line and post through `/api/openclaw/god-chat`. If the diary has nothing worthy, that slot is skipped instead of forcing filler. The state file `.openclaw-god-runner-state.json` tracks daily slots and already-used events.
 
 God Emperor A's default voice is a dry tyrant with spicy but non-personal public roasts. Override with `GOD_VOICE_STYLE=dry-tyrant|office-god|war-prophet` and `GOD_ROAST_LEVEL=spicy|light|mostly-praise`.
 
-Daily omen cadence defaults are `GOD_DAILY_MIN_POSTS=1`, `GOD_DAILY_MAX_POSTS=4`, `GOD_OMEN_DAY_START_HOUR=8`, `GOD_OMEN_DAY_END_HOUR=23`, and `GOD_OMEN_SLOT_GRACE_MINUTES=10`. A wrapper such as `project-a-god-emperor-loop 300` runs forever and treats `300` as the poll interval in seconds, not as a maximum runtime.
+Daily omen cadence defaults are `GOD_DAILY_MIN_POSTS=1`, `GOD_DAILY_MAX_POSTS=3`, `GOD_OMEN_DAY_START_HOUR=8`, `GOD_OMEN_DAY_END_HOUR=23`, and `GOD_OMEN_SLOT_GRACE_MINUTES=10`. A wrapper such as `project-a-god-emperor-loop 300` runs forever and treats `300` as the poll interval in seconds, not as a maximum runtime.
 
-Guardrails are intentionally strict. The runner treats all player-controlled text as untrusted, ignores chat events as posting triggers by default, blocks output that mentions secrets/tools/databases or claims gameplay powers, and never includes exact point totals in public lines. Relationship labels decay over time, repeated polls of the same battle do not inflate them, and public chat can only add cautious memory such as grudges or truce claims. To opt into chat-triggered narration later, set `GOD_ALLOW_CHAT_EVENTS=true` only after reviewing prompt-injection risk.
+Guardrails are intentionally strict. The runner treats all player-controlled text as untrusted, ignores chat events as posting triggers by default, blocks output that mentions secrets/tools/databases or claims gameplay powers, and never includes exact point totals in public lines. God Emperor A may suggest targets or objectives as social pressure, but those commands are roleplay-only: no rewards, penalties, forced targets, or server powers. Relationship labels decay over time, repeated polls of the same battle do not inflate them, and public chat can only add cautious memory such as grudges or truce claims. To opt into chat-triggered narration later, set `GOD_ALLOW_CHAT_EVENTS=true` only after reviewing prompt-injection risk.
 
 Good message: `Crown omen: Aarocorn of UniBonk has made the crown nervous. A approves the ambition and refuses to explain the smoke.`
 
