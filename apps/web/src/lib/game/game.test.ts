@@ -1645,6 +1645,15 @@ test("God runner rejects generic narration for concrete events", () => {
     priority: 80,
     occurredAt: null,
   };
+  const battlefieldEvent = {
+    key: "battle-event",
+    kind: "battlefield",
+    title: "Tile 19:0",
+    summary:
+      "Tile 19:0: Artoisti of Artoism of King in the mountains, Dwarfs, presses COOKERS of BEEFSTEW, Dwarfs,; DEFENDER_STRONG at 14% progress.",
+    priority: 100,
+    occurredAt: null,
+  };
 
   assert.equal(
     isGenericGodMessage(
@@ -1682,6 +1691,10 @@ test("God runner rejects generic narration for concrete events", () => {
   assert.doesNotMatch(buildFallbackGodMessage(leaderboardEvent), /\d+\s+points/i);
   assert.match(buildFallbackGodMessage(leaderboardEvent), /Crown omen/);
   assert.match(buildFallbackGodMessage(leaderboardEvent), /DA BOYZ/);
+  assert.doesNotMatch(buildFallbackGodMessage(battlefieldEvent), /War omen/);
+  assert.doesNotMatch(buildFallbackGodMessage(battlefieldEvent), /,;|\.\./);
+  assert.match(buildFallbackGodMessage(battlefieldEvent), /Artoisti/);
+  assert.match(buildFallbackGodMessage(battlefieldEvent), /BEEFSTEW/);
   assert.equal(
     sanitizeGodMessage(
       "Aarocorn leads with 164258 points and the crown sweats.",
