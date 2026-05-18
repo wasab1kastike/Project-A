@@ -24,6 +24,12 @@ const DEFAULT_MIN_POST_INTERVAL_MINUTES = 15;
 const DEFAULT_MIN_EVENT_IMPORTANCE = 70;
 const DEFAULT_MAX_POSTS_PER_HOUR = 2;
 const DEFAULT_TOPIC_REPEAT_COOLDOWN_HOURS = 6;
+const DEFAULT_DAILY_MIN_POSTS = 1;
+const DEFAULT_DAILY_MAX_POSTS = 4;
+const DEFAULT_OMEN_DAY_START_HOUR = 8;
+const DEFAULT_OMEN_DAY_END_HOUR = 23;
+const DEFAULT_OMEN_SLOT_GRACE_MINUTES = 10;
+const MAX_OBSERVED_EVENT_NOTES = 250;
 const MAX_CHAT_LENGTH = 280;
 const SAFE_EVENT_KINDS = new Set([
   "battlefield",
@@ -88,8 +94,18 @@ type CadenceConfig = {
   topicRepeatCooldownHours: number;
 };
 
+type DailyOmenConfig = {
+  dailyMinPosts: number;
+  dailyMaxPosts: number;
+  dayStartHour: number;
+  dayEndHour: number;
+  slotGraceMinutes: number;
+  forceDueSlot: boolean;
+};
+
 type RunnerSnapshot = {
   cycle: null | {
+    id?: string;
     status: string;
     phaseLabel: string | null;
     deadline: string | null;
@@ -142,6 +158,16 @@ type RunnerSnapshot = {
 
 type RunnerState = {
   handledEventKeys: Record<string, string>;
+  dailyOmenPlans: Record<string, DailyOmenPlan>;
+};
+
+type DailyOmenPlan = {
+  dateKey: string;
+  cycleId: string;
+  slotMinutes: number[];
+  completedSlotMinutes: number[];
+  skippedSlotMinutes: number[];
+  createdAt: string;
 };
 
 type RunnerMemory = {
@@ -151,8 +177,21 @@ type RunnerMemory = {
     topicKey?: string;
     createdAt: string;
   }>;
+  observedEvents: ObservedEventNote[];
   playerHistory: Record<string, PlayerHistory>;
   relations: Record<string, RelationHistory>;
+};
+
+type ObservedEventNote = {
+  key: string;
+  topicKey: string;
+  kind: string;
+  title: string;
+  summary: string;
+  importance: number;
+  involvedPlayers: string[];
+  observedAt: string;
+  usedAt: string | null;
 };
 
 type PlayerHistory = {
@@ -603,6 +642,7 @@ export function buildGodPrompt(
     .slice(-5)
     .map((message) => message.body);
   const publicMemory = buildPublicMemoryContext(memory, event);
+  const diaryContext = buildDiaryContext(memory, event);
 
   return [
     "You are God Emperor A, a theatrical but fair public narrator inside Project-A.",
@@ -630,6 +670,8 @@ export function buildGodPrompt(
           options.previousGenericMessage
         )}`
       : "",
+    "Private diary context distilled from public observations:",
+    JSON.stringify(diaryContext),
     "Safe public event to narrate:",
     JSON.stringify(redactUntrustedEventText(event)),
     "Safe public context:",
@@ -650,18 +692,45 @@ export async function runGodRunner() {
   const config = readRunnerConfig();
   const state = readRunnerState(config.statePath);
   const memory = readRunnerMemory(config.memoryPath);
+  const now = new Date();
   const snapshot = await fetchGodSnapshot(config);
-  updateRunnerMemoryFromSnapshot(memory, snapshot, new Date());
-  const event = selectUnhandledEvent(snapshot.events, state.handledEventKeys, {
+  updateRunnerMemoryFromSnapshot(memory, snapshot, now);
+  rememberObservedEvents(memory, snapshot, state.handledEventKeys, now);
+  const plan = ensureDailyOmenPlan(state, snapshot, config.dailyOmen, now);
+  const expiredSlots = markExpiredOmenSlotsSkipped(plan, config.dailyOmen, now);
+  const dueSlot = getDueOmenSlot(plan, config.dailyOmen, now);
+
+  if (dueSlot === null) {
+    writeRunnerState(config.statePath, state);
+    writeRunnerMemory(config.memoryPath, memory);
+    console.log(
+      `Observed ${snapshot.events.length} public events; no omen slot due${
+        expiredSlots.length
+          ? `; marked ${expiredSlots.length} missed slot(s) skipped`
+          : ""
+      }. Next slot: ${formatSlotMinutes(
+        getNextOpenSlot(plan, now)
+      )}.`
+    );
+    return;
+  }
+
+  const event = selectDiaryOmenEvent(memory, state, {
     allowChatEvents: config.allowChatEvents,
-    recentTopicKeys: getRecentTopicKeys(memory),
     recentMessages: memory.recentMessages,
     cadence: config.cadence,
+    now,
   });
 
   if (!event) {
+    markOmenSlotSkipped(plan, dueSlot);
+    writeRunnerState(config.statePath, state);
     writeRunnerMemory(config.memoryPath, memory);
-    console.log("No new divine event keys found.");
+    console.log(
+      `Observed ${snapshot.events.length} public events; skipped ${formatSlotMinutes(
+        dueSlot
+      )} omen slot because no fresh event was worthy.`
+    );
     return;
   }
 
@@ -693,7 +762,11 @@ export async function runGodRunner() {
   }
 
   if (config.dryRun) {
-    console.log(`Dry run God Emperor A message for ${event.key}: ${body}`);
+    console.log(
+      `Dry run God Emperor A message for ${formatSlotMinutes(
+        dueSlot
+      )} slot and ${event.key}: ${body}`
+    );
     return;
   }
 
@@ -702,14 +775,17 @@ export async function runGodRunner() {
     idempotencyKey: event.key,
   });
 
-  state.handledEventKeys[event.key] = new Date().toISOString();
+  const postedAt = new Date().toISOString();
+  state.handledEventKeys[event.key] = postedAt;
+  markOmenSlotCompleted(plan, dueSlot);
   pruneRunnerState(state);
   writeRunnerState(config.statePath, state);
+  markObservedEventUsed(memory, event.key, postedAt);
   rememberGodMessage(memory, {
     body,
     eventKey: event.key,
     topicKey: getEventTopicKey(event),
-    createdAt: new Date().toISOString(),
+    createdAt: postedAt,
   });
   writeRunnerMemory(config.memoryPath, memory);
 
@@ -754,6 +830,7 @@ function readRunnerConfig() {
       DEFAULT_TOPIC_REPEAT_COOLDOWN_HOURS
     ),
   };
+  const dailyOmen = readDailyOmenConfig();
 
   if (!secret) {
     throw new Error("OPENCLAW_GOD_SHARED_SECRET is required.");
@@ -771,7 +848,53 @@ function readRunnerConfig() {
     allowChatEvents,
     dryRun,
     cadence,
+    dailyOmen,
   };
+}
+
+function readDailyOmenConfig(): DailyOmenConfig {
+  const dailyMinPosts = Math.max(
+    1,
+    Math.floor(
+      readPositiveNumberEnv("GOD_DAILY_MIN_POSTS", DEFAULT_DAILY_MIN_POSTS)
+    )
+  );
+  const dailyMaxPosts = Math.max(
+    dailyMinPosts,
+    Math.floor(
+      readPositiveNumberEnv("GOD_DAILY_MAX_POSTS", DEFAULT_DAILY_MAX_POSTS)
+    )
+  );
+  const dayStartHour = clampHour(
+    readPositiveNumberEnv(
+      "GOD_OMEN_DAY_START_HOUR",
+      DEFAULT_OMEN_DAY_START_HOUR
+    )
+  );
+  const dayEndHour = Math.max(
+    dayStartHour + 1,
+    clampHour(
+      readPositiveNumberEnv("GOD_OMEN_DAY_END_HOUR", DEFAULT_OMEN_DAY_END_HOUR)
+    )
+  );
+
+  return {
+    dailyMinPosts,
+    dailyMaxPosts,
+    dayStartHour,
+    dayEndHour: Math.min(24, dayEndHour),
+    slotGraceMinutes: Math.floor(
+      readPositiveNumberEnv(
+        "GOD_OMEN_SLOT_GRACE_MINUTES",
+        DEFAULT_OMEN_SLOT_GRACE_MINUTES
+      )
+    ),
+    forceDueSlot: process.env.GOD_FORCE_OMEN_SLOT === "true",
+  };
+}
+
+function clampHour(value: number) {
+  return Math.min(24, Math.max(0, Math.floor(value)));
 }
 
 async function fetchGodSnapshot(config: ReturnType<typeof readRunnerConfig>) {
@@ -861,6 +984,7 @@ function readRunnerState(statePath: string): RunnerState {
   if (!existsSync(statePath)) {
     return {
       handledEventKeys: {},
+      dailyOmenPlans: {},
     };
   }
 
@@ -872,10 +996,19 @@ function readRunnerState(statePath: string): RunnerState {
         parsed && typeof parsed.handledEventKeys === "object"
           ? parsed.handledEventKeys
           : {},
+      dailyOmenPlans:
+        parsed && typeof parsed.dailyOmenPlans === "object"
+          ? Object.fromEntries(
+              Object.entries(parsed.dailyOmenPlans).filter(([, plan]) =>
+                isDailyOmenPlan(plan)
+              )
+            )
+          : {},
     };
   } catch {
     return {
       handledEventKeys: {},
+      dailyOmenPlans: {},
     };
   }
 }
@@ -929,6 +1062,13 @@ function readRunnerMemory(memoryPath: string): RunnerMemory {
                 .slice(-MAX_STORED_RELATIONS)
             )
           : {},
+      observedEvents: Array.isArray(parsed?.observedEvents)
+        ? parsed.observedEvents
+            .filter((event): event is ObservedEventNote =>
+              isObservedEventNote(event)
+            )
+            .slice(-MAX_OBSERVED_EVENT_NOTES)
+        : [],
     };
   } catch {
     return createEmptyRunnerMemory();
@@ -957,6 +1097,224 @@ function pruneRunnerState(state: RunnerState) {
     .slice(0, MAX_STORED_EVENTS);
 
   state.handledEventKeys = Object.fromEntries(entries);
+  state.dailyOmenPlans = Object.fromEntries(
+    Object.entries(state.dailyOmenPlans)
+      .sort((left, right) => right[0].localeCompare(left[0]))
+      .slice(0, 7)
+  );
+}
+
+export function ensureDailyOmenPlan(
+  state: RunnerState,
+  snapshot: RunnerSnapshot,
+  config: DailyOmenConfig = getDefaultDailyOmenConfig(),
+  now = new Date()
+) {
+  const dateKey = getHelsinkiDateKey(now);
+  const cycleId =
+    snapshot.cycle?.id ??
+    (snapshot.cycle?.status
+      ? `${snapshot.cycle.status}:${snapshot.cycle.deadline ?? "no-deadline"}`
+      : "no-cycle");
+  const existing = state.dailyOmenPlans[dateKey];
+
+  if (existing && existing.cycleId === cycleId) {
+    return existing;
+  }
+
+  const plan = buildDailyOmenPlan(dateKey, cycleId, config, now);
+  state.dailyOmenPlans[dateKey] = plan;
+  pruneRunnerState(state);
+
+  return plan;
+}
+
+export function getDefaultDailyOmenConfig(): DailyOmenConfig {
+  return {
+    dailyMinPosts: DEFAULT_DAILY_MIN_POSTS,
+    dailyMaxPosts: DEFAULT_DAILY_MAX_POSTS,
+    dayStartHour: DEFAULT_OMEN_DAY_START_HOUR,
+    dayEndHour: DEFAULT_OMEN_DAY_END_HOUR,
+    slotGraceMinutes: DEFAULT_OMEN_SLOT_GRACE_MINUTES,
+    forceDueSlot: false,
+  };
+}
+
+export function buildDailyOmenPlan(
+  dateKey: string,
+  cycleId: string,
+  config: DailyOmenConfig = getDefaultDailyOmenConfig(),
+  now = new Date()
+): DailyOmenPlan {
+  const random = createSeededRandom(`${dateKey}:${cycleId}:god-omens`);
+  const dailyRange = config.dailyMaxPosts - config.dailyMinPosts + 1;
+  const postCount = config.dailyMinPosts + Math.floor(random() * dailyRange);
+  const startMinute = config.dayStartHour * 60;
+  const endMinute = config.dayEndHour * 60;
+  const span = Math.max(1, endMinute - startMinute);
+  const segment = span / postCount;
+  const slotMinutes = Array.from({ length: postCount }, (_, index) => {
+    const segmentStart = startMinute + Math.floor(index * segment);
+    const segmentEnd = startMinute + Math.floor((index + 1) * segment);
+    const jitterSpan = Math.max(1, segmentEnd - segmentStart);
+
+    return Math.min(
+      endMinute - 1,
+      segmentStart + Math.floor(random() * jitterSpan)
+    );
+  }).sort((left, right) => left - right);
+
+  return {
+    dateKey,
+    cycleId,
+    slotMinutes,
+    completedSlotMinutes: [],
+    skippedSlotMinutes: [],
+    createdAt: now.toISOString(),
+  };
+}
+
+function getDueOmenSlot(
+  plan: DailyOmenPlan,
+  config: DailyOmenConfig,
+  now: Date
+) {
+  const openSlots = getOpenSlots(plan);
+
+  if (config.forceDueSlot) {
+    return openSlots[0] ?? null;
+  }
+
+  const currentMinutes = getHelsinkiMinutes(now);
+
+  return (
+    openSlots.find(
+      (slot) =>
+        currentMinutes >= slot &&
+        currentMinutes <= slot + config.slotGraceMinutes
+    ) ?? null
+  );
+}
+
+function markExpiredOmenSlotsSkipped(
+  plan: DailyOmenPlan,
+  config: DailyOmenConfig,
+  now: Date
+) {
+  if (config.forceDueSlot) {
+    return [];
+  }
+
+  const currentMinutes = getHelsinkiMinutes(now);
+  const expiredSlots = getOpenSlots(plan).filter(
+    (slot) => currentMinutes > slot + config.slotGraceMinutes
+  );
+
+  for (const slot of expiredSlots) {
+    markOmenSlotSkipped(plan, slot);
+  }
+
+  return expiredSlots;
+}
+
+function getNextOpenSlot(plan: DailyOmenPlan, now: Date) {
+  const currentMinutes = getHelsinkiMinutes(now);
+
+  return (
+    getOpenSlots(plan).find((slot) => slot >= currentMinutes) ??
+    getOpenSlots(plan)[0] ??
+    null
+  );
+}
+
+function getOpenSlots(plan: DailyOmenPlan) {
+  const closed = new Set([
+    ...plan.completedSlotMinutes,
+    ...plan.skippedSlotMinutes,
+  ]);
+
+  return plan.slotMinutes.filter((slot) => !closed.has(slot));
+}
+
+function markOmenSlotCompleted(plan: DailyOmenPlan, slot: number) {
+  if (!plan.completedSlotMinutes.includes(slot)) {
+    plan.completedSlotMinutes.push(slot);
+  }
+}
+
+function markOmenSlotSkipped(plan: DailyOmenPlan, slot: number) {
+  if (!plan.skippedSlotMinutes.includes(slot)) {
+    plan.skippedSlotMinutes.push(slot);
+  }
+}
+
+function getHelsinkiDateKey(now: Date) {
+  const parts = getHelsinkiDateParts(now);
+
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function getHelsinkiMinutes(now: Date) {
+  const parts = getHelsinkiDateParts(now);
+
+  return Number(parts.hour) * 60 + Number(parts.minute);
+}
+
+function getHelsinkiDateParts(now: Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Helsinki",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now);
+  const values = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
+  );
+
+  return {
+    year: values.year,
+    month: values.month,
+    day: values.day,
+    hour: values.hour,
+    minute: values.minute,
+  };
+}
+
+function formatSlotMinutes(slot: number | null) {
+  if (slot === null) {
+    return "none";
+  }
+
+  const hour = String(Math.floor(slot / 60)).padStart(2, "0");
+  const minute = String(slot % 60).padStart(2, "0");
+
+  return `${hour}:${minute}`;
+}
+
+function createSeededRandom(seed: string) {
+  let state = hashString(seed);
+
+  return () => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+
+    return state / 0x100000000;
+  };
+}
+
+function hashString(value: string) {
+  let hash = 2166136261;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return hash >>> 0;
 }
 
 function rememberGodMessage(
@@ -970,6 +1328,130 @@ function rememberGodMessage(
       body: redactPointTotals(message.body),
     },
   ].slice(-MAX_STORED_MESSAGES);
+}
+
+function rememberObservedEvents(
+  memory: RunnerMemory,
+  snapshot: RunnerSnapshot,
+  handledEventKeys: Record<string, string>,
+  now: Date
+) {
+  const observedAt = now.toISOString();
+  const existing = new Map(memory.observedEvents.map((event) => [event.key, event]));
+
+  for (const event of snapshot.events) {
+    if (!isAllowedEvent(event, { allowChatEvents: false })) {
+      continue;
+    }
+
+    const previous = existing.get(event.key);
+    existing.set(event.key, {
+      key: event.key,
+      topicKey: getEventTopicKey(event),
+      kind: event.kind,
+      title: scrubUntrustedText(event.title),
+      summary: redactPointTotals(scrubUntrustedText(event.summary)),
+      importance: getEventImportance(event, handledEventKeys),
+      involvedPlayers: getInvolvedPlayersForEvent(event, snapshot),
+      observedAt: previous?.observedAt ?? observedAt,
+      usedAt: previous?.usedAt ?? null,
+    });
+  }
+
+  memory.observedEvents = [...existing.values()]
+    .sort(
+      (left, right) =>
+        right.importance - left.importance ||
+        right.observedAt.localeCompare(left.observedAt)
+    )
+    .slice(0, MAX_OBSERVED_EVENT_NOTES);
+}
+
+function getInvolvedPlayersForEvent(event: RunnerEvent, snapshot: RunnerSnapshot) {
+  const eventText = `${event.title} ${event.summary}`.toLowerCase();
+  const players = snapshot.leaderboard
+    .map((entry) => getPlayerLabel(entry.commanderName, entry.fortressName))
+    .filter((label) => eventText.includes(label.toLowerCase()));
+
+  for (const battlefield of snapshot.battlefields) {
+    for (const label of [
+      battlefield.attackerCommanderName && battlefield.attackerBannerName
+        ? getPlayerLabel(
+            battlefield.attackerCommanderName,
+            battlefield.attackerBannerName
+          )
+        : null,
+      battlefield.defenderCommanderName && battlefield.defenderBannerName
+        ? getPlayerLabel(
+            battlefield.defenderCommanderName,
+            battlefield.defenderBannerName
+          )
+        : null,
+    ]) {
+      if (label && eventText.includes(label.toLowerCase())) {
+        players.push(label);
+      }
+    }
+  }
+
+  return [...new Set(players)].slice(0, 6);
+}
+
+function selectDiaryOmenEvent(
+  memory: RunnerMemory,
+  state: RunnerState,
+  options: {
+    allowChatEvents?: boolean;
+    recentMessages: RunnerMemory["recentMessages"];
+    cadence: CadenceConfig;
+    now: Date;
+  }
+) {
+  return memory.observedEvents
+    .filter((note) => note.usedAt === null)
+    .map((note) => noteToRunnerEvent(note))
+    .filter((event) => isAllowedEvent(event, options))
+    .filter((event) =>
+      isMeaningfulUnhandledEvent(
+        event,
+        state.handledEventKeys,
+        new Set(getRecentTopicKeys(memory)),
+        options.now,
+        options.cadence
+      )
+    )
+    .map((event) => ({
+      event,
+      importance: getEventImportance(event, state.handledEventKeys),
+    }))
+    .filter(({ importance }) => importance >= options.cadence.minEventImportance)
+    .sort(
+      (left, right) =>
+        right.importance - left.importance ||
+        right.event.occurredAt?.localeCompare(left.event.occurredAt ?? "") ||
+        0
+    )[0]?.event;
+}
+
+function noteToRunnerEvent(note: ObservedEventNote): RunnerEvent {
+  return {
+    key: note.key,
+    kind: note.kind,
+    title: note.title,
+    summary: note.summary,
+    priority: note.importance,
+    occurredAt: note.observedAt,
+  };
+}
+
+function markObservedEventUsed(
+  memory: RunnerMemory,
+  eventKey: string,
+  usedAt: string
+) {
+  memory.observedEvents = memory.observedEvents.map((event) =>
+    event.key === eventKey ? { ...event, usedAt } : event
+  );
 }
 
 export function updateRunnerMemoryFromSnapshot(
@@ -1096,6 +1578,7 @@ function getObservedTitleForFortress(
 function createEmptyRunnerMemory(): RunnerMemory {
   return {
     recentMessages: [],
+    observedEvents: [],
     playerHistory: {},
     relations: {},
   };
@@ -1328,6 +1811,14 @@ function rememberPublicRelationClaim(
 
 function pruneRunnerMemory(memory: RunnerMemory) {
   memory.recentMessages = memory.recentMessages.slice(-MAX_STORED_MESSAGES);
+  memory.observedEvents = memory.observedEvents
+    .sort(
+      (left, right) =>
+        (right.usedAt === null ? 1 : 0) - (left.usedAt === null ? 1 : 0) ||
+        right.importance - left.importance ||
+        right.observedAt.localeCompare(left.observedAt)
+    )
+    .slice(0, MAX_OBSERVED_EVENT_NOTES);
   memory.playerHistory = Object.fromEntries(
     Object.entries(memory.playerHistory)
       .sort((left, right) => right[1].lastSeenAt.localeCompare(left[1].lastSeenAt))
@@ -1342,6 +1833,38 @@ function pruneRunnerMemory(memory: RunnerMemory) {
       )
       .slice(0, MAX_STORED_RELATIONS)
   );
+}
+
+function buildDiaryContext(memory: RunnerMemory, event: RunnerEvent) {
+  const relatedNotes = memory.observedEvents
+    .filter(
+      (note) =>
+        note.key === event.key ||
+        note.topicKey === getEventTopicKey(event) ||
+        note.involvedPlayers.some((player) =>
+          `${event.title} ${event.summary}`
+            .toLowerCase()
+            .includes(player.toLowerCase())
+        )
+    )
+    .slice(0, 6)
+    .map((note) => ({
+      kind: note.kind,
+      title: note.title,
+      summary: note.summary,
+      importance: note.importance,
+      involvedPlayers: note.involvedPlayers,
+      observedAt: note.observedAt,
+    }));
+
+  return {
+    selectedOmen: {
+      kind: event.kind,
+      title: scrubUntrustedText(event.title),
+      summary: redactPointTotals(scrubUntrustedText(event.summary)),
+    },
+    relatedRecentObservations: relatedNotes,
+  };
 }
 
 function buildPublicMemoryContext(memory: RunnerMemory, event: RunnerEvent) {
@@ -1500,6 +2023,36 @@ function isPlayerHistory(value: unknown): value is PlayerHistory {
   );
 }
 
+function isObservedEventNote(value: unknown): value is ObservedEventNote {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as ObservedEventNote).key === "string" &&
+    typeof (value as ObservedEventNote).topicKey === "string" &&
+    typeof (value as ObservedEventNote).kind === "string" &&
+    typeof (value as ObservedEventNote).title === "string" &&
+    typeof (value as ObservedEventNote).summary === "string" &&
+    typeof (value as ObservedEventNote).importance === "number" &&
+    Array.isArray((value as ObservedEventNote).involvedPlayers) &&
+    typeof (value as ObservedEventNote).observedAt === "string" &&
+    ((value as ObservedEventNote).usedAt === null ||
+      typeof (value as ObservedEventNote).usedAt === "string")
+  );
+}
+
+function isDailyOmenPlan(value: unknown): value is DailyOmenPlan {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as DailyOmenPlan).dateKey === "string" &&
+    typeof (value as DailyOmenPlan).cycleId === "string" &&
+    Array.isArray((value as DailyOmenPlan).slotMinutes) &&
+    Array.isArray((value as DailyOmenPlan).completedSlotMinutes) &&
+    Array.isArray((value as DailyOmenPlan).skippedSlotMinutes) &&
+    typeof (value as DailyOmenPlan).createdAt === "string"
+  );
+}
+
 function isRelationHistory(value: unknown): value is RelationHistory {
   return (
     typeof value === "object" &&
@@ -1545,9 +2098,12 @@ function hasPromptInjectionValue(value: string) {
 
 function redactUntrustedEventText(event: RunnerEvent) {
   return {
-    ...event,
+    key: getEventTopicKey(event),
+    kind: event.kind,
     title: scrubUntrustedText(event.title),
     summary: redactPointTotals(scrubUntrustedText(event.summary)),
+    priority: event.priority,
+    occurredAt: event.occurredAt,
   };
 }
 

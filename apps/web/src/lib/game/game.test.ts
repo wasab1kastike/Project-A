@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { after, before, beforeEach, test, type TestContext } from "node:test";
 import { dirname, resolve } from "node:path";
@@ -193,9 +193,11 @@ import { POST as openClawGodChatPOST } from "@/app/api/openclaw/god-chat/route";
 import { GET as openClawGodSnapshotGET } from "@/app/api/openclaw/god-snapshot/route";
 import { getGodSnapshot } from "./god-snapshot";
 import {
+  buildDailyOmenPlan,
   buildFallbackGodMessage,
   buildGodPrompt,
   getDefaultCadenceConfig,
+  getDefaultDailyOmenConfig,
   getEventImportance,
   isGenericGodMessage,
   runGodRunner,
@@ -1742,7 +1744,53 @@ test("God runner prompt includes public player names and race labels", () => {
   assert.match(prompt, /Never include exact score or point totals/);
 });
 
-test("God runner dry-run previews without posting or marking handled", async () => {
+function getHelsinkiTestDateKey(now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Helsinki",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const values = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
+  );
+
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+test("God runner daily omen plan is deterministic per Helsinki date and cycle", () => {
+  const config = getDefaultDailyOmenConfig();
+  const first = buildDailyOmenPlan(
+    "2026-05-18",
+    "cycle-one",
+    config,
+    new Date("2026-05-18T09:00:00.000Z")
+  );
+  const second = buildDailyOmenPlan(
+    "2026-05-18",
+    "cycle-one",
+    config,
+    new Date("2026-05-18T18:00:00.000Z")
+  );
+  const nextCycle = buildDailyOmenPlan(
+    "2026-05-18",
+    "cycle-two",
+    config,
+    new Date("2026-05-18T09:00:00.000Z")
+  );
+
+  assert.deepEqual(first.slotMinutes, second.slotMinutes);
+  assert.notDeepEqual(first.slotMinutes, nextCycle.slotMinutes);
+  assert.ok(first.slotMinutes.length >= 1);
+  assert.ok(first.slotMinutes.length <= 4);
+  assert.ok(
+    first.slotMinutes.every((slot) => slot >= 8 * 60 && slot < 23 * 60)
+  );
+});
+
+test("God runner observes public memory without speaking outside omen slots", async () => {
   const previousFetch = globalThis.fetch;
   const previousEnv = {
     OPENCLAW_GOD_SHARED_SECRET: process.env.OPENCLAW_GOD_SHARED_SECRET,
@@ -1752,6 +1800,135 @@ test("God runner dry-run previews without posting or marking handled", async () 
     GOD_RUNNER_STATE_PATH: process.env.GOD_RUNNER_STATE_PATH,
     GOD_RUNNER_MEMORY_PATH: process.env.GOD_RUNNER_MEMORY_PATH,
     GOD_RUNNER_DRY_RUN: process.env.GOD_RUNNER_DRY_RUN,
+    GOD_FORCE_OMEN_SLOT: process.env.GOD_FORCE_OMEN_SLOT,
+  };
+  const tempDir = mkdtempSync(resolve(tmpdir(), "project-a-god-runner-"));
+  const statePath = resolve(tempDir, "state.json");
+  const memoryPath = resolve(tempDir, "memory.json");
+  const calls: string[] = [];
+  const dateKey = getHelsinkiTestDateKey();
+
+  process.env.OPENCLAW_GOD_SHARED_SECRET = "test-secret";
+  process.env.PROJECT_A_GOD_BASE_URL = "http://project.test";
+  process.env.OLLAMA_BASE_URL = "http://ollama.test";
+  process.env.GOD_LLM_MODEL = "qwen3.6:27b";
+  process.env.GOD_RUNNER_STATE_PATH = statePath;
+  process.env.GOD_RUNNER_MEMORY_PATH = memoryPath;
+  process.env.GOD_RUNNER_DRY_RUN = "true";
+  delete process.env.GOD_FORCE_OMEN_SLOT;
+
+  writeFileSync(
+    statePath,
+    `${JSON.stringify(
+      {
+        handledEventKeys: {},
+        dailyOmenPlans: {
+          [dateKey]: {
+            dateKey,
+            cycleId: "cycle-one",
+            slotMinutes: [0],
+            completedSlotMinutes: [0],
+            skippedSlotMinutes: [],
+            createdAt: "2026-05-18T00:00:00.000Z",
+          },
+        },
+      },
+      null,
+      2
+    )}\n`
+  );
+
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    calls.push(url);
+
+    if (url.endsWith("/api/openclaw/god-snapshot")) {
+      return Response.json({
+        cycle: {
+          id: "cycle-one",
+          status: "ACTIVE",
+          phaseLabel: "Season live",
+          deadline: null,
+        },
+        homeOfA: null,
+        leaderboard: [
+          {
+            rank: 1,
+            fortressId: "fortress-a",
+            commanderName: "Aarocorn",
+            fortressName: "UniBonk",
+            race: "UNSTABLE_UNICORNS",
+            raceLabel: "Unstable Unicorns",
+            points: 164258,
+            isSlayerOfA: true,
+          },
+        ],
+        battlefields: [],
+        recentChat: [],
+        events: [
+          {
+            key: "leader-event",
+            kind: "leaderboard",
+            title: "Leaderboard lead",
+            summary:
+              "Aarocorn of UniBonk, Unstable Unicorns, leads with 164258 points.",
+            priority: 80,
+            occurredAt: null,
+          },
+        ],
+      });
+    }
+
+    if (url.endsWith("/api/chat")) {
+      return Response.json({
+        message: {
+          content:
+            "Aarocorn stacks 164258 points; A respects the crown and mourns the scoreboard's posture.",
+        },
+      });
+    }
+
+    return new Response("Unexpected call", { status: 500 });
+  }) as typeof fetch;
+
+  try {
+    await runGodRunner();
+
+    assert.ok(calls.some((url) => url.endsWith("/api/openclaw/god-snapshot")));
+    assert.ok(!calls.some((url) => url.endsWith("/api/chat")));
+    assert.ok(!calls.some((url) => url.endsWith("/api/openclaw/god-chat")));
+    assert.equal(existsSync(memoryPath), true);
+    const memory = JSON.parse(readFileSync(memoryPath, "utf8")) as {
+      observedEvents: Array<{ key: string; summary: string }>;
+      playerHistory: Record<string, unknown>;
+    };
+    assert.equal(memory.observedEvents.at(0)?.key, "leader-event");
+    assert.doesNotMatch(memory.observedEvents.at(0)?.summary ?? "", /164258/);
+    assert.ok(Object.keys(memory.playerHistory).length > 0);
+  } finally {
+    globalThis.fetch = previousFetch;
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+    rmSync(tempDir, { force: true, recursive: true });
+  }
+});
+
+test("God runner forced dry-run previews without posting or marking handled", async () => {
+  const previousFetch = globalThis.fetch;
+  const previousEnv = {
+    OPENCLAW_GOD_SHARED_SECRET: process.env.OPENCLAW_GOD_SHARED_SECRET,
+    PROJECT_A_GOD_BASE_URL: process.env.PROJECT_A_GOD_BASE_URL,
+    OLLAMA_BASE_URL: process.env.OLLAMA_BASE_URL,
+    GOD_LLM_MODEL: process.env.GOD_LLM_MODEL,
+    GOD_RUNNER_STATE_PATH: process.env.GOD_RUNNER_STATE_PATH,
+    GOD_RUNNER_MEMORY_PATH: process.env.GOD_RUNNER_MEMORY_PATH,
+    GOD_RUNNER_DRY_RUN: process.env.GOD_RUNNER_DRY_RUN,
+    GOD_FORCE_OMEN_SLOT: process.env.GOD_FORCE_OMEN_SLOT,
   };
   const tempDir = mkdtempSync(resolve(tmpdir(), "project-a-god-runner-"));
   const statePath = resolve(tempDir, "state.json");
@@ -1765,6 +1942,7 @@ test("God runner dry-run previews without posting or marking handled", async () 
   process.env.GOD_RUNNER_STATE_PATH = statePath;
   process.env.GOD_RUNNER_MEMORY_PATH = memoryPath;
   process.env.GOD_RUNNER_DRY_RUN = "true";
+  process.env.GOD_FORCE_OMEN_SLOT = "true";
 
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = String(input);
@@ -1773,6 +1951,7 @@ test("God runner dry-run previews without posting or marking handled", async () 
     if (url.endsWith("/api/openclaw/god-snapshot")) {
       return Response.json({
         cycle: {
+          id: "cycle-one",
           status: "ACTIVE",
           phaseLabel: "Season live",
           deadline: null,
@@ -1842,6 +2021,7 @@ test("God runner dry-run previews without posting or marking handled", async () 
 test("God runner builds public player history and conflict memory", () => {
   const memory = {
     recentMessages: [],
+    observedEvents: [],
     playerHistory: {},
     relations: {},
   };
