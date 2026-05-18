@@ -20,6 +20,7 @@
     "db:studio": "prisma studio --schema prisma/schema.prisma",
     "db:grant-home-of-a-drain-compensation": "tsx prisma/grant-home-of-a-drain-compensation.ts",
     "db:grant-may-15-player-compensation": "tsx prisma/grant-may-15-player-compensation.ts",
+    "db:grant-may-18-combat-compensation": "tsx prisma/grant-may-18-combat-compensation.ts",
     "db:reset-season-one": "tsx prisma/reset-season-one.ts",
     "db:allocate-season-one-coins": "tsx prisma/allocate-season-one-coins.ts"
   },
