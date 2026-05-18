@@ -1693,6 +1693,7 @@ test("God runner rejects generic narration for concrete events", () => {
   assert.match(buildFallbackGodMessage(leaderboardEvent), /DA BOYZ/);
   assert.doesNotMatch(buildFallbackGodMessage(battlefieldEvent), /War omen/);
   assert.doesNotMatch(buildFallbackGodMessage(battlefieldEvent), /,;|\.\./);
+  assert.match(buildFallbackGodMessage(battlefieldEvent), /Tile 19:0/);
   assert.match(buildFallbackGodMessage(battlefieldEvent), /Artoisti/);
   assert.match(buildFallbackGodMessage(battlefieldEvent), /BEEFSTEW/);
   assert.equal(
