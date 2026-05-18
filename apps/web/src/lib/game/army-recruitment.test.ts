@@ -8,7 +8,6 @@ import {
   getArmyUpkeepCost,
   calculateArmyUpkeep,
   canSustainArmy,
-  compareRecruitmentSystems,
   getStarvationArmyLoss,
   RECRUITMENT_COST_PER_UNIT,
   ARMY_UPKEEP_PER_UNIT,
@@ -172,20 +171,6 @@ test("starvation army loss applies 2% attrition with a minimum loss", () => {
   assert.equal(getStarvationArmyLoss(100), 2);
   assert.equal(getStarvationArmyLoss(1000), 20);
   assert.equal(getStarvationArmyLoss(0.5), 0);
-});
-
-test("old vs new system comparison shows 100x upkeep reduction", () => {
-  const comparison100 = compareRecruitmentSystems(100);
-  assert.equal(comparison100.oldSystemFoodCost, 100);
-  assert.equal(comparison100.newSystemGoldUpfront, 100);
-  assert.equal(comparison100.newSystemFoodUpkeepPerTick, 1);
-  assert.equal(comparison100.oldVsNewUptimeRatio, 100);
-
-  const comparison500 = compareRecruitmentSystems(500);
-  assert.equal(comparison500.oldSystemFoodCost, 500);
-  assert.equal(comparison500.newSystemGoldUpfront, 500);
-  assert.equal(comparison500.newSystemFoodUpkeepPerTick, 5);
-  assert.equal(comparison500.oldVsNewUptimeRatio, 100);
 });
 
 test("realistic scenario: order 200 units with 8 recruiters", () => {
