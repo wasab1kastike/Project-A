@@ -1170,6 +1170,11 @@ test("owned tile attack creates a targetTileId battlefield", async (context) => 
   assert.equal(reloaded.targetFortressId, defenderFortress.id);
   assert.equal(reloaded.defenderArmyRemaining, 0);
   assert.equal(reloaded.incomingReinforcements.length, 1);
+  assert.ok(reloaded.incomingReinforcements[0]);
+  assert.equal(
+    reloaded.startedAt.toISOString(),
+    addHours(reloaded.incomingReinforcements[0].arrivesAt, 1).toISOString()
+  );
   assert.equal(
     reloaded.incomingReinforcements[0]?.reinforcementSide,
     BattlefieldSide.ATTACKER
@@ -2380,6 +2385,10 @@ test("direct player castle attack creates a visible battlefield before arrival",
   assert.equal(battlefield.attackerArmyRemaining, 0);
   assert.equal(battlefield.defenderArmyRemaining, 15);
   assert.equal(battlefield.incomingReinforcements.length, 1);
+  assert.equal(
+    battlefield.startedAt.toISOString(),
+    addHours(attackUnit.arrivesAt, 1).toISOString()
+  );
   assert.equal(attackUnit.reinforcementBattlefieldId, battlefield.id);
   assert.equal(attackUnit.reinforcementSide, BattlefieldSide.ATTACKER);
   assert.equal(
@@ -2435,6 +2444,32 @@ test("direct player castle attack creates a visible battlefield before arrival",
 
   assert.equal(participant?.side, BattlefieldSide.ATTACKER);
   assert.equal(participant?.armyCommitted, 6);
+
+  await processActiveBattlefields({
+    db: prisma,
+    cycleId: cycle.id,
+    tickAt: addMinutes(battlefield.startedAt, -1),
+  });
+
+  const beforeStart = await prisma.battlefield.findUniqueOrThrow({
+    where: { id: battlefield.id },
+  });
+
+  assert.equal(beforeStart.progress, 0);
+  assert.equal(beforeStart.attackerArmyRemaining, 6);
+  assert.equal(beforeStart.defenderArmyRemaining, 15);
+
+  await processActiveBattlefields({
+    db: prisma,
+    cycleId: cycle.id,
+    tickAt: battlefield.startedAt,
+  });
+
+  const afterStart = await prisma.battlefield.findUniqueOrThrow({
+    where: { id: battlefield.id },
+  });
+
+  assert.ok(afterStart.progress > 0);
 });
 
 test("direct player castle attacks reuse an active castle battlefield", async (context) => {
@@ -2538,6 +2573,15 @@ test("direct player castle attacks reuse an active castle battlefield", async (c
   assert.equal(battlefields.length, 1);
   assert.equal(battlefields[0]?.attackerBannerFortressId, firstFortress.id);
   assert.equal(battlefields[0]?.incomingReinforcements.length, 2);
+  const firstAttackUnit = battlefields[0]?.incomingReinforcements.find(
+    (unit) => unit.attackerFortressId === firstFortress.id
+  );
+
+  assert.ok(firstAttackUnit);
+  assert.equal(
+    battlefields[0]?.startedAt.toISOString(),
+    addHours(firstAttackUnit.arrivesAt, 1).toISOString()
+  );
   assert.deepEqual(
     battlefields[0]?.incomingReinforcements
       .map((unit) => unit.armyAmount)

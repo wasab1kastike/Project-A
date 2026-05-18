@@ -156,8 +156,8 @@ test("loot camp report includes counterattack details and health damage", () => 
     defenderLootCampVariant: "CHAOS",
   });
 
-  assert.match(lines[1] ?? "", /defending army was 12/);
-  assert.match(lines[2] ?? "", /Camp health was reduced by 100/);
+  assert.match(lines[1] ?? "", /Camp defending army: 12/);
+  assert.match(lines[2] ?? "", /Camp health reduced by 100/);
   assert.match(lines[3] ?? "", /100 army, and race cooldown reset/);
 });
 

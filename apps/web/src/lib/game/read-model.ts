@@ -1774,11 +1774,23 @@ export async function getHomePageState({
           (unit) =>
             `${unit.attackerFortress.name} reinforcement arrived for ${(unit.reinforcementSide ?? BattlefieldSide.ATTACKER).toLowerCase()} with ${unit.armyAmount} army.`
         );
-        const battleAgeMinutes = Math.max(
+        const battleStartsInMinutes = Math.max(
           0,
-          Math.floor((now.getTime() - battlefield.startedAt.getTime()) / 60_000)
+          Math.ceil((battlefield.startedAt.getTime() - now.getTime()) / 60_000)
         );
-        const casualtiesPerTick = getBattlefieldCasualtyBudget(battleAgeMinutes);
+        const battleAgeMinutes =
+          battleStartsInMinutes > 0
+            ? 0
+            : Math.max(
+                0,
+                Math.floor(
+                  (now.getTime() - battlefield.startedAt.getTime()) / 60_000
+                )
+              );
+        const casualtiesPerTick =
+          battleStartsInMinutes > 0
+            ? 0
+            : getBattlefieldCasualtyBudget(battleAgeMinutes);
         const attackerLosses = battlefield.participants
           .filter((participant) => participant.side === BattlefieldSide.ATTACKER)
           .reduce(
@@ -3382,11 +3394,23 @@ export async function getHomePageState({
           ? Math.round((attackerArmyRemaining / totalArmyRemaining) * 100)
           : 50;
       const incomingArmyDelta = incomingAttackerArmy - incomingDefenderArmy;
-      const battleAgeMinutes = Math.max(
+      const battleStartsInMinutes = Math.max(
         0,
-        Math.floor((now.getTime() - battlefield.startedAt.getTime()) / 60_000)
+        Math.ceil((battlefield.startedAt.getTime() - now.getTime()) / 60_000)
       );
-      const casualtiesPerTick = getBattlefieldCasualtyBudget(battleAgeMinutes);
+      const battleAgeMinutes =
+        battleStartsInMinutes > 0
+          ? 0
+          : Math.max(
+              0,
+              Math.floor(
+                (now.getTime() - battlefield.startedAt.getTime()) / 60_000
+              )
+            );
+      const casualtiesPerTick =
+        battleStartsInMinutes > 0
+          ? 0
+          : getBattlefieldCasualtyBudget(battleAgeMinutes);
       const battleIntensityPercent = Math.round(
         ((casualtiesPerTick - 100) / 900) * 100
       );
@@ -3465,8 +3489,10 @@ export async function getHomePageState({
         incomingDefenderArmy,
         incomingArmyDelta,
         battleAgeMinutes,
+        battleStartsInMinutes,
         casualtiesPerTick,
-        battleIntensityPercent,
+        battleIntensityPercent:
+          battleStartsInMinutes > 0 ? 0 : battleIntensityPercent,
         nextIncomingEtaMinutes,
         nextIncomingSide:
           nextIncomingReinforcement?.reinforcementSide ??
