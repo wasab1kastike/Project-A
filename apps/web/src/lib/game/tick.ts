@@ -136,6 +136,11 @@ const HOME_OF_A_COMPENSATION_BODY =
 const HOME_OF_A_COMPENSATION_ACTIVE_STARTED_BEFORE = new Date(
   "2026-05-14T00:00:00.000Z"
 );
+const COMBAT_BUG_COMPENSATION_TARGETS = ["BEEFSTEW", "DA BOYZEZ ZITY"];
+const COMBAT_BUG_COMPENSATION_ARMY = 50_000;
+const COMBAT_BUG_COMPENSATION_MARKER = "COMBAT BUG COMPENSATION:";
+const COMBAT_BUG_COMPENSATION_BODY =
+  "COMBAT BUG COMPENSATION: A found 100,000 missing troops hiding under the casualty calculator wearing fake moustaches. BEEFSTEW and DA BOYZEZ ZITY each receive 50,000 replacement units. Please return them to combat in an orderly stampede.";
 const HOME_OF_A_BOSS_REVAMP_MARKER = "HOME OF A RENOVATION NOTICE:";
 const HOME_OF_A_BOSS_REVAMP_BODY =
   "HOME OF A RENOVATION NOTICE: A has fired the center tile landlord and replaced the lease agreement with a health bar. No more ownership, holder drain, fortifying, or banner squatting: Home of A is now a daily boss. Attack the center tile, pile up damage, and the top damage dealer gets loot plus 12 hours of divine paperwork-based swagger. After defeat, A takes a 24-hour nap and returns with more hit points and absolutely no lessons learned.";
@@ -306,6 +311,82 @@ async function ensureHomeOfADrainCompensation({
         authorId: systemUser.id,
         type: ChatMessageType.TEXT,
         body: HOME_OF_A_COMPENSATION_BODY,
+        createdAt,
+      },
+    });
+  }, TICK_TRANSACTION_OPTIONS);
+}
+
+async function ensureCombatBugCompensation({
+  db,
+  cycleId,
+  createdAt,
+}: {
+  db: PrismaClient;
+  cycleId: string;
+  createdAt: Date;
+}) {
+  await db.$transaction(async (tx) => {
+    const existingAnnouncement = await tx.chatMessage.findFirst({
+      where: {
+        cycleId,
+        type: ChatMessageType.TEXT,
+        body: {
+          contains: COMBAT_BUG_COMPENSATION_MARKER,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (existingAnnouncement) {
+      return;
+    }
+
+    const fortresses = await tx.fortress.findMany({
+      where: {
+        cycleId,
+        isNpc: false,
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+    const targetFortresses = fortresses.filter((fortress) =>
+      COMBAT_BUG_COMPENSATION_TARGETS.includes(
+        fortress.name.trim().toUpperCase()
+      )
+    );
+
+    if (
+      targetFortresses.length !== COMBAT_BUG_COMPENSATION_TARGETS.length
+    ) {
+      return;
+    }
+
+    for (const fortress of targetFortresses) {
+      await tx.fortress.update({
+        where: {
+          id: fortress.id,
+        },
+        data: {
+          army: {
+            increment: COMBAT_BUG_COMPENSATION_ARMY,
+          },
+        },
+      });
+    }
+
+    const systemUser = await ensureNpcSystemUser(tx);
+
+    await tx.chatMessage.create({
+      data: {
+        cycleId,
+        authorId: systemUser.id,
+        type: ChatMessageType.TEXT,
+        body: COMBAT_BUG_COMPENSATION_BODY,
         createdAt,
       },
     });
@@ -1518,6 +1599,11 @@ async function processCycleTick(
       db,
       cycleId,
       activeStartedAt: cycle.activeStartedAt!,
+      createdAt: tickAt,
+    });
+    await ensureCombatBugCompensation({
+      db,
+      cycleId,
       createdAt: tickAt,
     });
   }
