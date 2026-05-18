@@ -47,6 +47,10 @@ export type RaidBattleReportInput = {
   defenderIsLootCamp?: boolean;
   defenderLootCampVariant?: string | null;
   defenderIsHomeOfABoss?: boolean;
+  /**
+   * Optional special event highlight for battle log (e.g. rare loot, unique effect).
+   */
+  specialEvent?: string;
 };
 
 export type RaidRecallReportInput = {
