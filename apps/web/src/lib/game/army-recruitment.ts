@@ -4,8 +4,8 @@
  * DESIGN OVERVIEW:
  * ================
  * Players order armies upfront with gold, then recruiters process the queue
- * at a rate of 1 unit/recruiter/tick. This replaces the current passive
- * production system with explicit player orders and clear recruitment timelines.
+ * at a rate of 1 unit/recruiter/tick before race and specialization bonuses.
+ * Recruiters do not create free army when the queue is empty.
  *
  * FLOW:
  * =====
@@ -17,13 +17,12 @@
  * 4. Upkeep cost applies to active units only (0.01 food/unit/tick)
  *    and unpaid upkeep causes starvation attrition
  *
- * BENEFITS vs CURRENT SYSTEM:
- * ============================
- * - Strategic: Player controls when to invest in army growth
- * - Visible: Queue shows exact completion time
- * - Scalable: Upkeep is 100x cheaper (0.01 vs 1 food/tick), enables large armies
- * - Balanced: Gold cost upfront controls spending
- * - Race-differentiated: Recruiter speed varies by race
+ * LIVE BEHAVIOR:
+ * ==============
+ * - Strategic: players choose when to spend gold on army growth
+ * - Visible: queued units expose completion estimates in the Castle UI
+ * - Bounded: upfront gold cost controls how much army can be ordered
+ * - Race-differentiated: recruiter speed can vary by race and specialization
  *
  * CONSTANTS:
  * ==========
@@ -42,17 +41,8 @@
  * Example 2: What's the cost to order 100 units?
  *   goldCost = 100 * RECRUITMENT_COST_PER_UNIT = 100 gold
  *
- * Example 3: What's the upkeep for 500 army units per tick?
+ * Example 3: What is the upkeep for 500 active army units per tick?
  *   foodCost = 500 * ARMY_UPKEEP_PER_UNIT = 5 food/tick
- *   Compare to old system: 500 * 1 = 500 food/tick (100x more expensive!)
- *
- * TRANSITION STRATEGY (Phase 2):
- * ==============================
- * 1. Add `Fortress.recruitmentQueue` integer field (units pending)
- * 2. Update production calculation to process queue at recruiter rate
- * 3. Add `recruitArmy(unitCount)` action that checks gold and adds to queue
- * 4. Update UI to show queue status and estimated completion
- * 5. Tests verify recruitment timing and upkeep calculations
  */
 
 import { getRaceModifiers, type FortressRace } from "./races";
@@ -76,12 +66,6 @@ export const RECRUITMENT_RATE_PER_RECRUITER = 1;
 // ============================================================================
 // TYPES
 // ============================================================================
-
-export type RecruitmentOrder = {
-  unitCount: number;
-  goldCostTotal: number;
-  estimatedTicksToComplete: number;
-};
 
 export type RecruitmentProgress = {
   queueRemaining: number;
@@ -240,7 +224,6 @@ export function processRecruitmentQueue(
  * Example:
  *   - Army: 500 units
  *   - Upkeep: 500 * 0.01 = 5 food/tick
- *   - Compare to old system: 500 * 1 = 500 food/tick (100x cheaper!)
  */
 export function getArmyUpkeepCost(activeArmyCount: number): number {
   return Math.max(0, Math.floor(activeArmyCount)) * ARMY_UPKEEP_PER_UNIT;
@@ -314,40 +297,3 @@ export function canSustainArmy(
   };
 }
 
-// ============================================================================
-// COMPARISON: OLD vs NEW SYSTEM
-// ============================================================================
-
-/**
- * Compare recruitment costs between old (passive) and new (order-based) systems.
- *
- * OLD SYSTEM:
- * - 10 recruiters produce 10 army/tick (limited by food: 1 food/unit)
- * - To get 100 army takes 10 ticks + 100 food consumed
- * - Passive (no player action)
- *
- * NEW SYSTEM:
- * - Player orders 100 army, pays 100 gold upfront
- * - 10 recruiters create 100 army in 10 ticks
- * - Upkeep: 1 food/tick (0.01 per unit * 100)
- * - Active (player controls timing)
- *
- * This function helps visualize the tradeoff:
- */
-export function compareRecruitmentSystems(unitCount: number): {
-  oldSystemFoodCost: number;
-  newSystemGoldUpfront: number;
-  newSystemFoodUpkeepPerTick: number;
-  oldVsNewUptimeRatio: number;
-} {
-  const oldSystemFoodCost = unitCount * 1; // Old: 1 food per unit
-  const newSystemGoldUpfront = getRecruitmentCost(unitCount); // New: 1 gold per unit
-  const newSystemFoodUpkeepPerTick = getArmyUpkeepCost(unitCount); // New: 0.01 food per unit
-
-  return {
-    oldSystemFoodCost,
-    newSystemGoldUpfront,
-    newSystemFoodUpkeepPerTick,
-    oldVsNewUptimeRatio: oldSystemFoodCost / newSystemFoodUpkeepPerTick,
-  };
-}

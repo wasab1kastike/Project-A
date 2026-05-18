@@ -250,6 +250,51 @@ function formatBattleMinutes(value: number) {
   return `${hours}h ${minutes}m`;
 }
 
+function getBattlePhase(battlefield: ActiveBattlefield): "PREPARING" | "LIVE" {
+  return battlefield.battleStartsInMinutes > 0 ? "PREPARING" : "LIVE";
+}
+
+function getBattleTimingLabel(battlefield: ActiveBattlefield): string {
+  return getBattlePhase(battlefield) === "PREPARING"
+    ? `Starts in ${formatBattleMinutes(battlefield.battleStartsInMinutes)}`
+    : `Live ${formatBattleMinutes(battlefield.battleAgeMinutes)}`;
+}
+
+function getBattlePaceLabel(battlefield: ActiveBattlefield): string {
+  return getBattlePhase(battlefield) === "PREPARING"
+    ? "Casualties paused"
+    : `Pace ${battlefield.casualtiesPerTick}/tick (${battlefield.battleIntensityPercent}%)`;
+}
+
+function getBattleContextHelper(
+  battlefield: ActiveBattlefield,
+  isHomeBattle: boolean
+): string | null {
+  if (isHomeBattle || getBattlePhase(battlefield) === "LIVE") {
+    return null;
+  }
+
+  return "Preparation window: defenders and allies can reinforce before casualty resolution starts.";
+}
+
+function getSelectedBattlefieldHelper({
+  battlefield,
+  isHomeOfA,
+}: {
+  battlefield: ActiveBattlefield | null;
+  isHomeOfA: boolean;
+}): string {
+  if (isHomeOfA) {
+    return "Home of A is already being fought. Send more army from here or use the battle card to recall committed army.";
+  }
+
+  if (battlefield && getBattlePhase(battlefield) === "PREPARING") {
+    return "This tile is preparing for battle. Use the battle card to read pressure, reinforce before casualties start, or recall your committed army.";
+  }
+
+  return "This tile already has an active battlefield. Use the battle card to read pressure, reinforce, or recall your committed army.";
+}
+
 function formatLossRatio(value: number | null) {
   if (value === null) {
     return "-";
@@ -602,6 +647,11 @@ export function BattlefieldExperience({
           (battlefield) => battlefield.targetTileId === selectedTileId
         )?.id ?? null)
       : null);
+  const selectedActiveBattlefield = selectedActiveBattlefieldId
+    ? (battlefields.find(
+        (battlefield) => battlefield.id === selectedActiveBattlefieldId
+      ) ?? null)
+    : null;
   const selectedBattlefields = useMemo(() => {
     if (selectedBattlefieldId) {
       return battlefields.filter(
@@ -1704,9 +1754,10 @@ export function BattlefieldExperience({
 
       {selectedActiveBattlefieldId ? (
         <p className={styles.helper}>
-          {selectedTileIsHomeOfA
-            ? "Home of A is already being fought. Send more army from here or use the battle card to recall committed army."
-            : "This tile already has an active battlefield. Use the battle card to read pressure, reinforce, or recall your committed army."}
+          {getSelectedBattlefieldHelper({
+            battlefield: selectedActiveBattlefield,
+            isHomeOfA: selectedTileIsHomeOfA,
+          })}
         </p>
       ) : null}
 
@@ -1908,6 +1959,11 @@ export function BattlefieldExperience({
                 const isHomeBattle =
                   battlefield.targetTileId !== null &&
                   isHomeOfATile(battlefield.targetTileId);
+                const battlePhase = getBattlePhase(battlefield);
+                const battleContextHelper = getBattleContextHelper(
+                  battlefield,
+                  isHomeBattle
+                );
 
                 return (
                   <article
@@ -1938,14 +1994,14 @@ export function BattlefieldExperience({
                       </span>
                     </div>
                     <div className={styles.battleSignals}>
-                      <span className={styles.signalChip}>
-                        {battlefield.battleStartsInMinutes > 0
-                          ? `Starts in ${formatBattleMinutes(battlefield.battleStartsInMinutes)}`
-                          : `Live ${formatBattleMinutes(battlefield.battleAgeMinutes)}`}
+                      <span
+                        className={styles.signalChip}
+                        data-phase={battlePhase.toLowerCase()}
+                      >
+                        {getBattleTimingLabel(battlefield)}
                       </span>
                       <span className={styles.signalChip}>
-                        Pace {battlefield.casualtiesPerTick}/tick (
-                        {battlefield.battleIntensityPercent}%)
+                        {getBattlePaceLabel(battlefield)}
                       </span>
                       <span className={styles.signalChip}>
                         Army delta {battlefield.armyDelta >= 0 ? "+" : ""}
@@ -1967,6 +2023,11 @@ export function BattlefieldExperience({
                         {battlefield.defenseBuffPercent}%
                       </span>
                     </div>
+                    {battleContextHelper ? (
+                      <p className={styles.battlePhaseHelper}>
+                        {battleContextHelper}
+                      </p>
+                    ) : null}
                     {(() => {
                       const totalArmy =
                         (battlefield.attackerArmyRemaining ?? 0) +

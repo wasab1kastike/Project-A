@@ -494,6 +494,19 @@
   letter-spacing: 0.02em;
 }
 
+.signalChip[data-phase="preparing"] {
+  border-color: rgba(248, 191, 87, 0.42);
+  background: rgba(248, 191, 87, 0.12);
+  color: #ffd27a;
+}
+
+.battlePhaseHelper {
+  margin: -2px 0 0;
+  color: rgba(224, 238, 243, 0.9);
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
 .battleMeta {
   display: inline-flex;
   align-items: center;

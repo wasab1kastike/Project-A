@@ -527,6 +527,48 @@ function BuildingChoiceFields({
   );
 }
 
+function getRecruitmentQueueCompletionText(ticksToComplete: number): string {
+  return Number.isFinite(ticksToComplete)
+    ? `${ticksToComplete} ticks`
+    : "no ticks until recruiters are assigned";
+}
+
+function getRecruitmentDisplayState({
+  army,
+  gold,
+  race,
+  recruitAmount,
+  recruitmentQueue,
+  recruitersAssigned,
+  recruitmentCapacityMultiplier,
+}: {
+  army: number;
+  gold: number;
+  race: string | null;
+  recruitAmount: number;
+  recruitmentQueue: number;
+  recruitersAssigned: number;
+  recruitmentCapacityMultiplier: number;
+}) {
+  const recruitmentProgress = calculateRecruitmentProgress(
+    recruitmentQueue,
+    recruitersAssigned,
+    race as never,
+    recruitmentCapacityMultiplier
+  );
+  const recruitCost = getRecruitmentCost(recruitAmount);
+
+  return {
+    armyUpkeep: Math.floor(getArmyUpkeepCost(army)),
+    canSubmitRecruitment: Boolean(race) && recruitCost <= gold,
+    queueCompletionText: getRecruitmentQueueCompletionText(
+      recruitmentProgress.ticksToComplete
+    ),
+    recruitCost,
+    starvationAttritionPercent: Math.round(STARVATION_ATTRITION_RATE * 100),
+  };
+}
+
 export function CastleManagement({
   playerSummary,
   targets,
@@ -579,17 +621,15 @@ export function CastleManagement({
   const recruitmentCapacityMultiplier = getCastleSpecializationMultiplier(
     castleSpecializationCounts[CastleUpgradeSpecialization.MILITARY]
   );
-  const recruitmentProgress = calculateRecruitmentProgress(
-    playerSummary.recruitmentQueue,
-    workers.recruitersAssigned,
-    playerSummary.race as never,
-    recruitmentCapacityMultiplier
-  );
-  const recruitCost = getRecruitmentCost(recruitAmount);
-  const armyUpkeep = Math.floor(getArmyUpkeepCost(playerSummary.army));
-  const starvationAttritionPercent = Math.round(
-    STARVATION_ATTRITION_RATE * 100
-  );
+  const recruitmentDisplay = getRecruitmentDisplayState({
+    army: playerSummary.army,
+    gold: playerSummary.gold,
+    race: playerSummary.race,
+    recruitAmount,
+    recruitmentQueue: playerSummary.recruitmentQueue,
+    recruitersAssigned: workers.recruitersAssigned,
+    recruitmentCapacityMultiplier,
+  });
   const pointsFromGold = convertGoldToPoints(goldToConvert);
   const canConvertGoldToPoints =
     pointsFromGold > 0 &&
@@ -1059,8 +1099,8 @@ export function CastleManagement({
             Tick preview: +{production.goldProduced} gold, +
             {production.foodProduced} food, {production.armyRequested} queue
             capacity, -
-            {armyUpkeep} food upkeep. If unpaid, active army loses{" "}
-            {starvationAttritionPercent}%.
+            {recruitmentDisplay.armyUpkeep} food upkeep. If unpaid, active army
+            loses {recruitmentDisplay.starvationAttritionPercent}%.
           </p>
           {workerError ? <p className={styles.error}>{workerError}</p> : null}
           <button type="submit" disabled={workerPending || !playerSummary.race}>
@@ -1091,19 +1131,14 @@ export function CastleManagement({
             />
           </label>
           <p className={styles.muted}>
-            Cost: {recruitCost} gold. Current queue finishes in{" "}
-            {Number.isFinite(recruitmentProgress.ticksToComplete)
-              ? `${recruitmentProgress.ticksToComplete} ticks`
-              : "no ticks until recruiters are assigned"}
-            .
+            Cost: {recruitmentDisplay.recruitCost} gold. Current queue finishes
+            in {recruitmentDisplay.queueCompletionText}.
           </p>
           {recruitError ? <p className={styles.error}>{recruitError}</p> : null}
           <button
             type="submit"
             disabled={
-              recruitPending ||
-              !playerSummary.race ||
-              recruitCost > playerSummary.gold
+              recruitPending || !recruitmentDisplay.canSubmitRecruitment
             }
           >
             Recruit army
