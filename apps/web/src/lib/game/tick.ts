@@ -95,6 +95,7 @@ import {
   getCombatDefensePowerMultiplier,
   isPlayerCombatTarget,
 } from "./combat-buffs";
+import { UNICORN_SHATTERED_REALITY_ECONOMY_MULTIPLIER } from "./unicorn-shattered-reality";
 import { getTileBonus, getTileById, isHomeOfATile } from "./territory";
 import { recalculateReturningAttackRoutes } from "./fortress-relocation";
 import {
@@ -3930,8 +3931,18 @@ async function processCycleTick(
       fortress.raceAbilityActivations,
       tickAt
     );
+    const unicornEconomySurge =
+      getEffectiveRace(fortress) === "UNSTABLE_UNICORNS" &&
+      isRaceAbilityActive(
+        fortress.raceAbilityActivations,
+        RaceAbilityKind.UNICORN_ECONOMY_SURGE,
+        tickAt
+      );
     const economyMultiplier =
       (economySurged ? DWARF_DEEP_MINING_ECONOMY_MULTIPLIER : 1) *
+      (unicornEconomySurge
+        ? UNICORN_SHATTERED_REALITY_ECONOMY_MULTIPLIER
+        : 1) *
       (homeBossEconomyBuff ? HOME_OF_A_BOSS_BUFF_MULTIPLIER : 1);
 
     // Apply race ability modifiers to production

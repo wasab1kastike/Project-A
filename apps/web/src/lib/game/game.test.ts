@@ -23,6 +23,7 @@ import {
   PrismaClient,
   RaceAbilityKind,
   ScoreEventType,
+  UnicornShatteredRealityOutcome,
   WinnerRequestStatus,
 } from "@/lib/prisma-client";
 import { createPrismaClientOptions } from "@/lib/prisma-options";
@@ -148,6 +149,7 @@ import {
   activateRaceAbility,
   activateDwarfDeepMining,
   activateDwarfRuneOfGrudges,
+  activateUnicornShatteredReality,
   cancelDwarfRuneOfGrudges,
   claimUnicornTeleport,
   claimNeutralMapHex,
@@ -193,6 +195,10 @@ import {
   ensureRaceSchemaReadiness,
   getRaceSchemaReadiness,
 } from "./schema-guards";
+import {
+  formatDeepMiningImpact,
+  getDeepMiningStatus,
+} from "./race-history-labels";
 import { getChatMessageVariant } from "@/components/chat-panel-helpers";
 import { POST as openClawGodChatPOST } from "@/app/api/openclaw/god-chat/route";
 import { GET as openClawGodSnapshotGET } from "@/app/api/openclaw/god-snapshot/route";
@@ -6776,6 +6782,301 @@ test("unicorn read models expose the same disabled reasons in home and castle st
   );
 });
 
+test("Deep Mining history labels distinguish pending and resolved timed effects", () => {
+  const pendingBattleRunes = formatDeepMiningImpact({
+    outcome: DwarfDeepMiningOutcome.BATTLE_RUNES,
+    committedGold: 150,
+    goldDelta: 0,
+    armyDelta: 0,
+    recruitmentQueueDelta: 0,
+    activeUntil: new Date("2026-04-20T09:01:00.000Z"),
+    resolvedAt: null,
+  });
+  const resolvedBattleRunes = formatDeepMiningImpact({
+    outcome: DwarfDeepMiningOutcome.BATTLE_RUNES,
+    committedGold: 150,
+    goldDelta: 0,
+    armyDelta: 0,
+    recruitmentQueueDelta: 0,
+    activeUntil: new Date("2026-04-20T10:01:00.000Z"),
+    resolvedAt: new Date("2026-04-20T09:01:00.000Z"),
+  });
+
+  assert.equal(pendingBattleRunes, "then +25% combat for 1 hour");
+  assert.match(resolvedBattleRunes, /^\+25% combat until /);
+  assert.equal(
+    getDeepMiningStatus({
+      latest: { resolvedAt: null },
+      canActivate: true,
+    }),
+    "Pending"
+  );
+  assert.equal(
+    getDeepMiningStatus({
+      latest: { resolvedAt: new Date("2026-04-20T09:01:00.000Z") },
+      canActivate: true,
+    }),
+    "Available"
+  );
+});
+
+async function seedTierTwoUnicorn(
+  client: PrismaClient,
+  email: string,
+  {
+    army = 100,
+    garrisonArmy = 0,
+  }: {
+    army?: number;
+    garrisonArmy?: number;
+  } = {}
+) {
+  const cycle = await seedOpenCycle(client);
+  const user = await createUser(client, email);
+  const activeAt = new Date("2026-04-20T12:00:00.000Z");
+
+  await joinRegistrationCycle({
+    db: client,
+    userId: user.id,
+    commanderName: "Reality Rider",
+    fortressName: "Prism Keep",
+  });
+  await runGameTick({
+    db: client,
+    now: activeAt,
+  });
+  await selectFortressRace({
+    db: client,
+    userId: user.id,
+    race: FortressRace.UNSTABLE_UNICORNS,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+  });
+
+  const fortress = await client.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: user.id,
+      },
+    },
+  });
+  const forestTiles = HEX_SPAWN_TILES.filter((tile) => tile.biome === "forest").slice(0, 6);
+
+  assert.equal(forestTiles.length, 6);
+
+  await client.fortress.update({
+    where: {
+      id: fortress.id,
+    },
+    data: {
+      army,
+    },
+  });
+  await client.mapHexOwnership.createMany({
+    data: forestTiles.map((tile) => ({
+      cycleId: cycle.id,
+      tileId: tile.id,
+      ownerFortressId: fortress.id,
+    })),
+  });
+
+  if (garrisonArmy > 0) {
+    await client.fortressGarrison.create({
+      data: {
+        cycleId: cycle.id,
+        fortressId: fortress.id,
+        battlefieldId: null,
+        tileId: forestTiles[0].id,
+        army: garrisonArmy,
+        maintenanceDrains: false,
+      },
+    });
+  }
+
+  return {
+    cycle,
+    user,
+    fortress,
+    activeAt: new Date("2026-04-20T12:02:00.000Z"),
+  };
+}
+
+test("Unicorn Shattered Reality Mirror Host persists history and army gains", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const { cycle, user, fortress, activeAt } = await seedTierTwoUnicorn(
+    prisma,
+    "mirror-host-unicorn@example.com",
+    {
+      army: 100,
+      garrisonArmy: 40,
+    }
+  );
+
+  const result = await activateUnicornShatteredReality({
+    db: prisma,
+    userId: user.id,
+    now: activeAt,
+    rollValue: 0,
+  });
+
+  assert.equal(result.outcome, UnicornShatteredRealityOutcome.MIRROR_HOST);
+
+  const [updatedFortress, updatedGarrison, roll] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: {
+        id: fortress.id,
+      },
+    }),
+    prisma.fortressGarrison.findFirstOrThrow({
+      where: {
+        cycleId: cycle.id,
+        fortressId: fortress.id,
+      },
+    }),
+    prisma.unicornShatteredRealityRoll.findFirstOrThrow({
+      where: {
+        fortressId: fortress.id,
+      },
+    }),
+  ]);
+
+  assert.equal(updatedFortress.army, 120);
+  assert.equal(updatedGarrison.army, 50);
+  assert.equal(roll.outcome, UnicornShatteredRealityOutcome.MIRROR_HOST);
+  assert.equal(roll.armyDelta, 20);
+  assert.equal(roll.garrisonArmyDelta, 10);
+
+  const homeState = await getHomePageState({
+    db: prisma,
+    userId: user.id,
+    now: activeAt,
+  });
+  const castleState = await getCastlePageState({
+    db: prisma,
+    userId: user.id,
+    now: activeAt,
+  });
+
+  assert.equal(
+    homeState.playerSummary?.raceBuffs.unicornShatteredRealityLatest?.outcome,
+    UnicornShatteredRealityOutcome.MIRROR_HOST
+  );
+  assert.equal(
+    castleState.playerSummary?.raceBuffs.unicornShatteredRealityHistory[0]
+      ?.armyDelta,
+    20
+  );
+});
+
+test("Unicorn Shattered Reality timed outcomes persist history and activations", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const prismatic = await seedTierTwoUnicorn(
+    prisma,
+    "prismatic-surge-unicorn@example.com"
+  );
+  const gallop = await seedTierTwoUnicorn(
+    prisma,
+    "lucky-gallop-unicorn@example.com"
+  );
+
+  const prismaticResult = await activateUnicornShatteredReality({
+    db: prisma,
+    userId: prismatic.user.id,
+    now: prismatic.activeAt,
+    rollValue: 0.4,
+  });
+  const gallopResult = await activateUnicornShatteredReality({
+    db: prisma,
+    userId: gallop.user.id,
+    now: gallop.activeAt,
+    rollValue: 0.8,
+  });
+
+  assert.equal(
+    prismaticResult.outcome,
+    UnicornShatteredRealityOutcome.PRISMATIC_SURGE
+  );
+  assert.equal(gallopResult.outcome, UnicornShatteredRealityOutcome.LUCKY_GALLOP);
+
+  const [combatActivation, economyActivation, prismaticRoll, gallopRoll] =
+    await Promise.all([
+      prisma.raceAbilityActivation.findFirstOrThrow({
+        where: {
+          fortressId: prismatic.fortress.id,
+          kind: RaceAbilityKind.UNICORN_COMBAT_SURGE,
+        },
+      }),
+      prisma.raceAbilityActivation.findFirstOrThrow({
+        where: {
+          fortressId: gallop.fortress.id,
+          kind: RaceAbilityKind.UNICORN_ECONOMY_SURGE,
+        },
+      }),
+      prisma.unicornShatteredRealityRoll.findFirstOrThrow({
+        where: {
+          fortressId: prismatic.fortress.id,
+        },
+      }),
+      prisma.unicornShatteredRealityRoll.findFirstOrThrow({
+        where: {
+          fortressId: gallop.fortress.id,
+        },
+      }),
+    ]);
+
+  assert.equal(
+    combatActivation.activeUntil.getTime() - combatActivation.activeFrom.getTime(),
+    60 * 60 * 1000
+  );
+  assert.equal(
+    economyActivation.activeUntil.getTime() - economyActivation.activeFrom.getTime(),
+    60 * 60 * 1000
+  );
+  assert.equal(prismaticRoll.activeUntil?.getTime(), combatActivation.activeUntil.getTime());
+  assert.equal(gallopRoll.activeUntil?.getTime(), economyActivation.activeUntil.getTime());
+});
+
+test("Unicorn Shattered Reality daily cooldown blocks repeat activation", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const { user, activeAt } = await seedTierTwoUnicorn(
+    prisma,
+    "repeat-reality-unicorn@example.com"
+  );
+
+  await activateUnicornShatteredReality({
+    db: prisma,
+    userId: user.id,
+    now: activeAt,
+    rollValue: 0.4,
+  });
+
+  await assert.rejects(
+    () =>
+      activateUnicornShatteredReality({
+        db: prisma,
+        userId: user.id,
+        now: new Date("2026-04-20T18:00:00.000Z"),
+        rollValue: 0.8,
+      }),
+    /already been activated today/
+  );
+});
+
 test("unicorn tier 1 travel speed halves attack travel time", () => {
   const origin = { mapX: 0, mapY: 0 };
   const target = { mapX: 120, mapY: 0 };
@@ -10772,7 +11073,7 @@ test("race selection is owner-only and locked once per season", async (context) 
   assert.equal(fortress.race, "ORKS");
 });
 
-test("Dwarf Deep Mining validates race, committed army, and hourly cooldown", async (context) => {
+test("Dwarf Deep Mining validates race, committed army, and 60-minute cooldown", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -10883,7 +11184,7 @@ test("Dwarf Deep Mining validates race, committed army, and hourly cooldown", as
         now: new Date("2026-04-20T12:30:00.000Z"),
         rollValue: 0.3,
       }),
-    /already been used this hour/
+    /once every 60 minutes/
   );
 
   await runGameTick({

@@ -71,7 +71,7 @@ export const RACE_DEFINITIONS = [
       "Enemies cannot see your army size in transit",
       "2x travel speed while race buffs are active",
       "Garrisons lose army every 2 ticks (instead of every tick)",
-      "T3 Shattered Reality (daily RNG omen)",
+      "T2 Shattered Reality (daily random boon)",
     ],
     modifiers: {
       ...NO_RACE_MODIFIERS,

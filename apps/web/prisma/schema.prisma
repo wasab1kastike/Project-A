@@ -66,6 +66,8 @@ enum RaceAbilityKind {
   SPACE_MURINE_GARRISON_INSTANT_RECALL
   UNICORN_SHATTERED_REALITY
   UNICORN_TELEPORT
+  UNICORN_COMBAT_SURGE
+  UNICORN_ECONOMY_SURGE
 }
 
 enum OrkScrapEventReason {
@@ -118,6 +120,12 @@ enum DwarfDeepMiningOutcome {
   CAVE_IN
   UNSTABLE_TUNNELS
   SHAFT_COLLAPSE
+}
+
+enum UnicornShatteredRealityOutcome {
+  MIRROR_HOST
+  PRISMATIC_SURGE
+  LUCKY_GALLOP
 }
 
 enum WinnerRequestStatus {
@@ -381,6 +389,7 @@ model Fortress {
   battlefieldParticipants        BattlefieldParticipant[]
   unicornTemporaryTeleports      UnicornTemporaryTeleport[]          @relation("UnicornTeleportFortress")
   unicornTemporaryTeleportDecoy  UnicornTemporaryTeleport?           @relation("UnicornTeleportDecoy")
+  unicornShatteredRealityRolls   UnicornShatteredRealityRoll[]
   garrisons                      FortressGarrison[]
 
   @@unique([cycleId, ownerId])
@@ -416,6 +425,23 @@ model UnicornTemporaryTeleport {
 
   @@index([cycleId, returnAt, returnedAt])
   @@index([fortressId, returnedAt])
+}
+
+model UnicornShatteredRealityRoll {
+  id                String                         @id @default(cuid())
+  fortressId        String
+  outcome           UnicornShatteredRealityOutcome
+  summary           String
+  armyDelta         Int                            @default(0)
+  garrisonArmyDelta Int                            @default(0)
+  goldDelta         Int                            @default(0)
+  foodDelta         Int                            @default(0)
+  activeUntil       DateTime?
+  createdAt         DateTime                       @default(now())
+  fortress          Fortress                       @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+
+  @@index([fortressId, createdAt])
+  @@index([outcome, createdAt])
 }
 
 model MapHexOwnership {

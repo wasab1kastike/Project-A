@@ -21,6 +21,7 @@ export {
   PrismaClient,
   RaceAbilityKind,
   ScoreEventType,
+  UnicornShatteredRealityOutcome,
   UserRole,
   WinnerRequestStatus,
 } from "../../../../node_modules/.prisma/client";

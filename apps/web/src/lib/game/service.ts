@@ -13,6 +13,7 @@ import {
   OrkBossOrderKind,
   OrkScrapEventReason,
   OrkWaaaghInvestmentKind,
+  UnicornShatteredRealityOutcome,
 } from "@/lib/prisma-client";
 import { prisma } from "@/lib/prisma";
 import {
@@ -76,6 +77,11 @@ import {
   getDwarfDeepMiningActiveUntil,
   rollDwarfDeepMining,
 } from "./dwarf-deep-mining";
+import {
+  getUnicornShatteredRealityActiveUntil,
+  getUnicornShatteredRealityTimedKind,
+  rollUnicornShatteredReality,
+} from "./unicorn-shattered-reality";
 import {
   TILE_CLAIM_MAX_ACTIVE_PROJECTS,
   getTileById,
@@ -4740,10 +4746,12 @@ export async function claimUnicornTeleport({
 export async function activateUnicornShatteredReality({
   userId,
   now = new Date(),
+  rollValue,
   db = prisma,
 }: {
   userId: string;
   now?: Date;
+  rollValue?: number;
   db?: PrismaClient;
 }) {
   return db.$transaction(async (tx) => {
@@ -4817,26 +4825,35 @@ export async function activateUnicornShatteredReality({
       },
     });
 
-    const omenRoll = Math.floor(Math.random() * 3);
-    const omen =
-      omenRoll === 0
-        ? "MIRROR_HOST"
-        : omenRoll === 1
-          ? "PRISMATIC_SCATTER"
-          : "CHAOTIC_BACKFIRE";
+    const outcome = rollUnicornShatteredReality(rollValue);
+    const activeUntil = getUnicornShatteredRealityActiveUntil(now);
+    const timedKind = getUnicornShatteredRealityTimedKind(outcome);
 
     await tx.raceAbilityActivation.create({
       data: {
         fortressId: fortress.id,
-        kind: "UNICORN_SHATTERED_REALITY" as RaceAbilityKind,
+        kind: RaceAbilityKind.UNICORN_SHATTERED_REALITY,
         activeFrom: now,
         activeUntil: now,
         usedAt: now,
       },
     });
 
-    if (omen === "MIRROR_HOST") {
+    if (timedKind) {
+      await tx.raceAbilityActivation.create({
+        data: {
+          fortressId: fortress.id,
+          kind: timedKind,
+          activeFrom: now,
+          activeUntil,
+          usedAt: now,
+        },
+      });
+    }
+
+    if (outcome === UnicornShatteredRealityOutcome.MIRROR_HOST) {
       const fortressGain = Math.max(1, Math.ceil(fortress.army * 0.2));
+      let garrisonGainTotal = 0;
 
       await tx.fortress.update({
         where: {
@@ -4851,6 +4868,7 @@ export async function activateUnicornShatteredReality({
 
       for (const garrison of garrisons) {
         const gain = Math.max(1, Math.ceil(garrison.army * 0.25));
+        garrisonGainTotal += gain;
 
         await tx.fortressGarrison.update({
           where: {
@@ -4864,93 +4882,42 @@ export async function activateUnicornShatteredReality({
         });
       }
 
+      const summary = `Mirror Host: fortress gained ${fortressGain} army and garrisons surged by ${garrisonGainTotal} army.`;
+      await tx.unicornShatteredRealityRoll.create({
+        data: {
+          fortressId: fortress.id,
+          outcome,
+          summary,
+          armyDelta: fortressGain,
+          garrisonArmyDelta: garrisonGainTotal,
+        },
+      });
+
       return {
-        omen,
-        summary: `Mirror Host: fortress gained ${fortressGain} army and garrisons surged by 25%.`,
+        omen: outcome,
+        outcome,
+        summary,
       };
     }
 
-    if (omen === "PRISMATIC_SCATTER") {
-      let returnedArmy = 0;
-      let recalledCount = 0;
-
-      for (const garrison of garrisons) {
-        const lostArmy = Math.max(1, Math.ceil(garrison.army * 0.08));
-        const returned = Math.max(0, garrison.army - lostArmy);
-
-        if (returned > 0) {
-          returnedArmy += returned;
-        }
-
-        recalledCount += 1;
-
-        await tx.fortressGarrison.delete({
-          where: {
-            id: garrison.id,
-          },
-        });
-      }
-
-      if (returnedArmy > 0) {
-        await tx.fortress.update({
-          where: {
-            id: fortress.id,
-          },
-          data: {
-            army: {
-              increment: returnedArmy,
-            },
-          },
-        });
-      }
-
-      return {
-        omen,
-        summary:
-          recalledCount > 0
-            ? `Prismatic Scatter: recalled ${recalledCount} garrison${recalledCount === 1 ? "" : "s"} with 8% chaos loss.`
-            : "Prismatic Scatter: no active garrisons to scatter.",
-      };
-    }
-
-    const fortressLoss = Math.max(1, Math.ceil(fortress.army * 0.18));
-    const nextFortressArmy = Math.max(1, fortress.army - fortressLoss);
-
-    await tx.fortress.update({
-      where: {
-        id: fortress.id,
-      },
+    const summary =
+      outcome === UnicornShatteredRealityOutcome.PRISMATIC_SURGE
+        ? "Prismatic Surge: +25% attack and defense power for 1 hour."
+        : "Lucky Gallop: +50% gold, food, and recruitment processing for 1 hour.";
+    await tx.unicornShatteredRealityRoll.create({
       data: {
-        army: nextFortressArmy,
+        fortressId: fortress.id,
+        outcome,
+        summary,
+        activeUntil,
       },
     });
 
-    for (const garrison of garrisons) {
-      const loss = Math.max(1, Math.ceil(garrison.army * 0.18));
-      const remaining = garrison.army - loss;
-
-      if (remaining <= 0) {
-        await tx.fortressGarrison.delete({
-          where: {
-            id: garrison.id,
-          },
-        });
-      } else {
-        await tx.fortressGarrison.update({
-          where: {
-            id: garrison.id,
-          },
-          data: {
-            army: remaining,
-          },
-        });
-      }
-    }
-
     return {
-      omen,
-      summary:
-        "Chaotic Backfire: reality cracked and your armies took 18% losses.",
+      omen: outcome,
+      outcome,
+      summary,
+      activeUntil,
     };
   });
 }

@@ -226,7 +226,8 @@ The game is now a castle-economy and battlefield-control loop:
 - each fortress receives a retro pixel-art unit sprite for attack movement and battle reports
 - fortresses can rename for free during `REGISTRATION`; active renames cost 10 gold
 - players pick one race per cycle, then assign workers to miners, farmers, and recruiters on the Castle page
-- Dwarfs are now the fortified economy race: they mine gold a little better, hold owned tiles more tightly, move slower on the map, and can invest gold into Book of Grudges, Rune of Grudges, and delayed Deep Mining plays
+- Dwarfs are now the fortified economy race: they mine gold a little better, hold owned tiles more tightly, move slower on the map, and can invest gold into Book of Grudges, Rune of Grudges, and delayed Deep Mining plays on a rolling 60-minute cooldown
+- Unstable Unicorns unlock Shattered Reality at Tier 2: a once-per-day positive random boon with recorded history for Mirror Host army growth, Prismatic Surge combat, or Lucky Gallop economy
 - miners produce gold, farmers produce food, and recruiters process queued army orders instead of passively creating army
 - recruiting army costs 1 gold per unit up front; queued units complete over ticks based on assigned recruiters and race bonuses
 - active army, not queued army, consumes food upkeep at 0.01 food per unit per tick; if upkeep cannot be paid, food falls to zero and active army loses 2% that tick

@@ -3,6 +3,12 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { useRefreshView } from "@/lib/refresh-helpers";
 import { CastleUpgradeSpecialization } from "@/lib/prisma-client";
+import {
+  formatDeepMiningImpact,
+  formatSignedValue,
+  formatUnicornShatteredRealityImpact,
+  getDeepMiningStatus,
+} from "@/lib/game/race-history-labels";
 
 import {
   activateDwarfDeepMiningAction,
@@ -198,6 +204,26 @@ type PlayerSummary = {
       runeHealth: number | null;
       runeArmy: number | null;
     }[];
+    unicornShatteredRealityLatest: {
+      outcome: string;
+      summary: string;
+      armyDelta: number;
+      garrisonArmyDelta: number;
+      goldDelta: number;
+      foodDelta: number;
+      activeUntil: Date | null;
+      createdAt: Date;
+    } | null;
+    unicornShatteredRealityHistory: {
+      outcome: string;
+      summary: string;
+      armyDelta: number;
+      garrisonArmyDelta: number;
+      goldDelta: number;
+      foodDelta: number;
+      activeUntil: Date | null;
+      createdAt: Date;
+    }[];
     dwarfGrudges: {
       targetFortressId: string;
       targetName: string;
@@ -389,51 +415,6 @@ function formatTime(value: Date) {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function formatSignedValue(value: number) {
-  return `${value >= 0 ? "+" : ""}${value}`;
-}
-
-function formatDeepMiningImpact({
-  outcome,
-  committedGold,
-  goldDelta,
-  armyDelta,
-  recruitmentQueueDelta,
-  activeUntil,
-}: {
-  outcome: string;
-  committedGold: number;
-  goldDelta: number;
-  armyDelta: number;
-  recruitmentQueueDelta: number;
-  activeUntil: Date | null;
-}) {
-  if (outcome === "ORE_SURGE") {
-    return activeUntil
-      ? `+50% economy until ${formatTime(activeUntil)}`
-      : "+50% economy for one hour";
-  }
-
-  if (outcome === "BATTLE_RUNES") {
-    return activeUntil
-      ? `+25% combat until ${formatTime(activeUntil)}`
-      : "+25% combat for one hour";
-  }
-
-  if (outcome === "SHAFT_COLLAPSE") {
-    return activeUntil
-      ? `economy halted until ${formatTime(activeUntil)}`
-      : "economy halted for one hour";
-  }
-
-  const fallbackQueueDelta =
-    outcome === "FACTION_SEAL" && recruitmentQueueDelta === 0
-      ? Math.min(250, Math.max(25, Math.floor(committedGold / 2)))
-      : recruitmentQueueDelta;
-
-  return `${formatSignedValue(goldDelta)} gold, ${formatSignedValue(armyDelta)} army, ${formatSignedValue(fallbackQueueDelta)} queue`;
 }
 
 function getBuildingEffect({
@@ -1309,9 +1290,32 @@ export function CastleManagement({
                   </p>
                 ) : null}
                 <p className={styles.muted}>
-                  Rolls a random chaos omen: surge your forces, scatter
-                  garrisons home with loss, or backfire your own army.
+                  Rolls a random chaos boon: mirror armies, surge combat, or
+                  boost economy for one hour.
                 </p>
+                {playerSummary.raceBuffs.unicornShatteredRealityHistory
+                  .length > 0 ? (
+                  <ul className={styles.compactList}>
+                    {playerSummary.raceBuffs.unicornShatteredRealityHistory.map(
+                      (roll, index) => (
+                        <li key={`${roll.createdAt.toISOString()}-${index}`}>
+                          {roll.outcome.replaceAll("_", " ")}:{" "}
+                          {formatUnicornShatteredRealityImpact({
+                            outcome: roll.outcome,
+                            armyDelta: roll.armyDelta,
+                            garrisonArmyDelta: roll.garrisonArmyDelta,
+                            activeUntil: roll.activeUntil,
+                          })}
+                          .
+                        </li>
+                      )
+                    )}
+                  </ul>
+                ) : (
+                  <p className={styles.muted}>
+                    No Shattered Reality rolls recorded yet.
+                  </p>
+                )}
                 {playerSummary.activeUnicornTeleport ? (
                   <p className={styles.muted}>
                     Temporary teleport active at{" "}
@@ -1555,9 +1559,11 @@ export function CastleManagement({
                   <div className={styles.buildingCardHeader}>
                     <strong>Deep Mining</strong>
                     <span>
-                      {playerSummary.raceBuffs.canActivateDeepMining
-                        ? "Available"
-                        : "Cooling down"}
+                      {getDeepMiningStatus({
+                        latest: playerSummary.raceBuffs.deepMiningLatest,
+                        canActivate:
+                          playerSummary.raceBuffs.canActivateDeepMining,
+                      })}
                     </span>
                   </div>
                   <p>
@@ -1585,6 +1591,7 @@ export function CastleManagement({
                               recruitmentQueueDelta:
                                 expedition.recruitmentQueueDelta,
                               activeUntil: expedition.activeUntil,
+                              resolvedAt: expedition.resolvedAt,
                             })})`}
                             .
                           </li>
