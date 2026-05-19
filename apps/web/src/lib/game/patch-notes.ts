@@ -10,11 +10,12 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
     date: "2026-05-19",
     title: "Deep Mining and Shattered Reality clarity",
     newFeatures: [
-      "Unicorn Shattered Reality now records recent rolls and uses positive-only outcomes: Mirror Host, Prismatic Surge, and Lucky Gallop.",
+      "Unicorn Shattered Reality now records recent rolls on the Castle page, using the same compact history style as Deep Mining.",
+      "Shattered Reality is now positive-only: Mirror Host adds idle and garrison army, Prismatic Surge grants one hour of +25% attack and defense power, and Lucky Gallop grants one hour of +50% gold, food, and recruitment processing.",
     ],
     bugFixes: [
       "Pending Deep Mining timed outcomes now show the future effect correctly instead of implying the buff expires when the expedition resolves.",
-      "Deep Mining wording now says once every 60 minutes to match the actual cooldown.",
+      "Deep Mining wording now says once every 60 minutes to match the rolling cooldown, and unresolved expeditions show Pending instead of Cooling down.",
     ],
   },
   {
