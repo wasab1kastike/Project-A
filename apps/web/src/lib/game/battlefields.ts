@@ -17,10 +17,8 @@ import {
 } from "./balance";
 import { GameError } from "./errors";
 import { launchAttackUnit } from "./attack-units";
-import { getDwarfGrudgeMultiplier, isRaceAbilityActive } from "./race-buffs";
 import {
   HOME_OF_A_BOSS_BUFF_HOURS,
-  HOME_OF_A_BOSS_BUFF_MULTIPLIER,
   HOME_OF_A_BOSS_RESPAWN_HOURS,
   HOME_OF_A_TILE_ID,
   getHomeOfABossReward,
@@ -30,8 +28,6 @@ import { ensureNpcSystemUser, getHomeOfAMapPosition } from "./mega-fortress";
 import { getMaxSimultaneousAttacks } from "./upgrades";
 import {
   applyOrkScrapDelta,
-  getOrkBossOrderAttackMultiplier,
-  getOrkBossOrderDefenseMultiplier,
   getOrkTileBattleScrap,
   isRealOrkPlayerFortress,
 } from "./orks";
@@ -39,10 +35,15 @@ import { DWARF_DEEP_MINING_RUNE_BOUNTY } from "./dwarf-deep-mining";
 import { ensureBattlefieldPointRewardColumn } from "./schema-guards";
 import { addHours } from "./time";
 import {
-  getLeaderboardTitleAttackMultiplier,
   getLeaderboardTitleCastleLootMultiplier,
   getLeaderboardTitleHolders,
 } from "./leaderboard-titles";
+import {
+  getCombatAttackPowerMultiplier,
+  getCombatDefensePowerMultiplier,
+  hasCombatStim,
+  isPlayerCombatTarget,
+} from "./combat-buffs";
 import {
   getBattlefieldAttrition,
   getBattlefieldProgressDelta,
@@ -71,13 +72,17 @@ function getHomeOfABossDefeatAnnouncement({
   return `Home of A has been defeated by ${commanderName} of ${fortressName}. The accounting shrine coughed up ${reward} points, ${reward} food, ${reward} army, and a 12h buff. A will be back after a 24h dramatic nap.`;
 }
 
-function distributeLosses<
+export function distributeBattlefieldLosses<
   TParticipant extends {
     id: string;
     armyRemaining: number;
     armyCommitted: number;
   },
->(participants: TParticipant[], totalLosses: number) {
+>(
+  participants: TParticipant[],
+  totalLosses: number,
+  protectedParticipantIds = new Set<string>()
+) {
   const livingParticipants = participants.filter(
     (participant) => participant.armyRemaining > 0
   );
@@ -96,11 +101,18 @@ function distributeLosses<
   const cappedLosses = Math.min(totalLosses, livingArmy);
   const lossesByParticipantId = new Map<string, number>();
   let appliedLosses = 0;
+  let distributedLossShares = 0;
 
   for (const participant of livingParticipants) {
     const proportionalLoss = Math.floor(
       (cappedLosses * participant.armyRemaining) / livingArmy
     );
+    distributedLossShares += proportionalLoss;
+
+    if (protectedParticipantIds.has(participant.id)) {
+      continue;
+    }
+
     const loss = Math.min(participant.armyRemaining, proportionalLoss);
 
     if (loss > 0) {
@@ -109,7 +121,7 @@ function distributeLosses<
     }
   }
 
-  let remainder = cappedLosses - appliedLosses;
+  let remainder = cappedLosses - distributedLossShares;
 
   for (const participant of [...livingParticipants].sort(
     (left, right) =>
@@ -119,6 +131,10 @@ function distributeLosses<
   )) {
     if (remainder <= 0) {
       break;
+    }
+
+    if (protectedParticipantIds.has(participant.id)) {
+      continue;
     }
 
     const currentLoss = lossesByParticipantId.get(participant.id) ?? 0;
@@ -363,6 +379,18 @@ export async function createBattlefieldFromAttackUnit({
           race: true,
           isNpc: true,
           fortressKind: true,
+          raceAbilityActivations: {
+            where: {
+              activeUntil: {
+                gt: tickAt,
+              },
+            },
+            select: {
+              kind: true,
+              activeFrom: true,
+              activeUntil: true,
+            },
+          },
           orkBossOrders: {
             select: {
               kind: true,
@@ -769,6 +797,21 @@ export async function processActiveBattlefields({
               bonusMultiplier: true,
             },
           },
+          orkWaaaghInvestments: {
+            where: {
+              waaaghActivation: {
+                activeFrom: {
+                  lte: tickAt,
+                },
+                activeUntil: {
+                  gt: tickAt,
+                },
+              },
+            },
+            select: {
+              kind: true,
+            },
+          },
         },
       },
       defenderBannerFortress: {
@@ -777,6 +820,18 @@ export async function processActiveBattlefields({
           race: true,
           isNpc: true,
           fortressKind: true,
+          raceAbilityActivations: {
+            where: {
+              activeUntil: {
+                gt: tickAt,
+              },
+            },
+            select: {
+              kind: true,
+              activeFrom: true,
+              activeUntil: true,
+            },
+          },
           orkBossOrders: {
             select: {
               kind: true,
@@ -788,6 +843,21 @@ export async function processActiveBattlefields({
             select: {
               targetFortressId: true,
               bonusMultiplier: true,
+            },
+          },
+          orkWaaaghInvestments: {
+            where: {
+              waaaghActivation: {
+                activeFrom: {
+                  lte: tickAt,
+                },
+                activeUntil: {
+                  gt: tickAt,
+                },
+              },
+            },
+            select: {
+              kind: true,
             },
           },
         },
@@ -805,6 +875,18 @@ export async function processActiveBattlefields({
           race: true,
           isNpc: true,
           fortressKind: true,
+          raceAbilityActivations: {
+            where: {
+              activeUntil: {
+                gt: tickAt,
+              },
+            },
+            select: {
+              kind: true,
+              activeFrom: true,
+              activeUntil: true,
+            },
+          },
           orkBossOrders: {
             select: {
               kind: true,
@@ -816,6 +898,27 @@ export async function processActiveBattlefields({
             select: {
               level: true,
               specialization: true,
+            },
+          },
+          dwarfGrudges: {
+            select: {
+              targetFortressId: true,
+              bonusMultiplier: true,
+            },
+          },
+          orkWaaaghInvestments: {
+            where: {
+              waaaghActivation: {
+                activeFrom: {
+                  lte: tickAt,
+                },
+                activeUntil: {
+                  gt: tickAt,
+                },
+              },
+            },
+            select: {
+              kind: true,
             },
           },
         },
@@ -830,15 +933,13 @@ export async function processActiveBattlefields({
           maintenanceDrains: true,
           fortress: {
             select: {
+              id: true,
               ownerId: true,
               isNpc: true,
               fortressKind: true,
+              race: true,
               raceAbilityActivations: {
                 where: {
-                  kind: RaceAbilityKind.HOME_OF_A_BOSS_BUFF,
-                  activeFrom: {
-                    lte: tickAt,
-                  },
                   activeUntil: {
                     gt: tickAt,
                   },
@@ -847,6 +948,34 @@ export async function processActiveBattlefields({
                   kind: true,
                   activeFrom: true,
                   activeUntil: true,
+                },
+              },
+              orkBossOrders: {
+                select: {
+                  kind: true,
+                  activeFrom: true,
+                  activeUntil: true,
+                },
+              },
+              dwarfGrudges: {
+                select: {
+                  targetFortressId: true,
+                  bonusMultiplier: true,
+                },
+              },
+              orkWaaaghInvestments: {
+                where: {
+                  waaaghActivation: {
+                    activeFrom: {
+                      lte: tickAt,
+                    },
+                    activeUntil: {
+                      gt: tickAt,
+                    },
+                  },
+                },
+                select: {
+                  kind: true,
                 },
               },
             },
@@ -962,78 +1091,21 @@ export async function processActiveBattlefields({
     );
     const defenderArmyBefore =
       nativeDefenderArmyBefore + defenderParticipantArmyBefore;
-    const attackerGrudgeMultiplier =
-      battlefield.attackerBannerFortress?.race === "DWARFS"
-        ? battlefield.targetFortressId
-          ? getDwarfGrudgeMultiplier(
-              battlefield.attackerBannerFortress.dwarfGrudges,
-              battlefield.targetFortressId
-            )
-          : 1
-        : 1;
-    const defenderGrudgeMultiplier =
-      battlefield.defenderBannerFortress?.race === "DWARFS"
-        ? getDwarfGrudgeMultiplier(
-            battlefield.defenderBannerFortress.dwarfGrudges,
-            battlefield.attackerBannerFortressId
-          )
-        : 1;
     const defenderTileDefenseMultiplier =
       battlefield.targetTileId !== null &&
       (battlefield.defenderBannerFortress?.race === "DWARFS" ||
         battlefield.targetFortress?.race === "DWARFS")
         ? 1.25
         : 1;
-    const attackerBossOrderMultiplier =
-      battlefield.attackerBannerFortress?.race === "ORKS"
-        ? getOrkBossOrderAttackMultiplier(
-            battlefield.attackerBannerFortress.orkBossOrders,
-            tickAt
-          )
-        : 1;
-    const defenderBossOrderMultiplier =
-      battlefield.defenderBannerFortress?.race === "ORKS"
-        ? getOrkBossOrderDefenseMultiplier(
-            battlefield.defenderBannerFortress.orkBossOrders,
-            tickAt
-          )
-        : battlefield.targetFortress?.race === "ORKS"
-          ? getOrkBossOrderDefenseMultiplier(
-              battlefield.targetFortress.orkBossOrders,
-              tickAt
-            )
-          : 1;
-    const getParticipantHomeBossBuffMultiplier = (
-      participants: typeof battlefield.participants
-    ) => {
-      const totalArmy = participants.reduce(
-        (sum, participant) => sum + participant.armyRemaining,
-        0
-      );
-
-      if (totalArmy <= 0) {
-        return 1;
-      }
-
-      const effectiveArmy = participants.reduce((sum, participant) => {
-        const buffed = isRaceAbilityActive(
-          participant.fortress.raceAbilityActivations,
-          RaceAbilityKind.HOME_OF_A_BOSS_BUFF,
-          tickAt
-        );
-
-        return (
-          sum +
-          participant.armyRemaining *
-            (buffed ? HOME_OF_A_BOSS_BUFF_MULTIPLIER : 1)
-        );
-      }, 0);
-
-      return effectiveArmy / totalArmy;
-    };
-    const getParticipantTitleAttackMultiplier = (
-      participants: typeof battlefield.participants
-    ) => {
+    const getWeightedParticipantMultiplier = ({
+      participants,
+      getMultiplier,
+    }: {
+      participants: typeof battlefield.participants;
+      getMultiplier: (
+        participant: (typeof battlefield.participants)[number]
+      ) => number;
+    }) => {
       const totalArmy = participants.reduce(
         (sum, participant) => sum + participant.armyRemaining,
         0
@@ -1045,36 +1117,59 @@ export async function processActiveBattlefields({
 
       const effectiveArmy = participants.reduce(
         (sum, participant) =>
-          sum +
-          participant.armyRemaining *
-            getLeaderboardTitleAttackMultiplier(
-              leaderboardTitleHolders,
-              participant.fortressId
-            ),
+          sum + participant.armyRemaining * getMultiplier(participant),
         0
       );
 
       return effectiveArmy / totalArmy;
     };
-    const attackerHomeBossBuffMultiplier =
-      getParticipantHomeBossBuffMultiplier(attackerParticipants);
-    const defenderHomeBossBuffMultiplier =
-      getParticipantHomeBossBuffMultiplier(defenderParticipants);
-    const attackerTitleAttackMultiplier =
-      getParticipantTitleAttackMultiplier(attackerParticipants);
-    const defenderTitleAttackMultiplier =
-      getParticipantTitleAttackMultiplier(defenderParticipants);
-    const attackerPowerMultiplier =
-      attackerGrudgeMultiplier *
-      attackerBossOrderMultiplier *
-      attackerHomeBossBuffMultiplier *
-      attackerTitleAttackMultiplier;
+    const attackerTargetFortress =
+      battlefield.defenderBannerFortress ?? battlefield.targetFortress;
+    const attackerTargetFortressId =
+      battlefield.defenderBannerFortressId ?? battlefield.targetFortressId;
+    const attackerPowerMultiplier = getWeightedParticipantMultiplier({
+      participants: attackerParticipants,
+      getMultiplier: (participant) =>
+        getCombatAttackPowerMultiplier({
+          fortress: participant.fortress,
+          now: tickAt,
+          targetFortressId: attackerTargetFortressId,
+          targetIsPlayerFortress: isPlayerCombatTarget(attackerTargetFortress),
+          leaderboardTitleHolders,
+        }),
+    });
+    const defenderParticipantPower = defenderParticipants.reduce(
+      (sum, participant) =>
+        sum +
+        participant.armyRemaining *
+          getCombatDefensePowerMultiplier({
+            fortress: participant.fortress,
+            now: tickAt,
+            opponentFortressId: battlefield.attackerBannerFortressId,
+            opponentIsPlayerFortress: isPlayerCombatTarget(
+              battlefield.attackerBannerFortress
+            ),
+          }),
+      0
+    );
+    const nativeDefenderFortress =
+      battlefield.defenderBannerFortress ?? battlefield.targetFortress;
+    const nativeDefenderPower =
+      nativeDefenderArmyBefore *
+      (nativeDefenderFortress
+        ? getCombatDefensePowerMultiplier({
+            fortress: nativeDefenderFortress,
+            now: tickAt,
+            opponentFortressId: battlefield.attackerBannerFortressId,
+            opponentIsPlayerFortress: isPlayerCombatTarget(
+              battlefield.attackerBannerFortress
+            ),
+          })
+        : 1);
     const defenderPowerMultiplier =
-      defenderGrudgeMultiplier *
-      defenderTileDefenseMultiplier *
-      defenderBossOrderMultiplier *
-      defenderHomeBossBuffMultiplier *
-      defenderTitleAttackMultiplier;
+      (defenderArmyBefore > 0
+        ? (defenderParticipantPower + nativeDefenderPower) / defenderArmyBefore
+        : 1) * defenderTileDefenseMultiplier;
     const attrition = isHomeBossBattle
       ? {
           attackerLosses: 0,
@@ -1091,9 +1186,20 @@ export async function processActiveBattlefields({
           attackerPowerMultiplier,
           defenderPowerMultiplier,
         });
-    const attackerParticipantLosses = distributeLosses(
+    const stimAttackerParticipantIds = new Set(
+      attackerParticipants
+        .filter((participant) => hasCombatStim(participant.fortress, tickAt))
+        .map((participant) => participant.id)
+    );
+    const stimDefenderParticipantIds = new Set(
+      defenderParticipants
+        .filter((participant) => hasCombatStim(participant.fortress, tickAt))
+        .map((participant) => participant.id)
+    );
+    const attackerParticipantLosses = distributeBattlefieldLosses(
       attackerParticipants,
-      attrition.attackerLosses
+      attrition.attackerLosses,
+      stimAttackerParticipantIds
     );
     const defenderParticipantLossBudget =
       defenderArmyBefore > 0
@@ -1102,9 +1208,10 @@ export async function processActiveBattlefields({
               defenderArmyBefore
           )
         : 0;
-    const defenderParticipantLosses = distributeLosses(
+    const defenderParticipantLosses = distributeBattlefieldLosses(
       defenderParticipants,
-      defenderParticipantLossBudget
+      defenderParticipantLossBudget,
+      stimDefenderParticipantIds
     );
     const defenderNativeLosses = Math.min(
       nativeDefenderArmyBefore,
@@ -1113,20 +1220,20 @@ export async function processActiveBattlefields({
     if (isHomeBossBattle && cycle && defenderNativeLosses > 0) {
       const weightedAttackers = attackerParticipants
         .filter((participant) => participant.armyRemaining > 0)
-        .map((participant) => {
-          const buffed = isRaceAbilityActive(
-            participant.fortress.raceAbilityActivations,
-            RaceAbilityKind.HOME_OF_A_BOSS_BUFF,
-            tickAt
-          );
-
-          return {
-            participant,
-            weight:
-              participant.armyRemaining *
-              (buffed ? HOME_OF_A_BOSS_BUFF_MULTIPLIER : 1),
-          };
-        });
+        .map((participant) => ({
+          participant,
+          weight:
+            participant.armyRemaining *
+            getCombatAttackPowerMultiplier({
+              fortress: participant.fortress,
+              now: tickAt,
+              targetFortressId: battlefield.targetFortressId,
+              targetIsPlayerFortress: isPlayerCombatTarget(
+                battlefield.targetFortress
+              ),
+              leaderboardTitleHolders,
+            }),
+        }));
       const totalWeight = weightedAttackers.reduce(
         (sum, entry) => sum + entry.weight,
         0

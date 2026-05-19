@@ -249,6 +249,29 @@ test("race combat buffs can adjust power and casualty handling", () => {
   assert.equal(stimAttack.attackerReturned, 10);
 });
 
+test("defense power buffs reduce defender losses on failed attacks", () => {
+  const baseDefense = calculateRaidOutcome({
+    attackArmy: 100,
+    defenderArmy: 200,
+    defenderDbLevel: 0,
+    defenderPoints: 100,
+    defenderFood: 100,
+  });
+  const buffedDefense = calculateRaidOutcome({
+    attackArmy: 100,
+    defenderArmy: 200,
+    defenderDbLevel: 0,
+    defensePowerMultiplier: 4,
+    defenderPoints: 100,
+    defenderFood: 100,
+  });
+
+  assert.equal(baseDefense.outcome, "DEFENDER_WIN");
+  assert.equal(buffedDefense.outcome, "DEFENDER_WIN");
+  assert.equal(baseDefense.defenderLosses, 32);
+  assert.equal(buffedDefense.defenderLosses, 8);
+});
+
 test("tie goes to the defender and the attacker loses all sent army", () => {
   const outcome = calculateRaidOutcome({
     attackArmy: 11,

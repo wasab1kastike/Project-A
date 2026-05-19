@@ -30,6 +30,7 @@ import { reviveGameStateDates } from "@/lib/live-state-serialization";
 import "./balance.test";
 import "./battle-report.test";
 import "./battlefield-rules.test";
+import "./combat-buffs.test";
 import "./leaderboard-titles.test";
 import "./season-announcement.test";
 import {

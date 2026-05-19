@@ -648,7 +648,12 @@ export function calculateRaidOutcome(input: RaidOutcomeInput): RaidOutcome {
       : Math.min(
           defenderArmy,
           Math.ceil(
-            (attackPower / Math.max(defenseMultiplier, 1)) *
+            (attackPower /
+              Math.max(
+                defenseMultiplier *
+                  Math.max(0, input.defensePowerMultiplier ?? 1),
+                1
+              )) *
               FAILED_ATTACK_DEFENDER_CASUALTY_FACTOR
           )
         );
