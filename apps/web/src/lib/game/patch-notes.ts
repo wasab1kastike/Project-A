@@ -8,6 +8,17 @@ export type PatchNotesRelease = {
 export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
   {
     date: "2026-05-19",
+    title: "Deep Mining and Shattered Reality clarity",
+    newFeatures: [
+      "Unicorn Shattered Reality now records recent rolls and uses positive-only outcomes: Mirror Host, Prismatic Surge, and Lucky Gallop.",
+    ],
+    bugFixes: [
+      "Pending Deep Mining timed outcomes now show the future effect correctly instead of implying the buff expires when the expedition resolves.",
+      "Deep Mining wording now says once every 60 minutes to match the actual cooldown.",
+    ],
+  },
+  {
+    date: "2026-05-19",
     title: "Combat buff consistency",
     newFeatures: [],
     bugFixes: [

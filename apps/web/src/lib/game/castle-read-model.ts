@@ -284,6 +284,20 @@ export async function getCastlePageState({
               returnAt: true,
             },
           },
+          unicornShatteredRealityRolls: {
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+            take: 3,
+            select: {
+              outcome: true,
+              summary: true,
+              armyDelta: true,
+              garrisonArmyDelta: true,
+              goldDelta: true,
+              foodDelta: true,
+              activeUntil: true,
+              createdAt: true,
+            },
+          },
           garrisons: {
             select: {
               id: true,
@@ -579,6 +593,8 @@ export async function getCastlePageState({
       ) ?? null
     : null;
   const latestDwarfDeepMiningRoll = playerFortress?.deepMiningRolls[0] ?? null;
+  const latestUnicornShatteredRealityRoll =
+    playerFortress?.unicornShatteredRealityRolls[0] ?? null;
   const currentDayKey = getHelsinkiDayKey(now);
   const currentHourKey = getHelsinkiHourKey(now);
   const dwarfDeepMiningCooldownStartedAt = addHours(now, -1);
@@ -950,6 +966,30 @@ export async function getCastlePageState({
               runeHealth: roll.runeFortress?.health ?? null,
               runeArmy: roll.runeFortress?.army ?? null,
             })),
+            unicornShatteredRealityLatest: latestUnicornShatteredRealityRoll
+              ? {
+                  outcome: latestUnicornShatteredRealityRoll.outcome,
+                  summary: latestUnicornShatteredRealityRoll.summary,
+                  armyDelta: latestUnicornShatteredRealityRoll.armyDelta,
+                  garrisonArmyDelta:
+                    latestUnicornShatteredRealityRoll.garrisonArmyDelta,
+                  goldDelta: latestUnicornShatteredRealityRoll.goldDelta,
+                  foodDelta: latestUnicornShatteredRealityRoll.foodDelta,
+                  activeUntil: latestUnicornShatteredRealityRoll.activeUntil,
+                  createdAt: latestUnicornShatteredRealityRoll.createdAt,
+                }
+              : null,
+            unicornShatteredRealityHistory:
+              playerFortress.unicornShatteredRealityRolls.map((roll) => ({
+                outcome: roll.outcome,
+                summary: roll.summary,
+                armyDelta: roll.armyDelta,
+                garrisonArmyDelta: roll.garrisonArmyDelta,
+                goldDelta: roll.goldDelta,
+                foodDelta: roll.foodDelta,
+                activeUntil: roll.activeUntil,
+                createdAt: roll.createdAt,
+              })),
             dwarfGrudges: playerFortress.dwarfGrudges.map((grudge) => ({
               targetFortressId: grudge.targetFortressId,
               targetName: grudge.targetFortress.name,

@@ -41,6 +41,8 @@
 - The top damage dealer when Home of A dies receives points, food, and army equal to boss max HP / 4, plus a 12-hour +25% combat and economy buff
 - Home of A stays dead for 24 hours after each kill, then respawns at the next HP tier
 - Battle-log badges count unread/new reports only, not total historical entries
+- Dwarf Deep Mining uses a rolling 60-minute cooldown; unresolved timed outcomes are pending until they resolve, then their one-hour effect starts.
+- Unicorn Shattered Reality unlocks at Tier 2, stays once per Helsinki day, records roll history, and only produces positive outcomes: Mirror Host, Prismatic Surge, or Lucky Gallop.
 
 ## Leaderboard titles
 

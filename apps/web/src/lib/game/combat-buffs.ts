@@ -17,6 +17,7 @@ import {
 } from "./orks";
 import { getDwarfGrudgeMultiplier, isRaceAbilityActive } from "./race-buffs";
 import type { FortressRace } from "./races";
+import { UNICORN_SHATTERED_REALITY_COMBAT_MULTIPLIER } from "./unicorn-shattered-reality";
 
 export type CombatBuffFortress = {
   id: string;
@@ -111,6 +112,13 @@ export function getCombatAttackPowerMultiplier({
     targetIsPlayerFortress
       ? getDwarfGrudgeMultiplier(fortress.dwarfGrudges ?? [], targetFortressId)
       : 1;
+  const unicornCombatSurge =
+    race === "UNSTABLE_UNICORNS" &&
+    isRaceAbilityActive(
+      raceAbilityActivations,
+      RaceAbilityKind.UNICORN_COMBAT_SURGE,
+      now
+    );
 
   return (
     (waaaghActive ? 4 : 1) *
@@ -125,6 +133,7 @@ export function getCombatAttackPowerMultiplier({
       : 1) *
     grudgeMultiplier *
     (dwarfCombatSurge ? DWARF_DEEP_MINING_COMBAT_MULTIPLIER : 1) *
+    (unicornCombatSurge ? UNICORN_SHATTERED_REALITY_COMBAT_MULTIPLIER : 1) *
     (isRaceAbilityActive(
       raceAbilityActivations,
       RaceAbilityKind.HOME_OF_A_BOSS_BUFF,
@@ -183,6 +192,13 @@ export function getCombatDefensePowerMultiplier({
     opponentIsPlayerFortress
       ? getDwarfGrudgeMultiplier(fortress.dwarfGrudges ?? [], opponentFortressId)
       : 1;
+  const unicornCombatSurge =
+    race === "UNSTABLE_UNICORNS" &&
+    isRaceAbilityActive(
+      raceAbilityActivations,
+      RaceAbilityKind.UNICORN_COMBAT_SURGE,
+      now
+    );
 
   return (
     (waaaghActive ? 4 : 1) *
@@ -191,6 +207,7 @@ export function getCombatDefensePowerMultiplier({
       : 1) *
     grudgeMultiplier *
     (dwarfCombatSurge ? DWARF_DEEP_MINING_COMBAT_MULTIPLIER : 1) *
+    (unicornCombatSurge ? UNICORN_SHATTERED_REALITY_COMBAT_MULTIPLIER : 1) *
     (isRaceAbilityActive(
       raceAbilityActivations,
       RaceAbilityKind.HOME_OF_A_BOSS_BUFF,
