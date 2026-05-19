@@ -45,7 +45,7 @@
 ## Leaderboard titles
 
 - Crown Accountant is the points leader and receives +10% points from tile income.
-- Butcher is the units-killed leader and receives +10% attack power.
+- Butcher is the units-killed leader and receives +10% attack power only.
 - Landlord is the current normal-tile leader and receives +10% tile resource income.
 - Goblin Bonker is the loot-camp destruction leader and receives +25% loot-camp rewards.
 - Loot Lord is the player-castle resources-stolen leader and receives +10% stolen castle gold, food, and score points.

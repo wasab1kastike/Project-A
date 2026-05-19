@@ -99,8 +99,9 @@ const CASTLE_SPECIALIZATIONS = [
 const ATTACK_MULTIPLIERS = [
   "Base PvP/PvE battle power: sent army x 1.",
   "ORKS WAAAGH (T2): x4 attack and defense power, 2x movement speed while active. Scrap can extend or intensify a current WAAAGH.",
-  "Dwarf Grudge Book: x1.25 attack power against the chosen target.",
-  "Dwarf tier 2 doubled grudge: x1.5 attack power against that target.",
+  "Dwarf Grudge Book: x1.25 attack and defense power against the chosen player target.",
+  "Dwarf tier 2 doubled grudge: x1.5 attack and defense power against that player target.",
+  "Butcher title: +10% attack power only.",
 ] as const;
 
 const PVP_FORMULAS = [
@@ -109,7 +110,7 @@ const PVP_FORMULAS = [
     DEFENSE_BONUS_PER_DISPLAYED_LEVEL * 100
   )}% + race defense + Defense specialization picks x 10%) x active defense multiplier.`,
   "Attacker wins only when attack power is greater than defense power. Equal power is a defender win.",
-  `Failed attacks lose all sent army. Defender losses on a failed attack are ceil((attack power / defense multiplier) x ${FAILED_ATTACK_DEFENDER_CASUALTY_FACTOR}).`,
+  `Failed attacks lose all sent army. Defender losses on a failed attack are ceil((attack power / effective defense multiplier) x ${FAILED_ATTACK_DEFENDER_CASUALTY_FACTOR}).`,
 ] as const;
 
 const PVE_FORMULAS = [
@@ -492,7 +493,7 @@ export default function WikiPage() {
                 </li>
                 <li>
                   Crown Accountant gets +10% points from tile income, Butcher
-                  gets +10% attack power, Landlord gets +10% tile resource
+                  gets +10% attack power only, Landlord gets +10% tile resource
                   income, Goblin Bonker gets +25% loot-camp rewards, and Loot
                   Lord gets +10% stolen castle loot.
                 </li>

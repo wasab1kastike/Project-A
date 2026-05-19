@@ -52,7 +52,6 @@ import {
 } from "./army-recruitment";
 import { getFortressAttackDamage } from "./upgrades";
 import {
-  getDwarfGrudgeMultiplier,
   getRaceBuffTier,
   isRaceAbilityActive,
 } from "./race-buffs";
@@ -63,18 +62,14 @@ import {
 } from "./specializations";
 import {
   applyOrkScrapDelta,
-  getOrkBossOrderAttackMultiplier,
   getOrkBossOrderCarryMultiplier,
-  getOrkBossOrderDefenseMultiplier,
   getOrkBossOrderSpeedMultiplier,
   getOrkDirectRaidScrap,
   getOrkLootCampScrap,
   getOrkStrongerTogetherRate,
-  getOrkWaaaghAttackInvestmentMultiplier,
   isRealOrkPlayerFortress,
 } from "./orks";
 import {
-  DWARF_DEEP_MINING_COMBAT_MULTIPLIER,
   DWARF_DEEP_MINING_ECONOMY_MULTIPLIER,
   DWARF_DEEP_MINING_RUNE_BOUNTY,
 } from "./dwarf-deep-mining";
@@ -95,6 +90,11 @@ import {
   getLeaderboardTitleLootCampRewardMultiplier,
   getLeaderboardTitleTileIncomeMultipliers,
 } from "./leaderboard-titles";
+import {
+  getCombatAttackPowerMultiplier,
+  getCombatDefensePowerMultiplier,
+  isPlayerCombatTarget,
+} from "./combat-buffs";
 import { getTileBonus, getTileById, isHomeOfATile } from "./territory";
 import { recalculateReturningAttackRoutes } from "./fortress-relocation";
 import {
@@ -2625,23 +2625,27 @@ async function processCycleTick(
         }
 
         const defenderArmy = currentArmy.get(target.id) ?? target.army;
+        const targetAttackerRaceBuffTier =
+          getFortressRaceBuffTier(targetAttacker);
         const outcome = calculateRaidOutcome({
           attackArmy: targetUnit.armyAmount,
           attackerRace: getEffectiveRace(targetAttacker),
           defenderArmy,
           defenderDbLevel: 0,
           defenderRace: null,
-          attackPowerMultiplier:
-            (getEffectiveRace(targetAttacker) === "ORKS"
-              ? getOrkBossOrderAttackMultiplier(
-                  targetAttacker.orkBossOrders,
-                  tickAt
-                )
-              : 1) *
-            getLeaderboardTitleAttackMultiplier(
-              leaderboardTitleHolders,
-              targetAttacker.id
-            ),
+          attackPowerMultiplier: getCombatAttackPowerMultiplier({
+            fortress: {
+              ...targetAttacker,
+              race: getEffectiveRace(targetAttacker),
+            },
+            now: tickAt,
+            targetFortressId: target.id,
+            targetIsPlayerFortress: isPlayerCombatTarget(target),
+            leaderboardTitleHolders,
+            combatSurgedThisTick: dwarfCombatSurgedThisTick,
+            enableWaaagh: targetAttackerRaceBuffTier >= 2,
+            enableDwarfGrudge: targetAttackerRaceBuffTier >= 1,
+          }),
           defenderPoints: 0,
           defenderFood: 0,
         });
@@ -2850,6 +2854,8 @@ async function processCycleTick(
 
         const targetHealth = currentHealth.get(target.id) ?? target.health;
         const defenderArmy = currentArmy.get(target.id) ?? target.army;
+        const targetAttackerRaceBuffTier =
+          getFortressRaceBuffTier(targetAttacker);
         const outcome = calculateRaidOutcome({
           attackArmy: targetUnit.armyAmount,
           attackerRace: getEffectiveRace(targetAttacker),
@@ -2857,19 +2863,19 @@ async function processCycleTick(
           defenderDbLevel: 0,
           defenderHasCastle: false,
           defenderRace: null,
-          attackPowerMultiplier: hasHomeOfABossBuff(
-            targetAttacker.raceAbilityActivations,
-            tickAt
-          )
-            ? HOME_OF_A_BOSS_BUFF_MULTIPLIER *
-              getLeaderboardTitleAttackMultiplier(
-                leaderboardTitleHolders,
-                targetAttacker.id
-              )
-            : getLeaderboardTitleAttackMultiplier(
-                leaderboardTitleHolders,
-                targetAttacker.id
-              ),
+          attackPowerMultiplier: getCombatAttackPowerMultiplier({
+            fortress: {
+              ...targetAttacker,
+              race: getEffectiveRace(targetAttacker),
+            },
+            now: tickAt,
+            targetFortressId: target.id,
+            targetIsPlayerFortress: isPlayerCombatTarget(target),
+            leaderboardTitleHolders,
+            combatSurgedThisTick: dwarfCombatSurgedThisTick,
+            enableWaaagh: targetAttackerRaceBuffTier >= 2,
+            enableDwarfGrudge: targetAttackerRaceBuffTier >= 1,
+          }),
           defenderPoints: 0,
           defenderFood: 0,
         });
@@ -3528,22 +3534,6 @@ async function processCycleTick(
     const defenderRace = getEffectiveRace(target);
     const attackerRaceBuffTier = getFortressRaceBuffTier(attacker);
     const defenderRaceBuffTier = getFortressRaceBuffTier(target);
-    const attackerWaaagh =
-      attackerRace === "ORKS" &&
-      attackerRaceBuffTier >= 2 &&
-      isRaceAbilityActive(
-        attacker.raceAbilityActivations,
-        RaceAbilityKind.ORK_WAAAGH,
-        tickAt
-      );
-    const defenderWaaagh =
-      defenderRace === "ORKS" &&
-      defenderRaceBuffTier >= 2 &&
-      isRaceAbilityActive(
-        target.raceAbilityActivations,
-        RaceAbilityKind.ORK_WAAAGH,
-        tickAt
-      );
     const attackerStim =
       attackerRace === "SPACE_MURINES" &&
       attackerRaceBuffTier >= 1 &&
@@ -3560,57 +3550,10 @@ async function processCycleTick(
         RaceAbilityKind.SPACE_MURINE_STIM,
         tickAt
       );
-    const dwarfAttackMultiplier =
-      attackerRace === "DWARFS" && attackerRaceBuffTier >= 1
-        ? getDwarfGrudgeMultiplier(attacker.dwarfGrudges, target.id)
-        : 1;
-    const dwarfDefenseMultiplier =
-      defenderRace === "DWARFS" && defenderRaceBuffTier >= 1
-        ? getDwarfGrudgeMultiplier(target.dwarfGrudges, attacker.id)
-        : 1;
-    const attackerDeepMiningCombat =
-      attackerRace === "DWARFS" &&
-      (dwarfCombatSurgedThisTick.has(attacker.id) ||
-        isRaceAbilityActive(
-          attacker.raceAbilityActivations,
-          RaceAbilityKind.DWARF_COMBAT_SURGE,
-          tickAt
-        ));
-    const defenderDeepMiningCombat =
-      defenderRace === "DWARFS" &&
-      (dwarfCombatSurgedThisTick.has(target.id) ||
-        isRaceAbilityActive(
-          target.raceAbilityActivations,
-          RaceAbilityKind.DWARF_COMBAT_SURGE,
-          tickAt
-        ));
-    const attackerOrkAttackInvestmentMultiplier =
-      attackerRace === "ORKS"
-        ? getOrkWaaaghAttackInvestmentMultiplier({
-            waaaghActive: attackerWaaagh,
-            investments: attacker.orkWaaaghInvestments,
-          })
-        : 1;
-    const attackerOrkBossAttackMultiplier =
-      attackerRace === "ORKS"
-        ? getOrkBossOrderAttackMultiplier(attacker.orkBossOrders, tickAt)
-        : 1;
-    const defenderOrkBossDefenseMultiplier =
-      defenderRace === "ORKS"
-        ? getOrkBossOrderDefenseMultiplier(target.orkBossOrders, tickAt)
-        : 1;
     const attackerOrkCarryMultiplier =
       attackerRace === "ORKS"
         ? getOrkBossOrderCarryMultiplier(attacker.orkBossOrders, tickAt)
         : 1;
-    const attackerHomeBossBuff = hasHomeOfABossBuff(
-      attacker.raceAbilityActivations,
-      tickAt
-    );
-    const defenderHomeBossBuff = hasHomeOfABossBuff(
-      target.raceAbilityActivations,
-      tickAt
-    );
     const outcome = calculateRaidOutcome({
       attackArmy: unit.armyAmount,
       attackerRace,
@@ -3620,23 +3563,31 @@ async function processCycleTick(
       defenderCastleSpecializations: countCastleSpecializations(
         target.castleUpgradeSpecializations
       ),
-      attackPowerMultiplier:
-        (attackerWaaagh ? 4 : 1) *
-        attackerOrkAttackInvestmentMultiplier *
-        attackerOrkBossAttackMultiplier *
-        dwarfAttackMultiplier *
-        (attackerDeepMiningCombat ? DWARF_DEEP_MINING_COMBAT_MULTIPLIER : 1) *
-        (attackerHomeBossBuff ? HOME_OF_A_BOSS_BUFF_MULTIPLIER : 1) *
-        getLeaderboardTitleAttackMultiplier(
-          leaderboardTitleHolders,
-          attacker.id
-        ),
-      defensePowerMultiplier:
-        (defenderWaaagh ? 4 : 1) *
-        defenderOrkBossDefenseMultiplier *
-        dwarfDefenseMultiplier *
-        (defenderDeepMiningCombat ? DWARF_DEEP_MINING_COMBAT_MULTIPLIER : 1) *
-        (defenderHomeBossBuff ? HOME_OF_A_BOSS_BUFF_MULTIPLIER : 1),
+      attackPowerMultiplier: getCombatAttackPowerMultiplier({
+        fortress: {
+          ...attacker,
+          race: attackerRace,
+        },
+        now: tickAt,
+        targetFortressId: target.id,
+        targetIsPlayerFortress: isPlayerCombatTarget(target),
+        leaderboardTitleHolders,
+        combatSurgedThisTick: dwarfCombatSurgedThisTick,
+        enableWaaagh: attackerRaceBuffTier >= 2,
+        enableDwarfGrudge: attackerRaceBuffTier >= 1,
+      }),
+      defensePowerMultiplier: getCombatDefensePowerMultiplier({
+        fortress: {
+          ...target,
+          race: defenderRace,
+        },
+        now: tickAt,
+        opponentFortressId: attacker.id,
+        opponentIsPlayerFortress: isPlayerCombatTarget(attacker),
+        combatSurgedThisTick: dwarfCombatSurgedThisTick,
+        enableWaaagh: defenderRaceBuffTier >= 2,
+        enableDwarfGrudge: defenderRaceBuffTier >= 1,
+      }),
       preventAttackerCasualties: attackerStim,
       preventDefenderLosses: defenderStim,
       carryCapacityMultiplier: attackerOrkCarryMultiplier,
@@ -3745,6 +3696,14 @@ async function processCycleTick(
       (currentGold.get(attacker.id) ?? attacker.gold) + goldLooted
     );
     currentGold.set(target.id, Math.max(0, defenderGold - goldLooted));
+    const attackerWaaagh =
+      attackerRace === "ORKS" &&
+      attackerRaceBuffTier >= 2 &&
+      isRaceAbilityActive(
+        attacker.raceAbilityActivations,
+        RaceAbilityKind.ORK_WAAAGH,
+        tickAt
+      );
     const strongerTogether =
       attackerRace === "ORKS" &&
       attackerRaceBuffTier >= 1 &&

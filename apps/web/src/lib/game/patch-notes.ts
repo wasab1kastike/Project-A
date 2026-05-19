@@ -7,6 +7,16 @@ export type PatchNotesRelease = {
 
 export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
   {
+    date: "2026-05-19",
+    title: "Combat buff consistency",
+    newFeatures: [],
+    bugFixes: [
+      "Attack and defense combat buffs now apply consistently across raids, battlefields, loot camps, Dwarf rune fights, and Home of A damage where relevant.",
+      "Defense buffs now reduce defender losses on failed direct raids, and Butcher remains an attack-only title buff.",
+      "Space Murine STIM now protects only that player's own committed troops in shared battlefields.",
+    ],
+  },
+  {
     date: "2026-05-18",
     title: "Battlefield preparation window",
     newFeatures: [

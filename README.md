@@ -234,6 +234,7 @@ The game is now a castle-economy and battlefield-control loop:
 - direct attacks and battlefield reinforcements both count against the player's simultaneous outbound attack cap
 - player castle and owned-tile battlefields become visible immediately, but combat casualties start one hour after the first attacking army arrives so defenders have time to respond
 - active battlefield casualties are applied every tick, ramping from 100 total units per tick to 1000 after one hour; fights resolve only when one side runs out
+- active combat buffs affect direct raids, battlefields, loot camps, Dwarf rune fights, and Home of A damage where relevant; the Butcher title is attack-only
 - reinforcements that arrive after their battlefield has already resolved return home intact
 - the leaderboard tracks points, units killed, current tiles owned, goblins killed, and resources stolen from player castles; each live category leader gets a title and small buff, including Loot Lord for castle raiders
 - Home of A is a center-tile daily boss: players damage it through the tile action, the top damage dealer on kill receives points, food, army, and a 12-hour +25% combat/economy buff, and the boss respawns 24 hours later with scaled HP
