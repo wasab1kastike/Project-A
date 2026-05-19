@@ -1091,12 +1091,43 @@ export async function processActiveBattlefields({
     );
     const defenderArmyBefore =
       nativeDefenderArmyBefore + defenderParticipantArmyBefore;
-    const defenderTileDefenseMultiplier =
+    // Apply tile defense bonus if present (regular tile battles only)
+    let defenderTileDefenseMultiplier = 1;
+    if (
+      battlefield.targetTileId !== null &&
+      !isHomeOfATile(battlefield.targetTileId)
+    ) {
+      const tile = getTileById(battlefield.targetTileId);
+      if (tile && tile.biome) {
+        // Import BIOME_BONUSES from territory
+        // (import at top: import { BIOME_BONUSES } from "./territory";)
+        // fallback to 0 if not found
+        try {
+          // Dynamically require to avoid circular import if needed
+          // @ts-ignore
+          const { BIOME_BONUSES } = require("./territory");
+          const bonus = BIOME_BONUSES[tile.biome]?.defensePercent || 0;
+          if (bonus > 0) {
+            defenderTileDefenseMultiplier *= 1 + bonus / 100;
+          }
+        } catch (e) {
+          // fallback: do nothing
+        }
+      }
+      // Dwarf race bonus stacks additively
+      if (
+        battlefield.defenderBannerFortress?.race === "DWARFS" ||
+        battlefield.targetFortress?.race === "DWARFS"
+      ) {
+        defenderTileDefenseMultiplier *= 1.25;
+      }
+    } else if (
       battlefield.targetTileId !== null &&
       (battlefield.defenderBannerFortress?.race === "DWARFS" ||
         battlefield.targetFortress?.race === "DWARFS")
-        ? 1.25
-        : 1;
+    ) {
+      defenderTileDefenseMultiplier = 1.25;
+    }
     const getWeightedParticipantMultiplier = ({
       participants,
       getMultiplier,
