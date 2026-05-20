@@ -4,7 +4,8 @@ import { useOptionalLiveGameStateRefresh } from "@/components/live-game-state";
 
 /**
  * Creates a safe refresh helper for a component.
- * - Wraps router.refresh() in startTransition to defer UI updates and prevent jank.
+ * - Uses live state refreshes inside LiveGameStateProvider so failed fetches keep the last good state.
+ * - Falls back to router.refresh() only for pages outside the live state provider.
  * - Prevents concurrent refresh requests via a pending flag to avoid stacked rerenders on burst events.
  */
 export function useRefreshView() {
@@ -20,15 +21,14 @@ export function useRefreshView() {
     setRefreshPending(true);
 
     try {
-      const refreshed = refreshGameState
-        ? await refreshGameState("inline-action")
-        : false;
-
-      if (!refreshed) {
-        startTransition(() => {
-          router.refresh();
-        });
+      if (refreshGameState) {
+        await refreshGameState("inline-action");
+        return;
       }
+
+      startTransition(() => {
+        router.refresh();
+      });
     } finally {
       setRefreshPending(false);
     }
