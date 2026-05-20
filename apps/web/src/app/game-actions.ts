@@ -597,6 +597,7 @@ export async function updateWorkerAssignmentAction(input: {
   minersAssigned: number;
   farmersAssigned: number;
   recruitersAssigned: number;
+  pressureWorkersAssigned: number;
 }) {
   const session = await auth();
   const userId = session?.user?.id;
@@ -614,6 +615,7 @@ export async function updateWorkerAssignmentAction(input: {
       minersAssigned: input.minersAssigned,
       farmersAssigned: input.farmersAssigned,
       recruitersAssigned: input.recruitersAssigned,
+      pressureWorkersAssigned: input.pressureWorkersAssigned,
     });
     notifyAndRevalidate("worker-assignment", CASTLE_REVALIDATE_PATHS);
     return {

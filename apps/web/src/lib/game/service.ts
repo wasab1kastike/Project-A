@@ -2597,6 +2597,7 @@ export async function updateWorkerAssignment({
   minersAssigned,
   farmersAssigned,
   recruitersAssigned,
+  pressureWorkersAssigned,
   now = new Date(),
   db = prisma,
 }: {
@@ -2604,6 +2605,7 @@ export async function updateWorkerAssignment({
   minersAssigned: number;
   farmersAssigned: number;
   recruitersAssigned: number;
+  pressureWorkersAssigned: number;
   now?: Date;
   db?: PrismaClient;
 }) {
@@ -2652,6 +2654,7 @@ export async function updateWorkerAssignment({
         minersAssigned,
         farmersAssigned,
         recruitersAssigned,
+        pressureWorkersAssigned,
       });
 
       return tx.fortress.update({
@@ -2662,6 +2665,7 @@ export async function updateWorkerAssignment({
           minersAssigned,
           farmersAssigned,
           recruitersAssigned,
+          pressureWorkersAssigned,
         },
       });
     },

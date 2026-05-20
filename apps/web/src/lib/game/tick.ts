@@ -957,6 +957,7 @@ async function completeTestingCycle(
         minersAssigned: 10,
         farmersAssigned: 10,
         recruitersAssigned: 5,
+        pressureWorkersAssigned: 0,
         race: null,
         fortressKind: FortressKind.PLAYER,
         currentAction: FortressAction.GROW,
