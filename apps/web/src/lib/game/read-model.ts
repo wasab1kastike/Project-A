@@ -1511,7 +1511,8 @@ export async function getHomePageState({
             (unit.resolvedDefensePower ?? 0) === 0 &&
             (unit.attackerSurvivors ?? 0) === unit.armyAmount &&
             (unit.attackerRetired ?? 0) === 0 &&
-            (unit.attackerReturned ?? 0) === 0 &&
+            ((unit.attackerReturned ?? 0) === 0 ||
+              (unit.attackerReturned ?? 0) === unit.armyAmount) &&
             (unit.defenderLosses ?? 0) === 0 &&
             (unit.pointsLooted ?? 0) === 0 &&
             (unit.foodLooted ?? 0) === 0 &&
