@@ -55,7 +55,7 @@ export default async function CastlePage() {
       userId: session.user.id,
     });
   } catch (error) {
-    const errorId = `castle-${Date.now().toString(36)}`;
+    const errorId = "castle-load-error";
     console.error("Failed to load castle page state", {
       errorId,
       userId: session.user.id,
