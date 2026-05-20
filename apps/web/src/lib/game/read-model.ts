@@ -983,7 +983,7 @@ export async function getHomePageState({
         remainingVotes: 0,
         currentUserCommunityWish: "",
         submissionHint:
-          "Winner wish is guaranteed. Community wish is vote-based. Wishes can be edited until Monday 12:00, and voting ends Monday 24:00.",
+          "Winner wish is guaranteed. Community wish is vote-based. Wishes can be edited until Monday 12:00, and voting ends Tuesday 12:00.",
         proposals: [],
       },
       availableTargets: [],
@@ -3428,7 +3428,7 @@ export async function getHomePageState({
             ? "Only players from the last finished season can suggest a community wish."
             : "Only players in this cycle can suggest a community wish."
           : communityWishVotingOpen
-            ? "Winner wish is guaranteed. Community wish is vote-based. You can edit your short English wish until Monday 12:00 and vote until Monday 24:00."
+            ? "Winner wish is guaranteed. Community wish is vote-based. You can edit your short English wish until Monday 12:00 and vote until Tuesday 12:00."
             : communityWishProposalOpen
               ? usingResolvedWishWindow
                 ? "Winner wish is guaranteed. Community wish is vote-based. You can edit your short English wish until Monday 12:00 and vote once voting opens."

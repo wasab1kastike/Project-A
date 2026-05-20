@@ -11,6 +11,7 @@ import {
   classifyWinnerRequest,
   normalizeFulfillmentProgress,
 } from "./winner-requests";
+import { getNextHelsinkiTuesdayAt12 } from "./calendar";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 export type CommunityWishRankedFortress = {
@@ -19,13 +20,6 @@ export type CommunityWishRankedFortress = {
 
 export const COMMUNITY_WISH_MAX_LENGTH = 50;
 export const COMMUNITY_WISH_PROPOSAL_DEADLINE_TIME_ZONE = "Europe/Helsinki";
-export const COMMUNITY_WISH_VOTING_WINDOW_HOURS = 6;
-
-function addHours(value: Date, hours: number) {
-  const next = new Date(value);
-  next.setHours(next.getHours() + hours);
-  return next;
-}
 
 function getTimeZoneParts(value: Date) {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -687,10 +681,7 @@ async function migrateCommunityWishVotingOpen({
     },
     data: {
       communityWishStatus: CommunityWishStatus.OPEN,
-      communityWishVotingEndsAt: addHours(
-        proposalEndsAt,
-        COMMUNITY_WISH_VOTING_WINDOW_HOURS
-      ),
+      communityWishVotingEndsAt: getNextHelsinkiTuesdayAt12(proposalEndsAt),
     },
   });
 }

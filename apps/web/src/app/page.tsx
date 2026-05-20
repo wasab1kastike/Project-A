@@ -88,7 +88,7 @@ function getDegradedHomePageState(): HomePageState {
       remainingVotes: 0,
       currentUserCommunityWish: "",
       submissionHint:
-        "Winner wish is guaranteed. Community wish is vote-based. Wishes can be edited until Monday 12:00, and voting ends Monday 24:00.",
+        "Winner wish is guaranteed. Community wish is vote-based. Wishes can be edited until Monday 12:00, and voting ends Tuesday 12:00.",
       proposals: [],
     },
     availableTargets: [],

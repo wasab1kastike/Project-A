@@ -556,7 +556,7 @@ function HomeClientContent({
                               <li>
                                 Wishes lock Monday 12:00 after the season.
                               </li>
-                              <li>Voting closes Monday 24:00.</li>
+                              <li>Voting closes Tuesday 12:00.</li>
                               <li>Write in English.</li>
                               <li>
                                 Keep it short: max {COMMUNITY_WISH_MAX_LENGTH}{" "}
@@ -603,7 +603,7 @@ function HomeClientContent({
                     <p className={styles.voteHint}>
                       You have {state.communityWish.voteBudget} votes.{" "}
                       {state.communityWish.usedVotes} currently allocated. You
-                      can change them until voting ends Monday 24:00.
+                      can change them until voting ends Tuesday 12:00.
                     </p>
                     <div className={styles.voteList}>
                       {state.communityWish.proposals.map((proposal) => (

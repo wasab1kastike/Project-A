@@ -1,3 +1,12 @@
+// Returns the next Friday at 12:00 (Europe/Helsinki) after the given date.
+export function getNextHelsinkiFridayAt12(value: Date) {
+  return getNextHelsinkiWeekdayAtHour(value, 5, 12);
+}
+
+// Returns the next Tuesday at 12:00 (Europe/Helsinki) after the given date.
+export function getNextHelsinkiTuesdayAt12(value: Date) {
+  return getNextHelsinkiWeekdayAtHour(value, 2, 12);
+}
 const HELSINKI_TIME_ZONE = "Europe/Helsinki";
 
 function getTimeZoneParts(value: Date, timeZone = HELSINKI_TIME_ZONE) {
