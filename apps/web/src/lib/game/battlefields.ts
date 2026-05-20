@@ -23,7 +23,7 @@ import {
   HOME_OF_A_TILE_ID,
   getHomeOfABossReward,
 } from "./constants";
-import { getTileById, isHomeOfATile } from "./territory";
+import { getTileBonus, getTileById, isHomeOfATile } from "./territory";
 import { ensureNpcSystemUser, getHomeOfAMapPosition } from "./mega-fortress";
 import { getMaxSimultaneousAttacks } from "./upgrades";
 import {
@@ -59,6 +59,33 @@ export {
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
 const CASTLE_PVP_POINT_LOOT_PERCENT = 0.05;
+
+export function getBattlefieldTileDefensePowerMultiplier({
+  targetTileId,
+  defenderRace,
+  cycleId,
+  tickAt,
+}: {
+  targetTileId: string | null;
+  defenderRace?: string | null;
+  cycleId?: string | null;
+  tickAt?: Date | null;
+}) {
+  if (!targetTileId || isHomeOfATile(targetTileId)) {
+    return 1;
+  }
+
+  const tile = getTileById(targetTileId);
+  const tileDefensePercent = getTileBonus(tile, {
+    tileId: targetTileId,
+    cycleId,
+    at: tickAt,
+  }).defensePercent;
+  const tileDefenseMultiplier = 1 + Math.max(0, tileDefensePercent) / 100;
+  const dwarfOwnedTileMultiplier = defenderRace === "DWARFS" ? 1.25 : 1;
+
+  return tileDefenseMultiplier * dwarfOwnedTileMultiplier;
+}
 
 function getHomeOfABossDefeatAnnouncement({
   fortressName,
@@ -1091,43 +1118,15 @@ export async function processActiveBattlefields({
     );
     const defenderArmyBefore =
       nativeDefenderArmyBefore + defenderParticipantArmyBefore;
-    // Apply tile defense bonus if present (regular tile battles only)
-    let defenderTileDefenseMultiplier = 1;
-    if (
-      battlefield.targetTileId !== null &&
-      !isHomeOfATile(battlefield.targetTileId)
-    ) {
-      const tile = getTileById(battlefield.targetTileId);
-      if (tile && tile.biome) {
-        // Import BIOME_BONUSES from territory
-        // (import at top: import { BIOME_BONUSES } from "./territory";)
-        // fallback to 0 if not found
-        try {
-          // Dynamically require to avoid circular import if needed
-          // @ts-ignore
-          const { BIOME_BONUSES } = require("./territory");
-          const bonus = BIOME_BONUSES[tile.biome]?.defensePercent || 0;
-          if (bonus > 0) {
-            defenderTileDefenseMultiplier *= 1 + bonus / 100;
-          }
-        } catch (e) {
-          // fallback: do nothing
-        }
-      }
-      // Dwarf race bonus stacks additively
-      if (
-        battlefield.defenderBannerFortress?.race === "DWARFS" ||
-        battlefield.targetFortress?.race === "DWARFS"
-      ) {
-        defenderTileDefenseMultiplier *= 1.25;
-      }
-    } else if (
-      battlefield.targetTileId !== null &&
-      (battlefield.defenderBannerFortress?.race === "DWARFS" ||
-        battlefield.targetFortress?.race === "DWARFS")
-    ) {
-      defenderTileDefenseMultiplier = 1.25;
-    }
+    const nativeDefenderFortress =
+      battlefield.defenderBannerFortress ?? battlefield.targetFortress;
+    const defenderTileDefenseMultiplier =
+      getBattlefieldTileDefensePowerMultiplier({
+        targetTileId: battlefield.targetTileId,
+        defenderRace: nativeDefenderFortress?.race,
+        cycleId,
+        tickAt,
+      });
     const getWeightedParticipantMultiplier = ({
       participants,
       getMultiplier,
@@ -1183,8 +1182,6 @@ export async function processActiveBattlefields({
           }),
       0
     );
-    const nativeDefenderFortress =
-      battlefield.defenderBannerFortress ?? battlefield.targetFortress;
     const nativeDefenderPower =
       nativeDefenderArmyBefore *
       (nativeDefenderFortress
@@ -1830,6 +1827,54 @@ export async function processActiveBattlefields({
             },
           });
         }
+      }
+
+      const homeBossArrivalReports = await db.attackUnit.findMany({
+        where: {
+          cycleId,
+          targetFortressId: battlefield.targetFortressId,
+          attackerFortressId: {
+            in: attackerParticipants.map(
+              (participant) => participant.fortressId
+            ),
+          },
+          reinforcementBattlefieldId: null,
+          fortifyTargetTileId: null,
+          cancelledAt: null,
+          recalledAt: null,
+          resolvedAt: {
+            not: null,
+            lte: tickAt,
+          },
+          arrivesAt: {
+            gte: battlefield.startedAt,
+            lte: tickAt,
+          },
+          resolvedAttackPower: 0,
+          resolvedDefensePower: 0,
+          attackerRetired: 0,
+          attackerReturned: 0,
+          defenderLosses: 0,
+          pointsLooted: 0,
+          foodLooted: 0,
+          armyLooted: 0,
+        },
+        select: {
+          id: true,
+          armyAmount: true,
+        },
+      });
+
+      for (const report of homeBossArrivalReports) {
+        await db.attackUnit.update({
+          where: {
+            id: report.id,
+          },
+          data: {
+            attackerSurvivors: report.armyAmount,
+            attackerReturned: report.armyAmount,
+          },
+        });
       }
 
       if (

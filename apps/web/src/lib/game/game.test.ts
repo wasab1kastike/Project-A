@@ -4600,6 +4600,7 @@ test("Home of A first capture creates ownership and holder shares", async (conte
     seed: "test-home-capture",
   });
 
+  const homeBattleStartedAt = new Date("2026-04-20T12:01:00.000Z");
   await prisma.battlefield.create({
     data: {
       cycleId: cycle.id,
@@ -4611,7 +4612,7 @@ test("Home of A first capture creates ownership and holder shares", async (conte
       attackerArmyRemaining: 100,
       defenderArmyRemaining: 0,
       pointsReward: HOME_OF_A_POINT_INCOME,
-      startedAt: new Date("2026-04-20T12:01:00.000Z"),
+      startedAt: homeBattleStartedAt,
       participants: {
         create: [
           {
@@ -4630,6 +4631,48 @@ test("Home of A first capture creates ownership and holder shares", async (conte
       },
     },
   });
+  await prisma.attackUnit.createMany({
+    data: [
+      {
+        cycleId: cycle.id,
+        attackerFortressId: bannerFortress.id,
+        targetFortressId: home.id,
+        armyAmount: 30,
+        launchedAt: new Date("2026-04-20T12:00:00.000Z"),
+        arrivesAt: homeBattleStartedAt,
+        resolvedAt: homeBattleStartedAt,
+        defenderArmyAtBattleStart: home.army,
+        resolvedAttackPower: 0,
+        resolvedDefensePower: 0,
+        attackerSurvivors: 30,
+        attackerRetired: 0,
+        attackerReturned: 0,
+        defenderLosses: 0,
+        pointsLooted: 0,
+        foodLooted: 0,
+        armyLooted: 0,
+      },
+      {
+        cycleId: cycle.id,
+        attackerFortressId: allyFortress.id,
+        targetFortressId: home.id,
+        armyAmount: 70,
+        launchedAt: new Date("2026-04-20T12:00:00.000Z"),
+        arrivesAt: homeBattleStartedAt,
+        resolvedAt: homeBattleStartedAt,
+        defenderArmyAtBattleStart: home.army,
+        resolvedAttackPower: 0,
+        resolvedDefensePower: 0,
+        attackerSurvivors: 70,
+        attackerRetired: 0,
+        attackerReturned: 0,
+        defenderLosses: 0,
+        pointsLooted: 0,
+        foodLooted: 0,
+        armyLooted: 0,
+      },
+    ],
+  });
 
   await processActiveBattlefields({
     db: prisma,
@@ -4637,15 +4680,41 @@ test("Home of A first capture creates ownership and holder shares", async (conte
     tickAt: new Date("2026-04-20T12:02:00.000Z"),
   });
 
-  const ownership = await prisma.mapHexOwnership.findUniqueOrThrow({
-    where: { cycleId_tileId: { cycleId: cycle.id, tileId: HOME_OF_A_TILE_ID } },
-  });
-  const holders = await prisma.homeOfAHolder.findMany({
-    where: { cycleId: cycle.id },
-    orderBy: { contributionWeight: "asc" },
-  });
+  const [ownership, holders, returnedAttackUnits, reloadedBanner, reloadedAlly] =
+    await Promise.all([
+      prisma.mapHexOwnership.findUniqueOrThrow({
+        where: {
+          cycleId_tileId: { cycleId: cycle.id, tileId: HOME_OF_A_TILE_ID },
+        },
+      }),
+      prisma.homeOfAHolder.findMany({
+        where: { cycleId: cycle.id },
+        orderBy: { contributionWeight: "asc" },
+      }),
+      prisma.attackUnit.findMany({
+        where: {
+          cycleId: cycle.id,
+          targetFortressId: home.id,
+        },
+        orderBy: { armyAmount: "asc" },
+      }),
+      prisma.fortress.findUniqueOrThrow({ where: { id: bannerFortress.id } }),
+      prisma.fortress.findUniqueOrThrow({ where: { id: allyFortress.id } }),
+    ]);
 
   assert.equal(ownership.ownerFortressId, bannerFortress.id);
+  assert.equal(reloadedBanner.army, 40);
+  assert.equal(reloadedAlly.army, 80);
+  assert.deepEqual(
+    returnedAttackUnits.map((unit) => [
+      unit.armyAmount,
+      unit.attackerReturned,
+    ]),
+    [
+      [30, 30],
+      [70, 70],
+    ]
+  );
   assert.deepEqual(
     holders.map((holder) => [holder.fortressId, holder.contributionWeight]),
     [
