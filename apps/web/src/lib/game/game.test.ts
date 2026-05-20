@@ -12,6 +12,7 @@ import {
   ArcadeLootBoxType,
   BattlefieldSide,
   BattlefieldStatus,
+  CastleUpgradeSpecialization,
   ChatMessageType,
   CommunityWishStatus,
   CycleStatus,
@@ -175,6 +176,7 @@ import {
   getHomeOfABossBattleDamage,
 } from "./battlefield-rules";
 import {
+  getBattlefieldCastleDefensePowerMultiplier,
   processActiveBattlefields,
 } from "./battlefields";
 import {
@@ -902,6 +904,44 @@ test("battlefield casualty budget ramps from 100 to 1000 per tick", () => {
   assert.equal(getBattlefieldCasualtyBudget(30), 550);
   assert.equal(getBattlefieldCasualtyBudget(60), 1000);
   assert.equal(getBattlefieldCasualtyBudget(90), 1000);
+});
+
+test("castle battlefield defense multiplier includes castle and owned tile defense bonuses", () => {
+  const multiplier = getBattlefieldCastleDefensePowerMultiplier({
+    targetFortress: {
+      fortressKind: FortressKind.PLAYER,
+      isNpc: false,
+      level: 2,
+      race: FortressRace.DWARFS,
+      castleUpgradeSpecializations: [
+        {
+          specialization: CastleUpgradeSpecialization.DEFENSE,
+          level: 2,
+        },
+      ],
+    },
+    ownedTileDefensePercent: 4,
+  });
+
+  assert.equal(Number(multiplier.toFixed(3)), 1.664);
+  assert.equal(
+    getBattlefieldCastleDefensePowerMultiplier({
+      targetFortress: {
+        fortressKind: FortressKind.LOOT_CAMP,
+        isNpc: true,
+        level: 2,
+        race: FortressRace.DWARFS,
+        castleUpgradeSpecializations: [
+          {
+            specialization: CastleUpgradeSpecialization.DEFENSE,
+            level: 2,
+          },
+        ],
+      },
+      ownedTileDefensePercent: 4,
+    }),
+    1
+  );
 });
 
 test("battlefield attrition is deterministic and respects the tick budget", () => {
