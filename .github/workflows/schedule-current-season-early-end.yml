@@ -1,0 +1,35 @@
+name: Schedule Current Season Early End
+
+on:
+  workflow_dispatch:
+
+jobs:
+  schedule-current-season:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+    steps:
+      - name: Validate required secrets
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "::error::Missing required GitHub secret PRODUCTION_DATABASE_URL"
+            exit 1
+          fi
+
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+
+      - name: Schedule current season early end
+        run: npm run db:schedule-current-season-early-end --workspace web
