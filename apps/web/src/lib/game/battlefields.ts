@@ -262,21 +262,35 @@ async function incrementUnitsKilledForParticipants<
   );
 
   if (committedArmy <= 0) {
+    if (eligibleParticipants.length > 0) {
+      // This should not happen, but log for debugging
+      console.warn('[unitsKilled] All eligible participants have zero committed army. No kills distributed.');
+    }
     return;
   }
 
   let distributedKills = 0;
+  let participantReceivedKills = false;
 
   for (const [index, participant] of eligibleParticipants.entries()) {
-    const kills =
-      index === eligibleParticipants.length - 1
-        ? totalKills - distributedKills
-        : Math.floor((totalKills * participant.armyCommitted) / committedArmy);
+    let kills;
+    if (index === eligibleParticipants.length - 1) {
+      // Always assign the remainder to the last eligible participant
+      kills = totalKills - distributedKills;
+    } else {
+      kills = Math.floor((totalKills * participant.armyCommitted) / committedArmy);
+    }
+
+    // If this is the last participant and no one has received kills yet, assign all kills to them
+    if (index === eligibleParticipants.length - 1 && !participantReceivedKills && kills <= 0) {
+      kills = totalKills;
+    }
 
     if (kills <= 0) {
       continue;
     }
 
+    participantReceivedKills = true;
     distributedKills += kills;
     await db.fortress.update({
       where: {
@@ -288,6 +302,11 @@ async function incrementUnitsKilledForParticipants<
         },
       },
     });
+  }
+
+  if (!participantReceivedKills && eligibleParticipants.length > 0) {
+    // This should not happen, but log for debugging
+    console.warn('[unitsKilled] No eligible participant received kills despite nonzero totalKills.');
   }
 }
 
