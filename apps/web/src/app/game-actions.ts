@@ -141,7 +141,8 @@ function finishArcadeAction(
   redirectToArcade("notice", notice, details);
 }
 
-const GAMEPLAY_REVALIDATE_PATHS = ["/", "/castle"];
+const GAMEPLAY_REVALIDATE_PATHS = ["/"];
+const CASTLE_REVALIDATE_PATHS = ["/", "/castle"];
 const COMMUNITY_REVALIDATE_PATHS = ["/", "/history", "/admin"];
 
 function notifyAndRevalidate(
@@ -250,7 +251,7 @@ export async function claimMapHexAction(tileId: string) {
       });
     }
 
-    notifyAndRevalidate("map-hex-claim", ["/", "/castle"]);
+    notifyAndRevalidate("map-hex-claim");
     return {
       ok: true,
     } satisfies InlineActionResult;
@@ -279,7 +280,7 @@ export async function attackMapHexAction(tileId: string, sentArmy = 1) {
       tileId,
       sentArmy,
     });
-    notifyAndRevalidate("map-hex-attack", ["/", "/castle"]);
+    notifyAndRevalidate("map-hex-attack");
     return {
       ok: true,
       launchedAttackUnit: result.launchedAttackUnit,
@@ -309,7 +310,7 @@ export async function fortifyMapHexAction(tileId: string, armyAmount = 1) {
       tileId,
       armyAmount,
     });
-    notifyAndRevalidate("map-hex-fortify", ["/", "/castle"]);
+    notifyAndRevalidate("map-hex-fortify");
     return {
       ok: true,
       launchedAttackUnit,
@@ -347,7 +348,7 @@ export async function relocateCastleToTileAction(tileId: string) {
       userId,
       destinationTileId: tileId,
     });
-    notifyAndRevalidate("castle-yeet-map", ["/", "/castle"]);
+    notifyAndRevalidate("castle-yeet-map", CASTLE_REVALIDATE_PATHS);
     return {
       ok: true,
     } satisfies InlineActionResult;
@@ -493,7 +494,7 @@ export async function recallBattlefieldArmyAction(
       battlefieldId,
       armyAmount,
     });
-    notifyAndRevalidate("battlefield-recall", ["/", "/castle"]);
+    notifyAndRevalidate("battlefield-recall");
     return {
       ok: true,
     } satisfies InlineActionResult;
@@ -525,7 +526,7 @@ export async function recallGarrisonArmyAction(
       garrisonId,
       armyAmount,
     });
-    notifyAndRevalidate("garrison-recall", ["/", "/castle"]);
+    notifyAndRevalidate("garrison-recall");
     return {
       ok: true,
     } satisfies InlineActionResult;
@@ -552,7 +553,7 @@ export async function recallAllUnitsAction() {
     await recallAllUnits({
       userId,
     });
-    notifyAndRevalidate("all-units-recall", ["/", "/castle"]);
+    notifyAndRevalidate("all-units-recall");
     return {
       ok: true,
     } satisfies InlineActionResult;
@@ -580,7 +581,7 @@ export async function torchOccupiedMapHexAction(garrisonId: string) {
       userId,
       garrisonId,
     });
-    notifyAndRevalidate("map-hex-torch", ["/", "/castle"]);
+    notifyAndRevalidate("map-hex-torch");
     return {
       ok: true,
     } satisfies InlineActionResult;
@@ -614,7 +615,7 @@ export async function updateWorkerAssignmentAction(input: {
       farmersAssigned: input.farmersAssigned,
       recruitersAssigned: input.recruitersAssigned,
     });
-    notifyAndRevalidate("worker-assignment");
+    notifyAndRevalidate("worker-assignment", CASTLE_REVALIDATE_PATHS);
     return {
       ok: true,
     } satisfies InlineActionResult;
@@ -642,7 +643,7 @@ export async function recruitArmyAction(input: { unitCount: number }) {
       userId,
       unitCount: input.unitCount,
     });
-    notifyAndRevalidate("army-recruitment", ["/", "/castle"]);
+    notifyAndRevalidate("army-recruitment", CASTLE_REVALIDATE_PATHS);
     return {
       ok: true,
     } satisfies InlineActionResult;
@@ -666,7 +667,7 @@ export async function selectFortressRaceAction(
 
   try {
     await selectFortressRace({ userId, race });
-    notifyAndRevalidate("race-selection");
+    notifyAndRevalidate("race-selection", CASTLE_REVALIDATE_PATHS);
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -765,7 +766,7 @@ export async function renameFortressAction(
 
   try {
     await renameActiveFortress({ userId, fortressName });
-    notifyAndRevalidate("active-rename");
+    notifyAndRevalidate("active-rename", CASTLE_REVALIDATE_PATHS);
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -788,7 +789,7 @@ export async function buyPointsWithGoldAction(
 
   try {
     await buyPointsWithGold({ userId, goldAmount });
-    notifyAndRevalidate("gold-to-points-conversion");
+    notifyAndRevalidate("gold-to-points-conversion", CASTLE_REVALIDATE_PATHS);
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -807,7 +808,7 @@ export async function purchaseFortressUpgradeAction(
 
   try {
     await purchaseFortressUpgrade({ userId, specialization });
-    notifyAndRevalidate("castle-upgrade");
+    notifyAndRevalidate("castle-upgrade", CASTLE_REVALIDATE_PATHS);
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -826,7 +827,10 @@ export async function choosePendingUpgradeSpecializationAction(
 
   try {
     await choosePendingUpgradeSpecialization({ userId, specialization });
-    notifyAndRevalidate("castle-upgrade-specialization");
+    notifyAndRevalidate(
+      "castle-upgrade-specialization",
+      CASTLE_REVALIDATE_PATHS
+    );
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -845,7 +849,7 @@ export async function chooseDwarfGrudgeAction(
 
   try {
     await chooseDwarfGrudge({ userId, targetFortressId });
-    notifyAndRevalidate("dwarf-grudge");
+    notifyAndRevalidate("dwarf-grudge", CASTLE_REVALIDATE_PATHS);
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -869,7 +873,7 @@ export async function chooseDwarfTierThreeGrudgeAction(
       targetFortressId: targetFortressId || undefined,
       doubleExisting: doubleExisting ?? false,
     });
-    notifyAndRevalidate("dwarf-grudge-tier-three");
+    notifyAndRevalidate("dwarf-grudge-tier-three", CASTLE_REVALIDATE_PATHS);
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -889,7 +893,7 @@ export async function activateWaaaghAction(): Promise<InlineActionResult> {
       userId,
       kind: RaceAbilityKind.ORK_WAAAGH,
     });
-    notifyAndRevalidate("ork-waaagh");
+    notifyAndRevalidate("ork-waaagh", CASTLE_REVALIDATE_PATHS);
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -908,7 +912,7 @@ export async function activateOrkBossOrderAction(
 
   try {
     await activateOrkBossOrder({ userId, kind });
-    notifyAndRevalidate("ork-boss-order");
+    notifyAndRevalidate("ork-boss-order", CASTLE_REVALIDATE_PATHS);
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -930,7 +934,7 @@ export async function investOrkWaaaghScrapAction(
       userId,
       kind: kind as OrkWaaaghInvestmentKind,
     });
-    notifyAndRevalidate("ork-waaagh-investment");
+    notifyAndRevalidate("ork-waaagh-investment", CASTLE_REVALIDATE_PATHS);
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -950,7 +954,7 @@ export async function activateStimAction(): Promise<InlineActionResult> {
       userId,
       kind: RaceAbilityKind.SPACE_MURINE_STIM,
     });
-    notifyAndRevalidate("space-murine-stim");
+    notifyAndRevalidate("space-murine-stim", CASTLE_REVALIDATE_PATHS);
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -972,7 +976,7 @@ export async function activateDwarfDeepMiningAction(
       userId,
       committedGold,
     });
-    notifyAndRevalidate("dwarf-deep-mining");
+    notifyAndRevalidate("dwarf-deep-mining", CASTLE_REVALIDATE_PATHS);
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -994,7 +998,7 @@ export async function activateDwarfRuneOfGrudgesAction(
       userId,
       targetFortressId,
     });
-    notifyAndRevalidate("dwarf-rune-grudges");
+    notifyAndRevalidate("dwarf-rune-grudges", CASTLE_REVALIDATE_PATHS);
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -1019,7 +1023,10 @@ export async function reinforceDwarfRuneOfGrudgesAction(
       userId,
       sentArmy,
     });
-    notifyAndRevalidate("dwarf-rune-grudges-reinforce");
+    notifyAndRevalidate(
+      "dwarf-rune-grudges-reinforce",
+      CASTLE_REVALIDATE_PATHS
+    );
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -1041,7 +1048,7 @@ export async function cancelDwarfRuneOfGrudgesAction(): Promise<InlineActionResu
     await cancelDwarfRuneOfGrudges({
       userId,
     });
-    notifyAndRevalidate("dwarf-rune-grudges-cancel");
+    notifyAndRevalidate("dwarf-rune-grudges-cancel", CASTLE_REVALIDATE_PATHS);
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -1064,7 +1071,7 @@ export async function claimUnicornTeleportAction(): Promise<InlineActionResult> 
       userId,
       useFreeTeleport: true,
     });
-    notifyAndRevalidate("unicorn-teleport-activate");
+    notifyAndRevalidate("unicorn-teleport-activate", CASTLE_REVALIDATE_PATHS);
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -1083,7 +1090,7 @@ export async function activateUnicornShatteredRealityAction(): Promise<InlineAct
     await activateUnicornShatteredReality({
       userId,
     });
-    notifyAndRevalidate("unicorn-shattered-reality");
+    notifyAndRevalidate("unicorn-shattered-reality", CASTLE_REVALIDATE_PATHS);
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -1108,7 +1115,7 @@ export async function useUnicornTeleportAction(): Promise<InlineActionResult> {
       userId,
       useFreeTeleport: true,
     });
-    notifyAndRevalidate("unicorn-teleport-use");
+    notifyAndRevalidate("unicorn-teleport-use", CASTLE_REVALIDATE_PATHS);
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -1130,7 +1137,7 @@ export async function registerCommanderNameAction(
       userId,
       commanderName,
     });
-    notifyAndRevalidate("commander-name");
+    notifyAndRevalidate("commander-name", CASTLE_REVALIDATE_PATHS);
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };
@@ -1171,7 +1178,7 @@ export async function setFortressActionAction(
       targetFortressId: targetFortressId || undefined,
       sentArmy,
     });
-    notifyAndRevalidate("action-update");
+    notifyAndRevalidate("action-update", CASTLE_REVALIDATE_PATHS);
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };

@@ -9,6 +9,31 @@ import styles from "./page.module.css";
 
 export const dynamic = "force-dynamic";
 
+function CastleLoadError({ errorId }: { errorId: string }) {
+  return (
+    <main className={styles.page}>
+      <div className={styles.shell}>
+        <nav className={styles.topbar} aria-label="Castle navigation">
+          <div className={styles.titleBlock}>
+            <span className={styles.eyebrow}>Castle management</span>
+            <h1>Castle temporarily unavailable</h1>
+          </div>
+          <Link href="/">Battlefield</Link>
+        </nav>
+        <section className={`${styles.panel} ${styles.errorPanel}`}>
+          <span className={styles.eyebrow}>Status</span>
+          <h2>Castle management needs a moment.</h2>
+          <p>
+            The battlefield is still available. Try castle management again in a
+            moment.
+          </p>
+          <p className={styles.muted}>Error reference: {errorId}</p>
+        </section>
+      </div>
+    </main>
+  );
+}
+
 export default async function CastlePage() {
   let session: Session | null = null;
 
@@ -30,10 +55,13 @@ export default async function CastlePage() {
       userId: session.user.id,
     });
   } catch (error) {
-    console.error("Failed to load castle page state", error);
-    redirect(
-      "/?error=Castle%20management%20is%20temporarily%20unavailable.%20Please%20try%20again%20in%20a%20moment."
-    );
+    const errorId = `castle-${Date.now().toString(36)}`;
+    console.error("Failed to load castle page state", {
+      errorId,
+      userId: session.user.id,
+      error,
+    });
+    return <CastleLoadError errorId={errorId} />;
   }
 
   if (!state.playerSummary) {

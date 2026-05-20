@@ -38,6 +38,12 @@ import { addHours } from "./time";
 import { countCastleSpecializations } from "./specializations";
 import { ORK_BOSS_ORDER_CONFIG, ORK_WAAAGH_INVESTMENT_CONFIG } from "./orks";
 import { getTileById, isHomeOfATile, sumTileBonuses } from "./territory";
+import {
+  ensureBattlefieldPointRewardColumn,
+  ensureCommanderRegistrationColumn,
+  ensureHomeOfABossSchema,
+  ensureRaceSchemaReadiness,
+} from "./schema-guards";
 
 const BUILDING_SPECIALIZATIONS = [
   CastleUpgradeSpecialization.DEFENSE,
@@ -63,14 +69,22 @@ async function getFortressLocationShuffleCount(
   db: PrismaClient,
   fortressId: string
 ) {
-  const rows = await db.$queryRaw<Array<{ locationShuffleCount: number }>>`
+  try {
+    const rows = await db.$queryRaw<Array<{ locationShuffleCount: number }>>`
       SELECT "locationShuffleCount"
       FROM "Fortress"
       WHERE "id" = ${fortressId}
       LIMIT 1
     `;
 
-  return rows[0]?.locationShuffleCount ?? 0;
+    return rows[0]?.locationShuffleCount ?? 0;
+  } catch (error) {
+    console.warn("Failed to read fortress location shuffle count", {
+      fortressId,
+      error,
+    });
+    return 0;
+  }
 }
 
 export type CastlePageState = Awaited<ReturnType<typeof getCastlePageState>>;
@@ -84,6 +98,13 @@ export async function getCastlePageState({
   now?: Date;
   db?: PrismaClient;
 }) {
+  await Promise.all([
+    ensureBattlefieldPointRewardColumn(db),
+    ensureCommanderRegistrationColumn(db),
+    ensureHomeOfABossSchema(db),
+    ensureRaceSchemaReadiness(db),
+  ]);
+
   const cycle = await db.cycle.findFirst({
     where: {
       resolvedAt: null,
