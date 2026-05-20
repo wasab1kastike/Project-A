@@ -17324,7 +17324,7 @@ test("community wish voting uses final rank budgets and free allocations", async
   );
   assert.equal(
     history.communityWishVotingEndsAt?.toISOString(),
-    "2026-04-27T15:00:00.000Z"
+    "2026-04-28T09:00:00.000Z"
   );
 
   await submitCommunityWishProposal({
@@ -17434,7 +17434,7 @@ test("community wish voting uses final rank budgets and free allocations", async
         cycleId: cycle.id,
         userId: second.id,
         allocations: [{ proposalId: secondProposal.id, votes: 5 }],
-        now: new Date("2026-04-27T15:00:00.000Z"),
+        now: new Date("2026-04-28T09:00:00.000Z"),
       }),
     /voting has ended/
   );

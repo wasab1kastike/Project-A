@@ -25,12 +25,14 @@ import {
 } from "./constants";
 import { mintSeasonArcadeCoins } from "./arcade";
 import {
-  COMMUNITY_WISH_VOTING_WINDOW_HOURS,
   createCommunityWishVoteEntitlements,
   getCommunityWishProposalEndsAt,
   resolveExpiredCommunityWishVotes,
 } from "./community-wishes";
-import { getNextHelsinkiWeekdayAtHour } from "./calendar";
+import {
+  getNextHelsinkiTuesdayAt12,
+  getNextHelsinkiWeekdayAtHour,
+} from "./calendar";
 import {
   ensureCurrentMapLayout,
   ensureActiveCycleMegaFortress,
@@ -1512,9 +1514,8 @@ async function resolveExpiredActiveCycle(
           ? `[${winnerRequest.status}] ${winnerRequest.requestText}`
           : null,
         communityWishProposalEndsAt,
-        communityWishVotingEndsAt: addHours(
-          communityWishProposalEndsAt,
-          COMMUNITY_WISH_VOTING_WINDOW_HOURS
+        communityWishVotingEndsAt: getNextHelsinkiTuesdayAt12(
+          communityWishProposalEndsAt
         ),
         communityWishStatus: "OPEN",
       },
