@@ -24,11 +24,16 @@ const REQUIRED_RACE_ABILITY_ACTIVATION_COLUMNS = [
   "maintenanceGoldPerTick",
 ] as const;
 
-const REQUIRED_ORK_TABLES = [
+const REQUIRED_RACE_TABLES = [
+  "DwarfDeepMiningRoll",
+  "DwarfGrudge",
   "OrkScrapBank",
   "OrkScrapEvent",
   "OrkBossOrder",
   "OrkWaaaghInvestment",
+  "RaceAbilityActivation",
+  "UnicornShatteredRealityRoll",
+  "UnicornTemporaryTeleport",
 ] as const;
 
 const REQUIRED_ORK_ENUM_TYPES = [
@@ -104,7 +109,7 @@ export async function getRaceSchemaReadiness(
   const presentEnumTypes = new Set(enumRows.map((row) => row.typeName));
 
   const missingObjects = [
-    ...REQUIRED_ORK_TABLES.filter((table) => !presentTables.has(table)).map(
+    ...REQUIRED_RACE_TABLES.filter((table) => !presentTables.has(table)).map(
       (table) => `table ${table}`
     ),
     ...getMissingColumns({

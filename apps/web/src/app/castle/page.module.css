@@ -78,6 +78,15 @@
   background: rgba(9, 19, 29, 0.82);
 }
 
+.errorPanel {
+  max-width: 560px;
+}
+
+.errorPanel h2,
+.errorPanel p {
+  margin: 0;
+}
+
 .panelHeader,
 .inlineForm {
   display: flex;
