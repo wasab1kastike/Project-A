@@ -92,6 +92,7 @@ export type WorkerAssignmentLike = {
   minersAssigned: number;
   farmersAssigned: number;
   recruitersAssigned: number;
+  pressureWorkersAssigned?: number;
 };
 
 /** Extended fortress state including current food for production calculations */
@@ -342,15 +343,21 @@ export function validateWorkerAssignments(input: WorkerAssignmentLike) {
   const basePopulation = getFortressPopulation(input.level, input.race);
   const extraPopulation = Math.max(0, input.extraPopulation ?? 0);
   const population = basePopulation + extraPopulation;
+  const pressureWorkersAssigned = input.pressureWorkersAssigned ?? 0;
   const totalAssigned =
-    input.minersAssigned + input.farmersAssigned + input.recruitersAssigned;
+    input.minersAssigned +
+    input.farmersAssigned +
+    input.recruitersAssigned +
+    pressureWorkersAssigned;
   const isValid =
     Number.isInteger(input.minersAssigned) &&
     Number.isInteger(input.farmersAssigned) &&
     Number.isInteger(input.recruitersAssigned) &&
+    Number.isInteger(pressureWorkersAssigned) &&
     input.minersAssigned >= 0 &&
     input.farmersAssigned >= 0 &&
     input.recruitersAssigned >= 0 &&
+    pressureWorkersAssigned >= 0 &&
     totalAssigned <= population;
 
   return {
@@ -393,7 +400,8 @@ export function assertWorkerAssignments(input: WorkerAssignmentLike) {
  * ==================
  * - level: fortress upgrade level (0-9)
  * - race: fortress race (affects worker bonuses)
- * - minersAssigned, farmersAssigned, recruitersAssigned: worker counts
+ * - minersAssigned, farmersAssigned, recruitersAssigned: productive worker counts
+ * - pressureWorkersAssigned: future idle pressure workers, excluded from production
  * - castleSpecializations: specialization multiplier counts
  * - food: current food available at start of tick
  *

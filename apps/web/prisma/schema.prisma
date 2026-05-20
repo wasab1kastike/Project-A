@@ -332,6 +332,7 @@ model Fortress {
   minersAssigned                 Int                                 @default(10)
   farmersAssigned                Int                                 @default(10)
   recruitersAssigned             Int                                 @default(5)
+  pressureWorkersAssigned        Int                                 @default(0)
   race                           FortressRace?
   fortressKind                   FortressKind                        @default(PLAYER)
   lootCampVariant                LootCampVariant?

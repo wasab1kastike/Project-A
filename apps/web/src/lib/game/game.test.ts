@@ -35,6 +35,7 @@ import "./battlefield-rules.test";
 import "./combat-buffs.test";
 import "./leaderboard-titles.test";
 import "./season-announcement.test";
+import "./tile-pressure.test";
 import {
   forceEndCurrentCycle,
   runManualCatchUpTick,
@@ -9956,6 +9957,7 @@ test("testing allows joins and gameplay, then resets sandbox progress at season 
     minersAssigned: 20,
     farmersAssigned: 5,
     recruitersAssigned: 0,
+    pressureWorkersAssigned: 0,
     now: addMinutes(testingStartsAt, 4),
   });
 
@@ -10116,6 +10118,7 @@ test("testing allows joins and gameplay, then resets sandbox progress at season 
   assert.equal(alphaAfterReset.minersAssigned, 10);
   assert.equal(alphaAfterReset.farmersAssigned, 10);
   assert.equal(alphaAfterReset.recruitersAssigned, 5);
+  assert.equal(alphaAfterReset.pressureWorkersAssigned, 0);
   assert.equal(alphaAfterReset.locationShuffleCount, 0);
   assert.equal(
     await prisma.attackUnit.count({ where: { cycleId: cycle.id } }),
@@ -11042,12 +11045,14 @@ test("worker assignment updates validate cycle, ownership, capacity, and derived
     minersAssigned: 20,
     farmersAssigned: 5,
     recruitersAssigned: 0,
+    pressureWorkersAssigned: 0,
     now: new Date("2026-04-20T12:05:00.000Z"),
   });
 
   assert.equal(updated.minersAssigned, 20);
   assert.equal(updated.farmersAssigned, 5);
   assert.equal(updated.recruitersAssigned, 0);
+  assert.equal(updated.pressureWorkersAssigned, 0);
 
   await assert.rejects(
     () =>
@@ -11057,6 +11062,7 @@ test("worker assignment updates validate cycle, ownership, capacity, and derived
         minersAssigned: -1,
         farmersAssigned: 0,
         recruitersAssigned: 0,
+        pressureWorkersAssigned: 0,
         now: new Date("2026-04-20T12:05:30.000Z"),
       }),
     /population/
@@ -11070,6 +11076,7 @@ test("worker assignment updates validate cycle, ownership, capacity, and derived
         minersAssigned: 26,
         farmersAssigned: 0,
         recruitersAssigned: 0,
+        pressureWorkersAssigned: 0,
         now: new Date("2026-04-20T12:06:00.000Z"),
       }),
     /capacity|population/
@@ -11083,6 +11090,7 @@ test("worker assignment updates validate cycle, ownership, capacity, and derived
         minersAssigned: 1,
         farmersAssigned: 1,
         recruitersAssigned: 1,
+        pressureWorkersAssigned: 0,
         now: new Date("2026-04-20T12:06:30.000Z"),
       }),
     /participating in the active cycle/
@@ -11103,6 +11111,7 @@ test("worker assignment updates validate cycle, ownership, capacity, and derived
     minersAssigned: 20,
     farmersAssigned: 10,
     recruitersAssigned: 5,
+    pressureWorkersAssigned: 0,
     now: new Date("2026-04-20T12:07:00.000Z"),
   });
 
@@ -11110,7 +11119,8 @@ test("worker assignment updates validate cycle, ownership, capacity, and derived
   assert.equal(
     resized.minersAssigned +
       resized.farmersAssigned +
-      resized.recruitersAssigned,
+      resized.recruitersAssigned +
+      resized.pressureWorkersAssigned,
     35
   );
 });
@@ -12586,17 +12596,20 @@ test("castle upgrades are available during gameplay and reject unaffordable or m
   assert.equal(afterFirstUpgradeSummary.minersAssigned, 10);
   assert.equal(afterFirstUpgradeSummary.farmersAssigned, 10);
   assert.equal(afterFirstUpgradeSummary.recruitersAssigned, 5);
+  assert.equal(afterFirstUpgradeSummary.pressureWorkersAssigned, 0);
   assert.equal(
     completedFirstUpgradeSummary.minersAssigned +
       completedFirstUpgradeSummary.farmersAssigned +
-      completedFirstUpgradeSummary.recruitersAssigned,
+      completedFirstUpgradeSummary.recruitersAssigned +
+      completedFirstUpgradeSummary.pressureWorkersAssigned,
     25
   );
   assert.equal(
     completedFirstUpgradeSummary.population -
       completedFirstUpgradeSummary.minersAssigned -
       completedFirstUpgradeSummary.farmersAssigned -
-      completedFirstUpgradeSummary.recruitersAssigned,
+      completedFirstUpgradeSummary.recruitersAssigned -
+      completedFirstUpgradeSummary.pressureWorkersAssigned,
     10
   );
   for (let level = 1; level < MAX_FORTRESS_LEVEL; level += 1) {

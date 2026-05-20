@@ -134,11 +134,35 @@ test("worker assignment validation allows idle population and rejects overflow",
     farmersAssigned: 10,
     recruitersAssigned: 5,
   });
+  const pressureOverflow = validateWorkerAssignments({
+    level: 0,
+    minersAssigned: 10,
+    farmersAssigned: 10,
+    recruitersAssigned: 5,
+    pressureWorkersAssigned: 1,
+  });
+  const pressureNegative = validateWorkerAssignments({
+    level: 0,
+    minersAssigned: 10,
+    farmersAssigned: 10,
+    recruitersAssigned: 4,
+    pressureWorkersAssigned: -1,
+  });
+  const pressureFractional = validateWorkerAssignments({
+    level: 0,
+    minersAssigned: 10,
+    farmersAssigned: 10,
+    recruitersAssigned: 4,
+    pressureWorkersAssigned: 0.5,
+  });
 
   assert.equal(valid.isValid, true);
   assert.equal(idle.isValid, true);
   assert.equal(overflow.isValid, false);
   assert.equal(negative.isValid, false);
+  assert.equal(pressureOverflow.isValid, false);
+  assert.equal(pressureNegative.isValid, false);
+  assert.equal(pressureFractional.isValid, false);
   assert.equal(valid.totalAssigned, 25);
   assert.equal(idle.totalAssigned, 0);
 });

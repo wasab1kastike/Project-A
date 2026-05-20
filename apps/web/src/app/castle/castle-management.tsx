@@ -38,6 +38,10 @@ import {
   validateWorkerAssignments,
 } from "@/lib/game/balance";
 import {
+  getPressureWorkerDescription,
+  getPressureWorkerLabel,
+} from "@/lib/game/tile-pressure";
+import {
   calculateRecruitmentProgress,
   getArmyUpkeepCost,
   getRecruitmentCost,
@@ -73,6 +77,7 @@ type PlayerSummary = {
   minersAssigned: number;
   farmersAssigned: number;
   recruitersAssigned: number;
+  pressureWorkersAssigned: number;
   race: string | null;
   factionSuppression: {
     runeFortressId: string | null;
@@ -562,6 +567,7 @@ export function CastleManagement({
     minersAssigned: playerSummary.minersAssigned,
     farmersAssigned: playerSummary.farmersAssigned,
     recruitersAssigned: playerSummary.recruitersAssigned,
+    pressureWorkersAssigned: playerSummary.pressureWorkersAssigned,
   });
   const [workerError, setWorkerError] = useState<string | null>(null);
   const [workerPending, setWorkerPending] = useState(false);
@@ -598,7 +604,14 @@ export function CastleManagement({
   const assigned =
     workers.minersAssigned +
     workers.farmersAssigned +
-    workers.recruitersAssigned;
+    workers.recruitersAssigned +
+    workers.pressureWorkersAssigned;
+  const pressureWorkerLabel = getPressureWorkerLabel(
+    playerSummary.race as never
+  );
+  const pressureWorkerDescription = getPressureWorkerDescription(
+    playerSummary.race as never
+  );
   const recruitmentCapacityMultiplier = getCastleSpecializationMultiplier(
     castleSpecializationCounts[CastleUpgradeSpecialization.MILITARY]
   );
@@ -1075,6 +1088,21 @@ export function CastleManagement({
                 )
               }
             />
+          </label>
+          <label>
+            {pressureWorkerLabel}
+            <input
+              type="number"
+              min={0}
+              value={workers.pressureWorkersAssigned}
+              onChange={(event) =>
+                setWorker(
+                  "pressureWorkersAssigned",
+                  event.currentTarget.valueAsNumber
+                )
+              }
+            />
+            <small>{pressureWorkerDescription}</small>
           </label>
           <p className={styles.muted}>
             Tick preview: +{production.goldProduced} gold, +
