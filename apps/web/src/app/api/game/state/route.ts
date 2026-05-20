@@ -5,14 +5,34 @@ import { getHomePageState } from "@/lib/game/read-model";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const session = await auth();
-  const state = await getHomePageState({
-    userId: session?.user?.id,
-  });
+  let userId: string | undefined;
 
-  return NextResponse.json(state, {
-    headers: {
-      "Cache-Control": "no-store",
-    },
-  });
+  try {
+    const session = await auth();
+    userId = session?.user?.id;
+  } catch (error) {
+    console.error("Failed to load game state session", error);
+  }
+
+  try {
+    const state = await getHomePageState({ userId });
+
+    return NextResponse.json(state, {
+      headers: {
+        "Cache-Control": "no-store",
+      },
+    });
+  } catch (error) {
+    console.error("Failed to load game state", error);
+
+    return NextResponse.json(
+      { error: "Game state refresh failed." },
+      {
+        status: 503,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
+    );
+  }
 }

@@ -1,7 +1,6 @@
 "use client";
 
-import { startTransition, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { io } from "socket.io-client";
 import { PROJECT_A_REFRESH_EVENT } from "@/lib/realtime";
 import { useLiveGameStateRefresh } from "./live-game-state";
@@ -21,7 +20,6 @@ function getFallbackRefreshDelay() {
 }
 
 export function RealtimeBridge({ enabled }: RealtimeBridgeProps) {
-  const router = useRouter();
   const refreshGameState = useLiveGameStateRefresh();
 
   useEffect(() => {
@@ -39,13 +37,7 @@ export function RealtimeBridge({ enabled }: RealtimeBridgeProps) {
       }
 
       refreshPending = true;
-      void refreshGameState(reason).then((refreshed) => {
-        if (!refreshed) {
-          startTransition(() => {
-            router.refresh();
-          });
-        }
-
+      void refreshGameState(reason).finally(() => {
         refreshPending = false;
       });
     };
@@ -133,7 +125,7 @@ export function RealtimeBridge({ enabled }: RealtimeBridgeProps) {
       stopPollingFallback();
       socket.disconnect();
     };
-  }, [enabled, refreshGameState, router]);
+  }, [enabled, refreshGameState]);
 
   return null;
 }

@@ -286,6 +286,19 @@ async function getRealtimeSnapshot() {
         cancelledAt: true,
       },
     }),
+    prisma.battlefield.findFirst({
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+      select: {
+        id: true,
+        updatedAt: true,
+        status: true,
+        progress: true,
+        attackerArmyRemaining: true,
+        defenderArmyRemaining: true,
+        targetFortressId: true,
+        targetTileId: true,
+      },
+    }),
     prisma.chatMessage.findFirst({
       orderBy: { createdAt: "desc" },
       select: {
@@ -294,11 +307,12 @@ async function getRealtimeSnapshot() {
       },
     }),
   ]);
-  const [cycle, fortress, attackUnit, chatMessage] = await withTimeout(
-    snapshot,
-    REALTIME_WATCHER_QUERY_TIMEOUT_MS,
-    "Project-A realtime snapshot"
-  );
+  const [cycle, fortress, attackUnit, battlefield, chatMessage] =
+    await withTimeout(
+      snapshot,
+      REALTIME_WATCHER_QUERY_TIMEOUT_MS,
+      "Project-A realtime snapshot"
+    );
 
   return JSON.stringify({
     cycleId: cycle?.id ?? null,
@@ -315,6 +329,16 @@ async function getRealtimeSnapshot() {
     attackUnitTargetId: attackUnit?.targetFortressId ?? null,
     attackUnitResolvedAt: attackUnit?.resolvedAt?.toISOString() ?? null,
     attackUnitCancelledAt: attackUnit?.cancelledAt?.toISOString() ?? null,
+    battlefieldId: battlefield?.id ?? null,
+    battlefieldUpdatedAt: battlefield?.updatedAt.toISOString() ?? null,
+    battlefieldStatus: battlefield?.status ?? null,
+    battlefieldProgress: battlefield?.progress ?? null,
+    battlefieldAttackerArmyRemaining:
+      battlefield?.attackerArmyRemaining ?? null,
+    battlefieldDefenderArmyRemaining:
+      battlefield?.defenderArmyRemaining ?? null,
+    battlefieldTargetFortressId: battlefield?.targetFortressId ?? null,
+    battlefieldTargetTileId: battlefield?.targetTileId ?? null,
     chatId: chatMessage?.id ?? null,
     chatCreatedAt: chatMessage?.createdAt.toISOString() ?? null,
   });
