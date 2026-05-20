@@ -9,9 +9,11 @@ import {
   PrismaClient,
   RaceAbilityKind,
   ScoreEventType,
+  type FortressRace,
 } from "@/lib/prisma-client";
 import {
   CARRY_CAPACITY_PER_SURVIVOR,
+  getFortressDefenseMultiplier,
   MAX_FOOD_LOOT_PERCENT,
   MAX_POINT_LOOT_PERCENT,
 } from "./balance";
@@ -23,7 +25,12 @@ import {
   HOME_OF_A_TILE_ID,
   getHomeOfABossReward,
 } from "./constants";
-import { getTileBonus, getTileById, isHomeOfATile } from "./territory";
+import {
+  getTileBonus,
+  getTileById,
+  isHomeOfATile,
+  sumTileBonuses,
+} from "./territory";
 import { ensureNpcSystemUser, getHomeOfAMapPosition } from "./mega-fortress";
 import { getMaxSimultaneousAttacks } from "./upgrades";
 import {
@@ -34,6 +41,7 @@ import {
 import { DWARF_DEEP_MINING_RUNE_BOUNTY } from "./dwarf-deep-mining";
 import { ensureBattlefieldPointRewardColumn } from "./schema-guards";
 import { addHours } from "./time";
+import { countCastleSpecializations } from "./specializations";
 import {
   getLeaderboardTitleCastleLootMultiplier,
   getLeaderboardTitleHolders,
@@ -85,6 +93,37 @@ export function getBattlefieldTileDefensePowerMultiplier({
   const dwarfOwnedTileMultiplier = defenderRace === "DWARFS" ? 1.25 : 1;
 
   return tileDefenseMultiplier * dwarfOwnedTileMultiplier;
+}
+
+export function getBattlefieldCastleDefensePowerMultiplier({
+  targetFortress,
+  ownedTileDefensePercent = 0,
+}: {
+  targetFortress: {
+    fortressKind: FortressKind;
+    isNpc: boolean;
+    level: number;
+    race?: FortressRace | null;
+    castleUpgradeSpecializations?: Parameters<typeof countCastleSpecializations>[0];
+  } | null;
+  ownedTileDefensePercent?: number;
+}) {
+  if (
+    !targetFortress ||
+    targetFortress.fortressKind !== FortressKind.PLAYER ||
+    targetFortress.isNpc
+  ) {
+    return 1;
+  }
+
+  return (
+    getFortressDefenseMultiplier(
+      targetFortress.level,
+      targetFortress.race,
+      countCastleSpecializations(targetFortress.castleUpgradeSpecializations ?? [])
+    ) *
+    (1 + Math.max(0, ownedTileDefensePercent) / 100)
+  );
 }
 
 function getHomeOfABossDefeatAnnouncement({
@@ -1049,16 +1088,27 @@ export async function processActiveBattlefields({
     },
   });
   const titleTileCountsByFortressId = new Map<string, number>();
+  const ownedTileDefensePercentByFortressId = new Map<string, number>();
 
   for (const ownership of titleOwnerships) {
     if (isHomeOfATile(ownership.tileId)) {
       continue;
     }
 
+    const tile = getTileById(ownership.tileId);
+
     titleTileCountsByFortressId.set(
       ownership.ownerFortressId,
       (titleTileCountsByFortressId.get(ownership.ownerFortressId) ?? 0) + 1
     );
+    if (tile) {
+      ownedTileDefensePercentByFortressId.set(
+        ownership.ownerFortressId,
+        (ownedTileDefensePercentByFortressId.get(
+          ownership.ownerFortressId
+        ) ?? 0) + sumTileBonuses([tile], { cycleId, at: tickAt }).defensePercent
+      );
+    }
   }
 
   const leaderboardTitleHolders = getLeaderboardTitleHolders({
@@ -1127,6 +1177,17 @@ export async function processActiveBattlefields({
         cycleId,
         tickAt,
       });
+    const defenderCastleDefenseMultiplier =
+      battlefield.targetTileId === null
+        ? getBattlefieldCastleDefensePowerMultiplier({
+            targetFortress: battlefield.targetFortress,
+            ownedTileDefensePercent: battlefield.targetFortressId
+              ? (ownedTileDefensePercentByFortressId.get(
+                  battlefield.targetFortressId
+                ) ?? 0)
+              : 0,
+          })
+        : 1;
     const getWeightedParticipantMultiplier = ({
       participants,
       getMultiplier,
@@ -1197,7 +1258,9 @@ export async function processActiveBattlefields({
     const defenderPowerMultiplier =
       (defenderArmyBefore > 0
         ? (defenderParticipantPower + nativeDefenderPower) / defenderArmyBefore
-        : 1) * defenderTileDefenseMultiplier;
+        : 1) *
+      defenderTileDefenseMultiplier *
+      defenderCastleDefenseMultiplier;
     const attrition = isHomeBossBattle
       ? {
           attackerLosses: 0,
