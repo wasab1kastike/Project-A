@@ -2356,6 +2356,26 @@ export async function getHomePageState({
     workerPoolBonus: ownedTileBonuses.population,
     defenseBonusPercent: ownedTileBonuses.defensePercent,
   };
+  const ownedTileDefensePercentByFortressId = new Map<string, number>();
+
+  for (const ownership of cycle.mapHexOwnerships) {
+    if (isHomeOfATile(ownership.tileId)) {
+      continue;
+    }
+
+    const tile = getTileById(ownership.tileId);
+
+    if (!tile) {
+      continue;
+    }
+
+    ownedTileDefensePercentByFortressId.set(
+      ownership.ownerFortressId,
+      (ownedTileDefensePercentByFortressId.get(ownership.ownerFortressId) ??
+        0) + sumTileBonuses([tile], { cycleId: cycle.id, at: now }).defensePercent
+    );
+  }
+
   const getPendingClaimPayload = (tileId: string) => {
     const pendingClaim = activeClaimByTileId.get(tileId);
 
@@ -3310,6 +3330,7 @@ export async function getHomePageState({
       now,
       playerFortress,
       userId,
+      ownedTileDefensePercentByFortressId,
     }),
     attackUnits: cycle.attackUnits.map((unit) => {
       const tileTargetId =

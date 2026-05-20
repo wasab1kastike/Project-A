@@ -63,6 +63,7 @@ type MapActiveBattlefieldsOptions = {
   now: Date;
   playerFortress: PlayerFortressInput;
   userId?: string;
+  ownedTileDefensePercentByFortressId?: Map<string, number>;
 };
 
 export function mapActiveBattlefields({
@@ -72,6 +73,7 @@ export function mapActiveBattlefields({
   now,
   playerFortress,
   userId,
+  ownedTileDefensePercentByFortressId = new Map(),
 }: MapActiveBattlefieldsOptions) {
   return battlefields.map((battlefield) => {
     const currentParticipant = playerFortress
@@ -173,7 +175,14 @@ export function mapActiveBattlefields({
               at: now,
             })
         : null;
-    const defenseBuffPercent = targetTileBonus?.defensePercent ?? 0;
+    const defenseBuffPercent =
+      battlefield.targetTileId !== null &&
+      !isHomeBossBattle &&
+      battlefield.targetFortressId !== null
+        ? (ownedTileDefensePercentByFortressId.get(
+            battlefield.targetFortressId
+          ) ?? 0)
+        : (targetTileBonus?.defensePercent ?? 0);
     const canRecallOwnArmy =
       Boolean(currentParticipant) &&
       (currentParticipant?.armyRemaining ?? 0) > 0;

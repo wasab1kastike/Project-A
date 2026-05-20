@@ -131,7 +131,7 @@ test("owned tile defense bonuses contribute to battlefield defender power", () =
     getBattlefieldTileDefensePowerMultiplier({
       targetTileId: mountainTile.id,
       defenderRace: "ORKS",
-      tickAt: now,
+      ownedTileDefensePercent: 3,
     }),
     1.03
   );
@@ -139,15 +139,31 @@ test("owned tile defense bonuses contribute to battlefield defender power", () =
     getBattlefieldTileDefensePowerMultiplier({
       targetTileId: mountainTile.id,
       defenderRace: "DWARFS",
-      tickAt: now,
+      ownedTileDefensePercent: 3,
     }),
     1.2875
   );
   assert.equal(
     getBattlefieldTileDefensePowerMultiplier({
+      targetTileId: mountainTile.id,
+      defenderRace: "ORKS",
+      ownedTileDefensePercent: 5,
+    }),
+    1.05
+  );
+  assert.equal(
+    getBattlefieldTileDefensePowerMultiplier({
+      targetTileId: mountainTile.id,
+      defenderRace: "DWARFS",
+      ownedTileDefensePercent: 5,
+    }),
+    1.3125
+  );
+  assert.equal(
+    getBattlefieldTileDefensePowerMultiplier({
       targetTileId: HOME_OF_A_TILE_ID,
       defenderRace: "DWARFS",
-      tickAt: now,
+      ownedTileDefensePercent: 5,
     }),
     1
   );

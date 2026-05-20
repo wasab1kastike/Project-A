@@ -110,6 +110,7 @@ import {
   getUnicornTeleportClaimAvailability,
 } from "./race-buffs";
 import {
+  HEX_TILES,
   HEX_SPAWN_TILES,
   MAP_WORLD_HEIGHT,
   MAP_WORLD_WIDTH,
@@ -4141,6 +4142,138 @@ test("tile battle keeps ownership on defender win", async (context) => {
   });
 
   assert.equal(ownership.ownerFortressId, defenderFortress.id);
+});
+
+test("tile battle defender power uses all owned tile defense bonuses", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const attacker = await createUser(
+    prisma,
+    "tile-defense-stack-attacker@example.com"
+  );
+  const defender = await createUser(
+    prisma,
+    "tile-defense-stack-defender@example.com"
+  );
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: attacker.id,
+      commanderName: "Defense Stack Raider",
+      fortressName: "Stack Raider Keep",
+      points: 100,
+    },
+    {
+      userId: defender.id,
+      commanderName: "Defense Stack Holder",
+      fortressName: "Stack Holder Keep",
+      points: 100,
+    },
+  ]);
+  const [attackerFortress, defenderFortress] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: attacker.id } },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: defender.id } },
+    }),
+  ]);
+  const targetTile = HEX_TILES.find(
+    (candidate) =>
+      candidate.biome === "plains" && candidate.id !== HOME_OF_A_TILE_ID
+  );
+  const mountainTile = HEX_TILES.find(
+    (candidate) =>
+      candidate.biome === "mountains" && candidate.id !== HOME_OF_A_TILE_ID
+  );
+  const forestTile = HEX_TILES.find(
+    (candidate) =>
+      candidate.biome === "forest" && candidate.id !== HOME_OF_A_TILE_ID
+  );
+
+  assert.ok(targetTile);
+  assert.ok(mountainTile);
+  assert.ok(forestTile);
+
+  await prisma.fortress.updateMany({
+    where: {
+      id: {
+        in: [attackerFortress.id, defenderFortress.id],
+      },
+    },
+    data: {
+      race: FortressRace.ORKS,
+      army: 0,
+    },
+  });
+  await prisma.mapHexOwnership.createMany({
+    data: [targetTile, mountainTile, forestTile].map((tile) => ({
+      cycleId: cycle.id,
+      tileId: tile.id,
+      ownerFortressId: defenderFortress.id,
+    })),
+  });
+  const startedAt = new Date("2026-04-20T11:30:00.000Z");
+  const tickAt = new Date("2026-04-20T12:00:00.000Z");
+
+  const battlefield = await prisma.battlefield.create({
+    data: {
+      cycleId: cycle.id,
+      targetTileId: targetTile.id,
+      targetFortressId: defenderFortress.id,
+      attackerBannerFortressId: attackerFortress.id,
+      defenderBannerFortressId: defenderFortress.id,
+      attackerArmyRemaining: 1000,
+      defenderArmyRemaining: 1000,
+      startedAt,
+      participants: {
+        create: [
+          {
+            fortressId: attackerFortress.id,
+            side: BattlefieldSide.ATTACKER,
+            armyCommitted: 1000,
+            armyRemaining: 1000,
+          },
+          {
+            fortressId: defenderFortress.id,
+            side: BattlefieldSide.DEFENDER,
+            armyCommitted: 1000,
+            armyRemaining: 1000,
+          },
+        ],
+      },
+    },
+  });
+
+  await processActiveBattlefields({
+    db: prisma,
+    cycleId: cycle.id,
+    tickAt,
+  });
+
+  const defenderParticipant =
+    await prisma.battlefieldParticipant.findUniqueOrThrow({
+      where: {
+        battlefieldId_fortressId: {
+          battlefieldId: battlefield.id,
+          fortressId: defenderFortress.id,
+        },
+      },
+    });
+  const expected = getBattlefieldAttrition({
+    battleAgeMinutes: 30,
+    attackerArmy: 1000,
+    defenderArmy: 1000,
+    defenderPowerMultiplier: 1.04,
+  });
+
+  assert.equal(
+    defenderParticipant.armyRemaining,
+    1000 - expected.defenderLosses
+  );
 });
 
 test("defender battlefield win pays only defenders based on killed attackers", async (context) => {
