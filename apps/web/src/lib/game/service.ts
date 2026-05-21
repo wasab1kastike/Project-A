@@ -89,6 +89,7 @@ import {
 } from "./territory";
 import { getPressureTargetBlockedReason } from "./tile-pressure";
 import { joinBattlefield as joinBattlefieldRecord } from "./battlefields";
+import { getTileAttackBlockedReason } from "./combat-targeting";
 import { ensureNpcSystemUser, getHomeOfAMapPosition } from "./mega-fortress";
 import { recalculateReturningAttackRoutes } from "./fortress-relocation";
 import {
@@ -1305,7 +1306,7 @@ export async function attackMapHex({
       isHomeOfA && ownership && !homeHasActiveHolders ? null : ownership;
 
     if (!effectiveOwnership && !isHomeOfA) {
-      throw new GameError("Neutral tiles must be claimed, not attacked.");
+      throw new GameError("Neutral tiles must be pressured, not attacked.");
     }
 
     if (effectiveOwnership?.ownerFortressId === attacker.id) {
@@ -1325,6 +1326,40 @@ export async function attackMapHex({
 
     if (activeBattle && !isHomeOfA) {
       throw new GameError("That tile is already contested.");
+    }
+
+    if (!isHomeOfA) {
+      const ownedTileIds = await tx.mapHexOwnership.findMany({
+        where: {
+          cycleId: cycle.id,
+          ownerFortressId: attacker.id,
+        },
+        select: {
+          tileId: true,
+        },
+      });
+      const ownedNormalTileIds = ownedTileIds
+        .map((ownedTile) => ownedTile.tileId)
+        .filter((ownedTileId) => !isHomeOfATile(ownedTileId));
+      const blockedReason = getTileAttackBlockedReason({
+        tile,
+        tileId,
+        ownerFortressId: effectiveOwnership?.ownerFortressId ?? null,
+        attackerFortress: attacker,
+        ownedTileIds: ownedNormalTileIds,
+        hasActiveBattle: Boolean(activeBattle),
+        isHomeOfA: isHomeOfATile,
+        isConnected: ({ tileId: candidateTileId, ownedTileIds }) =>
+          isTileConnectedToFortressOrOwnedTiles({
+            tileId: candidateTileId,
+            fortress: attacker,
+            ownedTileIds,
+          }),
+      });
+
+      if (blockedReason) {
+        throw new GameError(blockedReason);
+      }
     }
 
     const outboundAttackCount = await tx.attackUnit.count({

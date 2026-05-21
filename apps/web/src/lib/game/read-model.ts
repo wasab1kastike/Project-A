@@ -85,6 +85,7 @@ import {
   sumTileBonuses,
 } from "./territory";
 import { getBattlefieldCasualtyBudget } from "./battlefield-rules";
+import { getTileAttackBlockedReason } from "./combat-targeting";
 import {
   getNeutralPressureClaimWinner,
   getPressureTargetBlockedReason,
@@ -2275,15 +2276,21 @@ export async function getHomePageState({
       return "You need idle army to attack tiles.";
     }
 
-    if (ownership.ownerFortressId === playerFortress.id) {
-      return "Your banner already controls this tile.";
-    }
-
-    if (activeBattleTileIds.has(ownership.tileId)) {
-      return "This tile is already contested.";
-    }
-
-    return null;
+    return getTileAttackBlockedReason({
+      tile: getTileById(ownership.tileId),
+      tileId: ownership.tileId,
+      ownerFortressId: ownership.ownerFortressId,
+      attackerFortress: playerFortress,
+      ownedTileIds: ownedNormalTileIds,
+      hasActiveBattle: activeBattleTileIds.has(ownership.tileId),
+      isHomeOfA: isHomeOfATile,
+      isConnected: ({ tileId, ownedTileIds }) =>
+        isTileConnectedToFortressOrOwnedTiles({
+          tileId,
+          fortress: playerFortress,
+          ownedTileIds,
+        }),
+    });
   };
   const getTileFortifyDisabledReason = (ownership: {
     tileId: string;
@@ -2545,11 +2552,7 @@ export async function getHomePageState({
       canAttack:
         isHomeOwnership
           ? canAttackHomeOfA
-          : gameplayOpen &&
-            playerFortress !== null &&
-            playerFortress.army > 0 &&
-            ownership.ownerFortressId !== playerFortress.id &&
-            !activeBattleTileIds.has(ownership.tileId),
+          : getTileAttackDisabledReason(ownership) === null,
       canFortify:
         isHomeOwnership
           ? false

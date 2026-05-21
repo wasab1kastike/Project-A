@@ -32,6 +32,7 @@ import { reviveGameStateDates } from "@/lib/live-state-serialization";
 import "./balance.test";
 import "./battle-report.test";
 import "./battlefield-rules.test";
+import "./combat-targeting.test";
 import "./combat-buffs.test";
 import "./leaderboard-titles.test";
 import "./season-announcement.test";
@@ -1188,7 +1189,15 @@ test("owned tile attack creates a targetTileId battlefield", async (context) => 
       where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: defender.id } },
     }),
   ]);
-  const tile = HEX_SPAWN_TILES.find((candidate) => candidate.spawnable);
+  const tile = HEX_SPAWN_TILES.find(
+    (candidate) =>
+      candidate.spawnable &&
+      isTileConnectedToFortressOrOwnedTiles({
+        tileId: candidate.id,
+        fortress: attackerFortress,
+        ownedTileIds: [],
+      })
+  );
 
   assert.ok(tile);
 
@@ -1316,6 +1325,84 @@ test("owned tile attack rejects when targeting your own tile", async (context) =
         db: prisma,
       }),
     /already own that tile/
+  );
+});
+
+test("owned tile attack rejects distant non-border tiles", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const attacker = await createUser(
+    prisma,
+    "tile-distant-attacker@example.com"
+  );
+  const defender = await createUser(
+    prisma,
+    "tile-distant-defender@example.com"
+  );
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: attacker.id,
+      commanderName: "Distant Attacker",
+      fortressName: "Distant Attack Keep",
+      points: 100,
+    },
+    {
+      userId: defender.id,
+      commanderName: "Distant Defender",
+      fortressName: "Distant Defense Keep",
+      points: 100,
+    },
+  ]);
+  const [attackerFortress, defenderFortress] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: attacker.id } },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: defender.id } },
+    }),
+  ]);
+  const tile = HEX_SPAWN_TILES.find(
+    (candidate) =>
+      candidate.spawnable &&
+      !isTileConnectedToFortressOrOwnedTiles({
+        tileId: candidate.id,
+        fortress: attackerFortress,
+        ownedTileIds: [],
+      })
+  );
+
+  assert.ok(tile);
+
+  await prisma.fortress.update({
+    where: { id: attackerFortress.id },
+    data: { race: FortressRace.ORKS, army: 20 },
+  });
+  await prisma.fortress.update({
+    where: { id: defenderFortress.id },
+    data: { race: FortressRace.DWARFS, army: 10 },
+  });
+  await prisma.mapHexOwnership.create({
+    data: {
+      cycleId: cycle.id,
+      tileId: tile.id,
+      ownerFortressId: defenderFortress.id,
+    },
+  });
+
+  await assert.rejects(
+    () =>
+      attackMapHex({
+        userId: attacker.id,
+        tileId: tile.id,
+        sentArmy: 5,
+        now: new Date("2026-04-20T12:01:00.000Z"),
+        db: prisma,
+      }),
+    /active border/
   );
 });
 
