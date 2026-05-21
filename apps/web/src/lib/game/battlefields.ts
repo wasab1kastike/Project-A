@@ -71,11 +71,13 @@ const CASTLE_PVP_POINT_LOOT_PERCENT = 0.05;
 export function getBattlefieldTileDefensePowerMultiplier({
   targetTileId,
   defenderRace,
+  ownedTileDefensePercent = 0,
   cycleId,
   tickAt,
 }: {
   targetTileId: string | null;
   defenderRace?: string | null;
+  ownedTileDefensePercent?: number;
   cycleId?: string | null;
   tickAt?: Date | null;
 }) {
@@ -90,9 +92,15 @@ export function getBattlefieldTileDefensePowerMultiplier({
     at: tickAt,
   }).defensePercent;
   const tileDefenseMultiplier = 1 + Math.max(0, tileDefensePercent) / 100;
+  const ownedTileDefenseMultiplier =
+    1 + Math.max(0, ownedTileDefensePercent) / 100;
   const dwarfOwnedTileMultiplier = defenderRace === "DWARFS" ? 1.25 : 1;
 
-  return tileDefenseMultiplier * dwarfOwnedTileMultiplier;
+  return (
+    tileDefenseMultiplier *
+    ownedTileDefenseMultiplier *
+    dwarfOwnedTileMultiplier
+  );
 }
 
 export function getBattlefieldCastleDefensePowerMultiplier({
@@ -1193,6 +1201,12 @@ export async function processActiveBattlefields({
       getBattlefieldTileDefensePowerMultiplier({
         targetTileId: battlefield.targetTileId,
         defenderRace: nativeDefenderFortress?.race,
+        ownedTileDefensePercent:
+          isRegularTileBattle && battlefield.defenderBannerFortressId
+            ? (ownedTileDefensePercentByFortressId.get(
+                battlefield.defenderBannerFortressId
+              ) ?? 0)
+            : 0,
         cycleId,
         tickAt,
       });
