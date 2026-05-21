@@ -11,7 +11,7 @@ export function createPrismaClientOptions(
       connectionString: databaseUrl ?? defaultDatabaseUrl,
       max: Number(process.env.PRISMA_POOL_MAX ?? 2),
       connectionTimeoutMillis: Number(
-        process.env.PRISMA_POOL_CONNECTION_TIMEOUT_MS ?? 1_000
+        process.env.PRISMA_POOL_CONNECTION_TIMEOUT_MS ?? 10_000
       ),
       idleTimeoutMillis: Number(
         process.env.PRISMA_POOL_IDLE_TIMEOUT_MS ?? 5_000

@@ -23,8 +23,8 @@ type LiveGameStateContextValue = {
 const LiveGameStateContext =
   createContext<LiveGameStateContextValue | null>(null);
 
-const GAME_STATE_FETCH_TIMEOUT_MS = 8_000;
-const SYNC_RETRY_BASE_DELAY_MS = 4000;
+const GAME_STATE_FETCH_TIMEOUT_MS = 15_000;
+const SYNC_RETRY_BASE_DELAY_MS = 15_000;
 const SYNC_RETRY_MAX_DELAY_MS = 60000;
 
 async function fetchGameState(reason?: string) {
@@ -57,6 +57,21 @@ async function fetchGameState(reason?: string) {
   return reviveGameStateDates((await response.json()) as HomePageState);
 }
 
+function getSyncRetryDelayMs(failureCount: number) {
+  return Math.min(
+    SYNC_RETRY_BASE_DELAY_MS * Math.pow(2, Math.max(failureCount - 1, 0)),
+    SYNC_RETRY_MAX_DELAY_MS
+  );
+}
+
+function shouldBypassRefreshBackoff(reason?: string) {
+  return (
+    reason === "auto-retry" ||
+    reason === "manual-retry" ||
+    reason === "inline-action"
+  );
+}
+
 export function LiveGameStateProvider({
   initialState,
   children,
@@ -70,11 +85,19 @@ export function LiveGameStateProvider({
   const [syncRetryCount, setSyncRetryCount] = useState(0);
   const refreshPromiseRef = useRef<Promise<boolean> | null>(null);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const nextAutomaticRefreshAtRef = useRef(0);
 
   // Enhanced refresh with retry
   const refreshGameState = useCallback(async (reason?: string) => {
     if (refreshPromiseRef.current) {
       return refreshPromiseRef.current;
+    }
+
+    if (
+      !shouldBypassRefreshBackoff(reason) &&
+      Date.now() < nextAutomaticRefreshAtRef.current
+    ) {
+      return false;
     }
 
     const refreshPromise = (async () => {
@@ -85,6 +108,7 @@ export function LiveGameStateProvider({
         setState(nextState);
         setLastRefreshError(null);
         setSyncRetryCount(0);
+        nextAutomaticRefreshAtRef.current = 0;
         return true;
       } catch (error) {
         setLastRefreshError(
@@ -92,7 +116,12 @@ export function LiveGameStateProvider({
             ? error.message
             : "Game state refresh failed."
         );
-        setSyncRetryCount((c) => c + 1);
+        setSyncRetryCount((count) => {
+          const nextCount = count + 1;
+          nextAutomaticRefreshAtRef.current =
+            Date.now() + getSyncRetryDelayMs(nextCount);
+          return nextCount;
+        });
         return false;
       } finally {
         setIsRefreshing(false);
@@ -114,10 +143,7 @@ export function LiveGameStateProvider({
       return;
     }
     // Exponential backoff for retries
-    const delay = Math.min(
-      SYNC_RETRY_BASE_DELAY_MS * Math.pow(2, syncRetryCount),
-      SYNC_RETRY_MAX_DELAY_MS
-    );
+    const delay = getSyncRetryDelayMs(syncRetryCount);
     retryTimeoutRef.current = setTimeout(() => {
       refreshGameState("auto-retry");
     }, delay);
