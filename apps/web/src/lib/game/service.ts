@@ -10,6 +10,7 @@ import {
   BattlefieldStatus,
   BattlefieldSide,
   ChatMessageType,
+  DiplomacyRelationStatus,
   OrkBossOrderKind,
   OrkScrapEventReason,
   OrkWaaaghInvestmentKind,
@@ -100,6 +101,12 @@ import {
   getWaaaghInvestmentCost,
   isRealOrkPlayerFortress,
 } from "./orks";
+import {
+  canProposePeace,
+  getCanonicalDiplomacyPair,
+  getEffectiveDiplomacyStatus,
+  getWarStartsAt,
+} from "./politics";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -1184,6 +1191,313 @@ export async function clearTilePressurePriority({
     });
 
     return { tileId };
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+async function getActivePlayerFortressForPolitics({
+  tx,
+  cycleId,
+  userId,
+}: {
+  tx: Prisma.TransactionClient;
+  cycleId: string;
+  userId: string;
+}) {
+  const fortress = await tx.fortress.findUnique({
+    where: {
+      cycleId_ownerId: {
+        cycleId,
+        ownerId: userId,
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!fortress) {
+    throw new GameError("You are not participating in the active cycle.");
+  }
+
+  return fortress;
+}
+
+async function getTargetPlayerFortressForPolitics({
+  tx,
+  cycleId,
+  targetFortressId,
+}: {
+  tx: Prisma.TransactionClient;
+  cycleId: string;
+  targetFortressId: string;
+}) {
+  const target = await tx.fortress.findFirst({
+    where: {
+      id: targetFortressId,
+      cycleId,
+      fortressKind: FortressKind.PLAYER,
+      isNpc: false,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!target) {
+    throw new GameError("That player fortress is not in the active cycle.");
+  }
+
+  return target;
+}
+
+export async function declareWar({
+  userId,
+  targetFortressId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  targetFortressId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("Politics can only change during gameplay.");
+    }
+
+    const actor = await getActivePlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      userId,
+    });
+    const target = await getTargetPlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      targetFortressId,
+    });
+
+    if (actor.id === target.id) {
+      throw new GameError("You cannot declare war on yourself.");
+    }
+
+    const pair = getCanonicalDiplomacyPair(actor.id, target.id);
+    const existing = await tx.diplomacyRelation.findUnique({
+      where: {
+        cycleId_fortressAId_fortressBId: {
+          cycleId: cycle.id,
+          ...pair,
+        },
+      },
+    });
+    const effectiveStatus = getEffectiveDiplomacyStatus({
+      relation: existing,
+      now,
+    });
+
+    if (effectiveStatus === DiplomacyRelationStatus.ALLIED) {
+      throw new GameError("Allied betrayal is not implemented yet.");
+    }
+
+    if (effectiveStatus === DiplomacyRelationStatus.WAR) {
+      return existing
+        ? tx.diplomacyRelation.update({
+            where: {
+              id: existing.id,
+            },
+            data: {
+              status: DiplomacyRelationStatus.WAR,
+              warStartsAt: existing.warStartsAt ?? now,
+            },
+          })
+        : tx.diplomacyRelation.create({
+            data: {
+              cycleId: cycle.id,
+              ...pair,
+              status: DiplomacyRelationStatus.WAR,
+              warDeclaredById: actor.id,
+              warDeclaredAt: now,
+              warStartsAt: now,
+            },
+          });
+    }
+
+    if (
+      existing?.status === DiplomacyRelationStatus.WAR_PENDING &&
+      existing.warStartsAt &&
+      existing.warStartsAt > now
+    ) {
+      return existing;
+    }
+
+    const warStartsAt = getWarStartsAt(now);
+
+    return tx.diplomacyRelation.upsert({
+      where: {
+        cycleId_fortressAId_fortressBId: {
+          cycleId: cycle.id,
+          ...pair,
+        },
+      },
+      create: {
+        cycleId: cycle.id,
+        ...pair,
+        status: DiplomacyRelationStatus.WAR_PENDING,
+        warDeclaredById: actor.id,
+        warDeclaredAt: now,
+        warStartsAt,
+      },
+      update: {
+        status: DiplomacyRelationStatus.WAR_PENDING,
+        warDeclaredById: actor.id,
+        warDeclaredAt: now,
+        warStartsAt,
+        peaceProposedById: null,
+        peaceProposedAt: null,
+      },
+    });
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+export async function proposePeace({
+  userId,
+  targetFortressId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  targetFortressId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("Politics can only change during gameplay.");
+    }
+
+    const actor = await getActivePlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      userId,
+    });
+    const target = await getTargetPlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      targetFortressId,
+    });
+
+    if (actor.id === target.id) {
+      throw new GameError("You cannot propose peace with yourself.");
+    }
+
+    const pair = getCanonicalDiplomacyPair(actor.id, target.id);
+    const relation = await tx.diplomacyRelation.findUnique({
+      where: {
+        cycleId_fortressAId_fortressBId: {
+          cycleId: cycle.id,
+          ...pair,
+        },
+      },
+    });
+
+    if (!relation) {
+      throw new GameError("You are already at peace.");
+    }
+
+    if (relation.status === DiplomacyRelationStatus.PEACE_PENDING) {
+      return relation;
+    }
+
+    const effectiveStatus = getEffectiveDiplomacyStatus({ relation, now });
+
+    if (!canProposePeace(effectiveStatus)) {
+      throw new GameError("Peace can only be proposed from a hostile relation.");
+    }
+
+    return tx.diplomacyRelation.update({
+      where: {
+        id: relation.id,
+      },
+      data: {
+        status: DiplomacyRelationStatus.PEACE_PENDING,
+        peaceProposedById: actor.id,
+        peaceProposedAt: now,
+      },
+    });
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+export async function acceptPeace({
+  userId,
+  targetFortressId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  targetFortressId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("Politics can only change during gameplay.");
+    }
+
+    const actor = await getActivePlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      userId,
+    });
+    const target = await getTargetPlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      targetFortressId,
+    });
+
+    if (actor.id === target.id) {
+      throw new GameError("You cannot accept peace with yourself.");
+    }
+
+    const pair = getCanonicalDiplomacyPair(actor.id, target.id);
+    const relation = await tx.diplomacyRelation.findUnique({
+      where: {
+        cycleId_fortressAId_fortressBId: {
+          cycleId: cycle.id,
+          ...pair,
+        },
+      },
+    });
+
+    if (!relation || relation.status !== DiplomacyRelationStatus.PEACE_PENDING) {
+      throw new GameError("There is no peace proposal to accept.");
+    }
+
+    if (relation.peaceProposedById === actor.id) {
+      throw new GameError("The other fortress must accept your peace proposal.");
+    }
+
+    return tx.diplomacyRelation.update({
+      where: {
+        id: relation.id,
+      },
+      data: {
+        status: DiplomacyRelationStatus.NEUTRAL,
+        warDeclaredById: null,
+        warDeclaredAt: null,
+        warStartsAt: null,
+        peaceProposedById: null,
+        peaceProposedAt: null,
+        collateralGold: 0,
+        collateralFood: 0,
+        collateralArmy: 0,
+      },
+    });
   }, SERVICE_TRANSACTION_OPTIONS);
 }
 

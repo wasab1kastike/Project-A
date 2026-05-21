@@ -16,6 +16,7 @@ import {
   ChatMessageType,
   CommunityWishStatus,
   CycleStatus,
+  DiplomacyRelationStatus,
   DwarfDeepMiningOutcome,
   FortressAction,
   FortressKind,
@@ -35,6 +36,7 @@ import "./battlefield-rules.test";
 import "./combat-targeting.test";
 import "./combat-buffs.test";
 import "./leaderboard-titles.test";
+import "./politics.test";
 import "./season-announcement.test";
 import "./tile-pressure.test";
 import {
@@ -156,9 +158,12 @@ import {
   cancelDwarfRuneOfGrudges,
   claimUnicornTeleport,
   clearTilePressurePriority,
+  acceptPeace,
   attackMapHex,
+  declareWar,
   fortifyMapHex,
   joinBattlefield,
+  proposePeace,
   reinforceDwarfRuneOfGrudges,
   torchOccupiedMapHex,
   updateWorkerAssignment,
@@ -1305,6 +1310,112 @@ test("pressure tick clears stale enemy-owned priority and avoids enemy pressure"
   assert.equal(stalePressureStateCount, 0);
   assert.equal(staleOwnership.ownerFortressId, defenderFortress.id);
   assert.ok(attackerOwnedTiles > 0);
+});
+
+test("politics war and peace use one canonical relation", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const alpha = await createUser(prisma, "politics-alpha@example.com");
+  const beta = await createUser(prisma, "politics-beta@example.com");
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: alpha.id,
+      commanderName: "Policy Alpha",
+      fortressName: "Alpha Hall",
+      points: 100,
+    },
+    {
+      userId: beta.id,
+      commanderName: "Policy Beta",
+      fortressName: "Beta Hall",
+      points: 100,
+    },
+  ]);
+  const [alphaFortress, betaFortress] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: alpha.id,
+        },
+      },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: beta.id,
+        },
+      },
+    }),
+  ]);
+
+  const declared = await declareWar({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+    db: prisma,
+  });
+
+  assert.equal(declared.status, DiplomacyRelationStatus.WAR_PENDING);
+  assert.equal(declared.warDeclaredById, alphaFortress.id);
+  assert.equal(declared.warStartsAt?.toISOString(), "2026-04-21T12:00:00.000Z");
+  assert.deepEqual(
+    [declared.fortressAId, declared.fortressBId],
+    [alphaFortress.id, betaFortress.id].sort()
+  );
+
+  const duplicateDeclare = await declareWar({
+    userId: beta.id,
+    targetFortressId: alphaFortress.id,
+    now: new Date("2026-04-20T12:05:00.000Z"),
+    db: prisma,
+  });
+
+  assert.equal(duplicateDeclare.id, declared.id);
+
+  const proposed = await proposePeace({
+    userId: beta.id,
+    targetFortressId: alphaFortress.id,
+    now: new Date("2026-04-20T12:10:00.000Z"),
+    db: prisma,
+  });
+
+  assert.equal(proposed.status, DiplomacyRelationStatus.PEACE_PENDING);
+  assert.equal(proposed.peaceProposedById, betaFortress.id);
+  await assert.rejects(
+    () =>
+      acceptPeace({
+        userId: beta.id,
+        targetFortressId: alphaFortress.id,
+        now: new Date("2026-04-20T12:11:00.000Z"),
+        db: prisma,
+      }),
+    /other fortress/
+  );
+
+  const accepted = await acceptPeace({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    now: new Date("2026-04-20T12:12:00.000Z"),
+    db: prisma,
+  });
+
+  assert.equal(accepted.status, DiplomacyRelationStatus.NEUTRAL);
+  assert.equal(accepted.warDeclaredById, null);
+  assert.equal(accepted.peaceProposedById, null);
+  assert.equal(
+    await prisma.diplomacyRelation.count({
+      where: {
+        cycleId: cycle.id,
+      },
+    }),
+    1
+  );
 });
 
 test("owned tile attack creates a targetTileId battlefield", async (context) => {
