@@ -105,9 +105,11 @@ type MapHexOwnershipMarker = {
   fortifyDisabledReason?: string | null;
   isConnectedToPlayerTerritory?: boolean;
   pressurePriority?: boolean;
+  pressurePlayerProgress?: number | null;
   pressureProgress?: number | null;
   pressureThreshold?: number | null;
   pressureLeaderFortressId?: string | null;
+  pressureLeaderLabel?: string | null;
   canPrioritizePressure?: boolean;
   pressurePriorityDisabledReason?: string | null;
   activeBattlefieldId?: string | null;

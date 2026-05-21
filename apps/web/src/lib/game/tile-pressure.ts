@@ -76,6 +76,10 @@ export function getPressureTargetBlockedReason({
     return "You already own that tile.";
   }
 
+  if (ownerFortressId) {
+    return "Enemy-owned tiles cannot receive expansion pressure yet.";
+  }
+
   if (
     !isConnected({
       tileId,

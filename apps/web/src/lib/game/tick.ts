@@ -470,9 +470,6 @@ async function processTilePressureExpansion({
           cycleId,
           fortressKind: FortressKind.PLAYER,
           isNpc: false,
-          pressureWorkersAssigned: {
-            gt: 0,
-          },
         },
         select: {
           id: true,
@@ -510,6 +507,9 @@ async function processTilePressureExpansion({
         ownership.ownerFortressId,
       ])
     );
+    const ownedExpansionTileIds = ownerships
+      .map((ownership) => ownership.tileId)
+      .filter((tileId) => !isHomeOfATile(tileId));
     const ownedTileIdsByFortressId = new Map<string, string[]>();
     const prioritiesByFortressId = new Map<
       string,
@@ -540,15 +540,22 @@ async function processTilePressureExpansion({
     const claimableTiles = HEX_TILES.filter((tile) => tile.claimable);
     const pressuredTileIds = new Set<string>();
 
+    if (ownedExpansionTileIds.length > 0) {
+      await tx.tilePressureState.deleteMany({
+        where: {
+          cycleId,
+          tileId: {
+            in: ownedExpansionTileIds,
+          },
+        },
+      });
+    }
+
     for (const fortress of fortresses) {
       const pressure = calculatePressureOutput({
         pressureWorkersAssigned: fortress.pressureWorkersAssigned,
         race: fortress.race,
       });
-
-      if (pressure <= 0) {
-        continue;
-      }
 
       const ownedTileIds = ownedTileIdsByFortressId.get(fortress.id) ?? [];
       const isConnected = ({
@@ -576,6 +583,27 @@ async function processTilePressureExpansion({
       const legalPriorities = (
         prioritiesByFortressId.get(fortress.id) ?? []
       ).filter((priority) => isLegalTile(priority.tileId));
+
+      const stalePriorities = (
+        prioritiesByFortressId.get(fortress.id) ?? []
+      ).filter((priority) => !isLegalTile(priority.tileId));
+
+      if (stalePriorities.length > 0) {
+        await tx.tilePressurePriority.deleteMany({
+          where: {
+            cycleId,
+            fortressId: fortress.id,
+            tileId: {
+              in: stalePriorities.map((priority) => priority.tileId),
+            },
+          },
+        });
+      }
+
+      if (pressure <= 0) {
+        continue;
+      }
+
       const targets =
         legalPriorities.length > 0
           ? legalPriorities
@@ -647,6 +675,12 @@ async function processTilePressureExpansion({
       });
       ownerByTileId.set(tileId, winnerFortressId);
       await tx.tilePressurePriority.deleteMany({
+        where: {
+          cycleId,
+          tileId,
+        },
+      });
+      await tx.tilePressureState.deleteMany({
         where: {
           cycleId,
           tileId,

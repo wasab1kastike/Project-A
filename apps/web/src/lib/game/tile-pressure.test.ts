@@ -79,6 +79,16 @@ test("pressure target legality rejects Home of A and own tiles", () => {
   );
 });
 
+test("pressure target legality rejects enemy-owned tiles", () => {
+  assert.match(
+    getPressureTargetBlockedReason({
+      ...baseTargetInput,
+      ownerFortressId: "fortress-b",
+    }) ?? "",
+    /Enemy-owned/
+  );
+});
+
 test("pressure target legality rejects disconnected and unclaimable tiles", () => {
   assert.match(
     getPressureTargetBlockedReason({

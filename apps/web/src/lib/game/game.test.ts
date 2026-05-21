@@ -1148,14 +1148,163 @@ test("pressure priority automatically claims neutral tile and applies tick bonus
   assert.equal(reloaded.food, expectedTileBonus.food);
   assert.equal(reloaded.points, expectedTileBonus.points);
 
-  const clearedPriorityCount = await prisma.tilePressurePriority.count({
+  const [clearedPriorityCount, clearedPressureStateCount, homeState] =
+    await Promise.all([
+      prisma.tilePressurePriority.count({
+        where: {
+          cycleId: cycle.id,
+          tileId: tile.id,
+        },
+      }),
+      prisma.tilePressureState.count({
+        where: {
+          cycleId: cycle.id,
+          tileId: tile.id,
+        },
+      }),
+      getHomePageState({
+        userId: user.id,
+        now: new Date("2026-04-20T12:02:00.000Z"),
+        db: prisma,
+      }),
+    ]);
+  const claimedTile = homeState.mapHexes.find(
+    (mapHex) => mapHex.tileId === tile.id
+  );
+
+  assert.equal(clearedPriorityCount, 0);
+  assert.equal(clearedPressureStateCount, 0);
+  assert.equal(claimedTile?.pressureProgress, null);
+  assert.equal(claimedTile?.pressurePlayerProgress, null);
+});
+
+test("pressure tick clears stale enemy-owned priority and avoids enemy pressure", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const attacker = await createUser(
+    prisma,
+    "stale-pressure-attacker@example.com"
+  );
+  const defender = await createUser(
+    prisma,
+    "stale-pressure-defender@example.com"
+  );
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: attacker.id,
+      commanderName: "Stale Pressure",
+      fortressName: "Stale Keep",
+      points: 100,
+    },
+    {
+      userId: defender.id,
+      commanderName: "Pressure Blocker",
+      fortressName: "Blocker Keep",
+      points: 100,
+    },
+  ]);
+  const [attackerFortress, defenderFortress] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: attacker.id,
+        },
+      },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: defender.id,
+        },
+      },
+    }),
+  ]);
+  await prisma.fortress.update({
     where: {
-      cycleId: cycle.id,
-      tileId: tile.id,
+      id: attackerFortress.id,
+    },
+    data: {
+      minersAssigned: 0,
+      farmersAssigned: 0,
+      recruitersAssigned: 0,
+      pressureWorkersAssigned: TILE_PRESSURE_CLAIM_THRESHOLD * 1000,
     },
   });
 
-  assert.equal(clearedPriorityCount, 0);
+  const staleTile = HEX_SPAWN_TILES.find(
+    (candidate) =>
+      candidate.spawnable &&
+      isTileConnectedToFortressOrOwnedTiles({
+        tileId: candidate.id,
+        fortress: attackerFortress,
+        ownedTileIds: [],
+      })
+  );
+
+  assert.ok(staleTile);
+
+  await setTilePressurePriority({
+    userId: attacker.id,
+    tileId: staleTile.id,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+    db: prisma,
+  });
+  await prisma.mapHexOwnership.create({
+    data: {
+      cycleId: cycle.id,
+      tileId: staleTile.id,
+      ownerFortressId: defenderFortress.id,
+      claimedAt: new Date("2026-04-20T12:01:30.000Z"),
+    },
+  });
+
+  await runGameTick({
+    now: new Date("2026-04-20T12:02:00.000Z"),
+    db: prisma,
+  });
+
+  const [stalePriorityCount, stalePressureStateCount, staleOwnership] =
+    await Promise.all([
+      prisma.tilePressurePriority.count({
+        where: {
+          cycleId: cycle.id,
+          fortressId: attackerFortress.id,
+          tileId: staleTile.id,
+        },
+      }),
+      prisma.tilePressureState.count({
+        where: {
+          cycleId: cycle.id,
+          fortressId: attackerFortress.id,
+          tileId: staleTile.id,
+        },
+      }),
+      prisma.mapHexOwnership.findUniqueOrThrow({
+        where: {
+          cycleId_tileId: {
+            cycleId: cycle.id,
+            tileId: staleTile.id,
+          },
+        },
+      }),
+    ]);
+  const attackerOwnedTiles = await prisma.mapHexOwnership.count({
+    where: {
+      cycleId: cycle.id,
+      ownerFortressId: attackerFortress.id,
+    },
+  });
+
+  assert.equal(stalePriorityCount, 0);
+  assert.equal(stalePressureStateCount, 0);
+  assert.equal(staleOwnership.ownerFortressId, defenderFortress.id);
+  assert.ok(attackerOwnedTiles > 0);
 });
 
 test("owned tile attack creates a targetTileId battlefield", async (context) => {

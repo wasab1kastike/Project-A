@@ -1659,10 +1659,14 @@ export function BattlefieldExperience({
           <div>
             <dt>Pressure</dt>
             <dd>
-              {selectedOwnership.pressureProgress != null &&
-              selectedOwnership.pressureThreshold != null
-                ? `${selectedOwnership.pressureProgress}/${selectedOwnership.pressureThreshold}`
+              {selectedOwnership.pressureThreshold != null
+                ? `You ${selectedOwnership.pressurePlayerProgress ?? 0}/${selectedOwnership.pressureThreshold}`
                 : "-"}
+              {selectedOwnership.pressureLeaderLabel &&
+              selectedOwnership.pressureProgress != null &&
+              selectedOwnership.pressureThreshold != null
+                ? `, leader ${selectedOwnership.pressureLeaderLabel} ${selectedOwnership.pressureProgress}/${selectedOwnership.pressureThreshold}`
+                : ""}
             </dd>
           </div>
         ) : null}

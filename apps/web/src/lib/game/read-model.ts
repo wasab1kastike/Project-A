@@ -2346,12 +2346,19 @@ export async function getHomePageState({
           .map((priority) => priority.tileId)
       : []
   );
+  const claimedTileIds = new Set(
+    cycle.mapHexOwnerships.map((ownership) => ownership.tileId)
+  );
   const pressureStatesByTileId = new Map<
     string,
     Array<{ fortressId: string; pressure: number }>
   >();
 
   for (const state of cycle.tilePressureStates) {
+    if (claimedTileIds.has(state.tileId)) {
+      continue;
+    }
+
     const states = pressureStatesByTileId.get(state.tileId) ?? [];
     states.push({
       fortressId: state.fortressId,
@@ -2360,9 +2367,6 @@ export async function getHomePageState({
     pressureStatesByTileId.set(state.tileId, states);
   }
 
-  const claimedTileIds = new Set(
-    cycle.mapHexOwnerships.map((ownership) => ownership.tileId)
-  );
   const ownedTileBonuses = sumTileBonuses(ownedNormalTiles, {
     cycleId: cycle.id,
     at: now,
@@ -2393,6 +2397,12 @@ export async function getHomePageState({
         states,
         threshold: TILE_PRESSURE_CLAIM_THRESHOLD,
       }) ?? leader?.fortressId ?? null;
+    const pressureLeaderLabel =
+      pressureLeaderFortressId === null
+        ? null
+        : pressureLeaderFortressId === playerFortress?.id
+          ? "You"
+          : "Another fortress";
     const isConnectedToPlayerTerritory =
       playerFortress !== null
         ? isTileConnectedToFortressOrOwnedTiles({
@@ -2429,9 +2439,11 @@ export async function getHomePageState({
     return {
       isConnectedToPlayerTerritory,
       pressurePriority: pressurePriorityTileIds.has(tile.id),
+      pressurePlayerProgress: ownState?.pressure ?? null,
       pressureProgress: ownState?.pressure ?? leader?.pressure ?? null,
       pressureThreshold: TILE_PRESSURE_CLAIM_THRESHOLD,
       pressureLeaderFortressId,
+      pressureLeaderLabel,
       canPrioritizePressure: pressurePriorityDisabledReason === null,
       pressurePriorityDisabledReason,
     };
@@ -2452,9 +2464,11 @@ export async function getHomePageState({
     fortifyDisabledReason: string | null;
     isConnectedToPlayerTerritory: boolean;
     pressurePriority: boolean;
+    pressurePlayerProgress: number | null;
     pressureProgress: number | null;
     pressureThreshold: number | null;
     pressureLeaderFortressId: string | null;
+    pressureLeaderLabel: string | null;
     canPrioritizePressure: boolean;
     pressurePriorityDisabledReason: string | null;
     activeBattlefieldId: string | null;
@@ -2508,9 +2522,11 @@ export async function getHomePageState({
       : {
           isConnectedToPlayerTerritory: false,
           pressurePriority: false,
+          pressurePlayerProgress: null,
           pressureProgress: null,
           pressureThreshold: null,
           pressureLeaderFortressId: null,
+          pressureLeaderLabel: null,
           canPrioritizePressure: false,
           pressurePriorityDisabledReason:
             "That map tile cannot receive pressure.",
@@ -2563,9 +2579,11 @@ export async function getHomePageState({
           : getTileFortifyDisabledReason(ownership),
       isConnectedToPlayerTerritory: pressureState.isConnectedToPlayerTerritory,
       pressurePriority: pressureState.pressurePriority,
+      pressurePlayerProgress: pressureState.pressurePlayerProgress,
       pressureProgress: pressureState.pressureProgress,
       pressureThreshold: pressureState.pressureThreshold,
       pressureLeaderFortressId: pressureState.pressureLeaderFortressId,
+      pressureLeaderLabel: pressureState.pressureLeaderLabel,
       canPrioritizePressure: pressureState.canPrioritizePressure,
       pressurePriorityDisabledReason:
         pressureState.pressurePriorityDisabledReason,
@@ -2643,9 +2661,11 @@ export async function getHomePageState({
       fortifyDisabledReason: "Home of A is a daily boss and cannot be fortified.",
       isConnectedToPlayerTerritory: false,
       pressurePriority: false,
+      pressurePlayerProgress: null,
       pressureProgress: null,
       pressureThreshold: null,
       pressureLeaderFortressId: null,
+      pressureLeaderLabel: null,
       canPrioritizePressure: false,
       pressurePriorityDisabledReason:
         "Home of A is a daily boss and cannot receive expansion pressure.",
@@ -2702,9 +2722,11 @@ export async function getHomePageState({
       fortifyDisabledReason: "Own this tile before fortifying it.",
       isConnectedToPlayerTerritory: pressureState.isConnectedToPlayerTerritory,
       pressurePriority: pressureState.pressurePriority,
+      pressurePlayerProgress: pressureState.pressurePlayerProgress,
       pressureProgress: pressureState.pressureProgress,
       pressureThreshold: pressureState.pressureThreshold,
       pressureLeaderFortressId: pressureState.pressureLeaderFortressId,
+      pressureLeaderLabel: pressureState.pressureLeaderLabel,
       canPrioritizePressure: pressureState.canPrioritizePressure,
       pressurePriorityDisabledReason:
         pressureState.pressurePriorityDisabledReason,
