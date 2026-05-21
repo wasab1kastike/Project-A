@@ -23,7 +23,7 @@ type ActionHintInput = {
   }>;
   mapHexes: Array<{
     tileId: string;
-    canClaim?: boolean;
+    canPrioritizePressure?: boolean;
     ownGarrison?: {
       canRecall: boolean;
       army: number;
@@ -147,7 +147,7 @@ export function getContextualActionHint(input: ActionHintInput): ActionHint {
     return {
       label: "Food",
       message:
-        "Food is empty. Assign farmers, claim food tiles, or slow army growth before starvation costs army.",
+        "Food is empty. Assign farmers, prioritize food tiles, or slow army growth before starvation costs army.",
       tone: "warning",
     };
   }
@@ -160,10 +160,11 @@ export function getContextualActionHint(input: ActionHintInput): ActionHint {
     };
   }
 
-  if (input.mapHexes.some((hex) => hex.canClaim)) {
+  if (input.mapHexes.some((hex) => hex.canPrioritizePressure)) {
     return {
       label: "Expand",
-      message: "A connected neutral tile is claimable. Pick a nearby hex to grow your economy.",
+      message:
+        "A connected border tile can receive pressure. Prioritize a nearby hex to grow your economy.",
       tone: "opportunity",
     };
   }

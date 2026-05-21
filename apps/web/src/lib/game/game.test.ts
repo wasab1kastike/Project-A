@@ -154,7 +154,7 @@ import {
   activateUnicornShatteredReality,
   cancelDwarfRuneOfGrudges,
   claimUnicornTeleport,
-  claimNeutralMapHex,
+  clearTilePressurePriority,
   attackMapHex,
   fortifyMapHex,
   joinBattlefield,
@@ -162,6 +162,7 @@ import {
   torchOccupiedMapHex,
   updateWorkerAssignment,
   shuffleFortressLocation,
+  setTilePressurePriority,
 } from "./service";
 import { TickRunnerError, classifyTickHealth, runGameTick } from "./tick";
 import { addHours, addMinutes } from "./time";
@@ -183,11 +184,11 @@ import {
 } from "./battlefields";
 import {
   getTileBonus,
-  getTileClaimCost,
   getTileById,
   isHomeOfATile,
   isTileConnectedToFortressOrOwnedTiles,
 } from "./territory";
+import { TILE_PRESSURE_CLAIM_THRESHOLD } from "./tile-pressure";
 import {
   classifyWinnerRequest,
   reviewWinnerRequest,
@@ -319,7 +320,7 @@ test("contextual action hint points idle army at active battles before economy c
         canJoinDefender: true,
       },
     ],
-    mapHexes: [{ tileId: "map-4", canClaim: true }],
+    mapHexes: [{ tileId: "map-4", canPrioritizePressure: true }],
     homeOfA: {
       canAttack: true,
       activeBattlefieldId: null,
@@ -850,7 +851,7 @@ test("chat message variant marks only system messages as system", () => {
   );
 });
 
-test("territory bonuses and claim costs are deterministic", () => {
+test("territory bonuses are deterministic", () => {
   const tile = HEX_SPAWN_TILES.find(
     (candidate) => candidate.biome === "plains"
   );
@@ -865,22 +866,6 @@ test("territory bonuses and claim costs are deterministic", () => {
     defensePercent: 0,
     label: "+1 gold, +2 food / tick",
   });
-  assert.equal(
-    getTileClaimCost({
-      tile,
-      origin: {
-        mapX: 50,
-        mapY: 50,
-      },
-    }),
-    getTileClaimCost({
-      tile,
-      origin: {
-        mapX: 50,
-        mapY: 50,
-      },
-    })
-  );
 });
 
 test("battlefield progress advances by one to five percent per tick", () => {
@@ -1072,7 +1057,7 @@ test("Home of A boss battle damage does not imply attacker losses", () => {
   );
 });
 
-test("neutral tile claim spends gold and applies tick bonus", async (context) => {
+test("pressure priority automatically claims neutral tile and applies tick bonus", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -1108,6 +1093,7 @@ test("neutral tile claim spends gold and applies tick bonus", async (context) =>
       minersAssigned: 0,
       farmersAssigned: 0,
       recruitersAssigned: 0,
+      pressureWorkersAssigned: TILE_PRESSURE_CLAIM_THRESHOLD,
     },
   });
   const tile = HEX_SPAWN_TILES.find(
@@ -1123,15 +1109,7 @@ test("neutral tile claim spends gold and applies tick bonus", async (context) =>
 
   assert.ok(tile);
 
-  const claimCost = getTileClaimCost({
-    tile,
-    origin: {
-      mapX: fortress.mapX,
-      mapY: fortress.mapY,
-    },
-  });
-
-  await claimNeutralMapHex({
+  await setTilePressurePriority({
     userId: user.id,
     tileId: tile.id,
     now: new Date("2026-04-20T12:01:00.000Z"),
@@ -1142,7 +1120,7 @@ test("neutral tile claim spends gold and applies tick bonus", async (context) =>
     db: prisma,
   });
 
-  const pendingOwnership = await prisma.mapHexOwnership.findUnique({
+  const ownership = await prisma.mapHexOwnership.findUnique({
     where: {
       cycleId_tileId: {
         cycleId: cycle.id,
@@ -1151,17 +1129,12 @@ test("neutral tile claim spends gold and applies tick bonus", async (context) =>
     },
   });
 
-  assert.equal(pendingOwnership, null);
-
-  await runGameTick({
-    now: new Date("2026-04-20T12:11:00.000Z"),
-    db: prisma,
-  });
+  assert.equal(ownership?.ownerFortressId, fortress.id);
 
   const expectedTileBonus = getTileBonus(tile, {
     tileId: tile.id,
     cycleId: cycle.id,
-    at: new Date("2026-04-20T12:11:00.000Z"),
+    at: new Date("2026-04-20T12:02:00.000Z"),
   });
 
   const reloaded = await prisma.fortress.findUniqueOrThrow({
@@ -1170,21 +1143,18 @@ test("neutral tile claim spends gold and applies tick bonus", async (context) =>
     },
   });
 
-  assert.equal(reloaded.gold, 100 - claimCost + expectedTileBonus.gold);
+  assert.equal(reloaded.gold, 100 + expectedTileBonus.gold);
   assert.equal(reloaded.food, expectedTileBonus.food);
   assert.equal(reloaded.points, expectedTileBonus.points);
 
-  const completedProject = await prisma.mapHexClaimProject.findFirstOrThrow({
+  const clearedPriorityCount = await prisma.tilePressurePriority.count({
     where: {
       cycleId: cycle.id,
       tileId: tile.id,
     },
   });
 
-  assert.equal(
-    completedProject.completedAt?.toISOString(),
-    "2026-04-20T12:11:00.000Z"
-  );
+  assert.equal(clearedPriorityCount, 0);
 });
 
 test("owned tile attack creates a targetTileId battlefield", async (context) => {
@@ -4709,13 +4679,13 @@ test("Home of A is centered and cannot be neutral claimed", async (context) => {
   assert.equal(home.army, HOME_OF_A_NEUTRAL_DEFENSE);
   await assert.rejects(
     () =>
-      claimNeutralMapHex({
+      setTilePressurePriority({
         userId: user.id,
         tileId: HOME_OF_A_TILE_ID,
         now: new Date("2026-04-20T12:01:00.000Z"),
         db: prisma,
       }),
-    /must be conquered/
+    /Home of A/
   );
 });
 
@@ -9288,7 +9258,8 @@ async function resetDatabase(client: PrismaClient) {
   await client.orkWaaaghInvestment.deleteMany();
   await client.orkBossOrder.deleteMany();
   await client.orkScrapBank.deleteMany();
-  await client.mapHexClaimProject.deleteMany();
+  await client.tilePressurePriority.deleteMany();
+  await client.tilePressureState.deleteMany();
   await client.mapHexOwnership.deleteMany();
   await client.scoreEvent.deleteMany();
   await client.gameTick.deleteMany();

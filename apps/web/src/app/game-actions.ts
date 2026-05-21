@@ -43,7 +43,7 @@ import {
   chooseDwarfTierThreeGrudge,
   choosePendingUpgradeSpecialization,
   attackMapHex,
-  claimNeutralMapHex,
+  clearTilePressurePriority,
   fortifyMapHex,
   claimUnicornTeleport,
   activateUnicornShatteredReality,
@@ -66,6 +66,7 @@ import {
   shuffleFortressLocation,
   investOrkWaaaghScrap,
   buyPointsWithGold,
+  setTilePressurePriority,
 } from "@/lib/game/service";
 import type { AttackUnitLaunchMarker } from "@/lib/game/service";
 
@@ -175,16 +176,6 @@ type MapHexAttackActionResult =
       error: string;
     };
 
-function isTransientClaimTransactionError(error: unknown) {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-
-  return /Transaction already closed|expired transaction|Transaction API error|timed out/i.test(
-    error.message
-  );
-}
-
 export async function attackFromMapAction(
   targetFortressId: string,
   sentArmy = 1
@@ -218,7 +209,7 @@ export async function attackFromMapAction(
   }
 }
 
-export async function claimMapHexAction(tileId: string) {
+export async function setTilePressurePriorityAction(tileId: string) {
   const session = await auth();
   const userId = session?.user?.id;
 
@@ -230,28 +221,39 @@ export async function claimMapHexAction(tileId: string) {
   }
 
   try {
-    try {
-      await claimNeutralMapHex({
-        userId,
-        tileId,
-      });
-    } catch (error) {
-      if (!isTransientClaimTransactionError(error)) {
-        throw error;
-      }
+    await setTilePressurePriority({
+      userId,
+      tileId,
+    });
+    notifyAndRevalidate("tile-pressure-priority");
+    return {
+      ok: true,
+    } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
 
-      console.warn(
-        "Retrying claimMapHexAction after transient transaction timeout",
-        error
-      );
+export async function clearTilePressurePriorityAction(tileId: string) {
+  const session = await auth();
+  const userId = session?.user?.id;
 
-      await claimNeutralMapHex({
-        userId,
-        tileId,
-      });
-    }
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
 
-    notifyAndRevalidate("map-hex-claim");
+  try {
+    await clearTilePressurePriority({
+      userId,
+      tileId,
+    });
+    notifyAndRevalidate("tile-pressure-priority-clear");
     return {
       ok: true,
     } satisfies InlineActionResult;

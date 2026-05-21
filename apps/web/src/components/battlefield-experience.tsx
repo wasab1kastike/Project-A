@@ -8,7 +8,7 @@ import { useRefreshView } from "@/lib/refresh-helpers";
 import {
   attackFromMapAction,
   attackMapHexAction,
-  claimMapHexAction,
+  clearTilePressurePriorityAction,
   fortifyMapHexAction,
   instantRecallAttackUnitAction,
   joinBattlefieldAction,
@@ -19,6 +19,7 @@ import {
   recallAttackUnitAction,
   recallGarrisonArmyAction,
   torchOccupiedMapHexAction,
+  setTilePressurePriorityAction,
 } from "@/app/game-actions";
 import { ChatPanel } from "./chat-panel";
 import {
@@ -631,15 +632,12 @@ export function BattlefieldExperience({
   const selectedTileBonus =
     selectedOwnership?.bonus ??
     (selectedTileIsHomeOfA ? getHomeOfABonus() : getTileBonus(selectedTile));
-  const selectedPendingClaim = selectedOwnership?.pendingClaim ?? null;
   const selectedOwnGarrison = selectedOwnership?.ownGarrison ?? null;
-  const selectedClaimCost =
-    !selectedTileIsHomeOfA && !selectedOwnership?.ownerFortressId
-      ? (selectedOwnership?.claimCost ?? null)
-      : null;
-  const selectedCanClaim = selectedOwnership?.canClaim ?? false;
-  const selectedClaimDisabledReason =
-    selectedOwnership?.claimDisabledReason ?? null;
+  const selectedPressurePriority = selectedOwnership?.pressurePriority ?? false;
+  const selectedCanPrioritizePressure =
+    selectedOwnership?.canPrioritizePressure ?? false;
+  const selectedPressurePriorityDisabledReason =
+    selectedOwnership?.pressurePriorityDisabledReason ?? null;
   const selectedActiveBattlefieldId =
     selectedOwnership?.activeBattlefieldId ??
     (selectedTileId
@@ -1013,7 +1011,7 @@ export function BattlefieldExperience({
     [getAttackValidationError, router]
   );
 
-  async function handleClaimMapHex(tileId: string) {
+  async function handleSetTilePressurePriority(tileId: string) {
     if (mapActionPending || !gameplayOpen) {
       return;
     }
@@ -1021,7 +1019,28 @@ export function BattlefieldExperience({
     setMapActionPending(true);
 
     try {
-      const result = await claimMapHexAction(tileId);
+      const result = await setTilePressurePriorityAction(tileId);
+
+      if (!result.ok) {
+        window.alert(result.error);
+        return;
+      }
+
+      refreshView();
+    } finally {
+      setMapActionPending(false);
+    }
+  }
+
+  async function handleClearTilePressurePriority(tileId: string) {
+    if (mapActionPending || !gameplayOpen) {
+      return;
+    }
+
+    setMapActionPending(true);
+
+    try {
+      const result = await clearTilePressurePriorityAction(tileId);
 
       if (!result.ok) {
         window.alert(result.error);
@@ -1619,15 +1638,11 @@ export function BattlefieldExperience({
         <div>
           <dt>Owner</dt>
           <dd>
-            {selectedPendingClaim
-              ? selectedPendingClaim.isCurrentUser
-                ? "You (acquiring)"
-                : `${selectedPendingClaim.ownerName} (acquiring)`
-              : selectedOwnership?.ownerFortressId
-                ? selectedOwnership.isCurrentUser
-                  ? "You"
-                  : selectedOwnership.ownerName
-                : "Neutral"}
+            {selectedOwnership?.ownerFortressId
+              ? selectedOwnership.isCurrentUser
+                ? "You"
+                : selectedOwnership.ownerName
+              : "Neutral"}
           </dd>
         </div>
         <div>
@@ -1640,34 +1655,21 @@ export function BattlefieldExperience({
             <dd>+{selectedOwnership.pointIncome} points / tick</dd>
           </div>
         ) : null}
-        {!selectedTileIsHomeOfA ? (
+        {!selectedTileIsHomeOfA && selectedOwnership ? (
           <div>
-            <dt>Claim cost</dt>
+            <dt>Pressure</dt>
             <dd>
-              {selectedPendingClaim
-                ? `${selectedPendingClaim.goldCost} gold paid`
-                : selectedClaimCost !== null
-                  ? `${selectedClaimCost} gold`
-                  : "-"}
+              {selectedOwnership.pressureProgress != null &&
+              selectedOwnership.pressureThreshold != null
+                ? `${selectedOwnership.pressureProgress}/${selectedOwnership.pressureThreshold}`
+                : "-"}
             </dd>
           </div>
         ) : null}
         {!selectedTileIsHomeOfA && !selectedOwnership?.ownerFortressId ? (
           <div>
-            <dt>Claim time</dt>
-            <dd>
-              {selectedPendingClaim
-                ? `${selectedPendingClaim.remainingSeconds >= 60 ? `${Math.ceil(selectedPendingClaim.remainingSeconds / 60)} min` : `${selectedPendingClaim.remainingSeconds}s`} left`
-                : selectedOwnership?.claimDurationMinutes != null
-                  ? `${selectedOwnership.claimDurationMinutes} min`
-                  : "-"}
-            </dd>
-          </div>
-        ) : null}
-        {!selectedTileIsHomeOfA && selectedOwnership ? (
-          <div>
-            <dt>Size surcharge</dt>
-            <dd>{selectedOwnership.sizeSurcharge ?? 0} gold</dd>
+            <dt>Priority</dt>
+            <dd>{selectedPressurePriority ? "Yes" : "No"}</dd>
           </div>
         ) : null}
         {!selectedTileIsHomeOfA && selectedOwnership ? (
@@ -1687,18 +1689,16 @@ export function BattlefieldExperience({
                 ? selectedOwnership.occupyingGarrison.isCurrentUser
                   ? "Occupied by you"
                   : "Occupied"
-                : selectedPendingClaim
-                  ? "Acquiring"
-                  : selectedOwnership?.ownerFortressId
-                    ? selectedOwnership.canAttack
-                      ? "Attackable"
-                      : "Controlled"
+                : selectedOwnership?.ownerFortressId
+                  ? selectedOwnership.canAttack
+                    ? "Attackable"
+                    : "Controlled"
                     : selectedTileIsHomeOfA
                       ? homeOfA?.canAttack
                         ? "Attackable"
                         : "Center control"
-                      : selectedCanClaim
-                        ? "Claimable"
+                      : selectedCanPrioritizePressure
+                        ? "Pressure target"
                         : "Unavailable"}
           </dd>
         </div>
@@ -1802,17 +1802,6 @@ export function BattlefieldExperience({
         </p>
       ) : null}
 
-      {selectedPendingClaim ? (
-        <p className={styles.helper}>
-          Completes at{" "}
-          {new Date(selectedPendingClaim.completesAt).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-          {selectedPendingClaim.isCurrentUser ? " — your acquisition." : "."}
-        </p>
-      ) : null}
-
       <div className={styles.tileActions}>
         {locationShuffleCost !== null ? (
           <>
@@ -1855,27 +1844,30 @@ export function BattlefieldExperience({
           </>
         ) : null}
 
-        {!selectedOwnership?.ownerFortressId &&
-        !selectedPendingClaim &&
-        !selectedTileIsHomeOfA ? (
+        {!selectedOwnership?.ownerFortressId && !selectedTileIsHomeOfA ? (
           <>
             <button
               className={styles.secondaryButton}
               type="button"
               disabled={
                 mapActionPending ||
-                !selectedCanClaim ||
-                selectedClaimCost === null
+                (!selectedPressurePriority && !selectedCanPrioritizePressure)
               }
-              title={selectedClaimDisabledReason ?? undefined}
+              title={selectedPressurePriorityDisabledReason ?? undefined}
               onClick={() => {
-                void handleClaimMapHex(selectedTile.id);
+                if (selectedPressurePriority) {
+                  void handleClearTilePressurePriority(selectedTile.id);
+                } else {
+                  void handleSetTilePressurePriority(selectedTile.id);
+                }
               }}
             >
-              Claim tile
+              {selectedPressurePriority ? "Clear priority" : "Prioritize"}
             </button>
-            {selectedClaimDisabledReason ? (
-              <p className={styles.helper}>{selectedClaimDisabledReason}</p>
+            {selectedPressurePriorityDisabledReason ? (
+              <p className={styles.helper}>
+                {selectedPressurePriorityDisabledReason}
+              </p>
             ) : null}
           </>
         ) : null}

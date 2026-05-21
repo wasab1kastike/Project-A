@@ -83,13 +83,11 @@ import {
   rollUnicornShatteredReality,
 } from "./unicorn-shattered-reality";
 import {
-  TILE_CLAIM_MAX_ACTIVE_PROJECTS,
   getTileById,
-  getTileClaimCost,
-  getTileClaimDurationMinutes,
   isHomeOfATile,
   isTileConnectedToFortressOrOwnedTiles,
 } from "./territory";
+import { getPressureTargetBlockedReason } from "./tile-pressure";
 import { joinBattlefield as joinBattlefieldRecord } from "./battlefields";
 import { ensureNpcSystemUser, getHomeOfAMapPosition } from "./mega-fortress";
 import { recalculateReturningAttackRoutes } from "./fortress-relocation";
@@ -1033,7 +1031,7 @@ export async function setFortressAction({
   });
 }
 
-export async function claimNeutralMapHex({
+export async function setTilePressurePriority({
   userId,
   tileId,
   now = new Date(),
@@ -1048,7 +1046,7 @@ export async function claimNeutralMapHex({
     const cycle = await getCurrentCycle(tx);
 
     if (!cycle || !isGameplayWindowOpen(cycle, now)) {
-      throw new GameError("The current cycle is not accepting tile claims.");
+      throw new GameError("The current cycle is not accepting expansion priorities.");
     }
 
     const fortress = await tx.fortress.findUnique({
@@ -1061,8 +1059,6 @@ export async function claimNeutralMapHex({
       select: {
         id: true,
         ownerId: true,
-        gold: true,
-        race: true,
         mapX: true,
         mapY: true,
       },
@@ -1074,57 +1070,17 @@ export async function claimNeutralMapHex({
 
     const tile = getTileById(tileId);
 
-    if (!tile || !tile.claimable) {
-      throw new GameError("That map tile cannot be claimed.");
-    }
-
-    if (isHomeOfATile(tileId)) {
-      throw new GameError("Home of A is a daily boss and cannot be claimed.");
-    }
-
-    const [existing, activeClaimOnTile, activeOwnClaimCount] =
-      await Promise.all([
-        tx.mapHexOwnership.findUnique({
-          where: {
-            cycleId_tileId: {
-              cycleId: cycle.id,
-              tileId,
-            },
-          },
-          select: {
-            id: true,
-          },
-        }),
-        tx.mapHexClaimProject.findFirst({
-          where: {
-            cycleId: cycle.id,
-            tileId,
-            completedAt: null,
-          },
-          select: {
-            id: true,
-          },
-        }),
-        tx.mapHexClaimProject.count({
-          where: {
-            cycleId: cycle.id,
-            fortressId: fortress.id,
-            completedAt: null,
-          },
-        }),
-      ]);
-
-    if (existing) {
-      throw new GameError("That tile is already claimed.");
-    }
-
-    if (activeClaimOnTile) {
-      throw new GameError("That tile is already being acquired.");
-    }
-
-    if (activeOwnClaimCount >= TILE_CLAIM_MAX_ACTIVE_PROJECTS) {
-      throw new GameError("You can only acquire one tile at a time.");
-    }
+    const existing = await tx.mapHexOwnership.findUnique({
+      where: {
+        cycleId_tileId: {
+          cycleId: cycle.id,
+          tileId,
+        },
+      },
+      select: {
+        ownerFortressId: true,
+      },
+    });
 
     const ownedTileIds = await tx.mapHexOwnership.findMany({
       where: {
@@ -1139,71 +1095,94 @@ export async function claimNeutralMapHex({
       .map((ownership) => ownership.tileId)
       .filter((ownedTileId) => !isHomeOfATile(ownedTileId));
 
-    if (
-      !isTileConnectedToFortressOrOwnedTiles({
-        tileId,
-        fortress,
-        ownedTileIds: ownedNormalTileIds,
-      })
-    ) {
-      throw new GameError(
-        "You can only claim tiles connected to your castle or owned territory."
-      );
-    }
-
-    const claimCost = getTileClaimCost({
+    const blockedReason = getPressureTargetBlockedReason({
       tile,
-      origin: fortress,
-      race: fortress.race,
-      ownedTileCount: ownedNormalTileIds.length,
-      pendingClaimCount: activeOwnClaimCount,
+      tileId,
+      ownerFortressId: existing?.ownerFortressId ?? null,
+      fortress,
+      ownedTileIds: ownedNormalTileIds,
+      isHomeOfA: isHomeOfATile,
+      isConnected: ({ tileId: candidateTileId, ownedTileIds }) =>
+        isTileConnectedToFortressOrOwnedTiles({
+          tileId: candidateTileId,
+          fortress,
+          ownedTileIds,
+        }),
     });
 
-    if (fortress.gold < claimCost) {
-      throw new GameError(`You need ${claimCost} gold to claim this tile.`);
+    if (blockedReason) {
+      throw new GameError(blockedReason);
     }
 
-    await tx.fortress.update({
+    return tx.tilePressurePriority.upsert({
       where: {
-        id: fortress.id,
-      },
-      data: {
-        gold: {
-          decrement: claimCost,
+        cycleId_fortressId_tileId: {
+          cycleId: cycle.id,
+          fortressId: fortress.id,
+          tileId,
         },
       },
-    });
-
-    await tx.scoreEvent.create({
-      data: {
-        cycleId: cycle.id,
-        fortressId: fortress.id,
-        actorId: userId,
-        eventType: ScoreEventType.TILE_CLAIM,
-        delta: -claimCost,
-        createdAt: now,
-      },
-    });
-
-    return tx.mapHexClaimProject.create({
-      data: {
+      create: {
         cycleId: cycle.id,
         fortressId: fortress.id,
         tileId,
-        goldCost: claimCost,
-        startedAt: now,
-        completesAt: addMinutes(now, getTileClaimDurationMinutes(tile.biome)),
+        weight: 1,
+      },
+      update: {
+        weight: 1,
       },
       select: {
         id: true,
-        tileId: true,
+        cycleId: true,
         fortressId: true,
-        goldCost: true,
-        startedAt: true,
-        completesAt: true,
-        completedAt: true,
+        tileId: true,
+        weight: true,
       },
     });
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+export async function clearTilePressurePriority({
+  userId,
+  tileId,
+  db = prisma,
+}: {
+  userId: string;
+  tileId: string;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle) {
+      throw new GameError("There is no active cycle.");
+    }
+
+    const fortress = await tx.fortress.findUnique({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: userId,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!fortress) {
+      throw new GameError("You are not participating in the active cycle.");
+    }
+
+    await tx.tilePressurePriority.deleteMany({
+      where: {
+        cycleId: cycle.id,
+        fortressId: fortress.id,
+        tileId,
+      },
+    });
+
+    return { tileId };
   }, SERVICE_TRANSACTION_OPTIONS);
 }
 

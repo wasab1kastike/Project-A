@@ -193,7 +193,7 @@
   --owned-tile-stroke: rgba(121, 210, 255, 0.92);
 }
 
-.pendingClaimTile polygon {
+.pressurePriorityTile polygon {
   stroke: rgba(255, 238, 150, 0.85);
   stroke-width: 5px;
   stroke-dasharray: 7 7;

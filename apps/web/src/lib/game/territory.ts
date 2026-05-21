@@ -26,20 +26,6 @@ export type TemporaryMapObjective = {
   label: string;
 };
 
-export const TILE_CLAIM_DURATION_MINUTES = 10;
-export const TILE_CLAIM_SEA_DURATION_MINUTES = 25;
-export const TILE_CLAIM_MOUNTAINS_DURATION_MINUTES = 20;
-export const TILE_CLAIM_MAX_ACTIVE_PROJECTS = 1;
-
-export function getTileClaimDurationMinutes(biome: HexBiome): number {
-  if (biome === "water") return TILE_CLAIM_SEA_DURATION_MINUTES;
-  if (biome === "mountains" || biome === "lake") {
-    return TILE_CLAIM_MOUNTAINS_DURATION_MINUTES;
-  }
-  return TILE_CLAIM_DURATION_MINUTES;
-}
-export const TILE_CLAIM_OWNED_TILE_COST_STEP = 10;
-
 const EMPTY_BONUS: TileBonus = {
   gold: 0,
   points: 0,
@@ -414,41 +400,6 @@ export function getHomeOfABonus(): TileBonus {
     defensePercent: 0,
     label: "Home of A daily boss: kill it for points, food, army, and a 12h buff",
   };
-}
-
-export function getTileClaimCost({
-  tile,
-  origin,
-  race = null,
-  ownedTileCount = 0,
-  pendingClaimCount = 0,
-}: {
-  tile: HexTile;
-  origin: { mapX: number; mapY: number };
-  race?: "DWARFS" | "UNSTABLE_UNICORNS" | "ORKS" | "SPACE_MURINES" | null;
-  ownedTileCount?: number;
-  pendingClaimCount?: number;
-}) {
-  const distance = Math.hypot(
-    tile.xPercent - origin.mapX,
-    tile.yPercent - origin.mapY
-  );
-  const baseBiomePremium =
-    tile.biome === "hills" || tile.biome === "forest"
-      ? 12
-      : tile.biome === "water"
-        ? 18
-        : tile.biome === "mountains" || tile.biome === "lake"
-          ? 16
-          : tile.biome === "marsh" || tile.biome === "coast"
-            ? 8
-            : 0;
-  const raceDiscount = tile.biome === "mountains" && race === "DWARFS" ? 10 : 0;
-  const biomePremium = Math.max(0, baseBiomePremium - raceDiscount);
-  const sizeSurcharge =
-    (ownedTileCount + pendingClaimCount) * TILE_CLAIM_OWNED_TILE_COST_STEP;
-
-  return 25 + Math.ceil(distance * 0.75) + biomePremium + sizeSurcharge;
 }
 
 export function sumTileBonuses(

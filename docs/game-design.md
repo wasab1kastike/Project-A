@@ -9,12 +9,12 @@
   - name
   - owner
   - gold, food, active army, and recruitment queue
-  - worker assignments for miners, farmers, and recruiters
+  - worker assignments for miners, farmers, recruiters, and pressure
   - race and castle specializations
   - owned tiles and active battle participation
   - map position
   - unit sprite variant
-- Gold is the main spend currency for recruitment, upgrades, renames, and neutral tile claims
+- Gold is the main spend currency for recruitment, upgrades, and renames
 - Points determine season victory and are earned from map objectives, Home of A boss kills, and score events
 - Recruitment is order-based: players pay 1 gold per unit up front, and recruiters process the queue over future ticks
 - Recruiters do not passively create army without a queued order
@@ -68,10 +68,10 @@
 ## Tiles & battlefields
 
 - Desktop and mobile controls both support inspecting tiles directly from the battlefield map.
-- Neutral spawnable tiles can be claimed only if they connect to the player's castle tile or existing owned territory.
-- Neutral claims are timed projects: they reserve the gold cost immediately and complete after 10 minutes.
-- Each fortress may run only one active neutral tile claim at a time.
-- Home of A cannot be neutral-claimed or fortified; players attack the center boss directly through the tile action.
+- Neutral spawnable tiles can be prioritized for pressure only if they connect to the player's castle tile or existing owned territory.
+- Pressure workers add pressure to prioritized legal border tiles each tick.
+- A neutral tile is automatically claimed at 100 pressure when one fortress leads without a tie.
+- Home of A cannot receive expansion pressure or be fortified; players attack the center boss directly through the tile action.
 - Owned tiles are contested through battlefield attacks and can transfer ownership when the battlefield resolves.
 - Players can fortify owned normal tiles by sending idle army that travels to the tile and becomes a persistent non-decaying garrison until recalled or killed.
 - Temporary map objectives rotate onto normal tiles and add extra point income while active.

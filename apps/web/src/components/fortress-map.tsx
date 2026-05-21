@@ -101,25 +101,15 @@ type MapHexOwnershipMarker = {
   isCurrentUser: boolean;
   hasActiveBattle: boolean;
   canAttack: boolean;
-  claimCost: number | null;
-  claimDurationMinutes?: number;
-  sizeSurcharge?: number;
   canFortify?: boolean;
   fortifyDisabledReason?: string | null;
   isConnectedToPlayerTerritory?: boolean;
-  canClaim?: boolean;
-  claimDisabledReason?: string | null;
-  pendingClaim?: {
-    id: string;
-    fortressId: string;
-    ownerName: string;
-    ownerCommanderName: string;
-    isCurrentUser: boolean;
-    goldCost: number;
-    startedAt: Date;
-    completesAt: Date;
-    remainingSeconds: number;
-  } | null;
+  pressurePriority?: boolean;
+  pressureProgress?: number | null;
+  pressureThreshold?: number | null;
+  pressureLeaderFortressId?: string | null;
+  canPrioritizePressure?: boolean;
+  pressurePriorityDisabledReason?: string | null;
   activeBattlefieldId?: string | null;
   attackDisabledReason?: string | null;
   bonus: {
@@ -445,9 +435,6 @@ function HexTileMap({
         const ownership = ownershipByTileId.get(tile.id);
         const isHomeTile = isHomeOfATile(tile.id);
         const isOwnedTile = Boolean(ownership?.ownerFortressId);
-        const isPendingClaim = Boolean(ownership?.pendingClaim);
-        const neutralClaimCost =
-          !isOwnedTile && !isHomeTile ? (ownership?.claimCost ?? null) : null;
         const bonus =
           ownership?.bonus ??
           (isHomeTile ? getHomeOfABonus() : getTileBonus(tile));
@@ -463,7 +450,7 @@ function HexTileMap({
           isOwnedTile && ownership?.ownerRace
             ? (OWNED_TILE_RACE_CLASS_BY_RACE[ownership.ownerRace] ?? "")
             : "",
-          isPendingClaim ? styles.pendingClaimTile : "",
+          ownership?.pressurePriority ? styles.pressurePriorityTile : "",
           ownership?.pointIncome ? styles.objectiveTile : "",
           ownership?.isHomeOfA ? styles.contestedTile : "",
           isOwnedTile && ownership?.isCurrentUser ? styles.ownTile : "",
@@ -483,12 +470,11 @@ function HexTileMap({
                 ? `${ownership.isHomeOfA ? "Home of A" : BIOME_LABELS[tile.biome]}, owned by ${ownership.ownerName}, ${ownership.bonus.label}${
                     ownership.hasActiveBattle ? ", battle active" : ""
                   }`
-                : isPendingClaim && ownership?.pendingClaim
-                  ? `${BIOME_LABELS[tile.biome]}, acquisition reserved by ${ownership.pendingClaim.ownerName}, completes at ${new Date(
-                      ownership.pendingClaim.completesAt
-                    ).toLocaleTimeString()}, ${bonus.label}`
                   : `${isHomeTile ? "Home of A, neutral control point" : `${BIOME_LABELS[tile.biome]}, unclaimed`}${
-                      neutralClaimCost ? `, claim cost ${neutralClaimCost}` : ""
+                      ownership?.pressureProgress != null &&
+                      ownership.pressureThreshold != null
+                        ? `, pressure ${ownership.pressureProgress}/${ownership.pressureThreshold}`
+                        : ""
                     }, ${bonus.label}`
             }
             onPointerDown={(event) =>

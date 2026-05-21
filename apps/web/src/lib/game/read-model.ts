@@ -77,18 +77,19 @@ import { ORK_BOSS_ORDER_CONFIG, ORK_WAAAGH_INVESTMENT_CONFIG } from "./orks";
 import { HEX_TILES, type HexTile } from "./map-hex";
 import { getHomeOfAMapPosition } from "./mega-fortress";
 import {
-  TILE_CLAIM_MAX_ACTIVE_PROJECTS,
-  TILE_CLAIM_OWNED_TILE_COST_STEP,
   getHomeOfABonus,
   getTileBonus,
-  getTileClaimCost,
-  getTileClaimDurationMinutes,
   getTileById,
   isHomeOfATile,
   isTileConnectedToFortressOrOwnedTiles,
   sumTileBonuses,
 } from "./territory";
 import { getBattlefieldCasualtyBudget } from "./battlefield-rules";
+import {
+  getNeutralPressureClaimWinner,
+  getPressureTargetBlockedReason,
+  TILE_PRESSURE_CLAIM_THRESHOLD,
+} from "./tile-pressure";
 
 export type HomePageState = Awaited<ReturnType<typeof getHomePageState>>;
 
@@ -784,28 +785,19 @@ export async function getHomePageState({
           },
         },
       },
-      mapHexClaimProjects: {
-        where: {
-          completedAt: null,
-        },
-        orderBy: [{ completesAt: "asc" }, { id: "asc" }],
+      tilePressurePriorities: {
         select: {
           id: true,
           fortressId: true,
           tileId: true,
-          goldCost: true,
-          startedAt: true,
-          completesAt: true,
-          completedAt: true,
-          fortress: {
-            select: {
-              id: true,
-              ownerId: true,
-              name: true,
-              commanderName: true,
-              race: true,
-            },
-          },
+          weight: true,
+        },
+      },
+      tilePressureStates: {
+        select: {
+          tileId: true,
+          fortressId: true,
+          pressure: true,
         },
       },
       homeOfAHolders: {
@@ -2334,14 +2326,33 @@ export async function getHomePageState({
         .filter((tile): tile is NonNullable<typeof tile> => tile !== null)
     : [];
   const ownedNormalTileIds = ownedNormalTiles.map((tile) => tile.id);
-  const activeClaimByTileId = new Map(
-    cycle.mapHexClaimProjects.map((project) => [project.tileId, project])
+  const ownerByTileId = new Map(
+    cycle.mapHexOwnerships.map((ownership) => [
+      ownership.tileId,
+      ownership.ownerFortressId,
+    ])
   );
-  const activeOwnClaimCount = playerFortress
-    ? cycle.mapHexClaimProjects.filter(
-        (project) => project.fortressId === playerFortress.id
-      ).length
-    : 0;
+  const pressurePriorityTileIds = new Set(
+    playerFortress
+      ? cycle.tilePressurePriorities
+          .filter((priority) => priority.fortressId === playerFortress.id)
+          .map((priority) => priority.tileId)
+      : []
+  );
+  const pressureStatesByTileId = new Map<
+    string,
+    Array<{ fortressId: string; pressure: number }>
+  >();
+
+  for (const state of cycle.tilePressureStates) {
+    const states = pressureStatesByTileId.get(state.tileId) ?? [];
+    states.push({
+      fortressId: state.fortressId,
+      pressure: state.pressure,
+    });
+    pressureStatesByTileId.set(state.tileId, states);
+  }
+
   const claimedTileIds = new Set(
     cycle.mapHexOwnerships.map((ownership) => ownership.tileId)
   );
@@ -2358,100 +2369,64 @@ export async function getHomePageState({
     workerPoolBonus: ownedTileBonuses.population,
     defenseBonusPercent: ownedTileBonuses.defensePercent,
   };
-  const getPendingClaimPayload = (tileId: string) => {
-    const pendingClaim = activeClaimByTileId.get(tileId);
-
-    if (!pendingClaim) {
-      return null;
-    }
-
-    return {
-      id: pendingClaim.id,
-      fortressId: pendingClaim.fortressId,
-      ownerRace: pendingClaim.fortress.race,
-      ownerName: pendingClaim.fortress.name,
-      ownerCommanderName: pendingClaim.fortress.commanderName,
-      isCurrentUser: pendingClaim.fortress.ownerId === userId,
-      goldCost: pendingClaim.goldCost,
-      startedAt: pendingClaim.startedAt,
-      completesAt: pendingClaim.completesAt,
-      remainingSeconds: Math.max(
-        0,
-        Math.ceil((pendingClaim.completesAt.getTime() - now.getTime()) / 1000)
-      ),
-    };
-  };
-  const getTileClaimState = (tile: HexTile) => {
-    const pendingClaim = getPendingClaimPayload(tile.id);
-    const claimCost = playerFortress
-      ? getTileClaimCost({
-          tile,
-          origin: playerFortress,
-          race: playerFortress.race,
-          ownedTileCount: ownedNormalTiles.length,
-          pendingClaimCount: activeOwnClaimCount,
-        })
+  const getTilePressureState = (tile: HexTile) => {
+    const states = pressureStatesByTileId.get(tile.id) ?? [];
+    const ownState = playerFortress
+      ? states.find((state) => state.fortressId === playerFortress.id)
       : null;
-    const isConnectedToPlayerTerritory = playerFortress
-      ? isTileConnectedToFortressOrOwnedTiles({
-          tileId: tile.id,
-          fortress: playerFortress,
-          ownedTileIds: ownedNormalTileIds,
-        })
-      : false;
-    const sizeSurcharge =
+    const leader = states.reduce<(typeof states)[number] | null>(
+      (currentLeader, state) =>
+        !currentLeader || state.pressure > currentLeader.pressure
+          ? state
+          : currentLeader,
+      null
+    );
+    const pressureLeaderFortressId =
+      getNeutralPressureClaimWinner({
+        states,
+        threshold: TILE_PRESSURE_CLAIM_THRESHOLD,
+      }) ?? leader?.fortressId ?? null;
+    const isConnectedToPlayerTerritory =
       playerFortress !== null
-        ? (ownedNormalTiles.length + activeOwnClaimCount) *
-          TILE_CLAIM_OWNED_TILE_COST_STEP
-        : 0;
-    const claimDisabledReason = (() => {
+        ? isTileConnectedToFortressOrOwnedTiles({
+            tileId: tile.id,
+            fortress: playerFortress,
+            ownedTileIds: ownedNormalTileIds,
+          })
+        : false;
+    const pressurePriorityDisabledReason = (() => {
       if (!gameplayOpen) {
-        return "Tiles can only be claimed during gameplay.";
+        return "Expansion priorities can only be changed during gameplay.";
       }
 
       if (!playerFortress) {
-        return "Join the cycle to claim tiles.";
+        return "Join the cycle to prioritize expansion.";
       }
 
-      if (!tile.claimable) {
-        return "That map tile cannot be claimed.";
-      }
-
-      if (isHomeOfATile(tile.id)) {
-        return "Home of A is a daily boss and cannot be claimed.";
-      }
-
-      if (claimedTileIds.has(tile.id)) {
-        return "That tile is already claimed.";
-      }
-
-      if (pendingClaim) {
-        return "That tile is already being acquired.";
-      }
-
-      if (activeOwnClaimCount >= TILE_CLAIM_MAX_ACTIVE_PROJECTS) {
-        return "You can only acquire one tile at a time.";
-      }
-
-      if (!isConnectedToPlayerTerritory) {
-        return "That tile is not connected to your castle or owned territory.";
-      }
-
-      if (claimCost !== null && playerFortress.gold < claimCost) {
-        return `You need ${claimCost} gold to claim this tile.`;
-      }
-
-      return null;
+      return getPressureTargetBlockedReason({
+        tile,
+        tileId: tile.id,
+        ownerFortressId: ownerByTileId.get(tile.id) ?? null,
+        fortress: playerFortress,
+        ownedTileIds: ownedNormalTileIds,
+        isHomeOfA: isHomeOfATile,
+        isConnected: ({ tileId, ownedTileIds }) =>
+          isTileConnectedToFortressOrOwnedTiles({
+            tileId,
+            fortress: playerFortress,
+            ownedTileIds,
+          }),
+      });
     })();
 
     return {
-      pendingClaim,
-      claimCost,
-      claimDurationMinutes: getTileClaimDurationMinutes(tile.biome),
-      sizeSurcharge,
       isConnectedToPlayerTerritory,
-      canClaim: claimDisabledReason === null,
-      claimDisabledReason,
+      pressurePriority: pressurePriorityTileIds.has(tile.id),
+      pressureProgress: ownState?.pressure ?? leader?.pressure ?? null,
+      pressureThreshold: TILE_PRESSURE_CLAIM_THRESHOLD,
+      pressureLeaderFortressId,
+      canPrioritizePressure: pressurePriorityDisabledReason === null,
+      pressurePriorityDisabledReason,
     };
   };
   const mappedMapHexes: Array<{
@@ -2468,12 +2443,13 @@ export async function getHomePageState({
     canAttack: boolean;
     canFortify: boolean;
     fortifyDisabledReason: string | null;
-    claimCost: number | null;
-    sizeSurcharge: number;
     isConnectedToPlayerTerritory: boolean;
-    canClaim: boolean;
-    claimDisabledReason: string | null;
-    pendingClaim: ReturnType<typeof getPendingClaimPayload>;
+    pressurePriority: boolean;
+    pressureProgress: number | null;
+    pressureThreshold: number | null;
+    pressureLeaderFortressId: string | null;
+    canPrioritizePressure: boolean;
+    pressurePriorityDisabledReason: string | null;
     activeBattlefieldId: string | null;
     attackDisabledReason: string | null;
     bonus: {
@@ -2520,15 +2496,17 @@ export async function getHomePageState({
       !isHomeOwnership &&
       ownership.ownerFortressId !== playerFortress?.id &&
       !activeBattleTileIds.has(ownership.tileId);
-    const claimState = tile
-      ? getTileClaimState(tile)
+    const pressureState = tile
+      ? getTilePressureState(tile)
       : {
-          pendingClaim: null,
-          claimCost: null,
-          sizeSurcharge: 0,
           isConnectedToPlayerTerritory: false,
-          canClaim: false,
-          claimDisabledReason: "That map tile cannot be claimed.",
+          pressurePriority: false,
+          pressureProgress: null,
+          pressureThreshold: null,
+          pressureLeaderFortressId: null,
+          canPrioritizePressure: false,
+          pressurePriorityDisabledReason:
+            "That map tile cannot receive pressure.",
         };
     const bonus = isHomeOwnership
       ? getHomeOfABonus()
@@ -2580,12 +2558,14 @@ export async function getHomePageState({
         isHomeOwnership
           ? "Home of A is a daily boss and cannot be fortified."
           : getTileFortifyDisabledReason(ownership),
-      claimCost: claimState.claimCost,
-      sizeSurcharge: claimState.sizeSurcharge,
-      isConnectedToPlayerTerritory: claimState.isConnectedToPlayerTerritory,
-      canClaim: false,
-      claimDisabledReason: "That tile is already claimed.",
-      pendingClaim: claimState.pendingClaim,
+      isConnectedToPlayerTerritory: pressureState.isConnectedToPlayerTerritory,
+      pressurePriority: pressureState.pressurePriority,
+      pressureProgress: pressureState.pressureProgress,
+      pressureThreshold: pressureState.pressureThreshold,
+      pressureLeaderFortressId: pressureState.pressureLeaderFortressId,
+      canPrioritizePressure: pressureState.canPrioritizePressure,
+      pressurePriorityDisabledReason:
+        pressureState.pressurePriorityDisabledReason,
       activeBattlefieldId:
         activeBattlefieldByTileId.get(ownership.tileId)?.id ?? null,
       attackDisabledReason:
@@ -2658,12 +2638,14 @@ export async function getHomePageState({
       canAttack: canAttackHomeOfA,
       canFortify: false,
       fortifyDisabledReason: "Home of A is a daily boss and cannot be fortified.",
-      claimCost: null,
-      sizeSurcharge: 0,
       isConnectedToPlayerTerritory: false,
-      canClaim: false,
-      claimDisabledReason: "Home of A is a daily boss and cannot be claimed.",
-      pendingClaim: null,
+      pressurePriority: false,
+      pressureProgress: null,
+      pressureThreshold: null,
+      pressureLeaderFortressId: null,
+      canPrioritizePressure: false,
+      pressurePriorityDisabledReason:
+        "Home of A is a daily boss and cannot receive expansion pressure.",
       activeBattlefieldId: null,
       attackDisabledReason: canAttackHomeOfA
         ? null
@@ -2694,8 +2676,7 @@ export async function getHomePageState({
       continue;
     }
 
-    const claimState = getTileClaimState(tile);
-    const pendingClaim = claimState.pendingClaim;
+    const pressureState = getTilePressureState(tile);
     const bonus = getTileBonus(tile, {
       tileId: tile.id,
       cycleId: cycle.id,
@@ -2703,25 +2684,27 @@ export async function getHomePageState({
     });
 
     mappedMapHexes.push({
-      id: pendingClaim?.id ?? `neutral-${tile.id}`,
+      id: `neutral-${tile.id}`,
       tileId: tile.id,
       biome: tile.biome,
       claimedAt: null,
       ownerFortressId: null,
-      ownerRace: pendingClaim?.ownerRace ?? null,
-      ownerName: pendingClaim?.ownerName ?? "Neutral",
-      ownerCommanderName: pendingClaim?.ownerCommanderName ?? "Unclaimed",
-      isCurrentUser: pendingClaim?.isCurrentUser ?? false,
+      ownerRace: null,
+      ownerName: "Neutral",
+      ownerCommanderName: "Unclaimed",
+      isCurrentUser: false,
       hasActiveBattle: activeBattleTileIds.has(tile.id),
       canAttack: false,
       canFortify: false,
-      fortifyDisabledReason: "Claim this tile before fortifying it.",
-      claimCost: claimState.claimCost,
-      sizeSurcharge: claimState.sizeSurcharge,
-      isConnectedToPlayerTerritory: claimState.isConnectedToPlayerTerritory,
-      canClaim: claimState.canClaim,
-      claimDisabledReason: claimState.claimDisabledReason,
-      pendingClaim,
+      fortifyDisabledReason: "Own this tile before fortifying it.",
+      isConnectedToPlayerTerritory: pressureState.isConnectedToPlayerTerritory,
+      pressurePriority: pressureState.pressurePriority,
+      pressureProgress: pressureState.pressureProgress,
+      pressureThreshold: pressureState.pressureThreshold,
+      pressureLeaderFortressId: pressureState.pressureLeaderFortressId,
+      canPrioritizePressure: pressureState.canPrioritizePressure,
+      pressurePriorityDisabledReason:
+        pressureState.pressurePriorityDisabledReason,
       activeBattlefieldId: activeBattlefieldByTileId.get(tile.id)?.id ?? null,
       attackDisabledReason: null,
       bonus,
