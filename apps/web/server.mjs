@@ -31,7 +31,7 @@ const adapter = new PrismaPg(
     connectionString: process.env.DATABASE_URL ?? defaultDatabaseUrl,
     max: Number(process.env.REALTIME_PRISMA_POOL_MAX ?? 1),
     connectionTimeoutMillis: Number(
-      process.env.REALTIME_PRISMA_POOL_CONNECTION_TIMEOUT_MS ?? 1_000
+      process.env.REALTIME_PRISMA_POOL_CONNECTION_TIMEOUT_MS ?? 10_000
     ),
     idleTimeoutMillis: Number(
       process.env.REALTIME_PRISMA_POOL_IDLE_TIMEOUT_MS ?? 5_000
