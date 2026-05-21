@@ -710,6 +710,47 @@ export function BattlefieldExperience({
       y: currentFortress.mapY,
     }).tile.id;
   }, [mapFortresses, playerFortress]);
+  const selectedTileTargetableCastle = useMemo(() => {
+    if (!selectedTileId) {
+      return null;
+    }
+
+    const candidates = mapFortresses.filter((fortress) => {
+      if (!fortress.isTargetable) {
+        return false;
+      }
+
+      return (
+        snapMapPointToHex({
+          x: fortress.mapX,
+          y: fortress.mapY,
+        }).tile.id === selectedTileId
+      );
+    });
+
+    candidates.sort((left, right) => {
+      const leftPriority =
+        left.fortressKind === "PLAYER" && !left.isNpc
+          ? 0
+          : left.fortressKind === "PLAYER"
+            ? 1
+            : 2;
+      const rightPriority =
+        right.fortressKind === "PLAYER" && !right.isNpc
+          ? 0
+          : right.fortressKind === "PLAYER"
+            ? 1
+            : 2;
+
+      return (
+        leftPriority - rightPriority ||
+        left.name.localeCompare(right.name) ||
+        left.id.localeCompare(right.id)
+      );
+    });
+
+    return candidates[0] ?? null;
+  }, [mapFortresses, selectedTileId]);
   const hasActiveBattleForTileId = useCallback(
     (tileId: string) => {
       const ownership = mapHexByTileId.get(tileId);
@@ -1836,6 +1877,44 @@ export function BattlefieldExperience({
             {selectedClaimDisabledReason ? (
               <p className={styles.helper}>{selectedClaimDisabledReason}</p>
             ) : null}
+          </>
+        ) : null}
+
+        {selectedTileTargetableCastle ? (
+          <>
+            <label className={styles.tileArmyControl}>
+              <span>
+                Castle raid: {clampedTileAttackArmy}/{playerSummary?.army ?? 0}
+              </span>
+              <input
+                type="range"
+                min={1}
+                max={Math.max(1, playerSummary?.army ?? 1)}
+                step={1}
+                value={Math.max(1, clampedTileAttackArmy)}
+                disabled={!playerSummary || playerSummary.army <= 0}
+                onChange={(event) => {
+                  const nextArmy = Number(event.currentTarget.value);
+                  setTileAttackArmy(
+                    Number.isFinite(nextArmy) ? Math.floor(nextArmy) : 1
+                  );
+                }}
+              />
+            </label>
+            <button
+              className={styles.secondaryButton}
+              type="button"
+              disabled={mapActionPending || clampedTileAttackArmy <= 0}
+              onClick={() => {
+                void handleConfirmAttackTarget(
+                  selectedTileTargetableCastle,
+                  clampedTileAttackArmy
+                );
+              }}
+            >
+              Attack {selectedTileTargetableCastle.name} with{" "}
+              {clampedTileAttackArmy} army
+            </button>
           </>
         ) : null}
 
