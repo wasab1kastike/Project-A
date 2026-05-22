@@ -189,6 +189,7 @@ export type TickHealth = "ok" | "lagging" | "stalled";
 type TieBreakCandidate = {
   fortressId: string;
   ownerId: string;
+  commanderName: string;
   fortressName: string;
   finalScore: number;
   reachedFinalScoreAt: Date;
@@ -1222,6 +1223,21 @@ function formatTieBreakSummary(
   return `Tie on ${winner.finalScore} points resolved by earliest reach time. ${summary}. Winner: ${winner.fortressName}.`;
 }
 
+function formatSeasonWinnerAnnouncement({
+  winner,
+  tiedCandidates,
+}: {
+  winner: TieBreakCandidate;
+  tiedCandidates: TieBreakCandidate[];
+}) {
+  const tieNote =
+    tiedCandidates.length > 1
+      ? " Tie-break went to the earliest fortress to reach the final score."
+      : "";
+
+  return `Season ended. ${winner.commanderName} of ${winner.fortressName} wins with ${winner.finalScore} points.${tieNote} Community wish voting is open until Tuesday 12:00.`;
+}
+
 async function resolveExpiredActiveCycle(
   cycleId: string,
   now: Date,
@@ -1374,6 +1390,7 @@ async function resolveExpiredActiveCycle(
       .map((fortress) => ({
         fortressId: fortress.id,
         ownerId: fortress.ownerId,
+        commanderName: fortress.commanderName,
         fortressName: fortress.name,
         finalScore: fortress.points,
         reachedFinalScoreAt:
@@ -1433,6 +1450,20 @@ async function resolveExpiredActiveCycle(
           communityWishProposalEndsAt
         ),
         communityWishStatus: "OPEN",
+      },
+    });
+
+    const systemUser = await ensureNpcSystemUser(tx);
+    await tx.chatMessage.create({
+      data: {
+        cycleId: cycle.id,
+        authorId: systemUser.id,
+        type: ChatMessageType.TEXT,
+        body: formatSeasonWinnerAnnouncement({
+          winner,
+          tiedCandidates,
+        }),
+        createdAt: resolutionEndedAt,
       },
     });
 

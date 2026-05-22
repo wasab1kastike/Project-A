@@ -72,10 +72,14 @@ export default async function HistoryPage({
   const seasonIndex = [...state.entries].reverse().map((entry, index) => ({
     cycleId: entry.cycleId,
     seasonName: formatSeasonName(index + 1),
+    winnerLabel: entry.winnerLabel,
     winnerFortressName: entry.winnerFortressName,
+    winningScore: entry.winningScore,
+    endedAt: entry.endedAt,
     communityWishSnapshot:
       entry.communityWishSnapshot ?? "No community wish recorded.",
   }));
+  const latestSeason = seasonIndex.at(-1) ?? null;
 
   return (
     <main className={styles.page}>
@@ -139,6 +143,18 @@ export default async function HistoryPage({
 
       {activeTab === "seasons" ? (
         <section className={styles.stack}>
+          {latestSeason ? (
+            <article className={styles.winnerSpotlight}>
+              <span className={styles.sectionLabel}>Latest winner</span>
+              <h2>{latestSeason.winnerLabel}</h2>
+              <p>
+                {latestSeason.winnerFortressName} won{" "}
+                {latestSeason.seasonName} with {latestSeason.winningScore}{" "}
+                points. The result is now recorded in season history.
+              </p>
+            </article>
+          ) : null}
+
           {seasonIndex.length > 0 ? (
             <article className={styles.card}>
               <span className={styles.sectionLabel}>Seasons overview</span>
@@ -147,7 +163,11 @@ export default async function HistoryPage({
                 {seasonIndex.map((season) => (
                   <li key={season.cycleId}>
                     <strong>{season.seasonName}</strong>
-                    <span>Winner fortress: {season.winnerFortressName}</span>
+                    <span>
+                      Winner: {season.winnerLabel} of{" "}
+                      {season.winnerFortressName}
+                    </span>
+                    <span>Final score: {season.winningScore} points</span>
                     <span>Wish: {season.communityWishSnapshot}</span>
                   </li>
                 ))}

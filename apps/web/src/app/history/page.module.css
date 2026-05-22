@@ -7,6 +7,7 @@
 .hero,
 .stack,
 .card,
+.winnerSpotlight,
 .cardHeader,
 .metaList,
 .formStack,
@@ -22,7 +23,8 @@
 }
 
 .heroCopy,
-.card {
+.card,
+.winnerSpotlight {
   padding: 24px;
   border: 1px solid var(--border-soft);
   border-radius: 24px;
@@ -30,6 +32,18 @@
     linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0)),
     var(--surface);
   box-shadow: 0 18px 50px rgba(10, 17, 26, 0.18);
+}
+
+.winnerSpotlight {
+  border-color: rgba(247, 196, 95, 0.32);
+  background:
+    linear-gradient(180deg, rgba(247, 196, 95, 0.14), rgba(247, 196, 95, 0.03)),
+    var(--surface);
+}
+
+.winnerSpotlight h2 {
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  line-height: 1;
 }
 
 .eyebrow,
@@ -51,6 +65,7 @@
 
 .heroCopy p,
 .card p,
+.winnerSpotlight p,
 .metaList dd,
 .scoreBlock span,
 .helperText {
@@ -402,7 +417,8 @@
   }
 
   .heroCopy,
-  .card {
+  .card,
+  .winnerSpotlight {
     padding: 20px;
     border-radius: 20px;
   }
