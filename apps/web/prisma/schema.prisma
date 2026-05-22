@@ -183,6 +183,15 @@ enum BattlefieldSide {
   DEFENDER
 }
 
+enum DiplomacyRelationStatus {
+  NEUTRAL
+  ALLIED
+  ENEMY
+  WAR_PENDING
+  WAR
+  PEACE_PENDING
+}
+
 model User {
   id                        String                         @id @default(cuid())
   name                      String?
@@ -259,49 +268,51 @@ model VerificationToken {
 }
 
 model Cycle {
-  id                            String                         @id @default(cuid())
-  status                        CycleStatus                    @default(REGISTRATION)
-  registrationStartedAt         DateTime
-  registrationEndsAt            DateTime
-  testingStartedAt              DateTime?
-  testingEndsAt                 DateTime?
-  joiningLockedAt               DateTime?
-  activeStartedAt               DateTime?
-  activeEndsAt                  DateTime?
-  resolvedAt                    DateTime?
-  winnerId                      String?
-  crownedFortressId             String?
-  upgradesUnlockedAt            DateTime?
-  homeOfABossRespawnsAt         DateTime?
-  megaFortressDestroyCount      Int                            @default(0)
-  mapLayoutVersion              Int                            @default(1)
-  createdAt                     DateTime                       @default(now())
-  updatedAt                     DateTime                       @updatedAt
-  winner                        User?                          @relation("CycleWinner", fields: [winnerId], references: [id], onDelete: SetNull)
-  crownedFortress               Fortress?                      @relation("CycleCrownedFortress", fields: [crownedFortressId], references: [id], onDelete: SetNull)
-  fortresses                    Fortress[]
-  chatMessages                  ChatMessage[]
-  scoreEvents                   ScoreEvent[]
-  gameTicks                     GameTick[]
-  attackUnits                   AttackUnit[]
-  battlefields                  Battlefield[]
-  mapHexOwnerships              MapHexOwnership[]
-  mapHexClaimProjects           MapHexClaimProject[]
-  castleUpgradeProjects         CastleUpgradeProject[]
-  homeOfAHolders                HomeOfAHolder[]
-  unicornTemporaryTeleports     UnicornTemporaryTeleport[]
-  orkScrapBanks                 OrkScrapBank[]
-  orkScrapEvents                OrkScrapEvent[]
-  orkBossOrders                 OrkBossOrder[]
-  orkWaaaghInvestments          OrkWaaaghInvestment[]
-  winnerRequests                WinnerRequest[]
-  communityWishProposals        CommunityWishProposal[]
-  communityWishVoteEntitlements CommunityWishVoteEntitlement[]
-  buildArcadeRuns               BuildArcadeRun[]
-  arcadeTransactions            ArcadeTransaction[]
-  fortressGarrisons             FortressGarrison[]
+  id                             String                          @id @default(cuid())
+  status                         CycleStatus                     @default(REGISTRATION)
+  registrationStartedAt          DateTime
+  registrationEndsAt             DateTime
+  testingStartedAt               DateTime?
+  testingEndsAt                  DateTime?
+  joiningLockedAt                DateTime?
+  activeStartedAt                DateTime?
+  activeEndsAt                   DateTime?
+  resolvedAt                     DateTime?
+  winnerId                       String?
+  crownedFortressId              String?
+  upgradesUnlockedAt             DateTime?
+  homeOfABossRespawnsAt          DateTime?
+  megaFortressDestroyCount       Int                             @default(0)
+  mapLayoutVersion               Int                             @default(1)
+  createdAt                      DateTime                        @default(now())
+  updatedAt                      DateTime                        @updatedAt
+  winner                         User?                           @relation("CycleWinner", fields: [winnerId], references: [id], onDelete: SetNull)
+  crownedFortress                Fortress?                       @relation("CycleCrownedFortress", fields: [crownedFortressId], references: [id], onDelete: SetNull)
+  fortresses                     Fortress[]
+  chatMessages                   ChatMessage[]
+  scoreEvents                    ScoreEvent[]
+  gameTicks                      GameTick[]
+  attackUnits                    AttackUnit[]
+  battlefields                   Battlefield[]
+  mapHexOwnerships               MapHexOwnership[]
+  tilePressurePriorities         TilePressurePriority[]
+  tilePressureStates             TilePressureState[]
+  diplomacyRelations             DiplomacyRelation[]
+  castleUpgradeProjects          CastleUpgradeProject[]
+  homeOfAHolders                 HomeOfAHolder[]
+  unicornTemporaryTeleports      UnicornTemporaryTeleport[]
+  orkScrapBanks                  OrkScrapBank[]
+  orkScrapEvents                 OrkScrapEvent[]
+  orkBossOrders                  OrkBossOrder[]
+  orkWaaaghInvestments           OrkWaaaghInvestment[]
+  winnerRequests                 WinnerRequest[]
+  communityWishProposals         CommunityWishProposal[]
+  communityWishVoteEntitlements  CommunityWishVoteEntitlement[]
+  buildArcadeRuns                BuildArcadeRun[]
+  arcadeTransactions             ArcadeTransaction[]
+  fortressGarrisons              FortressGarrison[]
   homeOfABossDamageContributions HomeOfABossDamageContribution[]
-  history                       CycleHistory?
+  history                        CycleHistory?
 
   @@index([status])
   @@index([resolvedAt, createdAt], map: "Cycle_resolvedAt_createdAt_idx")
@@ -380,7 +391,10 @@ model Fortress {
   deepMiningRuneRolls            DwarfDeepMiningRoll[]               @relation("DwarfDeepMiningRune")
   deepMiningTargetedBy           DwarfDeepMiningRoll[]               @relation("DwarfDeepMiningTarget")
   ownedMapHexes                  MapHexOwnership[]                   @relation("MapHexOwner")
-  mapHexClaimProjects            MapHexClaimProject[]                @relation("MapHexClaimProjectFortress")
+  tilePressurePriorities         TilePressurePriority[]
+  tilePressureStates             TilePressureState[]
+  diplomacyRelationsA            DiplomacyRelation[]                 @relation("DiplomacyRelationFortressA")
+  diplomacyRelationsB            DiplomacyRelation[]                 @relation("DiplomacyRelationFortressB")
   homeOfAHoldings                HomeOfAHolder[]                     @relation("HomeOfAHolderFortress")
   homeOfABannerHoldings          HomeOfAHolder[]                     @relation("HomeOfABannerFortress")
   homeOfABossDamageContributions HomeOfABossDamageContribution[]
@@ -461,23 +475,63 @@ model MapHexOwnership {
   @@index([cycleId, ownerFortressId])
 }
 
-model MapHexClaimProject {
-  id          String    @id @default(cuid())
-  cycleId     String
-  fortressId  String
-  tileId      String
-  goldCost    Int
-  startedAt   DateTime
-  completesAt DateTime
-  completedAt DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  cycle       Cycle     @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  fortress    Fortress  @relation("MapHexClaimProjectFortress", fields: [fortressId], references: [id], onDelete: Cascade)
+model TilePressurePriority {
+  id         String   @id @default(cuid())
+  cycleId    String
+  fortressId String
+  tileId     String
+  weight     Int      @default(1)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  cycle      Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress   Fortress @relation(fields: [fortressId], references: [id], onDelete: Cascade)
 
-  @@index([cycleId, completedAt, completesAt])
-  @@index([fortressId, completedAt])
-  @@index([cycleId, tileId, completedAt])
+  @@unique([cycleId, fortressId, tileId])
+  @@index([cycleId, fortressId])
+  @@index([cycleId, tileId])
+}
+
+model TilePressureState {
+  id              String   @id @default(cuid())
+  cycleId         String
+  tileId          String
+  fortressId      String
+  pressure        Int      @default(0)
+  lastPressuredAt DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  cycle           Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress        Fortress @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+
+  @@unique([cycleId, tileId, fortressId])
+  @@index([cycleId, tileId])
+  @@index([cycleId, fortressId])
+}
+
+model DiplomacyRelation {
+  id                String                  @id @default(cuid())
+  cycleId           String
+  fortressAId       String
+  fortressBId       String
+  status            DiplomacyRelationStatus @default(NEUTRAL)
+  warDeclaredById   String?
+  warDeclaredAt     DateTime?
+  warStartsAt       DateTime?
+  peaceProposedById String?
+  peaceProposedAt   DateTime?
+  collateralGold    Int                     @default(0)
+  collateralFood    Int                     @default(0)
+  collateralArmy    Int                     @default(0)
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  cycle             Cycle                   @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortressA         Fortress                @relation("DiplomacyRelationFortressA", fields: [fortressAId], references: [id], onDelete: Cascade)
+  fortressB         Fortress                @relation("DiplomacyRelationFortressB", fields: [fortressBId], references: [id], onDelete: Cascade)
+
+  @@unique([cycleId, fortressAId, fortressBId])
+  @@index([cycleId, status])
+  @@index([fortressAId])
+  @@index([fortressBId])
 }
 
 model CastleUpgradeProject {
@@ -569,18 +623,18 @@ model Battlefield {
 }
 
 model BattlefieldParticipant {
-  id            String          @id @default(cuid())
-  battlefieldId String
-  fortressId    String
-  side          BattlefieldSide
-  armyCommitted Int
-  armyRemaining Int
-  maintenanceDrains Boolean    @default(true)
-  joinedAt      DateTime        @default(now())
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  battlefield   Battlefield     @relation(fields: [battlefieldId], references: [id], onDelete: Cascade)
-  fortress      Fortress        @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+  id                String          @id @default(cuid())
+  battlefieldId     String
+  fortressId        String
+  side              BattlefieldSide
+  armyCommitted     Int
+  armyRemaining     Int
+  maintenanceDrains Boolean         @default(true)
+  joinedAt          DateTime        @default(now())
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  battlefield       Battlefield     @relation(fields: [battlefieldId], references: [id], onDelete: Cascade)
+  fortress          Fortress        @relation(fields: [fortressId], references: [id], onDelete: Cascade)
 
   @@unique([battlefieldId, fortressId])
   @@index([fortressId])
@@ -1016,18 +1070,18 @@ model CycleHistory {
 }
 
 model FortressGarrison {
-  id            String      @id @default(cuid())
-  cycleId       String
-  fortressId    String
-  battlefieldId String?
-  tileId        String
-  army          Int
-  maintenanceDrains Boolean @default(true)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  cycle         Cycle       @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  fortress      Fortress    @relation(fields: [fortressId], references: [id], onDelete: Cascade)
-  battlefield   Battlefield? @relation(fields: [battlefieldId], references: [id], onDelete: Cascade)
+  id                String       @id @default(cuid())
+  cycleId           String
+  fortressId        String
+  battlefieldId     String?
+  tileId            String
+  army              Int
+  maintenanceDrains Boolean      @default(true)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  cycle             Cycle        @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress          Fortress     @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+  battlefield       Battlefield? @relation(fields: [battlefieldId], references: [id], onDelete: Cascade)
 
   @@unique([battlefieldId, fortressId])
   @@index([cycleId, tileId])

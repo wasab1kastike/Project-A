@@ -188,7 +188,7 @@ export async function getCycleHistoryPageState({
         entry.communityWishStatus === CommunityWishStatus.NO_PROPOSALS
           ? "No community wish proposals were submitted for this cycle."
         : entry.communityWishStatus === CommunityWishStatus.PROPOSALS_OPEN
-            ? "Community wish voting starts right after the season ends. Wishes can still be edited until Monday 12:00, and voting ends Tuesday 12:00."
+            ? "Community wish voting starts right after the season ends. Wishes and votes close Monday 25 May at 12:00."
           : entry.communityWishStatus === CommunityWishStatus.RESOLVED
             ? "Community wish voting has been resolved."
             : entry.communityWishStatus === CommunityWishStatus.TIE_REQUIRES_ADMIN

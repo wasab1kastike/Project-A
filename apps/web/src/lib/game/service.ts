@@ -1,5 +1,6 @@
 import {
   CastleUpgradeSpecialization,
+  CommunityWishStatus,
   CycleStatus,
   FortressAction,
   FortressKind,
@@ -10,6 +11,7 @@ import {
   BattlefieldStatus,
   BattlefieldSide,
   ChatMessageType,
+  DiplomacyRelationStatus,
   OrkBossOrderKind,
   OrkScrapEventReason,
   OrkWaaaghInvestmentKind,
@@ -83,14 +85,13 @@ import {
   rollUnicornShatteredReality,
 } from "./unicorn-shattered-reality";
 import {
-  TILE_CLAIM_MAX_ACTIVE_PROJECTS,
   getTileById,
-  getTileClaimCost,
-  getTileClaimDurationMinutes,
   isHomeOfATile,
   isTileConnectedToFortressOrOwnedTiles,
 } from "./territory";
+import { getPressureTargetBlockedReason } from "./tile-pressure";
 import { joinBattlefield as joinBattlefieldRecord } from "./battlefields";
+import { getTileAttackBlockedReason } from "./combat-targeting";
 import { ensureNpcSystemUser, getHomeOfAMapPosition } from "./mega-fortress";
 import { recalculateReturningAttackRoutes } from "./fortress-relocation";
 import {
@@ -101,6 +102,13 @@ import {
   getWaaaghInvestmentCost,
   isRealOrkPlayerFortress,
 } from "./orks";
+import {
+  canProposePeace,
+  getDiplomacyPressureBlockedReason,
+  getCanonicalDiplomacyPair,
+  getEffectiveDiplomacyStatus,
+  getWarStartsAt,
+} from "./politics";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -427,6 +435,49 @@ function isRaceSelectionWindowOpen(
   );
 }
 
+async function isRaceSelectionLockedByCommunityWish({
+  cycleId,
+  now,
+  db,
+}: {
+  cycleId: string;
+  now: Date;
+  db: DatabaseClient;
+}) {
+  const latestHistory = await db.cycleHistory.findFirst({
+    where: {
+      cycleId: {
+        not: cycleId,
+      },
+    },
+    orderBy: {
+      endedAt: "desc",
+    },
+    select: {
+      communityWishStatus: true,
+      communityWishProposalEndsAt: true,
+      communityWishVotingEndsAt: true,
+    },
+  });
+
+  if (!latestHistory) {
+    return false;
+  }
+
+  if (latestHistory.communityWishStatus === CommunityWishStatus.OPEN) {
+    return (
+      latestHistory.communityWishVotingEndsAt !== null &&
+      latestHistory.communityWishVotingEndsAt > now
+    );
+  }
+
+  return (
+    latestHistory.communityWishStatus === CommunityWishStatus.PROPOSALS_OPEN &&
+    latestHistory.communityWishProposalEndsAt !== null &&
+    latestHistory.communityWishProposalEndsAt > now
+  );
+}
+
 function findOpenMapPosition(
   cycle: {
     id: string;
@@ -573,6 +624,20 @@ export async function joinRegistrationCycle({
 
         if (!isJoinOpen(cycle, now)) {
           throw new GameError("Joining is closed for this cycle.");
+        }
+
+        if (
+          normalizedRace !== undefined &&
+          cycle.status === CycleStatus.REGISTRATION &&
+          (await isRaceSelectionLockedByCommunityWish({
+            cycleId: cycle.id,
+            now,
+            db: tx,
+          }))
+        ) {
+          throw new GameError(
+            "Race selection opens after community wish voting closes."
+          );
         }
 
         if (cycle.fortresses.some((fortress) => fortress.ownerId === userId)) {
@@ -1033,7 +1098,7 @@ export async function setFortressAction({
   });
 }
 
-export async function claimNeutralMapHex({
+export async function setTilePressurePriority({
   userId,
   tileId,
   now = new Date(),
@@ -1048,7 +1113,7 @@ export async function claimNeutralMapHex({
     const cycle = await getCurrentCycle(tx);
 
     if (!cycle || !isGameplayWindowOpen(cycle, now)) {
-      throw new GameError("The current cycle is not accepting tile claims.");
+      throw new GameError("The current cycle is not accepting expansion priorities.");
     }
 
     const fortress = await tx.fortress.findUnique({
@@ -1061,8 +1126,6 @@ export async function claimNeutralMapHex({
       select: {
         id: true,
         ownerId: true,
-        gold: true,
-        race: true,
         mapX: true,
         mapY: true,
       },
@@ -1074,57 +1137,35 @@ export async function claimNeutralMapHex({
 
     const tile = getTileById(tileId);
 
-    if (!tile || !tile.claimable) {
-      throw new GameError("That map tile cannot be claimed.");
-    }
-
-    if (isHomeOfATile(tileId)) {
-      throw new GameError("Home of A is a daily boss and cannot be claimed.");
-    }
-
-    const [existing, activeClaimOnTile, activeOwnClaimCount] =
-      await Promise.all([
-        tx.mapHexOwnership.findUnique({
-          where: {
-            cycleId_tileId: {
-              cycleId: cycle.id,
-              tileId,
+    const existing = await tx.mapHexOwnership.findUnique({
+      where: {
+        cycleId_tileId: {
+          cycleId: cycle.id,
+          tileId,
+        },
+      },
+      select: {
+        ownerFortressId: true,
+      },
+    });
+    const diplomacyRelation =
+      existing?.ownerFortressId && existing.ownerFortressId !== fortress.id
+        ? await tx.diplomacyRelation.findUnique({
+            where: {
+              cycleId_fortressAId_fortressBId: {
+                cycleId: cycle.id,
+                ...getCanonicalDiplomacyPair(
+                  fortress.id,
+                  existing.ownerFortressId
+                ),
+              },
             },
-          },
-          select: {
-            id: true,
-          },
-        }),
-        tx.mapHexClaimProject.findFirst({
-          where: {
-            cycleId: cycle.id,
-            tileId,
-            completedAt: null,
-          },
-          select: {
-            id: true,
-          },
-        }),
-        tx.mapHexClaimProject.count({
-          where: {
-            cycleId: cycle.id,
-            fortressId: fortress.id,
-            completedAt: null,
-          },
-        }),
-      ]);
-
-    if (existing) {
-      throw new GameError("That tile is already claimed.");
-    }
-
-    if (activeClaimOnTile) {
-      throw new GameError("That tile is already being acquired.");
-    }
-
-    if (activeOwnClaimCount >= TILE_CLAIM_MAX_ACTIVE_PROJECTS) {
-      throw new GameError("You can only acquire one tile at a time.");
-    }
+            select: {
+              status: true,
+              warStartsAt: true,
+            },
+          })
+        : null;
 
     const ownedTileIds = await tx.mapHexOwnership.findMany({
       where: {
@@ -1139,69 +1180,403 @@ export async function claimNeutralMapHex({
       .map((ownership) => ownership.tileId)
       .filter((ownedTileId) => !isHomeOfATile(ownedTileId));
 
-    if (
-      !isTileConnectedToFortressOrOwnedTiles({
-        tileId,
-        fortress,
-        ownedTileIds: ownedNormalTileIds,
-      })
-    ) {
-      throw new GameError(
-        "You can only claim tiles connected to your castle or owned territory."
-      );
-    }
-
-    const claimCost = getTileClaimCost({
+    const blockedReason = getPressureTargetBlockedReason({
       tile,
-      origin: fortress,
-      race: fortress.race,
-      ownedTileCount: ownedNormalTileIds.length,
-      pendingClaimCount: activeOwnClaimCount,
+      tileId,
+      ownerFortressId: existing?.ownerFortressId ?? null,
+      diplomacyBlockedReason: getDiplomacyPressureBlockedReason({
+        relation: diplomacyRelation,
+        now,
+      }),
+      fortress,
+      ownedTileIds: ownedNormalTileIds,
+      isHomeOfA: isHomeOfATile,
+      isConnected: ({ tileId: candidateTileId, ownedTileIds }) =>
+        isTileConnectedToFortressOrOwnedTiles({
+          tileId: candidateTileId,
+          fortress,
+          ownedTileIds,
+        }),
     });
 
-    if (fortress.gold < claimCost) {
-      throw new GameError(`You need ${claimCost} gold to claim this tile.`);
+    if (blockedReason) {
+      throw new GameError(blockedReason);
     }
 
-    await tx.fortress.update({
+    return tx.tilePressurePriority.upsert({
       where: {
-        id: fortress.id,
+        cycleId_fortressId_tileId: {
+          cycleId: cycle.id,
+          fortressId: fortress.id,
+          tileId,
+        },
       },
-      data: {
-        gold: {
-          decrement: claimCost,
+      create: {
+        cycleId: cycle.id,
+        fortressId: fortress.id,
+        tileId,
+        weight: 1,
+      },
+      update: {
+        weight: 1,
+      },
+      select: {
+        id: true,
+        cycleId: true,
+        fortressId: true,
+        tileId: true,
+        weight: true,
+      },
+    });
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+export async function clearTilePressurePriority({
+  userId,
+  tileId,
+  db = prisma,
+}: {
+  userId: string;
+  tileId: string;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle) {
+      throw new GameError("There is no active cycle.");
+    }
+
+    const fortress = await tx.fortress.findUnique({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: userId,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!fortress) {
+      throw new GameError("You are not participating in the active cycle.");
+    }
+
+    await tx.tilePressurePriority.deleteMany({
+      where: {
+        cycleId: cycle.id,
+        fortressId: fortress.id,
+        tileId,
+      },
+    });
+
+    return { tileId };
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+async function getActivePlayerFortressForPolitics({
+  tx,
+  cycleId,
+  userId,
+}: {
+  tx: Prisma.TransactionClient;
+  cycleId: string;
+  userId: string;
+}) {
+  const fortress = await tx.fortress.findUnique({
+    where: {
+      cycleId_ownerId: {
+        cycleId,
+        ownerId: userId,
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!fortress) {
+    throw new GameError("You are not participating in the active cycle.");
+  }
+
+  return fortress;
+}
+
+async function getTargetPlayerFortressForPolitics({
+  tx,
+  cycleId,
+  targetFortressId,
+}: {
+  tx: Prisma.TransactionClient;
+  cycleId: string;
+  targetFortressId: string;
+}) {
+  const target = await tx.fortress.findFirst({
+    where: {
+      id: targetFortressId,
+      cycleId,
+      fortressKind: FortressKind.PLAYER,
+      isNpc: false,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!target) {
+    throw new GameError("That player fortress is not in the active cycle.");
+  }
+
+  return target;
+}
+
+export async function declareWar({
+  userId,
+  targetFortressId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  targetFortressId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("Politics can only change during gameplay.");
+    }
+
+    const actor = await getActivePlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      userId,
+    });
+    const target = await getTargetPlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      targetFortressId,
+    });
+
+    if (actor.id === target.id) {
+      throw new GameError("You cannot declare war on yourself.");
+    }
+
+    const pair = getCanonicalDiplomacyPair(actor.id, target.id);
+    const existing = await tx.diplomacyRelation.findUnique({
+      where: {
+        cycleId_fortressAId_fortressBId: {
+          cycleId: cycle.id,
+          ...pair,
+        },
+      },
+    });
+    const effectiveStatus = getEffectiveDiplomacyStatus({
+      relation: existing,
+      now,
+    });
+
+    if (effectiveStatus === DiplomacyRelationStatus.ALLIED) {
+      throw new GameError("Allied betrayal is not implemented yet.");
+    }
+
+    if (effectiveStatus === DiplomacyRelationStatus.WAR) {
+      return existing
+        ? tx.diplomacyRelation.update({
+            where: {
+              id: existing.id,
+            },
+            data: {
+              status: DiplomacyRelationStatus.WAR,
+              warStartsAt: existing.warStartsAt ?? now,
+            },
+          })
+        : tx.diplomacyRelation.create({
+            data: {
+              cycleId: cycle.id,
+              ...pair,
+              status: DiplomacyRelationStatus.WAR,
+              warDeclaredById: actor.id,
+              warDeclaredAt: now,
+              warStartsAt: now,
+            },
+          });
+    }
+
+    if (
+      existing?.status === DiplomacyRelationStatus.WAR_PENDING &&
+      existing.warStartsAt &&
+      existing.warStartsAt > now
+    ) {
+      return existing;
+    }
+
+    const warStartsAt = getWarStartsAt(now);
+
+    return tx.diplomacyRelation.upsert({
+      where: {
+        cycleId_fortressAId_fortressBId: {
+          cycleId: cycle.id,
+          ...pair,
+        },
+      },
+      create: {
+        cycleId: cycle.id,
+        ...pair,
+        status: DiplomacyRelationStatus.WAR_PENDING,
+        warDeclaredById: actor.id,
+        warDeclaredAt: now,
+        warStartsAt,
+      },
+      update: {
+        status: DiplomacyRelationStatus.WAR_PENDING,
+        warDeclaredById: actor.id,
+        warDeclaredAt: now,
+        warStartsAt,
+        peaceProposedById: null,
+        peaceProposedAt: null,
+      },
+    });
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+export async function proposePeace({
+  userId,
+  targetFortressId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  targetFortressId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("Politics can only change during gameplay.");
+    }
+
+    const actor = await getActivePlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      userId,
+    });
+    const target = await getTargetPlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      targetFortressId,
+    });
+
+    if (actor.id === target.id) {
+      throw new GameError("You cannot propose peace with yourself.");
+    }
+
+    const pair = getCanonicalDiplomacyPair(actor.id, target.id);
+    const relation = await tx.diplomacyRelation.findUnique({
+      where: {
+        cycleId_fortressAId_fortressBId: {
+          cycleId: cycle.id,
+          ...pair,
         },
       },
     });
 
-    await tx.scoreEvent.create({
+    if (!relation) {
+      throw new GameError("You are already at peace.");
+    }
+
+    if (relation.status === DiplomacyRelationStatus.PEACE_PENDING) {
+      return relation;
+    }
+
+    const effectiveStatus = getEffectiveDiplomacyStatus({ relation, now });
+
+    if (!canProposePeace(effectiveStatus)) {
+      throw new GameError("Peace can only be proposed from a hostile relation.");
+    }
+
+    return tx.diplomacyRelation.update({
+      where: {
+        id: relation.id,
+      },
       data: {
-        cycleId: cycle.id,
-        fortressId: fortress.id,
-        actorId: userId,
-        eventType: ScoreEventType.TILE_CLAIM,
-        delta: -claimCost,
-        createdAt: now,
+        status: DiplomacyRelationStatus.PEACE_PENDING,
+        peaceProposedById: actor.id,
+        peaceProposedAt: now,
+      },
+    });
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+export async function acceptPeace({
+  userId,
+  targetFortressId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  targetFortressId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("Politics can only change during gameplay.");
+    }
+
+    const actor = await getActivePlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      userId,
+    });
+    const target = await getTargetPlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      targetFortressId,
+    });
+
+    if (actor.id === target.id) {
+      throw new GameError("You cannot accept peace with yourself.");
+    }
+
+    const pair = getCanonicalDiplomacyPair(actor.id, target.id);
+    const relation = await tx.diplomacyRelation.findUnique({
+      where: {
+        cycleId_fortressAId_fortressBId: {
+          cycleId: cycle.id,
+          ...pair,
+        },
       },
     });
 
-    return tx.mapHexClaimProject.create({
-      data: {
-        cycleId: cycle.id,
-        fortressId: fortress.id,
-        tileId,
-        goldCost: claimCost,
-        startedAt: now,
-        completesAt: addMinutes(now, getTileClaimDurationMinutes(tile.biome)),
+    if (!relation || relation.status !== DiplomacyRelationStatus.PEACE_PENDING) {
+      throw new GameError("There is no peace proposal to accept.");
+    }
+
+    if (relation.peaceProposedById === actor.id) {
+      throw new GameError("The other fortress must accept your peace proposal.");
+    }
+
+    return tx.diplomacyRelation.update({
+      where: {
+        id: relation.id,
       },
-      select: {
-        id: true,
-        tileId: true,
-        fortressId: true,
-        goldCost: true,
-        startedAt: true,
-        completesAt: true,
-        completedAt: true,
+      data: {
+        status: DiplomacyRelationStatus.NEUTRAL,
+        warDeclaredById: null,
+        warDeclaredAt: null,
+        warStartsAt: null,
+        peaceProposedById: null,
+        peaceProposedAt: null,
+        collateralGold: 0,
+        collateralFood: 0,
+        collateralArmy: 0,
       },
     });
   }, SERVICE_TRANSACTION_OPTIONS);
@@ -1326,7 +1701,7 @@ export async function attackMapHex({
       isHomeOfA && ownership && !homeHasActiveHolders ? null : ownership;
 
     if (!effectiveOwnership && !isHomeOfA) {
-      throw new GameError("Neutral tiles must be claimed, not attacked.");
+      throw new GameError("Neutral tiles must be pressured, not attacked.");
     }
 
     if (effectiveOwnership?.ownerFortressId === attacker.id) {
@@ -1346,6 +1721,59 @@ export async function attackMapHex({
 
     if (activeBattle && !isHomeOfA) {
       throw new GameError("That tile is already contested.");
+    }
+
+    if (!isHomeOfA) {
+      const ownedTileIds = await tx.mapHexOwnership.findMany({
+        where: {
+          cycleId: cycle.id,
+          ownerFortressId: attacker.id,
+        },
+        select: {
+          tileId: true,
+        },
+      });
+      const ownedNormalTileIds = ownedTileIds
+        .map((ownedTile) => ownedTile.tileId)
+        .filter((ownedTileId) => !isHomeOfATile(ownedTileId));
+      const diplomacyRelation = effectiveOwnership?.ownerFortressId
+        ? await tx.diplomacyRelation.findUnique({
+            where: {
+              cycleId_fortressAId_fortressBId: {
+                cycleId: cycle.id,
+                ...getCanonicalDiplomacyPair(
+                  attacker.id,
+                  effectiveOwnership.ownerFortressId
+                ),
+              },
+            },
+            select: {
+              status: true,
+              warStartsAt: true,
+            },
+          })
+        : null;
+      const blockedReason = getTileAttackBlockedReason({
+        tile,
+        tileId,
+        ownerFortressId: effectiveOwnership?.ownerFortressId ?? null,
+        attackerFortress: attacker,
+        ownedTileIds: ownedNormalTileIds,
+        hasActiveBattle: Boolean(activeBattle),
+        diplomacyRelation,
+        now,
+        isHomeOfA: isHomeOfATile,
+        isConnected: ({ tileId: candidateTileId, ownedTileIds }) =>
+          isTileConnectedToFortressOrOwnedTiles({
+            tileId: candidateTileId,
+            fortress: attacker,
+            ownedTileIds,
+          }),
+      });
+
+      if (blockedReason) {
+        throw new GameError(blockedReason);
+      }
     }
 
     const outboundAttackCount = await tx.attackUnit.count({
@@ -2548,6 +2976,19 @@ export async function selectFortressRace({
       if (!cycle || !isRaceSelectionWindowOpen(cycle, now)) {
         throw new GameError(
           "Race selection is only available before or during gameplay."
+        );
+      }
+
+      if (
+        cycle.status === CycleStatus.REGISTRATION &&
+        (await isRaceSelectionLockedByCommunityWish({
+          cycleId: cycle.id,
+          now,
+          db: tx,
+        }))
+      ) {
+        throw new GameError(
+          "Race selection opens after community wish voting closes."
         );
       }
 

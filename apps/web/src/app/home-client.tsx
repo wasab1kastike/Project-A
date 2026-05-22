@@ -155,6 +155,148 @@ function normalizeProgress(progress: number) {
   return Math.min(100, Math.max(0, Math.round(progress)));
 }
 
+function CommunityWishPanel({
+  state,
+  className,
+}: {
+  state: HomePageState;
+  className?: string;
+}) {
+  const currentUserCommunityWish =
+    state.communityWish.currentUserCommunityWish ?? "";
+
+  return (
+    <section
+      className={className}
+      aria-label="Community wish pool"
+    >
+      <span className={styles.sectionLabel}>Community wish</span>
+      <h2>Season proposals</h2>
+      <p>{state.communityWish.submissionHint}</p>
+      {state.communityWish.canSubmit ? (
+        <form
+          action={submitCommunityWishProposalFormAction}
+          className={styles.form}
+        >
+          <input
+            type="hidden"
+            name="cycleId"
+            value={state.communityWish.cycleId}
+          />
+          <label className={styles.field}>
+            <div className={styles.fieldHeader}>
+              Proposal
+              <details className={styles.helpDisclosure}>
+                <summary
+                  aria-label="Community wish instructions"
+                  className={styles.helpButton}
+                >
+                  ?
+                </summary>
+                <div className={styles.helpPopover}>
+                  <strong>Wish limits</strong>
+                  <ul>
+                    <li>
+                      Winner wish is guaranteed. Community wish is vote-based.
+                    </li>
+                    <li>Wishes and voting close Monday 25 May at 12:00.</li>
+                    <li>Pretesting runs until the next season starts 1 June.</li>
+                    <li>Write in English.</li>
+                    <li>
+                      Keep it short: max {COMMUNITY_WISH_MAX_LENGTH} characters.
+                    </li>
+                    <li>Ask for one feature idea, not a full spec.</li>
+                    <li>
+                      No self-buffs, targeted nerfs, more wishes, or deploy
+                      requests.
+                    </li>
+                  </ul>
+                </div>
+              </details>
+            </div>
+            <textarea
+              name="requestText"
+              rows={3}
+              maxLength={COMMUNITY_WISH_MAX_LENGTH}
+              placeholder="Add more troop types"
+              defaultValue={currentUserCommunityWish}
+              required
+            />
+          </label>
+          <button className={styles.primaryButton} type="submit">
+            {currentUserCommunityWish ? "Update wish" : "Submit wish"}
+          </button>
+        </form>
+      ) : null}
+      {state.communityWish.canVote ? (
+        <form
+          action={saveCommunityWishVotesFormAction}
+          className={styles.voteForm}
+        >
+          <input
+            type="hidden"
+            name="cycleId"
+            value={state.communityWish.cycleId}
+          />
+          <span className={styles.voteSectionLabel}>Community vote</span>
+          <p className={styles.voteHint}>
+            You have {state.communityWish.voteBudget} votes.{" "}
+            {state.communityWish.usedVotes} currently allocated. You can change
+            them until voting ends Monday 25 May at 12:00.
+          </p>
+          <div className={styles.voteList}>
+            {state.communityWish.proposals.map((proposal) => (
+              <label className={styles.voteRow} key={proposal.id}>
+                <span>
+                  <strong>{proposal.authorLabel}</strong>
+                  <small>
+                    {proposal.voteCount} votes - {proposal.status}
+                  </small>
+                  <em>{proposal.requestText}</em>
+                </span>
+                <input
+                  name={`proposalVotes:${proposal.id}`}
+                  type="number"
+                  min={0}
+                  max={
+                    proposal.isVoteEligible
+                      ? state.communityWish.voteBudget
+                      : 0
+                  }
+                  defaultValue={proposal.currentUserVotes}
+                  disabled={
+                    !state.communityWish.canVote || !proposal.isVoteEligible
+                  }
+                />
+              </label>
+            ))}
+          </div>
+          <button className={styles.primaryButton} type="submit">
+            Save community votes
+          </button>
+        </form>
+      ) : null}
+      {state.communityWish.proposals.length > 0 ? (
+        <ol className={styles.wishList}>
+          {state.communityWish.proposals.slice(0, 4).map((proposal) => (
+            <li key={proposal.id}>
+              <strong>
+                {proposal.isCurrentUser ? "Your wish" : "Community wish"}
+              </strong>
+              <span>
+                {proposal.voteCount} votes - {proposal.status}
+              </span>
+              <p>{proposal.requestText}</p>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p>No community wishes have been suggested yet.</p>
+      )}
+    </section>
+  );
+}
+
 export function HomeClient({
   initialState,
   session,
@@ -252,14 +394,19 @@ function HomeClientContent({
             state.cycle?.lastProcessedTickAt ?? null
           )} (live)`
     : null;
-  const currentUserCommunityWish =
-    state.communityWish.currentUserCommunityWish ?? "";
+  const showCommunityWishFocus = Boolean(
+    state.latestSeason &&
+      state.communityWish.isOpen &&
+      state.phase?.status === "REGISTRATION"
+  );
+  const showJoinReservationForm = Boolean(showCommunityWishFocus);
   const showLoginCard = !session?.user;
   const showJoinCard = Boolean(session?.user && state.canJoinCycle);
   const showCommanderNameCard = Boolean(
     session?.user && state.playerSummary?.canRegisterCommanderName
   );
-  const showArcadeCard = state.phase?.status === "REGISTRATION";
+  const showArcadeCard =
+    state.phase?.status === "REGISTRATION" && !showCommunityWishFocus;
   const isWaitingForSeason =
     !state.phase || state.phase.status === "RESOLUTION" || !state.cycle;
   const showWinnerWishPrompt = Boolean(
@@ -278,7 +425,8 @@ function HomeClientContent({
     showCommanderNameCard ||
     isWaitingForSeason ||
     showArcadeCard ||
-    showSeasonBanner
+    showSeasonBanner ||
+    showCommunityWishFocus
   );
   const canDismissPhaseCard = Boolean(
     showSidePanel &&
@@ -288,7 +436,8 @@ function HomeClientContent({
     !showCommanderNameCard &&
     !showArcadeCard &&
     !showWinnerWishPrompt &&
-    !showSeasonBanner
+    !showSeasonBanner &&
+    !showCommunityWishFocus
   );
   const phaseCardStorageKey = `project-a:phase-card:${
     state.cycle?.id ?? "no-cycle"
@@ -362,12 +511,14 @@ function HomeClientContent({
       ? "Join the battlefield."
       : showCommanderNameCard
         ? "Choose your in-game nick."
-        : showJoinCard
-          ? state.phase?.status === "ACTIVE"
-            ? "Join the running season."
-            : state.phase?.status === "TESTING"
-              ? "Join testing."
-              : "Claim your fortress."
+          : showJoinCard
+            ? state.phase?.status === "ACTIVE"
+              ? "Join the running season."
+              : state.phase?.status === "TESTING"
+                ? "Join testing."
+                : showJoinReservationForm
+                  ? "Reserve next season."
+                  : "Claim your fortress."
           : phaseCopy.title;
 
   const centerDescription = blockingMessage
@@ -381,6 +532,8 @@ function HomeClientContent({
             ? "This season is already running. Join now to enter immediately if slots are still available."
             : state.phase?.status === "TESTING"
               ? "Testing mode is live. Join now to test the sandbox; only your roster identity carries into the real season."
+              : showJoinReservationForm
+                ? "Name your commander and fortress now. Race choice opens after community wish voting closes."
               : "Build phase is open. Name your fortress now and it will appear on the map."
           : (state.cycle?.statusMessage ?? state.emptyStateMessage);
 
@@ -464,27 +617,29 @@ function HomeClientContent({
               <dd>{remainingText}</dd>
             </div>
           </dl>
-          <div className={styles.raceCounter} aria-label="Players by race">
-            {raceCounts.map((race) => (
-              <span
-                className={styles.raceCount}
-                title={`${race.label}: ${race.count}`}
-                key={race.key}
-              >
+          {!showCommunityWishFocus ? (
+            <div className={styles.raceCounter} aria-label="Players by race">
+              {raceCounts.map((race) => (
                 <span
-                  className={styles.raceCountToken}
-                  style={{
-                    backgroundImage: `url("${RACE_TOKEN_PATHS[race.key]}")`,
-                  }}
-                  aria-hidden="true"
-                />
-                <span className={styles.raceCountValue}>
-                  <span className={styles.raceCountLabel}>{race.label}</span>
-                  {race.count}
+                  className={styles.raceCount}
+                  title={`${race.label}: ${race.count}`}
+                  key={race.key}
+                >
+                  <span
+                    className={styles.raceCountToken}
+                    style={{
+                      backgroundImage: `url("${RACE_TOKEN_PATHS[race.key]}")`,
+                    }}
+                    aria-hidden="true"
+                  />
+                  <span className={styles.raceCountValue}>
+                    <span className={styles.raceCountLabel}>{race.label}</span>
+                    {race.count}
+                  </span>
                 </span>
-              </span>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         <nav className={styles.topLinks} aria-label="Account and pages">
@@ -519,149 +674,10 @@ function HomeClientContent({
             state.phase?.status === "REGISTRATION") ? (
             <details className={styles.wishPanel}>
               <summary className={styles.wishPanelToggle}>Wish</summary>
-              <section
+              <CommunityWishPanel
+                state={state}
                 className={styles.wishPanelContent}
-                aria-label="Community wish pool"
-              >
-                <span className={styles.sectionLabel}>Community wish</span>
-                <h2>Season proposals</h2>
-                <p>{state.communityWish.submissionHint}</p>
-                {state.communityWish.canSubmit ? (
-                  <form
-                    action={submitCommunityWishProposalFormAction}
-                    className={styles.form}
-                  >
-                    <input
-                      type="hidden"
-                      name="cycleId"
-                      value={state.communityWish.cycleId}
-                    />
-                    <label className={styles.field}>
-                      <div className={styles.fieldHeader}>
-                        Proposal
-                        <details className={styles.helpDisclosure}>
-                          <summary
-                            aria-label="Community wish instructions"
-                            className={styles.helpButton}
-                          >
-                            ?
-                          </summary>
-                          <div className={styles.helpPopover}>
-                            <strong>Wish limits</strong>
-                            <ul>
-                              <li>
-                                Winner wish is guaranteed. Community wish is
-                                vote-based.
-                              </li>
-                              <li>
-                                Wishes lock Monday 12:00 after the season.
-                              </li>
-                              <li>Voting closes Tuesday 12:00.</li>
-                              <li>Write in English.</li>
-                              <li>
-                                Keep it short: max {COMMUNITY_WISH_MAX_LENGTH}{" "}
-                                characters.
-                              </li>
-                              <li>
-                                Ask for one feature idea, not a full spec.
-                              </li>
-                              <li>
-                                No self-buffs, targeted nerfs, more wishes, or
-                                deploy requests.
-                              </li>
-                            </ul>
-                          </div>
-                        </details>
-                      </div>
-                      <textarea
-                        name="requestText"
-                        rows={3}
-                        maxLength={COMMUNITY_WISH_MAX_LENGTH}
-                        placeholder="Add more troop types"
-                        defaultValue={currentUserCommunityWish}
-                        required
-                      />
-                    </label>
-                    <button className={styles.primaryButton} type="submit">
-                      {currentUserCommunityWish ? "Update wish" : "Submit wish"}
-                    </button>
-                  </form>
-                ) : null}
-                {state.communityWish.canVote ? (
-                  <form
-                    action={saveCommunityWishVotesFormAction}
-                    className={styles.voteForm}
-                  >
-                    <input
-                      type="hidden"
-                      name="cycleId"
-                      value={state.communityWish.cycleId}
-                    />
-                    <span className={styles.voteSectionLabel}>
-                      Community vote
-                    </span>
-                    <p className={styles.voteHint}>
-                      You have {state.communityWish.voteBudget} votes.{" "}
-                      {state.communityWish.usedVotes} currently allocated. You
-                      can change them until voting ends Tuesday 12:00.
-                    </p>
-                    <div className={styles.voteList}>
-                      {state.communityWish.proposals.map((proposal) => (
-                        <label className={styles.voteRow} key={proposal.id}>
-                          <span>
-                            <strong>{proposal.authorLabel}</strong>
-                            <small>
-                              {proposal.voteCount} votes - {proposal.status}
-                            </small>
-                            <em>{proposal.requestText}</em>
-                          </span>
-                          <input
-                            name={`proposalVotes:${proposal.id}`}
-                            type="number"
-                            min={0}
-                            max={
-                              proposal.isVoteEligible
-                                ? state.communityWish.voteBudget
-                                : 0
-                            }
-                            defaultValue={proposal.currentUserVotes}
-                            disabled={
-                              !state.communityWish.canVote ||
-                              !proposal.isVoteEligible
-                            }
-                          />
-                        </label>
-                      ))}
-                    </div>
-                    {state.communityWish.canVote ? (
-                      <button className={styles.primaryButton} type="submit">
-                        Save community votes
-                      </button>
-                    ) : null}
-                  </form>
-                ) : null}
-                {state.communityWish.proposals.length > 0 ? (
-                  <ol className={styles.wishList}>
-                    {state.communityWish.proposals
-                      .slice(0, 4)
-                      .map((proposal) => (
-                        <li key={proposal.id}>
-                          <strong>
-                            {proposal.isCurrentUser
-                              ? "Your wish"
-                              : "Community wish"}
-                          </strong>
-                          <span>
-                            {proposal.voteCount} votes - {proposal.status}
-                          </span>
-                          <p>{proposal.requestText}</p>
-                        </li>
-                      ))}
-                  </ol>
-                ) : (
-                  <p>No community wishes have been suggested yet.</p>
-                )}
-              </section>
+              />
             </details>
           ) : null}
           {PRIMARY_GAME_NAV_LINKS.filter(
@@ -703,6 +719,12 @@ function HomeClientContent({
           isDismissible={canDismissPhaseCard}
           storageKey={phaseCardStorageKey}
         >
+          {showCommunityWishFocus ? (
+            <CommunityWishPanel
+              state={state}
+              className={styles.wishFocusPanel}
+            />
+          ) : null}
           {state.latestSeason ? (
             <PreviousSeasonWinnerCard
               className={styles.seasonSummary}
@@ -825,7 +847,43 @@ function HomeClientContent({
             />
           ) : null}
 
-          {showJoinCard && !blockingMessage ? (
+          {showJoinCard && showJoinReservationForm && !blockingMessage ? (
+            <section className={styles.joinReservePanel}>
+              <span className={styles.sectionLabel}>Next season</span>
+              <h2>Reserve your fortress.</h2>
+              <p>
+                Race choice stays locked away until voting closes. For now,
+                claim your seat and keep the wish ballot moving.
+              </p>
+              <form action={joinFortressFormAction} className={styles.form}>
+                <label className={styles.field}>
+                  <span>In-game nick</span>
+                  <input
+                    name="commanderName"
+                    type="text"
+                    maxLength={32}
+                    placeholder="Name your commander"
+                    required
+                  />
+                </label>
+                <label className={styles.field}>
+                  <span>Fortress name</span>
+                  <input
+                    name="fortressName"
+                    type="text"
+                    maxLength={32}
+                    placeholder="Name your fortress"
+                    required
+                  />
+                </label>
+                <button className={styles.primaryButton} type="submit">
+                  Reserve fortress
+                </button>
+              </form>
+            </section>
+          ) : null}
+
+          {showJoinCard && !showJoinReservationForm && !blockingMessage ? (
             <div className={styles.joinModal} role="dialog" aria-modal="true">
               <form action={joinFortressFormAction} className={styles.joinForm}>
                 <div className={styles.joinModalHeader}>

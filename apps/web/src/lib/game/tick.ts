@@ -18,8 +18,6 @@ import {
   HOME_OF_A_BOSS_BUFF_MULTIPLIER,
   HOME_OF_A_BOSS_RESPAWN_HOURS,
   ACTIVE_DURATION_HOURS,
-  TESTING_DURATION_HOURS,
-  TESTING_ENDS_BEFORE_ACTIVE_HOURS,
   getHomeOfABossHealth,
   getHomeOfABossReward,
 } from "./constants";
@@ -30,9 +28,9 @@ import {
   resolveExpiredCommunityWishVotes,
 } from "./community-wishes";
 import {
-  getNextHelsinkiTuesdayAt12,
-  getNextHelsinkiWeekdayAtHour,
-} from "./calendar";
+  getCommunityWishVotingEndsAt,
+  getNextCycleSchedule,
+} from "./season-schedule";
 import {
   ensureCurrentMapLayout,
   ensureActiveCycleMegaFortress,
@@ -98,7 +96,20 @@ import {
   isPlayerCombatTarget,
 } from "./combat-buffs";
 import { UNICORN_SHATTERED_REALITY_ECONOMY_MULTIPLIER } from "./unicorn-shattered-reality";
-import { getTileBonus, getTileById, isHomeOfATile } from "./territory";
+import { HEX_TILES } from "./map-hex";
+import {
+  getTileBonus,
+  getTileById,
+  isHomeOfATile,
+  isTileConnectedToFortressOrOwnedTiles,
+} from "./territory";
+import {
+  allocatePressureAcrossTargets,
+  calculatePressureOutput,
+  getNeutralPressureClaimWinner,
+  getPressureTargetBlockedReason,
+  TILE_PRESSURE_CLAIM_THRESHOLD,
+} from "./tile-pressure";
 import { recalculateReturningAttackRoutes } from "./fortress-relocation";
 import {
   ensureBattlefieldPointRewardColumn,
@@ -176,6 +187,7 @@ export type TickHealth = "ok" | "lagging" | "stalled";
 type TieBreakCandidate = {
   fortressId: string;
   ownerId: string;
+  commanderName: string;
   fortressName: string;
   finalScore: number;
   reachedFinalScoreAt: Date;
@@ -441,7 +453,7 @@ async function processDueCastleUpgradeProjects({
   }
 }
 
-async function processDueMapHexClaimProjects({
+async function processTilePressureExpansion({
   db,
   cycleId,
   tickAt,
@@ -450,71 +462,231 @@ async function processDueMapHexClaimProjects({
   cycleId: string;
   tickAt: Date;
 }) {
-  const dueProjects = await db.mapHexClaimProject.findMany({
-    where: {
-      cycleId,
-      completedAt: null,
-      completesAt: {
-        lte: tickAt,
-      },
-    },
-    orderBy: [{ completesAt: "asc" }, { id: "asc" }],
-    select: {
-      id: true,
-      fortressId: true,
-      tileId: true,
-      completesAt: true,
-    },
-  });
-
-  for (const project of dueProjects) {
-    await db.$transaction(async (tx) => {
-      const latestProject = await tx.mapHexClaimProject.findUnique({
+  await db.$transaction(async (tx) => {
+    const [fortresses, ownerships, priorities] = await Promise.all([
+      tx.fortress.findMany({
         where: {
-          id: project.id,
-        },
-        select: {
-          completedAt: true,
-        },
-      });
-
-      if (!latestProject || latestProject.completedAt) {
-        return;
-      }
-
-      const existingOwnership = await tx.mapHexOwnership.findUnique({
-        where: {
-          cycleId_tileId: {
-            cycleId,
-            tileId: project.tileId,
-          },
+          cycleId,
+          fortressKind: FortressKind.PLAYER,
+          isNpc: false,
         },
         select: {
           id: true,
+          race: true,
+          mapX: true,
+          mapY: true,
+          pressureWorkersAssigned: true,
+        },
+      }),
+      tx.mapHexOwnership.findMany({
+        where: {
+          cycleId,
+        },
+        select: {
+          tileId: true,
+          ownerFortressId: true,
+        },
+      }),
+      tx.tilePressurePriority.findMany({
+        where: {
+          cycleId,
+        },
+        select: {
+          fortressId: true,
+          tileId: true,
+          weight: true,
+        },
+        orderBy: [{ createdAt: "asc" }, { tileId: "asc" }],
+      }),
+    ]);
+
+    const ownerByTileId = new Map(
+      ownerships.map((ownership) => [
+        ownership.tileId,
+        ownership.ownerFortressId,
+      ])
+    );
+    const ownedExpansionTileIds = ownerships
+      .map((ownership) => ownership.tileId)
+      .filter((tileId) => !isHomeOfATile(tileId));
+    const ownedTileIdsByFortressId = new Map<string, string[]>();
+    const prioritiesByFortressId = new Map<
+      string,
+      Array<{ tileId: string; weight: number }>
+    >();
+
+    for (const ownership of ownerships) {
+      if (isHomeOfATile(ownership.tileId)) {
+        continue;
+      }
+
+      const ownedTileIds =
+        ownedTileIdsByFortressId.get(ownership.ownerFortressId) ?? [];
+      ownedTileIds.push(ownership.tileId);
+      ownedTileIdsByFortressId.set(ownership.ownerFortressId, ownedTileIds);
+    }
+
+    for (const priority of priorities) {
+      const fortressPriorities =
+        prioritiesByFortressId.get(priority.fortressId) ?? [];
+      fortressPriorities.push({
+        tileId: priority.tileId,
+        weight: priority.weight,
+      });
+      prioritiesByFortressId.set(priority.fortressId, fortressPriorities);
+    }
+
+    const claimableTiles = HEX_TILES.filter((tile) => tile.claimable);
+    const pressuredTileIds = new Set<string>();
+
+    if (ownedExpansionTileIds.length > 0) {
+      await tx.tilePressureState.deleteMany({
+        where: {
+          cycleId,
+          tileId: {
+            in: ownedExpansionTileIds,
+          },
         },
       });
+    }
 
-      if (!existingOwnership) {
-        await tx.mapHexOwnership.create({
-          data: {
+    for (const fortress of fortresses) {
+      const pressure = calculatePressureOutput({
+        pressureWorkersAssigned: fortress.pressureWorkersAssigned,
+        race: fortress.race,
+      });
+
+      const ownedTileIds = ownedTileIdsByFortressId.get(fortress.id) ?? [];
+      const isConnected = ({
+        tileId,
+        ownedTileIds,
+      }: {
+        tileId: string;
+        ownedTileIds: Iterable<string>;
+      }) =>
+        isTileConnectedToFortressOrOwnedTiles({
+          tileId,
+          fortress,
+          ownedTileIds,
+        });
+      const isLegalTile = (tileId: string) =>
+        getPressureTargetBlockedReason({
+          tile: getTileById(tileId),
+          tileId,
+          ownerFortressId: ownerByTileId.get(tileId) ?? null,
+          fortress,
+          ownedTileIds,
+          isHomeOfA: isHomeOfATile,
+          isConnected,
+        }) === null;
+      const legalPriorities = (
+        prioritiesByFortressId.get(fortress.id) ?? []
+      ).filter((priority) => isLegalTile(priority.tileId));
+
+      const stalePriorities = (
+        prioritiesByFortressId.get(fortress.id) ?? []
+      ).filter((priority) => !isLegalTile(priority.tileId));
+
+      if (stalePriorities.length > 0) {
+        await tx.tilePressurePriority.deleteMany({
+          where: {
             cycleId,
-            tileId: project.tileId,
-            ownerFortressId: project.fortressId,
-            claimedAt: project.completesAt,
+            fortressId: fortress.id,
+            tileId: {
+              in: stalePriorities.map((priority) => priority.tileId),
+            },
           },
         });
       }
 
-      await tx.mapHexClaimProject.update({
+      if (pressure <= 0) {
+        continue;
+      }
+
+      const targets =
+        legalPriorities.length > 0
+          ? legalPriorities
+          : claimableTiles
+              .filter((tile) => isLegalTile(tile.id))
+              .map((tile) => ({ tileId: tile.id, weight: 1 }));
+
+      for (const allocation of allocatePressureAcrossTargets({
+        pressure,
+        targets,
+      })) {
+        pressuredTileIds.add(allocation.tileId);
+        await tx.tilePressureState.upsert({
+          where: {
+            cycleId_tileId_fortressId: {
+              cycleId,
+              tileId: allocation.tileId,
+              fortressId: fortress.id,
+            },
+          },
+          create: {
+            cycleId,
+            tileId: allocation.tileId,
+            fortressId: fortress.id,
+            pressure: allocation.pressure,
+            lastPressuredAt: tickAt,
+          },
+          update: {
+            pressure: {
+              increment: allocation.pressure,
+            },
+            lastPressuredAt: tickAt,
+          },
+        });
+      }
+    }
+
+    for (const tileId of pressuredTileIds) {
+      if (ownerByTileId.has(tileId)) {
+        continue;
+      }
+
+      const states = await tx.tilePressureState.findMany({
         where: {
-          id: project.id,
+          cycleId,
+          tileId,
+          pressure: {
+            gte: TILE_PRESSURE_CLAIM_THRESHOLD,
+          },
         },
-        data: {
-          completedAt: tickAt,
+        select: {
+          fortressId: true,
+          pressure: true,
         },
       });
-    }, TICK_TRANSACTION_OPTIONS);
-  }
+      const winnerFortressId = getNeutralPressureClaimWinner({ states });
+
+      if (!winnerFortressId) {
+        continue;
+      }
+
+      await tx.mapHexOwnership.create({
+        data: {
+          cycleId,
+          tileId,
+          ownerFortressId: winnerFortressId,
+          claimedAt: tickAt,
+        },
+      });
+      ownerByTileId.set(tileId, winnerFortressId);
+      await tx.tilePressurePriority.deleteMany({
+        where: {
+          cycleId,
+          tileId,
+        },
+      });
+      await tx.tilePressureState.deleteMany({
+        where: {
+          cycleId,
+          tileId,
+        },
+      });
+    }
+  }, TICK_TRANSACTION_OPTIONS);
 }
 
 function isUniqueTickError(error: unknown) {
@@ -708,19 +880,7 @@ async function restartEmptyRegistrationCycle(
     }
 
     const registrationStartedAt = floorToMinute(now);
-    const registrationEndsAt = getNextHelsinkiWeekdayAtHour(
-      registrationStartedAt,
-      3,
-      12
-    );
-    const testingStartedAt = addHours(
-      registrationEndsAt,
-      -TESTING_DURATION_HOURS
-    );
-    const testingEndsAt = addHours(
-      registrationEndsAt,
-      -TESTING_ENDS_BEFORE_ACTIVE_HOURS
-    );
+    const schedule = getNextCycleSchedule(registrationStartedAt);
 
     await tx.cycle.update({
       where: {
@@ -729,11 +889,11 @@ async function restartEmptyRegistrationCycle(
       data: {
         status: CycleStatus.REGISTRATION,
         registrationStartedAt,
-        registrationEndsAt,
-        testingStartedAt,
-        testingEndsAt,
+        registrationEndsAt: schedule.registrationEndsAt,
+        testingStartedAt: schedule.testingStartedAt,
+        testingEndsAt: schedule.testingEndsAt,
         activeStartedAt: null,
-        activeEndsAt: addHours(registrationEndsAt, ACTIVE_DURATION_HOURS),
+        activeEndsAt: schedule.activeEndsAt,
       },
     });
 
@@ -863,7 +1023,12 @@ async function completeTestingCycle(
         cycleId,
       },
     });
-    await tx.mapHexClaimProject.deleteMany({
+    await tx.tilePressurePriority.deleteMany({
+      where: {
+        cycleId,
+      },
+    });
+    await tx.tilePressureState.deleteMany({
       where: {
         cycleId,
       },
@@ -1044,6 +1209,31 @@ function formatTieBreakSummary(
   return `Tie on ${winner.finalScore} points resolved by earliest reach time. ${summary}. Winner: ${winner.fortressName}.`;
 }
 
+function formatSeasonWinnerAnnouncement({
+  winner,
+  tiedCandidates,
+  communityWishVotingEndsAt,
+}: {
+  winner: TieBreakCandidate;
+  tiedCandidates: TieBreakCandidate[];
+  communityWishVotingEndsAt: Date;
+}) {
+  const tieNote =
+    tiedCandidates.length > 1
+      ? " Tie-break went to the earliest fortress to reach the final score."
+      : "";
+  const votingDeadline = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Helsinki",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(communityWishVotingEndsAt);
+
+  return `Season ended. ${winner.commanderName} of ${winner.fortressName} wins with ${winner.finalScore} points.${tieNote} Community wish voting is open until ${votingDeadline}.`;
+}
+
 async function resolveExpiredActiveCycle(
   cycleId: string,
   now: Date,
@@ -1196,6 +1386,7 @@ async function resolveExpiredActiveCycle(
       .map((fortress) => ({
         fortressId: fortress.id,
         ownerId: fortress.ownerId,
+        commanderName: fortress.commanderName,
         fortressName: fortress.name,
         finalScore: fortress.points,
         reachedFinalScoreAt:
@@ -1236,6 +1427,9 @@ async function resolveExpiredActiveCycle(
 
     const communityWishProposalEndsAt =
       getCommunityWishProposalEndsAt(resolutionEndedAt);
+    const communityWishVotingEndsAt = getCommunityWishVotingEndsAt(
+      communityWishProposalEndsAt
+    );
 
     await tx.cycleHistory.create({
       data: {
@@ -1251,10 +1445,23 @@ async function resolveExpiredActiveCycle(
           ? `[${winnerRequest.status}] ${winnerRequest.requestText}`
           : null,
         communityWishProposalEndsAt,
-        communityWishVotingEndsAt: getNextHelsinkiTuesdayAt12(
-          communityWishProposalEndsAt
-        ),
+        communityWishVotingEndsAt,
         communityWishStatus: "OPEN",
+      },
+    });
+
+    const systemUser = await ensureNpcSystemUser(tx);
+    await tx.chatMessage.create({
+      data: {
+        cycleId: cycle.id,
+        authorId: systemUser.id,
+        type: ChatMessageType.TEXT,
+        body: formatSeasonWinnerAnnouncement({
+          winner,
+          tiedCandidates,
+          communityWishVotingEndsAt,
+        }),
+        createdAt: resolutionEndedAt,
       },
     });
 
@@ -1414,7 +1621,7 @@ async function processCycleTick(
     tickAt,
   });
 
-  await processDueMapHexClaimProjects({
+  await processTilePressureExpansion({
     db,
     cycleId,
     tickAt,

@@ -7,14 +7,10 @@ import {
 } from "./constants";
 import { HEX_SPAWN_TILES, HEX_TILES } from "./map-hex";
 import {
-  TILE_CLAIM_MOUNTAINS_DURATION_MINUTES,
-  TILE_CLAIM_OWNED_TILE_COST_STEP,
   getAdjacentTileIds,
   getTemporaryMapObjectives,
   getTileBonus,
   getTileById,
-  getTileClaimCost,
-  getTileClaimDurationMinutes,
   isTileConnectedToFortressOrOwnedTiles,
   isHomeOfATile,
 } from "./territory";
@@ -161,115 +157,7 @@ test("tile connectivity accepts castle-adjacent and owned frontier tiles", () =>
   );
 });
 
-test("tile claim cost increases with distance and owned or pending count", () => {
-  const tile = HEX_SPAWN_TILES.find((candidate) => candidate.biome === "plains");
-
-  assert.ok(tile);
-
-  const nearCost = getTileClaimCost({
-    tile,
-    origin: {
-      mapX: tile.xPercent,
-      mapY: tile.yPercent,
-    },
-  });
-  const farCost = getTileClaimCost({
-    tile,
-    origin: {
-      mapX: tile.xPercent + 30,
-      mapY: tile.yPercent + 30,
-    },
-  });
-
-  assert.ok(farCost > nearCost);
-  assert.equal(
-    getTileClaimCost({
-      tile,
-      origin: {
-        mapX: tile.xPercent,
-        mapY: tile.yPercent,
-      },
-      ownedTileCount: 2,
-      pendingClaimCount: 1,
-    }) - nearCost,
-    3 * TILE_CLAIM_OWNED_TILE_COST_STEP
-  );
-});
-
-test("deep sea costs extra to claim and mountains are cheaper for dwarfs", () => {
-  const waterTile = HEX_TILES.find((candidate) => candidate.biome === "water");
-  const plainsTile = HEX_SPAWN_TILES.find((candidate) => candidate.biome === "plains");
-  const mountainTile = HEX_TILES.find((candidate) => candidate.biome === "mountains");
-  const lakeTile = HEX_TILES.find((candidate) => candidate.biome === "lake");
-
-  assert.ok(waterTile && waterTile.biome === "water");
-  assert.ok(plainsTile);
-  assert.ok(mountainTile && mountainTile.biome === "mountains");
-  assert.ok(lakeTile && lakeTile.biome === "lake");
-
-  const baseOrigin = {
-    mapX: waterTile.xPercent,
-    mapY: waterTile.yPercent,
-  };
-
-  const waterCost = getTileClaimCost({
-    tile: waterTile,
-    origin: baseOrigin,
-  });
-  const plainsCost = getTileClaimCost({
-    tile: plainsTile,
-    origin: {
-      mapX: plainsTile.xPercent,
-      mapY: plainsTile.yPercent,
-    },
-  });
-
-  assert.ok(waterCost > plainsCost);
-
-  const mountainHumanCost = getTileClaimCost({
-    tile: mountainTile,
-    origin: {
-      mapX: mountainTile.xPercent,
-      mapY: mountainTile.yPercent,
-    },
-    race: "ORKS",
-  });
-  const mountainDwarfCost = getTileClaimCost({
-    tile: mountainTile,
-    origin: {
-      mapX: mountainTile.xPercent,
-      mapY: mountainTile.yPercent,
-    },
-    race: "DWARFS",
-  });
-  const lakeHumanCost = getTileClaimCost({
-    tile: lakeTile,
-    origin: {
-      mapX: lakeTile.xPercent,
-      mapY: lakeTile.yPercent,
-    },
-    race: "ORKS",
-  });
-  const lakeDwarfCost = getTileClaimCost({
-    tile: lakeTile,
-    origin: {
-      mapX: lakeTile.xPercent,
-      mapY: lakeTile.yPercent,
-    },
-    race: "DWARFS",
-  });
-
-  assert.ok(mountainDwarfCost < mountainHumanCost);
-  assert.equal(lakeHumanCost, mountainHumanCost);
-  assert.equal(lakeDwarfCost, lakeHumanCost);
-});
-
-test("lakes use mountain claim duration and provide a unique small bonus", () => {
-  assert.equal(
-    getTileClaimDurationMinutes("lake"),
-    TILE_CLAIM_MOUNTAINS_DURATION_MINUTES
-  );
-
+test("lakes provide a unique small bonus", () => {
   const lakeTile = HEX_TILES.find((candidate) => candidate.biome === "lake");
 
   assert.ok(lakeTile);

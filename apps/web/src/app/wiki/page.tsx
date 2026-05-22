@@ -46,11 +46,8 @@ import {
 import { RACE_DEFINITIONS } from "@/lib/game/races";
 import {
   TEMPORARY_MAP_OBJECTIVE_INTERVAL_HOURS,
-  TILE_CLAIM_DURATION_MINUTES,
-  TILE_CLAIM_SEA_DURATION_MINUTES,
-  TILE_CLAIM_MOUNTAINS_DURATION_MINUTES,
-  TILE_CLAIM_OWNED_TILE_COST_STEP,
 } from "@/lib/game/territory";
+import { TILE_PRESSURE_CLAIM_THRESHOLD } from "@/lib/game/tile-pressure";
 
 const RACE_ABILITY_NOTES: Record<string, readonly string[]> = {
   DWARFS: [
@@ -130,14 +127,14 @@ const homeOfALore =
 
 const SEASON_FLOW = [
   {
-    phase: "Registration (24h)",
+    phase: "Registration",
     description:
-      "Join the cycle, pick your identity, and claim your fortress before the season machine wakes up.",
+      "Join the cycle, pick your identity, and reserve your fortress while community wish voting is open.",
   },
   {
-    phase: "Testing (24h)",
+    phase: "Pretesting",
     description:
-      "Sandbox mode: test workers, race picks, and attacks. Progress resets before real combat.",
+      "After voting closes, test workers, race picks, and attacks until the 1 June season start. Progress resets before real combat.",
   },
   {
     phase: "Active season (2 weeks)",
@@ -211,9 +208,9 @@ const RACE_TOKENS = [
 
 const MAP_LEGEND = [
   {
-    label: "Claimable",
+    label: "Pressure",
     tone: "claimable",
-    description: "Neutral connected land you can start claiming.",
+    description: "Neutral connected land you can prioritize for expansion.",
   },
   {
     label: "Owned",
@@ -270,10 +267,10 @@ const BATTLEFIELD_RULES = [
 ] as const;
 
 const TILE_CONTROL_RULES = [
-  `Neutral tiles are acquired through a claim project: ${TILE_CLAIM_DURATION_MINUTES} min for most biomes, ${TILE_CLAIM_MOUNTAINS_DURATION_MINUTES} min for mountains, and ${TILE_CLAIM_SEA_DURATION_MINUTES} min for sea tiles.`,
-  "Each fortress can run only one active neutral tile acquisition project at a time.",
-  "A neutral tile must be connected to your castle tile or your existing owned territory before you can claim it.",
-  `Claim cost starts at 25 gold, scales with distance, adds biome premiums, and increases by ${TILE_CLAIM_OWNED_TILE_COST_STEP} gold per owned or pending tile.`,
+  "Assign pressure workers in Castle to push your borders without spending gold directly.",
+  "Prioritize connected border tiles from the map; pressure ticks into prioritized legal tiles first.",
+  `A neutral tile is automatically claimed at ${TILE_PRESSURE_CLAIM_THRESHOLD} pressure if one fortress leads without a tie.`,
+  "A pressure target must be connected to your castle tile or your existing owned territory.",
   `Temporary map objectives rotate every ${TEMPORARY_MAP_OBJECTIVE_INTERVAL_HOURS} hours and add bonus point income to selected normal tiles while active.`,
   "Home of A cannot be claimed or fortified. It must be attacked through the center tile as a daily boss.",
 ] as const;
@@ -304,7 +301,7 @@ const FAQ_ENTRIES = [
 const GLOSSARY = [
   "Tick: the minute-based game update that applies growth, combat, and state transitions.",
   "Buff tier: race power stage (T2/T3) unlocked by active-season timing.",
-  "Claim project: the timed neutral-tile acquisition job that reserves gold until the tile finishes transferring.",
+  "Pressure priority: a player-marked border tile that receives idle expansion pressure first.",
   "Returned: surviving attackers that come home after a winning raid.",
   "Decoy: temporary attackable Unicorn teleport remnant left at the home tile.",
   "Loot camp: temporary NPC target with strength-based HP and variant rewards.",
@@ -717,14 +714,14 @@ export default function WikiPage() {
 
         <article className={styles.card}>
           <span className={styles.sectionLabel}>Tiles</span>
-          <h2>Claims, objectives, and territory pressure</h2>
+          <h2>Pressure, objectives, and territory control</h2>
           <p>
-            Territory grows through timed claim projects, rotating point
-            objectives, and control battles over valuable hexes.
+            Territory grows through pressure workers, prioritized border tiles,
+            rotating point objectives, and control battles over valuable hexes.
           </p>
           <div className={styles.twoCol}>
             <section>
-              <h3>Claim rules</h3>
+              <h3>Expansion rules</h3>
               <ul className={styles.noteList}>
                 {TILE_CONTROL_RULES.map((entry) => (
                   <li key={entry}>{entry}</li>
