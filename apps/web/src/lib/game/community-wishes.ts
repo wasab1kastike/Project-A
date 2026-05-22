@@ -11,7 +11,7 @@ import {
   classifyWinnerRequest,
   normalizeFulfillmentProgress,
 } from "./winner-requests";
-import { getNextHelsinkiTuesdayAt12 } from "./calendar";
+import { getCommunityWishVotingEndsAt } from "./season-schedule";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 export type CommunityWishRankedFortress = {
@@ -681,7 +681,7 @@ async function migrateCommunityWishVotingOpen({
     },
     data: {
       communityWishStatus: CommunityWishStatus.OPEN,
-      communityWishVotingEndsAt: getNextHelsinkiTuesdayAt12(proposalEndsAt),
+      communityWishVotingEndsAt: getCommunityWishVotingEndsAt(proposalEndsAt),
     },
   });
 }

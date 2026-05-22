@@ -127,14 +127,14 @@ const homeOfALore =
 
 const SEASON_FLOW = [
   {
-    phase: "Registration (24h)",
+    phase: "Registration",
     description:
-      "Join the cycle, pick your identity, and claim your fortress before the season machine wakes up.",
+      "Join the cycle, pick your identity, and reserve your fortress while community wish voting is open.",
   },
   {
-    phase: "Testing (24h)",
+    phase: "Pretesting",
     description:
-      "Sandbox mode: test workers, race picks, and attacks. Progress resets before real combat.",
+      "After voting closes, test workers, race picks, and attacks until the 1 June season start. Progress resets before real combat.",
   },
   {
     phase: "Active season (2 weeks)",

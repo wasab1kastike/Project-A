@@ -989,7 +989,7 @@ export async function getHomePageState({
         remainingVotes: 0,
         currentUserCommunityWish: "",
         submissionHint:
-          "Winner wish is guaranteed. Community wish is vote-based. Wishes can be edited until Monday 12:00, and voting ends Tuesday 12:00.",
+          "Winner wish is guaranteed. Community wish is vote-based. Wishes and votes close Monday 25 May at 12:00.",
         proposals: [],
       },
       availableTargets: [],
@@ -2804,7 +2804,9 @@ export async function getHomePageState({
         cycle.status === CycleStatus.REGISTRATION
           ? joiningLocked
             ? "Build time is still running, but joins are currently locked by admin action."
-            : "Build time is open. Players can join before the next season starts on Wednesday."
+            : communityWishVotingOpen
+              ? "Build time is open. Players can reserve a fortress now; race choice opens after community wish voting closes."
+            : "Build time is open. Players can join before the next season starts on 1 June."
           : cycle.status === CycleStatus.TESTING
             ? joiningLocked
               ? "Testing mode is live, but joins are currently locked by admin action. Sandbox progress resets before the real season."
@@ -2817,7 +2819,9 @@ export async function getHomePageState({
           ? registrationOpen && joiningLocked
             ? "Build time remains open on the clock, but new joins are currently locked by admin action."
             : registrationOpen
-              ? "Build time is open. Joining creates your fortress immediately and reserves one of the 30 season slots before Wednesday."
+              ? communityWishVotingOpen
+                ? "Build time is open. Joining reserves one of the 30 season slots now; race choice opens after community wish voting closes."
+                : "Build time is open. Joining creates your fortress immediately and reserves one of the 30 season slots before 1 June."
               : "Build time has expired. The next game tick will either restart build time or move the cycle into ACTIVE."
           : cycle.status === CycleStatus.TESTING
             ? testingOpen && joiningLocked
@@ -3478,10 +3482,10 @@ export async function getHomePageState({
             ? "Only players from the last finished season can suggest a community wish."
             : "Only players in this cycle can suggest a community wish."
           : communityWishVotingOpen
-            ? "Winner wish is guaranteed. Community wish is vote-based. You can edit your short English wish until Monday 12:00 and vote until Tuesday 12:00."
+            ? "Winner wish is guaranteed. Community wish is vote-based. You can edit your short English wish and vote until Monday 25 May at 12:00."
             : communityWishProposalOpen
               ? usingResolvedWishWindow
-                ? "Winner wish is guaranteed. Community wish is vote-based. You can edit your short English wish until Monday 12:00 and vote once voting opens."
+                ? "Winner wish is guaranteed. Community wish is vote-based. You can edit your short English wish until Monday 25 May at 12:00 and vote once voting opens."
                 : "Winner wish is guaranteed. Community wish is vote-based. Submit one short English wish while the season is live."
               : "Community wishes are closed for this cycle.",
       proposals: mappedCommunityWishProposals,

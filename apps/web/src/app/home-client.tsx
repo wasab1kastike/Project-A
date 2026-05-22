@@ -199,8 +199,8 @@ function CommunityWishPanel({
                     <li>
                       Winner wish is guaranteed. Community wish is vote-based.
                     </li>
-                    <li>Wishes lock Monday 12:00 after the season.</li>
-                    <li>Voting closes Tuesday 12:00.</li>
+                    <li>Wishes and voting close Monday 25 May at 12:00.</li>
+                    <li>Pretesting runs until the next season starts 1 June.</li>
                     <li>Write in English.</li>
                     <li>
                       Keep it short: max {COMMUNITY_WISH_MAX_LENGTH} characters.
@@ -242,7 +242,7 @@ function CommunityWishPanel({
           <p className={styles.voteHint}>
             You have {state.communityWish.voteBudget} votes.{" "}
             {state.communityWish.usedVotes} currently allocated. You can change
-            them until voting ends Tuesday 12:00.
+            them until voting ends Monday 25 May at 12:00.
           </p>
           <div className={styles.voteList}>
             {state.communityWish.proposals.map((proposal) => (
@@ -399,12 +399,14 @@ function HomeClientContent({
       state.communityWish.isOpen &&
       state.phase?.status === "REGISTRATION"
   );
+  const showJoinReservationForm = Boolean(showCommunityWishFocus);
   const showLoginCard = !session?.user;
   const showJoinCard = Boolean(session?.user && state.canJoinCycle);
   const showCommanderNameCard = Boolean(
     session?.user && state.playerSummary?.canRegisterCommanderName
   );
-  const showArcadeCard = state.phase?.status === "REGISTRATION";
+  const showArcadeCard =
+    state.phase?.status === "REGISTRATION" && !showCommunityWishFocus;
   const isWaitingForSeason =
     !state.phase || state.phase.status === "RESOLUTION" || !state.cycle;
   const showWinnerWishPrompt = Boolean(
@@ -509,12 +511,14 @@ function HomeClientContent({
       ? "Join the battlefield."
       : showCommanderNameCard
         ? "Choose your in-game nick."
-        : showJoinCard
-          ? state.phase?.status === "ACTIVE"
-            ? "Join the running season."
-            : state.phase?.status === "TESTING"
-              ? "Join testing."
-              : "Claim your fortress."
+          : showJoinCard
+            ? state.phase?.status === "ACTIVE"
+              ? "Join the running season."
+              : state.phase?.status === "TESTING"
+                ? "Join testing."
+                : showJoinReservationForm
+                  ? "Reserve next season."
+                  : "Claim your fortress."
           : phaseCopy.title;
 
   const centerDescription = blockingMessage
@@ -528,6 +532,8 @@ function HomeClientContent({
             ? "This season is already running. Join now to enter immediately if slots are still available."
             : state.phase?.status === "TESTING"
               ? "Testing mode is live. Join now to test the sandbox; only your roster identity carries into the real season."
+              : showJoinReservationForm
+                ? "Name your commander and fortress now. Race choice opens after community wish voting closes."
               : "Build phase is open. Name your fortress now and it will appear on the map."
           : (state.cycle?.statusMessage ?? state.emptyStateMessage);
 
@@ -611,27 +617,29 @@ function HomeClientContent({
               <dd>{remainingText}</dd>
             </div>
           </dl>
-          <div className={styles.raceCounter} aria-label="Players by race">
-            {raceCounts.map((race) => (
-              <span
-                className={styles.raceCount}
-                title={`${race.label}: ${race.count}`}
-                key={race.key}
-              >
+          {!showCommunityWishFocus ? (
+            <div className={styles.raceCounter} aria-label="Players by race">
+              {raceCounts.map((race) => (
                 <span
-                  className={styles.raceCountToken}
-                  style={{
-                    backgroundImage: `url("${RACE_TOKEN_PATHS[race.key]}")`,
-                  }}
-                  aria-hidden="true"
-                />
-                <span className={styles.raceCountValue}>
-                  <span className={styles.raceCountLabel}>{race.label}</span>
-                  {race.count}
+                  className={styles.raceCount}
+                  title={`${race.label}: ${race.count}`}
+                  key={race.key}
+                >
+                  <span
+                    className={styles.raceCountToken}
+                    style={{
+                      backgroundImage: `url("${RACE_TOKEN_PATHS[race.key]}")`,
+                    }}
+                    aria-hidden="true"
+                  />
+                  <span className={styles.raceCountValue}>
+                    <span className={styles.raceCountLabel}>{race.label}</span>
+                    {race.count}
+                  </span>
                 </span>
-              </span>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         <nav className={styles.topLinks} aria-label="Account and pages">
@@ -839,7 +847,43 @@ function HomeClientContent({
             />
           ) : null}
 
-          {showJoinCard && !blockingMessage ? (
+          {showJoinCard && showJoinReservationForm && !blockingMessage ? (
+            <section className={styles.joinReservePanel}>
+              <span className={styles.sectionLabel}>Next season</span>
+              <h2>Reserve your fortress.</h2>
+              <p>
+                Race choice stays locked away until voting closes. For now,
+                claim your seat and keep the wish ballot moving.
+              </p>
+              <form action={joinFortressFormAction} className={styles.form}>
+                <label className={styles.field}>
+                  <span>In-game nick</span>
+                  <input
+                    name="commanderName"
+                    type="text"
+                    maxLength={32}
+                    placeholder="Name your commander"
+                    required
+                  />
+                </label>
+                <label className={styles.field}>
+                  <span>Fortress name</span>
+                  <input
+                    name="fortressName"
+                    type="text"
+                    maxLength={32}
+                    placeholder="Name your fortress"
+                    required
+                  />
+                </label>
+                <button className={styles.primaryButton} type="submit">
+                  Reserve fortress
+                </button>
+              </form>
+            </section>
+          ) : null}
+
+          {showJoinCard && !showJoinReservationForm && !blockingMessage ? (
             <div className={styles.joinModal} role="dialog" aria-modal="true">
               <form action={joinFortressFormAction} className={styles.joinForm}>
                 <div className={styles.joinModalHeader}>

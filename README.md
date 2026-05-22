@@ -211,8 +211,9 @@ On Render, set `OPENCLAW_GOD_SHARED_SECRET` for `project-a-web`, deploy, then sm
 ## Product loop
 
 - Players sign in with Google
-- Each season begins with `REGISTRATION (24h)`
-- Joining is open during `REGISTRATION`, and remains open in `ACTIVE` while player slots remain before the active deadline
+- Season 4 registration opens during community wish voting, with voting closing on 25 May at 12:00 Europe/Helsinki
+- After voting closes, `TESTING`/pretesting runs until the next season starts on 1 June at 12:00 Europe/Helsinki
+- Joining is open during `REGISTRATION` and `TESTING`, and remains open in `ACTIVE` while player slots remain before the active deadline
 - Active play runs for `ACTIVE (2 weeks)`
 - Winner is resolved in `RESOLUTION`
 - The next season begins with a fresh registration phase

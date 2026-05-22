@@ -59,6 +59,20 @@ function getTimeZoneOffsetMilliseconds(
   return localAsUtc - value.getTime();
 }
 
+export function getHelsinkiDateAtHour({
+  year,
+  month,
+  day,
+  hour,
+}: {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+}) {
+  return zonedTimeToUtc({ year, month, day, hour });
+}
+
 function zonedTimeToUtc({
   year,
   month,

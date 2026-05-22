@@ -79,6 +79,8 @@ type PlayerSummary = {
   recruitersAssigned: number;
   pressureWorkersAssigned: number;
   race: string | null;
+  canSelectRace: boolean;
+  raceSelectionLockedReason: string | null;
   factionSuppression: {
     runeFortressId: string | null;
     ownerName: string;
@@ -1658,7 +1660,7 @@ export function CastleManagement({
               </div>
             ) : null}
           </div>
-        ) : (
+        ) : playerSummary.canSelectRace ? (
           <div className={styles.raceGrid}>
             {RACE_DEFINITIONS.map((race) => (
               <form
@@ -1677,6 +1679,11 @@ export function CastleManagement({
               </form>
             ))}
           </div>
+        ) : (
+          <p className={styles.muted}>
+            {playerSummary.raceSelectionLockedReason ??
+              "Race selection is not open yet."}
+          </p>
         )}
       </section>
 

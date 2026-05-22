@@ -18,8 +18,6 @@ import {
   HOME_OF_A_BOSS_BUFF_MULTIPLIER,
   HOME_OF_A_BOSS_RESPAWN_HOURS,
   ACTIVE_DURATION_HOURS,
-  TESTING_DURATION_HOURS,
-  TESTING_ENDS_BEFORE_ACTIVE_HOURS,
   getHomeOfABossHealth,
   getHomeOfABossReward,
 } from "./constants";
@@ -30,9 +28,9 @@ import {
   resolveExpiredCommunityWishVotes,
 } from "./community-wishes";
 import {
-  getNextHelsinkiTuesdayAt12,
-  getNextHelsinkiWeekdayAtHour,
-} from "./calendar";
+  getCommunityWishVotingEndsAt,
+  getNextCycleSchedule,
+} from "./season-schedule";
 import {
   ensureCurrentMapLayout,
   ensureActiveCycleMegaFortress,
@@ -882,19 +880,7 @@ async function restartEmptyRegistrationCycle(
     }
 
     const registrationStartedAt = floorToMinute(now);
-    const registrationEndsAt = getNextHelsinkiWeekdayAtHour(
-      registrationStartedAt,
-      3,
-      12
-    );
-    const testingStartedAt = addHours(
-      registrationEndsAt,
-      -TESTING_DURATION_HOURS
-    );
-    const testingEndsAt = addHours(
-      registrationEndsAt,
-      -TESTING_ENDS_BEFORE_ACTIVE_HOURS
-    );
+    const schedule = getNextCycleSchedule(registrationStartedAt);
 
     await tx.cycle.update({
       where: {
@@ -903,11 +889,11 @@ async function restartEmptyRegistrationCycle(
       data: {
         status: CycleStatus.REGISTRATION,
         registrationStartedAt,
-        registrationEndsAt,
-        testingStartedAt,
-        testingEndsAt,
+        registrationEndsAt: schedule.registrationEndsAt,
+        testingStartedAt: schedule.testingStartedAt,
+        testingEndsAt: schedule.testingEndsAt,
         activeStartedAt: null,
-        activeEndsAt: addHours(registrationEndsAt, ACTIVE_DURATION_HOURS),
+        activeEndsAt: schedule.activeEndsAt,
       },
     });
 
@@ -1226,16 +1212,26 @@ function formatTieBreakSummary(
 function formatSeasonWinnerAnnouncement({
   winner,
   tiedCandidates,
+  communityWishVotingEndsAt,
 }: {
   winner: TieBreakCandidate;
   tiedCandidates: TieBreakCandidate[];
+  communityWishVotingEndsAt: Date;
 }) {
   const tieNote =
     tiedCandidates.length > 1
       ? " Tie-break went to the earliest fortress to reach the final score."
       : "";
+  const votingDeadline = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Helsinki",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(communityWishVotingEndsAt);
 
-  return `Season ended. ${winner.commanderName} of ${winner.fortressName} wins with ${winner.finalScore} points.${tieNote} Community wish voting is open until Tuesday 12:00.`;
+  return `Season ended. ${winner.commanderName} of ${winner.fortressName} wins with ${winner.finalScore} points.${tieNote} Community wish voting is open until ${votingDeadline}.`;
 }
 
 async function resolveExpiredActiveCycle(
@@ -1431,6 +1427,9 @@ async function resolveExpiredActiveCycle(
 
     const communityWishProposalEndsAt =
       getCommunityWishProposalEndsAt(resolutionEndedAt);
+    const communityWishVotingEndsAt = getCommunityWishVotingEndsAt(
+      communityWishProposalEndsAt
+    );
 
     await tx.cycleHistory.create({
       data: {
@@ -1446,9 +1445,7 @@ async function resolveExpiredActiveCycle(
           ? `[${winnerRequest.status}] ${winnerRequest.requestText}`
           : null,
         communityWishProposalEndsAt,
-        communityWishVotingEndsAt: getNextHelsinkiTuesdayAt12(
-          communityWishProposalEndsAt
-        ),
+        communityWishVotingEndsAt,
         communityWishStatus: "OPEN",
       },
     });
@@ -1462,6 +1459,7 @@ async function resolveExpiredActiveCycle(
         body: formatSeasonWinnerAnnouncement({
           winner,
           tiedCandidates,
+          communityWishVotingEndsAt,
         }),
         createdAt: resolutionEndedAt,
       },

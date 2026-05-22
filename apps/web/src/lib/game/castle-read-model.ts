@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import {
   CastleUpgradeSpecialization,
+  CommunityWishStatus,
   CycleStatus,
   FortressKind,
   OrkBossOrderKind,
@@ -389,6 +390,36 @@ export async function getCastlePageState({
     cycle.activeEndsAt !== null &&
     cycle.activeEndsAt > now;
   const gameplayOpen = testingOpen || activeOpen;
+  const latestHistory =
+    cycle.status === CycleStatus.REGISTRATION
+      ? await db.cycleHistory.findFirst({
+          where: {
+            cycleId: {
+              not: cycle.id,
+            },
+          },
+          orderBy: {
+            endedAt: "desc",
+          },
+          select: {
+            communityWishStatus: true,
+            communityWishProposalEndsAt: true,
+            communityWishVotingEndsAt: true,
+          },
+        })
+      : null;
+  const raceSelectionLockedByCommunityWish =
+    latestHistory?.communityWishStatus === CommunityWishStatus.OPEN
+      ? latestHistory.communityWishVotingEndsAt !== null &&
+        latestHistory.communityWishVotingEndsAt > now
+      : latestHistory?.communityWishStatus ===
+            CommunityWishStatus.PROPOSALS_OPEN &&
+        latestHistory.communityWishProposalEndsAt !== null &&
+        latestHistory.communityWishProposalEndsAt > now;
+  const canSelectRace =
+    playerFortress?.race === null &&
+    (registrationOpen || gameplayOpen) &&
+    !raceSelectionLockedByCommunityWish;
   const playerOwnedTileBiomes = playerFortress
     ? (
         await db.mapHexOwnership.findMany({
@@ -759,6 +790,10 @@ export async function getCastlePageState({
           recruitersAssigned: playerFortress.recruitersAssigned,
           pressureWorkersAssigned: playerFortress.pressureWorkersAssigned,
           race: playerFortress.race,
+          canSelectRace,
+          raceSelectionLockedReason: raceSelectionLockedByCommunityWish
+            ? "Race choice opens after community wish voting closes."
+            : null,
           currentAction: playerFortress.currentAction,
           currentTargetId: playerFortress.targetFortressId,
           currentTargetName: playerFortress.targetFortressId

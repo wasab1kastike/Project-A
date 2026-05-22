@@ -681,7 +681,7 @@ export async function selectFortressRaceAction(
 export async function joinFortressAction(
   commanderName: string,
   fortressName: string,
-  race: string
+  race?: string
 ): Promise<InlineActionResult> {
   const session = await auth();
   const userId = session?.user?.id;
@@ -695,7 +695,7 @@ export async function joinFortressAction(
       userId,
       commanderName,
       fortressName,
-      race,
+      race: race || undefined,
     });
     notifyAndRevalidate("join");
     return { ok: true };
@@ -708,7 +708,7 @@ export async function joinFortressFormAction(formData: FormData) {
   const result = await joinFortressAction(
     getString(formData, "commanderName"),
     getString(formData, "fortressName"),
-    getString(formData, "race")
+    getString(formData, "race") || undefined
   );
 
   if (!result.ok) {

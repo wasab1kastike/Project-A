@@ -4,13 +4,8 @@ import {
   PrismaClient,
   UserRole,
 } from "@/lib/prisma-client";
-import { addHours, floorToMinute } from "./time";
-import { getNextHelsinkiWeekdayAtHour } from "./calendar";
-import {
-  ACTIVE_DURATION_HOURS,
-  TESTING_DURATION_HOURS,
-  TESTING_ENDS_BEFORE_ACTIVE_HOURS,
-} from "./constants";
+import { floorToMinute } from "./time";
+import { getNextCycleSchedule } from "./season-schedule";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -53,29 +48,17 @@ export async function ensureOpenRegistrationCycle(
   }
 
   const registrationStartedAt = floorToMinute(now);
-  const registrationEndsAt = getNextHelsinkiWeekdayAtHour(
-    registrationStartedAt,
-    3,
-    12
-  );
-  const testingStartedAt = addHours(
-    registrationEndsAt,
-    -TESTING_DURATION_HOURS
-  );
-  const testingEndsAt = addHours(
-    registrationEndsAt,
-    -TESTING_ENDS_BEFORE_ACTIVE_HOURS
-  );
+  const schedule = getNextCycleSchedule(registrationStartedAt);
 
   return db.cycle.create({
     data: {
       status: CycleStatus.REGISTRATION,
       registrationStartedAt,
-      registrationEndsAt,
-      testingStartedAt,
-      testingEndsAt,
+      registrationEndsAt: schedule.registrationEndsAt,
+      testingStartedAt: schedule.testingStartedAt,
+      testingEndsAt: schedule.testingEndsAt,
       activeStartedAt: null,
-      activeEndsAt: addHours(registrationEndsAt, ACTIVE_DURATION_HOURS),
+      activeEndsAt: schedule.activeEndsAt,
     },
   });
 }
