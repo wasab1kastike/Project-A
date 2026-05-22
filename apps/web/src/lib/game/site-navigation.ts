@@ -1,7 +1,12 @@
 export const PATCH_NOTES_PAGE_HREF = "/patch-notes";
+export const POLITICS_PAGE_HREF = "/politics";
 export const WIKI_PAGE_HREF = "/wiki";
 
 export const PRIMARY_GAME_NAV_LINKS = [
+  {
+    href: POLITICS_PAGE_HREF,
+    label: "Politics & Trade",
+  },
   {
     href: "/history",
     label: "History",

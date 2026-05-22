@@ -11,6 +11,7 @@ import {
   getDiplomacyAttackBlockedReason,
   getDiplomacyPressureBlockedReason,
   getEffectiveDiplomacyStatus,
+  getPoliticsRelationPresentation,
   getWarStartsAt,
 } from "./politics";
 
@@ -137,4 +138,74 @@ test("peace proposals are limited to hostile relation states", () => {
   assert.equal(canProposePeace(DiplomacyRelationStatus.ENEMY), true);
   assert.equal(canProposePeace(DiplomacyRelationStatus.NEUTRAL), false);
   assert.equal(canProposePeace(DiplomacyRelationStatus.ALLIED), false);
+});
+
+test("politics relation presentation derives MVP actions", () => {
+  const now = new Date("2026-04-20T12:00:00.000Z");
+
+  assert.deepEqual(
+    getPoliticsRelationPresentation({
+      relation: null,
+      now,
+      currentFortressId: "alpha",
+    }).availableActions,
+    ["DECLARE_WAR"]
+  );
+
+  const pending = getPoliticsRelationPresentation({
+    relation: {
+      status: DiplomacyRelationStatus.WAR_PENDING,
+      warStartsAt: new Date("2026-04-21T12:00:00.000Z"),
+    },
+    now,
+    currentFortressId: "alpha",
+  });
+
+  assert.equal(pending.effectiveStatus, DiplomacyRelationStatus.WAR_PENDING);
+  assert.deepEqual(pending.availableActions, ["PROPOSE_PEACE"]);
+
+  const matured = getPoliticsRelationPresentation({
+    relation: {
+      status: DiplomacyRelationStatus.WAR_PENDING,
+      warStartsAt: now,
+    },
+    now,
+    currentFortressId: "alpha",
+  });
+
+  assert.equal(matured.effectiveStatus, DiplomacyRelationStatus.WAR);
+  assert.deepEqual(matured.availableActions, ["PROPOSE_PEACE"]);
+
+  assert.deepEqual(
+    getPoliticsRelationPresentation({
+      relation: {
+        status: DiplomacyRelationStatus.PEACE_PENDING,
+        peaceProposedById: "beta",
+      },
+      now,
+      currentFortressId: "alpha",
+    }).availableActions,
+    ["ACCEPT_PEACE"]
+  );
+
+  const ownPeace = getPoliticsRelationPresentation({
+    relation: {
+      status: DiplomacyRelationStatus.PEACE_PENDING,
+      peaceProposedById: "alpha",
+    },
+    now,
+    currentFortressId: "alpha",
+  });
+
+  assert.equal(ownPeace.availableAction, null);
+  assert.match(ownPeace.disabledReason ?? "", /waiting/);
+
+  const allied = getPoliticsRelationPresentation({
+    relation: { status: DiplomacyRelationStatus.ALLIED },
+    now,
+    currentFortressId: "alpha",
+  });
+
+  assert.equal(allied.availableAction, null);
+  assert.match(allied.disabledReason ?? "", /Alliances/);
 });
