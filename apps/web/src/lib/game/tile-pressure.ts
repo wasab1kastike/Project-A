@@ -47,6 +47,7 @@ export function getPressureTargetBlockedReason({
   tile,
   tileId,
   ownerFortressId = null,
+  diplomacyBlockedReason = null,
   fortress,
   ownedTileIds,
   isHomeOfA,
@@ -55,6 +56,7 @@ export function getPressureTargetBlockedReason({
   tile: { claimable: boolean } | null | undefined;
   tileId: string;
   ownerFortressId?: string | null;
+  diplomacyBlockedReason?: string | null;
   fortress: { id: string } | null | undefined;
   ownedTileIds: Iterable<string>;
   isHomeOfA: (tileId: string) => boolean;
@@ -77,6 +79,10 @@ export function getPressureTargetBlockedReason({
   }
 
   if (ownerFortressId) {
+    if (diplomacyBlockedReason) {
+      return diplomacyBlockedReason;
+    }
+
     return "Enemy-owned tiles cannot receive expansion pressure yet.";
   }
 

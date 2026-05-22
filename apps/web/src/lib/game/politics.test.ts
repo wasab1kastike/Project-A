@@ -5,9 +5,11 @@ import { DiplomacyRelationStatus } from "@/lib/prisma-client";
 import {
   WAR_DECLARATION_DELAY_HOURS,
   canAttackByDiplomacy,
+  canPressureByDiplomacy,
   canProposePeace,
   getCanonicalDiplomacyPair,
   getDiplomacyAttackBlockedReason,
+  getDiplomacyPressureBlockedReason,
   getEffectiveDiplomacyStatus,
   getWarStartsAt,
 } from "./politics";
@@ -94,6 +96,36 @@ test("diplomacy attack permissions preserve borders and block allies", () => {
       now,
       isHomeOfA: true,
       isBorderTarget: false,
+    }),
+    true
+  );
+  assert.equal(
+    canAttackByDiplomacy({
+      relation: {
+        status: DiplomacyRelationStatus.WAR_PENDING,
+        warStartsAt: now,
+      },
+      now,
+      isBorderTarget: true,
+    }),
+    true
+  );
+});
+
+test("diplomacy pressure permissions block allies but allow neutral land", () => {
+  const now = new Date("2026-04-20T12:00:00.000Z");
+
+  assert.equal(
+    getDiplomacyPressureBlockedReason({
+      relation: { status: DiplomacyRelationStatus.ALLIED },
+      now,
+    }),
+    "Allies cannot pressure each other's territory."
+  );
+  assert.equal(
+    canPressureByDiplomacy({
+      relation: null,
+      now,
     }),
     true
   );

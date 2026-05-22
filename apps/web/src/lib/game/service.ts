@@ -103,6 +103,7 @@ import {
 } from "./orks";
 import {
   canProposePeace,
+  getDiplomacyPressureBlockedReason,
   getCanonicalDiplomacyPair,
   getEffectiveDiplomacyStatus,
   getWarStartsAt,
@@ -1089,6 +1090,24 @@ export async function setTilePressurePriority({
         ownerFortressId: true,
       },
     });
+    const diplomacyRelation =
+      existing?.ownerFortressId && existing.ownerFortressId !== fortress.id
+        ? await tx.diplomacyRelation.findUnique({
+            where: {
+              cycleId_fortressAId_fortressBId: {
+                cycleId: cycle.id,
+                ...getCanonicalDiplomacyPair(
+                  fortress.id,
+                  existing.ownerFortressId
+                ),
+              },
+            },
+            select: {
+              status: true,
+              warStartsAt: true,
+            },
+          })
+        : null;
 
     const ownedTileIds = await tx.mapHexOwnership.findMany({
       where: {
@@ -1107,6 +1126,10 @@ export async function setTilePressurePriority({
       tile,
       tileId,
       ownerFortressId: existing?.ownerFortressId ?? null,
+      diplomacyBlockedReason: getDiplomacyPressureBlockedReason({
+        relation: diplomacyRelation,
+        now,
+      }),
       fortress,
       ownedTileIds: ownedNormalTileIds,
       isHomeOfA: isHomeOfATile,
@@ -1655,6 +1678,23 @@ export async function attackMapHex({
       const ownedNormalTileIds = ownedTileIds
         .map((ownedTile) => ownedTile.tileId)
         .filter((ownedTileId) => !isHomeOfATile(ownedTileId));
+      const diplomacyRelation = effectiveOwnership?.ownerFortressId
+        ? await tx.diplomacyRelation.findUnique({
+            where: {
+              cycleId_fortressAId_fortressBId: {
+                cycleId: cycle.id,
+                ...getCanonicalDiplomacyPair(
+                  attacker.id,
+                  effectiveOwnership.ownerFortressId
+                ),
+              },
+            },
+            select: {
+              status: true,
+              warStartsAt: true,
+            },
+          })
+        : null;
       const blockedReason = getTileAttackBlockedReason({
         tile,
         tileId,
@@ -1662,6 +1702,8 @@ export async function attackMapHex({
         attackerFortress: attacker,
         ownedTileIds: ownedNormalTileIds,
         hasActiveBattle: Boolean(activeBattle),
+        diplomacyRelation,
+        now,
         isHomeOfA: isHomeOfATile,
         isConnected: ({ tileId: candidateTileId, ownedTileIds }) =>
           isTileConnectedToFortressOrOwnedTiles({

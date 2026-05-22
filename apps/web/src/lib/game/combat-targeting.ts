@@ -1,3 +1,8 @@
+import {
+  getDiplomacyAttackBlockedReason,
+  type DiplomacyRelationLike,
+} from "./politics";
+
 export function getTileAttackBlockedReason({
   tile,
   tileId,
@@ -5,6 +10,8 @@ export function getTileAttackBlockedReason({
   attackerFortress,
   ownedTileIds,
   hasActiveBattle = false,
+  diplomacyRelation = null,
+  now,
   isHomeOfA,
   isConnected,
 }: {
@@ -14,6 +21,8 @@ export function getTileAttackBlockedReason({
   attackerFortress: { id: string } | null | undefined;
   ownedTileIds: Iterable<string>;
   hasActiveBattle?: boolean;
+  diplomacyRelation?: DiplomacyRelationLike | null;
+  now?: Date;
   isHomeOfA: (tileId: string) => boolean;
   isConnected: (input: { tileId: string; ownedTileIds: Iterable<string> }) => boolean;
 }) {
@@ -41,12 +50,21 @@ export function getTileAttackBlockedReason({
     return "This tile is already contested.";
   }
 
-  if (
-    !isConnected({
-      tileId,
-      ownedTileIds,
-    })
-  ) {
+  const isBorderTarget = isConnected({
+    tileId,
+    ownedTileIds,
+  });
+
+  if (now) {
+    return getDiplomacyAttackBlockedReason({
+      relation: diplomacyRelation,
+      now,
+      isHomeOfA: isHomeOfA(tileId),
+      isBorderTarget,
+    });
+  }
+
+  if (!isBorderTarget) {
     return "You can only attack active border tiles.";
   }
 

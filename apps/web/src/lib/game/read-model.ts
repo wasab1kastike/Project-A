@@ -87,6 +87,10 @@ import {
 import { getBattlefieldCasualtyBudget } from "./battlefield-rules";
 import { getTileAttackBlockedReason } from "./combat-targeting";
 import {
+  findDiplomacyRelationForPair,
+  getDiplomacyPressureBlockedReason,
+} from "./politics";
+import {
   getNeutralPressureClaimWinner,
   getPressureTargetBlockedReason,
   TILE_PRESSURE_CLAIM_THRESHOLD,
@@ -799,6 +803,14 @@ export async function getHomePageState({
           tileId: true,
           fortressId: true,
           pressure: true,
+        },
+      },
+      diplomacyRelations: {
+        select: {
+          fortressAId: true,
+          fortressBId: true,
+          status: true,
+          warStartsAt: true,
         },
       },
       homeOfAHolders: {
@@ -2276,6 +2288,16 @@ export async function getHomePageState({
       return "You need idle army to attack tiles.";
     }
 
+    const diplomacyRelation =
+      ownership.ownerFortressId &&
+      ownership.ownerFortressId !== playerFortress.id
+        ? findDiplomacyRelationForPair({
+            relations: cycle.diplomacyRelations,
+            fortressOneId: playerFortress.id,
+            fortressTwoId: ownership.ownerFortressId,
+          })
+        : null;
+
     return getTileAttackBlockedReason({
       tile: getTileById(ownership.tileId),
       tileId: ownership.tileId,
@@ -2283,6 +2305,8 @@ export async function getHomePageState({
       attackerFortress: playerFortress,
       ownedTileIds: ownedNormalTileIds,
       hasActiveBattle: activeBattleTileIds.has(ownership.tileId),
+      diplomacyRelation,
+      now,
       isHomeOfA: isHomeOfATile,
       isConnected: ({ tileId, ownedTileIds }) =>
         isTileConnectedToFortressOrOwnedTiles({
@@ -2420,10 +2444,24 @@ export async function getHomePageState({
         return "Join the cycle to prioritize expansion.";
       }
 
+      const ownerFortressId = ownerByTileId.get(tile.id) ?? null;
+      const diplomacyRelation =
+        ownerFortressId && ownerFortressId !== playerFortress.id
+          ? findDiplomacyRelationForPair({
+              relations: cycle.diplomacyRelations,
+              fortressOneId: playerFortress.id,
+              fortressTwoId: ownerFortressId,
+            })
+          : null;
+
       return getPressureTargetBlockedReason({
         tile,
         tileId: tile.id,
-        ownerFortressId: ownerByTileId.get(tile.id) ?? null,
+        ownerFortressId,
+        diplomacyBlockedReason: getDiplomacyPressureBlockedReason({
+          relation: diplomacyRelation,
+          now,
+        }),
         fortress: playerFortress,
         ownedTileIds: ownedNormalTileIds,
         isHomeOfA: isHomeOfATile,

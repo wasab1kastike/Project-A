@@ -1666,6 +1666,203 @@ test("owned tile attack rejects distant non-border tiles", async (context) => {
   );
 });
 
+test("politics gates block allied tile attacks and pressure priorities", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const attacker = await createUser(prisma, "allied-gate-attacker@example.com");
+  const defender = await createUser(prisma, "allied-gate-defender@example.com");
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: attacker.id,
+      commanderName: "Allied Attacker",
+      fortressName: "Allied Attack Keep",
+      points: 100,
+    },
+    {
+      userId: defender.id,
+      commanderName: "Allied Defender",
+      fortressName: "Allied Defense Keep",
+      points: 100,
+    },
+  ]);
+  const [attackerFortress, defenderFortress] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: attacker.id } },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: defender.id } },
+    }),
+  ]);
+  const tile = HEX_SPAWN_TILES.find(
+    (candidate) =>
+      candidate.spawnable &&
+      isTileConnectedToFortressOrOwnedTiles({
+        tileId: candidate.id,
+        fortress: attackerFortress,
+        ownedTileIds: [],
+      })
+  );
+
+  assert.ok(tile);
+
+  await prisma.fortress.update({
+    where: { id: attackerFortress.id },
+    data: { race: FortressRace.ORKS, army: 20 },
+  });
+  await prisma.fortress.update({
+    where: { id: defenderFortress.id },
+    data: { race: FortressRace.DWARFS, army: 10 },
+  });
+  await prisma.mapHexOwnership.create({
+    data: {
+      cycleId: cycle.id,
+      tileId: tile.id,
+      ownerFortressId: defenderFortress.id,
+    },
+  });
+  const [fortressAId, fortressBId] = [
+    attackerFortress.id,
+    defenderFortress.id,
+  ].sort();
+  await prisma.diplomacyRelation.create({
+    data: {
+      cycleId: cycle.id,
+      fortressAId,
+      fortressBId,
+      status: DiplomacyRelationStatus.ALLIED,
+    },
+  });
+
+  await assert.rejects(
+    () =>
+      attackMapHex({
+        userId: attacker.id,
+        tileId: tile.id,
+        sentArmy: 5,
+        now: new Date("2026-04-20T12:01:00.000Z"),
+        db: prisma,
+      }),
+    /Allies cannot attack/
+  );
+  await assert.rejects(
+    () =>
+      setTilePressurePriority({
+        userId: attacker.id,
+        tileId: tile.id,
+        now: new Date("2026-04-20T12:01:00.000Z"),
+        db: prisma,
+      }),
+    /Allies cannot pressure/
+  );
+
+  const state = await getHomePageState({
+    userId: attacker.id,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+    db: prisma,
+  });
+  const tileState = state.mapHexes.find((mapHex) => mapHex.tileId === tile.id);
+
+  assert.equal(tileState?.canAttack, false);
+  assert.match(tileState?.attackDisabledReason ?? "", /Allies cannot attack/);
+  assert.match(
+    tileState?.pressurePriorityDisabledReason ?? "",
+    /Allies cannot pressure/
+  );
+});
+
+test("politics gates delay war attacks until the warning finishes", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const attacker = await createUser(prisma, "war-gate-attacker@example.com");
+  const defender = await createUser(prisma, "war-gate-defender@example.com");
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: attacker.id,
+      commanderName: "War Attacker",
+      fortressName: "War Attack Keep",
+      points: 100,
+    },
+    {
+      userId: defender.id,
+      commanderName: "War Defender",
+      fortressName: "War Defense Keep",
+      points: 100,
+    },
+  ]);
+  const [attackerFortress, defenderFortress] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: attacker.id } },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: defender.id } },
+    }),
+  ]);
+  const tile = HEX_SPAWN_TILES.find(
+    (candidate) =>
+      candidate.spawnable &&
+      isTileConnectedToFortressOrOwnedTiles({
+        tileId: candidate.id,
+        fortress: attackerFortress,
+        ownedTileIds: [],
+      })
+  );
+
+  assert.ok(tile);
+
+  await prisma.fortress.update({
+    where: { id: attackerFortress.id },
+    data: { race: FortressRace.ORKS, army: 20 },
+  });
+  await prisma.fortress.update({
+    where: { id: defenderFortress.id },
+    data: { race: FortressRace.DWARFS, army: 10 },
+  });
+  await prisma.mapHexOwnership.create({
+    data: {
+      cycleId: cycle.id,
+      tileId: tile.id,
+      ownerFortressId: defenderFortress.id,
+    },
+  });
+
+  const relation = await declareWar({
+    userId: attacker.id,
+    targetFortressId: defenderFortress.id,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+    db: prisma,
+  });
+
+  await assert.rejects(
+    () =>
+      attackMapHex({
+        userId: attacker.id,
+        tileId: tile.id,
+        sentArmy: 5,
+        now: new Date("2026-04-20T12:01:00.000Z"),
+        db: prisma,
+      }),
+    /24-hour warning/
+  );
+
+  const battlefield = await attackMapHex({
+    userId: attacker.id,
+    tileId: tile.id,
+    sentArmy: 5,
+    now: relation.warStartsAt ?? new Date("2026-04-21T12:00:00.000Z"),
+    db: prisma,
+  });
+
+  assert.ok(battlefield.battlefieldId);
+});
+
 test("OpenClaw god chat route rejects missing configuration and invalid secrets", async () => {
   const originalSecret = process.env.OPENCLAW_GOD_SHARED_SECRET;
 

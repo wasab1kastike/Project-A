@@ -8,6 +8,11 @@ export type DiplomacyRelationLike = {
   warStartsAt?: Date | null;
 };
 
+export type DiplomacyRelationPairLike = DiplomacyRelationLike & {
+  fortressAId: string;
+  fortressBId: string;
+};
+
 export function getCanonicalDiplomacyPair(
   fortressOneId: string,
   fortressTwoId: string
@@ -23,6 +28,29 @@ export function getCanonicalDiplomacyPair(
 
 export function getWarStartsAt(now: Date) {
   return addHours(now, WAR_DECLARATION_DELAY_HOURS);
+}
+
+export function findDiplomacyRelationForPair({
+  relations,
+  fortressOneId,
+  fortressTwoId,
+}: {
+  relations: Iterable<DiplomacyRelationPairLike>;
+  fortressOneId: string;
+  fortressTwoId: string;
+}) {
+  const pair = getCanonicalDiplomacyPair(fortressOneId, fortressTwoId);
+
+  for (const relation of relations) {
+    if (
+      relation.fortressAId === pair.fortressAId &&
+      relation.fortressBId === pair.fortressBId
+    ) {
+      return relation;
+    }
+  }
+
+  return null;
 }
 
 export function getEffectiveDiplomacyStatus({
@@ -84,6 +112,28 @@ export function canAttackByDiplomacy(
   input: Parameters<typeof getDiplomacyAttackBlockedReason>[0]
 ) {
   return getDiplomacyAttackBlockedReason(input) === null;
+}
+
+export function getDiplomacyPressureBlockedReason({
+  relation,
+  now,
+}: {
+  relation?: DiplomacyRelationLike | null;
+  now: Date;
+}) {
+  const status = getEffectiveDiplomacyStatus({ relation, now });
+
+  if (status === DiplomacyRelationStatus.ALLIED) {
+    return "Allies cannot pressure each other's territory.";
+  }
+
+  return null;
+}
+
+export function canPressureByDiplomacy(
+  input: Parameters<typeof getDiplomacyPressureBlockedReason>[0]
+) {
+  return getDiplomacyPressureBlockedReason(input) === null;
 }
 
 export function canProposePeace(status: DiplomacyRelationStatus) {
