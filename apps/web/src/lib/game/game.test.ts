@@ -139,6 +139,7 @@ import { getAdminDashboardState } from "./admin-dashboard";
 import { getCycleHistoryPageState } from "./history";
 import { getCastlePageState } from "./castle-read-model";
 import { getHomePageState } from "./read-model";
+import { getPoliticsPageState } from "./politics-read-model";
 import {
   editRegistrationFortressName,
   joinRegistrationCycle,
@@ -1353,6 +1354,19 @@ test("politics war and peace use one canonical relation", async (context) => {
       },
     }),
   ]);
+  const defaultPoliticsState = await getPoliticsPageState({
+    userId: alpha.id,
+    now: new Date("2026-04-20T11:59:00.000Z"),
+    db: prisma,
+  });
+  const defaultBetaPolitics = defaultPoliticsState.rows.find(
+    (row) => row.fortressId === betaFortress.id
+  );
+
+  assert.equal(defaultPoliticsState.rows.length, 1);
+  assert.equal(defaultBetaPolitics?.relationStatus, "NEUTRAL");
+  assert.equal(defaultBetaPolitics?.effectiveStatus, "NEUTRAL");
+  assert.equal(defaultBetaPolitics?.availableAction, "DECLARE_WAR");
 
   const declared = await declareWar({
     userId: alpha.id,
@@ -1368,6 +1382,31 @@ test("politics war and peace use one canonical relation", async (context) => {
     [declared.fortressAId, declared.fortressBId],
     [alphaFortress.id, betaFortress.id].sort()
   );
+  const pendingPoliticsState = await getPoliticsPageState({
+    userId: alpha.id,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+    db: prisma,
+  });
+  const pendingBetaPolitics = pendingPoliticsState.rows.find(
+    (row) => row.fortressId === betaFortress.id
+  );
+
+  assert.equal(pendingBetaPolitics?.relationStatus, "WAR_PENDING");
+  assert.equal(pendingBetaPolitics?.effectiveStatus, "WAR_PENDING");
+  assert.equal(pendingBetaPolitics?.availableAction, "PROPOSE_PEACE");
+  assert.equal(pendingBetaPolitics?.minutesUntilWar, 1439);
+  const maturedPoliticsState = await getPoliticsPageState({
+    userId: alpha.id,
+    now: declared.warStartsAt ?? new Date("2026-04-21T12:00:00.000Z"),
+    db: prisma,
+  });
+  const maturedBetaPolitics = maturedPoliticsState.rows.find(
+    (row) => row.fortressId === betaFortress.id
+  );
+
+  assert.equal(maturedBetaPolitics?.relationStatus, "WAR_PENDING");
+  assert.equal(maturedBetaPolitics?.effectiveStatus, "WAR");
+  assert.equal(maturedBetaPolitics?.availableAction, "PROPOSE_PEACE");
 
   const duplicateDeclare = await declareWar({
     userId: beta.id,
@@ -1387,6 +1426,18 @@ test("politics war and peace use one canonical relation", async (context) => {
 
   assert.equal(proposed.status, DiplomacyRelationStatus.PEACE_PENDING);
   assert.equal(proposed.peaceProposedById, betaFortress.id);
+  const peacePoliticsState = await getPoliticsPageState({
+    userId: alpha.id,
+    now: new Date("2026-04-20T12:10:30.000Z"),
+    db: prisma,
+  });
+  const peaceBetaPolitics = peacePoliticsState.rows.find(
+    (row) => row.fortressId === betaFortress.id
+  );
+
+  assert.equal(peaceBetaPolitics?.relationStatus, "PEACE_PENDING");
+  assert.equal(peaceBetaPolitics?.availableAction, "ACCEPT_PEACE");
+  assert.equal(peaceBetaPolitics?.peaceProposedByCurrentPlayer, false);
   await assert.rejects(
     () =>
       acceptPeace({
@@ -1408,6 +1459,17 @@ test("politics war and peace use one canonical relation", async (context) => {
   assert.equal(accepted.status, DiplomacyRelationStatus.NEUTRAL);
   assert.equal(accepted.warDeclaredById, null);
   assert.equal(accepted.peaceProposedById, null);
+  const acceptedPoliticsState = await getPoliticsPageState({
+    userId: alpha.id,
+    now: new Date("2026-04-20T12:12:30.000Z"),
+    db: prisma,
+  });
+  const acceptedBetaPolitics = acceptedPoliticsState.rows.find(
+    (row) => row.fortressId === betaFortress.id
+  );
+
+  assert.equal(acceptedBetaPolitics?.relationStatus, "NEUTRAL");
+  assert.equal(acceptedBetaPolitics?.availableAction, "DECLARE_WAR");
   assert.equal(
     await prisma.diplomacyRelation.count({
       where: {

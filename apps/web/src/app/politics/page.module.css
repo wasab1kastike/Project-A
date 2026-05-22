@@ -1,0 +1,188 @@
+.page {
+  min-height: 100vh;
+  padding: 28px;
+  background:
+    radial-gradient(circle at top left, rgba(103, 196, 207, 0.16), transparent 34%),
+    #07111a;
+  color: var(--foreground);
+}
+
+.shell {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: 18px;
+}
+
+.topbar,
+.panelHeader,
+.cardHeader {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.topbar a,
+.actions button {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgba(247, 196, 95, 0.34);
+  border-radius: 8px;
+  background: rgba(247, 196, 95, 0.9);
+  color: #14202f;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.eyebrow {
+  color: var(--accent-strong);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.titleBlock,
+.hero,
+.panel,
+.relationList,
+.card,
+.lockedPanel {
+  display: grid;
+  gap: 12px;
+}
+
+.titleBlock h1,
+.hero h2,
+.panel h2 {
+  margin: 0;
+}
+
+.hero,
+.panel {
+  padding: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 8px;
+  background: rgba(9, 19, 29, 0.82);
+}
+
+.hero p,
+.muted,
+.timing,
+.lockedPanel p {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.8fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.card {
+  padding: 12px;
+  border: 1px solid rgba(103, 196, 207, 0.18);
+  border-radius: 8px;
+  background: rgba(3, 10, 16, 0.42);
+}
+
+.cardHeader div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cardHeader strong,
+.cardHeader span {
+  overflow-wrap: anywhere;
+}
+
+.cardHeader div > span {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.relationChip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid rgba(226, 232, 240, 0.26);
+  border-radius: 999px;
+  background: rgba(226, 232, 240, 0.12);
+  color: rgba(236, 248, 252, 0.96);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.relationChip[data-status="war"],
+.relationChip[data-status="enemy"] {
+  border-color: rgba(248, 95, 95, 0.42);
+  background: rgba(248, 95, 95, 0.12);
+  color: #ffabab;
+}
+
+.relationChip[data-status="war_pending"],
+.relationChip[data-status="peace_pending"] {
+  border-color: rgba(248, 191, 87, 0.42);
+  background: rgba(248, 191, 87, 0.12);
+  color: #ffd27a;
+}
+
+.relationChip[data-status="allied"] {
+  border-color: rgba(103, 207, 159, 0.38);
+  background: rgba(103, 207, 159, 0.12);
+  color: #9ce8bf;
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.lockedGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.lockedGrid span {
+  min-height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 8px;
+  background: rgba(3, 10, 16, 0.34);
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+@media (max-width: 760px) {
+  .page {
+    padding: 18px;
+  }
+
+  .topbar,
+  .grid,
+  .panelHeader,
+  .cardHeader {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}

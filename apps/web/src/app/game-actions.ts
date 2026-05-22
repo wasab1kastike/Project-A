@@ -42,14 +42,17 @@ import {
   chooseDwarfGrudge,
   chooseDwarfTierThreeGrudge,
   choosePendingUpgradeSpecialization,
+  acceptPeace,
   attackMapHex,
   clearTilePressurePriority,
+  declareWar,
   fortifyMapHex,
   claimUnicornTeleport,
   activateUnicornShatteredReality,
   joinBattlefield,
   joinRegistrationCycle,
   purchaseFortressUpgrade,
+  proposePeace,
   reinforceDwarfRuneOfGrudges,
   recruitArmy,
   registerCommanderName,
@@ -254,6 +257,90 @@ export async function clearTilePressurePriorityAction(tileId: string) {
       tileId,
     });
     notifyAndRevalidate("tile-pressure-priority-clear");
+    return {
+      ok: true,
+    } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
+export async function declareWarAction(targetFortressId: string) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await declareWar({
+      userId,
+      targetFortressId,
+    });
+    notifyAndRevalidate("politics-declare-war", ["/", "/politics"]);
+    return {
+      ok: true,
+    } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
+export async function proposePeaceAction(targetFortressId: string) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await proposePeace({
+      userId,
+      targetFortressId,
+    });
+    notifyAndRevalidate("politics-propose-peace", ["/", "/politics"]);
+    return {
+      ok: true,
+    } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
+export async function acceptPeaceAction(targetFortressId: string) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await acceptPeace({
+      userId,
+      targetFortressId,
+    });
+    notifyAndRevalidate("politics-accept-peace", ["/", "/politics"]);
     return {
       ok: true,
     } satisfies InlineActionResult;

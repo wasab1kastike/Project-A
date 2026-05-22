@@ -6,6 +6,10 @@ export const WAR_DECLARATION_DELAY_HOURS = 24;
 export type DiplomacyRelationLike = {
   status: DiplomacyRelationStatus;
   warStartsAt?: Date | null;
+  warDeclaredById?: string | null;
+  warDeclaredAt?: Date | null;
+  peaceProposedById?: string | null;
+  peaceProposedAt?: Date | null;
 };
 
 export type DiplomacyRelationPairLike = DiplomacyRelationLike & {
@@ -142,4 +146,58 @@ export function canProposePeace(status: DiplomacyRelationStatus) {
     status === DiplomacyRelationStatus.WAR_PENDING ||
     status === DiplomacyRelationStatus.ENEMY
   );
+}
+
+export type PoliticsRelationAction =
+  | "DECLARE_WAR"
+  | "PROPOSE_PEACE"
+  | "ACCEPT_PEACE";
+
+export function getPoliticsRelationPresentation({
+  relation,
+  now,
+  currentFortressId,
+}: {
+  relation?: DiplomacyRelationLike | null;
+  now: Date;
+  currentFortressId: string;
+}) {
+  const relationStatus =
+    relation?.status ?? DiplomacyRelationStatus.NEUTRAL;
+  const effectiveStatus = getEffectiveDiplomacyStatus({ relation, now });
+  const actions: PoliticsRelationAction[] = [];
+  let disabledReason: string | null = null;
+
+  if (effectiveStatus === DiplomacyRelationStatus.ALLIED) {
+    disabledReason = "Alliances cannot be changed in this politics slice.";
+  } else if (relationStatus === DiplomacyRelationStatus.PEACE_PENDING) {
+    if (relation?.peaceProposedById === currentFortressId) {
+      disabledReason = "Peace proposal is waiting for the other fortress.";
+    } else {
+      actions.push("ACCEPT_PEACE");
+    }
+  } else {
+    if (
+      effectiveStatus === DiplomacyRelationStatus.NEUTRAL ||
+      effectiveStatus === DiplomacyRelationStatus.ENEMY
+    ) {
+      actions.push("DECLARE_WAR");
+    }
+
+    if (canProposePeace(effectiveStatus)) {
+      actions.push("PROPOSE_PEACE");
+    }
+
+    if (actions.length === 0) {
+      disabledReason = "No politics action is available.";
+    }
+  }
+
+  return {
+    relationStatus,
+    effectiveStatus,
+    availableAction: actions[0] ?? null,
+    availableActions: actions,
+    disabledReason,
+  };
 }

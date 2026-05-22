@@ -4,6 +4,7 @@ import { EXPLOIT_HALL_OF_FAME_ENTRIES } from "./exploit-hall-of-fame";
 import { PATCH_NOTES_RELEASES, getPatchNotesPageState } from "./patch-notes";
 import {
   PATCH_NOTES_PAGE_HREF,
+  POLITICS_PAGE_HREF,
   PRIMARY_GAME_NAV_LINKS,
   WIKI_PAGE_HREF,
 } from "./site-navigation";
@@ -56,6 +57,14 @@ test("primary navigation includes wiki", () => {
   assert.equal(WIKI_PAGE_HREF, "/wiki");
   assert.equal(
     PRIMARY_GAME_NAV_LINKS.some((link) => link.href === WIKI_PAGE_HREF),
+    true
+  );
+});
+
+test("primary navigation includes politics and trade", () => {
+  assert.equal(POLITICS_PAGE_HREF, "/politics");
+  assert.equal(
+    PRIMARY_GAME_NAV_LINKS.some((link) => link.href === POLITICS_PAGE_HREF),
     true
   );
 });
