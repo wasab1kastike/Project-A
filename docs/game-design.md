@@ -85,6 +85,14 @@
 - Dwarf defenders receive an extra 25% defensive multiplier when defending owned normal tiles.
 - Battlefield resolution is applied after fortress economy persistence in the tick, preventing stale economy writes from overwriting loot, casualty, reward, or ownership results.
 
+## Season 4 politics pretesting
+
+- The `/politics` page supports war warnings, peace proposals, and bilateral alliances during Season 4 pretesting.
+- Neutral fortresses may propose an alliance. Acceptance creates Trust I and escrows `2,000 gold + 2,000 food` from each party.
+- Trust upgrades require acceptance from both parties: Trust II holds `10,000 gold + 10,000 food` from each fortress, and Trust III holds `30,000 gold + 30,000 food`.
+- Trust I, II, and III reserve future allied delivery bonuses of `10%`, `15%`, and `25%`; convoy delivery is not active until the trade slice ships.
+- Betraying an ally starts war immediately. The harmed fortress receives its own escrow back plus the betrayer's escrow.
+
 ## Spawn & map fairness
 
 - Spawn selection only uses valid spawn hexes (`HEX_SPAWN_TILES` plus runtime `isPointNearSpawnHex` checks).

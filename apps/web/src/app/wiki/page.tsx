@@ -276,6 +276,13 @@ const TILE_CONTROL_RULES = [
   "Home of A cannot be claimed or fortified. It must be attacked through the center tile as a daily boss.",
 ] as const;
 
+const POLITICS_RULES = [
+  "Neutral fortresses may propose alliances from Politics & Trade.",
+  "Accepting Trust I escrows 2,000 gold and 2,000 food from each ally.",
+  "Bilateral trust upgrades raise each ally's escrow to 10,000 at Trust II and 30,000 at Trust III.",
+  "Betrayal starts war immediately and gives both escrow shares to the harmed ally.",
+] as const;
+
 const FAQ_ENTRIES = [
   {
     question: "Why did my attack fail even with a big army?",
@@ -799,6 +806,16 @@ export default function WikiPage() {
               Home of A does not create ownership, holder drain, or garrison
               defense.
             </li>
+          </ul>
+        </article>
+
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>Politics</span>
+          <h2>Trust-backed alliances</h2>
+          <ul className={styles.noteList}>
+            {POLITICS_RULES.map((entry) => (
+              <li key={entry}>{entry}</li>
+            ))}
           </ul>
         </article>
 

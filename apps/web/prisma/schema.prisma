@@ -185,6 +185,7 @@ enum BattlefieldSide {
 
 enum DiplomacyRelationStatus {
   NEUTRAL
+  ALLIANCE_PENDING
   ALLIED
   ENEMY
   WAR_PENDING
@@ -510,24 +511,36 @@ model TilePressureState {
 }
 
 model DiplomacyRelation {
-  id                String                  @id @default(cuid())
-  cycleId           String
-  fortressAId       String
-  fortressBId       String
-  status            DiplomacyRelationStatus @default(NEUTRAL)
-  warDeclaredById   String?
-  warDeclaredAt     DateTime?
-  warStartsAt       DateTime?
-  peaceProposedById String?
-  peaceProposedAt   DateTime?
-  collateralGold    Int                     @default(0)
-  collateralFood    Int                     @default(0)
-  collateralArmy    Int                     @default(0)
-  createdAt         DateTime                @default(now())
-  updatedAt         DateTime                @updatedAt
-  cycle             Cycle                   @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  fortressA         Fortress                @relation("DiplomacyRelationFortressA", fields: [fortressAId], references: [id], onDelete: Cascade)
-  fortressB         Fortress                @relation("DiplomacyRelationFortressB", fields: [fortressBId], references: [id], onDelete: Cascade)
+  id                       String                  @id @default(cuid())
+  cycleId                  String
+  fortressAId              String
+  fortressBId              String
+  status                   DiplomacyRelationStatus @default(NEUTRAL)
+  allianceProposedById     String?
+  allianceProposedAt       DateTime?
+  allianceTrustTier        Int                     @default(0)
+  allianceEscrowGoldEach   Int                     @default(0)
+  allianceEscrowFoodEach   Int                     @default(0)
+  trustUpgradeProposedById String?
+  trustUpgradeProposedAt   DateTime?
+  trustUpgradeTier         Int?
+  warDeclaredById          String?
+  warDeclaredAt            DateTime?
+  warStartsAt              DateTime?
+  peaceProposedById        String?
+  peaceProposedAt          DateTime?
+  betrayedById             String?
+  betrayedAt               DateTime?
+  casusBelliFortressId     String?
+  casusBelliExpiresAt      DateTime?
+  collateralGold           Int                     @default(0)
+  collateralFood           Int                     @default(0)
+  collateralArmy           Int                     @default(0)
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
+  cycle                    Cycle                   @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortressA                Fortress                @relation("DiplomacyRelationFortressA", fields: [fortressAId], references: [id], onDelete: Cascade)
+  fortressB                Fortress                @relation("DiplomacyRelationFortressB", fields: [fortressBId], references: [id], onDelete: Cascade)
 
   @@unique([cycleId, fortressAId, fortressBId])
   @@index([cycleId, status])

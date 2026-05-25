@@ -12,6 +12,7 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
     newFeatures: [
       "Neutral expansion now targets a slower idle rhythm: connected tiles require 600 pressure, and unsupported pushes lose 10% progress per hour.",
       "Unstable Unicorn pressure workers are now named Glitter Distribution.",
+      "The Politics & Trade page now supports trust-backed alliance proposals, bilateral trust upgrades, and immediate betrayal with escrow forfeiture during pretesting.",
     ],
     bugFixes: [
       "Season 4 stays in pretesting until its redesigned rules are explicitly approved for activation, instead of starting from an unfinished schedule.",

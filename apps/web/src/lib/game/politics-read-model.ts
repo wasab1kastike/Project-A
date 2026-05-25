@@ -78,6 +78,14 @@ export async function getPoliticsPageState({
           fortressAId: true,
           fortressBId: true,
           status: true,
+          allianceProposedById: true,
+          allianceProposedAt: true,
+          allianceTrustTier: true,
+          allianceEscrowGoldEach: true,
+          allianceEscrowFoodEach: true,
+          trustUpgradeProposedById: true,
+          trustUpgradeProposedAt: true,
+          trustUpgradeTier: true,
           warDeclaredById: true,
           warDeclaredAt: true,
           warStartsAt: true,
@@ -137,6 +145,9 @@ export async function getPoliticsPageState({
       });
       const warStartsAt = relation?.warStartsAt ?? null;
       const peaceProposedById = relation?.peaceProposedById ?? null;
+      const allianceProposedById = relation?.allianceProposedById ?? null;
+      const trustUpgradeProposedById =
+        relation?.trustUpgradeProposedById ?? null;
 
       return {
         fortressId: fortress.id,
@@ -145,6 +156,18 @@ export async function getPoliticsPageState({
         race: fortress.race,
         relationStatus: presentation.relationStatus,
         effectiveStatus: presentation.effectiveStatus,
+        allianceProposedById,
+        allianceProposedAt: relation?.allianceProposedAt ?? null,
+        allianceProposedByCurrentPlayer:
+          allianceProposedById !== null &&
+          allianceProposedById === playerFortress.id,
+        allianceTrustTier: relation?.allianceTrustTier ?? 0,
+        allianceEscrowGoldEach: relation?.allianceEscrowGoldEach ?? 0,
+        allianceEscrowFoodEach: relation?.allianceEscrowFoodEach ?? 0,
+        trustUpgradeTier: relation?.trustUpgradeTier ?? null,
+        trustUpgradeProposedByCurrentPlayer:
+          trustUpgradeProposedById !== null &&
+          trustUpgradeProposedById === playerFortress.id,
         warDeclaredById: relation?.warDeclaredById ?? null,
         warDeclaredAt: relation?.warDeclaredAt ?? null,
         warStartsAt,

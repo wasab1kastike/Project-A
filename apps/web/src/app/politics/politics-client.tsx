@@ -3,8 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import {
+  acceptAllianceAction,
+  acceptAllianceTrustUpgradeAction,
   acceptPeaceAction,
+  betrayAllianceAction,
   declareWarAction,
+  proposeAllianceAction,
+  proposeAllianceTrustUpgradeAction,
   proposePeaceAction,
 } from "@/app/game-actions";
 import type { PoliticsPageState } from "@/lib/game/politics-read-model";
@@ -15,6 +20,8 @@ type PoliticsAction = PoliticsRow["availableActions"][number];
 
 function getStatusLabel(status: PoliticsRow["effectiveStatus"]) {
   switch (status) {
+    case "ALLIANCE_PENDING":
+      return "Alliance pending";
     case "WAR_PENDING":
       return "War pending";
     case "PEACE_PENDING":
@@ -32,6 +39,16 @@ function getActionLabel(action: PoliticsAction) {
       return "Propose peace";
     case "ACCEPT_PEACE":
       return "Accept peace";
+    case "PROPOSE_ALLIANCE":
+      return "Propose alliance";
+    case "ACCEPT_ALLIANCE":
+      return "Accept alliance";
+    case "PROPOSE_TRUST_UPGRADE":
+      return "Raise trust";
+    case "ACCEPT_TRUST_UPGRADE":
+      return "Accept trust";
+    case "BETRAY_ALLIANCE":
+      return "Betray";
   }
 }
 
@@ -60,6 +77,22 @@ function getTimingLabel(row: PoliticsRow) {
       : "Peace offer received";
   }
 
+  if (row.relationStatus === "ALLIANCE_PENDING") {
+    return row.allianceProposedByCurrentPlayer
+      ? "Alliance proposed"
+      : "Alliance offer received";
+  }
+
+  if (row.effectiveStatus === "ALLIED") {
+    if (row.trustUpgradeTier) {
+      return row.trustUpgradeProposedByCurrentPlayer
+        ? `Trust ${row.trustUpgradeTier} proposed`
+        : `Trust ${row.trustUpgradeTier} requested`;
+    }
+
+    return `Trust ${row.allianceTrustTier}`;
+  }
+
   return null;
 }
 
@@ -71,16 +104,47 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
       return;
     }
 
+    if (
+      action === "BETRAY_ALLIANCE" &&
+      !window.confirm(
+        "Betray this alliance? Your escrow transfers to the other fortress and war starts immediately."
+      )
+    ) {
+      return;
+    }
+
     const key = `${row.fortressId}:${action}`;
     setPendingId(key);
 
     try {
-      const result =
-        action === "DECLARE_WAR"
-          ? await declareWarAction(row.fortressId)
-          : action === "PROPOSE_PEACE"
-            ? await proposePeaceAction(row.fortressId)
-            : await acceptPeaceAction(row.fortressId);
+      let result;
+
+      switch (action) {
+        case "DECLARE_WAR":
+          result = await declareWarAction(row.fortressId);
+          break;
+        case "PROPOSE_ALLIANCE":
+          result = await proposeAllianceAction(row.fortressId);
+          break;
+        case "ACCEPT_ALLIANCE":
+          result = await acceptAllianceAction(row.fortressId);
+          break;
+        case "PROPOSE_TRUST_UPGRADE":
+          result = await proposeAllianceTrustUpgradeAction(row.fortressId);
+          break;
+        case "ACCEPT_TRUST_UPGRADE":
+          result = await acceptAllianceTrustUpgradeAction(row.fortressId);
+          break;
+        case "BETRAY_ALLIANCE":
+          result = await betrayAllianceAction(row.fortressId);
+          break;
+        case "PROPOSE_PEACE":
+          result = await proposePeaceAction(row.fortressId);
+          break;
+        case "ACCEPT_PEACE":
+          result = await acceptPeaceAction(row.fortressId);
+          break;
+      }
 
       if (!result.ok) {
         window.alert(result.error);
@@ -106,8 +170,8 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
             <span className={styles.eyebrow}>Diplomacy desk</span>
             <h2>{state.playerFortress?.name ?? "Politics unavailable"}</h2>
             <p>
-              Declare wars with a 24-hour warning, watch pending treaties, and
-              settle peace offers from one focused command page.
+              Manage trust-backed alliances, war declarations, and peace
+              proposals from one focused command page.
             </p>
           </div>
         </section>
@@ -144,6 +208,13 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                       {timingLabel ? (
                         <p className={styles.timing}>{timingLabel}</p>
                       ) : null}
+                      {row.effectiveStatus === "ALLIED" ? (
+                        <p className={styles.muted}>
+                          Escrow each: {row.allianceEscrowGoldEach.toLocaleString()} gold
+                          {" + "}
+                          {row.allianceEscrowFoodEach.toLocaleString()} food
+                        </p>
+                      ) : null}
                       <div className={styles.actions}>
                         {row.availableActions.length > 0 ? (
                           row.availableActions.map((action) => {
@@ -153,6 +224,7 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                               <button
                                 key={action}
                                 type="button"
+                                data-danger={action === "BETRAY_ALLIANCE" || undefined}
                                 disabled={pendingId !== null}
                                 onClick={() => {
                                   void handleAction(row, action);
@@ -169,6 +241,9 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                             {row.relationStatus === "PEACE_PENDING" &&
                             row.peaceProposedByCurrentPlayer
                               ? "Peace proposed"
+                              : row.relationStatus === "ALLIANCE_PENDING" &&
+                                  row.allianceProposedByCurrentPlayer
+                                ? "Alliance proposed"
                               : "No action"}
                           </button>
                         )}

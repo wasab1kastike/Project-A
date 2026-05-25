@@ -160,12 +160,17 @@ import {
   cancelDwarfRuneOfGrudges,
   claimUnicornTeleport,
   clearTilePressurePriority,
+  acceptAlliance,
+  acceptAllianceTrustUpgrade,
   acceptPeace,
   attackMapHex,
   declareWar,
+  betrayAlliance,
   fortifyMapHex,
   joinBattlefield,
   proposePeace,
+  proposeAlliance,
+  proposeAllianceTrustUpgrade,
   reinforceDwarfRuneOfGrudges,
   torchOccupiedMapHex,
   updateWorkerAssignment,
@@ -1479,6 +1484,101 @@ test("politics war and peace use one canonical relation", async (context) => {
     }),
     1
   );
+});
+
+test("alliances escrow trust deposits and betrayal compensates the harmed ally", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const alpha = await createUser(prisma, "alliance-alpha@example.com");
+  const beta = await createUser(prisma, "alliance-beta@example.com");
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: alpha.id,
+      commanderName: "Treaty Alpha",
+      fortressName: "Trust Hall",
+      points: 100,
+    },
+    {
+      userId: beta.id,
+      commanderName: "Treaty Beta",
+      fortressName: "Pact Hall",
+      points: 100,
+    },
+  ]);
+  const [alphaFortress, betaFortress] = await Promise.all([
+    prisma.fortress.update({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: alpha.id } },
+      data: { gold: 50_000, food: 50_000 },
+    }),
+    prisma.fortress.update({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: beta.id } },
+      data: { gold: 50_000, food: 50_000 },
+    }),
+  ]);
+
+  const proposed = await proposeAlliance({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+    db: prisma,
+  });
+  assert.equal(proposed.status, DiplomacyRelationStatus.ALLIANCE_PENDING);
+  assert.equal(proposed.allianceProposedById, alphaFortress.id);
+
+  const allied = await acceptAlliance({
+    userId: beta.id,
+    targetFortressId: alphaFortress.id,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+    db: prisma,
+  });
+  assert.equal(allied.status, DiplomacyRelationStatus.ALLIED);
+  assert.equal(allied.allianceTrustTier, 1);
+  assert.equal(allied.allianceEscrowGoldEach, 2_000);
+
+  const trustProposal = await proposeAllianceTrustUpgrade({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    now: new Date("2026-04-20T12:02:00.000Z"),
+    db: prisma,
+  });
+  assert.equal(trustProposal.trustUpgradeTier, 2);
+
+  const upgraded = await acceptAllianceTrustUpgrade({
+    userId: beta.id,
+    targetFortressId: alphaFortress.id,
+    now: new Date("2026-04-20T12:03:00.000Z"),
+    db: prisma,
+  });
+  assert.equal(upgraded.allianceTrustTier, 2);
+  assert.equal(upgraded.allianceEscrowGoldEach, 10_000);
+  assert.equal(upgraded.allianceEscrowFoodEach, 10_000);
+
+  const balancesBeforeBetrayal = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({ where: { id: alphaFortress.id } }),
+    prisma.fortress.findUniqueOrThrow({ where: { id: betaFortress.id } }),
+  ]);
+  assert.equal(balancesBeforeBetrayal[0].gold, 40_000);
+  assert.equal(balancesBeforeBetrayal[1].gold, 40_000);
+
+  const betrayed = await betrayAlliance({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    now: new Date("2026-04-20T12:04:00.000Z"),
+    db: prisma,
+  });
+  const harmedAlly = await prisma.fortress.findUniqueOrThrow({
+    where: { id: betaFortress.id },
+  });
+
+  assert.equal(betrayed.status, DiplomacyRelationStatus.WAR);
+  assert.equal(betrayed.betrayedById, alphaFortress.id);
+  assert.equal(betrayed.allianceTrustTier, 0);
+  assert.equal(harmedAlly.gold, 60_000);
+  assert.equal(harmedAlly.food, 60_000);
 });
 
 test("owned tile attack creates a targetTileId battlefield", async (context) => {

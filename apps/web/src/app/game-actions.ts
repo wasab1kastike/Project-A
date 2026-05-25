@@ -42,16 +42,21 @@ import {
   chooseDwarfGrudge,
   chooseDwarfTierThreeGrudge,
   choosePendingUpgradeSpecialization,
+  acceptAlliance,
+  acceptAllianceTrustUpgrade,
   acceptPeace,
   attackMapHex,
   clearTilePressurePriority,
   declareWar,
+  betrayAlliance,
   fortifyMapHex,
   claimUnicornTeleport,
   activateUnicornShatteredReality,
   joinBattlefield,
   joinRegistrationCycle,
   purchaseFortressUpgrade,
+  proposeAlliance,
+  proposeAllianceTrustUpgrade,
   proposePeace,
   reinforceDwarfRuneOfGrudges,
   recruitArmy,
@@ -288,6 +293,121 @@ export async function declareWarAction(targetFortressId: string) {
     return {
       ok: true,
     } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
+export async function proposeAllianceAction(targetFortressId: string) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await proposeAlliance({ userId, targetFortressId });
+    notifyAndRevalidate("politics-propose-alliance", ["/", "/politics"]);
+    return { ok: true } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
+export async function acceptAllianceAction(targetFortressId: string) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await acceptAlliance({ userId, targetFortressId });
+    notifyAndRevalidate("politics-accept-alliance", ["/", "/politics"]);
+    return { ok: true } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
+export async function proposeAllianceTrustUpgradeAction(targetFortressId: string) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await proposeAllianceTrustUpgrade({ userId, targetFortressId });
+    notifyAndRevalidate("politics-propose-trust-upgrade", ["/", "/politics"]);
+    return { ok: true } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
+export async function acceptAllianceTrustUpgradeAction(targetFortressId: string) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await acceptAllianceTrustUpgrade({ userId, targetFortressId });
+    notifyAndRevalidate("politics-accept-trust-upgrade", ["/", "/politics"]);
+    return { ok: true } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
+export async function betrayAllianceAction(targetFortressId: string) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await betrayAlliance({ userId, targetFortressId });
+    notifyAndRevalidate("politics-betray-alliance", ["/", "/politics"]);
+    return { ok: true } satisfies InlineActionResult;
   } catch (error) {
     return {
       ok: false,

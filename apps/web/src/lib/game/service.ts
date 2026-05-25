@@ -103,6 +103,9 @@ import {
   isRealOrkPlayerFortress,
 } from "./orks";
 import {
+  getAllianceTrustTerms,
+  getAllianceTrustUpgradeDeposit,
+  isAllianceTrustTier,
   canProposePeace,
   getDiplomacyPressureBlockedReason,
   getCanonicalDiplomacyPair,
@@ -1293,6 +1296,8 @@ async function getActivePlayerFortressForPolitics({
     },
     select: {
       id: true,
+      gold: true,
+      food: true,
     },
   });
 
@@ -1321,6 +1326,8 @@ async function getTargetPlayerFortressForPolitics({
     },
     select: {
       id: true,
+      gold: true,
+      food: true,
     },
   });
 
@@ -1329,6 +1336,424 @@ async function getTargetPlayerFortressForPolitics({
   }
 
   return target;
+}
+
+function assertCanDepositAllianceEscrow({
+  fortress,
+  gold,
+  food,
+}: {
+  fortress: { gold: number; food: number };
+  gold: number;
+  food: number;
+}) {
+  if (fortress.gold < gold || fortress.food < food) {
+    throw new GameError(
+      `Both fortresses need ${gold.toLocaleString()} gold and ${food.toLocaleString()} food available for this trust deposit.`
+    );
+  }
+}
+
+export async function proposeAlliance({
+  userId,
+  targetFortressId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  targetFortressId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("Politics can only change during gameplay.");
+    }
+
+    const actor = await getActivePlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      userId,
+    });
+    const target = await getTargetPlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      targetFortressId,
+    });
+
+    if (actor.id === target.id) {
+      throw new GameError("You cannot ally with yourself.");
+    }
+
+    const pair = getCanonicalDiplomacyPair(actor.id, target.id);
+    const relation = await tx.diplomacyRelation.findUnique({
+      where: {
+        cycleId_fortressAId_fortressBId: {
+          cycleId: cycle.id,
+          ...pair,
+        },
+      },
+    });
+    const status = getEffectiveDiplomacyStatus({ relation, now });
+
+    if (status === DiplomacyRelationStatus.ALLIED) {
+      throw new GameError("These fortresses are already allied.");
+    }
+
+    if (status !== DiplomacyRelationStatus.NEUTRAL) {
+      throw new GameError("Alliances may only be proposed while relations are neutral.");
+    }
+
+    return tx.diplomacyRelation.upsert({
+      where: {
+        cycleId_fortressAId_fortressBId: {
+          cycleId: cycle.id,
+          ...pair,
+        },
+      },
+      create: {
+        cycleId: cycle.id,
+        ...pair,
+        status: DiplomacyRelationStatus.ALLIANCE_PENDING,
+        allianceProposedById: actor.id,
+        allianceProposedAt: now,
+      },
+      update: {
+        status: DiplomacyRelationStatus.ALLIANCE_PENDING,
+        allianceProposedById: actor.id,
+        allianceProposedAt: now,
+        warDeclaredById: null,
+        warDeclaredAt: null,
+        warStartsAt: null,
+        peaceProposedById: null,
+        peaceProposedAt: null,
+      },
+    });
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+export async function acceptAlliance({
+  userId,
+  targetFortressId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  targetFortressId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("Politics can only change during gameplay.");
+    }
+
+    const actor = await getActivePlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      userId,
+    });
+    const target = await getTargetPlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      targetFortressId,
+    });
+
+    if (actor.id === target.id) {
+      throw new GameError("You cannot accept an alliance with yourself.");
+    }
+
+    const pair = getCanonicalDiplomacyPair(actor.id, target.id);
+    const relation = await tx.diplomacyRelation.findUnique({
+      where: {
+        cycleId_fortressAId_fortressBId: { cycleId: cycle.id, ...pair },
+      },
+    });
+
+    if (
+      !relation ||
+      relation.status !== DiplomacyRelationStatus.ALLIANCE_PENDING
+    ) {
+      throw new GameError("There is no alliance proposal to accept.");
+    }
+
+    if (relation.allianceProposedById === actor.id) {
+      throw new GameError("The other fortress must accept your alliance proposal.");
+    }
+
+    const terms = getAllianceTrustTerms(1);
+    assertCanDepositAllianceEscrow({
+      fortress: actor,
+      gold: terms.escrowGold,
+      food: terms.escrowFood,
+    });
+    assertCanDepositAllianceEscrow({
+      fortress: target,
+      gold: terms.escrowGold,
+      food: terms.escrowFood,
+    });
+
+    await Promise.all([
+      tx.fortress.update({
+        where: { id: actor.id },
+        data: {
+          gold: { decrement: terms.escrowGold },
+          food: { decrement: terms.escrowFood },
+        },
+      }),
+      tx.fortress.update({
+        where: { id: target.id },
+        data: {
+          gold: { decrement: terms.escrowGold },
+          food: { decrement: terms.escrowFood },
+        },
+      }),
+    ]);
+
+    return tx.diplomacyRelation.update({
+      where: { id: relation.id },
+      data: {
+        status: DiplomacyRelationStatus.ALLIED,
+        allianceProposedById: null,
+        allianceProposedAt: null,
+        allianceTrustTier: 1,
+        allianceEscrowGoldEach: terms.escrowGold,
+        allianceEscrowFoodEach: terms.escrowFood,
+      },
+    });
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+export async function proposeAllianceTrustUpgrade({
+  userId,
+  targetFortressId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  targetFortressId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("Politics can only change during gameplay.");
+    }
+
+    const actor = await getActivePlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      userId,
+    });
+    const target = await getTargetPlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      targetFortressId,
+    });
+
+    if (actor.id === target.id) {
+      throw new GameError("You cannot change trust with yourself.");
+    }
+
+    const pair = getCanonicalDiplomacyPair(actor.id, target.id);
+    const relation = await tx.diplomacyRelation.findUnique({
+      where: {
+        cycleId_fortressAId_fortressBId: { cycleId: cycle.id, ...pair },
+      },
+    });
+
+    if (!relation || relation.status !== DiplomacyRelationStatus.ALLIED) {
+      throw new GameError("Trust may only be upgraded within an alliance.");
+    }
+
+    const requestedTier = relation.allianceTrustTier + 1;
+
+    if (!isAllianceTrustTier(requestedTier)) {
+      throw new GameError("This alliance already has maximum trust.");
+    }
+
+    return tx.diplomacyRelation.update({
+      where: { id: relation.id },
+      data: {
+        trustUpgradeProposedById: actor.id,
+        trustUpgradeProposedAt: now,
+        trustUpgradeTier: requestedTier,
+      },
+    });
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+export async function acceptAllianceTrustUpgrade({
+  userId,
+  targetFortressId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  targetFortressId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("Politics can only change during gameplay.");
+    }
+
+    const actor = await getActivePlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      userId,
+    });
+    const target = await getTargetPlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      targetFortressId,
+    });
+
+    if (actor.id === target.id) {
+      throw new GameError("You cannot accept trust with yourself.");
+    }
+
+    const pair = getCanonicalDiplomacyPair(actor.id, target.id);
+    const relation = await tx.diplomacyRelation.findUnique({
+      where: {
+        cycleId_fortressAId_fortressBId: { cycleId: cycle.id, ...pair },
+      },
+    });
+
+    if (
+      !relation ||
+      relation.status !== DiplomacyRelationStatus.ALLIED ||
+      !relation.trustUpgradeTier ||
+      !isAllianceTrustTier(relation.trustUpgradeTier)
+    ) {
+      throw new GameError("There is no trust upgrade proposal to accept.");
+    }
+
+    if (relation.trustUpgradeProposedById === actor.id) {
+      throw new GameError("The other fortress must accept your trust upgrade.");
+    }
+
+    const deposit = getAllianceTrustUpgradeDeposit({
+      currentTier: relation.allianceTrustTier,
+      requestedTier: relation.trustUpgradeTier,
+    });
+    assertCanDepositAllianceEscrow({
+      fortress: actor,
+      gold: deposit.gold,
+      food: deposit.food,
+    });
+    assertCanDepositAllianceEscrow({
+      fortress: target,
+      gold: deposit.gold,
+      food: deposit.food,
+    });
+
+    await Promise.all([
+      tx.fortress.update({
+        where: { id: actor.id },
+        data: { gold: { decrement: deposit.gold }, food: { decrement: deposit.food } },
+      }),
+      tx.fortress.update({
+        where: { id: target.id },
+        data: { gold: { decrement: deposit.gold }, food: { decrement: deposit.food } },
+      }),
+    ]);
+
+    const terms = getAllianceTrustTerms(relation.trustUpgradeTier);
+
+    return tx.diplomacyRelation.update({
+      where: { id: relation.id },
+      data: {
+        allianceTrustTier: relation.trustUpgradeTier,
+        allianceEscrowGoldEach: terms.escrowGold,
+        allianceEscrowFoodEach: terms.escrowFood,
+        trustUpgradeProposedById: null,
+        trustUpgradeProposedAt: null,
+        trustUpgradeTier: null,
+      },
+    });
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+export async function betrayAlliance({
+  userId,
+  targetFortressId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  targetFortressId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("Politics can only change during gameplay.");
+    }
+
+    const actor = await getActivePlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      userId,
+    });
+    const target = await getTargetPlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      targetFortressId,
+    });
+
+    if (actor.id === target.id) {
+      throw new GameError("You cannot betray yourself.");
+    }
+
+    const pair = getCanonicalDiplomacyPair(actor.id, target.id);
+    const relation = await tx.diplomacyRelation.findUnique({
+      where: {
+        cycleId_fortressAId_fortressBId: { cycleId: cycle.id, ...pair },
+      },
+    });
+
+    if (!relation || relation.status !== DiplomacyRelationStatus.ALLIED) {
+      throw new GameError("Only an active alliance can be betrayed.");
+    }
+
+    await tx.fortress.update({
+      where: { id: target.id },
+      data: {
+        gold: { increment: relation.allianceEscrowGoldEach * 2 },
+        food: { increment: relation.allianceEscrowFoodEach * 2 },
+      },
+    });
+
+    return tx.diplomacyRelation.update({
+      where: { id: relation.id },
+      data: {
+        status: DiplomacyRelationStatus.WAR,
+        warDeclaredById: actor.id,
+        warDeclaredAt: now,
+        warStartsAt: now,
+        betrayedById: actor.id,
+        betrayedAt: now,
+        allianceTrustTier: 0,
+        allianceEscrowGoldEach: 0,
+        allianceEscrowFoodEach: 0,
+        trustUpgradeProposedById: null,
+        trustUpgradeProposedAt: null,
+        trustUpgradeTier: null,
+      },
+    });
+  }, SERVICE_TRANSACTION_OPTIONS);
 }
 
 export async function declareWar({
@@ -1379,7 +1804,7 @@ export async function declareWar({
     });
 
     if (effectiveStatus === DiplomacyRelationStatus.ALLIED) {
-      throw new GameError("Allied betrayal is not implemented yet.");
+      throw new GameError("Use betrayal to break an alliance and begin immediate war.");
     }
 
     if (effectiveStatus === DiplomacyRelationStatus.WAR) {
@@ -1432,6 +1857,8 @@ export async function declareWar({
       },
       update: {
         status: DiplomacyRelationStatus.WAR_PENDING,
+        allianceProposedById: null,
+        allianceProposedAt: null,
         warDeclaredById: actor.id,
         warDeclaredAt: now,
         warStartsAt,
