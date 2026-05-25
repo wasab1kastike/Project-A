@@ -16,6 +16,7 @@ import {
 } from "./constants";
 import { ensureCommanderRegistrationColumn } from "./schema-guards";
 import { getTileById } from "./territory";
+import { isSeasonFourRuleset } from "./rulesets";
 import {
   buildFortressSpawnSeed,
   getRenderedMapPositionKey,
@@ -145,10 +146,15 @@ export async function ensureMegaFortress({
       id: cycleId,
     },
     select: {
+      ruleset: true,
       megaFortressDestroyCount: true,
       homeOfABossRespawnsAt: true,
     },
   });
+
+  if (isSeasonFourRuleset(cycle?.ruleset)) {
+    throw new Error("Home of A cannot be created for a Season 4 cycle.");
+  }
   const bossHealth = getHomeOfABossHealth(cycle?.megaFortressDestroyCount ?? 0);
   const isWaitingForRespawn =
     cycle?.homeOfABossRespawnsAt !== null &&
@@ -242,11 +248,16 @@ export async function ensureActiveCycleMegaFortress({
     select: {
       id: true,
       status: true,
+      ruleset: true,
       activeStartedAt: true,
     },
   });
 
-  if (!cycle || cycle.status !== CycleStatus.ACTIVE) {
+  if (
+    !cycle ||
+    cycle.status !== CycleStatus.ACTIVE ||
+    isSeasonFourRuleset(cycle.ruleset)
+  ) {
     return null;
   }
 

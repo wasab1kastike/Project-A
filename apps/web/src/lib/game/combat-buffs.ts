@@ -77,6 +77,7 @@ export function getCombatAttackPowerMultiplier({
   combatSurgedThisTick,
   enableWaaagh = true,
   enableDwarfGrudge = true,
+  enableLegacyAbilities = true,
 }: {
   fortress: CombatBuffFortress;
   now: Date;
@@ -86,10 +87,12 @@ export function getCombatAttackPowerMultiplier({
   combatSurgedThisTick?: Set<string>;
   enableWaaagh?: boolean;
   enableDwarfGrudge?: boolean;
+  enableLegacyAbilities?: boolean;
 }) {
   const race = fortress.race;
   const raceAbilityActivations = fortress.raceAbilityActivations ?? [];
   const waaaghActive =
+    enableLegacyAbilities &&
     enableWaaagh &&
     race === "ORKS" &&
     isRaceAbilityActive(
@@ -98,6 +101,7 @@ export function getCombatAttackPowerMultiplier({
       now
     );
   const dwarfCombatSurge =
+    enableLegacyAbilities &&
     race === "DWARFS" &&
     (combatSurgedThisTick?.has(fortress.id) ||
       isRaceAbilityActive(
@@ -106,6 +110,7 @@ export function getCombatAttackPowerMultiplier({
         now
       ));
   const grudgeMultiplier =
+    enableLegacyAbilities &&
     enableDwarfGrudge &&
     race === "DWARFS" &&
     targetFortressId &&
@@ -113,6 +118,7 @@ export function getCombatAttackPowerMultiplier({
       ? getDwarfGrudgeMultiplier(fortress.dwarfGrudges ?? [], targetFortressId)
       : 1;
   const unicornCombatSurge =
+    enableLegacyAbilities &&
     race === "UNSTABLE_UNICORNS" &&
     isRaceAbilityActive(
       raceAbilityActivations,
@@ -122,19 +128,19 @@ export function getCombatAttackPowerMultiplier({
 
   return (
     (waaaghActive ? 4 : 1) *
-    (race === "ORKS"
+    (enableLegacyAbilities && race === "ORKS"
       ? getOrkWaaaghAttackInvestmentMultiplier({
           waaaghActive,
           investments: fortress.orkWaaaghInvestments ?? [],
         })
       : 1) *
-    (race === "ORKS"
+    (enableLegacyAbilities && race === "ORKS"
       ? getOrkBossOrderAttackMultiplier(fortress.orkBossOrders ?? [], now)
       : 1) *
     grudgeMultiplier *
     (dwarfCombatSurge ? DWARF_DEEP_MINING_COMBAT_MULTIPLIER : 1) *
     (unicornCombatSurge ? UNICORN_SHATTERED_REALITY_COMBAT_MULTIPLIER : 1) *
-    (isRaceAbilityActive(
+    (enableLegacyAbilities && isRaceAbilityActive(
       raceAbilityActivations,
       RaceAbilityKind.HOME_OF_A_BOSS_BUFF,
       now
@@ -158,6 +164,7 @@ export function getCombatDefensePowerMultiplier({
   combatSurgedThisTick,
   enableWaaagh = true,
   enableDwarfGrudge = true,
+  enableLegacyAbilities = true,
 }: {
   fortress: CombatBuffFortress;
   now: Date;
@@ -166,10 +173,12 @@ export function getCombatDefensePowerMultiplier({
   combatSurgedThisTick?: Set<string>;
   enableWaaagh?: boolean;
   enableDwarfGrudge?: boolean;
+  enableLegacyAbilities?: boolean;
 }) {
   const race = fortress.race;
   const raceAbilityActivations = fortress.raceAbilityActivations ?? [];
   const waaaghActive =
+    enableLegacyAbilities &&
     enableWaaagh &&
     race === "ORKS" &&
     isRaceAbilityActive(
@@ -178,6 +187,7 @@ export function getCombatDefensePowerMultiplier({
       now
     );
   const dwarfCombatSurge =
+    enableLegacyAbilities &&
     race === "DWARFS" &&
     (combatSurgedThisTick?.has(fortress.id) ||
       isRaceAbilityActive(
@@ -186,6 +196,7 @@ export function getCombatDefensePowerMultiplier({
         now
       ));
   const grudgeMultiplier =
+    enableLegacyAbilities &&
     enableDwarfGrudge &&
     race === "DWARFS" &&
     opponentFortressId &&
@@ -193,6 +204,7 @@ export function getCombatDefensePowerMultiplier({
       ? getDwarfGrudgeMultiplier(fortress.dwarfGrudges ?? [], opponentFortressId)
       : 1;
   const unicornCombatSurge =
+    enableLegacyAbilities &&
     race === "UNSTABLE_UNICORNS" &&
     isRaceAbilityActive(
       raceAbilityActivations,
@@ -202,13 +214,13 @@ export function getCombatDefensePowerMultiplier({
 
   return (
     (waaaghActive ? 4 : 1) *
-    (race === "ORKS"
+    (enableLegacyAbilities && race === "ORKS"
       ? getOrkBossOrderDefenseMultiplier(fortress.orkBossOrders ?? [], now)
       : 1) *
     grudgeMultiplier *
     (dwarfCombatSurge ? DWARF_DEEP_MINING_COMBAT_MULTIPLIER : 1) *
     (unicornCombatSurge ? UNICORN_SHATTERED_REALITY_COMBAT_MULTIPLIER : 1) *
-    (isRaceAbilityActive(
+    (enableLegacyAbilities && isRaceAbilityActive(
       raceAbilityActivations,
       RaceAbilityKind.HOME_OF_A_BOSS_BUFF,
       now

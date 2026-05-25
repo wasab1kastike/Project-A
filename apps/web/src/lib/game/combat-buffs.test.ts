@@ -192,3 +192,36 @@ test("PvE attack power buffs affect Home of A damage and skip NPC grudges", () =
     1.5
   );
 });
+
+test("season four combat ignores stored legacy active ability buffs", () => {
+  const fortress = {
+    id: "legacy-buffed",
+    race: "ORKS" as const,
+    raceAbilityActivations: [
+      { kind: RaceAbilityKind.ORK_WAAAGH, ...activeWindow },
+      { kind: RaceAbilityKind.HOME_OF_A_BOSS_BUFF, ...activeWindow },
+    ],
+    orkBossOrders: [
+      { kind: OrkBossOrderKind.MORE_DAKKA, ...activeWindow },
+    ],
+  };
+
+  assert.ok(getCombatAttackPowerMultiplier({ fortress, now }) > 1);
+  assert.equal(
+    getCombatAttackPowerMultiplier({
+      fortress,
+      now,
+      enableLegacyAbilities: false,
+    }),
+    1
+  );
+  assert.equal(
+    getCombatDefensePowerMultiplier({
+      fortress,
+      now,
+      opponentFortressId: "opponent",
+      enableLegacyAbilities: false,
+    }),
+    1
+  );
+});

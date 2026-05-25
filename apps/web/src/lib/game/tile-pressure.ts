@@ -1,7 +1,14 @@
 import type { FortressRace } from "./races";
 
 export const TILE_PRESSURE_CLAIM_THRESHOLD = 600;
+export const LEGACY_TILE_PRESSURE_CLAIM_THRESHOLD = 100;
 export const TILE_PRESSURE_DECAY_PERCENT_PER_HOUR = 10;
+
+export function getTilePressureClaimThreshold(isSeasonFour: boolean) {
+  return isSeasonFour
+    ? TILE_PRESSURE_CLAIM_THRESHOLD
+    : LEGACY_TILE_PRESSURE_CLAIM_THRESHOLD;
+}
 
 const PRESSURE_WORKER_LABELS = {
   DWARFS: "Beer Culture",

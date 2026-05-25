@@ -6,6 +6,7 @@ import {
 } from "@/lib/prisma-client";
 import { floorToMinute } from "./time";
 import { getNextCycleSchedule } from "./season-schedule";
+import { DEFAULT_NEW_CYCLE_RULESET } from "./rulesets";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -53,6 +54,7 @@ export async function ensureOpenRegistrationCycle(
   return db.cycle.create({
     data: {
       status: CycleStatus.REGISTRATION,
+      ruleset: DEFAULT_NEW_CYCLE_RULESET,
       registrationStartedAt,
       registrationEndsAt: schedule.registrationEndsAt,
       testingStartedAt: schedule.testingStartedAt,

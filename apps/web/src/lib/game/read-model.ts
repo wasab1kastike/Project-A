@@ -93,8 +93,9 @@ import {
 import {
   getNeutralPressureClaimWinner,
   getPressureTargetBlockedReason,
-  TILE_PRESSURE_CLAIM_THRESHOLD,
+  getTilePressureClaimThreshold,
 } from "./tile-pressure";
+import { isSeasonFourRuleset } from "./rulesets";
 
 export type HomePageState = Awaited<ReturnType<typeof getHomePageState>>;
 
@@ -859,6 +860,7 @@ export async function getHomePageState({
               id: true,
               name: true,
               commanderName: true,
+              fortressKind: true,
               army: true,
               health: true,
               maxHealth: true,
@@ -999,6 +1001,22 @@ export async function getHomePageState({
         "No unresolved cycle exists yet. Run the seed flow to bootstrap registration.",
     };
   }
+
+  const isSeasonFour = isSeasonFourRuleset(cycle.ruleset);
+  const pressureClaimThreshold = getTilePressureClaimThreshold(isSeasonFour);
+  const homeMonumentReason =
+    "The center monument is inaccessible in Season 4.";
+  const homeTileBonus = isSeasonFour
+    ? {
+        gold: 0,
+        points: 0,
+        food: 0,
+        army: 0,
+        population: 0,
+        defensePercent: 0,
+        label: "Monument: inaccessible",
+      }
+    : getHomeOfABonus();
 
   const playerFortresses = cycle.fortresses.filter(
     (fortress) => !fortress.isNpc
@@ -1939,6 +1957,13 @@ export async function getHomePageState({
     .slice(0, 5);
   const visibleFortresses = cycle.fortresses.filter((fortress) => {
     if (
+      isSeasonFour &&
+      fortress.fortressKind !== FortressKind.PLAYER
+    ) {
+      return false;
+    }
+
+    if (
       fortress.fortressKind === FortressKind.LOOT_CAMP ||
       fortress.fortressKind === FortressKind.DWARF_RUNE
     ) {
@@ -2268,6 +2293,7 @@ export async function getHomePageState({
     isCurrentUser: boolean;
   }> = [];
   const canAttackHomeOfA =
+    !isSeasonFour &&
     gameplayOpen &&
     playerFortress !== null &&
     playerFortress.army > 0 &&
@@ -2419,7 +2445,7 @@ export async function getHomePageState({
     const pressureLeaderFortressId =
       getNeutralPressureClaimWinner({
         states,
-        threshold: TILE_PRESSURE_CLAIM_THRESHOLD,
+        threshold: pressureClaimThreshold,
       }) ?? leader?.fortressId ?? null;
     const pressureLeaderLabel =
       pressureLeaderFortressId === null
@@ -2479,7 +2505,7 @@ export async function getHomePageState({
       pressurePriority: pressurePriorityTileIds.has(tile.id),
       pressurePlayerProgress: ownState?.pressure ?? null,
       pressureProgress: ownState?.pressure ?? leader?.pressure ?? null,
-      pressureThreshold: TILE_PRESSURE_CLAIM_THRESHOLD,
+      pressureThreshold: pressureClaimThreshold,
       pressureLeaderFortressId,
       pressureLeaderLabel,
       canPrioritizePressure: pressurePriorityDisabledReason === null,
@@ -2570,7 +2596,7 @@ export async function getHomePageState({
             "That map tile cannot receive pressure.",
         };
     const bonus = isHomeOwnership
-      ? getHomeOfABonus()
+      ? homeTileBonus
       : getTileBonus(tile, {
           tileId: ownership.tileId,
           cycleId: cycle.id,
@@ -2592,7 +2618,9 @@ export async function getHomePageState({
           : ownership.ownerFortress.race,
       ownerName:
         isHomeOwnership && !homeOwnershipHasActiveControl
-          ? "Neutral"
+          ? isSeasonFour
+            ? "Monument"
+            : "Neutral"
           : ownership.ownerFortress.name,
       ownerCommanderName:
         isHomeOwnership && !homeOwnershipHasActiveControl
@@ -2613,7 +2641,9 @@ export async function getHomePageState({
           : getTileFortifyDisabledReason(ownership) === null,
       fortifyDisabledReason:
         isHomeOwnership
-          ? "Home of A is a daily boss and cannot be fortified."
+          ? isSeasonFour
+            ? homeMonumentReason
+            : "Home of A is a daily boss and cannot be fortified."
           : getTileFortifyDisabledReason(ownership),
       isConnectedToPlayerTerritory: pressureState.isConnectedToPlayerTerritory,
       pressurePriority: pressureState.pressurePriority,
@@ -2629,7 +2659,9 @@ export async function getHomePageState({
         activeBattlefieldByTileId.get(ownership.tileId)?.id ?? null,
       attackDisabledReason:
         isHomeOwnership
-          ? canAttackHomeOfA
+          ? isSeasonFour
+            ? homeMonumentReason
+            : canAttackHomeOfA
             ? null
             : !gameplayOpen
               ? "Home of A can only be attacked during gameplay."
@@ -2690,13 +2722,15 @@ export async function getHomePageState({
       claimedAt: null,
       ownerFortressId: null,
       ownerRace: null,
-      ownerName: "Neutral",
-      ownerCommanderName: "Home of A",
+      ownerName: isSeasonFour ? "Monument" : "Neutral",
+      ownerCommanderName: isSeasonFour ? "Monument of A" : "Home of A",
       isCurrentUser: false,
       hasActiveBattle: false,
       canAttack: canAttackHomeOfA,
       canFortify: false,
-      fortifyDisabledReason: "Home of A is a daily boss and cannot be fortified.",
+      fortifyDisabledReason: isSeasonFour
+        ? homeMonumentReason
+        : "Home of A is a daily boss and cannot be fortified.",
       isConnectedToPlayerTerritory: false,
       pressurePriority: false,
       pressurePlayerProgress: null,
@@ -2706,9 +2740,13 @@ export async function getHomePageState({
       pressureLeaderLabel: null,
       canPrioritizePressure: false,
       pressurePriorityDisabledReason:
-        "Home of A is a daily boss and cannot receive expansion pressure.",
+        isSeasonFour
+          ? homeMonumentReason
+          : "Home of A is a daily boss and cannot receive expansion pressure.",
       activeBattlefieldId: null,
-      attackDisabledReason: canAttackHomeOfA
+      attackDisabledReason: isSeasonFour
+        ? homeMonumentReason
+        : canAttackHomeOfA
         ? null
         : !gameplayOpen
           ? "Home of A can only be attacked during gameplay."
@@ -2719,7 +2757,7 @@ export async function getHomePageState({
               : homeRespawnsAt && homeRespawnsAt > now
                 ? "Home of A is defeated and waiting to respawn."
                 : "Home of A is not attackable right now.",
-      bonus: getHomeOfABonus(),
+      bonus: homeTileBonus,
       isHomeOfA: true,
       pointIncome: null,
       holders: [],
@@ -3323,29 +3361,37 @@ export async function getHomePageState({
       pointIncome: 0,
       status: homeStatus,
       statusLabel:
-        homeStatus === "ALIVE"
+        isSeasonFour
+          ? "Monument: inaccessible in Season 4"
+          : homeStatus === "ALIVE"
           ? `Boss alive: ${homeBoss?.health ?? 0}/${homeBoss?.maxHealth ?? 0} HP`
           : homeRespawnsAt && homeRespawnsAt > now
             ? `Defeated. Respawns at ${formatHelsinkiTime(homeRespawnsAt)}`
             : "Respawning soon",
-      incomeLabel: `Kill reward: ${homeReward} points, food, and army`,
-      drainLabel: "Killer receives a 12h +25% combat and economy buff",
-      neutralDefenseArmy: homeBoss?.health ?? 0,
+      incomeLabel: isSeasonFour
+        ? "No interaction or reward"
+        : `Kill reward: ${homeReward} points, food, and army`,
+      drainLabel: isSeasonFour
+        ? "Preserved as a historical landmark"
+        : "Killer receives a 12h +25% combat and economy buff",
+      neutralDefenseArmy: isSeasonFour ? 0 : homeBoss?.health ?? 0,
       holderCount: 0,
       ownerFortressId: null,
-      ownerName: "Home of A",
-      ownerCommanderName: "Home of A",
+      ownerName: isSeasonFour ? "Monument" : "Home of A",
+      ownerCommanderName: isSeasonFour ? "Monument of A" : "Home of A",
       bannerFortressId: null,
       bannerName: null,
       isCurrentUserHolder: false,
       holders: homeHolders,
       activeBattlefieldId: null,
-      bossHealth: homeBoss?.health ?? 0,
-      bossMaxHealth: homeBoss?.maxHealth ?? 0,
-      bossReward: homeReward,
-      respawnsAt: homeRespawnsAt,
+      bossHealth: isSeasonFour ? 0 : homeBoss?.health ?? 0,
+      bossMaxHealth: isSeasonFour ? 0 : homeBoss?.maxHealth ?? 0,
+      bossReward: isSeasonFour ? 0 : homeReward,
+      respawnsAt: isSeasonFour ? null : homeRespawnsAt,
       canAttack: canAttackHomeOfA,
-      attackDisabledReason: canAttackHomeOfA
+      attackDisabledReason: isSeasonFour
+        ? homeMonumentReason
+        : canAttackHomeOfA
         ? null
         : !gameplayOpen
           ? "Home of A can only be attacked during gameplay."
@@ -3358,7 +3404,15 @@ export async function getHomePageState({
                 : "Home of A is not attackable right now.",
     },
     battlefields: mapActiveBattlefields({
-      battlefields: cycle.battlefields,
+      battlefields: isSeasonFour
+        ? cycle.battlefields.filter(
+            (battlefield) =>
+              !isHomeOfATile(battlefield.targetTileId ?? "") &&
+              (!battlefield.targetFortress ||
+                battlefield.targetFortress.fortressKind ===
+                  FortressKind.PLAYER)
+          )
+        : cycle.battlefields,
       cycleId: cycle.id,
       gameplayOpen,
       now,

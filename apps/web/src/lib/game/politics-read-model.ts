@@ -8,6 +8,7 @@ import {
   findDiplomacyRelationForPair,
   getPoliticsRelationPresentation,
 } from "./politics";
+import { isSeasonFourRuleset } from "./rulesets";
 
 function getMinutesUntil(from: Date, to: Date | null | undefined) {
   if (!to || to <= from) {
@@ -54,6 +55,7 @@ export async function getPoliticsPageState({
     },
     select: {
       id: true,
+      ruleset: true,
       status: true,
       testingEndsAt: true,
       activeEndsAt: true,
@@ -100,6 +102,15 @@ export async function getPoliticsPageState({
     return {
       canUsePolitics: false,
       disabledReason: "Politics opens during active gameplay.",
+      playerFortress: null,
+      rows: [],
+    };
+  }
+
+  if (!isSeasonFourRuleset(cycle.ruleset)) {
+    return {
+      canUsePolitics: false,
+      disabledReason: "Politics & Trade opens with the Season 4 ruleset.",
       playerFortress: null,
       rows: [],
     };

@@ -18,6 +18,11 @@ enum CycleStatus {
   RESOLUTION
 }
 
+enum CycleRuleset {
+  LEGACY
+  SEASON_4
+}
+
 enum FortressAction {
   GROW
   ATTACK
@@ -271,6 +276,7 @@ model VerificationToken {
 model Cycle {
   id                             String                          @id @default(cuid())
   status                         CycleStatus                     @default(REGISTRATION)
+  ruleset                        CycleRuleset                    @default(LEGACY)
   registrationStartedAt          DateTime
   registrationEndsAt             DateTime
   testingStartedAt               DateTime?

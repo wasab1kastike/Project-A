@@ -15,6 +15,7 @@ import {
   CastleUpgradeSpecialization,
   ChatMessageType,
   CommunityWishStatus,
+  CycleRuleset,
   CycleStatus,
   DiplomacyRelationStatus,
   DwarfDeepMiningOutcome,
@@ -39,6 +40,7 @@ import "./leaderboard-titles.test";
 import "./politics.test";
 import "./season-announcement.test";
 import "./season-schedule.test";
+import "./rulesets.test";
 import "./tile-pressure.test";
 import {
   forceEndCurrentCycle,
@@ -1086,6 +1088,7 @@ test("pressure priority automatically claims neutral tile and applies tick bonus
       points: 100,
     },
   ]);
+  await markSeasonFourCycle(prisma, cycle.id);
   const fortress = await prisma.fortress.findUniqueOrThrow({
     where: {
       cycleId_ownerId: {
@@ -1219,6 +1222,7 @@ test("pressure tick clears stale enemy-owned priority and avoids enemy pressure"
       points: 100,
     },
   ]);
+  await markSeasonFourCycle(prisma, cycle.id);
   const [attackerFortress, defenderFortress] = await Promise.all([
     prisma.fortress.findUniqueOrThrow({
       where: {
@@ -1342,6 +1346,7 @@ test("politics war and peace use one canonical relation", async (context) => {
       points: 100,
     },
   ]);
+  await markSeasonFourCycle(prisma, cycle.id);
   const [alphaFortress, betaFortress] = await Promise.all([
     prisma.fortress.findUniqueOrThrow({
       where: {
@@ -1509,6 +1514,7 @@ test("alliances escrow trust deposits and betrayal compensates the harmed ally",
       points: 100,
     },
   ]);
+  await markSeasonFourCycle(prisma, cycle.id);
   const [alphaFortress, betaFortress] = await Promise.all([
     prisma.fortress.update({
       where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: alpha.id } },
@@ -1852,6 +1858,7 @@ test("politics gates block allied tile attacks and pressure priorities", async (
       points: 100,
     },
   ]);
+  await markSeasonFourCycle(prisma, cycle.id);
   const [attackerFortress, defenderFortress] = await Promise.all([
     prisma.fortress.findUniqueOrThrow({
       where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: attacker.id } },
@@ -1960,6 +1967,7 @@ test("politics gates delay war attacks until the warning finishes", async (conte
       points: 100,
     },
   ]);
+  await markSeasonFourCycle(prisma, cycle.id);
   const [attackerFortress, defenderFortress] = await Promise.all([
     prisma.fortress.findUniqueOrThrow({
       where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: attacker.id } },
@@ -5384,6 +5392,7 @@ test("Home of A is centered and cannot be neutral claimed", async (context) => {
   assert.equal(home.mapX, position.mapX);
   assert.equal(home.mapY, position.mapY);
   assert.equal(home.army, HOME_OF_A_NEUTRAL_DEFENSE);
+  await markSeasonFourCycle(prisma, cycle.id);
   await assert.rejects(
     () =>
       setTilePressurePriority({
@@ -9989,6 +9998,13 @@ async function createUser(client: PrismaClient, email: string) {
       email,
       name: email,
     },
+  });
+}
+
+async function markSeasonFourCycle(client: PrismaClient, cycleId: string) {
+  await client.cycle.update({
+    where: { id: cycleId },
+    data: { ruleset: CycleRuleset.SEASON_4 },
   });
 }
 

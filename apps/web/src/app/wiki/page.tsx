@@ -51,34 +51,20 @@ import { TILE_PRESSURE_CLAIM_THRESHOLD } from "@/lib/game/tile-pressure";
 
 const RACE_ABILITY_NOTES: Record<string, readonly string[]> = {
   DWARFS: [
-    "Tier 1 (3 mountains): Grudge Book unlocks. Pick or replace one enemy fortress and gain +25% attack and defense against that target in direct combat and tile battles.",
-    "Tier 2 (6 mountains): Add a second grudge target or double your first target for a total x1.5 grudge multiplier against that one enemy.",
-    "Deep Mining: once every 60 minutes during active season. Commit 150-600 gold, then wait 10/20/30 minutes based on commitment size. Unresolved expeditions show as Pending; timed effects start only after the expedition resolves and then last one hour.",
-    "Deep Mining roll table favors gold, food, recruitment bursts, combat surge, army gains/losses, production halts, and partial gold loss. Rune suppression no longer comes from Deep Mining.",
-    "Rune of Grudges: Tier 2 active ability (6 mountains). Pay 250 gold upfront and 25 gold per tick upkeep for up to 6 hours to raise an attackable Dwarf rune that suppresses a single enemy fortress until the rune dies or upkeep fails.",
+    "Pressure workers use the Beer Culture label.",
+    "Legacy Grudge, Rune, and Deep Mining controls are unavailable in Season 4 pretesting while passive doctrines are prepared.",
   ],
   UNSTABLE_UNICORNS: [
-    "Tier 1: Enemies cannot see your army size while your units are in transit.",
-    "Tier 1+ (3 marsh/forest): Faster attack travel from Unicorn speed tech.",
-    "Tier 1+ (3 marsh/forest): Claim one free teleport token per hour.",
-    "Tier 2 (6 marsh/forest): Shattered Reality unlocks once per Helsinki day and rolls a positive random boon. Recent rolls are shown in Castle history.",
-    "Mirror Host immediately adds +20% idle army and +25% current garrison army.",
-    "Prismatic Surge grants one hour of +25% attack and defense power.",
-    "Lucky Gallop grants one hour of +50% gold, food, and recruitment processing.",
-    "Using a free teleport leaves attackable decoy castles behind. For other players, decoys look like normal player fortresses. Decoys collapse when hit and can destroy part of the attacking army.",
+    "Pressure workers use the Glitter Distribution label.",
+    "Legacy teleport and Shattered Reality controls are unavailable in Season 4 pretesting while passive doctrines are prepared.",
   ],
   SPACE_MURINES: [
-    "Tier 1+ (3 sea/coast): STIM unlocks (1 hour, once per Helsinki day). During STIM, your outgoing attacks keep all sent troops and attacks against you cause no defender losses.",
-    "Tier 2+ (6 sea/coast): First Instant Recall each Helsinki hour returns immediately, losing 5% of sent troops, minimum 1.",
-    `Attack slots scale as ${MAX_SIMULTANEOUS_ATTACKS_BASE} + 2 x castle level.`,
+    "Pressure workers use the Imperial Faith label.",
+    "Legacy STIM controls are unavailable in Season 4 pretesting while passive doctrines are prepared.",
   ],
   ORKS: [
-    "Scrap: ORKS earn Scrap from successful raids, tile battle wins, Home of A boss kills, and loot camp destruction.",
-    "Boss Orders: spend Scrap and gold on one active short-term order at a time: More Dakka, Loot Wagons, or Patch Da Fort.",
-    "Scrap-Fueled WAAAGH: while WAAAGH is active, spend Scrap once per investment to extend it, boost attack power, or improve Stronger Together.",
-    "Tier 1: Stronger Together — 15% of killed defenders join your idle army after each successful raid.",
-    "Tier 2+ (6 plains/lake): WAAAGH unlocks (once per day, lasts 1 hour) — x4 attack and defense power, 2x movement speed.",
-    "Passive economy/combat identity: +6 carry capacity per surviving attacker, +1 army per 10 recruiters.",
+    "Pressure workers use the Scavenge Mob label.",
+    "Legacy WAAAGH, Scrap, and Boss Order controls are unavailable in Season 4 pretesting while passive doctrines are prepared.",
   ],
 };
 
@@ -99,10 +85,7 @@ const CASTLE_SPECIALIZATIONS = [
 
 const ATTACK_MULTIPLIERS = [
   "Base PvP/PvE battle power: sent army x 1.",
-  "ORKS WAAAGH (T2): x4 attack and defense power, 2x movement speed while active. Scrap can extend or intensify a current WAAAGH.",
-  "Dwarf Grudge Book: x1.25 attack and defense power against the chosen player target.",
-  "Dwarf tier 2 doubled grudge: x1.5 attack and defense power against that player target.",
-  "Unicorn Prismatic Surge: x1.25 attack and defense power for one hour.",
+  "Legacy race active-ability multipliers do not run in the Season 4 ruleset.",
   "Butcher title: +10% attack power only.",
 ] as const;
 
@@ -116,14 +99,12 @@ const PVP_FORMULAS = [
 ] as const;
 
 const PVE_FORMULAS = [
-  `Fortress health damage per surviving hit = sent army x (${BASE_FORTRESS_ATTACK_DAMAGE} + attacker castle level x ${FORTRESS_ATTACK_DAMAGE_PER_LEVEL}).`,
-  "Attacker castle level affects PvE health damage, not the initial army-vs-army battle power check.",
-  "Loot camps first compare attack power against the camp defending army. If the attacker wins, the camp loses health.",
-  `${MEGA_FORTRESS_NAME} is attacked through the center map tile as a daily boss with scaling HP and a 24-hour respawn.`,
+  "Season 4 pretesting has no live Home of A or loot-camp PvE targets.",
+  "Resolved legacy seasons retain their boss and camp reports for history.",
 ] as const;
 
 const homeOfALore =
-  "Home of A is the center-map daily boss. Armies damage it through the center tile, and the top damage dealer when it dies earns resources plus a temporary combat and economy buff.";
+  "The former Home of A center tile is preserved as an inaccessible Season 4 monument. It cannot be owned, pressured, fortified, or attacked.";
 
 const SEASON_FLOW = [
   {
@@ -153,17 +134,16 @@ const QUICKSTART_STEPS = [
   "Open Castle > Economy and assign workers immediately. Idle population is wasted tempo.",
   `Recruit army from the Castle page when you are ready to spend gold. Each unit costs ${RECRUITMENT_COST_PER_UNIT} gold up front and waits in your queue.`,
   "Keep recruiters assigned if you want queued army to finish quickly. Recruiters process the queue; they do not mint free army by themselves.",
-  "Watch the map for temporary loot camps. They expire fast but can pay food, gold, or army.",
   "Scout your first target before sending a huge army. Ties go to defender.",
   "Do not spend all gold on one thing. Keep a reserve for rename and upgrades.",
-  "Watch the center tile. Home of A boss rewards can swing a close season.",
+  "The center monument is inaccessible in Season 4; expand around it through pressure priorities.",
 ] as const;
 
 const SEASON_START_STEPS = [
   "Pick your race early. Race is locked for the whole season, so your first choice defines your economy and combat style.",
   "Assign pressure workers and prioritize connected neutral land. Ten focused pressure workers reach an uncontested claim in about one hour.",
   "Spend enough gold to get army rolling, then keep recruiters assigned so queued units finish on time.",
-  "Use battlefields for contested land, and use the center tile action for Home of A. Both reserve army while units travel.",
+  "Use border battlefields for contested land while standing campaign orders are prepared for a later pretesting slice.",
   "Expect defender wins on equal power. If a fight looks even, the defender keeps the tile or fortress.",
 ] as const;
 
@@ -172,7 +152,7 @@ const WHAT_IS_NEW_THIS_SEASON = [
   "Neutral land claims are timed projects, so expansion is a short planning step rather than an instant click.",
   "Direct attacks and battlefield reinforcements share the same outbound attack limit.",
   "Battlefield sends now feel like real unit launches instead of abstract joins.",
-  "Home of A is now a center daily boss attacked through the tile action rather than a normal claim.",
+  "The former Home of A tile is now an inaccessible monument in the Season 4 ruleset.",
 ] as const;
 
 const RACE_TOKENS = [
@@ -202,7 +182,7 @@ const RACE_TOKENS = [
     tokenSrc: "/assets/token-orks.png",
     role: "Scrap tempo",
     opening:
-      "Win fights, bank Scrap, and convert momentum into Boss Orders and WAAAGH pressure.",
+      "Turn border pressure into aggressive campaigns once standing doctrines arrive.",
   },
 ] as const;
 
@@ -273,7 +253,7 @@ const TILE_CONTROL_RULES = [
   "Unsupported pressure decays by 10% per completed hour, so abandoned pushes lose momentum.",
   "A pressure target must be connected to your castle tile or your existing owned territory.",
   `Temporary map objectives rotate every ${TEMPORARY_MAP_OBJECTIVE_INTERVAL_HOURS} hours and add bonus point income to selected normal tiles while active.`,
-  "Home of A cannot be claimed or fortified. It must be attacked through the center tile as a daily boss.",
+  "The center monument cannot be claimed, pressured, fortified, or attacked in Season 4.",
 ] as const;
 
 const POLITICS_RULES = [
@@ -771,40 +751,21 @@ export default function WikiPage() {
 
         <article className={styles.card}>
           <span className={styles.sectionLabel}>Home of A</span>
-          <h2>Center daily boss</h2>
+          <h2>Center monument</h2>
           <p>{homeOfALore}</p>
           <ul className={styles.noteList}>
             <li>Always sits on center tile {HOME_OF_A_TILE_ID}.</li>
             <li>
-              Boss HP starts at {getHomeOfABossHealth(0)} and scales to{" "}
-              {getHomeOfABossHealth(1)}, {getHomeOfABossHealth(2)},{" "}
-              {getHomeOfABossHealth(3)}, then +50,000 per later kill.
+              It has no live health, reward, buff, respawn, or battlefield
+              interaction in Season 4.
             </li>
             <li>
-              The top damage dealer on kill receives{" "}
-              {getHomeOfABossReward(getHomeOfABossHealth(0))} points, food, and
-              army on the first kill; later rewards are boss max HP / 4.
+              Loot camps are also retired from live Season 4 gameplay and
+              cannot spawn or be targeted.
             </li>
             <li>
-              Attacks open or reinforce a center-tile boss battle. Damage is
-              applied over battlefield ticks, and Home of A only falls when its
-              HP reaches 0.
-            </li>
-            <li>
-              The reward winner also receives a {HOME_OF_A_BOSS_BUFF_HOURS}
-              -hour +25% combat and economy buff.
-            </li>
-            <li>
-              When Home of A falls, global chat announces the top damage dealer,
-              reward, buff, and respawn timer.
-            </li>
-            <li>
-              After death, Home of A cannot be attacked until it respawns{" "}
-              {HOME_OF_A_BOSS_RESPAWN_HOURS} hours later.
-            </li>
-            <li>
-              Home of A does not create ownership, holder drain, or garrison
-              defense.
+              Prior-season boss and loot-camp records remain visible in
+              historical reporting.
             </li>
           </ul>
         </article>
@@ -848,15 +809,8 @@ export default function WikiPage() {
                   <li key={entry}>{entry}</li>
                 ))}
                 <li>
-                  Space Murine STIM changes casualties and defender losses, but
-                  does not increase attack power.
-                </li>
-                <li>
-                  Units killed come from direct attacks and battlefields. Boss
-                  HP damage against {MEGA_FORTRESS_NAME} does not count.
-                </li>
-                <li>
-                  Goblins killed count final blows on loot camps.
+                  Season 4 combat no longer applies stored boss or active race
+                  ability buffs.
                 </li>
                 <li>
                   Unstable Unicorn speed changes travel time and visibility, not

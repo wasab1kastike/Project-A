@@ -78,6 +78,7 @@ type PlayerSummary = {
   farmersAssigned: number;
   recruitersAssigned: number;
   pressureWorkersAssigned: number;
+  legacyAbilitiesEnabled: boolean;
   race: string | null;
   canSelectRace: boolean;
   raceSelectionLockedReason: string | null;
@@ -1171,7 +1172,8 @@ export function CastleManagement({
                 ? `${RACE_TIER_THRESHOLDS_LABEL}. Required biomes: ${RACE_TIER_BIOME_REQUIREMENTS[playerSummary.race]}.`
                 : "control 3/6/9 tiles of your race biomes."}
             </p>
-            {playerSummary.race === "ORKS" ? (
+            {playerSummary.legacyAbilitiesEnabled &&
+            playerSummary.race === "ORKS" ? (
               <div className={styles.buildingGrid}>
                 <article className={styles.buildingCard}>
                   <div className={styles.buildingCardHeader}>
@@ -1290,7 +1292,8 @@ export function CastleManagement({
                 </article>
               </div>
             ) : null}
-            {playerSummary.race === "SPACE_MURINES" ? (
+            {playerSummary.legacyAbilitiesEnabled &&
+            playerSummary.race === "SPACE_MURINES" ? (
               <form action={activateStimFormAction}>
                 <button
                   type="submit"
@@ -1300,7 +1303,8 @@ export function CastleManagement({
                 </button>
               </form>
             ) : null}
-            {playerSummary.race === "UNSTABLE_UNICORNS" ? (
+            {playerSummary.legacyAbilitiesEnabled &&
+            playerSummary.race === "UNSTABLE_UNICORNS" ? (
               <>
                 <form action={activateUnicornShatteredRealityFormAction}>
                   <button
@@ -1395,7 +1399,8 @@ export function CastleManagement({
                 )}
               </>
             ) : null}
-            {playerSummary.race === "DWARFS" ? (
+            {playerSummary.legacyAbilitiesEnabled &&
+            playerSummary.race === "DWARFS" ? (
               <div className={styles.buildingGrid}>
                 <article className={styles.buildingCard}>
                   <div className={styles.buildingCardHeader}>

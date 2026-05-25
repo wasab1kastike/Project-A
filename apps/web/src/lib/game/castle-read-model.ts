@@ -45,6 +45,7 @@ import {
   ensureHomeOfABossSchema,
   ensureRaceSchemaReadiness,
 } from "./schema-guards";
+import { isSeasonFourRuleset } from "./rulesets";
 
 const BUILDING_SPECIALIZATIONS = [
   CastleUpgradeSpecialization.DEFENSE,
@@ -363,6 +364,8 @@ export async function getCastlePageState({
       availableTargets: [],
     };
   }
+
+  const isSeasonFour = isSeasonFourRuleset(cycle.ruleset);
 
   const playerFortresses = cycle.fortresses.filter(
     (fortress) => !fortress.isNpc
@@ -789,6 +792,7 @@ export async function getCastlePageState({
           farmersAssigned: playerFortress.farmersAssigned,
           recruitersAssigned: playerFortress.recruitersAssigned,
           pressureWorkersAssigned: playerFortress.pressureWorkersAssigned,
+          legacyAbilitiesEnabled: !isSeasonFour,
           race: playerFortress.race,
           canSelectRace,
           raceSelectionLockedReason: raceSelectionLockedByCommunityWish

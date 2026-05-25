@@ -8,6 +8,7 @@ export {
   CastleUpgradeSpecialization,
   ChatMessageType,
   CommunityWishStatus,
+  CycleRuleset,
   CycleStatus,
   DiplomacyRelationStatus,
   DwarfDeepMiningOutcome,

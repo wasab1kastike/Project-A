@@ -1,6 +1,7 @@
 import {
   CastleUpgradeSpecialization,
   CommunityWishStatus,
+  CycleRuleset,
   CycleStatus,
   FortressAction,
   FortressKind,
@@ -112,6 +113,7 @@ import {
   getEffectiveDiplomacyStatus,
   getWarStartsAt,
 } from "./politics";
+import { isSeasonFourRuleset } from "./rulesets";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -354,6 +356,18 @@ function getCurrentCycle(db: DatabaseClient = prisma) {
       createdAt: "desc",
     },
   });
+}
+
+function assertSeasonFourFeatureCycle(cycle: { ruleset: CycleRuleset }) {
+  if (!isSeasonFourRuleset(cycle.ruleset)) {
+    throw new GameError("This feature is available only in Season 4 pretesting.");
+  }
+}
+
+function assertLegacyAbilityCycle(cycle: { ruleset: CycleRuleset }) {
+  if (isSeasonFourRuleset(cycle.ruleset)) {
+    throw new GameError("Active race abilities are retired in Season 4.");
+  }
 }
 
 function isJoinOpen(
@@ -936,6 +950,13 @@ export async function setFortressAction({
       );
     }
 
+    if (
+      isSeasonFourRuleset(cycle.ruleset) &&
+      target.fortressKind !== FortressKind.PLAYER
+    ) {
+      throw new GameError("Legacy PvE targets are not available in Season 4.");
+    }
+
     if (target.fortressKind === FortressKind.MEGA) {
       throw new GameError("Attack Home of A through the center map tile.");
     }
@@ -1119,6 +1140,8 @@ export async function setTilePressurePriority({
       throw new GameError("The current cycle is not accepting expansion priorities.");
     }
 
+    assertSeasonFourFeatureCycle(cycle);
+
     const fortress = await tx.fortress.findUnique({
       where: {
         cycleId_ownerId: {
@@ -1250,6 +1273,8 @@ export async function clearTilePressurePriority({
       throw new GameError("There is no active cycle.");
     }
 
+    assertSeasonFourFeatureCycle(cycle);
+
     const fortress = await tx.fortress.findUnique({
       where: {
         cycleId_ownerId: {
@@ -1372,6 +1397,8 @@ export async function proposeAlliance({
       throw new GameError("Politics can only change during gameplay.");
     }
 
+    assertSeasonFourFeatureCycle(cycle);
+
     const actor = await getActivePlayerFortressForPolitics({
       tx,
       cycleId: cycle.id,
@@ -1451,6 +1478,8 @@ export async function acceptAlliance({
     if (!cycle || !isGameplayWindowOpen(cycle, now)) {
       throw new GameError("Politics can only change during gameplay.");
     }
+
+    assertSeasonFourFeatureCycle(cycle);
 
     const actor = await getActivePlayerFortressForPolitics({
       tx,
@@ -1546,6 +1575,8 @@ export async function proposeAllianceTrustUpgrade({
       throw new GameError("Politics can only change during gameplay.");
     }
 
+    assertSeasonFourFeatureCycle(cycle);
+
     const actor = await getActivePlayerFortressForPolitics({
       tx,
       cycleId: cycle.id,
@@ -1606,6 +1637,8 @@ export async function acceptAllianceTrustUpgrade({
     if (!cycle || !isGameplayWindowOpen(cycle, now)) {
       throw new GameError("Politics can only change during gameplay.");
     }
+
+    assertSeasonFourFeatureCycle(cycle);
 
     const actor = await getActivePlayerFortressForPolitics({
       tx,
@@ -1702,6 +1735,8 @@ export async function betrayAlliance({
       throw new GameError("Politics can only change during gameplay.");
     }
 
+    assertSeasonFourFeatureCycle(cycle);
+
     const actor = await getActivePlayerFortressForPolitics({
       tx,
       cycleId: cycle.id,
@@ -1773,6 +1808,8 @@ export async function declareWar({
     if (!cycle || !isGameplayWindowOpen(cycle, now)) {
       throw new GameError("Politics can only change during gameplay.");
     }
+
+    assertSeasonFourFeatureCycle(cycle);
 
     const actor = await getActivePlayerFortressForPolitics({
       tx,
@@ -1887,6 +1924,8 @@ export async function proposePeace({
       throw new GameError("Politics can only change during gameplay.");
     }
 
+    assertSeasonFourFeatureCycle(cycle);
+
     const actor = await getActivePlayerFortressForPolitics({
       tx,
       cycleId: cycle.id,
@@ -1956,6 +1995,8 @@ export async function acceptPeace({
     if (!cycle || !isGameplayWindowOpen(cycle, now)) {
       throw new GameError("Politics can only change during gameplay.");
     }
+
+    assertSeasonFourFeatureCycle(cycle);
 
     const actor = await getActivePlayerFortressForPolitics({
       tx,
@@ -2029,6 +2070,10 @@ export async function attackMapHex({
 
     if (!cycle || !isGameplayWindowOpen(cycle, now)) {
       throw new GameError("The current cycle is not accepting tile attacks.");
+    }
+
+    if (isSeasonFourRuleset(cycle.ruleset) && isHomeOfATile(tileId)) {
+      throw new GameError("The center monument cannot be attacked in Season 4.");
     }
 
     const tile = getTileById(tileId);
@@ -2673,6 +2718,35 @@ export async function joinBattlefield({
     side === BattlefieldSide.DEFENDER
       ? BattlefieldSide.DEFENDER
       : BattlefieldSide.ATTACKER;
+  const cycle = await getCurrentCycle(db);
+
+  if (cycle && isSeasonFourRuleset(cycle.ruleset)) {
+    const battlefield = await db.battlefield.findFirst({
+      where: {
+        id: battlefieldId,
+        cycleId: cycle.id,
+      },
+      select: {
+        targetTileId: true,
+        targetFortress: {
+          select: {
+            fortressKind: true,
+          },
+        },
+      },
+    });
+
+    if (
+      battlefield &&
+      (isHomeOfATile(battlefield.targetTileId ?? "") ||
+        (battlefield.targetFortress &&
+          battlefield.targetFortress.fortressKind !== FortressKind.PLAYER))
+    ) {
+      throw new GameError(
+        "Legacy PvE battlefields are not available in Season 4."
+      );
+    }
+  }
 
   return joinBattlefieldRecord({
     db,
@@ -4233,6 +4307,8 @@ export async function chooseDwarfGrudge({
       );
     }
 
+    assertLegacyAbilityCycle(cycle);
+
     const fortress = await tx.fortress.findUnique({
       where: {
         cycleId_ownerId: {
@@ -4342,6 +4418,8 @@ export async function chooseDwarfTierThreeGrudge({
         "Grudge Book is only available during the active season."
       );
     }
+
+    assertLegacyAbilityCycle(cycle);
 
     const fortress = await tx.fortress.findUnique({
       where: {
@@ -4514,6 +4592,8 @@ async function getActiveDwarfRuneOfGrudgesContext({
     );
   }
 
+  assertLegacyAbilityCycle(cycle);
+
   const fortress = await tx.fortress.findUnique({
     where: {
       cycleId_ownerId: {
@@ -4605,6 +4685,8 @@ export async function activateDwarfDeepMining({
           "Deep Mining is only available during the active season."
         );
       }
+
+      assertLegacyAbilityCycle(cycle);
 
       const fortress = await tx.fortress.findUnique({
         where: {
@@ -4743,6 +4825,8 @@ export async function activateDwarfRuneOfGrudges({
         "Rune of Grudges is only available during the active season."
       );
     }
+
+    assertLegacyAbilityCycle(cycle);
 
     const fortress = await tx.fortress.findUnique({
       where: {
@@ -5094,6 +5178,8 @@ export async function activateRaceAbility({
       );
     }
 
+    assertLegacyAbilityCycle(cycle);
+
     const fortress = await tx.fortress.findUnique({
       where: {
         cycleId_ownerId: {
@@ -5213,6 +5299,8 @@ export async function activateOrkBossOrder({
         "Boss Orders are only available during the active season."
       );
     }
+
+    assertLegacyAbilityCycle(cycle);
 
     const fortress = await tx.fortress.findUnique({
       where: {
@@ -5404,6 +5492,8 @@ export async function investOrkWaaaghScrap({
       );
     }
 
+    assertLegacyAbilityCycle(cycle);
+
     const fortress = await tx.fortress.findUnique({
       where: {
         cycleId_ownerId: {
@@ -5529,6 +5619,8 @@ export async function claimUnicornTeleport({
       );
     }
 
+    assertLegacyAbilityCycle(cycle);
+
     const fortress = await tx.fortress.findUnique({
       where: {
         cycleId_ownerId: {
@@ -5634,6 +5726,8 @@ export async function activateUnicornShatteredReality({
         "Shattered Reality is only available during the active season."
       );
     }
+
+    assertLegacyAbilityCycle(cycle);
 
     const fortress = await tx.fortress.findUnique({
       where: {

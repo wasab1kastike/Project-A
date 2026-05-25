@@ -8,6 +8,7 @@ import {
   canPressureTarget,
   getNeutralPressureClaimWinner,
   getPressureTargetBlockedReason,
+  getTilePressureClaimThreshold,
   getPressureWorkerDescription,
   getPressureWorkerLabel,
   TILE_PRESSURE_CLAIM_THRESHOLD,
@@ -62,6 +63,11 @@ test("unsupported pressure decays ten percent per completed hour", () => {
     applyUnsupportedPressureDecay({ pressure: 600, elapsedHours: 2 }),
     486
   );
+});
+
+test("season four pressure pacing does not alter legacy cycle threshold", () => {
+  assert.equal(getTilePressureClaimThreshold(true), 600);
+  assert.equal(getTilePressureClaimThreshold(false), 100);
 });
 
 const baseTargetInput = {
