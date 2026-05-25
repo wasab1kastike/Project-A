@@ -42,6 +42,12 @@
   opacity: 0.52;
 }
 
+.actions button[data-danger="true"] {
+  border-color: rgba(248, 95, 95, 0.42);
+  background: rgba(248, 95, 95, 0.16);
+  color: #ffb5b5;
+}
+
 .eyebrow {
   color: var(--accent-strong);
   font-family: var(--font-ibm-plex-mono);
@@ -136,7 +142,8 @@
 }
 
 .relationChip[data-status="war_pending"],
-.relationChip[data-status="peace_pending"] {
+.relationChip[data-status="peace_pending"],
+.relationChip[data-status="alliance_pending"] {
   border-color: rgba(248, 191, 87, 0.42);
   background: rgba(248, 191, 87, 0.12);
   color: #ffd27a;

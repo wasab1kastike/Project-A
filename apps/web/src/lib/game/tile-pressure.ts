@@ -1,12 +1,20 @@
 import type { FortressRace } from "./races";
 
-export const TILE_PRESSURE_CLAIM_THRESHOLD = 100;
+export const TILE_PRESSURE_CLAIM_THRESHOLD = 600;
+export const LEGACY_TILE_PRESSURE_CLAIM_THRESHOLD = 100;
+export const TILE_PRESSURE_DECAY_PERCENT_PER_HOUR = 10;
+
+export function getTilePressureClaimThreshold(isSeasonFour: boolean) {
+  return isSeasonFour
+    ? TILE_PRESSURE_CLAIM_THRESHOLD
+    : LEGACY_TILE_PRESSURE_CLAIM_THRESHOLD;
+}
 
 const PRESSURE_WORKER_LABELS = {
   DWARFS: "Beer Culture",
   ORKS: "Scavenge Mob",
   SPACE_MURINES: "Imperial Faith",
-  UNSTABLE_UNICORNS: "Magic Pressure",
+  UNSTABLE_UNICORNS: "Glitter Distribution",
 } as const satisfies Record<FortressRace, string>;
 
 const PRESSURE_WORKER_DESCRIPTIONS = {
@@ -41,6 +49,24 @@ export function calculatePressureOutput({
   }
 
   return Math.max(0, Math.floor(pressureWorkersAssigned));
+}
+
+export function applyUnsupportedPressureDecay({
+  pressure,
+  elapsedHours,
+}: {
+  pressure: number;
+  elapsedHours: number;
+}) {
+  let decayedPressure = Math.max(0, Math.floor(pressure));
+
+  for (let hour = 0; hour < Math.max(0, Math.floor(elapsedHours)); hour += 1) {
+    decayedPressure = Math.floor(
+      decayedPressure * (1 - TILE_PRESSURE_DECAY_PERCENT_PER_HOUR / 100)
+    );
+  }
+
+  return decayedPressure;
 }
 
 export function getPressureTargetBlockedReason({

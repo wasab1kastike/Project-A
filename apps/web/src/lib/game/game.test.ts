@@ -10,11 +10,14 @@ import {
   ArcadeCosmeticSlot,
   ArcadeGameType,
   ArcadeLootBoxType,
+  ArmyOrderStatus,
+  ArmyOrderType,
   BattlefieldSide,
   BattlefieldStatus,
   CastleUpgradeSpecialization,
   ChatMessageType,
   CommunityWishStatus,
+  CycleRuleset,
   CycleStatus,
   DiplomacyRelationStatus,
   DwarfDeepMiningOutcome,
@@ -25,6 +28,7 @@ import {
   PrismaClient,
   RaceAbilityKind,
   ScoreEventType,
+  TerritoryCampaignStatus,
   UnicornShatteredRealityOutcome,
   WinnerRequestStatus,
 } from "@/lib/prisma-client";
@@ -35,9 +39,12 @@ import "./battle-report.test";
 import "./battlefield-rules.test";
 import "./combat-targeting.test";
 import "./combat-buffs.test";
+import "./campaigns.test";
 import "./leaderboard-titles.test";
 import "./politics.test";
 import "./season-announcement.test";
+import "./season-schedule.test";
+import "./rulesets.test";
 import "./tile-pressure.test";
 import {
   forceEndCurrentCycle,
@@ -159,17 +166,31 @@ import {
   cancelDwarfRuneOfGrudges,
   claimUnicornTeleport,
   clearTilePressurePriority,
+  acceptAlliance,
+  acceptAllianceTrustUpgrade,
+  cancelAllianceProposal,
+  cancelAllianceTrustUpgrade,
   acceptPeace,
+  activateCasusBelliWar,
   attackMapHex,
   declareWar,
+  betrayAlliance,
   fortifyMapHex,
   joinBattlefield,
   proposePeace,
+  proposeAlliance,
+  proposeAllianceTrustUpgrade,
+  rejectAllianceProposal,
+  rejectAllianceTrustUpgrade,
+  recordDetectedCovertRaid,
   reinforceDwarfRuneOfGrudges,
   torchOccupiedMapHex,
   updateWorkerAssignment,
   shuffleFortressLocation,
   setTilePressurePriority,
+  stationGuardOrder,
+  startTerritoryCampaign,
+  recallArmyOrder,
 } from "./service";
 import { TickRunnerError, classifyTickHealth, runGameTick } from "./tick";
 import { addHours, addMinutes } from "./time";
@@ -1080,6 +1101,7 @@ test("pressure priority automatically claims neutral tile and applies tick bonus
       points: 100,
     },
   ]);
+  await markSeasonFourCycle(prisma, cycle.id);
   const fortress = await prisma.fortress.findUniqueOrThrow({
     where: {
       cycleId_ownerId: {
@@ -1213,6 +1235,7 @@ test("pressure tick clears stale enemy-owned priority and avoids enemy pressure"
       points: 100,
     },
   ]);
+  await markSeasonFourCycle(prisma, cycle.id);
   const [attackerFortress, defenderFortress] = await Promise.all([
     prisma.fortress.findUniqueOrThrow({
       where: {
@@ -1336,6 +1359,7 @@ test("politics war and peace use one canonical relation", async (context) => {
       points: 100,
     },
   ]);
+  await markSeasonFourCycle(prisma, cycle.id);
   const [alphaFortress, betaFortress] = await Promise.all([
     prisma.fortress.findUniqueOrThrow({
       where: {
@@ -1480,6 +1504,230 @@ test("politics war and peace use one canonical relation", async (context) => {
   );
 });
 
+test("alliances escrow trust deposits and betrayal compensates the harmed ally", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const alpha = await createUser(prisma, "alliance-alpha@example.com");
+  const beta = await createUser(prisma, "alliance-beta@example.com");
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: alpha.id,
+      commanderName: "Treaty Alpha",
+      fortressName: "Trust Hall",
+      points: 100,
+    },
+    {
+      userId: beta.id,
+      commanderName: "Treaty Beta",
+      fortressName: "Pact Hall",
+      points: 100,
+    },
+  ]);
+  await markSeasonFourCycle(prisma, cycle.id);
+  const [alphaFortress, betaFortress] = await Promise.all([
+    prisma.fortress.update({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: alpha.id } },
+      data: { gold: 50_000, food: 50_000 },
+    }),
+    prisma.fortress.update({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: beta.id } },
+      data: { gold: 50_000, food: 50_000 },
+    }),
+  ]);
+
+  const proposed = await proposeAlliance({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+    db: prisma,
+  });
+  assert.equal(proposed.status, DiplomacyRelationStatus.ALLIANCE_PENDING);
+  assert.equal(proposed.allianceProposedById, alphaFortress.id);
+
+  const canceled = await cancelAllianceProposal({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    now: new Date("2026-04-20T12:00:10.000Z"),
+    db: prisma,
+  });
+  assert.equal(canceled.status, DiplomacyRelationStatus.NEUTRAL);
+
+  await proposeAlliance({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    now: new Date("2026-04-20T12:00:20.000Z"),
+    db: prisma,
+  });
+  const rejected = await rejectAllianceProposal({
+    userId: beta.id,
+    targetFortressId: alphaFortress.id,
+    now: new Date("2026-04-20T12:00:30.000Z"),
+    db: prisma,
+  });
+  assert.equal(rejected.status, DiplomacyRelationStatus.NEUTRAL);
+
+  await proposeAlliance({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    now: new Date("2026-04-20T12:00:40.000Z"),
+    db: prisma,
+  });
+  const allied = await acceptAlliance({
+    userId: beta.id,
+    targetFortressId: alphaFortress.id,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+    db: prisma,
+  });
+  assert.equal(allied.status, DiplomacyRelationStatus.ALLIED);
+  assert.equal(allied.allianceTrustTier, 1);
+  assert.equal(allied.allianceEscrowGoldEach, 2_000);
+
+  const trustProposal = await proposeAllianceTrustUpgrade({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    now: new Date("2026-04-20T12:02:00.000Z"),
+    db: prisma,
+  });
+  assert.equal(trustProposal.trustUpgradeTier, 2);
+
+  const canceledTrust = await cancelAllianceTrustUpgrade({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    now: new Date("2026-04-20T12:02:10.000Z"),
+    db: prisma,
+  });
+  assert.equal(canceledTrust.trustUpgradeTier, null);
+  await proposeAllianceTrustUpgrade({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    now: new Date("2026-04-20T12:02:20.000Z"),
+    db: prisma,
+  });
+  const rejectedTrust = await rejectAllianceTrustUpgrade({
+    userId: beta.id,
+    targetFortressId: alphaFortress.id,
+    now: new Date("2026-04-20T12:02:30.000Z"),
+    db: prisma,
+  });
+  assert.equal(rejectedTrust.trustUpgradeTier, null);
+  await proposeAllianceTrustUpgrade({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    now: new Date("2026-04-20T12:02:40.000Z"),
+    db: prisma,
+  });
+  const upgraded = await acceptAllianceTrustUpgrade({
+    userId: beta.id,
+    targetFortressId: alphaFortress.id,
+    now: new Date("2026-04-20T12:03:00.000Z"),
+    db: prisma,
+  });
+  assert.equal(upgraded.allianceTrustTier, 2);
+  assert.equal(upgraded.allianceEscrowGoldEach, 10_000);
+  assert.equal(upgraded.allianceEscrowFoodEach, 10_000);
+
+  const balancesBeforeBetrayal = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({ where: { id: alphaFortress.id } }),
+    prisma.fortress.findUniqueOrThrow({ where: { id: betaFortress.id } }),
+  ]);
+  assert.equal(balancesBeforeBetrayal[0].gold, 40_000);
+  assert.equal(balancesBeforeBetrayal[1].gold, 40_000);
+
+  const betrayed = await betrayAlliance({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    now: new Date("2026-04-20T12:04:00.000Z"),
+    db: prisma,
+  });
+  const harmedAlly = await prisma.fortress.findUniqueOrThrow({
+    where: { id: betaFortress.id },
+  });
+
+  assert.equal(betrayed.status, DiplomacyRelationStatus.WAR);
+  assert.equal(betrayed.betrayedById, alphaFortress.id);
+  assert.equal(betrayed.allianceTrustTier, 0);
+  assert.equal(harmedAlly.gold, 60_000);
+  assert.equal(harmedAlly.food, 60_000);
+});
+
+test("detected covert raid grants the victim immediate war through casus belli", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const alpha = await createUser(prisma, "casus-alpha@example.com");
+  const beta = await createUser(prisma, "casus-beta@example.com");
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: alpha.id,
+      commanderName: "Watcher Alpha",
+      fortressName: "Watch Hall",
+      points: 100,
+    },
+    {
+      userId: beta.id,
+      commanderName: "Raider Beta",
+      fortressName: "Veiled Hall",
+      points: 100,
+    },
+  ]);
+  await markSeasonFourCycle(prisma, cycle.id);
+  const [alphaFortress, betaFortress] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: alpha.id } },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: beta.id } },
+    }),
+  ]);
+  const detectedAt = new Date("2026-04-20T12:00:00.000Z");
+  const incidentRelation = await recordDetectedCovertRaid({
+    cycleId: cycle.id,
+    attackerFortressId: betaFortress.id,
+    victimFortressId: alphaFortress.id,
+    now: detectedAt,
+    db: prisma,
+  });
+
+  assert.equal(incidentRelation?.status, DiplomacyRelationStatus.ENEMY);
+  assert.equal(incidentRelation?.casusBelliFortressId, alphaFortress.id);
+  assert.equal(
+    incidentRelation?.casusBelliExpiresAt?.toISOString(),
+    "2026-04-21T12:00:00.000Z"
+  );
+
+  const politicsState = await getPoliticsPageState({
+    userId: alpha.id,
+    now: new Date("2026-04-20T12:05:00.000Z"),
+    db: prisma,
+  });
+  const raiderRow = politicsState.rows.find(
+    (row) => row.fortressId === betaFortress.id
+  );
+
+  assert.equal(raiderRow?.casusBelliBelongsToCurrentPlayer, true);
+  assert.equal(raiderRow?.availableAction, "ACTIVATE_CASUS_BELLI_WAR");
+
+  const war = await activateCasusBelliWar({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    now: new Date("2026-04-20T12:06:00.000Z"),
+    db: prisma,
+  });
+
+  assert.equal(war.status, DiplomacyRelationStatus.WAR);
+  assert.equal(war.warDeclaredById, alphaFortress.id);
+  assert.equal(war.warStartsAt?.toISOString(), "2026-04-20T12:06:00.000Z");
+  assert.equal(war.casusBelliFortressId, null);
+  assert.equal(war.casusBelliExpiresAt, null);
+});
+
 test("owned tile attack creates a targetTileId battlefield", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
@@ -1514,6 +1762,7 @@ test("owned tile attack creates a targetTileId battlefield", async (context) => 
   const tile = HEX_SPAWN_TILES.find(
     (candidate) =>
       candidate.spawnable &&
+      !isHomeOfATile(candidate.id) &&
       isTileConnectedToFortressOrOwnedTiles({
         tileId: candidate.id,
         fortress: attackerFortress,
@@ -1717,10 +1966,10 @@ test("owned tile attack rejects distant non-border tiles", async (context) => {
 
   await assert.rejects(
     () =>
-      attackMapHex({
+      startTerritoryCampaign({
         userId: attacker.id,
         tileId: tile.id,
-        sentArmy: 5,
+        armyAmount: 5,
         now: new Date("2026-04-20T12:01:00.000Z"),
         db: prisma,
       }),
@@ -1728,7 +1977,7 @@ test("owned tile attack rejects distant non-border tiles", async (context) => {
   );
 });
 
-test("politics gates block allied tile attacks and pressure priorities", async (context) => {
+test("politics gates block allied campaigns and pressure priorities", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -1751,6 +2000,7 @@ test("politics gates block allied tile attacks and pressure priorities", async (
       points: 100,
     },
   ]);
+  await markSeasonFourCycle(prisma, cycle.id);
   const [attackerFortress, defenderFortress] = await Promise.all([
     prisma.fortress.findUniqueOrThrow({
       where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: attacker.id } },
@@ -1801,14 +2051,14 @@ test("politics gates block allied tile attacks and pressure priorities", async (
 
   await assert.rejects(
     () =>
-      attackMapHex({
+      startTerritoryCampaign({
         userId: attacker.id,
         tileId: tile.id,
-        sentArmy: 5,
+        armyAmount: 5,
         now: new Date("2026-04-20T12:01:00.000Z"),
         db: prisma,
       }),
-    /Allies cannot attack/
+    /active war/
   );
   await assert.rejects(
     () =>
@@ -1829,14 +2079,14 @@ test("politics gates block allied tile attacks and pressure priorities", async (
   const tileState = state.mapHexes.find((mapHex) => mapHex.tileId === tile.id);
 
   assert.equal(tileState?.canAttack, false);
-  assert.match(tileState?.attackDisabledReason ?? "", /Allies cannot attack/);
+  assert.match(tileState?.campaignDisabledReason ?? "", /active war/);
   assert.match(
     tileState?.pressurePriorityDisabledReason ?? "",
     /Allies cannot pressure/
   );
 });
 
-test("politics gates delay war attacks until the warning finishes", async (context) => {
+test("politics gates delay campaigns until the warning finishes", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -1858,7 +2108,8 @@ test("politics gates delay war attacks until the warning finishes", async (conte
       fortressName: "War Defense Keep",
       points: 100,
     },
-  ]);
+  ], new Date("2026-04-23T12:10:00.000Z"));
+  await markSeasonFourCycle(prisma, cycle.id);
   const [attackerFortress, defenderFortress] = await Promise.all([
     prisma.fortress.findUniqueOrThrow({
       where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: attacker.id } },
@@ -1870,6 +2121,7 @@ test("politics gates delay war attacks until the warning finishes", async (conte
   const tile = HEX_SPAWN_TILES.find(
     (candidate) =>
       candidate.spawnable &&
+      !isHomeOfATile(candidate.id) &&
       isTileConnectedToFortressOrOwnedTiles({
         tileId: candidate.id,
         fortress: attackerFortress,
@@ -1904,25 +2156,167 @@ test("politics gates delay war attacks until the warning finishes", async (conte
 
   await assert.rejects(
     () =>
-      attackMapHex({
+      startTerritoryCampaign({
         userId: attacker.id,
         tileId: tile.id,
-        sentArmy: 5,
+        armyAmount: 5,
         now: new Date("2026-04-20T12:01:00.000Z"),
         db: prisma,
       }),
-    /24-hour warning/
+    /active war/
   );
 
-  const battlefield = await attackMapHex({
+  const campaign = await startTerritoryCampaign({
     userId: attacker.id,
     tileId: tile.id,
-    sentArmy: 5,
+    armyAmount: 5,
     now: relation.warStartsAt ?? new Date("2026-04-21T12:00:00.000Z"),
     db: prisma,
   });
 
-  assert.ok(battlefield.battlefieldId);
+  assert.equal(campaign.status, TerritoryCampaignStatus.BUILDING);
+  assert.equal(campaign.armyOrder.type, ArmyOrderType.CAMPAIGN);
+});
+
+test("season four standing orders commit, recall, and open campaign siege warning", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const attacker = await createUser(prisma, "campaign-attacker@example.com");
+  const defender = await createUser(prisma, "campaign-defender@example.com");
+  const cycle = await seedActiveCommunityWishCycle(
+    prisma,
+    [
+      {
+        userId: attacker.id,
+        commanderName: "Campaign Alpha",
+        fortressName: "Siege Hall",
+        points: 100,
+      },
+      {
+        userId: defender.id,
+        commanderName: "Campaign Beta",
+        fortressName: "Border Hall",
+        points: 100,
+      },
+    ],
+    new Date("2026-04-23T12:10:00.000Z")
+  );
+  await markSeasonFourCycle(prisma, cycle.id);
+  const [attackerFortress, defenderFortress] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: attacker.id } },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: defender.id } },
+    }),
+  ]);
+  const targetTile = HEX_SPAWN_TILES.find(
+    (tile) =>
+      tile.spawnable &&
+      !isHomeOfATile(tile.id) &&
+      isTileConnectedToFortressOrOwnedTiles({
+        tileId: tile.id,
+        fortress: attackerFortress,
+        ownedTileIds: [],
+      })
+  );
+  const guardTile = HEX_SPAWN_TILES.find(
+    (tile) =>
+      tile.spawnable && !isHomeOfATile(tile.id) && tile.id !== targetTile?.id
+  );
+
+  assert.ok(targetTile);
+  assert.ok(guardTile);
+
+  await prisma.fortress.update({
+    where: { id: attackerFortress.id },
+    data: {
+      army: 2_000,
+      pressureWorkersAssigned: 14_400,
+      race: FortressRace.ORKS,
+    },
+  });
+  await prisma.fortress.update({
+    where: { id: defenderFortress.id },
+    data: { army: 100, race: FortressRace.DWARFS },
+  });
+  await prisma.mapHexOwnership.createMany({
+    data: [
+      {
+        cycleId: cycle.id,
+        tileId: targetTile.id,
+        ownerFortressId: defenderFortress.id,
+      },
+      {
+        cycleId: cycle.id,
+        tileId: guardTile.id,
+        ownerFortressId: attackerFortress.id,
+      },
+    ],
+  });
+  const [fortressAId, fortressBId] = [
+    attackerFortress.id,
+    defenderFortress.id,
+  ].sort();
+  await prisma.diplomacyRelation.create({
+    data: {
+      cycleId: cycle.id,
+      fortressAId,
+      fortressBId,
+      status: DiplomacyRelationStatus.WAR,
+    },
+  });
+
+  const guard = await stationGuardOrder({
+    userId: attacker.id,
+    tileId: guardTile.id,
+    armyAmount: 100,
+    now: new Date("2026-04-20T12:00:30.000Z"),
+    db: prisma,
+  });
+  assert.equal(guard.type, ArmyOrderType.GUARD);
+  const returnedGuard = await recallArmyOrder({
+    userId: attacker.id,
+    armyOrderId: guard.id,
+    now: new Date("2026-04-20T12:00:40.000Z"),
+    db: prisma,
+  });
+  assert.equal(returnedGuard.status, ArmyOrderStatus.RETURNED);
+
+  await startTerritoryCampaign({
+    userId: attacker.id,
+    tileId: targetTile.id,
+    armyAmount: 1_000,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+    db: prisma,
+  });
+  await runGameTick({
+    now: new Date("2026-04-20T12:02:00.000Z"),
+    db: prisma,
+  });
+
+  const campaign = await prisma.territoryCampaign.findFirstOrThrow({
+    where: { cycleId: cycle.id, targetTileId: targetTile.id },
+  });
+  const state = await getHomePageState({
+    userId: attacker.id,
+    now: new Date("2026-04-20T12:02:00.000Z"),
+    db: prisma,
+  });
+  const targetState = state.mapHexes.find(
+    (tile) => tile.tileId === targetTile.id
+  );
+
+  assert.equal(campaign.status, TerritoryCampaignStatus.SIEGE_WARNING);
+  assert.equal(campaign.progress, 14_400);
+  assert.equal(
+    targetState?.campaignStatus,
+    TerritoryCampaignStatus.SIEGE_WARNING
+  );
 });
 
 test("OpenClaw god chat route rejects missing configuration and invalid secrets", async () => {
@@ -5283,6 +5677,7 @@ test("Home of A is centered and cannot be neutral claimed", async (context) => {
   assert.equal(home.mapX, position.mapX);
   assert.equal(home.mapY, position.mapY);
   assert.equal(home.army, HOME_OF_A_NEUTRAL_DEFENSE);
+  await markSeasonFourCycle(prisma, cycle.id);
   await assert.rejects(
     () =>
       setTilePressurePriority({
@@ -9857,6 +10252,8 @@ async function withIsolatedDatabase<T>(
 
 async function resetDatabase(client: PrismaClient) {
   await client.attackUnit.deleteMany();
+  await client.territoryCampaign.deleteMany();
+  await client.armyOrder.deleteMany();
   await client.battlefieldParticipant.deleteMany();
   await client.battlefield.deleteMany();
   await client.homeOfAHolder.deleteMany();
@@ -9888,6 +10285,13 @@ async function createUser(client: PrismaClient, email: string) {
       email,
       name: email,
     },
+  });
+}
+
+async function markSeasonFourCycle(client: PrismaClient, cycleId: string) {
+  await client.cycle.update({
+    where: { id: cycleId },
+    data: { ruleset: CycleRuleset.SEASON_4 },
   });
 }
 

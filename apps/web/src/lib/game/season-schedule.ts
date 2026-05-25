@@ -12,18 +12,27 @@ const SEASON_4_SPECIAL_WINDOW_START = getHelsinkiDateAtHour({
   day: 22,
   hour: 0,
 });
-const SEASON_4_WISH_VOTING_ENDS_AT = getHelsinkiDateAtHour({
+export const SEASON_4_WISH_VOTING_ENDS_AT = getHelsinkiDateAtHour({
   year: 2026,
   month: 5,
   day: 25,
   hour: 12,
 });
-const SEASON_4_ACTIVE_STARTS_AT = getHelsinkiDateAtHour({
+export const SEASON_4_ACTIVE_STARTS_AT = getHelsinkiDateAtHour({
   year: 2026,
   month: 6,
   day: 1,
   hour: 12,
 });
+
+export const SEASON_4_ACTIVATION_FLAG = "SEASON_4_ACTIVATION_ENABLED";
+export const SEASON_4_DELAY_EXTENSION_HOURS = 24;
+
+export function isSeasonFourActivationEnabled(
+  value = process.env[SEASON_4_ACTIVATION_FLAG]
+) {
+  return value === "true";
+}
 
 export function getCommunityWishVotingEndsAt(proposalEndsAt: Date) {
   if (

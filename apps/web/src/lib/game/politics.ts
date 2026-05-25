@@ -2,14 +2,35 @@ import { DiplomacyRelationStatus } from "@/lib/prisma-client";
 import { addHours } from "./time";
 
 export const WAR_DECLARATION_DELAY_HOURS = 24;
+export const CASUS_BELLI_DURATION_HOURS = 24;
+export type AllianceTrustTier = 1 | 2 | 3;
+
+export const ALLIANCE_TRUST_TERMS: Record<
+  AllianceTrustTier,
+  { escrowGold: number; escrowFood: number; deliveryBonusPercent: number }
+> = {
+  1: { escrowGold: 2_000, escrowFood: 2_000, deliveryBonusPercent: 10 },
+  2: { escrowGold: 10_000, escrowFood: 10_000, deliveryBonusPercent: 15 },
+  3: { escrowGold: 30_000, escrowFood: 30_000, deliveryBonusPercent: 25 },
+};
 
 export type DiplomacyRelationLike = {
   status: DiplomacyRelationStatus;
+  allianceProposedById?: string | null;
+  allianceProposedAt?: Date | null;
+  allianceTrustTier?: number;
+  allianceEscrowGoldEach?: number;
+  allianceEscrowFoodEach?: number;
+  trustUpgradeProposedById?: string | null;
+  trustUpgradeProposedAt?: Date | null;
+  trustUpgradeTier?: number | null;
   warStartsAt?: Date | null;
   warDeclaredById?: string | null;
   warDeclaredAt?: Date | null;
   peaceProposedById?: string | null;
   peaceProposedAt?: Date | null;
+  casusBelliFortressId?: string | null;
+  casusBelliExpiresAt?: Date | null;
 };
 
 export type DiplomacyRelationPairLike = DiplomacyRelationLike & {
@@ -32,6 +53,58 @@ export function getCanonicalDiplomacyPair(
 
 export function getWarStartsAt(now: Date) {
   return addHours(now, WAR_DECLARATION_DELAY_HOURS);
+}
+
+export function getCasusBelliExpiresAt(now: Date) {
+  return addHours(now, CASUS_BELLI_DURATION_HOURS);
+}
+
+export function hasActiveCasusBelli({
+  relation,
+  fortressId,
+  now,
+}: {
+  relation?: DiplomacyRelationLike | null;
+  fortressId: string;
+  now: Date;
+}) {
+  return (
+    relation?.casusBelliFortressId === fortressId &&
+    relation.casusBelliExpiresAt !== null &&
+    relation.casusBelliExpiresAt !== undefined &&
+    relation.casusBelliExpiresAt > now
+  );
+}
+
+export function getAllianceTrustTerms(tier: AllianceTrustTier) {
+  return ALLIANCE_TRUST_TERMS[tier];
+}
+
+export function isAllianceTrustTier(value: number): value is AllianceTrustTier {
+  return value === 1 || value === 2 || value === 3;
+}
+
+export function getAllianceTrustUpgradeDeposit({
+  currentTier,
+  requestedTier,
+}: {
+  currentTier: number;
+  requestedTier: AllianceTrustTier;
+}) {
+  if (currentTier >= requestedTier) {
+    throw new Error("Alliance trust upgrade must increase the trust tier.");
+  }
+
+  const current =
+    currentTier === 0
+      ? { escrowGold: 0, escrowFood: 0 }
+      : getAllianceTrustTerms(currentTier as AllianceTrustTier);
+  const requested = getAllianceTrustTerms(requestedTier);
+
+  return {
+    gold: requested.escrowGold - current.escrowGold,
+    food: requested.escrowFood - current.escrowFood,
+  };
 }
 
 export function findDiplomacyRelationForPair({
@@ -150,6 +223,16 @@ export function canProposePeace(status: DiplomacyRelationStatus) {
 
 export type PoliticsRelationAction =
   | "DECLARE_WAR"
+  | "ACTIVATE_CASUS_BELLI_WAR"
+  | "PROPOSE_ALLIANCE"
+  | "ACCEPT_ALLIANCE"
+  | "CANCEL_ALLIANCE"
+  | "REJECT_ALLIANCE"
+  | "PROPOSE_TRUST_UPGRADE"
+  | "ACCEPT_TRUST_UPGRADE"
+  | "CANCEL_TRUST_UPGRADE"
+  | "REJECT_TRUST_UPGRADE"
+  | "BETRAY_ALLIANCE"
   | "PROPOSE_PEACE"
   | "ACCEPT_PEACE";
 
@@ -168,8 +251,24 @@ export function getPoliticsRelationPresentation({
   const actions: PoliticsRelationAction[] = [];
   let disabledReason: string | null = null;
 
-  if (effectiveStatus === DiplomacyRelationStatus.ALLIED) {
-    disabledReason = "Alliances cannot be changed in this politics slice.";
+  if (relationStatus === DiplomacyRelationStatus.ALLIANCE_PENDING) {
+    if (relation?.allianceProposedById === currentFortressId) {
+      actions.push("CANCEL_ALLIANCE");
+    } else {
+      actions.push("ACCEPT_ALLIANCE", "REJECT_ALLIANCE");
+    }
+  } else if (effectiveStatus === DiplomacyRelationStatus.ALLIED) {
+    if (relation?.trustUpgradeTier) {
+      if (relation.trustUpgradeProposedById === currentFortressId) {
+        actions.push("CANCEL_TRUST_UPGRADE");
+      } else {
+        actions.push("ACCEPT_TRUST_UPGRADE", "REJECT_TRUST_UPGRADE");
+      }
+    } else if ((relation?.allianceTrustTier ?? 0) < 3) {
+      actions.push("PROPOSE_TRUST_UPGRADE");
+    }
+
+    actions.push("BETRAY_ALLIANCE");
   } else if (relationStatus === DiplomacyRelationStatus.PEACE_PENDING) {
     if (relation?.peaceProposedById === currentFortressId) {
       disabledReason = "Peace proposal is waiting for the other fortress.";
@@ -177,11 +276,20 @@ export function getPoliticsRelationPresentation({
       actions.push("ACCEPT_PEACE");
     }
   } else {
-    if (
-      effectiveStatus === DiplomacyRelationStatus.NEUTRAL ||
-      effectiveStatus === DiplomacyRelationStatus.ENEMY
-    ) {
+    if (effectiveStatus === DiplomacyRelationStatus.NEUTRAL) {
       actions.push("DECLARE_WAR");
+    }
+
+    if (effectiveStatus === DiplomacyRelationStatus.NEUTRAL) {
+      actions.push("PROPOSE_ALLIANCE");
+    }
+
+    if (effectiveStatus === DiplomacyRelationStatus.ENEMY) {
+      actions.push(
+        hasActiveCasusBelli({ relation, fortressId: currentFortressId, now })
+          ? "ACTIVATE_CASUS_BELLI_WAR"
+          : "DECLARE_WAR"
+      );
     }
 
     if (canProposePeace(effectiveStatus)) {

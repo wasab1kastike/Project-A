@@ -18,6 +18,11 @@ enum CycleStatus {
   RESOLUTION
 }
 
+enum CycleRuleset {
+  LEGACY
+  SEASON_4
+}
+
 enum FortressAction {
   GROW
   ATTACK
@@ -185,11 +190,34 @@ enum BattlefieldSide {
 
 enum DiplomacyRelationStatus {
   NEUTRAL
+  ALLIANCE_PENDING
   ALLIED
   ENEMY
   WAR_PENDING
   WAR
   PEACE_PENDING
+}
+
+enum ArmyOrderType {
+  GUARD
+  ESCORT
+  RAID
+  CAMPAIGN
+}
+
+enum ArmyOrderStatus {
+  ACTIVE
+  TRANSFERRED
+  RETURNED
+  CANCELED
+}
+
+enum TerritoryCampaignStatus {
+  BUILDING
+  SIEGE_WARNING
+  ENGAGED
+  RESOLVED
+  CANCELED
 }
 
 model User {
@@ -270,6 +298,7 @@ model VerificationToken {
 model Cycle {
   id                             String                          @id @default(cuid())
   status                         CycleStatus                     @default(REGISTRATION)
+  ruleset                        CycleRuleset                    @default(LEGACY)
   registrationStartedAt          DateTime
   registrationEndsAt             DateTime
   testingStartedAt               DateTime?
@@ -298,6 +327,8 @@ model Cycle {
   tilePressurePriorities         TilePressurePriority[]
   tilePressureStates             TilePressureState[]
   diplomacyRelations             DiplomacyRelation[]
+  armyOrders                     ArmyOrder[]
+  territoryCampaigns             TerritoryCampaign[]
   castleUpgradeProjects          CastleUpgradeProject[]
   homeOfAHolders                 HomeOfAHolder[]
   unicornTemporaryTeleports      UnicornTemporaryTeleport[]
@@ -395,6 +426,9 @@ model Fortress {
   tilePressureStates             TilePressureState[]
   diplomacyRelationsA            DiplomacyRelation[]                 @relation("DiplomacyRelationFortressA")
   diplomacyRelationsB            DiplomacyRelation[]                 @relation("DiplomacyRelationFortressB")
+  armyOrders                     ArmyOrder[]
+  attackingCampaigns             TerritoryCampaign[]                 @relation("TerritoryCampaignAttacker")
+  defendingCampaigns             TerritoryCampaign[]                 @relation("TerritoryCampaignDefender")
   homeOfAHoldings                HomeOfAHolder[]                     @relation("HomeOfAHolderFortress")
   homeOfABannerHoldings          HomeOfAHolder[]                     @relation("HomeOfABannerFortress")
   homeOfABossDamageContributions HomeOfABossDamageContribution[]
@@ -498,6 +532,7 @@ model TilePressureState {
   fortressId      String
   pressure        Int      @default(0)
   lastPressuredAt DateTime
+  lastDecayedAt   DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   cycle           Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
@@ -509,29 +544,95 @@ model TilePressureState {
 }
 
 model DiplomacyRelation {
-  id                String                  @id @default(cuid())
-  cycleId           String
-  fortressAId       String
-  fortressBId       String
-  status            DiplomacyRelationStatus @default(NEUTRAL)
-  warDeclaredById   String?
-  warDeclaredAt     DateTime?
-  warStartsAt       DateTime?
-  peaceProposedById String?
-  peaceProposedAt   DateTime?
-  collateralGold    Int                     @default(0)
-  collateralFood    Int                     @default(0)
-  collateralArmy    Int                     @default(0)
-  createdAt         DateTime                @default(now())
-  updatedAt         DateTime                @updatedAt
-  cycle             Cycle                   @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  fortressA         Fortress                @relation("DiplomacyRelationFortressA", fields: [fortressAId], references: [id], onDelete: Cascade)
-  fortressB         Fortress                @relation("DiplomacyRelationFortressB", fields: [fortressBId], references: [id], onDelete: Cascade)
+  id                       String                  @id @default(cuid())
+  cycleId                  String
+  fortressAId              String
+  fortressBId              String
+  status                   DiplomacyRelationStatus @default(NEUTRAL)
+  allianceProposedById     String?
+  allianceProposedAt       DateTime?
+  allianceTrustTier        Int                     @default(0)
+  allianceEscrowGoldEach   Int                     @default(0)
+  allianceEscrowFoodEach   Int                     @default(0)
+  trustUpgradeProposedById String?
+  trustUpgradeProposedAt   DateTime?
+  trustUpgradeTier         Int?
+  warDeclaredById          String?
+  warDeclaredAt            DateTime?
+  warStartsAt              DateTime?
+  peaceProposedById        String?
+  peaceProposedAt          DateTime?
+  betrayedById             String?
+  betrayedAt               DateTime?
+  casusBelliFortressId     String?
+  casusBelliExpiresAt      DateTime?
+  collateralGold           Int                     @default(0)
+  collateralFood           Int                     @default(0)
+  collateralArmy           Int                     @default(0)
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
+  cycle                    Cycle                   @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortressA                Fortress                @relation("DiplomacyRelationFortressA", fields: [fortressAId], references: [id], onDelete: Cascade)
+  fortressB                Fortress                @relation("DiplomacyRelationFortressB", fields: [fortressBId], references: [id], onDelete: Cascade)
 
   @@unique([cycleId, fortressAId, fortressBId])
   @@index([cycleId, status])
   @@index([fortressAId])
   @@index([fortressBId])
+}
+
+model ArmyOrder {
+  id               String          @id @default(cuid())
+  cycleId          String
+  fortressId       String
+  type             ArmyOrderType
+  status           ArmyOrderStatus @default(ACTIVE)
+  targetTileId     String?
+  targetFortressId String?
+  committedArmy    Int
+  startsAt         DateTime
+  transferredAt    DateTime?
+  returnedAt       DateTime?
+  canceledAt       DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  cycle            Cycle           @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress         Fortress        @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+  campaign         TerritoryCampaign?
+
+  @@index([cycleId, status, type])
+  @@index([fortressId, status])
+  @@index([cycleId, targetTileId, status])
+}
+
+model TerritoryCampaign {
+  id                String                  @id @default(cuid())
+  cycleId           String
+  attackerFortressId String
+  defenderFortressId String
+  armyOrderId       String                  @unique
+  targetTileId      String
+  battlefieldId     String?                 @unique
+  status            TerritoryCampaignStatus @default(BUILDING)
+  progress          Int                     @default(0)
+  siegeOpenedAt     DateTime?
+  responseEndsAt    DateTime?
+  engagedAt         DateTime?
+  resolvedAt        DateTime?
+  canceledAt        DateTime?
+  cancellationReason String?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  cycle             Cycle                   @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  attackerFortress  Fortress                @relation("TerritoryCampaignAttacker", fields: [attackerFortressId], references: [id], onDelete: Cascade)
+  defenderFortress  Fortress                @relation("TerritoryCampaignDefender", fields: [defenderFortressId], references: [id], onDelete: Cascade)
+  armyOrder         ArmyOrder               @relation(fields: [armyOrderId], references: [id], onDelete: Cascade)
+  battlefield       Battlefield?            @relation(fields: [battlefieldId], references: [id], onDelete: SetNull)
+
+  @@index([cycleId, status])
+  @@index([cycleId, targetTileId, status])
+  @@index([attackerFortressId, status])
+  @@index([defenderFortressId, status])
 }
 
 model CastleUpgradeProject {
@@ -615,6 +716,7 @@ model Battlefield {
   participants             BattlefieldParticipant[]
   incomingReinforcements   AttackUnit[]             @relation("BattlefieldReinforcements")
   garrisons                FortressGarrison[]
+  territoryCampaign        TerritoryCampaign?
 
   @@index([cycleId, status])
   @@index([cycleId, status, startedAt], map: "Battlefield_cycleId_status_startedAt_idx")

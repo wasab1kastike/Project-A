@@ -15,7 +15,7 @@
   - map position
   - unit sprite variant
 - Gold is the main spend currency for recruitment, upgrades, and renames
-- Points determine season victory and are earned from map objectives, Home of A boss kills, and score events
+- Points determine season victory and are earned from live point sources for the cycle ruleset
 - Recruitment is order-based: players pay 1 gold per unit up front, and recruiters process the queue over future ticks
 - Recruiters do not passively create army without a queued order
 - Active army consumes 0.01 food per unit per tick, rounded down when persisted by the live tick
@@ -30,19 +30,16 @@
 - Top 3 leaderboard visible for points, units killed, tiles owned, goblins killed, and resources stolen from player castles
 - Category leaders hold live titles: Crown Accountant, Butcher, Landlord, Goblin Bonker, and Loot Lord
 - Title buffs are active only during the live season and update as rankings change
-- Season 4 timer: registration is open during community wish voting, voting closes 25 May at 12:00 Europe/Helsinki, pretesting runs until active play starts 1 June at 12:00 Europe/Helsinki
+- Season 4 timer: registration is open during community wish voting, voting closes 25 May at 12:00 Europe/Helsinki, and pretesting remains active until the redesign is explicitly released after verification
 - Player action persists while offline
 - Castle upgrades are available during gameplay and use gold
 - Castle levels cost 500 / 1500 / 3000 / 5000 / 7500 / 10500 / 14000 / 18000 / 22500 gold
 - Each castle level adds +1 growth per grow tick and +2 attack damage
-- Home of A is a center-tile daily boss, not a normal neutral claim
-- Players attack Home of A through the center tile; it does not create tile ownership, holder drain, or fortification garrisons
-- Boss HP scales by kill count: 10k, 20k, 50k, 100k, then +50k per later kill
-- The top damage dealer when Home of A dies receives points, food, and army equal to boss max HP / 4, plus a 12-hour +25% combat and economy buff
-- Home of A stays dead for 24 hours after each kill, then respawns at the next HP tier
+- `Cycle.ruleset` distinguishes `LEGACY` historical gameplay from the `SEASON_4` redesign; new cycles use `SEASON_4` once released.
+- In `SEASON_4`, the former Home of A center tile is an inaccessible monument with no spawn, attack, fortification, buff, or reward behavior.
+- In `SEASON_4`, loot camps and active race abilities are not live gameplay; their prior-season records remain available for historical reports.
 - Battle-log badges count unread/new reports only, not total historical entries
-- Dwarf Deep Mining uses a rolling 60-minute cooldown; unresolved timed outcomes are pending until they resolve, then their one-hour effect starts.
-- Unicorn Shattered Reality unlocks at Tier 2, stays once per Helsinki day, records roll history, and only produces positive outcomes: Mirror Host, Prismatic Surge, or Lucky Gallop.
+- Legacy history may display Dwarf Deep Mining or Unicorn Shattered Reality outcomes; these mechanics cannot be activated in `SEASON_4`.
 
 ## Leaderboard titles
 
@@ -52,7 +49,7 @@
 - Goblin Bonker is the loot-camp destruction leader and receives +25% loot-camp rewards.
 - Loot Lord is the player-castle resources-stolen leader and receives +10% stolen castle gold, food, and score points.
 - Units killed come from direct attacks and battlefield losses; Home of A HP damage does not count.
-- Goblins killed count final blows on loot camps, not every defending unit killed there.
+- Historical Goblins Killed values count final blows on legacy loot camps, not every defending unit killed there.
 - Resources stolen count only gold, food, and score points taken from real player castles. Loot camps, Home of A, tile income, and generated kill rewards do not count.
 
 ## Economy & recruitment
@@ -70,8 +67,8 @@
 - Desktop and mobile controls both support inspecting tiles directly from the battlefield map.
 - Neutral spawnable tiles can be prioritized for pressure only if they connect to the player's castle tile or existing owned territory.
 - Pressure workers add pressure to prioritized legal border tiles each tick.
-- A neutral tile is automatically claimed at 100 pressure when one fortress leads without a tie.
-- Home of A cannot receive expansion pressure or be fortified; players attack the center boss directly through the tile action.
+- A neutral tile is automatically claimed at 600 pressure when one fortress leads without a tie; unsupported pressure loses 10% per completed hour.
+- The center monument cannot receive expansion pressure, be fortified, or be attacked in `SEASON_4`.
 - Owned tiles are contested through battlefield attacks and can transfer ownership when the battlefield resolves.
 - Players can fortify owned normal tiles by sending idle army that travels to the tile and becomes a persistent non-decaying garrison until recalled or killed.
 - Temporary map objectives rotate onto normal tiles and add extra point income while active.
@@ -85,6 +82,25 @@
 - Dwarf defenders receive an extra 25% defensive multiplier when defending owned normal tiles.
 - Battlefield resolution is applied after fortress economy persistence in the tick, preventing stale economy writes from overwriting loot, casualty, reward, or ownership results.
 
+## Season 4 politics pretesting
+
+- The `/politics` page supports war warnings, peace proposals, and bilateral alliances during Season 4 pretesting.
+- Neutral fortresses may propose an alliance. Acceptance creates Trust I and escrows `2,000 gold + 2,000 food` from each party.
+- Trust upgrades require acceptance from both parties: Trust II holds `10,000 gold + 10,000 food` from each fortress, and Trust III holds `30,000 gold + 30,000 food`.
+- Pending alliance and trust proposals can be withdrawn by the proposer or rejected by the recipient.
+- Trust I, II, and III reserve future allied delivery bonuses of `10%`, `15%`, and `25%`; convoy delivery is not active until the trade slice ships.
+- Betraying an ally starts war immediately. The harmed fortress receives its own escrow back plus the betrayer's escrow.
+- A detected covert raid records the attacker as an enemy and grants the victim 24 hours to invoke casus belli for immediate war once raid orders are enabled.
+- Pressure pacing, the Politics & Trade page, and alliance actions are gated to `SEASON_4` cycles; legacy history remains unaffected.
+
+## Season 4 campaigns and guards
+
+- Season 4 owned-tile conquest starts only through a `CAMPAIGN` standing order on an active-war connected enemy border tile; manual PvP tile attacks and ordinary reinforcements are not available.
+- A campaign commits army immediately and generates progress each tick from `pressure workers + min(floor(committed army / 100), pressure workers)`.
+- At `14,400` progress, the campaign opens a visible siege with a 12-hour response window before automated battlefield casualties begin.
+- `GUARD` orders commit army to owned normal tiles and join an incoming siege as defenders; guards can be recalled before they enter combat.
+- Peace or a lost war/target condition cancels an unengaged campaign and returns its committed army.
+
 ## Spawn & map fairness
 
 - Spawn selection only uses valid spawn hexes (`HEX_SPAWN_TILES` plus runtime `isPointNearSpawnHex` checks).
@@ -96,6 +112,7 @@
 ## Tick Ops Runbook
 
 - Render production expects the `project-a-game-tick` cron job to run every minute from [`render.yaml`](C:/Users/arto.askala/Documents/project-a/Project-A/render.yaml).
+- Season 4 activation is held during pretesting unless `SEASON_4_ACTIVATION_ENABLED=true`; once acceptance passes, enable it and use the existing admin cycle transition to activate deliberately.
 - Check tick freshness from the home HUD or admin dashboard:
   - `ok` means the latest processed minute is current enough for normal play.
   - `lagging` means the game is behind and player-visible updates may feel slow.
@@ -104,8 +121,4 @@
   - open the admin dashboard;
   - use `Replay missed ticks now`;
   - this replays every due minute and refreshes battlefield, battle log, leaderboard, and history state.
-- Post-boss checks:
-  - once Home of A falls for the first time, `upgradesUnlockedAt` is set on the current cycle;
-  - `megaFortressDestroyCount` tracks how many times the boss has already fallen this cycle;
-  - all player fortresses may then buy levels if they can afford the next cost;
-  - later boss kills advance the HP ladder and 24-hour respawn timer.
+- Legacy boss records and reporting remain preserved for resolved prior seasons; no Season 4 runtime should create new boss or loot-camp activity.

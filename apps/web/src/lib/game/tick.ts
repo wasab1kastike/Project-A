@@ -2,6 +2,11 @@ import {
   CycleStatus,
   FortressKind,
   FortressAction,
+  ArmyOrderStatus,
+  ArmyOrderType,
+  BattlefieldSide,
+  BattlefieldStatus,
+  DiplomacyRelationStatus,
   Prisma,
   PrismaClient,
   ScoreEventType,
@@ -10,6 +15,7 @@ import {
   OrkScrapEventReason,
   ChatMessageType,
   CastleUpgradeSpecialization,
+  TerritoryCampaignStatus,
 } from "@/lib/prisma-client";
 import { prisma } from "@/lib/prisma";
 import { ensureOpenRegistrationCycle } from "./bootstrap";
@@ -30,6 +36,8 @@ import {
 import {
   getCommunityWishVotingEndsAt,
   getNextCycleSchedule,
+  isSeasonFourActivationEnabled,
+  SEASON_4_DELAY_EXTENSION_HOURS,
 } from "./season-schedule";
 import {
   ensureCurrentMapLayout,
@@ -104,12 +112,23 @@ import {
   isTileConnectedToFortressOrOwnedTiles,
 } from "./territory";
 import {
+  applyUnsupportedPressureDecay,
   allocatePressureAcrossTargets,
   calculatePressureOutput,
   getNeutralPressureClaimWinner,
   getPressureTargetBlockedReason,
-  TILE_PRESSURE_CLAIM_THRESHOLD,
+  getTilePressureClaimThreshold,
 } from "./tile-pressure";
+import { isSeasonFourRuleset } from "./rulesets";
+import {
+  CAMPAIGN_SIEGE_THRESHOLD,
+  calculateCampaignProgressPerTick,
+  getCampaignResponseEndsAt,
+} from "./campaigns";
+import {
+  getCanonicalDiplomacyPair,
+  getEffectiveDiplomacyStatus,
+} from "./politics";
 import { recalculateReturningAttackRoutes } from "./fortress-relocation";
 import {
   ensureBattlefieldPointRewardColumn,
@@ -457,11 +476,15 @@ async function processTilePressureExpansion({
   db,
   cycleId,
   tickAt,
+  isSeasonFour,
 }: {
   db: PrismaClient;
   cycleId: string;
   tickAt: Date;
+  isSeasonFour: boolean;
 }) {
+  const claimThreshold = getTilePressureClaimThreshold(isSeasonFour);
+
   await db.$transaction(async (tx) => {
     const [fortresses, ownerships, priorities] = await Promise.all([
       tx.fortress.findMany({
@@ -546,6 +569,60 @@ async function processTilePressureExpansion({
           tileId: {
             in: ownedExpansionTileIds,
           },
+        },
+      });
+    }
+
+    const storedPressureStates = isSeasonFour
+      ? await tx.tilePressureState.findMany({
+          where: {
+            cycleId,
+          },
+          select: {
+            id: true,
+            tileId: true,
+            pressure: true,
+            lastPressuredAt: true,
+            lastDecayedAt: true,
+          },
+        })
+      : [];
+
+    for (const state of storedPressureStates) {
+      if (ownerByTileId.has(state.tileId)) {
+        continue;
+      }
+
+      const decayFrom = state.lastDecayedAt ?? state.lastPressuredAt;
+      const elapsedHours = Math.floor(
+        (tickAt.getTime() - decayFrom.getTime()) / (60 * 60 * 1000)
+      );
+
+      if (elapsedHours <= 0) {
+        continue;
+      }
+
+      const pressure = applyUnsupportedPressureDecay({
+        pressure: state.pressure,
+        elapsedHours,
+      });
+
+      if (pressure <= 0) {
+        await tx.tilePressureState.delete({
+          where: {
+            id: state.id,
+          },
+        });
+        continue;
+      }
+
+      await tx.tilePressureState.update({
+        where: {
+          id: state.id,
+        },
+        data: {
+          pressure,
+          lastDecayedAt: addHours(decayFrom, elapsedHours),
         },
       });
     }
@@ -635,6 +712,7 @@ async function processTilePressureExpansion({
               increment: allocation.pressure,
             },
             lastPressuredAt: tickAt,
+            lastDecayedAt: null,
           },
         });
       }
@@ -650,7 +728,7 @@ async function processTilePressureExpansion({
           cycleId,
           tileId,
           pressure: {
-            gte: TILE_PRESSURE_CLAIM_THRESHOLD,
+            gte: claimThreshold,
           },
         },
         select: {
@@ -658,7 +736,10 @@ async function processTilePressureExpansion({
           pressure: true,
         },
       });
-      const winnerFortressId = getNeutralPressureClaimWinner({ states });
+      const winnerFortressId = getNeutralPressureClaimWinner({
+        states,
+        threshold: claimThreshold,
+      });
 
       if (!winnerFortressId) {
         continue;
@@ -687,6 +768,252 @@ async function processTilePressureExpansion({
       });
     }
   }, TICK_TRANSACTION_OPTIONS);
+}
+
+async function processSeasonFourCampaigns({
+  db,
+  cycleId,
+  tickAt,
+}: {
+  db: PrismaClient;
+  cycleId: string;
+  tickAt: Date;
+}) {
+  await db.$transaction(async (tx) => {
+    const campaigns = await tx.territoryCampaign.findMany({
+      where: {
+        cycleId,
+        status: {
+          in: [
+            TerritoryCampaignStatus.BUILDING,
+            TerritoryCampaignStatus.SIEGE_WARNING,
+          ],
+        },
+      },
+      include: {
+        armyOrder: true,
+        attackerFortress: {
+          select: {
+            id: true,
+            pressureWorkersAssigned: true,
+          },
+        },
+      },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    });
+
+    for (const campaign of campaigns) {
+      const [ownership, relation] = await Promise.all([
+        tx.mapHexOwnership.findUnique({
+          where: {
+            cycleId_tileId: {
+              cycleId,
+              tileId: campaign.targetTileId,
+            },
+          },
+          select: { ownerFortressId: true },
+        }),
+        tx.diplomacyRelation.findUnique({
+          where: {
+            cycleId_fortressAId_fortressBId: {
+              cycleId,
+              ...getCanonicalDiplomacyPair(
+                campaign.attackerFortressId,
+                campaign.defenderFortressId
+              ),
+            },
+          },
+        }),
+      ]);
+      const warActive =
+        getEffectiveDiplomacyStatus({ relation, now: tickAt }) ===
+        DiplomacyRelationStatus.WAR;
+      const targetStillDefended =
+        ownership?.ownerFortressId === campaign.defenderFortressId;
+
+      if (
+        !warActive ||
+        !targetStillDefended ||
+        campaign.armyOrder.status !== ArmyOrderStatus.ACTIVE
+      ) {
+        if (campaign.armyOrder.status === ArmyOrderStatus.ACTIVE) {
+          await tx.fortress.update({
+            where: { id: campaign.attackerFortressId },
+            data: { army: { increment: campaign.armyOrder.committedArmy } },
+          });
+          await tx.armyOrder.update({
+            where: { id: campaign.armyOrderId },
+            data: { status: ArmyOrderStatus.RETURNED, returnedAt: tickAt },
+          });
+        }
+        await tx.territoryCampaign.update({
+          where: { id: campaign.id },
+          data: {
+            status: TerritoryCampaignStatus.CANCELED,
+            canceledAt: tickAt,
+            cancellationReason: warActive
+              ? "Target ownership changed before the siege."
+              : "War is no longer active.",
+          },
+        });
+        continue;
+      }
+
+      if (campaign.status === TerritoryCampaignStatus.BUILDING) {
+        const progressDelta = calculateCampaignProgressPerTick({
+          pressureWorkersAssigned:
+            campaign.attackerFortress.pressureWorkersAssigned,
+          committedArmy: campaign.armyOrder.committedArmy,
+        });
+        const progress = Math.min(
+          CAMPAIGN_SIEGE_THRESHOLD,
+          campaign.progress + progressDelta
+        );
+
+        if (progress < CAMPAIGN_SIEGE_THRESHOLD) {
+          await tx.territoryCampaign.update({
+            where: { id: campaign.id },
+            data: { progress },
+          });
+          continue;
+        }
+
+        await tx.territoryCampaign.update({
+          where: { id: campaign.id },
+          data: {
+            status: TerritoryCampaignStatus.SIEGE_WARNING,
+            progress,
+            siegeOpenedAt: tickAt,
+            responseEndsAt: getCampaignResponseEndsAt(tickAt),
+          },
+        });
+        continue;
+      }
+
+      if (!campaign.responseEndsAt || campaign.responseEndsAt > tickAt) {
+        continue;
+      }
+
+      const [existingBattlefield, guardOrders, garrisons] = await Promise.all([
+        tx.battlefield.findFirst({
+          where: {
+            cycleId,
+            targetTileId: campaign.targetTileId,
+            status: BattlefieldStatus.ACTIVE,
+          },
+          select: { id: true },
+        }),
+        tx.armyOrder.findMany({
+          where: {
+            cycleId,
+            fortressId: campaign.defenderFortressId,
+            type: ArmyOrderType.GUARD,
+            status: ArmyOrderStatus.ACTIVE,
+            targetTileId: campaign.targetTileId,
+          },
+        }),
+        tx.fortressGarrison.findMany({
+          where: {
+            cycleId,
+            fortressId: campaign.defenderFortressId,
+            tileId: campaign.targetTileId,
+            army: { gt: 0 },
+          },
+        }),
+      ]);
+
+      if (existingBattlefield) {
+        continue;
+      }
+
+      const defenderArmy =
+        guardOrders.reduce((sum, order) => sum + order.committedArmy, 0) +
+        garrisons.reduce((sum, garrison) => sum + garrison.army, 0);
+      const battlefield = await tx.battlefield.create({
+        data: {
+          cycleId,
+          targetTileId: campaign.targetTileId,
+          targetFortressId: campaign.defenderFortressId,
+          attackerBannerFortressId: campaign.attackerFortressId,
+          defenderBannerFortressId: campaign.defenderFortressId,
+          attackerArmyRemaining: campaign.armyOrder.committedArmy,
+          defenderArmyRemaining: defenderArmy,
+          startedAt: tickAt,
+          participants: {
+            create: [
+              {
+                fortressId: campaign.attackerFortressId,
+                side: BattlefieldSide.ATTACKER,
+                armyCommitted: campaign.armyOrder.committedArmy,
+                armyRemaining: campaign.armyOrder.committedArmy,
+                maintenanceDrains: false,
+                joinedAt: tickAt,
+              },
+              ...(defenderArmy > 0
+                ? [
+                    {
+                      fortressId: campaign.defenderFortressId,
+                      side: BattlefieldSide.DEFENDER,
+                      armyCommitted: defenderArmy,
+                      armyRemaining: defenderArmy,
+                      maintenanceDrains: false,
+                      joinedAt: tickAt,
+                    },
+                  ]
+                : []),
+            ],
+          },
+        },
+        select: { id: true },
+      });
+
+      if (garrisons.length > 0) {
+        await tx.fortressGarrison.deleteMany({
+          where: { id: { in: garrisons.map((garrison) => garrison.id) } },
+        });
+      }
+      if (guardOrders.length > 0) {
+        await tx.armyOrder.updateMany({
+          where: { id: { in: guardOrders.map((order) => order.id) } },
+          data: { status: ArmyOrderStatus.TRANSFERRED, transferredAt: tickAt },
+        });
+      }
+      await tx.armyOrder.update({
+        where: { id: campaign.armyOrderId },
+        data: { status: ArmyOrderStatus.TRANSFERRED, transferredAt: tickAt },
+      });
+      await tx.territoryCampaign.update({
+        where: { id: campaign.id },
+        data: {
+          status: TerritoryCampaignStatus.ENGAGED,
+          battlefieldId: battlefield.id,
+          engagedAt: tickAt,
+        },
+      });
+    }
+  }, TICK_TRANSACTION_OPTIONS);
+}
+
+async function finalizeSeasonFourCampaigns({
+  db,
+  cycleId,
+  tickAt,
+}: {
+  db: PrismaClient;
+  cycleId: string;
+  tickAt: Date;
+}) {
+  await db.territoryCampaign.updateMany({
+    where: {
+      cycleId,
+      status: TerritoryCampaignStatus.ENGAGED,
+      battlefield: { status: BattlefieldStatus.RESOLVED },
+    },
+    data: {
+      status: TerritoryCampaignStatus.RESOLVED,
+      resolvedAt: tickAt,
+    },
+  });
 }
 
 function isUniqueTickError(error: unknown) {
@@ -959,17 +1286,19 @@ async function startTestingCycle(cycleId: string, now: Date, db: PrismaClient) {
       },
     });
 
-    await ensureMegaFortress({
-      db: tx,
-      cycleId: cycle.id,
-      seed: buildFortressSpawnSeed({
+    if (!isSeasonFourRuleset(cycle.ruleset)) {
+      await ensureMegaFortress({
+        db: tx,
         cycleId: cycle.id,
-        activeStartedAt: testingStartedAt,
-        tickAt: testingStartedAt,
-        purpose: "testing:mega-fortress",
-        entropy: cycle.registrationEndsAt.toISOString(),
-      }),
-    });
+        seed: buildFortressSpawnSeed({
+          cycleId: cycle.id,
+          activeStartedAt: testingStartedAt,
+          tickAt: testingStartedAt,
+          purpose: "testing:mega-fortress",
+          entropy: cycle.registrationEndsAt.toISOString(),
+        }),
+      });
+    }
 
     return true;
   }, TICK_TRANSACTION_OPTIONS);
@@ -1002,6 +1331,30 @@ async function completeTestingCycle(
       cycle.testingEndsAt > now ||
       cycle.activeStartedAt > now
     ) {
+      return false;
+    }
+
+    if (
+      isSeasonFourRuleset(cycle.ruleset) &&
+      !isSeasonFourActivationEnabled()
+    ) {
+      const delayedUntil = addHours(
+        floorToMinute(now),
+        SEASON_4_DELAY_EXTENSION_HOURS
+      );
+
+      await tx.cycle.update({
+        where: {
+          id: cycle.id,
+        },
+        data: {
+          registrationEndsAt: delayedUntil,
+          testingEndsAt: delayedUntil,
+          activeStartedAt: delayedUntil,
+          activeEndsAt: addHours(delayedUntil, ACTIVE_DURATION_HOURS),
+        },
+      });
+
       return false;
     }
 
@@ -1152,17 +1505,19 @@ async function completeTestingCycle(
         megaFortressDestroyCount: 0,
       },
     });
-    await ensureMegaFortress({
-      db: tx,
-      cycleId,
-      seed: buildFortressSpawnSeed({
+    if (!isSeasonFourRuleset(cycle.ruleset)) {
+      await ensureMegaFortress({
+        db: tx,
         cycleId,
-        activeStartedAt,
-        tickAt: activeStartedAt,
-        purpose: "activate:mega-fortress",
-        entropy: cycle.testingEndsAt.toISOString(),
-      }),
-    });
+        seed: buildFortressSpawnSeed({
+          cycleId,
+          activeStartedAt,
+          tickAt: activeStartedAt,
+          purpose: "activate:mega-fortress",
+          entropy: cycle.testingEndsAt.toISOString(),
+        }),
+      });
+    }
 
     return true;
   }, TICK_TRANSACTION_OPTIONS);
@@ -1497,6 +1852,7 @@ async function processCycleTick(
     select: {
       id: true,
       status: true,
+      ruleset: true,
       testingStartedAt: true,
       testingEndsAt: true,
       activeStartedAt: true,
@@ -1528,13 +1884,20 @@ async function processCycleTick(
     cycle.status === CycleStatus.TESTING
       ? cycle.testingStartedAt!
       : cycle.activeStartedAt!;
+  const isSeasonFour = isSeasonFourRuleset(cycle.ruleset);
 
-  await ensureActiveCycleMegaFortress({
-    db: db,
-    cycleId,
-  });
+  if (!isSeasonFour) {
+    await ensureActiveCycleMegaFortress({
+      db: db,
+      cycleId,
+    });
+  }
 
-  if (cycle.homeOfABossRespawnsAt && cycle.homeOfABossRespawnsAt <= tickAt) {
+  if (
+    !isSeasonFour &&
+    cycle.homeOfABossRespawnsAt &&
+    cycle.homeOfABossRespawnsAt <= tickAt
+  ) {
     const respawnHealth = getHomeOfABossHealth(cycle.megaFortressDestroyCount);
 
     await db.fortress.updateMany({
@@ -1609,11 +1972,13 @@ async function processCycleTick(
     }),
   });
 
-  await processDueUnicornTeleportReturns({
-    db,
-    cycleId,
-    tickAt,
-  });
+  if (!isSeasonFour) {
+    await processDueUnicornTeleportReturns({
+      db,
+      cycleId,
+      tickAt,
+    });
+  }
 
   await processDueCastleUpgradeProjects({
     db,
@@ -1625,7 +1990,12 @@ async function processCycleTick(
     db,
     cycleId,
     tickAt,
+    isSeasonFour,
   });
+
+  if (isSeasonFour) {
+    await processSeasonFourCampaigns({ db, cycleId, tickAt });
+  }
 
   // Eternal goblins: loot camps no longer expire from timers
   // They only disappear when killed by players
@@ -1634,31 +2004,33 @@ async function processCycleTick(
   //   cycleId,
   //   tickAt,
   // });
-  await db.fortress.updateMany({
-    where: {
+  if (!isSeasonFour) {
+    await db.fortress.updateMany({
+      where: {
+        cycleId,
+        fortressKind: FortressKind.DWARF_RUNE,
+        health: {
+          gt: 0,
+        },
+        expiresAt: {
+          lte: tickAt,
+        },
+      },
+      data: {
+        health: 0,
+      },
+    });
+
+    await spawnScheduledLootCamps({
+      db: db,
       cycleId,
-      fortressKind: FortressKind.DWARF_RUNE,
-      health: {
-        gt: 0,
-      },
-      expiresAt: {
-        lte: tickAt,
-      },
-    },
-    data: {
-      health: 0,
-    },
-  });
+      activeStartedAt: gameplayStartedAt,
+      tickAt,
+    });
 
-  await spawnScheduledLootCamps({
-    db: db,
-    cycleId,
-    activeStartedAt: gameplayStartedAt,
-    tickAt,
-  });
-
-  // Cleanup any unattackable loot camps (old or new)
-  await cleanupUnattackableLootCamps({ db, cycleId, tickAt });
+    // Cleanup any unattackable loot camps (old or new).
+    await cleanupUnattackableLootCamps({ db, cycleId, tickAt });
+  }
 
   const fortresses = await db.fortress.findMany({
     where: {
@@ -1797,29 +2169,31 @@ async function processCycleTick(
     ownedBiomes.push(biome);
     ownedBiomeLookup.set(ownership.ownerFortressId, ownedBiomes);
   }
-  const activeRuneSuppressions = await db.raceAbilityActivation.findMany({
-    where: {
-      kind: RaceAbilityKind.DWARF_RUNE_GRUDGES,
-      activeUntil: {
-        gt: tickAt,
-      },
-      consumedAt: null,
-      targetFortressId: {
-        not: null,
-      },
-      runeFortress: {
-        health: {
-          gt: 0,
+  const activeRuneSuppressions = isSeasonFour
+    ? []
+    : await db.raceAbilityActivation.findMany({
+        where: {
+          kind: RaceAbilityKind.DWARF_RUNE_GRUDGES,
+          activeUntil: {
+            gt: tickAt,
+          },
+          consumedAt: null,
+          targetFortressId: {
+            not: null,
+          },
+          runeFortress: {
+            health: {
+              gt: 0,
+            },
+            expiresAt: {
+              gt: tickAt,
+            },
+          },
         },
-        expiresAt: {
-          gt: tickAt,
+        select: {
+          targetFortressId: true,
         },
-      },
-    },
-    select: {
-      targetFortressId: true,
-    },
-  });
+      });
   const suppressedFortressIds = new Set(
     activeRuneSuppressions
       .map((suppression) => suppression.targetFortressId)
@@ -1862,13 +2236,15 @@ async function processCycleTick(
     fortresses.map((fortress) => [fortress.id, fortress])
   );
   for (const fortress of fortresses) {
-    const activeRune = fortress.raceAbilityActivations.find(
+    const activeRune = isSeasonFour
+      ? null
+      : fortress.raceAbilityActivations.find(
       (activation) =>
         activation.kind === RaceAbilityKind.DWARF_RUNE_GRUDGES &&
         activation.activeFrom <= tickAt &&
         activation.activeUntil > tickAt &&
         activation.consumedAt === null
-    );
+      );
 
     if (!activeRune || !activeRune.targetFortressId) {
       continue;
@@ -1936,6 +2312,7 @@ async function processCycleTick(
       ownedTileBiomes: ownedBiomeLookup.get(fortress.id) ?? [],
     });
   const getOrkWaaghActive = (fortress: (typeof fortresses)[number]) =>
+    !isSeasonFour &&
     getEffectiveRace(fortress) === "ORKS" &&
     getFortressRaceBuffTier(fortress) >= 2 &&
     isRaceAbilityActive(
@@ -1948,7 +2325,7 @@ async function processCycleTick(
   const dwarfEconomyHaltedThisTick = new Set<string>();
   const dwarfCombatSurgedThisTick = new Set<string>();
 
-  const pendingDeepMiningRolls = await db.dwarfDeepMiningRoll.findMany({
+  const pendingDeepMiningRolls = isSeasonFour ? [] : await db.dwarfDeepMiningRoll.findMany({
     where: {
       resolvedAt: null,
       activeUntil: {
@@ -2097,6 +2474,24 @@ async function processCycleTick(
           roll.outcome === DwarfDeepMiningOutcome.SHAFT_COLLAPSE
             ? effectUntil
             : null,
+      },
+    });
+  }
+
+  if (isSeasonFour) {
+    await db.attackUnit.updateMany({
+      where: {
+        cycleId,
+        resolvedAt: null,
+        cancelledAt: null,
+        targetFortress: {
+          fortressKind: {
+            not: FortressKind.PLAYER,
+          },
+        },
+      },
+      data: {
+        cancelledAt: tickAt,
       },
     });
   }
@@ -2566,6 +2961,7 @@ async function processCycleTick(
             combatSurgedThisTick: dwarfCombatSurgedThisTick,
             enableWaaagh: targetAttackerRaceBuffTier >= 2,
             enableDwarfGrudge: targetAttackerRaceBuffTier >= 1,
+            enableLegacyAbilities: !isSeasonFour,
           }),
           defenderPoints: 0,
           defenderFood: 0,
@@ -2796,6 +3192,7 @@ async function processCycleTick(
             combatSurgedThisTick: dwarfCombatSurgedThisTick,
             enableWaaagh: targetAttackerRaceBuffTier >= 2,
             enableDwarfGrudge: targetAttackerRaceBuffTier >= 1,
+            enableLegacyAbilities: !isSeasonFour,
           }),
           defenderPoints: 0,
           defenderFood: 0,
@@ -3124,7 +3521,8 @@ async function processCycleTick(
             Math.floor(
               targetUnit.armyAmount *
                 getFortressAttackDamage(targetAttacker.level) *
-                (hasHomeOfABossBuff(targetAttacker.raceAbilityActivations, tickAt)
+                (!isSeasonFour &&
+                hasHomeOfABossBuff(targetAttacker.raceAbilityActivations, tickAt)
                   ? HOME_OF_A_BOSS_BUFF_MULTIPLIER
                   : 1) *
                 getLeaderboardTitleAttackMultiplier(
@@ -3456,6 +3854,7 @@ async function processCycleTick(
     const attackerRaceBuffTier = getFortressRaceBuffTier(attacker);
     const defenderRaceBuffTier = getFortressRaceBuffTier(target);
     const attackerStim =
+      !isSeasonFour &&
       attackerRace === "SPACE_MURINES" &&
       attackerRaceBuffTier >= 1 &&
       isRaceAbilityActive(
@@ -3464,6 +3863,7 @@ async function processCycleTick(
         tickAt
       );
     const defenderStim =
+      !isSeasonFour &&
       defenderRace === "SPACE_MURINES" &&
       defenderRaceBuffTier >= 1 &&
       isRaceAbilityActive(
@@ -3472,7 +3872,7 @@ async function processCycleTick(
         tickAt
       );
     const attackerOrkCarryMultiplier =
-      attackerRace === "ORKS"
+      !isSeasonFour && attackerRace === "ORKS"
         ? getOrkBossOrderCarryMultiplier(attacker.orkBossOrders, tickAt)
         : 1;
     const outcome = calculateRaidOutcome({
@@ -3496,6 +3896,7 @@ async function processCycleTick(
         combatSurgedThisTick: dwarfCombatSurgedThisTick,
         enableWaaagh: attackerRaceBuffTier >= 2,
         enableDwarfGrudge: attackerRaceBuffTier >= 1,
+        enableLegacyAbilities: !isSeasonFour,
       }),
       defensePowerMultiplier: getCombatDefensePowerMultiplier({
         fortress: {
@@ -3508,6 +3909,7 @@ async function processCycleTick(
         combatSurgedThisTick: dwarfCombatSurgedThisTick,
         enableWaaagh: defenderRaceBuffTier >= 2,
         enableDwarfGrudge: defenderRaceBuffTier >= 1,
+        enableLegacyAbilities: !isSeasonFour,
       }),
       preventAttackerCasualties: attackerStim,
       preventDefenderLosses: defenderStim,
@@ -3618,6 +4020,7 @@ async function processCycleTick(
     );
     currentGold.set(target.id, Math.max(0, defenderGold - goldLooted));
     const attackerWaaagh =
+      !isSeasonFour &&
       attackerRace === "ORKS" &&
       attackerRaceBuffTier >= 2 &&
       isRaceAbilityActive(
@@ -3832,6 +4235,7 @@ async function processCycleTick(
 
     // Check for DWARF race ability modifiers that affect economy
     const economyHalted =
+      !isSeasonFour &&
       getEffectiveRace(fortress) === "DWARFS" &&
       (dwarfEconomyHaltedThisTick.has(fortress.id) ||
         isRaceAbilityActive(
@@ -3840,6 +4244,7 @@ async function processCycleTick(
           tickAt
         ));
     const economySurged =
+      !isSeasonFour &&
       getEffectiveRace(fortress) === "DWARFS" &&
       (dwarfEconomySurgedThisTick.has(fortress.id) ||
         isRaceAbilityActive(
@@ -3847,11 +4252,11 @@ async function processCycleTick(
           RaceAbilityKind.DWARF_ECONOMY_SURGE,
           tickAt
         ));
-    const homeBossEconomyBuff = hasHomeOfABossBuff(
-      fortress.raceAbilityActivations,
-      tickAt
-    );
+    const homeBossEconomyBuff =
+      !isSeasonFour &&
+      hasHomeOfABossBuff(fortress.raceAbilityActivations, tickAt);
     const unicornEconomySurge =
+      !isSeasonFour &&
       getEffectiveRace(fortress) === "UNSTABLE_UNICORNS" &&
       isRaceAbilityActive(
         fortress.raceAbilityActivations,
@@ -4038,6 +4443,10 @@ async function processCycleTick(
     cycleId,
     tickAt,
   });
+
+  if (isSeasonFour) {
+    await finalizeSeasonFourCampaigns({ db, cycleId, tickAt });
+  }
 
   // Apply garrison maintenance drain.
   // Unicorn garrisons drain every other tick to support the new tile-holding loop.

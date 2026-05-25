@@ -42,6 +42,7 @@ Project-A is a browser-based multiplayer strategy game where each season evolves
 
 - [Changelog policy](docs/changelog-policy.md#required-entry-format)
 - [Current game design](docs/game-design.md)
+- [Season 4 pretesting release checklist](docs/season-4-pretesting-release-checklist.md)
 - [Patch notes policy](docs/patch-notes-policy.md)
 - [Map overhaul changelog entry](docs/changelog-policy.md#map-overhaul-log)
 - [Known hosting constraints for GitHub Pages](docs/github-pages-hosting.md#constraints-to-account-for)
@@ -212,7 +213,8 @@ On Render, set `OPENCLAW_GOD_SHARED_SECRET` for `project-a-web`, deploy, then sm
 
 - Players sign in with Google
 - Season 4 registration opens during community wish voting, with voting closing on 25 May at 12:00 Europe/Helsinki
-- After voting closes, `TESTING`/pretesting runs until the next season starts on 1 June at 12:00 Europe/Helsinki
+- After voting closes, `TESTING`/pretesting runs until Season 4 is explicitly released; the previously scheduled 1 June at 12:00 Europe/Helsinki activation is held until redesign verification passes
+- Each cycle stores an explicit ruleset: prior resolved cycles remain `LEGACY`, while the unresolved Season 4 pretesting cycle uses `SEASON_4`
 - Joining is open during `REGISTRATION` and `TESTING`, and remains open in `ACTIVE` while player slots remain before the active deadline
 - Active play runs for `ACTIVE (2 weeks)`
 - Winner is resolved in `RESOLUTION`
@@ -227,19 +229,22 @@ The game is now a castle-economy and battlefield-control loop:
 - each fortress receives a retro pixel-art unit sprite for attack movement and battle reports
 - fortresses can rename for free during `REGISTRATION`; active renames cost 10 gold
 - players pick one race per cycle, then assign workers to miners, farmers, and recruiters on the Castle page
-- Dwarfs are now the fortified economy race: they mine gold a little better, hold owned tiles more tightly, move slower on the map, and can invest gold into Book of Grudges, Rune of Grudges, and delayed Deep Mining plays on a rolling 60-minute cooldown
-- Unstable Unicorns unlock Shattered Reality at Tier 2: a once-per-day positive random boon with recorded history for Mirror Host army growth, Prismatic Surge combat, or Lucky Gallop economy
+- Legacy race abilities remain readable in prior-season history, but are unavailable in the Season 4 ruleset while doctrine replacements are built
 - miners produce gold, farmers produce food, and recruiters process queued army orders instead of passively creating army
 - recruiting army costs 1 gold per unit up front; queued units complete over ticks based on assigned recruiters and race bonuses
 - active army, not queued army, consumes food upkeep at 0.01 food per unit per tick; if upkeep cannot be paid, food falls to zero and active army loses 2% that tick
-- neutral tiles are acquired automatically through connected pressure priorities, while owned tiles create battlefields that players can attack or reinforce
+- neutral tiles are acquired automatically through connected pressure priorities; the idle expansion baseline requires 600 pressure, or roughly one hour with ten focused pressure workers
+- `/politics` now pretests bilateral alliances with fixed trust escrow tiers; betrayal immediately begins war and awards both escrow shares to the harmed ally
+- detected covert incidents now have a Season 4 casus belli path: the victim can invoke immediate war during the 24-hour incident window once raid orders are connected
+- Season 4 territorial war uses standing campaign orders: pressure workers and committed army build a border siege, then a 12-hour warning opens before automatic combat
+- owned Season 4 tiles can station guard orders; ordinary tile attacks, reinforcements, and fortification controls are legacy-only
 - direct attacks and battlefield reinforcements both count against the player's simultaneous outbound attack cap
 - player castle and owned-tile battlefields become visible immediately, but combat casualties start one hour after the first attacking army arrives so defenders have time to respond
 - active battlefield casualties are applied every tick, ramping from 100 total units per tick to 1000 after one hour; fights resolve only when one side runs out
-- active combat buffs affect direct raids, battlefields, loot camps, Dwarf rune fights, and Home of A damage where relevant; the Butcher title is attack-only
+- stored legacy active-ability and Home of A buffs do not affect Season 4 combat or production
 - reinforcements that arrive after their battlefield has already resolved return home intact
 - the leaderboard tracks points, units killed, current tiles owned, goblins killed, and resources stolen from player castles; each live category leader gets a title and small buff, including Loot Lord for castle raiders
-- Home of A is a center-tile daily boss: players damage it through the tile action, the top damage dealer on kill receives points, food, army, and a 12-hour +25% combat/economy buff, and the boss respawns 24 hours later with scaled HP
+- in Season 4, the former Home of A center tile is an inaccessible monument and loot camps are not spawned or targetable; prior-season reports remain readable
 - battle results are resolved after economy updates so loot, casualties, rewards, and tile ownership are persisted coherently
 - battle-log badges show unread/new reports rather than the total number of historical entries
 - Render Cron runs `npm run game:tick` once per minute in production
@@ -248,8 +253,8 @@ The game is now a castle-economy and battlefield-control loop:
 The main player surfaces are:
 
 - home battlefield: season status, map, attacks, active battlefields, battle log, chat, and spectator state
-- Castle page: worker assignments, recruitment queue, active-army upkeep, upgrades, owned tiles, and race actions
-- Wiki page: player-facing rule reference for races, economy, combat, loot camps, and Home of A
+- Castle page: worker assignments, recruitment queue, active-army upkeep, upgrades, and owned tiles
+- Wiki page: player-facing rule reference for Season 4 pressure, politics, economy, and combat
 
 ## Battlefield map controls
 

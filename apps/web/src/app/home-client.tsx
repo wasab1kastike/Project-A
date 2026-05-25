@@ -200,7 +200,7 @@ function CommunityWishPanel({
                       Winner wish is guaranteed. Community wish is vote-based.
                     </li>
                     <li>Wishes and voting close Monday 25 May at 12:00.</li>
-                    <li>Pretesting runs until the next season starts 1 June.</li>
+                    <li>Pretesting remains open until Season 4 verification is complete.</li>
                     <li>Write in English.</li>
                     <li>
                       Keep it short: max {COMMUNITY_WISH_MAX_LENGTH} characters.

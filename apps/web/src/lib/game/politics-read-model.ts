@@ -8,6 +8,7 @@ import {
   findDiplomacyRelationForPair,
   getPoliticsRelationPresentation,
 } from "./politics";
+import { isSeasonFourRuleset } from "./rulesets";
 
 function getMinutesUntil(from: Date, to: Date | null | undefined) {
   if (!to || to <= from) {
@@ -54,6 +55,7 @@ export async function getPoliticsPageState({
     },
     select: {
       id: true,
+      ruleset: true,
       status: true,
       testingEndsAt: true,
       activeEndsAt: true,
@@ -78,11 +80,21 @@ export async function getPoliticsPageState({
           fortressAId: true,
           fortressBId: true,
           status: true,
+          allianceProposedById: true,
+          allianceProposedAt: true,
+          allianceTrustTier: true,
+          allianceEscrowGoldEach: true,
+          allianceEscrowFoodEach: true,
+          trustUpgradeProposedById: true,
+          trustUpgradeProposedAt: true,
+          trustUpgradeTier: true,
           warDeclaredById: true,
           warDeclaredAt: true,
           warStartsAt: true,
           peaceProposedById: true,
           peaceProposedAt: true,
+          casusBelliFortressId: true,
+          casusBelliExpiresAt: true,
         },
       },
     },
@@ -92,6 +104,15 @@ export async function getPoliticsPageState({
     return {
       canUsePolitics: false,
       disabledReason: "Politics opens during active gameplay.",
+      playerFortress: null,
+      rows: [],
+    };
+  }
+
+  if (!isSeasonFourRuleset(cycle.ruleset)) {
+    return {
+      canUsePolitics: false,
+      disabledReason: "Politics & Trade opens with the Season 4 ruleset.",
       playerFortress: null,
       rows: [],
     };
@@ -137,6 +158,11 @@ export async function getPoliticsPageState({
       });
       const warStartsAt = relation?.warStartsAt ?? null;
       const peaceProposedById = relation?.peaceProposedById ?? null;
+      const allianceProposedById = relation?.allianceProposedById ?? null;
+      const trustUpgradeProposedById =
+        relation?.trustUpgradeProposedById ?? null;
+      const casusBelliFortressId = relation?.casusBelliFortressId ?? null;
+      const casusBelliExpiresAt = relation?.casusBelliExpiresAt ?? null;
 
       return {
         fortressId: fortress.id,
@@ -145,6 +171,18 @@ export async function getPoliticsPageState({
         race: fortress.race,
         relationStatus: presentation.relationStatus,
         effectiveStatus: presentation.effectiveStatus,
+        allianceProposedById,
+        allianceProposedAt: relation?.allianceProposedAt ?? null,
+        allianceProposedByCurrentPlayer:
+          allianceProposedById !== null &&
+          allianceProposedById === playerFortress.id,
+        allianceTrustTier: relation?.allianceTrustTier ?? 0,
+        allianceEscrowGoldEach: relation?.allianceEscrowGoldEach ?? 0,
+        allianceEscrowFoodEach: relation?.allianceEscrowFoodEach ?? 0,
+        trustUpgradeTier: relation?.trustUpgradeTier ?? null,
+        trustUpgradeProposedByCurrentPlayer:
+          trustUpgradeProposedById !== null &&
+          trustUpgradeProposedById === playerFortress.id,
         warDeclaredById: relation?.warDeclaredById ?? null,
         warDeclaredAt: relation?.warDeclaredAt ?? null,
         warStartsAt,
@@ -156,6 +194,13 @@ export async function getPoliticsPageState({
         peaceProposedAt: relation?.peaceProposedAt ?? null,
         peaceProposedByCurrentPlayer:
           peaceProposedById !== null && peaceProposedById === playerFortress.id,
+        casusBelliFortressId,
+        casusBelliExpiresAt,
+        casusBelliBelongsToCurrentPlayer:
+          casusBelliFortressId !== null &&
+          casusBelliFortressId === playerFortress.id &&
+          casusBelliExpiresAt !== null &&
+          casusBelliExpiresAt > now,
         availableAction: presentation.availableAction,
         availableActions: presentation.availableActions,
         disabledReason: presentation.disabledReason,

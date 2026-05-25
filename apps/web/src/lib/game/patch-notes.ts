@@ -7,6 +7,25 @@ export type PatchNotesRelease = {
 
 export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
   {
+    date: "2026-05-25",
+    title: "Season 4 pretesting and pressure pacing",
+    newFeatures: [
+      "Season 4 pretesting now uses an explicit SEASON_4 cycle ruleset while prior-season records remain on the legacy ruleset.",
+      "Neutral expansion now targets a slower idle rhythm: connected tiles require 600 pressure, and unsupported pushes lose 10% progress per hour.",
+      "Unstable Unicorn pressure workers are now named Glitter Distribution.",
+      "The Politics & Trade page now supports trust-backed alliance proposals, bilateral trust upgrades, and immediate betrayal with escrow forfeiture during pretesting.",
+      "Alliance and trust proposals can now be canceled by their sender or rejected by their recipient.",
+      "Detected covert incidents now grant the victim a 24-hour casus belli option for immediate war, ready for the upcoming raid-order slice.",
+      "Season 4 war borders now use standing campaigns: committed army and pressure build toward a visible 12-hour siege warning before automatic combat begins.",
+      "Owned tiles can station standing guard orders that commit army to defend against incoming Season 4 sieges.",
+    ],
+    bugFixes: [
+      "Season 4 stays in pretesting until its redesigned rules are explicitly approved for activation, instead of starting from an unfinished schedule.",
+      "Home of A, loot camps, and legacy active race abilities are no longer interactive or bonus-granting in Season 4 pretesting; the center tile is shown as a monument.",
+      "Manual PvP tile raids, ordinary battlefield reinforcements, and legacy fortification controls are replaced by standing orders in Season 4 pretesting.",
+    ],
+  },
+  {
     date: "2026-05-19",
     title: "Deep Mining and Shattered Reality clarity",
     newFeatures: [

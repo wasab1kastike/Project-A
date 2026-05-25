@@ -3,15 +3,20 @@ import test from "node:test";
 
 import { DiplomacyRelationStatus } from "@/lib/prisma-client";
 import {
+  ALLIANCE_TRUST_TERMS,
+  CASUS_BELLI_DURATION_HOURS,
   WAR_DECLARATION_DELAY_HOURS,
   canAttackByDiplomacy,
   canPressureByDiplomacy,
   canProposePeace,
   getCanonicalDiplomacyPair,
+  getCasusBelliExpiresAt,
   getDiplomacyAttackBlockedReason,
   getDiplomacyPressureBlockedReason,
   getEffectiveDiplomacyStatus,
+  getAllianceTrustUpgradeDeposit,
   getPoliticsRelationPresentation,
+  hasActiveCasusBelli,
   getWarStartsAt,
 } from "./politics";
 
@@ -140,7 +145,71 @@ test("peace proposals are limited to hostile relation states", () => {
   assert.equal(canProposePeace(DiplomacyRelationStatus.ALLIED), false);
 });
 
-test("politics relation presentation derives MVP actions", () => {
+test("detected raid casus belli expires and enables immediate-war presentation", () => {
+  const now = new Date("2026-04-20T12:00:00.000Z");
+  const expiresAt = getCasusBelliExpiresAt(now);
+  const relation = {
+    status: DiplomacyRelationStatus.ENEMY,
+    casusBelliFortressId: "alpha",
+    casusBelliExpiresAt: expiresAt,
+  };
+
+  assert.equal(
+    expiresAt.getTime(),
+    now.getTime() + CASUS_BELLI_DURATION_HOURS * 60 * 60 * 1000
+  );
+  assert.equal(
+    hasActiveCasusBelli({
+      relation,
+      fortressId: "alpha",
+      now: new Date("2026-04-21T11:59:59.000Z"),
+    }),
+    true
+  );
+  assert.equal(
+    hasActiveCasusBelli({ relation, fortressId: "alpha", now: expiresAt }),
+    false
+  );
+  assert.deepEqual(
+    getPoliticsRelationPresentation({
+      relation,
+      now,
+      currentFortressId: "alpha",
+    }).availableActions,
+    ["ACTIVATE_CASUS_BELLI_WAR", "PROPOSE_PEACE"]
+  );
+  assert.deepEqual(
+    getPoliticsRelationPresentation({
+      relation,
+      now: expiresAt,
+      currentFortressId: "alpha",
+    }).availableActions,
+    ["DECLARE_WAR", "PROPOSE_PEACE"]
+  );
+});
+
+test("alliance trust tiers charge only incremental resource escrow", () => {
+  assert.deepEqual(ALLIANCE_TRUST_TERMS[1], {
+    escrowGold: 2_000,
+    escrowFood: 2_000,
+    deliveryBonusPercent: 10,
+  });
+  assert.deepEqual(
+    getAllianceTrustUpgradeDeposit({ currentTier: 1, requestedTier: 2 }),
+    { gold: 8_000, food: 8_000 }
+  );
+  assert.deepEqual(
+    getAllianceTrustUpgradeDeposit({ currentTier: 2, requestedTier: 3 }),
+    { gold: 20_000, food: 20_000 }
+  );
+  assert.throws(
+    () =>
+      getAllianceTrustUpgradeDeposit({ currentTier: 2, requestedTier: 2 }),
+    /increase/
+  );
+});
+
+test("politics relation presentation derives alliance and peace actions", () => {
   const now = new Date("2026-04-20T12:00:00.000Z");
 
   assert.deepEqual(
@@ -149,7 +218,30 @@ test("politics relation presentation derives MVP actions", () => {
       now,
       currentFortressId: "alpha",
     }).availableActions,
-    ["DECLARE_WAR"]
+    ["DECLARE_WAR", "PROPOSE_ALLIANCE"]
+  );
+
+  assert.deepEqual(
+    getPoliticsRelationPresentation({
+      relation: {
+        status: DiplomacyRelationStatus.ALLIANCE_PENDING,
+        allianceProposedById: "beta",
+      },
+      now,
+      currentFortressId: "alpha",
+    }).availableActions,
+    ["ACCEPT_ALLIANCE", "REJECT_ALLIANCE"]
+  );
+  assert.deepEqual(
+    getPoliticsRelationPresentation({
+      relation: {
+        status: DiplomacyRelationStatus.ALLIANCE_PENDING,
+        allianceProposedById: "alpha",
+      },
+      now,
+      currentFortressId: "alpha",
+    }).availableActions,
+    ["CANCEL_ALLIANCE"]
   );
 
   const pending = getPoliticsRelationPresentation({
@@ -201,11 +293,43 @@ test("politics relation presentation derives MVP actions", () => {
   assert.match(ownPeace.disabledReason ?? "", /waiting/);
 
   const allied = getPoliticsRelationPresentation({
-    relation: { status: DiplomacyRelationStatus.ALLIED },
+    relation: { status: DiplomacyRelationStatus.ALLIED, allianceTrustTier: 1 },
     now,
     currentFortressId: "alpha",
   });
 
-  assert.equal(allied.availableAction, null);
-  assert.match(allied.disabledReason ?? "", /Alliances/);
+  assert.deepEqual(allied.availableActions, [
+    "PROPOSE_TRUST_UPGRADE",
+    "BETRAY_ALLIANCE",
+  ]);
+
+  const trustOffer = getPoliticsRelationPresentation({
+    relation: {
+      status: DiplomacyRelationStatus.ALLIED,
+      allianceTrustTier: 1,
+      trustUpgradeTier: 2,
+      trustUpgradeProposedById: "beta",
+    },
+    now,
+    currentFortressId: "alpha",
+  });
+
+  assert.deepEqual(trustOffer.availableActions, [
+    "ACCEPT_TRUST_UPGRADE",
+    "REJECT_TRUST_UPGRADE",
+    "BETRAY_ALLIANCE",
+  ]);
+  assert.deepEqual(
+    getPoliticsRelationPresentation({
+      relation: {
+        status: DiplomacyRelationStatus.ALLIED,
+        allianceTrustTier: 1,
+        trustUpgradeTier: 2,
+        trustUpgradeProposedById: "alpha",
+      },
+      now,
+      currentFortressId: "alpha",
+    }).availableActions,
+    ["CANCEL_TRUST_UPGRADE", "BETRAY_ALLIANCE"]
+  );
 });
