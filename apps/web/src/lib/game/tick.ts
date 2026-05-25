@@ -542,7 +542,6 @@ async function processTilePressureExpansion({
 
     const claimableTiles = HEX_TILES.filter((tile) => tile.claimable);
     const pressuredTileIds = new Set<string>();
-    const suppliedPressureKeys = new Set<string>();
 
     if (ownedExpansionTileIds.length > 0) {
       await tx.tilePressureState.deleteMany({
@@ -551,6 +550,58 @@ async function processTilePressureExpansion({
           tileId: {
             in: ownedExpansionTileIds,
           },
+        },
+      });
+    }
+
+    const storedPressureStates = await tx.tilePressureState.findMany({
+      where: {
+        cycleId,
+      },
+      select: {
+        id: true,
+        tileId: true,
+        pressure: true,
+        lastPressuredAt: true,
+        lastDecayedAt: true,
+      },
+    });
+
+    for (const state of storedPressureStates) {
+      if (ownerByTileId.has(state.tileId)) {
+        continue;
+      }
+
+      const decayFrom = state.lastDecayedAt ?? state.lastPressuredAt;
+      const elapsedHours = Math.floor(
+        (tickAt.getTime() - decayFrom.getTime()) / (60 * 60 * 1000)
+      );
+
+      if (elapsedHours <= 0) {
+        continue;
+      }
+
+      const pressure = applyUnsupportedPressureDecay({
+        pressure: state.pressure,
+        elapsedHours,
+      });
+
+      if (pressure <= 0) {
+        await tx.tilePressureState.delete({
+          where: {
+            id: state.id,
+          },
+        });
+        continue;
+      }
+
+      await tx.tilePressureState.update({
+        where: {
+          id: state.id,
+        },
+        data: {
+          pressure,
+          lastDecayedAt: addHours(decayFrom, elapsedHours),
         },
       });
     }
@@ -620,7 +671,6 @@ async function processTilePressureExpansion({
         targets,
       })) {
         pressuredTileIds.add(allocation.tileId);
-        suppliedPressureKeys.add(`${allocation.tileId}:${fortress.id}`);
         await tx.tilePressureState.upsert({
           where: {
             cycleId_tileId_fortressId: {
@@ -645,62 +695,6 @@ async function processTilePressureExpansion({
           },
         });
       }
-    }
-
-    const unsupportedStates = await tx.tilePressureState.findMany({
-      where: {
-        cycleId,
-      },
-      select: {
-        id: true,
-        tileId: true,
-        fortressId: true,
-        pressure: true,
-        lastPressuredAt: true,
-        lastDecayedAt: true,
-      },
-    });
-
-    for (const state of unsupportedStates) {
-      if (
-        ownerByTileId.has(state.tileId) ||
-        suppliedPressureKeys.has(`${state.tileId}:${state.fortressId}`)
-      ) {
-        continue;
-      }
-
-      const decayFrom = state.lastDecayedAt ?? state.lastPressuredAt;
-      const elapsedHours = Math.floor(
-        (tickAt.getTime() - decayFrom.getTime()) / (60 * 60 * 1000)
-      );
-
-      if (elapsedHours <= 0) {
-        continue;
-      }
-
-      const pressure = applyUnsupportedPressureDecay({
-        pressure: state.pressure,
-        elapsedHours,
-      });
-
-      if (pressure <= 0) {
-        await tx.tilePressureState.delete({
-          where: {
-            id: state.id,
-          },
-        });
-        continue;
-      }
-
-      await tx.tilePressureState.update({
-        where: {
-          id: state.id,
-        },
-        data: {
-          pressure,
-          lastDecayedAt: addHours(decayFrom, elapsedHours),
-        },
-      });
     }
 
     for (const tileId of pressuredTileIds) {
