@@ -127,8 +127,9 @@ jobs:
 
       - name: Run DB migrate & tests
         env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/project_a_test?schema=public
           TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/project_a_test?schema=public
         run: |
           npm run db:generate --workspace web
-          npm run db:migrate --workspace web -- --name ci-integration || true
+          npm run db:deploy --workspace web
           npm run test:game --workspace web
