@@ -80,6 +80,9 @@ import {
   investOrkWaaaghScrap,
   buyPointsWithGold,
   setTilePressurePriority,
+  stationGuardOrder,
+  startTerritoryCampaign,
+  recallArmyOrder,
 } from "@/lib/game/service";
 import type { AttackUnitLaunchMarker } from "@/lib/game/service";
 
@@ -619,6 +622,78 @@ export async function attackMapHexAction(tileId: string, sentArmy = 1) {
       ok: false,
       error: getActionErrorMessage(error),
     } satisfies MapHexAttackActionResult;
+  }
+}
+
+export async function stationGuardOrderAction(tileId: string, armyAmount = 1) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await stationGuardOrder({ userId, tileId, armyAmount });
+    notifyAndRevalidate("army-order-guard", ["/", "/castle"]);
+    return { ok: true } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
+export async function startTerritoryCampaignAction(
+  tileId: string,
+  armyAmount = 1
+) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await startTerritoryCampaign({ userId, tileId, armyAmount });
+    notifyAndRevalidate("territory-campaign-start", ["/", "/politics"]);
+    return { ok: true } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
+export async function recallArmyOrderAction(armyOrderId: string) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await recallArmyOrder({ userId, armyOrderId });
+    notifyAndRevalidate("army-order-recall", ["/", "/castle", "/politics"]);
+    return { ok: true } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
   }
 }
 

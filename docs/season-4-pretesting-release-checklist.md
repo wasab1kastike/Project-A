@@ -25,7 +25,7 @@ npm run build --workspace web
 
 - Record whether PostgreSQL-backed tests executed or skipped.
 - Verify `/wiki`, `/politics`, Castle, and battlefield state on desktop and mobile after deployment to pretesting.
-- Exercise pressure priorities and alliance proposal, cancellation, rejection, acceptance, trust upgrade, betrayal, war, and peace with test fortresses.
+- Exercise pressure priorities, alliance proposal/cancellation/rejection/acceptance, trust upgrade, betrayal, war, peace, guard recall, campaign buildup, siege warning, and automated tile siege resolution with test fortresses.
 
 ## Activation Hold
 

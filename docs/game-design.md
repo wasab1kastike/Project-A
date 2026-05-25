@@ -93,6 +93,14 @@
 - A detected covert raid records the attacker as an enemy and grants the victim 24 hours to invoke casus belli for immediate war once raid orders are enabled.
 - Pressure pacing, the Politics & Trade page, and alliance actions are gated to `SEASON_4` cycles; legacy history remains unaffected.
 
+## Season 4 campaigns and guards
+
+- Season 4 owned-tile conquest starts only through a `CAMPAIGN` standing order on an active-war connected enemy border tile; manual PvP tile attacks and ordinary reinforcements are not available.
+- A campaign commits army immediately and generates progress each tick from `pressure workers + min(floor(committed army / 100), pressure workers)`.
+- At `14,400` progress, the campaign opens a visible siege with a 12-hour response window before automated battlefield casualties begin.
+- `GUARD` orders commit army to owned normal tiles and join an incoming siege as defenders; guards can be recalled before they enter combat.
+- Peace or a lost war/target condition cancels an unengaged campaign and returns its committed army.
+
 ## Spawn & map fairness
 
 - Spawn selection only uses valid spawn hexes (`HEX_SPAWN_TILES` plus runtime `isPointNearSpawnHex` checks).

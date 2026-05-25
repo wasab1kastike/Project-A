@@ -2,6 +2,11 @@ import {
   CycleStatus,
   FortressKind,
   FortressAction,
+  ArmyOrderStatus,
+  ArmyOrderType,
+  BattlefieldSide,
+  BattlefieldStatus,
+  DiplomacyRelationStatus,
   Prisma,
   PrismaClient,
   ScoreEventType,
@@ -10,6 +15,7 @@ import {
   OrkScrapEventReason,
   ChatMessageType,
   CastleUpgradeSpecialization,
+  TerritoryCampaignStatus,
 } from "@/lib/prisma-client";
 import { prisma } from "@/lib/prisma";
 import { ensureOpenRegistrationCycle } from "./bootstrap";
@@ -114,6 +120,15 @@ import {
   getTilePressureClaimThreshold,
 } from "./tile-pressure";
 import { isSeasonFourRuleset } from "./rulesets";
+import {
+  CAMPAIGN_SIEGE_THRESHOLD,
+  calculateCampaignProgressPerTick,
+  getCampaignResponseEndsAt,
+} from "./campaigns";
+import {
+  getCanonicalDiplomacyPair,
+  getEffectiveDiplomacyStatus,
+} from "./politics";
 import { recalculateReturningAttackRoutes } from "./fortress-relocation";
 import {
   ensureBattlefieldPointRewardColumn,
@@ -753,6 +768,252 @@ async function processTilePressureExpansion({
       });
     }
   }, TICK_TRANSACTION_OPTIONS);
+}
+
+async function processSeasonFourCampaigns({
+  db,
+  cycleId,
+  tickAt,
+}: {
+  db: PrismaClient;
+  cycleId: string;
+  tickAt: Date;
+}) {
+  await db.$transaction(async (tx) => {
+    const campaigns = await tx.territoryCampaign.findMany({
+      where: {
+        cycleId,
+        status: {
+          in: [
+            TerritoryCampaignStatus.BUILDING,
+            TerritoryCampaignStatus.SIEGE_WARNING,
+          ],
+        },
+      },
+      include: {
+        armyOrder: true,
+        attackerFortress: {
+          select: {
+            id: true,
+            pressureWorkersAssigned: true,
+          },
+        },
+      },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    });
+
+    for (const campaign of campaigns) {
+      const [ownership, relation] = await Promise.all([
+        tx.mapHexOwnership.findUnique({
+          where: {
+            cycleId_tileId: {
+              cycleId,
+              tileId: campaign.targetTileId,
+            },
+          },
+          select: { ownerFortressId: true },
+        }),
+        tx.diplomacyRelation.findUnique({
+          where: {
+            cycleId_fortressAId_fortressBId: {
+              cycleId,
+              ...getCanonicalDiplomacyPair(
+                campaign.attackerFortressId,
+                campaign.defenderFortressId
+              ),
+            },
+          },
+        }),
+      ]);
+      const warActive =
+        getEffectiveDiplomacyStatus({ relation, now: tickAt }) ===
+        DiplomacyRelationStatus.WAR;
+      const targetStillDefended =
+        ownership?.ownerFortressId === campaign.defenderFortressId;
+
+      if (
+        !warActive ||
+        !targetStillDefended ||
+        campaign.armyOrder.status !== ArmyOrderStatus.ACTIVE
+      ) {
+        if (campaign.armyOrder.status === ArmyOrderStatus.ACTIVE) {
+          await tx.fortress.update({
+            where: { id: campaign.attackerFortressId },
+            data: { army: { increment: campaign.armyOrder.committedArmy } },
+          });
+          await tx.armyOrder.update({
+            where: { id: campaign.armyOrderId },
+            data: { status: ArmyOrderStatus.RETURNED, returnedAt: tickAt },
+          });
+        }
+        await tx.territoryCampaign.update({
+          where: { id: campaign.id },
+          data: {
+            status: TerritoryCampaignStatus.CANCELED,
+            canceledAt: tickAt,
+            cancellationReason: warActive
+              ? "Target ownership changed before the siege."
+              : "War is no longer active.",
+          },
+        });
+        continue;
+      }
+
+      if (campaign.status === TerritoryCampaignStatus.BUILDING) {
+        const progressDelta = calculateCampaignProgressPerTick({
+          pressureWorkersAssigned:
+            campaign.attackerFortress.pressureWorkersAssigned,
+          committedArmy: campaign.armyOrder.committedArmy,
+        });
+        const progress = Math.min(
+          CAMPAIGN_SIEGE_THRESHOLD,
+          campaign.progress + progressDelta
+        );
+
+        if (progress < CAMPAIGN_SIEGE_THRESHOLD) {
+          await tx.territoryCampaign.update({
+            where: { id: campaign.id },
+            data: { progress },
+          });
+          continue;
+        }
+
+        await tx.territoryCampaign.update({
+          where: { id: campaign.id },
+          data: {
+            status: TerritoryCampaignStatus.SIEGE_WARNING,
+            progress,
+            siegeOpenedAt: tickAt,
+            responseEndsAt: getCampaignResponseEndsAt(tickAt),
+          },
+        });
+        continue;
+      }
+
+      if (!campaign.responseEndsAt || campaign.responseEndsAt > tickAt) {
+        continue;
+      }
+
+      const [existingBattlefield, guardOrders, garrisons] = await Promise.all([
+        tx.battlefield.findFirst({
+          where: {
+            cycleId,
+            targetTileId: campaign.targetTileId,
+            status: BattlefieldStatus.ACTIVE,
+          },
+          select: { id: true },
+        }),
+        tx.armyOrder.findMany({
+          where: {
+            cycleId,
+            fortressId: campaign.defenderFortressId,
+            type: ArmyOrderType.GUARD,
+            status: ArmyOrderStatus.ACTIVE,
+            targetTileId: campaign.targetTileId,
+          },
+        }),
+        tx.fortressGarrison.findMany({
+          where: {
+            cycleId,
+            fortressId: campaign.defenderFortressId,
+            tileId: campaign.targetTileId,
+            army: { gt: 0 },
+          },
+        }),
+      ]);
+
+      if (existingBattlefield) {
+        continue;
+      }
+
+      const defenderArmy =
+        guardOrders.reduce((sum, order) => sum + order.committedArmy, 0) +
+        garrisons.reduce((sum, garrison) => sum + garrison.army, 0);
+      const battlefield = await tx.battlefield.create({
+        data: {
+          cycleId,
+          targetTileId: campaign.targetTileId,
+          targetFortressId: campaign.defenderFortressId,
+          attackerBannerFortressId: campaign.attackerFortressId,
+          defenderBannerFortressId: campaign.defenderFortressId,
+          attackerArmyRemaining: campaign.armyOrder.committedArmy,
+          defenderArmyRemaining: defenderArmy,
+          startedAt: tickAt,
+          participants: {
+            create: [
+              {
+                fortressId: campaign.attackerFortressId,
+                side: BattlefieldSide.ATTACKER,
+                armyCommitted: campaign.armyOrder.committedArmy,
+                armyRemaining: campaign.armyOrder.committedArmy,
+                maintenanceDrains: false,
+                joinedAt: tickAt,
+              },
+              ...(defenderArmy > 0
+                ? [
+                    {
+                      fortressId: campaign.defenderFortressId,
+                      side: BattlefieldSide.DEFENDER,
+                      armyCommitted: defenderArmy,
+                      armyRemaining: defenderArmy,
+                      maintenanceDrains: false,
+                      joinedAt: tickAt,
+                    },
+                  ]
+                : []),
+            ],
+          },
+        },
+        select: { id: true },
+      });
+
+      if (garrisons.length > 0) {
+        await tx.fortressGarrison.deleteMany({
+          where: { id: { in: garrisons.map((garrison) => garrison.id) } },
+        });
+      }
+      if (guardOrders.length > 0) {
+        await tx.armyOrder.updateMany({
+          where: { id: { in: guardOrders.map((order) => order.id) } },
+          data: { status: ArmyOrderStatus.TRANSFERRED, transferredAt: tickAt },
+        });
+      }
+      await tx.armyOrder.update({
+        where: { id: campaign.armyOrderId },
+        data: { status: ArmyOrderStatus.TRANSFERRED, transferredAt: tickAt },
+      });
+      await tx.territoryCampaign.update({
+        where: { id: campaign.id },
+        data: {
+          status: TerritoryCampaignStatus.ENGAGED,
+          battlefieldId: battlefield.id,
+          engagedAt: tickAt,
+        },
+      });
+    }
+  }, TICK_TRANSACTION_OPTIONS);
+}
+
+async function finalizeSeasonFourCampaigns({
+  db,
+  cycleId,
+  tickAt,
+}: {
+  db: PrismaClient;
+  cycleId: string;
+  tickAt: Date;
+}) {
+  await db.territoryCampaign.updateMany({
+    where: {
+      cycleId,
+      status: TerritoryCampaignStatus.ENGAGED,
+      battlefield: { status: BattlefieldStatus.RESOLVED },
+    },
+    data: {
+      status: TerritoryCampaignStatus.RESOLVED,
+      resolvedAt: tickAt,
+    },
+  });
 }
 
 function isUniqueTickError(error: unknown) {
@@ -1731,6 +1992,10 @@ async function processCycleTick(
     tickAt,
     isSeasonFour,
   });
+
+  if (isSeasonFour) {
+    await processSeasonFourCampaigns({ db, cycleId, tickAt });
+  }
 
   // Eternal goblins: loot camps no longer expire from timers
   // They only disappear when killed by players
@@ -4178,6 +4443,10 @@ async function processCycleTick(
     cycleId,
     tickAt,
   });
+
+  if (isSeasonFour) {
+    await finalizeSeasonFourCampaigns({ db, cycleId, tickAt });
+  }
 
   // Apply garrison maintenance drain.
   // Unicorn garrisons drain every other tick to support the new tile-holding loop.

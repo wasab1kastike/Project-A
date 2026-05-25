@@ -16,10 +16,13 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
       "The Politics & Trade page now supports trust-backed alliance proposals, bilateral trust upgrades, and immediate betrayal with escrow forfeiture during pretesting.",
       "Alliance and trust proposals can now be canceled by their sender or rejected by their recipient.",
       "Detected covert incidents now grant the victim a 24-hour casus belli option for immediate war, ready for the upcoming raid-order slice.",
+      "Season 4 war borders now use standing campaigns: committed army and pressure build toward a visible 12-hour siege warning before automatic combat begins.",
+      "Owned tiles can station standing guard orders that commit army to defend against incoming Season 4 sieges.",
     ],
     bugFixes: [
       "Season 4 stays in pretesting until its redesigned rules are explicitly approved for activation, instead of starting from an unfinished schedule.",
       "Home of A, loot camps, and legacy active race abilities are no longer interactive or bonus-granting in Season 4 pretesting; the center tile is shown as a monument.",
+      "Manual PvP tile raids, ordinary battlefield reinforcements, and legacy fortification controls are replaced by standing orders in Season 4 pretesting.",
     ],
   },
   {

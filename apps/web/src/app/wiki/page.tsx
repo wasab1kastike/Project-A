@@ -262,6 +262,8 @@ const POLITICS_RULES = [
   "Bilateral trust upgrades raise each ally's escrow to 10,000 at Trust II and 30,000 at Trust III.",
   "Betrayal starts war immediately and gives both escrow shares to the harmed ally.",
   "Once covert raid orders are enabled, a detected raid grants the victim 24 hours to invoke immediate war.",
+  "During active war, commit army to a connected enemy border campaign; at 14,400 buildup a 12-hour siege warning opens before fighting.",
+  "Station guards on your owned normal tiles to defend them if a campaign becomes a siege.",
 ] as const;
 
 const FAQ_ENTRIES = [

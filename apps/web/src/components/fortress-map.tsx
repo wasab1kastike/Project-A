@@ -114,6 +114,19 @@ type MapHexOwnershipMarker = {
   pressurePriorityDisabledReason?: string | null;
   activeBattlefieldId?: string | null;
   attackDisabledReason?: string | null;
+  canStartCampaign?: boolean;
+  campaignDisabledReason?: string | null;
+  campaignId?: string | null;
+  campaignOrderId?: string | null;
+  campaignStatus?: "BUILDING" | "SIEGE_WARNING" | "ENGAGED" | "RESOLVED" | "CANCELED" | null;
+  campaignProgress?: number | null;
+  campaignThreshold?: number | null;
+  campaignResponseEndsAt?: Date | null;
+  isOwnCampaign?: boolean;
+  canStationGuard?: boolean;
+  guardDisabledReason?: string | null;
+  guardOrderId?: string | null;
+  guardArmy?: number | null;
   bonus: {
     label: string;
     gold?: number;

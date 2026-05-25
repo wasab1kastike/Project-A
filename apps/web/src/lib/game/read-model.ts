@@ -5,6 +5,7 @@ import {
   CycleStatus,
   BattlefieldSide,
   BattlefieldStatus,
+  ArmyOrderType,
   CastleUpgradeSpecialization,
   FortressKind,
   OrkBossOrderKind,
@@ -12,6 +13,7 @@ import {
   Prisma,
   RaceAbilityKind,
   WinnerRequestStatus,
+  TerritoryCampaignStatus,
   type PrismaClient,
 } from "@/lib/prisma-client";
 import {
@@ -88,8 +90,13 @@ import { getBattlefieldCasualtyBudget } from "./battlefield-rules";
 import { getTileAttackBlockedReason } from "./combat-targeting";
 import {
   findDiplomacyRelationForPair,
+  getEffectiveDiplomacyStatus,
   getDiplomacyPressureBlockedReason,
 } from "./politics";
+import {
+  CAMPAIGN_SIEGE_THRESHOLD,
+  getCampaignStartBlockedReason,
+} from "./campaigns";
 import {
   getNeutralPressureClaimWinner,
   getPressureTargetBlockedReason,
@@ -804,6 +811,35 @@ export async function getHomePageState({
           tileId: true,
           fortressId: true,
           pressure: true,
+        },
+      },
+      armyOrders: {
+        where: {
+          status: "ACTIVE",
+        },
+        select: {
+          id: true,
+          fortressId: true,
+          type: true,
+          targetTileId: true,
+          committedArmy: true,
+        },
+      },
+      territoryCampaigns: {
+        where: {
+          status: {
+            in: ["BUILDING", "SIEGE_WARNING", "ENGAGED"],
+          },
+        },
+        select: {
+          id: true,
+          attackerFortressId: true,
+          defenderFortressId: true,
+          armyOrderId: true,
+          targetTileId: true,
+          status: true,
+          progress: true,
+          responseEndsAt: true,
         },
       },
       diplomacyRelations: {
@@ -2064,6 +2100,7 @@ export async function getHomePageState({
       fortressCosmeticVariant: displayOwner?.fortressCosmeticVariant ?? null,
       isCurrentUser: fortress.ownerId === userId,
       isTargetable:
+        !isSeasonFour &&
         playerFortressId !== null &&
         gameplayOpen &&
         fortress.id !== playerFortressId &&
@@ -2399,6 +2436,21 @@ export async function getHomePageState({
   const claimedTileIds = new Set(
     cycle.mapHexOwnerships.map((ownership) => ownership.tileId)
   );
+  const activeCampaignByTileId = new Map(
+    cycle.territoryCampaigns.map((campaign) => [campaign.targetTileId, campaign])
+  );
+  const ownGuardOrderByTileId = new Map(
+    playerFortress
+      ? cycle.armyOrders
+          .filter(
+            (order) =>
+              order.fortressId === playerFortress.id &&
+              order.type === ArmyOrderType.GUARD &&
+              order.targetTileId
+          )
+          .map((order) => [order.targetTileId!, order])
+      : []
+  );
   const pressureStatesByTileId = new Map<
     string,
     Array<{ fortressId: string; pressure: number }>
@@ -2537,6 +2589,19 @@ export async function getHomePageState({
     pressurePriorityDisabledReason: string | null;
     activeBattlefieldId: string | null;
     attackDisabledReason: string | null;
+    canStartCampaign: boolean;
+    campaignDisabledReason: string | null;
+    campaignId: string | null;
+    campaignOrderId: string | null;
+    campaignStatus: TerritoryCampaignStatus | null;
+    campaignProgress: number | null;
+    campaignThreshold: number | null;
+    campaignResponseEndsAt: Date | null;
+    isOwnCampaign: boolean;
+    canStationGuard: boolean;
+    guardDisabledReason: string | null;
+    guardOrderId: string | null;
+    guardArmy: number | null;
     bonus: {
       label: string;
       gold: number;
@@ -2602,6 +2667,73 @@ export async function getHomePageState({
           cycleId: cycle.id,
           at: now,
         });
+    const activeCampaign = activeCampaignByTileId.get(ownership.tileId) ?? null;
+    const ownGuardOrder = ownGuardOrderByTileId.get(ownership.tileId) ?? null;
+    const campaignDisabledReason = (() => {
+      if (isHomeOwnership) {
+        return homeMonumentReason;
+      }
+
+      if (!isSeasonFour) {
+        return "Campaign orders are available only in Season 4.";
+      }
+
+      if (!gameplayOpen) {
+        return "Campaigns can only begin during gameplay.";
+      }
+
+      if (!playerFortress) {
+        return "Join the cycle to start campaigns.";
+      }
+
+      if (playerFortress.army <= 0) {
+        return "You need idle army to start a campaign.";
+      }
+
+      const relation =
+        ownership.ownerFortressId !== playerFortress.id
+          ? findDiplomacyRelationForPair({
+              relations: cycle.diplomacyRelations,
+              fortressOneId: playerFortress.id,
+              fortressTwoId: ownership.ownerFortressId,
+            })
+          : null;
+
+      return getCampaignStartBlockedReason({
+        relationStatus: getEffectiveDiplomacyStatus({ relation, now }),
+        isEnemyOwned:
+          Boolean(ownership.ownerFortressId) &&
+          ownership.ownerFortressId !== playerFortress.id,
+        isBorderTarget: pressureState.isConnectedToPlayerTerritory,
+        hasActiveCampaign: Boolean(activeCampaign),
+        hasActiveBattlefield: activeBattleTileIds.has(ownership.tileId),
+      });
+    })();
+    const guardDisabledReason = (() => {
+      if (isHomeOwnership) {
+        return homeMonumentReason;
+      }
+
+      if (!isSeasonFour) {
+        return "Standing guard orders are available only in Season 4.";
+      }
+
+      if (!gameplayOpen) {
+        return "Guard orders can only be changed during gameplay.";
+      }
+
+      if (!playerFortress || ownership.ownerFortressId !== playerFortress.id) {
+        return "Guard orders may be stationed only on your owned tiles.";
+      }
+
+      if (ownGuardOrder) {
+        return null;
+      }
+
+      return playerFortress.army > 0
+        ? null
+        : "You need idle army to station guards.";
+    })();
 
     return {
       id: ownership.id,
@@ -2634,17 +2766,19 @@ export async function getHomePageState({
       canAttack:
         isHomeOwnership
           ? canAttackHomeOfA
-          : getTileAttackDisabledReason(ownership) === null,
+          : !isSeasonFour && getTileAttackDisabledReason(ownership) === null,
       canFortify:
         isHomeOwnership
           ? false
-          : getTileFortifyDisabledReason(ownership) === null,
+          : !isSeasonFour && getTileFortifyDisabledReason(ownership) === null,
       fortifyDisabledReason:
         isHomeOwnership
           ? isSeasonFour
             ? homeMonumentReason
             : "Home of A is a daily boss and cannot be fortified."
-          : getTileFortifyDisabledReason(ownership),
+          : isSeasonFour
+            ? "Season 4 defense uses standing guard orders."
+            : getTileFortifyDisabledReason(ownership),
       isConnectedToPlayerTerritory: pressureState.isConnectedToPlayerTerritory,
       pressurePriority: pressureState.pressurePriority,
       pressurePlayerProgress: pressureState.pressurePlayerProgress,
@@ -2672,7 +2806,32 @@ export async function getHomePageState({
                   : homeRespawnsAt && homeRespawnsAt > now
                     ? "Home of A is defeated and waiting to respawn."
                     : "Home of A is not attackable right now."
-          : getTileAttackDisabledReason(ownership),
+          : isSeasonFour
+            ? "Season 4 territory attacks use campaign orders."
+            : getTileAttackDisabledReason(ownership),
+      canStartCampaign: campaignDisabledReason === null,
+      campaignDisabledReason,
+      campaignId: activeCampaign?.id ?? null,
+      campaignOrderId:
+        activeCampaign &&
+        playerFortress &&
+        activeCampaign.attackerFortressId === playerFortress.id
+          ? activeCampaign.armyOrderId
+          : null,
+      campaignStatus: activeCampaign?.status ?? null,
+      campaignProgress: activeCampaign?.progress ?? null,
+      campaignThreshold: activeCampaign ? CAMPAIGN_SIEGE_THRESHOLD : null,
+      campaignResponseEndsAt: activeCampaign?.responseEndsAt ?? null,
+      isOwnCampaign:
+        Boolean(
+          activeCampaign &&
+            playerFortress &&
+            activeCampaign.attackerFortressId === playerFortress.id
+        ),
+      canStationGuard: guardDisabledReason === null && !ownGuardOrder,
+      guardDisabledReason,
+      guardOrderId: ownGuardOrder?.id ?? null,
+      guardArmy: ownGuardOrder?.committedArmy ?? null,
       bonus,
       isHomeOfA: isHomeOwnership,
       pointIncome: isHomeOwnership ? null : bonus.points > 0 ? bonus.points : null,
@@ -2756,7 +2915,20 @@ export async function getHomePageState({
               ? "You need idle army to attack Home of A."
               : homeRespawnsAt && homeRespawnsAt > now
                 ? "Home of A is defeated and waiting to respawn."
-                : "Home of A is not attackable right now.",
+              : "Home of A is not attackable right now.",
+      canStartCampaign: false,
+      campaignDisabledReason: homeMonumentReason,
+      campaignId: null,
+      campaignOrderId: null,
+      campaignStatus: null,
+      campaignProgress: null,
+      campaignThreshold: null,
+      campaignResponseEndsAt: null,
+      isOwnCampaign: false,
+      canStationGuard: false,
+      guardDisabledReason: homeMonumentReason,
+      guardOrderId: null,
+      guardArmy: null,
       bonus: homeTileBonus,
       isHomeOfA: true,
       pointIncome: null,
@@ -2808,6 +2980,19 @@ export async function getHomePageState({
         pressureState.pressurePriorityDisabledReason,
       activeBattlefieldId: activeBattlefieldByTileId.get(tile.id)?.id ?? null,
       attackDisabledReason: null,
+      canStartCampaign: false,
+      campaignDisabledReason: "Campaigns target enemy-owned territory.",
+      campaignId: null,
+      campaignOrderId: null,
+      campaignStatus: null,
+      campaignProgress: null,
+      campaignThreshold: null,
+      campaignResponseEndsAt: null,
+      isOwnCampaign: false,
+      canStationGuard: false,
+      guardDisabledReason: "Own this tile before stationing guards.",
+      guardOrderId: null,
+      guardArmy: null,
       bonus,
       isHomeOfA: false,
       pointIncome: bonus.points > 0 ? bonus.points : null,
@@ -2954,6 +3139,7 @@ export async function getHomePageState({
       : null,
     playerSummary: playerFortress
       ? {
+          seasonFourRulesEnabled: isSeasonFour,
           id: playerFortress.id,
           commanderName: getDisplayName(
             playerFortress.commanderName,
@@ -3546,7 +3732,7 @@ export async function getHomePageState({
     },
     battleReports,
     availableTargets:
-      gameplayOpen && playerFortress
+      gameplayOpen && playerFortress && !isSeasonFour
         ? visibleFortresses
             .filter((fortress) => {
               const runeSuppression = activeRuneSuppressions.find(

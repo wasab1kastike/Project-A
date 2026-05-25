@@ -3,6 +3,8 @@ import {
   CommunityWishStatus,
   CycleRuleset,
   CycleStatus,
+  ArmyOrderStatus,
+  ArmyOrderType,
   FortressAction,
   FortressKind,
   ScoreEventType,
@@ -13,6 +15,7 @@ import {
   BattlefieldSide,
   ChatMessageType,
   DiplomacyRelationStatus,
+  TerritoryCampaignStatus,
   OrkBossOrderKind,
   OrkScrapEventReason,
   OrkWaaaghInvestmentKind,
@@ -116,6 +119,7 @@ import {
   getWarStartsAt,
 } from "./politics";
 import { isSeasonFourRuleset } from "./rulesets";
+import { getCampaignStartBlockedReason } from "./campaigns";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -952,6 +956,12 @@ export async function setFortressAction({
       );
     }
 
+    if (isSeasonFourRuleset(cycle.ruleset)) {
+      throw new GameError(
+        "Season 4 PvP uses campaign orders from contested border tiles."
+      );
+    }
+
     if (
       isSeasonFourRuleset(cycle.ruleset) &&
       target.fortressKind !== FortressKind.PLAYER
@@ -1325,6 +1335,10 @@ async function getActivePlayerFortressForPolitics({
       id: true,
       gold: true,
       food: true,
+      army: true,
+      race: true,
+      mapX: true,
+      mapY: true,
     },
   });
 
@@ -2352,6 +2366,57 @@ export async function acceptPeace({
       throw new GameError("The other fortress must accept your peace proposal.");
     }
 
+    await tx.territoryCampaign.updateMany({
+      where: {
+        cycleId: cycle.id,
+        status: {
+          in: [
+            TerritoryCampaignStatus.BUILDING,
+            TerritoryCampaignStatus.SIEGE_WARNING,
+          ],
+        },
+        OR: [
+          { attackerFortressId: actor.id, defenderFortressId: target.id },
+          { attackerFortressId: target.id, defenderFortressId: actor.id },
+        ],
+      },
+      data: {
+        status: TerritoryCampaignStatus.CANCELED,
+        canceledAt: now,
+        cancellationReason: "Peace accepted.",
+      },
+    });
+    const canceledOrders = await tx.armyOrder.findMany({
+      where: {
+        cycleId: cycle.id,
+        type: ArmyOrderType.CAMPAIGN,
+        status: ArmyOrderStatus.ACTIVE,
+        OR: [
+          { fortressId: actor.id, targetFortressId: target.id },
+          { fortressId: target.id, targetFortressId: actor.id },
+        ],
+      },
+      select: {
+        id: true,
+        fortressId: true,
+        committedArmy: true,
+      },
+    });
+
+    for (const order of canceledOrders) {
+      await tx.fortress.update({
+        where: { id: order.fortressId },
+        data: { army: { increment: order.committedArmy } },
+      });
+      await tx.armyOrder.update({
+        where: { id: order.id },
+        data: {
+          status: ArmyOrderStatus.RETURNED,
+          returnedAt: now,
+        },
+      });
+    }
+
     return tx.diplomacyRelation.update({
       where: {
         id: relation.id,
@@ -2368,6 +2433,285 @@ export async function acceptPeace({
         collateralArmy: 0,
         casusBelliFortressId: null,
         casusBelliExpiresAt: null,
+      },
+    });
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+export async function stationGuardOrder({
+  userId,
+  tileId,
+  armyAmount,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  tileId: string;
+  armyAmount: number;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("The current cycle is not accepting standing orders.");
+    }
+
+    assertSeasonFourFeatureCycle(cycle);
+
+    if (!Number.isInteger(armyAmount) || armyAmount <= 0) {
+      throw new GameError("Commit at least 1 army to a guard order.");
+    }
+
+    const fortress = await getActivePlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      userId,
+    });
+
+    if (fortress.army < armyAmount) {
+      throw new GameError("You do not have enough idle army for that guard order.");
+    }
+
+    const ownership = await tx.mapHexOwnership.findUnique({
+      where: { cycleId_tileId: { cycleId: cycle.id, tileId } },
+      select: { ownerFortressId: true },
+    });
+
+    if (!ownership || ownership.ownerFortressId !== fortress.id) {
+      throw new GameError("Guard orders may be stationed only on your owned tiles.");
+    }
+
+    if (isHomeOfATile(tileId)) {
+      throw new GameError("The center monument cannot receive guard orders.");
+    }
+
+    const existing = await tx.armyOrder.findFirst({
+      where: {
+        cycleId: cycle.id,
+        fortressId: fortress.id,
+        type: ArmyOrderType.GUARD,
+        status: ArmyOrderStatus.ACTIVE,
+        targetTileId: tileId,
+      },
+      select: { id: true },
+    });
+
+    if (existing) {
+      throw new GameError("You already have a guard order stationed on that tile.");
+    }
+
+    await tx.fortress.update({
+      where: { id: fortress.id },
+      data: { army: { decrement: armyAmount } },
+    });
+
+    return tx.armyOrder.create({
+      data: {
+        cycleId: cycle.id,
+        fortressId: fortress.id,
+        type: ArmyOrderType.GUARD,
+        status: ArmyOrderStatus.ACTIVE,
+        targetTileId: tileId,
+        committedArmy: armyAmount,
+        startsAt: now,
+      },
+    });
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+export async function startTerritoryCampaign({
+  userId,
+  tileId,
+  armyAmount,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  tileId: string;
+  armyAmount: number;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("The current cycle is not accepting campaigns.");
+    }
+
+    assertSeasonFourFeatureCycle(cycle);
+
+    if (!Number.isInteger(armyAmount) || armyAmount <= 0) {
+      throw new GameError("Commit at least 1 army to a campaign.");
+    }
+
+    const attacker = await getActivePlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      userId,
+    });
+
+    if (attacker.army < armyAmount) {
+      throw new GameError("You do not have enough idle army for that campaign.");
+    }
+
+    const tile = getTileById(tileId);
+
+    if (!tile || !tile.claimable || isHomeOfATile(tileId)) {
+      throw new GameError("That tile cannot be targeted by a campaign.");
+    }
+
+    const ownership = await tx.mapHexOwnership.findUnique({
+      where: { cycleId_tileId: { cycleId: cycle.id, tileId } },
+      select: { ownerFortressId: true },
+    });
+    const defenderId = ownership?.ownerFortressId ?? null;
+    const relation = defenderId
+      ? await tx.diplomacyRelation.findUnique({
+          where: {
+            cycleId_fortressAId_fortressBId: {
+              cycleId: cycle.id,
+              ...getCanonicalDiplomacyPair(attacker.id, defenderId),
+            },
+          },
+        })
+      : null;
+    const [ownedTiles, activeCampaign, activeBattlefield] = await Promise.all([
+      tx.mapHexOwnership.findMany({
+        where: { cycleId: cycle.id, ownerFortressId: attacker.id },
+        select: { tileId: true },
+      }),
+      tx.territoryCampaign.findFirst({
+        where: {
+          cycleId: cycle.id,
+          targetTileId: tileId,
+          status: {
+            in: [
+              TerritoryCampaignStatus.BUILDING,
+              TerritoryCampaignStatus.SIEGE_WARNING,
+              TerritoryCampaignStatus.ENGAGED,
+            ],
+          },
+        },
+        select: { id: true },
+      }),
+      tx.battlefield.findFirst({
+        where: { cycleId: cycle.id, targetTileId: tileId, status: BattlefieldStatus.ACTIVE },
+        select: { id: true },
+      }),
+    ]);
+    const isBorderTarget = isTileConnectedToFortressOrOwnedTiles({
+      tileId,
+      fortress: attacker,
+      ownedTileIds: ownedTiles.map((entry) => entry.tileId),
+    });
+    const blockedReason = getCampaignStartBlockedReason({
+      relationStatus: getEffectiveDiplomacyStatus({ relation, now }),
+      isEnemyOwned: Boolean(defenderId && defenderId !== attacker.id),
+      isBorderTarget,
+      hasActiveCampaign: Boolean(activeCampaign),
+      hasActiveBattlefield: Boolean(activeBattlefield),
+    });
+
+    if (blockedReason || !defenderId) {
+      throw new GameError(blockedReason ?? "Campaigns target enemy territory.");
+    }
+
+    await tx.fortress.update({
+      where: { id: attacker.id },
+      data: { army: { decrement: armyAmount } },
+    });
+    const order = await tx.armyOrder.create({
+      data: {
+        cycleId: cycle.id,
+        fortressId: attacker.id,
+        type: ArmyOrderType.CAMPAIGN,
+        status: ArmyOrderStatus.ACTIVE,
+        targetTileId: tileId,
+        targetFortressId: defenderId,
+        committedArmy: armyAmount,
+        startsAt: now,
+      },
+    });
+
+    return tx.territoryCampaign.create({
+      data: {
+        cycleId: cycle.id,
+        attackerFortressId: attacker.id,
+        defenderFortressId: defenderId,
+        armyOrderId: order.id,
+        targetTileId: tileId,
+      },
+      include: { armyOrder: true },
+    });
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+export async function recallArmyOrder({
+  userId,
+  armyOrderId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  armyOrderId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("The current cycle is not accepting order recalls.");
+    }
+
+    assertSeasonFourFeatureCycle(cycle);
+    const fortress = await getActivePlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      userId,
+    });
+    const order = await tx.armyOrder.findFirst({
+      where: {
+        id: armyOrderId,
+        cycleId: cycle.id,
+        fortressId: fortress.id,
+        status: ArmyOrderStatus.ACTIVE,
+      },
+      include: { campaign: true },
+    });
+
+    if (!order) {
+      throw new GameError("That active standing order is not available to recall.");
+    }
+
+    if (order.campaign?.status === TerritoryCampaignStatus.ENGAGED) {
+      throw new GameError("Army in an active siege must be recalled from the battlefield.");
+    }
+
+    if (order.campaign) {
+      await tx.territoryCampaign.update({
+        where: { id: order.campaign.id },
+        data: {
+          status: TerritoryCampaignStatus.CANCELED,
+          canceledAt: now,
+          cancellationReason: "Campaign recalled.",
+        },
+      });
+    }
+
+    await tx.fortress.update({
+      where: { id: fortress.id },
+      data: { army: { increment: order.committedArmy } },
+    });
+
+    return tx.armyOrder.update({
+      where: { id: order.id },
+      data: {
+        status: ArmyOrderStatus.RETURNED,
+        returnedAt: now,
       },
     });
   }, SERVICE_TRANSACTION_OPTIONS);
@@ -2397,6 +2741,12 @@ export async function attackMapHex({
 
     if (isSeasonFourRuleset(cycle.ruleset) && isHomeOfATile(tileId)) {
       throw new GameError("The center monument cannot be attacked in Season 4.");
+    }
+
+    if (isSeasonFourRuleset(cycle.ruleset)) {
+      throw new GameError(
+        "Season 4 territory attacks begin through campaign orders."
+      );
     }
 
     const tile = getTileById(tileId);
@@ -2879,6 +3229,10 @@ export async function fortifyMapHex({
       throw new GameError("The current cycle is not accepting fortifications.");
     }
 
+    if (isSeasonFourRuleset(cycle.ruleset)) {
+      throw new GameError("Season 4 defense uses standing guard orders.");
+    }
+
     const tile = getTileById(tileId);
 
     if (!tile && !isHomeOfATile(tileId)) {
@@ -3044,31 +3398,9 @@ export async function joinBattlefield({
   const cycle = await getCurrentCycle(db);
 
   if (cycle && isSeasonFourRuleset(cycle.ruleset)) {
-    const battlefield = await db.battlefield.findFirst({
-      where: {
-        id: battlefieldId,
-        cycleId: cycle.id,
-      },
-      select: {
-        targetTileId: true,
-        targetFortress: {
-          select: {
-            fortressKind: true,
-          },
-        },
-      },
-    });
-
-    if (
-      battlefield &&
-      (isHomeOfATile(battlefield.targetTileId ?? "") ||
-        (battlefield.targetFortress &&
-          battlefield.targetFortress.fortressKind !== FortressKind.PLAYER))
-    ) {
-      throw new GameError(
-        "Legacy PvE battlefields are not available in Season 4."
-      );
-    }
+    throw new GameError(
+      "Season 4 armies reinforce territory through standing orders."
+    );
   }
 
   return joinBattlefieldRecord({
