@@ -1557,6 +1557,90 @@ export async function acceptAlliance({
   }, SERVICE_TRANSACTION_OPTIONS);
 }
 
+async function closeAllianceProposal({
+  userId,
+  targetFortressId,
+  actorMustBeProposer,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  targetFortressId: string;
+  actorMustBeProposer: boolean;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("Politics can only change during gameplay.");
+    }
+
+    assertSeasonFourFeatureCycle(cycle);
+    const actor = await getActivePlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      userId,
+    });
+    const target = await getTargetPlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      targetFortressId,
+    });
+    const pair = getCanonicalDiplomacyPair(actor.id, target.id);
+    const relation = await tx.diplomacyRelation.findUnique({
+      where: {
+        cycleId_fortressAId_fortressBId: { cycleId: cycle.id, ...pair },
+      },
+    });
+
+    if (
+      !relation ||
+      relation.status !== DiplomacyRelationStatus.ALLIANCE_PENDING
+    ) {
+      throw new GameError("There is no alliance proposal to close.");
+    }
+
+    const actorIsProposer = relation.allianceProposedById === actor.id;
+
+    if (actorIsProposer !== actorMustBeProposer) {
+      throw new GameError(
+        actorMustBeProposer
+          ? "Only the proposer can cancel this alliance proposal."
+          : "Only the receiving fortress can reject this alliance proposal."
+      );
+    }
+
+    return tx.diplomacyRelation.update({
+      where: { id: relation.id },
+      data: {
+        status: DiplomacyRelationStatus.NEUTRAL,
+        allianceProposedById: null,
+        allianceProposedAt: null,
+      },
+    });
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+export function cancelAllianceProposal(input: {
+  userId: string;
+  targetFortressId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return closeAllianceProposal({ ...input, actorMustBeProposer: true });
+}
+
+export function rejectAllianceProposal(input: {
+  userId: string;
+  targetFortressId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return closeAllianceProposal({ ...input, actorMustBeProposer: false });
+}
+
 export async function proposeAllianceTrustUpgrade({
   userId,
   targetFortressId,
@@ -1715,6 +1799,91 @@ export async function acceptAllianceTrustUpgrade({
       },
     });
   }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+async function closeAllianceTrustUpgrade({
+  userId,
+  targetFortressId,
+  actorMustBeProposer,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  targetFortressId: string;
+  actorMustBeProposer: boolean;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("Politics can only change during gameplay.");
+    }
+
+    assertSeasonFourFeatureCycle(cycle);
+    const actor = await getActivePlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      userId,
+    });
+    const target = await getTargetPlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      targetFortressId,
+    });
+    const pair = getCanonicalDiplomacyPair(actor.id, target.id);
+    const relation = await tx.diplomacyRelation.findUnique({
+      where: {
+        cycleId_fortressAId_fortressBId: { cycleId: cycle.id, ...pair },
+      },
+    });
+
+    if (
+      !relation ||
+      relation.status !== DiplomacyRelationStatus.ALLIED ||
+      !relation.trustUpgradeTier
+    ) {
+      throw new GameError("There is no trust upgrade proposal to close.");
+    }
+
+    const actorIsProposer = relation.trustUpgradeProposedById === actor.id;
+
+    if (actorIsProposer !== actorMustBeProposer) {
+      throw new GameError(
+        actorMustBeProposer
+          ? "Only the proposer can cancel this trust upgrade."
+          : "Only the receiving fortress can reject this trust upgrade."
+      );
+    }
+
+    return tx.diplomacyRelation.update({
+      where: { id: relation.id },
+      data: {
+        trustUpgradeProposedById: null,
+        trustUpgradeProposedAt: null,
+        trustUpgradeTier: null,
+      },
+    });
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+export function cancelAllianceTrustUpgrade(input: {
+  userId: string;
+  targetFortressId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return closeAllianceTrustUpgrade({ ...input, actorMustBeProposer: true });
+}
+
+export function rejectAllianceTrustUpgrade(input: {
+  userId: string;
+  targetFortressId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return closeAllianceTrustUpgrade({ ...input, actorMustBeProposer: false });
 }
 
 export async function betrayAlliance({

@@ -164,6 +164,8 @@ import {
   clearTilePressurePriority,
   acceptAlliance,
   acceptAllianceTrustUpgrade,
+  cancelAllianceProposal,
+  cancelAllianceTrustUpgrade,
   acceptPeace,
   attackMapHex,
   declareWar,
@@ -173,6 +175,8 @@ import {
   proposePeace,
   proposeAlliance,
   proposeAllianceTrustUpgrade,
+  rejectAllianceProposal,
+  rejectAllianceTrustUpgrade,
   reinforceDwarfRuneOfGrudges,
   torchOccupiedMapHex,
   updateWorkerAssignment,
@@ -1535,6 +1539,34 @@ test("alliances escrow trust deposits and betrayal compensates the harmed ally",
   assert.equal(proposed.status, DiplomacyRelationStatus.ALLIANCE_PENDING);
   assert.equal(proposed.allianceProposedById, alphaFortress.id);
 
+  const canceled = await cancelAllianceProposal({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    now: new Date("2026-04-20T12:00:10.000Z"),
+    db: prisma,
+  });
+  assert.equal(canceled.status, DiplomacyRelationStatus.NEUTRAL);
+
+  await proposeAlliance({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    now: new Date("2026-04-20T12:00:20.000Z"),
+    db: prisma,
+  });
+  const rejected = await rejectAllianceProposal({
+    userId: beta.id,
+    targetFortressId: alphaFortress.id,
+    now: new Date("2026-04-20T12:00:30.000Z"),
+    db: prisma,
+  });
+  assert.equal(rejected.status, DiplomacyRelationStatus.NEUTRAL);
+
+  await proposeAlliance({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    now: new Date("2026-04-20T12:00:40.000Z"),
+    db: prisma,
+  });
   const allied = await acceptAlliance({
     userId: beta.id,
     targetFortressId: alphaFortress.id,
@@ -1553,6 +1585,32 @@ test("alliances escrow trust deposits and betrayal compensates the harmed ally",
   });
   assert.equal(trustProposal.trustUpgradeTier, 2);
 
+  const canceledTrust = await cancelAllianceTrustUpgrade({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    now: new Date("2026-04-20T12:02:10.000Z"),
+    db: prisma,
+  });
+  assert.equal(canceledTrust.trustUpgradeTier, null);
+  await proposeAllianceTrustUpgrade({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    now: new Date("2026-04-20T12:02:20.000Z"),
+    db: prisma,
+  });
+  const rejectedTrust = await rejectAllianceTrustUpgrade({
+    userId: beta.id,
+    targetFortressId: alphaFortress.id,
+    now: new Date("2026-04-20T12:02:30.000Z"),
+    db: prisma,
+  });
+  assert.equal(rejectedTrust.trustUpgradeTier, null);
+  await proposeAllianceTrustUpgrade({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    now: new Date("2026-04-20T12:02:40.000Z"),
+    db: prisma,
+  });
   const upgraded = await acceptAllianceTrustUpgrade({
     userId: beta.id,
     targetFortressId: alphaFortress.id,

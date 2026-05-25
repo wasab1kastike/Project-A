@@ -201,8 +201,12 @@ export type PoliticsRelationAction =
   | "DECLARE_WAR"
   | "PROPOSE_ALLIANCE"
   | "ACCEPT_ALLIANCE"
+  | "CANCEL_ALLIANCE"
+  | "REJECT_ALLIANCE"
   | "PROPOSE_TRUST_UPGRADE"
   | "ACCEPT_TRUST_UPGRADE"
+  | "CANCEL_TRUST_UPGRADE"
+  | "REJECT_TRUST_UPGRADE"
   | "BETRAY_ALLIANCE"
   | "PROPOSE_PEACE"
   | "ACCEPT_PEACE";
@@ -224,16 +228,16 @@ export function getPoliticsRelationPresentation({
 
   if (relationStatus === DiplomacyRelationStatus.ALLIANCE_PENDING) {
     if (relation?.allianceProposedById === currentFortressId) {
-      disabledReason = "Alliance proposal is waiting for the other fortress.";
+      actions.push("CANCEL_ALLIANCE");
     } else {
-      actions.push("ACCEPT_ALLIANCE");
+      actions.push("ACCEPT_ALLIANCE", "REJECT_ALLIANCE");
     }
   } else if (effectiveStatus === DiplomacyRelationStatus.ALLIED) {
     if (relation?.trustUpgradeTier) {
       if (relation.trustUpgradeProposedById === currentFortressId) {
-        disabledReason = "Trust upgrade is waiting for the other fortress.";
+        actions.push("CANCEL_TRUST_UPGRADE");
       } else {
-        actions.push("ACCEPT_TRUST_UPGRADE");
+        actions.push("ACCEPT_TRUST_UPGRADE", "REJECT_TRUST_UPGRADE");
       }
     } else if ((relation?.allianceTrustTier ?? 0) < 3) {
       actions.push("PROPOSE_TRUST_UPGRADE");

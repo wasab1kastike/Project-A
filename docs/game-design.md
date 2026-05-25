@@ -87,6 +87,7 @@
 - The `/politics` page supports war warnings, peace proposals, and bilateral alliances during Season 4 pretesting.
 - Neutral fortresses may propose an alliance. Acceptance creates Trust I and escrows `2,000 gold + 2,000 food` from each party.
 - Trust upgrades require acceptance from both parties: Trust II holds `10,000 gold + 10,000 food` from each fortress, and Trust III holds `30,000 gold + 30,000 food`.
+- Pending alliance and trust proposals can be withdrawn by the proposer or rejected by the recipient.
 - Trust I, II, and III reserve future allied delivery bonuses of `10%`, `15%`, and `25%`; convoy delivery is not active until the trade slice ships.
 - Betraying an ally starts war immediately. The harmed fortress receives its own escrow back plus the betrayer's escrow.
 - Pressure pacing, the Politics & Trade page, and alliance actions are gated to `SEASON_4` cycles; legacy history remains unaffected.

@@ -184,7 +184,18 @@ test("politics relation presentation derives alliance and peace actions", () => 
       now,
       currentFortressId: "alpha",
     }).availableActions,
-    ["ACCEPT_ALLIANCE"]
+    ["ACCEPT_ALLIANCE", "REJECT_ALLIANCE"]
+  );
+  assert.deepEqual(
+    getPoliticsRelationPresentation({
+      relation: {
+        status: DiplomacyRelationStatus.ALLIANCE_PENDING,
+        allianceProposedById: "alpha",
+      },
+      now,
+      currentFortressId: "alpha",
+    }).availableActions,
+    ["CANCEL_ALLIANCE"]
   );
 
   const pending = getPoliticsRelationPresentation({
@@ -259,6 +270,20 @@ test("politics relation presentation derives alliance and peace actions", () => 
 
   assert.deepEqual(trustOffer.availableActions, [
     "ACCEPT_TRUST_UPGRADE",
+    "REJECT_TRUST_UPGRADE",
     "BETRAY_ALLIANCE",
   ]);
+  assert.deepEqual(
+    getPoliticsRelationPresentation({
+      relation: {
+        status: DiplomacyRelationStatus.ALLIED,
+        allianceTrustTier: 1,
+        trustUpgradeTier: 2,
+        trustUpgradeProposedById: "alpha",
+      },
+      now,
+      currentFortressId: "alpha",
+    }).availableActions,
+    ["CANCEL_TRUST_UPGRADE", "BETRAY_ALLIANCE"]
+  );
 });

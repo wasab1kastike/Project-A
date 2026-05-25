@@ -7,10 +7,14 @@ import {
   acceptAllianceTrustUpgradeAction,
   acceptPeaceAction,
   betrayAllianceAction,
+  cancelAllianceProposalAction,
+  cancelAllianceTrustUpgradeAction,
   declareWarAction,
   proposeAllianceAction,
   proposeAllianceTrustUpgradeAction,
   proposePeaceAction,
+  rejectAllianceProposalAction,
+  rejectAllianceTrustUpgradeAction,
 } from "@/app/game-actions";
 import type { PoliticsPageState } from "@/lib/game/politics-read-model";
 import styles from "./page.module.css";
@@ -43,10 +47,18 @@ function getActionLabel(action: PoliticsAction) {
       return "Propose alliance";
     case "ACCEPT_ALLIANCE":
       return "Accept alliance";
+    case "CANCEL_ALLIANCE":
+      return "Cancel proposal";
+    case "REJECT_ALLIANCE":
+      return "Reject alliance";
     case "PROPOSE_TRUST_UPGRADE":
       return "Raise trust";
     case "ACCEPT_TRUST_UPGRADE":
       return "Accept trust";
+    case "CANCEL_TRUST_UPGRADE":
+      return "Cancel request";
+    case "REJECT_TRUST_UPGRADE":
+      return "Reject trust";
     case "BETRAY_ALLIANCE":
       return "Betray";
   }
@@ -129,11 +141,23 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
         case "ACCEPT_ALLIANCE":
           result = await acceptAllianceAction(row.fortressId);
           break;
+        case "CANCEL_ALLIANCE":
+          result = await cancelAllianceProposalAction(row.fortressId);
+          break;
+        case "REJECT_ALLIANCE":
+          result = await rejectAllianceProposalAction(row.fortressId);
+          break;
         case "PROPOSE_TRUST_UPGRADE":
           result = await proposeAllianceTrustUpgradeAction(row.fortressId);
           break;
         case "ACCEPT_TRUST_UPGRADE":
           result = await acceptAllianceTrustUpgradeAction(row.fortressId);
+          break;
+        case "CANCEL_TRUST_UPGRADE":
+          result = await cancelAllianceTrustUpgradeAction(row.fortressId);
+          break;
+        case "REJECT_TRUST_UPGRADE":
+          result = await rejectAllianceTrustUpgradeAction(row.fortressId);
           break;
         case "BETRAY_ALLIANCE":
           result = await betrayAllianceAction(row.fortressId);
