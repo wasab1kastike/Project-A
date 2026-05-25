@@ -90,6 +90,7 @@
 - Pending alliance and trust proposals can be withdrawn by the proposer or rejected by the recipient.
 - Trust I, II, and III reserve future allied delivery bonuses of `10%`, `15%`, and `25%`; convoy delivery is not active until the trade slice ships.
 - Betraying an ally starts war immediately. The harmed fortress receives its own escrow back plus the betrayer's escrow.
+- A detected covert raid records the attacker as an enemy and grants the victim 24 hours to invoke casus belli for immediate war once raid orders are enabled.
 - Pressure pacing, the Politics & Trade page, and alliance actions are gated to `SEASON_4` cycles; legacy history remains unaffected.
 
 ## Spawn & map fairness

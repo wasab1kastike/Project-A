@@ -2,6 +2,7 @@ import { DiplomacyRelationStatus } from "@/lib/prisma-client";
 import { addHours } from "./time";
 
 export const WAR_DECLARATION_DELAY_HOURS = 24;
+export const CASUS_BELLI_DURATION_HOURS = 24;
 export type AllianceTrustTier = 1 | 2 | 3;
 
 export const ALLIANCE_TRUST_TERMS: Record<
@@ -28,6 +29,8 @@ export type DiplomacyRelationLike = {
   warDeclaredAt?: Date | null;
   peaceProposedById?: string | null;
   peaceProposedAt?: Date | null;
+  casusBelliFortressId?: string | null;
+  casusBelliExpiresAt?: Date | null;
 };
 
 export type DiplomacyRelationPairLike = DiplomacyRelationLike & {
@@ -50,6 +53,27 @@ export function getCanonicalDiplomacyPair(
 
 export function getWarStartsAt(now: Date) {
   return addHours(now, WAR_DECLARATION_DELAY_HOURS);
+}
+
+export function getCasusBelliExpiresAt(now: Date) {
+  return addHours(now, CASUS_BELLI_DURATION_HOURS);
+}
+
+export function hasActiveCasusBelli({
+  relation,
+  fortressId,
+  now,
+}: {
+  relation?: DiplomacyRelationLike | null;
+  fortressId: string;
+  now: Date;
+}) {
+  return (
+    relation?.casusBelliFortressId === fortressId &&
+    relation.casusBelliExpiresAt !== null &&
+    relation.casusBelliExpiresAt !== undefined &&
+    relation.casusBelliExpiresAt > now
+  );
 }
 
 export function getAllianceTrustTerms(tier: AllianceTrustTier) {
@@ -199,6 +223,7 @@ export function canProposePeace(status: DiplomacyRelationStatus) {
 
 export type PoliticsRelationAction =
   | "DECLARE_WAR"
+  | "ACTIVATE_CASUS_BELLI_WAR"
   | "PROPOSE_ALLIANCE"
   | "ACCEPT_ALLIANCE"
   | "CANCEL_ALLIANCE"
@@ -251,15 +276,20 @@ export function getPoliticsRelationPresentation({
       actions.push("ACCEPT_PEACE");
     }
   } else {
-    if (
-      effectiveStatus === DiplomacyRelationStatus.NEUTRAL ||
-      effectiveStatus === DiplomacyRelationStatus.ENEMY
-    ) {
+    if (effectiveStatus === DiplomacyRelationStatus.NEUTRAL) {
       actions.push("DECLARE_WAR");
     }
 
     if (effectiveStatus === DiplomacyRelationStatus.NEUTRAL) {
       actions.push("PROPOSE_ALLIANCE");
+    }
+
+    if (effectiveStatus === DiplomacyRelationStatus.ENEMY) {
+      actions.push(
+        hasActiveCasusBelli({ relation, fortressId: currentFortressId, now })
+          ? "ACTIVATE_CASUS_BELLI_WAR"
+          : "DECLARE_WAR"
+      );
     }
 
     if (canProposePeace(effectiveStatus)) {

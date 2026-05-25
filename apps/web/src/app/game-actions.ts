@@ -47,6 +47,7 @@ import {
   cancelAllianceProposal,
   cancelAllianceTrustUpgrade,
   acceptPeace,
+  activateCasusBelliWar,
   attackMapHex,
   clearTilePressurePriority,
   declareWar,
@@ -297,6 +298,29 @@ export async function declareWarAction(targetFortressId: string) {
     return {
       ok: true,
     } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
+export async function activateCasusBelliWarAction(targetFortressId: string) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await activateCasusBelliWar({ userId, targetFortressId });
+    notifyAndRevalidate("politics-activate-casus-belli-war", ["/", "/politics"]);
+    return { ok: true } satisfies InlineActionResult;
   } catch (error) {
     return {
       ok: false,

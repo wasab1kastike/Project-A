@@ -261,6 +261,7 @@ const POLITICS_RULES = [
   "Accepting Trust I escrows 2,000 gold and 2,000 food from each ally.",
   "Bilateral trust upgrades raise each ally's escrow to 10,000 at Trust II and 30,000 at Trust III.",
   "Betrayal starts war immediately and gives both escrow shares to the harmed ally.",
+  "Once covert raid orders are enabled, a detected raid grants the victim 24 hours to invoke immediate war.",
 ] as const;
 
 const FAQ_ENTRIES = [

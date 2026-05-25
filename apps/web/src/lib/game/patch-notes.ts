@@ -15,6 +15,7 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
       "Unstable Unicorn pressure workers are now named Glitter Distribution.",
       "The Politics & Trade page now supports trust-backed alliance proposals, bilateral trust upgrades, and immediate betrayal with escrow forfeiture during pretesting.",
       "Alliance and trust proposals can now be canceled by their sender or rejected by their recipient.",
+      "Detected covert incidents now grant the victim a 24-hour casus belli option for immediate war, ready for the upcoming raid-order slice.",
     ],
     bugFixes: [
       "Season 4 stays in pretesting until its redesigned rules are explicitly approved for activation, instead of starting from an unfinished schedule.",

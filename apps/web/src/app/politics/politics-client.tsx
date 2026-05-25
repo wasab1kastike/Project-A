@@ -6,6 +6,7 @@ import {
   acceptAllianceAction,
   acceptAllianceTrustUpgradeAction,
   acceptPeaceAction,
+  activateCasusBelliWarAction,
   betrayAllianceAction,
   cancelAllianceProposalAction,
   cancelAllianceTrustUpgradeAction,
@@ -39,6 +40,8 @@ function getActionLabel(action: PoliticsAction) {
   switch (action) {
     case "DECLARE_WAR":
       return "Declare war";
+    case "ACTIVATE_CASUS_BELLI_WAR":
+      return "Invoke casus belli";
     case "PROPOSE_PEACE":
       return "Propose peace";
     case "ACCEPT_PEACE":
@@ -67,6 +70,10 @@ function getActionLabel(action: PoliticsAction) {
 function getTimingLabel(row: PoliticsRow) {
   if (row.effectiveStatus === "WAR") {
     return "War active";
+  }
+
+  if (row.effectiveStatus === "ENEMY" && row.casusBelliBelongsToCurrentPlayer) {
+    return "Casus belli available for immediate war";
   }
 
   if (row.effectiveStatus === "WAR_PENDING") {
@@ -125,6 +132,13 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
       return;
     }
 
+    if (
+      action === "ACTIVATE_CASUS_BELLI_WAR" &&
+      !window.confirm("Invoke casus belli? War starts immediately.")
+    ) {
+      return;
+    }
+
     const key = `${row.fortressId}:${action}`;
     setPendingId(key);
 
@@ -134,6 +148,9 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
       switch (action) {
         case "DECLARE_WAR":
           result = await declareWarAction(row.fortressId);
+          break;
+        case "ACTIVATE_CASUS_BELLI_WAR":
+          result = await activateCasusBelliWarAction(row.fortressId);
           break;
         case "PROPOSE_ALLIANCE":
           result = await proposeAllianceAction(row.fortressId);

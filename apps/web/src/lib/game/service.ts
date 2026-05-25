@@ -110,7 +110,9 @@ import {
   canProposePeace,
   getDiplomacyPressureBlockedReason,
   getCanonicalDiplomacyPair,
+  getCasusBelliExpiresAt,
   getEffectiveDiplomacyStatus,
+  hasActiveCasusBelli,
   getWarStartsAt,
 } from "./politics";
 import { isSeasonFourRuleset } from "./rulesets";
@@ -1955,6 +1957,8 @@ export async function betrayAlliance({
         trustUpgradeProposedById: null,
         trustUpgradeProposedAt: null,
         trustUpgradeTier: null,
+        casusBelliFortressId: null,
+        casusBelliExpiresAt: null,
       },
     });
   }, SERVICE_TRANSACTION_OPTIONS);
@@ -2070,6 +2074,154 @@ export async function declareWar({
         warStartsAt,
         peaceProposedById: null,
         peaceProposedAt: null,
+        casusBelliFortressId: null,
+        casusBelliExpiresAt: null,
+      },
+    });
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+export async function recordDetectedCovertRaid({
+  cycleId,
+  attackerFortressId,
+  victimFortressId,
+  now = new Date(),
+  db = prisma,
+}: {
+  cycleId: string;
+  attackerFortressId: string;
+  victimFortressId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await tx.cycle.findUnique({
+      where: { id: cycleId },
+    });
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("Covert incidents can only be recorded during gameplay.");
+    }
+
+    assertSeasonFourFeatureCycle(cycle);
+
+    if (attackerFortressId === victimFortressId) {
+      throw new GameError("A fortress cannot raid itself.");
+    }
+
+    const [attacker, victim] = await Promise.all([
+      getTargetPlayerFortressForPolitics({
+        tx,
+        cycleId,
+        targetFortressId: attackerFortressId,
+      }),
+      getTargetPlayerFortressForPolitics({
+        tx,
+        cycleId,
+        targetFortressId: victimFortressId,
+      }),
+    ]);
+    const pair = getCanonicalDiplomacyPair(attacker.id, victim.id);
+    const existing = await tx.diplomacyRelation.findUnique({
+      where: {
+        cycleId_fortressAId_fortressBId: { cycleId, ...pair },
+      },
+    });
+    const effectiveStatus = getEffectiveDiplomacyStatus({
+      relation: existing,
+      now,
+    });
+
+    if (effectiveStatus === DiplomacyRelationStatus.ALLIED) {
+      throw new GameError("Allied fortresses cannot make covert raids.");
+    }
+
+    if (effectiveStatus === DiplomacyRelationStatus.WAR) {
+      return existing;
+    }
+
+    const casusBelliExpiresAt = getCasusBelliExpiresAt(now);
+
+    return tx.diplomacyRelation.upsert({
+      where: {
+        cycleId_fortressAId_fortressBId: { cycleId, ...pair },
+      },
+      create: {
+        cycleId,
+        ...pair,
+        status: DiplomacyRelationStatus.ENEMY,
+        casusBelliFortressId: victim.id,
+        casusBelliExpiresAt,
+      },
+      update: {
+        status: DiplomacyRelationStatus.ENEMY,
+        allianceProposedById: null,
+        allianceProposedAt: null,
+        warDeclaredById: null,
+        warDeclaredAt: null,
+        warStartsAt: null,
+        peaceProposedById: null,
+        peaceProposedAt: null,
+        casusBelliFortressId: victim.id,
+        casusBelliExpiresAt,
+      },
+    });
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+export async function activateCasusBelliWar({
+  userId,
+  targetFortressId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  targetFortressId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("Politics can only change during gameplay.");
+    }
+
+    assertSeasonFourFeatureCycle(cycle);
+    const actor = await getActivePlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      userId,
+    });
+    const target = await getTargetPlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      targetFortressId,
+    });
+    const pair = getCanonicalDiplomacyPair(actor.id, target.id);
+    const relation = await tx.diplomacyRelation.findUnique({
+      where: {
+        cycleId_fortressAId_fortressBId: { cycleId: cycle.id, ...pair },
+      },
+    });
+
+    if (
+      !relation ||
+      relation.status !== DiplomacyRelationStatus.ENEMY ||
+      !hasActiveCasusBelli({ relation, fortressId: actor.id, now })
+    ) {
+      throw new GameError("You do not have active casus belli against this fortress.");
+    }
+
+    return tx.diplomacyRelation.update({
+      where: { id: relation.id },
+      data: {
+        status: DiplomacyRelationStatus.WAR,
+        warDeclaredById: actor.id,
+        warDeclaredAt: now,
+        warStartsAt: now,
+        casusBelliFortressId: null,
+        casusBelliExpiresAt: null,
       },
     });
   }, SERVICE_TRANSACTION_OPTIONS);
@@ -2214,6 +2366,8 @@ export async function acceptPeace({
         collateralGold: 0,
         collateralFood: 0,
         collateralArmy: 0,
+        casusBelliFortressId: null,
+        casusBelliExpiresAt: null,
       },
     });
   }, SERVICE_TRANSACTION_OPTIONS);

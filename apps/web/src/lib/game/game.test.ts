@@ -167,6 +167,7 @@ import {
   cancelAllianceProposal,
   cancelAllianceTrustUpgrade,
   acceptPeace,
+  activateCasusBelliWar,
   attackMapHex,
   declareWar,
   betrayAlliance,
@@ -177,6 +178,7 @@ import {
   proposeAllianceTrustUpgrade,
   rejectAllianceProposal,
   rejectAllianceTrustUpgrade,
+  recordDetectedCovertRaid,
   reinforceDwarfRuneOfGrudges,
   torchOccupiedMapHex,
   updateWorkerAssignment,
@@ -1643,6 +1645,80 @@ test("alliances escrow trust deposits and betrayal compensates the harmed ally",
   assert.equal(betrayed.allianceTrustTier, 0);
   assert.equal(harmedAlly.gold, 60_000);
   assert.equal(harmedAlly.food, 60_000);
+});
+
+test("detected covert raid grants the victim immediate war through casus belli", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const alpha = await createUser(prisma, "casus-alpha@example.com");
+  const beta = await createUser(prisma, "casus-beta@example.com");
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: alpha.id,
+      commanderName: "Watcher Alpha",
+      fortressName: "Watch Hall",
+      points: 100,
+    },
+    {
+      userId: beta.id,
+      commanderName: "Raider Beta",
+      fortressName: "Veiled Hall",
+      points: 100,
+    },
+  ]);
+  await markSeasonFourCycle(prisma, cycle.id);
+  const [alphaFortress, betaFortress] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: alpha.id } },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: beta.id } },
+    }),
+  ]);
+  const detectedAt = new Date("2026-04-20T12:00:00.000Z");
+  const incidentRelation = await recordDetectedCovertRaid({
+    cycleId: cycle.id,
+    attackerFortressId: betaFortress.id,
+    victimFortressId: alphaFortress.id,
+    now: detectedAt,
+    db: prisma,
+  });
+
+  assert.equal(incidentRelation?.status, DiplomacyRelationStatus.ENEMY);
+  assert.equal(incidentRelation?.casusBelliFortressId, alphaFortress.id);
+  assert.equal(
+    incidentRelation?.casusBelliExpiresAt?.toISOString(),
+    "2026-04-21T12:00:00.000Z"
+  );
+
+  const politicsState = await getPoliticsPageState({
+    userId: alpha.id,
+    now: new Date("2026-04-20T12:05:00.000Z"),
+    db: prisma,
+  });
+  const raiderRow = politicsState.rows.find(
+    (row) => row.fortressId === betaFortress.id
+  );
+
+  assert.equal(raiderRow?.casusBelliBelongsToCurrentPlayer, true);
+  assert.equal(raiderRow?.availableAction, "ACTIVATE_CASUS_BELLI_WAR");
+
+  const war = await activateCasusBelliWar({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    now: new Date("2026-04-20T12:06:00.000Z"),
+    db: prisma,
+  });
+
+  assert.equal(war.status, DiplomacyRelationStatus.WAR);
+  assert.equal(war.warDeclaredById, alphaFortress.id);
+  assert.equal(war.warStartsAt?.toISOString(), "2026-04-20T12:06:00.000Z");
+  assert.equal(war.casusBelliFortressId, null);
+  assert.equal(war.casusBelliExpiresAt, null);
 });
 
 test("owned tile attack creates a targetTileId battlefield", async (context) => {

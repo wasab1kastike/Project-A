@@ -235,6 +235,7 @@ The game is now a castle-economy and battlefield-control loop:
 - active army, not queued army, consumes food upkeep at 0.01 food per unit per tick; if upkeep cannot be paid, food falls to zero and active army loses 2% that tick
 - neutral tiles are acquired automatically through connected pressure priorities; the idle expansion baseline requires 600 pressure, or roughly one hour with ten focused pressure workers
 - `/politics` now pretests bilateral alliances with fixed trust escrow tiers; betrayal immediately begins war and awards both escrow shares to the harmed ally
+- detected covert incidents now have a Season 4 casus belli path: the victim can invoke immediate war during the 24-hour incident window once raid orders are connected
 - direct attacks and battlefield reinforcements both count against the player's simultaneous outbound attack cap
 - player castle and owned-tile battlefields become visible immediately, but combat casualties start one hour after the first attacking army arrives so defenders have time to respond
 - active battlefield casualties are applied every tick, ramping from 100 total units per tick to 1000 after one hour; fights resolve only when one side runs out

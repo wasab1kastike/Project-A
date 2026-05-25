@@ -93,6 +93,8 @@ export async function getPoliticsPageState({
           warStartsAt: true,
           peaceProposedById: true,
           peaceProposedAt: true,
+          casusBelliFortressId: true,
+          casusBelliExpiresAt: true,
         },
       },
     },
@@ -159,6 +161,8 @@ export async function getPoliticsPageState({
       const allianceProposedById = relation?.allianceProposedById ?? null;
       const trustUpgradeProposedById =
         relation?.trustUpgradeProposedById ?? null;
+      const casusBelliFortressId = relation?.casusBelliFortressId ?? null;
+      const casusBelliExpiresAt = relation?.casusBelliExpiresAt ?? null;
 
       return {
         fortressId: fortress.id,
@@ -190,6 +194,13 @@ export async function getPoliticsPageState({
         peaceProposedAt: relation?.peaceProposedAt ?? null,
         peaceProposedByCurrentPlayer:
           peaceProposedById !== null && peaceProposedById === playerFortress.id,
+        casusBelliFortressId,
+        casusBelliExpiresAt,
+        casusBelliBelongsToCurrentPlayer:
+          casusBelliFortressId !== null &&
+          casusBelliFortressId === playerFortress.id &&
+          casusBelliExpiresAt !== null &&
+          casusBelliExpiresAt > now,
         availableAction: presentation.availableAction,
         availableActions: presentation.availableActions,
         disabledReason: presentation.disabledReason,
