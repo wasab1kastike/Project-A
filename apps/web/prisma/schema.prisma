@@ -114,6 +114,7 @@ enum ScoreEventType {
   DWARF_RUNE_BOUNTY
   RENAME_COST
   MANUAL_ADJUST
+  TRADE_DELIVERY
 }
 
 enum DwarfDeepMiningOutcome {
@@ -329,6 +330,8 @@ model Cycle {
   diplomacyRelations             DiplomacyRelation[]
   armyOrders                     ArmyOrder[]
   territoryCampaigns             TerritoryCampaign[]
+  tradeOffers                    TradeOffer[]
+  convoyLegs                     ConvoyLeg[]
   castleUpgradeProjects          CastleUpgradeProject[]
   homeOfAHolders                 HomeOfAHolder[]
   unicornTemporaryTeleports      UnicornTemporaryTeleport[]
@@ -367,6 +370,7 @@ model Fortress {
   unitsKilled                    Int                                 @default(0)
   goblinsKilled                  Int                                 @default(0)
   resourcesStolen                Int                                 @default(0)
+  deliveredCargoValue            Int                                 @default(0)
   level                          Int                                 @default(0)
   food                           Int                                 @default(0)
   army                           Int                                 @default(0)
@@ -429,6 +433,10 @@ model Fortress {
   armyOrders                     ArmyOrder[]
   attackingCampaigns             TerritoryCampaign[]                 @relation("TerritoryCampaignAttacker")
   defendingCampaigns             TerritoryCampaign[]                 @relation("TerritoryCampaignDefender")
+  sentTradeOffers                TradeOffer[]                        @relation("TradeOfferSender")
+  receivedTradeOffers            TradeOffer[]                        @relation("TradeOfferReceiver")
+  outboundConvoyLegs             ConvoyLeg[]                         @relation("ConvoyLegSender")
+  inboundConvoyLegs              ConvoyLeg[]                         @relation("ConvoyLegReceiver")
   homeOfAHoldings                HomeOfAHolder[]                     @relation("HomeOfAHolderFortress")
   homeOfABannerHoldings          HomeOfAHolder[]                     @relation("HomeOfABannerFortress")
   homeOfABossDamageContributions HomeOfABossDamageContribution[]
@@ -633,6 +641,95 @@ model TerritoryCampaign {
   @@index([cycleId, targetTileId, status])
   @@index([attackerFortressId, status])
   @@index([defenderFortressId, status])
+}
+
+enum TradeOfferStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELED
+  EXPIRED
+  COMPLETED
+}
+
+enum TradeLineItemKind {
+  GOLD
+  FOOD
+  ARMY
+}
+
+enum ConvoyLegStatus {
+  IN_TRANSIT
+  DELIVERED
+  SEIZED
+  CANCELED
+}
+
+model TradeOffer {
+  id                 String           @id @default(cuid())
+  cycleId            String
+  senderFortressId   String
+  receiverFortressId String
+  status             TradeOfferStatus @default(PENDING)
+  expiresAt          DateTime
+  acceptedAt         DateTime?
+  rejectedAt         DateTime?
+  canceledAt         DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  cycle              Cycle            @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  senderFortress     Fortress         @relation("TradeOfferSender", fields: [senderFortressId], references: [id], onDelete: Cascade)
+  receiverFortress   Fortress         @relation("TradeOfferReceiver", fields: [receiverFortressId], references: [id], onDelete: Cascade)
+  lineItems          TradeLineItem[]
+  convoyLegs         ConvoyLeg[]
+
+  @@index([cycleId, status, expiresAt])
+  @@index([senderFortressId, status])
+  @@index([receiverFortressId, status])
+}
+
+model TradeLineItem {
+  id             String            @id @default(cuid())
+  tradeOfferId   String
+  fromFortressId String
+  toFortressId   String
+  kind           TradeLineItemKind
+  amount         Int
+  createdAt      DateTime          @default(now())
+  tradeOffer     TradeOffer        @relation(fields: [tradeOfferId], references: [id], onDelete: Cascade)
+
+  @@index([tradeOfferId])
+}
+
+model ConvoyLeg {
+  id                 String          @id @default(cuid())
+  cycleId            String
+  tradeOfferId       String
+  fromFortressId     String
+  toFortressId       String
+  status             ConvoyLegStatus @default(IN_TRANSIT)
+  gold               Int             @default(0)
+  food               Int             @default(0)
+  army               Int             @default(0)
+  baseCargoValue     Int
+  bonusGold          Int             @default(0)
+  bonusFood          Int             @default(0)
+  pointsAwarded      Int             @default(0)
+  departedAt         DateTime
+  arrivesAt          DateTime
+  settledAt          DateTime?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  cycle              Cycle           @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  tradeOffer         TradeOffer      @relation(fields: [tradeOfferId], references: [id], onDelete: Cascade)
+  fromFortress       Fortress        @relation("ConvoyLegSender", fields: [fromFortressId], references: [id], onDelete: Cascade)
+  toFortress         Fortress        @relation("ConvoyLegReceiver", fields: [toFortressId], references: [id], onDelete: Cascade)
+
+  @@index([cycleId, status, arrivesAt])
+  @@index([tradeOfferId, status])
+  @@index([fromFortressId, status])
+  @@index([toFortressId, status])
 }
 
 model CastleUpgradeProject {

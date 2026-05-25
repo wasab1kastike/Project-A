@@ -17,6 +17,7 @@ import {
   CastleUpgradeSpecialization,
   ChatMessageType,
   CommunityWishStatus,
+  ConvoyLegStatus,
   CycleRuleset,
   CycleStatus,
   DiplomacyRelationStatus,
@@ -29,6 +30,7 @@ import {
   RaceAbilityKind,
   ScoreEventType,
   TerritoryCampaignStatus,
+  TradeOfferStatus,
   UnicornShatteredRealityOutcome,
   WinnerRequestStatus,
 } from "@/lib/prisma-client";
@@ -46,6 +48,7 @@ import "./season-announcement.test";
 import "./season-schedule.test";
 import "./rulesets.test";
 import "./tile-pressure.test";
+import "./trading.test";
 import {
   forceEndCurrentCycle,
   runManualCatchUpTick,
@@ -191,6 +194,10 @@ import {
   stationGuardOrder,
   startTerritoryCampaign,
   recallArmyOrder,
+  createTradeOffer,
+  acceptTradeOffer,
+  rejectTradeOffer,
+  cancelTradeOffer,
 } from "./service";
 import { TickRunnerError, classifyTickHealth, runGameTick } from "./tick";
 import { addHours, addMinutes } from "./time";
@@ -2176,6 +2183,295 @@ test("politics gates delay campaigns until the warning finishes", async (context
 
   assert.equal(campaign.status, TerritoryCampaignStatus.BUILDING);
   assert.equal(campaign.armyOrder.type, ArmyOrderType.CAMPAIGN);
+});
+
+test("season four bilateral trade accepts cargo and delivers allied convoy bonuses", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const sender = await createUser(prisma, "trade-sender@example.com");
+  const receiver = await createUser(prisma, "trade-receiver@example.com");
+  const cycle = await seedActiveCommunityWishCycle(
+    prisma,
+    [
+      {
+        userId: sender.id,
+        commanderName: "Merchant Alpha",
+        fortressName: "Cargo Hall",
+        points: 100,
+      },
+      {
+        userId: receiver.id,
+        commanderName: "Merchant Beta",
+        fortressName: "Market Hall",
+        points: 100,
+      },
+    ],
+    new Date("2026-04-22T12:00:00.000Z")
+  );
+  await markSeasonFourCycle(prisma, cycle.id);
+  const [senderFortress, receiverFortress] = await Promise.all([
+    prisma.fortress.update({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: sender.id } },
+      data: { gold: 20_000, food: 20_000, army: 2_000 },
+    }),
+    prisma.fortress.update({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: receiver.id } },
+      data: { gold: 20_000, food: 20_000, army: 2_000 },
+    }),
+  ]);
+  const [fortressAId, fortressBId] = [
+    senderFortress.id,
+    receiverFortress.id,
+  ].sort();
+  await prisma.diplomacyRelation.create({
+    data: {
+      cycleId: cycle.id,
+      fortressAId,
+      fortressBId,
+      status: DiplomacyRelationStatus.ALLIED,
+      allianceTrustTier: 2,
+    },
+  });
+
+  const offer = await createTradeOffer({
+    userId: sender.id,
+    targetFortressId: receiverFortress.id,
+    offeredGold: 2_000,
+    offeredFood: 1_000,
+    offeredArmy: 100,
+    requestedGold: 0,
+    requestedFood: 500,
+    requestedArmy: 0,
+    now: new Date("2026-04-20T12:00:10.000Z"),
+    db: prisma,
+  });
+  assert.equal(offer.status, TradeOfferStatus.PENDING);
+  assert.equal(offer.lineItems.length, 4);
+
+  const state = await getPoliticsPageState({
+    userId: receiver.id,
+    now: new Date("2026-04-20T12:00:20.000Z"),
+    db: prisma,
+  });
+  assert.equal(state.incomingTradeOffers.length, 1);
+  assert.equal(state.rows[0]?.canTrade, true);
+
+  const accepted = await acceptTradeOffer({
+    userId: receiver.id,
+    tradeOfferId: offer.id,
+    now: new Date("2026-04-20T12:00:30.000Z"),
+    db: prisma,
+  });
+  assert.equal(accepted.status, TradeOfferStatus.ACCEPTED);
+  assert.equal(accepted.convoyLegs.length, 2);
+  const balances = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({ where: { id: senderFortress.id } }),
+    prisma.fortress.findUniqueOrThrow({ where: { id: receiverFortress.id } }),
+  ]);
+  assert.equal(balances[0].gold, 18_000);
+  assert.equal(balances[0].food, 19_000);
+  assert.equal(balances[0].army, 1_900);
+  assert.equal(balances[1].food, 19_500);
+
+  await prisma.convoyLeg.updateMany({
+    where: { tradeOfferId: offer.id },
+    data: { arrivesAt: new Date("2026-04-20T12:01:00.000Z") },
+  });
+  await runGameTick({
+    now: new Date("2026-04-20T12:02:00.000Z"),
+    db: prisma,
+  });
+
+  const delivered = await prisma.convoyLeg.findMany({
+    where: { tradeOfferId: offer.id },
+    orderBy: { baseCargoValue: "desc" },
+  });
+  const completed = await prisma.tradeOffer.findUniqueOrThrow({
+    where: { id: offer.id },
+  });
+  const senderAfter = await prisma.fortress.findUniqueOrThrow({
+    where: { id: senderFortress.id },
+  });
+  const tradeEvents = await prisma.scoreEvent.findMany({
+    where: { cycleId: cycle.id, eventType: ScoreEventType.TRADE_DELIVERY },
+  });
+
+  assert.equal(completed.status, TradeOfferStatus.COMPLETED);
+  assert.ok(delivered.every((leg) => leg.status === ConvoyLegStatus.DELIVERED));
+  assert.equal(delivered[0]?.baseCargoValue, 3_200);
+  assert.equal(delivered[0]?.bonusGold, 300);
+  assert.equal(delivered[0]?.bonusFood, 150);
+  assert.equal(senderAfter.deliveredCargoValue, 3_200);
+  assert.equal(tradeEvents.reduce((sum, event) => sum + event.delta, 0), 3);
+});
+
+test("season four trade offers can cancel or reject and hostile transit is seized", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const alpha = await createUser(prisma, "seizure-alpha@example.com");
+  const beta = await createUser(prisma, "seizure-beta@example.com");
+  const cycle = await seedActiveCommunityWishCycle(
+    prisma,
+    [
+      { userId: alpha.id, commanderName: "Alpha", fortressName: "Alpha Hall", points: 0 },
+      { userId: beta.id, commanderName: "Beta", fortressName: "Beta Hall", points: 0 },
+    ],
+    new Date("2026-04-22T12:00:00.000Z")
+  );
+  await markSeasonFourCycle(prisma, cycle.id);
+  const [alphaFortress, betaFortress] = await Promise.all([
+    prisma.fortress.update({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: alpha.id } },
+      data: { gold: 5_000 },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: beta.id } },
+    }),
+  ]);
+  const first = await createTradeOffer({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    offeredGold: 100,
+    offeredFood: 0,
+    offeredArmy: 0,
+    requestedGold: 0,
+    requestedFood: 0,
+    requestedArmy: 0,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+    db: prisma,
+  });
+  assert.equal(
+    (await cancelTradeOffer({
+      userId: alpha.id,
+      tradeOfferId: first.id,
+      now: new Date("2026-04-20T12:00:10.000Z"),
+      db: prisma,
+    })).status,
+    TradeOfferStatus.CANCELED
+  );
+  const second = await createTradeOffer({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    offeredGold: 100,
+    offeredFood: 0,
+    offeredArmy: 0,
+    requestedGold: 0,
+    requestedFood: 0,
+    requestedArmy: 0,
+    now: new Date("2026-04-20T12:00:20.000Z"),
+    db: prisma,
+  });
+  assert.equal(
+    (await rejectTradeOffer({
+      userId: beta.id,
+      tradeOfferId: second.id,
+      now: new Date("2026-04-20T12:00:30.000Z"),
+      db: prisma,
+    })).status,
+    TradeOfferStatus.REJECTED
+  );
+  const expiring = await createTradeOffer({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    offeredGold: 100,
+    offeredFood: 0,
+    offeredArmy: 0,
+    requestedGold: 0,
+    requestedFood: 0,
+    requestedArmy: 0,
+    now: new Date("2026-04-20T12:00:35.000Z"),
+    db: prisma,
+  });
+  await prisma.tradeOffer.update({
+    where: { id: expiring.id },
+    data: { expiresAt: new Date("2026-04-20T12:00:45.000Z") },
+  });
+  await runGameTick({
+    now: new Date("2026-04-20T12:01:00.000Z"),
+    db: prisma,
+  });
+  assert.equal(
+    (await prisma.tradeOffer.findUniqueOrThrow({ where: { id: expiring.id } }))
+      .status,
+    TradeOfferStatus.EXPIRED
+  );
+  const tooLate = await createTradeOffer({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    offeredGold: 100,
+    offeredFood: 0,
+    offeredArmy: 0,
+    requestedGold: 0,
+    requestedFood: 0,
+    requestedArmy: 0,
+    now: new Date("2026-04-22T11:59:00.000Z"),
+    db: prisma,
+  });
+  await assert.rejects(
+    () =>
+      acceptTradeOffer({
+        userId: beta.id,
+        tradeOfferId: tooLate.id,
+        now: new Date("2026-04-22T11:59:10.000Z"),
+        db: prisma,
+      }),
+    /after the gameplay window/
+  );
+  await cancelTradeOffer({
+    userId: alpha.id,
+    tradeOfferId: tooLate.id,
+    now: new Date("2026-04-22T11:59:20.000Z"),
+    db: prisma,
+  });
+  const third = await createTradeOffer({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    offeredGold: 1_000,
+    offeredFood: 0,
+    offeredArmy: 0,
+    requestedGold: 0,
+    requestedFood: 0,
+    requestedArmy: 0,
+    now: new Date("2026-04-20T12:01:20.000Z"),
+    db: prisma,
+  });
+  await acceptTradeOffer({
+    userId: beta.id,
+    tradeOfferId: third.id,
+    now: new Date("2026-04-20T12:01:30.000Z"),
+    db: prisma,
+  });
+  const [fortressAId, fortressBId] = [alphaFortress.id, betaFortress.id].sort();
+  await prisma.diplomacyRelation.create({
+    data: {
+      cycleId: cycle.id,
+      fortressAId,
+      fortressBId,
+      status: DiplomacyRelationStatus.ENEMY,
+    },
+  });
+  await runGameTick({
+    now: new Date("2026-04-20T12:02:00.000Z"),
+    db: prisma,
+  });
+  const seized = await prisma.convoyLeg.findFirstOrThrow({
+    where: { tradeOfferId: third.id },
+  });
+  const events = await prisma.scoreEvent.count({
+    where: { cycleId: cycle.id, eventType: ScoreEventType.TRADE_DELIVERY },
+  });
+
+  assert.equal(seized.status, ConvoyLegStatus.SEIZED);
+  assert.equal(seized.pointsAwarded, 0);
+  assert.equal(events, 0);
 });
 
 test("season four standing orders commit, recall, and open campaign siege warning", async (context) => {
@@ -10254,6 +10550,9 @@ async function resetDatabase(client: PrismaClient) {
   await client.attackUnit.deleteMany();
   await client.territoryCampaign.deleteMany();
   await client.armyOrder.deleteMany();
+  await client.convoyLeg.deleteMany();
+  await client.tradeLineItem.deleteMany();
+  await client.tradeOffer.deleteMany();
   await client.battlefieldParticipant.deleteMany();
   await client.battlefield.deleteMany();
   await client.homeOfAHolder.deleteMany();

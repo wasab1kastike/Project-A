@@ -15,7 +15,9 @@ import {
   OrkScrapEventReason,
   ChatMessageType,
   CastleUpgradeSpecialization,
+  ConvoyLegStatus,
   TerritoryCampaignStatus,
+  TradeOfferStatus,
 } from "@/lib/prisma-client";
 import { prisma } from "@/lib/prisma";
 import { ensureOpenRegistrationCycle } from "./bootstrap";
@@ -129,6 +131,10 @@ import {
   getCanonicalDiplomacyPair,
   getEffectiveDiplomacyStatus,
 } from "./politics";
+import {
+  getAllianceDeliveryBonus,
+  splitTradeDeliveryPoints,
+} from "./trading";
 import { recalculateReturningAttackRoutes } from "./fortress-relocation";
 import {
   ensureBattlefieldPointRewardColumn,
@@ -991,6 +997,146 @@ async function processSeasonFourCampaigns({
         },
       });
     }
+  }, TICK_TRANSACTION_OPTIONS);
+}
+
+async function processSeasonFourConvoys({
+  db,
+  cycleId,
+  tickAt,
+}: {
+  db: PrismaClient;
+  cycleId: string;
+  tickAt: Date;
+}) {
+  return db.$transaction(async (tx) => {
+    await tx.tradeOffer.updateMany({
+      where: {
+        cycleId,
+        status: TradeOfferStatus.PENDING,
+        expiresAt: { lte: tickAt },
+      },
+      data: { status: TradeOfferStatus.EXPIRED },
+    });
+
+    const legs = await tx.convoyLeg.findMany({
+      where: {
+        cycleId,
+        status: ConvoyLegStatus.IN_TRANSIT,
+      },
+      orderBy: [{ arrivesAt: "asc" }, { id: "asc" }],
+    });
+    let scoreEventsCreated = 0;
+
+    for (const leg of legs) {
+      const relation = await tx.diplomacyRelation.findUnique({
+        where: {
+          cycleId_fortressAId_fortressBId: {
+            cycleId,
+            ...getCanonicalDiplomacyPair(leg.fromFortressId, leg.toFortressId),
+          },
+        },
+      });
+      const effectiveStatus = getEffectiveDiplomacyStatus({
+        relation,
+        now: tickAt,
+      });
+      const seized =
+        effectiveStatus === DiplomacyRelationStatus.ENEMY ||
+        effectiveStatus === DiplomacyRelationStatus.WAR;
+
+      if (!seized && leg.arrivesAt > tickAt) {
+        continue;
+      }
+
+      const bonus = getAllianceDeliveryBonus({
+        cargo: { gold: leg.gold, food: leg.food, army: leg.army },
+        isAllied: effectiveStatus === DiplomacyRelationStatus.ALLIED,
+        trustTier: relation?.allianceTrustTier ?? 0,
+      });
+      const points = seized
+        ? { total: 0, sender: 0, receiver: 0 }
+        : splitTradeDeliveryPoints(leg.baseCargoValue);
+
+      await tx.fortress.update({
+        where: { id: leg.toFortressId },
+        data: {
+          gold: { increment: leg.gold + (seized ? 0 : bonus.gold) },
+          food: { increment: leg.food + (seized ? 0 : bonus.food) },
+          army: { increment: leg.army },
+          points: { increment: points.receiver },
+        },
+      });
+
+      if (!seized) {
+        await tx.fortress.update({
+          where: { id: leg.fromFortressId },
+          data: {
+            deliveredCargoValue: { increment: leg.baseCargoValue },
+            points: { increment: points.sender },
+          },
+        });
+
+        if (points.sender > 0) {
+          await tx.scoreEvent.create({
+            data: {
+              cycleId,
+              fortressId: leg.fromFortressId,
+              targetFortressId: leg.toFortressId,
+              eventType: ScoreEventType.TRADE_DELIVERY,
+              delta: points.sender,
+              createdAt: tickAt,
+            },
+          });
+          scoreEventsCreated += 1;
+        }
+
+        if (points.receiver > 0) {
+          await tx.scoreEvent.create({
+            data: {
+              cycleId,
+              fortressId: leg.toFortressId,
+              targetFortressId: leg.fromFortressId,
+              eventType: ScoreEventType.TRADE_DELIVERY,
+              delta: points.receiver,
+              createdAt: tickAt,
+            },
+          });
+          scoreEventsCreated += 1;
+        }
+      }
+
+      await tx.convoyLeg.update({
+        where: { id: leg.id },
+        data: {
+          status: seized ? ConvoyLegStatus.SEIZED : ConvoyLegStatus.DELIVERED,
+          bonusGold: seized ? 0 : bonus.gold,
+          bonusFood: seized ? 0 : bonus.food,
+          pointsAwarded: points.total,
+          settledAt: tickAt,
+        },
+      });
+
+      const unsettled = await tx.convoyLeg.count({
+        where: {
+          tradeOfferId: leg.tradeOfferId,
+          status: ConvoyLegStatus.IN_TRANSIT,
+          id: { not: leg.id },
+        },
+      });
+
+      if (unsettled === 0) {
+        await tx.tradeOffer.update({
+          where: { id: leg.tradeOfferId },
+          data: {
+            status: TradeOfferStatus.COMPLETED,
+            completedAt: tickAt,
+          },
+        });
+      }
+    }
+
+    return scoreEventsCreated;
   }, TICK_TRANSACTION_OPTIONS);
 }
 
@@ -1993,8 +2139,15 @@ async function processCycleTick(
     isSeasonFour,
   });
 
+  let convoyScoreEventsCreated = 0;
+
   if (isSeasonFour) {
     await processSeasonFourCampaigns({ db, cycleId, tickAt });
+    convoyScoreEventsCreated = await processSeasonFourConvoys({
+      db,
+      cycleId,
+      tickAt,
+    });
   }
 
   // Eternal goblins: loot camps no longer expire from timers
@@ -4503,7 +4656,9 @@ async function processCycleTick(
   return {
     processed: true,
     scoreEventsCreated:
-      scoreEvents.length + battlefieldResult.scoreEventsCreated,
+      scoreEvents.length +
+      battlefieldResult.scoreEventsCreated +
+      convoyScoreEventsCreated,
     launchedAttackUnits: 0,
     resolvedAttackUnits: resolvedAttackUnits + battlefieldResult.resolved,
   };

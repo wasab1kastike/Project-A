@@ -1,21 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import {
   acceptAllianceAction,
   acceptAllianceTrustUpgradeAction,
   acceptPeaceAction,
+  acceptTradeOfferAction,
   activateCasusBelliWarAction,
   betrayAllianceAction,
   cancelAllianceProposalAction,
   cancelAllianceTrustUpgradeAction,
+  cancelTradeOfferAction,
+  createTradeOfferAction,
   declareWarAction,
   proposeAllianceAction,
   proposeAllianceTrustUpgradeAction,
   proposePeaceAction,
   rejectAllianceProposalAction,
   rejectAllianceTrustUpgradeAction,
+  rejectTradeOfferAction,
 } from "@/app/game-actions";
 import type { PoliticsPageState } from "@/lib/game/politics-read-model";
 import styles from "./page.module.css";
@@ -117,6 +121,18 @@ function getTimingLabel(row: PoliticsRow) {
 
 export function PoliticsClient({ state }: { state: PoliticsPageState }) {
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const tradeTargets = state.rows.filter((row) => row.canTrade);
+  const [tradeTargetId, setTradeTargetId] = useState(
+    tradeTargets[0]?.fortressId ?? ""
+  );
+  const [tradeCargo, setTradeCargo] = useState({
+    offeredGold: 0,
+    offeredFood: 0,
+    offeredArmy: 0,
+    requestedGold: 0,
+    requestedFood: 0,
+    requestedArmy: 0,
+  });
 
   async function handleAction(row: PoliticsRow, action: PoliticsAction) {
     if (pendingId) {
@@ -193,6 +209,96 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
     } finally {
       setPendingId(null);
     }
+  }
+
+  function setCargoValue(name: keyof typeof tradeCargo, value: string) {
+    setTradeCargo((current) => ({
+      ...current,
+      [name]: Number.parseInt(value || "0", 10),
+    }));
+  }
+
+  async function submitOffer(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (pendingId || !tradeTargetId) {
+      return;
+    }
+
+    setPendingId("trade:create");
+
+    try {
+      const result = await createTradeOfferAction({
+        targetFortressId: tradeTargetId,
+        ...tradeCargo,
+      });
+
+      if (!result.ok) {
+        window.alert(result.error);
+      } else {
+        setTradeCargo({
+          offeredGold: 0,
+          offeredFood: 0,
+          offeredArmy: 0,
+          requestedGold: 0,
+          requestedFood: 0,
+          requestedArmy: 0,
+        });
+      }
+    } finally {
+      setPendingId(null);
+    }
+  }
+
+  async function handleTradeOffer(
+    tradeOfferId: string,
+    action: "accept" | "reject" | "cancel"
+  ) {
+    if (pendingId) {
+      return;
+    }
+
+    const key = `trade:${action}:${tradeOfferId}`;
+    setPendingId(key);
+
+    try {
+      const result =
+        action === "accept"
+          ? await acceptTradeOfferAction(tradeOfferId)
+          : action === "reject"
+            ? await rejectTradeOfferAction(tradeOfferId)
+            : await cancelTradeOfferAction(tradeOfferId);
+
+      if (!result.ok) {
+        window.alert(result.error);
+      }
+    } finally {
+      setPendingId(null);
+    }
+  }
+
+  function formatCargo(
+    lineItems: {
+      fromFortressId: string;
+      kind: "GOLD" | "FOOD" | "ARMY";
+      amount: number;
+    }[],
+    fromFortressId: string
+  ) {
+    return lineItems
+      .filter((item) => item.fromFortressId === fromFortressId)
+      .map((item) => `${item.amount.toLocaleString()} ${item.kind.toLowerCase()}`)
+      .join(", ") || "nothing";
+  }
+
+  function formatLegCargo(leg: PoliticsPageState["activeConvoyLegs"][number]) {
+    const items = [
+      leg.gold > 0 ? `${leg.gold.toLocaleString()} gold` : null,
+      leg.food > 0 ? `${leg.food.toLocaleString()} food` : null,
+      leg.army > 0 ? `${leg.army.toLocaleString()} army` : null,
+    ].filter(Boolean);
+
+    return items.join(", ");
   }
 
   return (
@@ -303,21 +409,175 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
             </div>
           </section>
 
-          <section className={`${styles.panel} ${styles.lockedPanel}`}>
-            <div>
+          <section className={`${styles.panel} ${styles.tradePanel}`}>
+            <div className={styles.panelHeader}>
+              <div>
               <span className={styles.eyebrow}>Trading</span>
-              <h2>Coming later</h2>
+                <h2>Convoys</h2>
+              </div>
+              <strong>{state.activeConvoyLegs.length}</strong>
             </div>
-            <p>
-              Gold, food, army, and connected tile offers will live here once
-              the Season 4 trade rules and escrow model are implemented.
-            </p>
-            <div className={styles.lockedGrid} aria-hidden="true">
-              <span>Gold</span>
-              <span>Food</span>
-              <span>Army</span>
-              <span>Tiles</span>
+            <form className={styles.tradeForm} onSubmit={(event) => void submitOffer(event)}>
+              <select
+                value={tradeTargetId}
+                onChange={(event) => setTradeTargetId(event.target.value)}
+                disabled={tradeTargets.length === 0 || pendingId !== null}
+                aria-label="Trade partner"
+              >
+                {tradeTargets.length === 0 ? (
+                  <option value="">No eligible partners</option>
+                ) : (
+                  tradeTargets.map((row) => (
+                    <option key={row.fortressId} value={row.fortressId}>
+                      {row.name}
+                    </option>
+                  ))
+                )}
+              </select>
+              <div className={styles.tradeColumns}>
+                <fieldset>
+                  <legend>You send</legend>
+                  {(["Gold", "Food", "Army"] as const).map((kind) => {
+                    const key = `offered${kind}` as keyof typeof tradeCargo;
+
+                    return (
+                      <label key={key}>
+                        <span>{kind}</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={tradeCargo[key]}
+                          onChange={(event) => setCargoValue(key, event.target.value)}
+                        />
+                      </label>
+                    );
+                  })}
+                </fieldset>
+                <fieldset>
+                  <legend>You receive</legend>
+                  {(["Gold", "Food", "Army"] as const).map((kind) => {
+                    const key = `requested${kind}` as keyof typeof tradeCargo;
+
+                    return (
+                      <label key={key}>
+                        <span>{kind}</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={tradeCargo[key]}
+                          onChange={(event) => setCargoValue(key, event.target.value)}
+                        />
+                      </label>
+                    );
+                  })}
+                </fieldset>
+              </div>
+              <button type="submit" disabled={!tradeTargetId || pendingId !== null}>
+                {pendingId === "trade:create" ? "Sending..." : "Send offer"}
+              </button>
+            </form>
+
+            <div className={styles.tradeSection}>
+              <h3>Incoming</h3>
+              {state.incomingTradeOffers.length === 0 ? (
+                <p className={styles.muted}>No pending incoming offers.</p>
+              ) : (
+                state.incomingTradeOffers.map((offer) => (
+                  <article key={offer.id} className={styles.tradeCard}>
+                    <strong>{offer.counterpartName}</strong>
+                    <p>
+                      Receive {formatCargo(offer.lineItems, offer.senderFortressId)}
+                      {" / Send "}
+                      {formatCargo(offer.lineItems, offer.receiverFortressId)}
+                    </p>
+                    <div className={styles.actions}>
+                      <button
+                        type="button"
+                        disabled={pendingId !== null}
+                        onClick={() => void handleTradeOffer(offer.id, "accept")}
+                      >
+                        Accept
+                      </button>
+                      <button
+                        type="button"
+                        disabled={pendingId !== null}
+                        onClick={() => void handleTradeOffer(offer.id, "reject")}
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </article>
+                ))
+              )}
             </div>
+
+            <div className={styles.tradeSection}>
+              <h3>Outgoing</h3>
+              {state.outgoingTradeOffers.length === 0 ? (
+                <p className={styles.muted}>No pending outgoing offers.</p>
+              ) : (
+                state.outgoingTradeOffers.map((offer) => (
+                  <article key={offer.id} className={styles.tradeCard}>
+                    <strong>{offer.counterpartName}</strong>
+                    <p>
+                      Send {formatCargo(offer.lineItems, offer.senderFortressId)}
+                      {" / Receive "}
+                      {formatCargo(offer.lineItems, offer.receiverFortressId)}
+                    </p>
+                    <div className={styles.actions}>
+                      <button
+                        type="button"
+                        disabled={pendingId !== null}
+                        onClick={() => void handleTradeOffer(offer.id, "cancel")}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </article>
+                ))
+              )}
+            </div>
+
+            <div className={styles.tradeSection}>
+              <h3>In Transit</h3>
+              {state.activeConvoyLegs.length === 0 ? (
+                <p className={styles.muted}>No active convoy legs.</p>
+              ) : (
+                state.activeConvoyLegs.map((leg) => (
+                  <article key={leg.id} className={styles.tradeCard}>
+                    <strong>
+                      {leg.outgoing ? "To " : "From "}
+                      {leg.counterpartName}
+                    </strong>
+                    <p>{formatLegCargo(leg)}</p>
+                    <time>{leg.arrivesAt.toLocaleString()}</time>
+                  </article>
+                ))
+              )}
+            </div>
+
+            {state.recentConvoyLegs.length > 0 ? (
+              <div className={styles.tradeSection}>
+                <h3>Results</h3>
+                {state.recentConvoyLegs.map((leg) => (
+                  <article key={leg.id} className={styles.tradeCard}>
+                    <strong>
+                      {leg.status === "SEIZED" ? "Seized" : "Delivered"}:
+                      {" "}
+                      {leg.counterpartName}
+                    </strong>
+                    <p>
+                      {formatLegCargo(leg)}
+                      {leg.bonusGold + leg.bonusFood > 0
+                        ? ` + ${leg.bonusGold.toLocaleString()} gold / ${leg.bonusFood.toLocaleString()} food alliance bonus`
+                        : ""}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            ) : null}
           </section>
         </div>
       </div>
