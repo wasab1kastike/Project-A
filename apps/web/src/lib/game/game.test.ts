@@ -38,6 +38,7 @@ import "./combat-buffs.test";
 import "./leaderboard-titles.test";
 import "./politics.test";
 import "./season-announcement.test";
+import "./season-schedule.test";
 import "./tile-pressure.test";
 import {
   forceEndCurrentCycle,

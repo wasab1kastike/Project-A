@@ -38,7 +38,7 @@ This is one internal mechanic with race-specific presentation:
 - Dwarfs: Beer Culture
 - ORKS: Scavenge Mob
 - Space Murines: Imperial Faith
-- Unstable Unicorns: Magic Pressure
+- Unstable Unicorns: Glitter Distribution
 
 Existing worker validation must include pressure workers in the population cap:
 
@@ -124,11 +124,11 @@ Resolution rules:
 - an owned tile can become contested by pressure, but ownership should not flip from pressure alone in the first version unless explicitly enabled
 - if multiple fortresses pressure the same neutral tile, the highest pressure leads
 - ties do not resolve until broken by later pressure
-- pressure on illegal targets is ignored or decays at tick time
+- pressure on illegal targets is ignored, and unsupported legal pressure decays by `10%` per completed hour
 
 Initial threshold:
 
-- base claim threshold: `100`
+- base claim threshold: `600`, approximately one hour with ten focused pressure workers
 - tile value modifier can be added later, but the first implementation should keep one threshold unless playtesting proves it too flat
 
 ### Legal Pressure Targets

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  applyUnsupportedPressureDecay,
   allocatePressureAcrossTargets,
   calculatePressureOutput,
   canPressureTarget,
@@ -16,7 +17,7 @@ test("pressure worker labels are race-flavored", () => {
   assert.equal(getPressureWorkerLabel("DWARFS"), "Beer Culture");
   assert.equal(getPressureWorkerLabel("ORKS"), "Scavenge Mob");
   assert.equal(getPressureWorkerLabel("SPACE_MURINES"), "Imperial Faith");
-  assert.equal(getPressureWorkerLabel("UNSTABLE_UNICORNS"), "Magic Pressure");
+  assert.equal(getPressureWorkerLabel("UNSTABLE_UNICORNS"), "Glitter Distribution");
 });
 
 test("pressure worker labels and descriptions fall back before race selection", () => {
@@ -45,6 +46,21 @@ test("pressure output matches assigned pressure workers", () => {
       race: "ORKS",
     }),
     0
+  );
+});
+
+test("unsupported pressure decays ten percent per completed hour", () => {
+  assert.equal(
+    applyUnsupportedPressureDecay({ pressure: 600, elapsedHours: 0 }),
+    600
+  );
+  assert.equal(
+    applyUnsupportedPressureDecay({ pressure: 600, elapsedHours: 1 }),
+    540
+  );
+  assert.equal(
+    applyUnsupportedPressureDecay({ pressure: 600, elapsedHours: 2 }),
+    486
   );
 });
 

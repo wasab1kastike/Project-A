@@ -134,7 +134,7 @@ const SEASON_FLOW = [
   {
     phase: "Pretesting",
     description:
-      "After voting closes, test workers, race picks, and attacks until the 1 June season start. Progress resets before real combat.",
+      "After voting closes, test pressure expansion and politics until Season 4 passes verification. Progress resets before real play.",
   },
   {
     phase: "Active season (2 weeks)",
@@ -161,7 +161,7 @@ const QUICKSTART_STEPS = [
 
 const SEASON_START_STEPS = [
   "Pick your race early. Race is locked for the whole season, so your first choice defines your economy and combat style.",
-  "Claim connected neutral land as soon as you can. Tile claims take 10 minutes and must connect to your castle or owned territory.",
+  "Assign pressure workers and prioritize connected neutral land. Ten focused pressure workers reach an uncontested claim in about one hour.",
   "Spend enough gold to get army rolling, then keep recruiters assigned so queued units finish on time.",
   "Use battlefields for contested land, and use the center tile action for Home of A. Both reserve army while units travel.",
   "Expect defender wins on equal power. If a fight looks even, the defender keeps the tile or fortress.",
@@ -270,6 +270,7 @@ const TILE_CONTROL_RULES = [
   "Assign pressure workers in Castle to push your borders without spending gold directly.",
   "Prioritize connected border tiles from the map; pressure ticks into prioritized legal tiles first.",
   `A neutral tile is automatically claimed at ${TILE_PRESSURE_CLAIM_THRESHOLD} pressure if one fortress leads without a tie.`,
+  "Unsupported pressure decays by 10% per completed hour, so abandoned pushes lose momentum.",
   "A pressure target must be connected to your castle tile or your existing owned territory.",
   `Temporary map objectives rotate every ${TEMPORARY_MAP_OBJECTIVE_INTERVAL_HOURS} hours and add bonus point income to selected normal tiles while active.`,
   "Home of A cannot be claimed or fortified. It must be attacked through the center tile as a daily boss.",

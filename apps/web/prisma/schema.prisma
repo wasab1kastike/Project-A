@@ -498,6 +498,7 @@ model TilePressureState {
   fortressId      String
   pressure        Int      @default(0)
   lastPressuredAt DateTime
+  lastDecayedAt   DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   cycle           Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)

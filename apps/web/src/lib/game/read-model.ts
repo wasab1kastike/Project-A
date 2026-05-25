@@ -2806,11 +2806,11 @@ export async function getHomePageState({
             ? "Build time is still running, but joins are currently locked by admin action."
             : communityWishVotingOpen
               ? "Build time is open. Players can reserve a fortress now; race choice opens after community wish voting closes."
-            : "Build time is open. Players can join before the next season starts on 1 June."
+            : "Build time is open. Players can join before Season 4 is activated."
           : cycle.status === CycleStatus.TESTING
             ? joiningLocked
-              ? "Testing mode is live, but joins are currently locked by admin action. Sandbox progress resets before the real season."
-              : "Testing mode is live. Players can join and try the economy, races, upgrades and raids before everything resets for the real season."
+              ? "Testing mode is live, but joins are currently locked by admin action. Sandbox progress resets before Season 4 activation."
+              : "Testing mode is live. Season 4 activation remains held until the redesigned rules pass pretesting."
             : activeOpen
               ? "The season is live. Community wishes can be proposed until Sunday and voted on after it ends."
               : "The season has ended. Build and wish resolution are in progress.",
@@ -2821,16 +2821,16 @@ export async function getHomePageState({
             : registrationOpen
               ? communityWishVotingOpen
                 ? "Build time is open. Joining reserves one of the 30 season slots now; race choice opens after community wish voting closes."
-                : "Build time is open. Joining creates your fortress immediately and reserves one of the 30 season slots before 1 June."
+                : "Build time is open. Joining creates your fortress immediately and reserves one of the 30 Season 4 slots."
               : "Build time has expired. The next game tick will either restart build time or move the cycle into ACTIVE."
           : cycle.status === CycleStatus.TESTING
             ? testingOpen && joiningLocked
               ? "Testing mode remains open on the clock, but new joins are currently locked by admin action."
               : testingOpen && remainingSlots > 0
-                ? "Testing mode is live. You can still join before testing ends; sandbox progress resets before the real season."
+                ? "Testing mode is live. You can still join during pretesting; sandbox progress resets before Season 4 activation."
                 : testingOpen
-                  ? "Testing mode is live, but all player slots are filled. Sandbox progress resets before the real season."
-                  : "Testing has ended. The next game tick will reset sandbox progress and start the real season."
+                  ? "Testing mode is live, but all player slots are filled. Sandbox progress resets before Season 4 activation."
+                  : "Testing is awaiting the next Season 4 launch decision."
             : joiningLocked
               ? "The season is active, but joining is currently locked by admin action."
               : activeOpen && remainingSlots > 0

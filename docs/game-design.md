@@ -30,7 +30,7 @@
 - Top 3 leaderboard visible for points, units killed, tiles owned, goblins killed, and resources stolen from player castles
 - Category leaders hold live titles: Crown Accountant, Butcher, Landlord, Goblin Bonker, and Loot Lord
 - Title buffs are active only during the live season and update as rankings change
-- Season 4 timer: registration is open during community wish voting, voting closes 25 May at 12:00 Europe/Helsinki, pretesting runs until active play starts 1 June at 12:00 Europe/Helsinki
+- Season 4 timer: registration is open during community wish voting, voting closes 25 May at 12:00 Europe/Helsinki, and pretesting remains active until the redesign is explicitly released after verification
 - Player action persists while offline
 - Castle upgrades are available during gameplay and use gold
 - Castle levels cost 500 / 1500 / 3000 / 5000 / 7500 / 10500 / 14000 / 18000 / 22500 gold
@@ -70,7 +70,7 @@
 - Desktop and mobile controls both support inspecting tiles directly from the battlefield map.
 - Neutral spawnable tiles can be prioritized for pressure only if they connect to the player's castle tile or existing owned territory.
 - Pressure workers add pressure to prioritized legal border tiles each tick.
-- A neutral tile is automatically claimed at 100 pressure when one fortress leads without a tie.
+- A neutral tile is automatically claimed at 600 pressure when one fortress leads without a tie; unsupported pressure loses 10% per completed hour.
 - Home of A cannot receive expansion pressure or be fortified; players attack the center boss directly through the tile action.
 - Owned tiles are contested through battlefield attacks and can transfer ownership when the battlefield resolves.
 - Players can fortify owned normal tiles by sending idle army that travels to the tile and becomes a persistent non-decaying garrison until recalled or killed.
@@ -96,6 +96,7 @@
 ## Tick Ops Runbook
 
 - Render production expects the `project-a-game-tick` cron job to run every minute from [`render.yaml`](C:/Users/arto.askala/Documents/project-a/Project-A/render.yaml).
+- Season 4 activation is held during pretesting unless `SEASON_4_ACTIVATION_ENABLED=true`; once acceptance passes, enable it and use the existing admin cycle transition to activate deliberately.
 - Check tick freshness from the home HUD or admin dashboard:
   - `ok` means the latest processed minute is current enough for normal play.
   - `lagging` means the game is behind and player-visible updates may feel slow.
