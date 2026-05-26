@@ -1,3 +1,6 @@
+-- AlterEnum
+ALTER TYPE "TradeLineItemKind" ADD VALUE 'TILE';
+
 -- AlterTable
 ALTER TABLE "ConvoyLeg" ADD COLUMN "deedTileId" TEXT;
 ALTER TABLE "ConvoyLeg" ADD COLUMN "deedSettledAt" TIMESTAMP(3);
