@@ -24,7 +24,8 @@
 }
 
 .topbar a,
-.actions button {
+.actions button,
+.tradeForm button {
   min-height: 38px;
   padding: 0 14px;
   border: 1px solid rgba(247, 196, 95, 0.34);
@@ -37,7 +38,8 @@
   cursor: pointer;
 }
 
-.actions button:disabled {
+.actions button:disabled,
+.tradeForm button:disabled {
   cursor: not-allowed;
   opacity: 0.52;
 }
@@ -61,7 +63,8 @@
 .panel,
 .relationList,
 .card,
-.lockedPanel {
+.tradePanel,
+.tradeSection {
   display: grid;
   gap: 12px;
 }
@@ -83,7 +86,8 @@
 .hero p,
 .muted,
 .timing,
-.lockedPanel p {
+.tradeCard p,
+.tradeCard time {
   margin: 0;
   color: var(--text-muted);
   line-height: 1.5;
@@ -91,7 +95,7 @@
 
 .grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.8fr);
+  grid-template-columns: minmax(0, 1.2fr) minmax(330px, 1fr);
   gap: 14px;
   align-items: start;
 }
@@ -161,23 +165,67 @@
   gap: 8px;
 }
 
-.lockedGrid {
+.tradeForm {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 10px;
 }
 
-.lockedGrid span {
-  min-height: 42px;
+.tradeForm select,
+.tradeForm input {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 9px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 6px;
+  background: rgba(3, 10, 16, 0.5);
+  color: var(--foreground);
+  font: inherit;
+}
+
+.tradeColumns {
   display: grid;
-  place-items: center;
-  border: 1px solid rgba(148, 163, 184, 0.18);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.tradeColumns fieldset {
+  margin: 0;
+  padding: 9px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
   border-radius: 8px;
-  background: rgba(3, 10, 16, 0.34);
+  display: grid;
+  gap: 7px;
+}
+
+.tradeColumns legend,
+.tradeSection h3 {
+  margin: 0;
   color: var(--text-muted);
   font-family: var(--font-ibm-plex-mono);
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   text-transform: uppercase;
+}
+
+.tradeColumns label {
+  display: grid;
+  grid-template-columns: 1fr minmax(64px, 84px);
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.tradeCard {
+  padding: 10px;
+  border: 1px solid rgba(103, 196, 207, 0.16);
+  border-radius: 8px;
+  background: rgba(3, 10, 16, 0.34);
+  display: grid;
+  gap: 7px;
+}
+
+.tradeCard strong {
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 760px) {
@@ -190,6 +238,10 @@
   .panelHeader,
   .cardHeader {
     display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .tradeColumns {
     grid-template-columns: 1fr;
   }
 }

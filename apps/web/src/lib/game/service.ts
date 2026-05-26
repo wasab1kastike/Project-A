@@ -14,8 +14,11 @@ import {
   BattlefieldStatus,
   BattlefieldSide,
   ChatMessageType,
+  ConvoyLegStatus,
   DiplomacyRelationStatus,
   TerritoryCampaignStatus,
+  TradeLineItemKind,
+  TradeOfferStatus,
   OrkBossOrderKind,
   OrkScrapEventReason,
   OrkWaaaghInvestmentKind,
@@ -120,6 +123,15 @@ import {
 } from "./politics";
 import { isSeasonFourRuleset } from "./rulesets";
 import { getCampaignStartBlockedReason } from "./campaigns";
+import {
+  calculateTradeCargoValue,
+  getConvoyArrivalAt,
+  getTradeBlockedReason,
+  getTradeOfferExpiresAt,
+  hasTradeCargo,
+  normalizeTradeCargo,
+  type TradeCargo,
+} from "./trading";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -442,6 +454,16 @@ function isGameplayWindowOpen(
       cycle.testingEndsAt > now) ||
     isActiveWindowOpen(cycle, now)
   );
+}
+
+function getGameplayWindowEnd(cycle: {
+  status: CycleStatus;
+  testingEndsAt?: Date | null;
+  activeEndsAt: Date | null;
+}) {
+  return cycle.status === CycleStatus.TESTING
+    ? cycle.testingEndsAt ?? null
+    : cycle.activeEndsAt;
 }
 
 function isRaceSelectionWindowOpen(
@@ -1369,6 +1391,9 @@ async function getTargetPlayerFortressForPolitics({
       id: true,
       gold: true,
       food: true,
+      army: true,
+      mapX: true,
+      mapY: true,
     },
   });
 
@@ -2433,6 +2458,426 @@ export async function acceptPeace({
         collateralArmy: 0,
         casusBelliFortressId: null,
         casusBelliExpiresAt: null,
+      },
+    });
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+export type CreateTradeOfferInput = {
+  targetFortressId: string;
+  offeredGold: number;
+  offeredFood: number;
+  offeredArmy: number;
+  requestedGold: number;
+  requestedFood: number;
+  requestedArmy: number;
+};
+
+function assertTradeCargoAvailable({
+  fortress,
+  cargo,
+}: {
+  fortress: { gold: number; food: number; army: number };
+  cargo: TradeCargo;
+}) {
+  if (
+    fortress.gold < cargo.gold ||
+    fortress.food < cargo.food ||
+    fortress.army < cargo.army
+  ) {
+    throw new GameError(
+      "That fortress does not have the committed trade cargo available."
+    );
+  }
+}
+
+function tradeLineItemsForCargo({
+  cargo,
+  fromFortressId,
+  toFortressId,
+}: {
+  cargo: TradeCargo;
+  fromFortressId: string;
+  toFortressId: string;
+}) {
+  return [
+    { kind: TradeLineItemKind.GOLD, amount: cargo.gold },
+    { kind: TradeLineItemKind.FOOD, amount: cargo.food },
+    { kind: TradeLineItemKind.ARMY, amount: cargo.army },
+  ]
+    .filter((lineItem) => lineItem.amount > 0)
+    .map((lineItem) => ({ ...lineItem, fromFortressId, toFortressId }));
+}
+
+function getTradeCargoFromLineItems({
+  lineItems,
+  fromFortressId,
+}: {
+  lineItems: {
+    fromFortressId: string;
+    kind: TradeLineItemKind;
+    amount: number;
+  }[];
+  fromFortressId: string;
+}) {
+  const cargo: TradeCargo = { gold: 0, food: 0, army: 0 };
+
+  for (const lineItem of lineItems) {
+    if (lineItem.fromFortressId !== fromFortressId) {
+      continue;
+    }
+
+    if (lineItem.kind === TradeLineItemKind.GOLD) {
+      cargo.gold += lineItem.amount;
+    } else if (lineItem.kind === TradeLineItemKind.FOOD) {
+      cargo.food += lineItem.amount;
+    } else {
+      cargo.army += lineItem.amount;
+    }
+  }
+
+  return cargo;
+}
+
+export async function createTradeOffer({
+  userId,
+  targetFortressId,
+  offeredGold,
+  offeredFood,
+  offeredArmy,
+  requestedGold,
+  requestedFood,
+  requestedArmy,
+  now = new Date(),
+  db = prisma,
+}: CreateTradeOfferInput & {
+  userId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("Trade offers can only be created during gameplay.");
+    }
+
+    assertSeasonFourFeatureCycle(cycle);
+    const sender = await getActivePlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      userId,
+    });
+    const receiver = await getTargetPlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      targetFortressId,
+    });
+
+    if (sender.id === receiver.id) {
+      throw new GameError("You cannot send a trade offer to yourself.");
+    }
+
+    let offered: TradeCargo;
+    let requested: TradeCargo;
+
+    try {
+      offered = normalizeTradeCargo({
+        gold: offeredGold,
+        food: offeredFood,
+        army: offeredArmy,
+      });
+      requested = normalizeTradeCargo({
+        gold: requestedGold,
+        food: requestedFood,
+        army: requestedArmy,
+      });
+    } catch (error) {
+      throw new GameError(
+        error instanceof Error ? error.message : "Trade cargo is invalid."
+      );
+    }
+
+    if (!hasTradeCargo(offered) && !hasTradeCargo(requested)) {
+      throw new GameError(
+        "A trade offer must contain at least one resource or army item."
+      );
+    }
+
+    assertTradeCargoAvailable({ fortress: sender, cargo: offered });
+    const relation = await tx.diplomacyRelation.findUnique({
+      where: {
+        cycleId_fortressAId_fortressBId: {
+          cycleId: cycle.id,
+          ...getCanonicalDiplomacyPair(sender.id, receiver.id),
+        },
+      },
+    });
+    const blockedReason = getTradeBlockedReason(
+      getEffectiveDiplomacyStatus({ relation, now })
+    );
+
+    if (blockedReason) {
+      throw new GameError(blockedReason);
+    }
+
+    return tx.tradeOffer.create({
+      data: {
+        cycleId: cycle.id,
+        senderFortressId: sender.id,
+        receiverFortressId: receiver.id,
+        status: TradeOfferStatus.PENDING,
+        expiresAt: getTradeOfferExpiresAt(now),
+        lineItems: {
+          create: [
+            ...tradeLineItemsForCargo({
+              cargo: offered,
+              fromFortressId: sender.id,
+              toFortressId: receiver.id,
+            }),
+            ...tradeLineItemsForCargo({
+              cargo: requested,
+              fromFortressId: receiver.id,
+              toFortressId: sender.id,
+            }),
+          ],
+        },
+      },
+      include: { lineItems: true },
+    });
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+export async function acceptTradeOffer({
+  userId,
+  tradeOfferId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  tradeOfferId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("Trade offers can only be accepted during gameplay.");
+    }
+
+    assertSeasonFourFeatureCycle(cycle);
+    const receiver = await getActivePlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      userId,
+    });
+    const offer = await tx.tradeOffer.findFirst({
+      where: { id: tradeOfferId, cycleId: cycle.id },
+      include: { lineItems: true },
+    });
+
+    if (!offer || offer.receiverFortressId !== receiver.id) {
+      throw new GameError("That incoming trade offer is not available.");
+    }
+
+    if (offer.status !== TradeOfferStatus.PENDING) {
+      throw new GameError("That trade offer is no longer pending.");
+    }
+
+    if (offer.expiresAt <= now) {
+      await tx.tradeOffer.update({
+        where: { id: offer.id },
+        data: { status: TradeOfferStatus.EXPIRED },
+      });
+      throw new GameError("That trade offer has expired.");
+    }
+
+    const sender = await getTargetPlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      targetFortressId: offer.senderFortressId,
+    });
+    const relation = await tx.diplomacyRelation.findUnique({
+      where: {
+        cycleId_fortressAId_fortressBId: {
+          cycleId: cycle.id,
+          ...getCanonicalDiplomacyPair(sender.id, receiver.id),
+        },
+      },
+    });
+    const blockedReason = getTradeBlockedReason(
+      getEffectiveDiplomacyStatus({ relation, now })
+    );
+
+    if (blockedReason) {
+      throw new GameError(blockedReason);
+    }
+
+    const senderCargo = getTradeCargoFromLineItems({
+      lineItems: offer.lineItems,
+      fromFortressId: sender.id,
+    });
+    const receiverCargo = getTradeCargoFromLineItems({
+      lineItems: offer.lineItems,
+      fromFortressId: receiver.id,
+    });
+    assertTradeCargoAvailable({ fortress: sender, cargo: senderCargo });
+    assertTradeCargoAvailable({ fortress: receiver, cargo: receiverCargo });
+
+    const legs = [
+      { cargo: senderCargo, from: sender, to: receiver },
+      { cargo: receiverCargo, from: receiver, to: sender },
+    ]
+      .filter((leg) => hasTradeCargo(leg.cargo))
+      .map((leg) => ({
+        ...leg,
+        arrivesAt: getConvoyArrivalAt({
+          acceptedAt: now,
+          from: leg.from,
+          to: leg.to,
+        }),
+      }));
+    const gameplayEndsAt = getGameplayWindowEnd(cycle);
+
+    if (!gameplayEndsAt || legs.some((leg) => leg.arrivesAt > gameplayEndsAt)) {
+      throw new GameError(
+        "This convoy would arrive after the gameplay window closes."
+      );
+    }
+
+    for (const leg of legs) {
+      await tx.fortress.update({
+        where: { id: leg.from.id },
+        data: {
+          gold: { decrement: leg.cargo.gold },
+          food: { decrement: leg.cargo.food },
+          army: { decrement: leg.cargo.army },
+        },
+      });
+    }
+
+    await tx.tradeOffer.update({
+      where: { id: offer.id },
+      data: { status: TradeOfferStatus.ACCEPTED, acceptedAt: now },
+    });
+
+    await tx.convoyLeg.createMany({
+      data: legs.map((leg) => ({
+        cycleId: cycle.id,
+        tradeOfferId: offer.id,
+        fromFortressId: leg.from.id,
+        toFortressId: leg.to.id,
+        status: ConvoyLegStatus.IN_TRANSIT,
+        gold: leg.cargo.gold,
+        food: leg.cargo.food,
+        army: leg.cargo.army,
+        baseCargoValue: calculateTradeCargoValue(leg.cargo),
+        departedAt: now,
+        arrivesAt: leg.arrivesAt,
+      })),
+    });
+
+    return tx.tradeOffer.findUniqueOrThrow({
+      where: { id: offer.id },
+      include: { convoyLegs: true, lineItems: true },
+    });
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+export async function rejectTradeOffer({
+  userId,
+  tradeOfferId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  tradeOfferId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("Trade offers can only be rejected during gameplay.");
+    }
+
+    assertSeasonFourFeatureCycle(cycle);
+    const fortress = await getActivePlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      userId,
+    });
+    const offer = await tx.tradeOffer.findFirst({
+      where: {
+        id: tradeOfferId,
+        cycleId: cycle.id,
+        receiverFortressId: fortress.id,
+        status: TradeOfferStatus.PENDING,
+      },
+    });
+
+    if (!offer) {
+      throw new GameError("That incoming trade offer is not pending.");
+    }
+
+    const expired = offer.expiresAt <= now;
+
+    return tx.tradeOffer.update({
+      where: { id: offer.id },
+      data: {
+        status: expired ? TradeOfferStatus.EXPIRED : TradeOfferStatus.REJECTED,
+        rejectedAt: expired ? null : now,
+      },
+    });
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+export async function cancelTradeOffer({
+  userId,
+  tradeOfferId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  tradeOfferId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("Trade offers can only be canceled during gameplay.");
+    }
+
+    assertSeasonFourFeatureCycle(cycle);
+    const fortress = await getActivePlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      userId,
+    });
+    const offer = await tx.tradeOffer.findFirst({
+      where: {
+        id: tradeOfferId,
+        cycleId: cycle.id,
+        senderFortressId: fortress.id,
+        status: TradeOfferStatus.PENDING,
+      },
+    });
+
+    if (!offer) {
+      throw new GameError("That outgoing trade offer is not pending.");
+    }
+
+    const expired = offer.expiresAt <= now;
+
+    return tx.tradeOffer.update({
+      where: { id: offer.id },
+      data: {
+        status: expired ? TradeOfferStatus.EXPIRED : TradeOfferStatus.CANCELED,
+        canceledAt: expired ? null : now,
       },
     });
   }, SERVICE_TRANSACTION_OPTIONS);

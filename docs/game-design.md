@@ -88,7 +88,12 @@
 - Neutral fortresses may propose an alliance. Acceptance creates Trust I and escrows `2,000 gold + 2,000 food` from each party.
 - Trust upgrades require acceptance from both parties: Trust II holds `10,000 gold + 10,000 food` from each fortress, and Trust III holds `30,000 gold + 30,000 food`.
 - Pending alliance and trust proposals can be withdrawn by the proposer or rejected by the recipient.
-- Trust I, II, and III reserve future allied delivery bonuses of `10%`, `15%`, and `25%`; convoy delivery is not active until the trade slice ships.
+- Neutral and allied fortresses may exchange bilateral offers containing gold, food, and army from `/politics`; hostile and pending political states block new or accepted offers.
+- Accepting an offer commits cargo into one independent convoy leg per non-empty direction. A leg takes at least six hours plus base map travel time and cannot be accepted if it would arrive after gameplay closes.
+- Delivered convoy points use base value only: `gold + food + (2 * army)`, awarding `floor(value / 1000)` points split between both parties with odd points going to the sender.
+- Trust I, II, and III add `10%`, `15%`, and `25%` delivered gold and food on allied convoys; bonus cargo and army do not increase score.
+- If a convoy pair becomes enemy or enters war before arrival, resource cargo is seized by its intended receiver without score or alliance bonus.
+- Tile deeds, escorts, and raid interception are later logistics slices.
 - Betraying an ally starts war immediately. The harmed fortress receives its own escrow back plus the betrayer's escrow.
 - A detected covert raid records the attacker as an enemy and grants the victim 24 hours to invoke casus belli for immediate war once raid orders are enabled.
 - Pressure pacing, the Politics & Trade page, and alliance actions are gated to `SEASON_4` cycles; legacy history remains unaffected.

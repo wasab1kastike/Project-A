@@ -18,6 +18,9 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
       "Detected covert incidents now grant the victim a 24-hour casus belli option for immediate war, ready for the upcoming raid-order slice.",
       "Season 4 war borders now use standing campaigns: committed army and pressure build toward a visible 12-hour siege warning before automatic combat begins.",
       "Owned tiles can station standing guard orders that commit army to defend against incoming Season 4 sieges.",
+      "Politics & Trade now handles bilateral gold, food, and army offers. Accepted cargo travels in independent convoy legs with a six-hour minimum journey.",
+      "Delivered convoy cargo can award points from its base value, while allied trust tiers add bonus delivered gold and food without inflating score.",
+      "Convoys caught between new enemies or wartime fortresses are seized on the next tick with no trade points or alliance bonus.",
     ],
     bugFixes: [
       "Season 4 stays in pretesting until its redesigned rules are explicitly approved for activation, instead of starting from an unfinished schedule.",

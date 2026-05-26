@@ -83,7 +83,12 @@ import {
   stationGuardOrder,
   startTerritoryCampaign,
   recallArmyOrder,
+  createTradeOffer,
+  acceptTradeOffer,
+  rejectTradeOffer,
+  cancelTradeOffer,
 } from "@/lib/game/service";
+import type { CreateTradeOfferInput } from "@/lib/game/service";
 import type { AttackUnitLaunchMarker } from "@/lib/game/service";
 
 function getString(formData: FormData, key: string) {
@@ -587,6 +592,98 @@ export async function acceptPeaceAction(targetFortressId: string) {
     return {
       ok: true,
     } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
+export async function createTradeOfferAction(input: CreateTradeOfferInput) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await createTradeOffer({ userId, ...input });
+    notifyAndRevalidate("trade-offer-create", ["/", "/castle", "/politics"]);
+    return { ok: true } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
+export async function acceptTradeOfferAction(tradeOfferId: string) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await acceptTradeOffer({ userId, tradeOfferId });
+    notifyAndRevalidate("trade-offer-accept", ["/", "/castle", "/politics"]);
+    return { ok: true } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
+export async function rejectTradeOfferAction(tradeOfferId: string) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await rejectTradeOffer({ userId, tradeOfferId });
+    notifyAndRevalidate("trade-offer-reject", ["/politics"]);
+    return { ok: true } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
+export async function cancelTradeOfferAction(tradeOfferId: string) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await cancelTradeOffer({ userId, tradeOfferId });
+    notifyAndRevalidate("trade-offer-cancel", ["/politics"]);
+    return { ok: true } satisfies InlineActionResult;
   } catch (error) {
     return {
       ok: false,

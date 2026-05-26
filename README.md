@@ -235,6 +235,8 @@ The game is now a castle-economy and battlefield-control loop:
 - active army, not queued army, consumes food upkeep at 0.01 food per unit per tick; if upkeep cannot be paid, food falls to zero and active army loses 2% that tick
 - neutral tiles are acquired automatically through connected pressure priorities; the idle expansion baseline requires 600 pressure, or roughly one hour with ten focused pressure workers
 - `/politics` now pretests bilateral alliances with fixed trust escrow tiers; betrayal immediately begins war and awards both escrow shares to the harmed ally
+- `/politics` now supports bilateral gold, food, and army offers between neutral or allied fortresses; accepted cargo moves as independent six-hour-minimum convoy legs
+- Delivered convoy cargo awards points from base cargo value and allied Trust bonuses add only delivered gold and food; hostile relations seize in-transit cargo without points
 - detected covert incidents now have a Season 4 casus belli path: the victim can invoke immediate war during the 24-hour incident window once raid orders are connected
 - Season 4 territorial war uses standing campaign orders: pressure workers and committed army build a border siege, then a 12-hour warning opens before automatic combat
 - owned Season 4 tiles can station guard orders; ordinary tile attacks, reinforcements, and fortification controls are legacy-only

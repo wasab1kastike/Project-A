@@ -2,13 +2,17 @@ import { prisma } from "@/lib/prisma";
 import {
   CycleStatus,
   FortressKind,
+  ConvoyLegStatus,
+  TradeOfferStatus,
   type PrismaClient,
 } from "@/lib/prisma-client";
 import {
   findDiplomacyRelationForPair,
+  getEffectiveDiplomacyStatus,
   getPoliticsRelationPresentation,
 } from "./politics";
 import { isSeasonFourRuleset } from "./rulesets";
+import { getTradeBlockedReason } from "./trading";
 
 function getMinutesUntil(from: Date, to: Date | null | undefined) {
   if (!to || to <= from) {
@@ -73,6 +77,9 @@ export async function getPoliticsPageState({
           points: true,
           joinedAt: true,
           race: true,
+          gold: true,
+          food: true,
+          army: true,
         },
       },
       diplomacyRelations: {
@@ -106,6 +113,10 @@ export async function getPoliticsPageState({
       disabledReason: "Politics opens during active gameplay.",
       playerFortress: null,
       rows: [],
+      incomingTradeOffers: [],
+      outgoingTradeOffers: [],
+      activeConvoyLegs: [],
+      recentConvoyLegs: [],
     };
   }
 
@@ -115,6 +126,10 @@ export async function getPoliticsPageState({
       disabledReason: "Politics & Trade opens with the Season 4 ruleset.",
       playerFortress: null,
       rows: [],
+      incomingTradeOffers: [],
+      outgoingTradeOffers: [],
+      activeConvoyLegs: [],
+      recentConvoyLegs: [],
     };
   }
 
@@ -127,8 +142,46 @@ export async function getPoliticsPageState({
       disabledReason: "Join the active cycle before using politics.",
       playerFortress: null,
       rows: [],
+      incomingTradeOffers: [],
+      outgoingTradeOffers: [],
+      activeConvoyLegs: [],
+      recentConvoyLegs: [],
     };
   }
+
+  const [tradeOffers, convoyLegs] = await Promise.all([
+    db.tradeOffer.findMany({
+      where: {
+        cycleId: cycle.id,
+        status: TradeOfferStatus.PENDING,
+        expiresAt: { gt: now },
+        OR: [
+          { senderFortressId: playerFortress.id },
+          { receiverFortressId: playerFortress.id },
+        ],
+      },
+      include: { lineItems: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    db.convoyLeg.findMany({
+      where: {
+        cycleId: cycle.id,
+        status: {
+          in: [
+            ConvoyLegStatus.IN_TRANSIT,
+            ConvoyLegStatus.DELIVERED,
+            ConvoyLegStatus.SEIZED,
+          ],
+        },
+        OR: [
+          { fromFortressId: playerFortress.id },
+          { toFortressId: playerFortress.id },
+        ],
+      },
+      orderBy: { createdAt: "desc" },
+      take: 30,
+    }),
+  ]);
 
   const rows = cycle.fortresses
     .filter((fortress) => fortress.id !== playerFortress.id)
@@ -163,6 +216,9 @@ export async function getPoliticsPageState({
         relation?.trustUpgradeProposedById ?? null;
       const casusBelliFortressId = relation?.casusBelliFortressId ?? null;
       const casusBelliExpiresAt = relation?.casusBelliExpiresAt ?? null;
+      const tradeDisabledReason = getTradeBlockedReason(
+        getEffectiveDiplomacyStatus({ relation, now })
+      );
 
       return {
         fortressId: fortress.id,
@@ -204,8 +260,46 @@ export async function getPoliticsPageState({
         availableAction: presentation.availableAction,
         availableActions: presentation.availableActions,
         disabledReason: presentation.disabledReason,
+        canTrade: tradeDisabledReason === null,
+        tradeDisabledReason,
       };
     });
+  const fortressNames = new Map(
+    cycle.fortresses.map((fortress) => [fortress.id, fortress.name])
+  );
+  const normalizeOffer = (offer: (typeof tradeOffers)[number]) => ({
+    id: offer.id,
+    senderFortressId: offer.senderFortressId,
+    receiverFortressId: offer.receiverFortressId,
+    counterpartName:
+      fortressNames.get(
+        offer.senderFortressId === playerFortress.id
+          ? offer.receiverFortressId
+          : offer.senderFortressId
+      ) ?? "Unknown fortress",
+    expiresAt: offer.expiresAt,
+    lineItems: offer.lineItems,
+  });
+  const normalizeLeg = (leg: (typeof convoyLegs)[number]) => ({
+    id: leg.id,
+    status: leg.status,
+    outgoing: leg.fromFortressId === playerFortress.id,
+    counterpartName:
+      fortressNames.get(
+        leg.fromFortressId === playerFortress.id
+          ? leg.toFortressId
+          : leg.fromFortressId
+      ) ?? "Unknown fortress",
+    gold: leg.gold,
+    food: leg.food,
+    army: leg.army,
+    baseCargoValue: leg.baseCargoValue,
+    bonusGold: leg.bonusGold,
+    bonusFood: leg.bonusFood,
+    pointsAwarded: leg.pointsAwarded,
+    arrivesAt: leg.arrivesAt,
+    settledAt: leg.settledAt,
+  });
 
   return {
     canUsePolitics: true,
@@ -214,8 +308,34 @@ export async function getPoliticsPageState({
       id: playerFortress.id,
       name: playerFortress.name,
       commanderName: playerFortress.commanderName,
+      gold: playerFortress.gold,
+      food: playerFortress.food,
+      army: playerFortress.army,
     },
     rows,
+    incomingTradeOffers: tradeOffers
+      .filter((offer) => offer.receiverFortressId === playerFortress.id)
+      .map(normalizeOffer),
+    outgoingTradeOffers: tradeOffers
+      .filter((offer) => offer.senderFortressId === playerFortress.id)
+      .map(normalizeOffer),
+    activeConvoyLegs: convoyLegs
+      .filter(
+        (leg) =>
+          leg.status === ConvoyLegStatus.IN_TRANSIT &&
+          (leg.fromFortressId === playerFortress.id ||
+            leg.toFortressId === playerFortress.id)
+      )
+      .map(normalizeLeg),
+    recentConvoyLegs: convoyLegs
+      .filter(
+        (leg) =>
+          leg.status !== ConvoyLegStatus.IN_TRANSIT &&
+          (leg.fromFortressId === playerFortress.id ||
+            leg.toFortressId === playerFortress.id)
+      )
+      .slice(0, 10)
+      .map(normalizeLeg),
   };
 }
 
