@@ -69,7 +69,7 @@ const RACE_TIER_PATH = [
 const CASTLE_SPECIALIZATIONS = [
   "Mine: +10% gold production per pick.",
   "Food: +10% food production per pick.",
-  "Military: +10% army production per pick.",
+  "Military: +10% recruitment throughput per pick.",
   "Defense: +10% PvP defending power per pick.",
 ] as const;
 
@@ -110,7 +110,7 @@ const SEASON_FLOW = [
   {
     phase: "Active season (2 weeks)",
     description:
-      "Real economy, real raids, real grudges. If it explodes here, it counts.",
+      "Real economy, real convoys, and real campaigns. Every order now counts.",
   },
   {
     phase: "Resolution",
@@ -190,12 +190,12 @@ const MAP_LEGEND = [
   {
     label: "Contested",
     tone: "contested",
-    description: "A tile or fortress currently being fought over.",
+    description: "A hostile border under campaign pressure or siege.",
   },
   {
     label: "Battlefield",
     tone: "battlefield",
-    description: "A fight players can reinforce from either side.",
+    description: "An engaged siege resolving committed armies.",
   },
   {
     label: "Monument",
@@ -253,7 +253,7 @@ const POLITICS_RULES = [
 
 const FAQ_ENTRIES = [
   {
-    question: "Why did my attack fail even with a big army?",
+    question: "Why did my campaign fail even with a big army?",
     answer:
       "Defender power includes castle defense multipliers. Equal power is still a defender win, so close calls usually punish the attacker.",
   },
@@ -263,9 +263,9 @@ const FAQ_ENTRIES = [
       "Race is a once-per-season lock. The game remembers your choice even if your memory does not.",
   },
   {
-    question: "Why did my location suddenly change?",
+    question: "Why can I not interact with the center tile?",
     answer:
-      "Unicorn teleport temporarily moves the fortress for 1 hour, then returns it home. Home of A stays fixed at the center.",
+      "The former Home of A tile is a preserved monument in Season 4. It cannot be attacked, fortified, pressured, or owned.",
   },
   {
     question: "What is the safest beginner mistake to avoid?",
@@ -289,11 +289,11 @@ export default function WikiPage() {
       <section className={styles.hero}>
         <div className={styles.heroCopy}>
           <p className={styles.eyebrow}>Project A wiki</p>
-          <h1>Races, castles, Home of A, and combat basics.</h1>
+          <h1>Races, castles, pressure, and campaigns.</h1>
           <p>
             This page is a player-facing guide to what matters most during a
-            season: race identity, upgrade choices, the boss objective, and how
-            raid outcomes are resolved.
+            Season 4 cycle: race identity, expansion pressure, standing
+            doctrines, and planned conflict.
           </p>
         </div>
 
@@ -341,7 +341,7 @@ export default function WikiPage() {
           <h2>Pick the fantasy you want to play</h2>
           <p>
             Each race is a season-long commitment. Use these tokens as the fast
-            read, then scroll down for exact bonuses and active abilities.
+            read, then scroll down for exact bonuses and standing doctrines.
           </p>
           <div className={styles.tokenGrid}>
             {RACE_TOKENS.map((token) => {
@@ -373,8 +373,8 @@ export default function WikiPage() {
           <span className={styles.sectionLabel}>Map legend</span>
           <h2>Claim, hold, contest</h2>
           <p>
-            The map has two different verbs: claim neutral connected land, or
-            fight over owned land and special objectives.
+            Expand into connected neutral land through pressure, then contest
+            enemy borders through war campaigns.
           </p>
           <div className={styles.legendGrid}>
             {MAP_LEGEND.map((entry) => (
@@ -429,9 +429,9 @@ export default function WikiPage() {
           <h2>How to win the season</h2>
           <p>
             The main goal is to end the active season with the most points.
-            Points come from map objectives: owned tiles and{" "}
-            {MEGA_FORTRESS_NAME} boss kills. Gold is the castle currency for
-            upgrades, rename, claims, and utility costs.
+            Points come from rotating map objectives and successful convoy or
+            interception play. Gold funds recruitment, upgrades, trades,
+            alliance escrow, renames, and utility costs.
           </p>
           <p>
             Season 4 rankings also track Territory, PvP Kills, Courier delivered
@@ -669,7 +669,7 @@ export default function WikiPage() {
           <h2>Pressure, objectives, and territory control</h2>
           <p>
             Territory grows through pressure workers, prioritized border tiles,
-            rotating point objectives, and control battles over valuable hexes.
+            rotating point objectives, and war campaigns over valuable hexes.
           </p>
           <div className={styles.twoCol}>
             <section>
@@ -692,17 +692,16 @@ export default function WikiPage() {
                   are the main army-income biome.
                 </li>
                 <li>
-                  Owned tiles can be fortified, attacked, reinforced, and
-                  transferred when their battlefield resolves.
+                  Owned tiles can receive standing guards and transfer after a
+                  hostile campaign reaches and resolves a siege.
                 </li>
                 <li>
                   The Landlord title uses current normal tiles owned, excluding
                   {` ${MEGA_FORTRESS_NAME}`}.
                 </li>
                 <li>
-                  Fortified garrisons stay on the tile without maintenance drain
-                  and can be partially recalled, with surviving troops marching
-                  home.
+                  Guard orders commit idle army to a tile and can be recalled
+                  before they enter an engaged siege.
                 </li>
                 <li>
                   The selected tile panel shows current owner, bonus, claim
@@ -714,7 +713,7 @@ export default function WikiPage() {
         </article>
 
         <article className={styles.card}>
-          <span className={styles.sectionLabel}>Home of A</span>
+          <span className={styles.sectionLabel}>Center tile</span>
           <h2>Center monument</h2>
           <p>{homeOfALore}</p>
           <ul className={styles.noteList}>
@@ -746,7 +745,7 @@ export default function WikiPage() {
 
         <article className={styles.card}>
           <span className={styles.sectionLabel}>Combat</span>
-          <h2>How raids resolve</h2>
+          <h2>How conflict resolves</h2>
           <p>
             Season 4 conflict is planned through convoy raids and war campaigns.
             Army is committed to standing orders, and campaign sieges open a
@@ -754,7 +753,7 @@ export default function WikiPage() {
           </p>
           <div className={styles.twoCol}>
             <section>
-              <h3>PvP power check</h3>
+              <h3>Siege power check</h3>
               <ul className={styles.noteList}>
                 <li>
                   Units travel using map distance and speed (
@@ -766,7 +765,7 @@ export default function WikiPage() {
               </ul>
             </section>
             <section>
-              <h3>Attack multipliers</h3>
+              <h3>Conflict multipliers</h3>
               <ul className={styles.noteList}>
                 {ATTACK_MULTIPLIERS.map((entry) => (
                   <li key={entry}>{entry}</li>
@@ -784,7 +783,7 @@ export default function WikiPage() {
           </div>
           <div className={styles.twoCol}>
             <section>
-              <h3>PvE health damage</h3>
+              <h3>Retired PvE targets</h3>
               <ul className={styles.noteList}>
                 {PVE_FORMULAS.map((entry) => (
                   <li key={entry}>{entry}</li>
@@ -806,7 +805,7 @@ export default function WikiPage() {
           </div>
           <div className={styles.twoCol}>
             <section>
-              <h3>Survivors and loot</h3>
+              <h3>Legacy raid reports</h3>
               <ul className={styles.noteList}>
                 <li>
                   On attacker win, defender loses about{" "}

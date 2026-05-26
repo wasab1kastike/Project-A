@@ -251,23 +251,23 @@ function HomeClientContent({
         ? {
             title: "Testing phase is live.",
             description:
-              "Try workers, races, upgrades and raids. Sandbox progress resets before the real season.",
+              "Test pressure, doctrines, convoys, and campaigns. Sandbox progress resets before the real season.",
             nextAction: state.playerSummary
-              ? "Test your economy and attacks, then get ready to choose again when the season starts."
+              ? "Tune your economy and standing orders before the season activates."
               : state.canJoinCycle
                 ? "You can still join before testing ends."
                 : "Watch the sandbox and wait for the real season start.",
             timerLabel: "Testing ends",
             battlefieldTitle: "Testing battlefield",
             battlefieldDescription:
-              "Sandbox combat is live. Race, resources, attacks and upgrades reset at season start.",
+              "Sandbox pressure and campaign orders are live; progress resets before activation.",
           }
         : state.phase?.status === "ACTIVE"
           ? {
               title: "Season is live.",
               description: "Moves are being resolved in real time.",
               nextAction: state.playerSummary
-                ? "Pick a target on the map or open Castle to submit your move."
+                ? "Prioritize a border tile or open Castle to manage your standing orders."
                 : state.canJoinCycle
                   ? "You can still join this running season while slots are available."
                   : "Follow the live map and wait for the next registration.",
