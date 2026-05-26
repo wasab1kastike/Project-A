@@ -604,38 +604,48 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                 const selectedRow = tradeTargetId
                   ? state.rows.find((r) => r.fortressId === tradeTargetId)
                   : null;
-                const eligibleTiles = selectedRow?.eligibleDeedTiles ?? [];
+                const partnerTiles = selectedRow?.eligibleDeedTiles ?? [];
+                const playerTiles = state.playerEligibleDeedTiles ?? [];
 
-                return eligibleTiles.length > 0 ? (
+                const hasDeeds = partnerTiles.length > 0 || playerTiles.length > 0;
+
+                return hasDeeds ? (
                   <details style={{ marginTop: '0.5rem', fontSize: '0.85em' }}>
-                    <summary>Tile deed ({eligibleTiles.length} eligible)</summary>
-                    <label>
-                      <span>You send tile to them</span>
-                      <select
-                        value={tradeCargo.offeredTileId}
-                        onChange={(e) => setTileValue('offeredTileId', e.target.value)}
-                      >
-                        <option value="">—</option>
-                        {eligibleTiles.map((tileId: string) => (
-                          <option key={tileId} value={tileId}>
-                            {tileId}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      <span>They send tile to you</span>
-                      <select
-                        value={tradeCargo.requestedTileId}
-                        onChange={(e) => setTileValue('requestedTileId', e.target.value)}
-                        disabled
-                      >
-                        <option value="">—</option>
-                      </select>
-                      <p style={{ margin: '2px 0 0', opacity: 0.5 }}>
-                        Receiving a tile requires your ally to create the offer.
-                      </p>
-                    </label>
+                    <summary>Tile deed ({playerTiles.length} yours / {partnerTiles.length} from ally)</summary>
+                    {playerTiles.length > 0 ? (
+                      <label>
+                        <span>You send tile to them</span>
+                        <select
+                          value={tradeCargo.offeredTileId}
+                          onChange={(e) => setTileValue('offeredTileId', e.target.value)}
+                        >
+                          <option value="">—</option>
+                          {playerTiles.map((tileId: string) => (
+                            <option key={tileId} value={tileId}>
+                              {tileId}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : (
+                      <p style={{ fontSize: '0.8em', opacity: 0.6 }}>No eligible tiles you can send to this ally.</p>
+                    )}
+                    {partnerTiles.length > 0 ? (
+                      <label>
+                        <span>They request tile from you</span>
+                        <select
+                          value={tradeCargo.requestedTileId}
+                          onChange={(e) => setTileValue('requestedTileId', e.target.value)}
+                        >
+                          <option value="">—</option>
+                          {partnerTiles.map((tileId: string) => (
+                            <option key={tileId} value={tileId}>
+                              {tileId}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : null}
                   </details>
                 ) : null;
               })()}

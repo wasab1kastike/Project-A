@@ -403,6 +403,10 @@ export async function getPoliticsPageState({
   return {
     canUsePolitics: true,
     disabledReason: null,
+    playerEligibleDeedTiles:
+      (ownedTileIdsByFortressId.get(playerFortress.id) ?? []).filter(
+        (tileId: string) => !isHomeOfATile(tileId)
+      ),
     playerFortress: {
       id: playerFortress.id,
       name: playerFortress.name,
