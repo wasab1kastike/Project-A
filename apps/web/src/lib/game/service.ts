@@ -2463,7 +2463,7 @@ function getTradeCargoFromLineItems({
   lineItems: {
     fromFortressId: string;
     kind: TradeLineItemKind;
-    amount: number;
+    amount: number | null;
   }[];
   fromFortressId: string;
 }) {
