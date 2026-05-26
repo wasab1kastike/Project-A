@@ -100,6 +100,21 @@
 - A successful interception awards the raider half of the convoy cargo, destroys the rest, and replaces normal delivery points and alliance bonuses with points from stolen base cargo.
 - Guard orders supply covert detection power. A detected raid exposes the raider, changes the pair to enemy, and grants the detecting fortress 24 hours of casus belli.
 - Tile deeds and tile disruption remain later logistics slices.
+
+## Season 4 tile deeds
+
+- Allied fortresses may include one tile deed per trade offer alongside gold, food, and army cargo.
+- An offer may contain at most one tile deed sent in either direction.
+- Only allied fortresses may offer or accept tile deeds. Neutral cargo trading continues unchanged.
+- A deed may target one owned normal tile only. The Home of A monument, fortress home tiles, tiles in active battlefield/campaign conflict, and active rotating objective tiles cannot be transferred.
+- Both territory networks must remain connected after transfer: the receiver must gain a tile connected to its territory, and removing the tile must not disconnect any of the sender's remaining owned tiles from its castle.
+- Acceptance creates a convoy leg for the deed sender. Existing convoy travel time, escort allocation, raid detection, and route visibility apply.
+- A deed-only convoy is eligible for escort and raid interception even when movable cargo value is below the normal scored-convoy threshold.
+- On successful delivery, tile ownership transfers atomically with the leg's surviving movable cargo.
+- On successful interception, the deed is destroyed and tile ownership stays with the seller.
+- If the allied parties become hostile before arrival, the deed is cancelled and the tile stays with the seller.
+- Tile deeds carry no direct score value and do not increase Courier or Privateer cargo scoring.
+- Revalidation of ownership, reservation, alliance status, conflict state, and both connectivity constraints occurs at delivery.
 - Betraying an ally starts war immediately. The harmed fortress receives its own escrow back plus the betrayer's escrow.
 - A detected covert raid records the attacker as an enemy and grants the victim 24 hours to invoke casus belli for immediate war.
 - Pressure pacing, the Politics & Trade page, and alliance actions are gated to `SEASON_4` cycles; legacy history remains unaffected.

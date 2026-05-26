@@ -2416,6 +2416,8 @@ export type CreateTradeOfferInput = {
   requestedGold: number;
   requestedFood: number;
   requestedArmy: number;
+  offeredTileId?: string;
+  requestedTileId?: string;
 };
 
 function assertTradeCargoAvailable({
@@ -2493,6 +2495,8 @@ export async function createTradeOffer({
   requestedGold,
   requestedFood,
   requestedArmy,
+  offeredTileId,
+  requestedTileId,
   now = new Date(),
   db = prisma,
 }: CreateTradeOfferInput & {
@@ -2543,9 +2547,9 @@ export async function createTradeOffer({
       );
     }
 
-    if (!hasTradeCargo(offered) && !hasTradeCargo(requested)) {
+    if (!hasTradeCargo(offered) && !hasTradeCargo(requested) && !deedTileId) {
       throw new GameError(
-        "A trade offer must contain at least one resource or army item."
+        "A trade offer must contain at least one resource, army item, or tile deed."
       );
     }
 
@@ -2564,6 +2568,94 @@ export async function createTradeOffer({
 
     if (blockedReason) {
       throw new GameError(blockedReason);
+    }
+
+    const deedTileId = offeredTileId ?? requestedTileId ?? null;
+    const deedDirection =
+      offeredTileId ? "offered" : requestedTileId ? "requested" : null;
+
+    if (offeredTileId && requestedTileId) {
+      throw new GameError(
+        "A trade offer may contain at most one tile deed."
+      );
+    }
+
+    if (deedTileId && deedDirection) {
+      const { validateTileDeedAllowed } = await import("./tile-deeds");
+      const deedValidation = validateTileDeedAllowed({
+        tileId: deedTileId,
+        senderFortressId:
+          deedDirection === "offered" ? sender.id : receiver.id,
+        receiverFortressId:
+          deedDirection === "offered" ? receiver.id : sender.id,
+        senderOwnedTileIds: (
+          await tx.mapHexOwnership.findMany({
+            where: {
+              cycleId: cycle.id,
+              ownerFortressId:
+                deedDirection === "offered" ? sender.id : receiver.id,
+            },
+            select: { tileId: true },
+          })
+        ).map((o) => o.tileId),
+        receiverOwnedTileIds: (
+          await tx.mapHexOwnership.findMany({
+            where: {
+              cycleId: cycle.id,
+              ownerFortressId:
+                deedDirection === "offered" ? receiver.id : sender.id,
+            },
+            select: { tileId: true },
+          })
+        ).map((o) => o.tileId),
+        allianceStatus: getEffectiveDiplomacyStatus({ relation, now }),
+        activeBattleTileIds: new Set(
+          (
+            await tx.battlefield.findMany({
+              where: {
+                cycleId: cycle.id,
+                status: BattlefieldStatus.ACTIVE,
+                targetTileId: { not: null },
+              },
+              select: { targetTileId: true },
+            })
+          )
+            .map((b) => b.targetTileId!)
+            .filter(Boolean)
+        ),
+        activeCampaignTileIds: new Set(
+          (
+            await tx.territoryCampaign.findMany({
+              where: {
+                cycleId: cycle.id,
+                status: TerritoryCampaignStatus.ENGAGED,
+              },
+              select: { targetTileId: true },
+            })
+          ).map((c) => c.targetTileId)
+        ),
+        reservedDeedTileIds: new Set(
+          (
+            await tx.convoyLeg.findMany({
+              where: {
+                cycleId: cycle.id,
+                deedTileId: { not: null },
+                deedSettledAt: null,
+                arrivesAt: { gt: now },
+              },
+              select: { deedTileId: true },
+            })
+          )
+            .map((l) => l.deedTileId!)
+            .filter(Boolean)
+        ),
+        cycleId: cycle.id,
+        now,
+      });
+
+      if (!deedValidation.ok) {
+        throw new GameError(deedValidation.reason);
+      }
     }
 
     return tx.tradeOffer.create({
@@ -2585,6 +2677,28 @@ export async function createTradeOffer({
               fromFortressId: receiver.id,
               toFortressId: sender.id,
             }),
+            ...(offeredTileId
+              ? [
+                  {
+                    kind: TradeLineItemKind.TILE,
+                    fromFortressId: sender.id,
+                    toFortressId: receiver.id,
+                    amount: undefined,
+                    tileId: offeredTileId,
+                  },
+                ]
+              : []),
+            ...(requestedTileId
+              ? [
+                  {
+                    kind: TradeLineItemKind.TILE,
+                    fromFortressId: receiver.id,
+                    toFortressId: sender.id,
+                    amount: undefined,
+                    tileId: requestedTileId,
+                  },
+                ]
+              : []),
           ],
         },
       },
@@ -2683,6 +2797,84 @@ export async function acceptTradeOffer({
           to: leg.to,
         }),
       }));
+    const deedLineItem = offer.lineItems.find(
+      (item) => item.kind === TradeLineItemKind.TILE
+    );
+
+    if (deedLineItem?.tileId) {
+      const { validateTileDeedAllowed } = await import("./tile-deeds");
+      const deedValidation = validateTileDeedAllowed({
+        tileId: deedLineItem.tileId,
+        senderFortressId: deedLineItem.fromFortressId,
+        receiverFortressId: deedLineItem.toFortressId,
+        senderOwnedTileIds: (
+          await tx.mapHexOwnership.findMany({
+            where: {
+              cycleId: cycle.id,
+              ownerFortressId: deedLineItem.fromFortressId,
+            },
+            select: { tileId: true },
+          })
+        ).map((o) => o.tileId),
+        receiverOwnedTileIds: (
+          await tx.mapHexOwnership.findMany({
+            where: {
+              cycleId: cycle.id,
+              ownerFortressId: deedLineItem.toFortressId,
+            },
+            select: { tileId: true },
+          })
+        ).map((o) => o.tileId),
+        allianceStatus: getEffectiveDiplomacyStatus({ relation, now }),
+        activeBattleTileIds: new Set(
+          (
+            await tx.battlefield.findMany({
+              where: {
+                cycleId: cycle.id,
+                status: BattlefieldStatus.ACTIVE,
+                targetTileId: { not: null },
+              },
+              select: { targetTileId: true },
+            })
+          )
+            .map((b) => b.targetTileId!)
+            .filter(Boolean)
+        ),
+        activeCampaignTileIds: new Set(
+          (
+            await tx.territoryCampaign.findMany({
+              where: {
+                cycleId: cycle.id,
+                status: TerritoryCampaignStatus.ENGAGED,
+              },
+              select: { targetTileId: true },
+            })
+          ).map((c) => c.targetTileId)
+        ),
+        reservedDeedTileIds: new Set(
+          (
+            await tx.convoyLeg.findMany({
+              where: {
+                cycleId: cycle.id,
+                deedTileId: { not: null },
+                deedSettledAt: null,
+                arrivesAt: { gt: now },
+              },
+              select: { deedTileId: true },
+            })
+          )
+            .map((l) => l.deedTileId!)
+            .filter(Boolean)
+        ),
+        cycleId: cycle.id,
+        now,
+      });
+
+      if (!deedValidation.ok) {
+        throw new GameError(deedValidation.reason);
+      }
+    }
+
     const gameplayEndsAt = getGameplayWindowEnd(cycle);
 
     if (!gameplayEndsAt || legs.some((leg) => leg.arrivesAt > gameplayEndsAt)) {
@@ -2718,6 +2910,10 @@ export async function acceptTradeOffer({
         food: leg.cargo.food,
         army: leg.cargo.army,
         baseCargoValue: calculateTradeCargoValue(leg.cargo),
+        deedTileId:
+          deedLineItem?.tileId && leg.from.id === deedLineItem.fromFortressId
+            ? deedLineItem.tileId
+            : null,
         departedAt: now,
         arrivesAt: leg.arrivesAt,
       })),
@@ -4005,6 +4201,10 @@ export async function recallAttackUnit({
         throw new GameError("The battlefield is not accepting active actions.");
       }
 
+      if (instant) {
+        assertLegacyAbilityCycle(cycle);
+      }
+
       return recallAttackUnitRecord({
         db: tx,
         cycle,
@@ -4042,6 +4242,8 @@ export async function instantRecallGarrison({
       ) {
         throw new GameError("The battlefield is not accepting active actions.");
       }
+
+      assertLegacyAbilityCycle(cycle);
 
       return instantRecallGarrisonRecord({
         db: tx,

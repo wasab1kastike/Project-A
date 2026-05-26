@@ -1430,6 +1430,9 @@ async function processSeasonFourConvoys({
                 stolenArmy: stolen.army,
                 stolenCargoValue: stolen.baseValue,
                 raidDetected: detected,
+                deedFailureReason: leg.deedTileId
+                  ? "Deed destroyed by interception."
+                  : undefined,
                 settledAt: tickAt,
               },
             });
@@ -1530,6 +1533,29 @@ async function processSeasonFourConvoys({
         }
       }
 
+      if (!seized && leg.deedTileId) {
+        const deedTile = await tx.mapHexOwnership.findUnique({
+          where: { cycleId_tileId: { cycleId, tileId: leg.deedTileId } },
+        });
+
+        if (
+          deedTile &&
+          deedTile.ownerFortressId === leg.fromFortressId
+        ) {
+          await tx.mapHexOwnership.update({
+            where: { cycleId_tileId: { cycleId, tileId: leg.deedTileId } },
+            data: { ownerFortressId: leg.toFortressId },
+          });
+
+          await tx.tilePressurePriority.deleteMany({
+            where: { cycleId, tileId: leg.deedTileId },
+          });
+          await tx.tilePressureState.deleteMany({
+            where: { cycleId, tileId: leg.deedTileId },
+          });
+        }
+      }
+
       await tx.convoyLeg.update({
         where: { id: leg.id },
         data: {
@@ -1537,6 +1563,10 @@ async function processSeasonFourConvoys({
           bonusGold: seized ? 0 : bonus.gold,
           bonusFood: seized ? 0 : bonus.food,
           pointsAwarded: points.total,
+          deedSettledAt: !seized && leg.deedTileId ? tickAt : undefined,
+          deedFailureReason: seized && leg.deedTileId
+            ? "Deed cancelled: parties became hostile."
+            : undefined,
           settledAt: tickAt,
         },
       });
