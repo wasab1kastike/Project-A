@@ -1,3 +1,5 @@
+> **⚠️ ARCHIVED — This was the original design plan.** Most of the mechanics described here are now implemented and live. The canonical current rules are in [`docs/game-design.md`](../game-design.md).
+
 # Next Season Redesign: Pressure, Politics, and Trade
 
 ## Product Goal
