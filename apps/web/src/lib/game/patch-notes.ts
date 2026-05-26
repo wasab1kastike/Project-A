@@ -21,6 +21,8 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
       "Politics & Trade now handles bilateral gold, food, and army offers. Accepted cargo travels in independent convoy legs with a six-hour minimum journey.",
       "Delivered convoy cargo can award points from its base value, while allied trust tiers add bonus delivered gold and food without inflating score.",
       "Convoys caught between new enemies or wartime fortresses are seized on the next tick with no trade points or alliance bonus.",
+      "Scored convoys can now be escorted, while standing raid orders attempt one automatic interception and steal half the cargo on success.",
+      "Guards can detect convoy raiders, expose them as enemies, and grant the victim a 24-hour casus belli window for immediate war.",
       "Season 4 registration now accepts new fortresses with immediate race choice during pretesting.",
       "A new Season 4 changes notice covers pressure expansion, Politics & Trade, convoy logistics, and campaign warfare.",
     ],

@@ -129,12 +129,22 @@ import {
 } from "./campaigns";
 import {
   getCanonicalDiplomacyPair,
+  getCasusBelliExpiresAt,
   getEffectiveDiplomacyStatus,
 } from "./politics";
 import {
   getAllianceDeliveryBonus,
   splitTradeDeliveryPoints,
 } from "./trading";
+import {
+  calculateConvoyEncounterCasualties,
+  calculateDetectionChance,
+  calculateRaidSuccessChance,
+  calculateStolenConvoyCargo,
+  getRaidTargetBlockedReason,
+  isConvoyRaidEligible,
+  resolveSeededChance,
+} from "./convoy-conflict";
 import { recalculateReturningAttackRoutes } from "./fortress-relocation";
 import {
   ensureBattlefieldPointRewardColumn,
@@ -1024,6 +1034,7 @@ async function processSeasonFourConvoys({
         cycleId,
         status: ConvoyLegStatus.IN_TRANSIT,
       },
+      include: { escortOrder: true },
       orderBy: [{ arrivesAt: "asc" }, { id: "asc" }],
     });
     let scoreEventsCreated = 0;
@@ -1044,10 +1055,306 @@ async function processSeasonFourConvoys({
       const seized =
         effectiveStatus === DiplomacyRelationStatus.ENEMY ||
         effectiveStatus === DiplomacyRelationStatus.WAR;
+      let escortAlreadyReturned = false;
+
+      const returnEscort = async () => {
+        if (
+          escortAlreadyReturned ||
+          !leg.escortOrder ||
+          leg.escortOrder.status !== ArmyOrderStatus.ACTIVE
+        ) {
+          return;
+        }
+
+        await tx.fortress.update({
+          where: { id: leg.escortOrder.fortressId },
+          data: { army: { increment: leg.escortOrder.committedArmy } },
+        });
+        await tx.armyOrder.update({
+          where: { id: leg.escortOrder.id },
+          data: { status: ArmyOrderStatus.RETURNED, returnedAt: tickAt },
+        });
+        escortAlreadyReturned = true;
+      };
+
+      if (!seized && isConvoyRaidEligible(leg)) {
+        const potentialRaidOrders = await tx.armyOrder.findMany({
+          where: {
+            cycleId,
+            type: ArmyOrderType.RAID,
+            status: ArmyOrderStatus.ACTIVE,
+            committedArmy: { gt: 0 },
+            targetFortressId: {
+              in: [leg.fromFortressId, leg.toFortressId],
+            },
+            fortressId: {
+              notIn: [leg.fromFortressId, leg.toFortressId],
+            },
+          },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        });
+        let raidOrder: (typeof potentialRaidOrders)[number] | null = null;
+
+        for (const candidate of potentialRaidOrders) {
+          const pairStatuses = await Promise.all(
+            [leg.fromFortressId, leg.toFortressId].map(async (fortressId) => {
+              const candidateRelation = await tx.diplomacyRelation.findUnique({
+                where: {
+                  cycleId_fortressAId_fortressBId: {
+                    cycleId,
+                    ...getCanonicalDiplomacyPair(candidate.fortressId, fortressId),
+                  },
+                },
+              });
+
+              return getEffectiveDiplomacyStatus({
+                relation: candidateRelation,
+                now: tickAt,
+              });
+            })
+          );
+
+          if (
+            pairStatuses.every(
+              (status) => getRaidTargetBlockedReason(status) === null
+            )
+          ) {
+            raidOrder = candidate;
+            break;
+          }
+        }
+
+        if (raidOrder) {
+          const escortArmy =
+            leg.escortOrder?.status === ArmyOrderStatus.ACTIVE
+              ? leg.escortOrder.committedArmy
+              : 0;
+          const raidArmy = raidOrder.committedArmy;
+          const raidResult = resolveSeededChance({
+            seed: `${cycleId}:${leg.id}:${raidOrder.id}:${tickAt.toISOString()}:raid`,
+            chancePercent: calculateRaidSuccessChance({
+              raidArmy,
+              escortArmy,
+            }),
+          });
+          const casualties = calculateConvoyEncounterCasualties({
+            raidArmy,
+            escortArmy,
+            raidSucceeded: raidResult.succeeded,
+          });
+          const survivingRaidArmy = raidArmy - casualties.raidLosses;
+          const survivingEscortArmy = escortArmy - casualties.escortLosses;
+
+          if (leg.escortOrder?.status === ArmyOrderStatus.ACTIVE) {
+            if (survivingEscortArmy > 0) {
+              await tx.fortress.update({
+                where: { id: leg.escortOrder.fortressId },
+                data: { army: { increment: survivingEscortArmy } },
+              });
+            }
+            await tx.armyOrder.update({
+              where: { id: leg.escortOrder.id },
+              data: {
+                committedArmy: survivingEscortArmy,
+                status: ArmyOrderStatus.RETURNED,
+                returnedAt: tickAt,
+              },
+            });
+            escortAlreadyReturned = true;
+          }
+
+          await tx.armyOrder.update({
+            where: { id: raidOrder.id },
+            data: {
+              committedArmy: survivingRaidArmy,
+              ...(survivingRaidArmy === 0
+                ? { status: ArmyOrderStatus.CANCELED, canceledAt: tickAt }
+                : {}),
+            },
+          });
+
+          let detected = false;
+
+          for (const detectingFortressId of [
+            leg.fromFortressId,
+            leg.toFortressId,
+          ]) {
+            const guards = await tx.armyOrder.aggregate({
+              where: {
+                cycleId,
+                fortressId: detectingFortressId,
+                type: ArmyOrderType.GUARD,
+                status: ArmyOrderStatus.ACTIVE,
+              },
+              _sum: { committedArmy: true },
+            });
+            const detectionChance = calculateDetectionChance({
+              guardArmy: guards._sum.committedArmy ?? 0,
+              raidArmy,
+            });
+
+            if (
+              detectionChance === null ||
+              !resolveSeededChance({
+                seed: `${cycleId}:${leg.id}:${raidOrder.id}:${detectingFortressId}:${tickAt.toISOString()}:detect`,
+                chancePercent: detectionChance,
+              }).succeeded
+            ) {
+              continue;
+            }
+
+            detected = true;
+            const incidentPair = getCanonicalDiplomacyPair(
+              raidOrder.fortressId,
+              detectingFortressId
+            );
+            const detectedRelation = await tx.diplomacyRelation.findUnique({
+              where: {
+                cycleId_fortressAId_fortressBId: {
+                  cycleId,
+                  ...incidentPair,
+                },
+              },
+            });
+            const detectedStatus = getEffectiveDiplomacyStatus({
+              relation: detectedRelation,
+              now: tickAt,
+            });
+            const casusBelliExpiresAt =
+              detectedStatus === DiplomacyRelationStatus.WAR
+                ? null
+                : getCasusBelliExpiresAt(tickAt);
+
+            if (detectedStatus !== DiplomacyRelationStatus.WAR) {
+              await tx.diplomacyRelation.upsert({
+                where: {
+                  cycleId_fortressAId_fortressBId: {
+                    cycleId,
+                    ...incidentPair,
+                  },
+                },
+                create: {
+                  cycleId,
+                  ...incidentPair,
+                  status: DiplomacyRelationStatus.ENEMY,
+                  casusBelliFortressId: detectingFortressId,
+                  casusBelliExpiresAt,
+                },
+                update: {
+                  status: DiplomacyRelationStatus.ENEMY,
+                  allianceProposedById: null,
+                  allianceProposedAt: null,
+                  warDeclaredById: null,
+                  warDeclaredAt: null,
+                  warStartsAt: null,
+                  peaceProposedById: null,
+                  peaceProposedAt: null,
+                  casusBelliFortressId: detectingFortressId,
+                  casusBelliExpiresAt,
+                },
+              });
+            }
+
+            await tx.covertIncident.create({
+              data: {
+                cycleId,
+                convoyLegId: leg.id,
+                raidOrderId: raidOrder.id,
+                raiderFortressId: raidOrder.fortressId,
+                detectingFortressId,
+                detectedAt: tickAt,
+                casusBelliExpiresAt,
+              },
+            });
+          }
+
+          if (raidResult.succeeded) {
+            const stolen = calculateStolenConvoyCargo({
+              gold: leg.gold,
+              food: leg.food,
+              army: leg.army,
+            });
+
+            await tx.fortress.update({
+              where: { id: raidOrder.fortressId },
+              data: {
+                gold: { increment: stolen.gold },
+                food: { increment: stolen.food },
+                army: { increment: stolen.army },
+                points: { increment: stolen.scorePoints },
+                interceptedCargoValue: { increment: stolen.baseValue },
+              },
+            });
+
+            if (stolen.scorePoints > 0) {
+              await tx.scoreEvent.create({
+                data: {
+                  cycleId,
+                  fortressId: raidOrder.fortressId,
+                  targetFortressId: leg.fromFortressId,
+                  eventType: ScoreEventType.CONVOY_INTERCEPTION,
+                  delta: stolen.scorePoints,
+                  createdAt: tickAt,
+                },
+              });
+              scoreEventsCreated += 1;
+            }
+
+            await tx.convoyLeg.update({
+              where: { id: leg.id },
+              data: {
+                status: ConvoyLegStatus.INTERCEPTED,
+                interceptedByOrderId: raidOrder.id,
+                encounterResolvedAt: tickAt,
+                encounterSucceeded: true,
+                interceptedAt: tickAt,
+                stolenGold: stolen.gold,
+                stolenFood: stolen.food,
+                stolenArmy: stolen.army,
+                stolenCargoValue: stolen.baseValue,
+                raidDetected: detected,
+                settledAt: tickAt,
+              },
+            });
+
+            const unsettled = await tx.convoyLeg.count({
+              where: {
+                tradeOfferId: leg.tradeOfferId,
+                status: ConvoyLegStatus.IN_TRANSIT,
+                id: { not: leg.id },
+              },
+            });
+
+            if (unsettled === 0) {
+              await tx.tradeOffer.update({
+                where: { id: leg.tradeOfferId },
+                data: {
+                  status: TradeOfferStatus.COMPLETED,
+                  completedAt: tickAt,
+                },
+              });
+            }
+
+            continue;
+          }
+
+          await tx.convoyLeg.update({
+            where: { id: leg.id },
+            data: {
+              interceptedByOrderId: raidOrder.id,
+              encounterResolvedAt: tickAt,
+              encounterSucceeded: false,
+              raidDetected: detected,
+            },
+          });
+        }
+      }
 
       if (!seized && leg.arrivesAt > tickAt) {
         continue;
       }
+
+      await returnEscort();
 
       const bonus = getAllianceDeliveryBonus({
         cargo: { gold: leg.gold, food: leg.food, army: leg.army },

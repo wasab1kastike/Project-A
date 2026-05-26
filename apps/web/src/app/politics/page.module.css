@@ -25,6 +25,7 @@
 
 .topbar a,
 .actions button,
+.orderControl button,
 .tradeForm button {
   min-height: 38px;
   padding: 0 14px;
@@ -39,6 +40,7 @@
 }
 
 .actions button:disabled,
+.orderControl button:disabled,
 .tradeForm button:disabled {
   cursor: not-allowed;
   opacity: 0.52;
@@ -168,6 +170,37 @@
 .tradeForm {
   display: grid;
   gap: 10px;
+}
+
+.orderControl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.orderControl input {
+  width: 84px;
+  min-height: 38px;
+  padding: 0 9px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 6px;
+  background: rgba(3, 10, 16, 0.5);
+  color: var(--foreground);
+  font: inherit;
+}
+
+.orderControl button {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid rgba(247, 196, 95, 0.34);
+  border-radius: 8px;
+  background: rgba(247, 196, 95, 0.9);
+  color: #14202f;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .tradeForm select,
