@@ -318,12 +318,17 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
 
   function formatLegCargo(leg: PoliticsPageState["activeConvoyLegs"][number]) {
     const items = [
+      leg.deedTileId ? `Tile ${leg.deedTileId}` : null,
       leg.gold > 0 ? `${leg.gold.toLocaleString()} gold` : null,
       leg.food > 0 ? `${leg.food.toLocaleString()} food` : null,
       leg.army > 0 ? `${leg.army.toLocaleString()} army` : null,
     ].filter(Boolean);
 
-    return items.join(", ");
+    if (leg.deedFailureReason) {
+      items.push(`(deed: ${leg.deedFailureReason})`);
+    }
+
+    return items.join(", ") || "empty";
   }
 
   return (
