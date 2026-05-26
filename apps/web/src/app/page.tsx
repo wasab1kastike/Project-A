@@ -99,6 +99,9 @@ function getDegradedHomePageState(): HomePageState {
     latestSeason: null,
     emptyStateMessage:
       "Palvelussa on tilapainen hairio. Yrita hetken kuluttua uudelleen.",
+    incomingOfferCount: 0,
+    incidentCount: 0,
+    recallableOrderCount: 0,
   };
 }
 
