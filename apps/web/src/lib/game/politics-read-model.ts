@@ -377,6 +377,9 @@ export async function getPoliticsPageState({
     stolenCargoValue: leg.stolenCargoValue,
     raidedByCurrentPlayer:
       leg.interceptedByOrder?.fortressId === playerFortress.id,
+    deedTileId: leg.deedTileId,
+    deedSettledAt: leg.deedSettledAt,
+    deedFailureReason: leg.deedFailureReason,
   });
 
   return {
