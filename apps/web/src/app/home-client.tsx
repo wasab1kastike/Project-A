@@ -15,6 +15,7 @@ import { PreviousSeasonWinnerCard } from "@/components/previous-season-winner-ca
 import { RealtimeBridge } from "@/components/realtime-bridge";
 import { SeasonUpdateAnnouncement } from "@/components/season-update-announcement";
 import { SeasonTimer } from "@/components/season-timer";
+import CommandDock from "@/components/command-dock";
 import {
   LiveGameStateProvider,
   useLiveGameState,
@@ -360,6 +361,7 @@ function HomeClientContent({
       />
       <div className={styles.mapScrim} />
 
+      <CommandDock state={state} tickHealth={tickHealth} tickDelayMinutes={tickDelayMinutes} />
       <header className={styles.topHud} aria-label="Season status">
         <div className={styles.statusCluster}>
           <span className={styles.phaseBadge}>

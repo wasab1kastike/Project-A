@@ -531,7 +531,17 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
               <span className={styles.eyebrow}>Trading</span>
                 <h2>Convoys</h2>
               </div>
-              <strong>{state.activeConvoyLegs.length}</strong>
+              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                {state.incomingTradeOffers.length > 0 ? (
+                  <span style={{
+                    background: '#48f', color: '#fff', fontSize: '0.65rem',
+                    fontWeight: 700, padding: '1px 6px', borderRadius: '8px',
+                  }}>
+                    {state.incomingTradeOffers.length} offer{state.incomingTradeOffers.length > 1 ? 's' : ''}
+                  </span>
+                ) : null}
+                <strong>{state.activeConvoyLegs.length}</strong>
+              </div>
             </div>
             <form className={styles.tradeForm} onSubmit={(event) => void submitOffer(event)}>
               <select
