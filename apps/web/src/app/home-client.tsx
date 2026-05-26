@@ -362,6 +362,7 @@ function HomeClientContent({
       <div className={styles.mapScrim} />
 
       <CommandDock state={state} tickHealth={tickHealth} tickDelayMinutes={tickDelayMinutes} />
+      {!state.cycle || !state.playerSummary ? (
       <header className={styles.topHud} aria-label="Season status">
         <div className={styles.statusCluster}>
           <span className={styles.phaseBadge}>
@@ -481,6 +482,7 @@ function HomeClientContent({
           ) : null}
         </nav>
       </header>
+      ) : null}
 
       {notice ? <NoticeToast message={notice} autoDismissMs={5000} /> : null}
 
