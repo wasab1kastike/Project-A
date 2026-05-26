@@ -2655,6 +2655,7 @@ export async function getHomePageState({
         (garrison) => garrison.tileId === ownership.tileId
       ) ?? null;
     const canTorchOwnGarrison =
+      !isSeasonFour &&
       Boolean(ownGarrison) &&
       !isHomeOwnership &&
       ownership.ownerFortressId !== playerFortress?.id &&
@@ -2866,6 +2867,7 @@ export async function getHomePageState({
             recallDisabledReason:
               ownGarrison.army > 0 ? null : "No garrison army remains.",
             canInstantRecall:
+              !isSeasonFour &&
               playerFortress?.race === "SPACE_MURINES" &&
               raceBuffTier >= 1 &&
               (!latestGarrisonInstantRecallUse ||
@@ -3610,6 +3612,7 @@ export async function getHomePageState({
         : cycle.battlefields,
       cycleId: cycle.id,
       gameplayOpen,
+      isSeasonFour,
       now,
       playerFortress,
       userId,
@@ -3647,6 +3650,7 @@ export async function getHomePageState({
           unit.attackerFortress.ownerId === userId &&
           unit.recalledAt === null,
         canInstantRecall:
+          !isSeasonFour &&
           Boolean(userId) &&
           unit.attackerFortress.ownerId === userId &&
           unit.recalledAt === null &&

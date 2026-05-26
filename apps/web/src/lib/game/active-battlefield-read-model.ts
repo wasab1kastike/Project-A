@@ -60,6 +60,7 @@ type MapActiveBattlefieldsOptions = {
   battlefields: ActiveBattlefieldInput[];
   cycleId: string;
   gameplayOpen: boolean;
+  isSeasonFour?: boolean;
   now: Date;
   playerFortress: PlayerFortressInput;
   userId?: string;
@@ -69,6 +70,7 @@ export function mapActiveBattlefields({
   battlefields,
   cycleId,
   gameplayOpen,
+  isSeasonFour = false,
   now,
   playerFortress,
   userId,
@@ -117,12 +119,14 @@ export function mapActiveBattlefields({
           )
       : 0;
     const canJoinAttacker =
+      !isSeasonFour &&
       gameplayOpen &&
       playerFortress !== null &&
       playerFortress.army > 0 &&
       currentParticipant?.side !== BattlefieldSide.DEFENDER &&
       !isHomeBossBattle;
     const canJoinDefender =
+      !isSeasonFour &&
       gameplayOpen &&
       playerFortress !== null &&
       playerFortress.army > 0 &&
