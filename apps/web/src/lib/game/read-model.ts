@@ -67,10 +67,9 @@ import { addHours } from "./time";
 import { countCastleSpecializations } from "./specializations";
 import { DWARF_DEEP_MINING_RUNE_BOUNTY } from "./dwarf-deep-mining";
 import {
-  LEADERBOARD_TITLE_CONFIG_BY_CATEGORY,
-  LEADERBOARD_TITLE_CONFIGS,
   compareLeaderboardFortresses,
   getLeaderboardMetric,
+  getLeaderboardTitleConfigs,
   getLeaderboardTitleHolders,
   type LeaderboardCategory,
   type RankedLeaderboardEntry,
@@ -504,6 +503,8 @@ export async function getHomePageState({
           unitsKilled: true,
           goblinsKilled: true,
           resourcesStolen: true,
+          deliveredCargoValue: true,
+          interceptedCargoValue: true,
           level: true,
           food: true,
           army: true,
@@ -997,6 +998,8 @@ export async function getHomePageState({
         tilesOwned: [],
         goblinsKilled: [],
         resourcesStolen: [],
+        deliveredCargoValue: [],
+        interceptedCargoValue: [],
       },
       leaderboardTitles: [],
       mapFortresses: [],
@@ -1148,13 +1151,18 @@ export async function getHomePageState({
     fortresses: playerFortresses,
     tileCountsByFortressId,
     cycleStatus: cycle.status,
+    ruleset: cycle.ruleset,
   });
+  const leaderboardTitleConfigs = getLeaderboardTitleConfigs(cycle.ruleset);
+  const leaderboardConfigByCategory = new Map(
+    leaderboardTitleConfigs.map((config) => [config.category, config])
+  );
   const mapLeaderboardEntry = (
     category: LeaderboardCategory,
     fortress: (typeof playerFortresses)[number],
     index: number
   ): RankedLeaderboardEntry => {
-    const config = LEADERBOARD_TITLE_CONFIG_BY_CATEGORY[category];
+    const config = leaderboardConfigByCategory.get(category)!;
     const isTitleHolder = leaderboardTitleHolders[category] === fortress.id;
 
     return {
@@ -1173,6 +1181,8 @@ export async function getHomePageState({
       tilesOwned: tileCountsByFortressId.get(fortress.id) ?? 0,
       goblinsKilled: fortress.goblinsKilled,
       resourcesStolen: fortress.resourcesStolen,
+      deliveredCargoValue: fortress.deliveredCargoValue,
+      interceptedCargoValue: fortress.interceptedCargoValue,
       metric: getLeaderboardMetric(category, fortress, tileCountsByFortressId),
       rank: index + 1,
       title: isTitleHolder ? config.title : null,
@@ -1183,7 +1193,7 @@ export async function getHomePageState({
     };
   };
   const leaderboards = Object.fromEntries(
-    LEADERBOARD_TITLE_CONFIGS.map((config) => [
+    leaderboardTitleConfigs.map((config) => [
       config.category,
       [...playerFortresses]
         .sort(compareLeaderboardFortresses(config.category, tileCountsByFortressId))
@@ -3507,7 +3517,7 @@ export async function getHomePageState({
       isCurrentUser: fortress.ownerId === userId,
     })),
     leaderboards,
-    leaderboardTitles: LEADERBOARD_TITLE_CONFIGS.map((config) => {
+    leaderboardTitles: leaderboardTitleConfigs.map((config) => {
       const holderFortressId = leaderboardTitleHolders[config.category] ?? null;
       const holder = holderFortressId
         ? playerFortresses.find((fortress) => fortress.id === holderFortressId)

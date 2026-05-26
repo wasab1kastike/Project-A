@@ -13,6 +13,8 @@ below are complete. Activation remains separately blocked by
 - Rehearse all pending Prisma migrations against a current production snapshot.
 - Verify the ruleset migration marks only the unresolved registration/testing pretesting cycle as `SEASON_4`; resolved historical cycles remain `LEGACY`.
 - Review that Season 4 does not spawn or expose Home of A, loot camps, or active legacy race abilities.
+- Verify each race can select both standing doctrines, observes the 12-hour cooldown, and receives only its documented tier-scaled effects.
+- Verify live Season 4 rankings show Points, Territory, PvP Kills, Courier, and Privateer with no title-derived gameplay multiplier.
 
 ## Verification
 

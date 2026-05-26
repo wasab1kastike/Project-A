@@ -25,6 +25,7 @@ import {
   FortressAction,
   FortressKind,
   FortressRace,
+  FortressDoctrine,
   LootCampVariant,
   PrismaClient,
   RaceAbilityKind,
@@ -50,6 +51,7 @@ import "./rulesets.test";
 import "./tile-pressure.test";
 import "./trading.test";
 import "./convoy-conflict.test";
+import "./doctrines.test";
 import { calculateDetectionChance, calculateRaidSuccessChance, resolveSeededChance } from "./convoy-conflict";
 import {
   forceEndCurrentCycle,
@@ -163,6 +165,7 @@ import {
   recallAttackUnit,
   recallGarrisonArmy,
   selectFortressRace,
+  selectFortressDoctrine,
   setFortressAction,
   activateRaceAbility,
   activateDwarfDeepMining,
@@ -2187,6 +2190,82 @@ test("politics gates delay campaigns until the warning finishes", async (context
 
   assert.equal(campaign.status, TerritoryCampaignStatus.BUILDING);
   assert.equal(campaign.armyOrder.type, ArmyOrderType.CAMPAIGN);
+});
+
+test("season four doctrines persist race-legal choices and enforce cooldown", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const player = await createUser(prisma, "doctrine-player@example.com");
+  const cycle = await seedActiveCommunityWishCycle(
+    prisma,
+    [
+      {
+        userId: player.id,
+        commanderName: "Doctrine Keeper",
+        fortressName: "Quiet Citadel",
+        points: 0,
+      },
+    ],
+    new Date("2026-04-22T12:00:00.000Z")
+  );
+  await markSeasonFourCycle(prisma, cycle.id);
+  const fortress = await prisma.fortress.findFirstOrThrow({
+    where: { cycleId: cycle.id, ownerId: player.id },
+  });
+  await prisma.fortress.update({
+    where: { id: fortress.id },
+    data: { race: FortressRace.DWARFS },
+  });
+
+  const selected = await selectFortressDoctrine({
+    db: prisma,
+    userId: player.id,
+    doctrine: FortressDoctrine.DWARF_HOLDFAST,
+    now: new Date("2026-04-20T12:05:00.000Z"),
+  });
+  assert.equal(selected.doctrine, FortressDoctrine.DWARF_HOLDFAST);
+
+  await assert.rejects(
+    () =>
+      selectFortressDoctrine({
+        db: prisma,
+        userId: player.id,
+        doctrine: FortressDoctrine.DWARF_WATCHKEEPERS,
+        now: new Date("2026-04-20T13:05:00.000Z"),
+      }),
+    /12-hour cooldown/
+  );
+  await assert.rejects(
+    () =>
+      selectFortressDoctrine({
+        db: prisma,
+        userId: player.id,
+        doctrine: FortressDoctrine.ORK_MARAUDERS,
+        now: new Date("2026-04-21T01:05:00.000Z"),
+      }),
+    /available to your race/
+  );
+
+  const changed = await selectFortressDoctrine({
+    db: prisma,
+    userId: player.id,
+    doctrine: FortressDoctrine.DWARF_WATCHKEEPERS,
+    now: new Date("2026-04-21T00:05:00.000Z"),
+  });
+  assert.equal(changed.doctrine, FortressDoctrine.DWARF_WATCHKEEPERS);
+  const state = await getCastlePageState({
+    userId: player.id,
+    now: new Date("2026-04-21T00:06:00.000Z"),
+    db: prisma,
+  });
+  assert.equal(
+    state.playerSummary?.doctrineState.selected?.label,
+    "Watchkeepers"
+  );
 });
 
 test("season four bilateral trade accepts cargo and delivers allied convoy bonuses", async (context) => {

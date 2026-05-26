@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CycleStatus, FortressKind } from "@/lib/prisma-client";
+import { CycleRuleset, CycleStatus, FortressKind } from "@/lib/prisma-client";
 import {
+  getLeaderboardTitleConfigs,
   getLeaderboardTitleAttackMultiplier,
   getLeaderboardTitleCastleLootMultiplier,
   getLeaderboardTitleHolders,
@@ -21,6 +22,8 @@ function fortress(
     unitsKilled: 0,
     goblinsKilled: 0,
     resourcesStolen: 0,
+    deliveredCargoValue: 0,
+    interceptedCargoValue: 0,
     joinedAt: new Date("2026-05-15T00:00:00.000Z"),
     isNpc: false,
     fortressKind: FortressKind.PLAYER,
@@ -94,4 +97,53 @@ test("title buffs stack by category holder", () => {
     resource: 1.1,
     points: 1.1,
   });
+});
+
+test("season four exposes prestige logistics rankings without buffs", () => {
+  const fortresses = [
+    fortress("courier", { deliveredCargoValue: 4_000 }),
+    fortress("privateer", { interceptedCargoValue: 2_000 }),
+  ];
+
+  assert.deepEqual(
+    getLeaderboardTitleConfigs(CycleRuleset.SEASON_4).map(
+      (config) => config.category
+    ),
+    [
+      "points",
+      "tilesOwned",
+      "unitsKilled",
+      "deliveredCargoValue",
+      "interceptedCargoValue",
+    ]
+  );
+  assert.deepEqual(
+    getLeaderboardTitleHolders({
+      fortresses,
+      tileCountsByFortressId: new Map(),
+      cycleStatus: CycleStatus.ACTIVE,
+      ruleset: CycleRuleset.SEASON_4,
+    }),
+    {
+      points: "courier",
+      deliveredCargoValue: "courier",
+      interceptedCargoValue: "privateer",
+    }
+  );
+  assert.equal(
+    getLeaderboardTitleAttackMultiplier(
+      { unitsKilled: "courier" },
+      "courier",
+      CycleRuleset.SEASON_4
+    ),
+    1
+  );
+  assert.deepEqual(
+    getLeaderboardTitleTileIncomeMultipliers(
+      { points: "courier", tilesOwned: "courier" },
+      "courier",
+      CycleRuleset.SEASON_4
+    ),
+    { resource: 1, points: 1 }
+  );
 });

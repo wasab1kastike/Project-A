@@ -52,19 +52,19 @@ import { TILE_PRESSURE_CLAIM_THRESHOLD } from "@/lib/game/tile-pressure";
 const RACE_ABILITY_NOTES: Record<string, readonly string[]> = {
   DWARFS: [
     "Pressure workers use the Beer Culture label.",
-    "Legacy Grudge, Rune, and Deep Mining controls are unavailable in Season 4 pretesting while passive doctrines are prepared.",
+    "Choose Holdfast for guard/garrison defense or Watchkeepers for guard detection.",
   ],
   UNSTABLE_UNICORNS: [
     "Pressure workers use the Glitter Distribution label.",
-    "Legacy teleport and Shattered Reality controls are unavailable in Season 4 pretesting while passive doctrines are prepared.",
+    "Choose Glitter Frontier for favored-terrain pressure or Veiled Network for covert evasion.",
   ],
   SPACE_MURINES: [
     "Pressure workers use the Imperial Faith label.",
-    "Legacy STIM controls are unavailable in Season 4 pretesting while passive doctrines are prepared.",
+    "Choose Convoy Command for escort power or Rapid Response for guard defense and campaigns.",
   ],
   ORKS: [
     "Pressure workers use the Scavenge Mob label.",
-    "Legacy WAAAGH, Scrap, and Boss Order controls are unavailable in Season 4 pretesting while passive doctrines are prepared.",
+    "Choose Marauders for convoy raids or Siegebreakers for campaigns.",
   ],
 };
 
@@ -74,6 +74,7 @@ const RACE_TIER_PATH = [
   "Tier 2: control 6 race-biome tiles.",
   "Tier 3: control 9 race-biome tiles.",
   "Race biomes: Dwarfs mountains, ORKS plains/lake, Space Murines sea/coast, Unicorns marsh/forest.",
+  "Season 4 doctrine effects scale by 10% / 20% / 30% at these tiers and can be changed every 12 hours.",
 ] as const;
 
 const CASTLE_SPECIALIZATIONS = [
@@ -86,7 +87,7 @@ const CASTLE_SPECIALIZATIONS = [
 const ATTACK_MULTIPLIERS = [
   "Base PvP/PvE battle power: sent army x 1.",
   "Legacy race active-ability multipliers do not run in the Season 4 ruleset.",
-  "Butcher title: +10% attack power only.",
+  "Season 4 leaderboard titles are prestige-only and add no combat multiplier.",
 ] as const;
 
 const PVP_FORMULAS = [
@@ -134,7 +135,7 @@ const QUICKSTART_STEPS = [
   "Open Castle > Economy and assign workers immediately. Idle population is wasted tempo.",
   `Recruit army from the Castle page when you are ready to spend gold. Each unit costs ${RECRUITMENT_COST_PER_UNIT} gold up front and waits in your queue.`,
   "Keep recruiters assigned if you want queued army to finish quickly. Recruiters process the queue; they do not mint free army by themselves.",
-  "Scout your first target before sending a huge army. Ties go to defender.",
+  "Use Politics & Trade to establish partners or war plans before committing army orders.",
   "Do not spend all gold on one thing. Keep a reserve for rename and upgrades.",
   "The center monument is inaccessible in Season 4; expand around it through pressure priorities.",
 ] as const;
@@ -143,15 +144,15 @@ const SEASON_START_STEPS = [
   "Pick your race early. Race is locked for the whole season, so your first choice defines your economy and combat style.",
   "Assign pressure workers and prioritize connected neutral land. Ten focused pressure workers reach an uncontested claim in about one hour.",
   "Spend enough gold to get army rolling, then keep recruiters assigned so queued units finish on time.",
-  "Use border battlefields for contested land while standing campaign orders are prepared for a later pretesting slice.",
+  "At war, use a connected border campaign and prepare for its visible siege-warning window.",
   "Expect defender wins on equal power. If a fight looks even, the defender keeps the tile or fortress.",
 ] as const;
 
 const WHAT_IS_NEW_THIS_SEASON = [
   "Race choice is now a real season-start decision: pick once, then build around it.",
-  "Neutral land claims are timed projects, so expansion is a short planning step rather than an instant click.",
-  "Direct attacks and battlefield reinforcements share the same outbound attack limit.",
-  "Battlefield sends now feel like real unit launches instead of abstract joins.",
+  "Neutral land is claimed automatically through pressure priorities rather than gold-paid projects.",
+  "Politics, convoys, escorts, raids, guards, and campaigns replace frequent manual PvP actions.",
+  "Passive race doctrines scale with favored territory while rankings remain prestige-only.",
   "The former Home of A tile is now an inaccessible monument in the Season 4 ruleset.",
 ] as const;
 
@@ -168,21 +169,21 @@ const RACE_TOKENS = [
     tokenSrc: "/assets/token-unstable-unicorns.png",
     role: "Hidden movement",
     opening:
-      "Fast pressure, fakeouts, and teleport tricks. Great if you like making the map feel unsafe.",
+      "Glitter pressure and covert networks turn favored frontier terrain into leverage.",
   },
   {
     key: "SPACE_MURINES",
     tokenSrc: "/assets/token-space-murines.png",
     role: "Disciplined strikes",
     opening:
-      "Reliable combat windows, stronger attack capacity, and clean extraction tools.",
+      "Convoy escorts and rapid response doctrine support organized logistics and war.",
   },
   {
     key: "ORKS",
     tokenSrc: "/assets/token-orks.png",
     role: "Scrap tempo",
     opening:
-      "Turn border pressure into aggressive campaigns once standing doctrines arrive.",
+      "Raid convoys or turn border pressure into aggressive campaigns.",
   },
 ] as const;
 
@@ -208,9 +209,9 @@ const MAP_LEGEND = [
     description: "A fight players can reinforce from either side.",
   },
   {
-    label: "Home of A",
+    label: "Monument",
     tone: "home",
-    description: "Center objective. Always fought for, never claimed.",
+    description: "Inaccessible Season 4 center landmark.",
   },
 ] as const;
 
@@ -231,17 +232,14 @@ const RECRUITMENT_RULES = [
 ] as const;
 
 const BATTLEFIELD_RULES = [
-  `Direct attacks and battlefield reinforcements share the same outbound cap: base ${MAX_SIMULTANEOUS_ATTACKS_BASE}, modified by castle level and race.`,
-  "Joining a battlefield sends a visible unit toward that battle and reserves the army while it travels.",
-  "Fortifying an owned tile sends idle army there as a visible movement; once it arrives, that garrison defends the tile until recalled or killed.",
-  "Player castle and owned-tile battlefields show up immediately, but casualties start one hour after the first attacking army arrives.",
-  "A player cannot join both sides of the same unresolved battlefield.",
-  "Equal attack and defense power still counts as a defender win.",
+  "Season 4 territorial attacks require active war and a CAMPAIGN order against a connected enemy border tile.",
+  "GUARD orders commit idle army to defend owned tiles and help detect convoy raids.",
+  "ESCORT orders protect outbound convoy cargo; RAID orders watch non-allied routes for eligible scored cargo.",
+  "Campaign pressure reaching its threshold opens a visible 12-hour siege warning before casualties begin.",
   "Battlefield casualties tick up over time: 100 total units per tick at the start, ramping to 1000 total units per tick after one hour.",
   "Battlefields resolve only when one side runs out of army, not when a progress bar reaches 100.",
-  "Reinforcements that arrive after a battlefield has already resolved return home intact.",
   "Resolved tile battlefields can transfer tile ownership to the winning side.",
-  "Owned-tile defenders get the tile's native bonus, and Dwarf defenders get an extra x1.25 defensive multiplier on those fights.",
+  "Owned-tile defenders get native tile bonuses; Season 4 defensive doctrines may improve guards and garrisons.",
   "Battle results are applied after economy persistence, so loot, casualties, and rewards should not be lost to the same tick's production update.",
   "The battle log badge shows reports you have not seen yet, not the total report archive.",
 ] as const;
@@ -453,11 +451,9 @@ export default function WikiPage() {
             upgrades, rename, claims, and utility costs.
           </p>
           <p>
-            The leaderboard also tracks units killed, current tiles owned,
-            goblins killed, and resources stolen from player castles. The live
-            leader in each category gets a title and a buff while they hold it.
-            A one-time in-game announcement shows current title holders and your
-            own scores, and the Leaderboard button can reopen it.
+            Season 4 rankings also track Territory, PvP Kills, Courier delivered
+            cargo, and Privateer intercepted cargo. Leaders hold visible prestige
+            titles only; no ranking grants a gameplay buff.
           </p>
           <div className={styles.twoCol}>
             <section>
@@ -489,10 +485,9 @@ export default function WikiPage() {
                   is not an active Season 4 lobby feature.
                 </li>
                 <li>
-                  Crown Accountant gets +10% points from tile income, Butcher
-                  gets +10% attack power only, Landlord gets +10% tile resource
-                  income, Goblin Bonker gets +25% loot-camp rewards, and Loot
-                  Lord gets +10% stolen castle loot.
+                  Season 4 titles are prestige only: Points, Territory, PvP
+                  Kills, Courier delivered cargo, and Privateer intercepted
+                  cargo. None grants a gameplay buff.
                 </li>
                 <li>
                   Season arcade coins: {ARCADE_SEASON_BASE_COINS} base, plus 1
@@ -612,8 +607,8 @@ export default function WikiPage() {
                 gold to relocate your castle to a chosen spawnable tile.
               </li>
               <li>
-                Unicorn teleport remains available through race abilities and
-                returns home after 1 hour.
+                Legacy active race abilities are retained in past reports only;
+                Season 4 uses standing doctrines.
               </li>
             </ul>
           </section>
@@ -641,7 +636,7 @@ export default function WikiPage() {
               <ul className={styles.noteList}>
                 <li>
                   Buy in batches you can afford without emptying all upgrade and
-                  tile-claim gold.
+                  diplomacy reserves.
                 </li>
                 <li>
                   Raise recruiter assignments before large orders if you need a
@@ -661,47 +656,26 @@ export default function WikiPage() {
         </article>
 
         <article className={styles.card}>
-          <span className={styles.sectionLabel}>Loot camps</span>
-          <h2>Temporary map targets</h2>
+          <span className={styles.sectionLabel}>Legacy PvE</span>
+          <h2>Retired map targets</h2>
           <p>
-            Loot camps are neutral NPC camps that appear during testing and
-            active gameplay. They are side objectives for players who can spare
-            an attack slot, but they now defend themselves.
+            Home of A and loot camps are not live targets in Season 4. Historical
+            records still preserve how earlier seasons resolved them.
           </p>
           <div className={styles.twoCol}>
             <section>
-              <h3>Spawn rules</h3>
+              <h3>Season 4 rules</h3>
               <ul className={styles.noteList}>
-                <li>
-                  {LOOT_CAMP_MIN_SPAWNS_PER_HOUR}-
-                  {LOOT_CAMP_MAX_SPAWNS_PER_HOUR} camps are scheduled each hour
-                  and spread across that hour.
-                </li>
-                <li>
-                  Each camp stays for up to {LOOT_CAMP_LIFETIME_MINUTES}{" "}
-                  minutes.
-                </li>
-                <li>
-                  Strength is random from {LOOT_CAMP_MIN_STRENGTH} to{" "}
-                  {LOOT_CAMP_MAX_STRENGTH}; strength is both HP and reward
-                  amount.
-                </li>
-                <li>
-                  Defending army scales by variant: Classic is light, Rich is
-                  medium, and Chaos is the toughest.
-                </li>
+                <li>Loot camps do not spawn and cannot be attacked.</li>
+                <li>The center tile is an inaccessible monument.</li>
+                <li>No boss or loot-camp rewards or buffs are generated.</li>
               </ul>
             </section>
             <section>
-              <h3>Rewards</h3>
+              <h3>Legacy history</h3>
               <ul className={styles.noteList}>
-                {LOOT_CAMP_VARIANTS.map((entry) => (
-                  <li key={entry}>{entry}</li>
-                ))}
-                <li>
-                  Only the attack that drops the camp to 0 HP receives the
-                  reward.
-                </li>
+                <li>Resolved prior-season reports remain readable.</li>
+                <li>Stored records do not enable live Season 4 interactions.</li>
               </ul>
             </section>
           </div>
@@ -791,10 +765,9 @@ export default function WikiPage() {
           <span className={styles.sectionLabel}>Combat</span>
           <h2>How raids resolve</h2>
           <p>
-            Combat is split between direct attacks, battlefield joins, and tile
-            control fights. The important part is that the send is visible, tied
-            fights favor the defender, and battlefields can move the map as well
-            as the army count.
+            Season 4 conflict is planned through convoy raids and war campaigns.
+            Army is committed to standing orders, and campaign sieges open a
+            visible response window before automatic casualties begin.
           </p>
           <div className={styles.twoCol}>
             <section>

@@ -29,6 +29,7 @@ import {
   renameFortressAction,
   recruitArmyAction,
   selectFortressRaceAction,
+  selectFortressDoctrineAction,
   updateWorkerAssignmentAction,
   useUnicornTeleportAction as activateUnicornTeleportAction,
   buyPointsWithGoldAction,
@@ -79,6 +80,26 @@ type PlayerSummary = {
   recruitersAssigned: number;
   pressureWorkersAssigned: number;
   legacyAbilitiesEnabled: boolean;
+  doctrinesEnabled: boolean;
+  doctrine: string | null;
+  doctrineState: {
+    selected: {
+      doctrine: string;
+      race: string;
+      label: string;
+      description: string;
+    } | null;
+    effectPercent: number;
+    changedAt: Date | null;
+    changeAvailableAt: Date | null;
+    options: Array<{
+      doctrine: string;
+      label: string;
+      description: string;
+      canSelect: boolean;
+      disabledReason: string | null;
+    }>;
+  };
   race: string | null;
   canSelectRace: boolean;
   raceSelectionLockedReason: string | null;
@@ -819,6 +840,14 @@ export function CastleManagement({
     );
   }
 
+  async function selectFortressDoctrineFormAction(
+    formData: FormData
+  ): Promise<void> {
+    await handleInlineResult(
+      await selectFortressDoctrineAction(getStringValue(formData, "doctrine"))
+    );
+  }
+
   async function renameFortressFormAction(formData: FormData): Promise<void> {
     await handleInlineResult(
       await renameFortressAction(getStringValue(formData, "fortressName"))
@@ -1172,6 +1201,53 @@ export function CastleManagement({
                 ? `${RACE_TIER_THRESHOLDS_LABEL}. Required biomes: ${RACE_TIER_BIOME_REQUIREMENTS[playerSummary.race]}.`
                 : "control 3/6/9 tiles of your race biomes."}
             </p>
+            {playerSummary.doctrinesEnabled ? (
+              <article className={styles.buildingCard}>
+                <div className={styles.buildingCardHeader}>
+                  <strong>Standing doctrine</strong>
+                  <span>
+                    {playerSummary.doctrineState.selected?.label ?? "Unselected"}
+                  </span>
+                </div>
+                <p>
+                  {playerSummary.doctrineState.selected?.description ??
+                    "Select one passive doctrine for Season 4."}
+                </p>
+                <p className={styles.muted}>
+                  Tier {playerSummary.raceBuffs.tier} effect: +
+                  {playerSummary.doctrineState.effectPercent}%.
+                  {playerSummary.doctrineState.changeAvailableAt
+                    ? ` Next change after ${playerSummary.doctrineState.changeAvailableAt.toLocaleString()}.`
+                    : " Changes lock for 12 hours."}
+                </p>
+                <div className={styles.buildingChoiceGrid}>
+                  {playerSummary.doctrineState.options.map((option) => (
+                    <form
+                      key={option.doctrine}
+                      action={selectFortressDoctrineFormAction}
+                      className={styles.buildingChoice}
+                    >
+                      <input
+                        name="doctrine"
+                        type="hidden"
+                        value={option.doctrine}
+                      />
+                      <strong>{option.label}</strong>
+                      <p>{option.description}</p>
+                      <button
+                        type="submit"
+                        disabled={!option.canSelect}
+                        title={option.disabledReason ?? undefined}
+                      >
+                        {playerSummary.doctrine === option.doctrine
+                          ? "Active"
+                          : "Select"}
+                      </button>
+                    </form>
+                  ))}
+                </div>
+              </article>
+            ) : null}
             {playerSummary.legacyAbilitiesEnabled &&
             playerSummary.race === "ORKS" ? (
               <div className={styles.buildingGrid}>

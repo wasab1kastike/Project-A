@@ -230,7 +230,7 @@ The game is now a castle-economy and battlefield-control loop:
 - each fortress receives a retro pixel-art unit sprite for attack movement and battle reports
 - fortresses can rename for free during `REGISTRATION`; active renames cost 10 gold
 - players pick one race per cycle, then assign workers to miners, farmers, and recruiters on the Castle page
-- Legacy race abilities remain readable in prior-season history, but are unavailable in the Season 4 ruleset while doctrine replacements are built
+- Legacy race abilities remain readable in prior-season history, but are unavailable in the Season 4 ruleset; each race instead selects one passive standing doctrine with a 12-hour change cooldown
 - miners produce gold, farmers produce food, and recruiters process queued army orders instead of passively creating army
 - recruiting army costs 1 gold per unit up front; queued units complete over ticks based on assigned recruiters and race bonuses
 - active army, not queued army, consumes food upkeep at 0.01 food per unit per tick; if upkeep cannot be paid, food falls to zero and active army loses 2% that tick
@@ -247,7 +247,7 @@ The game is now a castle-economy and battlefield-control loop:
 - active battlefield casualties are applied every tick, ramping from 100 total units per tick to 1000 after one hour; fights resolve only when one side runs out
 - stored legacy active-ability and Home of A buffs do not affect Season 4 combat or production
 - reinforcements that arrive after their battlefield has already resolved return home intact
-- the leaderboard tracks points, units killed, current tiles owned, goblins killed, and resources stolen from player castles; each live category leader gets a title and small buff, including Loot Lord for castle raiders
+- Season 4 rankings are prestige-only: Points, Territory, PvP Kills, Courier delivered cargo, and Privateer intercepted cargo; rankings grant no gameplay buffs
 - in Season 4, the former Home of A center tile is an inaccessible monument and loot camps are not spawned or targetable; prior-season reports remain readable
 - battle results are resolved after economy updates so loot, casualties, rewards, and tile ownership are persisted coherently
 - battle-log badges show unread/new reports rather than the total number of historical entries

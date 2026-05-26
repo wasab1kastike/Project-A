@@ -118,11 +118,15 @@ export function calculateConvoyEncounterCasualties({
   };
 }
 
-export function calculateStolenConvoyCargo(cargo: TradeCargo) {
+export function calculateStolenConvoyCargo(
+  cargo: TradeCargo,
+  stolenCargoMultiplier = 1
+) {
+  const share = Math.min(1, 0.5 * Math.max(1, stolenCargoMultiplier));
   const stolen = {
-    gold: Math.floor(cargo.gold / 2),
-    food: Math.floor(cargo.food / 2),
-    army: Math.floor(cargo.army / 2),
+    gold: Math.floor(cargo.gold * share),
+    food: Math.floor(cargo.food * share),
+    army: Math.floor(cargo.army * share),
   };
   const baseValue = calculateTradeCargoValue(stolen);
 

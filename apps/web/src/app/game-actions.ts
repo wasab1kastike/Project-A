@@ -74,6 +74,7 @@ import {
   instantRecallGarrison,
   torchOccupiedMapHex,
   selectFortressRace,
+  selectFortressDoctrine,
   setFortressAction,
   updateWorkerAssignment,
   shuffleFortressLocation,
@@ -1225,6 +1226,25 @@ export async function selectFortressRaceAction(
   try {
     await selectFortressRace({ userId, race });
     notifyAndRevalidate("race-selection", CASTLE_REVALIDATE_PATHS);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: getActionErrorMessage(error) };
+  }
+}
+
+export async function selectFortressDoctrineAction(
+  doctrine: string
+): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return { ok: false, error: "You need to sign in before selecting a doctrine." };
+  }
+
+  try {
+    await selectFortressDoctrine({ userId, doctrine });
+    notifyAndRevalidate("doctrine-selection", CASTLE_REVALIDATE_PATHS);
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };

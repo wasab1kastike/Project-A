@@ -145,6 +145,16 @@ import {
   isConvoyRaidEligible,
   resolveSeededChance,
 } from "./convoy-conflict";
+import {
+  getCampaignArmyDoctrineMultiplier,
+  getDoctrineTier,
+  getEscortDoctrineMultiplier,
+  getGuardDetectionDoctrineMultiplier,
+  getNeutralPressureDoctrineMultiplier,
+  getRaidEvasionDoctrineMultiplier,
+  getRaidPowerDoctrineMultiplier,
+  getStolenCargoDoctrineMultiplier,
+} from "./doctrines";
 import { recalculateReturningAttackRoutes } from "./fortress-relocation";
 import {
   ensureBattlefieldPointRewardColumn,
@@ -515,6 +525,7 @@ async function processTilePressureExpansion({
           mapX: true,
           mapY: true,
           pressureWorkersAssigned: true,
+          doctrine: true,
         },
       }),
       tx.mapHexOwnership.findMany({
@@ -549,6 +560,10 @@ async function processTilePressureExpansion({
       .map((ownership) => ownership.tileId)
       .filter((tileId) => !isHomeOfATile(tileId));
     const ownedTileIdsByFortressId = new Map<string, string[]>();
+    const ownedTileBiomesByFortressId = new Map<
+      string,
+      NonNullable<ReturnType<typeof getTileById>>["biome"][]
+    >();
     const prioritiesByFortressId = new Map<
       string,
       Array<{ tileId: string; weight: number }>
@@ -563,6 +578,13 @@ async function processTilePressureExpansion({
         ownedTileIdsByFortressId.get(ownership.ownerFortressId) ?? [];
       ownedTileIds.push(ownership.tileId);
       ownedTileIdsByFortressId.set(ownership.ownerFortressId, ownedTileIds);
+      const biome = getTileById(ownership.tileId)?.biome;
+      if (biome) {
+        const biomes =
+          ownedTileBiomesByFortressId.get(ownership.ownerFortressId) ?? [];
+        biomes.push(biome);
+        ownedTileBiomesByFortressId.set(ownership.ownerFortressId, biomes);
+      }
     }
 
     for (const priority of priorities) {
@@ -650,6 +672,12 @@ async function processTilePressureExpansion({
       });
 
       const ownedTileIds = ownedTileIdsByFortressId.get(fortress.id) ?? [];
+      const doctrineTier = isSeasonFour
+        ? getDoctrineTier({
+            race: fortress.race,
+            ownedTileBiomes: ownedTileBiomesByFortressId.get(fortress.id) ?? [],
+          })
+        : 0;
       const isConnected = ({
         tileId,
         ownedTileIds,
@@ -707,6 +735,14 @@ async function processTilePressureExpansion({
         pressure,
         targets,
       })) {
+        const doctrinePressure = Math.floor(
+          allocation.pressure *
+            getNeutralPressureDoctrineMultiplier({
+              doctrine: isSeasonFour ? fortress.doctrine : null,
+              tier: doctrineTier,
+              targetBiome: getTileById(allocation.tileId)?.biome,
+            })
+        );
         pressuredTileIds.add(allocation.tileId);
         await tx.tilePressureState.upsert({
           where: {
@@ -720,12 +756,12 @@ async function processTilePressureExpansion({
             cycleId,
             tileId: allocation.tileId,
             fortressId: fortress.id,
-            pressure: allocation.pressure,
+            pressure: doctrinePressure,
             lastPressuredAt: tickAt,
           },
           update: {
             pressure: {
-              increment: allocation.pressure,
+              increment: doctrinePressure,
             },
             lastPressuredAt: tickAt,
             lastDecayedAt: null,
@@ -812,6 +848,8 @@ async function processSeasonFourCampaigns({
           select: {
             id: true,
             pressureWorkersAssigned: true,
+            race: true,
+            doctrine: true,
           },
         },
       },
@@ -876,10 +914,27 @@ async function processSeasonFourCampaigns({
       }
 
       if (campaign.status === TerritoryCampaignStatus.BUILDING) {
+        const attackerOwnedTiles = await tx.mapHexOwnership.findMany({
+          where: {
+            cycleId,
+            ownerFortressId: campaign.attackerFortressId,
+          },
+          select: { tileId: true },
+        });
+        const doctrineTier = getDoctrineTier({
+          race: campaign.attackerFortress.race,
+          ownedTileBiomes: attackerOwnedTiles
+            .map((ownership) => getTileById(ownership.tileId)?.biome ?? null)
+            .filter((biome): biome is NonNullable<typeof biome> => biome !== null),
+        });
         const progressDelta = calculateCampaignProgressPerTick({
           pressureWorkersAssigned:
             campaign.attackerFortress.pressureWorkersAssigned,
           committedArmy: campaign.armyOrder.committedArmy,
+          armyContributionMultiplier: getCampaignArmyDoctrineMultiplier(
+            campaign.attackerFortress.doctrine,
+            doctrineTier
+          ),
         });
         const progress = Math.min(
           CAMPAIGN_SIEGE_THRESHOLD,
@@ -1020,6 +1075,39 @@ async function processSeasonFourConvoys({
   tickAt: Date;
 }) {
   return db.$transaction(async (tx) => {
+    const doctrineContextByFortressId = new Map<
+      string,
+      { doctrine: import("@/lib/prisma-client").FortressDoctrine | null; tier: number }
+    >();
+    const getDoctrineContext = async (fortressId: string) => {
+      const existing = doctrineContextByFortressId.get(fortressId);
+      if (existing) {
+        return existing;
+      }
+
+      const [fortress, ownerships] = await Promise.all([
+        tx.fortress.findUniqueOrThrow({
+          where: { id: fortressId },
+          select: { race: true, doctrine: true },
+        }),
+        tx.mapHexOwnership.findMany({
+          where: { cycleId, ownerFortressId: fortressId },
+          select: { tileId: true },
+        }),
+      ]);
+      const context = {
+        doctrine: fortress.doctrine,
+        tier: getDoctrineTier({
+          race: fortress.race,
+          ownedTileBiomes: ownerships
+            .map((ownership) => getTileById(ownership.tileId)?.biome ?? null)
+            .filter((biome): biome is NonNullable<typeof biome> => biome !== null),
+        }),
+      };
+      doctrineContextByFortressId.set(fortressId, context);
+      return context;
+    };
+
     await tx.tradeOffer.updateMany({
       where: {
         cycleId,
@@ -1125,16 +1213,29 @@ async function processSeasonFourConvoys({
         }
 
         if (raidOrder) {
+          const raidDoctrine = await getDoctrineContext(raidOrder.fortressId);
+          const escortDoctrine = leg.escortOrder
+            ? await getDoctrineContext(leg.escortOrder.fortressId)
+            : null;
           const escortArmy =
             leg.escortOrder?.status === ArmyOrderStatus.ACTIVE
               ? leg.escortOrder.committedArmy
               : 0;
           const raidArmy = raidOrder.committedArmy;
+          const raidPower =
+            raidArmy *
+            getRaidPowerDoctrineMultiplier(raidDoctrine.doctrine, raidDoctrine.tier);
+          const escortPower =
+            escortArmy *
+            getEscortDoctrineMultiplier(
+              escortDoctrine?.doctrine,
+              escortDoctrine?.tier ?? 0
+            );
           const raidResult = resolveSeededChance({
             seed: `${cycleId}:${leg.id}:${raidOrder.id}:${tickAt.toISOString()}:raid`,
             chancePercent: calculateRaidSuccessChance({
-              raidArmy,
-              escortArmy,
+              raidArmy: raidPower,
+              escortArmy: escortPower,
             }),
           });
           const casualties = calculateConvoyEncounterCasualties({
@@ -1179,6 +1280,9 @@ async function processSeasonFourConvoys({
             leg.fromFortressId,
             leg.toFortressId,
           ]) {
+            const detectingDoctrine = await getDoctrineContext(
+              detectingFortressId
+            );
             const guards = await tx.armyOrder.aggregate({
               where: {
                 cycleId,
@@ -1189,8 +1293,18 @@ async function processSeasonFourConvoys({
               _sum: { committedArmy: true },
             });
             const detectionChance = calculateDetectionChance({
-              guardArmy: guards._sum.committedArmy ?? 0,
-              raidArmy,
+              guardArmy:
+                (guards._sum.committedArmy ?? 0) *
+                getGuardDetectionDoctrineMultiplier(
+                  detectingDoctrine.doctrine,
+                  detectingDoctrine.tier
+                ),
+              raidArmy:
+                raidArmy *
+                getRaidEvasionDoctrineMultiplier(
+                  raidDoctrine.doctrine,
+                  raidDoctrine.tier
+                ),
             });
 
             if (
@@ -1273,7 +1387,10 @@ async function processSeasonFourConvoys({
               gold: leg.gold,
               food: leg.food,
               army: leg.army,
-            });
+            }, getStolenCargoDoctrineMultiplier(
+              raidDoctrine.doctrine,
+              raidDoctrine.tier
+            ));
 
             await tx.fortress.update({
               where: { id: raidOrder.fortressId },
@@ -2514,6 +2631,8 @@ async function processCycleTick(
       unitsKilled: true,
       goblinsKilled: true,
       resourcesStolen: true,
+      deliveredCargoValue: true,
+      interceptedCargoValue: true,
       level: true,
       food: true,
       army: true,
@@ -2699,6 +2818,7 @@ async function processCycleTick(
     fortresses,
     tileCountsByFortressId: ownedTileCountsByFortressId,
     cycleStatus: cycle.status,
+    ruleset: cycle.ruleset,
   });
   const fortressLookup = new Map(
     fortresses.map((fortress) => [fortress.id, fortress])
@@ -4643,7 +4763,8 @@ async function processCycleTick(
       occupyingGarrison?.fortressId ?? ownership.ownerFortressId;
     const titleMultipliers = getLeaderboardTitleTileIncomeMultipliers(
       leaderboardTitleHolders,
-      bonusFortressId
+      bonusFortressId,
+      cycle.ruleset
     );
     const boostedBonus = {
       gold: Math.floor(bonus.gold * titleMultipliers.resource),

@@ -46,6 +46,14 @@ import {
   ensureRaceSchemaReadiness,
 } from "./schema-guards";
 import { isSeasonFourRuleset } from "./rulesets";
+import {
+  getDoctrineChangeAvailableAt,
+  getDoctrineChangeBlockedReason,
+  getDoctrineDefinition,
+  getDoctrineEffectPercent,
+  getDoctrineTier,
+  getDoctrineOptionsForRace,
+} from "./doctrines";
 
 const BUILDING_SPECIALIZATIONS = [
   CastleUpgradeSpecialization.DEFENSE,
@@ -134,6 +142,8 @@ export async function getCastlePageState({
           recruitersAssigned: true,
           pressureWorkersAssigned: true,
           race: true,
+          doctrine: true,
+          doctrineChangedAt: true,
           fortressKind: true,
           lootCampVariant: true,
           expiresAt: true,
@@ -451,6 +461,12 @@ export async function getCastlePageState({
     race: playerFortress?.race ?? null,
     ownedTileBiomes: playerOwnedTileBiomes,
   });
+  const displayedRaceTier = isSeasonFour
+    ? getDoctrineTier({
+        race: playerFortress?.race,
+        ownedTileBiomes: playerOwnedTileBiomes,
+      })
+    : raceBuffTier;
   const activeRuneSuppressions = await db.raceAbilityActivation.findMany({
     where: {
       kind: RaceAbilityKind.DWARF_RUNE_GRUDGES,
@@ -793,6 +809,39 @@ export async function getCastlePageState({
           recruitersAssigned: playerFortress.recruitersAssigned,
           pressureWorkersAssigned: playerFortress.pressureWorkersAssigned,
           legacyAbilitiesEnabled: !isSeasonFour,
+          doctrinesEnabled: isSeasonFour,
+          doctrine: playerFortress.doctrine,
+          doctrineState: {
+            selected: getDoctrineDefinition(playerFortress.doctrine),
+            effectPercent: getDoctrineEffectPercent(displayedRaceTier),
+            changedAt: playerFortress.doctrineChangedAt,
+            changeAvailableAt: getDoctrineChangeAvailableAt(
+              playerFortress.doctrineChangedAt
+            ),
+            options: getDoctrineOptionsForRace(playerFortress.race).map(
+              (definition) => {
+                const blockedReason =
+                  playerFortress.doctrine === definition.doctrine
+                    ? "This doctrine is active."
+                    : getDoctrineChangeBlockedReason({
+                        doctrine: definition.doctrine,
+                        race: playerFortress.race,
+                        changedAt: playerFortress.doctrineChangedAt,
+                        now,
+                      });
+
+                return {
+                  doctrine: definition.doctrine,
+                  label: definition.label,
+                  description: definition.description,
+                  canSelect: gameplayOpen && blockedReason === null,
+                  disabledReason: gameplayOpen
+                    ? blockedReason
+                    : "Doctrines are available during gameplay.",
+                };
+              }
+            ),
+          },
           race: playerFortress.race,
           canSelectRace,
           raceSelectionLockedReason: raceSelectionLockedByCommunityWish
@@ -879,7 +928,7 @@ export async function getCastlePageState({
               }
             : null,
           raceBuffs: {
-            tier: raceBuffTier,
+            tier: displayedRaceTier,
             matchingTileCount: playerOwnedTileCount,
             canActivateWaaagh:
               playerFortress.race === "ORKS" &&

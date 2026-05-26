@@ -1,18 +1,22 @@
-import { CycleStatus, FortressKind } from "@/lib/prisma-client";
+import { CycleRuleset, CycleStatus, FortressKind } from "@/lib/prisma-client";
 
 export type LeaderboardCategory =
   | "points"
   | "unitsKilled"
   | "tilesOwned"
   | "goblinsKilled"
-  | "resourcesStolen";
+  | "resourcesStolen"
+  | "deliveredCargoValue"
+  | "interceptedCargoValue";
 
 export type LeaderboardTitleKey =
   | "CROWN_ACCOUNTANT"
   | "BUTCHER"
   | "LANDLORD"
   | "GOBLIN_BONKER"
-  | "LOOT_LORD";
+  | "LOOT_LORD"
+  | "COURIER"
+  | "PRIVATEER";
 
 export type LeaderboardTitleConfig = {
   category: LeaderboardCategory;
@@ -33,6 +37,8 @@ export type RankedLeaderboardEntry = {
   tilesOwned: number;
   goblinsKilled: number;
   resourcesStolen: number;
+  deliveredCargoValue: number;
+  interceptedCargoValue: number;
   metric: number;
   rank: number;
   title: string | null;
@@ -49,6 +55,8 @@ export type LeaderboardFortress = {
   unitsKilled: number;
   goblinsKilled: number;
   resourcesStolen: number;
+  deliveredCargoValue: number;
+  interceptedCargoValue: number;
   joinedAt: Date;
   isNpc: boolean;
   fortressKind: FortressKind;
@@ -58,7 +66,7 @@ export type LeaderboardTitleHolders = Partial<
   Record<LeaderboardCategory, string>
 >;
 
-export const LEADERBOARD_TITLE_CONFIGS = [
+export const LEGACY_LEADERBOARD_TITLE_CONFIGS = [
   {
     category: "points",
     titleKey: "CROWN_ACCOUNTANT",
@@ -101,9 +109,54 @@ export const LEADERBOARD_TITLE_CONFIGS = [
   },
 ] as const satisfies readonly LeaderboardTitleConfig[];
 
-export const LEADERBOARD_TITLE_CONFIG_BY_CATEGORY = Object.fromEntries(
-  LEADERBOARD_TITLE_CONFIGS.map((config) => [config.category, config])
-) as Record<LeaderboardCategory, LeaderboardTitleConfig>;
+export const SEASON_FOUR_LEADERBOARD_TITLE_CONFIGS = [
+  {
+    category: "points",
+    titleKey: "CROWN_ACCOUNTANT",
+    label: "Points",
+    title: "Crown Accountant",
+    metricLabel: "pts",
+    buffLabel: "Prestige only",
+  },
+  {
+    category: "tilesOwned",
+    titleKey: "LANDLORD",
+    label: "Territory",
+    title: "Landlord",
+    metricLabel: "tiles",
+    buffLabel: "Prestige only",
+  },
+  {
+    category: "unitsKilled",
+    titleKey: "BUTCHER",
+    label: "PvP Kills",
+    title: "Butcher",
+    metricLabel: "kills",
+    buffLabel: "Prestige only",
+  },
+  {
+    category: "deliveredCargoValue",
+    titleKey: "COURIER",
+    label: "Courier",
+    title: "Courier",
+    metricLabel: "cargo",
+    buffLabel: "Prestige only",
+  },
+  {
+    category: "interceptedCargoValue",
+    titleKey: "PRIVATEER",
+    label: "Privateer",
+    title: "Privateer",
+    metricLabel: "cargo",
+    buffLabel: "Prestige only",
+  },
+] as const satisfies readonly LeaderboardTitleConfig[];
+
+export function getLeaderboardTitleConfigs(ruleset: CycleRuleset | null | undefined) {
+  return ruleset === CycleRuleset.SEASON_4
+    ? SEASON_FOUR_LEADERBOARD_TITLE_CONFIGS
+    : LEGACY_LEADERBOARD_TITLE_CONFIGS;
+}
 
 export const LEADERBOARD_TITLE_ATTACK_MULTIPLIER = 1.1;
 export const LEADERBOARD_TITLE_TILE_INCOME_MULTIPLIER = 1.1;
@@ -115,7 +168,13 @@ export function getLeaderboardMetric(
   category: LeaderboardCategory,
   fortress: Pick<
     LeaderboardFortress,
-    "id" | "points" | "unitsKilled" | "goblinsKilled" | "resourcesStolen"
+    | "id"
+    | "points"
+    | "unitsKilled"
+    | "goblinsKilled"
+    | "resourcesStolen"
+    | "deliveredCargoValue"
+    | "interceptedCargoValue"
   >,
   tileCountsByFortressId: Map<string, number>
 ) {
@@ -133,6 +192,14 @@ export function getLeaderboardMetric(
 
   if (category === "resourcesStolen") {
     return fortress.resourcesStolen;
+  }
+
+  if (category === "deliveredCargoValue") {
+    return fortress.deliveredCargoValue;
+  }
+
+  if (category === "interceptedCargoValue") {
+    return fortress.interceptedCargoValue;
   }
 
   return tileCountsByFortressId.get(fortress.id) ?? 0;
@@ -178,10 +245,12 @@ export function getLeaderboardTitleHolders({
   fortresses,
   tileCountsByFortressId,
   cycleStatus,
+  ruleset = CycleRuleset.LEGACY,
 }: {
   fortresses: LeaderboardFortress[];
   tileCountsByFortressId: Map<string, number>;
   cycleStatus: CycleStatus | null;
+  ruleset?: CycleRuleset | null;
 }): LeaderboardTitleHolders {
   if (cycleStatus !== CycleStatus.ACTIVE) {
     return {};
@@ -190,7 +259,7 @@ export function getLeaderboardTitleHolders({
   const eligibleFortresses = fortresses.filter(isLeaderboardEligibleFortress);
   const holders: LeaderboardTitleHolders = {};
 
-  for (const config of LEADERBOARD_TITLE_CONFIGS) {
+  for (const config of getLeaderboardTitleConfigs(ruleset)) {
     const [leader] = [...eligibleFortresses].sort(
       compareLeaderboardFortresses(config.category, tileCountsByFortressId)
     );
@@ -225,8 +294,13 @@ export function hasLeaderboardTitle(
 
 export function getLeaderboardTitleAttackMultiplier(
   holders: LeaderboardTitleHolders,
-  fortressId: string
+  fortressId: string,
+  ruleset: CycleRuleset = CycleRuleset.LEGACY
 ) {
+  if (ruleset === CycleRuleset.SEASON_4) {
+    return 1;
+  }
+
   return hasLeaderboardTitle(holders, fortressId, "unitsKilled")
     ? LEADERBOARD_TITLE_ATTACK_MULTIPLIER
     : 1;
@@ -234,8 +308,13 @@ export function getLeaderboardTitleAttackMultiplier(
 
 export function getLeaderboardTitleLootCampRewardMultiplier(
   holders: LeaderboardTitleHolders,
-  fortressId: string
+  fortressId: string,
+  ruleset: CycleRuleset = CycleRuleset.LEGACY
 ) {
+  if (ruleset === CycleRuleset.SEASON_4) {
+    return 1;
+  }
+
   return hasLeaderboardTitle(holders, fortressId, "goblinsKilled")
     ? LEADERBOARD_TITLE_LOOT_CAMP_REWARD_MULTIPLIER
     : 1;
@@ -243,8 +322,13 @@ export function getLeaderboardTitleLootCampRewardMultiplier(
 
 export function getLeaderboardTitleCastleLootMultiplier(
   holders: LeaderboardTitleHolders,
-  fortressId: string
+  fortressId: string,
+  ruleset: CycleRuleset = CycleRuleset.LEGACY
 ) {
+  if (ruleset === CycleRuleset.SEASON_4) {
+    return 1;
+  }
+
   return hasLeaderboardTitle(holders, fortressId, "resourcesStolen")
     ? LEADERBOARD_TITLE_CASTLE_LOOT_MULTIPLIER
     : 1;
@@ -252,8 +336,13 @@ export function getLeaderboardTitleCastleLootMultiplier(
 
 export function getLeaderboardTitleTileIncomeMultipliers(
   holders: LeaderboardTitleHolders,
-  fortressId: string
+  fortressId: string,
+  ruleset: CycleRuleset = CycleRuleset.LEGACY
 ) {
+  if (ruleset === CycleRuleset.SEASON_4) {
+    return { resource: 1, points: 1 };
+  }
+
   return {
     resource:
       hasLeaderboardTitle(holders, fortressId, "tilesOwned")
