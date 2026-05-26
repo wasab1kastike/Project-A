@@ -135,6 +135,8 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
     requestedGold: 0,
     requestedFood: 0,
     requestedArmy: 0,
+    offeredTileId: '',
+    requestedTileId: '',
   });
   const [orderArmy, setOrderArmy] = useState(100);
 
@@ -222,6 +224,13 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
     }));
   }
 
+  function setTileValue(name: string, value: string) {
+    setTradeCargo((current) => ({
+      ...current,
+      [name]: value,
+    }));
+  }
+
   async function submitOffer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -234,7 +243,14 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
     try {
       const result = await createTradeOfferAction({
         targetFortressId: tradeTargetId,
-        ...tradeCargo,
+        offeredGold: tradeCargo.offeredGold,
+        offeredFood: tradeCargo.offeredFood,
+        offeredArmy: tradeCargo.offeredArmy,
+        requestedGold: tradeCargo.requestedGold,
+        requestedFood: tradeCargo.requestedFood,
+        requestedArmy: tradeCargo.requestedArmy,
+        offeredTileId: tradeCargo.offeredTileId || undefined,
+        requestedTileId: tradeCargo.requestedTileId || undefined,
       });
 
       if (!result.ok) {
@@ -247,6 +263,8 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
           requestedGold: 0,
           requestedFood: 0,
           requestedArmy: 0,
+          offeredTileId: '',
+          requestedTileId: '',
         });
       }
     } finally {
@@ -572,6 +590,27 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                   })}
                 </fieldset>
               </div>
+              <details style={{ marginTop: '0.5rem', fontSize: '0.85em' }}>
+                <summary>Tile deed (allies only)</summary>
+                <label>
+                  <span>You send tile</span>
+                  <input
+                    type="text"
+                    placeholder="Tile ID (e.g. 12:8)"
+                    value={tradeCargo.offeredTileId}
+                    onChange={(event) => setTileValue('offeredTileId', event.target.value)}
+                  />
+                </label>
+                <label>
+                  <span>You receive tile</span>
+                  <input
+                    type="text"
+                    placeholder="Tile ID (e.g. 12:8)"
+                    value={tradeCargo.requestedTileId}
+                    onChange={(event) => setTileValue('requestedTileId', event.target.value)}
+                  />
+                </label>
+              </details>
               <button type="submit" disabled={!tradeTargetId || pendingId !== null}>
                 {pendingId === "trade:create" ? "Sending..." : "Send offer"}
               </button>
