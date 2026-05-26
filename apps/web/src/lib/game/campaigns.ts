@@ -7,13 +7,18 @@ export const CAMPAIGN_RESPONSE_HOURS = 12;
 export function calculateCampaignProgressPerTick({
   pressureWorkersAssigned,
   committedArmy,
+  armyContributionMultiplier = 1,
 }: {
   pressureWorkersAssigned: number;
   committedArmy: number;
+  armyContributionMultiplier?: number;
 }) {
   const workers = Math.max(0, Math.floor(pressureWorkersAssigned));
   const armyContribution = Math.min(
-    Math.floor(Math.max(0, committedArmy) / 100),
+    Math.floor(
+      (Math.max(0, committedArmy) / 100) *
+        Math.max(1, armyContributionMultiplier)
+    ),
     workers
   );
 

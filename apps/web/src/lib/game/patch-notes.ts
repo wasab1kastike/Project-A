@@ -23,6 +23,8 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
       "Convoys caught between new enemies or wartime fortresses are seized on the next tick with no trade points or alliance bonus.",
       "Scored convoys can now be escorted, while standing raid orders attempt one automatic interception and steal half the cargo on success.",
       "Guards can detect convoy raiders, expose them as enemies, and grant the victim a 24-hour casus belli window for immediate war.",
+      "Each race can now select a passive standing doctrine on the Castle page; doctrine effects scale with favored territory and can be changed every 12 hours.",
+      "Season 4 live rankings are now prestige-only: Points, Territory, PvP Kills, Courier delivered cargo, and Privateer intercepted cargo.",
       "Season 4 registration now accepts new fortresses with immediate race choice during pretesting.",
       "A new Season 4 changes notice covers pressure expansion, Politics & Trade, convoy logistics, and campaign warfare.",
     ],

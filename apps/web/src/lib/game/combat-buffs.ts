@@ -1,5 +1,6 @@
 import {
   FortressKind,
+  CycleRuleset,
   OrkBossOrderKind,
   OrkWaaaghInvestmentKind,
   RaceAbilityKind,
@@ -74,6 +75,7 @@ export function getCombatAttackPowerMultiplier({
   targetFortressId,
   targetIsPlayerFortress = false,
   leaderboardTitleHolders,
+  leaderboardRuleset = CycleRuleset.LEGACY,
   combatSurgedThisTick,
   enableWaaagh = true,
   enableDwarfGrudge = true,
@@ -84,6 +86,7 @@ export function getCombatAttackPowerMultiplier({
   targetFortressId?: string | null;
   targetIsPlayerFortress?: boolean;
   leaderboardTitleHolders?: LeaderboardTitleHolders;
+  leaderboardRuleset?: CycleRuleset;
   combatSurgedThisTick?: Set<string>;
   enableWaaagh?: boolean;
   enableDwarfGrudge?: boolean;
@@ -150,7 +153,8 @@ export function getCombatAttackPowerMultiplier({
     (leaderboardTitleHolders
       ? getLeaderboardTitleAttackMultiplier(
           leaderboardTitleHolders,
-          fortress.id
+          fortress.id,
+          leaderboardRuleset
         )
       : 1)
   );

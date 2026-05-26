@@ -49,6 +49,17 @@ enum FortressRace {
   ORKS
 }
 
+enum FortressDoctrine {
+  DWARF_HOLDFAST
+  DWARF_WATCHKEEPERS
+  ORK_MARAUDERS
+  ORK_SIEGEBREAKERS
+  MURINE_CONVOY_COMMAND
+  MURINE_RAPID_RESPONSE
+  UNICORN_GLITTER_FRONTIER
+  UNICORN_VEILED_NETWORK
+}
+
 enum CastleUpgradeSpecialization {
   POINTS
   FOOD
@@ -383,6 +394,8 @@ model Fortress {
   recruitersAssigned             Int                                 @default(5)
   pressureWorkersAssigned        Int                                 @default(0)
   race                           FortressRace?
+  doctrine                       FortressDoctrine?
+  doctrineChangedAt              DateTime?
   fortressKind                   FortressKind                        @default(PLAYER)
   lootCampVariant                LootCampVariant?
   isNpc                          Boolean                             @default(false)

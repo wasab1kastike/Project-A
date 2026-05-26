@@ -6,7 +6,7 @@ import type { HomePageState } from "@/lib/game/read-model";
 import styles from "./season-update-announcement.module.css";
 
 const STORAGE_PREFIX = "project-a:leaderboard-announcement";
-const ANNOUNCEMENT_KEY = "2026-05-15-loot-lord-live-leaderboard";
+const ANNOUNCEMENT_KEY = "2026-05-26-season-4-prestige-rankings";
 
 type LeaderboardTitleSummary = HomePageState["leaderboardTitles"][number];
 
@@ -36,6 +36,9 @@ export function LeaderboardAnnouncement({
     typeof document === "undefined"
       ? null
       : (document.getElementById("modal-root") ?? document.body);
+  const prestigeOnly = leaderboardTitles.some(
+    (title) => title.buffLabel === "Prestige only"
+  );
 
   useEffect(() => {
     let isDismissed = false;
@@ -98,12 +101,15 @@ export function LeaderboardAnnouncement({
                   </button>
                 </div>
                 <div>
-                  <h2 id={titleId}>Titles now come with paperwork.</h2>
+                  <h2 id={titleId}>
+                    {prestigeOnly
+                      ? "Season 4 rankings track the long game."
+                      : "Titles now come with paperwork."}
+                  </h2>
                   <p id={descriptionId}>
-                    The leaderboard tracks points, units killed, tiles owned,
-                    goblins bonked, and castle loot stolen. Lead a category to
-                    hold its title and buff until someone rudely becomes better
-                    at it.
+                    {prestigeOnly
+                      ? "Rankings track Points, Territory, PvP Kills, Courier deliveries, and Privateer interceptions. Titles are prestige only and grant no gameplay advantage."
+                      : "The leaderboard tracks points, units killed, tiles owned, goblins bonked, and castle loot stolen. Lead a category to hold its title and buff until someone rudely becomes better at it."}
                   </p>
                 </div>
                 <div className={styles.leaderboardRows}>
@@ -139,8 +145,9 @@ export function LeaderboardAnnouncement({
                   ))}
                 </div>
                 <p className={styles.footer}>
-                  The crown is live, the ledger is watching, and the loot
-                  receipts are admissible evidence.
+                  {prestigeOnly
+                    ? "Convoys delivered and cargo intercepted now count where everyone can see them."
+                    : "The crown is live, the ledger is watching, and the loot receipts are admissible evidence."}
                 </p>
                 <div className={styles.actions}>
                   <button

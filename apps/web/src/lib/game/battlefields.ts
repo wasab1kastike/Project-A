@@ -3,6 +3,7 @@ import {
   BattlefieldStatus,
   ChatMessageType,
   CycleStatus,
+  CycleRuleset,
   FortressKind,
   OrkScrapEventReason,
   Prisma,
@@ -57,6 +58,7 @@ import {
   getBattlefieldProgressDelta,
   getHomeOfABossBattleDamage,
 } from "./battlefield-rules";
+import { getDoctrineTier, getGuardDefenseDoctrineMultiplier } from "./doctrines";
 export {
   getBattlefieldAttrition,
   getBattlefieldCasualtyBudget,
@@ -470,6 +472,7 @@ export async function createBattlefieldFromAttackUnit({
           maxHealth: true,
           level: true,
           race: true,
+          doctrine: true,
           isNpc: true,
           fortressKind: true,
           raceAbilityActivations: {
@@ -875,6 +878,7 @@ export async function processActiveBattlefields({
         select: {
           id: true,
           race: true,
+          doctrine: true,
           isNpc: true,
           fortressKind: true,
           orkBossOrders: {
@@ -911,6 +915,7 @@ export async function processActiveBattlefields({
         select: {
           id: true,
           race: true,
+          doctrine: true,
           isNpc: true,
           fortressKind: true,
           raceAbilityActivations: {
@@ -1084,6 +1089,7 @@ export async function processActiveBattlefields({
     select: {
       id: true,
       status: true,
+      ruleset: true,
       megaFortressDestroyCount: true,
       crownedFortressId: true,
       upgradesUnlockedAt: true,
@@ -1100,6 +1106,8 @@ export async function processActiveBattlefields({
       unitsKilled: true,
       goblinsKilled: true,
       resourcesStolen: true,
+      deliveredCargoValue: true,
+      interceptedCargoValue: true,
       joinedAt: true,
       isNpc: true,
       fortressKind: true,
@@ -1116,6 +1124,10 @@ export async function processActiveBattlefields({
   });
   const titleTileCountsByFortressId = new Map<string, number>();
   const ownedTileDefensePercentByFortressId = new Map<string, number>();
+  const ownedTileBiomesByFortressId = new Map<
+    string,
+    NonNullable<ReturnType<typeof getTileById>>["biome"][]
+  >();
 
   for (const ownership of titleOwnerships) {
     if (isHomeOfATile(ownership.tileId)) {
@@ -1129,6 +1141,10 @@ export async function processActiveBattlefields({
       (titleTileCountsByFortressId.get(ownership.ownerFortressId) ?? 0) + 1
     );
     if (tile) {
+      const biomes =
+        ownedTileBiomesByFortressId.get(ownership.ownerFortressId) ?? [];
+      biomes.push(tile.biome);
+      ownedTileBiomesByFortressId.set(ownership.ownerFortressId, biomes);
       ownedTileDefensePercentByFortressId.set(
         ownership.ownerFortressId,
         (ownedTileDefensePercentByFortressId.get(
@@ -1142,7 +1158,23 @@ export async function processActiveBattlefields({
     fortresses: titleFortresses,
     tileCountsByFortressId: titleTileCountsByFortressId,
     cycleStatus: cycle?.status ?? CycleStatus.RESOLUTION,
+    ruleset: cycle?.ruleset,
   });
+  const isSeasonFour = cycle?.ruleset === CycleRuleset.SEASON_4;
+  const getSeasonFourDefenseDoctrineMultiplier = (fortress: {
+    race?: FortressRace | null;
+    doctrine?: import("@/lib/prisma-client").FortressDoctrine | null;
+    id: string;
+  }) =>
+    isSeasonFour
+      ? getGuardDefenseDoctrineMultiplier(
+          fortress.doctrine,
+          getDoctrineTier({
+            race: fortress.race,
+            ownedTileBiomes: ownedTileBiomesByFortressId.get(fortress.id) ?? [],
+          })
+        )
+      : 1;
 
   let resolved = 0;
   let scoreEventsCreated = 0;
@@ -1260,6 +1292,8 @@ export async function processActiveBattlefields({
           targetFortressId: attackerTargetFortressId,
           targetIsPlayerFortress: isPlayerCombatTarget(attackerTargetFortress),
           leaderboardTitleHolders,
+          leaderboardRuleset: cycle?.ruleset,
+          enableLegacyAbilities: !isSeasonFour,
         }),
     });
     const defenderParticipantPower = defenderParticipants.reduce(
@@ -1273,7 +1307,8 @@ export async function processActiveBattlefields({
             opponentIsPlayerFortress: isPlayerCombatTarget(
               battlefield.attackerBannerFortress
             ),
-          }),
+            enableLegacyAbilities: !isSeasonFour,
+          }) * getSeasonFourDefenseDoctrineMultiplier(participant.fortress),
       0
     );
     const nativeDefenderPower =
@@ -1286,7 +1321,8 @@ export async function processActiveBattlefields({
             opponentIsPlayerFortress: isPlayerCombatTarget(
               battlefield.attackerBannerFortress
             ),
-          })
+            enableLegacyAbilities: !isSeasonFour,
+          }) * getSeasonFourDefenseDoctrineMultiplier(nativeDefenderFortress)
         : 1);
     const defenderPowerMultiplier =
       (defenderArmyBefore > 0
@@ -1356,6 +1392,8 @@ export async function processActiveBattlefields({
                 battlefield.targetFortress
               ),
               leaderboardTitleHolders,
+              leaderboardRuleset: cycle?.ruleset,
+              enableLegacyAbilities: !isSeasonFour,
             }),
         }));
       const totalWeight = weightedAttackers.reduce(
@@ -1608,9 +1646,10 @@ export async function processActiveBattlefields({
           ? castlePointsLooted - distributedBasePointLoot
           : Math.floor(castlePointsLooted * share);
       const castleLootMultiplier = stealsFromPlayerCastle
-        ? getLeaderboardTitleCastleLootMultiplier(
+          ? getLeaderboardTitleCastleLootMultiplier(
             leaderboardTitleHolders,
-            participant.fortressId
+            participant.fortressId,
+            cycle?.ruleset
           )
         : 1;
       const goldLootShare = Math.min(

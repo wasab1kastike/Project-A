@@ -27,9 +27,9 @@
 - Gold, food, points, and army never go below zero
 - Global chat with timestamps
 - Chat rate limit: 6 messages per minute per user
-- Top 3 leaderboard visible for points, units killed, tiles owned, goblins killed, and resources stolen from player castles
-- Category leaders hold live titles: Crown Accountant, Butcher, Landlord, Goblin Bonker, and Loot Lord
-- Title buffs are active only during the live season and update as rankings change
+- Legacy cycles retain their prior title categories and buffs for historical compatibility.
+- In `SEASON_4`, the Top 3 leaderboard categories are Points, Territory, PvP Kills, Courier, and Privateer.
+- Season 4 titles are prestige-only and provide no gameplay multipliers.
 - Season 4 timer: registration and pretesting accept new players and race selection while the redesign is verified; the completed community wish vote is archived and no longer part of the live lobby
 - Player action persists while offline
 - Castle upgrades are available during gameplay and use gold
@@ -43,6 +43,8 @@
 
 ## Leaderboard titles
 
+- In `SEASON_4`, Crown Accountant, Landlord, Butcher, Courier, and Privateer rank points, normal territory, PvP kills, delivered base convoy cargo value, and intercepted stolen cargo value respectively. They grant no buffs.
+- The legacy title behavior below remains readable for prior rulesets only:
 - Crown Accountant is the points leader and receives +10% points from tile income.
 - Butcher is the units-killed leader and receives +10% attack power only.
 - Landlord is the current normal-tile leader and receives +10% tile resource income.
@@ -109,6 +111,16 @@
 - At `14,400` progress, the campaign opens a visible siege with a 12-hour response window before automated battlefield casualties begin.
 - `GUARD` orders commit army to owned normal tiles and join an incoming siege as defenders; guards can be recalled before they enter combat.
 - Peace or a lost war/target condition cancels an unengaged campaign and returns its committed army.
+
+## Season 4 standing doctrines
+
+- Player fortresses choose one doctrine from their race on the Castle page. Changes have a 12-hour cooldown.
+- Doctrine effectiveness is `10% / 20% / 30%` at favored-biome territory tiers `3 / 6 / 9`.
+- Dwarfs choose `Holdfast` for guard/garrison defense or `Watchkeepers` for guard detection.
+- ORKS choose `Marauders` for raids and intercepted cargo or `Siegebreakers` for campaign army buildup.
+- Space Murines choose `Convoy Command` for escorts or `Rapid Response` for guard defense and campaign army buildup.
+- Unstable Unicorns choose `Glitter Frontier` for favored-terrain neutral pressure or `Veiled Network` for covert raid evasion.
+- Doctrines do not change alliance bonuses, the 600 neutral pressure threshold, the 14,400 siege threshold, or the campaign army cap.
 
 ## Spawn & map fairness
 

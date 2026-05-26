@@ -57,6 +57,8 @@ function getDegradedHomePageState(): HomePageState {
       tilesOwned: [],
       goblinsKilled: [],
       resourcesStolen: [],
+      deliveredCargoValue: [],
+      interceptedCargoValue: [],
     },
     leaderboardTitles: [],
     mapFortresses: [],

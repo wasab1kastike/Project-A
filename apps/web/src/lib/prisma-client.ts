@@ -18,6 +18,7 @@ export {
   FortressAction,
   FortressKind,
   FortressRace,
+  FortressDoctrine,
   LootCampVariant,
   OrkBossOrderKind,
   OrkScrapEventReason,

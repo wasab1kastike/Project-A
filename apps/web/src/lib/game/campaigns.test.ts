@@ -33,6 +33,22 @@ test("campaign army may at most double pressure worker progress", () => {
     15
   );
   assert.equal(CAMPAIGN_SIEGE_THRESHOLD, 14_400);
+  assert.equal(
+    calculateCampaignProgressPerTick({
+      pressureWorkersAssigned: 10,
+      committedArmy: 500,
+      armyContributionMultiplier: 1.3,
+    }),
+    16
+  );
+  assert.equal(
+    calculateCampaignProgressPerTick({
+      pressureWorkersAssigned: 10,
+      committedArmy: 100_000,
+      armyContributionMultiplier: 1.3,
+    }),
+    20
+  );
 });
 
 test("campaign warning keeps casualties paused for twelve hours", () => {

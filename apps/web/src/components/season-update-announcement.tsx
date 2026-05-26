@@ -34,6 +34,14 @@ const SECTIONS = [
     ],
   },
   {
+    title: "Doctrines & Prestige",
+    items: [
+      "Choose one passive race doctrine in Castle management; changes lock for 12 hours.",
+      "Doctrine effects scale as favored territory reaches tiers at 3, 6, and 9 tiles.",
+      "Rankings now track Points, Territory, PvP Kills, Courier, and Privateer with no title buffs.",
+    ],
+  },
+  {
     title: "Retired For Season 4",
     items: [
       "The old Home of A center becomes an inaccessible monument.",

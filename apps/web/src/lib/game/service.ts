@@ -6,6 +6,7 @@ import {
   ArmyOrderType,
   FortressAction,
   FortressKind,
+  FortressDoctrine,
   ScoreEventType,
   Prisma,
   PrismaClient,
@@ -132,6 +133,7 @@ import {
   type TradeCargo,
 } from "./trading";
 import { getRaidTargetBlockedReason, isConvoyRaidEligible } from "./convoy-conflict";
+import { getDoctrineChangeBlockedReason } from "./doctrines";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -4739,6 +4741,74 @@ export async function selectFortressRace({
       isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     }
   );
+}
+
+export async function selectFortressDoctrine({
+  userId,
+  doctrine,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  doctrine: FortressDoctrine | string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  if (!Object.values(FortressDoctrine).includes(doctrine as FortressDoctrine)) {
+    throw new GameError("Choose a valid doctrine.");
+  }
+
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("Doctrines can only be changed during gameplay.");
+    }
+
+    assertSeasonFourFeatureCycle(cycle);
+    const fortress = await tx.fortress.findUnique({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: userId,
+        },
+      },
+      select: {
+        id: true,
+        race: true,
+        doctrine: true,
+        doctrineChangedAt: true,
+        isNpc: true,
+      },
+    });
+
+    if (!fortress || fortress.isNpc) {
+      throw new GameError("You are not participating in the current cycle.");
+    }
+
+    if (fortress.doctrine === doctrine) {
+      return fortress;
+    }
+
+    const blockedReason = getDoctrineChangeBlockedReason({
+      doctrine: doctrine as FortressDoctrine,
+      race: fortress.race,
+      changedAt: fortress.doctrineChangedAt,
+      now,
+    });
+
+    if (blockedReason) {
+      throw new GameError(blockedReason);
+    }
+
+    return tx.fortress.update({
+      where: { id: fortress.id },
+      data: {
+        doctrine: doctrine as FortressDoctrine,
+        doctrineChangedAt: now,
+      },
+    });
+  }, SERVICE_TRANSACTION_OPTIONS);
 }
 
 export async function updateWorkerAssignment({
