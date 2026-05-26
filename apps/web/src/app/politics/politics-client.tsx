@@ -13,6 +13,8 @@ import {
   cancelAllianceTrustUpgradeAction,
   cancelTradeOfferAction,
   createTradeOfferAction,
+  createEscortOrderAction,
+  createRaidOrderAction,
   declareWarAction,
   proposeAllianceAction,
   proposeAllianceTrustUpgradeAction,
@@ -20,6 +22,7 @@ import {
   rejectAllianceProposalAction,
   rejectAllianceTrustUpgradeAction,
   rejectTradeOfferAction,
+  recallArmyOrderAction,
 } from "@/app/game-actions";
 import type { PoliticsPageState } from "@/lib/game/politics-read-model";
 import styles from "./page.module.css";
@@ -133,6 +136,7 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
     requestedFood: 0,
     requestedArmy: 0,
   });
+  const [orderArmy, setOrderArmy] = useState(100);
 
   async function handleAction(row: PoliticsRow, action: PoliticsAction) {
     if (pendingId) {
@@ -277,6 +281,27 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
     }
   }
 
+  async function handleOrder(
+    key: string,
+    action: () => Promise<{ ok: boolean; error?: string }>
+  ) {
+    if (pendingId) {
+      return;
+    }
+
+    setPendingId(key);
+
+    try {
+      const result = await action();
+
+      if (!result.ok) {
+        window.alert(result.error);
+      }
+    } finally {
+      setPendingId(null);
+    }
+  }
+
   function formatCargo(
     lineItems: {
       fromFortressId: string;
@@ -395,6 +420,56 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                           </button>
                         )}
                       </div>
+                      {row.canRaid || row.activeRaidOrderId ? (
+                        <div className={styles.orderControl}>
+                          {row.activeRaidOrderId ? (
+                            <>
+                              <span>
+                                Raid watching routes: {row.activeRaidArmy?.toLocaleString()} army
+                              </span>
+                              <button
+                                type="button"
+                                disabled={pendingId !== null}
+                                onClick={() =>
+                                  void handleOrder(`recall:${row.activeRaidOrderId}`, () =>
+                                    recallArmyOrderAction(row.activeRaidOrderId!)
+                                  )
+                                }
+                              >
+                                Recall raid
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <input
+                                type="number"
+                                min={1}
+                                step={1}
+                                value={orderArmy}
+                                onChange={(event) =>
+                                  setOrderArmy(
+                                    Math.max(1, Number.parseInt(event.target.value || "1", 10))
+                                  )
+                                }
+                                aria-label="Army for raid order"
+                              />
+                              <button
+                                type="button"
+                                disabled={pendingId !== null}
+                                onClick={() =>
+                                  void handleOrder(`raid:${row.fortressId}`, () =>
+                                    createRaidOrderAction(row.fortressId, orderArmy)
+                                  )
+                                }
+                              >
+                                Raid routes
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      ) : row.raidDisabledReason ? (
+                        <p className={styles.muted}>{row.raidDisabledReason}</p>
+                      ) : null}
                       {row.disabledReason ? (
                         <p className={styles.muted}>{row.disabledReason}</p>
                       ) : null}
@@ -548,15 +623,88 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                 state.activeConvoyLegs.map((leg) => (
                   <article key={leg.id} className={styles.tradeCard}>
                     <strong>
-                      {leg.outgoing ? "To " : "From "}
+                      {leg.raidedByCurrentPlayer
+                        ? "Observed route: "
+                        : leg.outgoing
+                          ? "To "
+                          : "From "}
                       {leg.counterpartName}
                     </strong>
                     <p>{formatLegCargo(leg)}</p>
+                    {leg.encounterSucceeded === false ? (
+                      <p className={styles.muted}>
+                        {leg.raidedByCurrentPlayer
+                          ? "Interception failed; the convoy continues."
+                          : "This convoy survived a raid attempt."}
+                      </p>
+                    ) : null}
                     <time>{leg.arrivesAt.toLocaleString()}</time>
+                    {leg.outgoing && (leg.canEscort || leg.activeEscortOrderId) ? (
+                      <div className={styles.orderControl}>
+                        {leg.activeEscortOrderId ? (
+                          <>
+                            <span>
+                              Escort: {leg.activeEscortArmy?.toLocaleString()} army
+                            </span>
+                            <button
+                              type="button"
+                              disabled={pendingId !== null}
+                              onClick={() =>
+                                void handleOrder(`recall:${leg.activeEscortOrderId}`, () =>
+                                  recallArmyOrderAction(leg.activeEscortOrderId!)
+                                )
+                              }
+                            >
+                              Recall escort
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <input
+                              type="number"
+                              min={1}
+                              step={1}
+                              value={orderArmy}
+                              onChange={(event) =>
+                                setOrderArmy(
+                                  Math.max(1, Number.parseInt(event.target.value || "1", 10))
+                                )
+                              }
+                              aria-label="Army for escort order"
+                            />
+                            <button
+                              type="button"
+                              disabled={pendingId !== null}
+                              onClick={() =>
+                                void handleOrder(`escort:${leg.id}`, () =>
+                                  createEscortOrderAction(leg.id, orderArmy)
+                                )
+                              }
+                            >
+                              Escort
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    ) : null}
                   </article>
                 ))
               )}
             </div>
+
+            {state.activeArmyOrders.some((order) => order.type === "RAID") ? (
+              <div className={styles.tradeSection}>
+                <h3>Raid Patrols</h3>
+                {state.activeArmyOrders
+                  .filter((order) => order.type === "RAID")
+                  .map((order) => (
+                    <article key={order.id} className={styles.tradeCard}>
+                      <strong>Watching {order.targetName}</strong>
+                      <p>{order.committedArmy.toLocaleString()} committed army</p>
+                    </article>
+                  ))}
+              </div>
+            ) : null}
 
             {state.recentConvoyLegs.length > 0 ? (
               <div className={styles.tradeSection}>
@@ -564,15 +712,46 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                 {state.recentConvoyLegs.map((leg) => (
                   <article key={leg.id} className={styles.tradeCard}>
                     <strong>
-                      {leg.status === "SEIZED" ? "Seized" : "Delivered"}:
+                      {leg.status === "SEIZED"
+                        ? "Seized"
+                        : leg.status === "INTERCEPTED"
+                          ? leg.raidedByCurrentPlayer
+                            ? "Intercepted"
+                            : "Lost to raid"
+                          : leg.encounterSucceeded === false
+                            ? "Survived raid"
+                            : "Delivered"}:
                       {" "}
                       {leg.counterpartName}
                     </strong>
                     <p>
-                      {formatLegCargo(leg)}
+                      {leg.status === "INTERCEPTED" && leg.raidedByCurrentPlayer
+                        ? `${leg.stolenGold.toLocaleString()} gold, ${leg.stolenFood.toLocaleString()} food, ${leg.stolenArmy.toLocaleString()} army stolen`
+                        : formatLegCargo(leg)}
                       {leg.bonusGold + leg.bonusFood > 0
                         ? ` + ${leg.bonusGold.toLocaleString()} gold / ${leg.bonusFood.toLocaleString()} food alliance bonus`
                         : ""}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            ) : null}
+
+            {state.recentCovertIncidents.length > 0 ? (
+              <div className={styles.tradeSection}>
+                <h3>Detected Incidents</h3>
+                {state.recentCovertIncidents.map((incident) => (
+                  <article key={incident.id} className={styles.tradeCard}>
+                    <strong>
+                      {incident.detectedByCurrentPlayer
+                        ? `Raid detected: ${incident.raiderName}`
+                        : `Raid exposed by ${incident.detectorName}`}
+                    </strong>
+                    <p>
+                      {incident.detectedByCurrentPlayer &&
+                      incident.casusBelliExpiresAt
+                        ? `Casus belli available until ${incident.casusBelliExpiresAt.toLocaleString()}.`
+                        : `Detected ${incident.detectedAt.toLocaleString()}.`}
                     </p>
                   </article>
                 ))}

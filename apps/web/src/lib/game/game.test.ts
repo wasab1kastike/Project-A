@@ -49,6 +49,8 @@ import "./season-schedule.test";
 import "./rulesets.test";
 import "./tile-pressure.test";
 import "./trading.test";
+import "./convoy-conflict.test";
+import { calculateDetectionChance, calculateRaidSuccessChance, resolveSeededChance } from "./convoy-conflict";
 import {
   forceEndCurrentCycle,
   runManualCatchUpTick,
@@ -192,6 +194,8 @@ import {
   shuffleFortressLocation,
   setTilePressurePriority,
   stationGuardOrder,
+  createEscortOrder,
+  createRaidOrder,
   startTerritoryCampaign,
   recallArmyOrder,
   createTradeOffer,
@@ -2472,6 +2476,162 @@ test("season four trade offers can cancel or reject and hostile transit is seize
   assert.equal(seized.status, ConvoyLegStatus.SEIZED);
   assert.equal(seized.pointsAwarded, 0);
   assert.equal(events, 0);
+});
+
+test("season four escort and raid orders intercept scored convoys and expose detected raiders", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const sender = await createUser(prisma, "escort-sender@example.com");
+  const receiver = await createUser(prisma, "escort-receiver@example.com");
+  const raider = await createUser(prisma, "escort-raider@example.com");
+  const cycle = await seedActiveCommunityWishCycle(
+    prisma,
+    [
+      { userId: sender.id, commanderName: "Sender", fortressName: "Cargo Keep", points: 0 },
+      { userId: receiver.id, commanderName: "Receiver", fortressName: "Market Keep", points: 0 },
+      { userId: raider.id, commanderName: "Raider", fortressName: "Hidden Wake", points: 0 },
+    ],
+    new Date("2026-04-22T12:00:00.000Z")
+  );
+  await markSeasonFourCycle(prisma, cycle.id);
+  const [senderFortress, receiverFortress, raiderFortress] = await Promise.all([
+    prisma.fortress.update({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: sender.id } },
+      data: { gold: 5_000, army: 200_000 },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: receiver.id } },
+    }),
+    prisma.fortress.update({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: raider.id } },
+      data: { army: 2_000 },
+    }),
+  ]);
+  const guardTile = HEX_SPAWN_TILES.find(
+    (tile) => tile.spawnable && !isHomeOfATile(tile.id)
+  );
+
+  assert.ok(guardTile);
+  await prisma.mapHexOwnership.create({
+    data: {
+      cycleId: cycle.id,
+      tileId: guardTile.id,
+      ownerFortressId: senderFortress.id,
+    },
+  });
+  await stationGuardOrder({
+    userId: sender.id,
+    tileId: guardTile.id,
+    armyAmount: 100_000,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+    db: prisma,
+  });
+  const offer = await createTradeOffer({
+    userId: sender.id,
+    targetFortressId: receiverFortress.id,
+    offeredGold: 2_000,
+    offeredFood: 0,
+    offeredArmy: 0,
+    requestedGold: 0,
+    requestedFood: 0,
+    requestedArmy: 0,
+    now: new Date("2026-04-20T12:00:10.000Z"),
+    db: prisma,
+  });
+  const accepted = await acceptTradeOffer({
+    userId: receiver.id,
+    tradeOfferId: offer.id,
+    now: new Date("2026-04-20T12:00:20.000Z"),
+    db: prisma,
+  });
+  const leg = accepted.convoyLegs[0];
+
+  assert.ok(leg);
+  const escort = await createEscortOrder({
+    userId: sender.id,
+    convoyLegId: leg.id,
+    armyAmount: 100,
+    now: new Date("2026-04-20T12:00:30.000Z"),
+    db: prisma,
+  });
+  const raid = await createRaidOrder({
+    userId: raider.id,
+    targetFortressId: senderFortress.id,
+    armyAmount: 1_000,
+    now: new Date("2026-04-20T12:00:40.000Z"),
+    db: prisma,
+  });
+  let tickAt: Date | null = null;
+
+  for (let minute = 1; minute <= 300; minute += 1) {
+    const candidate = addMinutes(new Date("2026-04-20T12:01:00.000Z"), minute);
+    const raidResult = resolveSeededChance({
+      seed: `${cycle.id}:${leg.id}:${raid.id}:${candidate.toISOString()}:raid`,
+      chancePercent: calculateRaidSuccessChance({ raidArmy: 1_000, escortArmy: 100 }),
+    });
+    const detectionResult = resolveSeededChance({
+      seed: `${cycle.id}:${leg.id}:${raid.id}:${senderFortress.id}:${candidate.toISOString()}:detect`,
+      chancePercent: calculateDetectionChance({ guardArmy: 100_000, raidArmy: 1_000 }) ?? 0,
+    });
+
+    if (raidResult.succeeded && detectionResult.succeeded) {
+      tickAt = candidate;
+      break;
+    }
+  }
+
+  assert.ok(tickAt);
+  await runGameTick({ now: tickAt, db: prisma });
+
+  const [settledLeg, returnedEscort, retainedRaid, raiderAfter, incident, relation] =
+    await Promise.all([
+      prisma.convoyLeg.findUniqueOrThrow({ where: { id: leg.id } }),
+      prisma.armyOrder.findUniqueOrThrow({ where: { id: escort.id } }),
+      prisma.armyOrder.findUniqueOrThrow({ where: { id: raid.id } }),
+      prisma.fortress.findUniqueOrThrow({ where: { id: raiderFortress.id } }),
+      prisma.covertIncident.findFirstOrThrow({ where: { convoyLegId: leg.id } }),
+      prisma.diplomacyRelation.findFirstOrThrow({
+        where: {
+          cycleId: cycle.id,
+          OR: [
+            { fortressAId: senderFortress.id, fortressBId: raiderFortress.id },
+            { fortressAId: raiderFortress.id, fortressBId: senderFortress.id },
+          ],
+        },
+      }),
+    ]);
+
+  assert.equal(settledLeg.status, ConvoyLegStatus.INTERCEPTED);
+  assert.equal(settledLeg.stolenGold, 1_000);
+  assert.equal(returnedEscort.status, ArmyOrderStatus.RETURNED);
+  assert.equal(returnedEscort.committedArmy, 60);
+  assert.equal(retainedRaid.status, ArmyOrderStatus.ACTIVE);
+  assert.equal(retainedRaid.committedArmy, 850);
+  assert.equal(raiderAfter.gold, 1_000);
+  assert.equal(raiderAfter.interceptedCargoValue, 1_000);
+  assert.equal(incident.detectingFortressId, senderFortress.id);
+  assert.equal(relation.status, DiplomacyRelationStatus.ENEMY);
+  assert.equal(relation.casusBelliFortressId, senderFortress.id);
+
+  const politicsState = await getPoliticsPageState({
+    userId: sender.id,
+    now: tickAt,
+    db: prisma,
+  });
+  assert.equal(politicsState.recentConvoyLegs[0]?.status, ConvoyLegStatus.INTERCEPTED);
+  assert.equal(politicsState.recentCovertIncidents[0]?.raiderName, "Hidden Wake");
+
+  const recalledRaid = await recallArmyOrder({
+    userId: raider.id,
+    armyOrderId: raid.id,
+    now: addMinutes(tickAt, 1),
+    db: prisma,
+  });
+  assert.equal(recalledRaid.status, ArmyOrderStatus.RETURNED);
 });
 
 test("season four standing orders commit, recall, and open campaign siege warning", async (context) => {

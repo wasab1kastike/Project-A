@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import {
+  ArmyOrderStatus,
+  ArmyOrderType,
   CycleStatus,
   FortressKind,
   ConvoyLegStatus,
@@ -13,6 +15,7 @@ import {
 } from "./politics";
 import { isSeasonFourRuleset } from "./rulesets";
 import { getTradeBlockedReason } from "./trading";
+import { getRaidTargetBlockedReason, isConvoyRaidEligible } from "./convoy-conflict";
 
 function getMinutesUntil(from: Date, to: Date | null | undefined) {
   if (!to || to <= from) {
@@ -117,6 +120,8 @@ export async function getPoliticsPageState({
       outgoingTradeOffers: [],
       activeConvoyLegs: [],
       recentConvoyLegs: [],
+      activeArmyOrders: [],
+      recentCovertIncidents: [],
     };
   }
 
@@ -130,6 +135,8 @@ export async function getPoliticsPageState({
       outgoingTradeOffers: [],
       activeConvoyLegs: [],
       recentConvoyLegs: [],
+      activeArmyOrders: [],
+      recentCovertIncidents: [],
     };
   }
 
@@ -146,10 +153,12 @@ export async function getPoliticsPageState({
       outgoingTradeOffers: [],
       activeConvoyLegs: [],
       recentConvoyLegs: [],
+      activeArmyOrders: [],
+      recentCovertIncidents: [],
     };
   }
 
-  const [tradeOffers, convoyLegs] = await Promise.all([
+  const [tradeOffers, convoyLegs, activeArmyOrders, recentCovertIncidents] = await Promise.all([
     db.tradeOffer.findMany({
       where: {
         cycleId: cycle.id,
@@ -171,15 +180,41 @@ export async function getPoliticsPageState({
             ConvoyLegStatus.IN_TRANSIT,
             ConvoyLegStatus.DELIVERED,
             ConvoyLegStatus.SEIZED,
+            ConvoyLegStatus.INTERCEPTED,
           ],
         },
         OR: [
           { fromFortressId: playerFortress.id },
           { toFortressId: playerFortress.id },
+          { interceptedByOrder: { fortressId: playerFortress.id } },
         ],
+      },
+      include: {
+        escortOrder: true,
+        interceptedByOrder: { select: { fortressId: true } },
       },
       orderBy: { createdAt: "desc" },
       take: 30,
+    }),
+    db.armyOrder.findMany({
+      where: {
+        cycleId: cycle.id,
+        fortressId: playerFortress.id,
+        status: ArmyOrderStatus.ACTIVE,
+        type: { in: [ArmyOrderType.ESCORT, ArmyOrderType.RAID] },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    db.covertIncident.findMany({
+      where: {
+        cycleId: cycle.id,
+        OR: [
+          { detectingFortressId: playerFortress.id },
+          { raiderFortressId: playerFortress.id },
+        ],
+      },
+      orderBy: { detectedAt: "desc" },
+      take: 12,
     }),
   ]);
 
@@ -219,6 +254,17 @@ export async function getPoliticsPageState({
       const tradeDisabledReason = getTradeBlockedReason(
         getEffectiveDiplomacyStatus({ relation, now })
       );
+      const activeRaidOrder = activeArmyOrders.find(
+        (order) =>
+          order.type === ArmyOrderType.RAID &&
+          order.targetFortressId === fortress.id
+      );
+      const raidDisabledReason =
+        activeRaidOrder !== undefined
+          ? "A raid order is already watching these routes."
+          : getRaidTargetBlockedReason(
+              getEffectiveDiplomacyStatus({ relation, now })
+            );
 
       return {
         fortressId: fortress.id,
@@ -262,6 +308,10 @@ export async function getPoliticsPageState({
         disabledReason: presentation.disabledReason,
         canTrade: tradeDisabledReason === null,
         tradeDisabledReason,
+        canRaid: raidDisabledReason === null,
+        raidDisabledReason,
+        activeRaidOrderId: activeRaidOrder?.id ?? null,
+        activeRaidArmy: activeRaidOrder?.committedArmy ?? null,
       };
     });
   const fortressNames = new Map(
@@ -299,6 +349,34 @@ export async function getPoliticsPageState({
     pointsAwarded: leg.pointsAwarded,
     arrivesAt: leg.arrivesAt,
     settledAt: leg.settledAt,
+    canEscort:
+      leg.fromFortressId === playerFortress.id &&
+      isConvoyRaidEligible(leg) &&
+      leg.escortOrder?.status !== ArmyOrderStatus.ACTIVE,
+    escortDisabledReason:
+      leg.fromFortressId !== playerFortress.id
+        ? "Only the sender may assign an escort."
+        : leg.escortOrder?.status === ArmyOrderStatus.ACTIVE
+          ? "An escort is already assigned."
+          : !isConvoyRaidEligible(leg)
+            ? "Only scored, unchallenged convoys can be escorted."
+            : null,
+    activeEscortOrderId:
+      leg.escortOrder?.status === ArmyOrderStatus.ACTIVE
+        ? leg.escortOrder.id
+        : null,
+    activeEscortArmy:
+      leg.escortOrder?.status === ArmyOrderStatus.ACTIVE
+        ? leg.escortOrder.committedArmy
+        : null,
+    encounterSucceeded: leg.encounterSucceeded,
+    raidDetected: leg.raidDetected,
+    stolenGold: leg.stolenGold,
+    stolenFood: leg.stolenFood,
+    stolenArmy: leg.stolenArmy,
+    stolenCargoValue: leg.stolenCargoValue,
+    raidedByCurrentPlayer:
+      leg.interceptedByOrder?.fortressId === playerFortress.id,
   });
 
   return {
@@ -324,7 +402,8 @@ export async function getPoliticsPageState({
         (leg) =>
           leg.status === ConvoyLegStatus.IN_TRANSIT &&
           (leg.fromFortressId === playerFortress.id ||
-            leg.toFortressId === playerFortress.id)
+            leg.toFortressId === playerFortress.id ||
+            leg.interceptedByOrder?.fortressId === playerFortress.id)
       )
       .map(normalizeLeg),
     recentConvoyLegs: convoyLegs
@@ -332,10 +411,35 @@ export async function getPoliticsPageState({
         (leg) =>
           leg.status !== ConvoyLegStatus.IN_TRANSIT &&
           (leg.fromFortressId === playerFortress.id ||
-            leg.toFortressId === playerFortress.id)
+            leg.toFortressId === playerFortress.id ||
+            leg.interceptedByOrder?.fortressId === playerFortress.id)
       )
       .slice(0, 10)
       .map(normalizeLeg),
+    activeArmyOrders: activeArmyOrders.map((order) => ({
+      id: order.id,
+      type: order.type,
+      committedArmy: order.committedArmy,
+      targetName:
+        order.type === ArmyOrderType.RAID && order.targetFortressId
+          ? fortressNames.get(order.targetFortressId) ?? "Unknown fortress"
+          : null,
+    })),
+    recentCovertIncidents: recentCovertIncidents.map((incident) => ({
+      id: incident.id,
+      detectedAt: incident.detectedAt,
+      detectedByCurrentPlayer:
+        incident.detectingFortressId === playerFortress.id,
+      raiderName:
+        incident.detectingFortressId === playerFortress.id
+          ? fortressNames.get(incident.raiderFortressId) ?? "Unknown fortress"
+          : null,
+      detectorName:
+        incident.raiderFortressId === playerFortress.id
+          ? fortressNames.get(incident.detectingFortressId) ?? "Unknown fortress"
+          : null,
+      casusBelliExpiresAt: incident.casusBelliExpiresAt,
+    })),
   };
 }
 

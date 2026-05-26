@@ -238,7 +238,8 @@ The game is now a castle-economy and battlefield-control loop:
 - `/politics` now pretests bilateral alliances with fixed trust escrow tiers; betrayal immediately begins war and awards both escrow shares to the harmed ally
 - `/politics` now supports bilateral gold, food, and army offers between neutral or allied fortresses; accepted cargo moves as independent six-hour-minimum convoy legs
 - Delivered convoy cargo awards points from base cargo value and allied Trust bonuses add only delivered gold and food; hostile relations seize in-transit cargo without points
-- detected covert incidents now have a Season 4 casus belli path: the victim can invoke immediate war during the 24-hour incident window once raid orders are connected
+- scored trade convoys can receive an outbound escort or face one automatic interception attempt from standing raid orders; a successful raid steals half the cargo and awards points from stolen value
+- guard orders now detect convoy raids as covert incidents: an exposed raider becomes an enemy and the detecting fortress can invoke immediate war during the 24-hour casus belli window
 - Season 4 territorial war uses standing campaign orders: pressure workers and committed army build a border siege, then a 12-hour warning opens before automatic combat
 - owned Season 4 tiles can station guard orders; ordinary tile attacks, reinforcements, and fortification controls are legacy-only
 - direct attacks and battlefield reinforcements both count against the player's simultaneous outbound attack cap

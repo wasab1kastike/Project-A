@@ -264,7 +264,8 @@ const POLITICS_RULES = [
   "Convoy legs need at least six hours plus normal map travel time, and delivered base cargo value awards shared points.",
   "Alliance trust bonuses add delivered gold and food only; if relations turn hostile before arrival, cargo is seized without trade points.",
   "Betrayal starts war immediately and gives both escrow shares to the harmed ally.",
-  "Once covert raid orders are enabled, a detected raid grants the victim 24 hours to invoke immediate war.",
+  "Scored convoys may receive sender escorts or face one standing raid interception attempt; a successful raid steals half their cargo.",
+  "Guard patrols can detect a convoy raid, expose the raider as an enemy, and grant the victim 24 hours to invoke immediate war.",
   "During active war, commit army to a connected enemy border campaign; at 14,400 buildup a 12-hour siege warning opens before fighting.",
   "Station guards on your owned normal tiles to defend them if a campaign becomes a siege.",
 ] as const;

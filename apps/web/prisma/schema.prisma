@@ -115,6 +115,7 @@ enum ScoreEventType {
   RENAME_COST
   MANUAL_ADJUST
   TRADE_DELIVERY
+  CONVOY_INTERCEPTION
 }
 
 enum DwarfDeepMiningOutcome {
@@ -332,6 +333,7 @@ model Cycle {
   territoryCampaigns             TerritoryCampaign[]
   tradeOffers                    TradeOffer[]
   convoyLegs                     ConvoyLeg[]
+  covertIncidents                CovertIncident[]
   castleUpgradeProjects          CastleUpgradeProject[]
   homeOfAHolders                 HomeOfAHolder[]
   unicornTemporaryTeleports      UnicornTemporaryTeleport[]
@@ -371,6 +373,7 @@ model Fortress {
   goblinsKilled                  Int                                 @default(0)
   resourcesStolen                Int                                 @default(0)
   deliveredCargoValue            Int                                 @default(0)
+  interceptedCargoValue          Int                                 @default(0)
   level                          Int                                 @default(0)
   food                           Int                                 @default(0)
   army                           Int                                 @default(0)
@@ -437,6 +440,8 @@ model Fortress {
   receivedTradeOffers            TradeOffer[]                        @relation("TradeOfferReceiver")
   outboundConvoyLegs             ConvoyLeg[]                         @relation("ConvoyLegSender")
   inboundConvoyLegs              ConvoyLeg[]                         @relation("ConvoyLegReceiver")
+  covertIncidentsAsRaider        CovertIncident[]                    @relation("CovertIncidentRaider")
+  covertIncidentsAsDetector      CovertIncident[]                    @relation("CovertIncidentDetector")
   homeOfAHoldings                HomeOfAHolder[]                     @relation("HomeOfAHolderFortress")
   homeOfABannerHoldings          HomeOfAHolder[]                     @relation("HomeOfABannerFortress")
   homeOfABossDamageContributions HomeOfABossDamageContribution[]
@@ -597,6 +602,7 @@ model ArmyOrder {
   status           ArmyOrderStatus @default(ACTIVE)
   targetTileId     String?
   targetFortressId String?
+  convoyLegId      String?         @unique
   committedArmy    Int
   startsAt         DateTime
   transferredAt    DateTime?
@@ -607,10 +613,14 @@ model ArmyOrder {
   cycle            Cycle           @relation(fields: [cycleId], references: [id], onDelete: Cascade)
   fortress         Fortress        @relation(fields: [fortressId], references: [id], onDelete: Cascade)
   campaign         TerritoryCampaign?
+  convoyLeg        ConvoyLeg?      @relation("ConvoyLegEscort", fields: [convoyLegId], references: [id], onDelete: SetNull)
+  raidedConvoyLegs ConvoyLeg[]     @relation("ConvoyLegRaid")
+  covertIncidents  CovertIncident[]
 
   @@index([cycleId, status, type])
   @@index([fortressId, status])
   @@index([cycleId, targetTileId, status])
+  @@index([cycleId, convoyLegId, status])
 }
 
 model TerritoryCampaign {
@@ -662,6 +672,7 @@ enum ConvoyLegStatus {
   IN_TRANSIT
   DELIVERED
   SEIZED
+  INTERCEPTED
   CANCELED
 }
 
@@ -716,6 +727,15 @@ model ConvoyLeg {
   bonusGold          Int             @default(0)
   bonusFood          Int             @default(0)
   pointsAwarded      Int             @default(0)
+  interceptedByOrderId String?
+  encounterResolvedAt DateTime?
+  encounterSucceeded Boolean?
+  interceptedAt      DateTime?
+  stolenGold         Int             @default(0)
+  stolenFood         Int             @default(0)
+  stolenArmy         Int             @default(0)
+  stolenCargoValue   Int             @default(0)
+  raidDetected       Boolean         @default(false)
   departedAt         DateTime
   arrivesAt          DateTime
   settledAt          DateTime?
@@ -725,11 +745,38 @@ model ConvoyLeg {
   tradeOffer         TradeOffer      @relation(fields: [tradeOfferId], references: [id], onDelete: Cascade)
   fromFortress       Fortress        @relation("ConvoyLegSender", fields: [fromFortressId], references: [id], onDelete: Cascade)
   toFortress         Fortress        @relation("ConvoyLegReceiver", fields: [toFortressId], references: [id], onDelete: Cascade)
+  escortOrder        ArmyOrder?      @relation("ConvoyLegEscort")
+  interceptedByOrder ArmyOrder?      @relation("ConvoyLegRaid", fields: [interceptedByOrderId], references: [id], onDelete: SetNull)
+  covertIncidents    CovertIncident[]
 
   @@index([cycleId, status, arrivesAt])
+  @@index([cycleId, status, encounterResolvedAt, arrivesAt])
   @@index([tradeOfferId, status])
   @@index([fromFortressId, status])
   @@index([toFortressId, status])
+  @@index([interceptedByOrderId])
+}
+
+model CovertIncident {
+  id                    String       @id @default(cuid())
+  cycleId               String
+  convoyLegId           String
+  raidOrderId           String
+  raiderFortressId      String
+  detectingFortressId   String
+  detectedAt            DateTime
+  casusBelliExpiresAt   DateTime?
+  createdAt             DateTime     @default(now())
+  cycle                 Cycle        @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  convoyLeg             ConvoyLeg    @relation(fields: [convoyLegId], references: [id], onDelete: Cascade)
+  raidOrder             ArmyOrder    @relation(fields: [raidOrderId], references: [id], onDelete: Cascade)
+  raiderFortress        Fortress     @relation("CovertIncidentRaider", fields: [raiderFortressId], references: [id], onDelete: Cascade)
+  detectingFortress     Fortress     @relation("CovertIncidentDetector", fields: [detectingFortressId], references: [id], onDelete: Cascade)
+
+  @@unique([convoyLegId, detectingFortressId])
+  @@index([cycleId, detectedAt])
+  @@index([detectingFortressId, detectedAt])
+  @@index([raiderFortressId, detectedAt])
 }
 
 model CastleUpgradeProject {

@@ -81,6 +81,8 @@ import {
   buyPointsWithGold,
   setTilePressurePriority,
   stationGuardOrder,
+  createEscortOrder,
+  createRaidOrder,
   startTerritoryCampaign,
   recallArmyOrder,
   createTradeOffer,
@@ -736,6 +738,58 @@ export async function stationGuardOrderAction(tileId: string, armyAmount = 1) {
   try {
     await stationGuardOrder({ userId, tileId, armyAmount });
     notifyAndRevalidate("army-order-guard", ["/", "/castle"]);
+    return { ok: true } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
+export async function createEscortOrderAction(
+  convoyLegId: string,
+  armyAmount = 1
+) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await createEscortOrder({ userId, convoyLegId, armyAmount });
+    notifyAndRevalidate("army-order-escort", ["/politics", "/", "/castle"]);
+    return { ok: true } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
+export async function createRaidOrderAction(
+  targetFortressId: string,
+  armyAmount = 1
+) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await createRaidOrder({ userId, targetFortressId, armyAmount });
+    notifyAndRevalidate("army-order-raid", ["/politics", "/", "/castle"]);
     return { ok: true } satisfies InlineActionResult;
   } catch (error) {
     return {

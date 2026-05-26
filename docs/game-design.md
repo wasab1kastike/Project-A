@@ -93,9 +93,13 @@
 - Delivered convoy points use base value only: `gold + food + (2 * army)`, awarding `floor(value / 1000)` points split between both parties with odd points going to the sender.
 - Trust I, II, and III add `10%`, `15%`, and `25%` delivered gold and food on allied convoys; bonus cargo and army do not increase score.
 - If a convoy pair becomes enemy or enters war before arrival, resource cargo is seized by its intended receiver without score or alliance bonus.
-- Tile deeds, escorts, and raid interception are later logistics slices.
+- Scored convoy legs, with base cargo value of at least `1,000`, can be escorted by their sender and intercepted once by a standing raid order watching either contracting fortress.
+- An interception uses committed raid army against assigned escort army; survivors from an escort return after the encounter while surviving raid army remains deployed for later eligible convoys.
+- A successful interception awards the raider half of the convoy cargo, destroys the rest, and replaces normal delivery points and alliance bonuses with points from stolen base cargo.
+- Guard orders supply covert detection power. A detected raid exposes the raider, changes the pair to enemy, and grants the detecting fortress 24 hours of casus belli.
+- Tile deeds and tile disruption remain later logistics slices.
 - Betraying an ally starts war immediately. The harmed fortress receives its own escrow back plus the betrayer's escrow.
-- A detected covert raid records the attacker as an enemy and grants the victim 24 hours to invoke casus belli for immediate war once raid orders are enabled.
+- A detected covert raid records the attacker as an enemy and grants the victim 24 hours to invoke casus belli for immediate war.
 - Pressure pacing, the Politics & Trade page, and alliance actions are gated to `SEASON_4` cycles; legacy history remains unaffected.
 
 ## Season 4 campaigns and guards

@@ -131,6 +131,7 @@ import {
   normalizeTradeCargo,
   type TradeCargo,
 } from "./trading";
+import { getRaidTargetBlockedReason, isConvoyRaidEligible } from "./convoy-conflict";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -2901,6 +2902,183 @@ export async function stationGuardOrder({
         type: ArmyOrderType.GUARD,
         status: ArmyOrderStatus.ACTIVE,
         targetTileId: tileId,
+        committedArmy: armyAmount,
+        startsAt: now,
+      },
+    });
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+export async function createEscortOrder({
+  userId,
+  convoyLegId,
+  armyAmount,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  convoyLegId: string;
+  armyAmount: number;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("The current cycle is not accepting escort orders.");
+    }
+
+    assertSeasonFourFeatureCycle(cycle);
+
+    if (!Number.isInteger(armyAmount) || armyAmount <= 0) {
+      throw new GameError("Commit at least 1 army to an escort order.");
+    }
+
+    const fortress = await getActivePlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      userId,
+    });
+
+    if (fortress.army < armyAmount) {
+      throw new GameError("You do not have enough idle army for that escort.");
+    }
+
+    const leg = await tx.convoyLeg.findFirst({
+      where: {
+        id: convoyLegId,
+        cycleId: cycle.id,
+        fromFortressId: fortress.id,
+        status: ConvoyLegStatus.IN_TRANSIT,
+        encounterResolvedAt: null,
+      },
+      include: { escortOrder: true },
+    });
+
+    if (!leg) {
+      throw new GameError("Only an active outbound convoy can receive an escort.");
+    }
+
+    if (!isConvoyRaidEligible(leg)) {
+      throw new GameError("Only scored, unchallenged convoys can receive an escort.");
+    }
+
+    if (
+      leg.escortOrder &&
+      leg.escortOrder.status === ArmyOrderStatus.ACTIVE
+    ) {
+      throw new GameError("That convoy already has an active escort.");
+    }
+
+    await tx.fortress.update({
+      where: { id: fortress.id },
+      data: { army: { decrement: armyAmount } },
+    });
+
+    return tx.armyOrder.create({
+      data: {
+        cycleId: cycle.id,
+        fortressId: fortress.id,
+        type: ArmyOrderType.ESCORT,
+        status: ArmyOrderStatus.ACTIVE,
+        convoyLegId: leg.id,
+        targetFortressId: leg.toFortressId,
+        committedArmy: armyAmount,
+        startsAt: now,
+      },
+    });
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+export async function createRaidOrder({
+  userId,
+  targetFortressId,
+  armyAmount,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  targetFortressId: string;
+  armyAmount: number;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("The current cycle is not accepting raid orders.");
+    }
+
+    assertSeasonFourFeatureCycle(cycle);
+
+    if (!Number.isInteger(armyAmount) || armyAmount <= 0) {
+      throw new GameError("Commit at least 1 army to a raid order.");
+    }
+
+    const raider = await getActivePlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      userId,
+    });
+    const target = await getTargetPlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      targetFortressId,
+    });
+
+    if (raider.id === target.id) {
+      throw new GameError("A fortress cannot raid its own routes.");
+    }
+
+    if (raider.army < armyAmount) {
+      throw new GameError("You do not have enough idle army for that raid.");
+    }
+
+    const relation = await tx.diplomacyRelation.findUnique({
+      where: {
+        cycleId_fortressAId_fortressBId: {
+          cycleId: cycle.id,
+          ...getCanonicalDiplomacyPair(raider.id, target.id),
+        },
+      },
+    });
+    const blockedReason = getRaidTargetBlockedReason(
+      getEffectiveDiplomacyStatus({ relation, now })
+    );
+
+    if (blockedReason) {
+      throw new GameError(blockedReason);
+    }
+
+    const existing = await tx.armyOrder.findFirst({
+      where: {
+        cycleId: cycle.id,
+        fortressId: raider.id,
+        targetFortressId: target.id,
+        type: ArmyOrderType.RAID,
+        status: ArmyOrderStatus.ACTIVE,
+      },
+      select: { id: true },
+    });
+
+    if (existing) {
+      throw new GameError("You already have an active raid watching those routes.");
+    }
+
+    await tx.fortress.update({
+      where: { id: raider.id },
+      data: { army: { decrement: armyAmount } },
+    });
+
+    return tx.armyOrder.create({
+      data: {
+        cycleId: cycle.id,
+        fortressId: raider.id,
+        type: ArmyOrderType.RAID,
+        status: ArmyOrderStatus.ACTIVE,
+        targetFortressId: target.id,
         committedArmy: armyAmount,
         startsAt: now,
       },
