@@ -5,7 +5,6 @@ import { useRefreshView } from "@/lib/refresh-helpers";
 import { CastleUpgradeSpecialization } from "@/lib/prisma-client";
 import {
   formatDeepMiningImpact,
-  formatSignedValue,
   formatUnicornShatteredRealityImpact,
   getDeepMiningStatus,
 } from "@/lib/game/race-history-labels";

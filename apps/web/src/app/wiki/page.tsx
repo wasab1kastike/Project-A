@@ -11,14 +11,10 @@ import {
   FORTRESS_ATTACK_DAMAGE_PER_LEVEL,
   FORTRESS_GROWTH_PER_LEVEL,
   FORTRESS_LEVEL_UP_COSTS,
-  HOME_OF_A_BOSS_BUFF_HOURS,
-  HOME_OF_A_BOSS_RESPAWN_HOURS,
   HOME_OF_A_TILE_ID,
   MAX_SIMULTANEOUS_ATTACKS_BASE,
   MEGA_FORTRESS_NAME,
   getArcadeSeasonRankBonus,
-  getHomeOfABossHealth,
-  getHomeOfABossReward,
 } from "@/lib/game/constants";
 import {
   CARRY_CAPACITY_PER_SURVIVOR,
@@ -36,13 +32,6 @@ import {
   RECRUITMENT_RATE_PER_RECRUITER,
   STARVATION_ATTRITION_RATE,
 } from "@/lib/game/army-recruitment";
-import {
-  LOOT_CAMP_LIFETIME_MINUTES,
-  LOOT_CAMP_MAX_SPAWNS_PER_HOUR,
-  LOOT_CAMP_MAX_STRENGTH,
-  LOOT_CAMP_MIN_SPAWNS_PER_HOUR,
-  LOOT_CAMP_MIN_STRENGTH,
-} from "@/lib/game/loot-camps";
 import { RACE_DEFINITIONS } from "@/lib/game/races";
 import {
   TEMPORARY_MAP_OBJECTIVE_INTERVAL_HOURS,
@@ -213,12 +202,6 @@ const MAP_LEGEND = [
     tone: "home",
     description: "Inaccessible Season 4 center landmark.",
   },
-] as const;
-
-const LOOT_CAMP_VARIANTS = [
-  "Classic Loot Camp: pays mostly food, some gold, and only a token point reward.",
-  "Rich Loot Camp: pays mostly gold with some food and very few points.",
-  "Chaos Loot Camp: pays army, supplies, and resets the destroyer's current race ability cooldown.",
 ] as const;
 
 const RECRUITMENT_RULES = [
