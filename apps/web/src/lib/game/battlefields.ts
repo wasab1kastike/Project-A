@@ -1207,6 +1207,11 @@ export async function processActiveBattlefields({
       battlefield.targetTileId !== null &&
       isHomeOfATile(battlefield.targetTileId) &&
       battlefield.targetFortress?.fortressKind === FortressKind.MEGA;
+
+    if (isSeasonFour && isHomeBossBattle) {
+      continue;
+    }
+
     const isRegularTileBattle =
       battlefield.targetTileId !== null &&
       !isHomeOfATile(battlefield.targetTileId);

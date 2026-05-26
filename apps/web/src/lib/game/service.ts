@@ -4167,6 +4167,20 @@ async function recallBattlefieldArmyWithCycle({
     throw new GameError("That battlefield army is not available to recall.");
   }
 
+  const campaign = await tx.territoryCampaign.findUnique({
+    where: {
+      battlefieldId: battlefield.id,
+      status: TerritoryCampaignStatus.ENGAGED,
+    },
+    select: { id: true },
+  });
+
+  if (campaign) {
+    throw new GameError(
+      "Campaign armies cannot be recalled once the siege begins."
+    );
+  }
+
   const recalledArmy = normalizeRecallAmount(
     armyAmount,
     participant.armyRemaining
@@ -4586,6 +4600,8 @@ export async function torchOccupiedMapHex({
       ) {
         throw new GameError("The battlefield is not accepting active actions.");
       }
+
+      assertLegacyAbilityCycle(cycle);
 
       const garrison = await tx.fortressGarrison.findUnique({
         where: {
