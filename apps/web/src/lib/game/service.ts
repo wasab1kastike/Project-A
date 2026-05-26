@@ -4683,6 +4683,8 @@ export async function recallAllUnits({
         throw new GameError("The battlefield is not accepting active actions.");
       }
 
+      assertLegacyAbilityCycle(cycle);
+
       let recalledAttackUnits = 0;
       let recalledBattlefieldArmy = 0;
       let recalledGarrisonArmy = 0;
