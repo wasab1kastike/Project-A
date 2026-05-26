@@ -85,7 +85,7 @@
   margin-top: 6px;
   font-size: clamp(1.9rem, 7vw, 3.4rem);
   line-height: 0.95;
-  letter-spacing: -0.05em;
+  letter-spacing: 0;
 }
 
 .card p {

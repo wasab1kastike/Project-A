@@ -15,16 +15,13 @@ import { PreviousSeasonWinnerCard } from "@/components/previous-season-winner-ca
 import { RealtimeBridge } from "@/components/realtime-bridge";
 import { SeasonUpdateAnnouncement } from "@/components/season-update-announcement";
 import { SeasonTimer } from "@/components/season-timer";
-import { WappuDelayAnnouncement } from "@/components/wappu-delay-announcement";
 import {
   LiveGameStateProvider,
   useLiveGameState,
 } from "@/components/live-game-state";
 import {
   joinFortressFormAction,
-  saveCommunityWishVotesFormAction,
   registerCommanderNameFormAction,
-  submitCommunityWishProposalFormAction,
 } from "@/app/game-actions";
 import { getContextualActionHint } from "@/lib/game/action-hints";
 import type { HomePageState } from "@/lib/game/read-model";
@@ -40,8 +37,6 @@ const dateTimeFormatter = new Intl.DateTimeFormat("en-US", {
   dateStyle: "medium",
   timeStyle: "short",
 });
-const COMMUNITY_WISH_MAX_LENGTH = 50;
-
 const RACE_TOKEN_PATHS: Record<FortressRace, string> = {
   DWARFS: "/assets/token-dwarf.png",
   ORKS: "/assets/token-orks.png",
@@ -60,39 +55,38 @@ const JOIN_RACE_COPY: Record<
   DWARFS: {
     lore: "They arrived with ledgers, helmets, and seven generations of receipts. Nobody remembers the original insult, but the paperwork is immaculate.",
     pros: [
+      "Beer Culture pressure lane",
       "Extra gold from miners",
-      "Stronger defense on owned tiles",
-      "Grudge targets hit harder later",
+      "Strong guarded-border identity",
     ],
-    cons: ["Slow army travel", "Deep Mining pays off after a delay"],
+    cons: ["Slow army travel", "No active rune ability in Season 4"],
   },
   UNSTABLE_UNICORNS: {
     lore: "Every strategy meeting starts with glitter and ends with someone insisting the teleport was definitely intentional.",
     pros: [
+      "Glitter Distribution pressure lane",
       "Extra food from farmers",
       "More starting population",
-      "Teleport tricks and hidden army sizes",
     ],
-    cons: ["Lower direct combat bonuses", "Chaos requires attention"],
+    cons: ["Lower direct combat bonuses", "No teleport ability in Season 4"],
   },
   SPACE_MURINES: {
     lore: "Tiny professionals in oversized doctrine manuals. If a plan fails, they call it reconnaissance and file it under victory-adjacent.",
     pros: [
+      "Imperial Faith pressure lane",
       "Extra army from recruiters",
-      "More attack slots at high levels",
-      "STIM and instant recall tools",
+      "Disciplined campaign foundation",
     ],
-    cons: ["Needs timing discipline", "Less loot-focused than ORKS"],
+    cons: ["Needs timing discipline", "No STIM ability in Season 4"],
   },
   ORKS: {
     lore: "Their logistics doctrine is yelling, their accounting system is teeth, and their recycling program is called Scrap.",
     pros: [
-      "Scrap economy from fighting",
-      "Boss Orders and WAAAGH investments",
-      "Best loot carrying capacity",
+      "Scavenge Mob pressure lane",
       "Extra army from recruiters",
+      "Aggressive campaign identity",
     ],
-    cons: ["Needs frequent fighting", "Scrap does nothing if you turtle"],
+    cons: ["Needs conflict to shine", "No WAAAGH ability in Season 4"],
   },
 };
 
@@ -110,191 +104,6 @@ function formatLastUpdate(lastProcessedTickAt: Date | null) {
   }
 
   return dateTimeFormatter.format(lastProcessedTickAt);
-}
-
-function PromiseProgress({
-  label,
-  progress,
-}: {
-  label: string;
-  progress: number;
-}) {
-  const normalizedProgress = normalizeProgress(progress);
-  const progressState =
-    normalizedProgress >= 100
-      ? "complete"
-      : normalizedProgress <= 0
-        ? "empty"
-        : "active";
-
-  return (
-    <div
-      className={styles.promiseProgressWrap}
-      data-progress-state={progressState}
-    >
-      <div
-        className={styles.promiseProgress}
-        role="progressbar"
-        aria-label={`${label} ${normalizedProgress}% fulfilled`}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={normalizedProgress}
-      >
-        <span style={{ width: `${normalizedProgress}%` }} />
-      </div>
-      <strong>{normalizedProgress}%</strong>
-    </div>
-  );
-}
-
-function normalizeProgress(progress: number) {
-  if (!Number.isFinite(progress)) {
-    return 0;
-  }
-
-  return Math.min(100, Math.max(0, Math.round(progress)));
-}
-
-function CommunityWishPanel({
-  state,
-  className,
-}: {
-  state: HomePageState;
-  className?: string;
-}) {
-  const currentUserCommunityWish =
-    state.communityWish.currentUserCommunityWish ?? "";
-
-  return (
-    <section
-      className={className}
-      aria-label="Community wish pool"
-    >
-      <span className={styles.sectionLabel}>Community wish</span>
-      <h2>Season proposals</h2>
-      <p>{state.communityWish.submissionHint}</p>
-      {state.communityWish.canSubmit ? (
-        <form
-          action={submitCommunityWishProposalFormAction}
-          className={styles.form}
-        >
-          <input
-            type="hidden"
-            name="cycleId"
-            value={state.communityWish.cycleId}
-          />
-          <label className={styles.field}>
-            <div className={styles.fieldHeader}>
-              Proposal
-              <details className={styles.helpDisclosure}>
-                <summary
-                  aria-label="Community wish instructions"
-                  className={styles.helpButton}
-                >
-                  ?
-                </summary>
-                <div className={styles.helpPopover}>
-                  <strong>Wish limits</strong>
-                  <ul>
-                    <li>
-                      Winner wish is guaranteed. Community wish is vote-based.
-                    </li>
-                    <li>Wishes and voting close Monday 25 May at 12:00.</li>
-                    <li>Pretesting remains open until Season 4 verification is complete.</li>
-                    <li>Write in English.</li>
-                    <li>
-                      Keep it short: max {COMMUNITY_WISH_MAX_LENGTH} characters.
-                    </li>
-                    <li>Ask for one feature idea, not a full spec.</li>
-                    <li>
-                      No self-buffs, targeted nerfs, more wishes, or deploy
-                      requests.
-                    </li>
-                  </ul>
-                </div>
-              </details>
-            </div>
-            <textarea
-              name="requestText"
-              rows={3}
-              maxLength={COMMUNITY_WISH_MAX_LENGTH}
-              placeholder="Add more troop types"
-              defaultValue={currentUserCommunityWish}
-              required
-            />
-          </label>
-          <button className={styles.primaryButton} type="submit">
-            {currentUserCommunityWish ? "Update wish" : "Submit wish"}
-          </button>
-        </form>
-      ) : null}
-      {state.communityWish.canVote ? (
-        <form
-          action={saveCommunityWishVotesFormAction}
-          className={styles.voteForm}
-        >
-          <input
-            type="hidden"
-            name="cycleId"
-            value={state.communityWish.cycleId}
-          />
-          <span className={styles.voteSectionLabel}>Community vote</span>
-          <p className={styles.voteHint}>
-            You have {state.communityWish.voteBudget} votes.{" "}
-            {state.communityWish.usedVotes} currently allocated. You can change
-            them until voting ends Monday 25 May at 12:00.
-          </p>
-          <div className={styles.voteList}>
-            {state.communityWish.proposals.map((proposal) => (
-              <label className={styles.voteRow} key={proposal.id}>
-                <span>
-                  <strong>{proposal.authorLabel}</strong>
-                  <small>
-                    {proposal.voteCount} votes - {proposal.status}
-                  </small>
-                  <em>{proposal.requestText}</em>
-                </span>
-                <input
-                  name={`proposalVotes:${proposal.id}`}
-                  type="number"
-                  min={0}
-                  max={
-                    proposal.isVoteEligible
-                      ? state.communityWish.voteBudget
-                      : 0
-                  }
-                  defaultValue={proposal.currentUserVotes}
-                  disabled={
-                    !state.communityWish.canVote || !proposal.isVoteEligible
-                  }
-                />
-              </label>
-            ))}
-          </div>
-          <button className={styles.primaryButton} type="submit">
-            Save community votes
-          </button>
-        </form>
-      ) : null}
-      {state.communityWish.proposals.length > 0 ? (
-        <ol className={styles.wishList}>
-          {state.communityWish.proposals.slice(0, 4).map((proposal) => (
-            <li key={proposal.id}>
-              <strong>
-                {proposal.isCurrentUser ? "Your wish" : "Community wish"}
-              </strong>
-              <span>
-                {proposal.voteCount} votes - {proposal.status}
-              </span>
-              <p>{proposal.requestText}</p>
-            </li>
-          ))}
-        </ol>
-      ) : (
-        <p>No community wishes have been suggested yet.</p>
-      )}
-    </section>
-  );
 }
 
 export function HomeClient({
@@ -394,30 +203,15 @@ function HomeClientContent({
             state.cycle?.lastProcessedTickAt ?? null
           )} (live)`
     : null;
-  const showCommunityWishFocus = Boolean(
-    state.latestSeason &&
-      state.communityWish.isOpen &&
-      state.phase?.status === "REGISTRATION"
-  );
-  const showJoinReservationForm = Boolean(showCommunityWishFocus);
   const showLoginCard = !session?.user;
   const showJoinCard = Boolean(session?.user && state.canJoinCycle);
   const showCommanderNameCard = Boolean(
     session?.user && state.playerSummary?.canRegisterCommanderName
   );
-  const showArcadeCard =
-    state.phase?.status === "REGISTRATION" && !showCommunityWishFocus;
+  const showArcadeCard = state.phase?.status === "REGISTRATION";
   const isWaitingForSeason =
     !state.phase || state.phase.status === "RESOLUTION" || !state.cycle;
-  const showWinnerWishPrompt = Boolean(
-    session?.user?.id &&
-    state.latestSeason &&
-    state.latestSeason.winnerId === session.user.id &&
-    state.latestSeason.winnerRequestId === null
-  );
-  const showSeasonBanner = Boolean(
-    state.latestSeason && (isWaitingForSeason || showWinnerWishPrompt)
-  );
+  const showSeasonBanner = Boolean(state.latestSeason && isWaitingForSeason);
   const showSidePanel = Boolean(
     blockingMessage ||
     showLoginCard ||
@@ -425,8 +219,7 @@ function HomeClientContent({
     showCommanderNameCard ||
     isWaitingForSeason ||
     showArcadeCard ||
-    showSeasonBanner ||
-    showCommunityWishFocus
+    showSeasonBanner
   );
   const canDismissPhaseCard = Boolean(
     showSidePanel &&
@@ -435,9 +228,7 @@ function HomeClientContent({
     !showJoinCard &&
     !showCommanderNameCard &&
     !showArcadeCard &&
-    !showWinnerWishPrompt &&
-    !showSeasonBanner &&
-    !showCommunityWishFocus
+    !showSeasonBanner
   );
   const phaseCardStorageKey = `project-a:phase-card:${
     state.cycle?.id ?? "no-cycle"
@@ -516,9 +307,7 @@ function HomeClientContent({
               ? "Join the running season."
               : state.phase?.status === "TESTING"
                 ? "Join testing."
-                : showJoinReservationForm
-                  ? "Reserve next season."
-                  : "Claim your fortress."
+                : "Claim your fortress."
           : phaseCopy.title;
 
   const centerDescription = blockingMessage
@@ -532,9 +321,7 @@ function HomeClientContent({
             ? "This season is already running. Join now to enter immediately if slots are still available."
             : state.phase?.status === "TESTING"
               ? "Testing mode is live. Join now to test the sandbox; only your roster identity carries into the real season."
-              : showJoinReservationForm
-                ? "Name your commander and fortress now. Race choice opens after community wish voting closes."
-              : "Build phase is open. Name your fortress now and it will appear on the map."
+              : "Build phase is open. Choose your race, name your fortress, and reserve your Season 4 slot."
           : (state.cycle?.statusMessage ?? state.emptyStateMessage);
 
   return (
@@ -545,7 +332,6 @@ function HomeClientContent({
         }
       />
       <GodEmperorGiftNotice fortressName={state.playerSummary?.name} />
-      <WappuDelayAnnouncement userId={session?.user?.id ?? null} />
       <CompensationLootBoxAnnouncement userId={session?.user?.id ?? null} />
 
       <div className={styles.mapLayer}>
@@ -617,29 +403,27 @@ function HomeClientContent({
               <dd>{remainingText}</dd>
             </div>
           </dl>
-          {!showCommunityWishFocus ? (
-            <div className={styles.raceCounter} aria-label="Players by race">
-              {raceCounts.map((race) => (
+          <div className={styles.raceCounter} aria-label="Players by race">
+            {raceCounts.map((race) => (
+              <span
+                className={styles.raceCount}
+                title={`${race.label}: ${race.count}`}
+                key={race.key}
+              >
                 <span
-                  className={styles.raceCount}
-                  title={`${race.label}: ${race.count}`}
-                  key={race.key}
-                >
-                  <span
-                    className={styles.raceCountToken}
-                    style={{
-                      backgroundImage: `url("${RACE_TOKEN_PATHS[race.key]}")`,
-                    }}
-                    aria-hidden="true"
-                  />
-                  <span className={styles.raceCountValue}>
-                    <span className={styles.raceCountLabel}>{race.label}</span>
-                    {race.count}
-                  </span>
+                  className={styles.raceCountToken}
+                  style={{
+                    backgroundImage: `url("${RACE_TOKEN_PATHS[race.key]}")`,
+                  }}
+                  aria-hidden="true"
+                />
+                <span className={styles.raceCountValue}>
+                  <span className={styles.raceCountLabel}>{race.label}</span>
+                  {race.count}
                 </span>
-              ))}
-            </div>
-          ) : null}
+              </span>
+            ))}
+          </div>
         </div>
 
         <nav className={styles.topLinks} aria-label="Account and pages">
@@ -669,17 +453,6 @@ function HomeClientContent({
           <Link className={styles.hudButton} href={WIKI_PAGE_HREF}>
             Wiki
           </Link>
-          {state.cycle &&
-          (state.phase?.status === "ACTIVE" ||
-            state.phase?.status === "REGISTRATION") ? (
-            <details className={styles.wishPanel}>
-              <summary className={styles.wishPanelToggle}>Wish</summary>
-              <CommunityWishPanel
-                state={state}
-                className={styles.wishPanelContent}
-              />
-            </details>
-          ) : null}
           {PRIMARY_GAME_NAV_LINKS.filter(
             (link) => link.href === PATCH_NOTES_PAGE_HREF
           ).map((link) => (
@@ -719,12 +492,6 @@ function HomeClientContent({
           isDismissible={canDismissPhaseCard}
           storageKey={phaseCardStorageKey}
         >
-          {showCommunityWishFocus ? (
-            <CommunityWishPanel
-              state={state}
-              className={styles.wishFocusPanel}
-            />
-          ) : null}
           {state.latestSeason ? (
             <PreviousSeasonWinnerCard
               className={styles.seasonSummary}
@@ -747,85 +514,7 @@ function HomeClientContent({
                   {state.latestSeason.firstSlayerFortressName}
                 </p>
               ) : null}
-              <div className={styles.currentWishes}>
-                <span className={styles.sectionLabel}>Current wishes</span>
-                <div className={styles.promiseList}>
-                  {state.latestSeason.wishes.winner ? (
-                    <article className={styles.promiseCard}>
-                      <div className={styles.promiseHeader}>
-                        <strong>Winner wish</strong>
-                        <span>{state.latestSeason.wishes.winner.status}</span>
-                      </div>
-                      <p>{state.latestSeason.wishes.winner.text}</p>
-                      <small>
-                        {state.latestSeason.wishes.winner.ownerLabel}
-                      </small>
-                      <PromiseProgress
-                        label="Winner wish"
-                        progress={
-                          state.latestSeason.wishes.winner.fulfillmentProgress
-                        }
-                      />
-                    </article>
-                  ) : (
-                    <article
-                      className={`${styles.promiseCard} ${styles.promisePlaceholder}`}
-                    >
-                      <div className={styles.promiseHeader}>
-                        <strong>Winner wish</strong>
-                        <span>Waiting</span>
-                      </div>
-                      <p>No winner request has been submitted yet.</p>
-                    </article>
-                  )}
-                  {state.latestSeason.wishes.community ? (
-                    <article className={styles.promiseCard}>
-                      <div className={styles.promiseHeader}>
-                        <strong>Community voted wish</strong>
-                        <span>
-                          {state.latestSeason.wishes.community.status}
-                        </span>
-                      </div>
-                      <p>{state.latestSeason.wishes.community.text}</p>
-                      <small>
-                        {state.latestSeason.wishes.community.ownerLabel} -{" "}
-                        {state.latestSeason.wishes.community.voteCount} votes
-                      </small>
-                      <PromiseProgress
-                        label="Community voted wish"
-                        progress={
-                          state.latestSeason.wishes.community
-                            .fulfillmentProgress
-                        }
-                      />
-                    </article>
-                  ) : (
-                    <article
-                      className={`${styles.promiseCard} ${styles.promisePlaceholder}`}
-                    >
-                      <div className={styles.promiseHeader}>
-                        <strong>Community voted wish</strong>
-                        <span>Waiting</span>
-                      </div>
-                      <p>No community wish has been resolved yet.</p>
-                    </article>
-                  )}
-                </div>
-              </div>
             </PreviousSeasonWinnerCard>
-          ) : null}
-          {showWinnerWishPrompt ? (
-            <section className={styles.winnerWishPrompt}>
-              <span className={styles.sectionLabel}>Winner wish</span>
-              <h2>Your guaranteed wish is ready.</h2>
-              <p>
-                You won the last season. Open history to submit the wish that
-                will be carried forward for review.
-              </p>
-              <Link className={styles.secondaryButton} href="/history">
-                Open winner wish form
-              </Link>
-            </section>
           ) : null}
           <span className={styles.sectionLabel}>
             {blockingMessage
@@ -847,43 +536,7 @@ function HomeClientContent({
             />
           ) : null}
 
-          {showJoinCard && showJoinReservationForm && !blockingMessage ? (
-            <section className={styles.joinReservePanel}>
-              <span className={styles.sectionLabel}>Next season</span>
-              <h2>Reserve your fortress.</h2>
-              <p>
-                Race choice stays locked away until voting closes. For now,
-                claim your seat and keep the wish ballot moving.
-              </p>
-              <form action={joinFortressFormAction} className={styles.form}>
-                <label className={styles.field}>
-                  <span>In-game nick</span>
-                  <input
-                    name="commanderName"
-                    type="text"
-                    maxLength={32}
-                    placeholder="Name your commander"
-                    required
-                  />
-                </label>
-                <label className={styles.field}>
-                  <span>Fortress name</span>
-                  <input
-                    name="fortressName"
-                    type="text"
-                    maxLength={32}
-                    placeholder="Name your fortress"
-                    required
-                  />
-                </label>
-                <button className={styles.primaryButton} type="submit">
-                  Reserve fortress
-                </button>
-              </form>
-            </section>
-          ) : null}
-
-          {showJoinCard && !showJoinReservationForm && !blockingMessage ? (
+          {showJoinCard && !blockingMessage ? (
             <div className={styles.joinModal} role="dialog" aria-modal="true">
               <form action={joinFortressFormAction} className={styles.joinForm}>
                 <div className={styles.joinModalHeader}>

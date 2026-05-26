@@ -110,12 +110,12 @@ const SEASON_FLOW = [
   {
     phase: "Registration",
     description:
-      "Join the cycle, pick your identity, and reserve your fortress while community wish voting is open.",
+      "Join the cycle, choose your race, and reserve your Season 4 fortress during pretesting.",
   },
   {
     phase: "Pretesting",
     description:
-      "After voting closes, test pressure expansion and politics until Season 4 passes verification. Progress resets before real play.",
+      "Test pressure expansion, politics, trade convoys, and campaigns until Season 4 passes verification. Progress resets before real play.",
   },
   {
     phase: "Active season (2 weeks)",
@@ -125,7 +125,7 @@ const SEASON_FLOW = [
   {
     phase: "Resolution",
     description:
-      "Winner is locked, wishes move forward, and the next cycle is prepared.",
+      "Winner is locked, the archive is written, and the next cycle is prepared.",
   },
 ] as const;
 
@@ -484,8 +484,8 @@ export default function WikiPage() {
                   after the cycle resolves.
                 </li>
                 <li>
-                  The community can also propose and vote on a community wish
-                  after the season.
+                  The completed community wish vote is retained in history and
+                  is not an active Season 4 lobby feature.
                 </li>
                 <li>
                   Crown Accountant gets +10% points from tile income, Butcher

@@ -1,10 +1,10 @@
-export const SEASON_ECONOMY_RACES_ANNOUNCEMENT_KEY =
-  "season-economy-races-v1";
+export const SEASON_FOUR_IDLE_STRATEGY_ANNOUNCEMENT_KEY =
+  "season-4-idle-strategy-v1";
 
 const SEASON_ANNOUNCEMENT_STORAGE_PREFIX = "project-a:season-announcement";
 
 export function getSeasonAnnouncementStorageKey({
-  announcementKey = SEASON_ECONOMY_RACES_ANNOUNCEMENT_KEY,
+  announcementKey = SEASON_FOUR_IDLE_STRATEGY_ANNOUNCEMENT_KEY,
   userId,
 }: {
   announcementKey?: string;

@@ -10,47 +10,35 @@ import styles from "./season-update-announcement.module.css";
 
 const SECTIONS = [
   {
-    title: "Choose Your Race",
+    title: "Pressure Expansion",
     items: [
-      "Pick one race for the season.",
-      "Locked for the season.",
-      "Race abilities stay on the castle page.",
+      "Assign pressure workers and prioritize connected neutral border tiles.",
+      "Neutral tiles are claimed automatically at 600 pressure.",
+      "Manual gold-paid tile purchases are retired.",
     ],
   },
   {
-    title: "Four Races",
+    title: "Politics & Trade",
     items: [
-      "Dwarfs: Big beards, unbreakable stone walls and beer. ps. holds a grudge like none other.",
-      "Unstable Unicorns: magic & food & explosions and ...teleportation?",
-      "Space Murines: disciplined bunker zealots with STIM discipline, instant extraction, and extra strike slots.",
-      "ORKS: loud raiders with huge loot potential. Followers of legendary Khraal",
+      "Declare war with a 24-hour warning, negotiate peace, or build trust-backed alliances.",
+      "Neutral and allied fortresses can trade gold, food, and army.",
+      "Accepted cargo travels in slow convoy legs; allied delivery bonuses reward trust.",
     ],
   },
   {
-    title: "Economy Rework",
+    title: "Campaign Warfare",
     items: [
-      "Castles now have population.",
-      "Miners = gold.",
-      "Farmers = food.",
-      "Recruiters = army.",
-      "Points come from map objectives.",
+      "War borders use standing campaign orders instead of ordinary manual PvP launches.",
+      "Committed army and pressure build a siege over time.",
+      "A visible 12-hour warning opens before siege combat resolves.",
     ],
   },
   {
-    title: "Castle Defense",
+    title: "Retired For Season 4",
     items: [
-      "Home army defends automatically.",
-      "Castle level increases defense bonus.",
-      "Level 1 already grants +10%.",
-    ],
-  },
-  {
-    title: "Risky Raids",
-    items: [
-      "Send part or all of your army.",
-      "Defender wins ties.",
-      "Winning raids still cost troops.",
-      "Defenders survive partially to prevent snowballing.",
+      "The old Home of A center becomes an inaccessible monument.",
+      "Loot camps and old active race abilities are not live Season 4 gameplay.",
+      "Previous season records remain in history.",
     ],
   },
 ];
@@ -147,10 +135,12 @@ export function SeasonUpdateAnnouncement({
                   </button>
                 </div>
                 <div>
-                  <h2 id={titleId}>Season Update: Castle Economy Split</h2>
+                  <h2 id={titleId}>Season 4: Borders, Treaties, and Convoys</h2>
                   <p id={descriptionId}>
-                    Castles now produce gold, food, and army. Score points come
-                    from map control and Home of A.
+                    Season 4 is a slower strategy game built around pressure
+                    expansion, diplomacy, trade logistics, and territorial
+                    campaigns. Registration and pretesting are open while the
+                    final rules are verified.
                   </p>
                 </div>
                 <div className={styles.sectionGrid}>
@@ -166,7 +156,7 @@ export function SeasonUpdateAnnouncement({
                   ))}
                 </div>
                 <p className={styles.footer}>
-                  Assign workers. Feed the army. Do not trust the unicorns.
+                  Choose a race, claim a fortress, and prepare for Season 4.
                 </p>
                 <div className={styles.actions}>
                   <button
@@ -174,7 +164,7 @@ export function SeasonUpdateAnnouncement({
                     onClick={dismissAnnouncement}
                     type="button"
                   >
-                    Enter the season
+                    Enter pretesting
                   </button>
                 </div>
               </section>

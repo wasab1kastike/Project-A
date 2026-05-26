@@ -21,11 +21,14 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
       "Politics & Trade now handles bilateral gold, food, and army offers. Accepted cargo travels in independent convoy legs with a six-hour minimum journey.",
       "Delivered convoy cargo can award points from its base value, while allied trust tiers add bonus delivered gold and food without inflating score.",
       "Convoys caught between new enemies or wartime fortresses are seized on the next tick with no trade points or alliance bonus.",
+      "Season 4 registration now accepts new fortresses with immediate race choice during pretesting.",
+      "A new Season 4 changes notice covers pressure expansion, Politics & Trade, convoy logistics, and campaign warfare.",
     ],
     bugFixes: [
       "Season 4 stays in pretesting until its redesigned rules are explicitly approved for activation, instead of starting from an unfinished schedule.",
       "Home of A, loot camps, and legacy active race abilities are no longer interactive or bonus-granting in Season 4 pretesting; the center tile is shown as a monument.",
       "Manual PvP tile raids, ordinary battlefield reinforcements, and legacy fortification controls are replaced by standing orders in Season 4 pretesting.",
+      "The completed community wish ballot and old testing-delay notice have been removed from the live lobby; Season 4 results do not open a new ballot.",
     ],
   },
   {

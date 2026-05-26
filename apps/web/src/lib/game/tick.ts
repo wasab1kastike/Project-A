@@ -1717,12 +1717,16 @@ function formatSeasonWinnerAnnouncement({
 }: {
   winner: TieBreakCandidate;
   tiedCandidates: TieBreakCandidate[];
-  communityWishVotingEndsAt: Date;
+  communityWishVotingEndsAt: Date | null;
 }) {
   const tieNote =
     tiedCandidates.length > 1
       ? " Tie-break went to the earliest fortress to reach the final score."
       : "";
+  if (!communityWishVotingEndsAt) {
+    return `Season ended. ${winner.commanderName} of ${winner.fortressName} wins with ${winner.finalScore} points.${tieNote} Registration for the next season is opening.`;
+  }
+
   const votingDeadline = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/Helsinki",
     month: "short",
@@ -1926,11 +1930,13 @@ async function resolveExpiredActiveCycle(
       },
     });
 
-    const communityWishProposalEndsAt =
-      getCommunityWishProposalEndsAt(resolutionEndedAt);
-    const communityWishVotingEndsAt = getCommunityWishVotingEndsAt(
-      communityWishProposalEndsAt
-    );
+    const keepsCommunityWishVoting = !isSeasonFourRuleset(cycle.ruleset);
+    const communityWishProposalEndsAt = keepsCommunityWishVoting
+      ? getCommunityWishProposalEndsAt(resolutionEndedAt)
+      : null;
+    const communityWishVotingEndsAt = communityWishProposalEndsAt
+      ? getCommunityWishVotingEndsAt(communityWishProposalEndsAt)
+      : null;
 
     await tx.cycleHistory.create({
       data: {
@@ -1947,7 +1953,7 @@ async function resolveExpiredActiveCycle(
           : null,
         communityWishProposalEndsAt,
         communityWishVotingEndsAt,
-        communityWishStatus: "OPEN",
+        communityWishStatus: keepsCommunityWishVoting ? "OPEN" : "NO_PROPOSALS",
       },
     });
 
@@ -1966,11 +1972,13 @@ async function resolveExpiredActiveCycle(
       },
     });
 
-    await createCommunityWishVoteEntitlements({
-      cycleId: cycle.id,
-      rankedFortresses,
-      db: tx,
-    });
+    if (keepsCommunityWishVoting) {
+      await createCommunityWishVoteEntitlements({
+        cycleId: cycle.id,
+        rankedFortresses,
+        db: tx,
+      });
+    }
 
     await mintSeasonArcadeCoins({
       cycleId: cycle.id,

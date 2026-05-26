@@ -17342,7 +17342,16 @@ test("expired active cycle resolves a winner, writes history, and opens the next
   assert.equal(history.winningScore, 7);
   assert.equal(history.firstSlayerCommanderName, null);
   assert.equal(history.firstSlayerFortressName, null);
+  assert.equal(history.communityWishStatus, CommunityWishStatus.NO_PROPOSALS);
+  assert.equal(history.communityWishProposalEndsAt, null);
+  assert.equal(history.communityWishVotingEndsAt, null);
   assert.match(history.tieBreakSummary ?? "", /Alpha/);
+  assert.equal(
+    await prisma.communityWishVoteEntitlement.count({
+      where: { cycleId: cycle.id },
+    }),
+    0
+  );
   assert.notEqual(nextCycle.id, cycle.id);
   assert.equal(nextCycle.status, "REGISTRATION");
   assert.equal(
@@ -18948,6 +18957,37 @@ test("community wish proposals open to active players during the season", async 
         now: new Date("2026-04-23T12:00:00.000Z"),
       }),
     /closed/
+  );
+});
+
+test("Season 4 does not accept new community wish proposals", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const player = await createUser(prisma, "season-four-wish@example.com");
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: player.id,
+      commanderName: "Season Four",
+      fortressName: "Closed Ballot",
+      points: 0,
+    },
+  ]);
+
+  await markSeasonFourCycle(prisma, cycle.id);
+
+  await assert.rejects(
+    () =>
+      submitCommunityWishProposal({
+        db: prisma,
+        cycleId: cycle.id,
+        userId: player.id,
+        requestText: "Bring back ballot boxes.",
+      }),
+    /not part of Season 4 gameplay/
   );
 });
 

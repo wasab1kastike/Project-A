@@ -212,8 +212,9 @@ On Render, set `OPENCLAW_GOD_SHARED_SECRET` for `project-a-web`, deploy, then sm
 ## Product loop
 
 - Players sign in with Google
-- Season 4 registration opens during community wish voting, with voting closing on 25 May at 12:00 Europe/Helsinki
-- After voting closes, `TESTING`/pretesting runs until Season 4 is explicitly released; the previously scheduled 1 June at 12:00 Europe/Helsinki activation is held until redesign verification passes
+- Season 4 registration and `TESTING`/pretesting accept new fortresses and race selection while the redesign is verified
+- The completed community wish vote is archived; it no longer blocks joining or appears in the live lobby
+- Season 4 activation remains held until redesign verification passes
 - Each cycle stores an explicit ruleset: prior resolved cycles remain `LEGACY`, while the unresolved Season 4 pretesting cycle uses `SEASON_4`
 - Joining is open during `REGISTRATION` and `TESTING`, and remains open in `ACTIVE` while player slots remain before the active deadline
 - Active play runs for `ACTIVE (2 weeks)`
