@@ -59,8 +59,8 @@ const DOCK_LINKS = [
 export default function CommandDock({ state, tickHealth }: CommandDockProps) {
   const pathname = usePathname();
   const tickBadge = getTickBadge(tickHealth);
-  const incomingOffersCount = 0; // Will come from politics state
-  const incidentCount = 0; // Will come from politics state
+  const incomingOffersCount = state.incomingOfferCount ?? 0;
+  const incidentCount = state.incidentCount ?? 0;
 
   const dockContent = (
     <>

@@ -1035,7 +1035,10 @@ export async function getHomePageState({
       availableTargets: [],
       canJoinCycle: false,
       canEditRegistrationName: false,
-      emptyStateMessage:
+      incomingOfferCount: 0,
+    incidentCount: 0,
+    recallableOrderCount: 0,
+    emptyStateMessage:
         "No unresolved cycle exists yet. Run the seed flow to bootstrap registration.",
     };
   }
@@ -3814,5 +3817,8 @@ export async function getHomePageState({
     canEditRegistrationName:
       Boolean(userId) && registrationOpen && Boolean(playerFortress),
     emptyStateMessage: null,
+    incomingOfferCount: 0,
+    incidentCount: 0,
+    recallableOrderCount: 0,
   };
 }
