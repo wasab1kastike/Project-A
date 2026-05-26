@@ -2793,7 +2793,12 @@ export async function acceptTradeOffer({
       { cargo: senderCargo, from: sender, to: receiver },
       { cargo: receiverCargo, from: receiver, to: sender },
     ]
-      .filter((leg) => hasTradeCargo(leg.cargo))
+      .filter(
+        (leg) =>
+          hasTradeCargo(leg.cargo) ||
+          (deedLineItem?.tileId &&
+            deedLineItem.fromFortressId === leg.from.id)
+      )
       .map((leg) => ({
         ...leg,
         arrivesAt: getConvoyArrivalAt({
