@@ -1635,7 +1635,9 @@ export function CastleManagement({
                     <span>{playerSummary.raceBuffs.orkScrap} Scrap</span>
                   </div>
                   <p>
-                    Earn Scrap from raids, tile wins, Home of A, and loot camps.
+                    {playerSummary.doctrinesEnabled
+                      ? 'Earn Scrap from raids and tile wins.'
+                      : 'Earn Scrap from raids, tile wins, Home of A, and loot camps.'}
                     Spend it on Boss Orders or feed an active WAAAGH.
                   </p>
                   {playerSummary.raceBuffs.orkScrapEvents.length > 0 ? (
