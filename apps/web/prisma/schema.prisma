@@ -679,6 +679,7 @@ enum TradeLineItemKind {
   GOLD
   FOOD
   ARMY
+  TILE
 }
 
 enum ConvoyLegStatus {
@@ -719,7 +720,8 @@ model TradeLineItem {
   fromFortressId String
   toFortressId   String
   kind           TradeLineItemKind
-  amount         Int
+  amount         Int?
+  tileId         String?
   createdAt      DateTime          @default(now())
   tradeOffer     TradeOffer        @relation(fields: [tradeOfferId], references: [id], onDelete: Cascade)
 
@@ -740,6 +742,9 @@ model ConvoyLeg {
   bonusGold          Int             @default(0)
   bonusFood          Int             @default(0)
   pointsAwarded      Int             @default(0)
+  deedTileId         String?
+  deedSettledAt      DateTime?
+  deedFailureReason  String?
   interceptedByOrderId String?
   encounterResolvedAt DateTime?
   encounterSucceeded Boolean?
