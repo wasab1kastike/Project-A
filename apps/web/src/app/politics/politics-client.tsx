@@ -600,27 +600,45 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                   })}
                 </fieldset>
               </div>
-              <details style={{ marginTop: '0.5rem', fontSize: '0.85em' }}>
-                <summary>Tile deed (allies only)</summary>
-                <label>
-                  <span>You send tile</span>
-                  <input
-                    type="text"
-                    placeholder="Tile ID (e.g. 12:8)"
-                    value={tradeCargo.offeredTileId}
-                    onChange={(event) => setTileValue('offeredTileId', event.target.value)}
-                  />
-                </label>
-                <label>
-                  <span>You receive tile</span>
-                  <input
-                    type="text"
-                    placeholder="Tile ID (e.g. 12:8)"
-                    value={tradeCargo.requestedTileId}
-                    onChange={(event) => setTileValue('requestedTileId', event.target.value)}
-                  />
-                </label>
-              </details>
+              {(() => {
+                const selectedRow = tradeTargetId
+                  ? state.rows.find((r) => r.fortressId === tradeTargetId)
+                  : null;
+                const eligibleTiles = selectedRow?.eligibleDeedTiles ?? [];
+
+                return eligibleTiles.length > 0 ? (
+                  <details style={{ marginTop: '0.5rem', fontSize: '0.85em' }}>
+                    <summary>Tile deed ({eligibleTiles.length} eligible)</summary>
+                    <label>
+                      <span>You send tile to them</span>
+                      <select
+                        value={tradeCargo.offeredTileId}
+                        onChange={(e) => setTileValue('offeredTileId', e.target.value)}
+                      >
+                        <option value="">—</option>
+                        {eligibleTiles.map((tileId: string) => (
+                          <option key={tileId} value={tileId}>
+                            {tileId}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>They send tile to you</span>
+                      <select
+                        value={tradeCargo.requestedTileId}
+                        onChange={(e) => setTileValue('requestedTileId', e.target.value)}
+                        disabled
+                      >
+                        <option value="">—</option>
+                      </select>
+                      <p style={{ margin: '2px 0 0', opacity: 0.5 }}>
+                        Receiving a tile requires your ally to create the offer.
+                      </p>
+                    </label>
+                  </details>
+                ) : null;
+              })()}
               <button type="submit" disabled={!tradeTargetId || pendingId !== null}>
                 {pendingId === "trade:create" ? "Sending..." : "Send offer"}
               </button>

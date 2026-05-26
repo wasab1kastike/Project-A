@@ -14,6 +14,7 @@ import {
   getPoliticsRelationPresentation,
 } from "./politics";
 import { isSeasonFourRuleset } from "./rulesets";
+import { isHomeOfATile } from "./territory";
 import { getTradeBlockedReason } from "./trading";
 import { getRaidTargetBlockedReason, isConvoyRaidEligible } from "./convoy-conflict";
 
@@ -157,6 +158,17 @@ export async function getPoliticsPageState({
       recentCovertIncidents: [],
     };
   }
+  const ownedTileIdsByFortressId = new Map(
+    (await db.mapHexOwnership.findMany({
+      where: { cycleId: cycle.id },
+      select: { ownerFortressId: true, tileId: true },
+    })).reduce<[string, string[]][]>((acc, o) => {
+      const existing = acc.find(([id]) => id === o.ownerFortressId);
+      if (existing) existing[1].push(o.tileId);
+      else acc.push([o.ownerFortressId, [o.tileId]]);
+      return acc;
+    }, [])
+  );
 
   const [tradeOffers, convoyLegs, activeArmyOrders, recentCovertIncidents] = await Promise.all([
     db.tradeOffer.findMany({
@@ -271,6 +283,12 @@ export async function getPoliticsPageState({
         name: fortress.name,
         commanderName: fortress.commanderName,
         race: fortress.race,
+        eligibleDeedTiles:
+          presentation.effectiveStatus === 'ALLIED'
+            ? (ownedTileIdsByFortressId.get(fortress.id) ?? []).filter(
+                (tileId: string) => !isHomeOfATile(tileId)
+              )
+            : [],
         relationStatus: presentation.relationStatus,
         effectiveStatus: presentation.effectiveStatus,
         allianceProposedById,
