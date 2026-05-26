@@ -122,7 +122,7 @@ const SEASON_FLOW = [
 const QUICKSTART_STEPS = [
   "Pick a race that matches your style: stable economy, burst combat, or chaos utility.",
   "Open Castle > Economy and assign workers immediately. Idle population is wasted tempo.",
-  `Recruit army from the Castle page when you are ready to spend gold. Each unit costs ${RECRUITMENT_COST_PER_UNIT} gold up front and waits in your queue.`,
+  `Recruit army from Castle > Operations when you are ready to spend gold. Each unit costs ${RECRUITMENT_COST_PER_UNIT} gold up front and waits in your queue.`,
   "Keep recruiters assigned if you want queued army to finish quickly. Recruiters process the queue; they do not mint free army by themselves.",
   "Use Politics & Trade to establish partners or war plans before committing army orders.",
   "Do not spend all gold on one thing. Keep a reserve for rename and upgrades.",
@@ -538,6 +538,12 @@ export default function WikiPage() {
           <p>
             Castle upgrades are available during gameplay. Each upgrade can be
             mapped to a building role on the castle page.
+          </p>
+          <p>
+            Castle Overview reports current expansion momentum, while Operations
+            reports recruitment and standing army commitments. Select new
+            pressure, guard, and campaign orders on the Battlefield; manage
+            convoy logistics in Politics &amp; Trade.
           </p>
           <div className={styles.twoCol}>
             <section>

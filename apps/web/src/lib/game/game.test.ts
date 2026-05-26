@@ -2268,6 +2268,241 @@ test("season four doctrines persist race-legal choices and enforce cooldown", as
   );
 });
 
+test("castle season four summaries report expansion and active operations", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const player = await createUser(prisma, "operations-player@example.com");
+  const opponent = await createUser(prisma, "operations-opponent@example.com");
+  const cycle = await seedActiveCommunityWishCycle(
+    prisma,
+    [
+      {
+        userId: player.id,
+        commanderName: "Field Marshal",
+        fortressName: "Status Keep",
+        points: 0,
+      },
+      {
+        userId: opponent.id,
+        commanderName: "Border Lord",
+        fortressName: "Border Keep",
+        points: 0,
+      },
+    ],
+    new Date("2026-04-22T12:00:00.000Z")
+  );
+  await markSeasonFourCycle(prisma, cycle.id);
+  const [fortress, enemyFortress] = await Promise.all([
+    prisma.fortress.update({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: player.id } },
+      data: { pressureWorkersAssigned: 12 },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: opponent.id } },
+    }),
+  ]);
+  const priorityTiles = HEX_SPAWN_TILES.filter(
+    (tile) =>
+      tile.spawnable &&
+      isTileConnectedToFortressOrOwnedTiles({
+        tileId: tile.id,
+        fortress,
+        ownedTileIds: [],
+      })
+  ).slice(0, 2);
+  assert.equal(priorityTiles.length, 2);
+  const leadingTile = priorityTiles[0]!;
+  const secondaryTile = priorityTiles[1]!;
+
+  const emptyState = await getCastlePageState({
+    userId: player.id,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+    db: prisma,
+  });
+  assert.equal(emptyState.playerSummary?.operationsSummary?.activeOrderCount, 0);
+  assert.equal(emptyState.playerSummary?.expansionSummary?.activePriorityCount, 0);
+  assert.equal(emptyState.playerSummary?.expansionSummary?.estimatedMinutesRemaining, null);
+
+  await prisma.tilePressurePriority.createMany({
+    data: [
+      {
+        cycleId: cycle.id,
+        fortressId: fortress.id,
+        tileId: leadingTile.id,
+        weight: 1,
+      },
+      {
+        cycleId: cycle.id,
+        fortressId: fortress.id,
+        tileId: secondaryTile.id,
+        weight: 1,
+      },
+    ],
+  });
+  await prisma.tilePressureState.createMany({
+    data: [
+      {
+        cycleId: cycle.id,
+        fortressId: fortress.id,
+        tileId: leadingTile.id,
+        pressure: 320,
+        lastPressuredAt: new Date("2026-04-20T11:59:00.000Z"),
+      },
+      {
+        cycleId: cycle.id,
+        fortressId: fortress.id,
+        tileId: secondaryTile.id,
+        pressure: 220,
+        lastPressuredAt: new Date("2026-04-20T11:59:00.000Z"),
+      },
+      {
+        cycleId: cycle.id,
+        fortressId: fortress.id,
+        tileId: "2:4",
+        pressure: 80,
+        lastPressuredAt: new Date("2026-04-20T10:00:00.000Z"),
+      },
+    ],
+  });
+  const guard = await prisma.armyOrder.create({
+    data: {
+      cycleId: cycle.id,
+      fortressId: fortress.id,
+      type: ArmyOrderType.GUARD,
+      targetTileId: "3:1",
+      committedArmy: 12,
+      startsAt: new Date("2026-04-20T10:00:00.000Z"),
+    },
+  });
+  const [buildingOrder, warningOrder, engagedOrder, escortOrder, raidOrder] =
+    await Promise.all([
+      prisma.armyOrder.create({
+        data: {
+          cycleId: cycle.id,
+          fortressId: fortress.id,
+          type: ArmyOrderType.CAMPAIGN,
+          targetTileId: "4:1",
+          committedArmy: 20,
+          startsAt: new Date("2026-04-20T10:00:00.000Z"),
+        },
+      }),
+      prisma.armyOrder.create({
+        data: {
+          cycleId: cycle.id,
+          fortressId: fortress.id,
+          type: ArmyOrderType.CAMPAIGN,
+          targetTileId: "4:2",
+          committedArmy: 30,
+          startsAt: new Date("2026-04-20T10:00:00.000Z"),
+        },
+      }),
+      prisma.armyOrder.create({
+        data: {
+          cycleId: cycle.id,
+          fortressId: fortress.id,
+          type: ArmyOrderType.CAMPAIGN,
+          status: ArmyOrderStatus.TRANSFERRED,
+          targetTileId: "4:3",
+          committedArmy: 40,
+          startsAt: new Date("2026-04-20T10:00:00.000Z"),
+          transferredAt: new Date("2026-04-20T11:00:00.000Z"),
+        },
+      }),
+      prisma.armyOrder.create({
+        data: {
+          cycleId: cycle.id,
+          fortressId: fortress.id,
+          type: ArmyOrderType.ESCORT,
+          committedArmy: 5,
+          startsAt: new Date("2026-04-20T10:00:00.000Z"),
+        },
+      }),
+      prisma.armyOrder.create({
+        data: {
+          cycleId: cycle.id,
+          fortressId: fortress.id,
+          type: ArmyOrderType.RAID,
+          committedArmy: 7,
+          startsAt: new Date("2026-04-20T10:00:00.000Z"),
+        },
+      }),
+    ]);
+  await prisma.territoryCampaign.createMany({
+    data: [
+      {
+        cycleId: cycle.id,
+        attackerFortressId: fortress.id,
+        defenderFortressId: enemyFortress.id,
+        armyOrderId: buildingOrder.id,
+        targetTileId: "4:1",
+        status: TerritoryCampaignStatus.BUILDING,
+        progress: 400,
+      },
+      {
+        cycleId: cycle.id,
+        attackerFortressId: fortress.id,
+        defenderFortressId: enemyFortress.id,
+        armyOrderId: warningOrder.id,
+        targetTileId: "4:2",
+        status: TerritoryCampaignStatus.SIEGE_WARNING,
+        progress: 14_400,
+        responseEndsAt: new Date("2026-04-20T20:00:00.000Z"),
+      },
+      {
+        cycleId: cycle.id,
+        attackerFortressId: fortress.id,
+        defenderFortressId: enemyFortress.id,
+        armyOrderId: engagedOrder.id,
+        targetTileId: "4:3",
+        status: TerritoryCampaignStatus.ENGAGED,
+        progress: 14_400,
+        engagedAt: new Date("2026-04-20T11:00:00.000Z"),
+      },
+    ],
+  });
+
+  const state = await getCastlePageState({
+    userId: player.id,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+    db: prisma,
+  });
+  const expansion = state.playerSummary?.expansionSummary;
+  const operations = state.playerSummary?.operationsSummary;
+
+  assert.equal(expansion?.pressureOutput, 12);
+  assert.equal(expansion?.activePriorityCount, 2);
+  assert.equal(expansion?.leadingPriority?.tileId, leadingTile.id);
+  assert.equal(expansion?.leadingPriority?.progress, 320);
+  assert.equal(expansion?.estimatedMinutesRemaining, 47);
+  assert.equal(expansion?.decayingPressureCount, 1);
+  assert.equal(operations?.committedArmy, 74);
+  assert.equal(operations?.activeOrderCount, 5);
+  assert.deepEqual(operations?.guards, [
+    { id: guard.id, tileId: "3:1", committedArmy: 12 },
+  ]);
+  assert.deepEqual(
+    operations?.campaigns.map((campaign) => [
+      campaign.status,
+      campaign.canRecall,
+    ]),
+    [
+      [TerritoryCampaignStatus.BUILDING, true],
+      [TerritoryCampaignStatus.SIEGE_WARNING, true],
+      [TerritoryCampaignStatus.ENGAGED, false],
+    ]
+  );
+  assert.deepEqual(operations?.logistics, {
+    escortCount: 1,
+    escortArmy: escortOrder.committedArmy,
+    raidCount: 1,
+    raidArmy: raidOrder.committedArmy,
+  });
+});
+
 test("season four bilateral trade accepts cargo and delivers allied convoy bonuses", async (context) => {
   const prisma = getPrismaOrSkip(context);
 

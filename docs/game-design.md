@@ -107,6 +107,7 @@
 ## Season 4 campaigns and guards
 
 - Season 4 owned-tile conquest starts only through a `CAMPAIGN` standing order on an active-war connected enemy border tile; manual PvP tile attacks and ordinary reinforcements are not available.
+- Castle `Overview` summarizes pressure momentum and Castle `Operations` summarizes standing army commitments; Battlefield and Politics remain the order-creation surfaces.
 - A campaign commits army immediately and generates progress each tick from `pressure workers + min(floor(committed army / 100), pressure workers)`.
 - At `14,400` progress, the campaign opens a visible siege with a 12-hour response window before automated battlefield casualties begin.
 - `GUARD` orders commit army to owned normal tiles and join an incoming siege as defenders; guards can be recalled before they enter combat.

@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import {
+  ArmyOrderStatus,
+  ArmyOrderType,
   CastleUpgradeSpecialization,
   CommunityWishStatus,
   CycleStatus,
@@ -7,6 +9,7 @@ import {
   OrkBossOrderKind,
   OrkWaaaghInvestmentKind,
   RaceAbilityKind,
+  TerritoryCampaignStatus,
   type PrismaClient,
 } from "@/lib/prisma-client";
 import {
@@ -38,7 +41,12 @@ import {
 import { addHours } from "./time";
 import { countCastleSpecializations } from "./specializations";
 import { ORK_BOSS_ORDER_CONFIG, ORK_WAAAGH_INVESTMENT_CONFIG } from "./orks";
-import { getTileById, isHomeOfATile, sumTileBonuses } from "./territory";
+import {
+  getTileById,
+  isHomeOfATile,
+  isTileConnectedToFortressOrOwnedTiles,
+  sumTileBonuses,
+} from "./territory";
 import {
   ensureBattlefieldPointRewardColumn,
   ensureCommanderRegistrationColumn,
@@ -54,6 +62,13 @@ import {
   getDoctrineTier,
   getDoctrineOptionsForRace,
 } from "./doctrines";
+import { CAMPAIGN_SIEGE_THRESHOLD } from "./campaigns";
+import {
+  TILE_PRESSURE_CLAIM_THRESHOLD,
+  allocatePressureAcrossTargets,
+  calculatePressureOutput,
+  getPressureTargetBlockedReason,
+} from "./tile-pressure";
 
 const BUILDING_SPECIALIZATIONS = [
   CastleUpgradeSpecialization.DEFENSE,
@@ -131,6 +146,8 @@ export async function getCastlePageState({
           commanderName: true,
           commanderNameRegisteredAt: true,
           name: true,
+          mapX: true,
+          mapY: true,
           points: true,
           gold: true,
           level: true,
@@ -718,6 +735,234 @@ export async function getCastlePageState({
     workerPoolBonus: ownedTileBonuses.population,
     defenseBonusPercent: ownedTileBonuses.defensePercent,
   };
+  const seasonFourRecords =
+    playerFortress && isSeasonFour
+      ? await Promise.all([
+          db.tilePressurePriority.findMany({
+            where: {
+              cycleId: cycle.id,
+              fortressId: playerFortress.id,
+            },
+            select: {
+              tileId: true,
+              weight: true,
+            },
+            orderBy: {
+              tileId: "asc",
+            },
+          }),
+          db.tilePressureState.findMany({
+            where: {
+              cycleId: cycle.id,
+              fortressId: playerFortress.id,
+              pressure: {
+                gt: 0,
+              },
+            },
+            select: {
+              tileId: true,
+              pressure: true,
+            },
+          }),
+          db.mapHexOwnership.findMany({
+            where: {
+              cycleId: cycle.id,
+            },
+            select: {
+              tileId: true,
+              ownerFortressId: true,
+            },
+          }),
+          db.armyOrder.findMany({
+            where: {
+              cycleId: cycle.id,
+              fortressId: playerFortress.id,
+              status: ArmyOrderStatus.ACTIVE,
+            },
+            select: {
+              id: true,
+              type: true,
+              targetTileId: true,
+              committedArmy: true,
+            },
+            orderBy: {
+              createdAt: "asc",
+            },
+          }),
+          db.territoryCampaign.findMany({
+            where: {
+              cycleId: cycle.id,
+              attackerFortressId: playerFortress.id,
+              status: {
+                in: [
+                  TerritoryCampaignStatus.BUILDING,
+                  TerritoryCampaignStatus.SIEGE_WARNING,
+                  TerritoryCampaignStatus.ENGAGED,
+                ],
+              },
+            },
+            select: {
+              id: true,
+              status: true,
+              targetTileId: true,
+              progress: true,
+              responseEndsAt: true,
+              armyOrder: {
+                select: {
+                  id: true,
+                  status: true,
+                  committedArmy: true,
+                },
+              },
+              defenderFortress: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+            orderBy: {
+              createdAt: "asc",
+            },
+          }),
+        ])
+      : null;
+  const pressurePriorities = seasonFourRecords?.[0] ?? [];
+  const pressureStates = seasonFourRecords?.[1] ?? [];
+  const ownerByTileId = new Map(
+    (seasonFourRecords?.[2] ?? []).map((ownership) => [
+      ownership.tileId,
+      ownership.ownerFortressId,
+    ])
+  );
+  const activeArmyOrders = seasonFourRecords?.[3] ?? [];
+  const campaigns = seasonFourRecords?.[4] ?? [];
+  const pressureOutput = playerFortress
+    ? calculatePressureOutput({
+        pressureWorkersAssigned: playerFortress.pressureWorkersAssigned,
+      })
+    : 0;
+  const ownedNormalTileIds = ownedNormalTiles.map((tile) => tile.id);
+  const legalPressurePriorities =
+    playerFortress === null
+      ? []
+      : pressurePriorities.filter(
+          (priority) =>
+            getPressureTargetBlockedReason({
+              tile: getTileById(priority.tileId),
+              tileId: priority.tileId,
+              ownerFortressId: ownerByTileId.get(priority.tileId) ?? null,
+              fortress: playerFortress,
+              ownedTileIds: ownedNormalTileIds,
+              isHomeOfA: isHomeOfATile,
+              isConnected: ({ tileId, ownedTileIds }) =>
+                isTileConnectedToFortressOrOwnedTiles({
+                  tileId,
+                  fortress: playerFortress,
+                  ownedTileIds,
+                }),
+            }) === null
+        );
+  const priorityTileIds = new Set(
+    legalPressurePriorities.map((priority) => priority.tileId)
+  );
+  const allocationsByTileId = new Map(
+    allocatePressureAcrossTargets({
+      pressure: pressureOutput,
+      targets: legalPressurePriorities,
+    }).map((allocation) => [allocation.tileId, allocation.pressure])
+  );
+  const progressByTileId = new Map(
+    pressureStates.map((state) => [state.tileId, state.pressure])
+  );
+  const leadingPriority =
+    legalPressurePriorities.reduce<{
+      tileId: string;
+      progress: number;
+      outputPerTick: number;
+    } | null>((leader, priority) => {
+      const candidate = {
+        tileId: priority.tileId,
+        progress: progressByTileId.get(priority.tileId) ?? 0,
+        outputPerTick: allocationsByTileId.get(priority.tileId) ?? 0,
+      };
+
+      return !leader ||
+        candidate.progress > leader.progress ||
+        (candidate.progress === leader.progress &&
+          candidate.tileId.localeCompare(leader.tileId) < 0)
+        ? candidate
+        : leader;
+    }, null);
+  const estimatedMinutesRemaining =
+    leadingPriority &&
+    leadingPriority.outputPerTick > 0 &&
+    leadingPriority.progress < TILE_PRESSURE_CLAIM_THRESHOLD
+      ? Math.ceil(
+          (TILE_PRESSURE_CLAIM_THRESHOLD - leadingPriority.progress) /
+            leadingPriority.outputPerTick
+        )
+      : null;
+  const expansionSummary = isSeasonFour
+    ? {
+        pressureOutput,
+        activePriorityCount: legalPressurePriorities.length,
+        leadingPriority,
+        pressureThreshold: TILE_PRESSURE_CLAIM_THRESHOLD,
+        estimatedMinutesRemaining,
+        decayingPressureCount: pressureStates.filter(
+          (state) => !priorityTileIds.has(state.tileId)
+        ).length,
+      }
+    : null;
+  const operationsSummary = isSeasonFour
+    ? {
+        committedArmy: activeArmyOrders.reduce(
+          (sum, order) => sum + order.committedArmy,
+          0
+        ),
+        activeOrderCount: activeArmyOrders.length,
+        guards: activeArmyOrders
+          .filter((order) => order.type === ArmyOrderType.GUARD)
+          .map((order) => ({
+            id: order.id,
+            tileId: order.targetTileId ?? "Unknown tile",
+            committedArmy: order.committedArmy,
+          })),
+        campaigns: campaigns.map((campaign) => ({
+          id: campaign.id,
+          orderId: campaign.armyOrder.id,
+          tileId: campaign.targetTileId,
+          opponentName: campaign.defenderFortress.name,
+          committedArmy: campaign.armyOrder.committedArmy,
+          status: campaign.status,
+          progress: campaign.progress,
+          threshold: CAMPAIGN_SIEGE_THRESHOLD,
+          responseEndsAt: campaign.responseEndsAt,
+          canRecall:
+            campaign.status !== TerritoryCampaignStatus.ENGAGED &&
+            campaign.armyOrder.status === ArmyOrderStatus.ACTIVE,
+        })),
+        logistics: activeArmyOrders.reduce(
+          (summary, order) => {
+            if (order.type === ArmyOrderType.ESCORT) {
+              summary.escortCount += 1;
+              summary.escortArmy += order.committedArmy;
+            } else if (order.type === ArmyOrderType.RAID) {
+              summary.raidCount += 1;
+              summary.raidArmy += order.committedArmy;
+            }
+
+            return summary;
+          },
+          {
+            escortCount: 0,
+            escortArmy: 0,
+            raidCount: 0,
+            raidArmy: 0,
+          }
+        ),
+      }
+    : null;
 
   const visibleFortresses = cycle.fortresses.filter((fortress) => {
     if (
@@ -1124,6 +1369,8 @@ export async function getCastlePageState({
               }
             : null,
           ownedTileSummary,
+          expansionSummary,
+          operationsSummary,
           growPerTick: calculateTickProduction({
             ...playerFortress,
             castleSpecializations:

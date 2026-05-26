@@ -257,7 +257,7 @@ The game is now a castle-economy and battlefield-control loop:
 The main player surfaces are:
 
 - home battlefield: season status, map, attacks, active battlefields, battle log, chat, and spectator state
-- Castle page: worker assignments, recruitment queue, active-army upkeep, upgrades, and owned tiles
+- Castle page: worker assignments, recruitment, upgrades, owned tiles, expansion momentum, and active standing-order visibility
 - Wiki page: player-facing rule reference for Season 4 pressure, politics, economy, and combat
 
 ## Battlefield map controls
