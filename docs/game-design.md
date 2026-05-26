@@ -99,7 +99,6 @@
 - An interception uses committed raid army against assigned escort army; survivors from an escort return after the encounter while surviving raid army remains deployed for later eligible convoys.
 - A successful interception awards the raider half of the convoy cargo, destroys the rest, and replaces normal delivery points and alliance bonuses with points from stolen base cargo.
 - Guard orders supply covert detection power. A detected raid exposes the raider, changes the pair to enemy, and grants the detecting fortress 24 hours of casus belli.
-- Tile deeds and tile disruption remain later logistics slices.
 
 ## Season 4 tile deeds
 
