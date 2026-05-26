@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState, type FormEvent } from "react";
 import { useRefreshView } from "@/lib/refresh-helpers";
 import { CastleUpgradeSpecialization } from "@/lib/prisma-client";
@@ -27,6 +28,7 @@ import {
   registerCommanderNameFormAction,
   renameFortressAction,
   recruitArmyAction,
+  recallArmyOrderAction,
   selectFortressRaceAction,
   selectFortressDoctrineAction,
   updateWorkerAssignmentAction,
@@ -277,6 +279,45 @@ type PlayerSummary = {
     workerPoolBonus: number;
     defenseBonusPercent: number;
   };
+  expansionSummary: {
+    pressureOutput: number;
+    activePriorityCount: number;
+    leadingPriority: {
+      tileId: string;
+      progress: number;
+      outputPerTick: number;
+    } | null;
+    pressureThreshold: number;
+    estimatedMinutesRemaining: number | null;
+    decayingPressureCount: number;
+  } | null;
+  operationsSummary: {
+    committedArmy: number;
+    activeOrderCount: number;
+    guards: Array<{
+      id: string;
+      tileId: string;
+      committedArmy: number;
+    }>;
+    campaigns: Array<{
+      id: string;
+      orderId: string;
+      tileId: string;
+      opponentName: string;
+      committedArmy: number;
+      status: string;
+      progress: number;
+      threshold: number;
+      responseEndsAt: Date | null;
+      canRecall: boolean;
+    }>;
+    logistics: {
+      escortCount: number;
+      escortArmy: number;
+      raidCount: number;
+      raidArmy: number;
+    };
+  } | null;
   growPerTick: number;
 };
 
@@ -287,7 +328,7 @@ type CommandTarget = {
 };
 
 type BuildingSpecialization = "POINTS" | "FOOD" | "MILITARY" | "DEFENSE";
-type CastleTab = "OVERVIEW" | "ECONOMY" | "ARMY" | "DOCTRINE";
+type CastleTab = "OVERVIEW" | "ECONOMY" | "OPERATIONS" | "DOCTRINE";
 type WorkerAssignmentKey =
   | "minersAssigned"
   | "farmersAssigned"
@@ -428,7 +469,7 @@ const RACE_TIER_THRESHOLDS_LABEL = "Tier 1/2/3 at 3/6/9 matching tiles";
 const CASTLE_TABS = [
   { key: "OVERVIEW", label: "Overview" },
   { key: "ECONOMY", label: "Economy" },
-  { key: "ARMY", label: "Army" },
+  { key: "OPERATIONS", label: "Operations" },
   { key: "DOCTRINE", label: "Doctrine" },
 ] as const satisfies readonly { key: CastleTab; label: string }[];
 const RACE_TOKEN_PATHS: Partial<Record<FortressRace, string>> = {
@@ -456,6 +497,26 @@ function formatTime(value: Date) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function formatEstimate(minutes: number) {
+  if (minutes < 60) {
+    return `about ${minutes} min`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return remainingMinutes > 0
+    ? `about ${hours}h ${remainingMinutes}m`
+    : `about ${hours}h`;
+}
+
+function getCampaignStatusLabel(status: string) {
+  if (status === "SIEGE_WARNING") {
+    return "Siege warning";
+  }
+
+  return status === "ENGAGED" ? "Siege live" : "Building";
 }
 
 function getBuildingEffect({
@@ -871,6 +932,12 @@ export function CastleManagement({
     );
   }
 
+  async function recallArmyOrderFormAction(formData: FormData): Promise<void> {
+    await handleInlineResult(
+      await recallArmyOrderAction(getStringValue(formData, "armyOrderId"))
+    );
+  }
+
   return (
     <div className={styles.castleConsole}>
       <header className={styles.commandHeader}>
@@ -1056,6 +1123,76 @@ export function CastleManagement({
             : "Normal hexes now feed gold and food, while temporary objectives and Home of A generate score income."}
         </p>
       </section>
+
+      {playerSummary.expansionSummary ? (
+        <section className={styles.panel}>
+          <div className={styles.panelHeader}>
+            <span>Expansion</span>
+            <strong>
+              {playerSummary.expansionSummary.activePriorityCount} priorities
+            </strong>
+          </div>
+          <div className={styles.operationTitle}>
+            <img
+              className={styles.rowCrest}
+              src="/assets/ui/crest-pressure.webp"
+              alt=""
+            />
+            <div>
+              <strong>Pressure momentum</strong>
+              <p className={styles.muted}>
+                {playerSummary.pressureWorkersAssigned} workers generate{" "}
+                {playerSummary.expansionSummary.pressureOutput} pressure per
+                tick.
+              </p>
+            </div>
+          </div>
+          {playerSummary.expansionSummary.leadingPriority ? (
+            <div className={styles.progressRow}>
+              <div className={styles.statusRow}>
+                <span>Leading claim</span>
+                <strong>
+                  Tile {playerSummary.expansionSummary.leadingPriority.tileId}
+                </strong>
+              </div>
+              <progress
+                max={playerSummary.expansionSummary.pressureThreshold}
+                value={playerSummary.expansionSummary.leadingPriority.progress}
+              />
+              <div className={styles.statusRow}>
+                <span>
+                  {playerSummary.expansionSummary.leadingPriority.progress} /{" "}
+                  {playerSummary.expansionSummary.pressureThreshold}
+                </span>
+                {playerSummary.expansionSummary.estimatedMinutesRemaining !==
+                null ? (
+                  <small>
+                    {formatEstimate(
+                      playerSummary.expansionSummary.estimatedMinutesRemaining
+                    )}{" "}
+                    at current uncontested allocation
+                  </small>
+                ) : null}
+              </div>
+            </div>
+          ) : (
+            <p className={styles.muted}>No neutral tile currently prioritized.</p>
+          )}
+          {playerSummary.expansionSummary.decayingPressureCount > 0 ? (
+            <p className={styles.warning}>
+              {playerSummary.expansionSummary.decayingPressureCount} unsupported
+              pressure{" "}
+              {playerSummary.expansionSummary.decayingPressureCount === 1
+                ? "claim is"
+                : "claims are"}{" "}
+              decaying without an active priority.
+            </p>
+          ) : null}
+          <Link className={styles.textLink} href="/">
+            Change priorities on battlefield
+          </Link>
+        </section>
+      ) : null}
         </>
       ) : null}
 
@@ -1261,12 +1398,33 @@ export function CastleManagement({
         </>
       ) : null}
 
-      {activeTab === "ARMY" ? (
+      {activeTab === "OPERATIONS" ? (
+        <>
       <section className={styles.panel}>
         <div className={styles.panelHeader}>
           <span>Recruitment</span>
           <strong>{playerSummary.recruitmentQueue} queued</strong>
         </div>
+        {playerSummary.operationsSummary ? (
+          <dl className={styles.readinessGrid}>
+            <div>
+              <dt>Available army</dt>
+              <dd>{playerSummary.army}</dd>
+            </div>
+            <div>
+              <dt>Queued recruits</dt>
+              <dd>{playerSummary.recruitmentQueue}</dd>
+            </div>
+            <div>
+              <dt>Committed army</dt>
+              <dd>{playerSummary.operationsSummary.committedArmy}</dd>
+            </div>
+            <div>
+              <dt>Active orders</dt>
+              <dd>{playerSummary.operationsSummary.activeOrderCount}</dd>
+            </div>
+          </dl>
+        ) : null}
         <form className={styles.form} onSubmit={recruitArmy}>
           <label>
             Army units
@@ -1298,6 +1456,112 @@ export function CastleManagement({
           </button>
         </form>
       </section>
+      {playerSummary.operationsSummary ? (
+        <section className={styles.panel}>
+          <div className={styles.panelHeader}>
+            <span>Standing orders</span>
+            <strong>{playerSummary.operationsSummary.activeOrderCount} active</strong>
+          </div>
+          <div className={styles.operationGroup}>
+            <div className={styles.operationTitle}>
+              <img
+                className={styles.rowCrest}
+                src="/assets/ui/crest-guard.webp"
+                alt=""
+              />
+              <strong>Guards</strong>
+            </div>
+            {playerSummary.operationsSummary.guards.length > 0 ? (
+              playerSummary.operationsSummary.guards.map((guard) => (
+                <div className={styles.operationRow} key={guard.id}>
+                  <div>
+                    <strong>Tile {guard.tileId}</strong>
+                    <small>{guard.committedArmy} army committed - Active</small>
+                  </div>
+                  <form action={recallArmyOrderFormAction}>
+                    <input type="hidden" name="armyOrderId" value={guard.id} />
+                    <button type="submit">Recall guard</button>
+                  </form>
+                </div>
+              ))
+            ) : (
+              <p className={styles.muted}>No active guard commitments.</p>
+            )}
+          </div>
+          <div className={styles.operationGroup}>
+            <div className={styles.operationTitle}>
+              <img
+                className={styles.rowCrest}
+                src="/assets/ui/crest-campaign.webp"
+                alt=""
+              />
+              <strong>Campaigns</strong>
+            </div>
+            {playerSummary.operationsSummary.campaigns.length > 0 ? (
+              playerSummary.operationsSummary.campaigns.map((campaign) => (
+                <div className={styles.operationRow} key={campaign.id}>
+                  <div className={styles.campaignDetail}>
+                    <div className={styles.statusRow}>
+                      <strong>
+                        Tile {campaign.tileId} vs {campaign.opponentName}
+                      </strong>
+                      <span>{getCampaignStatusLabel(campaign.status)}</span>
+                    </div>
+                    <small>{campaign.committedArmy} army committed</small>
+                    <progress max={campaign.threshold} value={campaign.progress} />
+                    <small>
+                      {campaign.progress} / {campaign.threshold}
+                      {campaign.status === "SIEGE_WARNING" &&
+                      campaign.responseEndsAt
+                        ? ` - warning until ${formatTime(campaign.responseEndsAt)}`
+                        : ""}
+                    </small>
+                  </div>
+                  {campaign.canRecall ? (
+                    <form action={recallArmyOrderFormAction}>
+                      <input
+                        type="hidden"
+                        name="armyOrderId"
+                        value={campaign.orderId}
+                      />
+                      <button type="submit">Recall campaign</button>
+                    </form>
+                  ) : null}
+                </div>
+              ))
+            ) : (
+              <p className={styles.muted}>No active territorial campaigns.</p>
+            )}
+          </div>
+          <div className={styles.operationGroup}>
+            <div className={styles.operationTitle}>
+              <strong>Logistics</strong>
+            </div>
+            <div className={styles.logisticsRows}>
+              <div className={styles.statusRow}>
+                <span>Escorts</span>
+                <strong>
+                  {playerSummary.operationsSummary.logistics.escortCount} orders
+                  {" / "}
+                  {playerSummary.operationsSummary.logistics.escortArmy} army
+                </strong>
+              </div>
+              <div className={styles.statusRow}>
+                <span>Raids</span>
+                <strong>
+                  {playerSummary.operationsSummary.logistics.raidCount} orders
+                  {" / "}
+                  {playerSummary.operationsSummary.logistics.raidArmy} army
+                </strong>
+              </div>
+            </div>
+            <Link className={styles.textLink} href="/politics">
+              Manage logistics in Politics
+            </Link>
+          </div>
+        </section>
+      ) : null}
+        </>
       ) : null}
 
       {activeTab === "DOCTRINE" ? (
