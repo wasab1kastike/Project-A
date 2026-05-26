@@ -1165,7 +1165,7 @@ async function processSeasonFourConvoys({
         escortAlreadyReturned = true;
       };
 
-      if (!seized && isConvoyRaidEligible(leg)) {
+      if (!seized && isConvoyRaidEligible({ ...leg, hasDeed: Boolean(leg.deedTileId) })) {
         const potentialRaidOrders = await tx.armyOrder.findMany({
           where: {
             cycleId,
@@ -1538,10 +1538,12 @@ async function processSeasonFourConvoys({
           where: { cycleId_tileId: { cycleId, tileId: leg.deedTileId } },
         });
 
-        if (
+        const deedStillValid =
           deedTile &&
-          deedTile.ownerFortressId === leg.fromFortressId
-        ) {
+          deedTile.ownerFortressId === leg.fromFortressId &&
+          effectiveStatus === DiplomacyRelationStatus.ALLIED;
+
+        if (deedStillValid) {
           await tx.mapHexOwnership.update({
             where: { cycleId_tileId: { cycleId, tileId: leg.deedTileId } },
             data: { ownerFortressId: leg.toFortressId },
@@ -1552,6 +1554,11 @@ async function processSeasonFourConvoys({
           });
           await tx.tilePressureState.deleteMany({
             where: { cycleId, tileId: leg.deedTileId },
+          });
+        } else if (deedTile) {
+          await tx.convoyLeg.update({
+            where: { id: leg.id },
+            data: { deedFailureReason: "Deed invalid at delivery: parties no longer allied or tile ownership changed." },
           });
         }
       }

@@ -18,15 +18,17 @@ export function isConvoyRaidEligible({
   status,
   baseCargoValue,
   encounterResolvedAt,
+  hasDeed = false,
 }: {
   status: ConvoyLegStatus;
   baseCargoValue: number;
   encounterResolvedAt?: Date | null;
+  hasDeed?: boolean;
 }) {
   return (
     status === ConvoyLegStatus.IN_TRANSIT &&
-    baseCargoValue >= RAID_ELIGIBLE_CARGO_VALUE &&
-    !encounterResolvedAt
+    !encounterResolvedAt &&
+    (hasDeed || baseCargoValue >= RAID_ELIGIBLE_CARGO_VALUE)
   );
 }
 

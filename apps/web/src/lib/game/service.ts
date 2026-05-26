@@ -2589,6 +2589,10 @@ export async function createTradeOffer({
           deedDirection === "offered" ? sender.id : receiver.id,
         receiverFortressId:
           deedDirection === "offered" ? receiver.id : sender.id,
+        senderMapX: deedDirection === "offered" ? sender.mapX : receiver.mapX,
+        senderMapY: deedDirection === "offered" ? sender.mapY : receiver.mapY,
+        receiverMapX: deedDirection === "offered" ? receiver.mapX : sender.mapX,
+        receiverMapY: deedDirection === "offered" ? receiver.mapY : sender.mapY,
         senderOwnedTileIds: (
           await tx.mapHexOwnership.findMany({
             where: {
@@ -2807,6 +2811,10 @@ export async function acceptTradeOffer({
         tileId: deedLineItem.tileId,
         senderFortressId: deedLineItem.fromFortressId,
         receiverFortressId: deedLineItem.toFortressId,
+        senderMapX: sender.mapX,
+        senderMapY: sender.mapY,
+        receiverMapX: receiver.mapX,
+        receiverMapY: receiver.mapY,
         senderOwnedTileIds: (
           await tx.mapHexOwnership.findMany({
             where: {

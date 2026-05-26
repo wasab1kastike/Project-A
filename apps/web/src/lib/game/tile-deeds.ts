@@ -22,6 +22,10 @@ export function validateTileDeedAllowed({
   reservedDeedTileIds,
   cycleId,
   now,
+  senderMapX,
+  senderMapY,
+  receiverMapX,
+  receiverMapY,
 }: {
   tileId: string;
   senderFortressId: string;
@@ -34,6 +38,10 @@ export function validateTileDeedAllowed({
   reservedDeedTileIds: Set<string>;
   cycleId?: string | null;
   now: Date;
+  senderMapX: number;
+  senderMapY: number;
+  receiverMapX: number;
+  receiverMapY: number;
 }): DeedValidationResult {
   const tile = getTileById(tileId);
 
@@ -78,10 +86,6 @@ export function validateTileDeedAllowed({
     };
   }
 
-  const senderFortress = {
-    mapX: tile.xPercent,
-    mapY: tile.yPercent,
-  };
   const senderTileIds = senderOwnedTileIds.filter(
     (id) => id !== tileId
   );
@@ -90,7 +94,8 @@ export function validateTileDeedAllowed({
     tileId,
     senderOwnedTileIds: senderTileIds,
     receiverOwnedTileIds,
-    senderFortress,
+    senderFortress: { mapX: senderMapX, mapY: senderMapY },
+    receiverFortress: { mapX: receiverMapX, mapY: receiverMapY },
   })) {
     return {
       ok: false,
@@ -107,15 +112,17 @@ export function isTileTransferConnected({
   senderOwnedTileIds,
   receiverOwnedTileIds,
   senderFortress,
+  receiverFortress,
 }: {
   tileId: string;
   senderOwnedTileIds: string[];
   receiverOwnedTileIds: string[];
   senderFortress: { mapX: number; mapY: number };
+  receiverFortress: { mapX: number; mapY: number };
 }): boolean {
   const receiverConnected = isTileConnectedToFortressOrOwnedTiles({
     tileId,
-    fortress: senderFortress,
+    fortress: receiverFortress,
     ownedTileIds: receiverOwnedTileIds,
   });
 
