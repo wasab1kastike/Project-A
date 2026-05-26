@@ -1,3 +1,5 @@
+> **⚠️ ARCHIVED — Phase 1 work is complete and live.** The economy formulas and recruitment system described here are the current game rules, now documented in [`docs/game-design.md`](../game-design.md). This file is kept for historical reference.
+
 ## Phase 1: Castle System Cleanup & Army Recruitment Redesign - COMPLETE
 
 ### Summary
