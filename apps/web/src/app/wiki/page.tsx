@@ -279,8 +279,10 @@ const GLOSSARY = [
   "Buff tier: race power stage (T2/T3) unlocked by active-season timing.",
   "Pressure priority: a player-marked border tile that receives idle expansion pressure first.",
   "Returned: surviving attackers that come home after a winning raid.",
-  "Decoy: temporary attackable Unicorn teleport remnant left at the home tile.",
-  "Loot camp: temporary NPC target with strength-based HP and variant rewards.",
+  "Convoy leg: one accepted direction of a trade — gold, food, or army traveling between two fortresses.",
+  "Casus belli: a 24-hour window after a detected covert raid that allows immediate war.",
+  "Decoy (Legacy): temporary attackable Unicorn teleport remnant left at the home tile.",
+  "Loot camp (Legacy): temporary NPC target with strength-based HP and variant rewards.",
 ] as const;
 
 export default function WikiPage() {
@@ -451,8 +453,8 @@ export default function WikiPage() {
                   reached that final score first.
                 </li>
                 <li>
-                  Killing {MEGA_FORTRESS_NAME} is not required to win, but its
-                  resource payout and temporary buff can swing the score race.
+                  Ties are rare but possible. The fortress that reached the
+                  winning score first takes the crown.
                 </li>
               </ul>
             </section>
@@ -702,8 +704,8 @@ export default function WikiPage() {
                   hostile campaign reaches and resolves a siege.
                 </li>
                 <li>
-                  The Landlord title uses current normal tiles owned, excluding
-                  {` ${MEGA_FORTRESS_NAME}`}.
+                  The Landlord title uses current normal tiles owned (the
+                  center monument is excluded).
                 </li>
                 <li>
                   Guard orders commit idle army to a tile and can be recalled
