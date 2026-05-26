@@ -2982,7 +2982,7 @@ export function BattlefieldExperience({
 
       <div className={styles.mapStage}>
         {!immersive && !topActionsRoot ? actionButtons : null}
-        {playerSummary ? (
+        {playerSummary && !playerSummary.seasonFourRulesEnabled ? (
           <NoticeToast
             autoDismissMs={null}
             message="Loot camps fight back now. Check their defending army before sending troops."
@@ -2996,11 +2996,13 @@ export function BattlefieldExperience({
             storageKey={SEA_MOUNTAIN_CLAIM_NOTICE_STORAGE_KEY}
           />
         ) : null}
+        {!playerSummary?.seasonFourRulesEnabled ? (
         <NoticeToast
           autoDismissMs={5000}
           message="Castle Yeet is live: arm it from the Battlefield map, then pick a destination tile to relocate your castle."
           storageKey={CASTLE_YEET_NOTICE_STORAGE_KEY}
         />
+        ) : null}
         <FortressMap
           className={immersive ? styles.fullMap : undefined}
           fortresses={mapFortresses}
