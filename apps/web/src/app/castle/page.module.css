@@ -1,9 +1,11 @@
 .page {
+  --console-surface: rgba(9, 19, 29, 0.9);
+  --console-recess: rgba(3, 10, 16, 0.46);
+  --console-border: rgba(148, 163, 184, 0.22);
+  --console-accent: #67c4cf;
   min-height: 100vh;
   padding: 28px;
-  background:
-    radial-gradient(circle at top left, rgba(103, 196, 207, 0.16), transparent 34%),
-    #07111a;
+  background: #07111a;
   color: var(--foreground);
 }
 
@@ -61,6 +63,137 @@
 .titleBlock h1,
 .panel h1 {
   margin: 0;
+}
+
+.castleConsole {
+  display: grid;
+  gap: 12px;
+}
+
+.commandHeader {
+  display: grid;
+  grid-template-columns: minmax(270px, 1.2fr) minmax(300px, 1fr) minmax(210px, 0.8fr);
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--console-border);
+  border-radius: 8px;
+  background: var(--console-surface);
+}
+
+.fortressIdentity,
+.expansionStatus {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.fortressIdentity h2 {
+  overflow: hidden;
+  margin: 3px 0;
+  font-size: 1.16rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.identityMeta {
+  overflow: hidden;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.raceToken,
+.raceTokenPlaceholder {
+  width: 58px;
+  height: 58px;
+  flex: none;
+  border-radius: 50%;
+}
+
+.raceToken {
+  object-fit: cover;
+}
+
+.raceTokenPlaceholder {
+  border: 1px solid rgba(103, 196, 207, 0.3);
+  background: var(--console-recess);
+}
+
+.resourceStrip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.resourceStrip div {
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid rgba(103, 196, 207, 0.16);
+  border-radius: 6px;
+  background: var(--console-recess);
+}
+
+.resourceStrip dt {
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+}
+
+.resourceStrip dd {
+  overflow: hidden;
+  margin: 4px 0 0;
+  font-weight: 800;
+  text-overflow: ellipsis;
+}
+
+.expansionStatus {
+  justify-content: end;
+}
+
+.expansionStatus strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.82rem;
+}
+
+.featureCrest {
+  width: 46px;
+  height: 46px;
+  flex: none;
+  object-fit: contain;
+}
+
+.tabBar {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--console-border);
+  border-radius: 8px;
+  background: rgba(5, 12, 18, 0.72);
+}
+
+.tabButton {
+  min-height: 42px;
+  flex: 1;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tabButton[aria-selected="true"] {
+  border-color: rgba(103, 196, 207, 0.28);
+  background: rgba(103, 196, 207, 0.13);
+  color: var(--foreground);
 }
 
 .castleGrid {
@@ -136,6 +269,14 @@
   gap: 8px;
 }
 
+.raceChoiceToken {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 2px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
 .buildingCardHeader {
   display: flex;
   align-items: center;
@@ -201,6 +342,7 @@
   }
 
   .topbar,
+  .commandHeader,
   .castleGrid,
   .statGrid,
   .buildingGrid,
@@ -209,5 +351,21 @@
   .inlineForm {
     grid-template-columns: 1fr;
     display: grid;
+  }
+
+  .expansionStatus {
+    justify-content: start;
+  }
+
+  .tabBar {
+    overflow-x: auto;
+  }
+
+  .tabButton {
+    min-width: 92px;
+  }
+
+  .resourceStrip {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }

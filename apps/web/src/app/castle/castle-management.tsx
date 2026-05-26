@@ -287,6 +287,7 @@ type CommandTarget = {
 };
 
 type BuildingSpecialization = "POINTS" | "FOOD" | "MILITARY" | "DEFENSE";
+type CastleTab = "OVERVIEW" | "ECONOMY" | "ARMY" | "DOCTRINE";
 type WorkerAssignmentKey =
   | "minersAssigned"
   | "farmersAssigned"
@@ -424,6 +425,18 @@ const RACE_TIER_BIOME_REQUIREMENTS: Record<FortressRace, string> = {
 };
 
 const RACE_TIER_THRESHOLDS_LABEL = "Tier 1/2/3 at 3/6/9 matching tiles";
+const CASTLE_TABS = [
+  { key: "OVERVIEW", label: "Overview" },
+  { key: "ECONOMY", label: "Economy" },
+  { key: "ARMY", label: "Army" },
+  { key: "DOCTRINE", label: "Doctrine" },
+] as const satisfies readonly { key: CastleTab; label: string }[];
+const RACE_TOKEN_PATHS: Partial<Record<FortressRace, string>> = {
+  DWARFS: "/assets/token-dwarf.png",
+  ORKS: "/assets/token-orks.png",
+  SPACE_MURINES: "/assets/token-space-murines.png",
+  UNSTABLE_UNICORNS: "/assets/token-unstable-unicorns.png",
+};
 
 function getBuildingsForRace(race: string | null): readonly BuildingMetadata[] {
   const raceKey: BuildingRaceKey =
@@ -598,7 +611,12 @@ export function CastleManagement({
   const [recruitError, setRecruitError] = useState<string | null>(null);
   const [recruitPending, setRecruitPending] = useState(false);
   const [goldToConvert, setGoldToConvert] = useState(getGoldToPointsRatio());
+  const [activeTab, setActiveTab] = useState<CastleTab>("OVERVIEW");
   const buildings = getBuildingsForRace(playerSummary.race);
+  const raceTokenPath =
+    playerSummary.race && isFortressRace(playerSummary.race)
+      ? RACE_TOKEN_PATHS[playerSummary.race]
+      : null;
   const castleSpecializationCounts =
     playerSummary.castleSpecializationCounts ?? EMPTY_BUILDING_COUNTS;
   const production = useMemo(
@@ -854,7 +872,94 @@ export function CastleManagement({
   }
 
   return (
-    <div className={styles.castleGrid}>
+    <div className={styles.castleConsole}>
+      <header className={styles.commandHeader}>
+        <div className={styles.fortressIdentity}>
+          {raceTokenPath ? (
+            <img
+              className={styles.raceToken}
+              src={raceTokenPath}
+              alt=""
+              aria-hidden="true"
+            />
+          ) : (
+            <span className={styles.raceTokenPlaceholder} aria-hidden="true" />
+          )}
+          <div>
+            <span className={styles.eyebrow}>Castle command</span>
+            <h2>{playerSummary.name}</h2>
+            <p className={styles.identityMeta}>
+              Level {playerSummary.displayedCastleLevel} &middot;{" "}
+              {playerSummary.race ?? "No race selected"}
+              {playerSummary.doctrineState.selected
+                ? ` / ${playerSummary.doctrineState.selected.label}`
+                : ""}
+            </p>
+          </div>
+        </div>
+        <dl className={styles.resourceStrip}>
+          <div>
+            <dt>Points</dt>
+            <dd>{playerSummary.points}</dd>
+          </div>
+          <div>
+            <dt>Gold</dt>
+            <dd>{playerSummary.gold}</dd>
+          </div>
+          <div>
+            <dt>Food</dt>
+            <dd>{playerSummary.food}</dd>
+          </div>
+          <div>
+            <dt>Army</dt>
+            <dd>{playerSummary.army}</dd>
+          </div>
+        </dl>
+        {playerSummary.doctrinesEnabled ? (
+          <div className={styles.expansionStatus}>
+            <img
+              src="/assets/ui/crest-pressure.webp"
+              className={styles.featureCrest}
+              alt=""
+              aria-hidden="true"
+            />
+            <div>
+              <span className={styles.eyebrow}>Expansion</span>
+              <strong>Pressure operations</strong>
+            </div>
+          </div>
+        ) : null}
+      </header>
+
+      <nav
+        className={styles.tabBar}
+        aria-label="Castle management sections"
+        role="tablist"
+      >
+        {CASTLE_TABS.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            className={styles.tabButton}
+            id={`castle-tab-${tab.key.toLowerCase()}`}
+            role="tab"
+            aria-selected={activeTab === tab.key}
+            aria-controls={`castle-panel-${tab.key.toLowerCase()}`}
+            onClick={() => setActiveTab(tab.key)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </nav>
+
+      <div
+        className={styles.castleGrid}
+        id={`castle-panel-${activeTab.toLowerCase()}`}
+        role="tabpanel"
+        aria-labelledby={`castle-tab-${activeTab.toLowerCase()}`}
+      >
+      {activeTab === "OVERVIEW" ? (
+        <>
       <section className={styles.panel}>
         <div className={styles.panelHeader}>
           <span>Castle</span>
@@ -946,11 +1051,16 @@ export function CastleManagement({
           </div>
         </dl>
         <p className={styles.muted}>
-          Normal hexes now feed gold and food, while temporary objectives and
-          Home of A generate score income.
+          {playerSummary.doctrinesEnabled
+            ? "Neutral borders grow through pressure priorities. The center monument is preserved and provides no income."
+            : "Normal hexes now feed gold and food, while temporary objectives and Home of A generate score income."}
         </p>
       </section>
+        </>
+      ) : null}
 
+      {activeTab === "ECONOMY" ? (
+        <>
       <section className={styles.panel}>
         <div className={styles.panelHeader}>
           <span>Buildings</span>
@@ -1148,7 +1258,10 @@ export function CastleManagement({
           </button>
         </form>
       </section>
+        </>
+      ) : null}
 
+      {activeTab === "ARMY" ? (
       <section className={styles.panel}>
         <div className={styles.panelHeader}>
           <span>Recruitment</span>
@@ -1185,7 +1298,9 @@ export function CastleManagement({
           </button>
         </form>
       </section>
+      ) : null}
 
+      {activeTab === "DOCTRINE" ? (
       <section className={styles.panel}>
         <div className={styles.panelHeader}>
           <span>Race</span>
@@ -1749,6 +1864,12 @@ export function CastleManagement({
                 className={styles.raceCard}
               >
                 <input name="race" type="hidden" value={race.key} />
+                <img
+                  className={styles.raceChoiceToken}
+                  src={RACE_TOKEN_PATHS[race.key]}
+                  alt=""
+                  aria-hidden="true"
+                />
                 <strong>{race.displayName}</strong>
                 <p>{race.flavorText}</p>
                 <p className={styles.muted}>{RACE_TIER_THRESHOLDS_LABEL}</p>
@@ -1766,7 +1887,9 @@ export function CastleManagement({
           </p>
         )}
       </section>
+      ) : null}
 
+      {activeTab === "OVERVIEW" ? (
       <section className={styles.panel}>
         <div className={styles.panelHeader}>
           <span>Utility</span>
@@ -1800,6 +1923,8 @@ export function CastleManagement({
           </form>
         </div>
       </section>
+      ) : null}
+      </div>
     </div>
   );
 }
