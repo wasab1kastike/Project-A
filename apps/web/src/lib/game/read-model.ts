@@ -1091,6 +1091,40 @@ export async function getHomePageState({
       commanderNameByOwnerId.set(fortress.ownerId, fortress.commanderName);
     }
   }
+  const [incomingOfferCount, incidentCount, recallableOrderCount] =
+    playerFortress && isSeasonFour
+      ? await Promise.all([
+          db.tradeOffer.count({
+            where: {
+              cycleId: cycle.id,
+              receiverFortressId: playerFortress.id,
+              status: 'PENDING',
+            },
+          }),
+          db.covertIncident.count({
+            where: {
+              cycleId: cycle.id,
+              OR: [
+                { detectingFortressId: playerFortress.id },
+                { raiderFortressId: playerFortress.id },
+              ],
+              casusBelliExpiresAt: { gt: now },
+            },
+          }),
+          db.armyOrder.count({
+            where: {
+              cycleId: cycle.id,
+              fortressId: playerFortress.id,
+              status: 'ACTIVE',
+              OR: [
+                { campaign: null },
+                { campaign: { status: { notIn: ['ENGAGED', 'RESOLVED'] } } },
+              ],
+            },
+          }),
+        ])
+      : [0, 0, 0];
+
   const registrationOpen =
     cycle.status === CycleStatus.REGISTRATION && cycle.registrationEndsAt > now;
   const testingOpen =
@@ -3817,8 +3851,8 @@ export async function getHomePageState({
     canEditRegistrationName:
       Boolean(userId) && registrationOpen && Boolean(playerFortress),
     emptyStateMessage: null,
-    incomingOfferCount: 0,
-    incidentCount: 0,
-    recallableOrderCount: 0,
+    incomingOfferCount,
+    incidentCount,
+    recallableOrderCount,
   };
 }
