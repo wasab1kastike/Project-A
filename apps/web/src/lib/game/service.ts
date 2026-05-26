@@ -4005,6 +4005,10 @@ export async function recallAttackUnit({
         throw new GameError("The battlefield is not accepting active actions.");
       }
 
+      if (instant) {
+        assertLegacyAbilityCycle(cycle);
+      }
+
       return recallAttackUnitRecord({
         db: tx,
         cycle,
@@ -4042,6 +4046,8 @@ export async function instantRecallGarrison({
       ) {
         throw new GameError("The battlefield is not accepting active actions.");
       }
+
+      assertLegacyAbilityCycle(cycle);
 
       return instantRecallGarrisonRecord({
         db: tx,

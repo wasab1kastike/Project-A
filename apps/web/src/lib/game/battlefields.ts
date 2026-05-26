@@ -1215,6 +1215,10 @@ export async function processActiveBattlefields({
     const isRegularTileBattle =
       battlefield.targetTileId !== null &&
       !isHomeOfATile(battlefield.targetTileId);
+
+    if (isSeasonFour && !isRegularTileBattle) {
+      continue;
+    }
     const storedDefenderArmy = isHomeBossBattle
       ? battlefield.defenderArmyRemaining
       : isRegularTileBattle
