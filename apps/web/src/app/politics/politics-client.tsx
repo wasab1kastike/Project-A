@@ -305,15 +305,33 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
   function formatCargo(
     lineItems: {
       fromFortressId: string;
-      kind: "GOLD" | "FOOD" | "ARMY";
-      amount: number;
+      kind: string;
+      amount: number | null;
+      tileId?: string | null;
     }[],
     fromFortressId: string
   ) {
-    return lineItems
-      .filter((item) => item.fromFortressId === fromFortressId)
-      .map((item) => `${item.amount.toLocaleString()} ${item.kind.toLowerCase()}`)
-      .join(", ") || "nothing";
+    const cargoParts = lineItems
+      .filter(
+        (item) =>
+          item.fromFortressId === fromFortressId &&
+          item.kind !== "TILE" &&
+          item.amount != null
+      )
+      .map((item) => `${item.amount!.toLocaleString()} ${item.kind.toLowerCase()}`);
+
+    const deedItem = lineItems.find(
+      (item) =>
+        item.fromFortressId === fromFortressId &&
+        item.kind === "TILE" &&
+        item.tileId
+    );
+
+    if (deedItem) {
+      cargoParts.push(`Tile ${deedItem.tileId}`);
+    }
+
+    return cargoParts.join(", ") || "nothing";
   }
 
   function formatLegCargo(leg: PoliticsPageState["activeConvoyLegs"][number]) {
