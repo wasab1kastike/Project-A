@@ -1,6 +1,5 @@
 import {
   CastleUpgradeSpecialization,
-  CommunityWishStatus,
   CycleRuleset,
   CycleStatus,
   ArmyOrderStatus,
@@ -480,49 +479,6 @@ function isRaceSelectionWindowOpen(
   );
 }
 
-async function isRaceSelectionLockedByCommunityWish({
-  cycleId,
-  now,
-  db,
-}: {
-  cycleId: string;
-  now: Date;
-  db: DatabaseClient;
-}) {
-  const latestHistory = await db.cycleHistory.findFirst({
-    where: {
-      cycleId: {
-        not: cycleId,
-      },
-    },
-    orderBy: {
-      endedAt: "desc",
-    },
-    select: {
-      communityWishStatus: true,
-      communityWishProposalEndsAt: true,
-      communityWishVotingEndsAt: true,
-    },
-  });
-
-  if (!latestHistory) {
-    return false;
-  }
-
-  if (latestHistory.communityWishStatus === CommunityWishStatus.OPEN) {
-    return (
-      latestHistory.communityWishVotingEndsAt !== null &&
-      latestHistory.communityWishVotingEndsAt > now
-    );
-  }
-
-  return (
-    latestHistory.communityWishStatus === CommunityWishStatus.PROPOSALS_OPEN &&
-    latestHistory.communityWishProposalEndsAt !== null &&
-    latestHistory.communityWishProposalEndsAt > now
-  );
-}
-
 function findOpenMapPosition(
   cycle: {
     id: string;
@@ -669,20 +625,6 @@ export async function joinRegistrationCycle({
 
         if (!isJoinOpen(cycle, now)) {
           throw new GameError("Joining is closed for this cycle.");
-        }
-
-        if (
-          normalizedRace !== undefined &&
-          cycle.status === CycleStatus.REGISTRATION &&
-          (await isRaceSelectionLockedByCommunityWish({
-            cycleId: cycle.id,
-            now,
-            db: tx,
-          }))
-        ) {
-          throw new GameError(
-            "Race selection opens after community wish voting closes."
-          );
         }
 
         if (cycle.fortresses.some((fortress) => fortress.ownerId === userId)) {
@@ -4577,19 +4519,6 @@ export async function selectFortressRace({
       if (!cycle || !isRaceSelectionWindowOpen(cycle, now)) {
         throw new GameError(
           "Race selection is only available before or during gameplay."
-        );
-      }
-
-      if (
-        cycle.status === CycleStatus.REGISTRATION &&
-        (await isRaceSelectionLockedByCommunityWish({
-          cycleId: cycle.id,
-          now,
-          db: tx,
-        }))
-      ) {
-        throw new GameError(
-          "Race selection opens after community wish voting closes."
         );
       }
 

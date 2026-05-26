@@ -308,220 +308,6 @@
   color: #ffe7aa;
 }
 
-.currentWishes,
-.promiseList,
-.promiseCard {
-  display: grid;
-  gap: 8px;
-}
-
-.currentWishes {
-  padding-top: 10px;
-  border-top: 1px solid rgba(247, 196, 95, 0.18);
-}
-
-.promiseCard {
-  padding: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.11);
-  border-radius: 8px;
-  background: rgba(7, 13, 20, 0.42);
-}
-
-.promisePlaceholder {
-  opacity: 0.72;
-}
-
-.promiseHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.promiseHeader span,
-.promiseCard small {
-  color: var(--text-muted);
-  font-family: var(--font-ibm-plex-mono);
-  font-size: 0.66rem;
-  text-transform: uppercase;
-}
-
-.promiseCard p {
-  color: var(--foreground);
-  font-size: 0.9rem;
-  line-height: 1.45;
-}
-
-.promiseProgressWrap {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: center;
-}
-
-.promiseProgressWrap strong {
-  color: var(--accent-strong);
-  font-family: var(--font-ibm-plex-mono);
-  font-size: 0.7rem;
-  min-width: 4ch;
-  text-align: right;
-}
-
-.promiseProgress {
-  position: relative;
-  height: 10px;
-  overflow: hidden;
-  border: 1px solid rgba(118, 190, 255, 0.24);
-  border-radius: 999px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0)),
-    rgba(255, 255, 255, 0.07);
-  box-shadow:
-    inset 0 0 0 1px rgba(7, 13, 20, 0.24),
-    0 0 18px rgba(118, 190, 255, 0.08);
-}
-
-.promiseProgress span {
-  position: relative;
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, #f7c45f 0%, #76beff 58%, #7df0ba 100%);
-  box-shadow: 0 0 16px rgba(118, 190, 255, 0.34);
-}
-
-.promiseProgress span::after {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.42),
-    transparent
-  );
-  content: "";
-  opacity: 0.45;
-}
-
-.promiseProgressWrap[data-progress-state="complete"] .promiseProgress span {
-  background: linear-gradient(90deg, #7df0ba, #f7c45f);
-}
-
-.promiseProgressWrap[data-progress-state="empty"] .promiseProgress span {
-  box-shadow: none;
-}
-
-.winnerWishPrompt {
-  display: grid;
-  gap: 8px;
-  padding: 14px;
-  border: 1px solid rgba(118, 190, 255, 0.2);
-  border-radius: 8px;
-  background: rgba(118, 190, 255, 0.08);
-}
-
-.winnerWishPrompt h2 {
-  font-size: 1.15rem;
-  line-height: 1.05;
-}
-
-.wishPanel {
-  position: relative;
-  display: inline-flex;
-  width: auto;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-  backdrop-filter: none;
-  pointer-events: auto;
-}
-
-.wishPanelToggle {
-  display: inline-flex;
-  min-height: 42px;
-  align-items: center;
-  justify-content: center;
-  padding: 0 16px;
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0)),
-    rgba(5, 12, 18, 0.78);
-  color: var(--foreground);
-  font-weight: 700;
-  cursor: pointer;
-  list-style: none;
-}
-
-.wishPanelToggle::-webkit-details-marker {
-  display: none;
-}
-
-.wishPanelToggle::before {
-  content: "+";
-  margin-right: 8px;
-  color: var(--accent-strong);
-  font-family: var(--font-ibm-plex-mono);
-}
-
-.wishPanel[open] .wishPanelToggle::before {
-  content: "-";
-}
-
-.wishPanelContent {
-  position: absolute;
-  top: calc(100% + 10px);
-  right: 0;
-  z-index: 40;
-  width: min(360px, calc(100vw - 32px));
-  display: grid;
-  gap: 12px;
-  max-height: calc(100dvh - var(--battlefield-bottom-clearance) - 184px);
-  overflow: auto;
-  padding: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0)),
-    rgba(5, 12, 18, 0.78);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 18px 44px rgba(0, 0, 0, 0.28);
-  backdrop-filter: blur(14px);
-}
-
-.wishPanelContent h2 {
-  font-size: 1.15rem;
-}
-
-.wishFocusPanel {
-  display: grid;
-  gap: 14px;
-  padding: 16px;
-  border: 1px solid rgba(247, 196, 95, 0.3);
-  border-radius: 8px;
-  background:
-    linear-gradient(180deg, rgba(247, 196, 95, 0.13), rgba(247, 196, 95, 0.03)),
-    rgba(7, 13, 20, 0.58);
-  box-shadow: inset 0 0 0 1px rgba(247, 196, 95, 0.08);
-}
-
-.wishFocusPanel h2 {
-  font-size: clamp(1.45rem, 3.8vw, 2.2rem);
-  line-height: 1.02;
-}
-
-.wishFocusPanel .voteForm {
-  margin-top: 2px;
-  padding-top: 14px;
-  border-top-color: rgba(247, 196, 95, 0.22);
-}
-
-.wishFocusPanel .voteRow {
-  background: rgba(7, 13, 20, 0.54);
-}
-
 .statusPanel {
   top: 50%;
   left: 50%;
@@ -574,23 +360,6 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.07),
     0 30px 80px rgba(0, 0, 0, 0.52);
   backdrop-filter: blur(16px);
-}
-
-.joinReservePanel {
-  display: grid;
-  gap: 14px;
-  padding: 16px;
-  border: 1px solid rgba(118, 190, 255, 0.2);
-  border-radius: 8px;
-  background:
-    linear-gradient(180deg, rgba(118, 190, 255, 0.1), rgba(118, 190, 255, 0.02)),
-    rgba(5, 12, 18, 0.62);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-
-.joinReservePanel h2 {
-  font-size: clamp(1.15rem, 3vw, 1.55rem);
-  line-height: 1.08;
 }
 
 .joinModalHeader {
@@ -708,139 +477,17 @@
   text-transform: uppercase;
 }
 
-.voteForm {
-  display: grid;
-  gap: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border-soft);
-}
-
-.voteSectionLabel {
-  color: var(--accent-strong);
-  font-family: var(--font-ibm-plex-mono);
-  font-size: 0.78rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.voteHint {
-  color: var(--text-muted);
-  line-height: 1.55;
-}
-
-.voteList {
-  display: grid;
-  gap: 10px;
-}
-
-.voteRow {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 88px;
-  gap: 12px;
-  align-items: start;
-  padding: 12px;
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  background: rgba(7, 13, 20, 0.38);
-}
-
-.voteRow span {
-  display: grid;
-  gap: 4px;
-}
-
-.voteRow small,
-.voteRow em {
-  color: var(--text-muted);
-  font-style: normal;
-  line-height: 1.45;
-}
-
-.voteRow input {
-  min-height: 42px;
-  width: 100%;
-  padding: 0 10px;
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  background: rgba(7, 13, 20, 0.72);
-  color: var(--foreground);
-  font: inherit;
-}
-
-.voteRow input:focus {
-  outline: 2px solid rgba(247, 196, 95, 0.24);
-  border-color: var(--border-strong);
-}
-
 .field {
   display: grid;
   gap: 8px;
 }
 
-.field span,
-.fieldHeader {
+.field span {
   color: var(--text-muted);
   font-family: var(--font-ibm-plex-mono);
   font-size: 0.72rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-}
-
-.fieldHeader {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.helpDisclosure {
-  position: relative;
-}
-
-.helpButton {
-  display: inline-flex;
-  width: 24px;
-  height: 24px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--border-soft);
-  border-radius: 999px;
-  color: var(--accent-strong);
-  cursor: pointer;
-  list-style: none;
-}
-
-.helpButton::-webkit-details-marker {
-  display: none;
-}
-
-.helpPopover {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 5;
-  width: min(280px, calc(100vw - 48px));
-  display: grid;
-  gap: 8px;
-  padding: 12px;
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  background: rgba(7, 13, 20, 0.96);
-  color: var(--foreground);
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.32);
-  text-transform: none;
-}
-
-.helpPopover ul {
-  display: grid;
-  gap: 6px;
-  padding-left: 18px;
-}
-
-.helpPopover li {
-  color: var(--text-muted);
-  line-height: 1.45;
 }
 
 .field input,
@@ -1136,28 +783,6 @@
   font-size: 0.68rem;
 }
 
-.wishList {
-  display: grid;
-  gap: 8px;
-  list-style: none;
-}
-
-.wishList li {
-  display: grid;
-  gap: 4px;
-  padding: 10px;
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  background: rgba(7, 13, 20, 0.45);
-}
-
-.wishList span {
-  color: var(--text-muted);
-  font-family: var(--font-ibm-plex-mono);
-  font-size: 0.72rem;
-  text-transform: uppercase;
-}
-
 @media (hover: hover) and (pointer: fine) {
   .hudButton:hover,
   .primaryButton:hover,
@@ -1286,23 +911,6 @@
     bottom: auto;
     width: min(440px, calc(100% - 32px));
     transform: translate(-50%, -50%);
-  }
-
-  .wishPanelToggle {
-    min-height: 32px;
-    padding: 0 9px;
-    border-radius: 7px;
-    font-size: 0.68rem;
-  }
-
-  .wishPanelContent {
-    left: 0;
-    max-height: calc(100dvh - 132px);
-    padding: 16px;
-  }
-
-  .wishFocusPanel {
-    padding: 14px;
   }
 
   .deadlineList,

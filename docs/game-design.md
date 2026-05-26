@@ -30,7 +30,7 @@
 - Top 3 leaderboard visible for points, units killed, tiles owned, goblins killed, and resources stolen from player castles
 - Category leaders hold live titles: Crown Accountant, Butcher, Landlord, Goblin Bonker, and Loot Lord
 - Title buffs are active only during the live season and update as rankings change
-- Season 4 timer: registration is open during community wish voting, voting closes 25 May at 12:00 Europe/Helsinki, and pretesting remains active until the redesign is explicitly released after verification
+- Season 4 timer: registration and pretesting accept new players and race selection while the redesign is verified; the completed community wish vote is archived and no longer part of the live lobby
 - Player action persists while offline
 - Castle upgrades are available during gameplay and use gold
 - Castle levels cost 500 / 1500 / 3000 / 5000 / 7500 / 10500 / 14000 / 18000 / 22500 gold

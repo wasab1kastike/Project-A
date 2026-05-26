@@ -1026,8 +1026,7 @@ export async function getHomePageState({
         usedVotes: 0,
         remainingVotes: 0,
         currentUserCommunityWish: "",
-        submissionHint:
-          "Winner wish is guaranteed. Community wish is vote-based. Wishes and votes close Monday 25 May at 12:00.",
+        submissionHint: "Community wish voting is not open.",
         proposals: [],
       },
       availableTargets: [],
@@ -2196,13 +2195,17 @@ export async function getHomePageState({
       })
     : 0;
   const usingResolvedWishWindow =
-    cycle.status === CycleStatus.REGISTRATION && latestResolvedSeason !== null;
+    !isSeasonFour &&
+    cycle.status === CycleStatus.REGISTRATION &&
+    latestResolvedSeason !== null;
   const communityWishSourceCycleId = usingResolvedWishWindow
     ? latestResolvedSeason.cycleId
     : cycle.id;
-  const communityWishSourceProposals = usingResolvedWishWindow
-    ? latestResolvedSeason.cycle.communityWishProposals
-    : cycle.communityWishProposals;
+  const communityWishSourceProposals = isSeasonFour
+    ? []
+    : usingResolvedWishWindow
+      ? latestResolvedSeason.cycle.communityWishProposals
+      : cycle.communityWishProposals;
   const communityWishSourcePlayerFortress = usingResolvedWishWindow
     ? (latestResolvedSeason.cycle.fortresses.find(
         (fortress) => fortress.ownerId === userId
@@ -2212,7 +2215,7 @@ export async function getHomePageState({
     ? latestResolvedSeason.communityWishStatus === CommunityWishStatus.OPEN ||
       latestResolvedSeason.communityWishStatus ===
         CommunityWishStatus.PROPOSALS_OPEN
-    : activeOpen;
+    : !isSeasonFour && activeOpen;
   const communityWishVotingOpen =
     usingResolvedWishWindow &&
     latestResolvedSeason.communityWishStatus === CommunityWishStatus.OPEN &&
@@ -3027,24 +3030,20 @@ export async function getHomePageState({
         cycle.status === CycleStatus.REGISTRATION
           ? joiningLocked
             ? "Build time is still running, but joins are currently locked by admin action."
-            : communityWishVotingOpen
-              ? "Build time is open. Players can reserve a fortress now; race choice opens after community wish voting closes."
-            : "Build time is open. Players can join before Season 4 is activated."
+            : "Build time is open. Players can join, choose a race, and reserve a Season 4 slot before activation."
           : cycle.status === CycleStatus.TESTING
             ? joiningLocked
               ? "Testing mode is live, but joins are currently locked by admin action. Sandbox progress resets before Season 4 activation."
               : "Testing mode is live. Season 4 activation remains held until the redesigned rules pass pretesting."
             : activeOpen
-              ? "The season is live. Community wishes can be proposed until Sunday and voted on after it ends."
-              : "The season has ended. Build and wish resolution are in progress.",
+              ? "The season is live. Pressure, diplomacy, convoys, and campaigns resolve through the Season 4 ruleset."
+              : "The season has ended. The next registration window is being prepared.",
       statusMessage:
         cycle.status === CycleStatus.REGISTRATION
           ? registrationOpen && joiningLocked
             ? "Build time remains open on the clock, but new joins are currently locked by admin action."
             : registrationOpen
-              ? communityWishVotingOpen
-                ? "Build time is open. Joining reserves one of the 30 season slots now; race choice opens after community wish voting closes."
-                : "Build time is open. Joining creates your fortress immediately and reserves one of the 30 Season 4 slots."
+              ? "Build time is open. Joining creates your fortress, locks your race choice, and reserves one of the 30 Season 4 slots."
               : "Build time has expired. The next game tick will either restart build time or move the cycle into ACTIVE."
           : cycle.status === CycleStatus.TESTING
             ? testingOpen && joiningLocked
@@ -3715,7 +3714,9 @@ export async function getHomePageState({
       usedVotes: communityWishVoteBudget.usedVotes,
       remainingVotes: communityWishVoteBudget.remainingVotes,
       currentUserCommunityWish: currentUserCommunityWish?.requestText ?? "",
-      submissionHint: !userId
+      submissionHint: isSeasonFour
+        ? "Community wishes are archived and are not part of Season 4 gameplay."
+        : !userId
         ? "Sign in and join this cycle to suggest a community wish."
         : !communityWishSourcePlayerFortress
           ? usingResolvedWishWindow
