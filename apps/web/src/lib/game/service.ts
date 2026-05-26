@@ -122,6 +122,7 @@ import {
   getWarStartsAt,
 } from "./politics";
 import { isSeasonFourRuleset } from "./rulesets";
+import { validateTileDeedAllowed } from "./tile-deeds";
 import { getCampaignStartBlockedReason } from "./campaigns";
 import {
   calculateTradeCargoValue,
@@ -2581,7 +2582,6 @@ export async function createTradeOffer({
     }
 
     if (deedTileId && deedDirection) {
-      const { validateTileDeedAllowed } = await import("./tile-deeds");
       const deedValidation = validateTileDeedAllowed({
         tileId: deedTileId,
         senderFortressId:
@@ -2802,7 +2802,6 @@ export async function acceptTradeOffer({
     );
 
     if (deedLineItem?.tileId) {
-      const { validateTileDeedAllowed } = await import("./tile-deeds");
       const deedValidation = validateTileDeedAllowed({
         tileId: deedLineItem.tileId,
         senderFortressId: deedLineItem.fromFortressId,
