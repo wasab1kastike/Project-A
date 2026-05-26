@@ -2471,7 +2471,7 @@ function getTradeCargoFromLineItems({
   const cargo: TradeCargo = { gold: 0, food: 0, army: 0 };
 
   for (const lineItem of lineItems) {
-    if (lineItem.fromFortressId !== fromFortressId) {
+    if (lineItem.fromFortressId !== fromFortressId || !lineItem.amount) {
       continue;
     }
 
@@ -2479,7 +2479,7 @@ function getTradeCargoFromLineItems({
       cargo.gold += lineItem.amount;
     } else if (lineItem.kind === TradeLineItemKind.FOOD) {
       cargo.food += lineItem.amount;
-    } else {
+    } else if (lineItem.kind === TradeLineItemKind.ARMY) {
       cargo.army += lineItem.amount;
     }
   }
@@ -2548,6 +2548,8 @@ export async function createTradeOffer({
       );
     }
 
+    const deedTileId = offeredTileId ?? requestedTileId ?? null;
+
     if (!hasTradeCargo(offered) && !hasTradeCargo(requested) && !deedTileId) {
       throw new GameError(
         "A trade offer must contain at least one resource, army item, or tile deed."
@@ -2571,7 +2573,6 @@ export async function createTradeOffer({
       throw new GameError(blockedReason);
     }
 
-    const deedTileId = offeredTileId ?? requestedTileId ?? null;
     const deedDirection =
       offeredTileId ? "offered" : requestedTileId ? "requested" : null;
 
