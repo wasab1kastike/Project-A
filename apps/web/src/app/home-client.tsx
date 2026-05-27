@@ -361,7 +361,12 @@ function HomeClientContent({
       />
       <div className={styles.mapScrim} />
 
-      <CommandDock state={state} tickHealth={tickHealth} tickDelayMinutes={tickDelayMinutes} />
+      <CommandDock
+        state={state}
+        tickHealth={tickHealth}
+        deadline={state.phase?.deadline?.toISOString() ?? null}
+        timerLabel={phaseCopy.timerLabel}
+      />
       {!state.cycle || !state.playerSummary ? (
       <header className={styles.topHud} aria-label="Season status">
         <div className={styles.statusCluster}>
