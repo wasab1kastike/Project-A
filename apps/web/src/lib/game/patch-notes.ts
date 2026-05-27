@@ -34,6 +34,7 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
       "Home of A, loot camps, and legacy active race abilities are no longer interactive or bonus-granting in Season 4 pretesting; the center tile is shown as a monument.",
       "Manual PvP tile raids, ordinary battlefield reinforcements, and legacy fortification controls are replaced by standing orders in Season 4 pretesting.",
       "The completed community wish ballot and old testing-delay notice have been removed from the live lobby; Season 4 results do not open a new ballot.",
+      "The command dock now keeps the season countdown and live player-by-race totals visible for commanders on desktop and mobile.",
     ],
   },
   {
