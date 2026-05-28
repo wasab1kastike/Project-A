@@ -793,14 +793,24 @@ export const FortressMap = memo(function FortressMap({
   const ownFortress =
     fortresses.find((fortress) => fortress.isCurrentUser) ?? null;
   const guardMarkers = useMemo(() => {
+    const spriteByFortressId = new Map(
+      fortresses.map((f) => [
+        f.id,
+        { sprite: f.unitSpriteVariant, cosmetic: f.unitCosmeticVariant },
+      ])
+    );
     return mapHexes
       .filter((hex) => hex.guardArmy != null && hex.guardArmy > 0)
-      .map((hex) => ({
-        tileId: hex.tileId,
-        guardArmy: hex.guardArmy!,
-        ownerRace: hex.ownerRace,
-      }));
-  }, [mapHexes]);
+      .map((hex) => {
+        const info = hex.ownerFortressId ? spriteByFortressId.get(hex.ownerFortressId) : null;
+        return {
+          tileId: hex.tileId,
+          guardArmy: hex.guardArmy!,
+          unitSpriteVariant: info?.sprite ?? 'unit-1',
+          unitCosmeticVariant: info?.cosmetic ?? null,
+        };
+      });
+  }, [mapHexes, fortresses]);
 
   const snappedFortressPositions = useMemo(
     () =>
@@ -1361,7 +1371,9 @@ export const FortressMap = memo(function FortressMap({
                   >
                     <span
                       className={styles.guardSprite}
-                      data-variant="unit-1"
+                      data-variant={marker.unitSpriteVariant}
+                      data-skin={marker.unitCosmeticVariant ?? undefined}
+                      style={getCosmeticSpriteStyle("UNIT", marker.unitCosmeticVariant) ?? undefined}
                       aria-hidden="true"
                     />
                     <span className={styles.guardCount}>
