@@ -1203,3 +1203,65 @@
   stroke-linecap: round;
   opacity: 0.5;
 }
+
+/* Guards overlay (replaces old SVG guard indicators) */
+.guardsLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.guardMarker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 22px;
+  height: 22px;
+  pointer-events: auto;
+}
+
+.guardSprite {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background-image: url("/assets/unit-sprites.png");
+  background-repeat: no-repeat;
+  background-size: 300% 200%;
+  image-rendering: pixelated;
+  opacity: 0.85;
+}
+
+.guardSprite[data-variant="unit-1"] {
+  background-position: 0 0;
+}
+.guardSprite[data-variant="unit-2"] {
+  background-position: -100% 0;
+}
+.guardSprite[data-variant="unit-3"] {
+  background-position: -200% 0;
+}
+.guardSprite[data-variant="unit-4"] {
+  background-position: 0 -100%;
+}
+.guardSprite[data-variant="unit-5"] {
+  background-position: -100% -100%;
+}
+.guardSprite[data-variant="unit-6"] {
+  background-position: -200% -100%;
+}
+
+.guardCount {
+  position: absolute;
+  right: -4px;
+  bottom: -2px;
+  min-width: 16px;
+  height: 14px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: rgba(12, 18, 28, 0.88);
+  color: #fff5cf;
+  font-size: 0.55rem;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+}
