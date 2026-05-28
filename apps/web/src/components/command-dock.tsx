@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { RACE_DEFINITIONS, type FortressRace } from "@/lib/game/races";
 import type { HomePageState } from "@/lib/game/read-model";
@@ -90,6 +91,66 @@ function RacePopulation({ state }: { state: HomePageState }) {
   );
 }
 
+
+function ActivityFeed({ state }: { state: HomePageState }) {
+  const [open, setOpen] = useState(false);
+  const feed = state.recentActivity ?? [];
+
+  if (feed.length === 0) return null;
+
+  return (
+    <>
+      <button
+        className={styles.feedToggle}
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+      >
+        {'+ ' + String(feed.length) + ' events'}
+      </button>
+
+      {open ? (
+        <div className={styles.feedPanel}>
+          <div className={styles.feedHeader}>
+            <span>Recent activity</span>
+            <button onClick={() => setOpen(false)}>&times;</button>
+          </div>
+          {feed.map((item) => {
+            const isIntercepted = item.status === "INTERCEPTED";
+            const isSeized = item.status === "SEIZED";
+            const isDelivered = item.status === "DELIVERED";
+
+            return (
+              <div key={item.id} className={styles.feedItem}>
+                <span className={styles.feedIcon}>
+                  {item.deedTileId ? String.fromCodePoint(0x1F3D4) : isIntercepted ? String.fromCodePoint(0x2694) : isSeized ? String.fromCodePoint(0x1F512) : String.fromCodePoint(0x1F4E6)}
+                </span>
+                <span>
+                  {item.deedTileId
+                    ? isDelivered
+                      ? "Deed " + item.deedTileId + " transferred"
+                      : isIntercepted
+                        ? "Deed " + item.deedTileId + " lost to raid"
+                        : "Deed " + item.deedTileId + " " + (item.deedFailureReason ?? "failed")
+                    : isIntercepted
+                      ? "Convoy raided: " + item.gold + "g " + item.food + "f"
+                      : isDelivered
+                        ? "Convoy delivered: " + item.gold + "g " + item.food + "f"
+                        : "Convoy " + item.status.toLowerCase()}
+                </span>
+                {item.settledAt ? (
+                  <time className={styles.feedTime}>
+                    {new Date(item.settledAt).toLocaleString()}
+                  </time>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 export default function CommandDock({
   state,
   tickHealth,
@@ -149,6 +210,7 @@ export default function CommandDock({
         <nav className={styles.desktopDock} aria-label="Command dock">
           {dockLinks}
         </nav>
+        <ActivityFeed state={state} />
       </div>
 
       {showPlayerStatus ? (
