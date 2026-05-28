@@ -3616,6 +3616,16 @@ export async function getHomePageState({
       };
     }),
     mapFortresses,
+    alliedRoads: (cycle.diplomacyRelations ?? [])
+      .filter((rel) => rel.status === 'ALLIED')
+      .map((rel) => {
+        const fortresses = cycle.fortresses ?? [];
+        const a = fortresses.find((f) => f.id === rel.fortressAId);
+        const b = fortresses.find((f) => f.id === rel.fortressBId);
+        if (!a || !b) return null;
+        return { x1: a.mapX, y1: a.mapY, x2: b.mapX, y2: b.mapY };
+      })
+      .filter((r): r is NonNullable<typeof r> => r !== null),
     mapHexes: mappedMapHexes,
     homeOfA: {
       tileId: HOME_OF_A_TILE_ID,
