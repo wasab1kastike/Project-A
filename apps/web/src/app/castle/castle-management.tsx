@@ -680,7 +680,7 @@ export function CastleManagement({
   const [activeTab, setActiveTab] = useState<CastleTab>("OVERVIEW");
   const buildings = getBuildingsForRace(playerSummary.race);
   const raceTokenPath =
-    playerSummary.race && (playerSummary.race && isFortressRace(playerSummary.race))
+    playerSummary.race && (playerSummary.race && isFortressRace(playerSummary.race!))
       ? RACE_TOKEN_PATHS[playerSummary.race]
       : null;
   const castleSpecializationCounts =
@@ -1572,7 +1572,7 @@ export function CastleManagement({
             <p className={styles.muted}>
               Current race tier: {playerSummary.raceBuffs.tier}. Upgrade path:
               {" "}
-              {(playerSummary.race && isFortressRace(playerSummary.race))
+              {(playerSummary.race && isFortressRace(playerSummary.race!))
                 ? `${RACE_TIER_THRESHOLDS_LABEL}. Required biomes: ${RACE_TIER_BIOME_REQUIREMENTS[playerSummary.race]}.`
                 : "control 3/6/9 tiles of your race biomes."}
             </p>
@@ -2194,7 +2194,7 @@ export function CastleManagement({
           <span>Skills</span>
           <strong>{playerSummary.race ?? "Choose a race"}</strong>
         </div>
-        {playerSummary.race && (playerSummary.race && isFortressRace(playerSummary.race)) ? (
+        {playerSummary.race && (playerSummary.race && isFortressRace(playerSummary.race!)) ? (
           <RaceSkillPanel
             skillState={{
               race: playerSummary.race,
