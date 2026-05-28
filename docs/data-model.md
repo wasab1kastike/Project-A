@@ -155,7 +155,20 @@ REGISTRATION ──→ TESTING ──→ ACTIVE ──→ RESOLUTION
 - `crownedFortressId` → Fortress
 - `megaFortressDestroyCount` — used for Home of A HP scaling
 
-### 2.3 Fortress / Economy Domain
+### 2.3 Skill Progression
+
+```
+RaceSkillPurchase
+├── fortressId → Fortress
+├── path (string) — one of the 3 paths per race
+├── tier (Int) — 1-5, current level in this path
+├── purchasedAt
+└── @@unique([fortressId, path]) — one entry per path per fortress
+```
+
+**Skill points:** +1 per castle level + 1 per 3 owned tiles, capped at 12.
+
+### 2.4 Fortress / Economy Domain
 
 ```
 Fortress
