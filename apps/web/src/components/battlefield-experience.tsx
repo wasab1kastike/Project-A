@@ -385,6 +385,7 @@ export function BattlefieldExperience({
   homeOfA,
   battlefields,
   attackUnits,
+  alliedRoads = [],
   battleReports,
   chat,
   phaseStatus,
@@ -400,6 +401,7 @@ export function BattlefieldExperience({
   homeOfA: HomeOfAState;
   battlefields: ActiveBattlefield[];
   attackUnits: AttackUnitMarker[];
+  alliedRoads?: Array<{ x1: number; y1: number; x2: number; y2: number }>;
   battleReports: BattleReport[];
   availableTargets: unknown[];
   chat: ChatProps;
@@ -2940,6 +2942,7 @@ export function BattlefieldExperience({
           fortresses={mapFortresses}
           mapHexes={mapHexes}
           attackUnits={visibleAttackUnits}
+          alliedRoads={alliedRoads}
           selectedFortressId={selectedFortressId}
           selectedTargetId={selectedTargetId}
           selectedTileId={selectedTileId}
