@@ -1120,7 +1120,7 @@ export function CastleManagement({
         <p className={styles.muted}>
           {playerSummary.doctrinesEnabled
             ? "Neutral borders grow through pressure priorities. The center monument is preserved and provides no income."
-            : "Normal hexes now feed gold and food, while temporary objectives and Home of A generate score income."}
+            : "Normal hexes now feed gold and food, while Home of A generates score income."}
         </p>
       </section>
 

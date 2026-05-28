@@ -1,9 +1,6 @@
 import { DiplomacyRelationStatus, FortressKind } from "@/lib/prisma-client";
 import { isHomeOfATile, getTileById, getAdjacentTileIds } from "./territory";
-import {
-  getTileObjective,
-  isTileConnectedToFortressOrOwnedTiles,
-} from "./territory";
+import { isTileConnectedToFortressOrOwnedTiles } from "./territory";
 import { HEX_TILES, type HexTile } from "./map-hex";
 
 export type DeedValidationResult =
@@ -71,19 +68,6 @@ export function validateTileDeedAllowed({
 
   if (reservedDeedTileIds.has(tileId)) {
     return { ok: false, reason: "That tile is already reserved in another deed." };
-  }
-
-  const objective = getTileObjective({
-    tileId,
-    cycleId,
-    at: now,
-  });
-
-  if (objective) {
-    return {
-      ok: false,
-      reason: `That tile is an active ${objective.name} objective and cannot be transferred.`,
-    };
   }
 
   const senderTileIds = senderOwnedTileIds.filter(

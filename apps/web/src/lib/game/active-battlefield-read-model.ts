@@ -171,11 +171,7 @@ export function mapActiveBattlefields({
       battlefield.targetTileId !== null
         ? isHomeBossBattle
           ? getHomeOfABonus()
-          : getTileBonus(targetTile, {
-              tileId: battlefield.targetTileId,
-              cycleId,
-              at: now,
-            })
+          : getTileBonus(targetTile)
         : null;
     const defenseBuffPercent = targetTileBonus?.defensePercent ?? 0;
     const canRecallOwnArmy =

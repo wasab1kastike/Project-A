@@ -1,10 +1,5 @@
 import { HEX_TILES, type HexBiome, type HexTile } from "./map-hex";
-import {
-  HOME_OF_A_TILE_ID,
-  TEMPORARY_MAP_OBJECTIVE_INTERVAL_HOURS,
-  TEMPORARY_MAP_OBJECTIVE_POINT_VALUES,
-} from "./constants";
-export { TEMPORARY_MAP_OBJECTIVE_INTERVAL_HOURS } from "./constants";
+import { HOME_OF_A_TILE_ID } from "./constants";
 
 export type TileBonus = {
   gold: number;
@@ -16,15 +11,6 @@ export type TileBonus = {
   label: string;
 };
 
-export type TemporaryMapObjective = {
-  slot: number;
-  tileId: string;
-  name: string;
-  points: number;
-  activeFrom: Date;
-  activeUntil: Date;
-  label: string;
-};
 
 const EMPTY_BONUS: TileBonus = {
   gold: 0,
@@ -111,15 +97,7 @@ const BIOME_BONUSES: Record<HexBiome, TileBonus> = {
   },
 };
 
-const TEMPORARY_MAP_OBJECTIVE_NAMES = [
-  "Supply Depot",
-  "Trade Route",
-  "Ancient Shrine",
-] as const;
 
-const OBJECTIVE_CANDIDATE_TILES = HEX_TILES.filter(
-  (tile) => tile.spawnable && !isHomeOfATile(tile.id)
-);
 
 function hashString(value: string) {
   let hash = 2166136261;
@@ -167,31 +145,7 @@ function formatBonusLabel({
   return effectParts.length > 0 ? effectParts.join(", ") : "No bonus";
 }
 
-function combineTileBonuses(
-  base: TileBonus,
-  extra: Omit<TileBonus, "label">
-): TileBonus {
-  const combined = {
-    gold: base.gold + extra.gold,
-    points: base.points + extra.points,
-    food: base.food + extra.food,
-    army: base.army + extra.army,
-    population: base.population + extra.population,
-    defensePercent: base.defensePercent + extra.defensePercent,
-  };
 
-  return {
-    ...combined,
-    label: formatBonusLabel(combined),
-  };
-}
-
-function getObjectiveWindowStart(at: Date) {
-  const intervalMs = TEMPORARY_MAP_OBJECTIVE_INTERVAL_HOURS * 60 * 60 * 1000;
-  const bucket = Math.floor(at.getTime() / intervalMs);
-
-  return new Date(bucket * intervalMs);
-}
 
 export function getTileById(tileId: string) {
   return HEX_TILES.find((tile) => tile.id === tileId) ?? null;
@@ -277,113 +231,22 @@ export function isTileConnectedToFortressOrOwnedTiles({
   return false;
 }
 
-export function getTemporaryMapObjectives({
-  cycleId,
-  at,
-}: {
-  cycleId: string;
-  at: Date;
-}) {
-  const activeFrom = getObjectiveWindowStart(at);
-  const activeUntil = new Date(
-    activeFrom.getTime() +
-      TEMPORARY_MAP_OBJECTIVE_INTERVAL_HOURS * 60 * 60 * 1000
-  );
-  const objectiveWindowKey = activeFrom.toISOString();
-  const remainingTiles = [...OBJECTIVE_CANDIDATE_TILES];
-
-  return TEMPORARY_MAP_OBJECTIVE_POINT_VALUES.map((points, slot) => {
-    let bestIndex = 0;
-    let bestScore = -1;
-
-    for (let index = 0; index < remainingTiles.length; index += 1) {
-      const score = hashString(
-        `${cycleId}:${objectiveWindowKey}:${slot}:${remainingTiles[index].id}`
-      );
-
-      if (score > bestScore) {
-        bestScore = score;
-        bestIndex = index;
-      }
-    }
-
-    const [tile] = remainingTiles.splice(bestIndex, 1);
-    const name =
-      TEMPORARY_MAP_OBJECTIVE_NAMES[
-        slot % TEMPORARY_MAP_OBJECTIVE_NAMES.length
-      ];
-
-    return {
-      slot,
-      tileId: tile.id,
-      name,
-      points,
-      activeFrom,
-      activeUntil,
-      label: `${name}: +${points} points / tick while held`,
-    } satisfies TemporaryMapObjective;
-  });
+export function getTemporaryMapObjectives() {
+  return [] as Array<never>;
 }
 
-export function getTileObjective({
-  tileId,
-  cycleId,
-  at,
-}: {
-  tileId: string;
-  cycleId?: string | null;
-  at?: Date | null;
-}) {
-  if (!cycleId || !at || isHomeOfATile(tileId)) {
-    return null;
-  }
-
-  return (
-    getTemporaryMapObjectives({
-      cycleId,
-      at,
-    }).find((objective) => objective.tileId === tileId) ?? null
-  );
+export function getTileObjective(_options?: { tileId?: string; cycleId?: string | null; at?: Date | null }) {
+  return null;
 }
 
 export function getTileBonus(
-  tile: Pick<HexTile, "biome"> | null | undefined,
-  options?: {
-    tileId?: string;
-    cycleId?: string | null;
-    at?: Date | null;
-  }
+  tile: Pick<HexTile, "biome"> | null | undefined
 ) {
   if (!tile) {
     return EMPTY_BONUS;
   }
 
-  const baseBonus = BIOME_BONUSES[tile.biome] ?? EMPTY_BONUS;
-  const objective = options?.tileId
-    ? getTileObjective({
-        tileId: options.tileId,
-        cycleId: options.cycleId,
-        at: options.at,
-      })
-    : null;
-
-  if (!objective) {
-    return baseBonus;
-  }
-
-  const combined = combineTileBonuses(baseBonus, {
-    gold: 0,
-    points: objective.points,
-    food: 0,
-    army: 0,
-    population: 0,
-    defensePercent: 0,
-  });
-
-  return {
-    ...combined,
-    label: `${combined.label}. ${objective.label}`,
-  };
+  return BIOME_BONUSES[tile.biome] ?? EMPTY_BONUS;
 }
 
 export function isHomeOfATile(tileId: string) {
@@ -403,19 +266,11 @@ export function getHomeOfABonus(): TileBonus {
 }
 
 export function sumTileBonuses(
-  tiles: Array<Pick<HexTile, "id" | "biome">>,
-  options?: {
-    cycleId?: string | null;
-    at?: Date | null;
-  }
+  tiles: Array<Pick<HexTile, "id" | "biome">>
 ) {
   return tiles.reduce(
     (total, tile) => {
-      const bonus = getTileBonus(tile, {
-        tileId: tile.id,
-        cycleId: options?.cycleId,
-        at: options?.at,
-      });
+      const bonus = getTileBonus(tile);
 
       return {
         gold: total.gold + bonus.gold,

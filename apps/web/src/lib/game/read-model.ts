@@ -1984,11 +1984,7 @@ export async function getHomePageState({
           battlefield.targetTileId !== null
             ? isHomeOfATile(battlefield.targetTileId)
               ? getHomeOfABonus()
-              : getTileBonus(reportTargetTile, {
-                  tileId: battlefield.targetTileId,
-                  cycleId: cycle.id,
-                  at: now,
-                })
+              : getTileBonus(reportTargetTile)
             : null;
         const targetName =
           battlefield.targetTileId !== null
@@ -2630,10 +2626,7 @@ export async function getHomePageState({
     pressureStatesByTileId.set(state.tileId, states);
   }
 
-  const ownedTileBonuses = sumTileBonuses(ownedNormalTiles, {
-    cycleId: cycle.id,
-    at: now,
-  });
+  const ownedTileBonuses = sumTileBonuses(ownedNormalTiles);
   const ownedTileSummary = {
     totalTileCount: ownedNormalTiles.length,
     goldIncome: ownedTileBonuses.gold,
@@ -2824,11 +2817,7 @@ export async function getHomePageState({
         };
     const bonus = isHomeOwnership
       ? homeTileBonus
-      : getTileBonus(tile, {
-          tileId: ownership.tileId,
-          cycleId: cycle.id,
-          at: now,
-        });
+      : getTileBonus(tile);
     const activeCampaign = activeCampaignByTileId.get(ownership.tileId) ?? null;
     const ownGuardOrder = ownGuardOrderByTileId.get(ownership.tileId) ?? null;
     const campaignDisabledReason = (() => {
@@ -3111,11 +3100,7 @@ export async function getHomePageState({
     }
 
     const pressureState = getTilePressureState(tile);
-    const bonus = getTileBonus(tile, {
-      tileId: tile.id,
-      cycleId: cycle.id,
-      at: now,
-    });
+    const bonus = getTileBonus(tile);
 
     mappedMapHexes.push({
       id: `neutral-${tile.id}`,

@@ -1174,11 +1174,7 @@ test("pressure priority automatically claims neutral tile and applies tick bonus
 
   assert.equal(ownership?.ownerFortressId, fortress.id);
 
-  const expectedTileBonus = getTileBonus(tile, {
-    tileId: tile.id,
-    cycleId: cycle.id,
-    at: new Date("2026-04-20T12:02:00.000Z"),
-  });
+  const expectedTileBonus = getTileBonus(tile);
 
   const reloaded = await prisma.fortress.findUniqueOrThrow({
     where: {
