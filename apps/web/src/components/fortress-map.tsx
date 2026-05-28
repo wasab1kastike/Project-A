@@ -555,28 +555,7 @@ function HexTileMap({
                 </text>
               </g>
             ) : null}
-            {ownership?.guardArmy && ownership.guardArmy > 0 ? (
-              <g className={styles.guardIndicator}>
-                <rect
-                  x={tile.x - 14}
-                  y={tile.y + 12}
-                  width={28}
-                  height={16}
-                  rx={4}
-                  fill="rgba(0,0,0,0.55)"
-                  stroke="var(--color-accent, #48f)"
-                  strokeWidth={1}
-                />
-                <text
-                  x={tile.x}
-                  y={tile.y + 24}
-                  textAnchor="middle"
-                  className={styles.guardText}
-                >
-                  🛡️{ownership.guardArmy}
-                </text>
-              </g>
-            ) : null}
+
           </g>
         );
       })}
@@ -813,6 +792,16 @@ export const FortressMap = memo(function FortressMap({
 
   const ownFortress =
     fortresses.find((fortress) => fortress.isCurrentUser) ?? null;
+  const guardMarkers = useMemo(() => {
+    return mapHexes
+      .filter((hex) => hex.guardArmy != null && hex.guardArmy > 0)
+      .map((hex) => ({
+        tileId: hex.tileId,
+        guardArmy: hex.guardArmy!,
+        ownerRace: hex.ownerRace,
+      }));
+  }, [mapHexes]);
+
   const snappedFortressPositions = useMemo(
     () =>
       new Map(
@@ -1355,6 +1344,34 @@ export const FortressMap = memo(function FortressMap({
             onRecallAttackUnit={onRecallAttackUnit}
             onInstantRecallAttackUnit={onInstantRecallAttackUnit}
           />
+          {guardMarkers.length > 0 ? (
+            <div className={styles.guardsLayer} aria-label="Garrisoned units">
+              {guardMarkers.map((marker) => {
+                const tile = HEX_TILES.find((t) => t.id === marker.tileId);
+                if (!tile) return null;
+
+                return (
+                  <div
+                    key={marker.tileId}
+                    className={styles.guardMarker}
+                    style={{
+                      left: tile.xPercent + '%',
+                      top: tile.yPercent + '%',
+                    }}
+                  >
+                    <span
+                      className={styles.guardSprite}
+                      data-variant="unit-1"
+                      aria-hidden="true"
+                    />
+                    <span className={styles.guardCount}>
+                      {marker.guardArmy}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
           {fortresses.length === 0 ? (
             <div className={styles.emptyState}>
               No fortresses on the battlefield yet.
