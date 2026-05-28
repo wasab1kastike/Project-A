@@ -369,14 +369,14 @@ export async function getPoliticsPageState({
     settledAt: leg.settledAt,
     canEscort:
       leg.fromFortressId === playerFortress.id &&
-      isConvoyRaidEligible(leg) &&
+      isConvoyRaidEligible({ ...leg, hasDeed: Boolean(leg.deedTileId) }) &&
       leg.escortOrder?.status !== ArmyOrderStatus.ACTIVE,
     escortDisabledReason:
       leg.fromFortressId !== playerFortress.id
         ? "Only the sender may assign an escort."
         : leg.escortOrder?.status === ArmyOrderStatus.ACTIVE
           ? "An escort is already assigned."
-          : !isConvoyRaidEligible(leg)
+          : !isConvoyRaidEligible({ ...leg, hasDeed: Boolean(leg.deedTileId) })
             ? "Only scored, unchallenged convoys can be escorted."
             : null,
     activeEscortOrderId:

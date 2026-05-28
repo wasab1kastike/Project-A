@@ -1534,14 +1534,35 @@ async function processSeasonFourConvoys({
       }
 
       if (!seized && leg.deedTileId) {
-        const deedTile = await tx.mapHexOwnership.findUnique({
-          where: { cycleId_tileId: { cycleId, tileId: leg.deedTileId } },
-        });
+        const [deedTile, activeBattles, activeCampaigns, objectives, fromFort, toFort] = await Promise.all([
+          tx.mapHexOwnership.findUnique({
+            where: { cycleId_tileId: { cycleId, tileId: leg.deedTileId } },
+          }),
+          tx.battlefield.findMany({
+            where: { cycleId, targetTileId: leg.deedTileId, status: BattlefieldStatus.ACTIVE },
+            select: { id: true },
+          }),
+          tx.territoryCampaign.findMany({
+            where: { cycleId, targetTileId: leg.deedTileId, status: { in: ['BUILDING', 'SIEGE_WARNING', 'ENGAGED'] } },
+            select: { id: true },
+          }),
+          Promise.resolve(null),
+          tx.fortress.findUnique({ where: { id: leg.fromFortressId }, select: { mapX: true, mapY: true } }),
+          tx.fortress.findUnique({ where: { id: leg.toFortressId }, select: { mapX: true, mapY: true } }),
+        ]);
 
+        const hasActiveBattle = activeBattles.length > 0;
+        const hasActiveCampaign = activeCampaigns.length > 0;
+        const isObjective = Boolean(
+          (await import("./territory")).getTileObjective({ tileId: leg.deedTileId, cycleId, at: tickAt })
+        );
         const deedStillValid =
           deedTile &&
           deedTile.ownerFortressId === leg.fromFortressId &&
-          effectiveStatus === DiplomacyRelationStatus.ALLIED;
+          effectiveStatus === DiplomacyRelationStatus.ALLIED &&
+          !hasActiveBattle &&
+          !hasActiveCampaign &&
+          !isObjective;
 
         if (deedStillValid) {
           await tx.mapHexOwnership.update({
@@ -1555,10 +1576,20 @@ async function processSeasonFourConvoys({
           await tx.tilePressureState.deleteMany({
             where: { cycleId, tileId: leg.deedTileId },
           });
-        } else if (deedTile) {
+        } else {
           await tx.convoyLeg.update({
             where: { id: leg.id },
-            data: { deedFailureReason: "Deed invalid at delivery: parties no longer allied or tile ownership changed." },
+            data: {
+              deedFailureReason: deedTile
+                ? "Deed invalid at delivery: " + [
+                    effectiveStatus !== DiplomacyRelationStatus.ALLIED && "alliance broken",
+                    deedTile.ownerFortressId !== leg.fromFortressId && "tile no longer owned",
+                    hasActiveBattle && "tile in active battle",
+                    hasActiveCampaign && "tile in active campaign",
+                    isObjective && "tile is an active objective",
+                  ].filter(Boolean).join(", ")
+                : "Deed invalid at delivery: tile no longer exists in the cycle.",
+            },
           });
         }
       }

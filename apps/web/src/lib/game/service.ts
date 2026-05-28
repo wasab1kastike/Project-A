@@ -3171,7 +3171,7 @@ export async function createEscortOrder({
       throw new GameError("Only an active outbound convoy can receive an escort.");
     }
 
-    if (!isConvoyRaidEligible(leg)) {
+    if (!isConvoyRaidEligible({ ...leg, hasDeed: Boolean(leg.deedTileId) })) {
       throw new GameError("Only scored, unchallenged convoys can receive an escort.");
     }
 
