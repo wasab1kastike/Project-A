@@ -4928,6 +4928,38 @@ async function processCycleTick(
     const homeBossEconomyBuff =
       !isSeasonFour &&
       hasHomeOfABossBuff(fortress.raceAbilityActivations, tickAt);
+
+    // Skill tree economy bonuses
+    const skillPurchases = fortress.skillPurchases ?? [];
+    let skillFoodBonus = 0;
+    let skillGoldBonus = 0;
+    let skillArmyBonus = 0;
+    let skillPopBonus = 0;
+    if (isSeasonFour && getEffectiveRace(fortress)) {
+      for (const purchase of skillPurchases) {
+        if (purchase.path === 'grudge' || purchase.path === 'shattered') {
+          // foodPerTenFarmers bonus at tiers 1 and 3
+          if (purchase.tier >= 1) skillFoodBonus += 2;
+          if (purchase.tier >= 3) skillFoodBonus += 1;
+        }
+        if (purchase.path === 'waaagh') {
+          // armyPerTenRecruiters bonus at tiers 1 and 3
+          if (purchase.tier >= 1) skillArmyBonus += 1;
+          if (purchase.tier >= 3) skillArmyBonus += 1;
+          if (purchase.tier >= 5) skillPopBonus += fortress._count?.ownedMapHexes ?? 0;
+        }
+        if (purchase.path === 'bastion') {
+          if (purchase.tier >= 1) skillPopBonus += 1;
+          if (purchase.tier >= 3) skillPopBonus += 2;
+        }
+        if (purchase.path === 'orbital' && purchase.tier >= 5) {
+          skillPopBonus += 3;
+        }
+        if (purchase.path === 'rapid' && purchase.tier >= 5) {
+          skillPopBonus += 2;
+        }
+      }
+    }
     const unicornEconomySurge =
       !isSeasonFour &&
       getEffectiveRace(fortress) === "UNSTABLE_UNICORNS" &&
@@ -4948,10 +4980,10 @@ async function processCycleTick(
     // DWARF_ECONOMY_SURGE: multiplies production by DWARF_DEEP_MINING_ECONOMY_MULTIPLIER
     const producedGold = economyHalted
       ? 0
-      : Math.floor(production.goldProduced * economyMultiplier);
+      : Math.floor((production.goldProduced + skillGoldBonus) * economyMultiplier);
     const producedFood = economyHalted
       ? 0
-      : Math.floor(production.foodProduced * economyMultiplier);
+      : Math.floor((production.foodProduced + skillFoodBonus) * economyMultiplier);
     const recruitmentResult = economyHalted
       ? {
           unitsCreated: 0,
