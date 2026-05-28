@@ -85,3 +85,53 @@ test("convoy encounters apply bounded casualties and theft from stolen base carg
     { gold: 650, food: 650, army: 65, baseValue: 1_430, scorePoints: 1 }
   );
 });
+
+
+test("deed-only convoy legs are raid eligible regardless of cargo value", () => {
+  assert.equal(
+    isConvoyRaidEligible({
+      status: ConvoyLegStatus.IN_TRANSIT,
+      baseCargoValue: 0,
+      encounterResolvedAt: null,
+      hasDeed: true,
+    }),
+    true,
+    "deed-only zero-cargo convoy should be eligible"
+  );
+
+  assert.equal(
+    isConvoyRaidEligible({
+      status: ConvoyLegStatus.IN_TRANSIT,
+      baseCargoValue: 500,
+      encounterResolvedAt: null,
+      hasDeed: true,
+    }),
+    true,
+    "deed-only convoy with partial cargo should be eligible"
+  );
+});
+
+test("settled deed convoy legs are not raid eligible", () => {
+  assert.equal(
+    isConvoyRaidEligible({
+      status: ConvoyLegStatus.IN_TRANSIT,
+      baseCargoValue: 1_000,
+      encounterResolvedAt: new Date(),
+      hasDeed: true,
+    }),
+    false,
+    "settled deed convoy should not be eligible"
+  );
+});
+
+test("non-deed zero-cargo convoy is not raid eligible", () => {
+  assert.equal(
+    isConvoyRaidEligible({
+      status: ConvoyLegStatus.IN_TRANSIT,
+      baseCargoValue: 0,
+      encounterResolvedAt: null,
+    }),
+    false,
+    "zero-cargo convoy without deed should not be eligible"
+  );
+});
