@@ -126,7 +126,17 @@
 - `GUARD` orders commit army to owned normal tiles and join an incoming siege as defenders; guards can be recalled before they enter combat.
 - Peace or a lost war/target condition cancels an unengaged campaign and returns its committed army.
 
-## Season 4 standing doctrines
+## Season 4 racial skill trees
+
+- Each race has 3 unique paths, each path has 5 tiers.
+- Skill points earned from castle levels (+1 per level) and owned territory (+1 per 3 tiles). Max 12 points.
+- Investing in a tier unlocks all rewards at that tier, which may replace previous tier values.
+- Tiers alternate small buffs (+population, +pressure%) with major capstones (Runic Wards, Orbital Drop, Mirror Host, etc.).
+- See `apps/web/src/lib/game/race-skill-tree.ts` for complete path definitions.
+
+## Season 4 standing doctrines (retired)
+
+> Skill trees now replace doctrines as the primary race progression system. The doctrine tab has been removed from the Castle page.
 
 - Player fortresses choose one doctrine from their race on the Castle page. Changes have a 12-hour cooldown.
 - Doctrine effectiveness is `10% / 20% / 30%` at favored-biome territory tiers `3 / 6 / 9`.

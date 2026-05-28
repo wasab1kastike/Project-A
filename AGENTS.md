@@ -73,6 +73,9 @@ If a local database is unavailable, DB-backed tests may skip. Say that clearly i
 | `community-wishes.ts` | Community wish proposals and voting. |
 | `build-arcade.ts` | Build-arcade mini-game scoring. |
 | `errors.ts` | `GameError` class — user-facing error messages with no stack leaks. |
+| `race-skill-tree.ts` | Defines 4 races × 3 paths × 5 tiers (60 nodes) with mixed small/major buffs. |
+| `race-skill-service.ts` | Skill purchase, state query, point earning logic. |
+| `race-skill-effects.ts` | Aggregates purchased skills into 30+ gameplay modifier fields. |
 | `patch-notes.ts` | Patch notes data structure. |
 | `game.test.ts` | DB-backed integration tests for the game loop. |
 
@@ -83,7 +86,7 @@ This is a single ~52KB file exporting every "use server" action. Action categori
 | Category | Key Actions |
 |----------|------------|
 | **Registration** | `joinFortressAction`, `editRegistrationFortressName`, `registerCommanderName` |
-| **Race/Doctrine** | `selectFortressRaceAction`, `selectFortressDoctrineAction` |
+| **Race/Skills** | `selectFortressRaceAction`, `purchaseSkillTierAction` |
 | **Economy** | `updateWorkerAssignmentAction`, `recruitArmyAction` |
 | **Combat** | `attackFromMapAction`, `attackMapHexAction`, `joinBattlefieldAction`, `recallAttackUnitAction`, `recallAllUnitsAction` |
 | **Tile/Map** | `setTilePressurePriorityAction`, `fortifyMapHexAction`, `torchOccupiedMapHexAction`, `relocateCastleToTileAction` |
@@ -113,6 +116,8 @@ This is a single ~52KB file exporting every "use server" action. Action categori
 | `session-actions.tsx` | — | Sign-in/sign-out buttons. |
 | `season-timer.tsx` | — | Phase countdown. |
 | `giphy-gif-picker.tsx` | ~6KB | Giphy integration for chat. |
+| `command-dock.tsx` | Persistent desktop/mobile nav bar with activity feed, badge counts, race population. |
+| `race-skill-panel.tsx` | Skill tree display: path cards with tier previews and purchase buttons. |
 | `build-arcade-game.tsx` | ~5KB | Arcade mini-game UI. |
 
 ### API Routes
@@ -148,6 +153,15 @@ This is a single ~52KB file exporting every "use server" action. Action categori
 | `docs/tech-stack.md` | Technology selection rationale |
 | `PHASE_1_SUMMARY.md` | Phase 1 castle/recruitment redesign summary |
 | `CHANGELOG.md` | Release history by date |
+
+## Season 4 Design Notes
+
+- **Skill trees** replace doctrines. Each race has 3 paths × 5 tiers. Skill points earned from castle levels (+1/level) and territory (+1/3 tiles), capped at 12.
+- **Castle Yeet** is disabled in Season 4 (both UI and server).
+- **Temporary map objectives** are removed. Biome bonuses unchanged.
+- **Action hints / "Next" strip** is removed from the bottom HUD.
+- **Doctrine tab** removed from Castle page. Race selection still available.
+- **Guards** render as unit sprites (not SVG shields).
 
 ## Gameplay Rules To Preserve
 
