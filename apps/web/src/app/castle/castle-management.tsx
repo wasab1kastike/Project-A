@@ -1592,7 +1592,7 @@ export function CastleManagement({
                   Tier {playerSummary.raceBuffs.tier} effect: +
                   {playerSummary.doctrineState.effectPercent}%.
                   {playerSummary.doctrineState.changeAvailableAt!
-                    ? ` Next change after ${playerSummary.doctrineState.(changeAvailableAt as Date).toLocaleString()}.`
+                    ? ` Next change after ${playerSummary.doctrineState.changeAvailableAt?.toLocaleString()}.`
                     : " Changes lock for 12 hours."}
                 </p>
                 <div className={styles.buildingChoiceGrid}>
