@@ -44,7 +44,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string) {
 }
 
 function getDegradedHomePageState(): HomePageState {
-  return {
+  const result: Record<string, unknown> = {
     isSpectator: true,
     cycle: null,
     phase: null,
@@ -105,6 +105,7 @@ function getDegradedHomePageState(): HomePageState {
     recallableOrderCount: 0,
     recentActivity: [],
   };
+  return result as HomePageState;
 }
 
 export default async function Home({
