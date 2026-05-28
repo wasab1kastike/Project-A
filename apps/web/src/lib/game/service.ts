@@ -3339,6 +3339,20 @@ export async function startTerritoryCampaign({
       throw new GameError("That tile cannot be targeted by a campaign.");
     }
 
+    const activeDeed = await tx.convoyLeg.findFirst({
+      where: {
+        cycleId: cycle.id,
+        deedTileId: tileId,
+        deedSettledAt: null,
+        arrivesAt: { gt: now },
+      },
+      select: { id: true },
+    });
+
+    if (activeDeed) {
+      throw new GameError("That tile is reserved by an active deed.");
+    }
+
     const ownership = await tx.mapHexOwnership.findUnique({
       where: { cycleId_tileId: { cycleId: cycle.id, tileId } },
       select: { ownerFortressId: true },
