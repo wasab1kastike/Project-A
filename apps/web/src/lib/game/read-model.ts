@@ -1528,6 +1528,23 @@ export async function getHomePageState({
     }
   }
 
+  let playerEscortArmy = 0;
+  let playerRaidArmy = 0;
+  let playerCampaignArmy = 0;
+  let playerGuardArmy = 0;
+  let playerQueuedArmy = 0;
+
+  if (playerFortress) {
+    playerQueuedArmy = playerFortress.recruitmentQueue;
+    for (const order of cycle.armyOrders) {
+      if (order.fortressId !== playerFortress.id) continue;
+      if (order.type === 'ESCORT') playerEscortArmy += order.committedArmy;
+      else if (order.type === 'RAID') playerRaidArmy += order.committedArmy;
+      else if (order.type === 'CAMPAIGN') playerCampaignArmy += order.committedArmy;
+      else if (order.type === 'GUARD') playerGuardArmy += order.committedArmy;
+    }
+  }
+
   const playerAllUnits = playerFortress
     ? playerFortress.army +
       playerInFlightArmy +
@@ -3265,6 +3282,15 @@ export async function getHomePageState({
           food: playerFortress.food,
           army: playerFortress.army,
           allUnits: playerAllUnits,
+          idleArmy: playerFortress?.army ?? 0,
+          queuedArmy: playerQueuedArmy,
+          escortArmy: playerEscortArmy,
+          raidArmy: playerRaidArmy,
+          campaignArmy: playerCampaignArmy,
+          guardArmy: playerGuardArmy,
+          marchingArmy: playerInFlightArmy,
+          fightingArmy: playerBattlefieldArmy,
+          defendingArmy: playerGarrisonArmy,
           recruitmentQueue: playerFortress.recruitmentQueue,
           minersAssigned: playerFortress.minersAssigned,
           farmersAssigned: playerFortress.farmersAssigned,
@@ -3313,6 +3339,15 @@ export async function getHomePageState({
           food: playerFortress.food,
           army: playerFortress.army,
           allUnits: playerAllUnits,
+          idleArmy: playerFortress?.army ?? 0,
+          queuedArmy: playerQueuedArmy,
+          escortArmy: playerEscortArmy,
+          raidArmy: playerRaidArmy,
+          campaignArmy: playerCampaignArmy,
+          guardArmy: playerGuardArmy,
+          marchingArmy: playerInFlightArmy,
+          fightingArmy: playerBattlefieldArmy,
+          defendingArmy: playerGarrisonArmy,
           recruitmentQueue: playerFortress.recruitmentQueue,
           minersAssigned: playerFortress.minersAssigned,
           farmersAssigned: playerFortress.farmersAssigned,
