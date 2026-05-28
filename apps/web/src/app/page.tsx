@@ -97,14 +97,14 @@ function getDegradedHomePageState(): HomePageState {
     canJoinCycle: false,
     canEditRegistrationName: false,
     latestSeason: null,
-    alliedRoads: [],
+    alliedRoads: [] as { x1: number; y1: number; x2: number; y2: number }[],
         emptyStateMessage:
       "Palvelussa on tilapainen hairio. Yrita hetken kuluttua uudelleen.",
     incomingOfferCount: 0,
     incidentCount: 0,
     recallableOrderCount: 0,
     recentActivity: [],
-    alliedRoads: [],
+    alliedRoads: [] as { x1: number; y1: number; x2: number; y2: number }[],
   };
 }
 
