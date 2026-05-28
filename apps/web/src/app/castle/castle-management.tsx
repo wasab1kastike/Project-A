@@ -33,6 +33,7 @@ import {
   recruitArmyAction,
   recallArmyOrderAction,
   selectFortressRaceAction,
+  selectFortressDoctrineAction,
   updateWorkerAssignmentAction,
   useUnicornTeleportAction as activateUnicornTeleportAction,
   buyPointsWithGoldAction,
@@ -920,6 +921,12 @@ export function CastleManagement({
   async function selectFortressRaceFormAction(formData: FormData): Promise<void> {
     await handleInlineResult(
       await selectFortressRaceAction(getStringValue(formData, "race"))
+    );
+  }
+
+  async function selectFortressDoctrineFormAction(formData: FormData): Promise<void> {
+    await handleInlineResult(
+      await selectFortressDoctrineAction(getStringValue(formData, "doctrine"))
     );
   }
 
