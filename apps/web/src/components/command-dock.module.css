@@ -1,6 +1,194 @@
+/* ───────────────────────────────────────
+   Command Dock — Desktop top bar + Mobile bottom bar
+   ─────────────────────────────────────── */
+
+/* Desktop: compact top bar */
+.desktopBar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 16px;
+  background: var(--color-surface, rgba(16, 16, 24, 0.92));
+  border-bottom: 1px solid var(--color-border, rgba(255, 255, 255, 0.06));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  height: 44px;
+}
+
+.playerStatus {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.desktopDock {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.dockLink {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  text-decoration: none;
+  color: var(--color-text-dim, #777);
+  font-size: 0.82rem;
+  font-weight: 500;
+  transition: color 120ms, background 120ms;
+  white-space: nowrap;
+}
+
+.dockLink:hover {
+  color: var(--color-text, #ccc);
+  background: var(--color-surface-hover, rgba(255, 255, 255, 0.05));
+}
+
+.dockLink[data-active] {
+  color: var(--color-accent, #48f);
+  background: var(--color-surface-hover, rgba(255, 255, 255, 0.06));
+}
+
+.linkIcon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+/* Badge pill on dock links */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 0 5px;
+  min-width: 16px;
+  height: 15px;
+  border-radius: 8px;
+  line-height: 1;
+  color: #fff;
+  margin-left: 2px;
+}
+
+.badge[data-severity="danger"] {
+  background: var(--color-danger, #e03);
+}
+
+.badge[data-severity="warning"] {
+  background: var(--color-warning, #f90);
+}
+
+.badge[data-severity="info"] {
+  background: var(--color-info, #48f);
+}
+
+/* Mobile: fixed bottom bar */
+.mobileDock {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  justify-content: space-around;
+  padding: 4px env(safe-area-inset-bottom, 4px);
+  background: var(--color-surface, rgba(16, 16, 24, 0.95));
+  border-top: 1px solid var(--color-border, rgba(255, 255, 255, 0.06));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.mobileStatus {
+  position: fixed;
+  bottom: 48px;
+  left: 0;
+  right: 0;
+  z-index: 99;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 4px 12px;
+  background: var(--color-surface, rgba(16, 16, 24, 0.92));
+  border-top: 1px solid var(--color-border, rgba(255, 255, 255, 0.06));
+  font-size: 0.72rem;
+  color: var(--color-text-dim, #888);
+}
+
+/* Race population counter */
+.raceCounter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: var(--color-text-dim, #888);
+}
+
+.raceCounterLabel {
+  margin-right: 2px;
+}
+
+.raceCount {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.raceToken {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  border-radius: 50%;
+}
+
+/* Screen-reader-only utility */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ───────────────────────────────────────
+   Activity Feed Panel (toggle + dropdown)
+   ─────────────────────────────────────── */
+
+.feedToggle {
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+  background: transparent;
+  color: var(--color-text-dim, #888);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.feedToggle:hover {
+  background: var(--color-surface-hover, rgba(255, 255, 255, 0.06));
+  color: var(--color-text, #ccc);
+}
+
 .feedPanel {
   position: fixed;
-  top: 52px;
+  top: 50px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 99;
@@ -53,20 +241,22 @@
   font-size: 0.65rem;
   color: var(--color-text-dim, #666);
   margin-left: auto;
-}
-
-.feedToggle {
-  font-size: 0.75rem;
-  padding: 4px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
-  background: transparent;
-  color: var(--color-text-dim, #888);
-  cursor: pointer;
   white-space: nowrap;
 }
 
-.feedToggle:hover {
-  background: var(--color-surface-hover, rgba(255, 255, 255, 0.06));
-  color: var(--color-text, #ccc);
+/* ───────────────────────────────────────
+   Responsive: hide mobile on desktop, desktop on mobile
+   ─────────────────────────────────────── */
+
+@media (min-width: 769px) {
+  .mobileDock,
+  .mobileStatus {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .desktopBar {
+    display: none;
+  }
 }
