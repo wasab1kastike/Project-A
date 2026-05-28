@@ -330,7 +330,7 @@ type CommandTarget = {
 };
 
 type BuildingSpecialization = "POINTS" | "FOOD" | "MILITARY" | "DEFENSE";
-type CastleTab = "OVERVIEW" | "ECONOMY" | "OPERATIONS" | "DOCTRINE" | "SKILLS";
+type CastleTab = "OVERVIEW" | "ECONOMY" | "OPERATIONS" | "DOCTRINE" | "SKILLS" | "SHOP";
 type WorkerAssignmentKey =
   | "minersAssigned"
   | "farmersAssigned"
@@ -474,6 +474,7 @@ const CASTLE_TABS = [
   { key: "OPERATIONS", label: "Operations" },
   { key: "DOCTRINE", label: "Doctrine" },
   { key: "SKILLS", label: "Skills" },
+  { key: "SHOP", label: "Shop" },
 ] as const satisfies readonly { key: CastleTab; label: string }[];
 const RACE_TOKEN_PATHS: Partial<Record<FortressRace, string>> = {
   DWARFS: "/assets/token-dwarf.png",
@@ -2193,6 +2194,36 @@ export function CastleManagement({
         </div>
       </section>
       ) : null}
+
+      {activeTab === "SKILLS" ? (
+      <section className={styles.panel}>
+        <div className={styles.panelHeader}>
+          <span>Skills</span>
+          <strong>{playerSummary.race ?? "Choose a race"}</strong>
+        </div>
+        <p className={styles.muted}>
+          Skill tree available after choosing a race.
+        </p>
+      </section>
+      ) : null}
+
+      {activeTab === "SHOP" ? (
+      <section className={styles.panel}>
+        <div className={styles.panelHeader}>
+          <span>Cosmetics</span>
+          <strong>Shop</strong>
+        </div>
+        <p className={styles.muted}>
+          Visit the <a href="/shop">full shop</a> to buy loot boxes, equip cosmetics, and manage your fortress and unit skins.
+        </p>
+        <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+          <a href="/shop" className={styles.button} style={{ textDecoration: "none", padding: "6px 14px", fontSize: "0.8rem" }}>
+            Open Shop
+          </a>
+        </div>
+      </section>
+      ) : null}
+
       </div>
     </div>
   );
