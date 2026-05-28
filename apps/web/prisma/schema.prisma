@@ -466,6 +466,7 @@ model Fortress {
   unicornTemporaryTeleportDecoy  UnicornTemporaryTeleport?           @relation("UnicornTeleportDecoy")
   unicornShatteredRealityRolls   UnicornShatteredRealityRoll[]
   garrisons                      FortressGarrison[]
+  skillPurchases                 RaceSkillPurchase[]
 
   @@unique([cycleId, ownerId])
   @@unique([cycleId, commanderName])
@@ -1331,6 +1332,18 @@ model CycleHistory {
   @@index([communityWishStatus, communityWishProposalEndsAt])
   @@index([communityWishStatus, communityWishVotingEndsAt])
   @@index([communityWishResolvedById])
+}
+
+model RaceSkillPurchase {
+  id          String   @id @default(cuid())
+  fortressId  String
+  path        String
+  tier        Int      @default(1)
+  purchasedAt DateTime @default(now())
+  fortress    Fortress @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+
+  @@unique([fortressId, path])
+  @@index([fortressId])
 }
 
 model FortressGarrison {
