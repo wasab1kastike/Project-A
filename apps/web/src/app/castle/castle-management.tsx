@@ -33,7 +33,6 @@ import {
   recruitArmyAction,
   recallArmyOrderAction,
   selectFortressRaceAction,
-  selectFortressDoctrineAction,
   updateWorkerAssignmentAction,
   useUnicornTeleportAction as activateUnicornTeleportAction,
   buyPointsWithGoldAction,
@@ -333,7 +332,7 @@ type CommandTarget = {
 };
 
 type BuildingSpecialization = "POINTS" | "FOOD" | "MILITARY" | "DEFENSE";
-type CastleTab = "OVERVIEW" | "ECONOMY" | "OPERATIONS" | "DOCTRINE" | "SKILLS" | "SHOP";
+type CastleTab = "OVERVIEW" | "ECONOMY" | "OPERATIONS" | "SKILLS" | "SHOP";
 type WorkerAssignmentKey =
   | "minersAssigned"
   | "farmersAssigned"
@@ -475,7 +474,6 @@ const CASTLE_TABS = [
   { key: "OVERVIEW", label: "Overview" },
   { key: "ECONOMY", label: "Economy" },
   { key: "OPERATIONS", label: "Operations" },
-  { key: "DOCTRINE", label: "Doctrine" },
   { key: "SKILLS", label: "Skills" },
   { key: "SHOP", label: "Shop" },
 ] as const satisfies readonly { key: CastleTab; label: string }[];
@@ -922,14 +920,6 @@ export function CastleManagement({
   async function selectFortressRaceFormAction(formData: FormData): Promise<void> {
     await handleInlineResult(
       await selectFortressRaceAction(getStringValue(formData, "race"))
-    );
-  }
-
-  async function selectFortressDoctrineFormAction(
-    formData: FormData
-  ): Promise<void> {
-    await handleInlineResult(
-      await selectFortressDoctrineAction(getStringValue(formData, "doctrine"))
     );
   }
 
@@ -1571,7 +1561,7 @@ export function CastleManagement({
         </>
       ) : null}
 
-      {activeTab === "DOCTRINE" ? (
+      {false ? (
       <section className={styles.panel}>
         <div className={styles.panelHeader}>
           <span>Race</span>

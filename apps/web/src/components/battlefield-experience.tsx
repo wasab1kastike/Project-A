@@ -2122,7 +2122,7 @@ export function BattlefieldExperience({
       </details>
 
       <div className={styles.tileActions}>
-        {locationShuffleCost !== null ? (
+        {(locationShuffleCost !== null && !playerSummary?.seasonFourRulesEnabled) ? (
           <>
             <button
               className={styles.secondaryButton}
