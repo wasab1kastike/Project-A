@@ -3270,6 +3270,7 @@ export async function getHomePageState({
           outboundAttackUnitCount,
           maxSimultaneousAttacks,
           canShuffleLocation:
+            !isSeasonFour &&
             gameplayOpen &&
             playerFortress.race !== null &&
             locationShuffleCost !== null &&

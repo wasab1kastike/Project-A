@@ -5304,6 +5304,8 @@ export async function shuffleFortressLocation({
       );
     }
 
+    assertLegacyAbilityCycle(cycle);
+
     const fortress = await tx.fortress.findUnique({
       where: {
         cycleId_ownerId: {
