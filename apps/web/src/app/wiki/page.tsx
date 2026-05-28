@@ -40,30 +40,34 @@ import { TILE_PRESSURE_CLAIM_THRESHOLD } from "@/lib/game/tile-pressure";
 
 const RACE_ABILITY_NOTES: Record<string, readonly string[]> = {
   DWARFS: [
+    "Skill paths: Bastion (defense), Seismic (pressure), Grudgebearer (economy).",
     "Pressure workers use the Beer Culture label.",
-    "Choose Holdfast for guard/garrison defense or Watchkeepers for guard detection.",
+    "Earn skill points from castle levels and territory.",
   ],
   UNSTABLE_UNICORNS: [
+    "Skill paths: Glitter Frontier (pressure), Veiled Network (stealth), Shattered Reality (luck).",
     "Pressure workers use the Glitter Distribution label.",
-    "Choose Glitter Frontier for favored-terrain pressure or Veiled Network for covert evasion.",
+    "Skill tiers alternate small buffs with major capstones.",
   ],
   SPACE_MURINES: [
+    "Skill paths: Convoy Command (trade), Rapid Response (defense), Orbital Doctrine (pressure).",
     "Pressure workers use the Imperial Faith label.",
-    "Choose Convoy Command for escort power or Rapid Response for guard defense and campaigns.",
+    "Invest points across up to 3 paths, max 5 tiers each.",
   ],
   ORKS: [
+    "Skill paths: Marauder (raiding), Siegebreaker (campaigns), WAAAGH Engine (momentum).",
     "Pressure workers use the Scavenge Mob label.",
-    "Choose Marauders for convoy raids or Siegebreakers for campaigns.",
+    "Earn points from castle levels (+1 per level) and territory (+1 per 3 tiles).",
   ],
 };
 
 const RACE_TIER_PATH = [
-  "Tier 0: before active season starts or before controlling enough race tiles.",
-  "Tier 1: control 3 race-biome tiles.",
-  "Tier 2: control 6 race-biome tiles.",
-  "Tier 3: control 9 race-biome tiles.",
-  "Race biomes: Dwarfs mountains, ORKS plains/lake, Space Murines sea/coast, Unicorns marsh/forest.",
-  "Season 4 doctrine effects scale by 10% / 20% / 30% at these tiers and can be changed every 12 hours.",
+  "Skill points are earned throughout the season.",
+  "+1 point per castle level (starting at level 2).",
+  "+1 point per 3 owned normal tiles.",
+  "Maximum 12 skill points total.",
+  "Each race has 3 unique skill paths with 5 tiers each.",
+  "Tiers alternate small buffs (+population, +pressure%) with major capstones.",
 ] as const;
 
 const CASTLE_SPECIALIZATIONS = [
@@ -138,11 +142,11 @@ const SEASON_START_STEPS = [
 ] as const;
 
 const WHAT_IS_NEW_THIS_SEASON = [
-  "Race choice is now a real season-start decision: pick once, then build around it.",
-  "Neutral land is claimed automatically through pressure priorities rather than gold-paid projects.",
+  "Racial skill trees replace doctrines: invest points in up to 3 paths per race.",
+  "Neutral land is claimed automatically through pressure priorities.",
   "Politics, convoys, escorts, raids, guards, and campaigns replace frequent manual PvP actions.",
-  "Passive race doctrines scale with favored territory while rankings remain prestige-only.",
-  "The former Home of A tile is now an inaccessible monument in the Season 4 ruleset.",
+  "Tile deeds allow allied fortresses to transfer territory via convoy.",
+  "The former Home of A tile is now an inaccessible monument.",
 ] as const;
 
 const RACE_TOKENS = [
@@ -293,8 +297,8 @@ export default function WikiPage() {
           <h1>Races, castles, pressure, and campaigns.</h1>
           <p>
             This page is a player-facing guide to what matters most during a
-            Season 4 cycle: race identity, expansion pressure, standing
-            doctrines, and planned conflict.
+            Season 4 cycle: race identity, skill trees, expansion pressure,
+            and planned conflict.
           </p>
         </div>
 
