@@ -98,50 +98,51 @@ function ActivityFeed({ state }: { state: HomePageState }) {
 
   if (feed.length === 0) return null;
 
+  const urgentCount = feed.filter((i) => i.type === "offer" || i.type === "siege" || i.type === "incident").length;
+
+  function getIcon(type: string): string {
+    switch (type) {
+      case "offer": return String.fromCodePoint(0x1F4E9);
+      case "incident": return String.fromCodePoint(0x1F6A8);
+      case "siege": return String.fromCodePoint(0x26A0);
+      case "convoy": return String.fromCodePoint(0x1F69A);
+      case "army": return String.fromCodePoint(0x1F6E1);
+      default: return String.fromCodePoint(0x2022);
+    }
+  }
+
   return (
     <>
       <button
         className={styles.feedToggle}
         onClick={() => setOpen(!open)}
         aria-expanded={open}
+        data-urgent={urgentCount > 0 || undefined}
       >
-        {'+ ' + String(feed.length) + ' events'}
+        {String(feed.length) + ' event' + (feed.length !== 1 ? 's' : '')}
+        {urgentCount > 0 ? ' (' + urgentCount + ' urgent)' : ''}
       </button>
 
       {open ? (
         <div className={styles.feedPanel}>
           <div className={styles.feedHeader}>
-            <span>Recent activity</span>
+            <span>Operations feed</span>
             <button onClick={() => setOpen(false)}>&times;</button>
           </div>
           {feed.map((item) => {
-            const isIntercepted = item.status === "INTERCEPTED";
-            const isSeized = item.status === "SEIZED";
-            const isDelivered = item.status === "DELIVERED";
+            const isUrgent = item.type === "offer" || item.type === "siege" || item.type === "incident";
 
             return (
-              <div key={item.id} className={styles.feedItem}>
-                <span className={styles.feedIcon}>
-                  {item.deedTileId ? String.fromCodePoint(0x1F3D4) : isIntercepted ? String.fromCodePoint(0x2694) : isSeized ? String.fromCodePoint(0x1F512) : String.fromCodePoint(0x1F4E6)}
-                </span>
+              <div key={item.id} className={styles.feedItem} data-urgent={isUrgent || undefined}>
+                <span className={styles.feedIcon}>{getIcon(item.type)}</span>
                 <span>
-                  {item.deedTileId
-                    ? isDelivered
-                      ? "Deed " + item.deedTileId + " transferred"
-                      : isIntercepted
-                        ? "Deed " + item.deedTileId + " lost to raid"
-                        : "Deed " + item.deedTileId + " " + (item.deedFailureReason ?? "failed")
-                    : isIntercepted
-                      ? "Convoy raided: " + item.gold + "g " + item.food + "f"
-                      : isDelivered
-                        ? "Convoy delivered: " + item.gold + "g " + item.food + "f"
-                        : "Convoy " + item.status.toLowerCase()}
+                  <strong>{item.label}</strong>
+                  {item.details ? <span className={styles.feedDetails}> — {item.details}</span> : null}
+                  {item.status ? <span className={styles.feedStatus}> [{item.status}]</span> : null}
                 </span>
-                {item.settledAt ? (
-                  <time className={styles.feedTime}>
-                    {new Date(item.settledAt).toLocaleString()}
-                  </time>
-                ) : null}
+                <time className={styles.feedTime}>
+                  {new Date(item.timestamp).toLocaleString()}
+                </time>
               </div>
             );
           })}
