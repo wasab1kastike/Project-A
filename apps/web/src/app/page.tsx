@@ -102,6 +102,7 @@ function getDegradedHomePageState(): HomePageState {
     incomingOfferCount: 0,
     incidentCount: 0,
     recallableOrderCount: 0,
+    recentActivity: [],
   };
 }
 

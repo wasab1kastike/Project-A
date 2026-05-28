@@ -1038,6 +1038,7 @@ export async function getHomePageState({
       incomingOfferCount: 0,
     incidentCount: 0,
     recallableOrderCount: 0,
+    recentActivity: [],
     emptyStateMessage:
         "No unresolved cycle exists yet. Run the seed flow to bootstrap registration.",
     };
@@ -1124,6 +1125,31 @@ export async function getHomePageState({
           }),
         ])
       : [0, 0, 0];
+
+  const recentActivity =
+    playerFortress && isSeasonFour
+      ? await db.convoyLeg.findMany({
+          where: {
+            cycleId: cycle.id,
+            settledAt: { not: null },
+          },
+          orderBy: { settledAt: "desc" },
+          take: 10,
+          select: {
+            id: true,
+            fromFortressId: true,
+            toFortressId: true,
+            status: true,
+            settledAt: true,
+            deedTileId: true,
+            deedFailureReason: true,
+            gold: true,
+            food: true,
+            army: true,
+            pointsAwarded: true,
+          },
+        })
+      : [];
 
   const registrationOpen =
     cycle.status === CycleStatus.REGISTRATION && cycle.registrationEndsAt > now;
@@ -3850,6 +3876,7 @@ export async function getHomePageState({
       remainingSlots > 0,
     canEditRegistrationName:
       Boolean(userId) && registrationOpen && Boolean(playerFortress),
+    recentActivity,
     emptyStateMessage: null,
     incomingOfferCount,
     incidentCount,
