@@ -557,6 +557,16 @@ function HexTileMap({
             ) : null}
             {ownership?.guardArmy && ownership.guardArmy > 0 ? (
               <g className={styles.guardIndicator}>
+                <rect
+                  x={tile.x - 14}
+                  y={tile.y + 12}
+                  width={28}
+                  height={16}
+                  rx={4}
+                  fill="rgba(0,0,0,0.55)"
+                  stroke="var(--color-accent, #48f)"
+                  strokeWidth={1}
+                />
                 <text
                   x={tile.x}
                   y={tile.y + 24}

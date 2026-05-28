@@ -701,10 +701,18 @@ function HomeClientContent({
                 <dt>Gold</dt>
                 <dd>{state.playerSummary.gold}</dd>
               </div>
-              <div>
-                <dt>Military</dt>
-                <dd>
-                  {state.playerSummary.army}/{state.playerSummary.allUnits}
+              <div className={styles.armyChip}>
+                <dt>Army</dt>
+                <dd className={styles.armyCompact}>
+                  <span>{state.playerSummary.idleArmy} Idle</span>
+                  {state.playerSummary.queuedArmy > 0 ? <span>{state.playerSummary.queuedArmy} Q</span> : null}
+                  {state.playerSummary.defendingArmy > 0 ? <span>{state.playerSummary.defendingArmy} Def</span> : null}
+                  {state.playerSummary.guardArmy > 0 ? <span>{state.playerSummary.guardArmy} Guard</span> : null}
+                  {state.playerSummary.marchingArmy > 0 ? <span>{state.playerSummary.marchingArmy} Mar</span> : null}
+                  {state.playerSummary.escortArmy > 0 ? <span>{state.playerSummary.escortArmy} Esc</span> : null}
+                  {state.playerSummary.raidArmy > 0 ? <span>{state.playerSummary.raidArmy} Raid</span> : null}
+                  {state.playerSummary.campaignArmy > 0 ? <span>{state.playerSummary.campaignArmy} Camp</span> : null}
+                  {state.playerSummary.fightingArmy > 0 ? <span>{state.playerSummary.fightingArmy} Fight</span> : null}
                 </dd>
               </div>
               {state.playerSummary.currentTargetName ? (

@@ -987,3 +987,36 @@
     width: 100%;
   }
 }
+
+/* Army breakdown chip */
+.armyChip {
+  min-width: auto;
+  display: flex;
+  gap: 3px;
+  padding: 2px 7px;
+  border: 1px solid var(--border-soft);
+  border-radius: 5px;
+  background: rgba(8, 16, 25, 0.52);
+  align-items: baseline;
+  grid-column: 1 / -1;
+}
+
+.armyCompact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.armyCompact span {
+  white-space: nowrap;
+}
+
+/* Mobile: keep compact */
+@media (max-width: 768px) {
+  .armyChip {
+    padding: 2px 5px;
+  }
+}

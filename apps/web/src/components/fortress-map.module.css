@@ -1180,10 +1180,11 @@
 }
 
 .guardText {
-  fill: var(--color-accent, #48f);
-  font-size: 11px;
+  fill: #fff;
+  font-size: 10px;
   font-weight: 700;
-  opacity: 0.9;
+  opacity: 1;
+  dominant-baseline: central;
 }
 
 .roadsLayer {
