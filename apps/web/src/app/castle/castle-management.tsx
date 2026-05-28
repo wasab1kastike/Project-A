@@ -1573,7 +1573,7 @@ export function CastleManagement({
               Current race tier: {playerSummary.raceBuffs.tier}. Upgrade path:
               {" "}
               {(playerSummary.race && isFortressRace(playerSummary.race!))
-                ? `${RACE_TIER_THRESHOLDS_LABEL}. Required biomes: ${RACE_TIER_BIOME_REQUIREMENTS[playerSummary.race]}.`
+                ? `${RACE_TIER_THRESHOLDS_LABEL}. Required biomes: ${RACE_TIER_BIOME_REQUIREMENTS[playerSummary.race!]}.`
                 : "control 3/6/9 tiles of your race biomes."}
             </p>
             {playerSummary.doctrinesEnabled ? (
