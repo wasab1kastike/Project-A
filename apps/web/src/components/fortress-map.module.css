@@ -1185,3 +1185,20 @@
   font-weight: 700;
   opacity: 0.9;
 }
+
+.roadsLayer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.roadLine {
+  stroke: var(--color-accent, #48f);
+  stroke-width: 2.5;
+  stroke-dasharray: 6 4;
+  stroke-linecap: round;
+  opacity: 0.5;
+}

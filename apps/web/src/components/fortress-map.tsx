@@ -200,6 +200,12 @@ type FortressMapProps = {
   selectedTileId?: string | null;
   activeBattleFortressIds?: string[];
   highlightedTileIds?: string[];
+  alliedRoads?: Array<{
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+  }>;
   onSelectFortress?: (fortress: MapFortress) => void;
   onConfirmAttackTarget?: (
     fortress: MapFortress,
@@ -766,6 +772,7 @@ export const FortressMap = memo(function FortressMap({
   selectedTileId,
   activeBattleFortressIds = [],
   highlightedTileIds = [],
+  alliedRoads = [],
   onSelectFortress,
   onConfirmAttackTarget,
   onSelectMapHex,
@@ -1316,7 +1323,25 @@ export const FortressMap = memo(function FortressMap({
             highlightedTileIds={highlightedTileIds}
             onSelectMapHex={onSelectMapHex}
           />
-          <AttackUnitsLayer
+          {alliedRoads.length > 0 ? (
+        <svg
+          className={styles.roadsLayer}
+          viewBox={`0 0 ${MAP_WORLD_WIDTH} ${MAP_WORLD_HEIGHT}`}
+          aria-hidden="true"
+        >
+          {alliedRoads.map((road, i) => (
+            <line
+              key={i}
+              x1={road.x1 * MAP_WORLD_WIDTH / 100}
+              y1={road.y1 * MAP_WORLD_HEIGHT / 100}
+              x2={road.x2 * MAP_WORLD_WIDTH / 100}
+              y2={road.y2 * MAP_WORLD_HEIGHT / 100}
+              className={styles.roadLine}
+            />
+          ))}
+        </svg>
+      ) : null}
+      <AttackUnitsLayer
             attackUnits={attackUnits}
             onRecallAttackUnit={onRecallAttackUnit}
             onInstantRecallAttackUnit={onInstantRecallAttackUnit}
