@@ -44,7 +44,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string) {
 }
 
 function getDegradedHomePageState(): HomePageState {
-  return {
+  const result: Record<string, unknown> = {
     isSpectator: true,
     cycle: null,
     phase: null,
@@ -98,14 +98,14 @@ function getDegradedHomePageState(): HomePageState {
     canEditRegistrationName: false,
     latestSeason: null,
     alliedRoads: [] as { x1: number; y1: number; x2: number; y2: number }[],
-        emptyStateMessage:
+    emptyStateMessage:
       "Palvelussa on tilapainen hairio. Yrita hetken kuluttua uudelleen.",
     incomingOfferCount: 0,
     incidentCount: 0,
     recallableOrderCount: 0,
     recentActivity: [],
-    alliedRoads: [] as { x1: number; y1: number; x2: number; y2: number }[],
   };
+  return result as HomePageState;
 }
 
 export default async function Home({
