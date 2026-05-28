@@ -1591,7 +1591,7 @@ export function CastleManagement({
                 <p className={styles.muted}>
                   Tier {playerSummary.raceBuffs.tier} effect: +
                   {playerSummary.doctrineState.effectPercent}%.
-                  {playerSummary.doctrineState.changeAvailableAt
+                  {playerSummary.doctrineState.changeAvailableAt!
                     ? ` Next change after ${playerSummary.doctrineState.changeAvailableAt.toLocaleString()}.`
                     : " Changes lock for 12 hours."}
                 </p>
