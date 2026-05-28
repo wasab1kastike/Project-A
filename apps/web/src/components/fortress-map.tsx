@@ -550,6 +550,18 @@ function HexTileMap({
                 </text>
               </g>
             ) : null}
+            {ownership?.guardArmy && ownership.guardArmy > 0 ? (
+              <g className={styles.guardIndicator}>
+                <text
+                  x={tile.x}
+                  y={tile.y + 24}
+                  textAnchor="middle"
+                  className={styles.guardText}
+                >
+                  🛡️{ownership.guardArmy}
+                </text>
+              </g>
+            ) : null}
           </g>
         );
       })}
