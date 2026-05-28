@@ -472,7 +472,6 @@ function HexTileMap({
             ? (OWNED_TILE_RACE_CLASS_BY_RACE[ownership.ownerRace] ?? "")
             : "",
           ownership?.pressurePriority ? styles.pressurePriorityTile : "",
-          ownership?.pointIncome ? styles.objectiveTile : "",
           ownership?.isHomeOfA ? styles.contestedTile : "",
           isOwnedTile && ownership?.isCurrentUser ? styles.ownTile : "",
           ownership?.canAttack ? styles.attackableTile : "",

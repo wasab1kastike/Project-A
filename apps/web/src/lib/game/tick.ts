@@ -1553,9 +1553,7 @@ async function processSeasonFourConvoys({
 
         const hasActiveBattle = activeBattles.length > 0;
         const hasActiveCampaign = activeCampaigns.length > 0;
-        const isObjective = Boolean(
-          (await import("./territory")).getTileObjective({ tileId: leg.deedTileId, cycleId, at: tickAt })
-        );
+        const isObjective = false;
         const deedStillValid =
           deedTile &&
           deedTile.ownerFortressId === leg.fromFortressId &&
@@ -4819,11 +4817,7 @@ async function processCycleTick(
     }
 
     const tile = getTileById(ownership.tileId);
-    const bonus = getTileBonus(tile, {
-      tileId: ownership.tileId,
-      cycleId,
-      at: tickAt,
-    });
+    const bonus = getTileBonus(tile);
     const occupyingGarrison = (
       garrisonsByTileId.get(ownership.tileId) ?? []
     ).find((garrison) => garrison.fortressId !== ownership.ownerFortressId);

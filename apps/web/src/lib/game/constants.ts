@@ -39,8 +39,6 @@ export const HOME_OF_A_POINT_INCOME = 17;
 export const HOME_OF_A_NEUTRAL_DEFENSE = 10_000;
 export const HOME_OF_A_ARMY_DRAIN_BASE = 10;
 export const HOME_OF_A_ARMY_DRAIN_INCREASE_PER_TICK = 1;
-export const TEMPORARY_MAP_OBJECTIVE_INTERVAL_HOURS = 12;
-export const TEMPORARY_MAP_OBJECTIVE_POINT_VALUES = [4, 6, 8] as const;
 
 export function getHomeOfAArmyDrainPerTick({
   capturedAt,

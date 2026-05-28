@@ -73,7 +73,6 @@
 - The center monument cannot receive expansion pressure, be fortified, or be attacked in `SEASON_4`.
 - Owned tiles are contested through battlefield attacks and can transfer ownership when the battlefield resolves.
 - Players can fortify owned normal tiles by sending idle army that travels to the tile and becomes a persistent non-decaying garrison until recalled or killed.
-- Temporary map objectives rotate onto normal tiles and add extra point income while active.
 - Players can join an active battlefield as attacker or defender if they have idle army and are not violating same-side/conflicting-side restrictions.
 - Reinforcements are represented by `AttackUnit` rows and now obey the same outbound attack cap as direct attacks.
 - Player castle and owned-tile battlefields are visible immediately, but casualty resolution starts one hour after the first attacking army arrives.

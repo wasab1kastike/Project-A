@@ -722,10 +722,7 @@ export async function getCastlePageState({
         .map((ownership) => getTileById(ownership.tileId))
         .filter((tile): tile is NonNullable<typeof tile> => tile !== null)
     : [];
-  const ownedTileBonuses = sumTileBonuses(ownedNormalTiles, {
-    cycleId: cycle.id,
-    at: now,
-  });
+  const ownedTileBonuses = sumTileBonuses(ownedNormalTiles);
   const ownedTileSummary = {
     totalTileCount: ownedNormalTiles.length,
     goldIncome: ownedTileBonuses.gold,

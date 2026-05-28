@@ -88,11 +88,7 @@ export function getBattlefieldTileDefensePowerMultiplier({
   }
 
   const tile = getTileById(targetTileId);
-  const tileDefensePercent = getTileBonus(tile, {
-    tileId: targetTileId,
-    cycleId,
-    at: tickAt,
-  }).defensePercent;
+  const tileDefensePercent = getTileBonus(tile).defensePercent;
   const tileDefenseMultiplier = 1 + Math.max(0, tileDefensePercent) / 100;
   const ownedTileDefenseMultiplier =
     1 + Math.max(0, ownedTileDefensePercent) / 100;
@@ -1149,7 +1145,7 @@ export async function processActiveBattlefields({
         ownership.ownerFortressId,
         (ownedTileDefensePercentByFortressId.get(
           ownership.ownerFortressId
-        ) ?? 0) + sumTileBonuses([tile], { cycleId, at: tickAt }).defensePercent
+        ) ?? 0) + sumTileBonuses([tile]).defensePercent
       );
     }
   }

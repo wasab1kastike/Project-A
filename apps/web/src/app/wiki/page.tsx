@@ -34,7 +34,7 @@ import {
 } from "@/lib/game/army-recruitment";
 import { RACE_DEFINITIONS } from "@/lib/game/races";
 import {
-  TEMPORARY_MAP_OBJECTIVE_INTERVAL_HOURS,
+
 } from "@/lib/game/territory";
 import { TILE_PRESSURE_CLAIM_THRESHOLD } from "@/lib/game/tile-pressure";
 
@@ -233,7 +233,6 @@ const TILE_CONTROL_RULES = [
   `A neutral tile is automatically claimed at ${TILE_PRESSURE_CLAIM_THRESHOLD} pressure if one fortress leads without a tie.`,
   "Unsupported pressure decays by 10% per completed hour, so abandoned pushes lose momentum.",
   "A pressure target must be connected to your castle tile or your existing owned territory.",
-  `Temporary map objectives rotate every ${TEMPORARY_MAP_OBJECTIVE_INTERVAL_HOURS} hours and add bonus point income to selected normal tiles while active.`,
   "The center monument cannot be claimed, pressured, fortified, or attacked in Season 4.",
 ] as const;
 
