@@ -62,6 +62,7 @@ import {
   getDoctrineTier,
   getDoctrineOptionsForRace,
 } from "./doctrines";
+import { getEarnedSkillPoints } from "./race-skill-service";
 import { CAMPAIGN_SIEGE_THRESHOLD } from "./campaigns";
 import {
   TILE_PRESSURE_CLAIM_THRESHOLD,
@@ -172,6 +173,9 @@ export async function getCastlePageState({
           health: true,
           maxHealth: true,
           joinedAt: true,
+          skillPurchases: {
+            select: { path: true, tier: true },
+          },
           castleUpgradeSpecializations: {
             orderBy: {
               level: "asc",
@@ -1368,6 +1372,11 @@ export async function getCastlePageState({
           ownedTileSummary,
           expansionSummary,
           operationsSummary,
+          skillPurchases: playerFortress?.skillPurchases ?? [],
+          skillPointsEarned: getEarnedSkillPoints({
+            level: playerFortress?.level ?? 1,
+            ownedTileCount: ownedNormalTiles.length,
+          }),
           growPerTick: calculateTickProduction({
             ...playerFortress,
             castleSpecializations:

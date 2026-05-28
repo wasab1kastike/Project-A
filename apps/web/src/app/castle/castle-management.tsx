@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { useMemo, useState, type FormEvent } from "react";
 import { useRefreshView } from "@/lib/refresh-helpers";
+import { RaceSkillPanel } from "@/components/race-skill-panel";
+
+import { purchaseSkillTierAction } from "@/app/game-actions";
 import { CastleUpgradeSpecialization } from "@/lib/prisma-client";
 import {
   formatDeepMiningImpact,
@@ -30,7 +33,6 @@ import {
   recruitArmyAction,
   recallArmyOrderAction,
   selectFortressRaceAction,
-  selectFortressDoctrineAction,
   updateWorkerAssignmentAction,
   useUnicornTeleportAction as activateUnicornTeleportAction,
   buyPointsWithGoldAction,
@@ -319,6 +321,8 @@ type PlayerSummary = {
     };
   } | null;
   growPerTick: number;
+  skillPurchases: Array<{ path: string; tier: number }>;
+  skillPointsEarned: number;
 };
 
 type CommandTarget = {
@@ -328,7 +332,7 @@ type CommandTarget = {
 };
 
 type BuildingSpecialization = "POINTS" | "FOOD" | "MILITARY" | "DEFENSE";
-type CastleTab = "OVERVIEW" | "ECONOMY" | "OPERATIONS" | "DOCTRINE";
+type CastleTab = "OVERVIEW" | "ECONOMY" | "OPERATIONS" | "SKILLS" | "SHOP";
 type WorkerAssignmentKey =
   | "minersAssigned"
   | "farmersAssigned"
@@ -470,7 +474,8 @@ const CASTLE_TABS = [
   { key: "OVERVIEW", label: "Overview" },
   { key: "ECONOMY", label: "Economy" },
   { key: "OPERATIONS", label: "Operations" },
-  { key: "DOCTRINE", label: "Doctrine" },
+  { key: "SKILLS", label: "Skills" },
+  { key: "SHOP", label: "Shop" },
 ] as const satisfies readonly { key: CastleTab; label: string }[];
 const RACE_TOKEN_PATHS: Partial<Record<FortressRace, string>> = {
   DWARFS: "/assets/token-dwarf.png",
@@ -915,14 +920,6 @@ export function CastleManagement({
   async function selectFortressRaceFormAction(formData: FormData): Promise<void> {
     await handleInlineResult(
       await selectFortressRaceAction(getStringValue(formData, "race"))
-    );
-  }
-
-  async function selectFortressDoctrineFormAction(
-    formData: FormData
-  ): Promise<void> {
-    await handleInlineResult(
-      await selectFortressDoctrineAction(getStringValue(formData, "doctrine"))
     );
   }
 
@@ -1564,7 +1561,7 @@ export function CastleManagement({
         </>
       ) : null}
 
-      {activeTab === "DOCTRINE" ? (
+      {false ? (
       <section className={styles.panel}>
         <div className={styles.panelHeader}>
           <span>Race</span>
@@ -2190,6 +2187,58 @@ export function CastleManagement({
         </div>
       </section>
       ) : null}
+
+      {activeTab === "SKILLS" ? (
+      <section className={styles.panel}>
+        <div className={styles.panelHeader}>
+          <span>Skills</span>
+          <strong>{playerSummary.race ?? "Choose a race"}</strong>
+        </div>
+        {playerSummary.race && isFortressRace(playerSummary.race) ? (
+          <RaceSkillPanel
+            skillState={{
+              race: playerSummary.race,
+              unlockedTiers: new Map(
+                playerSummary.skillPurchases.map((p) => [p.path, p.tier])
+              ),
+              earnedPoints: playerSummary.skillPointsEarned,
+              totalPurchased: playerSummary.skillPurchases.reduce((s, p) => s + p.tier, 0),
+              playerLevel: playerSummary.level,
+              tileCount: 0,
+            }}
+            onPurchase={async (pathKey) => {
+              const result = await purchaseSkillTierAction(
+                playerSummary.id,
+                pathKey
+              );
+              if (!result.ok) window.alert(result.error);
+            }}
+          />
+        ) : (
+          <p className={styles.muted}>
+            Skill tree available after choosing a race.
+          </p>
+        )}
+      </section>
+      ) : null}
+
+      {activeTab === "SHOP" ? (
+      <section className={styles.panel}>
+        <div className={styles.panelHeader}>
+          <span>Cosmetics</span>
+          <strong>Shop</strong>
+        </div>
+        <p className={styles.muted}>
+          Visit the <a href="/shop">full shop</a> to buy loot boxes, equip cosmetics, and manage your fortress and unit skins.
+        </p>
+        <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+          <a href="/shop" className={styles.button} style={{ textDecoration: "none", padding: "6px 14px", fontSize: "0.8rem" }}>
+            Open Shop
+          </a>
+        </div>
+      </section>
+      ) : null}
+
       </div>
     </div>
   );
