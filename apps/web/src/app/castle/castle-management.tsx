@@ -319,6 +319,8 @@ type PlayerSummary = {
     };
   } | null;
   growPerTick: number;
+  skillPurchases: Array<{ path: string; tier: number }>;
+  skillPointsEarned: number;
 };
 
 type CommandTarget = {
@@ -328,7 +330,7 @@ type CommandTarget = {
 };
 
 type BuildingSpecialization = "POINTS" | "FOOD" | "MILITARY" | "DEFENSE";
-type CastleTab = "OVERVIEW" | "ECONOMY" | "OPERATIONS" | "DOCTRINE";
+type CastleTab = "OVERVIEW" | "ECONOMY" | "OPERATIONS" | "DOCTRINE" | "SKILLS";
 type WorkerAssignmentKey =
   | "minersAssigned"
   | "farmersAssigned"
@@ -471,6 +473,7 @@ const CASTLE_TABS = [
   { key: "ECONOMY", label: "Economy" },
   { key: "OPERATIONS", label: "Operations" },
   { key: "DOCTRINE", label: "Doctrine" },
+  { key: "SKILLS", label: "Skills" },
 ] as const satisfies readonly { key: CastleTab; label: string }[];
 const RACE_TOKEN_PATHS: Partial<Record<FortressRace, string>> = {
   DWARFS: "/assets/token-dwarf.png",

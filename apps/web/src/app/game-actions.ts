@@ -2083,3 +2083,24 @@ export async function markChatReadAction() {
     } satisfies InlineActionResult;
   }
 }
+
+export async function purchaseSkillTierAction(
+  fortressId: string,
+  pathKey: string
+): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return { ok: false, error: "Sign in to invest skill points." };
+  }
+
+  try {
+    const { purchaseSkillTier } = await import("@/lib/game/race-skill-service");
+    await purchaseSkillTier({ userId, fortressId, pathKey });
+    notifyAndRevalidate("skill-purchase", GAMEPLAY_REVALIDATE_PATHS);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: getActionErrorMessage(error) };
+  }
+}
