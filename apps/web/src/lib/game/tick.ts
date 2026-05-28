@@ -498,6 +498,23 @@ async function processDueCastleUpgradeProjects({
   }
 }
 
+function getSkillPressureMultiplier(fortress: {
+  race?: string | null;
+  skillPurchases?: Array<{ path: string; tier: number }> | null;
+}) {
+  if (!fortress.race) return 1;
+  const purchases = fortress.skillPurchases ?? [];
+  // Sum up pressure bonuses from skill purchases
+  for (const purchase of purchases) {
+    if (purchase.path === 'seismic' || purchase.path === 'glitter' || purchase.path === 'orbital') {
+      const pressureValues = [0, 5, 0, 10, 0, 0]; // tier 2/4 give pressure bonuses
+      const val = pressureValues[purchase.tier - 1] ?? 0;
+      if (val > 0) return 1 + val / 100;
+    }
+  }
+  return 1;
+}
+
 async function processTilePressureExpansion({
   db,
   cycleId,
@@ -526,6 +543,7 @@ async function processTilePressureExpansion({
           mapY: true,
           pressureWorkersAssigned: true,
           doctrine: true,
+          skillPurchases: { select: { path: true, tier: true } },
         },
       }),
       tx.mapHexOwnership.findMany({
@@ -741,7 +759,8 @@ async function processTilePressureExpansion({
               doctrine: isSeasonFour ? fortress.doctrine : null,
               tier: doctrineTier,
               targetBiome: getTileById(allocation.tileId)?.biome,
-            })
+            }) *
+            getSkillPressureMultiplier(fortress)
         );
         pressuredTileIds.add(allocation.tileId);
         await tx.tilePressureState.upsert({
@@ -2719,6 +2738,9 @@ async function processCycleTick(
       mapX: true,
       mapY: true,
       joinedAt: true,
+      skillPurchases: {
+        select: { path: true, tier: true },
+      },
       castleUpgradeSpecializations: {
         select: {
           level: true,
@@ -4906,6 +4928,38 @@ async function processCycleTick(
     const homeBossEconomyBuff =
       !isSeasonFour &&
       hasHomeOfABossBuff(fortress.raceAbilityActivations, tickAt);
+
+    // Skill tree economy bonuses
+    const skillPurchases = fortress.skillPurchases ?? [];
+    let skillFoodBonus = 0;
+    let skillGoldBonus = 0;
+    let skillArmyBonus = 0;
+    let skillPopBonus = 0;
+    if (isSeasonFour && getEffectiveRace(fortress)) {
+      for (const purchase of skillPurchases) {
+        if (purchase.path === 'grudge' || purchase.path === 'shattered') {
+          // foodPerTenFarmers bonus at tiers 1 and 3
+          if (purchase.tier >= 1) skillFoodBonus += 2;
+          if (purchase.tier >= 3) skillFoodBonus += 1;
+        }
+        if (purchase.path === 'waaagh') {
+          // armyPerTenRecruiters bonus at tiers 1 and 3
+          if (purchase.tier >= 1) skillArmyBonus += 1;
+          if (purchase.tier >= 3) skillArmyBonus += 1;
+          if (purchase.tier >= 5) skillPopBonus += fortress._count?.ownedMapHexes ?? 0;
+        }
+        if (purchase.path === 'bastion') {
+          if (purchase.tier >= 1) skillPopBonus += 1;
+          if (purchase.tier >= 3) skillPopBonus += 2;
+        }
+        if (purchase.path === 'orbital' && purchase.tier >= 5) {
+          skillPopBonus += 3;
+        }
+        if (purchase.path === 'rapid' && purchase.tier >= 5) {
+          skillPopBonus += 2;
+        }
+      }
+    }
     const unicornEconomySurge =
       !isSeasonFour &&
       getEffectiveRace(fortress) === "UNSTABLE_UNICORNS" &&
@@ -4926,10 +4980,10 @@ async function processCycleTick(
     // DWARF_ECONOMY_SURGE: multiplies production by DWARF_DEEP_MINING_ECONOMY_MULTIPLIER
     const producedGold = economyHalted
       ? 0
-      : Math.floor(production.goldProduced * economyMultiplier);
+      : Math.floor((production.goldProduced + skillGoldBonus) * economyMultiplier);
     const producedFood = economyHalted
       ? 0
-      : Math.floor(production.foodProduced * economyMultiplier);
+      : Math.floor((production.foodProduced + skillFoodBonus) * economyMultiplier);
     const recruitmentResult = economyHalted
       ? {
           unitsCreated: 0,
