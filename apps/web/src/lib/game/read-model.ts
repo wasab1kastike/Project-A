@@ -1126,30 +1126,115 @@ export async function getHomePageState({
         ])
       : [0, 0, 0];
 
-  const recentActivity =
-    playerFortress && isSeasonFour
-      ? await db.convoyLeg.findMany({
-          where: {
-            cycleId: cycle.id,
-            settledAt: { not: null },
-          },
-          orderBy: { settledAt: "desc" },
-          take: 10,
-          select: {
-            id: true,
-            fromFortressId: true,
-            toFortressId: true,
-            status: true,
-            settledAt: true,
-            deedTileId: true,
-            deedFailureReason: true,
-            gold: true,
-            food: true,
-            army: true,
-            pointsAwarded: true,
-          },
-        })
-      : [];
+  let recentActivity: Array<{
+    id: string; type: string; label: string; timestamp: Date;
+    details?: string; status?: string; tileId?: string; deedTileId?: string;
+  }> = [];
+
+  if (playerFortress && isSeasonFour) {
+    const pfId = playerFortress.id;
+          const [offers, incidents, convoys, sieges, orders] = await Promise.all([
+            db.tradeOffer.findMany({
+              where: { cycleId: cycle.id, receiverFortressId: pfId, status: 'PENDING' },
+              select: { id: true, createdAt: true, senderFortressId: true },
+              orderBy: { createdAt: "desc" },
+              take: 5,
+            }),
+            db.covertIncident.findMany({
+              where: { cycleId: cycle.id, OR: [{ detectingFortressId: pfId }, { raiderFortressId: pfId }] },
+              select: { id: true, detectedAt: true, detectingFortressId: true, raiderFortressId: true, casusBelliExpiresAt: true },
+              orderBy: { detectedAt: "desc" },
+              take: 5,
+            }),
+            db.convoyLeg.findMany({
+              where: {
+                cycleId: cycle.id,
+                OR: [{ fromFortressId: pfId }, { toFortressId: pfId }],
+              },
+              select: {
+                id: true, fromFortressId: true, toFortressId: true,
+                status: true, arrivesAt: true, settledAt: true,
+                deedTileId: true, deedFailureReason: true,
+                gold: true, food: true, army: true, baseCargoValue: true,
+              },
+              orderBy: [{ arrivesAt: "desc" }, { settledAt: "desc" }],
+              take: 15,
+            }),
+            db.territoryCampaign.findMany({
+              where: { cycleId: cycle.id, defenderFortressId: pfId, status: 'SIEGE_WARNING' },
+              select: { id: true, targetTileId: true, responseEndsAt: true },
+            }),
+            db.armyOrder.findMany({
+              where: { cycleId: cycle.id, fortressId: pfId, status: 'ACTIVE', type: { in: ['GUARD', 'CAMPAIGN'] } },
+              select: { id: true, type: true, committedArmy: true, targetTileId: true },
+              take: 5,
+            }),
+          ]);
+
+          const items: Array<{
+            id: string; type: string; label: string; timestamp: Date;
+            details?: string; status?: string; tileId?: string; deedTileId?: string;
+          }> = [];
+
+          for (const o of offers) {
+            items.push({ id: 'offer:' + o.id, type: 'offer', label: 'Incoming trade offer', timestamp: o.createdAt });
+          }
+          for (const inc of incidents) {
+            const isDetector = inc.detectingFortressId === pfId;
+            items.push({
+              id: 'incident:' + inc.id, type: 'incident',
+              label: isDetector ? 'Raid detected' : 'Raid exposed',
+              timestamp: inc.detectedAt,
+              status: inc.casusBelliExpiresAt && inc.casusBelliExpiresAt > now ? 'casus belli active' : undefined,
+            });
+          }
+          for (const leg of convoys) {
+            const isSender = leg.fromFortressId === pfId;
+            const outgoing = leg.fromFortressId === pfId;
+            if (leg.status === 'IN_TRANSIT') {
+              items.push({
+                id: 'convoy:' + leg.id, type: 'convoy',
+                label: outgoing ? 'Outbound convoy en route' : 'Inbound convoy en route',
+                timestamp: leg.arrivesAt,
+                deedTileId: leg.deedTileId ?? undefined,
+              });
+            } else if (leg.status === 'DELIVERED') {
+              items.push({
+                id: 'convoy:' + leg.id, type: 'convoy',
+                label: leg.deedTileId ? 'Tile deed delivered' : 'Convoy delivered',
+                timestamp: leg.settledAt ?? leg.arrivesAt,
+                details: leg.gold > 0 || leg.food > 0 ? `${leg.gold}g ${leg.food}f` : undefined,
+                deedTileId: leg.deedTileId ?? undefined,
+              });
+            } else if (leg.status === 'INTERCEPTED' || leg.status === 'SEIZED') {
+              items.push({
+                id: 'convoy:' + leg.id, type: 'convoy',
+                label: leg.status === 'INTERCEPTED' ? 'Convoy intercepted' : 'Convoy seized',
+                timestamp: leg.settledAt ?? leg.arrivesAt,
+                details: leg.deedFailureReason ?? undefined,
+                deedTileId: leg.deedTileId ?? undefined,
+              });
+            }
+          }
+          for (const s of sieges) {
+            items.push({
+              id: 'siege:' + s.id, type: 'siege', label: 'Siege warning on tile ' + s.targetTileId,
+              timestamp: s.responseEndsAt ?? now,
+              tileId: s.targetTileId,
+            });
+          }
+          for (const ord of orders) {
+            items.push({
+              id: 'order:' + ord.id, type: 'army',
+              label: ord.type === 'CAMPAIGN' ? 'Campaign active' : 'Guard stationed on ' + (ord.targetTileId ?? '?'),
+              timestamp: now,
+              details: ord.committedArmy + ' army',
+            });
+          }
+
+          items.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+          recentActivity = items.slice(0, 20);
+        }
 
   const registrationOpen =
     cycle.status === CycleStatus.REGISTRATION && cycle.registrationEndsAt > now;
@@ -3252,10 +3337,10 @@ export async function getHomePageState({
           currentAction: playerFortress.currentAction,
           currentTargetId: playerFortress.targetFortressId,
           currentTargetName: playerFortress.targetFortressId
-            ? (() => {
-                const target = targetLookup.get(
-                  playerFortress.targetFortressId
-                );
+            ? (async () => {
+                const target = playerFortress.targetFortressId
+                  ? targetLookup.get(playerFortress.targetFortressId)
+                  : undefined;
 
                 return target ? target.name : null;
               })()

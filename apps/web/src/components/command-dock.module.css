@@ -260,3 +260,21 @@
     display: none;
   }
 }
+
+/* Activity feed item details */
+.feedDetails {
+  color: var(--color-text-dim, #888);
+  font-weight: 400;
+}
+
+.feedStatus {
+  color: var(--color-warning, #f90);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+/* Urgent items get a subtle background highlight */
+.feedItem[data-urgent] {
+  background: rgba(255, 200, 50, 0.06);
+  border-left: 2px solid var(--color-warning, #f90);
+}
