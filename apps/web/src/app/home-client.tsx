@@ -24,7 +24,6 @@ import {
   joinFortressFormAction,
   registerCommanderNameFormAction,
 } from "@/app/game-actions";
-import { getContextualActionHint } from "@/lib/game/action-hints";
 import type { HomePageState } from "@/lib/game/read-model";
 import type { LeaderboardCategory } from "@/lib/game/leaderboard-titles";
 import { RACE_DEFINITIONS, type FortressRace } from "@/lib/game/races";
@@ -286,16 +285,7 @@ function HomeClientContent({
               battlefieldDescription:
                 "The map updates when the next season starts.",
             };
-  const actionHint = getContextualActionHint({
-    phaseStatus: state.phase?.status ?? null,
-    tickHealth,
-    canJoinCycle: state.canJoinCycle,
-    playerSummary: state.playerSummary,
-    battlefields: state.battlefields,
-    mapHexes: state.mapHexes,
-    homeOfA: state.homeOfA,
-    fallback: phaseCopy.nextAction,
-  });
+  
 
   const centerTitle = blockingMessage
     ? "Something needs attention."
@@ -731,13 +721,7 @@ function HomeClientContent({
           )}
         </section>
 
-        <section className={styles.hintStrip}>
-          <span className={styles.sectionLabel}>Next</span>
-          <div className={styles.actionHint} data-tone={actionHint.tone}>
-            <strong>{actionHint.label}</strong>
-            <p>{actionHint.message}</p>
-          </div>
-        </section>
+
 
         <section className={styles.leaderboardStrip}>
           <div className={styles.leaderboardHeader}>
