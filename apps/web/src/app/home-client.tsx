@@ -704,15 +704,15 @@ function HomeClientContent({
               <div className={styles.armyChip}>
                 <dt>Army</dt>
                 <dd className={styles.armyCompact}>
-                  <span>{state.playerSummary.idleArmy} Idle</span>
-                  {state.playerSummary.queuedArmy > 0 ? <span>{state.playerSummary.queuedArmy} Q</span> : null}
-                  {state.playerSummary.defendingArmy > 0 ? <span>{state.playerSummary.defendingArmy} Def</span> : null}
-                  {state.playerSummary.guardArmy > 0 ? <span>{state.playerSummary.guardArmy} Guard</span> : null}
-                  {state.playerSummary.marchingArmy > 0 ? <span>{state.playerSummary.marchingArmy} Mar</span> : null}
-                  {state.playerSummary.escortArmy > 0 ? <span>{state.playerSummary.escortArmy} Esc</span> : null}
-                  {state.playerSummary.raidArmy > 0 ? <span>{state.playerSummary.raidArmy} Raid</span> : null}
-                  {state.playerSummary.campaignArmy > 0 ? <span>{state.playerSummary.campaignArmy} Camp</span> : null}
-                  {state.playerSummary.fightingArmy > 0 ? <span>{state.playerSummary.fightingArmy} Fight</span> : null}
+                  <span title="Available at fortress">{state.playerSummary.idleArmy} Idle</span>
+                  {state.playerSummary.queuedArmy > 0 ? <span title="Recruitment queue">{state.playerSummary.queuedArmy} Q</span> : null}
+                  {state.playerSummary.defendingArmy > 0 ? <span title="Garrisoned on tiles">{state.playerSummary.defendingArmy} Def</span> : null}
+                  {state.playerSummary.guardArmy > 0 ? <span title="Standing guard order">{state.playerSummary.guardArmy} Guard</span> : null}
+                  {state.playerSummary.marchingArmy > 0 ? <span title="Traveling to target">{state.playerSummary.marchingArmy} Mar</span> : null}
+                  {state.playerSummary.escortArmy > 0 ? <span title="Escorting convoy">{state.playerSummary.escortArmy} Esc</span> : null}
+                  {state.playerSummary.raidArmy > 0 ? <span title="Raiding convoy routes">{state.playerSummary.raidArmy} Raid</span> : null}
+                  {state.playerSummary.campaignArmy > 0 ? <span title="Building campaign">{state.playerSummary.campaignArmy} Camp</span> : null}
+                  {state.playerSummary.fightingArmy > 0 ? <span title="In active battle">{state.playerSummary.fightingArmy} Fight</span> : null}
                 </dd>
               </div>
               {state.playerSummary.currentTargetName ? (
