@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { useMemo, useState, type FormEvent } from "react";
 import { useRefreshView } from "@/lib/refresh-helpers";
+import { RaceSkillPanel } from "@/components/race-skill-panel";
+
+import { purchaseSkillTierAction } from "@/app/game-actions";
 import { CastleUpgradeSpecialization } from "@/lib/prisma-client";
 import {
   formatDeepMiningImpact,
@@ -2201,9 +2204,31 @@ export function CastleManagement({
           <span>Skills</span>
           <strong>{playerSummary.race ?? "Choose a race"}</strong>
         </div>
-        <p className={styles.muted}>
-          Skill tree available after choosing a race.
-        </p>
+        {playerSummary.race && isFortressRace(playerSummary.race) ? (
+          <RaceSkillPanel
+            skillState={{
+              race: playerSummary.race,
+              unlockedTiers: new Map(
+                playerSummary.skillPurchases.map((p) => [p.path, p.tier])
+              ),
+              earnedPoints: playerSummary.skillPointsEarned,
+              totalPurchased: playerSummary.skillPurchases.reduce((s, p) => s + p.tier, 0),
+              playerLevel: playerSummary.level,
+              tileCount: 0,
+            }}
+            onPurchase={async (pathKey) => {
+              const result = await purchaseSkillTierAction(
+                playerSummary.id,
+                pathKey
+              );
+              if (!result.ok) window.alert(result.error);
+            }}
+          />
+        ) : (
+          <p className={styles.muted}>
+            Skill tree available after choosing a race.
+          </p>
+        )}
       </section>
       ) : null}
 
