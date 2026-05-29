@@ -130,6 +130,7 @@
 
 - Each race has 3 unique paths, each path has 5 tiers.
 - Skill points earned from castle levels (+1 per level) and owned territory (+1 per 3 tiles). Max 12 points.
+- All 15 tiers remain visible, but only 12 total points can be spent across the tree.
 - Investing in a tier unlocks all rewards at that tier, which may replace previous tier values.
 - Tiers alternate small buffs (+population, +pressure%) with major capstones (Runic Wards, Orbital Drop, Mirror Host, etc.).
 - See `apps/web/src/lib/game/race-skill-tree.ts` for complete path definitions.

@@ -1622,7 +1622,7 @@ export function CastleManagement({
               earnedPoints: playerSummary.skillPointsEarned,
               totalPurchased: playerSummary.skillPurchases.reduce((s, p) => s + p.tier, 0),
               playerLevel: playerSummary.level,
-              tileCount: 0,
+              tileCount: playerSummary.ownedTileSummary.totalTileCount,
             }}
             onPurchase={async (pathKey) => {
               const result = await purchaseSkillTierAction(

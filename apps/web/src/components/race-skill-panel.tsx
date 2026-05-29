@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import {
+  MAX_SKILL_POINTS,
   getRaceSkillTree,
   type RaceSkillTier,
 } from "@/lib/game/race-skill-tree";
-import { getEarnedSkillPoints } from "@/lib/game/race-skill-service";
 import type { FortressRace } from "@/lib/game/races";
+import styles from "./race-skill-panel.module.css";
 
 type SkillState = {
   race: FortressRace;
@@ -16,6 +17,30 @@ type SkillState = {
   playerLevel: number;
   tileCount: number;
 };
+
+type NodeState = "active" | "unlockable" | "locked";
+
+function getNodeState({
+  tier,
+  currentTier,
+  availablePoints,
+  purchasePending,
+}: {
+  tier: RaceSkillTier;
+  currentTier: number;
+  availablePoints: number;
+  purchasePending: string | null;
+}): NodeState {
+  if (tier.level <= currentTier) return "active";
+  if (
+    tier.level === currentTier + 1 &&
+    availablePoints > 0 &&
+    purchasePending === null
+  ) {
+    return "unlockable";
+  }
+  return "locked";
+}
 
 export function RaceSkillPanel({
   skillState,
@@ -28,182 +53,133 @@ export function RaceSkillPanel({
 
   if (!skillState) {
     return (
-      <section>
-        <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>
-          Choose a race to unlock its skill tree.
-        </p>
+      <section className={styles.emptyState}>
+        Choose a race to unlock its skill tree.
       </section>
     );
   }
 
   const tree = getRaceSkillTree(skillState.race);
   const { earnedPoints, totalPurchased, unlockedTiers } = skillState;
-  const availablePoints = Math.max(0, earnedPoints - totalPurchased);
+  const availablePoints = Math.max(
+    0,
+    Math.min(MAX_SKILL_POINTS, earnedPoints) - totalPurchased
+  );
+  const capReached = totalPurchased >= MAX_SKILL_POINTS;
 
   return (
-    <section style={{ display: "grid", gap: "12px" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>
-          Skill Points
-        </span>
-        <span style={{ color: "var(--color-accent, #48f)", fontSize: "0.85rem" }}>
-          {availablePoints} available / {earnedPoints} earned
-        </span>
-      </div>
+    <section className={styles.panel} aria-label="Race skill tree">
+      <div className={styles.tree}>
+        <div className={styles.coreNode}>
+          <span className={styles.coreEyebrow}>
+            {tree.race.replaceAll("_", " ")}
+          </span>
+          <strong>{availablePoints} available</strong>
+          <span>
+            {totalPurchased} spent / {MAX_SKILL_POINTS} max
+          </span>
+        </div>
 
-      <p style={{ color: "var(--text-muted)", fontSize: "0.75rem", margin: 0 }}>
-        Earn points from castle levels (+1 per level) and territory (+1 per 3
-        tiles). Invest them in one of three paths.
-      </p>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: "8px",
-        }}
-      >
-        {tree.paths.map((path) => {
+        {tree.paths.map((path, pathIndex) => {
           const currentTier = unlockedTiers.get(path.key) ?? 0;
           const nextTier = currentTier + 1;
-          const nextNode = path.tiers.find((t) => t.level === nextTier);
           const isMaxed = currentTier >= path.tiers.length;
-          const canPurchase =
-            availablePoints > 0 && !isMaxed && purchasePending === null;
-          const isPending = purchasePending === path.key;
+          const pathClassName = [
+            styles.path,
+            pathIndex === 0 ? styles.pathTop : "",
+            pathIndex === 1 ? styles.pathLeft : "",
+            pathIndex === 2 ? styles.pathRight : "",
+          ]
+            .filter(Boolean)
+            .join(" ");
 
           return (
-            <div
-              key={path.key}
-              style={{
-                border: "1px solid var(--border-soft)",
-                borderRadius: "8px",
-                padding: "10px",
-                background: "rgba(8, 16, 25, 0.6)",
-                display: "grid",
-                gap: "6px",
-              }}
-            >
-              <div>
-                <span
-                  style={{
-                    fontSize: "0.85rem",
-                    fontWeight: 700,
-                    color: "var(--foreground)",
-                  }}
-                >
-                  {path.name}
+            <div className={pathClassName} key={path.key}>
+              <div className={styles.pathHeader}>
+                <strong>{path.name}</strong>
+                <span>
+                  {currentTier}/{path.tiers.length}
                 </span>
-                <span
-                  style={{
-                    fontSize: "0.65rem",
-                    color: "var(--text-muted)",
-                    marginLeft: "8px",
-                  }}
-                >
-                  Tier {currentTier}/{path.tiers.length}
-                </span>
+                <p>{path.description}</p>
               </div>
-              <p
-                style={{
-                  fontSize: "0.72rem",
-                  color: "var(--text-muted)",
-                  margin: 0,
-                }}
-              >
-                {path.description}
-              </p>
 
-              {/* Current tier rewards */}
-              {currentTier > 0 && (
-                <div
-                  style={{
-                    fontSize: "0.7rem",
-                    color: "var(--color-accent, #48f)",
-                    fontWeight: 600,
-                  }}
-                >
-                  Active:{" "}
-                  {path.tiers[currentTier - 1]?.rewards
-                    .map((r) => r.label)
-                    .join(", ")}
-                </div>
-              )}
+              <ol className={styles.tierList}>
+                {path.tiers.map((tier) => {
+                  const nodeState = getNodeState({
+                    tier,
+                    currentTier,
+                    availablePoints,
+                    purchasePending,
+                  });
+                  const isPending = purchasePending === path.key;
+                  const isNextTier = tier.level === nextTier;
+                  const canPurchase =
+                    nodeState === "unlockable" && !isMaxed && !isPending;
+                  const nodeClassName = [
+                    styles.tierNode,
+                    nodeState === "active" ? styles.activeNode : "",
+                    nodeState === "unlockable" ? styles.unlockableNode : "",
+                    nodeState === "locked" ? styles.lockedNode : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ");
 
-              {/* Next tier preview */}
-              {nextNode && (
-                <div
-                  style={{
-                    fontSize: "0.7rem",
-                    color: "var(--text-dim)",
-                    borderTop: "1px solid var(--border-soft)",
-                    paddingTop: "4px",
-                  }}
-                >
-                  <span style={{ fontWeight: 600 }}>Next: {nextNode.name}</span>
-                  <br />
-                  <span style={{ fontSize: "0.65rem" }}>
-                    {nextNode.rewards.map((r) => r.label).join(", ")}
-                  </span>
-                </div>
-              )}
-
-              {isMaxed && (
-                <span
-                  style={{
-                    fontSize: "0.7rem",
-                    color: "var(--color-success, #4c1)",
-                    fontWeight: 600,
-                  }}
-                >
-                  Fully unlocked ✓
-                </span>
-              )}
-
-              {canPurchase && nextNode && (
-                <button
-                  type="button"
-                  disabled={false}
-                  onClick={async () => {
-                    if (purchasePending) return;
-                    setPurchasePending(path.key);
-                    try {
-                      await onPurchase?.(path.key);
-                    } finally {
-                      setPurchasePending(null);
-                    }
-                  }}
-                  style={{
-                    padding: "5px 10px",
-                    fontSize: "0.75rem",
-                    fontWeight: 600,
-                    borderRadius: "5px",
-                    border: "1px solid var(--color-accent, #48f)",
-                    background: "rgba(72, 128, 255, 0.12)",
-                    color: "var(--color-accent, #48f)",
-                    cursor: "pointer",
-                  }}
-                >
-                  {isPending ? "Unlocking..." : `Unlock Tier ${nextTier}`}
-                </button>
-              )}
-
-              {!canPurchase && !isMaxed && currentTier < path.tiers.length && (
-                <span
-                  style={{
-                    fontSize: "0.65rem",
-                    color: "var(--text-muted)",
-                  }}
-                >
-                  No points available
-                </span>
-              )}
+                  return (
+                    <li className={nodeClassName} key={tier.level}>
+                      <div className={styles.tierBadge}>{tier.level}</div>
+                      <div className={styles.tierBody}>
+                        <div className={styles.tierTitleRow}>
+                          <strong>{tier.name}</strong>
+                          <span>
+                            {nodeState === "active"
+                              ? "Active"
+                              : nodeState === "unlockable"
+                                ? "Next"
+                                : "Locked"}
+                          </span>
+                        </div>
+                        <p>
+                          {tier.rewards
+                            .map((reward) => reward.label)
+                            .join(", ")}
+                        </p>
+                        {isNextTier && capReached ? (
+                          <span className={styles.lockReason}>
+                            {MAX_SKILL_POINTS} point cap reached
+                          </span>
+                        ) : null}
+                        {isNextTier && !capReached && availablePoints <= 0 ? (
+                          <span className={styles.lockReason}>
+                            No skill points available
+                          </span>
+                        ) : null}
+                        {canPurchase ? (
+                          <button
+                            className={styles.unlockButton}
+                            type="button"
+                            onClick={async () => {
+                              if (purchasePending) return;
+                              setPurchasePending(path.key);
+                              try {
+                                await onPurchase?.(path.key);
+                              } finally {
+                                setPurchasePending(null);
+                              }
+                            }}
+                          >
+                            Unlock
+                          </button>
+                        ) : null}
+                        {isPending && isNextTier ? (
+                          <span className={styles.pendingLabel}>
+                            Unlocking...
+                          </span>
+                        ) : null}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
             </div>
           );
         })}

@@ -45,6 +45,7 @@ import "./combat-buffs.test";
 import "./campaigns.test";
 import "./leaderboard-titles.test";
 import "./politics.test";
+import "./race-skill-service.test";
 import "./season-announcement.test";
 import "./season-schedule.test";
 import "./rulesets.test";

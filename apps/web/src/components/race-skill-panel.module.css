@@ -1,0 +1,279 @@
+.panel {
+  width: 100%;
+}
+
+.emptyState {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.tree {
+  display: grid;
+  grid-template-areas:
+    ". top ."
+    "left core right";
+  grid-template-columns: minmax(210px, 1fr) minmax(150px, 0.68fr) minmax(210px, 1fr);
+  gap: 18px;
+  align-items: center;
+}
+
+.coreNode {
+  grid-area: core;
+  min-height: 150px;
+  border: 1px solid rgba(126, 214, 224, 0.42);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(34, 74, 92, 0.52), rgba(9, 20, 31, 0.86)),
+    rgba(7, 15, 24, 0.92);
+  box-shadow: 0 0 32px rgba(72, 180, 212, 0.14);
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 6px;
+  padding: 16px;
+  text-align: center;
+}
+
+.coreNode strong {
+  color: var(--foreground);
+  font-size: 1.2rem;
+}
+
+.coreNode span {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
+
+.coreEyebrow {
+  color: var(--color-accent, #7ed6e0) !important;
+  font-size: 0.7rem !important;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.path {
+  position: relative;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.path::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  background: rgba(126, 214, 224, 0.22);
+}
+
+.pathTop {
+  grid-area: top;
+}
+
+.pathTop::before {
+  left: 50%;
+  bottom: -18px;
+  width: 1px;
+  height: 18px;
+}
+
+.pathLeft {
+  grid-area: left;
+}
+
+.pathLeft::before {
+  right: -18px;
+  top: 50%;
+  width: 18px;
+  height: 1px;
+}
+
+.pathRight {
+  grid-area: right;
+}
+
+.pathRight::before {
+  left: -18px;
+  top: 50%;
+  width: 18px;
+  height: 1px;
+}
+
+.pathHeader {
+  position: relative;
+  z-index: 1;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(8, 16, 25, 0.72);
+  padding: 10px;
+  display: grid;
+  gap: 4px;
+}
+
+.pathHeader strong {
+  color: var(--foreground);
+  font-size: 0.86rem;
+}
+
+.pathHeader span {
+  color: var(--color-accent, #7ed6e0);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.pathHeader p {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  margin: 0;
+}
+
+.tierList {
+  position: relative;
+  z-index: 1;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+
+.tierNode {
+  position: relative;
+  min-height: 78px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(7, 14, 23, 0.78);
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 8px;
+  padding: 9px;
+}
+
+.tierNode + .tierNode::before {
+  content: "";
+  position: absolute;
+  top: -9px;
+  left: 25px;
+  width: 1px;
+  height: 8px;
+  background: rgba(126, 214, 224, 0.22);
+}
+
+.tierBadge {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border-soft);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.tierBody {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.tierTitleRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.tierTitleRow strong {
+  color: var(--foreground);
+  font-size: 0.78rem;
+  line-height: 1.2;
+}
+
+.tierTitleRow span,
+.lockReason,
+.pendingLabel {
+  color: var(--text-muted);
+  font-size: 0.64rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.tierBody p {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.activeNode {
+  border-color: rgba(103, 207, 159, 0.42);
+  background: rgba(18, 48, 38, 0.64);
+}
+
+.activeNode .tierBadge {
+  border-color: rgba(103, 207, 159, 0.72);
+  color: #9df0c2;
+}
+
+.unlockableNode {
+  border-color: rgba(248, 191, 87, 0.55);
+  background: rgba(55, 40, 17, 0.74);
+}
+
+.unlockableNode .tierBadge {
+  border-color: rgba(248, 191, 87, 0.78);
+  color: #f8d58c;
+}
+
+.lockedNode {
+  opacity: 0.62;
+}
+
+.unlockButton {
+  width: fit-content;
+  border: 1px solid rgba(248, 191, 87, 0.62);
+  border-radius: 6px;
+  background: rgba(248, 191, 87, 0.14);
+  color: #f8d58c;
+  cursor: pointer;
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 5px 10px;
+}
+
+.unlockButton:hover {
+  background: rgba(248, 191, 87, 0.22);
+}
+
+@media (max-width: 980px) {
+  .tree {
+    grid-template-areas:
+      "core"
+      "top"
+      "left"
+      "right";
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .path::before {
+    display: none;
+  }
+
+  .coreNode {
+    min-height: 112px;
+  }
+}
+
+@media (max-width: 640px) {
+  .tierTitleRow {
+    display: grid;
+    justify-content: stretch;
+  }
+
+  .tierTitleRow span,
+  .lockReason,
+  .pendingLabel {
+    white-space: normal;
+  }
+}
