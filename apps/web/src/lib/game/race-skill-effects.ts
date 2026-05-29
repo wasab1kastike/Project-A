@@ -21,6 +21,7 @@ export type SkillModifiers = {
   bonusGoldChance: number;
   freeArmyChance: number;
   populationBonus: number;
+  populationPerOwnedTile: number;
   attackSlotBonus: number;
   instantReinforce: boolean;
   precisionStrikeChance: number;
@@ -53,6 +54,7 @@ const EMPTY_MODIFIERS: SkillModifiers = {
   bonusGoldChance: 0,
   freeArmyChance: 0,
   populationBonus: 0,
+  populationPerOwnedTile: 0,
   attackSlotBonus: 0,
   instantReinforce: false,
   precisionStrikeChance: 0,
@@ -72,7 +74,7 @@ export function getSkillModifiers({
   purchases,
 }: {
   race: FortressRace | null;
-  purchases: Array<{ path: string; tier: number }>;
+  purchases: Array<{ nodeKey: string }>;
 }): SkillModifiers {
   if (!race) return EMPTY_MODIFIERS;
 
@@ -82,19 +84,19 @@ export function getSkillModifiers({
   for (const r of rewards) {
     switch (r.effect) {
       case "pressure":
-        mods.pressureMultiplier = 1 + (r.value ?? 0) / 100;
+        mods.pressureMultiplier += (r.value ?? 0) / 100;
         break;
       case "tileDefense":
-        mods.tileDefensePercent = r.value ?? 0;
+        mods.tileDefensePercent += r.value ?? 0;
         break;
       case "foodPerTenFarmers":
-        mods.foodPerTenFarmersBonus = r.value ?? 0;
+        mods.foodPerTenFarmersBonus += r.value ?? 0;
         break;
       case "goldPerTenMiners":
-        mods.goldPerTenMinersBonus = r.value ?? 0;
+        mods.goldPerTenMinersBonus += r.value ?? 0;
         break;
       case "armyPerTenRecruiters":
-        mods.armyPerTenRecruitersBonus = r.value ?? 0;
+        mods.armyPerTenRecruitersBonus += r.value ?? 0;
         break;
       case "raidPower":
         mods.raidPowerMultiplier = 1 + (r.value ?? 0) / 100;
@@ -112,7 +114,10 @@ export function getSkillModifiers({
         mods.escortPowerMultiplier = 1 + (r.value ?? 0) / 100;
         break;
       case "claimThreshold":
-        mods.claimThreshold = r.value;
+        mods.claimThreshold =
+          typeof r.value === "number"
+            ? Math.min(mods.claimThreshold ?? r.value, r.value)
+            : mods.claimThreshold;
         break;
       case "pressureDisrupt":
         mods.pressureDisrupt = true;
@@ -137,6 +142,9 @@ export function getSkillModifiers({
         break;
       case "population":
         mods.populationBonus += r.value ?? 0;
+        break;
+      case "populationPerOwnedTile":
+        mods.populationPerOwnedTile += r.value ?? 0;
         break;
       case "attackSlot":
         mods.attackSlotBonus = r.value ?? 0;

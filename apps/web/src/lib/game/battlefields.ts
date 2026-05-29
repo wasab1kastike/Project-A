@@ -59,6 +59,8 @@ import {
   getHomeOfABossBattleDamage,
 } from "./battlefield-rules";
 import { getDoctrineTier, getGuardDefenseDoctrineMultiplier } from "./doctrines";
+import { getSkillModifiers } from "./race-skill-effects";
+import { isFortressRace } from "./races";
 export {
   getBattlefieldAttrition,
   getBattlefieldCasualtyBudget,
@@ -74,12 +76,14 @@ export function getBattlefieldTileDefensePowerMultiplier({
   targetTileId,
   defenderRace,
   ownedTileDefensePercent = 0,
+  skillTileDefensePercent = 0,
   cycleId,
   tickAt,
 }: {
   targetTileId: string | null;
   defenderRace?: string | null;
   ownedTileDefensePercent?: number;
+  skillTileDefensePercent?: number;
   cycleId?: string | null;
   tickAt?: Date | null;
 }) {
@@ -92,11 +96,14 @@ export function getBattlefieldTileDefensePowerMultiplier({
   const tileDefenseMultiplier = 1 + Math.max(0, tileDefensePercent) / 100;
   const ownedTileDefenseMultiplier =
     1 + Math.max(0, ownedTileDefensePercent) / 100;
+  const skillTileDefenseMultiplier =
+    1 + Math.max(0, skillTileDefensePercent) / 100;
   const dwarfOwnedTileMultiplier = defenderRace === "DWARFS" ? 1.25 : 1;
 
   return (
     tileDefenseMultiplier *
     ownedTileDefenseMultiplier *
+    skillTileDefenseMultiplier *
     dwarfOwnedTileMultiplier
   );
 }
@@ -104,6 +111,7 @@ export function getBattlefieldTileDefensePowerMultiplier({
 export function getBattlefieldCastleDefensePowerMultiplier({
   targetFortress,
   ownedTileDefensePercent = 0,
+  skillTileDefensePercent = 0,
 }: {
   targetFortress: {
     fortressKind: FortressKind;
@@ -113,6 +121,7 @@ export function getBattlefieldCastleDefensePowerMultiplier({
     castleUpgradeSpecializations?: Parameters<typeof countCastleSpecializations>[0];
   } | null;
   ownedTileDefensePercent?: number;
+  skillTileDefensePercent?: number;
 }) {
   if (
     !targetFortress ||
@@ -128,8 +137,20 @@ export function getBattlefieldCastleDefensePowerMultiplier({
       targetFortress.race,
       countCastleSpecializations(targetFortress.castleUpgradeSpecializations ?? [])
     ) *
-    (1 + Math.max(0, ownedTileDefensePercent) / 100)
+    (1 + Math.max(0, ownedTileDefensePercent) / 100) *
+    (1 + Math.max(0, skillTileDefensePercent) / 100)
   );
+}
+
+function getSkillTileDefensePercent(fortress: {
+  race?: FortressRace | null;
+  skillPurchases?: Array<{ nodeKey: string }>;
+} | null) {
+  if (!fortress?.race || !isFortressRace(fortress.race)) return 0;
+  return getSkillModifiers({
+    race: fortress.race,
+    purchases: fortress.skillPurchases ?? [],
+  }).tileDefensePercent;
 }
 
 function getHomeOfABossDefeatAnnouncement({
@@ -905,6 +926,9 @@ export async function processActiveBattlefields({
               kind: true,
             },
           },
+          skillPurchases: {
+            select: { nodeKey: true },
+          },
         },
       },
       defenderBannerFortress: {
@@ -953,6 +977,9 @@ export async function processActiveBattlefields({
             select: {
               kind: true,
             },
+          },
+          skillPurchases: {
+            select: { nodeKey: true },
           },
         },
       },
@@ -1015,6 +1042,9 @@ export async function processActiveBattlefields({
               kind: true,
             },
           },
+          skillPurchases: {
+            select: { nodeKey: true },
+          },
         },
       },
       participants: {
@@ -1071,6 +1101,9 @@ export async function processActiveBattlefields({
                 select: {
                   kind: true,
                 },
+              },
+              skillPurchases: {
+                select: { nodeKey: true },
               },
             },
           },
@@ -1244,6 +1277,9 @@ export async function processActiveBattlefields({
                 battlefield.defenderBannerFortressId
               ) ?? 0)
             : 0,
+        skillTileDefensePercent: getSkillTileDefensePercent(
+          nativeDefenderFortress
+        ),
         cycleId,
         tickAt,
       });
@@ -1256,6 +1292,9 @@ export async function processActiveBattlefields({
                   battlefield.targetFortressId
                 ) ?? 0)
               : 0,
+            skillTileDefensePercent: getSkillTileDefensePercent(
+              battlefield.targetFortress
+            ),
           })
         : 1;
     const getWeightedParticipantMultiplier = ({

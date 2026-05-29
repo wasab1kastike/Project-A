@@ -4,14 +4,14 @@ import { useState } from "react";
 import {
   MAX_SKILL_POINTS,
   getRaceSkillTree,
-  type RaceSkillTier,
+  type RaceSkillNode,
 } from "@/lib/game/race-skill-tree";
 import type { FortressRace } from "@/lib/game/races";
 import styles from "./race-skill-panel.module.css";
 
 type SkillState = {
   race: FortressRace;
-  unlockedTiers: Map<string, number>;
+  purchasedNodeKeys: string[];
   earnedPoints: number;
   totalPurchased: number;
   playerLevel: number;
@@ -21,19 +21,20 @@ type SkillState = {
 type NodeState = "active" | "unlockable" | "locked";
 
 function getNodeState({
-  tier,
-  currentTier,
+  node,
+  purchasedNodeKeys,
   availablePoints,
   purchasePending,
 }: {
-  tier: RaceSkillTier;
-  currentTier: number;
+  node: RaceSkillNode;
+  purchasedNodeKeys: Set<string>;
   availablePoints: number;
   purchasePending: string | null;
 }): NodeState {
-  if (tier.level <= currentTier) return "active";
+  if (purchasedNodeKeys.has(node.key)) return "active";
+  const previousKey = `${node.pathKey}-${node.level - 1}`;
   if (
-    tier.level === currentTier + 1 &&
+    (node.level === 1 || purchasedNodeKeys.has(previousKey)) &&
     availablePoints > 0 &&
     purchasePending === null
   ) {
@@ -47,7 +48,7 @@ export function RaceSkillPanel({
   onPurchase,
 }: {
   skillState: SkillState | null;
-  onPurchase?: (pathKey: string) => Promise<void>;
+  onPurchase?: (nodeKey: string) => Promise<void>;
 }) {
   const [purchasePending, setPurchasePending] = useState<string | null>(null);
 
@@ -60,7 +61,8 @@ export function RaceSkillPanel({
   }
 
   const tree = getRaceSkillTree(skillState.race);
-  const { earnedPoints, totalPurchased, unlockedTiers } = skillState;
+  const { earnedPoints, totalPurchased } = skillState;
+  const purchasedNodeKeys = new Set(skillState.purchasedNodeKeys);
   const availablePoints = Math.max(
     0,
     Math.min(MAX_SKILL_POINTS, earnedPoints) - totalPurchased
@@ -81,9 +83,10 @@ export function RaceSkillPanel({
         </div>
 
         {tree.paths.map((path, pathIndex) => {
-          const currentTier = unlockedTiers.get(path.key) ?? 0;
-          const nextTier = currentTier + 1;
-          const isMaxed = currentTier >= path.tiers.length;
+          const purchasedInPath = path.nodes.filter((node) =>
+            purchasedNodeKeys.has(node.key)
+          ).length;
+          const isMaxed = purchasedInPath >= path.nodes.length;
           const pathClassName = [
             styles.path,
             pathIndex === 0 ? styles.pathTop : "",
@@ -98,21 +101,21 @@ export function RaceSkillPanel({
               <div className={styles.pathHeader}>
                 <strong>{path.name}</strong>
                 <span>
-                  {currentTier}/{path.tiers.length}
+                  {purchasedInPath}/{path.nodes.length}
                 </span>
                 <p>{path.description}</p>
               </div>
 
               <ol className={styles.tierList}>
-                {path.tiers.map((tier) => {
+                {path.nodes.map((node) => {
                   const nodeState = getNodeState({
-                    tier,
-                    currentTier,
+                    node,
+                    purchasedNodeKeys,
                     availablePoints,
                     purchasePending,
                   });
-                  const isPending = purchasePending === path.key;
-                  const isNextTier = tier.level === nextTier;
+                  const isPending = purchasePending === node.key;
+                  const isNextNode = nodeState === "unlockable";
                   const canPurchase =
                     nodeState === "unlockable" && !isMaxed && !isPending;
                   const nodeClassName = [
@@ -125,11 +128,11 @@ export function RaceSkillPanel({
                     .join(" ");
 
                   return (
-                    <li className={nodeClassName} key={tier.level}>
-                      <div className={styles.tierBadge}>{tier.level}</div>
+                    <li className={nodeClassName} key={node.key}>
+                      <div className={styles.tierBadge}>{node.level}</div>
                       <div className={styles.tierBody}>
                         <div className={styles.tierTitleRow}>
-                          <strong>{tier.name}</strong>
+                          <strong>{node.name}</strong>
                           <span>
                             {nodeState === "active"
                               ? "Active"
@@ -139,16 +142,16 @@ export function RaceSkillPanel({
                           </span>
                         </div>
                         <p>
-                          {tier.rewards
+                          {node.rewards
                             .map((reward) => reward.label)
                             .join(", ")}
                         </p>
-                        {isNextTier && capReached ? (
+                        {isNextNode && capReached ? (
                           <span className={styles.lockReason}>
                             {MAX_SKILL_POINTS} point cap reached
                           </span>
                         ) : null}
-                        {isNextTier && !capReached && availablePoints <= 0 ? (
+                        {isNextNode && !capReached && availablePoints <= 0 ? (
                           <span className={styles.lockReason}>
                             No skill points available
                           </span>
@@ -159,9 +162,9 @@ export function RaceSkillPanel({
                             type="button"
                             onClick={async () => {
                               if (purchasePending) return;
-                              setPurchasePending(path.key);
+                              setPurchasePending(node.key);
                               try {
-                                await onPurchase?.(path.key);
+                                await onPurchase?.(node.key);
                               } finally {
                                 setPurchasePending(null);
                               }
@@ -170,7 +173,7 @@ export function RaceSkillPanel({
                             Unlock
                           </button>
                         ) : null}
-                        {isPending && isNextTier ? (
+                        {isPending && isNextNode ? (
                           <span className={styles.pendingLabel}>
                             Unlocking...
                           </span>

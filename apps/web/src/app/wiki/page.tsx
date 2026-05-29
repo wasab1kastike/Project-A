@@ -52,7 +52,7 @@ const RACE_ABILITY_NOTES: Record<string, readonly string[]> = {
   SPACE_MURINES: [
     "Skill paths: Convoy Command (trade), Rapid Response (defense), Orbital Doctrine (pressure).",
     "Pressure workers use the Imperial Faith label.",
-    "Invest points across up to 3 paths, max 5 tiers each.",
+    "Invest points across up to 3 paths, 8 nodes each.",
   ],
   ORKS: [
     "Skill paths: Marauder (raiding), Siegebreaker (campaigns), WAAAGH Engine (momentum).",
@@ -66,9 +66,9 @@ const RACE_TIER_PATH = [
   "+1 point per castle level (starting at level 2).",
   "+1 point per 3 owned normal tiles.",
   "Maximum 12 skill points total.",
-  "Each race has 3 unique skill paths with 5 tiers each.",
-  "All 15 tiers are visible, but only 12 total points can be spent.",
-  "Tiers alternate small buffs (+population, +pressure%) with major capstones.",
+  "Each race has 3 unique skill paths with 8 nodes each.",
+  "A full branch costs 8 points, leaving 4 for other paths.",
+  "Nodes escalate from small buffs to stronger path capstones.",
 ] as const;
 
 const CASTLE_SPECIALIZATIONS = [

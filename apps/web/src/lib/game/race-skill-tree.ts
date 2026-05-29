@@ -1,15 +1,18 @@
 import type { FortressRace } from "./races";
 
 export const MAX_SKILL_POINTS = 12;
+export const SKILL_NODES_PER_PATH = 8;
 
 export type RaceSkillPath = {
   key: string;
   name: string;
   description: string;
-  tiers: RaceSkillTier[];
+  nodes: RaceSkillNode[];
 };
 
-export type RaceSkillTier = {
+export type RaceSkillNode = {
+  key: string;
+  pathKey: string;
   level: number;
   name: string;
   description: string;
@@ -28,274 +31,191 @@ export type RaceSkillTree = {
   paths: RaceSkillPath[];
 };
 
+type NodeDraft = Omit<RaceSkillNode, "key" | "pathKey">;
+
+function reward(
+  label: string,
+  effect: string,
+  value: number | undefined,
+  isMajor: boolean
+): RaceSkillReward {
+  return { label, effect, value, isMajor };
+}
+
+function path(
+  key: string,
+  name: string,
+  description: string,
+  nodes: NodeDraft[]
+): RaceSkillPath {
+  return {
+    key,
+    name,
+    description,
+    nodes: nodes.map((node) => ({
+      ...node,
+      key: `${key}-${node.level}`,
+      pathKey: key,
+    })),
+  };
+}
+
+const pop = (value: number, label = `+${value} pop`) =>
+  reward(label, "population", value, value >= 3);
+const pressure = (value: number) =>
+  reward(`+${value}% pressure`, "pressure", value, value >= 15);
+const food = (value: number) =>
+  reward(`+${value} food/10 farmers`, "foodPerTenFarmers", value, value >= 4);
+const gold = (value: number) =>
+  reward(`+${value} gold/10 miners`, "goldPerTenMiners", value, value >= 4);
+const army = (value: number) =>
+  reward(`+${value} army/10 recruiters`, "armyPerTenRecruiters", value, value >= 3);
+const tileDefense = (value: number) =>
+  reward(`+${value}% tile defense`, "tileDefense", value, value >= 20);
+const claimThreshold = (value: number) =>
+  reward(`${value} claim threshold`, "claimThreshold", value, true);
+const popPerTile = (value: number) =>
+  reward(`+${value} pop/owned tile`, "populationPerOwnedTile", value, true);
+
 export const RACE_SKILL_TREES: Record<FortressRace, RaceSkillTree> = {
   DWARFS: {
     race: "DWARFS",
     paths: [
-      {
-        key: "bastion",
-        name: "Bastion",
-        description: "Stone walls and stubborn defense.",
-        tiers: [
-          {
-            level: 1,
-            name: "Fortified Foundations",
-            description: "+1 population",
-            rewards: [
-              { label: "+1 pop", effect: "population", value: 1, isMajor: false },
-            ],
-          },
-          {
-            level: 2,
-            name: "Stoneward Training",
-            description: "+10% tile defense bonus",
-            rewards: [
-              { label: "+10% tile def", effect: "tileDefense", value: 10, isMajor: true },
-            ],
-          },
-          {
-            level: 3,
-            name: "Deep Reinforcements",
-            description: "+2 population",
-            rewards: [
-              { label: "+2 pop", effect: "population", value: 2, isMajor: false },
-            ],
-          },
-          {
-            level: 4,
-            name: "Granite Bulwark",
-            description: "+20% tile defense (replaces previous)",
-            rewards: [
-              { label: "+20% tile def", effect: "tileDefense", value: 20, isMajor: true },
-            ],
-          },
-          {
-            level: 5,
-            name: "Runic Wards",
-            description: "Guards deal 5% attrition to attackers",
-            rewards: [
-              { label: "5% guard attrition", effect: "guardAttrition", value: 5, isMajor: true },
-            ],
-          },
-        ],
-      },
-      {
-        key: "seismic",
-        name: "Seismic",
-        description: "Bend the earth to expand borders.",
-        tiers: [
-          {
-            level: 1,
-            name: "Tremor Sense",
-            description: "+5% pressure",
-            rewards: [
-              { label: "+5% pressure", effect: "pressure", value: 5, isMajor: false },
-            ],
-          },
-          {
-            level: 2,
-            name: "Mountain's Pull",
-            description: "Mountain tiles claim 15% faster",
-            rewards: [
-              { label: "15% faster mountain", effect: "mountainPressure", value: 15, isMajor: true },
-            ],
-          },
-          {
-            level: 3,
-            name: "Quake Aura",
-            description: "+10% pressure (replaces previous)",
-            rewards: [
-              { label: "+10% pressure", effect: "pressure", value: 10, isMajor: false },
-            ],
-          },
-          {
-            level: 4,
-            name: "Tectonic Rift",
-            description: "Claiming a tile disrupts adjacent enemy pressure",
-            rewards: [
-              { label: "disrupt adjacent", effect: "pressureDisrupt", isMajor: true },
-            ],
-          },
-          {
-            level: 5,
-            name: "Deep Claim",
-            description: "Neutral claim threshold -20% (480)",
-            rewards: [
-              { label: "480 threshold", effect: "claimThreshold", value: 480, isMajor: true },
-            ],
-          },
-        ],
-      },
-      {
-        key: "grudge",
-        name: "Grudgebearer",
-        description: "A Book of Grudges that pays interest.",
-        tiers: [
-          {
-            level: 1,
-            name: "Record Keeping",
-            description: "+2 food per 10 farmers",
-            rewards: [
-              { label: "+2 food/10 farmers", effect: "foodPerTenFarmers", value: 2, isMajor: false },
-            ],
-          },
-          {
-            level: 2,
-            name: "Grudge Economy",
-            description: "Gain 10 gold when a tile is attacked",
-            rewards: [
-              { label: "10g on tile attack", effect: "grudgeGold", value: 10, isMajor: true },
-            ],
-          },
-          {
-            level: 3,
-            name: "Stone Ledger",
-            description: "+3 food per 10 farmers (replaces previous)",
-            rewards: [
-              { label: "+3 food/10 farmers", effect: "foodPerTenFarmers", value: 3, isMajor: false },
-            ],
-          },
-          {
-            level: 4,
-            name: "Vengeful Harvest",
-            description: "Losing a tile grants +50 food next tick",
-            rewards: [
-              { label: "50 food on tile loss", effect: "vengefulFood", value: 50, isMajor: true },
-            ],
-          },
-          {
-            level: 5,
-            name: "The Grudge Pays",
-            description: "Killing an attacker grants 50% gold refund on lost army",
-            rewards: [
-              { label: "50% army refund on kill", effect: "grudgeRefund", isMajor: true },
-            ],
-          },
-        ],
-      },
+      path("bastion", "Runebound Bastion", "Stone, spite, and impossible walls.", [
+        { level: 1, name: "Gate Oaths", description: "+1 population", rewards: [pop(1)] },
+        { level: 2, name: "Shieldwall Masonry", description: "+10% tile defense", rewards: [tileDefense(10)] },
+        { level: 3, name: "Deep Quarters", description: "+2 population", rewards: [pop(2)] },
+        { level: 4, name: "Iron-Clad Parapets", description: "+15% tile defense", rewards: [tileDefense(15)] },
+        { level: 5, name: "Runic Murder Holes", description: "+20% tile defense", rewards: [tileDefense(20)] },
+        { level: 6, name: "Ancestor Vaults", description: "+3 population", rewards: [pop(3)] },
+        { level: 7, name: "Mountain Citadel", description: "+25% tile defense", rewards: [tileDefense(25)] },
+        { level: 8, name: "The Hold Endures", description: "+5 population", rewards: [pop(5)] },
+      ]),
+      path("seismic", "Seismic Claim", "Make the map move before armies do.", [
+        { level: 1, name: "Stone Listening", description: "+5% pressure", rewards: [pressure(5)] },
+        { level: 2, name: "Faultline Stakes", description: "+8% pressure", rewards: [pressure(8)] },
+        { level: 3, name: "Mountain Pull", description: "Neutral claims at 560 pressure", rewards: [claimThreshold(560)] },
+        { level: 4, name: "Tremor Teams", description: "+12% pressure", rewards: [pressure(12)] },
+        { level: 5, name: "Tectonic Writ", description: "Neutral claims at 520 pressure", rewards: [claimThreshold(520)] },
+        { level: 6, name: "Quake Surveyors", description: "+16% pressure", rewards: [pressure(16)] },
+        { level: 7, name: "Deep Claim", description: "Neutral claims at 480 pressure", rewards: [claimThreshold(480)] },
+        { level: 8, name: "World-Anvil Decree", description: "+22% pressure", rewards: [pressure(22)] },
+      ]),
+      path("grudge", "Grudge Ledger", "Economy built from remembered insults.", [
+        { level: 1, name: "Red Ink Rations", description: "+2 food per 10 farmers", rewards: [food(2)] },
+        { level: 2, name: "Debt Mine", description: "+2 gold per 10 miners", rewards: [gold(2)] },
+        { level: 3, name: "Stone Pantry", description: "+3 food per 10 farmers", rewards: [food(3)] },
+        { level: 4, name: "Interest in Blood", description: "+4 gold per 10 miners", rewards: [gold(4)] },
+        { level: 5, name: "Audited Veins", description: "+3 gold per 10 miners", rewards: [gold(3)] },
+        { level: 6, name: "Vengeful Harvest", description: "+4 food per 10 farmers", rewards: [food(4)] },
+        { level: 7, name: "Bookkeeper Kings", description: "+4 food per 10 farmers", rewards: [food(4)] },
+        { level: 8, name: "The Grudge Pays", description: "+5 gold per 10 miners", rewards: [gold(5)] },
+      ]),
     ],
   },
   ORKS: {
     race: "ORKS",
     paths: [
-      {
-        key: "marauder",
-        name: "Marauder",
-        description: "Raid convoys and take what's yours.",
-        tiers: [
-          { level: 1, name: "Sneaky Git", description: "+5% raid power", rewards: [{ label: "+5% raid", effect: "raidPower", value: 5, isMajor: false }] },
-          { level: 2, name: "Loot Pile", description: "+15% stolen cargo", rewards: [{ label: "+15% stolen cargo", effect: "stolenCargo", value: 15, isMajor: true }] },
-          { level: 3, name: "Bigger Choppa", description: "+10% raid power (replaces)", rewards: [{ label: "+10% raid", effect: "raidPower", value: 10, isMajor: false }] },
-          { level: 4, name: "Extra Pocket", description: "15% chance to steal double", rewards: [{ label: "15% double steal", effect: "doubleSteal", value: 15, isMajor: true }] },
-          { level: 5, name: "Da Biggest Loot", description: "+25% stolen cargo (replaces)", rewards: [{ label: "+25% stolen cargo", effect: "stolenCargo", value: 25, isMajor: true }] },
-        ],
-      },
-      {
-        key: "siegebreaker",
-        name: "Siegebreaker",
-        description: "Crush walls and claim borders.",
-        tiers: [
-          { level: 1, name: "Bigger Rock", description: "+5% campaign speed", rewards: [{ label: "+5% camp speed", effect: "campaignSpeed", value: 5, isMajor: false }] },
-          { level: 2, name: "Wreckin' Ball", description: "+15% campaign army capacity", rewards: [{ label: "+15% camp army", effect: "campaignArmy", value: 15, isMajor: true }] },
-          { level: 3, name: "Dakka Dakka", description: "+10% campaign speed (replaces)", rewards: [{ label: "+10% camp speed", effect: "campaignSpeed", value: 10, isMajor: false }] },
-          { level: 4, name: "Krumper", description: "Campaigns start at 20% progress", rewards: [{ label: "start at 20%", effect: "campaignStart", value: 20, isMajor: true }] },
-          { level: 5, name: "Da Big Push", description: "Siege warning reduced to 8h", rewards: [{ label: "8h siege warning", effect: "siegeWarning", value: 8, isMajor: true }] },
-        ],
-      },
-      {
-        key: "waaagh",
-        name: "WAAAGH Engine",
-        description: "Build momentum through battle.",
-        tiers: [
-          { level: 1, name: "Louda Boyz", description: "+1 army per 10 recruiters", rewards: [{ label: "+1 army/10 rec", effect: "armyPerTenRecruiters", value: 1, isMajor: false }] },
-          { level: 2, name: "Scrap Collecta", description: "+1 scrap from all kills", rewards: [{ label: "+1 scrap/kill", effect: "scrapPerKill", value: 1, isMajor: true }] },
-          { level: 3, name: "Momentum", description: "+2 army per 10 recruiters (replaces)", rewards: [{ label: "+2 army/10 rec", effect: "armyPerTenRecruiters", value: 2, isMajor: false }] },
-          { level: 4, name: "Blood Frenzy", description: "Kills boost recruitment +20% for 1h", rewards: [{ label: "+20% recruit/kill", effect: "bloodFrenzy", value: 20, isMajor: true }] },
-          { level: 5, name: "Endless WAAAGH", description: "+1 population per owned tile", rewards: [{ label: "+1 pop/tile", effect: "popPerTile", value: 1, isMajor: true }] },
-        ],
-      },
+      path("marauder", "Marauder Mob", "Loot-fueled growth with teeth.", [
+        { level: 1, name: "Shiny Finderz", description: "+1 gold per 10 miners", rewards: [gold(1)] },
+        { level: 2, name: "Snack Raidz", description: "+1 food per 10 farmers", rewards: [food(1)] },
+        { level: 3, name: "Bigger Loot Pile", description: "+2 gold per 10 miners", rewards: [gold(2)] },
+        { level: 4, name: "Camp Followers", description: "+1 population", rewards: [pop(1)] },
+        { level: 5, name: "Da Tax Is Punchin'", description: "+3 gold per 10 miners", rewards: [gold(3)] },
+        { level: 6, name: "Feed Da Ladz", description: "+3 food per 10 farmers", rewards: [food(3)] },
+        { level: 7, name: "Loot-Tower Banner", description: "+3 population", rewards: [pop(3)] },
+        { level: 8, name: "Da Biggest Pile", description: "+5 gold per 10 miners", rewards: [gold(5)] },
+      ]),
+      path("siegebreaker", "Siegebreaker Tide", "Push borders by being louder than walls.", [
+        { level: 1, name: "Rock Lobbas", description: "+5% pressure", rewards: [pressure(5)] },
+        { level: 2, name: "Bootprints Everywhere", description: "+1 population", rewards: [pop(1)] },
+        { level: 3, name: "Wall Shouters", description: "+10% pressure", rewards: [pressure(10)] },
+        { level: 4, name: "More Ladz at Front", description: "+2 population", rewards: [pop(2)] },
+        { level: 5, name: "Krumper Crews", description: "Neutral claims at 540 pressure", rewards: [claimThreshold(540)] },
+        { level: 6, name: "Green Tide Survey", description: "+15% pressure", rewards: [pressure(15)] },
+        { level: 7, name: "Da Big Push", description: "Neutral claims at 500 pressure", rewards: [claimThreshold(500)] },
+        { level: 8, name: "World Krumper", description: "+24% pressure", rewards: [pressure(24)] },
+      ]),
+      path("waaagh", "WAAAGH Engine", "Recruitment momentum that refuses to stop.", [
+        { level: 1, name: "Louda Drums", description: "+1 army per 10 recruiters", rewards: [army(1)] },
+        { level: 2, name: "Scrap Bunks", description: "+1 population", rewards: [pop(1)] },
+        { level: 3, name: "Momentum Pit", description: "+2 army per 10 recruiters", rewards: [army(2)] },
+        { level: 4, name: "Boss Counting", description: "+1 population per owned tile", rewards: [popPerTile(1)] },
+        { level: 5, name: "More Choppas", description: "+3 army per 10 recruiters", rewards: [army(3)] },
+        { level: 6, name: "Endless Barracks", description: "+3 population", rewards: [pop(3)] },
+        { level: 7, name: "Redline Muster", description: "+4 army per 10 recruiters", rewards: [army(4)] },
+        { level: 8, name: "Endless WAAAGH", description: "+2 population per owned tile", rewards: [popPerTile(2)] },
+      ]),
     ],
   },
   SPACE_MURINES: {
     race: "SPACE_MURINES",
     paths: [
-      {
-        key: "convoy",
-        name: "Convoy Command",
-        description: "Disciplined logistics and supply routes.",
-        tiers: [
-          { level: 1, name: "Supply Drill", description: "+5% escort power", rewards: [{ label: "+5% escort", effect: "escortPower", value: 5, isMajor: false }] },
-          { level: 2, name: "Armored Transports", description: "+1h convoy speed", rewards: [{ label: "convoys 1h faster", effect: "convoySpeed", value: 1, isMajor: true }] },
-          { level: 3, name: "Fleet Protocol", description: "+10% escort power (replaces)", rewards: [{ label: "+10% escort", effect: "escortPower", value: 10, isMajor: false }] },
-          { level: 4, name: "Secured Cargo", description: "Deliveries +15% gold bonus", rewards: [{ label: "+15% delivery gold", effect: "deliveryGold", value: 15, isMajor: true }] },
-          { level: 5, name: "Orbital Drop", description: "Deed convoys arrive in 2h", rewards: [{ label: "deeds in 2h", effect: "deedSpeed", isMajor: true }] },
-        ],
-      },
-      {
-        key: "rapid",
-        name: "Rapid Response",
-        description: "Fast deployment and defense.",
-        tiers: [
-          { level: 1, name: "Quick March", description: "+5% guard defense", rewards: [{ label: "+5% guard def", effect: "guardDefense", value: 5, isMajor: false }] },
-          { level: 2, name: "Drop Pods", description: "+1 simultaneous attack slot", rewards: [{ label: "+1 attack slot", effect: "attackSlot", value: 1, isMajor: true }] },
-          { level: 3, name: "Entrenched", description: "+10% guard defense (replaces)", rewards: [{ label: "+10% guard def", effect: "guardDefense", value: 10, isMajor: false }] },
-          { level: 4, name: "Orbital Insertion", description: "Instant reinforce once per 24h", rewards: [{ label: "instant reinforce", effect: "instantReinforce", isMajor: true }] },
-          { level: 5, name: "Imperium's Shield", description: "+2 pop, +15% campaign defense", rewards: [{ label: "+2 pop +15% camp def", effect: "imperiumsShield", isMajor: true }] },
-        ],
-      },
-      {
-        key: "orbital",
-        name: "Orbital Doctrine",
-        description: "Precision from above.",
-        tiers: [
-          { level: 1, name: "Surveyor Satellites", description: "+5% pressure", rewards: [{ label: "+5% pressure", effect: "pressure", value: 5, isMajor: false }] },
-          { level: 2, name: "Kinetic Planner", description: "+10% campaign build speed", rewards: [{ label: "+10% camp speed", effect: "campaignSpeed", value: 10, isMajor: true }] },
-          { level: 3, name: "Targeting Array", description: "+10% pressure (replaces)", rewards: [{ label: "+10% pressure", effect: "pressure", value: 10, isMajor: false }] },
-          { level: 4, name: "Precision Strike", description: "10% chance to bypass siege warning", rewards: [{ label: "10% bypass siege", effect: "precisionStrike", value: 10, isMajor: true }] },
-          { level: 5, name: "Orbital Citadel", description: "+3 pop; all owned tiles +5% defense", rewards: [{ label: "+3 pop, +5% all def", effect: "orbitalCitadel", isMajor: true }] },
-        ],
-      },
+      path("convoy", "Convoy Command", "Disciplined logistics and supply routes.", [
+        { level: 1, name: "Supply Drill", description: "+1 gold per 10 miners", rewards: [gold(1)] },
+        { level: 2, name: "Ration Ledgers", description: "+1 food per 10 farmers", rewards: [food(1)] },
+        { level: 3, name: "Armored Manifests", description: "+2 gold per 10 miners", rewards: [gold(2)] },
+        { level: 4, name: "Quartermaster Cells", description: "+2 food per 10 farmers", rewards: [food(2)] },
+        { level: 5, name: "Fleet Protocol", description: "+3 gold per 10 miners", rewards: [gold(3)] },
+        { level: 6, name: "Secured Depots", description: "+3 food per 10 farmers", rewards: [food(3)] },
+        { level: 7, name: "Orbital Freight", description: "+4 gold per 10 miners", rewards: [gold(4)] },
+        { level: 8, name: "Imperial Supply Web", description: "+5 food per 10 farmers", rewards: [food(5)] },
+      ]),
+      path("rapid", "Rapid Response", "Fast deployment and fortress readiness.", [
+        { level: 1, name: "Quick March", description: "+1 army per 10 recruiters", rewards: [army(1)] },
+        { level: 2, name: "Drop Pod Berths", description: "+1 population", rewards: [pop(1)] },
+        { level: 3, name: "Entrenched Squads", description: "+2 army per 10 recruiters", rewards: [army(2)] },
+        { level: 4, name: "Ready Rooms", description: "+2 population", rewards: [pop(2)] },
+        { level: 5, name: "Orbital Insertion", description: "+3 army per 10 recruiters", rewards: [army(3)] },
+        { level: 6, name: "Fortress Watch", description: "+10% tile defense", rewards: [tileDefense(10)] },
+        { level: 7, name: "Shield Companies", description: "+4 army per 10 recruiters", rewards: [army(4)] },
+        { level: 8, name: "Imperium's Shield", description: "+5 population", rewards: [pop(5)] },
+      ]),
+      path("orbital", "Orbital Doctrine", "Precision claims from above.", [
+        { level: 1, name: "Surveyor Satellites", description: "+5% pressure", rewards: [pressure(5)] },
+        { level: 2, name: "Targeting Choir", description: "+1 population", rewards: [pop(1)] },
+        { level: 3, name: "Kinetic Planner", description: "+10% pressure", rewards: [pressure(10)] },
+        { level: 4, name: "Relay Chapels", description: "Neutral claims at 560 pressure", rewards: [claimThreshold(560)] },
+        { level: 5, name: "Precision Strike", description: "+15% pressure", rewards: [pressure(15)] },
+        { level: 6, name: "Bastion Telemetry", description: "+15% tile defense", rewards: [tileDefense(15)] },
+        { level: 7, name: "Orbital Citadel", description: "+3 population", rewards: [pop(3)] },
+        { level: 8, name: "Sky-Law Mandate", description: "+25% pressure", rewards: [pressure(25)] },
+      ]),
     ],
   },
   UNSTABLE_UNICORNS: {
     race: "UNSTABLE_UNICORNS",
     paths: [
-      {
-        key: "glitter",
-        name: "Glitter Frontier",
-        description: "Spread prismatic influence across the map.",
-        tiers: [
-          { level: 1, name: "Sparkle Dust", description: "+5% neutral pressure", rewards: [{ label: "+5% pressure", effect: "pressure", value: 5, isMajor: false }] },
-          { level: 2, name: "Prismatic Pull", description: "Claim threshold -10% (540)", rewards: [{ label: "540 threshold", effect: "claimThreshold", value: 540, isMajor: true }] },
-          { level: 3, name: "Glitterstorm", description: "+10% neutral pressure (replaces)", rewards: [{ label: "+10% pressure", effect: "pressure", value: 10, isMajor: false }] },
-          { level: 4, name: "Unstable Expansion", description: "10% chance to claim at 50% threshold", rewards: [{ label: "10% prismatic claim", effect: "prismaticClaim", value: 10, isMajor: true }] },
-          { level: 5, name: "Cascade", description: "Claiming triggers pressure on adjacent neutrals", rewards: [{ label: "adjacent pressure", effect: "cascade", isMajor: true }] },
-        ],
-      },
-      {
-        key: "veiled",
-        name: "Veiled Network",
-        description: "Hide your moves, expose theirs.",
-        tiers: [
-          { level: 1, name: "Shimmer Mask", description: "+10% raid evasion", rewards: [{ label: "+10% evasion", effect: "raidEvasion", value: 10, isMajor: false }] },
-          { level: 2, name: "Decoy Convoys", description: "25% chance raid hits empty decoy", rewards: [{ label: "25% decoy", effect: "decoyRaid", value: 25, isMajor: true }] },
-          { level: 3, name: "Mirror Sheen", description: "+20% raid evasion (replaces)", rewards: [{ label: "+20% evasion", effect: "raidEvasion", value: 20, isMajor: false }] },
-          { level: 4, name: "Phantom Force", description: "Enemy sees '?' instead of army count", rewards: [{ label: "hidden army size", effect: "hiddenArmy", isMajor: true }] },
-          { level: 5, name: "Mirror Host", description: "Successful raid triggers counter-raid on attacker", rewards: [{ label: "counter-raid", effect: "mirrorHost", isMajor: true }] },
-        ],
-      },
-      {
-        key: "shattered",
-        name: "Shattered Reality",
-        description: "Bend luck in your favor.",
-        tiers: [
-          { level: 1, name: "Lucky Streak", description: "+1 food per 10 farmers", rewards: [{ label: "+1 food/10 farmers", effect: "foodPerTenFarmers", value: 1, isMajor: false }] },
-          { level: 2, name: "Reality Bend", description: "15% chance of bonus gold tick", rewards: [{ label: "15% bonus gold", effect: "bonusGold", value: 15, isMajor: true }] },
-          { level: 3, name: "Fortune's Gait", description: "+2 food per 10 farmers (replaces)", rewards: [{ label: "+2 food/10 farmers", effect: "foodPerTenFarmers", value: 2, isMajor: false }] },
-          { level: 4, name: "Lucky Gallop", description: "10% chance of free army unit per tick", rewards: [{ label: "10% free army/tick", effect: "freeArmy", value: 10, isMajor: true }] },
-          { level: 5, name: "Shattered Mirror", description: "1 free reroll per day on any RNG outcome", rewards: [{ label: "1 reroll/day", effect: "reroll", isMajor: true }] },
-        ],
-      },
+      path("glitter", "Glitter Frontier", "Prismatic expansion with unreliable borders.", [
+        { level: 1, name: "Sparkle Dust", description: "+5% pressure", rewards: [pressure(5)] },
+        { level: 2, name: "Rainbow Survey", description: "+8% pressure", rewards: [pressure(8)] },
+        { level: 3, name: "Prismatic Pull", description: "Neutral claims at 560 pressure", rewards: [claimThreshold(560)] },
+        { level: 4, name: "Glitterstorm", description: "+13% pressure", rewards: [pressure(13)] },
+        { level: 5, name: "Impossible Stakes", description: "Neutral claims at 520 pressure", rewards: [claimThreshold(520)] },
+        { level: 6, name: "Cascade Dust", description: "+18% pressure", rewards: [pressure(18)] },
+        { level: 7, name: "Unstable Frontier", description: "Neutral claims at 480 pressure", rewards: [claimThreshold(480)] },
+        { level: 8, name: "Color Out Of Map", description: "+26% pressure", rewards: [pressure(26)] },
+      ]),
+      path("veiled", "Veiled Network", "Hidden logistics and suspicious prosperity.", [
+        { level: 1, name: "Shimmer Masks", description: "+1 gold per 10 miners", rewards: [gold(1)] },
+        { level: 2, name: "Mirror Stores", description: "+1 food per 10 farmers", rewards: [food(1)] },
+        { level: 3, name: "False Ledgers", description: "+2 gold per 10 miners", rewards: [gold(2)] },
+        { level: 4, name: "Phantom Kitchens", description: "+2 food per 10 farmers", rewards: [food(2)] },
+        { level: 5, name: "Hidden Quarters", description: "+2 population", rewards: [pop(2)] },
+        { level: 6, name: "Decoy Treasuries", description: "+4 gold per 10 miners", rewards: [gold(4)] },
+        { level: 7, name: "Invisible Herd", description: "+4 population", rewards: [pop(4)] },
+        { level: 8, name: "Mirror Host", description: "+6 gold per 10 miners", rewards: [gold(6)] },
+      ]),
+      path("shattered", "Shattered Reality", "Bend luck until the economy agrees.", [
+        { level: 1, name: "Lucky Streak", description: "+1 food per 10 farmers", rewards: [food(1)] },
+        { level: 2, name: "Reality Pennies", description: "+1 gold per 10 miners", rewards: [gold(1)] },
+        { level: 3, name: "Fortune's Gait", description: "+2 food per 10 farmers", rewards: [food(2)] },
+        { level: 4, name: "Helpful Paradox", description: "+1 army per 10 recruiters", rewards: [army(1)] },
+        { level: 5, name: "Lucky Gallop", description: "+3 food per 10 farmers", rewards: [food(3)] },
+        { level: 6, name: "Prismatic Surge", description: "+3 gold per 10 miners", rewards: [gold(3)] },
+        { level: 7, name: "Reality Stable", description: "+3 population", rewards: [pop(3)] },
+        { level: 8, name: "Shattered Mirror", description: "+5 food per 10 farmers", rewards: [food(5)] },
+      ]),
     ],
   },
 };
@@ -304,9 +224,47 @@ export function getRaceSkillTree(race: FortressRace): RaceSkillTree {
   return RACE_SKILL_TREES[race];
 }
 
-export function getSkillTier(race: FortressRace, pathKey: string, level: number): RaceSkillTier | undefined {
-  const tree = RACE_SKILL_TREES[race];
-  if (!tree) return undefined;
-  const path = tree.paths.find((p) => p.key === pathKey);
-  return path?.tiers.find((t) => t.level === level);
+export function getSkillNode(
+  race: FortressRace,
+  nodeKey: string
+): RaceSkillNode | undefined {
+  return RACE_SKILL_TREES[race]?.paths
+    .flatMap((skillPath) => skillPath.nodes)
+    .find((node) => node.key === nodeKey);
+}
+
+export function getSkillPathForNode(
+  race: FortressRace,
+  nodeKey: string
+): RaceSkillPath | undefined {
+  return RACE_SKILL_TREES[race]?.paths.find((skillPath) =>
+    skillPath.nodes.some((node) => node.key === nodeKey)
+  );
+}
+
+export function getPurchasedNodeRewards({
+  race,
+  nodeKeys,
+}: {
+  race: FortressRace;
+  nodeKeys: string[];
+}): Array<RaceSkillReward & { nodeKey: string; pathKey: string; level: number }> {
+  const rewards: Array<
+    RaceSkillReward & { nodeKey: string; pathKey: string; level: number }
+  > = [];
+
+  for (const nodeKey of nodeKeys) {
+    const node = getSkillNode(race, nodeKey);
+    if (!node) continue;
+    for (const nodeReward of node.rewards) {
+      rewards.push({
+        ...nodeReward,
+        nodeKey: node.key,
+        pathKey: node.pathKey,
+        level: node.level,
+      });
+    }
+  }
+
+  return rewards;
 }

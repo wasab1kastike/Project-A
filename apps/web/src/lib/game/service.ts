@@ -98,6 +98,7 @@ import {
 } from "./territory";
 import { getPressureTargetBlockedReason } from "./tile-pressure";
 import { joinBattlefield as joinBattlefieldRecord } from "./battlefields";
+import { getSkillModifiers } from "./race-skill-effects";
 import { getTileAttackBlockedReason } from "./combat-targeting";
 import { ensureNpcSystemUser, getHomeOfAMapPosition } from "./mega-fortress";
 import { recalculateReturningAttackRoutes } from "./fortress-relocation";
@@ -5097,6 +5098,9 @@ export async function updateWorkerAssignment({
           level: true,
           race: true,
           isNpc: true,
+          skillPurchases: {
+            select: { nodeKey: true },
+          },
         },
       });
 
@@ -5112,11 +5116,18 @@ export async function updateWorkerAssignment({
       const extraPopulation = ownedTileBiomes.filter(
         (biome) => biome === "lake"
       ).length;
+      const skillModifiers = getSkillModifiers({
+        race: fortress.race,
+        purchases: fortress.skillPurchases,
+      });
+      const skillPopulationBonus =
+        skillModifiers.populationBonus +
+        skillModifiers.populationPerOwnedTile * ownedTileBiomes.length;
 
       assertWorkerAssignments({
         level: fortress.level,
         race: fortress.race,
-        extraPopulation,
+        extraPopulation: extraPopulation + skillPopulationBonus,
         minersAssigned,
         farmersAssigned,
         recruitersAssigned,

@@ -65,7 +65,8 @@ import {
   getRaceBuffTier,
   isRaceAbilityActive,
 } from "./race-buffs";
-import { getRaceModifiers } from "./races";
+import { getRaceModifiers, isFortressRace } from "./races";
+import { getSkillModifiers } from "./race-skill-effects";
 import {
   countCastleSpecializations,
   getCastleSpecializationMultiplier,
@@ -500,19 +501,17 @@ async function processDueCastleUpgradeProjects({
 
 function getSkillPressureMultiplier(fortress: {
   race?: string | null;
-  skillPurchases?: Array<{ path: string; tier: number }> | null;
+  skillPurchases?: Array<{ nodeKey: string }> | null;
 }) {
-  if (!fortress.race) return 1;
-  const purchases = fortress.skillPurchases ?? [];
-  // Sum up pressure bonuses from skill purchases
-  for (const purchase of purchases) {
-    if (purchase.path === 'seismic' || purchase.path === 'glitter' || purchase.path === 'orbital') {
-      const pressureValues = [0, 5, 0, 10, 0, 0]; // tier 2/4 give pressure bonuses
-      const val = pressureValues[purchase.tier - 1] ?? 0;
-      if (val > 0) return 1 + val / 100;
-    }
-  }
-  return 1;
+  if (!fortress.race || !isFortressRace(fortress.race)) return 1;
+  const modifiers = getSkillModifiers({
+    race: fortress.race,
+    purchases: fortress.skillPurchases ?? [],
+  });
+  const thresholdMultiplier = modifiers.claimThreshold
+    ? getTilePressureClaimThreshold(true) / modifiers.claimThreshold
+    : 1;
+  return modifiers.pressureMultiplier * thresholdMultiplier;
 }
 
 async function processTilePressureExpansion({
@@ -543,7 +542,7 @@ async function processTilePressureExpansion({
           mapY: true,
           pressureWorkersAssigned: true,
           doctrine: true,
-          skillPurchases: { select: { path: true, tier: true } },
+          skillPurchases: { select: { nodeKey: true } },
         },
       }),
       tx.mapHexOwnership.findMany({
@@ -2739,7 +2738,7 @@ async function processCycleTick(
       mapY: true,
       joinedAt: true,
       skillPurchases: {
-        select: { path: true, tier: true },
+        select: { nodeKey: true },
       },
       castleUpgradeSpecializations: {
         select: {
@@ -4929,39 +4928,25 @@ async function processCycleTick(
       !isSeasonFour &&
       hasHomeOfABossBuff(fortress.raceAbilityActivations, tickAt);
 
-    // Skill tree economy bonuses
-    const skillPurchases = fortress.skillPurchases ?? [];
-    let skillFoodBonus = 0;
-    let skillGoldBonus = 0;
-    let skillArmyBonus = 0;
-    let skillPopBonus = 0;
-    if (isSeasonFour && getEffectiveRace(fortress)) {
-      for (const purchase of skillPurchases) {
-        if (purchase.path === 'grudge' || purchase.path === 'shattered') {
-          // foodPerTenFarmers bonus at tiers 1 and 3
-          if (purchase.tier >= 1) skillFoodBonus += 2;
-          if (purchase.tier >= 3) skillFoodBonus += 1;
-        }
-        if (purchase.path === 'waaagh') {
-          // armyPerTenRecruiters bonus at tiers 1 and 3
-          if (purchase.tier >= 1) skillArmyBonus += 1;
-          if (purchase.tier >= 3) skillArmyBonus += 1;
-          if (purchase.tier >= 5) {
-            skillPopBonus += ownedTileCountsByFortressId.get(fortress.id) ?? 0;
-          }
-        }
-        if (purchase.path === 'bastion') {
-          if (purchase.tier >= 1) skillPopBonus += 1;
-          if (purchase.tier >= 3) skillPopBonus += 2;
-        }
-        if (purchase.path === 'orbital' && purchase.tier >= 5) {
-          skillPopBonus += 3;
-        }
-        if (purchase.path === 'rapid' && purchase.tier >= 5) {
-          skillPopBonus += 2;
-        }
-      }
-    }
+    const skillModifiers =
+      isSeasonFour && getEffectiveRace(fortress)
+        ? getSkillModifiers({
+            race: getEffectiveRace(fortress),
+            purchases: fortress.skillPurchases ?? [],
+          })
+        : null;
+    const skillFoodBonus = Math.floor(
+      (fortress.farmersAssigned / 10) *
+        (skillModifiers?.foodPerTenFarmersBonus ?? 0)
+    );
+    const skillGoldBonus = Math.floor(
+      (fortress.minersAssigned / 10) *
+        (skillModifiers?.goldPerTenMinersBonus ?? 0)
+    );
+    const skillArmyBonus = Math.floor(
+      (fortress.recruitersAssigned / 10) *
+        (skillModifiers?.armyPerTenRecruitersBonus ?? 0)
+    );
     const unicornEconomySurge =
       !isSeasonFour &&
       getEffectiveRace(fortress) === "UNSTABLE_UNICORNS" &&
@@ -5001,7 +4986,7 @@ async function processCycleTick(
             castleSpecializations[CastleUpgradeSpecialization.MILITARY]
           ) * economyMultiplier
         );
-    const armyProduced = recruitmentResult.unitsCreated;
+    const armyProduced = recruitmentResult.unitsCreated + skillArmyBonus;
 
     const currentArmyValue = currentArmy.get(fortress.id) ?? fortress.army;
     // Calculate final food/army state after production, upkeep, and starvation.
