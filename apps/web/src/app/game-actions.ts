@@ -2084,9 +2084,9 @@ export async function markChatReadAction() {
   }
 }
 
-export async function purchaseSkillTierAction(
+export async function purchaseSkillNodeAction(
   fortressId: string,
-  pathKey: string
+  nodeKey: string
 ): Promise<InlineActionResult> {
   const session = await auth();
   const userId = session?.user?.id;
@@ -2096,8 +2096,8 @@ export async function purchaseSkillTierAction(
   }
 
   try {
-    const { purchaseSkillTier } = await import("@/lib/game/race-skill-service");
-    await purchaseSkillTier({ userId, fortressId, pathKey });
+    const { purchaseSkillNode } = await import("@/lib/game/race-skill-service");
+    await purchaseSkillNode({ userId, fortressId, nodeKey });
     notifyAndRevalidate("skill-purchase", GAMEPLAY_REVALIDATE_PATHS);
     return { ok: true };
   } catch (error) {

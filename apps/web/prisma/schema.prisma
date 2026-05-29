@@ -1337,12 +1337,11 @@ model CycleHistory {
 model RaceSkillPurchase {
   id          String   @id @default(cuid())
   fortressId  String
-  path        String
-  tier        Int      @default(1)
+  nodeKey     String
   purchasedAt DateTime @default(now())
   fortress    Fortress @relation(fields: [fortressId], references: [id], onDelete: Cascade)
 
-  @@unique([fortressId, path])
+  @@unique([fortressId, nodeKey])
   @@index([fortressId])
 }
 

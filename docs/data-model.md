@@ -160,13 +160,12 @@ REGISTRATION ──→ TESTING ──→ ACTIVE ──→ RESOLUTION
 ```
 RaceSkillPurchase
 ├── fortressId → Fortress
-├── path (string) — one of the 3 paths per race
-├── tier (Int) — 1-5, current level in this path
+├── nodeKey (string) — purchased race skill node such as bastion-1
 ├── purchasedAt
-└── @@unique([fortressId, path]) — one entry per path per fortress
+└── @@unique([fortressId, nodeKey]) — one entry per node per fortress
 ```
 
-**Skill points:** +1 per castle level + 1 per 3 owned tiles, capped at 12. Each race exposes 15 visible tiers, but a fortress can only spend 12 points total.
+**Skill points:** +1 per castle level + 1 per 3 owned tiles, capped at 12. Each race exposes 3 paths with 8 sequential nodes each. A full path costs 8 points and leaves 4 points for other paths.
 
 ### 2.4 Fortress / Economy Domain
 

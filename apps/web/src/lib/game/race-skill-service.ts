@@ -3,9 +3,15 @@ import { GameError } from "./errors";
 import { isFortressRace, type FortressRace } from "./races";
 import {
   MAX_SKILL_POINTS,
+  getPurchasedNodeRewards,
   getRaceSkillTree,
-  getSkillTier,
+  getSkillNode,
+  getSkillPathForNode,
 } from "./race-skill-tree";
+
+export type RaceSkillPurchaseSummary = {
+  nodeKey: string;
+};
 
 export async function getSkillTreeState({
   fortressId,
@@ -14,17 +20,17 @@ export async function getSkillTreeState({
 }) {
   const purchases = await prisma.raceSkillPurchase.findMany({
     where: { fortressId },
-    select: { path: true, tier: true },
+    select: { nodeKey: true },
   });
 
-  const unlocked = new Map(purchases.map((p) => [p.path, p.tier]));
-  const totalPurchased = purchases.reduce((sum, p) => sum + p.tier, 0);
+  const purchasedNodeKeys = purchases.map((purchase) => purchase.nodeKey);
+  const totalPurchased = purchasedNodeKeys.length;
   const availablePoints = getAvailableSkillPoints({
     earnedPoints: getMaxSkillPoints(),
     totalPurchased,
   });
 
-  return { unlocked, totalPurchased, availablePoints };
+  return { purchasedNodeKeys, totalPurchased, availablePoints };
 }
 
 export function getMaxSkillPoints(): number {
@@ -53,16 +59,77 @@ export function getAvailableSkillPoints({
   );
 }
 
-export async function purchaseSkillTier({
+export function getPurchasedNodeKeySet(
+  purchases: Array<RaceSkillPurchaseSummary>
+): Set<string> {
+  return new Set(purchases.map((purchase) => purchase.nodeKey));
+}
+
+export function getPathPurchasedNodeCount({
+  race,
+  pathKey,
+  purchases,
+}: {
+  race: FortressRace;
+  pathKey: string;
+  purchases: Array<RaceSkillPurchaseSummary>;
+}): number {
+  const tree = getRaceSkillTree(race);
+  const path = tree.paths.find((candidate) => candidate.key === pathKey);
+  if (!path) return 0;
+  const purchased = getPurchasedNodeKeySet(purchases);
+  return path.nodes.filter((node) => purchased.has(node.key)).length;
+}
+
+export function assertSkillNodeCanBePurchased({
+  race,
+  nodeKey,
+  purchases,
+  availablePoints,
+}: {
+  race: FortressRace;
+  nodeKey: string;
+  purchases: Array<RaceSkillPurchaseSummary>;
+  availablePoints: number;
+}) {
+  const node = getSkillNode(race, nodeKey);
+
+  if (!node) {
+    throw new GameError("That skill node is not available for your race.");
+  }
+
+  const path = getSkillPathForNode(race, nodeKey);
+  const purchased = getPurchasedNodeKeySet(purchases);
+
+  if (purchased.has(nodeKey)) {
+    throw new GameError("That skill node is already unlocked.");
+  }
+
+  if (availablePoints <= 0) {
+    throw new GameError(
+      "No skill points available. Level up your castle or claim more territory."
+    );
+  }
+
+  const previousNode = path?.nodes.find(
+    (candidate) => candidate.level === node.level - 1
+  );
+
+  if (previousNode && !purchased.has(previousNode.key)) {
+    throw new GameError("Unlock the previous node in this branch first.");
+  }
+
+  return node;
+}
+
+export async function purchaseSkillNode({
   userId,
   fortressId,
-  pathKey,
-  now = new Date(),
+  nodeKey,
 }: {
   userId: string;
   fortressId: string;
-  pathKey: string;
-  now?: Date;
+  nodeKey: string;
 }) {
   return prisma.$transaction(async (tx) => {
     const fortress = await tx.fortress.findUnique({
@@ -84,25 +151,10 @@ export async function purchaseSkillTier({
       throw new GameError("Choose a race before investing in a skill tree.");
     }
 
-    const tree = getRaceSkillTree(fortress.race);
-    const path = tree.paths.find((p) => p.key === pathKey);
-
-    if (!path) {
-      throw new GameError("That skill path is not available for your race.");
-    }
-
     const purchases = await tx.raceSkillPurchase.findMany({
       where: { fortressId },
-      select: { path: true, tier: true },
+      select: { nodeKey: true },
     });
-
-    const totalPurchased = purchases.reduce((sum, p) => sum + p.tier, 0);
-    const currentTier = purchases.find((p) => p.path === pathKey)?.tier ?? 0;
-    const nextTier = currentTier + 1;
-
-    if (nextTier > path.tiers.length) {
-      throw new GameError("That path is fully unlocked.");
-    }
 
     const earned = getEarnedSkillPoints({
       level: fortress.level,
@@ -110,25 +162,20 @@ export async function purchaseSkillTier({
     });
     const availablePoints = getAvailableSkillPoints({
       earnedPoints: earned,
-      totalPurchased,
+      totalPurchased: purchases.length,
+    });
+    const node = assertSkillNodeCanBePurchased({
+      race: fortress.race,
+      nodeKey,
+      purchases,
+      availablePoints,
     });
 
-    if (availablePoints <= 0) {
-      throw new GameError(
-        "No skill points available. Level up your castle or claim more territory."
-      );
-    }
-
-    const tier = getSkillTier(fortress.race, pathKey, nextTier);
-    if (!tier) throw new GameError("Invalid skill tier.");
-
-    await tx.raceSkillPurchase.upsert({
-      where: { fortressId_path: { fortressId, path: pathKey } },
-      create: { fortressId, path: pathKey, tier: nextTier },
-      update: { tier: nextTier },
+    await tx.raceSkillPurchase.create({
+      data: { fortressId, nodeKey },
     });
 
-    return { path: pathKey, tier: nextTier, rewards: tier.rewards };
+    return { nodeKey, rewards: node.rewards };
   });
 }
 
@@ -137,19 +184,18 @@ export function getActiveSkillRewards({
   purchases,
 }: {
   race: FortressRace | null;
-  purchases: Array<{ path: string; tier: number }>;
-}): Array<{ path: string; tier: number; label: string; effect: string; value?: number }> {
+  purchases: Array<RaceSkillPurchaseSummary>;
+}): Array<{
+  nodeKey: string;
+  pathKey: string;
+  level: number;
+  label: string;
+  effect: string;
+  value?: number;
+}> {
   if (!race || !isFortressRace(race)) return [];
-  const results: Array<{ path: string; tier: number; label: string; effect: string; value?: number }> = [];
-
-  for (const purchase of purchases) {
-    const tier = getSkillTier(race, purchase.path, purchase.tier);
-    if (tier) {
-      for (const reward of tier.rewards) {
-        results.push({ path: purchase.path, tier: purchase.tier, ...reward });
-      }
-    }
-  }
-
-  return results;
+  return getPurchasedNodeRewards({
+    race,
+    nodeKeys: purchases.map((purchase) => purchase.nodeKey),
+  });
 }

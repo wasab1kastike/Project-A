@@ -5,7 +5,7 @@ import { useMemo, useState, type FormEvent } from "react";
 import { useRefreshView } from "@/lib/refresh-helpers";
 import { RaceSkillPanel } from "@/components/race-skill-panel";
 
-import { purchaseSkillTierAction } from "@/app/game-actions";
+import { purchaseSkillNodeAction } from "@/app/game-actions";
 import { CastleUpgradeSpecialization } from "@/lib/prisma-client";
 import {
   formatDeepMiningImpact,
@@ -322,7 +322,7 @@ type PlayerSummary = {
     };
   } | null;
   growPerTick: number;
-  skillPurchases: Array<{ path: string; tier: number }>;
+  skillPurchases: Array<{ nodeKey: string }>;
   skillPointsEarned: number;
 };
 
@@ -1616,18 +1616,18 @@ export function CastleManagement({
           <RaceSkillPanel
             skillState={{
               race: playerSummary.race,
-              unlockedTiers: new Map(
-                playerSummary.skillPurchases.map((p) => [p.path, p.tier])
+              purchasedNodeKeys: playerSummary.skillPurchases.map(
+                (purchase) => purchase.nodeKey
               ),
               earnedPoints: playerSummary.skillPointsEarned,
-              totalPurchased: playerSummary.skillPurchases.reduce((s, p) => s + p.tier, 0),
+              totalPurchased: playerSummary.skillPurchases.length,
               playerLevel: playerSummary.level,
               tileCount: playerSummary.ownedTileSummary.totalTileCount,
             }}
-            onPurchase={async (pathKey) => {
-              const result = await purchaseSkillTierAction(
+            onPurchase={async (nodeKey) => {
+              const result = await purchaseSkillNodeAction(
                 playerSummary.id,
-                pathKey
+                nodeKey
               );
               if (!result.ok) window.alert(result.error);
             }}

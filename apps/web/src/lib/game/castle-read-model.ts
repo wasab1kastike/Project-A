@@ -63,6 +63,7 @@ import {
   getDoctrineOptionsForRace,
 } from "./doctrines";
 import { getEarnedSkillPoints } from "./race-skill-service";
+import { getSkillModifiers } from "./race-skill-effects";
 import { CAMPAIGN_SIEGE_THRESHOLD } from "./campaigns";
 import {
   TILE_PRESSURE_CLAIM_THRESHOLD,
@@ -174,7 +175,7 @@ export async function getCastlePageState({
           maxHealth: true,
           joinedAt: true,
           skillPurchases: {
-            select: { path: true, tier: true },
+            select: { nodeKey: true },
           },
           castleUpgradeSpecializations: {
             orderBy: {
@@ -736,6 +737,17 @@ export async function getCastlePageState({
     workerPoolBonus: ownedTileBonuses.population,
     defenseBonusPercent: ownedTileBonuses.defensePercent,
   };
+  const playerSkillModifiers =
+    playerFortress && isSeasonFour
+      ? getSkillModifiers({
+          race: playerFortress.race,
+          purchases: playerFortress.skillPurchases,
+        })
+      : null;
+  const skillPopulationBonus =
+    (playerSkillModifiers?.populationBonus ?? 0) +
+    (playerSkillModifiers?.populationPerOwnedTile ?? 0) *
+      ownedNormalTiles.length;
   const seasonFourRecords =
     playerFortress && isSeasonFour
       ? await Promise.all([
@@ -1041,7 +1053,7 @@ export async function getCastlePageState({
           population: getFortressPopulation(
             playerFortress.level,
             getEffectiveRace(playerFortress)
-          ) + ownedTileSummary.workerPoolBonus,
+          ) + ownedTileSummary.workerPoolBonus + skillPopulationBonus,
           defenseMultiplier: getFortressDefenseMultiplier(
             playerFortress.level,
             getEffectiveRace(playerFortress),
