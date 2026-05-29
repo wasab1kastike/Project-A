@@ -4946,7 +4946,9 @@ async function processCycleTick(
           // armyPerTenRecruiters bonus at tiers 1 and 3
           if (purchase.tier >= 1) skillArmyBonus += 1;
           if (purchase.tier >= 3) skillArmyBonus += 1;
-          if (purchase.tier >= 5) skillPopBonus += fortress._count?.ownedMapHexes ?? 0;
+          if (purchase.tier >= 5) {
+            skillPopBonus += ownedTileCountsByFortressId.get(fortress.id) ?? 0;
+          }
         }
         if (purchase.path === 'bastion') {
           if (purchase.tier >= 1) skillPopBonus += 1;
