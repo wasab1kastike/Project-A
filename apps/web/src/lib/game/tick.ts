@@ -2797,6 +2797,11 @@ async function processCycleTick(
           bonusMultiplier: true,
         },
       },
+      _count: {
+        select: {
+          ownedMapHexes: true,
+        },
+      },
     },
   });
   const mapHexOwnerships = await db.mapHexOwnership.findMany({
