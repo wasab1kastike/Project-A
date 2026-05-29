@@ -7,6 +7,17 @@ export type PatchNotesRelease = {
 
 export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
   {
+    date: "2026-05-29",
+    title: "Skill tree clarity",
+    newFeatures: [
+      "Race skill trees now show as branching trees with all visible tiers, current unlocks, and the 12-point cap in one view.",
+    ],
+    bugFixes: [
+      "Skill point totals are now capped consistently at 12 across the Castle page and purchase validation.",
+      "Existing race skill purchases were reset so commanders can rebuild under the clearer tree layout.",
+    ],
+  },
+  {
     date: "2026-05-25",
     title: "Season 4 pretesting and pressure pacing",
     newFeatures: [

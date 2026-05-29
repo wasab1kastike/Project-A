@@ -67,6 +67,7 @@ const RACE_TIER_PATH = [
   "+1 point per 3 owned normal tiles.",
   "Maximum 12 skill points total.",
   "Each race has 3 unique skill paths with 5 tiers each.",
+  "All 15 tiers are visible, but only 12 total points can be spent.",
   "Tiers alternate small buffs (+population, +pressure%) with major capstones.",
 ] as const;
 

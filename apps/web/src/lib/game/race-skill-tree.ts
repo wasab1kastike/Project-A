@@ -1,5 +1,7 @@
 import type { FortressRace } from "./races";
 
+export const MAX_SKILL_POINTS = 12;
+
 export type RaceSkillPath = {
   key: string;
   name: string;

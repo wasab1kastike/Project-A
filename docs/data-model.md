@@ -166,7 +166,7 @@ RaceSkillPurchase
 └── @@unique([fortressId, path]) — one entry per path per fortress
 ```
 
-**Skill points:** +1 per castle level + 1 per 3 owned tiles, capped at 12.
+**Skill points:** +1 per castle level + 1 per 3 owned tiles, capped at 12. Each race exposes 15 visible tiers, but a fortress can only spend 12 points total.
 
 ### 2.4 Fortress / Economy Domain
 

@@ -1,7 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { GameError } from "./errors";
 import { isFortressRace, type FortressRace } from "./races";
-import { getRaceSkillTree, getSkillTier } from "./race-skill-tree";
+import {
+  MAX_SKILL_POINTS,
+  getRaceSkillTree,
+  getSkillTier,
+} from "./race-skill-tree";
 
 export async function getSkillTreeState({
   fortressId,
@@ -15,13 +19,16 @@ export async function getSkillTreeState({
 
   const unlocked = new Map(purchases.map((p) => [p.path, p.tier]));
   const totalPurchased = purchases.reduce((sum, p) => sum + p.tier, 0);
-  const availablePoints = Math.max(0, getMaxSkillPoints() - totalPurchased);
+  const availablePoints = getAvailableSkillPoints({
+    earnedPoints: getMaxSkillPoints(),
+    totalPurchased,
+  });
 
   return { unlocked, totalPurchased, availablePoints };
 }
 
 export function getMaxSkillPoints(): number {
-  return 12;
+  return MAX_SKILL_POINTS;
 }
 
 export function getEarnedSkillPoints(fortress: {
@@ -30,7 +37,20 @@ export function getEarnedSkillPoints(fortress: {
 }): number {
   const fromLevel = Math.max(0, fortress.level - 1);
   const fromTiles = Math.floor(fortress.ownedTileCount / 3);
-  return fromLevel + fromTiles;
+  return Math.min(getMaxSkillPoints(), fromLevel + fromTiles);
+}
+
+export function getAvailableSkillPoints({
+  earnedPoints,
+  totalPurchased,
+}: {
+  earnedPoints: number;
+  totalPurchased: number;
+}): number {
+  return Math.max(
+    0,
+    Math.min(getMaxSkillPoints(), earnedPoints) - Math.max(0, totalPurchased)
+  );
 }
 
 export async function purchaseSkillTier({
@@ -77,7 +97,6 @@ export async function purchaseSkillTier({
     });
 
     const totalPurchased = purchases.reduce((sum, p) => sum + p.tier, 0);
-    const availablePoints = Math.max(0, getMaxSkillPoints() - totalPurchased);
     const currentTier = purchases.find((p) => p.path === pathKey)?.tier ?? 0;
     const nextTier = currentTier + 1;
 
@@ -89,8 +108,12 @@ export async function purchaseSkillTier({
       level: fortress.level,
       ownedTileCount: fortress._count.ownedMapHexes,
     });
+    const availablePoints = getAvailableSkillPoints({
+      earnedPoints: earned,
+      totalPurchased,
+    });
 
-    if (earned <= totalPurchased || availablePoints <= 0) {
+    if (availablePoints <= 0) {
       throw new GameError(
         "No skill points available. Level up your castle or claim more territory."
       );
