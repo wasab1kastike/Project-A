@@ -1497,12 +1497,18 @@ export function CastleManagement({
           <strong>{playerSummary.battalions?.length ?? 0} active</strong>
         </div>
         <div style={{ fontSize: 12, color: "var(--text-muted)", margin: "4px 0 8px", lineHeight: 1.5 }}>
+          <strong>Reserves:</strong>{" "}
+          {(() => {
+            const totalBn = (playerSummary.battalions ?? []).reduce((s, b) => s + b.size, 0);
+            const reserves = Math.max(0, (playerSummary.army ?? 0) - totalBn);
+            return `${reserves.toLocaleString()} unassigned`;
+          })()}
+          {" · "}
           <strong>Tiers:</strong>{" "}
-          <span title="1.0× damage/defense">Recruit</span> →{" "}
-          <span title="1.15× dmg, 1.10× def, 100 XP">Regular (1.5k gold)</span> →{" "}
-          <span title="1.35× dmg, 1.25× def, 300 XP">Veteran (5k gold)</span> →{" "}
-          <span title="1.60× dmg, 1.45× def, 750 XP">Elite (15k gold)</span>
-          {" · Cost: base + 5g per unit in battalion"}
+          <span title="1.0× dmg/def, max 500">Recruit</span> →{" "}
+          <span title="1.15× dmg, 1.10× def, max 5k">Regular (1.5k)</span> →{" "}
+          <span title="1.35× dmg, 1.25× def, max 15k">Veteran (5k)</span> →{" "}
+          <span title="1.60× dmg, 1.45× def, max 50k">Elite (15k)</span>
         </div>
         {playerSummary.battalions && playerSummary.battalions.length > 0 ? (
           <ul style={{ listStyle: "none", padding: 0, margin: "8px 0 0" }}>
@@ -1547,8 +1553,8 @@ export function CastleManagement({
                     type="number"
                     key={`${bn.id}-${bn.maxSize}`}
                     min={bn.size}
-                    max={300}
-                    step={10}
+                    max={[500, 5000, 15000, 50000][bn.tier] ?? 500}
+                    step={bn.tier >= 2 ? 1000 : bn.tier >= 1 ? 500 : 50}
                     defaultValue={bn.maxSize}
                     onBlur={async (e) => {
                       const v = Number(e.target.value);
