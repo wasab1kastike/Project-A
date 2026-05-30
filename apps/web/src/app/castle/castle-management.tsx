@@ -1679,34 +1679,7 @@ export function CastleManagement({
             {playerSummary.warFronts?.filter((f) => f.status === "ADVANCING" || f.status === "STALLED").length ?? 0} active
           </strong>
         </div>
-        <button
-          type="button"
-          onClick={async () => {
-            const enemyId = prompt("Enter enemy fortress ID to open a front:");
-            if (!enemyId) return;
-            const { createWarFrontAction } = await import("@/app/game-actions");
-            const result = await createWarFrontAction({
-              cycleId: playerSummary.cycleId,
-              attackerFortressId: playerSummary.id,
-              enemyFortressId: enemyId,
-            });
-            if (result.ok) refreshView();
-            else alert(result.error);
-          }}
-          style={{
-            marginBottom: 8,
-            padding: "6px 12px",
-            fontSize: 13,
-            background: "#f44336",
-            color: "#fff",
-            border: "none",
-            borderRadius: 4,
-            cursor: "pointer",
-            width: "100%",
-          }}
-        >
-          Open War Front
-        </button>
+
         {playerSummary.warFronts && playerSummary.warFronts.length > 0 ? (
           <ul style={{ listStyle: "none", padding: 0, margin: "8px 0 0" }}>
             {playerSummary.warFronts.map((front) => {

@@ -139,85 +139,82 @@ export async function processAutoWarDispatch(args: {
     const target = selectNextTarget(reachableTargets);
     if (!target) continue;
 
-    // Load war fronts for this attacker (both ADVANCING and STALLED).
-    const activeFronts = await db.warFront.findMany({
-      where: {
-        cycleId,
-        attackerFortressId: attacker.id,
-        enemyFortressId: defender.id,
-        status: "ADVANCING",
-      },
-      include: {
-        battalionAssignments: {
-          include: { battalion: { select: { id: true, size: true } } },
-        },
-      },
+    // Auto-create front if none exists.
+    let front = await db.warFront.findFirst({
+      where: { cycleId, attackerFortressId: attacker.id, enemyFortressId: defender.id },
     });
-    const stalledFronts = await db.warFront.findMany({
-      where: {
-        cycleId,
-        attackerFortressId: attacker.id,
-        enemyFortressId: defender.id,
-        status: "STALLED",
-      },
-      include: {
-        battalionAssignments: {
-          include: { battalion: { select: { id: true, size: true } } },
+    if (!front) {
+      front = await db.warFront.create({
+        data: {
+          cycleId,
+          attackerFortressId: attacker.id,
+          enemyFortressId: defender.id,
+          status: "ADVANCING",
+          aggression: "BALANCED",
         },
-      },
-    });
-    const fronts = [...activeFronts, ...stalledFronts];
+      });
+    }
 
-    for (const front of fronts) {
-      // Get aggression from front.
-      const aggression = (front.aggression as AggressionStance) ?? "BALANCED";
-      const rate = AGGRESSION_STANCE_COMMITMENT[aggression];
+    // Get battalion IDs: assigned to front first, then any idle.
+    const assignedIds = (
+      await db.battalionAssignment.findMany({
+        where: { frontId: front.id },
+        select: { battalionId: true },
+      })
+    ).map((a) => a.battalionId);
 
-      const battalionIds = front.battalionAssignments.map((a) => a.battalionId);
-      const battalions = await db.battalion.findMany({
-        where: { id: { in: battalionIds }, size: { gt: 0 } },
+    let activeIds = assignedIds;
+    if (activeIds.length === 0) {
+      const idle = await db.battalion.findMany({
+        where: { fortressId: attacker.id, size: { gt: 0 } },
         select: { id: true, size: true },
       });
+      activeIds = idle.map((b) => b.id);
+    }
 
-      const totalAvailable = battalions.reduce((s, b) => s + b.size, 0);
-      if (totalAvailable <= 0) continue;
+    const battalions = await db.battalion.findMany({
+      where: { id: { in: activeIds }, size: { gt: 0 } },
+      select: { id: true, size: true },
+    });
+    const totalAvailable = battalions.reduce((s, b) => s + b.size, 0);
+    if (totalAvailable <= 0) continue;
 
-      const commitAmount = Math.max(1, Math.floor(totalAvailable * rate));
-      const cappedAmount = Math.min(commitAmount, Math.max(10, defender.army * 2));
+    const aggression = (front.aggression as AggressionStance) ?? "BALANCED";
+    const rate = AGGRESSION_STANCE_COMMITMENT[aggression];
+    const commitAmount = Math.max(1, Math.floor(totalAvailable * rate));
+    const cappedAmount = Math.min(commitAmount, Math.max(10, defender.army * 2));
 
-      // Create campaign army order.
-      try {
-        await db.$transaction(async (tx) => {
-          const order = await tx.armyOrder.create({
-            data: {
-              cycleId,
-              fortressId: attacker.id,
-              type: "CAMPAIGN",
-              status: "ACTIVE",
-              committedArmy: cappedAmount,
-              targetTileId: target.tileId,
-              targetFortressId: defender.id,
-              startsAt: now,
-            },
-          });
-          await tx.territoryCampaign.create({
-            data: {
-              cycleId,
-              attackerFortressId: attacker.id,
-              defenderFortressId: defender.id,
-              targetTileId: target.tileId,
-              armyOrderId: order.id,
-              status: "BUILDING",
-              progress: 0,
-            },
-          });
-          console.log(
-            `[auto-war] ${attacker.id} → ${defender.id}: dispatched ${cappedAmount} army to ${target.tileId} (front ${front.id}, aggression ${aggression})`,
-          );
+    try {
+      await db.$transaction(async (tx) => {
+        const order = await tx.armyOrder.create({
+          data: {
+            cycleId,
+            fortressId: attacker.id,
+            type: "CAMPAIGN",
+            status: "ACTIVE",
+            committedArmy: cappedAmount,
+            targetTileId: target.tileId,
+            targetFortressId: defender.id,
+            startsAt: now,
+          },
         });
-      } catch (_err) {
-        // Campaign creation may fail if one already exists — that's fine.
-      }
+        await tx.territoryCampaign.create({
+          data: {
+            cycleId,
+            attackerFortressId: attacker.id,
+            defenderFortressId: defender.id,
+            targetTileId: target.tileId,
+            armyOrderId: order.id,
+            status: "BUILDING",
+            progress: 0,
+          },
+        });
+        console.log(
+          `[auto-war] ${attacker.id} → ${defender.id}: ${cappedAmount} army → ${target.tileId} (${aggression})`,
+        );
+      });
+    } catch (_err) {
+      // Campaign may already exist — fine.
     }
   }
 }
