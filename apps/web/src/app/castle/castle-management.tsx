@@ -1651,62 +1651,31 @@ export function CastleManagement({
         </div>
       </section>
 
-      {/* Recruitment */}
+      {/* Passive Recruitment */}
       <section className={styles.panel}>
         <div className={styles.panelHeader}>
           <span>Recruitment</span>
-          <strong>{playerSummary.recruitmentQueue} queued</strong>
+          <strong>Passive — assign recruiters</strong>
         </div>
-        {playerSummary.operationsSummary ? (
-          <dl className={styles.readinessGrid}>
-            <div>
-              <dt>Available army</dt>
-              <dd>{playerSummary.army}</dd>
-            </div>
-            <div>
-              <dt>Queued recruits</dt>
-              <dd>{playerSummary.recruitmentQueue}</dd>
-            </div>
-            <div>
-              <dt>Committed army</dt>
-              <dd>{playerSummary.operationsSummary.committedArmy}</dd>
-            </div>
-            <div>
-              <dt>Active orders</dt>
-              <dd>{playerSummary.operationsSummary.activeOrderCount}</dd>
-            </div>
-          </dl>
-        ) : null}
-        <form className={styles.form} onSubmit={recruitArmy}>
-          <label>
-            Army units
-            <input
-              type="number"
-              min={1}
-              value={recruitAmount}
-              onChange={(event) => {
-                const value = event.currentTarget.valueAsNumber;
-                setRecruitError(null);
-                setRecruitAmount(
-                  Number.isFinite(value) ? Math.max(1, Math.floor(value)) : 1
-                );
-              }}
-            />
-          </label>
-          <p className={styles.muted}>
-            Cost: {recruitmentDisplay.recruitCost} gold. Current queue finishes
-            in {recruitmentDisplay.queueCompletionText}.
-          </p>
-          {recruitError ? <p className={styles.error}>{recruitError}</p> : null}
-          <button
-            type="submit"
-            disabled={
-              recruitPending || !recruitmentDisplay.canSubmitRecruitment
-            }
-          >
-            Recruit army
-          </button>
-        </form>
+        <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "4px 0" }}>
+          Army grows passively each tick based on assigned recruiters. Adjust
+          recruiters in the <strong>Economy</strong> tab. Cap growth with max
+          army size above.
+        </p>
+        <dl className={styles.readinessGrid}>
+          <div>
+            <dt>Available army</dt>
+            <dd>{playerSummary.army}</dd>
+          </div>
+          <div>
+            <dt>Recruiters assigned</dt>
+            <dd>{playerSummary.recruitersAssigned ?? 0}</dd>
+          </div>
+          <div>
+            <dt>Max army cap</dt>
+            <dd>{playerSummary.warPolicy?.maxArmySize ?? 500}</dd>
+          </div>
+        </dl>
       </section>
       {playerSummary.operationsSummary ? (
         <section className={styles.panel}>
@@ -1723,22 +1692,10 @@ export function CastleManagement({
               />
               <strong>Guards</strong>
             </div>
-            {playerSummary.operationsSummary.guards.length > 0 ? (
-              playerSummary.operationsSummary.guards.map((guard) => (
-                <div className={styles.operationRow} key={guard.id}>
-                  <div>
-                    <strong>Tile {guard.tileId}</strong>
-                    <small>{guard.committedArmy} army committed - Active</small>
-                  </div>
-                  <form action={recallArmyOrderFormAction}>
-                    <input type="hidden" name="armyOrderId" value={guard.id} />
-                    <button type="submit">Recall guard</button>
-                  </form>
-                </div>
-              ))
-            ) : (
-              <p className={styles.muted}>No active guard commitments.</p>
-            )}
+            <p className={styles.muted}>
+              Guard allocation is now set via the % slider above. Army
+              automatically distributes to owned tiles by priority.
+            </p>
           </div>
           <div className={styles.operationGroup}>
             <div className={styles.operationTitle}>
