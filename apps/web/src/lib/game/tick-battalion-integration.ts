@@ -269,3 +269,83 @@ export async function processBattalionGuard(args: {
     }
   }
 }
+
+// ── Combat Casualty Reconciliation ───────────────────────────────────────────
+
+/**
+ * After combat resolves, reconcile battalion sizes with the actual fortress.army.
+ * Distributes losses proportionally across battalions and tracks kills.
+ *
+ * @param ctx — tick context
+ * @param currentArmy — post-combat fortress.army values (from tick.ts currentArmy map)
+ * @param previousArmy — pre-combat fortress.army values (for delta calculation)
+ * @param killsByFortress — map of fortressId → units killed (from combat resolution)
+ */
+export async function reconcileBattalionCasualties(args: {
+  ctx: { db: PrismaClient; cycleId: string };
+  /** Post-combat fortress.army values (from currentArmy map after all combat). */
+  currentArmyByFortress: Map<string, number>;
+  /** Pre-combat fortress.army values (from fortress.army at start of tick). */
+  previousArmyByFortress: Map<string, number>;
+}): Promise<void> {
+  const { ctx, currentArmyByFortress, previousArmyByFortress } = args;
+
+  // Load all battalions for this cycle.
+  const allBattalions = await ctx.db.battalion.findMany({
+    where: { cycleId: ctx.cycleId },
+  });
+
+  const battalionUpdates: Array<{ id: string; size: number }> = [];
+  const battalionsToDisband: string[] = [];
+
+  for (const [fortressId, postArmy] of currentArmyByFortress) {
+    const preArmy = previousArmyByFortress.get(fortressId) ?? postArmy;
+    if (postArmy >= preArmy) continue; // No net loss this tick.
+
+    const netLoss = preArmy - postArmy;
+    const fortressBattalions = allBattalions.filter(
+      (b) => b.fortressId === fortressId && b.size > 0,
+    );
+
+    if (fortressBattalions.length === 0) continue;
+
+    const totalBnSize = fortressBattalions.reduce((s, b) => s + b.size, 0);
+    if (totalBnSize <= 0) continue;
+
+    // Distribute losses proportionally across battalions.
+    let remaining = netLoss;
+    for (const bn of fortressBattalions) {
+      if (remaining <= 0) break;
+      const share = Math.min(
+        Math.ceil((bn.size / totalBnSize) * netLoss),
+        bn.size,
+        remaining,
+      );
+      const newSize = bn.size - share;
+      remaining -= share;
+
+      if (newSize <= 0) {
+        battalionsToDisband.push(bn.id);
+      } else {
+        battalionUpdates.push({ id: bn.id, size: newSize });
+      }
+    }
+  }
+
+  // Apply updates.
+  if (battalionUpdates.length > 0) {
+    for (const upd of battalionUpdates) {
+      await ctx.db.battalion.update({
+        where: { id: upd.id },
+        data: { size: upd.size },
+      });
+    }
+  }
+
+  if (battalionsToDisband.length > 0) {
+    await ctx.db.battalion.updateMany({
+      where: { id: { in: battalionsToDisband } },
+      data: { size: 0, stance: "REST", garrisonedAt: null },
+    });
+  }
+}

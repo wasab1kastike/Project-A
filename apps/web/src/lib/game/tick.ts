@@ -167,6 +167,7 @@ import { recordUnitRoadCrossings } from "./tick-road-integration";
 import {
   processBattalionRecruitment,
   processBattalionGuard,
+  reconcileBattalionCasualties,
 } from "./tick-battalion-integration";
 
 export type TickSummary = {
@@ -5292,6 +5293,34 @@ async function processCycleTick(
       },
     },
   });
+
+  // === BATTALION COMBAT RECONCILIATION ===
+  // After all combat resolves, reconcile battalion sizes with actual fortress.army.
+  // Distribues combat losses proportionally across battalions.
+  // Runs every tick, so multi-tick battles update incrementally.
+  // Kill tracking (unitsKilled) is handled separately by the existing combat code.
+  if (isSeasonFour) {
+    const postCombatArmy = new Map<string, number>();
+    const preCombatArmy = new Map<string, number>();
+
+    for (const fortress of fortresses) {
+      if (fortress.isNpc) continue;
+      const post = currentArmy.get(fortress.id) ?? fortress.army;
+      const pre = fortress.army;
+      if (post !== pre) {
+        postCombatArmy.set(fortress.id, post);
+        preCombatArmy.set(fortress.id, pre);
+      }
+    }
+
+    if (postCombatArmy.size > 0) {
+      await reconcileBattalionCasualties({
+        ctx: { db, cycleId },
+        currentArmyByFortress: postCombatArmy,
+        previousArmyByFortress: preCombatArmy,
+      });
+    }
+  }
 
   return {
     processed: true,
