@@ -1,11 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, type FormEvent } from "react";
+import { useCallback, useMemo, useState, type FormEvent } from "react";
 import { useRefreshView } from "@/lib/refresh-helpers";
 import { RaceSkillPanel } from "@/components/race-skill-panel";
 
-import { purchaseSkillNodeAction } from "@/app/game-actions";
+import {
+  purchaseSkillNodeAction,
+  setGuardPercentAction,
+  setMaxArmySizeAction,
+  createBattalionAction,
+} from "@/app/game-actions";
 import { CastleUpgradeSpecialization } from "@/lib/prisma-client";
 import {
   formatDeepMiningImpact,
@@ -67,6 +72,7 @@ import styles from "./page.module.css";
 
 type PlayerSummary = {
   id: string;
+  cycleId: string;
   commanderName: string;
   canRegisterCommanderName: boolean;
   name: string;
@@ -695,6 +701,62 @@ export function CastleManagement({
   const [recruitPending, setRecruitPending] = useState(false);
   const [goldToConvert, setGoldToConvert] = useState(getGoldToPointsRatio());
   const [activeTab, setActiveTab] = useState<CastleTab>("OVERVIEW");
+  const [guardPercent, setGuardPercent] = useState(
+    playerSummary.warPolicy?.guardPercent ?? 30,
+  );
+  const [maxArmySize, setMaxArmySize] = useState(
+    playerSummary.warPolicy?.maxArmySize ?? 500,
+  );
+  const [battalionPending, setBattalionPending] = useState(false);
+
+  const handleGuardPercentChange = useCallback(
+    async (value: number) => {
+      setGuardPercent(value);
+      const result = await setGuardPercentAction({
+        cycleId: playerSummary.cycleId,
+        fortressId: playerSummary.id,
+        guardPercent: value,
+      });
+      await handleInlineResult(result);
+    },
+    [playerSummary.cycleId, playerSummary.id],
+  );
+
+  const handleMaxArmySizeChange = useCallback(
+    async (value: number) => {
+      setMaxArmySize(value);
+      const result = await setMaxArmySizeAction({
+        cycleId: playerSummary.cycleId,
+        fortressId: playerSummary.id,
+        maxArmySize: value,
+      });
+      await handleInlineResult(result);
+    },
+    [playerSummary.cycleId, playerSummary.id],
+  );
+
+  const handleCreateBattalion = useCallback(async () => {
+    setBattalionPending(true);
+    try {
+      const result = await createBattalionAction({
+        cycleId: playerSummary.cycleId,
+        fortressId: playerSummary.id,
+        race: playerSummary.race,
+        fortressLevel: playerSummary.level,
+        existingBattalionCount: playerSummary.battalions?.length ?? 0,
+      });
+      await handleInlineResult(result);
+    } finally {
+      setBattalionPending(false);
+    }
+  }, [
+    playerSummary.cycleId,
+    playerSummary.id,
+    playerSummary.race,
+    playerSummary.level,
+    playerSummary.battalions?.length,
+  ]);
+
   const buildings = getBuildingsForRace(playerSummary.race);
   const raceTokenPath =
     playerSummary.race && (playerSummary.race && isFortressRace(playerSummary.race!))
