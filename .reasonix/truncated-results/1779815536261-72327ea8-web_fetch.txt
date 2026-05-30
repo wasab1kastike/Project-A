@@ -1,0 +1,1190 @@
+https://raw.githubusercontent.com/wasab1kastike/Project-A/main/apps/web/src/lib/game/tick.ts
+
+import {
+  CycleStatus,
+  FortressKind,
+  FortressAction,
+  ArmyOrderStatus,
+  ArmyOrderType,
+  BattlefieldSide,
+  BattlefieldStatus,
+  DiplomacyRelationStatus,
+  Prisma,
+  PrismaClient,
+  ScoreEventType,
+  DwarfDeepMiningOutcome,
+  RaceAbilityKind,
+  OrkScrapEventReason,
+  ChatMessageType,
+  CastleUpgradeSpecialization,
+  ConvoyLegStatus,
+  TerritoryCampaignStatus,
+  TradeOfferStatus,
+} from "@/lib/prisma-client";
+import { prisma } from "@/lib/prisma";
+import { ensureOpenRegistrationCycle } from "./bootstrap";
+import {
+  HOME_OF_A_BOSS_BUFF_HOURS,
+  HOME_OF_A_BOSS_BUFF_MULTIPLIER,
+  HOME_OF_A_BOSS_RESPAWN_HOURS,
+  ACTIVE_DURATION_HOURS,
+  getHomeOfABossHealth,
+  getHomeOfABossReward,
+} from "./constants";
+import { mintSeasonArcadeCoins } from "./arcade";
+import {
+  createCommunityWishVoteEntitlements,
+  getCommunityWishProposalEndsAt,
+  resolveExpiredCommunityWishVotes,
+} from "./community-wishes";
+import {
+  getCommunityWishVotingEndsAt,
+  getNextCycleSchedule,
+  isSeasonFourActivationEnabled,
+  SEASON_4_DELAY_EXTENSION_HOURS,
+} from "./season-schedule";
+import {
+  ensureCurrentMapLayout,
+  ensureActiveCycleMegaFortress,
+  ensureMegaFortress,
+  ensureNpcSystemUser,
+} from "./mega-fortress";
+import { getAttackArrivalAt } from "./attacks";
+import { buildFortressSpawnSeed } from "./spawn-layout";
+import { addHours, addMinutes, floorToMinute } from "./time";
+import {
+  calculateRaidOutcome,
+  calculateTickProduction,
+  getDisplayedCastleLevel,
+} from "./balance";
+import {
+  getArmyUpkeepCost,
+  getStarvationArmyLoss,
+  processRecruitmentQueue,
+} from "./army-recruitment";
+import { getFortressAttackDamage } from "./upgrades";
+import {
+  getRaceBuffTier,
+  isRaceAbilityActive,
+} from "./race-buffs";
+import { getRaceModifiers } from "./races";
+import {
+  countCastleSpecializations,
+  getCastleSpecializationMultiplier,
+} from "./specializations";
+import {
+  applyOrkScrapDelta,
+  getOrkBossOrderCarryMultiplier,
+  getOrkBossOrderSpeedMultiplier,
+  getOrkDirectRaidScrap,
+  getOrkLootCampScrap,
+  getOrkStrongerTogetherRate,
+  isRealOrkPlayerFortress,
+} from "./orks";
+import {
+  DWARF_DEEP_MINING_ECONOMY_MULTIPLIER,
+  DWARF_DEEP_MINING_RUNE_BOUNTY,
+} from "./dwarf-deep-mining";
+import {
+  getLootCampReward,
+  resetAttackerRaceAbilityCooldown,
+  spawnScheduledLootCamps,
+  cleanupUnattackableLootCamps,
+} from "./loot-camps";
+import {
+  createBattlefieldFromAttackUnit,
+  processActiveBattlefields,
+} from "./battlefields";
+import {
+  getLeaderboardTitleAttackMultiplier,
+  getLeaderboardTitleCastleLootMultiplier,
+  getLeaderboardTitleHolders,
+  getLeaderboardTitleLootCampRewardMultiplier,
+  getLeaderboardTitleTileIncomeMultipliers,
+} from "./leaderboard-titles";
+import {
+  getCombatAttackPowerMultiplier,
+  getCombatDefensePowerMultiplier,
+  isPlayerCombatTarget,
+} from "./combat-buffs";
+import { UNICORN_SHATTERED_REALITY_ECONOMY_MULTIPLIER } from "./unicorn-shattered-reality";
+import { HEX_TILES } from "./map-hex";
+import {
+  getTileBonus,
+  getTileById,
+  isHomeOfATile,
+  isTileConnectedToFortressOrOwnedTiles,
+} from "./territory";
+import {
+  applyUnsupportedPressureDecay,
+  allocatePressureAcrossTargets,
+  calculatePressureOutput,
+  getNeutralPressureClaimWinner,
+  getPressureTargetBlockedReason,
+  getTilePressureClaimThreshold,
+} from "./tile-pressure";
+import { isSeasonFourRuleset } from "./rulesets";
+import {
+  CAMPAIGN_SIEGE_THRESHOLD,
+  calculateCampaignProgressPerTick,
+  getCampaignResponseEndsAt,
+} from "./campaigns";
+import {
+  getCanonicalDiplomacyPair,
+  getCasusBelliExpiresAt,
+  getEffectiveDiplomacyStatus,
+} from "./politics";
+import {
+  getAllianceDeliveryBonus,
+  splitTradeDeliveryPoints,
+} from "./trading";
+import {
+  calculateConvoyEncounterCasualties,
+  calculateDetectionChance,
+  calculateRaidSuccessChance,
+  calculateStolenConvoyCargo,
+  getRaidTargetBlockedReason,
+  isConvoyRaidEligible,
+  resolveSeededChance,
+} from "./convoy-conflict";
+import {
+  getCampaignArmyDoctrineMultiplier,
+  getDoctrineTier,
+  getEscortDoctrineMultiplier,
+  getGuardDetectionDoctrineMultiplier,
+  getNeutralPressureDoctrineMultiplier,
+  getRaidEvasionDoctrineMultiplier,
+  getRaidPowerDoctrineMultiplier,
+  getStolenCargoDoctrineMultiplier,
+} from "./doctrines";
+import { recalculateReturningAttackRoutes } from "./fortress-relocation";
+import {
+  ensureBattlefieldPointRewardColumn,
+  ensureHomeOfABossSchema,
+  ensureRaceSchemaReadiness,
+} from "./schema-guards";
+
+export type TickSummary = {
+  restartedRegistrationCycles: number;
+  testingCyclesStarted: number;
+  testingCyclesCompleted: number;
+  activatedCycles: number;
+  resolvedCycles: number;
+  resolvedCommunityWishVotes: number;
+  nextRegistrationCyclesCreated: number;
+  processedMinutes: number;
+  skippedCatchUpMinutes?: number;
+  scoreEventsCreated: number;
+  launchedAttackUnits: number;
+  resolvedAttackUnits: number;
+};
+
+type ProcessCycleTickResult = {
+  processed: boolean;
+  scoreEventsCreated: number;
+  launchedAttackUnits: number;
+  resolvedAttackUnits: number;
+};
+
+function getHomeOfABossDefeatAnnouncement({
+  fortressName,
+  commanderName,
+  reward,
+  buffHours,
+  respawnHours,
+}: {
+  fortressName: string;
+  commanderName: string;
+  reward: number;
+  buffHours: number;
+  respawnHours: number;
+}) {
+  return `HOME OF A HAS BEEN BONKED: ${fortressName} dealt the most damage, so ${commanderName} gets ${reward} points, ${reward} food, ${reward} army, and ${buffHours} hours of suspiciously divine swagger. A is now lying down for ${respawnHours} hours and insisting this was all part of the plan.`;
+}
+
+const TICK_TRANSACTION_OPTIONS = {
+  maxWait: 10_000,
+  timeout: 60_000,
+} satisfies Parameters<PrismaClient["$transaction"]>[1];
+
+const DEFAULT_MAX_CATCH_UP_MINUTES = 10;
+
+function getConfiguredMaxCatchUpMinutes() {
+  const rawValue = process.env.GAME_TICK_MAX_CATCH_UP_MINUTES;
+
+  if (!rawValue) {
+    return DEFAULT_MAX_CATCH_UP_MINUTES;
+  }
+
+  const parsed = Number(rawValue);
+
+  if (!Number.isFinite(parsed)) {
+    return DEFAULT_MAX_CATCH_UP_MINUTES;
+  }
+
+  return Math.max(0, Math.floor(parsed));
+}
+
+function countDueMinutes(from: Date, to: Date) {
+  return Math.max(0, Math.floor((to.getTime() - from.getTime()) / 60_000) + 1);
+}
+
+export type TickHealth = "ok" | "lagging" | "stalled";
+
+type TieBreakCandidate = {
+  fortressId: string;
+  ownerId: string;
+  commanderName: string;
+  fortressName: string;
+  finalScore: number;
+  reachedFinalScoreAt: Date;
+  joinedAt: Date;
+};
+
+function isActiveMapBlocker(
+  fortress: {
+    fortressKind: FortressKind;
+    health: number;
+    expiresAt: Date | null;
+  },
+  tickAt: Date
+) {
+  if (fortress.fortressKind === FortressKind.PLAYER) {
+    return true;
+  }
+
+  if (fortress.health <= 0) {
+    return false;
+  }
+
+  return !fortress.expiresAt || fortress.expiresAt > tickAt;
+}
+
+async function processDueUnicornTeleportReturns({
+  db,
+  cycleId,
+  tickAt,
+}: {
+  db: PrismaClient;
+  cycleId: string;
+  tickAt: Date;
+}) {
+  const dueTeleports = await db.unicornTemporaryTeleport.findMany({
+    where: {
+      cycleId,
+      returnedAt: null,
+      returnAt: {
+        lte: tickAt,
+      },
+    },
+    orderBy: [{ returnAt: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      fortressId: true,
+      decoyFortressId: true,
+      originMapX: true,
+      originMapY: true,
+      fortress: {
+        select: {
+          mapX: true,
+          mapY: true,
+        },
+      },
+    },
+  });
+
+  for (const teleport of dueTeleports) {
+    await db.$transaction(async (tx) => {
+      const latestTeleport = await tx.unicornTemporaryTeleport.findUnique({
+        where: {
+          id: teleport.id,
+        },
+        select: {
+          returnedAt: true,
+        },
+      });
+
+      if (!latestTeleport || latestTeleport.returnedAt) {
+        return;
+      }
+
+      const blockers = await tx.fortress.findMany({
+        where: {
+          cycleId,
+          mapX: teleport.originMapX,
+          mapY: teleport.originMapY,
+          id: {
+            notIn: [
+              teleport.fortressId,
+              ...(teleport.decoyFortressId ? [teleport.decoyFortressId] : []),
+            ],
+          },
+        },
+        select: {
+          fortressKind: true,
+          health: true,
+          expiresAt: true,
+        },
+      });
+
+      if (blockers.some((blocker) => isActiveMapBlocker(blocker, tickAt))) {
+        return;
+      }
+
+      await tx.fortress.update({
+        where: {
+          id: teleport.fortressId,
+        },
+        data: {
+          mapX: teleport.originMapX,
+          mapY: teleport.originMapY,
+        },
+      });
+
+      if (teleport.decoyFortressId) {
+        await tx.fortress.update({
+          where: {
+            id: teleport.decoyFortressId,
+          },
+          data: {
+            health: 0,
+            expiresAt: tickAt,
+          },
+        });
+      }
+
+      await tx.unicornTemporaryTeleport.update({
+        where: {
+          id: teleport.id,
+        },
+        data: {
+          returnedAt: tickAt,
+        },
+      });
+
+      await recalculateReturningAttackRoutes({
+        db: tx,
+        fortressId: teleport.fortressId,
+        oldDestination: {
+          mapX: teleport.fortress.mapX,
+          mapY: teleport.fortress.mapY,
+        },
+        newDestination: {
+          mapX: teleport.originMapX,
+          mapY: teleport.originMapY,
+        },
+        now: tickAt,
+      });
+    }, TICK_TRANSACTION_OPTIONS);
+  }
+}
+
+async function processDueCastleUpgradeProjects({
+  db,
+  cycleId,
+  tickAt,
+}: {
+  db: PrismaClient;
+  cycleId: string;
+  tickAt: Date;
+}) {
+  const dueProjects = await db.castleUpgradeProject.findMany({
+    where: {
+      cycleId,
+      completedAt: null,
+      completesAt: {
+        lte: tickAt,
+      },
+    },
+    orderBy: [{ completesAt: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      fortressId: true,
+      level: true,
+      specialization: true,
+    },
+  });
+
+  for (const project of dueProjects) {
+    await db.$transaction(async (tx) => {
+      const latestProject = await tx.castleUpgradeProject.findUnique({
+        where: {
+          id: project.id,
+        },
+        select: {
+          completedAt: true,
+        },
+      });
+
+      if (!latestProject || latestProject.completedAt) {
+        return;
+      }
+
+      const fortress = await tx.fortress.findUnique({
+        where: {
+          id: project.fortressId,
+        },
+        select: {
+          level: true,
+          isNpc: true,
+          castleUpgradeSpecializations: {
+            select: {
+              level: true,
+              specialization: true,
+            },
+          },
+        },
+      });
+
+      if (!fortress || fortress.isNpc) {
+        await tx.castleUpgradeProject.update({
+          where: {
+            id: project.id,
+          },
+          data: {
+            completedAt: tickAt,
+          },
+        });
+        return;
+      }
+
+      const currentSpecializationLevel = countCastleSpecializations(
+        fortress.castleUpgradeSpecializations
+      )[project.specialization];
+      const maxCompletedLevel =
+        project.specialization === "DEFENSE"
+          ? currentSpecializationLevel + 1
+          : getDisplayedCastleLevel(fortress.level);
+      const completedLevel = Math.min(
+        maxCompletedLevel,
+        Math.max(project.level, currentSpecializationLevel + 1)
+      );
+
+      if (project.specialization === "DEFENSE") {
+        await tx.fortress.update({
+          where: {
+            id: project.fortressId,
+          },
+          data: {
+            level: fortress.level + 1,
+          },
+        });
+      }
+
+      await tx.castleUpgradeSpecializationChoice.upsert({
+        where: {
+          fortressId_specialization_level: {
+            fortressId: project.fortressId,
+            specialization: project.specialization,
+            level: completedLevel,
+          },
+        },
+        create: {
+          fortressId: project.fortressId,
+          level: completedLevel,
+          specialization: project.specialization,
+          createdAt: tickAt,
+        },
+        update: {},
+      });
+
+      await tx.castleUpgradeProject.update({
+        where: {
+          id: project.id,
+        },
+        data: {
+          completedAt: tickAt,
+        },
+      });
+    }, TICK_TRANSACTION_OPTIONS);
+  }
+}
+
+async function processTilePressureExpansion({
+  db,
+  cycleId,
+  tickAt,
+  isSeasonFour,
+}: {
+  db: PrismaClient;
+  cycleId: string;
+  tickAt: Date;
+  isSeasonFour: boolean;
+}) {
+  const claimThreshold = getTilePressureClaimThreshold(isSeasonFour);
+
+  await db.$transaction(async (tx) => {
+    const [fortresses, ownerships, priorities] = await Promise.all([
+      tx.fortress.findMany({
+        where: {
+          cycleId,
+          fortressKind: FortressKind.PLAYER,
+          isNpc: false,
+        },
+        select: {
+          id: true,
+          race: true,
+          mapX: true,
+          mapY: true,
+          pressureWorkersAssigned: true,
+          doctrine: true,
+        },
+      }),
+      tx.mapHexOwnership.findMany({
+        where: {
+          cycleId,
+        },
+        select: {
+          tileId: true,
+          ownerFortressId: true,
+        },
+      }),
+      tx.tilePressurePriority.findMany({
+        where: {
+          cycleId,
+        },
+        select: {
+          fortressId: true,
+          tileId: true,
+          weight: true,
+        },
+        orderBy: [{ createdAt: "asc" }, { tileId: "asc" }],
+      }),
+    ]);
+
+    const ownerByTileId = new Map(
+      ownerships.map((ownership) => [
+        ownership.tileId,
+        ownership.ownerFortressId,
+      ])
+    );
+    const ownedExpansionTileIds = ownerships
+      .map((ownership) => ownership.tileId)
+      .filter((tileId) => !isHomeOfATile(tileId));
+    const ownedTileIdsByFortressId = new Map<string, string[]>();
+    const ownedTileBiomesByFortressId = new Map<
+      string,
+      NonNullable<ReturnType<typeof getTileById>>["biome"][]
+    >();
+    const prioritiesByFortressId = new Map<
+      string,
+      Array<{ tileId: string; weight: number }>
+    >();
+
+    for (const ownership of ownerships) {
+      if (isHomeOfATile(ownership.tileId)) {
+        continue;
+      }
+
+      const ownedTileIds =
+        ownedTileIdsByFortressId.get(ownership.ownerFortressId) ?? [];
+      ownedTileIds.push(ownership.tileId);
+      ownedTileIdsByFortressId.set(ownership.ownerFortressId, ownedTileIds);
+      const biome = getTileById(ownership.tileId)?.biome;
+      if (biome) {
+        const biomes =
+          ownedTileBiomesByFortressId.get(ownership.ownerFortressId) ?? [];
+        biomes.push(biome);
+        ownedTileBiomesByFortressId.set(ownership.ownerFortressId, biomes);
+      }
+    }
+
+    for (const priority of priorities) {
+      const fortressPriorities =
+        prioritiesByFortressId.get(priority.fortressId) ?? [];
+      fortressPriorities.push({
+        tileId: priority.tileId,
+        weight: priority.weight,
+      });
+      prioritiesByFortressId.set(priority.fortressId, fortressPriorities);
+    }
+
+    const claimableTiles = HEX_TILES.filter((tile) => tile.claimable);
+    const pressuredTileIds = new Set<string>();
+
+    if (ownedExpansionTileIds.length > 0) {
+      await tx.tilePressureState.deleteMany({
+        where: {
+          cycleId,
+          tileId: {
+            in: ownedExpansionTileIds,
+          },
+        },
+      });
+    }
+
+    const storedPressureStates = isSeasonFour
+      ? await tx.tilePressureState.findMany({
+          where: {
+            cycleId,
+          },
+          select: {
+            id: true,
+            tileId: true,
+            pressure: true,
+            lastPressuredAt: true,
+            lastDecayedAt: true,
+          },
+        })
+      : [];
+
+    for (const state of storedPressureStates) {
+      if (ownerByTileId.has(state.tileId)) {
+        continue;
+      }
+
+      const decayFrom = state.lastDecayedAt ?? state.lastPressuredAt;
+      const elapsedHours = Math.floor(
+        (tickAt.getTime() - decayFrom.getTime()) / (60 * 60 * 1000)
+      );
+
+      if (elapsedHours <= 0) {
+        continue;
+      }
+
+      const pressure = applyUnsupportedPressureDecay({
+        pressure: state.pressure,
+        elapsedHours,
+      });
+
+      if (pressure <= 0) {
+        await tx.tilePressureState.delete({
+          where: {
+            id: state.id,
+          },
+        });
+        continue;
+      }
+
+      await tx.tilePressureState.update({
+        where: {
+          id: state.id,
+        },
+        data: {
+          pressure,
+          lastDecayedAt: addHours(decayFrom, elapsedHours),
+        },
+      });
+    }
+
+    for (const fortress of fortresses) {
+      const pressure = calculatePressureOutput({
+        pressureWorkersAssigned: fortress.pressureWorkersAssigned,
+        race: fortress.race,
+      });
+
+      const ownedTileIds = ownedTileIdsByFortressId.get(fortress.id) ?? [];
+      const doctrineTier = isSeasonFour
+        ? getDoctrineTier({
+            race: fortress.race,
+            ownedTileBiomes: ownedTileBiomesByFortressId.get(fortress.id) ?? [],
+          })
+        : 0;
+      const isConnected = ({
+        tileId,
+        ownedTileIds,
+      }: {
+        tileId: string;
+        ownedTileIds: Iterable<string>;
+      }) =>
+        isTileConnectedToFortressOrOwnedTiles({
+          tileId,
+          fortress,
+          ownedTileIds,
+        });
+      const isLegalTile = (tileId: string) =>
+        getPressureTargetBlockedReason({
+          tile: getTileById(tileId),
+          tileId,
+          ownerFortressId: ownerByTileId.get(tileId) ?? null,
+          fortress,
+          ownedTileIds,
+          isHomeOfA: isHomeOfATile,
+          isConnected,
+        }) === null;
+      const legalPriorities = (
+        prioritiesByFortressId.get(fortress.id) ?? []
+      ).filter((priority) => isLegalTile(priority.tileId));
+
+      const stalePriorities = (
+        prioritiesByFortressId.get(fortress.id) ?? []
+      ).filter((priority) => !isLegalTile(priority.tileId));
+
+      if (stalePriorities.length > 0) {
+        await tx.tilePressurePriority.deleteMany({
+          where: {
+            cycleId,
+            fortressId: fortress.id,
+            tileId: {
+              in: stalePriorities.map((priority) => priority.tileId),
+            },
+          },
+        });
+      }
+
+      if (pressure <= 0) {
+        continue;
+      }
+
+      const targets =
+        legalPriorities.length > 0
+          ? legalPriorities
+          : claimableTiles
+              .filter((tile) => isLegalTile(tile.id))
+              .map((tile) => ({ tileId: tile.id, weight: 1 }));
+
+      for (const allocation of allocatePressureAcrossTargets({
+        pressure,
+        targets,
+      })) {
+        const doctrinePressure = Math.floor(
+          allocation.pressure *
+            getNeutralPressureDoctrineMultiplier({
+              doctrine: isSeasonFour ? fortress.doctrine : null,
+              tier: doctrineTier,
+              targetBiome: getTileById(allocation.tileId)?.biome,
+            })
+        );
+        pressuredTileIds.add(allocation.tileId);
+        await tx.tilePressureState.upsert({
+          where: {
+            cycleId_tileId_fortressId: {
+              cycleId,
+              tileId: allocation.tileId,
+              fortressId: fortress.id,
+            },
+          },
+          create: {
+            cycleId,
+            tileId: allocation.tileId,
+            fortressId: fortress.id,
+            pressure: doctrinePressure,
+            lastPressuredAt: tickAt,
+          },
+          update: {
+            pressure: {
+              increment: doctrinePressure,
+            },
+            lastPressuredAt: tickAt,
+            lastDecayedAt: null,
+          },
+        });
+      }
+    }
+
+    for (const tileId of pressuredTileIds) {
+      if (ownerByTileId.has(tileId)) {
+        continue;
+      }
+
+      const states = await tx.tilePressureState.findMany({
+        where: {
+          cycleId,
+          tileId,
+          pressure: {
+            gte: claimThreshold,
+          },
+        },
+        select: {
+          fortressId: true,
+          pressure: true,
+        },
+      });
+      const winnerFortressId = getNeutralPressureClaimWinner({
+        states,
+        threshold: claimThreshold,
+      });
+
+      if (!winnerFortressId) {
+        continue;
+      }
+
+      await tx.mapHexOwnership.create({
+        data: {
+          cycleId,
+          tileId,
+          ownerFortressId: winnerFortressId,
+          claimedAt: tickAt,
+        },
+      });
+      ownerByTileId.set(tileId, winnerFortressId);
+      await tx.tilePressurePriority.deleteMany({
+        where: {
+          cycleId,
+          tileId,
+        },
+      });
+      await tx.tilePressureState.deleteMany({
+        where: {
+          cycleId,
+          tileId,
+        },
+      });
+    }
+  }, TICK_TRANSACTION_OPTIONS);
+}
+
+async function processSeasonFourCampaigns({
+  db,
+  cycleId,
+  tickAt,
+}: {
+  db: PrismaClient;
+  cycleId: string;
+  tickAt: Date;
+}) {
+  await db.$transaction(async (tx) => {
+    const campaigns = await tx.territoryCampaign.findMany({
+      where: {
+        cycleId,
+        status: {
+          in: [
+            TerritoryCampaignStatus.BUILDING,
+            TerritoryCampaignStatus.SIEGE_WARNING,
+          ],
+        },
+      },
+      include: {
+        armyOrder: true,
+        attackerFortress: {
+          select: {
+            id: true,
+            pressureWorkersAssigned: true,
+            race: true,
+            doctrine: true,
+          },
+        },
+      },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    });
+
+    for (const campaign of campaigns) {
+      const [ownership, relation] = await Promise.all([
+        tx.mapHexOwnership.findUnique({
+          where: {
+            cycleId_tileId: {
+              cycleId,
+              tileId: campaign.targetTileId,
+            },
+          },
+          select: { ownerFortressId: true },
+        }),
+        tx.diplomacyRelation.findUnique({
+          where: {
+            cycleId_fortressAId_fortressBId: {
+              cycleId,
+              ...getCanonicalDiplomacyPair(
+                campaign.attackerFortressId,
+                campaign.defenderFortressId
+              ),
+            },
+          },
+        }),
+      ]);
+      const warActive =
+        getEffectiveDiplomacyStatus({ relation, now: tickAt }) ===
+        DiplomacyRelationStatus.WAR;
+      const targetStillDefended =
+        ownership?.ownerFortressId === campaign.defenderFortressId;
+
+      if (
+        !warActive ||
+        !targetStillDefended ||
+        campaign.armyOrder.status !== ArmyOrderStatus.ACTIVE
+      ) {
+        if (campaign.armyOrder.status === ArmyOrderStatus.ACTIVE) {
+          await tx.fortress.update({
+            where: { id: campaign.attackerFortressId },
+            data: { army: { increment: campaign.armyOrder.committedArmy } },
+          });
+          await tx.armyOrder.update({
+            where: { id: campaign.armyOrderId },
+            data: { status: ArmyOrderStatus.RETURNED, returnedAt: tickAt },
+          });
+        }
+        await tx.territoryCampaign.update({
+          where: { id: campaign.id },
+          data: {
+            status: TerritoryCampaignStatus.CANCELED,
+            canceledAt: tickAt,
+            cancellationReason: warActive
+              ? "Target ownership changed before the siege."
+              : "War is no longer active.",
+          },
+        });
+        continue;
+      }
+
+      if (campaign.status === TerritoryCampaignStatus.BUILDING) {
+        const attackerOwnedTiles = await tx.mapHexOwnership.findMany({
+          where: {
+            cycleId,
+            ownerFortressId: campaign.attackerFortressId,
+          },
+          select: { tileId: true },
+        });
+        const doctrineTier = getDoctrineTier({
+          race: campaign.attackerFortress.race,
+          ownedTileBiomes: attackerOwnedTiles
+            .map((ownership) => getTileById(ownership.tileId)?.biome ?? null)
+            .filter((biome): biome is NonNullable<typeof biome> => biome !== null),
+        });
+        const progressDelta = calculateCampaignProgressPerTick({
+          pressureWorkersAssigned:
+            campaign.attackerFortress.pressureWorkersAssigned,
+          committedArmy: campaign.armyOrder.committedArmy,
+          armyContributionMultiplier: getCampaignArmyDoctrineMultiplier(
+            campaign.attackerFortress.doctrine,
+            doctrineTier
+          ),
+        });
+        const progress = Math.min(
+          CAMPAIGN_SIEGE_THRESHOLD,
+          campaign.progress + progressDelta
+        );
+
+        if (progress < CAMPAIGN_SIEGE_THRESHOLD) {
+          await tx.territoryCampaign.update({
+            where: { id: campaign.id },
+            data: { progress },
+          });
+          continue;
+        }
+
+        await tx.territoryCampaign.update({
+          where: { id: campaign.id },
+          data: {
+            status: TerritoryCampaignStatus.SIEGE_WARNING,
+            progress,
+            siegeOpenedAt: tickAt,
+            responseEndsAt: getCampaignResponseEndsAt(tickAt),
+          },
+        });
+        continue;
+      }
+
+      if (!campaign.responseEndsAt || campaign.responseEndsAt > tickAt) {
+        continue;
+      }
+
+      const [existingBattlefield, guardOrders, garrisons] = await Promise.all([
+        tx.battlefield.findFirst({
+          where: {
+            cycleId,
+            targetTileId: campaign.targetTileId,
+            status: BattlefieldStatus.ACTIVE,
+          },
+          select: { id: true },
+        }),
+        tx.armyOrder.findMany({
+          where: {
+            cycleId,
+            fortressId: campaign.defenderFortressId,
+            type: ArmyOrderType.GUARD,
+            status: ArmyOrderStatus.ACTIVE,
+            targetTileId: campaign.targetTileId,
+          },
+        }),
+        tx.fortressGarrison.findMany({
+          where: {
+            cycleId,
+            fortressId: campaign.defenderFortressId,
+            tileId: campaign.targetTileId,
+            army: { gt: 0 },
+          },
+        }),
+      ]);
+
+      if (existingBattlefield) {
+        continue;
+      }
+
+      const defenderArmy =
+        guardOrders.reduce((sum, order) => sum + order.committedArmy, 0) +
+        garrisons.reduce((sum, garrison) => sum + garrison.army, 0);
+      const battlefield = await tx.battlefield.create({
+        data: {
+          cycleId,
+          targetTileId: campaign.targetTileId,
+          targetFortressId: campaign.defenderFortressId,
+          attackerBannerFortressId: campaign.attackerFortressId,
+          defenderBannerFortressId: campaign.defenderFortressId,
+          attackerArmyRemaining: campaign.armyOrder.committedArmy,
+          defenderArmyRemaining: defenderArmy,
+          startedAt: tickAt,
+          participants: {
+            create: [
+              {
+                fortressId: campaign.attackerFortressId,
+                side: BattlefieldSide.ATTACKER,
+                armyCommitted: campaign.armyOrder.committedArmy,
+                armyRemaining: campaign.armyOrder.committedArmy,
+                maintenanceDrains: false,
+                joinedAt: tickAt,
+              },
+              ...(defenderArmy > 0
+                ? [
+                    {
+                      fortressId: campaign.defenderFortressId,
+                      side: BattlefieldSide.DEFENDER,
+                      armyCommitted: defenderArmy,
+                      armyRemaining: defenderArmy,
+                      maintenanceDrains: false,
+                      joinedAt: tickAt,
+                    },
+                  ]
+                : []),
+            ],
+          },
+        },
+        select: { id: true },
+      });
+
+      if (garrisons.length > 0) {
+        await tx.fortressGarrison.deleteMany({
+          where: { id: { in: garrisons.map((garrison) => garrison.id) } },
+        });
+      }
+      if (guardOrders.length > 0) {
+        await tx.armyOrder.updateMany({
+          where: { id: { in: guardOrders.map((order) => order.id) } },
+          data: { status: ArmyOrderStatus.TRANSFERRED, transferredAt: tickAt },
+        });
+      }
+      await tx.armyOrder.update({
+        where: { id: campaign.armyOrderId },
+        data: { status: ArmyOrderStatus.TRANSFERRED, transferredAt: tickAt },
+      });
+      await tx.territoryCampaign.update({
+        where: { id: campaign.id },
+        data: {
+          status: TerritoryCampaignStatus.ENGAGED,
+          battlefieldId: battlefield.id,
+          engagedAt: tickAt,
+        },
+      });
+    }
+  }, TICK_TRANSACTION_OPTIONS);
+}
+
+async function processSeasonFourConvoys({
+  db,
+  cycleId,
+  tickAt,
+}: {
+  db: PrismaClient;
+  cycleId: string;
+  tickAt: Date;
+}) {
+  return db.$transaction(async (tx) => {
+    const doctrineContextByFortressId = new Map<
+      string,
+      { doctrine: import("@/lib/prisma-client").FortressDoctrine | null; tier: number }
+    >();
+    const getDoctrineContext = async (fortressId: string) => {
+      const existing = doctrineContextByFortressId.get(fortressId);
+      if (existing) {
+        return existing;
+      }
+
+      const [fortress, ownerships] = await Promise.all([
+        tx.fortress.findUniqueOrThrow({
+          where: { id: fortressId },
+          select: { race: true, doctrine: true },
+        }),
+        tx.mapHexOwnership.findMany({
+          where: { cycleId, ownerFortressId: fortressId },
+          select: { tileId: true },
+        }),
+      ]);
+      const context = {
+        doctrine: fortress.doctrine,
+        tier: getDoctrineTier({
+          race: fortress.race,
+          ownedTileBiomes: ownerships
+            .map((ownership) => getTileById(ownership.tileId)?.biome ?? null)
+            .filter((biome): biome is NonNullable<typeof biome> => biome !== null),
+        }),
+      };
+      doctrineContextByFortressId.set(fortressId, context);
+      return context;
+    };
+
+    await tx.tradeOffer.updateMany({
+      where: {
+        cycleId,
+        status: TradeOfferStatus.PENDING,
+        expiresAt: { lte: tickAt },
+      },
+      data: { status: TradeOfferStatus.EXPIRED },
+    });
+
+    const legs = await tx.convoyLeg.findMany({
+      where: {
+        cycleId,
+        status: ConvoyLegStatus.IN_TRANSIT,
+      },
+      include: { escortOrder: true },
+      orderBy: [{ arrivesAt: "asc" }, { id: "asc" }],
+    });
+    let scoreEventsCreated = 0;
+
+    for (const leg of legs) {
+      const relation = await tx.diplomacyRelation.findUnique({
+        where: {
+          cycleId_fortressAId_fortressBId: {
+            cycleId,
+            ...getCanonicalDiplomacyPair(leg.fromFortressId, leg.toFortressId),
+          },
+        },
+      });
+      const effectiveStatus = getEffectiveDiplomacyStatus({
+        relation,
+        now: tickAt,
+      });
+      const seized =
+        effectiveStatus === DiplomacyRelationStatus.ENEMY ||
+        effectiveStatus === DiplomacyRelationStatus.WAR;
+      let escortAlreadyReturned = false;
+
+      const returnEscort = async () => {
+        if (
+          escortAlreadyReturned ||
+          !leg.escortOrder ||
+          leg.escortOrder.status !== ArmyOrderStatus.ACTIVE
+        ) {
+          return;
+        }
+
+        await tx.fortress.update({
+          where: { id: leg.escortOrder.fortressId },
+          data: { army: { increment: leg.escortOrder.committedArmy } },
+        });
+        await tx.armyOrder.update({
+          where: { id: leg.escortOrder.id },
+          data: { status: ArmyOrderStatus.RETURNED, returnedAt: tickAt },
+        });
+        escortAlreadyReturned = true;
+      };
+
+      if (!seized && isConvoyRaidEligible(leg)) {
+        const potentialRaidOrders = await tx.armyOrder.findMany({
+          where: {
+            cycleId,
+            type: ArmyOrderType.RAID,
+            status: ArmyOrderStatus.ACTIVE,
+            committedArmy: { gt: 0 },
+            targetFortressId: {
+              in: [leg.fromFortressId, leg.toFortressId],
+            },
+            fortressId: {
+              notIn: [leg.fromFortressId, leg.toFortressId],
+            },
+          },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        });
+        let raidOrder: (typeof potentialRaidOrders)[number] | null = null;
+
+        for 
+
+[… truncated 120160 chars …]

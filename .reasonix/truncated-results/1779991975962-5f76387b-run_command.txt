@@ -1,0 +1,317 @@
+$ npm --prefix /tmp/project-a run typecheck --workspace web 2>&1
+[exit 2]
+
+> web@0.1.0 typecheck
+> tsc --noEmit
+
+prisma/reset-season-one.ts(56,36): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+prisma/schedule-current-season-early-end.ts(15,51): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/app/admin/page.tsx(317,67): error TS7006: Parameter 'request' implicitly has an 'any' type.
+src/app/admin/page.tsx(351,37): error TS7006: Parameter 'player' implicitly has an 'any' type.
+src/app/admin/page.tsx(389,41): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/app/admin/page.tsx(436,41): error TS7006: Parameter 'request' implicitly has an 'any' type.
+src/app/admin/page.tsx(519,40): error TS7006: Parameter 'entry' implicitly has an 'any' type.
+src/app/admin/page.tsx(550,42): error TS7006: Parameter 'entry' implicitly has an 'any' type.
+src/app/admin/page.tsx(598,45): error TS7006: Parameter 'proposal' implicitly has an 'any' type.
+src/app/castle/castle-management.tsx(724,5): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'Record<"DEFENSE" | "POINTS" | "FOOD" | "MILITARY", number>'.
+src/app/castle/castle-management.tsx(1671,43): error TS18047: 'playerSummary.raceBuffs.waaaghActiveUntil' is possibly 'null'.
+src/app/castle/castle-management.tsx(1718,30): error TS18047: 'playerSummary.raceBuffs.activeOrkBossOrder' is possibly 'null'.
+src/app/castle/castle-management.tsx(1724,24): error TS18047: 'playerSummary.raceBuffs.activeOrkBossOrder' is possibly 'null'.
+src/app/castle/castle-management.tsx(1726,24): error TS18047: 'playerSummary.raceBuffs.activeOrkBossOrder' is possibly 'null'.
+src/app/castle/castle-management.tsx(1816,22): error TS18047: 'playerSummary.activeUnicornTeleport' is possibly 'null'.
+src/app/castle/castle-management.tsx(1817,30): error TS18047: 'playerSummary.activeUnicornTeleport' is possibly 'null'.
+src/app/castle/castle-management.tsx(1818,22): error TS18047: 'playerSummary.activeUnicornTeleport' is possibly 'null'.
+src/app/castle/castle-management.tsx(1826,22): error TS18047: 'playerSummary.activeUnicornTeleport' is possibly 'null'.
+src/app/castle/castle-management.tsx(1960,36): error TS18047: 'playerSummary.dwarfRuneOfGrudges' is possibly 'null'.
+src/app/castle/castle-management.tsx(1961,26): error TS18047: 'playerSummary.dwarfRuneOfGrudges' is possibly 'null'.
+src/app/castle/castle-management.tsx(1964,27): error TS18047: 'playerSummary.dwarfRuneOfGrudges' is possibly 'null'.
+src/app/castle/castle-management.tsx(1969,27): error TS18047: 'playerSummary.dwarfRuneOfGrudges' is possibly 'null'.
+src/app/castle/castle-management.tsx(1975,26): error TS18047: 'playerSummary.dwarfRuneOfGrudges' is possibly 'null'.
+src/app/castle/castle-management.tsx(1976,30): error TS18047: 'playerSummary.dwarfRuneOfGrudges' is possibly 'null'.
+src/app/castle/castle-management.tsx(1978,26): error TS18047: 'playerSummary.dwarfRuneOfGrudges' is possibly 'null'.
+src/app/castle/page.tsx(82,11): error TS2322: Type '{ id: any; commanderName: string; canRegisterCommanderName: boolean; name: string; rawName: any; points: any; gold: any; level: any; displayedCastleLevel: number; population: number; defenseMultiplier: number; ... 49 more ...; garrisons: any; }' is not assignable to type 'PlayerSummary'.
+  Types of property 'castleSpecializationCounts' are incompatible.
+    Type '{ [x: string]: number; } | null' is not assignable to type 'Record<"DEFENSE" | "POINTS" | "FOOD" | "MILITARY", number> | null'.
+      Type '{ [x: string]: number; }' is missing the following properties from type 'Record<"DEFENSE" | "POINTS" | "FOOD" | "MILITARY", number>': DEFENSE, POINTS, FOOD, MILITARY
+src/app/home-client.tsx(168,8): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/app/politics/politics-client.tsx(127,43): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/app/politics/politics-client.tsx(212,12): error TS18048: 'result' is possibly 'undefined'.
+src/app/politics/politics-client.tsx(213,22): error TS18048: 'result' is possibly 'undefined'.
+src/app/politics/politics-client.tsx(404,33): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/app/politics/politics-client.tsx(433,53): error TS7006: Parameter 'action' implicitly has an 'any' type.
+src/app/politics/politics-client.tsx(556,37): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/app/politics/politics-client.tsx(605,38): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/app/politics/politics-client.tsx(662,48): error TS7006: Parameter 'offer' implicitly has an 'any' type.
+src/app/politics/politics-client.tsx(696,48): error TS7006: Parameter 'offer' implicitly has an 'any' type.
+src/app/politics/politics-client.tsx(723,45): error TS7006: Parameter 'leg' implicitly has an 'any' type.
+src/app/politics/politics-client.tsx(795,43): error TS7006: Parameter 'order' implicitly has an 'any' type.
+src/app/politics/politics-client.tsx(799,28): error TS7006: Parameter 'order' implicitly has an 'any' type.
+src/app/politics/politics-client.tsx(800,25): error TS7006: Parameter 'order' implicitly has an 'any' type.
+src/app/politics/politics-client.tsx(812,46): error TS7006: Parameter 'leg' implicitly has an 'any' type.
+src/app/politics/politics-client.tsx(843,51): error TS7006: Parameter 'incident' implicitly has an 'any' type.
+src/app/shop/page.tsx(125,6): error TS7006: Parameter 'unlock' implicitly has an 'any' type.
+src/app/shop/page.tsx(128,6): error TS7006: Parameter 'unlock' implicitly has an 'any' type.
+src/app/shop/page.tsx(279,51): error TS7006: Parameter 'purchase' implicitly has an 'any' type.
+src/app/shop/page.tsx(341,53): error TS7006: Parameter 'unlock' implicitly has an 'any' type.
+src/app/shop/page.tsx(417,57): error TS7006: Parameter 'unlock' implicitly has an 'any' type.
+src/app/shop/page.tsx(484,48): error TS7006: Parameter 'entry' implicitly has an 'any' type.
+src/components/command-dock.tsx(63,8): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/admin-dashboard.ts(251,66): error TS7006: Parameter 'request' implicitly has an 'any' type.
+src/lib/game/admin-dashboard.ts(257,18): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/admin-dashboard.ts(262,25): error TS7006: Parameter 'user' implicitly has an 'any' type.
+src/lib/game/admin-dashboard.ts(283,47): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/admin-dashboard.ts(300,39): error TS7006: Parameter 'entry' implicitly has an 'any' type.
+src/lib/game/admin-dashboard.ts(305,12): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/admin-dashboard.ts(309,12): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/admin-dashboard.ts(317,47): error TS7006: Parameter 'request' implicitly has an 'any' type.
+src/lib/game/admin-dashboard.ts(322,12): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/admin-dashboard.ts(326,12): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/admin-dashboard.ts(337,50): error TS7006: Parameter 'entry' implicitly has an 'any' type.
+src/lib/game/admin-dashboard.ts(338,65): error TS7006: Parameter 'proposal' implicitly has an 'any' type.
+src/lib/game/admin-dashboard.ts(342,14): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/admin-dashboard.ts(346,14): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/admin-dashboard.ts(350,43): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/lib/game/admin-dashboard.ts(350,48): error TS7006: Parameter 'vote' implicitly has an 'any' type.
+src/lib/game/admin-dashboard.ts(354,18): error TS7006: Parameter 'proposal' implicitly has an 'any' type.
+src/lib/game/admin-dashboard.ts(355,15): error TS7006: Parameter 'proposal' implicitly has an 'any' type.
+src/lib/game/admin-dashboard.ts(364,20): error TS7006: Parameter 'proposal' implicitly has an 'any' type.
+src/lib/game/admin-dashboard.ts(368,23): error TS7006: Parameter 'proposal' implicitly has an 'any' type.
+src/lib/game/admin-dashboard.ts(385,35): error TS7006: Parameter 'proposal' implicitly has an 'any' type.
+src/lib/game/admin-operations.ts(18,33): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/lib/game/admin-operations.ts(65,32): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/lib/game/admin-operations.ts(145,33): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/lib/game/admin-operations.ts(205,33): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/lib/game/arcade.ts(257,31): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/lib/game/arcade.ts(262,29): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/lib/game/arcade.ts(309,29): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/arcade.ts(498,20): error TS7006: Parameter 'unlock' implicitly has an 'any' type.
+src/lib/game/arcade.ts(499,17): error TS7006: Parameter 'unlock' implicitly has an 'any' type.
+src/lib/game/arcade.ts(507,20): error TS7006: Parameter 'unlock' implicitly has an 'any' type.
+src/lib/game/arcade.ts(508,17): error TS7006: Parameter 'unlock' implicitly has an 'any' type.
+src/lib/game/arcade.ts(566,18): error TS7006: Parameter 'unlock' implicitly has an 'any' type.
+src/lib/game/arcade.ts(567,15): error TS7006: Parameter 'unlock' implicitly has an 'any' type.
+src/lib/game/arcade.ts(575,18): error TS7006: Parameter 'unlock' implicitly has an 'any' type.
+src/lib/game/arcade.ts(576,15): error TS7006: Parameter 'unlock' implicitly has an 'any' type.
+src/lib/game/attack-units.ts(49,14): error TS7006: Parameter 'ownership' implicitly has an 'any' type.
+src/lib/game/attack-units.ts(50,11): error TS7006: Parameter 'ownership' implicitly has an 'any' type.
+src/lib/game/attack-units.ts(51,14): error TS7006: Parameter 'biome' implicitly has an 'any' type.
+src/lib/game/battlefields.ts(634,33): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/lib/game/battlefields.ts(1189,8): error TS7006: Parameter 'participant' implicitly has an 'any' type.
+src/lib/game/battlefields.ts(1192,8): error TS7006: Parameter 'participant' implicitly has an 'any' type.
+src/lib/game/battlefields.ts(1195,8): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/lib/game/battlefields.ts(1195,13): error TS7006: Parameter 'participant' implicitly has an 'any' type.
+src/lib/game/battlefields.ts(1199,8): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/lib/game/battlefields.ts(1199,13): error TS7006: Parameter 'participant' implicitly has an 'any' type.
+src/lib/game/battlefields.ts(1271,10): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/lib/game/battlefields.ts(1271,15): error TS7006: Parameter 'participant' implicitly has an 'any' type.
+src/lib/game/battlefields.ts(1280,10): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/lib/game/battlefields.ts(1280,15): error TS7006: Parameter 'participant' implicitly has an 'any' type.
+src/lib/game/battlefields.ts(1305,8): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/lib/game/battlefields.ts(1305,13): error TS7006: Parameter 'participant' implicitly has an 'any' type.
+src/lib/game/battlefields.ts(1356,18): error TS7006: Parameter 'participant' implicitly has an 'any' type.
+src/lib/game/battlefields.ts(1357,15): error TS7006: Parameter 'participant' implicitly has an 'any' type.
+src/lib/game/battlefields.ts(1361,18): error TS7006: Parameter 'participant' implicitly has an 'any' type.
+src/lib/game/battlefields.ts(1362,15): error TS7006: Parameter 'participant' implicitly has an 'any' type.
+src/lib/game/battlefields.ts(1367,7): error TS2345: Argument of type 'Set<unknown>' is not assignable to parameter of type 'Set<string>'.
+  Type 'unknown' is not assignable to type 'string'.
+src/lib/game/battlefields.ts(1379,7): error TS2345: Argument of type 'Set<unknown>' is not assignable to parameter of type 'Set<string>'.
+  Type 'unknown' is not assignable to type 'string'.
+src/lib/game/battlefields.ts(1387,18): error TS7006: Parameter 'participant' implicitly has an 'any' type.
+src/lib/game/battlefields.ts(1388,15): error TS7006: Parameter 'participant' implicitly has an 'any' type.
+src/lib/game/battlefields.ts(1405,10): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/lib/game/battlefields.ts(1405,15): error TS7006: Parameter 'entry' implicitly has an 'any' type.
+src/lib/game/battlefields.ts(1461,8): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/lib/game/battlefields.ts(1461,13): error TS7006: Parameter 'participant' implicitly has an 'any' type.
+src/lib/game/battlefields.ts(1465,8): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/lib/game/battlefields.ts(1465,13): error TS7006: Parameter 'participant' implicitly has an 'any' type.
+src/lib/game/battlefields.ts(1558,8): error TS7006: Parameter 'participant' implicitly has an 'any' type.
+src/lib/game/battlefields.ts(1561,8): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/lib/game/battlefields.ts(1561,13): error TS7006: Parameter 'participant' implicitly has an 'any' type.
+src/lib/game/battlefields.ts(1978,16): error TS7006: Parameter 'participant' implicitly has an 'any' type.
+src/lib/game/build-arcade.ts(121,33): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(402,6): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(409,28): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(411,27): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(469,18): error TS7006: Parameter 'ownership' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(470,15): error TS7006: Parameter 'ownership' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(471,18): error TS7006: Parameter 'biome' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(525,13): error TS7006: Parameter 'suppression' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(526,16): error TS7006: Parameter 'id' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(531,12): error TS7006: Parameter 'suppression' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(592,9): error TS18046: 'option' is of type 'unknown'.
+src/lib/game/castle-read-model.ts(592,61): error TS18046: 'option' is of type 'unknown'.
+src/lib/game/castle-read-model.ts(603,10): error TS7006: Parameter 'unit' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(608,10): error TS7006: Parameter 'unit' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(620,10): error TS7006: Parameter 'activation' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(631,8): error TS7006: Parameter 'order' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(636,12): error TS7006: Parameter 'investment' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(641,10): error TS7006: Parameter 'activation' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(646,10): error TS7006: Parameter 'activation' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(653,10): error TS7006: Parameter 'activation' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(658,52): error TS7006: Parameter 'activation' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(671,10): error TS7006: Parameter 'activation' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(676,10): error TS7006: Parameter 'activation' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(682,10): error TS7006: Parameter 'activation' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(725,18): error TS7006: Parameter 'ownership' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(726,15): error TS7006: Parameter 'ownership' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(727,18): error TS7006: Parameter 'tile' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(833,41): error TS7006: Parameter 'ownership' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(845,52): error TS7006: Parameter 'tile' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(850,12): error TS7006: Parameter 'priority' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(854,15): error TS2322: Type '{} | null' is not assignable to type 'string | null | undefined'.
+  Type '{}' is not assignable to type 'string'.
+src/lib/game/castle-read-model.ts(867,34): error TS7006: Parameter 'priority' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(876,25): error TS7006: Parameter 'state' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(883,16): error TS7006: Parameter 'leader' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(883,24): error TS7006: Parameter 'priority' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(914,12): error TS7006: Parameter 'state' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(921,12): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(921,17): error TS7006: Parameter 'order' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(926,20): error TS7006: Parameter 'order' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(927,17): error TS7006: Parameter 'order' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(932,35): error TS7006: Parameter 'campaign' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(947,12): error TS7006: Parameter 'summary' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(947,21): error TS7006: Parameter 'order' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(968,54): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(989,20): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(991,16): error TS7006: Parameter 'suppression' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(1000,17): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(1104,40): error TS2339: Property 'name' does not exist on type '{}'.
+src/lib/game/castle-read-model.ts(1186,64): error TS7006: Parameter 'event' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(1209,52): error TS2538: Type 'unknown' cannot be used as an index type.
+src/lib/game/castle-read-model.ts(1237,61): error TS2538: Type 'unknown' cannot be used as an index type.
+src/lib/game/castle-read-model.ts(1239,20): error TS7006: Parameter 'investment' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(1312,68): error TS7006: Parameter 'roll' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(1340,64): error TS7006: Parameter 'roll' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(1350,60): error TS7006: Parameter 'grudge' implicitly has an 'any' type.
+src/lib/game/castle-read-model.ts(1386,52): error TS7006: Parameter 'garrison' implicitly has an 'any' type.
+src/lib/game/chat.ts(89,33): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/lib/game/chat.ts(132,33): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/lib/game/chat.ts(181,33): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/lib/game/community-wishes.ts(190,21): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/community-wishes.ts(340,14): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/lib/game/community-wishes.ts(382,7): error TS18046: 'error' is of type 'unknown'.
+src/lib/game/community-wishes.ts(435,12): error TS7006: Parameter 'result' implicitly has an 'any' type.
+src/lib/game/community-wishes.ts(510,12): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/lib/game/community-wishes.ts(625,11): error TS7006: Parameter 'proposal' implicitly has an 'any' type.
+src/lib/game/community-wishes.ts(627,41): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/lib/game/community-wishes.ts(627,46): error TS7006: Parameter 'vote' implicitly has an 'any' type.
+src/lib/game/community-wishes.ts(629,12): error TS7006: Parameter 'left' implicitly has an 'any' type.
+src/lib/game/community-wishes.ts(629,18): error TS7006: Parameter 'right' implicitly has an 'any' type.
+src/lib/game/community-wishes.ts(637,31): error TS7006: Parameter 'proposal' implicitly has an 'any' type.
+src/lib/game/community-wishes.ts(645,31): error TS7006: Parameter 'proposal' implicitly has an 'any' type.
+src/lib/game/community-wishes.ts(668,11): error TS2322: Type 'unknown' is not assignable to type 'string | undefined'.
+src/lib/game/community-wishes.ts(723,11): error TS7006: Parameter 'proposal' implicitly has an 'any' type.
+src/lib/game/community-wishes.ts(725,41): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/lib/game/community-wishes.ts(725,46): error TS7006: Parameter 'vote' implicitly has an 'any' type.
+src/lib/game/community-wishes.ts(727,12): error TS7006: Parameter 'left' implicitly has an 'any' type.
+src/lib/game/community-wishes.ts(727,18): error TS7006: Parameter 'right' implicitly has an 'any' type.
+src/lib/game/community-wishes.ts(734,31): error TS7006: Parameter 'proposal' implicitly has an 'any' type.
+src/lib/game/community-wishes.ts(768,28): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/lib/game/community-wishes.ts(793,34): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/lib/game/community-wishes.ts(822,33): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/lib/game/community-wishes.ts(841,32): error TS7006: Parameter 'option' implicitly has an 'any' type.
+src/lib/game/community-wishes.ts(870,46): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/lib/game/community-wishes.ts(870,51): error TS7006: Parameter 'vote' implicitly has an 'any' type.
+src/lib/game/community-wishes.ts(884,11): error TS2322: Type 'unknown' is not assignable to type 'string | undefined'.
+src/lib/game/fortress-relocation.ts(51,11): error TS7006: Parameter 'unit' implicitly has an 'any' type.
+src/lib/game/fortress-relocation.ts(96,14): error TS7006: Parameter 'unit' implicitly has an 'any' type.
+src/lib/game/game.test.ts(749,27): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/game.test.ts(1100,6): error TS7006: Parameter 'mapHex' implicitly has an 'any' type.
+src/lib/game/game.test.ts(1287,6): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/lib/game/game.test.ts(1315,6): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/lib/game/game.test.ts(1328,6): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/lib/game/game.test.ts(1359,6): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/lib/game/game.test.ts(1392,6): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/lib/game/game.test.ts(1611,6): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/lib/game/game.test.ts(2374,32): error TS7006: Parameter 'campaign' implicitly has an 'any' type.
+src/lib/game/game.test.ts(2508,30): error TS7006: Parameter 'leg' implicitly has an 'any' type.
+src/lib/game/game.test.ts(2513,36): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/lib/game/game.test.ts(2513,41): error TS7006: Parameter 'event' implicitly has an 'any' type.
+src/lib/game/game.test.ts(4452,6): error TS7006: Parameter 'unit' implicitly has an 'any' type.
+src/lib/game/game.test.ts(4462,13): error TS7006: Parameter 'unit' implicitly has an 'any' type.
+src/lib/game/game.test.ts(4463,14): error TS7006: Parameter 'left' implicitly has an 'any' type.
+src/lib/game/game.test.ts(4463,20): error TS7006: Parameter 'right' implicitly has an 'any' type.
+src/lib/game/game.test.ts(5859,6): error TS7006: Parameter 'participant' implicitly has an 'any' type.
+src/lib/game/game.test.ts(5862,6): error TS7006: Parameter 'participant' implicitly has an 'any' type.
+src/lib/game/game.test.ts(6072,23): error TS7006: Parameter 'event' implicitly has an 'any' type.
+src/lib/game/game.test.ts(6190,23): error TS7006: Parameter 'event' implicitly has an 'any' type.
+src/lib/game/game.test.ts(6300,13): error TS7006: Parameter 'event' implicitly has an 'any' type.
+src/lib/game/game.test.ts(6301,14): error TS7006: Parameter 'left' implicitly has an 'any' type.
+src/lib/game/game.test.ts(6301,20): error TS7006: Parameter 'right' implicitly has an 'any' type.
+src/lib/game/game.test.ts(6573,30): error TS7006: Parameter 'unit' implicitly has an 'any' type.
+src/lib/game/game.test.ts(6583,18): error TS7006: Parameter 'holder' implicitly has an 'any' type.
+src/lib/game/game.test.ts(6703,13): error TS7006: Parameter 'garrison' implicitly has an 'any' type.
+src/lib/game/game.test.ts(6756,13): error TS7006: Parameter 'garrison' implicitly has an 'any' type.
+src/lib/game/game.test.ts(6994,6): error TS7006: Parameter 'participant' implicitly has an 'any' type.
+src/lib/game/game.test.ts(7177,6): error TS7006: Parameter 'garrison' implicitly has an 'any' type.
+src/lib/game/game.test.ts(7180,6): error TS7006: Parameter 'garrison' implicitly has an 'any' type.
+src/lib/game/game.test.ts(9264,6): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/game.test.ts(9267,6): error TS7006: Parameter 'target' implicitly has an 'any' type.
+src/lib/game/game.test.ts(9891,31): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/game.test.ts(9909,31): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/game.test.ts(11083,32): error TS2339: Property 'reason' does not exist on type 'ReadyDatabaseSetup | SkippedDatabaseSetup'.
+  Property 'reason' does not exist on type 'ReadyDatabaseSetup'.
+src/lib/game/game.test.ts(12048,45): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/game.test.ts(12049,47): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/game.test.ts(12068,33): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/game.test.ts(12077,8): error TS7006: Parameter 'target' implicitly has an 'any' type.
+src/lib/game/game.test.ts(12169,34): error TS7006: Parameter 'position' implicitly has an 'any' type.
+src/lib/game/game.test.ts(12179,44): error TS7006: Parameter 'entry' implicitly has an 'any' type.
+src/lib/game/game.test.ts(12294,29): error TS7006: Parameter 'position' implicitly has an 'any' type.
+src/lib/game/game.test.ts(12297,30): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/game.test.ts(12305,8): error TS7006: Parameter 'entry' implicitly has an 'any' type.
+src/lib/game/game.test.ts(12397,29): error TS7006: Parameter 'position' implicitly has an 'any' type.
+src/lib/game/game.test.ts(12404,8): error TS7006: Parameter 'entry' implicitly has an 'any' type.
+src/lib/game/game.test.ts(13593,33): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/game.test.ts(13605,5): error TS2322: Type 'Set<unknown>' is not assignable to type 'Set<string>'.
+  Type 'unknown' is not assignable to type 'string'.
+src/lib/game/game.test.ts(13679,6): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/game.test.ts(13724,13): error TS7006: Parameter 'event' implicitly has an 'any' type.
+src/lib/game/game.test.ts(13725,14): error TS7006: Parameter 'left' implicitly has an 'any' type.
+src/lib/game/game.test.ts(13725,20): error TS7006: Parameter 'right' implicitly has an 'any' type.
+src/lib/game/game.test.ts(13898,26): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/game.test.ts(14486,25): error TS7006: Parameter 'event' implicitly has an 'any' type.
+src/lib/game/game.test.ts(14996,21): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/game.test.ts(15085,20): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/game.test.ts(16003,8): error TS7006: Parameter 'unit' implicitly has an 'any' type.
+src/lib/game/game.test.ts(16043,6): error TS7006: Parameter 'unit' implicitly has an 'any' type.
+src/lib/game/game.test.ts(16380,26): error TS7006: Parameter 'unit' implicitly has an 'any' type.
+src/lib/game/game.test.ts(16489,26): error TS7006: Parameter 'unit' implicitly has an 'any' type.
+src/lib/game/game.test.ts(16611,25): error TS7006: Parameter 'position' implicitly has an 'any' type.
+src/lib/game/game.test.ts(16792,23): error TS7006: Parameter 'event' implicitly has an 'any' type.
+src/lib/game/game.test.ts(17265,29): error TS7006: Parameter 'event' implicitly has an 'any' type.
+src/lib/game/game.test.ts(18332,6): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/game.test.ts(18335,6): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/game.test.ts(18346,34): error TS7006: Parameter 'target' implicitly has an 'any' type.
+src/lib/game/game.test.ts(18447,6): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/game.test.ts(18556,6): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/game.test.ts(19387,16): error TS7006: Parameter 'user' implicitly has an 'any' type.
+src/lib/game/game.test.ts(19387,22): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/lib/game/game.test.ts(19514,24): error TS7006: Parameter 'proposal' implicitly has an 'any' type.
+src/lib/game/game.test.ts(19516,30): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/lib/game/game.test.ts(19516,35): error TS7006: Parameter 'vote' implicitly has an 'any' type.
+src/lib/game/game.test.ts(19774,6): error TS7006: Parameter 'entry' implicitly has an 'any' type.
+src/lib/game/game.test.ts(19777,6): error TS7006: Parameter 'entry' implicitly has an 'any' type.
+src/lib/game/history.ts(85,26): error TS7006: Parameter 'entry' implicitly has an 'any' type.
+src/lib/game/history.ts(99,27): error TS7006: Parameter 'entry' implicitly has an 'any' type.
+src/lib/game/history.ts(114,49): error TS7006: Parameter 'proposal' implicitly has an 'any' type.
+src/lib/game/history.ts(117,22): error TS7006: Parameter 'vote' implicitly has an 'any' type.
+src/lib/game/history.ts(118,22): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/lib/game/history.ts(118,27): error TS7006: Parameter 'vote' implicitly has an 'any' type.
+src/lib/game/history.ts(123,14): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/history.ts(140,12): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/history.ts(144,12): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/history.ts(181,38): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/history.ts(184,12): error TS7006: Parameter 'proposal' implicitly has an 'any' type.
+src/lib/game/history.ts(201,10): error TS7006: Parameter 'proposal' implicitly has an 'any' type.
+src/lib/game/history.ts(208,45): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/lib/game/history.ts(208,50): error TS7006: Parameter 'vote' implicitly has an 'any' type.
+src/lib/game/loot-camps.ts(375,31): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/loot-camps.ts(386,9): error TS2322: Type 'Set<unknown>' is not assignable to type 'Set<string>'.
+  Type 'unknown' is not assignable to type 'string'.
+src/lib/game/loot-camps.ts(387,50): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/mega-fortress.ts(297,21): error TS7006: Parameter 'fortress' implicitly has an 'any' type.
+src/lib/game/mega-f
+
+[… truncated 47368 chars …]
