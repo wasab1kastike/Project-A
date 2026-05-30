@@ -341,6 +341,21 @@ function HomeClientContent({
           attackUnits={state.attackUnits}
           alliedRoads={state.alliedRoads ?? []}
           roadSegments={state.roadSegments ?? []}
+          battalionMarkers={(state.battalions ?? [])
+            .filter((bn: any) => bn.garrisonedAt != null)
+            .map((bn: any) => {
+              const fortress = state.mapFortresses?.find((f: any) => f.id === bn.fortressId);
+              return {
+                tileId: bn.garrisonedAt,
+                battalionName: bn.name,
+                size: bn.size,
+                maxSize: bn.maxSize,
+                tier: bn.tier,
+                stance: bn.stance,
+                unitSpriteVariant: fortress?.unitSpriteVariant ?? "unit-1",
+                unitCosmeticVariant: fortress?.unitCosmeticVariant ?? null,
+              };
+            })}
           battleReports={state.battleReports}
           availableTargets={state.availableTargets}
           chat={state.chat}

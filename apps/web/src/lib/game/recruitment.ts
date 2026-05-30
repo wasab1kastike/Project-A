@@ -213,6 +213,8 @@ export function processRecruitmentTick(args: {
   totalSlots: number;
   gold: number;
   preferredBattalionId?: string;
+  /** Race-specific name for auto-created battalions. Falls back to generic if omitted. */
+  newBattalionName?: string;
 }): RecruitmentTickResult {
   let { battalions } = args;
   let goldSpent = 0;
@@ -241,7 +243,7 @@ export function processRecruitmentTick(args: {
     args.gold >= BATTALION_COMMISSION_COST
   ) {
     const existingCount = battalions.length;
-    const name = `Battalion ${existingCount + 1}`; // caller can override with race-specific name
+    const name = args.newBattalionName ?? `Battalion ${existingCount + 1}`;
     const result = createBattalion({
       id: `bn_${Date.now()}_${existingCount}`,
       name,

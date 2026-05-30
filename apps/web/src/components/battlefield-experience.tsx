@@ -384,6 +384,7 @@ export function BattlefieldExperience({
   attackUnits,
   alliedRoads = [],
   roadSegments = [],
+  battalionMarkers = [],
   battleReports,
   chat,
   phaseStatus,
@@ -401,6 +402,16 @@ export function BattlefieldExperience({
   attackUnits: AttackUnitMarker[];
   alliedRoads?: Array<{ x1: number; y1: number; x2: number; y2: number }>;
   roadSegments?: Array<{ tileId: string; level: number; crossings: number }>;
+  battalionMarkers?: Array<{
+    tileId: string;
+    battalionName: string;
+    size: number;
+    maxSize: number;
+    tier: number;
+    stance: string;
+    unitSpriteVariant: string;
+    unitCosmeticVariant: string | null;
+  }>;
   battleReports: BattleReport[];
   availableTargets: unknown[];
   chat: ChatProps;
@@ -2570,6 +2581,7 @@ export function BattlefieldExperience({
           attackUnits={visibleAttackUnits}
           alliedRoads={alliedRoads}
           roadSegments={roadSegments}
+          battalionMarkers={battalionMarkers}
           selectedFortressId={selectedFortressId}
           selectedTargetId={selectedTargetId}
           selectedTileId={selectedTileId}

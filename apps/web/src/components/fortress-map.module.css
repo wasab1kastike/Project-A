@@ -1311,3 +1311,70 @@
   line-height: 14px;
   text-align: center;
 }
+
+/* Battalion markers */
+.battalionLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.battalionMarker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.battalionSprite {
+  display: block;
+  width: 22px;
+  height: 22px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  opacity: 0.9;
+}
+
+.battalionSprite[data-variant="unit-1"] { background-image: url(/assets/sprites/unit-1.png); }
+.battalionSprite[data-variant="unit-2"] { background-image: url(/assets/sprites/unit-2.png); }
+.battalionSprite[data-variant="unit-3"] { background-image: url(/assets/sprites/unit-3.png); }
+.battalionSprite[data-variant="unit-4"] { background-image: url(/assets/sprites/unit-4.png); }
+.battalionSprite[data-variant="unit-5"] { background-image: url(/assets/sprites/unit-5.png); }
+.battalionSprite[data-variant="unit-6"] { background-image: url(/assets/sprites/unit-6.png); }
+
+.battalionBadge {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  font-size: 0.45rem;
+  font-weight: 700;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.battalionCount {
+  position: absolute;
+  right: -6px;
+  bottom: -2px;
+  min-width: 16px;
+  height: 14px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: rgba(12, 18, 28, 0.88);
+  color: #fff5cf;
+  font-size: 0.55rem;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+}

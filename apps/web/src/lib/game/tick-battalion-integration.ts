@@ -8,7 +8,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { processRecruitmentTick } from "./recruitment";
 import { processGuardTick, type GuardableTile } from "./guard-system";
-import { getBattalionSlots } from "./battalion-types";
+import { getBattalionSlots, generateBattalionName } from "./battalion-types";
 import type { Battalion } from "./battalion-types";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -132,6 +132,10 @@ export async function processBattalionRecruitment(args: {
       totalSlots,
       gold,
       preferredBattalionId: undefined,
+      newBattalionName: generateBattalionName(
+        (race as "DWARFS" | "ORKS" | "SPACE_MURINES" | "UNSTABLE_UNICORNS") ?? "DWARFS",
+        existing.length,
+      ),
     });
 
     // Stage updates.
