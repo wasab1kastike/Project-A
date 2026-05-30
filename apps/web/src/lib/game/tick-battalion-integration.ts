@@ -251,6 +251,9 @@ export async function processBattalionGuard(args: {
       currentGuardStrength: 0,
     }));
 
+    // Only auto-assign guard stance for battalions that aren't already on a
+    // specific stance (REST, TRAINING, PATROL, AMBUSH are player-chosen and
+    // should not be overwritten).
     const result = processGuardTick({
       battalions: fortressBattalions,
       ownedTiles: guardableTiles,

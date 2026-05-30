@@ -223,10 +223,17 @@ export function assignBattalionsToTiles(args: {
       });
 
       // Update battalion garrison status.
+      // Only change stance if battalion is on REST (unassigned) or MOBILE.
+      // Player-chosen stances (TRAINING, PATROL, AMBUSH, FORTIFY) are preserved.
       const original = updated.find((b) => b.id === bat.id);
       if (original) {
         original.garrisonedAt = dist.tileId;
-        original.stance = args.defaultStance;
+        const isDefaultable =
+          original.stance === "REST" ||
+          original.stance === "MOBILE";
+        if (isDefaultable) {
+          original.stance = args.defaultStance;
+        }
       }
     }
   }
