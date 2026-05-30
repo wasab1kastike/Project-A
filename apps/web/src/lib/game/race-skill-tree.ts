@@ -77,19 +77,37 @@ const claimThreshold = (value: number) =>
 const popPerTile = (value: number) =>
   reward(`+${value} pop/owned tile`, "populationPerOwnedTile", value, true);
 
+// ── New Season 4 effects ────────────────────────────────────────────────────
+const battalionSize = (value: number) =>
+  reward(`+${value}% battalion max size`, "battalionMaxSize", value, value >= 20);
+const battalionXp = (value: number) =>
+  reward(`+${value}% battalion XP`, "battalionXpRate", value, value >= 15);
+const guardEff = (value: number) =>
+  reward(`+${value}% guard defense`, "guardEfficiency", value, value >= 15);
+const campaignSpd = (value: number) =>
+  reward(`+${value}% campaign speed`, "campaignSpeed", value, value >= 15);
+const roadBuild = (value: number) =>
+  reward(`+${value} road build rate`, "roadBuildingRate", value, value >= 2);
+const tradeVal = (value: number) =>
+  reward(`+${value}% trade cargo value`, "tradeCargoValue", value, value >= 15);
+const upkeepDisc = (value: number) =>
+  reward(`-${value}% battalion upkeep`, "upkeepDiscount", value, value >= 10);
+const promoDisc = (value: number) =>
+  reward(`-${value}% promotion cost`, "promotionDiscount", value, value >= 15);
+
 export const RACE_SKILL_TREES: Record<FortressRace, RaceSkillTree> = {
   DWARFS: {
     race: "DWARFS",
     paths: [
       path("bastion", "Runebound Bastion", "Stone, spite, and impossible walls.", [
         { level: 1, name: "Gate Oaths", description: "+1 population", rewards: [pop(1)] },
-        { level: 2, name: "Shieldwall Masonry", description: "+10% tile defense", rewards: [tileDefense(10)] },
+        { level: 2, name: "Shieldwall Masonry", description: "+10% guard defense", rewards: [guardEff(10)] },
         { level: 3, name: "Deep Quarters", description: "+2 population", rewards: [pop(2)] },
-        { level: 4, name: "Iron-Clad Parapets", description: "+15% tile defense", rewards: [tileDefense(15)] },
+        { level: 4, name: "Iron-Clad Parapets", description: "+15% guard defense", rewards: [guardEff(15)] },
         { level: 5, name: "Runic Murder Holes", description: "+20% tile defense", rewards: [tileDefense(20)] },
-        { level: 6, name: "Ancestor Vaults", description: "+3 population", rewards: [pop(3)] },
-        { level: 7, name: "Mountain Citadel", description: "+25% tile defense", rewards: [tileDefense(25)] },
-        { level: 8, name: "The Hold Endures", description: "+5 population", rewards: [pop(5)] },
+        { level: 6, name: "Ancestor Vaults", description: "+15% battalion max size", rewards: [battalionSize(15)] },
+        { level: 7, name: "Mountain Citadel", description: "+25% guard defense", rewards: [guardEff(25)] },
+        { level: 8, name: "The Hold Endures", description: "+25% battalion size, -15% upkeep", rewards: [battalionSize(25), upkeepDisc(15)] },
       ]),
       path("seismic", "Seismic Claim", "Make the map move before armies do.", [
         { level: 1, name: "Stone Listening", description: "+5% pressure", rewards: [pressure(5)] },
@@ -118,13 +136,13 @@ export const RACE_SKILL_TREES: Record<FortressRace, RaceSkillTree> = {
     paths: [
       path("marauder", "Marauder Mob", "Loot-fueled growth with teeth.", [
         { level: 1, name: "Shiny Finderz", description: "+1 gold per 10 miners", rewards: [gold(1)] },
-        { level: 2, name: "Snack Raidz", description: "+1 food per 10 farmers", rewards: [food(1)] },
+        { level: 2, name: "Snack Raidz", description: "+10% campaign speed", rewards: [campaignSpd(10)] },
         { level: 3, name: "Bigger Loot Pile", description: "+2 gold per 10 miners", rewards: [gold(2)] },
-        { level: 4, name: "Camp Followers", description: "+1 population", rewards: [pop(1)] },
+        { level: 4, name: "Camp Followers", description: "+15% battalion XP", rewards: [battalionXp(15)] },
         { level: 5, name: "Da Tax Is Punchin'", description: "+3 gold per 10 miners", rewards: [gold(3)] },
-        { level: 6, name: "Feed Da Ladz", description: "+3 food per 10 farmers", rewards: [food(3)] },
+        { level: 6, name: "Feed Da Ladz", description: "+20% campaign speed", rewards: [campaignSpd(20)] },
         { level: 7, name: "Loot-Tower Banner", description: "+3 population", rewards: [pop(3)] },
-        { level: 8, name: "Da Biggest Pile", description: "+5 gold per 10 miners", rewards: [gold(5)] },
+        { level: 8, name: "Da Biggest Pile", description: "+30% campaign, -20% upkeep", rewards: [campaignSpd(30), upkeepDisc(20)] },
       ]),
       path("siegebreaker", "Siegebreaker Tide", "Push borders by being louder than walls.", [
         { level: 1, name: "Rock Lobbas", description: "+5% pressure", rewards: [pressure(5)] },
@@ -152,14 +170,14 @@ export const RACE_SKILL_TREES: Record<FortressRace, RaceSkillTree> = {
     race: "SPACE_MURINES",
     paths: [
       path("convoy", "Convoy Command", "Disciplined logistics and supply routes.", [
-        { level: 1, name: "Supply Drill", description: "+1 gold per 10 miners", rewards: [gold(1)] },
-        { level: 2, name: "Ration Ledgers", description: "+1 food per 10 farmers", rewards: [food(1)] },
-        { level: 3, name: "Armored Manifests", description: "+2 gold per 10 miners", rewards: [gold(2)] },
-        { level: 4, name: "Quartermaster Cells", description: "+2 food per 10 farmers", rewards: [food(2)] },
-        { level: 5, name: "Fleet Protocol", description: "+3 gold per 10 miners", rewards: [gold(3)] },
-        { level: 6, name: "Secured Depots", description: "+3 food per 10 farmers", rewards: [food(3)] },
-        { level: 7, name: "Orbital Freight", description: "+4 gold per 10 miners", rewards: [gold(4)] },
-        { level: 8, name: "Imperial Supply Web", description: "+5 food per 10 farmers", rewards: [food(5)] },
+        { level: 1, name: "Supply Drill", description: "+10% cargo value", rewards: [tradeVal(10)] },
+        { level: 2, name: "Ration Ledgers", description: "+2 road build rate", rewards: [roadBuild(2)] },
+        { level: 3, name: "Armored Manifests", description: "+15% cargo value", rewards: [tradeVal(15)] },
+        { level: 4, name: "Quartermaster Cells", description: "+3 road build rate", rewards: [roadBuild(3)] },
+        { level: 5, name: "Fleet Protocol", description: "+20% cargo value", rewards: [tradeVal(20)] },
+        { level: 6, name: "Secured Depots", description: "+4 road build rate", rewards: [roadBuild(4)] },
+        { level: 7, name: "Orbital Freight", description: "+25% cargo value", rewards: [tradeVal(25)] },
+        { level: 8, name: "Imperial Supply Web", description: "+35% cargo, -15% upkeep", rewards: [tradeVal(35), upkeepDisc(15)] },
       ]),
       path("rapid", "Rapid Response", "Fast deployment and fortress readiness.", [
         { level: 1, name: "Quick March", description: "+1 army per 10 recruiters", rewards: [army(1)] },
@@ -197,17 +215,17 @@ export const RACE_SKILL_TREES: Record<FortressRace, RaceSkillTree> = {
         { level: 8, name: "Color Out Of Map", description: "+26% pressure", rewards: [pressure(26)] },
       ]),
       path("veiled", "Veiled Network", "Hidden logistics and suspicious prosperity.", [
-        { level: 1, name: "Shimmer Masks", description: "+1 gold per 10 miners", rewards: [gold(1)] },
+        { level: 1, name: "Shimmer Masks", description: "+10% battalion XP", rewards: [battalionXp(10)] },
         { level: 2, name: "Mirror Stores", description: "+1 food per 10 farmers", rewards: [food(1)] },
-        { level: 3, name: "False Ledgers", description: "+2 gold per 10 miners", rewards: [gold(2)] },
+        { level: 3, name: "False Ledgers", description: "+15% battalion XP", rewards: [battalionXp(15)] },
         { level: 4, name: "Phantom Kitchens", description: "+2 food per 10 farmers", rewards: [food(2)] },
-        { level: 5, name: "Hidden Quarters", description: "+2 population", rewards: [pop(2)] },
-        { level: 6, name: "Decoy Treasuries", description: "+4 gold per 10 miners", rewards: [gold(4)] },
+        { level: 5, name: "Hidden Quarters", description: "-15% promotion cost", rewards: [promoDisc(15)] },
+        { level: 6, name: "Decoy Treasuries", description: "+25% battalion XP", rewards: [battalionXp(25)] },
         { level: 7, name: "Invisible Herd", description: "+4 population", rewards: [pop(4)] },
-        { level: 8, name: "Mirror Host", description: "+6 gold per 10 miners", rewards: [gold(6)] },
+        { level: 8, name: "Mirror Host", description: "-30% promotion, +30% XP", rewards: [promoDisc(30), battalionXp(30)] },
       ]),
       path("shattered", "Shattered Reality", "Bend luck until the economy agrees.", [
-        { level: 1, name: "Lucky Streak", description: "+1 food per 10 farmers", rewards: [food(1)] },
+        { level: 1, name: "Lucky Streak", description: "+15% battalion XP", rewards: [battalionXp(15)] },
         { level: 2, name: "Reality Pennies", description: "+1 gold per 10 miners", rewards: [gold(1)] },
         { level: 3, name: "Fortune's Gait", description: "+2 food per 10 farmers", rewards: [food(2)] },
         { level: 4, name: "Helpful Paradox", description: "+1 army per 10 recruiters", rewards: [army(1)] },
