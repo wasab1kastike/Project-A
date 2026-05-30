@@ -1056,6 +1056,7 @@ export async function getCastlePageState({
     playerSummary: playerFortress
       ? {
           id: playerFortress.id,
+          cycleId: cycle.id,
           commanderName: getDisplayName(
             playerFortress.commanderName,
             playerFortress.id === cycle.crownedFortressId
