@@ -1524,45 +1524,19 @@ export function CastleManagement({
                   </span>
                 </div>
                 <div style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12, flexWrap: "wrap" }}>
-                  <select
-                    value={bn.stance}
-                    onChange={async (e) => {
-                      const { setBattalionStanceAction } = await import("@/app/game-actions");
-                      await setBattalionStanceAction({
-                        battalionId: bn.id,
-                        fortressId: playerSummary.id,
-                        stance: e.target.value,
-                      });
-                      refreshView();
-                    }}
-                    style={{
-                      fontSize: 12,
-                      padding: "2px 4px",
-                      background: "var(--bg-raised)",
-                      border: "1px solid var(--border)",
-                      borderRadius: 3,
-                      color: "var(--text)",
-                    }}
-                  >
-                    <option value="REST">Rest — heal +2%/tick, +5 morale</option>
-                    <option value="FORTIFY">Fortify — +30% def, -50% dmg taken</option>
-                    <option value="PATROL">Patrol — detect raids, +10% speed</option>
-                    <option value="TRAINING">Training — +1 XP/tick</option>
-                    <option value="AMBUSH">Ambush — +40% first-round dmg</option>
-                    <option value="MOBILE">Mobile — moving, no bonuses</option>
-                  </select>
+                  <span style={{
+                    fontSize: 11,
+                    padding: "1px 6px",
+                    borderRadius: 3,
+                    background: bn.garrisonedAt ? "#1a3a5c" : bn.frontId ? "#3a2a0a" : bn.readyAt ? "#4a2020" : "#2a3a2a",
+                    color: bn.garrisonedAt ? "#6ab0ff" : bn.frontId ? "#ffb040" : bn.readyAt ? "#ff6060" : "#60c060",
+                    fontWeight: 600,
+                  }}>
+                    {bn.garrisonedAt ? "Guarding" : bn.frontId ? "On front" : bn.readyAt ? "Resting" : "Idle"}
+                  </span>
                   <span style={{ color: "var(--text-muted)" }}>
                     {bn.size}/{bn.maxSize}
                   </span>
-                  {bn.garrisonedAt ? (
-                    <span style={{ color: "var(--text-muted)" }}>@ {bn.garrisonedAt}</span>
-                  ) : null}
-                  {bn.frontId ? (
-                    <span style={{ color: "#4caf50" }}>Front</span>
-                  ) : null}
-                  {bn.readyAt ? (
-                    <span style={{ color: "#ff9800" }}>Fatigued</span>
-                  ) : null}
                   {bn.xp > 0 ? (
                     <span style={{ color: "#ffd700", fontSize: 11 }}>{bn.xp} XP</span>
                   ) : null}

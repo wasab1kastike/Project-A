@@ -157,7 +157,7 @@ export async function setBattalionStance(args: {
   fortressId: string;
   stance: string;
 }): Promise<void> {
-  const validStances = ["FORTIFY", "PATROL", "TRAINING", "AMBUSH", "REST", "MOBILE"];
+  const validStances = ["FORTIFY", "MOBILE"]; // REST/TRAINING/PATROL/AMBUSH planned for future
   if (!validStances.includes(args.stance)) {
     throw new GameError(`Invalid stance: ${args.stance}`);
   }
