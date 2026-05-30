@@ -29,6 +29,8 @@ import {
   CARRY_CAPACITY_PER_SURVIVOR,
   MAX_POINT_LOOT_PERCENT,
   MAX_FOOD_LOOT_PERCENT,
+  getTotalDefenderArmy,
+  distributeDefenderCasualties,
 } from "./balance";
 
 describe("balance", () => {
@@ -327,6 +329,74 @@ describe("balance", () => {
         defenderFood: 0,
       });
       assert.ok(vsDwarf.defensePower > vsNeutral.defensePower);
+    });
+  });
+
+  describe("getTotalDefenderArmy", () => {
+    it("sums fortress, guard, and garrison army", () => {
+      const total = getTotalDefenderArmy({
+        fortressArmy: 100,
+        guardArmy: 50,
+        garrisonArmy: 30,
+      });
+      assert.equal(total, 180);
+    });
+    it("handles zero values", () => {
+      assert.equal(getTotalDefenderArmy({ fortressArmy: 0, guardArmy: 0, garrisonArmy: 0 }), 0);
+      assert.equal(getTotalDefenderArmy({ fortressArmy: 100, guardArmy: 0, garrisonArmy: 0 }), 100);
+    });
+    it("floors non-integer inputs", () => {
+      const total = getTotalDefenderArmy({
+        fortressArmy: 100.7,
+        guardArmy: 50.2,
+        garrisonArmy: 30.9,
+      });
+      assert.equal(total, 180);
+    });
+  });
+
+  describe("distributeDefenderCasualties", () => {
+    it("guards take casualties first, then garrisons, then fortress", () => {
+      const result = distributeDefenderCasualties({
+        fortressArmy: 100,
+        guardArmy: 50,
+        garrisonArmy: 30,
+        totalLosses: 60,
+      });
+      assert.equal(result.guardLosses, 50);
+      assert.equal(result.garrisonLosses, 10);
+      assert.equal(result.fortressLosses, 0);
+    });
+    it("all losses contained within guards when small", () => {
+      const result = distributeDefenderCasualties({
+        fortressArmy: 100,
+        guardArmy: 50,
+        garrisonArmy: 0,
+        totalLosses: 30,
+      });
+      assert.equal(result.guardLosses, 30);
+      assert.equal(result.garrisonLosses, 0);
+      assert.equal(result.fortressLosses, 0);
+    });
+    it("losses capped at total defender army", () => {
+      const result = distributeDefenderCasualties({
+        fortressArmy: 10,
+        guardArmy: 5,
+        garrisonArmy: 2,
+        totalLosses: 100,
+      });
+      assert.equal(result.guardLosses + result.garrisonLosses + result.fortressLosses, 17);
+    });
+    it("zero losses returns all zeros", () => {
+      const result = distributeDefenderCasualties({
+        fortressArmy: 100,
+        guardArmy: 50,
+        garrisonArmy: 30,
+        totalLosses: 0,
+      });
+      assert.equal(result.guardLosses, 0);
+      assert.equal(result.garrisonLosses, 0);
+      assert.equal(result.fortressLosses, 0);
     });
   });
 });
