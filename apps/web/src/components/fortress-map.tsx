@@ -214,6 +214,16 @@ type FortressMapProps = {
     level: number;
     crossings: number;
   }>;
+  battalionMarkers?: Array<{
+    tileId: string;
+    battalionName: string;
+    size: number;
+    maxSize: number;
+    tier: number;
+    stance: string;
+    unitSpriteVariant: string;
+    unitCosmeticVariant: string | null;
+  }>;
   onSelectFortress?: (fortress: MapFortress) => void;
   onConfirmAttackTarget?: (
     fortress: MapFortress,
@@ -968,6 +978,7 @@ export const FortressMap = memo(function FortressMap({
   highlightedTileIds = [],
   alliedRoads = [],
   roadSegments = [],
+  battalionMarkers = [],
   onSelectFortress,
   onConfirmAttackTarget,
   onSelectMapHex,
@@ -1596,6 +1607,47 @@ export const FortressMap = memo(function FortressMap({
                     />
                     <span className={styles.guardCount}>
                       {marker.guardArmy}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+          {battalionMarkers.length > 0 ? (
+            <div className={styles.battalionLayer} aria-label="Battalion units">
+              {battalionMarkers.map((marker) => {
+                const tile = HEX_TILES.find((t) => t.id === marker.tileId);
+                if (!tile) return null;
+                const stanceColors: Record<string, string> = {
+                  FORTIFY: "#4488ff", PATROL: "#44cc44", TRAINING: "#ffcc00",
+                  AMBUSH: "#ff4444", REST: "#888888", MOBILE: "#aaaaaa",
+                };
+                const tierLabels = ["", "I", "II", "III"];
+                return (
+                  <div
+                    key={`bn-${marker.tileId}-${marker.battalionName}`}
+                    className={styles.battalionMarker}
+                    style={{
+                      left: `${tile.xPercent}%`,
+                      top: `${tile.yPercent + 2}%`,
+                    }}
+                    title={`${marker.battalionName} · ${marker.stance} · Tier ${marker.tier} · ${marker.size}/${marker.maxSize}`}
+                  >
+                    <span
+                      className={styles.battalionSprite}
+                      data-variant={marker.unitSpriteVariant}
+                      data-skin={marker.unitCosmeticVariant ?? undefined}
+                      style={getCosmeticSpriteStyle("UNIT", marker.unitCosmeticVariant) ?? undefined}
+                      aria-hidden="true"
+                    />
+                    <span
+                      className={styles.battalionBadge}
+                      style={{ backgroundColor: stanceColors[marker.stance] ?? "#888" }}
+                    >
+                      {tierLabels[marker.tier] ?? "?"}
+                    </span>
+                    <span className={styles.battalionCount}>
+                      {marker.size}
                     </span>
                   </div>
                 );
