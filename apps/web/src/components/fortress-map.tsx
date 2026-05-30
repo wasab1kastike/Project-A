@@ -23,6 +23,7 @@ import {
 import { getAttackTravelMinutes } from "@/lib/game/attacks";
 import { getAttackPresentation } from "@/lib/game/attack-presentation";
 import { getCosmeticSpriteStyle } from "@/lib/game/cosmetic-sprites";
+import { findSimplePath, type PathHexTile } from "@/lib/game/march-pathfinding";
 import type { UnitSpriteVariant } from "@/lib/game/constants";
 import {
   getHomeOfABonus,
@@ -659,6 +660,52 @@ function formatSecondsRemaining(seconds: number) {
   return `${Math.ceil(seconds / 60)}m`;
 }
 
+// ── March Path Interpolation ─────────────────────────────────────────────────
+
+/**
+ * Given a path of tile center points, compute the position at a given progress
+ * (0-1) along the cumulative length of the path.
+ */
+function getPointAlongPath(
+  waypoints: Array<{ x: number; y: number }>,
+  progress: number,
+): { x: number; y: number } {
+  if (waypoints.length === 0) return { x: 0, y: 0 };
+  if (waypoints.length === 1) return waypoints[0];
+
+  const clamped = Math.max(0, Math.min(1, progress));
+
+  // Calculate segment lengths.
+  const segments: { from: Point; to: Point; length: number }[] = [];
+  let totalLength = 0;
+  for (let i = 0; i < waypoints.length - 1; i++) {
+    const dx = waypoints[i + 1].x - waypoints[i].x;
+    const dy = waypoints[i + 1].y - waypoints[i].y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    segments.push({ from: waypoints[i], to: waypoints[i + 1], length: len });
+    totalLength += len;
+  }
+
+  if (totalLength <= 0) return waypoints[0];
+
+  const targetDist = clamped * totalLength;
+  let accumulated = 0;
+  for (const seg of segments) {
+    if (accumulated + seg.length >= targetDist) {
+      const segProgress = (targetDist - accumulated) / seg.length;
+      return {
+        x: seg.from.x + (seg.to.x - seg.from.x) * segProgress,
+        y: seg.from.y + (seg.to.y - seg.from.y) * segProgress,
+      };
+    }
+    accumulated += seg.length;
+  }
+
+  return waypoints[waypoints.length - 1];
+}
+
+// ── Attack Units Layer ───────────────────────────────────────────────────────
+
 function AttackUnitsLayer({
   attackUnits,
   onRecallAttackUnit,
@@ -721,17 +768,90 @@ function AttackUnitsLayer({
           nowMs
         );
         const progress = presentation.progress;
-        const currentPoint = getInterpolatedPoint(origin, target, progress);
+
+        // Compute tile-by-tile march path.
+        const hexLookup = new Map(
+          HEX_TILES.map((t) => [t.id, { id: t.id, col: t.col, row: t.row }]),
+        );
+        const startTile = hexLookup.get(
+          `${Math.round(origin.x / (MAP_WORLD_WIDTH / 100))},${Math.round(origin.y / (MAP_WORLD_HEIGHT / 100))}`,
+        );
+        const endTile = hexLookup.get(
+          `${Math.round(target.x / (MAP_WORLD_WIDTH / 100))},${Math.round(target.y / (MAP_WORLD_HEIGHT / 100))}`,
+        );
+
+        // Build path waypoints in % coordinates.
+        let waypoints: Array<{ x: number; y: number }> = [origin, target];
+        if (startTile && endTile) {
+          const tilePath = findSimplePath(startTile, endTile, hexLookup);
+          if (tilePath) {
+            waypoints = tilePath.map((tileId) => {
+              const tile = HEX_TILES.find((t) => t.id === tileId);
+              return tile ? { x: tile.xPercent, y: tile.yPercent } : origin;
+            });
+          }
+        }
+
+        const currentPoint = getPointAlongPath(waypoints, progress);
         const secondsRemaining = Math.max(
           0,
           Math.ceil((new Date(unit.arrivesAt).getTime() - nowMs) / 1000)
         );
-        const anchorPoint = presentation.isImpacting ? target : currentPoint;
+        const anchorPoint = presentation.isImpacting ? (waypoints[waypoints.length - 1] ?? target) : currentPoint;
         const selected = selectedUnitId === unit.id;
         const statusText = isReturning ? "returning home" : "on the way";
 
+        // Path line color based on context.
+        const pathColor = isReturning ? "#4da6ff" : "#ff8c42";
+        const pathDasharray = isReturning ? "4 3" : "4 2";
+
         return (
           <Fragment key={unit.id}>
+            {/* March path line */}
+            {waypoints.length > 1 && presentation.showSprite ? (
+              <svg
+                className={styles.marchPathSvg}
+                viewBox={`0 0 100 100`}
+                preserveAspectRatio="none"
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  width: "100%",
+                  height: "100%",
+                  pointerEvents: "none",
+                  zIndex: 0,
+                }}
+              >
+                {/* Completed portion (solid) */}
+                <polyline
+                  points={waypoints
+                    .slice(0, Math.ceil(waypoints.length * progress) + 1)
+                    .map((p) => `${p.x},${p.y}`)
+                    .join(" ")}
+                  fill="none"
+                  stroke={pathColor}
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  opacity="0.6"
+                />
+                {/* Remaining portion (dashed) */}
+                <polyline
+                  points={waypoints
+                    .slice(Math.floor(waypoints.length * progress))
+                    .map((p) => `${p.x},${p.y}`)
+                    .join(" ")}
+                  fill="none"
+                  stroke={pathColor}
+                  strokeWidth="1"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeDasharray={pathDasharray}
+                  opacity="0.35"
+                />
+              </svg>
+            ) : null}
             <button
               type="button"
               className={`${styles.attackUnit} ${
