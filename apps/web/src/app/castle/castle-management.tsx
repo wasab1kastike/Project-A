@@ -333,7 +333,7 @@ type CommandTarget = {
 };
 
 type BuildingSpecialization = "POINTS" | "FOOD" | "MILITARY" | "DEFENSE";
-type CastleTab = "OVERVIEW" | "ECONOMY" | "OPERATIONS" | "SKILLS" | "SHOP";
+type CastleTab = "OVERVIEW" | "ECONOMY" | "WAR_ROOM" | "SKILLS" | "SHOP";
 type WorkerAssignmentKey =
   | "minersAssigned"
   | "farmersAssigned"
@@ -474,7 +474,7 @@ const RACE_TIER_THRESHOLDS_LABEL = "Tier 1/2/3 at 3/6/9 matching tiles";
 const CASTLE_TABS = [
   { key: "OVERVIEW", label: "Overview" },
   { key: "ECONOMY", label: "Economy" },
-  { key: "OPERATIONS", label: "Operations" },
+  { key: "WAR_ROOM", label: "War Room" },
   { key: "SKILLS", label: "Skills" },
   { key: "SHOP", label: "Shop" },
 ] as const satisfies readonly { key: CastleTab; label: string }[];
@@ -1402,8 +1402,63 @@ export function CastleManagement({
         </>
       ) : null}
 
-      {activeTab === "OPERATIONS" ? (
+      {activeTab === "WAR_ROOM" ? (
         <>
+      {/* Active Fronts */}
+      <section className={styles.panel}>
+        <div className={styles.panelHeader}>
+          <span>Active Fronts</span>
+          <strong>
+            {playerSummary.operationsSummary?.activeOrderCount ?? 0} active orders
+          </strong>
+        </div>
+        <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4 }}>
+          Assign battalions to war fronts from the battlefield map. Use the
+          tile priority markers to guide automatic advances.
+        </p>
+        <dl className={styles.readinessGrid}>
+          <div>
+            <dt>Army committed</dt>
+            <dd>
+              {playerSummary.operationsSummary?.committedArmy ?? 0}
+            </dd>
+          </div>
+          <div>
+            <dt>Available army</dt>
+            <dd>{playerSummary.army}</dd>
+          </div>
+          <div>
+            <dt>Recruiters assigned</dt>
+            <dd>{playerSummary.recruitersAssigned ?? 0}</dd>
+          </div>
+        </dl>
+        {playerSummary.operationsSummary?.campaigns &&
+        playerSummary.operationsSummary.campaigns.length > 0 ? (
+          <ul style={{ listStyle: "none", padding: 0, margin: "8px 0 0" }}>
+            {playerSummary.operationsSummary.campaigns.map((campaign) => (
+              <li
+                key={campaign.tileId}
+                style={{
+                  padding: "6px 8px",
+                  background: "var(--bg-raised)",
+                  borderRadius: 4,
+                  marginBottom: 4,
+                  fontSize: 13,
+                  display: "flex",
+                  justifyContent: "space-between",
+                }}
+              >
+                <span>Campaign on {campaign.tileId}</span>
+                <span style={{ color: "var(--text-muted)", fontSize: 12 }}>
+                  {campaign.committedArmy} army · {campaign.status}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </section>
+
+      {/* Recruitment */}
       <section className={styles.panel}>
         <div className={styles.panelHeader}>
           <span>Recruitment</span>
