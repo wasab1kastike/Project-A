@@ -2132,6 +2132,7 @@ export async function createBattalionAction(args: {
 export async function expandBattalionAction(args: {
   battalionId: string;
   fortressId: string;
+  targetMaxSize: number;
   availableGold: number;
 }): Promise<InlineActionResult> {
   const session = await auth();
@@ -2176,6 +2177,59 @@ export async function setBattalionStanceAction(args: {
     const { setBattalionStance } = await import("@/lib/game/battalion-service");
     await setBattalionStance({ userId, ...args });
     notifyAndRevalidate("battalion-stance", GAMEPLAY_REVALIDATE_PATHS);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: getActionErrorMessage(error) };
+  }
+}
+
+export async function promoteBattalionAction(args: {
+  battalionId: string;
+  fortressId: string;
+  currentTier: number;
+  size: number;
+  maxSize: number;
+  xp: number;
+  readyAt: number | null;
+  stance: string;
+  garrisonedAt: string | null;
+}): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) return { ok: false, error: "Sign in to manage battalions." };
+
+  try {
+    const { applyFieldPromotion } = await import("@/lib/game/army-xp");
+    const { prisma } = await import("@/lib/prisma");
+
+    const bn = {
+      id: args.battalionId,
+      name: "",
+      size: args.size,
+      maxSize: args.maxSize,
+      tier: args.currentTier as 0 | 1 | 2,
+      xp: args.xp,
+      readyAt: args.readyAt,
+      stance: args.stance as any,
+      garrisonedAt: args.garrisonedAt,
+      stanceLockedUntil: null,
+    };
+
+    const result = applyFieldPromotion(bn);
+    if (!result) return { ok: false, error: "Cannot promote this battalion." };
+
+    await prisma.$transaction(async (tx) => {
+      await tx.battalion.update({
+        where: { id: args.battalionId },
+        data: { tier: result.newTier, xp: 0 },
+      });
+      await tx.fortress.update({
+        where: { id: args.fortressId },
+        data: { gold: { decrement: result.goldCost } },
+      });
+    });
+
+    notifyAndRevalidate("battalion-promoted", GAMEPLAY_REVALIDATE_PATHS);
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };

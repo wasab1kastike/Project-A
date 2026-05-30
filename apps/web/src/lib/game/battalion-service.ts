@@ -67,6 +67,7 @@ export async function expandBattalion(args: {
   userId: string;
   battalionId: string;
   fortressId: string;
+  targetMaxSize: number;
   availableGold: number;
 }): Promise<void> {
   const battalion = await prisma.battalion.findFirst({
@@ -77,22 +78,33 @@ export async function expandBattalion(args: {
     throw new GameError("Battalion not found.");
   }
 
-  if (battalion.maxSize >= MAX_BATTALION_SIZE) {
-    throw new GameError("Battalion is already at maximum size.");
+  const targetSize = Math.max(
+    battalion.maxSize,
+    Math.min(args.targetMaxSize, MAX_BATTALION_SIZE),
+  );
+
+  if (targetSize <= battalion.maxSize) {
+    throw new GameError("New max size must be larger than current.");
   }
 
-  if (args.availableGold < BATTALION_EXPAND_COST_PER_50) {
+  const increment = targetSize - battalion.maxSize;
+  const cost = Math.ceil((increment / 50) * BATTALION_EXPAND_COST_PER_50);
+
+  if (args.availableGold < cost) {
     throw new GameError(
-      `Expanding battalion costs ${BATTALION_EXPAND_COST_PER_50} gold.`,
+      `Expanding to ${targetSize} costs ${cost} gold (you have ${args.availableGold}).`,
     );
   }
 
   await prisma.$transaction(async (tx) => {
     await tx.battalion.update({
       where: { id: args.battalionId },
-      data: {
-        maxSize: Math.min(battalion.maxSize + 50, MAX_BATTALION_SIZE),
-      },
+      data: { maxSize: targetSize },
+    });
+
+    await tx.fortress.update({
+      where: { id: args.fortressId },
+      data: { gold: { decrement: cost } },
     });
 
     await tx.fortress.update({
