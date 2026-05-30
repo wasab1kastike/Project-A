@@ -77,6 +77,7 @@ export async function processAutoWarDispatch(args: {
   // Find fortresses at war.
   const warPairs = diplomacyRelations.filter((r) => r.status === "WAR");
 
+  console.log(`[auto-war] found ${warPairs.length} war pairs, ${activeCampaigns.length} active campaigns`);
   if (warPairs.length === 0) return;
 
   // Build lookup: fortress ID → owned tiles
@@ -210,6 +211,9 @@ export async function processAutoWarDispatch(args: {
               progress: 0,
             },
           });
+          console.log(
+            `[auto-war] ${attacker.id} → ${defender.id}: dispatched ${cappedAmount} army to ${target.tileId} (front ${front.id}, aggression ${aggression})`,
+          );
         });
       } catch (_err) {
         // Campaign creation may fail if one already exists — that's fine.
