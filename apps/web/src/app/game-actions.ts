@@ -2104,3 +2104,205 @@ export async function purchaseSkillNodeAction(
     return { ok: false, error: getActionErrorMessage(error) };
   }
 }
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Battalion & War Front Actions (Season 4)
+// ═════════════════════════════════════════════════════════════════════════════
+
+export async function createBattalionAction(args: {
+  cycleId: string;
+  fortressId: string;
+  race?: string | null;
+  fortressLevel: number;
+  existingBattalionCount: number;
+}): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) return { ok: false, error: "Sign in to manage battalions." };
+  try {
+    const { createBattalion } = await import("@/lib/game/battalion-service");
+    await createBattalion({ userId, ...args });
+    notifyAndRevalidate("battalion-created", GAMEPLAY_REVALIDATE_PATHS);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: getActionErrorMessage(error) };
+  }
+}
+
+export async function expandBattalionAction(args: {
+  battalionId: string;
+  fortressId: string;
+  availableGold: number;
+}): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) return { ok: false, error: "Sign in to manage battalions." };
+  try {
+    const { expandBattalion } = await import("@/lib/game/battalion-service");
+    await expandBattalion({ userId, ...args });
+    notifyAndRevalidate("battalion-expanded", GAMEPLAY_REVALIDATE_PATHS);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: getActionErrorMessage(error) };
+  }
+}
+
+export async function disbandBattalionAction(args: {
+  battalionId: string;
+  fortressId: string;
+}): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) return { ok: false, error: "Sign in to manage battalions." };
+  try {
+    const { disbandBattalion } = await import("@/lib/game/battalion-service");
+    await disbandBattalion({ userId, ...args });
+    notifyAndRevalidate("battalion-disbanded", GAMEPLAY_REVALIDATE_PATHS);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: getActionErrorMessage(error) };
+  }
+}
+
+export async function setBattalionStanceAction(args: {
+  battalionId: string;
+  fortressId: string;
+  stance: string;
+}): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) return { ok: false, error: "Sign in to manage battalions." };
+  try {
+    const { setBattalionStance } = await import("@/lib/game/battalion-service");
+    await setBattalionStance({ userId, ...args });
+    notifyAndRevalidate("battalion-stance", GAMEPLAY_REVALIDATE_PATHS);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: getActionErrorMessage(error) };
+  }
+}
+
+export async function setGuardPercentAction(args: {
+  cycleId: string;
+  fortressId: string;
+  guardPercent: number;
+}): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) return { ok: false, error: "Sign in to adjust guard settings." };
+  try {
+    const { setGuardPercent } = await import("@/lib/game/battalion-service");
+    await setGuardPercent({ userId, ...args });
+    notifyAndRevalidate("guard-percent", GAMEPLAY_REVALIDATE_PATHS);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: getActionErrorMessage(error) };
+  }
+}
+
+export async function setMaxArmySizeAction(args: {
+  cycleId: string;
+  fortressId: string;
+  maxArmySize: number;
+}): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) return { ok: false, error: "Sign in to adjust army settings." };
+  try {
+    const { setMaxArmySize } = await import("@/lib/game/battalion-service");
+    await setMaxArmySize({ userId, ...args });
+    notifyAndRevalidate("max-army-size", GAMEPLAY_REVALIDATE_PATHS);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: getActionErrorMessage(error) };
+  }
+}
+
+export async function createWarFrontAction(args: {
+  cycleId: string;
+  attackerFortressId: string;
+  enemyFortressId: string;
+}): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) return { ok: false, error: "Sign in to manage war fronts." };
+  try {
+    const { createWarFront } = await import("@/lib/game/battalion-service");
+    await createWarFront({ userId, ...args });
+    notifyAndRevalidate("war-front-created", GAMEPLAY_REVALIDATE_PATHS);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: getActionErrorMessage(error) };
+  }
+}
+
+export async function assignBattalionToFrontAction(args: {
+  battalionId: string;
+  frontId: string;
+  fortressId: string;
+}): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) return { ok: false, error: "Sign in to manage war fronts." };
+  try {
+    const { assignBattalionToFront } = await import("@/lib/game/battalion-service");
+    await assignBattalionToFront({ userId, ...args });
+    notifyAndRevalidate("battalion-assigned", GAMEPLAY_REVALIDATE_PATHS);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: getActionErrorMessage(error) };
+  }
+}
+
+export async function removeBattalionFromFrontAction(args: {
+  battalionId: string;
+  frontId: string;
+  fortressId: string;
+}): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) return { ok: false, error: "Sign in to manage war fronts." };
+  try {
+    const { removeBattalionFromFront } = await import("@/lib/game/battalion-service");
+    await removeBattalionFromFront({ userId, ...args });
+    notifyAndRevalidate("battalion-removed", GAMEPLAY_REVALIDATE_PATHS);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: getActionErrorMessage(error) };
+  }
+}
+
+export async function setFrontAggressionAction(args: {
+  frontId: string;
+  fortressId: string;
+  aggression: string;
+}): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) return { ok: false, error: "Sign in to manage war fronts." };
+  try {
+    const { setFrontAggression } = await import("@/lib/game/battalion-service");
+    await setFrontAggression({ userId, ...args });
+    notifyAndRevalidate("front-aggression", GAMEPLAY_REVALIDATE_PATHS);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: getActionErrorMessage(error) };
+  }
+}
+
+export async function retreatFrontAction(args: {
+  frontId: string;
+  fortressId: string;
+}): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) return { ok: false, error: "Sign in to manage war fronts." };
+  try {
+    const { retreatFront } = await import("@/lib/game/battalion-service");
+    await retreatFront({ userId, ...args });
+    notifyAndRevalidate("front-retreated", GAMEPLAY_REVALIDATE_PATHS);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: getActionErrorMessage(error) };
+  }
+}
