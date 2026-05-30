@@ -138,13 +138,83 @@ export async function processAutoWarDispatch(args: {
     const target = selectNextTarget(reachableTargets);
     if (!target) continue;
 
-    // Dispatch: create a campaign. The actual campaign creation is handled
-    // by processSeasonFourCampaigns; here we create the army order that
-    // will be picked up by the campaign system.
-    // (Full implementation requires DB writes — this is a hook point.)
+    // Load war fronts for this attacker (both ADVANCING and STALLED).
+    const activeFronts = await db.warFront.findMany({
+      where: {
+        cycleId,
+        attackerFortressId: attacker.id,
+        enemyFortressId: defender.id,
+        status: "ADVANCING",
+      },
+      include: {
+        battalionAssignments: {
+          include: { battalion: { select: { id: true, size: true } } },
+        },
+      },
+    });
+    const stalledFronts = await db.warFront.findMany({
+      where: {
+        cycleId,
+        attackerFortressId: attacker.id,
+        enemyFortressId: defender.id,
+        status: "STALLED",
+      },
+      include: {
+        battalionAssignments: {
+          include: { battalion: { select: { id: true, size: true } } },
+        },
+      },
+    });
+    const fronts = [...activeFronts, ...stalledFronts];
 
-    // For now, log auto-war activity (non-blocking).
-    // In production, this would call createCampaignOrder() or similar.
+    for (const front of fronts) {
+      // Get aggression from front.
+      const aggression = (front.aggression as AggressionStance) ?? "BALANCED";
+      const rate = AGGRESSION_STANCE_COMMITMENT[aggression];
+
+      const battalionIds = front.battalionAssignments.map((a) => a.battalionId);
+      const battalions = await db.battalion.findMany({
+        where: { id: { in: battalionIds }, size: { gt: 0 } },
+        select: { id: true, size: true },
+      });
+
+      const totalAvailable = battalions.reduce((s, b) => s + b.size, 0);
+      if (totalAvailable <= 0) continue;
+
+      const commitAmount = Math.max(1, Math.floor(totalAvailable * rate));
+      const cappedAmount = Math.min(commitAmount, Math.max(10, defender.army * 2));
+
+      // Create campaign army order.
+      try {
+        await db.$transaction(async (tx) => {
+          const order = await tx.armyOrder.create({
+            data: {
+              cycleId,
+              fortressId: attacker.id,
+              type: "CAMPAIGN",
+              status: "ACTIVE",
+              committedArmy: cappedAmount,
+              targetTileId: target.tileId,
+              targetFortressId: defender.id,
+              startsAt: now,
+            },
+          });
+          await tx.territoryCampaign.create({
+            data: {
+              cycleId,
+              attackerFortressId: attacker.id,
+              defenderFortressId: defender.id,
+              targetTileId: target.tileId,
+              armyOrderId: order.id,
+              status: "BUILDING",
+              progress: 0,
+            },
+          });
+        });
+      } catch (_err) {
+        // Campaign creation may fail if one already exists — that's fine.
+      }
+    }
   }
 }
 
