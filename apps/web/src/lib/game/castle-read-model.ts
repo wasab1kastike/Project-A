@@ -373,6 +373,11 @@ export async function getCastlePageState({
               readyAt: true,
               stance: true,
               garrisonedAt: true,
+              assignments: {
+                select: {
+                  frontId: true,
+                },
+              },
             },
           },
           warPolicies: {
@@ -381,6 +386,15 @@ export async function getCastlePageState({
               maxArmySize: true,
               guardPercent: true,
               defaultAggression: true,
+            },
+          },
+          warFronts: {
+            select: {
+              id: true,
+              attackerFortressId: true,
+              enemyFortressId: true,
+              status: true,
+              aggression: true,
             },
           },
           unicornDecoySourceFortress: {
@@ -1416,6 +1430,7 @@ export async function getCastlePageState({
             readyAt: b.readyAt?.getTime() ?? null,
             stance: b.stance,
             garrisonedAt: b.garrisonedAt,
+            frontId: b.assignments?.[0]?.frontId ?? null,
           })),
           warPolicy: playerFortress?.warPolicies?.[0]
             ? {
@@ -1424,6 +1439,13 @@ export async function getCastlePageState({
                 defaultAggression: playerFortress.warPolicies[0].defaultAggression,
               }
             : null,
+          warFronts: (playerFortress?.warFronts ?? []).map((f) => ({
+            id: f.id,
+            attackerFortressId: f.attackerFortressId,
+            enemyFortressId: f.enemyFortressId,
+            status: f.status,
+            aggression: f.aggression,
+          })),
           skillPurchases: playerFortress?.skillPurchases ?? [],
           skillPointsEarned: getEarnedSkillPoints({
             level: playerFortress?.level ?? 1,

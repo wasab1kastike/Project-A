@@ -338,12 +338,20 @@ type PlayerSummary = {
     readyAt: number | null;
     stance: string;
     garrisonedAt: string | null;
+    frontId: string | null;
   }>;
   warPolicy: {
     maxArmySize: number;
     guardPercent: number;
     defaultAggression: string;
   } | null;
+  warFronts: Array<{
+    id: string;
+    attackerFortressId: string;
+    enemyFortressId: string;
+    status: string;
+    aggression: string;
+  }>;
   skillPurchases: Array<{ nodeKey: string }>;
   skillPointsEarned: number;
 };
@@ -1512,6 +1520,9 @@ export function CastleManagement({
                   {bn.garrisonedAt ? (
                     <span style={{ color: "var(--text-muted)" }}>@ {bn.garrisonedAt}</span>
                   ) : null}
+                  {bn.frontId ? (
+                    <span style={{ color: "#4caf50" }}>Front</span>
+                  ) : null}
                   {bn.readyAt ? (
                     <span style={{ color: "#ff9800" }}>Fatigued</span>
                   ) : null}
@@ -1522,6 +1533,77 @@ export function CastleManagement({
         ) : (
           <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
             No battalions. Commission one to get started.
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={handleCreateBattalion}
+          disabled={battalionPending}
+          style={{
+            marginTop: 8,
+            padding: "6px 12px",
+            fontSize: 13,
+            background: "var(--color-accent, #48f)",
+            color: "#fff",
+            border: "none",
+            borderRadius: 4,
+            cursor: "pointer",
+            width: "100%",
+          }}
+        >
+          {battalionPending ? "Commissioning..." : "Commission Battalion"}
+        </button>
+      </section>
+
+      {/* War Fronts */}
+      <section className={styles.panel}>
+        <div className={styles.panelHeader}>
+          <span>War Fronts</span>
+          <strong>
+            {playerSummary.warFronts?.filter((f) => f.status === "ADVANCING" || f.status === "STALLED").length ?? 0} active
+          </strong>
+        </div>
+        {playerSummary.warFronts && playerSummary.warFronts.length > 0 ? (
+          <ul style={{ listStyle: "none", padding: 0, margin: "8px 0 0" }}>
+            {playerSummary.warFronts.map((front) => {
+              const frontBattalions = playerSummary.battalions?.filter(
+                (b) => b.frontId === front.id,
+              ) ?? [];
+              return (
+                <li
+                  key={front.id}
+                  style={{
+                    padding: "8px 10px",
+                    background: "var(--bg-raised)",
+                    borderRadius: 6,
+                    marginBottom: 6,
+                    fontSize: 13,
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                    <strong style={{ color: front.status === "ADVANCING" ? "#4caf50" : front.status === "STALLED" ? "#ff9800" : "#888" }}>
+                      vs. {front.enemyFortressId}
+                    </strong>
+                    <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                      {front.status} · {front.aggression}
+                    </span>
+                  </div>
+                  {frontBattalions.length > 0 ? (
+                    <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                      {frontBattalions.map((b) => `${b.name} (${b.size})`).join(", ")}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                      No battalions assigned.
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
+            No active war fronts. Declare war and open a front from the battlefield.
           </p>
         )}
       </section>
