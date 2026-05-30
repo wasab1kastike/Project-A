@@ -807,6 +807,38 @@ export async function getHomePageState({
           lastUsedAt: true,
         },
       },
+      battalions: {
+        select: {
+          id: true,
+          fortressId: true,
+          name: true,
+          size: true,
+          maxSize: true,
+          tier: true,
+          xp: true,
+          readyAt: true,
+          stance: true,
+          garrisonedAt: true,
+        },
+      },
+      warFronts: {
+        select: {
+          id: true,
+          attackerFortressId: true,
+          enemyFortressId: true,
+          status: true,
+          aggression: true,
+        },
+      },
+      warPolicies: {
+        select: {
+          id: true,
+          fortressId: true,
+          maxArmySize: true,
+          guardPercent: true,
+          defaultAggression: true,
+        },
+      },
       tilePressurePriorities: {
         select: {
           id: true,
@@ -4015,5 +4047,31 @@ export async function getHomePageState({
     incomingOfferCount,
     incidentCount,
     recallableOrderCount,
+    battalions: (cycle.battalions ?? []).map((b) => ({
+      id: b.id,
+      fortressId: b.fortressId,
+      name: b.name,
+      size: b.size,
+      maxSize: b.maxSize,
+      tier: b.tier,
+      xp: b.xp,
+      readyAt: b.readyAt?.getTime() ?? null,
+      stance: b.stance,
+      garrisonedAt: b.garrisonedAt,
+    })),
+    warFronts: (cycle.warFronts ?? []).map((f) => ({
+      id: f.id,
+      attackerFortressId: f.attackerFortressId,
+      enemyFortressId: f.enemyFortressId,
+      status: f.status,
+      aggression: f.aggression,
+    })),
+    warPolicies: (cycle.warPolicies ?? []).map((p) => ({
+      id: p.id,
+      fortressId: p.fortressId,
+      maxArmySize: p.maxArmySize,
+      guardPercent: p.guardPercent,
+      defaultAggression: p.defaultAggression,
+    })),
   };
 }
