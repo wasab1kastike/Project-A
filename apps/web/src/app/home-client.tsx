@@ -493,6 +493,13 @@ function HomeClientContent({
               variant="compact"
             />
           ) : null}
+          <Link
+            href="/wiki"
+            className={styles.headerLink}
+            style={{ fontSize: "0.8rem", color: "var(--text-muted)", textDecoration: "none" }}
+          >
+            Wiki
+          </Link>
         </nav>
       </header>
       ) : null}
