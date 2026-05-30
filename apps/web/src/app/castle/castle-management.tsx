@@ -1571,6 +1571,7 @@ export function CastleManagement({
                   <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Max:</span>
                   <input
                     type="number"
+                    key={`${bn.id}-${bn.maxSize}`}
                     min={bn.size}
                     max={300}
                     step={10}
