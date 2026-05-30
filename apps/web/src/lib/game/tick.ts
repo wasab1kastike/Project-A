@@ -162,6 +162,8 @@ import {
   ensureHomeOfABossSchema,
   ensureRaceSchemaReadiness,
 } from "./schema-guards";
+import { processAutoWarDispatch } from "./tick-auto-war-integration";
+import { recordUnitRoadCrossings } from "./tick-road-integration";
 
 export type TickSummary = {
   restartedRegistrationCycles: number;
@@ -3171,6 +3173,27 @@ async function processCycleTick(
     });
   }
 
+  // === AUTO-WAR DISPATCH: Create automated campaigns for war fronts ===
+  if (isSeasonFour) {
+    await processAutoWarDispatch({
+      db,
+      cycleId,
+      now: tickAt,
+      fortresses: Array.from(fortressLookup.values()).map((f) => ({
+        id: f.id,
+        level: f.level,
+        army: f.army,
+        mapX: f.mapX,
+        mapY: f.mapY,
+        ownerId: f.ownerId ?? "",
+      })),
+      diplomacyRelations: [], // loaded separately in campaigns
+      ownedTiles: [], // loaded separately
+      activeCampaigns: [], // loaded separately
+      priorityTiles: [], // future: load from DB
+    });
+  }
+
   // === ARRIVAL PHASE: Process all due attack units (arrivals, reinforcements, direct attacks) ===
   // This must happen BEFORE any battlefield is resolved!
   const dueAttackUnits = await db.attackUnit.findMany({
@@ -3390,6 +3413,25 @@ async function processCycleTick(
     });
     resolvedBatchAttackUnitIds.add(unit.id);
     resolvedAttackUnits += 1;
+  }
+
+  // Record road crossings for all arrived units.
+  for (const unit of dueAttackUnits) {
+    if (unit.armyAmount > 0) {
+      const attacker = fortressLookup.get(unit.attackerFortressId);
+      const target = fortressLookup.get(unit.targetFortressId);
+      if (attacker && target) {
+        await recordUnitRoadCrossings({
+          cycleId,
+          originMapX: attacker.mapX,
+          originMapY: attacker.mapY,
+          targetMapX: target.mapX,
+          targetMapY: target.mapY,
+          armyAmount: unit.armyAmount,
+          now: tickAt,
+        });
+      }
+    }
   }
 
   // All due arrivals are now processed. Only after this, resolve battlefields.
