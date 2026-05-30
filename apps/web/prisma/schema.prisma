@@ -359,6 +359,9 @@ model Cycle {
   buildArcadeRuns                BuildArcadeRun[]
   arcadeTransactions             ArcadeTransaction[]
   fortressGarrisons              FortressGarrison[]
+  battalions                     Battalion[]
+  warFronts                      WarFront[]
+  warPolicies                    WarPolicy[]
   homeOfABossDamageContributions HomeOfABossDamageContribution[]
   history                        CycleHistory?
 
@@ -468,6 +471,9 @@ model Fortress {
   unicornShatteredRealityRolls   UnicornShatteredRealityRoll[]
   garrisons                      FortressGarrison[]
   skillPurchases                 RaceSkillPurchase[]
+  battalions                     Battalion[]
+  warPolicies                    WarPolicy[]
+  warFronts                      WarFront[] @relation("WarFrontAttacker")
 
   @@unique([cycleId, ownerId])
   @@unique([cycleId, commanderName])
@@ -1378,4 +1384,74 @@ model FortressGarrison {
   @@unique([battlefieldId, fortressId])
   @@index([cycleId, tileId])
   @@index([fortressId, cycleId])
+}
+
+model Battalion {
+  id                String    @id @default(cuid())
+  cycleId           String
+  fortressId        String
+  name              String
+  size              Int       @default(0)
+  maxSize           Int       @default(100)
+  tier              Int       @default(0) // 0=RECRUIT, 1=REGULAR, 2=VETERAN, 3=ELITE
+  xp                Int       @default(0)
+  readyAt           DateTime?
+  stance            String    @default("REST") // FORTIFY, PATROL, TRAINING, AMBUSH, REST, MOBILE
+  garrisonedAt      String?   // tileId if stationed
+  stanceLockedUntil DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  cycle             Cycle     @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress          Fortress  @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+  assignments       BattalionAssignment[]
+
+  @@unique([cycleId, fortressId, name])
+  @@index([cycleId, fortressId])
+  @@index([garrisonedAt])
+}
+
+model WarFront {
+  id                 String   @id @default(cuid())
+  cycleId            String
+  attackerFortressId String
+  enemyFortressId    String
+  status             String   @default("ADVANCING") // ADVANCING, STALLED, VICTORIOUS, DEFEATED, RETREATING
+  aggression         String   @default("BALANCED") // CAUTIOUS, BALANCED, AGGRESSIVE
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  cycle                Cycle              @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  attackerFortress     Fortress           @relation("WarFrontAttacker", fields: [attackerFortressId], references: [id], onDelete: Cascade)
+  battalionAssignments BattalionAssignment[]
+
+  @@unique([cycleId, attackerFortressId, enemyFortressId])
+  @@index([cycleId, attackerFortressId])
+}
+
+model BattalionAssignment {
+  id          String   @id @default(cuid())
+  battalionId String
+  frontId     String
+  createdAt   DateTime @default(now())
+  battalion   Battalion @relation(fields: [battalionId], references: [id], onDelete: Cascade)
+  front       WarFront  @relation(fields: [frontId], references: [id], onDelete: Cascade)
+
+  @@unique([battalionId])
+  @@unique([battalionId, frontId])
+  @@index([frontId])
+}
+
+model WarPolicy {
+  id                  String   @id @default(cuid())
+  cycleId             String
+  fortressId          String
+  maxArmySize         Int      @default(500)
+  guardPercent        Int      @default(30)
+  defaultAggression   String   @default("BALANCED")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  cycle               Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress            Fortress @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+
+  @@unique([cycleId, fortressId])
+  @@index([cycleId])
 }
