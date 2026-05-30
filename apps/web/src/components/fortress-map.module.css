@@ -1323,17 +1323,23 @@
 .battalionMarker {
   position: absolute;
   transform: translate(-50%, -50%);
-  width: 28px;
-  height: 28px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
+  animation: battalionIdle 3s ease-in-out infinite;
+}
+
+@keyframes battalionIdle {
+  0%, 100% { transform: translate(-50%, -50%) translateY(0); }
+  50% { transform: translate(-50%, -50%) translateY(-3px); }
 }
 
 .battalionSprite {
   display: block;
-  width: 22px;
-  height: 22px;
+  width: 32px;
+  height: 32px;
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
@@ -1349,12 +1355,12 @@
 
 .battalionBadge {
   position: absolute;
-  top: -4px;
-  left: -4px;
-  width: 14px;
-  height: 14px;
+  top: -2px;
+  left: -2px;
+  width: 16px;
+  height: 16px;
   border-radius: 999px;
-  font-size: 0.45rem;
+  font-size: 0.5rem;
   font-weight: 700;
   color: #fff;
   display: flex;
@@ -1367,14 +1373,14 @@
   position: absolute;
   right: -6px;
   bottom: -2px;
-  min-width: 16px;
-  height: 14px;
+  min-width: 18px;
+  height: 15px;
   padding: 0 4px;
   border-radius: 999px;
   background: rgba(12, 18, 28, 0.88);
   color: #fff5cf;
-  font-size: 0.55rem;
+  font-size: 0.6rem;
   font-weight: 700;
-  line-height: 14px;
+  line-height: 15px;
   text-align: center;
 }

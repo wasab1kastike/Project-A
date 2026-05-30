@@ -1629,7 +1629,7 @@ export const FortressMap = memo(function FortressMap({
                     className={styles.battalionMarker}
                     style={{
                       left: `${tile.xPercent}%`,
-                      top: `${tile.yPercent + 2}%`,
+                      top: `${tile.yPercent}%`,
                     }}
                     title={`${marker.battalionName} · ${marker.stance} · Tier ${marker.tier} · ${marker.size}/${marker.maxSize}`}
                   >
