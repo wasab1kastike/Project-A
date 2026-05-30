@@ -2766,6 +2766,7 @@ export async function getHomePageState({
     pressureLeaderLabel: string | null;
     canPrioritizePressure: boolean;
     pressurePriorityDisabledReason: string | null;
+    attackPriority: number;
     activeBattlefieldId: string | null;
     attackDisabledReason: string | null;
     canStartCampaign: boolean;
@@ -2962,6 +2963,7 @@ export async function getHomePageState({
       pressureThreshold: pressureState.pressureThreshold,
       pressureLeaderFortressId: pressureState.pressureLeaderFortressId,
       pressureLeaderLabel: pressureState.pressureLeaderLabel,
+      attackPriority: 0,
       canPrioritizePressure: pressureState.canPrioritizePressure,
       pressurePriorityDisabledReason:
         pressureState.pressurePriorityDisabledReason,
@@ -3074,6 +3076,7 @@ export async function getHomePageState({
       pressureThreshold: null,
       pressureLeaderFortressId: null,
       pressureLeaderLabel: null,
+      attackPriority: 0,
       canPrioritizePressure: false,
       pressurePriorityDisabledReason:
         isSeasonFour
@@ -3148,6 +3151,7 @@ export async function getHomePageState({
       pressureThreshold: pressureState.pressureThreshold,
       pressureLeaderFortressId: pressureState.pressureLeaderFortressId,
       pressureLeaderLabel: pressureState.pressureLeaderLabel,
+      attackPriority: 0,
       canPrioritizePressure: pressureState.canPrioritizePressure,
       pressurePriorityDisabledReason:
         pressureState.pressurePriorityDisabledReason,

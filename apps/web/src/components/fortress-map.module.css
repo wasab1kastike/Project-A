@@ -200,6 +200,33 @@
   filter: drop-shadow(0 0 7px rgba(255, 238, 150, 0.38));
 }
 
+/* Attack priority tile markers */
+.attackPriorityPrimaryTile polygon {
+  stroke: rgba(255, 60, 40, 0.9);
+  stroke-width: 4px;
+  stroke-dasharray: 12 3;
+  filter: drop-shadow(0 0 6px rgba(255, 60, 40, 0.5));
+  animation: attackPriorityPulse 1.5s ease-in-out infinite;
+}
+
+.attackPrioritySecondaryTile polygon {
+  stroke: rgba(255, 160, 40, 0.75);
+  stroke-width: 3px;
+  stroke-dasharray: 8 5;
+  filter: drop-shadow(0 0 4px rgba(255, 160, 40, 0.35));
+}
+
+.attackPriorityTertiaryTile polygon {
+  stroke: rgba(255, 220, 80, 0.6);
+  stroke-width: 2px;
+  stroke-dasharray: 5 7;
+}
+
+@keyframes attackPriorityPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
 .objectiveTile polygon {
   stroke: rgba(156, 233, 255, 0.96);
   stroke-width: 7px;
