@@ -24,7 +24,7 @@ import {
   setTilePressurePriorityAction,
 } from "@/app/game-actions";
 import { ChatPanel } from "./chat-panel";
-import { WarFrontPanel } from "./war-front-panel";
+
 import {
   FortressMap,
   type AttackUnitMarker,
@@ -417,7 +417,6 @@ export function BattlefieldExperience({
   const refreshView = useRefreshView();
   const [chatOpen, setChatOpen] = useState(false);
   const [battleLogOpen, setBattleLogOpen] = useState(false);
-  const [warFrontOpen, setWarFrontOpen] = useState(false);
   const [unreadChatCount, setUnreadChatCount] = useState(chat.unreadCount);
   const [unreadBattleReportCount, setUnreadBattleReportCount] = useState(0);
   const [selectedFortressId, setSelectedFortressId] = useState<string | null>(
@@ -1540,15 +1539,6 @@ export function BattlefieldExperience({
           ) : null}
         </button>
       ) : null}
-      <button
-        type="button"
-        className={styles.overlayButton}
-        aria-label="War fronts"
-        aria-expanded={warFrontOpen}
-        onClick={() => setWarFrontOpen((o) => !o)}
-      >
-        <span className={styles.overlayButtonLabel}>Fronts</span>
-      </button>
     </div>
   );
 
@@ -2905,14 +2895,6 @@ export function BattlefieldExperience({
             {chatDrawer}
             {battleLogDrawer}
             {selectedTilePanel}
-            {warFrontOpen ? (
-              <WarFrontPanel
-                fronts={[]}
-                battalions={[]}
-                battlefieldPriorities={[]}
-                onClose={() => setWarFrontOpen(false)}
-              />
-            ) : null}
           </div>,
           overlayRoot
         )
@@ -2981,14 +2963,6 @@ export function BattlefieldExperience({
         {!immersive ? selectedTilePanel : null}
         {!immersive ? chatDrawer : null}
         {!immersive ? battleLogDrawer : null}
-        {warFrontOpen ? (
-          <WarFrontPanel
-            fronts={[]}
-            battalions={[]}
-            battlefieldPriorities={[]}
-            onClose={() => setWarFrontOpen(false)}
-          />
-        ) : null}
       </div>
       {immersiveOverlay}
       {topbarActionsPortal}
