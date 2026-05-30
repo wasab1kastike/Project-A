@@ -206,6 +206,11 @@ type FortressMapProps = {
     x2: number;
     y2: number;
   }>;
+  roadSegments?: Array<{
+    tileId: string;
+    level: number;
+    crossings: number;
+  }>;
   onSelectFortress?: (fortress: MapFortress) => void;
   onConfirmAttackTarget?: (
     fortress: MapFortress,
@@ -332,6 +337,82 @@ function LootCampSprite({
 function DwarfRuneSprite() {
   return <span className={styles.dwarfRuneSprite} aria-hidden="true" />;
 }
+
+// ── Road Rendering Helpers ───────────────────────────────────────────────────
+
+type RoadEdge = { x1: number; y1: number; x2: number; y2: number; level: number };
+
+function computeRoadEdges(
+  segments: Array<{ tileId: string; level: number }>,
+  hexTiles: typeof HEX_TILES,
+): RoadEdge[] {
+  if (segments.length === 0) return [];
+
+  const roadMap = new Map(segments.map((s) => [s.tileId, s.level]));
+  const tileLookup = new Map(hexTiles.map((t) => [t.id, t]));
+  const edges: RoadEdge[] = [];
+  const seen = new Set<string>();
+
+  for (const tile of hexTiles) {
+    const myLevel = roadMap.get(tile.id);
+    if (!myLevel || myLevel <= 0) continue;
+
+    // Compute adjacent hex tiles by checking grid adjacency.
+    // Even columns: neighbors at (col±1, row), (col, row±1), (col-1, row±1)
+    // Odd columns:  neighbors at (col±1, row), (col, row±1), (col+1, row±1)
+    const isEvenCol = tile.col % 2 === 0;
+    const neighborOffsets: [number, number][] = [
+      [-1, 0], [1, 0], // horizontal
+      [0, -1], [0, 1], // vertical
+    ];
+    if (isEvenCol) {
+      neighborOffsets.push([-1, -1], [-1, 1]);
+    } else {
+      neighborOffsets.push([1, -1], [1, 1]);
+    }
+
+    for (const [dc, dr] of neighborOffsets) {
+      const neighborCol = tile.col + dc;
+      const neighborRow = tile.row + dr;
+      const neighborTile = hexTiles.find(
+        (t) => t.col === neighborCol && t.row === neighborRow,
+      );
+      if (!neighborTile) continue;
+
+      const neighborLevel = roadMap.get(neighborTile.id);
+      if (!neighborLevel || neighborLevel <= 0) continue;
+
+      const edgeKey = [tile.id, neighborTile.id].sort().join("-");
+      if (seen.has(edgeKey)) continue;
+      seen.add(edgeKey);
+
+      edges.push({
+        x1: tile.xPercent,
+        y1: tile.yPercent,
+        x2: neighborTile.xPercent,
+        y2: neighborTile.yPercent,
+        level: Math.min(myLevel, neighborLevel),
+      });
+    }
+  }
+
+  return edges;
+}
+
+function getRoadLevelClass(level: number): string {
+  if (level >= 3) return "roadHighway";
+  if (level >= 2) return "roadStone";
+  if (level >= 1) return "roadDirt";
+  return "";
+}
+
+function getRoadStrokeWidth(level: number): number {
+  if (level >= 3) return 3;
+  if (level >= 2) return 2;
+  return 1.5;
+}
+
+// ── Hex Tile Map ─────────────────────────────────────────────────────────────
 
 function HexTileMap({
   mapHexes,
@@ -761,6 +842,7 @@ export const FortressMap = memo(function FortressMap({
   activeBattleFortressIds = [],
   highlightedTileIds = [],
   alliedRoads = [],
+  roadSegments = [],
   onSelectFortress,
   onConfirmAttackTarget,
   onSelectMapHex,
@@ -1331,7 +1413,7 @@ export const FortressMap = memo(function FortressMap({
             highlightedTileIds={highlightedTileIds}
             onSelectMapHex={onSelectMapHex}
           />
-          {alliedRoads.length > 0 ? (
+          {(alliedRoads.length > 0 || roadSegments.length > 0) ? (
         <svg
           className={styles.roadsLayer}
           viewBox={`0 0 ${MAP_WORLD_WIDTH} ${MAP_WORLD_HEIGHT}`}
@@ -1339,12 +1421,23 @@ export const FortressMap = memo(function FortressMap({
         >
           {alliedRoads.map((road, i) => (
             <line
-              key={i}
+              key={`ally-${i}`}
               x1={road.x1 * MAP_WORLD_WIDTH / 100}
               y1={road.y1 * MAP_WORLD_HEIGHT / 100}
               x2={road.x2 * MAP_WORLD_WIDTH / 100}
               y2={road.y2 * MAP_WORLD_HEIGHT / 100}
               className={styles.roadLine}
+            />
+          ))}
+          {computeRoadEdges(roadSegments, HEX_TILES).map((edge, i) => (
+            <line
+              key={`road-${i}`}
+              x1={edge.x1 * MAP_WORLD_WIDTH / 100}
+              y1={edge.y1 * MAP_WORLD_HEIGHT / 100}
+              x2={edge.x2 * MAP_WORLD_WIDTH / 100}
+              y2={edge.y2 * MAP_WORLD_HEIGHT / 100}
+              className={`${styles.roadLine} ${getRoadLevelClass(edge.level)}`}
+              strokeWidth={getRoadStrokeWidth(edge.level)}
             />
           ))}
         </svg>

@@ -1204,6 +1204,25 @@
   opacity: 0.5;
 }
 
+/* Road level colors */
+.roadLine:global(.roadDirt) {
+  stroke: #8B7355;
+  stroke-dasharray: 4 8;
+  opacity: 0.45;
+}
+
+.roadLine:global(.roadStone) {
+  stroke: #808080;
+  stroke-dasharray: 8 3;
+  opacity: 0.55;
+}
+
+.roadLine:global(.roadHighway) {
+  stroke: #FFD700;
+  stroke-dasharray: none;
+  opacity: 0.7;
+}
+
 /* Guards overlay (replaces old SVG guard indicators) */
 .guardsLayer {
   position: absolute;

@@ -799,6 +799,14 @@ export async function getHomePageState({
           },
         },
       },
+      mapHexRoads: {
+        select: {
+          tileId: true,
+          crossings: true,
+          level: true,
+          lastUsedAt: true,
+        },
+      },
       tilePressurePriorities: {
         select: {
           id: true,
@@ -3731,6 +3739,12 @@ export async function getHomePageState({
         return { x1: a.mapX, y1: a.mapY, x2: b.mapX, y2: b.mapY };
       })
       .filter((r): r is NonNullable<typeof r> => r !== null),
+    roadSegments: (cycle.mapHexRoads ?? []).map((r) => ({
+      tileId: r.tileId,
+      crossings: r.crossings,
+      level: r.level,
+      lastUsedAt: r.lastUsedAt?.getTime() ?? null,
+    })),
     mapHexes: mappedMapHexes,
     homeOfA: {
       tileId: HOME_OF_A_TILE_ID,

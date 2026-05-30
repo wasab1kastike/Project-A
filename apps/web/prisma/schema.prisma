@@ -339,6 +339,7 @@ model Cycle {
   mapHexOwnerships               MapHexOwnership[]
   tilePressurePriorities         TilePressurePriority[]
   tilePressureStates             TilePressureState[]
+  mapHexRoads                    MapHexRoad[]
   diplomacyRelations             DiplomacyRelation[]
   armyOrders                     ArmyOrder[]
   territoryCampaigns             TerritoryCampaign[]
@@ -568,6 +569,21 @@ model TilePressureState {
   @@unique([cycleId, tileId, fortressId])
   @@index([cycleId, tileId])
   @@index([cycleId, fortressId])
+}
+
+model MapHexRoad {
+  id         String   @id @default(cuid())
+  cycleId    String
+  tileId     String
+  crossings  Int      @default(0)
+  level      Int      @default(0) // 0=NONE, 1=DIRT, 2=STONE, 3=HIGHWAY
+  lastUsedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  cycle      Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+
+  @@unique([cycleId, tileId])
+  @@index([cycleId])
 }
 
 model DiplomacyRelation {
