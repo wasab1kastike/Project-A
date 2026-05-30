@@ -1515,8 +1515,37 @@ export function CastleManagement({
                     {bn.size}/{bn.maxSize} · Tier {bn.tier}
                   </span>
                 </div>
-                <div style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12 }}>
-                  <span style={{ color: "var(--text-muted)" }}>{bn.stance}</span>
+                <div style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12, flexWrap: "wrap" }}>
+                  <select
+                    value={bn.stance}
+                    onChange={async (e) => {
+                      const { setBattalionStanceAction } = await import("@/app/game-actions");
+                      await setBattalionStanceAction({
+                        battalionId: bn.id,
+                        fortressId: playerSummary.id,
+                        stance: e.target.value,
+                      });
+                      refreshView();
+                    }}
+                    style={{
+                      fontSize: 12,
+                      padding: "2px 4px",
+                      background: "var(--bg-raised)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 3,
+                      color: "var(--text)",
+                    }}
+                  >
+                    <option value="REST">Rest</option>
+                    <option value="FORTIFY">Fortify</option>
+                    <option value="PATROL">Patrol</option>
+                    <option value="TRAINING">Training</option>
+                    <option value="AMBUSH">Ambush</option>
+                    <option value="MOBILE">Mobile</option>
+                  </select>
+                  <span style={{ color: "var(--text-muted)" }}>
+                    {bn.size}/{bn.maxSize}
+                  </span>
                   {bn.garrisonedAt ? (
                     <span style={{ color: "var(--text-muted)" }}>@ {bn.garrisonedAt}</span>
                   ) : null}
@@ -1526,6 +1555,59 @@ export function CastleManagement({
                   {bn.readyAt ? (
                     <span style={{ color: "#ff9800" }}>Fatigued</span>
                   ) : null}
+                  {bn.xp > 0 ? (
+                    <span style={{ color: "#ffd700", fontSize: 11 }}>{bn.xp} XP</span>
+                  ) : null}
+                </div>
+                <div style={{ marginTop: 4 }}>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const { expandBattalionAction } = await import("@/app/game-actions");
+                      await expandBattalionAction({
+                        battalionId: bn.id,
+                        fortressId: playerSummary.id,
+                        availableGold: playerSummary.gold,
+                      });
+                      refreshView();
+                    }}
+                    disabled={bn.maxSize >= 300}
+                    style={{
+                      fontSize: 11,
+                      padding: "2px 8px",
+                      background: "var(--bg-raised)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 3,
+                      color: bn.maxSize >= 300 ? "var(--text-muted)" : "var(--text)",
+                      cursor: bn.maxSize >= 300 ? "default" : "pointer",
+                    }}
+                  >
+                    Expand (+50)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!confirm(`Disband ${bn.name}? 50% gold refund.`)) return;
+                      const { disbandBattalionAction } = await import("@/app/game-actions");
+                      await disbandBattalionAction({
+                        battalionId: bn.id,
+                        fortressId: playerSummary.id,
+                      });
+                      refreshView();
+                    }}
+                    style={{
+                      fontSize: 11,
+                      padding: "2px 8px",
+                      marginLeft: 4,
+                      background: "var(--bg-raised)",
+                      border: "1px solid #f44336",
+                      borderRadius: 3,
+                      color: "#f44336",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Disband
+                  </button>
                 </div>
               </li>
             ))}
