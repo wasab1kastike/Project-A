@@ -411,6 +411,7 @@ export function BattlefieldExperience({
     stance: string;
     unitSpriteVariant: string;
     unitCosmeticVariant: string | null;
+    race: string | null;
   }>;
   battleReports: BattleReport[];
   availableTargets: unknown[];

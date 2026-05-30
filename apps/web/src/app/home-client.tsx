@@ -354,6 +354,7 @@ function HomeClientContent({
                 stance: bn.stance,
                 unitSpriteVariant: fortress?.unitSpriteVariant ?? "unit-1",
                 unitCosmeticVariant: fortress?.unitCosmeticVariant ?? null,
+                race: (fortress as any)?.race ?? null,
               };
             })}
           battleReports={state.battleReports}

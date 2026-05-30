@@ -223,6 +223,7 @@ type FortressMapProps = {
     stance: string;
     unitSpriteVariant: string;
     unitCosmeticVariant: string | null;
+    race: string | null;
   }>;
   onSelectFortress?: (fortress: MapFortress) => void;
   onConfirmAttackTarget?: (
@@ -1622,7 +1623,15 @@ export const FortressMap = memo(function FortressMap({
                   FORTIFY: "#4488ff", PATROL: "#44cc44", TRAINING: "#ffcc00",
                   AMBUSH: "#ff4444", REST: "#888888", MOBILE: "#aaaaaa",
                 };
-                const tierLabels = ["", "I", "II", "III"];
+                const raceIcons: Record<string, string[]> = {
+                  DWARFS: ["", "⛏", "⛏⛏", "⛏⛏⛏"],
+                  ORKS: ["", "💀", "💀💀", "💀💀💀"],
+                  SPACE_MURINES: ["", "★", "★★", "★★★"],
+                  UNSTABLE_UNICORNS: ["", "🦄", "🦄🦄", "🦄🦄🦄"],
+                };
+                const tierLabel = (marker.race && raceIcons[marker.race])
+                  ? raceIcons[marker.race][marker.tier] ?? "?"
+                  : ["", "I", "II", "III"][marker.tier] ?? "?";
                 return (
                   <div
                     key={`bn-${marker.tileId}-${marker.battalionName}`}
@@ -1644,7 +1653,7 @@ export const FortressMap = memo(function FortressMap({
                       className={styles.battalionBadge}
                       style={{ backgroundColor: stanceColors[marker.stance] ?? "#888" }}
                     >
-                      {tierLabels[marker.tier] ?? "?"}
+                      {tierLabel}
                     </span>
                     <span className={styles.battalionCount}>
                       {marker.size}
