@@ -137,7 +137,11 @@ export async function processAutoWarDispatch(args: {
 
     // Select best target.
     const target = selectNextTarget(reachableTargets);
-    if (!target) continue;
+    if (!target) {
+      console.log(`[auto-war] ${attacker.id} → ${defender.id}: no reachable targets (defender tiles: ${defenderOwnedTiles.size}, attacker tiles: ${attackerOwnedTiles.size})`);
+      continue;
+    }
+    console.log(`[auto-war] ${attacker.id} → ${defender.id}: target=${target.tileId}, attackerTiles=${attackerOwnedTiles.size}, defenderTiles=${defenderOwnedTiles.size}`);
 
     // Auto-create front if none exists.
     let front = await db.warFront.findFirst({
@@ -177,6 +181,7 @@ export async function processAutoWarDispatch(args: {
       select: { id: true, size: true },
     });
     const totalAvailable = battalions.reduce((s, b) => s + b.size, 0);
+    console.log(`[auto-war] ${attacker.id} → ${defender.id}: ${battalions.length} battalions, ${totalAvailable} total army (assigned=${assignedIds.length}, idle-fallback=${activeIds.length - assignedIds.length})`);
     if (totalAvailable <= 0) continue;
 
     const aggression = (front.aggression as AggressionStance) ?? "BALANCED";
