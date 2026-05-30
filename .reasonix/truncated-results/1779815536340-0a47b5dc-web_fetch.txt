@@ -1,0 +1,1280 @@
+https://raw.githubusercontent.com/wasab1kastike/Project-A/main/apps/web/src/lib/game/service.ts
+
+import {
+  CastleUpgradeSpecialization,
+  CycleRuleset,
+  CycleStatus,
+  ArmyOrderStatus,
+  ArmyOrderType,
+  FortressAction,
+  FortressKind,
+  FortressDoctrine,
+  ScoreEventType,
+  Prisma,
+  PrismaClient,
+  RaceAbilityKind,
+  BattlefieldStatus,
+  BattlefieldSide,
+  ChatMessageType,
+  ConvoyLegStatus,
+  DiplomacyRelationStatus,
+  TerritoryCampaignStatus,
+  TradeLineItemKind,
+  TradeOfferStatus,
+  OrkBossOrderKind,
+  OrkScrapEventReason,
+  OrkWaaaghInvestmentKind,
+  UnicornShatteredRealityOutcome,
+} from "@/lib/prisma-client";
+import { prisma } from "@/lib/prisma";
+import {
+  ACTIVE_PLAYER_CAP,
+  ACTIVE_RENAME_COST,
+  HOME_OF_A_TILE_ID,
+  getActiveLocationShuffleCost,
+  getHomeOfABossHealth,
+} from "./constants";
+import {
+  getAttackArrivalAt,
+  getRandomUnitSpriteVariant,
+  normalizeUnitSpriteVariant,
+} from "./attacks";
+import type { UnitSpriteVariant } from "./constants";
+import {
+  canFortressLevelUp,
+  getFortressUpgradeCost,
+  getFortressUpgradeDurationMinutes,
+  getMaxSimultaneousAttacks,
+} from "./upgrades";
+import {
+  launchAttackUnit,
+  recallAttackUnit as recallAttackUnitRecord,
+  instantRecallGarrison as instantRecallGarrisonRecord,
+} from "./attack-units";
+import { GameError } from "./errors";
+import { assertWorkerAssignments, getDisplayedCastleLevel } from "./balance";
+import { getRecruitmentCost } from "./army-recruitment";
+import { isFortressRace, type FortressRace } from "./races";
+import {
+  ensureCommanderRegistrationColumn,
+  ensureHomeOfABossSchema,
+} from "./schema-guards";
+import {
+  buildFortressSpawnSeed,
+  getFortressSpawnLayout,
+  getRenderedMapPositionKey,
+  takeOpenSpawnPoint,
+} from "./spawn-layout";
+import {
+  getHelsinkiDayKey,
+  getRaceAbilityActiveUntil,
+  getRaceBuffTier,
+  getUnicornShatteredRealityAvailability,
+  getUnicornTeleportClaimAvailability,
+} from "./race-buffs";
+import { addHours, addMinutes } from "./time";
+import {
+  countCastleSpecializations,
+  isCastleUpgradeSpecialization,
+} from "./specializations";
+import { convertGoldToPoints } from "./currency";
+import {
+  DWARF_DEEP_MINING_MAX_GOLD_COMMITMENT,
+  DWARF_DEEP_MINING_MIN_GOLD_COMMITMENT,
+  DWARF_RUNE_OF_GRUDGES_ACTIVATION_GOLD,
+  DWARF_RUNE_OF_GRUDGES_MAX_DURATION_HOURS,
+  DWARF_RUNE_OF_GRUDGES_MAINTENANCE_GOLD,
+  getDwarfDeepMiningResolveAt,
+  getDwarfDeepMiningActiveUntil,
+  rollDwarfDeepMining,
+} from "./dwarf-deep-mining";
+import {
+  getUnicornShatteredRealityActiveUntil,
+  getUnicornShatteredRealityTimedKind,
+  rollUnicornShatteredReality,
+} from "./unicorn-shattered-reality";
+import {
+  getTileById,
+  isHomeOfATile,
+  isTileConnectedToFortressOrOwnedTiles,
+} from "./territory";
+import { getPressureTargetBlockedReason } from "./tile-pressure";
+import { joinBattlefield as joinBattlefieldRecord } from "./battlefields";
+import { getTileAttackBlockedReason } from "./combat-targeting";
+import { ensureNpcSystemUser, getHomeOfAMapPosition } from "./mega-fortress";
+import { recalculateReturningAttackRoutes } from "./fortress-relocation";
+import {
+  ORK_BOSS_ORDER_CONFIG,
+  ORK_WAAAGH_INVESTMENT_CONFIG,
+  applyOrkScrapDelta,
+  getBossOrderActiveUntil,
+  getWaaaghInvestmentCost,
+  isRealOrkPlayerFortress,
+} from "./orks";
+import {
+  getAllianceTrustTerms,
+  getAllianceTrustUpgradeDeposit,
+  isAllianceTrustTier,
+  canProposePeace,
+  getDiplomacyPressureBlockedReason,
+  getCanonicalDiplomacyPair,
+  getCasusBelliExpiresAt,
+  getEffectiveDiplomacyStatus,
+  hasActiveCasusBelli,
+  getWarStartsAt,
+} from "./politics";
+import { isSeasonFourRuleset } from "./rulesets";
+import { getCampaignStartBlockedReason } from "./campaigns";
+import {
+  calculateTradeCargoValue,
+  getConvoyArrivalAt,
+  getTradeBlockedReason,
+  getTradeOfferExpiresAt,
+  hasTradeCargo,
+  normalizeTradeCargo,
+  type TradeCargo,
+} from "./trading";
+import { getRaidTargetBlockedReason, isConvoyRaidEligible } from "./convoy-conflict";
+import { getDoctrineChangeBlockedReason } from "./doctrines";
+
+type DatabaseClient = PrismaClient | Prisma.TransactionClient;
+
+const DWARF_RUNE_OF_GRUDGES_ANNOUNCEMENTS = [
+  "Rune of Grudges flares to life. {ownerFortress} just pinned {targetFortress} to the wall of grudges.",
+  "The Book of Grudges has a fresh page: {ownerCommander} formally blames {targetCommander} for everything.",
+  "Stone drums thunder: {ownerFortress} raised the Rune of Grudges, and {targetFortress} is now officially unpopular.",
+  "Breaking news from the mountain halls: {ownerCommander} etched {targetCommander} into a very permanent grudge.",
+  "Another petty masterpiece: Rune of Grudges active. {targetFortress} is now under premium dwarven disapproval.",
+] as const;
+
+function pickRandomItem<T>(items: readonly T[]): T {
+  return items[Math.floor(Math.random() * items.length)] ?? items[0];
+}
+
+async function getOwnedTileBiomesForFortress({
+  db,
+  cycleId,
+  fortressId,
+}: {
+  db: DatabaseClient;
+  cycleId: string;
+  fortressId: string;
+}) {
+  const ownerships = await db.mapHexOwnership.findMany({
+    where: {
+      cycleId,
+      ownerFortressId: fortressId,
+    },
+    select: {
+      tileId: true,
+    },
+  });
+
+  return ownerships
+    .filter((ownership) => !isHomeOfATile(ownership.tileId))
+    .map((ownership) => getTileById(ownership.tileId)?.biome ?? null)
+    .filter((biome): biome is NonNullable<typeof biome> => biome !== null);
+}
+
+function normalizeRecallAmount(armyAmount: number, availableArmy: number) {
+  if (!Number.isInteger(armyAmount) || armyAmount <= 0) {
+    throw new GameError("Recall at least 1 army.");
+  }
+
+  if (armyAmount > availableArmy) {
+    throw new GameError("You cannot recall more army than remains there.");
+  }
+
+  return armyAmount;
+}
+
+async function createReturningArmyMarker({
+  db,
+  cycle,
+  fortress,
+  origin,
+  targetFortressId,
+  armyAmount,
+  now,
+}: {
+  db: DatabaseClient;
+  cycle: { id: string; status?: string; activeStartedAt?: Date | null };
+  fortress: {
+    id: string;
+    mapX: number;
+    mapY: number;
+    race?: FortressRace | null;
+  };
+  origin: { mapX: number; mapY: number };
+  targetFortressId: string;
+  armyAmount: number;
+  now: Date;
+}) {
+  const ownedTileBiomes = await getOwnedTileBiomesForFortress({
+    db,
+    cycleId: cycle.id,
+    fortressId: fortress.id,
+  });
+  const raceBuffTier = getRaceBuffTier({
+    activeStartedAt: cycle.activeStartedAt ?? null,
+    now,
+    isActiveSeason: cycle.status === CycleStatus.ACTIVE,
+    race: fortress.race,
+    ownedTileBiomes,
+  });
+  const arrivesAt = getAttackArrivalAt({
+    launchedAt: now,
+    origin,
+    target: fortress,
+    attackerRace: fortress.race,
+    raceBuffTier,
+  });
+
+  return db.attackUnit.create({
+    data: {
+      cycleId: cycle.id,
+      attackerFortressId: fortress.id,
+      targetFortressId,
+      armyAmount,
+      launchedAt: now,
+      arrivesAt,
+      recalledAt: now,
+      returnOriginMapX: origin.mapX,
+      returnOriginMapY: origin.mapY,
+    },
+  });
+}
+
+export type AttackUnitLaunchMarker = {
+  id: string;
+  armyAmount: number;
+  launchedAt: Date;
+  arrivesAt: Date;
+  recalledAt: Date | null;
+  returnOrigin: {
+    mapX: number;
+    mapY: number;
+  } | null;
+  canRecall: boolean;
+  canInstantRecall: boolean;
+  attacker: {
+    id: string;
+    name: string;
+    mapX: number;
+    mapY: number;
+    unitSpriteVariant: UnitSpriteVariant;
+    unitCosmeticVariant: string | null;
+  };
+  target: {
+    id: string;
+    name: string;
+    mapX: number;
+    mapY: number;
+  };
+};
+
+export type AttackMapHexResult = {
+  battlefieldId: string | null;
+  launchedAttackUnit: AttackUnitLaunchMarker;
+};
+
+function toAttackUnitLaunchMarker({
+  unit,
+  attacker,
+  target,
+}: {
+  unit: {
+    id: string;
+    armyAmount: number;
+    launchedAt: Date;
+    arrivesAt: Date;
+    recalledAt: Date | null;
+    returnOriginMapX: number | null;
+    returnOriginMapY: number | null;
+  };
+  attacker: {
+    id: string;
+    name: string;
+    mapX: number;
+    mapY: number;
+    unitSpriteVariant?: string | null;
+    owner?: {
+      unitCosmeticVariant: string | null;
+    } | null;
+  };
+  target: {
+    id: string;
+    name: string;
+    mapX: number;
+    mapY: number;
+  };
+}): AttackUnitLaunchMarker {
+  return {
+    id: unit.id,
+    armyAmount: unit.armyAmount,
+    launchedAt: unit.launchedAt,
+    arrivesAt: unit.arrivesAt,
+    recalledAt: unit.recalledAt,
+    returnOrigin:
+      unit.returnOriginMapX !== null && unit.returnOriginMapY !== null
+        ? {
+            mapX: unit.returnOriginMapX,
+            mapY: unit.returnOriginMapY,
+          }
+        : null,
+    canRecall: true,
+    canInstantRecall: false,
+    attacker: {
+      id: attacker.id,
+      name: attacker.name,
+      mapX: attacker.mapX,
+      mapY: attacker.mapY,
+      unitSpriteVariant: normalizeUnitSpriteVariant(
+        attacker.unitSpriteVariant ?? ""
+      ),
+      unitCosmeticVariant: attacker.owner?.unitCosmeticVariant ?? null,
+    },
+    target,
+  };
+}
+
+const PUBLIC_NAME_MAX_LENGTH = 32;
+const ACTIVE_EDGE_PADDING = 15;
+const SERVICE_TRANSACTION_OPTIONS = {
+  maxWait: 10_000,
+  timeout: 20_000,
+} satisfies Parameters<PrismaClient["$transaction"]>[1];
+
+function normalizePublicName(input: string, label: string) {
+  const normalized = input.trim().replace(/\s+/g, " ");
+
+  if (!normalized) {
+    throw new GameError(`${label} cannot be empty.`);
+  }
+
+  if (normalized.length > PUBLIC_NAME_MAX_LENGTH) {
+    throw new GameError(
+      `${label} must be ${PUBLIC_NAME_MAX_LENGTH} characters or fewer.`
+    );
+  }
+
+  return normalized;
+}
+
+function normalizeCommanderName(input: string) {
+  return normalizePublicName(input, "In-game nick");
+}
+
+function normalizeFortressName(input: string) {
+  return normalizePublicName(input, "Fortress name");
+}
+
+function getCurrentCycle(db: DatabaseClient = prisma) {
+  return db.cycle.findFirst({
+    where: {
+      resolvedAt: null,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+}
+
+function assertSeasonFourFeatureCycle(cycle: { ruleset: CycleRuleset }) {
+  if (!isSeasonFourRuleset(cycle.ruleset)) {
+    throw new GameError("This feature is available only in Season 4 pretesting.");
+  }
+}
+
+function assertLegacyAbilityCycle(cycle: { ruleset: CycleRuleset }) {
+  if (isSeasonFourRuleset(cycle.ruleset)) {
+    throw new GameError("Active race abilities are retired in Season 4.");
+  }
+}
+
+function isJoinOpen(
+  cycle: {
+    status: CycleStatus;
+    registrationEndsAt: Date;
+    testingEndsAt?: Date | null;
+    activeEndsAt: Date | null;
+    joiningLockedAt?: Date | null;
+  },
+  now: Date
+) {
+  return (
+    (cycle.status === CycleStatus.REGISTRATION &&
+      cycle.registrationEndsAt > now &&
+      !cycle.joiningLockedAt) ||
+    (cycle.status === CycleStatus.TESTING &&
+      cycle.testingEndsAt !== null &&
+      cycle.testingEndsAt !== undefined &&
+      cycle.testingEndsAt > now &&
+      !cycle.joiningLockedAt) ||
+    (cycle.status === CycleStatus.ACTIVE &&
+      cycle.activeEndsAt !== null &&
+      cycle.activeEndsAt > now)
+  );
+}
+
+function isRegistrationWindowOpen(
+  cycle: {
+    status: CycleStatus;
+    registrationEndsAt: Date;
+  },
+  now: Date
+) {
+  return (
+    cycle.status === CycleStatus.REGISTRATION && cycle.registrationEndsAt > now
+  );
+}
+
+function isActiveWindowOpen(
+  cycle: {
+    status: CycleStatus;
+    activeEndsAt: Date | null;
+  },
+  now: Date
+) {
+  return (
+    cycle.status === CycleStatus.ACTIVE &&
+    cycle.activeEndsAt !== null &&
+    cycle.activeEndsAt > now
+  );
+}
+
+function isGameplayWindowOpen(
+  cycle: {
+    status: CycleStatus;
+    testingEndsAt?: Date | null;
+    activeEndsAt: Date | null;
+  },
+  now: Date
+) {
+  return (
+    (cycle.status === CycleStatus.TESTING &&
+      cycle.testingEndsAt !== null &&
+      cycle.testingEndsAt !== undefined &&
+      cycle.testingEndsAt > now) ||
+    isActiveWindowOpen(cycle, now)
+  );
+}
+
+function getGameplayWindowEnd(cycle: {
+  status: CycleStatus;
+  testingEndsAt?: Date | null;
+  activeEndsAt: Date | null;
+}) {
+  return cycle.status === CycleStatus.TESTING
+    ? cycle.testingEndsAt ?? null
+    : cycle.activeEndsAt;
+}
+
+function isRaceSelectionWindowOpen(
+  cycle: {
+    status: CycleStatus;
+    registrationEndsAt: Date;
+    testingEndsAt?: Date | null;
+    activeEndsAt: Date | null;
+  },
+  now: Date
+) {
+  return (
+    isRegistrationWindowOpen(cycle, now) || isGameplayWindowOpen(cycle, now)
+  );
+}
+
+function findOpenMapPosition(
+  cycle: {
+    id: string;
+    activeStartedAt?: Date | null;
+  },
+  fortresses: Array<{
+    mapX: number;
+    mapY: number;
+  }>
+) {
+  const occupied = new Set(
+    fortresses.map((fortress) => getRenderedMapPositionKey(fortress))
+  );
+  const layout = getFortressSpawnLayout({
+    cycleId: cycle.id,
+    purpose: "registration:fortress-layout",
+    activeStartedAt: cycle.activeStartedAt,
+    count: ACTIVE_PLAYER_CAP,
+  });
+
+  return layout.find((position) => {
+    return !occupied.has(getRenderedMapPositionKey(position));
+  });
+}
+
+function isUniqueConstraintError(
+  error: unknown,
+  targetField?: string | string[]
+): error is Prisma.PrismaClientKnownRequestError {
+  if (
+    !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+    error.code !== "P2002"
+  ) {
+    return false;
+  }
+
+  if (!targetField) {
+    return true;
+  }
+
+  const targets = Array.isArray(targetField) ? targetField : [targetField];
+  const metaTarget = error.meta?.target;
+
+  if (!Array.isArray(metaTarget)) {
+    return false;
+  }
+
+  return targets.every((target) => metaTarget.includes(target));
+}
+
+async function getFortressLocationShuffleCount(
+  db: DatabaseClient,
+  fortressId: string
+) {
+  const rows = await db.$queryRaw<Array<{ locationShuffleCount: number }>>(
+    Prisma.sql`
+      SELECT "locationShuffleCount"
+      FROM "Fortress"
+      WHERE "id" = ${fortressId}
+      LIMIT 1
+    `
+  );
+
+  return rows[0]?.locationShuffleCount ?? 0;
+}
+
+async function getPendingUpgradeSpecializationLevel(
+  db: DatabaseClient,
+  fortress: { id: string; level: number }
+) {
+  const selectedCount = await db.castleUpgradeSpecializationChoice.count({
+    where: {
+      fortressId: fortress.id,
+    },
+  });
+
+  return selectedCount < fortress.level ? selectedCount + 1 : null;
+}
+
+export async function joinRegistrationCycle({
+  userId,
+  commanderName,
+  fortressName,
+  race,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  commanderName?: string;
+  fortressName: string;
+  race?: FortressRace | string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  await ensureCommanderRegistrationColumn(db);
+
+  const normalizedName = normalizeFortressName(fortressName);
+  const normalizedCommanderName = normalizeCommanderName(
+    commanderName ?? fortressName
+  );
+  const normalizedRace =
+    race === undefined ? undefined : isFortressRace(race) ? race : null;
+
+  if (race !== undefined && normalizedRace === null) {
+    throw new GameError("Choose a valid race before joining this season.");
+  }
+
+  try {
+    return await db.$transaction(
+      async (tx) => {
+        const cycle = await tx.cycle.findFirst({
+          where: {
+            resolvedAt: null,
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          include: {
+            fortresses: {
+              orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
+              select: {
+                id: true,
+                ownerId: true,
+                commanderName: true,
+                name: true,
+                mapX: true,
+                mapY: true,
+              },
+            },
+          },
+        });
+
+        if (!cycle) {
+          throw new GameError("Joining is closed for this cycle.");
+        }
+
+        if (
+          cycle.status === CycleStatus.REGISTRATION &&
+          cycle.registrationEndsAt > now &&
+          cycle.joiningLockedAt
+        ) {
+          throw new GameError("Registration joining is locked by an admin.");
+        }
+
+        if (!isJoinOpen(cycle, now)) {
+          throw new GameError("Joining is closed for this cycle.");
+        }
+
+        if (cycle.fortresses.some((fortress) => fortress.ownerId === userId)) {
+          throw new GameError("You already joined this cycle.");
+        }
+
+        if (cycle.fortresses.length >= ACTIVE_PLAYER_CAP) {
+          throw new GameError("This cycle is already full.");
+        }
+
+        if (
+          cycle.fortresses.some((fortress) => fortress.name === normalizedName)
+        ) {
+          throw new GameError(
+            "That fortress name is already taken this cycle."
+          );
+        }
+
+        if (
+          cycle.fortresses.some(
+            (fortress) => fortress.commanderName === normalizedCommanderName
+          )
+        ) {
+          throw new GameError("That in-game nick is already taken this cycle.");
+        }
+
+        const openPosition = findOpenMapPosition(cycle, cycle.fortresses);
+
+        if (!openPosition) {
+          throw new GameError(
+            "No map position is available for a new fortress."
+          );
+        }
+
+        return tx.fortress.create({
+          data: {
+            cycleId: cycle.id,
+            ownerId: userId,
+            commanderName: normalizedCommanderName,
+            commanderNameRegisteredAt: now,
+            name: normalizedName,
+            race: normalizedRace,
+            mapX: Math.round(openPosition.x),
+            mapY: Math.round(openPosition.y),
+            unitSpriteVariant: getRandomUnitSpriteVariant(),
+            currentAction: FortressAction.GROW,
+          },
+        });
+      },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      }
+    );
+  } catch (error) {
+    if (isUniqueConstraintError(error, ["cycleId", "ownerId"])) {
+      throw new GameError("You already joined this cycle.");
+    }
+
+    if (isUniqueConstraintError(error, ["cycleId", "name"])) {
+      throw new GameError("That fortress name is already taken this cycle.");
+    }
+
+    if (isUniqueConstraintError(error, ["cycleId", "commanderName"])) {
+      throw new GameError("That in-game nick is already taken this cycle.");
+    }
+
+    throw error;
+  }
+}
+
+export async function editRegistrationFortressName({
+  userId,
+  commanderName,
+  fortressName,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  commanderName?: string;
+  fortressName: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  await ensureCommanderRegistrationColumn(db);
+
+  const normalizedName = normalizeFortressName(fortressName);
+  const normalizedCommanderName =
+    commanderName !== undefined ? normalizeCommanderName(commanderName) : null;
+
+  try {
+    return await db.$transaction(async (tx) => {
+      const cycle = await getCurrentCycle(tx);
+
+      if (!cycle || !isRegistrationWindowOpen(cycle, now)) {
+        throw new GameError("Registration editing is closed for this cycle.");
+      }
+
+      const fortress = await tx.fortress.findUnique({
+        where: {
+          cycleId_ownerId: {
+            cycleId: cycle.id,
+            ownerId: userId,
+          },
+        },
+      });
+
+      if (!fortress) {
+        throw new GameError(
+          "Join the current registration cycle before editing."
+        );
+      }
+
+      return tx.fortress.update({
+        where: {
+          id: fortress.id,
+        },
+        data: {
+          ...(normalizedCommanderName
+            ? {
+                commanderName: normalizedCommanderName,
+                commanderNameRegisteredAt: now,
+              }
+            : {}),
+          name: normalizedName,
+        },
+      });
+    });
+  } catch (error) {
+    if (isUniqueConstraintError(error, ["cycleId", "name"])) {
+      throw new GameError("That fortress name is already taken this cycle.");
+    }
+
+    if (isUniqueConstraintError(error, ["cycleId", "commanderName"])) {
+      throw new GameError("That in-game nick is already taken this cycle.");
+    }
+
+    throw error;
+  }
+}
+
+export async function registerCommanderName({
+  userId,
+  commanderName,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  commanderName: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  await ensureCommanderRegistrationColumn(db);
+
+  const normalizedCommanderName = normalizeCommanderName(commanderName);
+
+  try {
+    return await db.$transaction(async (tx) => {
+      const cycle = await getCurrentCycle(tx);
+
+      if (!cycle) {
+        throw new GameError(
+          "No current cycle is available for nick registration."
+        );
+      }
+
+      const fortress = await tx.fortress.findUnique({
+        where: {
+          cycleId_ownerId: {
+            cycleId: cycle.id,
+            ownerId: userId,
+          },
+        },
+      });
+
+      if (!fortress) {
+        throw new GameError(
+          "Join the current cycle before registering a nick."
+        );
+      }
+
+      if (fortress.commanderNameRegisteredAt) {
+        throw new GameError("Your in-game nick is already registered.");
+      }
+
+      return tx.fortress.update({
+        where: {
+          id: fortress.id,
+        },
+        data: {
+          commanderName: normalizedCommanderName,
+          commanderNameRegisteredAt: now,
+        },
+      });
+    });
+  } catch (error) {
+    if (isUniqueConstraintError(error, ["cycleId", "commanderName"])) {
+      throw new GameError("That in-game nick is already taken this cycle.");
+    }
+
+    throw error;
+  }
+}
+
+export async function setFortressAction({
+  userId,
+  action,
+  targetFortressId,
+  sentArmy = 1,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  action: FortressAction;
+  targetFortressId?: string;
+  sentArmy?: number;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("The current cycle is not accepting active actions.");
+    }
+
+    const fortress = await tx.fortress.findUnique({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: userId,
+        },
+      },
+      select: {
+        id: true,
+        currentAction: true,
+        army: true,
+        level: true,
+        race: true,
+        mapX: true,
+        mapY: true,
+        ownerId: true,
+      },
+    });
+
+    if (!fortress) {
+      throw new GameError("You are not participating in the active cycle.");
+    }
+
+    if (action === FortressAction.GROW) {
+      return tx.fortress.update({
+        where: {
+          id: fortress.id,
+        },
+        data: {
+          currentAction: FortressAction.GROW,
+          targetFortressId: null,
+        },
+      });
+    }
+
+    if (!fortress.race) {
+      throw new GameError("Choose a race before attacking.");
+    }
+
+    if (!targetFortressId) {
+      throw new GameError("Choose a target fortress before attacking.");
+    }
+
+    if (targetFortressId === fortress.id) {
+      throw new GameError("Your fortress cannot target itself.");
+    }
+
+    if (!Number.isInteger(sentArmy) || sentArmy <= 0) {
+      throw new GameError("You must send at least 1 army.");
+    }
+
+    if (sentArmy > fortress.army) {
+      throw new GameError(
+        "You do not have enough army to send that many units."
+      );
+    }
+
+    const target = await tx.fortress.findFirst({
+      where: {
+        id: targetFortressId,
+        cycleId: cycle.id,
+      },
+    });
+
+    if (!target) {
+      throw new GameError(
+        "That attack target is not part of the active cycle."
+      );
+    }
+
+    if (isSeasonFourRuleset(cycle.ruleset)) {
+      throw new GameError(
+        "Season 4 PvP uses campaign orders from contested border tiles."
+      );
+    }
+
+    if (
+      isSeasonFourRuleset(cycle.ruleset) &&
+      target.fortressKind !== FortressKind.PLAYER
+    ) {
+      throw new GameError("Legacy PvE targets are not available in Season 4.");
+    }
+
+    if (target.fortressKind === FortressKind.MEGA) {
+      throw new GameError("Attack Home of A through the center map tile.");
+    }
+
+    if (target.fortressKind === FortressKind.DWARF_RUNE) {
+      const [runeRoll, runeActivation] = await Promise.all([
+        tx.dwarfDeepMiningRoll.findUnique({
+          where: {
+            runeFortressId: target.id,
+          },
+          select: {
+            fortress: {
+              select: {
+                ownerId: true,
+              },
+            },
+          },
+        }),
+        tx.raceAbilityActivation.findFirst({
+          where: {
+            kind: RaceAbilityKind.DWARF_RUNE_GRUDGES,
+            runeFortressId: target.id,
+            consumedAt: null,
+            activeUntil: {
+              gt: now,
+            },
+          },
+          select: {
+            fortress: {
+              select: {
+                ownerId: true,
+                id: true,
+              },
+            },
+          },
+        }),
+      ]);
+
+      if (
+        runeRoll?.fortress?.ownerId === fortress.ownerId ||
+        runeActivation?.fortress?.ownerId === fortress.ownerId
+      ) {
+        throw new GameError("You cannot attack your own Dwarf rune.");
+      }
+    }
+
+    const updatedFortress = await tx.fortress.update({
+      where: {
+        id: fortress.id,
+      },
+      data: {
+        currentAction: FortressAction.GROW,
+        targetFortressId: null,
+      },
+    });
+
+    const outboundAttackCount = await tx.attackUnit.count({
+      where: {
+        attackerFortressId: fortress.id,
+        resolvedAt: null,
+        cancelledAt: null,
+      },
+    });
+
+    const effectiveRace = (await isFortressFactionSuppressed(
+      tx,
+      fortress.id,
+      now
+    ))
+      ? null
+      : fortress.race;
+    const maxAttacks = getMaxSimultaneousAttacks(fortress.level, effectiveRace);
+
+    if (outboundAttackCount >= maxAttacks) {
+      throw new GameError(
+        `You have reached the maximum number of simultaneous attacks (${maxAttacks}). Upgrade your castle for more slots.`
+      );
+    }
+
+    const launchedUnit = await launchAttackUnit({
+      db: tx,
+      cycle,
+      attacker: {
+        ...updatedFortress,
+        army: fortress.army,
+      },
+      target,
+      launchedAt: now,
+      armyAmount: sentArmy,
+    });
+
+    if (!launchedUnit) {
+      throw new GameError("That attack would arrive after the cycle ends.");
+    }
+
+    if (
+      (target.fortressKind === FortressKind.PLAYER && !target.isNpc) ||
+      target.fortressKind === FortressKind.DWARF_RUNE
+    ) {
+      const runeActivation =
+        target.fortressKind === FortressKind.DWARF_RUNE
+          ? await tx.raceAbilityActivation.findFirst({
+              where: {
+                kind: RaceAbilityKind.DWARF_RUNE_GRUDGES,
+                runeFortressId: target.id,
+                consumedAt: null,
+                activeUntil: {
+                  gt: now,
+                },
+              },
+              select: {
+                fortressId: true,
+              },
+            })
+          : null;
+      const battlefield =
+        (await tx.battlefield.findFirst({
+          where: {
+            cycleId: cycle.id,
+            targetFortressId: target.id,
+            targetTileId: null,
+            status: BattlefieldStatus.ACTIVE,
+          },
+          select: {
+            id: true,
+          },
+        })) ??
+        (await tx.battlefield.create({
+          data: {
+            cycleId: cycle.id,
+            targetFortressId: target.id,
+            attackerBannerFortressId: fortress.id,
+            defenderBannerFortressId:
+              target.fortressKind === FortressKind.DWARF_RUNE
+                ? (runeActivation?.fortressId ?? null)
+                : target.id,
+            attackerArmyRemaining: 0,
+            defenderArmyRemaining: target.army,
+            pointsReward: Math.floor(target.gold * 0.7),
+            foodReward: Math.floor(target.food * 0.7),
+            startedAt:
+              target.fortressKind === FortressKind.PLAYER && !target.isNpc
+                ? addHours(launchedUnit.arrivesAt, 1)
+                : now,
+          },
+          select: {
+            id: true,
+          },
+        }));
+
+      await tx.attackUnit.update({
+        where: {
+          id: launchedUnit.id,
+        },
+        data: {
+          reinforcementBattlefieldId: battlefield.id,
+          reinforcementSide: BattlefieldSide.ATTACKER,
+        },
+      });
+    }
+
+    return updatedFortress;
+  });
+}
+
+export async function setTilePressurePriority({
+  userId,
+  tileId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  tileId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("The current cycle is not accepting expansion priorities.");
+    }
+
+    assertSeasonFourFeatureCycle(cycle);
+
+    const fortress = await tx.fortress.findUnique({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: userId,
+        },
+      },
+      select: {
+        id: true,
+        ownerId: true,
+        mapX: true,
+        mapY: true,
+      },
+    });
+
+    if (!fortress) {
+      throw new GameError("You are not participating in the active cycle.");
+    }
+
+    const tile = getTileById(tileId);
+
+    const existing = await tx.mapHexOwnership.findUnique({
+      where: {
+        cycleId_tileId: {
+          cycleId: cycle.id,
+          tileId,
+        },
+      },
+      select: {
+        ownerFortressId: true,
+      },
+    });
+    const diplomacyRelation =
+      existing?.ownerFortressId && existing.ownerFortressId !== fortress.id
+        ? await tx.diplomacyRelation.findUnique({
+            where: {
+              cycleId_fortressAId_fortressBId: {
+                cycleId: cycle.id,
+                ...getCanonicalDiplomacyPair(
+                  fortress.id,
+                  existing.ownerFortressId
+                ),
+              },
+            },
+            select: {
+              status: true,
+              warStartsAt: true,
+            },
+          })
+        : null;
+
+    const ownedTileIds = await tx.mapHexOwnership.findMany({
+      where: {
+        cycleId: cycle.id,
+        ownerFortressId: fortress.id,
+      },
+      select: {
+        tileId: true,
+      },
+    });
+    const ownedNormalTileIds = ownedTileIds
+      .map((ownership) => ownership.tileId)
+      .filter((ownedTileId) => !isHomeOfATile(ownedTileId));
+
+    const blockedReason = getPressureTargetBlockedReason({
+      tile,
+      tileId,
+      ownerFortressId: existing?.ownerFortressId ?? null,
+      diplomacyBlockedReason: getDiplomacyPressureBlockedReason({
+        relation: diplomacyRelation,
+        now,
+      }),
+      fortress,
+      ownedTileIds: ownedNormalTileIds,
+      isHomeOfA: isHomeOfATile,
+      isConnected: ({ tileId: candidateTileId, ownedTileIds }) =>
+        isTileConnectedToFortressOrOwnedTiles({
+          tileId: candidateTileId,
+          fortress,
+          ownedTileIds,
+        }),
+    });
+
+    if (blockedReason) {
+      throw new GameError(blockedReason);
+    }
+
+    return tx.tilePressurePriority.upsert({
+      where: {
+        cycleId_fortressId_tileId: {
+          cycleId: cycle.id,
+          fortressId: fortress.id,
+          tileId,
+        },
+      },
+      create: {
+        cycleId: cycle.id,
+        fortressId: fortress.id,
+        tileId,
+        weight: 1,
+      },
+      update: {
+        weight: 1,
+      },
+      select: {
+        id: true,
+        cycleId: true,
+        fortressId: true,
+        tileId: true,
+        weight: true,
+      },
+    });
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+export async function clearTilePressurePriority({
+  userId,
+  tileId,
+  db = prisma,
+}: {
+  userId: string;
+  tileId: string;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle) {
+      throw new GameError("There is no active cycle.");
+    }
+
+    assertSeasonFourFeatureCycle(cycle);
+
+    const fortress = await tx.fortress.findUnique({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: userId,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!fortress) {
+      throw new GameError("You are not participating in the active cycle.");
+    }
+
+    await tx.tilePressurePriority.deleteMany({
+      where: {
+        cycleId: cycle.id,
+        fortressId: for
+
+[… truncated 143302 chars …]

@@ -1,0 +1,444 @@
+Render MCP Server – Render Docs
+https://render.com/docs/mcp-server
+
+<!DOCTYPE html>Render MCP Server – Render Docs
+
+SearchAsk AI
+
+Sign In
+
+Get Started
+
+Render MCP Server
+
+Manage your Render resources from Cursor, Codex, and Claude Code.
+
+Render's Model Context Protocol (MCP) server enables you to manage your Render infrastructure directly from compatible AI apps, such as Cursor, Codex, and Claude Code:
+
+Using natural language prompts, you (and your agents) can:
+
+Spin up new services
+
+Query your databases
+
+Analyze metrics and logs
+
+...and more! For inspiration, see some example prompts.
+
+What is MCP?
+
+Model Context Protocol (MCP) is an open standard for connecting AI apps and agents to external tools and data. An MCP server exposes a set of actions that AI apps can invoke to help fulfill relevant user prompts (e.g., "Find all the documents I edited yesterday").
+
+To perform an action, an MCP server often calls an external API, then packages the result into a standardized format for the calling application.
+
+How it works
+
+The Render MCP server is hosted at the following URL:
+
+You can configure compatible AI apps (such as Cursor, Codex, and Claude Code) to communicate with this server. When you provide a relevant prompt, your tool intelligently calls the MCP server to execute supported platform actions:
+
+In the example diagram above:
+
+A user prompts Cursor to "List my Render services".
+
+Cursor intelligently detects that the Render MCP server supports actions relevant to the prompt.
+
+Cursor directs the MCP server to execute the list_services "tool", which calls the Render API to fetch the corresponding data.
+
+To explore the implementation of the MCP server itself, see the open-source project:
+
+View source on GitHub
+
+Setup
+
+1. Create an API key
+
+The MCP server uses an API key to authenticate with the Render platform. Create an API key from your Account Settings page:
+
+Render API keys are broadly scoped. They grant access to all workspaces and services your account can access.
+
+Before proceeding, make sure you're comfortable granting these permissions to your AI app. The Render MCP server currently supports only one potentially destructive operation: modifying an existing service's environment variables.
+
+2. Configure your tool
+
+Next, we'll configure your AI app to use Render's hosted MCP server. Most compatible apps define their MCP configuration in a JSON file (such as ~/.cursor/mcp.json for Cursor).
+
+Select the tab for your app:
+
+CursorCursor
+
+CodexCodex
+
+Claude CodeClaude Code
+
+Claude DesktopClaude Desktop
+
+JulesJules
+
+WindsurfWindsurf
+
+Other toolsOther tools
+
+Cursor setup
+
+Add the following configuration to ~/.cursor/mcp.json:
+
+Replace <YOUR_API_KEY> with your API key.
+
+For more details, see the Cursor MCP documentation.
+
+Codex setup
+
+Add the following configuration to ~/.codex/config.toml:
+
+For more details, see the Codex MCP documentation.
+
+Claude Code setup
+
+Run the following command, substituting your API key where indicated:
+
+You can include the --scope flag to specify where this MCP configuration is stored. For more details, see the Claude Code MCP documentation.
+
+Claude Desktop setup
+
+Add the configuration below to your Claude Desktop MCP settings. By default, this file is located at the following paths based on your operating system:
+
+macOS: ~/Library/Application Support/Claude/claude_desktop_config.json
+
+Windows: %APPDATA%\Claude\claude_desktop_config.json
+
+Replace <YOUR_API_KEY> with your API key.
+
+For more details, see the Claude Desktop MCP documentation.
+
+Jules setup
+
+Go to dashboard.render.com/jules and create a Jules API key:
+
+Open your Jules integration settings.
+
+Under Render, paste your Jules API key and save the changes.
+
+Confirm that Enable MCP features is checked:
+
+Render's Jules integration can also monitor your service's pull requests and automatically push fixes to address issues. Learn more.
+
+Windsurf setup
+
+Add the following configuration to ~/.codeium/windsurf/mcp_config.json:
+
+Replace <YOUR_API_KEY> with your API key.
+
+For more details, see the Windsurf MCP documentation.
+
+Setup for other apps
+
+See the documentation for other popular AI apps:
+
+VS Code
+
+Zed
+
+Gemini CLI
+
+Crush
+
+Warp
+
+3. Set your workspace
+
+To start using the Render MCP server, you first tell your AI app which Render workspace to operate in. This determines which resources the MCP server can access.
+
+You can set your workspace with a prompt like Set my Render workspace to [WORKSPACE_NAME].
+
+If you don't set your workspace, your app usually directs you to specify one if you submit a prompt that uses the MCP server (such as List my Render services):
+
+With your workspace set, you're ready to start prompting! Get started with some example prompts.
+
+Example prompts
+
+Your AI app can use the Render MCP server to perform a wide variety of platform actions. Here are some basic example prompts to get you started:
+
+Service creation
+
+Create a new database named user-db with 5 GB storage
+Deploy an example Flask web service on Render using https://github.com/render-examples/flask-hello-world
+
+Data analysis
+
+Using my Render database, tell me which items were the most frequently bought together
+Query my read replica for daily signup counts for the last 30 days
+
+Service metrics
+
+What was the busiest traffic day for my service this month?
+What did my service's autoscaling behavior look like yesterday?
+
+Troubleshooting
+
+Pull the most recent error-level logs for my API service
+Why isn't my site at example.onrender.com working?
+
+Supported actions
+
+The Render MCP server provides a "tool" for each platform action listed below (organized by resource type). Your AI app (the "MCP host") can combine these tools however it needs to perform the tasks you describe.
+
+For more details on all available tools, see the project README.
+
+Resource TypeSupported Actions
+
+Workspaces
+
+List all workspaces you have access to
+
+Set the current workspace
+
+Fetch details of the currently selected workspace
+
+Services
+
+Create the following service types:
+
+Web services
+
+Static sites
+
+Cron jobs
+
+Render Postgres
+
+Render Key Value
+
+Other service types are not yet supported.
+
+List all services in the current workspace
+
+Retrieve details about a specific service
+
+Update all environment variables for a service
+
+Deploys
+
+List the deploy history for a service
+
+Get details about a specific deploy
+
+Logs
+
+List logs matching provided filters
+
+List all values for a given log label
+
+Metrics
+
+Fetch performance metrics for services and datastores, including:
+
+CPU / memory usage
+
+Instance count
+
+Datastore connection counts
+
+Web service response counts, segmentable by status code
+
+Web service response times (requires a Pro workspace or higher)
+
+Outbound bandwidth usage
+
+Render Postgres
+
+Create a new database
+
+List all databases in the current workspace
+
+Get details about a specific database
+
+Run a read-only SQL query against a specific database
+
+Render Key Value
+
+Create a new Key Value instance
+
+List all Key Value instances in your Render account
+
+Get details about a specific Key Value instance
+
+Running locally
+
+We strongly recommend using Render's hosted MCP server instead of running it locally.
+
+The hosted MCP server automatically updates with new capabilities as they're added. Run locally only if required for your use case.
+
+You can install and run the Render MCP server on your local machine as a Docker container, or by running the executable directly:
+
+Docker imageDocker image
+
+ExecutableExecutable
+
+Docker setup
+
+This method requires docker.
+
+With this configuration, your AI app pulls and runs the Render MCP server as a Docker container.
+
+Add JSON with the format below to your tool's MCP configuration (substitute <YOUR_API_KEY> with your API key):
+
+The mcpServers key above might differ for specific tools. For example, Zed uses context_servers and GitHub Copilot uses servers. Consult your tool's documentation for details.
+
+Local executable setup
+
+With this configuration, your AI app runs the Render MCP server executable directly.
+
+Install the MCP server executable using one of the methods described in Local installation, then return here.
+
+Add JSON with the format below to your tool's MCP configuration (substitute your API key and the path to your MCP server executable):
+
+The mcpServers key above might differ for specific tools. For example, Zed uses context_servers and GitHub Copilot uses servers. Consult your tool's documentation for details.
+
+Local installation
+
+Follow these instructions only if you're running the MCP server locally and without Docker.
+
+We strongly recommend instead using Render's hosted MCP server, because it automatically updates as new capabilities are added.
+
+View installation methods
+
+Install scriptInstall script
+
+Direct downloadDirect download
+
+Build from sourceBuild from source
+
+This method requires macOS or Linux.
+
+Run the following curl command:
+
+Note the full path where the install script saved the downloaded executable. The output includes a message like the following:
+
+Open the MCP server's GitHub releases page.
+
+Under the most recent release, download and unzip the executable that corresponds to your system's architecture.
+
+If a release asset isn't available for your architecture, select a different installation method.
+
+Move the executable to the desired directory and note its full path.
+
+Note for macOS users:
+
+You might need to grant a system exception to run the downloaded executable, because it's from an "unknown developer." Learn more.
+
+We recommend building from source only in the following cases:
+
+No other installation method works for your system.
+
+You're making custom changes to the MCP server.
+
+Install the Go programming language if you haven't already.
+
+Clone the MCP server repository and build the executable:
+
+This creates a render-mcp-server executable in the repo's root directory.
+
+Note the full path to the newly built executable.
+
+Limitations
+
+The Render MCP server attempts to minimize exposing sensitive information (like connection strings) to your AI app's context. However, Render does not guarantee that sensitive information will not be exposed. Exercise caution when interacting with secrets in your AI app.
+
+Note the following additional limitations:
+
+The MCP server supports creation of the following resources:
+
+Web services
+
+Static sites
+
+Cron jobs
+
+Render Postgres databases
+
+Render Key Value instances
+
+Other service types are not yet supported.
+
+The MCP server does not support all configuration options when creating services.
+
+For example, you cannot create image-backed services or set up IP allowlists. If there are options you'd like to see supported, please submit an issue on the MCP server's GitHub repository.
+
+The MCP server does not support modifying or deleting existing Render resources, with one exception:
+
+You can modify an existing service's environment variables.
+
+To perform other modifications or deletions, use the Render Dashboard or REST API.
+
+The MCP server does not support triggering deploys, modifying scaling settings, or other operational service controls.
+
+Copy page
+
+Render MCP Server
+
+How it works
+
+Setup
+1. Create an API key
+
+2. Configure your tool
+
+3. Set your workspace
+
+Example prompts
+
+Supported actions
+
+Running locally
+Local installation
+
+Limitations
+
+plaintextCopy to clipboard
+
+<div class="line token-line"><span class="token plain">https://mcp.render.com/mcp</span></div>
+
+~/cursor/mcp.json
+jsonCopy to clipboard
+
+<div class="line token-line"><span class="token punctuation">{</span><span class="token plain"></span></div><div class="line token-line"><span class="token plain"> </span><span class="token property">"mcpServers"</span><span class="token operator">:</span><span class="token plain"> </span><span class="token punctuation">{</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token property">"render"</span><span class="token operator">:</span><span class="token plain"> </span><span class="token punctuation">{</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token property">"url"</span><span class="token operator">:</span><span class="token plain"> </span><span class="token string">"https://mcp.render.com/mcp"</span><span class="token punctuation">,</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token property">"headers"</span><span class="token operator">:</span><span class="token plain"> </span><span class="token punctuation">{</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token property">"Authorization"</span><span class="token operator">:</span><span class="token plain"> </span><span class="token string">"Bearer <YOUR_API_KEY>"</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token punctuation">}</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token punctuation">}</span><span class="token plain"></span></div><div class="line token-line"><span class="token plain"> </span><span class="token punctuation">}</span><span class="token plain"></span></div><div class="line token-line"><span class="token plain"></span><span class="token punctuation">}</span></div>
+
+~/.codex/config.toml
+tomlCopy to clipboard
+
+<div class="line token-line"><span class="token punctuation">[</span><span class="token table class-name">mcp_servers.render</span><span class="token punctuation">]</span><span class="token plain"></span></div><div class="line token-line"><span class="token plain"></span><span class="token key property">url</span><span class="token plain"> </span><span class="token punctuation">=</span><span class="token plain"> </span><span class="token string">"https://mcp.render.com/mcp"</span><span class="token plain"></span></div><div class="line token-line"><span class="token plain"></span><span class="token key property">http_headers</span><span class="token plain"> </span><span class="token punctuation">=</span><span class="token plain"> </span><span class="token punctuation">{</span><span class="token plain"> </span><span class="token key property">Authorization</span><span class="token plain"> </span><span class="token punctuation">=</span><span class="token plain"> </span><span class="token string">"Bearer <YOUR_API_KEY>"</span><span class="token plain"> </span><span class="token punctuation">}</span></div>
+
+bashCopy to clipboard
+
+<div class="line token-line"><span class="token plain">claude mcp </span><span class="token function">add</span><span class="token plain"> </span><span class="token parameter variable">--transport</span><span class="token plain"> http render https://mcp.render.com/mcp </span><span class="token parameter variable">--header</span><span class="token plain"> </span><span class="token string">"Authorization: Bearer <YOUR_API_KEY>"</span></div>
+
+jsonCopy to clipboard
+
+<div class="line token-line"><span class="token punctuation">{</span><span class="token plain"></span></div><div class="line token-line"><span class="token plain"> </span><span class="token property">"mcpServers"</span><span class="token operator">:</span><span class="token plain"> </span><span class="token punctuation">{</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token property">"render"</span><span class="token operator">:</span><span class="token plain"> </span><span class="token punctuation">{</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token property">"command"</span><span class="token operator">:</span><span class="token plain"> </span><span class="token string">"npx"</span><span class="token punctuation">,</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token property">"args"</span><span class="token operator">:</span><span class="token plain"> </span><span class="token punctuation">[</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token string">"mcp-remote"</span><span class="token punctuation">,</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token string">"https://mcp.render.com/mcp"</span><span class="token punctuation">,</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token string">"--header"</span><span class="token punctuation">,</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token string">"Authorization: Bearer ${RENDER_API_KEY}"</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token punctuation">]</span><span class="token punctuation">,</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token property">"env"</span><span class="token operator">:</span><span class="token plain"> </span><span class="token punctuation">{</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token property">"RENDER_API_KEY"</span><span class="token operator">:</span><span class="token plain"> </span><span class="token string">"<YOUR_API_KEY>"</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token punctuation">}</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token punctuation">}</span><span class="token plain"></span></div><div class="line token-line"><span class="token plain"> </span><span class="token punctuation">}</span><span class="token plain"></span></div><div class="line token-line"><span class="token plain"></span><span class="token punctuation">}</span></div>
+
+jsonCopy to clipboard
+
+<div class="line token-line"><span class="token punctuation">{</span><span class="token plain"></span></div><div class="line token-line"><span class="token plain"> </span><span class="token property">"mcpServers"</span><span class="token operator">:</span><span class="token plain"> </span><span class="token punctuation">{</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token property">"render"</span><span class="token operator">:</span><span class="token plain"> </span><span class="token punctuation">{</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token property">"url"</span><span class="token operator">:</span><span class="token plain"> </span><span class="token string">"https://mcp.render.com/mcp"</span><span class="token punctuation">,</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token property">"headers"</span><span class="token operator">:</span><span class="token plain"> </span><span class="token punctuation">{</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token property">"Authorization"</span><span class="token operator">:</span><span class="token plain"> </span><span class="token string">"Bearer <YOUR_API_KEY>"</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token punctuation">}</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token punctuation">}</span><span class="token plain"></span></div><div class="line token-line"><span class="token plain"> </span><span class="token punctuation">}</span><span class="token plain"></span></div><div class="line token-line"><span class="token plain"></span><span class="token punctuation">}</span></div>
+
+jsonCopy to clipboard
+
+<div class="line token-line"><span class="token punctuation">{</span><span class="token plain"></span></div><div class="line token-line"><span class="token plain"> </span><span class="token property">"mcpServers"</span><span class="token operator">:</span><span class="token plain"> </span><span class="token punctuation">{</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token property">"render"</span><span class="token operator">:</span><span class="token plain"> </span><span class="token punctuation">{</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token property">"command"</span><span class="token operator">:</span><span class="token plain"> </span><span class="token string">"docker"</span><span class="token punctuation">,</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token property">"args"</span><span class="token operator">:</span><span class="token plain"> </span><span class="token punctuation">[</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token string">"run"</span><span class="token punctuation">,</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token string">"-i"</span><span class="token punctuation">,</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token string">"--rm"</span><span class="token punctuation">,</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token string">"-e"</span><span class="token punctuation">,</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token string">"RENDER_API_KEY"</span><span class="token punctuation">,</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token string">"-v"</span><span class="token punctuation">,</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token string">"render-mcp-server-config:/config"</span><span class="token punctuation">,</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token string">"ghcr.io/render-oss/render-mcp-server"</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token punctuation">]</span><span class="token punctuation">,</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token property">"env"</span><span class="token operator">:</span><span class="token plain"> </span><span class="token punctuation">{</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token property">"RENDER_API_KEY"</span><span class="token operator">:</span><span class="token plain"> </span><span class="token string">"<YOUR_API_KEY>"</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token punctuation">}</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token punctuation">}</span><span class="token plain"></span></div><div class="line token-line"><span class="token plain"> </span><span class="token punctuation">}</span><span class="token plain"></span></div><div class="line token-line"><span class="token plain"></span><span class="token punctuation">}</span></div>
+
+jsonCopy to clipboard
+
+<div class="line token-line"><span class="token punctuation">{</span><span class="token plain"></span></div><div class="line token-line"><span class="token plain"> </span><span class="token property">"mcpServers"</span><span class="token operator">:</span><span class="token plain"> </span><span class="token punctuation">{</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token property">"render"</span><span class="token operator">:</span><span class="token plain"> </span><span class="token punctuation">{</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token property">"command"</span><span class="token operator">:</span><span class="token plain"> </span><span class="token string">"/path/to/render-mcp-server-executable"</span><span class="token punctuation">,</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token property">"env"</span><span class="token operator">:</span><span class="token plain"> </span><span class="token punctuation">{</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token property">"RENDER_API_KEY"</span><span class="token operator">:</span><span class="token plain"> </span><span class="token string">"<YOUR_API_KEY>"</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token punctuation">}</span><span class="token plain"></span></div><div class="line -mx-20 rounded-none border-l-[5px] border-l-gray-300 bg-gray-50 px-16 dark:border-l-gray-600 dark:bg-gray-700 token-line"><span class="token plain"> </span><span class="token punctuation">}</span><span class="token plain"></span></div><div class="line token-line"><span class="token plain"> </span><span class="token punctuation">}</span><span class="token plain"></span></div><div class="line token-line"><span class="token plain"></span><span class="token punctuation">}</span></div>
+
+shellCopy to clipboard
+
+<div class="line token-line"><span class="select-none text-blue-600 dark:text-blue-200">$<!-- --> </span><span class="token function">curl</span><span class="token plain"> </span><span class="token parameter variable">-fsSL</span><span class="token plain"> https://raw.githubusercontent.com/render-oss/render-mcp-server/refs/heads/main/bin/install.sh </span><span class="token operator">|</span><span class="token plain"> </span><span class="token function">sh</span></div>
+
+plaintextCopy to clipboard
+
+<div class="line token-line"><span class="token plain">✨ Successfully installed Render MCP Server to /Users/example/.local/bin/render-mcp-server</span></div>
+
+shellCopy to clipboard
+
+<
+
+[… truncated 635 chars …]

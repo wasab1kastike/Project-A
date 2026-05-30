@@ -1,0 +1,546 @@
+$ git -C /tmp/project-a log --oneline --all 2>&1
+[exit 0]
+5f20439 Fix: add missing selectFortressDoctrineFormAction in castle-management.tsx
+c1f9d1e Fix broken template literal syntax (#192)
+5caa59d Fix broken template literal syntax
+b08636e Fix doctrine Date cast (#191)
+1f6afe9 Fix doctrine Date cast
+77786b9 Fix changeAvailableAt type in template literal
+6285766 Fix nullable doctrine state (#189)
+128796b Fix nullable doctrine state type error
+dd8dc47 Fix cron: add RaceSkillPurchase migration (#188)
+782266f Add migration for RaceSkillPurchase table
+582ecc7 Fix Record index type with FortressRace cast (#187)
+906699b Fix Record index type with FortressRace cast
+6016f05 Fix Record index type with FortressRace cast
+063aad9 Fix null index type for RACE_TIER_BIOME_REQUIREMENTS (#185)
+11bc1aa Fix null index type for RACE_TIER_BIOME_REQUIREMENTS
+9815c86 Fix null race type error with non-null assertion (#183)
+5243735 Fix null race type error in castle management (#181)
+964433d Fix null race type error in castle management
+8a65885 Update wiki for skill trees and S4 rules (#179)
+19c3e36 Update wiki with skill trees, remove doctrine references
+c1af3f1 Skill trees + economy wiring + docs (#178)
+6c922aa Wire skill tree economy bonuses into tick production
+c2f622b Wire skill tree pressure bonuses into tick processor
+3838755 Update docs for skill trees + S4 cleanup (#177)
+2e72dd3 Update AGENTS.md, game-design.md, data-model.md for skill trees + S4 cleanup
+84950ff Race skill tree + guard sprites + HUD polish + doctrine removal (#176)
+5b1229a Remove Doctrine tab from Castle + hide Castle Yeet in S4
+8004578 Add skill modifier computation helper
+f75050a Wire RaceSkillPanel into Castle SKILLS tab
+cf41099 Add Skills and Shop tabs to Castle page
+b51dde2 Add race skill tree to castle data flow
+77fddef Use player's actual unit sprite + cosmetic for guard markers
+a2f53d6 Add race skill tree prototype
+cc2f324 Feat/ops feed (#175)
+94ffb64 Feat/ops feed (#174)
+b582d56 Feat/ops feed (#173)
+3e02cd9 Feat/ops feed (#172)
+69dfc37 Remove temporary map objective system (#171)
+8df3de9 Redesign activity feed as operations feed (#170)
+e55c71c Redesign activity feed as operations feed
+338070c Complete command dock CSS module (#168)
+39f9897 Complete command dock CSS module
+8f160f8 Fix page.tsx type error (#167)
+d42a8ec Fix page.tsx type mismatch with cast
+8f7cd1d Fix deed convoy escort + delivery tests
+32ff747 Fix deed convoy escort + delivery validation (#165)
+75e36d1 Fix alliedRoads type in page.tsx degraded state (#164)
+5146e30 Fix alliedRoads type in page.tsx degraded state
+c586f2c Add alliance roads to map
+9f3adcf Add alliance roads to map (#162)
+109878b Add alliance roads to map
+a5b2e54 Add alliance roads to map
+046f11e Add guard strength indicators to map tiles (#160)
+c68883d Add guard strength indicators to map tiles
+86a593c Block campaigns on deed-reserved tiles (#159)
+2f24523 Block campaigns on deed-reserved tiles
+755fea1 Gate Castle Yeet in S4 (#158)
+7e20c64 Gate Castle Yeet in Season 4
+d4b144b Add activity feed to command dock (#157)
+1edd95c Add activity feed to command dock
+e8d0a46 Merge pull request #156 from wasab1kastike/codex/remove-recall-all-units-ui
+7e11760 Merge recall all units UI removal
+6ddc558 Remove recall all units UI
+e07773e Remove recall-all control from battlefield (#155)
+ef74a09 Remove recall-all control from battlefield
+9c572af Restore season status in command dock (#154)
+a439c85 Fix ESLint compatibility for CI
+904cc3b Restore season status in command dock
+32dec7d Gate recall-all-units in S4 (#153)
+fc7ca00 Gate recall-all-units in S4
+2f4c136 Fix deed-only convoy + picker direction (#152)
+2aedc38 Fix deed-only convoy leg + picker direction
+040c5c8 Fix 5 tile deed issues from audit (#151)
+c305e7b Fix 5 tile deed issues from audit
+5eb4b3d Populate badge count queries (#150)
+c80f6fe Hide old top navigation when command dock is active (#149)
+912d799 Hide old top navigation when command dock is active
+02a1bc2 Hide old top navigation when command dock is active
+8d8f0c8 Add eligible deed tile picker to Politics trade form (#148)
+fc04681 Add eligible deed tile picker to Politics trade form
+c8c8ae5 Populate badge count queries (#147)
+e04412f Populate badge count queries
+d315028 Wire command dock badges from home state (#146)
+9f54ce6 Wire command dock badges from home state
+d259b73 M2: War-room UI — command dock + legacy notice cleanup (#145)
+96a6bf2 Gate legacy notices in battlefield-experience for S4
+2000c26 M2: Command dock + Politics incoming badge (#143)
+e96470d M2: Castle already tabbed; Politics incoming badge added
+0a4e4c7 M2: Add persistent command dock (desktop + mobile)
+a692281 M2: Castle already tabbed; Politics incoming badge added
+57e9af7 M2: Add persistent command dock (desktop + mobile)
+1ff0ddb M1 polish + M3 deed tile picker (#142)
+3ee7506 M1 polish + M3 deed tile picker
+f529c1e Add migration for tile deed schema columns (#141)
+fe83417 Add migration for tile deed schema columns
+93c6c94 Fix nullable amount type (#140)
+7283d3c Fix nullable amount type
+d3e42f2 Fix getTradeCargoFromLineItems type signature: accept nullable amount
+d3137d2 Tile deed display polish (#139)
+0f41e44 Show tile deeds in convoy leg display and recent results
+6f1451a Remove stale 'tile deeds remain later logistics' stub — now implemented
+2f3d7fb Show tile deeds in convoy leg display and recent results
+e3ab82f Remove stale 'tile deeds remain later logistics' stub — now implemented
+625d620 Fix tile deed type errors blocking Render deploy (#138)
+4c6db33 Fix type errors — dynamic import, TILE kind filtering, amount null
+0f6b4d6 Replace dynamic imports with static import of validateTileDeedAllowed
+8c54deb Season 4 hardening + tile deed foundations (#137)
+421188a Add tile deed rules to game-design.md
+166ea5f Extend Politics read-model with deed fields
+e4bff1a Add tile deed convoy resolution
+6f8aa75 Add tile deed service layer
+39ce176 Add tile deed validation helpers
+9a25c87 Add tile deed data model
+001d81a Harden Season 4 battlefield processing
+7715523 Merge pull request #136 from wasab1kastike/fix/season4-gating-leaks
+a5156be Fix Season 4 gating leaks
+c02d2fa Fix Season 4 gating leaks
+ffb820c Merge pull request #135 from wasab1kastike/fix/lockfile-esbuild-0.28
+e993acd Remove legacy references from Season 4 wiki
+9abc5ba Merge pull request #134 from wasab1kastike/fix/lockfile-esbuild-0.28
+915de96 Regenerate lockfile after dependency bumps
+160ce02 Merge pull request #133 from wasab1kastike/codex/cleanup-season4-docs
+a7cf678 Bump dependencies
+204df93 Clean up Season 4 documentation
+5e6e970 Merge pull request #132 from wasab1kastike/exploit-blink-recall
+edeefc4 Record Blink Recall exploit in Hall of Fame
+64151cf Merge pull request #131 from wasab1kastike/codex/season4-castle-operations
+f68b340 Add Season 4 castle operations visibility
+9fd68c5 Merge pull request #130 from wasab1kastike/codex/season4-core-ui
+541f09b Upgrade Season 4 expansion and castle UI
+8467252 Merge pull request #129 from wasab1kastike/codex/remove-season-4-retired-imports
+d41d435 Remove retired Season 4 UI imports
+5735ede Merge pull request #128 from wasab1kastike/codex/season-4-doctrines-scoring-ui
+a2e69aa Add Season 4 doctrines and prestige rankings
+7cb6a74 Merge pull request #127 from wasab1kastike/codex/season-4-convoy-conflict
+3776077 Add Season 4 convoy escorts and raid interception
+4df8f46 Merge pull request #126 from wasab1kastike/codex/season-4-open-registration-cleanup
+3e61e72 Open Season 4 registration and archive wish ballot
+6981a51 Merge pull request #125 from wasab1kastike/codex/season-4-trade-convoys
+b725d24 Add Season 4 resource trade convoys
+cfb32f9 Merge pull request #124 from wasab1kastike/codex/season-4-full-redesign
+844b0b2 Fix PostgreSQL integration workflow database target
+a8ee0cf Add Season 4 standing campaigns and guard orders
+115deca Add casus belli war activation foundation
+53f53c5 Document Season 4 pretesting release hold
+64a8300 Complete alliance proposal lifecycle
+4e4e321 Gate Season 4 mechanics by persisted ruleset
+8602d30 Add trust-backed alliances for Season 4
+63edc38 Decay unsupported pressure before resumed expansion
+a7a94d1 Gate Season 4 launch and slow pressure expansion
+3e14980 Merge pull request #118 from wasab1kastike/codex/season-4-pressure-expansion
+75cde91 Fix diplomacy migration upgrade path
+9243233 Add dedicated politics and trade page
+9e8102d Merge pull request #117 from wasab1kastike/codex/season-4-pressure-expansion
+130bd2e Align season four voting and pretesting schedule
+e2160d1 Focus season-end wishes and winner history
+a2bad0a Wire politics gates into map actions
+654e606 Add politics relation foundation
+9826084 Polish pressure expansion cleanup
+d700eae Add border-limited tile combat targeting
+f8b7a3f Replace manual tile claims with pressure expansion
+083b051 Merge pull request #116 from wasab1kastike/codex/fix-castle-targeting-tile-defense
+760dcd1 Fix castle targeting and tile defense bonuses
+cd6c3e0 Reduce game state timeout pressure (#115)
+2224d13 chore(deps): bump ws in the npm_and_yarn group across 1 directory (#111)
+c961704 Reduce game state timeout pressure
+71f656b Fix/units killed always assigned (#114)
+e25dc77 fix: always assign units killed to at least one eligible participant after tile battles (prevents rounding/edge case skips)
+952ee35 Add season 4 pressure worker foundation
+b3aca5c Remove obsolete tick maintenance hooks (#113)
+b85b963 Remove obsolete tick maintenance hooks
+327fe50 Schedule current season early end (#112)
+da1484e Add season schedule maintenance workflow (#110)
+8cfc7ad Stack owned tile battlefield defense bonuses
+593d2ca Merge pull request #108 from wasab1kastike/codex/fix-castle-refresh-error-handling
+6340e74 Fix castle refresh error handling
+bcfacfe Merge pull request #107 from wasab1kastike/codex/early-season-end-extended-voting
+0fcaa53 schedule early season end and extended voting
+fc2ad15 Merge pull request #106 from wasab1kastike/codex/castle-battlefield-defense-bonuses
+4aee190 fix castle battlefield defense bonuses
+f4d6d79 Merge pull request #105 from wasab1kastike/codex/battlefield-read-model-live-refresh
+0e094ba refactor battlefield read model and live refresh
+6a1a76d Fix combat defense and Home of A army returns (#104)
+21f89b1 docs: expand mining and unicorn notes (#103)
+9e03773 docs: expand mining and unicorn notes
+e10bb2b fix: clarify deep mining and unicorn buffs (#102)
+07c38d1 fix: clarify deep mining and unicorn buffs
+3ba4df3 fix: apply combat buffs consistently (#101)
+0716ae8 fix: apply combat buffs consistently
+bb128ea Give God Emperor favorites and roleplay commands
+a407ef3 Fix battle report MVP typing
+551ea91 Give God Emperor favorites and roleplay commands
+0966386 Merge pull request #99 from wasab1kastike/codex/may-18-combat-compensation
+f5863d9 Run combat compensation from game tick
+f5dd556 Merge pull request #98 from wasab1kastike/codex/may-18-combat-compensation
+fd77ac2 Add combat compensation grant
+9c71d28 Merge pull request #97 from wasab1kastike/codex/homepage-auth-fallback
+ba92f7f Degrade homepage auth failures to spectator mode
+81d5ff4 Merge pull request #96 from wasab1kastike/codex/battlefield-prep-window-live
+84991fd Polish recruitment and battlefield clarity
+633457c Merge pull request #95 from wasab1kastike/codex/battlefield-prep-window-live
+0647510 Merge remote-tracking branch 'origin/main'
+41ee131 Document battlefield timing invariants
+b56c14d Merge fix/combat-tick-ordering
+332fbce Add battlefield preparation window
+724eb12 Merge pull request #94 from wasab1kastike/fix/combat-tick-ordering
+0ed7aaf fix: add optional specialEvent to RaidBattleReportInput to resolve type error
+3e076d5 Merge pull request #93 from wasab1kastike/fix/combat-tick-ordering
+c75e67d feat: improve live sync reliability with auto-retry and manual retry button (no forced refresh)
+07e5ad8 feat: enhance combat log formatting with MVP and special event highlights for richer battle feedback
+84f6e0f Merge pull request #92 from wasab1kastike/fix/combat-tick-ordering
+b4169f2 fix: ensure all army arrivals are processed before resolving battlefields in tick logic (combat timing fix)
+f0e67d1 Remove unused code paths
+7f887ae Refactor battlefield rule helpers
+b891beb Merge pull request #91 from wasab1kastike/codex/finish-battlefield-combat-visibility
+297f625 Finish battlefield combat visibility
+845902f Rework battlefield attrition resolution
+6c49127 Keep omen fallback tile coordinates intact
+1ef6222 Polish God Emperor omen fallbacks
+1167ab4 Make God Emperor speak as rare daily omens
+0b862cc Deepen sparse God Emperor omens (#87)
+187075b Remove temporary God snapshot diagnostic detail (#86)
+feb45ce Temporarily expose God snapshot error detail again (#85)
+ff060b7 Remove temporary open-eye cleanup route (#84)
+5a436b5 Clean up open-eye God Emperor test chat (#83)
+8acbaf3 Remove temporary banner chat cleanup route (#82)
+0ef611b Clean up duplicate God Emperor banner chat (#81)
+5fb359f Temporarily expose God snapshot error detail (#80)
+7e3e51e Remove temporary remaining God chat cleanup route (#79)
+9b249ab Add temporary cleanup for remaining God chat tests (#78)
+13cd138 Remove temporary God Emperor chat cleanup route (#77)
+1b20cbf Polish God Emperor live narration follow-up (#76)
+5e03dec Add temporary God Emperor chat cleanup route
+8775a35 Make God Emperor narration more selective
+8b57818 Throttle tiny God Emperor leaderboard repeats
+8aec3cb Sharpen God Emperor leaderboard fallback
+d869e3d Throttle tiny God Emperor leaderboard repeats
+3ba0039 Sharpen God Emperor leaderboard fallback
+02445ca Polish OpenClaw God Emperor Phase 1 (#75)
+2549e41 Give God Emperor A a sharper voice
+45aad90 Make god relation memory dynamic
+0421c4e Add public history memory for god runner
+1a1fd15 Include race context in god narration
+00ac6e2 Reject generic god runner messages
+7db80e5 Prioritize leaderboard god reactions
+9007cc8 Harden OpenClaw god runner guardrails
+40a0059 Require owner approval for all repository changes (#74)
+ffcfee6 Fix clean install Prisma client path
+401eb55 Fix CI blockers for OpenClaw PR
+673156d Add OpenClaw god vision runner
+051802b Add OpenClaw god chat endpoint
+709e1fb Require owner review for repository changes
+b0ccf28 Fix Home of A boss battlefield losses
+c2d4a44 Return surviving castle battle attackers
+4b0359d Add Loot Lord leaderboard title
+de4f29f Add leaderboard announcement popup
+0dcd399 Add leaderboard titles and buffs
+0571ee4 Make Home of A combat use battlefield ticks
+4148682 Fix recruitment capacity processing
+dcee694 Add live homepage state refresh
+ec499b2 Add May 15 player compensation grant
+122a522 Return Home of A attackers on impact
+4b02f6a Fix Home of A respawn time display
+04f8137 Show Home of A boss rewards in reports
+1befd0a Add castle PvP point loot
+daf2e46 Restore separate castle and building levels
+75ce3b2 Fix castle upgrade level completion
+b2f0198 Fix castle read model build
+00dec6c fix: correct closing braces and commas at end of Prisma query (build error)
+52803bb fix: split select/include, move fortresses to include, scalars to select (build error)
+6e660db fix: move orkScrapBank, orkScrapEvents, orkBossOrders inside fortresses include (build error)
+2936855 fix: ensure orkScrapBank and orkScrapEvents are siblings in include object (build error)
+b737eb8 fix: move orkScrapBank inside main include object (build error)
+97c0c6a fix: correct nesting of orkScrapBank (build error)
+8ead053 fix: add missing closing brace after raceAbilityActivations (build error)
+6a2734f fix: add missing comma after runeFortress property (build error)
+8c2b6ea fix: remove extra closing brace in Prisma query (build error)
+5d771ad fix: correct closing brace in Prisma query (build error)
+13ce0db fix: remove misplaced comment from object literal (build error)
+efa1f36 fix: remove trailing comma after include block (build error)
+604b389 fix: remove misplaced attackUnits block from Prisma query (build error)
+3fe77cf fix: remove invalid return from Prisma include block (build error)
+b2adcd6 fix(ui): Mob Yard tick preview matches backend armyRequested calculation (includes barracks bonus)
+429df8d fix: add defensive error handling for player summary construction (prevents lockout for UNIBONK and others)
+0b34aa5 Announce Home of A boss revamp
+5f5125d fix: recruitment capacity now uses highest specialization level (not count) for upgrades
+f289161 Add Home of A schema recovery guard
+9f5f3c0 Revamp Home of A as daily boss
+9133240 fix: auto-apply Home of A compensation on tick
+8a11511 chore: tune Home of A compensation message
+91f28f6 chore: add Home of A drain compensation script
+5b63c5d fix: drain Home of A garrisons instead of castle army
+8a70912 fix: prevent idle army from defending regular tiles
+bd23cec fix: keep neutral defense defeated after Home of A is abandoned
+8c801c0 docs: update Home of A recall notes
+16d4c9c fix: clear Home of A holders when recalling garrisons
+1c398ff feat: clarify Home of A status and escalate holder drain
+289b58e revert: restore stable f7a06a5 production baseline
+caacf3c Unblock deployment: fix schema mismatches, add missing selects, and provide local fallbacks
+1fa7ab4 fix: patch notes syntax, null check for attack unit, and battlefield select for Mega Fortress creation (build passes)
+589da79 docs: document Mega Fortress escalating drain, UI feedback, and gameplay impact (2026-05-13)
+5c17d95 fix: idle army no longer auto-joins tile defense; clarify reinforcement logic and add defensive backend comments
+afa04dc docs: update wiki and patch notes for Rune of Grudges nerf (race disabled, economy halved)
+f7a06a5 fix: cleanup unattackable loot camps on every tick (old and new goblins always killable)
+d0d8f29 fix: always allow sending units to rune if not owner and alive
+2577119 fix: ensure all goblins (loot camps) are killable after spawn
+4b1b368 Allow attacking dwarf rune markers without expiry gate
+7b74f6f Fix rune battlefield marker selection on map
+c887ca5 Center and brighten battles panel overlay
+707485b Ensure immortal goblins announcement appears for active cycles
+dc592fd Make rune combat use battlefield flow and clear suppression on win
+042f2ac Improve battles card readability with lighter contrast
+af9a3e4 Fix eternal goblins test: verify they stay until killed, not just until timer
+c5ae9fc Add rune reinforce/cancel flows and optimize rune marker asset
+f84ffac Implement eternal goblins: loot camps never expire by timer
+2957f1e Allow loot camps to remain visible until killed, not just expired
+8cd9841 Update patch notes for last 5 commits
+8f40d99 Fix Rune of Grudges activation database constraint collision
+eae38e9 Revamp battles card with tactical metrics
+1d443e1 Add recall all units action across map, battle, and garrisons
+c8137c5 Boost map objective tile glow and pulse
+a248343 Fix dwarf rune unlock null check
+632ed50 Update patch notes for Home of A battle fixes
+dbf6ebb Show dwarf race tier progress in castle view
+6722dcf Return late reinforcements when battlefield resolves before arrival
+0109327 Fix NPC fortress losing participant armies in Home of A battles
+ef4eee5 Only decrement NPC fortress army on Home of A if attacker wins
+f2fa9c1 Fix Home of A defender fortress losing all units during battle
+fec94bc Fix Home of A battle instantly resolving when already owned
+80c6667 Tie race tiers to biome tile ownership and surface requirements in castle
+8f440b5 Update patch notes for biome-based race tier progression
+c52c013 Update patch notes for refresh optimization and recall fix
+72106cd Phase 3: scope gameplay revalidation paths in game actions
+179c299 Fix null pointer errors in garrison operations
+670af1c Wrap router.refresh() in transition helper to prevent UI jank
+298ccca Fix map drag interactions and disable native sprite dragging
+a9d7eb9 Persist castle PvP battlefield loot
+73186c8 Add battle log view fight action
+c1d431a Open castle battle cards from involved castles
+4142dfb Fix battlefield reinforcement and recall self-targets
+8e0285d Fix own tile defense reinforcements
+6b17860 Fix castle PvP battlefield visibility
+f46c713 Fix tile fortify launch constraint
+cbe94aa Add tile fortifications
+47a1e66 Add PvP reward patch notes
+8459326 Fix PvP battlefield rewards
+69477da Increase homepage data timeout
+8dced39 Fix PvP castle battlefield creation
+c246b20 Grant compensation loot boxes
+2a4df3c Restore archived player season
+e18555d Reduce production database pressure
+6825da7 Stabilize production load paths
+efd4518 Handle auth callback failures gracefully
+d71c2bf Harden Render health checks
+93ad3d5 Improve deep mining logs and enforce 60-minute cooldown
+f611cb8 Reduce action refresh latency and harden self-attack protections
+2a8ffe0 Show deep mining reward and penalty deltas in castle history
+514c395 Tune temporary objectives to 12h and lake territory balance
+7a4c716 Add Deep Mining expedition history log
+25de7fb Convert registration and community actions to inline result pattern
+ca28b2b Convert remaining race ability actions to inline results
+87f421d Bridge typed inline actions with FormData wrappers in castle UI
+d71d48c Phase 1: Convert 10 castle actions to inline InlineActionResult pattern
+40c3e07 Revert "Phase 1: Convert 10 castle actions to inline InlineActionResult pattern"
+befa1e2 Phase 1: Convert 10 castle actions to inline InlineActionResult pattern
+82551bf Fix reinforce: inline action, no page reload, pending state on buttons
+723892b Optimistic chat: message appears instantly, textarea clears on send
+dde3e17 Auto-scroll chat to latest message on new messages
+e249610 Fix chat: stay-open after send, inline errors, no redirect; reduce refresh latency
+38bfeb5 Announce Castle Yeet and update wiki/patch notes
+1dec867 Polish castle teleport map targeting
+af952a9 Fix tile interactivity and manual castle yeet targeting
+9e78d9a Fix tile attack units routing to tile instead of enemy castle
+fb1f6c6 Scope battles panel to selected contested tile/castle
+6c79572 Fix: Allow clicking sea and mountain tiles to view tile info
+2dd0dbe Add sea/mountain claim patch notes and one-time notice
+453d853 Show attack markers immediately on send without waiting for next tick
+a2e7fc5 Make sea and mountain tiles claimable with extra cost, time, and rewards
+8a15071 Scale castle relocation cost by 1000 per relocation
+aace9eb Optimize castle cosmetic textures with WebP assets
+4231527 Improve castle open responsiveness with lighter target payload and loading shell
+27a91c4 Make deep sea and mountains claimable with race-aware claim costs
+7ae0e7a Reduce map re-renders by stabilizing battlefield callbacks
+d7d32be Fix misleading tile claim state and make race lock idempotent
+b86747b Harden tick phase-transition transactions and keep writes in tx
+0f5dc5d Fix tick cron transaction timeout in start-testing-cycle
+2af41f5 Fix HUD overlap: keep season banner centered and nav docked right
+3fd3fd6 Fix UI labels to show 'Season' instead of 'Testing starts' and correct season time to 13:00 Finnish time
+e8c566c Center season notice box at top, move account links to right
+0220a4b Migrate: End testing phase and start new season at 13:00 on May 11
+a5d36ee Update package-lock.json
+98178bd Add admin action to start new season with custom active phase time
+8d0454f Add occupied tile torching
+193fd8d Add starvation attrition for army upkeep
+c9ceeeb Update Prisma for production
+9bf297f Polish battle recall HUD clarity
+c1c973f Add battlefield recall and rebalance objectives
+ea1175a Improve wiki season guide
+1791bc6 Schedule a two-week season
+7ae3314 Reduce realtime refresh CPU load
+ff747de Restore main to 38b962c working build
+9476907 Rollback production to e246da2
+b4804ed Revert "Stabilize immediate unit launches"
+109118e Stabilize immediate unit launches
+1fdb21b Merge unicorn availability fixes into main
+38b962c Explain unicorn button availability
+19ecc44 render startup fix
+e246da2 Allow open battlefield reinforcements for castles and tiles
+ad7d745 Fix raid tie returns and align loot balance tests
+a0a80a1 Optimize castle page loading with dedicated read model
+d67a1b7 Update wiki and docs for current race and tile rules
+ec6f2b7 Fix battlefield map focus on player fortress
+92690fc Fix: Lower MIN_SCALE to allow proper map fitting on all viewports
+707fbaa Fix battlefield map default framing and visibility
+098c13e Fix raid tie returns and align loot balance tests
+28cf2ee Allow open battlefield reinforcements for castles and tiles
+2d05178 Fix map focus to use player fortress
+017b4be Update wiki and docs for current race and tile rules
+dafd2c4 Optimize castle page loading with dedicated read model
+e0d206e Harden auth sessions and privacy handling
+c3b955c Allow Home of A defender reinforcements and recall
+7c9f83e Fix Home of A defender display to use exclusive source
+c9cb5b0 Speed up Render deploy by trimming Next cache artifact and predeploy steps
+fc449d4 Update Ancient Mire Temple and Cyber Fortress sprites
+279f7df Fix slider drag in target popover intercepted by map drag handler
+d7bfe05 Fix target popover dismissal on send army button tap
+b3f0cd2 Add crossed swords battle indicator to active battlefields on map
+740d313 Fix health check: use /api/health endpoint to avoid cold-start timeouts
+6ad4867 Fix unexpected castle reshuffles from non-player duplicates
+cb675c9 Add Unicorn Shattered Reality chaos mechanic\n\n- Add UNICORN_SHATTERED_REALITY race ability kind and migration\n- Implement daily Tier 3 Unicorn RNG ability in service layer\n- Outcomes: Mirror Host, Prismatic Scatter, Chaotic Backfire\n- Add server action and castle UI button for activation\n- Expose cooldown flag in read-model race buffs\n- Refresh Unicorn race flavor/passive copy for illusion-chaos identity
+3c6501e Implement Space Murines instant garrison recall with 5% loss
+a1eedc3 Fix build: remove stale ATTACKER_RETIREMENT_RATE import, fix wiki retirement text, remove malformed garrison code
+7e2d7fb Tune battlefield pacing and improve battle balance UI
+8b551a6 Implement garrison system: survivors stay on tile, maintenance drain, recall/reinforce actions
+410961a Rework history page: seasons overview default, remove cycle logs, funny season names
+d2ca4b2 Make Home of A attacks appear immediately on launch
+5587943 Update army recruitment and patch notes
+71fcf18 Enable left-click drag map panning by using capture phase for viewport pointer events
+6f734ec Improve history page seasons overview and unified nav row
+fe936cf Hotfix build: remove schema-mismatched diplomacy/defense code
+a8e2450 Add diplomacy/defense actions and remove duplicate Castle button
+a90edc3 feat: implement castle defense mission handling in game tick
+68af15c chore: regenerate prisma client and add diplomacy functions
+713076a feat: diplomacy and defense scaffold
+b2c8bcb Fix: Add fortress location reshuffle diagnostics and sync mapLayoutVersion
+78c53ff Tune combat casualties and perspective battle reports
+83a12ef Map: open center tile from Home of A marker
+574c467 Optimize tile claim transaction and add race tile colors
+cd44714 Show claim duration and time remaining in tile claim card
+1865ccc Add WAAAGH global announcement
+7205d17 Add ORKS scrap economy
+35c9684 Add timed tile acquisition
+4112370 Improve season join race selection
+1b8544c Fix dwarf deep mining resolution columns
+4e3fa00 Fix dwarf deep mining roll deltas migration
+3059917 [codex] dwarf race revamp (#66)
+3511049 Fix tile overlay placement
+2df6d98 Ship queued recruitment and battlefield fixes
+b82646b Fix battle log overlap with toggle drawer
+8c16f03 Phase 2 land objectives and Home of A production rules
+3d1ff47 Add battlefield attrition and reinforcement controls
+be02146 Improve map hex conquest loop
+6f2763f Make castle upgrades per building
+59c7845 Make unicorn teleport temporary
+6c65440 Split castle gold from score points
+d361967 Delay season for WAPPU testing
+c87e4c1 Complete game revamp stabilization
+aeebeb6 fix: harden game tick cron processing
+3fb5092 Merge pull request #65 from wasab1kastike/codex/refactor-processcycletick-for-atomic-transactions
+630b697 refactor tick processing into narrower transactional phases
+97db794 Merge pull request #64 from wasab1kastike/codex/fix-cronjob-failure-for-game-tick
+2dabab8 Handle spawn exhaustion during active fortress reshuffle
+960b07e fix: restore race tokens and race-default castle skins on fortress map
+0ec6364 fix: correct fortress and decoy sprite mapping
+0eb5ad4 fix: restore dwarf rune suppression and self-attack guard
+9fed420 fix: restore unicorn decoy creation on free teleport
+639b167 fix: Restore activateDwarfDeepMining export and dependencies
+30f6fb4 fix: Separate Space Murines instant recall from normal recall and refine race descriptions
+c0dc0cb Fix unicorn teleport decoy creation uniqueness collision
+15627ae Hide unicorn decoys from other players and add regression test
+1512627 Add Dwarf Deep Mining race ability
+b2cde8f Update wiki season goals
+fa23b1c Add Space Murines instant recall
+61f52e8 Fix PvP defense specialization scaling
+ffadb3e Update loot camp timers and combat
+cb7e8d7 Add race counters and castle tokens
+3effade Fix player slot counting for cycle joins
+bca9e67 Update player wiki for loot camps
+a258bb3 Add chaos loot camp sprite
+35efffc Deploy loot camps and history updates
+07248bd fix: restore unicorn teleport decoy creation
+973367c Revert "Force top HUD to stay on one row"
+ced6e21 Force top HUD to stay on one row
+b95c8d1 Add God Emperor A gift popup for Tero
+2786f27 Improve Castle Yeet warnings and relocation randomness
+a2aaaae ui: shrink top HUD fonts so status cluster fits on one row
+4cdefcb Increase raid loot caps to 70 percent for points and food
+210deee Fix Castle Yeet rendered-position no-move edge case
+2fffd4c Trigger unicorn teleport immediately from race tab
+cd55f68 Allow Castle Yeet to cancel in-flight own attacks
+45dc9e2 Expand wiki articles and add light in-world humor
+d55f9b3 Add wiki nav coverage and fix recalled battle report typing
+a5c681c Shop: show Use default button from equipped row state
+59f6c58 Add wiki page and update site navigation/home links
+0308c68 Adjust unicorn tier-1 yeet claim and decoy behavior
+b573281 Shop: add Keep default skin option when opening loot boxes
+f2903ec Season UI: hide control panel during active season, add auto-dismiss toast for action notices
+b7c0366 Keep wish panel closed by default
+0ef1832 Move Wish button before Patch notes in top navigation
+e897f63 Add dedicated fortress sprites and tighten attack return handling
+597bb8f Improve Castle Yeet target randomness
+bb8b096 Fix Home of A combat to return attacking armies
+018f18c Fix fortress relocation to enforce rendered-hex movement and far-first placement
+13f8a9c Merge unicorn teleport decoys
+8757380 Add unicorn teleport decoys
+37f1272 Report recalled armies and adjust testing window
+0d7b416 Render dedicated loot box sprites
+66014ef feat: attack cap 2+level, Unicorn army hide, Space Murines 2+2x, upgrade cost 5x
+a10e72f Fix: exclude recalled units from battle log
+3aa206e Fix cosmetic sprite positions for loot-box-set-1.png shared sheet
+401862e Fix map marker targeting and add attack unit recall flow
+27ce445 Make previous season card closable
+fcc2c5c Render equipped shop skins
+7697512 Increase raid carry capacity
+3460b8e Keep shop open during cycle
+4bdc1a1 Approximate defender forces in reports
+45e7c37 Simplify castle drawer tabs
+8e7275d Move castle controls into top hud
+6833629 Fix rendered castle map positions
+9a8d665 Fix duplicate castle map positions
+3a47733 Clean duplicate shuffle test setup
+1275f29 Refine manual attack flow
+deb1c6c Fix testing phase transition
+3b7915d Add castle specializations and race buffs
+8905dc0 Fix fortress spawn occupancy keys
+d3d1bcf Merge pull request #63 from wasab1kastike/codex/refactor-season-update-modal-to-use-portal-p8ef2l
+f784724 Merge branch 'main' into codex/refactor-season-update-modal-to-use-portal-p8ef2l
+a782054 Refresh dwarfs and unicorns season update copy
+4016082 Merge pull request #62 from wasab1kastike/codex/refactor-season-update-modal-to-use-portal
+cc82a26 Merge branch 'main' into codex/refactor-season-update-modal-to-use-portal
+c2821d6 Update ORKS season update lore copy
+8eefc85 Upd
+
+[… truncated 7376 chars …]

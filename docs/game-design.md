@@ -1,170 +1,213 @@
-﻿# Game Design
+# Game Design
 
-## Rules v1
+> Core rules for Project-A Season 4. Everything a player needs to understand the game.
 
-- Max 30 active players
-- Unlimited spectators
-- One fortress per player
-- Fortress has:
-  - name
-  - owner
-  - gold, food, active army, and recruitment queue
-  - worker assignments for miners, farmers, recruiters, and pressure
-  - race and castle specializations
-  - owned tiles and active battle participation
-  - map position
-  - unit sprite variant
-- Gold is the main spend currency for recruitment, upgrades, and renames
-- Points determine season victory and are earned from live point sources for the cycle ruleset
-- Recruitment is order-based: players pay 1 gold per unit up front, and recruiters process the queue over future ticks
-- Recruiters do not passively create army without a queued order
-- Active army consumes 0.01 food per unit per tick, rounded down when persisted by the live tick
-- If food cannot cover active-army upkeep, food falls to zero and active army loses 2% that tick
-- Queued army does not consume food upkeep until it completes and joins active army
-- Attack travel time is distance-based, using the default unit speed
-- Direct attacks and battlefield reinforcements count against simultaneous outbound attack limits
-- Rename costs 10 gold during active play
-- Gold, food, points, and army never go below zero
-- Global chat with timestamps
-- Chat rate limit: 6 messages per minute per user
-- Legacy cycles retain their prior title categories and buffs for historical compatibility.
-- In `SEASON_4`, the Top 3 leaderboard categories are Points, Territory, PvP Kills, Courier, and Privateer.
-- Season 4 titles are prestige-only and provide no gameplay multipliers.
-- Season 4 timer: registration and pretesting accept new players and race selection while the redesign is verified; the completed community wish vote is archived and no longer part of the live lobby
-- Player action persists while offline
-- Castle upgrades are available during gameplay and use gold
-- Castle levels cost 500 / 1500 / 3000 / 5000 / 7500 / 10500 / 14000 / 18000 / 22500 gold
-- Each castle level adds +1 growth per grow tick and +2 attack damage
-- `Cycle.ruleset` distinguishes `LEGACY` historical gameplay from the `SEASON_4` redesign; new cycles use `SEASON_4` once released.
-- In `SEASON_4`, the former Home of A center tile is an inaccessible monument with no spawn, attack, fortification, buff, or reward behavior.
-- In `SEASON_4`, loot camps and active race abilities are not live gameplay; their prior-season records remain available for historical reports.
-- Battle-log badges count unread/new reports only, not total historical entries
-- Legacy history may display Dwarf Deep Mining or Unicorn Shattered Reality outcomes; these mechanics cannot be activated in `SEASON_4`.
+---
 
-## Leaderboard titles
+## Seasons & Phases
 
-- In `SEASON_4`, Crown Accountant, Landlord, Butcher, Courier, and Privateer rank points, normal territory, PvP kills, delivered base convoy cargo value, and intercepted stolen cargo value respectively. They grant no buffs.
-- The legacy title behavior below remains readable for prior rulesets only:
-- Crown Accountant is the points leader and receives +10% points from tile income.
-- Butcher is the units-killed leader and receives +10% attack power only.
-- Landlord is the current normal-tile leader and receives +10% tile resource income.
-- Goblin Bonker is the loot-camp destruction leader and receives +25% loot-camp rewards.
-- Loot Lord is the player-castle resources-stolen leader and receives +10% stolen castle gold, food, and score points.
-- Units killed come from direct attacks and battlefield losses; Home of A HP damage does not count.
-- Historical Goblins Killed values count final blows on legacy loot camps, not every defending unit killed there.
-- Resources stolen count only gold, food, and score points taken from real player castles. Loot camps, Home of A, tile income, and generated kill rewards do not count.
+Each season runs through four phases:
 
-## Economy & recruitment
+| Phase | Duration | What Happens |
+|-------|----------|-------------|
+| **Registration** | ~48h | Players join, pick names, choose race |
+| **Testing** | ~24h | Verify mechanics, finalize strategy |
+| **Active** | ~2 weeks | Full gameplay — economy, combat, diplomacy |
+| **Resolution** | ~24h | Winner crowned, history archived |
 
-- Miners produce gold each tick, affected by race and Mine specialization bonuses.
-- Farmers produce food each tick, affected by race and Food specialization bonuses.
-- Recruiters process the fortress `recruitmentQueue` each tick; capacity starts at 1 unit per recruiter per tick and receives race/specialization modifiers.
-- A recruitment order is rejected unless the player has selected a race, the cycle is playable, the unit count is a positive integer, and the fortress can afford the full gold cost.
-- Completed recruited units are added to active army at the tick boundary.
-- Food upkeep is charged only against active army after production for that tick; newly completed recruited units start counting for upkeep on later ticks.
-- If food cannot cover the full active-army upkeep, food bottoms out at zero and active army loses 2% that tick.
+Mid-season joining locks after `joiningLockedAt`. Race can be changed during Registration; locked after Testing starts.
 
-## Tiles & battlefields
+---
 
-- Desktop and mobile controls both support inspecting tiles directly from the battlefield map.
-- Neutral spawnable tiles can be prioritized for pressure only if they connect to the player's castle tile or existing owned territory.
-- Pressure workers add pressure to prioritized legal border tiles each tick.
-- A neutral tile is automatically claimed at 600 pressure when one fortress leads without a tie; unsupported pressure loses 10% per completed hour.
-- The center monument cannot receive expansion pressure, be fortified, or be attacked in `SEASON_4`.
-- Owned tiles are contested through battlefield attacks and can transfer ownership when the battlefield resolves.
-- Players can fortify owned normal tiles by sending idle army that travels to the tile and becomes a persistent non-decaying garrison until recalled or killed.
-- Players can join an active battlefield as attacker or defender if they have idle army and are not violating same-side/conflicting-side restrictions.
-- Reinforcements are represented by `AttackUnit` rows and now obey the same outbound attack cap as direct attacks.
-- Player castle and owned-tile battlefields are visible immediately, but casualty resolution starts one hour after the first attacking army arrives.
-- Battlefield casualties apply every tick and ramp from 100 total units per tick to 1000 after one hour.
-- Battlefields resolve only when one side runs out of army; high progress no longer triggers a separate instant combat roll.
-- Reinforcements that arrive after a battlefield has resolved return home intact.
-- Players can partially recall their own remaining active battlefield army or won-tile garrisons; recalled forces travel home and already-suffered losses stay lost.
-- Dwarf defenders receive an extra 25% defensive multiplier when defending owned normal tiles.
-- Battlefield resolution is applied after fortress economy persistence in the tick, preventing stale economy writes from overwriting loot, casualty, reward, or ownership results.
+## Fortresses
 
-## Season 4 politics pretesting
+Every player controls one fortress per season. Your fortress is your identity — name, race, location, and all resources.
 
-- The `/politics` page supports war warnings, peace proposals, and bilateral alliances during Season 4 pretesting.
-- Neutral fortresses may propose an alliance. Acceptance creates Trust I and escrows `2,000 gold + 2,000 food` from each party.
-- Trust upgrades require acceptance from both parties: Trust II holds `10,000 gold + 10,000 food` from each fortress, and Trust III holds `30,000 gold + 30,000 food`.
-- Pending alliance and trust proposals can be withdrawn by the proposer or rejected by the recipient.
-- Neutral and allied fortresses may exchange bilateral offers containing gold, food, and army from `/politics`; hostile and pending political states block new or accepted offers.
-- Accepting an offer commits cargo into one independent convoy leg per non-empty direction. A leg takes at least six hours plus base map travel time and cannot be accepted if it would arrive after gameplay closes.
-- Delivered convoy points use base value only: `gold + food + (2 * army)`, awarding `floor(value / 1000)` points split between both parties with odd points going to the sender.
-- Trust I, II, and III add `10%`, `15%`, and `25%` delivered gold and food on allied convoys; bonus cargo and army do not increase score.
-- If a convoy pair becomes enemy or enters war before arrival, resource cargo is seized by its intended receiver without score or alliance bonus.
-- Scored convoy legs, with base cargo value of at least `1,000`, can be escorted by their sender and intercepted once by a standing raid order watching either contracting fortress.
-- An interception uses committed raid army against assigned escort army; survivors from an escort return after the encounter while surviving raid army remains deployed for later eligible convoys.
-- A successful interception awards the raider half of the convoy cargo, destroys the rest, and replaces normal delivery points and alliance bonuses with points from stolen base cargo.
-- Guard orders supply covert detection power. A detected raid exposes the raider, changes the pair to enemy, and grants the detecting fortress 24 hours of casus belli.
+### Resources
 
-## Season 4 tile deeds
+| Resource | How It's Earned | What It's For |
+|----------|-----------------|---------------|
+| **Gold** | Miners, attacks, trade | Upgrades, abilities, trade |
+| **Food** | Farmers, map tiles | Feeds army, trade |
+| **Army** | Recruiters, race bonuses | Attacks, defense, standing orders |
+| **Points** | Everything above | Leaderboard ranking — win condition |
 
-- Allied fortresses may include one tile deed per trade offer alongside gold, food, and army cargo.
-- An offer may contain at most one tile deed sent in either direction.
-- Only allied fortresses may offer or accept tile deeds. Neutral cargo trading continues unchanged.
-- A deed may target one owned normal tile only. The Home of A monument, fortress home tiles, tiles in active battlefield/campaign conflict, and active rotating objective tiles cannot be transferred.
-- Both territory networks must remain connected after transfer: the receiver must gain a tile connected to its territory, and removing the tile must not disconnect any of the sender's remaining owned tiles from its castle.
-- Acceptance creates a convoy leg for the deed sender. Existing convoy travel time, escort allocation, raid detection, and route visibility apply.
-- A deed-only convoy is eligible for escort and raid interception even when movable cargo value is below the normal scored-convoy threshold.
-- On successful delivery, tile ownership transfers atomically with the leg's surviving movable cargo.
-- On successful interception, the deed is destroyed and tile ownership stays with the seller.
-- If the allied parties become hostile before arrival, the deed is cancelled and the tile stays with the seller.
-- Tile deeds carry no direct score value and do not increase Courier or Privateer cargo scoring.
-- Revalidation of ownership, reservation, alliance status, conflict state, and both connectivity constraints occurs at delivery.
-- Betraying an ally starts war immediately. The harmed fortress receives its own escrow back plus the betrayer's escrow.
-- A detected covert raid records the attacker as an enemy and grants the victim 24 hours to invoke casus belli for immediate war.
-- Pressure pacing, the Politics & Trade page, and alliance actions are gated to `SEASON_4` cycles; legacy history remains unaffected.
+All resources floor at zero. Starvation (food=0) costs 2% army per tick.
 
-## Season 4 campaigns and guards
+### Workers
 
-- Season 4 owned-tile conquest starts only through a `CAMPAIGN` standing order on an active-war connected enemy border tile; manual PvP tile attacks and ordinary reinforcements are not available.
-- Castle `Overview` summarizes pressure momentum and Castle `Operations` summarizes standing army commitments; Battlefield and Politics remain the order-creation surfaces.
-- A campaign commits army immediately and generates progress each tick from `pressure workers + min(floor(committed army / 100), pressure workers)`.
-- At `14,400` progress, the campaign opens a visible siege with a 12-hour response window before automated battlefield casualties begin.
-- `GUARD` orders commit army to owned normal tiles and join an incoming siege as defenders; guards can be recalled before they enter combat.
-- Peace or a lost war/target condition cancels an unengaged campaign and returns its committed army.
+You assign workers across four roles:
 
-## Season 4 racial skill trees
+| Role | Produces | Notes |
+|------|----------|-------|
+| Miners | Gold | Dwarfs produce more on owned tiles |
+| Farmers | Food | — |
+| Recruiters | Army | Recruitment queue processes per tick |
+| Pressure Workers | Tile pressure | Claims neutral tiles at 600 pressure |
 
-- Each race has 3 unique paths, each path has 8 sequential nodes.
-- Skill points earned from castle levels (+1 per level) and owned territory (+1 per 3 tiles). Max 12 points.
-- Fully committing to one path costs 8 points, leaving at most 4 points for other paths.
-- Investing in a node unlocks all rewards at that node.
-- Nodes escalate from small production, population, and pressure buffs to stronger path capstones.
-- See `apps/web/src/lib/game/race-skill-tree.ts` for complete path definitions.
+Worker count scales with fortress level. Reassignment is instant but only once per tick.
 
-## Season 4 standing doctrines (retired)
+---
 
-> Skill trees now replace doctrines as the primary race progression system. The doctrine tab has been removed from the Castle page.
+## Map & Tiles
 
-- Player fortresses choose one doctrine from their race on the Castle page. Changes have a 12-hour cooldown.
-- Doctrine effectiveness is `10% / 20% / 30%` at favored-biome territory tiers `3 / 6 / 9`.
-- Dwarfs choose `Holdfast` for guard/garrison defense or `Watchkeepers` for guard detection.
-- ORKS choose `Marauders` for raids and intercepted cargo or `Siegebreakers` for campaign army buildup.
-- Space Murines choose `Convoy Command` for escorts or `Rapid Response` for guard defense and campaign army buildup.
-- Unstable Unicorns choose `Glitter Frontier` for favored-terrain neutral pressure or `Veiled Network` for covert raid evasion.
-- Doctrines do not change alliance bonuses, the 600 neutral pressure threshold, the 14,400 siege threshold, or the campaign army cap.
+The world is a hex grid. Each tile can be:
 
-## Spawn & map fairness
+- **Neutral** — unclaimed, can be pressured
+- **Owned** — claimed by a fortress, generates resources
+- **Fortress** — a player's castle occupies this tile
+- **Special** — loot camps, Home of A, Dwarf runes
 
-- Spawn selection only uses valid spawn hexes (`HEX_SPAWN_TILES` plus runtime `isPointNearSpawnHex` checks).
-- Spawn placement is deterministic for a given explicit seed (for replay and server reconciliation).
-- Candidate spawn pools are shuffled with a seeded PRNG, then selected with distance-aware acceptance to reduce clustering.
-- Spawn assignments enforce uniqueness by persisted `mapX:mapY` coordinates.
-- Spawn math keeps tile precision during selection and rounds only when positions are persisted to storage.
+### Tile Pressure (Season 4)
 
-## Tick Ops Runbook
+Instead of direct tile attacks, Season 4 uses a pressure system:
 
-- Render production expects the `project-a-game-tick` cron job to run every minute from [`render.yaml`](C:/Users/arto.askala/Documents/project-a/Project-A/render.yaml).
-- Season 4 activation is held during pretesting unless `SEASON_4_ACTIVATION_ENABLED=true`; once acceptance passes, enable it and use the existing admin cycle transition to activate deliberately.
-- Check tick freshness from the home HUD or admin dashboard:
-  - `ok` means the latest processed minute is current enough for normal play.
-  - `lagging` means the game is behind and player-visible updates may feel slow.
-  - `stalled` means point growth, attack impacts, and new launches can stop progressing until recovery runs.
-- Recovery stays admin-controlled:
-  - open the admin dashboard;
-  - use `Replay missed ticks now`;
-  - this replays every due minute and refreshes battlefield, battle log, leaderboard, and history state.
-- Legacy boss records and reporting remain preserved for resolved prior seasons; no Season 4 runtime should create new boss or loot-camp activity.
+1. Assign pressure workers to a neighboring tile
+2. Pressure builds each tick (1 per worker)
+3. At 600 pressure, if uncontested, the tile flips to your control
+4. Pressure decays 10% per hour on unsupported tiles
+5. Priorities (`TilePressurePriority`) target specific tiles first
+
+---
+
+## Economy
+
+### Production (per tick)
+
+```
+Gold  = miners × baseRate × tileBonus × raceBonus
+Food  = farmers × baseRate × tileBonus
+Army  = recruiters process the recruitment queue
+```
+
+### Upgrades
+
+Castle upgrades improve production, defense, or military strength. Four specialization paths:
+
+| Path | Focus |
+|------|-------|
+| Points | Score multiplier |
+| Food | Food production |
+| Military | Army production + attack strength |
+| Defense | Fortress HP + defense |
+
+Upgrades cost gold and take time. One upgrade project active at a time.
+
+### Recruitment
+
+Recruiters pull from a recruitment queue (single integer). The queue processes per tick based on recruiter count and race bonuses. Orks produce army faster during Waaagh; Space Murines trade for army efficiently.
+
+---
+
+## Combat
+
+### Direct Attacks
+
+1. Select a target fortress or tile
+2. Commit army — sent units travel across the map
+3. Travel time depends on distance and race/speed bonuses
+4. On arrival, damage is calculated: `army × attackMultiplier × raceBonus`
+5. Defender's army and fort HP absorb damage
+6. Simultaneous outbound attack cap: `2 + level` (Space Murines: `2 + 2×level`)
+
+### Battlefields (Season 4)
+
+When multiple attackers target the same fortress, a **Battlefield** forms:
+
+- Visible immediately for castle/owned-tile battles
+- Casualties start **1 hour** after first army arrives (`startedAt`)
+- Casualties ramp from 100→1000 units/tick after 1h
+- Resolves when one side runs out of army
+- Reinforcements can join mid-battle
+- Home of A and Dwarf rune battlefields skip the 1h delay
+
+### Territory Campaigns
+
+Siege a tile to force a battlefield:
+
+1. Start a **CAMPAIGN** order on a target tile
+2. Building phase — progress accumulates each tick
+3. **Siege Warning** — 12h warning to defender
+4. **Engaged** — battlefield opens on the tile
+5. Winner claims the tile
+
+---
+
+## Diplomacy
+
+### Relations
+
+```
+NEUTRAL ──propose──→ ALLIANCE_PENDING ──accept──→ ALLIED
+                            │                        │
+                            └──reject/cancel──→ NEUTRAL
+                                                     ├──betray──→ WAR (instant)
+                                                     ├──trust_upgrade→ higher tiers
+                                                     └──propose_peace──→ PEACE_PENDING
+
+NEUTRAL ──declare_war──→ WAR_PENDING (24h) ──→ WAR
+                                                │
+                                                └──propose_peace──→ PEACE_PENDING ──accept──→ NEUTRAL
+```
+
+### Alliance Trust Tiers
+
+Allies can upgrade trust (0→3). Higher tiers grant:
+- Bonus cargo value on trade convoys
+- Escrow gold/food pools for mutual defense
+- Shared battlefield participation
+
+### War
+
+- 24-hour warning after declaration (`WAR_PENDING`)
+- Casus belli system — justified wars bypass the 24h delay
+- Peace proposals require mutual acceptance
+
+---
+
+## Trade
+
+1. Create a trade offer — select goods (gold, food, army) and recipient
+2. Recipient accepts → **Convoy Legs** spawn
+3. Convoys travel between fortresses (duration based on distance)
+4. On arrival, cargo is delivered and points awarded
+5. Convoy legs can be **intercepted** by enemy RAID orders
+6. **ESCORT** orders protect convoys; alliance trust tiers add cargo bonuses
+
+---
+
+## Standing Orders
+
+| Order | Purpose |
+|-------|---------|
+| **GUARD** | Station army on a tile — defends against pressure and attacks |
+| **ESCORT** | Protect a specific convoy leg from raids |
+| **RAID** | Intercept enemy convoys on a tile — steal cargo |
+| **CAMPAIGN** | Siege a tile to trigger a territory battlefield |
+
+---
+
+## Races
+
+| Race | Style | Unique Mechanic |
+|------|-------|----------------|
+| **Dwarfs** | Defensive, grudge-driven | Grudge economy + Deep Mining expeditions |
+| **Orks** | Aggressive, snowball | Scrap economy + Boss Orders + Waaagh tiers |
+| **Space Murines** | Trade, logistics | Rapid Response + Convoy Network bonuses |
+| **Unstable Unicorns** | Chaos, unpredictability | Reality Flux passive + Shattered Reality choice |
+
+See [Season 4](season-4.md) for full race ability details.
+
+---
+
+## Winning
+
+Points determine the leaderboard. The fortress with the most points at season end wins. Points come from:
+
+- Economy production (every tick)
+- Successful attacks
+- Tile claims
+- Battlefield victories
+- Trade deliveries
+- Race ability bonuses
+- Loot camps and Home of A kills

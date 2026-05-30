@@ -1,0 +1,837 @@
+https://raw.githubusercontent.com/wasab1kastike/Project-A/main/apps/web/prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  PLAYER
+  ADMIN
+}
+
+enum CycleStatus {
+  REGISTRATION
+  TESTING
+  ACTIVE
+  RESOLUTION
+}
+
+enum CycleRuleset {
+  LEGACY
+  SEASON_4
+}
+
+enum FortressAction {
+  GROW
+  ATTACK
+}
+
+enum FortressKind {
+  PLAYER
+  MEGA
+  UNICORN_DECOY
+  LOOT_CAMP
+  DWARF_RUNE
+}
+
+enum LootCampVariant {
+  CLASSIC
+  RICH
+  CHAOS
+}
+
+enum FortressRace {
+  DWARFS
+  UNSTABLE_UNICORNS
+  SPACE_MURINES
+  ORKS
+}
+
+enum FortressDoctrine {
+  DWARF_HOLDFAST
+  DWARF_WATCHKEEPERS
+  ORK_MARAUDERS
+  ORK_SIEGEBREAKERS
+  MURINE_CONVOY_COMMAND
+  MURINE_RAPID_RESPONSE
+  UNICORN_GLITTER_FRONTIER
+  UNICORN_VEILED_NETWORK
+}
+
+enum CastleUpgradeSpecialization {
+  POINTS
+  FOOD
+  MILITARY
+  DEFENSE
+}
+
+enum RaceAbilityKind {
+  HOME_OF_A_BOSS_BUFF
+  DWARF_DEEP_MINING_COOLDOWN
+  DWARF_ECONOMY_SURGE
+  DWARF_COMBAT_SURGE
+  DWARF_RUNE_SUPPRESSION
+  DWARF_RUNE_GRUDGES
+  DWARF_SLOW_ATTACKS
+  DWARF_ECONOMY_HALT
+  ORK_WAAAGH
+  SPACE_MURINE_STIM
+  SPACE_MURINE_INSTANT_RECALL
+  SPACE_MURINE_GARRISON_INSTANT_RECALL
+  UNICORN_SHATTERED_REALITY
+  UNICORN_TELEPORT
+  UNICORN_COMBAT_SURGE
+  UNICORN_ECONOMY_SURGE
+}
+
+enum OrkScrapEventReason {
+  DIRECT_RAID
+  TILE_BATTLE
+  HOME_OF_A_BATTLE
+  LOOT_CAMP
+  BOSS_ORDER
+  WAAAGH_INVESTMENT
+}
+
+enum OrkBossOrderKind {
+  MORE_DAKKA
+  LOOT_WAGONS
+  PATCH_DA_FORT
+}
+
+enum OrkWaaaghInvestmentKind {
+  KEEP_IT_LOUD
+  BIGGER_SHOUTIN
+  DA_GREEN_TIDE
+}
+
+enum ScoreEventType {
+  GROW_TICK
+  ATTACK_SELF
+  ATTACK_TARGET
+  TILE_CLAIM
+  TILE_BATTLE_REWARD
+  BATTLEFIELD_REWARD
+  MEGA_DAMAGE
+  MEGA_DESTROY_BONUS
+  UNICORN_DECOY_DESTROY
+  LOOT_CAMP_REWARD
+  FORTRESS_UPGRADE_PURCHASE
+  FORTRESS_UPGRADE_SLAYER_BONUS
+  FORTRESS_LOCATION_SHUFFLE_COST
+  DWARF_DEEP_MINING_POINTS
+  DWARF_RUNE_BOUNTY
+  RENAME_COST
+  MANUAL_ADJUST
+  TRADE_DELIVERY
+  CONVOY_INTERCEPTION
+}
+
+enum DwarfDeepMiningOutcome {
+  RICH_VEIN
+  ORE_SURGE
+  BATTLE_RUNES
+  FACTION_SEAL
+  BURIED_WARBAND
+  CAVE_IN
+  UNSTABLE_TUNNELS
+  SHAFT_COLLAPSE
+}
+
+enum UnicornShatteredRealityOutcome {
+  MIRROR_HOST
+  PRISMATIC_SURGE
+  LUCKY_GALLOP
+}
+
+enum WinnerRequestStatus {
+  SUBMITTED
+  NEEDS_SIMPLIFICATION
+  ACCEPTED
+  REJECTED
+  UNDER_ADMIN_REVIEW
+}
+
+enum CommunityWishStatus {
+  PROPOSALS_OPEN
+  OPEN
+  RESOLVED
+  TIE_REQUIRES_ADMIN
+  NO_PROPOSALS
+}
+
+enum ChatMessageType {
+  TEXT
+  GIF
+}
+
+enum ArcadeGameType {
+  SLOTS
+  DICE
+  WHEEL
+}
+
+enum ArcadeTransactionKind {
+  SEASON_PAYOUT
+  GAME_RESULT
+  LOOT_BOX_PURCHASE
+  LOOT_BOX_OPEN
+  LOOT_BOX_DUPLICATE_REFUND
+}
+
+enum ArcadeLootBoxType {
+  UNIT
+  FORTRESS
+}
+
+enum ArcadeCosmeticSlot {
+  UNIT
+  FORTRESS
+}
+
+enum BattlefieldStatus {
+  ACTIVE
+  RESOLVED
+}
+
+enum BattlefieldSide {
+  ATTACKER
+  DEFENDER
+}
+
+enum DiplomacyRelationStatus {
+  NEUTRAL
+  ALLIANCE_PENDING
+  ALLIED
+  ENEMY
+  WAR_PENDING
+  WAR
+  PEACE_PENDING
+}
+
+enum ArmyOrderType {
+  GUARD
+  ESCORT
+  RAID
+  CAMPAIGN
+}
+
+enum ArmyOrderStatus {
+  ACTIVE
+  TRANSFERRED
+  RETURNED
+  CANCELED
+}
+
+enum TerritoryCampaignStatus {
+  BUILDING
+  SIEGE_WARNING
+  ENGAGED
+  RESOLVED
+  CANCELED
+}
+
+model User {
+  id                        String                         @id @default(cuid())
+  name                      String?
+  email                     String?                        @unique
+  emailVerified             DateTime?
+  image                     String?
+  role                      UserRole                       @default(PLAYER)
+  lastReadChatAt            DateTime?
+  createdAt                 DateTime                       @default(now())
+  updatedAt                 DateTime                       @updatedAt
+  accounts                  Account[]
+  sessions                  Session[]
+  fortresses                Fortress[]
+  chatMessages              ChatMessage[]
+  scoreEventsAsActor        ScoreEvent[]                   @relation("ScoreEventActor")
+  winnerRequests            WinnerRequest[]                @relation("WinnerRequestAuthor")
+  reviewedRequests          WinnerRequest[]                @relation("WinnerRequestReviewer")
+  communityWishProposals    CommunityWishProposal[]        @relation("CommunityWishProposalAuthor")
+  communityWishVotes        CommunityWishVote[]            @relation("CommunityWishVoteVoter")
+  communityWishEntitlements CommunityWishVoteEntitlement[] @relation("CommunityWishVoteEntitlementUser")
+  buildArcadeRuns           BuildArcadeRun[]
+  arcadeWallet              ArcadeWallet?
+  arcadeTransactions        ArcadeTransaction[]
+  arcadeLootBoxPurchases    ArcadeLootBoxPurchase[]
+  arcadeCosmeticUnlocks     ArcadeCosmeticUnlock[]
+  resolvedCommunityWishTies CycleHistory[]                 @relation("CommunityWishAdminResolver")
+  wonCycles                 Cycle[]                        @relation("CycleWinner")
+  cycleHistoriesWon         CycleHistory[]                 @relation("CycleHistoryWinner")
+  unitCosmeticVariant       String?
+  fortressCosmeticVariant   String?
+  cosmeticUnlockedAt        DateTime?
+}
+
+model Account {
+  id                       String   @id @default(cuid())
+  userId                   String
+  type                     String
+  provider                 String
+  providerAccountId        String
+  refresh_token            String?  @db.Text
+  access_token             String?  @db.Text
+  expires_at               Int?
+  token_type               String?
+  scope                    String?
+  id_token                 String?  @db.Text
+  session_state            String?
+  refresh_token_expires_in Int?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  user                     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Cycle {
+  id                             String                          @id @default(cuid())
+  status                         CycleStatus                     @default(REGISTRATION)
+  ruleset                        CycleRuleset                    @default(LEGACY)
+  registrationStartedAt          DateTime
+  registrationEndsAt             DateTime
+  testingStartedAt               DateTime?
+  testingEndsAt                  DateTime?
+  joiningLockedAt                DateTime?
+  activeStartedAt                DateTime?
+  activeEndsAt                   DateTime?
+  resolvedAt                     DateTime?
+  winnerId                       String?
+  crownedFortressId              String?
+  upgradesUnlockedAt             DateTime?
+  homeOfABossRespawnsAt          DateTime?
+  megaFortressDestroyCount       Int                             @default(0)
+  mapLayoutVersion               Int                             @default(1)
+  createdAt                      DateTime                        @default(now())
+  updatedAt                      DateTime                        @updatedAt
+  winner                         User?                           @relation("CycleWinner", fields: [winnerId], references: [id], onDelete: SetNull)
+  crownedFortress                Fortress?                       @relation("CycleCrownedFortress", fields: [crownedFortressId], references: [id], onDelete: SetNull)
+  fortresses                     Fortress[]
+  chatMessages                   ChatMessage[]
+  scoreEvents                    ScoreEvent[]
+  gameTicks                      GameTick[]
+  attackUnits                    AttackUnit[]
+  battlefields                   Battlefield[]
+  mapHexOwnerships               MapHexOwnership[]
+  tilePressurePriorities         TilePressurePriority[]
+  tilePressureStates             TilePressureState[]
+  diplomacyRelations             DiplomacyRelation[]
+  armyOrders                     ArmyOrder[]
+  territoryCampaigns             TerritoryCampaign[]
+  tradeOffers                    TradeOffer[]
+  convoyLegs                     ConvoyLeg[]
+  covertIncidents                CovertIncident[]
+  castleUpgradeProjects          CastleUpgradeProject[]
+  homeOfAHolders                 HomeOfAHolder[]
+  unicornTemporaryTeleports      UnicornTemporaryTeleport[]
+  orkScrapBanks                  OrkScrapBank[]
+  orkScrapEvents                 OrkScrapEvent[]
+  orkBossOrders                  OrkBossOrder[]
+  orkWaaaghInvestments           OrkWaaaghInvestment[]
+  winnerRequests                 WinnerRequest[]
+  communityWishProposals         CommunityWishProposal[]
+  communityWishVoteEntitlements  CommunityWishVoteEntitlement[]
+  buildArcadeRuns                BuildArcadeRun[]
+  arcadeTransactions             ArcadeTransaction[]
+  fortressGarrisons              FortressGarrison[]
+  homeOfABossDamageContributions HomeOfABossDamageContribution[]
+  history                        CycleHistory?
+
+  @@index([status])
+  @@index([resolvedAt, createdAt], map: "Cycle_resolvedAt_createdAt_idx")
+  @@index([status, registrationEndsAt], map: "Cycle_status_registrationEndsAt_idx")
+  @@index([status, testingEndsAt], map: "Cycle_status_testingEndsAt_idx")
+  @@index([status, activeStartedAt], map: "Cycle_status_activeStartedAt_idx")
+  @@index([updatedAt], map: "Cycle_updatedAt_idx")
+  @@index([winnerId])
+  @@index([crownedFortressId])
+}
+
+model Fortress {
+  id                             String                              @id @default(cuid())
+  cycleId                        String
+  ownerId                        String
+  commanderName                  String
+  commanderNameRegisteredAt      DateTime?
+  name                           String
+  points                         Int                                 @default(0)
+  gold                           Int                                 @default(0)
+  unitsKilled                    Int                                 @default(0)
+  goblinsKilled                  Int                                 @default(0)
+  resourcesStolen                Int                                 @default(0)
+  deliveredCargoValue            Int                                 @default(0)
+  interceptedCargoValue          Int                                 @default(0)
+  level                          Int                                 @default(0)
+  food                           Int                                 @default(0)
+  army                           Int                                 @default(0)
+  recruitmentQueue               Int                                 @default(0)
+  minersAssigned                 Int                                 @default(10)
+  farmersAssigned                Int                                 @default(10)
+  recruitersAssigned             Int                                 @default(5)
+  pressureWorkersAssigned        Int                                 @default(0)
+  race                           FortressRace?
+  doctrine                       FortressDoctrine?
+  doctrineChangedAt              DateTime?
+  fortressKind                   FortressKind                        @default(PLAYER)
+  lootCampVariant                LootCampVariant?
+  isNpc                          Boolean                             @default(false)
+  health                         Int                                 @default(0)
+  maxHealth                      Int                                 @default(0)
+  expiresAt                      DateTime?
+  sizeTiles                      Int                                 @default(1)
+  iconLabel                      String?
+  unicornDecoySourceFortressId   String?
+  unicornDecoyLevel              Int?
+  currentAction                  FortressAction                      @default(GROW)
+  targetFortressId               String?
+  unitSpriteVariant              String                              @default("unit-1")
+  locationShuffleCount           Int                                 @default(0)
+  mapX                           Int
+  mapY                           Int
+  joinedAt                       DateTime                            @default(now())
+  createdAt                      DateTime                            @default(now())
+  updatedAt                      DateTime                            @updatedAt
+  cycle                          Cycle                               @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  owner                          User                                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  targetFortress                 Fortress?                           @relation("FortressTarget", fields: [targetFortressId], references: [id], onDelete: SetNull)
+  attackers                      Fortress[]                          @relation("FortressTarget")
+  unicornDecoySourceFortress     Fortress?                           @relation("UnicornDecoySource", fields: [unicornDecoySourceFortressId], references: [id], onDelete: Cascade)
+  unicornDecoys                  Fortress[]                          @relation("UnicornDecoySource")
+  outboundAttackUnits            AttackUnit[]                        @relation("AttackUnitAttacker")
+  inboundAttackUnits             AttackUnit[]                        @relation("AttackUnitTarget")
+  crownedCycles                  Cycle[]                             @relation("CycleCrownedFortress")
+  scoreEventsAsFortress          ScoreEvent[]                        @relation("ScoreEventFortress")
+  scoreEventsAsTarget            ScoreEvent[]                        @relation("ScoreEventTargetFortress")
+  castleUpgradeSpecializations   CastleUpgradeSpecializationChoice[]
+  castleUpgradeProjects          CastleUpgradeProject[]
+  raceAbilityActivations         RaceAbilityActivation[]
+  orkScrapBank                   OrkScrapBank?
+  orkScrapEvents                 OrkScrapEvent[]                     @relation("OrkScrapEventFortress")
+  orkScrapTargetedEvents         OrkScrapEvent[]                     @relation("OrkScrapEventTargetFortress")
+  orkBossOrders                  OrkBossOrder[]
+  orkWaaaghInvestments           OrkWaaaghInvestment[]
+  targetedRaceAbilityActivations RaceAbilityActivation[]             @relation("RaceAbilityTargetFortress")
+  runeRaceAbilityActivations     RaceAbilityActivation[]             @relation("RaceAbilityRuneFortress")
+  dwarfGrudges                   DwarfGrudge[]                       @relation("DwarfGrudgeOwner")
+  grudgedBy                      DwarfGrudge[]                       @relation("DwarfGrudgeTarget")
+  deepMiningRolls                DwarfDeepMiningRoll[]               @relation("DwarfDeepMiningOwner")
+  deepMiningRuneRolls            DwarfDeepMiningRoll[]               @relation("DwarfDeepMiningRune")
+  deepMiningTargetedBy           DwarfDeepMiningRoll[]               @relation("DwarfDeepMiningTarget")
+  ownedMapHexes                  MapHexOwnership[]                   @relation("MapHexOwner")
+  tilePressurePriorities         TilePressurePriority[]
+  tilePressureStates             TilePressureState[]
+  diplomacyRelationsA            DiplomacyRelation[]                 @relation("DiplomacyRelationFortressA")
+  diplomacyRelationsB            DiplomacyRelation[]                 @relation("DiplomacyRelationFortressB")
+  armyOrders                     ArmyOrder[]
+  attackingCampaigns             TerritoryCampaign[]                 @relation("TerritoryCampaignAttacker")
+  defendingCampaigns             TerritoryCampaign[]                 @relation("TerritoryCampaignDefender")
+  sentTradeOffers                TradeOffer[]                        @relation("TradeOfferSender")
+  receivedTradeOffers            TradeOffer[]                        @relation("TradeOfferReceiver")
+  outboundConvoyLegs             ConvoyLeg[]                         @relation("ConvoyLegSender")
+  inboundConvoyLegs              ConvoyLeg[]                         @relation("ConvoyLegReceiver")
+  covertIncidentsAsRaider        CovertIncident[]                    @relation("CovertIncidentRaider")
+  covertIncidentsAsDetector      CovertIncident[]                    @relation("CovertIncidentDetector")
+  homeOfAHoldings                HomeOfAHolder[]                     @relation("HomeOfAHolderFortress")
+  homeOfABannerHoldings          HomeOfAHolder[]                     @relation("HomeOfABannerFortress")
+  homeOfABossDamageContributions HomeOfABossDamageContribution[]
+  attackerBannerBattlefields     Battlefield[]                       @relation("BattlefieldAttackerBanner")
+  defenderBannerBattlefields     Battlefield[]                       @relation("BattlefieldDefenderBanner")
+  targetedBattlefields           Battlefield[]                       @relation("BattlefieldTargetFortress")
+  battlefieldParticipants        BattlefieldParticipant[]
+  unicornTemporaryTeleports      UnicornTemporaryTeleport[]          @relation("UnicornTeleportFortress")
+  unicornTemporaryTeleportDecoy  UnicornTemporaryTeleport?           @relation("UnicornTeleportDecoy")
+  unicornShatteredRealityRolls   UnicornShatteredRealityRoll[]
+  garrisons                      FortressGarrison[]
+
+  @@unique([cycleId, ownerId])
+  @@unique([cycleId, commanderName])
+  @@unique([cycleId, name])
+  @@index([cycleId])
+  @@index([cycleId, isNpc])
+  @@index([cycleId, fortressKind])
+  @@index([cycleId, fortressKind, expiresAt])
+  @@index([cycleId, joinedAt], map: "Fortress_cycleId_joinedAt_idx")
+  @@index([updatedAt], map: "Fortress_updatedAt_idx")
+  @@index([unicornDecoySourceFortressId, createdAt])
+  @@index([ownerId])
+}
+
+model UnicornTemporaryTeleport {
+  id              String    @id @default(cuid())
+  cycleId         String
+  fortressId      String
+  decoyFortressId String?   @unique
+  originMapX      Int
+  originMapY      Int
+  temporaryMapX   Int
+  temporaryMapY   Int
+  startedAt       DateTime
+  returnAt        DateTime
+  returnedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  cycle           Cycle     @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress        Fortress  @relation("UnicornTeleportFortress", fields: [fortressId], references: [id], onDelete: Cascade)
+  decoyFortress   Fortress? @relation("UnicornTeleportDecoy", fields: [decoyFortressId], references: [id], onDelete: SetNull)
+
+  @@index([cycleId, returnAt, returnedAt])
+  @@index([fortressId, returnedAt])
+}
+
+model UnicornShatteredRealityRoll {
+  id                String                         @id @default(cuid())
+  fortressId        String
+  outcome           UnicornShatteredRealityOutcome
+  summary           String
+  armyDelta         Int                            @default(0)
+  garrisonArmyDelta Int                            @default(0)
+  goldDelta         Int                            @default(0)
+  foodDelta         Int                            @default(0)
+  activeUntil       DateTime?
+  createdAt         DateTime                       @default(now())
+  fortress          Fortress                       @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+
+  @@index([fortressId, createdAt])
+  @@index([outcome, createdAt])
+}
+
+model MapHexOwnership {
+  id              String   @id @default(cuid())
+  cycleId         String
+  tileId          String
+  ownerFortressId String
+  claimedAt       DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  cycle           Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  ownerFortress   Fortress @relation("MapHexOwner", fields: [ownerFortressId], references: [id], onDelete: Cascade)
+
+  @@unique([cycleId, tileId])
+  @@index([ownerFortressId])
+  @@index([cycleId, ownerFortressId])
+}
+
+model TilePressurePriority {
+  id         String   @id @default(cuid())
+  cycleId    String
+  fortressId String
+  tileId     String
+  weight     Int      @default(1)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  cycle      Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress   Fortress @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+
+  @@unique([cycleId, fortressId, tileId])
+  @@index([cycleId, fortressId])
+  @@index([cycleId, tileId])
+}
+
+model TilePressureState {
+  id              String   @id @default(cuid())
+  cycleId         String
+  tileId          String
+  fortressId      String
+  pressure        Int      @default(0)
+  lastPressuredAt DateTime
+  lastDecayedAt   DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  cycle           Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress        Fortress @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+
+  @@unique([cycleId, tileId, fortressId])
+  @@index([cycleId, tileId])
+  @@index([cycleId, fortressId])
+}
+
+model DiplomacyRelation {
+  id                       String                  @id @default(cuid())
+  cycleId                  String
+  fortressAId              String
+  fortressBId              String
+  status                   DiplomacyRelationStatus @default(NEUTRAL)
+  allianceProposedById     String?
+  allianceProposedAt       DateTime?
+  allianceTrustTier        Int                     @default(0)
+  allianceEscrowGoldEach   Int                     @default(0)
+  allianceEscrowFoodEach   Int                     @default(0)
+  trustUpgradeProposedById String?
+  trustUpgradeProposedAt   DateTime?
+  trustUpgradeTier         Int?
+  warDeclaredById          String?
+  warDeclaredAt            DateTime?
+  warStartsAt              DateTime?
+  peaceProposedById        String?
+  peaceProposedAt          DateTime?
+  betrayedById             String?
+  betrayedAt               DateTime?
+  casusBelliFortressId     String?
+  casusBelliExpiresAt      DateTime?
+  collateralGold           Int                     @default(0)
+  collateralFood           Int                     @default(0)
+  collateralArmy           Int                     @default(0)
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
+  cycle                    Cycle                   @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortressA                Fortress                @relation("DiplomacyRelationFortressA", fields: [fortressAId], references: [id], onDelete: Cascade)
+  fortressB                Fortress                @relation("DiplomacyRelationFortressB", fields: [fortressBId], references: [id], onDelete: Cascade)
+
+  @@unique([cycleId, fortressAId, fortressBId])
+  @@index([cycleId, status])
+  @@index([fortressAId])
+  @@index([fortressBId])
+}
+
+model ArmyOrder {
+  id               String          @id @default(cuid())
+  cycleId          String
+  fortressId       String
+  type             ArmyOrderType
+  status           ArmyOrderStatus @default(ACTIVE)
+  targetTileId     String?
+  targetFortressId String?
+  convoyLegId      String?         @unique
+  committedArmy    Int
+  startsAt         DateTime
+  transferredAt    DateTime?
+  returnedAt       DateTime?
+  canceledAt       DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  cycle            Cycle           @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress         Fortress        @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+  campaign         TerritoryCampaign?
+  convoyLeg        ConvoyLeg?      @relation("ConvoyLegEscort", fields: [convoyLegId], references: [id], onDelete: SetNull)
+  raidedConvoyLegs ConvoyLeg[]     @relation("ConvoyLegRaid")
+  covertIncidents  CovertIncident[]
+
+  @@index([cycleId, status, type])
+  @@index([fortressId, status])
+  @@index([cycleId, targetTileId, status])
+  @@index([cycleId, convoyLegId, status])
+}
+
+model TerritoryCampaign {
+  id                String                  @id @default(cuid())
+  cycleId           String
+  attackerFortressId String
+  defenderFortressId String
+  armyOrderId       String                  @unique
+  targetTileId      String
+  battlefieldId     String?                 @unique
+  status            TerritoryCampaignStatus @default(BUILDING)
+  progress          Int                     @default(0)
+  siegeOpenedAt     DateTime?
+  responseEndsAt    DateTime?
+  engagedAt         DateTime?
+  resolvedAt        DateTime?
+  canceledAt        DateTime?
+  cancellationReason String?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  cycle             Cycle                   @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  attackerFortress  Fortress                @relation("TerritoryCampaignAttacker", fields: [attackerFortressId], references: [id], onDelete: Cascade)
+  defenderFortress  Fortress                @relation("TerritoryCampaignDefender", fields: [defenderFortressId], references: [id], onDelete: Cascade)
+  armyOrder         ArmyOrder               @relation(fields: [armyOrderId], references: [id], onDelete: Cascade)
+  battlefield       Battlefield?            @relation(fields: [battlefieldId], references: [id], onDelete: SetNull)
+
+  @@index([cycleId, status])
+  @@index([cycleId, targetTileId, status])
+  @@index([attackerFortressId, status])
+  @@index([defenderFortressId, status])
+}
+
+enum TradeOfferStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELED
+  EXPIRED
+  COMPLETED
+}
+
+enum TradeLineItemKind {
+  GOLD
+  FOOD
+  ARMY
+}
+
+enum ConvoyLegStatus {
+  IN_TRANSIT
+  DELIVERED
+  SEIZED
+  INTERCEPTED
+  CANCELED
+}
+
+model TradeOffer {
+  id                 String           @id @default(cuid())
+  cycleId            String
+  senderFortressId   String
+  receiverFortressId String
+  status             TradeOfferStatus @default(PENDING)
+  expiresAt          DateTime
+  acceptedAt         DateTime?
+  rejectedAt         DateTime?
+  canceledAt         DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  cycle              Cycle            @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  senderFortress     Fortress         @relation("TradeOfferSender", fields: [senderFortressId], references: [id], onDelete: Cascade)
+  receiverFortress   Fortress         @relation("TradeOfferReceiver", fields: [receiverFortressId], references: [id], onDelete: Cascade)
+  lineItems          TradeLineItem[]
+  convoyLegs         ConvoyLeg[]
+
+  @@index([cycleId, status, expiresAt])
+  @@index([senderFortressId, status])
+  @@index([receiverFortressId, status])
+}
+
+model TradeLineItem {
+  id             String            @id @default(cuid())
+  tradeOfferId   String
+  fromFortressId String
+  toFortressId   String
+  kind           TradeLineItemKind
+  amount         Int
+  createdAt      DateTime          @default(now())
+  tradeOffer     TradeOffer        @relation(fields: [tradeOfferId], references: [id], onDelete: Cascade)
+
+  @@index([tradeOfferId])
+}
+
+model ConvoyLeg {
+  id                 String          @id @default(cuid())
+  cycleId            String
+  tradeOfferId       String
+  fromFortressId     String
+  toFortressId       String
+  status             ConvoyLegStatus @default(IN_TRANSIT)
+  gold               Int             @default(0)
+  food               Int             @default(0)
+  army               Int             @default(0)
+  baseCargoValue     Int
+  bonusGold          Int             @default(0)
+  bonusFood          Int             @default(0)
+  pointsAwarded      Int             @default(0)
+  interceptedByOrderId String?
+  encounterResolvedAt DateTime?
+  encounterSucceeded Boolean?
+  interceptedAt      DateTime?
+  stolenGold         Int             @default(0)
+  stolenFood         Int             @default(0)
+  stolenArmy         Int             @default(0)
+  stolenCargoValue   Int             @default(0)
+  raidDetected       Boolean         @default(false)
+  departedAt         DateTime
+  arrivesAt          DateTime
+  settledAt          DateTime?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  cycle              Cycle           @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  tradeOffer         TradeOffer      @relation(fields: [tradeOfferId], references: [id], onDelete: Cascade)
+  fromFortress       Fortress        @relation("ConvoyLegSender", fields: [fromFortressId], references: [id], onDelete: Cascade)
+  toFortress         Fortress        @relation("ConvoyLegReceiver", fields: [toFortressId], references: [id], onDelete: Cascade)
+  escortOrder        ArmyOrder?      @relation("ConvoyLegEscort")
+  interceptedByOrder ArmyOrder?      @relation("ConvoyLegRaid", fields: [interceptedByOrderId], references: [id], onDelete: SetNull)
+  covertIncidents    CovertIncident[]
+
+  @@index([cycleId, status, arrivesAt])
+  @@index([cycleId, status, encounterResolvedAt, arrivesAt])
+  @@index([tradeOfferId, status])
+  @@index([fromFortressId, status])
+  @@index([toFortressId, status])
+  @@index([interceptedByOrderId])
+}
+
+model CovertIncident {
+  id                    String       @id @default(cuid())
+  cycleId               String
+  convoyLegId           String
+  raidOrderId           String
+  raiderFortressId      String
+  detectingFortressId   String
+  detectedAt            DateTime
+  casusBelliExpiresAt   DateTime?
+  createdAt             DateTime     @default(now())
+  cycle                 Cycle        @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  convoyLeg             ConvoyLeg    @relation(fields: [convoyLegId], references: [id], onDelete: Cascade)
+  raidOrder             ArmyOrder    @relation(fields: [raidOrderId], references: [id], onDelete: Cascade)
+  raiderFortress        Fortress     @relation("CovertIncidentRaider", fields: [raiderFortressId], references: [id], onDelete: Cascade)
+  detectingFortress     Fortress     @relation("CovertIncidentDetector", fields: [detectingFortressId], references: [id], onDelete: Cascade)
+
+  @@unique([convoyLegId, detectingFortressId])
+  @@index([cycleId, detectedAt])
+  @@index([detectingFortressId, detectedAt])
+  @@index([raiderFortressId, detectedAt])
+}
+
+model CastleUpgradeProject {
+  id             String                      @id @default(cuid())
+  cycleId        String
+  fortressId     String
+  level          Int
+  specialization CastleUpgradeSpecialization
+  goldCost       Int
+  startedAt      DateTime
+  completesAt    DateTime
+  completedAt    DateTime?
+  createdAt      DateTime                    @default(now())
+  updatedAt      DateTime                    @updatedAt
+  cycle          Cycle                       @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress       Fortress                    @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+
+  @@index([cycleId, completesAt, completedAt])
+  @@index([fortressId, completedAt])
+}
+
+model HomeOfAHolder {
+  id                 String   @id @default(cuid())
+  cycleId            String
+  fortressId         String
+  bannerFortressId   String
+  contributionWeight Int
+  capturedAt         DateTime @default(now())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  cycle              Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress           Fortress @relation("HomeOfAHolderFortress", fields: [fortressId], references: [id], onDelete: Cascade)
+  bannerFortress     Fortress @relation("HomeOfABannerFortress", fields: [bannerFortressId], references: [id], onDelete: Cascade)
+
+  @@unique([cycleId, fortressId])
+  @@index([cycleId, bannerFortressId])
+  @@index([fortressId])
+}
+
+model HomeOfABossDamageContribution {
+  id             String   @id @d
+
+[… truncated 22824 chars …]
