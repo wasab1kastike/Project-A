@@ -1,19 +1,40 @@
 {
   "name": "project-a",
   "private": true,
-  "workspaces": ["apps/*"],
+  "packageManager": "npm@11.11.0",
+  "workspaces": [
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22.21.1 <25",
+    "npm": ">=10.9.0"
+  },
   "scripts": {
     "dev": "npm run dev --workspace web",
     "build": "npm run build --workspace web",
-    "typecheck": "npm run typecheck --workspace web",
-    "test:game": "npm run test:game --workspace web",
+    "start": "npm run start --workspace web",
+    "lint": "npm run lint --workspace web",
     "game:tick": "npm run game:tick --workspace web",
-    "db:generate": "npm run db:generate --workspace web",
+    "test:game": "npm run test:game --workspace web",
+    "typecheck": "npm run typecheck --workspace web",
+    "db:dev": "npm run db:dev --workspace web",
     "db:deploy": "npm run db:deploy --workspace web",
+    "db:generate": "npm run db:generate --workspace web",
     "db:migrate": "npm run db:migrate --workspace web",
     "db:seed": "npm run db:seed --workspace web",
-    "db:compose:up": "npm run db:compose:up --workspace web",
-    "lint": "npm run lint --workspace web",
-    "format": "npm run format --workspace web"
+    "db:grant-may-18-combat-compensation": "npm run db:grant-may-18-combat-compensation --workspace web",
+    "db:reset-season-one": "npm run db:reset-season-one --workspace web",
+    "db:allocate-season-one-coins": "npm run db:allocate-season-one-coins --workspace web",
+    "db:studio": "npm run db:studio --workspace web",
+    "db:compose:up": "docker compose up -d postgres",
+    "db:compose:down": "docker compose down",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "overrides": {
+    "@hono/node-server": "1.19.14"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2"
   }
 }
