@@ -5263,6 +5263,50 @@ async function processCycleTick(
       guardPercentByFortress,
       ownedTilesByFortress,
     });
+
+    // Apply tiered battalion upkeep (replaces flat food cost).
+    const allBattalionsAfter = await db.battalion.findMany({
+      where: { cycleId },
+    });
+    for (const fortress of fortresses) {
+      if (fortress.isNpc) continue;
+      const bnList = allBattalionsAfter.filter(
+        (b) => b.fortressId === fortress.id,
+      );
+      if (bnList.length === 0) continue;
+
+      const { processUpkeepTick } = await import("./upkeep");
+      const upkeepResult = processUpkeepTick({
+        battalions: bnList.map((b) => ({
+          id: b.id,
+          name: b.name,
+          size: b.size,
+          maxSize: b.maxSize,
+          tier: b.tier as 0 | 1 | 2 | 3,
+          xp: b.xp,
+          readyAt: b.readyAt?.getTime() ?? null,
+          stance: b.stance as any,
+          garrisonedAt: b.garrisonedAt,
+          stanceLockedUntil: b.stanceLockedUntil?.getTime() ?? null,
+        })),
+        food: currentFood.get(fortress.id) ?? fortress.food,
+        gold: currentGold.get(fortress.id) ?? fortress.gold,
+      });
+
+      // Apply upkeep results.
+      currentFood.set(fortress.id, upkeepResult.foodPaid);
+      currentGold.set(fortress.id, upkeepResult.goldPaid);
+
+      // Write battalion size changes from desertion.
+      for (const bn of upkeepResult.battalions) {
+        if (bn.size !== bnList.find((b) => b.id === bn.id)?.size) {
+          await db.battalion.update({
+            where: { id: bn.id },
+            data: { size: bn.size },
+          });
+        }
+      }
+    }
   }
 
   // === BATTLEFIELD RESOLUTION PHASE ===

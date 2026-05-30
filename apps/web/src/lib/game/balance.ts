@@ -36,15 +36,15 @@ import { CastleUpgradeSpecialization } from "@/lib/prisma-client";
 // They are the foundation for all gold, food, and army production calculations.
 
 /** Base population available for worker assignment */
-export const BASE_POPULATION = 25;
+export const BASE_POPULATION = 35;
 /** Population bonus per fortress database level */
-export const POPULATION_PER_DB_LEVEL = 10;
+export const POPULATION_PER_DB_LEVEL = 12;
 /** Gold produced per miner (before race/specialization bonuses) */
-export const GOLD_PER_MINER = 1;
+export const GOLD_PER_MINER = 3;
 /** Food produced per farmer (before race/specialization bonuses) */
-export const FOOD_PER_FARMER = 1;
+export const FOOD_PER_FARMER = 2;
 /** Army produced per recruiter (before race/specialization bonuses) */
-export const ARMY_PER_RECRUITER = 1;
+export const ARMY_PER_RECRUITER = 3;
 /** Food cost to produce and maintain one army unit */
 export const FOOD_COST_PER_ARMY = 1;
 
