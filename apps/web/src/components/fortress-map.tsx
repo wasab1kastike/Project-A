@@ -113,6 +113,8 @@ type MapHexOwnershipMarker = {
   pressureLeaderLabel?: string | null;
   canPrioritizePressure?: boolean;
   pressurePriorityDisabledReason?: string | null;
+  /** Attack priority: 0=none, 1=tertiary, 2=secondary, 3=primary */
+  attackPriority?: number;
   activeBattlefieldId?: string | null;
   attackDisabledReason?: string | null;
   canStartCampaign?: boolean;
@@ -554,6 +556,9 @@ function HexTileMap({
             ? (OWNED_TILE_RACE_CLASS_BY_RACE[ownership.ownerRace] ?? "")
             : "",
           ownership?.pressurePriority ? styles.pressurePriorityTile : "",
+          ownership?.attackPriority === 3 ? styles.attackPriorityPrimaryTile : "",
+          ownership?.attackPriority === 2 ? styles.attackPrioritySecondaryTile : "",
+          ownership?.attackPriority === 1 ? styles.attackPriorityTertiaryTile : "",
           ownership?.isHomeOfA ? styles.contestedTile : "",
           isOwnedTile && ownership?.isCurrentUser ? styles.ownTile : "",
           ownership?.canAttack ? styles.attackableTile : "",
