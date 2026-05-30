@@ -1559,31 +1559,71 @@ export function CastleManagement({
                     <span style={{ color: "#ffd700", fontSize: 11 }}>{bn.xp} XP</span>
                   ) : null}
                 </div>
-                <div style={{ marginTop: 4 }}>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const { expandBattalionAction } = await import("@/app/game-actions");
-                      await expandBattalionAction({
-                        battalionId: bn.id,
-                        fortressId: playerSummary.id,
-                        availableGold: playerSummary.gold,
-                      });
-                      refreshView();
+                <div style={{ marginTop: 4, display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Max:</span>
+                  <input
+                    type="number"
+                    min={bn.size}
+                    max={300}
+                    step={10}
+                    defaultValue={bn.maxSize}
+                    onBlur={async (e) => {
+                      const v = Number(e.target.value);
+                      if (Number.isFinite(v) && v > bn.maxSize && v <= 300) {
+                        const { expandBattalionAction } = await import("@/app/game-actions");
+                        await expandBattalionAction({
+                          battalionId: bn.id,
+                          fortressId: playerSummary.id,
+                          targetMaxSize: v,
+                          availableGold: playerSummary.gold,
+                        });
+                        refreshView();
+                      }
                     }}
-                    disabled={bn.maxSize >= 300}
                     style={{
+                      width: 50,
+                      padding: "1px 4px",
                       fontSize: 11,
-                      padding: "2px 8px",
                       background: "var(--bg-raised)",
                       border: "1px solid var(--border)",
                       borderRadius: 3,
-                      color: bn.maxSize >= 300 ? "var(--text-muted)" : "var(--text)",
-                      cursor: bn.maxSize >= 300 ? "default" : "pointer",
+                      color: "var(--text)",
                     }}
-                  >
-                    Expand (+50)
-                  </button>
+                  />
+                  {bn.tier < 3 ? (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const { promoteBattalionAction } = await import("@/app/game-actions");
+                        const result = await promoteBattalionAction({
+                          battalionId: bn.id,
+                          fortressId: playerSummary.id,
+                          currentTier: bn.tier,
+                          size: bn.size,
+                          maxSize: bn.maxSize,
+                          xp: bn.xp,
+                          readyAt: bn.readyAt,
+                          stance: bn.stance,
+                          garrisonedAt: bn.garrisonedAt,
+                        });
+                        if (result.ok) refreshView();
+                      }}
+                      disabled={bn.tier >= 3}
+                      style={{
+                        fontSize: 11,
+                        padding: "2px 6px",
+                        background: "var(--bg-raised)",
+                        border: "1px solid #ffd700",
+                        borderRadius: 3,
+                        color: bn.tier >= 3 ? "var(--text-muted)" : "#ffd700",
+                        cursor: bn.tier >= 3 ? "default" : "pointer",
+                      }}
+                    >
+                      Promote
+                    </button>
+                  ) : (
+                    <span style={{ fontSize: 11, color: "#ffd700" }}>MAX TIER</span>
+                  )}
                   <button
                     type="button"
                     onClick={async () => {
@@ -1598,7 +1638,6 @@ export function CastleManagement({
                     style={{
                       fontSize: 11,
                       padding: "2px 8px",
-                      marginLeft: 4,
                       background: "var(--bg-raised)",
                       border: "1px solid #f44336",
                       borderRadius: 3,
@@ -1698,25 +1737,33 @@ export function CastleManagement({
         <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "4px 0" }}>
           <label style={{ fontSize: 13, display: "flex", justifyContent: "space-between" }}>
             <span>Guard allocation</span>
-            <strong>{playerSummary.warPolicy?.guardPercent ?? 30}%</strong>
+            <strong>{guardPercent}%</strong>
           </label>
           <input
             type="range"
             min={0}
             max={100}
             step={5}
-            defaultValue={playerSummary.warPolicy?.guardPercent ?? 30}
+            value={guardPercent}
+            onChange={(e) => handleGuardPercentChange(Number(e.target.value))}
             style={{ width: "100%" }}
           />
           <label style={{ fontSize: 13, display: "flex", justifyContent: "space-between" }}>
             <span>Max army size</span>
-            <strong>{playerSummary.warPolicy?.maxArmySize ?? 500}</strong>
+            <strong>{maxArmySize}</strong>
           </label>
           <input
             type="number"
             min={100}
             step={50}
-            defaultValue={playerSummary.warPolicy?.maxArmySize ?? 500}
+            value={maxArmySize}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              if (Number.isFinite(v) && v >= 100) {
+                setMaxArmySize(v);
+                handleMaxArmySizeChange(v);
+              }
+            }}
             style={{
               width: "100%",
               padding: "4px 8px",
