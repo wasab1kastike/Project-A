@@ -1679,6 +1679,34 @@ export function CastleManagement({
             {playerSummary.warFronts?.filter((f) => f.status === "ADVANCING" || f.status === "STALLED").length ?? 0} active
           </strong>
         </div>
+        <button
+          type="button"
+          onClick={async () => {
+            const enemyId = prompt("Enter enemy fortress ID to open a front:");
+            if (!enemyId) return;
+            const { createWarFrontAction } = await import("@/app/game-actions");
+            const result = await createWarFrontAction({
+              cycleId: playerSummary.cycleId,
+              attackerFortressId: playerSummary.id,
+              enemyFortressId: enemyId,
+            });
+            if (result.ok) refreshView();
+            else alert(result.error);
+          }}
+          style={{
+            marginBottom: 8,
+            padding: "6px 12px",
+            fontSize: 13,
+            background: "#f44336",
+            color: "#fff",
+            border: "none",
+            borderRadius: 4,
+            cursor: "pointer",
+            width: "100%",
+          }}
+        >
+          Open War Front
+        </button>
         {playerSummary.warFronts && playerSummary.warFronts.length > 0 ? (
           <ul style={{ listStyle: "none", padding: 0, margin: "8px 0 0" }}>
             {playerSummary.warFronts.map((front) => {
@@ -1706,13 +1734,53 @@ export function CastleManagement({
                   </div>
                   {frontBattalions.length > 0 ? (
                     <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                      {frontBattalions.map((b) => `${b.name} (${b.size})`).join(", ")}
+                      {frontBattalions.map((b) => (
+                        <div key={b.id} style={{ display: "flex", justifyContent: "space-between" }}>
+                          <span>{b.name} ({b.size})</span>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const { removeBattalionFromFrontAction } = await import("@/app/game-actions");
+                              await removeBattalionFromFrontAction({
+                                battalionId: b.id,
+                                frontId: front.id,
+                                fortressId: playerSummary.id,
+                              });
+                              refreshView();
+                            }}
+                            style={{ fontSize: 11, padding: "0 4px", background: "none", border: "none", color: "#f44336", cursor: "pointer" }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   ) : (
                     <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
                       No battalions assigned.
                     </div>
                   )}
+                  <select
+                    defaultValue=""
+                    onChange={async (e) => {
+                      if (!e.target.value) return;
+                      const { assignBattalionToFrontAction } = await import("@/app/game-actions");
+                      await assignBattalionToFrontAction({
+                        battalionId: e.target.value,
+                        frontId: front.id,
+                        fortressId: playerSummary.id,
+                      });
+                      refreshView();
+                    }}
+                    style={{ marginTop: 4, width: "100%", fontSize: 12, padding: "2px 4px", background: "var(--bg-raised)", border: "1px solid var(--border)", borderRadius: 3, color: "var(--text)" }}
+                  >
+                    <option value="">Assign battalion…</option>
+                    {(playerSummary.battalions ?? [])
+                      .filter((b) => !b.frontId)
+                      .map((b) => (
+                        <option key={b.id} value={b.id}>{b.name} ({b.size})</option>
+                      ))}
+                  </select>
                 </li>
               );
             })}

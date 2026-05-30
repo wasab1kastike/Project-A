@@ -58,11 +58,11 @@ export function hasTradeCargo(cargo: TradeCargo) {
 }
 
 export function calculateTradeCargoValue(cargo: TradeCargo) {
-  return cargo.gold + cargo.food + cargo.army * 2;
+  return cargo.gold + cargo.food * 1.5 + cargo.army * 3;
 }
 
 export function splitTradeDeliveryPoints(cargoValue: number) {
-  const total = Math.floor(cargoValue / 1_000);
+  const total = Math.floor(cargoValue / 500); // doubled points (was /1000)
   const receiver = Math.floor(total / 2);
 
   return {
