@@ -1329,8 +1329,8 @@
 .battalionMarker {
   position: absolute;
   transform: translate(-50%, -50%);
-  width: 40px;
-  height: 40px;
+  width: 50px;
+  height: 50px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1344,8 +1344,8 @@
 
 .battalionSprite {
   display: block;
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;

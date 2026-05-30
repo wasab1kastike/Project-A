@@ -12,6 +12,7 @@ import {
   BATTALION_COMMISSION_COST,
   BATTALION_EXPAND_COST_PER_50,
   MAX_BATTALION_SIZE,
+  TIER_MAX_SIZES,
   BATTALION_SLOTS_BY_LEVEL,
   getBattalionSlots,
   generateBattalionName,
@@ -78,9 +79,10 @@ export async function expandBattalion(args: {
     throw new GameError("Battalion not found.");
   }
 
+  const tierMax = TIER_MAX_SIZES[battalion.tier as BattalionTier] ?? MAX_BATTALION_SIZE;
   const targetSize = Math.max(
     battalion.maxSize,
-    Math.min(args.targetMaxSize, MAX_BATTALION_SIZE),
+    Math.min(args.targetMaxSize, tierMax),
   );
 
   if (targetSize <= battalion.maxSize) {

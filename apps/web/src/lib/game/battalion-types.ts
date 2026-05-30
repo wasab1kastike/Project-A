@@ -229,17 +229,25 @@ export function nextExtraSlotCost(
 
 // ── Battalion Limits & Costs ─────────────────────────────────────────────────
 
-/** Default maxSize for a new battalion. */
-export const DEFAULT_BATTALION_MAX_SIZE = 100;
+/** Default maxSize for a new battalion (tier 0). */
+export const DEFAULT_BATTALION_MAX_SIZE = 500;
+
+/** Tier-based maximum battalion sizes. */
+export const TIER_MAX_SIZES: Record<BattalionTier, number> = {
+  [BattalionTier.RECRUIT]: 500,
+  [BattalionTier.REGULAR]: 5_000,
+  [BattalionTier.VETERAN]: 15_000,
+  [BattalionTier.ELITE]: 50_000,
+};
 
 /** Gold cost to commission a new battalion (on top of filling it). */
-export const BATTALION_COMMISSION_COST = 1_500;
+export const BATTALION_COMMISSION_COST = 2_000;
 
-/** Gold cost to expand a battalion's maxSize by 50. */
-export const BATTALION_EXPAND_COST_PER_50 = 800;
+/** Gold cost to expand a battalion's maxSize by 10% of current tier max. */
+export const BATTALION_EXPAND_COST_PER_50 = 400;
 
-/** Maximum battalion size after all expansions. */
-export const MAX_BATTALION_SIZE = 300;
+/** Absolute maximum battalion size (Elite tier). */
+export const MAX_BATTALION_SIZE = TIER_MAX_SIZES[BattalionTier.ELITE];
 
 // ── Morale ───────────────────────────────────────────────────────────────────
 
