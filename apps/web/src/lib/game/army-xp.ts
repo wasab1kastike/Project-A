@@ -109,14 +109,14 @@ export function promoteBattalion(
  * Cost scales with current tier and battalion size.
  */
 export const FIELD_PROMOTION_BASE_COST: Record<BattalionTier, number> = {
-  [BattalionTier.RECRUIT]: 500, // Recruit → Regular
-  [BattalionTier.REGULAR]: 1_500, // Regular → Veteran
-  [BattalionTier.VETERAN]: 5_000, // Veteran → Elite
+  [BattalionTier.RECRUIT]: 1_500, // Recruit → Regular
+  [BattalionTier.REGULAR]: 5_000, // Regular → Veteran
+  [BattalionTier.VETERAN]: 15_000, // Veteran → Elite
   [BattalionTier.ELITE]: 0, // Cannot promote beyond Elite
 };
 
 /** Cost per unit in the battalion (added to base cost). */
-export const FIELD_PROMOTION_COST_PER_UNIT = 2;
+export const FIELD_PROMOTION_COST_PER_UNIT = 5;
 
 /**
  * Calculate the gold cost for a field promotion.

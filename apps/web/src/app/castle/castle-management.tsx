@@ -1496,6 +1496,14 @@ export function CastleManagement({
           <span>Battalions</span>
           <strong>{playerSummary.battalions?.length ?? 0} active</strong>
         </div>
+        <div style={{ fontSize: 12, color: "var(--text-muted)", margin: "4px 0 8px", lineHeight: 1.5 }}>
+          <strong>Tiers:</strong>{" "}
+          <span title="1.0× damage/defense">Recruit</span> →{" "}
+          <span title="1.15× dmg, 1.10× def, 100 XP">Regular (1.5k gold)</span> →{" "}
+          <span title="1.35× dmg, 1.25× def, 300 XP">Veteran (5k gold)</span> →{" "}
+          <span title="1.60× dmg, 1.45× def, 750 XP">Elite (15k gold)</span>
+          {" · Cost: base + 5g per unit in battalion"}
+        </div>
         {playerSummary.battalions && playerSummary.battalions.length > 0 ? (
           <ul style={{ listStyle: "none", padding: 0, margin: "8px 0 0" }}>
             {playerSummary.battalions.map((bn) => (
@@ -1536,12 +1544,12 @@ export function CastleManagement({
                       color: "var(--text)",
                     }}
                   >
-                    <option value="REST">Rest</option>
-                    <option value="FORTIFY">Fortify</option>
-                    <option value="PATROL">Patrol</option>
-                    <option value="TRAINING">Training</option>
-                    <option value="AMBUSH">Ambush</option>
-                    <option value="MOBILE">Mobile</option>
+                    <option value="REST">Rest — heal +2%/tick, +5 morale</option>
+                    <option value="FORTIFY">Fortify — +30% def, -50% dmg taken</option>
+                    <option value="PATROL">Patrol — detect raids, +10% speed</option>
+                    <option value="TRAINING">Training — +1 XP/tick</option>
+                    <option value="AMBUSH">Ambush — +40% first-round dmg</option>
+                    <option value="MOBILE">Mobile — moving, no bonuses</option>
                   </select>
                   <span style={{ color: "var(--text-muted)" }}>
                     {bn.size}/{bn.maxSize}
@@ -1590,9 +1598,14 @@ export function CastleManagement({
                       color: "var(--text)",
                     }}
                   />
-                  {bn.tier < 3 ? (
+                  {bn.tier < 3 ? (() => {
+                    const baseCost = [0, 1500, 5000, 15000][bn.tier] ?? 0;
+                    const perUnit = bn.size * 5;
+                    const totalCost = baseCost + perUnit;
+                    return (
                     <button
                       type="button"
+                      title={`Promote to tier ${bn.tier + 1}: ${totalCost.toLocaleString()} gold`}
                       onClick={async () => {
                         const { promoteBattalionAction } = await import("@/app/game-actions");
                         const result = await promoteBattalionAction({
@@ -1619,9 +1632,10 @@ export function CastleManagement({
                         cursor: bn.tier >= 3 ? "default" : "pointer",
                       }}
                     >
-                      Promote
+                      Promote ({totalCost.toLocaleString()}g)
                     </button>
-                  ) : (
+                    );
+                  })() : (
                     <span style={{ fontSize: 11, color: "#ffd700" }}>MAX TIER</span>
                   )}
                   <button
