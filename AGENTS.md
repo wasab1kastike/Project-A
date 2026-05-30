@@ -73,6 +73,9 @@ If a local database is unavailable, DB-backed tests may skip. Say that clearly i
 | `community-wishes.ts` | Community wish proposals and voting. |
 | `build-arcade.ts` | Build-arcade mini-game scoring. |
 | `errors.ts` | `GameError` class — user-facing error messages with no stack leaks. |
+| `race-skill-tree.ts` | Defines 4 races × 3 paths × 5 tiers (60 nodes) with mixed small/major buffs. |
+| `race-skill-service.ts` | Skill purchase, state query, point earning logic. |
+| `race-skill-effects.ts` | Aggregates purchased skills into 30+ gameplay modifier fields. |
 | `patch-notes.ts` | Patch notes data structure. |
 | `game.test.ts` | DB-backed integration tests for the game loop. |
 
@@ -83,7 +86,7 @@ This is a single ~52KB file exporting every "use server" action. Action categori
 | Category | Key Actions |
 |----------|------------|
 | **Registration** | `joinFortressAction`, `editRegistrationFortressName`, `registerCommanderName` |
-| **Race/Doctrine** | `selectFortressRaceAction`, `selectFortressDoctrineAction` |
+| **Race/Skills** | `selectFortressRaceAction`, `purchaseSkillTierAction` |
 | **Economy** | `updateWorkerAssignmentAction`, `recruitArmyAction` |
 | **Combat** | `attackFromMapAction`, `attackMapHexAction`, `joinBattlefieldAction`, `recallAttackUnitAction`, `recallAllUnitsAction` |
 | **Tile/Map** | `setTilePressurePriorityAction`, `fortifyMapHexAction`, `torchOccupiedMapHexAction`, `relocateCastleToTileAction` |
@@ -113,6 +116,8 @@ This is a single ~52KB file exporting every "use server" action. Action categori
 | `session-actions.tsx` | — | Sign-in/sign-out buttons. |
 | `season-timer.tsx` | — | Phase countdown. |
 | `giphy-gif-picker.tsx` | ~6KB | Giphy integration for chat. |
+| `command-dock.tsx` | Persistent desktop/mobile nav bar with activity feed, badge counts, race population. |
+| `race-skill-panel.tsx` | Skill tree display: path cards with tier previews and purchase buttons. |
 | `build-arcade-game.tsx` | ~5KB | Arcade mini-game UI. |
 
 ### API Routes
@@ -148,6 +153,15 @@ This is a single ~52KB file exporting every "use server" action. Action categori
 | `docs/tech-stack.md` | Technology selection rationale |
 | `PHASE_1_SUMMARY.md` | Phase 1 castle/recruitment redesign summary |
 | `CHANGELOG.md` | Release history by date |
+
+## Season 4 Design Notes
+
+- **Skill trees** replace doctrines. Each race has 3 paths × 5 tiers. Skill points earned from castle levels (+1/level) and territory (+1/3 tiles), capped at 12.
+- **Castle Yeet** is disabled in Season 4 (both UI and server).
+- **Temporary map objectives** are removed. Biome bonuses unchanged.
+- **Action hints / "Next" strip** is removed from the bottom HUD.
+- **Doctrine tab** removed from Castle page. Race selection still available.
+- **Guards** render as unit sprites (not SVG shields).
 
 ## Gameplay Rules To Preserve
 
@@ -241,81 +255,3 @@ When refactoring, extract deterministic math from `service.ts`/`tick.ts` into pu
 - Say what changed, what was verified, and what could not be verified.
 - Include the commit hash after pushing.
 - Keep responses concise and practical.
-- Daily 7-Tile A-Bomb Plan
-
-## Summary
-Implement A-Bombs as a daily contested superweapon with a **7-tile blast**: one target tile plus its six adjacent hexes. The center becomes a crater; surrounding tiles enter fallout. Player castles cannot be directly targeted, but if a castle is caught in the blast ring, it suffers real damage: **-1 castle level** and temporary population suppression during fallout.
-
-## Key Changes
-- Add a daily **Divine Silo Authorization** event that awards one **A-Bomb Authorization** to the first player who completes the objective.
-- Launching an A-Bomb targets one legal normal tile and creates a public countdown.
-- Target restrictions:
-  - cannot target Home of A,
-  - cannot target a player castle tile,
-  - cannot target a tile already in fallout,
-  - cannot target an active unresolved battlefield tile.
-- Blast footprint:
-  - center tile: direct impact / crater,
-  - adjacent six tiles: fallout ring using existing hex adjacency logic.
-- Impact effects:
-  - center tile becomes neutral, loses income, cancels local claim/campaign/guard state, and enters crater fallout for 12 hours.
-  - adjacent owned tiles keep ownership but produce no income and cannot be claimed, conquered, fortified, deed-transferred, or used for new objectives during fallout.
-  - guard/garrison army on center tile is mostly destroyed; adjacent guards take lighter losses.
-  - castles in adjacent fallout lose 1 castle level, minimum displayed level 1, and have population suppressed until fallout ends.
-- A-Bombs never directly remove stored gold, food, score points, or idle home army.
-
-## Interfaces / Data
-- Add persisted state for:
-  - daily Divine Silo objective,
-  - A-Bomb Authorization charge,
-  - pending/resolved A-Bomb strike,
-  - tile fallout/crater records with `endsAt`,
-  - optional castle fallout penalty state for temporary population suppression.
-- Add server actions:
-  - contribute to Divine Silo objective,
-  - launch A-Bomb at selected tile.
-- Add read-model fields for:
-  - current daily silo,
-  - player-owned A-Bomb charge,
-  - incoming A-Bomb countdowns,
-  - fallout/crater tiles,
-  - castle fallout penalty status.
-- Resolve objective expiry, strike impact, fallout expiry, and castle population restoration in the normal tick flow.
-
-## UI And Flavor
-- Player-facing names:
-  - **A-Bomb Authorization**
-  - **Divine Silo Authorization**
-  - **Authorize A-Bomb**
-  - **Fallout**
-  - **Crater**
-- Map shows:
-  - target tile,
-  - six-tile blast preview before launch,
-  - incoming countdown,
-  - crater/fallout styling after impact.
-- Announcement tone:
-  - “The Department of Loud Solutions has approved one tactical miracle.”
-  - “A-Bomb launched at Tile 12:9. Please admire the glow from a sensible distance.”
-  - “Tile 12:9 has been promoted to crater.”
-
-## Test Plan
-- Daily event creates only one A-Bomb opportunity per day.
-- A-Bomb target validation rejects Home of A, castle tiles, fallout tiles, and active battle tiles.
-- Blast footprint includes exactly center tile plus adjacent tiles.
-- Center impact neutralizes tile, cancels local state, and starts 12-hour crater fallout.
-- Adjacent fallout blocks income/actions without removing ownership.
-- Castle caught in adjacent fallout loses one castle level, never below displayed level 1.
-- Castle population suppression lasts only until fallout expiry.
-- A-Bomb charge is consumed on successful launch only.
-- Run:
-  - `npm run test:game --workspace web`
-  - `npm run typecheck --workspace web`
-  - `npm run build --workspace web`
-
-## Assumptions
-- Fallout lasts 12 hours everywhere in v1.
-- Blast size is fixed at 7 tiles.
-- Castle tiles cannot be directly targeted, but can be hit by adjacent fallout.
-- Castle damage is real level damage, while population loss is temporary during fallout.
-- Divine Quests can later reuse this event framework, but this plan only implements the daily A-Bomb objective.
