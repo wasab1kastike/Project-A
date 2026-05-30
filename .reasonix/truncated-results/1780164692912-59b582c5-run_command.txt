@@ -1,0 +1,771 @@
+$ git show origin/main:apps/web/src/app/wiki/page.tsx 2>&1 || echo "NOT FOUND"
+[exit 0]
+import Link from "next/link";
+import styles from "./page.module.css";
+import {
+  ACTIVE_RENAME_COST,
+  ARCADE_SEASON_BASE_COINS,
+  ARCADE_SEASON_POINTS_BONUS_CAP,
+  ARCADE_SEASON_POINTS_BONUS_DIVISOR,
+  ATTACK_UNIT_SPEED_PER_MINUTE,
+  BASE_FORTRESS_ATTACK_DAMAGE,
+  BASE_FORTRESS_GROWTH,
+  FORTRESS_ATTACK_DAMAGE_PER_LEVEL,
+  FORTRESS_GROWTH_PER_LEVEL,
+  FORTRESS_LEVEL_UP_COSTS,
+  HOME_OF_A_TILE_ID,
+  MAX_SIMULTANEOUS_ATTACKS_BASE,
+  MEGA_FORTRESS_NAME,
+  getArcadeSeasonRankBonus,
+} from "@/lib/game/constants";
+import {
+  CARRY_CAPACITY_PER_SURVIVOR,
+  DEFENSE_BONUS_PER_DISPLAYED_LEVEL,
+  DEFENDER_LOSS_RATE_ON_ATTACKER_WIN,
+  FAILED_ATTACK_DEFENDER_CASUALTY_FACTOR,
+  MAX_FOOD_LOOT_PERCENT,
+  MAX_POINT_LOOT_PERCENT,
+  WINNING_ATTACKER_BASE_SURVIVAL_FACTOR,
+  WINNING_ATTACKER_MARGIN_SURVIVAL_FACTOR,
+} from "@/lib/game/balance";
+import {
+  ARMY_UPKEEP_PER_UNIT,
+  RECRUITMENT_COST_PER_UNIT,
+  RECRUITMENT_RATE_PER_RECRUITER,
+  STARVATION_ATTRITION_RATE,
+} from "@/lib/game/army-recruitment";
+import { RACE_DEFINITIONS } from "@/lib/game/races";
+import {
+
+} from "@/lib/game/territory";
+import { TILE_PRESSURE_CLAIM_THRESHOLD } from "@/lib/game/tile-pressure";
+
+const RACE_ABILITY_NOTES: Record<string, readonly string[]> = {
+  DWARFS: [
+    "Skill paths: Bastion (defense), Seismic (pressure), Grudgebearer (economy).",
+    "Pressure workers use the Beer Culture label.",
+    "Earn skill points from castle levels and territory.",
+  ],
+  UNSTABLE_UNICORNS: [
+    "Skill paths: Glitter Frontier (pressure), Veiled Network (stealth), Shattered Reality (luck).",
+    "Pressure workers use the Glitter Distribution label.",
+    "Skill tiers alternate small buffs with major capstones.",
+  ],
+  SPACE_MURINES: [
+    "Skill paths: Convoy Command (trade), Rapid Response (defense), Orbital Doctrine (pressure).",
+    "Pressure workers use the Imperial Faith label.",
+    "Invest points across up to 3 paths, 8 nodes each.",
+  ],
+  ORKS: [
+    "Skill paths: Marauder (raiding), Siegebreaker (campaigns), WAAAGH Engine (momentum).",
+    "Pressure workers use the Scavenge Mob label.",
+    "Earn points from castle levels (+1 per level) and territory (+1 per 3 tiles).",
+  ],
+};
+
+const RACE_TIER_PATH = [
+  "Skill points are earned throughout the season.",
+  "+1 point per castle level (starting at level 2).",
+  "+1 point per 3 owned normal tiles.",
+  "Maximum 12 skill points total.",
+  "Each race has 3 unique skill paths with 8 nodes each.",
+  "A full branch costs 8 points, leaving 4 for other paths.",
+  "Nodes escalate from small buffs to stronger path capstones.",
+] as const;
+
+const CASTLE_SPECIALIZATIONS = [
+  "Mine: +10% gold production per pick.",
+  "Food: +10% food production per pick.",
+  "Military: +10% recruitment throughput per pick.",
+  "Defense: +10% PvP defending power per pick.",
+] as const;
+
+const ATTACK_MULTIPLIERS = [
+  "Base PvP/PvE battle power: sent army x 1.",
+  "Legacy race active-ability multipliers do not run in the Season 4 ruleset.",
+  "Season 4 leaderboard titles are prestige-only and add no combat multiplier.",
+] as const;
+
+const PVP_FORMULAS = [
+  "Attack power = sent army x active attack multiplier.",
+  `Defense power = defending army x (1 + displayed castle level x ${Math.round(
+    DEFENSE_BONUS_PER_DISPLAYED_LEVEL * 100
+  )}% + race defense + Defense specialization picks x 10%) x active defense multiplier.`,
+  "Attacker wins only when attack power is greater than defense power. Equal power is a defender win.",
+  `Failed attacks lose all sent army. Defender losses on a failed attack are ceil((attack power / effective defense multiplier) x ${FAILED_ATTACK_DEFENDER_CASUALTY_FACTOR}).`,
+] as const;
+
+const PVE_FORMULAS = [
+  "Season 4 pretesting has no live Home of A or loot-camp PvE targets.",
+  "Resolved legacy seasons retain their boss and camp reports for history.",
+] as const;
+
+const homeOfALore =
+  "The former Home of A center tile is preserved as an inaccessible Season 4 monument. It cannot be owned, pressured, fortified, or attacked.";
+
+const SEASON_FLOW = [
+  {
+    phase: "Registration",
+    description:
+      "Join the cycle, choose your race, and reserve your Season 4 fortress during pretesting.",
+  },
+  {
+    phase: "Pretesting",
+    description:
+      "Test pressure expansion, politics, trade convoys, and campaigns until Season 4 passes verification. Progress resets before real play.",
+  },
+  {
+    phase: "Active season (2 weeks)",
+    description:
+      "Real economy, real convoys, and real campaigns. Every order now counts.",
+  },
+  {
+    phase: "Resolution",
+    description:
+      "Winner is locked, the archive is written, and the next cycle is prepared.",
+  },
+] as const;
+
+const QUICKSTART_STEPS = [
+  "Pick a race that matches your style: stable economy, burst combat, or chaos utility.",
+  "Open Castle > Economy and assign workers immediately. Idle population is wasted tempo.",
+  `Recruit army from Castle > Operations when you are ready to spend gold. Each unit costs ${RECRUITMENT_COST_PER_UNIT} gold up front and waits in your queue.`,
+  "Keep recruiters assigned if you want queued army to finish quickly. Recruiters process the queue; they do not mint free army by themselves.",
+  "Use Politics & Trade to establish partners or war plans before committing army orders.",
+  "Do not spend all gold on one thing. Keep a reserve for rename and upgrades.",
+  "The center monument is inaccessible in Season 4; expand around it through pressure priorities.",
+] as const;
+
+const SEASON_START_STEPS = [
+  "Pick your race early. Race is locked for the whole season, so your first choice defines your economy and combat style.",
+  "Assign pressure workers and prioritize connected neutral land. Ten focused pressure workers reach an uncontested claim in about one hour.",
+  "Spend enough gold to get army rolling, then keep recruiters assigned so queued units finish on time.",
+  "At war, use a connected border campaign and prepare for its visible siege-warning window.",
+  "Expect defender wins on equal power. If a fight looks even, the defender keeps the tile or fortress.",
+] as const;
+
+const WHAT_IS_NEW_THIS_SEASON = [
+  "Racial skill trees replace doctrines: invest points in up to 3 paths per race.",
+  "Neutral land is claimed automatically through pressure priorities.",
+  "Politics, convoys, escorts, raids, guards, and campaigns replace frequent manual PvP actions.",
+  "Tile deeds allow allied fortresses to transfer territory via convoy.",
+  "The former Home of A tile is now an inaccessible monument.",
+] as const;
+
+const RACE_TOKENS = [
+  {
+    key: "DWARFS",
+    tokenSrc: "/assets/token-dwarf.png",
+    role: "Fortified economy",
+    opening:
+      "Slow, stubborn, and excellent at turning nearby land into a defended income base.",
+  },
+  {
+    key: "UNSTABLE_UNICORNS",
+    tokenSrc: "/assets/token-unstable-unicorns.png",
+    role: "Hidden movement",
+    opening:
+      "Glitter pressure and covert networks turn favored frontier terrain into leverage.",
+  },
+  {
+    key: "SPACE_MURINES",
+    tokenSrc: "/assets/token-space-murines.png",
+    role: "Disciplined strikes",
+    opening:
+      "Convoy escorts and rapid response doctrine support organized logistics and war.",
+  },
+  {
+    key: "ORKS",
+    tokenSrc: "/assets/token-orks.png",
+    role: "Scrap tempo",
+    opening:
+      "Raid convoys or turn border pressure into aggressive campaigns.",
+  },
+] as const;
+
+const MAP_LEGEND = [
+  {
+    label: "Pressure",
+    tone: "claimable",
+    description: "Neutral connected land you can prioritize for expansion.",
+  },
+  {
+    label: "Owned",
+    tone: "owned",
+    description: "Your territory, paying its tile bonus each tick.",
+  },
+  {
+    label: "Contested",
+    tone: "contested",
+    description: "A hostile border under campaign pressure or siege.",
+  },
+  {
+    label: "Battlefield",
+    tone: "battlefield",
+    description: "An engaged siege resolving committed armies.",
+  },
+  {
+    label: "Monument",
+    tone: "home",
+    description: "Inaccessible Season 4 center landmark.",
+  },
+] as const;
+
+const RECRUITMENT_RULES = [
+  `Recruitment orders cost ${RECRUITMENT_COST_PER_UNIT} gold per army unit and are paid up front.`,
+  "Ordered units enter your recruitment queue. They are not active army yet and cannot attack or defend until completed.",
+  `Each assigned recruiter processes ${RECRUITMENT_RATE_PER_RECRUITER} queued unit per tick before race and specialization bonuses.`,
+  `Active army upkeep is ${ARMY_UPKEEP_PER_UNIT} food per unit per tick, rounded down to whole food when the tick saves.`,
+  `If food cannot cover that upkeep, food falls to zero and active army loses ${Math.round(STARVATION_ATTRITION_RATE * 100)}% that tick.`,
+  "Queued army has no upkeep. Food pressure begins only after units finish and join your active army.",
+  "If you assign zero recruiters, the queue waits. If the queue is empty, recruiters add no army.",
+] as const;
+
+const BATTLEFIELD_RULES = [
+  "Season 4 territorial attacks require active war and a CAMPAIGN order against a connected enemy border tile.",
+  "GUARD orders commit idle army to defend owned tiles and help detect convoy raids.",
+  "ESCORT orders protect outbound convoy cargo; RAID orders watch non-allied routes for eligible scored cargo.",
+  "Campaign pressure reaching its threshold opens a visible 12-hour siege warning before casualties begin.",
+  "Battlefield casualties tick up over time: 100 total units per tick at the start, ramping to 1000 total units per tick after one hour.",
+  "Battlefields resolve only when one side runs out of army, not when a progress bar reaches 100.",
+  "Resolved tile battlefields can transfer tile ownership to the winning side.",
+  "Owned-tile defenders get native tile bonuses; Season 4 defensive doctrines may improve guards and garrisons.",
+  "Battle results are applied after economy persistence, so loot, casualties, and rewards should not be lost to the same tick's production update.",
+  "The battle log badge shows reports you have not seen yet, not the total report archive.",
+] as const;
+
+const TILE_CONTROL_RULES = [
+  "Assign pressure workers in Castle to push your borders without spending gold directly.",
+  "Prioritize connected border tiles from the map; pressure ticks into prioritized legal tiles first.",
+  `A neutral tile is automatically claimed at ${TILE_PRESSURE_CLAIM_THRESHOLD} pressure if one fortress leads without a tie.`,
+  "Unsupported pressure decays by 10% per completed hour, so abandoned pushes lose momentum.",
+  "A pressure target must be connected to your castle tile or your existing owned territory.",
+  "The center monument cannot be claimed, pressured, fortified, or attacked in Season 4.",
+] as const;
+
+const POLITICS_RULES = [
+  "Neutral fortresses may propose alliances from Politics & Trade.",
+  "Accepting Trust I escrows 2,000 gold and 2,000 food from each ally.",
+  "Bilateral trust upgrades raise each ally's escrow to 10,000 at Trust II and 30,000 at Trust III.",
+  "Neutral and allied fortresses may exchange gold, food, and army offers; each accepted direction travels as its own convoy leg.",
+  "Convoy legs need at least six hours plus normal map travel time, and delivered base cargo value awards shared points.",
+  "Alliance trust bonuses add delivered gold and food only; if relations turn hostile before arrival, cargo is seized without trade points.",
+  "Betrayal starts war immediately and gives both escrow shares to the harmed ally.",
+  "Scored convoys may receive sender escorts or face one standing raid interception attempt; a successful raid steals half their cargo.",
+  "Guard patrols can detect a convoy raid, expose the raider as an enemy, and grant the victim 24 hours to invoke immediate war.",
+  "During active war, commit army to a connected enemy border campaign; at 14,400 buildup a 12-hour siege warning opens before fighting.",
+  "Station guards on your owned normal tiles to defend them if a campaign becomes a siege.",
+] as const;
+
+const FAQ_ENTRIES = [
+  {
+    question: "Why did my campaign fail even with a big army?",
+    answer:
+      "Defender power includes castle defense multipliers. Equal power is still a defender win, so close calls usually punish the attacker.",
+  },
+  {
+    question: "Why can I not change race now?",
+    answer:
+      "Race is a once-per-season lock. The game remembers your choice even if your memory does not.",
+  },
+  {
+    question: "Why can I not interact with the center tile?",
+    answer:
+      "The former Home of A tile is a preserved monument in Season 4. It cannot be attacked, fortified, pressured, or owned.",
+  },
+  {
+    question: "What is the safest beginner mistake to avoid?",
+    answer:
+      "Sending everything in one heroic raid without checking defender strength. Heroic speeches are free, armies are not.",
+  },
+] as const;
+
+const GLOSSARY = [
+  "Tick: the minute-based game update that applies growth, combat, and state transitions.",
+  "Buff tier: race power stage (T2/T3) unlocked by active-season timing.",
+  "Pressure priority: a player-marked border tile that receives idle expansion pressure first.",
+  "Returned: surviving attackers that come home after a winning raid.",
+  "Convoy leg: one accepted direction of a trade — gold, food, or army traveling between two fortresses.",
+  "Casus belli: a 24-hour window after a detected covert raid that allows immediate war.",
+  "Decoy (Legacy): temporary attackable Unicorn teleport remnant left at the home tile.",
+  "Loot camp (Legacy): temporary NPC target with strength-based HP and variant rewards.",
+] as const;
+
+export default function WikiPage() {
+  return (
+    <main className={styles.page}>
+      <section className={styles.hero}>
+        <div className={styles.heroCopy}>
+          <p className={styles.eyebrow}>Project A wiki</p>
+          <h1>Races, castles, pressure, and campaigns.</h1>
+          <p>
+            This page is a player-facing guide to what matters most during a
+            Season 4 cycle: race identity, skill trees, expansion pressure,
+            and planned conflict.
+          </p>
+        </div>
+
+        <div className={styles.navRow}>
+          <Link className={styles.linkButton} href="/">
+            Back to battlefield
+          </Link>
+          <Link className={styles.linkButton} href="/history">
+            Open cycle archive
+          </Link>
+        </div>
+      </section>
+
+      <section className={styles.stack}>
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>Season start</span>
+          <h2>What to do in the first few minutes</h2>
+          <p>
+            The opening of a season is about locking in your identity, getting
+            your economy online, and expanding into nearby land before the map
+            gets crowded.
+          </p>
+          <div className={styles.twoCol}>
+            <section>
+              <h3>Season-start checklist</h3>
+              <ul className={styles.noteList}>
+                {SEASON_START_STEPS.map((step) => (
+                  <li key={step}>{step}</li>
+                ))}
+              </ul>
+            </section>
+            <section>
+              <h3>What&apos;s new this season</h3>
+              <ul className={styles.noteList}>
+                {WHAT_IS_NEW_THIS_SEASON.map((entry) => (
+                  <li key={entry}>{entry}</li>
+                ))}
+              </ul>
+            </section>
+          </div>
+        </article>
+
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>Race tokens</span>
+          <h2>Pick the fantasy you want to play</h2>
+          <p>
+            Each race is a season-long commitment. Use these tokens as the fast
+            read, then scroll down for exact bonuses and standing doctrines.
+          </p>
+          <div className={styles.tokenGrid}>
+            {RACE_TOKENS.map((token) => {
+              const race = RACE_DEFINITIONS.find(
+                (definition) => definition.key === token.key
+              );
+
+              if (!race) {
+                return null;
+              }
+
+              return (
+                <section className={styles.tokenCard} key={token.key}>
+                  <div className={styles.tokenFrame}>
+                    <img src={token.tokenSrc} alt="" />
+                  </div>
+                  <div>
+                    <span className={styles.tokenRole}>{token.role}</span>
+                    <h3>{race.displayName}</h3>
+                    <p>{token.opening}</p>
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        </article>
+
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>Map legend</span>
+          <h2>Claim, hold, contest</h2>
+          <p>
+            Expand into connected neutral land through pressure, then contest
+            enemy borders through war campaigns.
+          </p>
+          <div className={styles.legendGrid}>
+            {MAP_LEGEND.map((entry) => (
+              <section className={styles.legendItem} key={entry.label}>
+                <span
+                  aria-hidden="true"
+                  className={`${styles.legendMark} ${
+                    styles[`legendMark${entry.tone}`]
+                  }`}
+                />
+                <div>
+                  <h3>{entry.label}</h3>
+                  <p>{entry.description}</p>
+                </div>
+              </section>
+            ))}
+          </div>
+        </article>
+
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>Patch notes</span>
+          <h2>Recent changes live there now</h2>
+          <p>
+            This wiki is the stable rulebook. Patch notes carry the longer
+            change history when you want to see what moved between deploys.
+          </p>
+          <div className={styles.navRow}>
+            <Link className={styles.linkButton} href="/patch-notes">
+              Open patch notes
+            </Link>
+          </div>
+        </article>
+
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>Season loop</span>
+          <h2>How a full cycle flows</h2>
+          <p>
+            If you only remember one thing: prepare in registration/testing,
+            execute in active season, and review in resolution.
+          </p>
+          <ol className={styles.noteList}>
+            {SEASON_FLOW.map((step) => (
+              <li key={step.phase}>
+                <strong>{step.phase}</strong>: {step.description}
+              </li>
+            ))}
+          </ol>
+        </article>
+
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>Goal and victory</span>
+          <h2>How to win the season</h2>
+          <p>
+            The main goal is to end the active season with the most points.
+            Points come from rotating map objectives and successful convoy or
+            interception play. Gold funds recruitment, upgrades, trades,
+            alliance escrow, renames, and utility costs.
+          </p>
+          <p>
+            Season 4 rankings also track Territory, PvP Kills, Courier delivered
+            cargo, and Privateer intercepted cargo. Leaders hold visible prestige
+            titles only; no ranking grants a gameplay buff.
+          </p>
+          <div className={styles.twoCol}>
+            <section>
+              <h3>Victory rules</h3>
+              <ul className={styles.noteList}>
+                <li>
+                  The winner is the fortress with the highest point total when
+                  the active season resolves.
+                </li>
+                <li>
+                  If players tie on points, the winner is the tied fortress that
+                  reached that final score first.
+                </li>
+                <li>
+                  Ties are rare but possible. The fortress that reached the
+                  winning score first takes the crown.
+                </li>
+              </ul>
+            </section>
+            <section>
+              <h3>Rewards</h3>
+              <ul className={styles.noteList}>
+                <li>
+                  The recorded winner can submit one bounded winner request
+                  after the cycle resolves.
+                </li>
+                <li>
+                  The completed community wish vote is retained in history and
+                  is not an active Season 4 lobby feature.
+                </li>
+                <li>
+                  Season 4 titles are prestige only: Points, Territory, PvP
+                  Kills, Courier delivered cargo, and Privateer intercepted
+                  cargo. None grants a gameplay buff.
+                </li>
+                <li>
+                  Season arcade coins: {ARCADE_SEASON_BASE_COINS} base, plus 1
+                  per {ARCADE_SEASON_POINTS_BONUS_DIVISOR} points up to{" "}
+                  {ARCADE_SEASON_POINTS_BONUS_CAP}, plus rank bonuses for the
+                  top finishers ({getArcadeSeasonRankBonus(1)}/
+                  {getArcadeSeasonRankBonus(2)}/{getArcadeSeasonRankBonus(3)}).
+                </li>
+              </ul>
+            </section>
+          </div>
+        </article>
+
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>Quickstart</span>
+          <h2>First 15 minutes checklist</h2>
+          <p>
+            Use this when the season starts and your brain is still loading in.
+          </p>
+          <ol className={styles.noteList}>
+            {QUICKSTART_STEPS.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+        </article>
+
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>Races</span>
+          <h2>Identity, lore, and buffs</h2>
+          <p>
+            Pick one race per season. The choice is locked for the cycle and
+            defines your passive economy/combat profile plus tier-based race
+            actions.
+          </p>
+          <ul className={styles.noteList}>
+            {RACE_TIER_PATH.map((entry) => (
+              <li key={entry}>{entry}</li>
+            ))}
+          </ul>
+          <div className={styles.raceGrid}>
+            {RACE_DEFINITIONS.map((race) => (
+              <section className={styles.raceCard} key={race.key}>
+                <div className={styles.raceHeader}>
+                  <strong>{race.displayName}</strong>
+                  <span>{race.iconPlaceholder}</span>
+                </div>
+                <p className={styles.quote}>{race.flavorQuote}</p>
+                <p>{race.flavorText}</p>
+                <ul className={styles.noteList}>
+                  {race.passiveSummary.map((entry) => (
+                    <li key={entry}>{entry}</li>
+                  ))}
+                  {(RACE_ABILITY_NOTES[race.key] ?? []).map((entry) => (
+                    <li key={entry}>{entry}</li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </div>
+        </article>
+
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>Castle</span>
+          <h2>Leveling and specialization</h2>
+          <p>
+            Castle upgrades are available during gameplay. Each upgrade can be
+            mapped to a building role on the castle page.
+          </p>
+          <p>
+            Castle Overview reports current expansion momentum, while Operations
+            reports recruitment and standing army commitments. Select new
+            pressure, guard, and campaign orders on the Battlefield; manage
+            convoy logistics in Politics &amp; Trade.
+          </p>
+          <div className={styles.twoCol}>
+            <section>
+              <h3>Level effects</h3>
+              <ul className={styles.noteList}>
+                <li>
+                  Base growth per tick: {BASE_FORTRESS_GROWTH}, plus{" "}
+                  {FORTRESS_GROWTH_PER_LEVEL} per castle level.
+                </li>
+                <li>
+                  Base attack damage to fortress HP:{" "}
+                  {BASE_FORTRESS_ATTACK_DAMAGE}, plus{" "}
+                  {FORTRESS_ATTACK_DAMAGE_PER_LEVEL} per castle level.
+                </li>
+                <li>
+                  Castle level increases PvE fortress HP damage, but does not
+                  increase PvP attack power.
+                </li>
+                <li>
+                  Standard simultaneous attack slots start at{" "}
+                  {MAX_SIMULTANEOUS_ATTACKS_BASE}.
+                </li>
+              </ul>
+            </section>
+            <section>
+              <h3>Upgrade costs</h3>
+              <ol className={styles.noteList}>
+                {FORTRESS_LEVEL_UP_COSTS.map((cost, index) => (
+                  <li key={cost}>
+                    Level {index + 2}: {cost} gold
+                  </li>
+                ))}
+              </ol>
+            </section>
+          </div>
+          <section className={styles.subCard}>
+            <h3>Specializations</h3>
+            <ul className={styles.noteList}>
+              {CASTLE_SPECIALIZATIONS.map((entry) => (
+                <li key={entry}>{entry}</li>
+              ))}
+            </ul>
+          </section>
+          <section className={styles.subCard}>
+            <h3>Active-season utility costs</h3>
+            <ul className={styles.noteList}>
+              <li>Rename costs {ACTIVE_RENAME_COST} gold.</li>
+              <li>
+                Manual Castle Yeet now starts from the Battlefield map and costs
+                gold to relocate your castle to a chosen spawnable tile.
+              </li>
+              <li>
+                Legacy active race abilities are retained in past reports only;
+                Season 4 uses standing doctrines.
+              </li>
+            </ul>
+          </section>
+        </article>
+
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>Recruitment</span>
+          <h2>Buying and training army</h2>
+          <p>
+            Recruiters are now queue workers, not passive army printers. Spend
+            gold when you want more troops, then use recruiter assignments to
+            decide how quickly those orders become active army.
+          </p>
+          <div className={styles.twoCol}>
+            <section>
+              <h3>Queue rules</h3>
+              <ul className={styles.noteList}>
+                {RECRUITMENT_RULES.map((entry) => (
+                  <li key={entry}>{entry}</li>
+                ))}
+              </ul>
+            </section>
+            <section>
+              <h3>Practical advice</h3>
+              <ul className={styles.noteList}>
+                <li>
+                  Buy in batches you can afford without emptying all upgrade and
+                  diplomacy reserves.
+                </li>
+                <li>
+                  Raise recruiter assignments before large orders if you need a
+                  predictable completion time.
+                </li>
+                <li>
+                  Watch food before a large queue completes. Upkeep starts when
+                  troops become active.
+                </li>
+                <li>
+                  Military specialization and race bonuses improve recruitment
+                  throughput, which is strongest when you keep a queue stocked.
+                </li>
+              </ul>
+            </section>
+          </div>
+        </article>
+
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>Legacy PvE</span>
+          <h2>Retired map targets</h2>
+          <p>
+            Home of A and loot camps are not live targets in Season 4. Historical
+            records still preserve how earlier seasons resolved them.
+          </p>
+          <div className={styles.twoCol}>
+            <section>
+              <h3>Season 4 rules</h3>
+              <ul className={styles.noteList}>
+                <li>Loot camps do not spawn and cannot be attacked.</li>
+                <li>The center tile is an inaccessible monument.</li>
+                <li>No boss or loot-camp rewards or buffs are generated.</li>
+              </ul>
+            </section>
+            <section>
+              <h3>Legacy history</h3>
+              <ul className={styles.noteList}>
+                <li>Resolved prior-season reports remain readable.</li>
+                <li>Stored records do not enable live Season 4 interactions.</li>
+              </ul>
+            </section>
+          </div>
+        </article>
+
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>Tiles</span>
+          <h2>Pressure, objectives, and territory control</h2>
+          <p>
+            Territory grows through pressure workers, prioritized border tiles,
+            rotating point objectives, and war campaigns over valuable hexes.
+          </p>
+          <div className={styles.twoCol}>
+            <section>
+              <h3>Expansion rules</h3>
+              <ul className={styles.noteList}>
+                {TILE_CONTROL_RULES.map((entry) => (
+                  <li key={entry}>{entry}</li>
+                ))}
+              </ul>
+            </section>
+            <section>
+              <h3>What owned tiles do</h3>
+              <ul className={styles.noteList}>
+                <li>
+                  Tile bonuses come from biome and can include gold, food, army,
+                  defense, or temporary objective points.
+                </li>
+                <li>
+                  Forest and hills are better defensive holds, while marsh tiles
+                  are the main army-income biome.
+                </li>
+                <li>
+                  Owned tiles can receive standing guards and transfer after a
+                  hostile campaign reaches and resolves a siege.
+                </li>
+                <li>
+                  The Landlord title uses current normal tiles owned (the
+                  center monument is excluded).
+                </li>
+                <li>
+                  Guard orders commit idle army to a tile and can be recalled
+                  before they enter an engaged siege.
+                </li>
+                <li>
+                  The selected tile panel shows current owner, bonus, claim
+                  status, contest state, and action limits.
+                </li>
+              </ul>
+            </section>
+          </div>
+        </article>
+
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>Center tile</span>
+          <h2>Center monument</h2>
+          <p>{homeOfALore}</p>
+          <ul className={styles.noteList}>
+            <li>Always sits on center tile {HOME_OF_A_TILE_ID}.</li>
+            <li>
+              It has no live health, reward, buff, respawn, or battlefield
+              interaction in Season 4.
+            </li>
+            <li>
+              Loot camps are also retired from live Season 4 gameplay and
+              cannot spawn or be targeted.
+            </li>
+            <li>
+              Prior-season boss and loot-camp records remain visible in
+              historical reporting.
+            </li>
+          </ul>
+        </article>
+
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>Politics</span>
+          <h2>Trust-backed alliances</h2>
+          <ul className={styles.noteList}>
+            {POLITICS_RULES.map((entry) => (
+              <li key={entry}>{entry}</li>
+            ))}
+          </ul>
+        </article>
+
+        <article className={styles.card}>
+          <span className={styles.sectionLabel}>Combat</span>
+          <h2>How conflict resolves</h2>
+          <p>
+            Season 4 conflict is planned through convoy raids and war campaigns.
+            Army is committed to standing orders, and campaign sieges open a
+            visible response window before automatic casualties begin.
+          </p>
+          <div className={styles.twoCol}>
+
+
+[… truncated 3987 chars …]
