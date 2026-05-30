@@ -330,6 +330,77 @@ export function getEffectiveDefendingArmy(
 }
 
 // ============================================================================
+// INTEGRATED DEFENDER ARMY CALCULATION
+// ============================================================================
+
+/**
+ * Combines fortress army, tile guards, and tile garrisons into a single
+ * effective defender army total. Guards and garrisons on the target tile
+ * contribute to defense alongside the fortress's own army.
+ *
+ * @param fortressArmy — the fortress's own standing army
+ * @param guardArmy — army committed to GUARD orders on the target tile
+ * @param garrisonArmy — army in FortressGarrison on the target tile
+ * @returns total army available for defense on this tile
+ */
+export function getTotalDefenderArmy({
+  fortressArmy,
+  guardArmy,
+  garrisonArmy,
+}: {
+  fortressArmy: number;
+  guardArmy: number;
+  garrisonArmy: number;
+}): number {
+  return (
+    Math.max(0, Math.floor(fortressArmy)) +
+    Math.max(0, Math.floor(guardArmy)) +
+    Math.max(0, Math.floor(garrisonArmy))
+  );
+}
+
+/**
+ * Distributes casualties across defender components proportional to their
+ * share of total defense. Guards and garrisons on the tile take damage first
+ * (they're stationed there), then fortress army.
+ *
+ * Returns updated counts for each component.
+ */
+export function distributeDefenderCasualties({
+  fortressArmy,
+  guardArmy,
+  garrisonArmy,
+  totalLosses,
+}: {
+  fortressArmy: number;
+  guardArmy: number;
+  garrisonArmy: number;
+  totalLosses: number;
+}): {
+  fortressLosses: number;
+  guardLosses: number;
+  garrisonLosses: number;
+} {
+  const total = getTotalDefenderArmy({ fortressArmy, guardArmy, garrisonArmy });
+  if (total <= 0 || totalLosses <= 0) {
+    return { fortressLosses: 0, guardLosses: 0, garrisonLosses: 0 };
+  }
+
+  const clampedLosses = Math.min(totalLosses, total);
+
+  // Guards and garrisons absorb casualties first (they're on the front line).
+  const guardLosses = Math.min(guardArmy, clampedLosses);
+  let remaining = clampedLosses - guardLosses;
+
+  const garrisonLosses = Math.min(garrisonArmy, remaining);
+  remaining -= garrisonLosses;
+
+  const fortressLosses = Math.min(fortressArmy, remaining);
+
+  return { fortressLosses, guardLosses, garrisonLosses };
+}
+
+// ============================================================================
 // WORKER ASSIGNMENT VALIDATION
 // ============================================================================
 

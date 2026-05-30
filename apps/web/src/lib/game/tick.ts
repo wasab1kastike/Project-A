@@ -3638,7 +3638,7 @@ async function processCycleTick(
             enableDwarfGrudge: targetAttackerRaceBuffTier >= 1,
             enableLegacyAbilities: !isSeasonFour,
           }),
-          defenderPoints: 0,
+          defenderGold: 0,
           defenderFood: 0,
         });
         const defenderArmyAfterBattle = Math.max(
@@ -3869,7 +3869,7 @@ async function processCycleTick(
             enableDwarfGrudge: targetAttackerRaceBuffTier >= 1,
             enableLegacyAbilities: !isSeasonFour,
           }),
-          defenderPoints: 0,
+          defenderGold: 0,
           defenderFood: 0,
         });
         const attackerWon = outcome.outcome === "ATTACKER_WIN";

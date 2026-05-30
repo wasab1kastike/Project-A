@@ -75,7 +75,7 @@ test("race modifiers adjust population, defense, production, and carry capacity"
     attackArmy: 20,
     defenderArmy: 4,
     defenderDbLevel: 0,
-    defenderPoints: 2000,
+    defenderGold: 2000,
     defenderFood: 2000,
   });
   const orkRaid = calculateRaidOutcome({
@@ -83,7 +83,7 @@ test("race modifiers adjust population, defense, production, and carry capacity"
     attackerRace: "ORKS",
     defenderArmy: 4,
     defenderDbLevel: 0,
-    defenderPoints: 2000,
+    defenderGold: 2000,
     defenderFood: 2000,
   });
 
@@ -232,7 +232,7 @@ test("castle specializations stack production and defense bonuses", () => {
       MILITARY: 0,
       DEFENSE: 2,
     },
-    defenderPoints: 20,
+    defenderGold: 20,
     defenderFood: 20,
   });
 
@@ -247,7 +247,7 @@ test("race combat buffs can adjust power and casualty handling", () => {
     attackPowerMultiplier: 1.25,
     defenderArmy: 100,
     defenderDbLevel: 0,
-    defenderPoints: 100,
+    defenderGold: 100,
     defenderFood: 100,
   });
   const stimDefense = calculateRaidOutcome({
@@ -255,7 +255,7 @@ test("race combat buffs can adjust power and casualty handling", () => {
     defenderArmy: 10,
     defenderDbLevel: 0,
     preventDefenderLosses: true,
-    defenderPoints: 100,
+    defenderGold: 100,
     defenderFood: 100,
   });
   const stimAttack = calculateRaidOutcome({
@@ -263,7 +263,7 @@ test("race combat buffs can adjust power and casualty handling", () => {
     defenderArmy: 100,
     defenderDbLevel: 0,
     preventAttackerCasualties: true,
-    defenderPoints: 100,
+    defenderGold: 100,
     defenderFood: 100,
   });
 
@@ -278,7 +278,7 @@ test("defense power buffs reduce defender losses on failed attacks", () => {
     attackArmy: 100,
     defenderArmy: 200,
     defenderDbLevel: 0,
-    defenderPoints: 100,
+    defenderGold: 100,
     defenderFood: 100,
   });
   const buffedDefense = calculateRaidOutcome({
@@ -286,7 +286,7 @@ test("defense power buffs reduce defender losses on failed attacks", () => {
     defenderArmy: 200,
     defenderDbLevel: 0,
     defensePowerMultiplier: 4,
-    defenderPoints: 100,
+    defenderGold: 100,
     defenderFood: 100,
   });
 
@@ -301,7 +301,7 @@ test("tie goes to the defender and the attacker loses all sent army", () => {
     attackArmy: 11,
     defenderArmy: 10,
     defenderDbLevel: 0,
-    defenderPoints: 20,
+    defenderGold: 20,
     defenderFood: 20,
   });
 
@@ -322,7 +322,7 @@ test("attacker loses all sent army when attack power does not beat defense power
     attackArmy: 5,
     defenderArmy: 10,
     defenderDbLevel: 0,
-    defenderPoints: 20,
+    defenderGold: 20,
     defenderFood: 20,
   });
 
@@ -343,7 +343,7 @@ test("successful raid outcome applies retirement, losses, and balanced loot", ()
     attackArmy: 130,
     defenderArmy: 100,
     defenderDbLevel: 1,
-    defenderPoints: 200,
+    defenderGold: 200,
     defenderFood: 200,
   });
 
@@ -364,7 +364,7 @@ test("loot is capped by carry capacity and by point and food caps", () => {
     attackArmy: 10,
     defenderArmy: 1,
     defenderDbLevel: 0,
-    defenderPoints: 20,
+    defenderGold: 20,
     defenderFood: 12,
   });
 
@@ -381,7 +381,7 @@ test("loot splits by carry capacity when resource caps do not bind", () => {
     attackArmy: 20,
     defenderArmy: 4,
     defenderDbLevel: 0,
-    defenderPoints: 100,
+    defenderGold: 100,
     defenderFood: 100,
   });
 
@@ -401,7 +401,7 @@ test("attacker win wipes defender when target has no castle defenses", () => {
     defenderDbLevel: 0,
     defenderHasCastle: false,
     defenderRace: null,
-    defenderPoints: 100,
+    defenderGold: 100,
     defenderFood: 100,
   });
 

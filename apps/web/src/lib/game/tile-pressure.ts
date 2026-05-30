@@ -58,15 +58,17 @@ export function applyUnsupportedPressureDecay({
   pressure: number;
   elapsedHours: number;
 }) {
-  let decayedPressure = Math.max(0, Math.floor(pressure));
+  const wholeHours = Math.max(0, Math.floor(elapsedHours));
+  if (wholeHours <= 0) return Math.max(0, Math.floor(pressure));
 
-  for (let hour = 0; hour < Math.max(0, Math.floor(elapsedHours)); hour += 1) {
-    decayedPressure = Math.floor(
-      decayedPressure * (1 - TILE_PRESSURE_DECAY_PERCENT_PER_HOUR / 100)
-    );
-  }
-
-  return decayedPressure;
+  // Closed-form: pressure × 0.9^hours. Slightly more generous than the old
+  // per-hour floor loop (≈1 unit difference at high hours), but O(1) instead
+  // of O(hours) — safe for large catch-up intervals.
+  const decayFactor = Math.pow(
+    1 - TILE_PRESSURE_DECAY_PERCENT_PER_HOUR / 100,
+    wholeHours,
+  );
+  return Math.max(0, Math.floor(Math.max(0, Math.floor(pressure)) * decayFactor));
 }
 
 export function getPressureTargetBlockedReason({
