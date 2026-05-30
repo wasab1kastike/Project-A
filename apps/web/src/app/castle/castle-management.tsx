@@ -322,6 +322,22 @@ type PlayerSummary = {
     };
   } | null;
   growPerTick: number;
+  battalions: Array<{
+    id: string;
+    name: string;
+    size: number;
+    maxSize: number;
+    tier: number;
+    xp: number;
+    readyAt: number | null;
+    stance: string;
+    garrisonedAt: string | null;
+  }>;
+  warPolicy: {
+    maxArmySize: number;
+    guardPercent: number;
+    defaultAggression: string;
+  } | null;
   skillPurchases: Array<{ nodeKey: string }>;
   skillPointsEarned: number;
 };
@@ -1404,58 +1420,91 @@ export function CastleManagement({
 
       {activeTab === "WAR_ROOM" ? (
         <>
-      {/* Active Fronts */}
+      {/* Battalion Roster */}
       <section className={styles.panel}>
         <div className={styles.panelHeader}>
-          <span>Active Fronts</span>
-          <strong>
-            {playerSummary.operationsSummary?.activeOrderCount ?? 0} active orders
-          </strong>
+          <span>Battalions</span>
+          <strong>{playerSummary.battalions?.length ?? 0} active</strong>
         </div>
-        <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4 }}>
-          Assign battalions to war fronts from the battlefield map. Use the
-          tile priority markers to guide automatic advances.
-        </p>
-        <dl className={styles.readinessGrid}>
-          <div>
-            <dt>Army committed</dt>
-            <dd>
-              {playerSummary.operationsSummary?.committedArmy ?? 0}
-            </dd>
-          </div>
-          <div>
-            <dt>Available army</dt>
-            <dd>{playerSummary.army}</dd>
-          </div>
-          <div>
-            <dt>Recruiters assigned</dt>
-            <dd>{playerSummary.recruitersAssigned ?? 0}</dd>
-          </div>
-        </dl>
-        {playerSummary.operationsSummary?.campaigns &&
-        playerSummary.operationsSummary.campaigns.length > 0 ? (
+        {playerSummary.battalions && playerSummary.battalions.length > 0 ? (
           <ul style={{ listStyle: "none", padding: 0, margin: "8px 0 0" }}>
-            {playerSummary.operationsSummary.campaigns.map((campaign) => (
+            {playerSummary.battalions.map((bn) => (
               <li
-                key={campaign.tileId}
+                key={bn.id}
                 style={{
-                  padding: "6px 8px",
+                  padding: "8px 10px",
                   background: "var(--bg-raised)",
-                  borderRadius: 4,
-                  marginBottom: 4,
+                  borderRadius: 6,
+                  marginBottom: 6,
                   fontSize: 13,
-                  display: "flex",
-                  justifyContent: "space-between",
                 }}
               >
-                <span>Campaign on {campaign.tileId}</span>
-                <span style={{ color: "var(--text-muted)", fontSize: 12 }}>
-                  {campaign.committedArmy} army · {campaign.status}
-                </span>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                  <strong>{bn.name}</strong>
+                  <span style={{ color: "var(--text-muted)", fontSize: 12 }}>
+                    {bn.size}/{bn.maxSize} · Tier {bn.tier}
+                  </span>
+                </div>
+                <div style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12 }}>
+                  <span style={{ color: "var(--text-muted)" }}>{bn.stance}</span>
+                  {bn.garrisonedAt ? (
+                    <span style={{ color: "var(--text-muted)" }}>@ {bn.garrisonedAt}</span>
+                  ) : null}
+                  {bn.readyAt ? (
+                    <span style={{ color: "#ff9800" }}>Fatigued</span>
+                  ) : null}
+                </div>
               </li>
             ))}
           </ul>
-        ) : null}
+        ) : (
+          <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
+            No battalions. Commission one to get started.
+          </p>
+        )}
+      </section>
+
+      {/* Guard & Army Settings */}
+      <section className={styles.panel}>
+        <div className={styles.panelHeader}>
+          <span>Army Settings</span>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "4px 0" }}>
+          <label style={{ fontSize: 13, display: "flex", justifyContent: "space-between" }}>
+            <span>Guard allocation</span>
+            <strong>{playerSummary.warPolicy?.guardPercent ?? 30}%</strong>
+          </label>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={5}
+            defaultValue={playerSummary.warPolicy?.guardPercent ?? 30}
+            style={{ width: "100%" }}
+          />
+          <label style={{ fontSize: 13, display: "flex", justifyContent: "space-between" }}>
+            <span>Max army size</span>
+            <strong>{playerSummary.warPolicy?.maxArmySize ?? 500}</strong>
+          </label>
+          <input
+            type="number"
+            min={100}
+            step={50}
+            defaultValue={playerSummary.warPolicy?.maxArmySize ?? 500}
+            style={{
+              width: "100%",
+              padding: "4px 8px",
+              background: "var(--bg-raised)",
+              border: "1px solid var(--border)",
+              borderRadius: 4,
+              color: "var(--text)",
+              fontSize: 13,
+            }}
+          />
+          <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>
+            Guards auto-distribute to owned tiles by priority. Set aggression per front from the battlefield.
+          </p>
+        </div>
       </section>
 
       {/* Recruitment */}

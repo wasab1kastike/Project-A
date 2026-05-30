@@ -362,6 +362,27 @@ export async function getCastlePageState({
               createdAt: true,
             },
           },
+          battalions: {
+            select: {
+              id: true,
+              name: true,
+              size: true,
+              maxSize: true,
+              tier: true,
+              xp: true,
+              readyAt: true,
+              stance: true,
+              garrisonedAt: true,
+            },
+          },
+          warPolicies: {
+            select: {
+              id: true,
+              maxArmySize: true,
+              guardPercent: true,
+              defaultAggression: true,
+            },
+          },
           unicornDecoySourceFortress: {
             select: {
               id: true,
@@ -1384,6 +1405,24 @@ export async function getCastlePageState({
           ownedTileSummary,
           expansionSummary,
           operationsSummary,
+          battalions: (playerFortress?.battalions ?? []).map((b) => ({
+            id: b.id,
+            name: b.name,
+            size: b.size,
+            maxSize: b.maxSize,
+            tier: b.tier,
+            xp: b.xp,
+            readyAt: b.readyAt?.getTime() ?? null,
+            stance: b.stance,
+            garrisonedAt: b.garrisonedAt,
+          })),
+          warPolicy: playerFortress?.warPolicies?.[0]
+            ? {
+                maxArmySize: playerFortress.warPolicies[0].maxArmySize,
+                guardPercent: playerFortress.warPolicies[0].guardPercent,
+                defaultAggression: playerFortress.warPolicies[0].defaultAggression,
+              }
+            : null,
           skillPurchases: playerFortress?.skillPurchases ?? [],
           skillPointsEarned: getEarnedSkillPoints({
             level: playerFortress?.level ?? 1,
