@@ -164,6 +164,10 @@ import {
 } from "./schema-guards";
 import { processAutoWarDispatch } from "./tick-auto-war-integration";
 import { recordUnitRoadCrossings } from "./tick-road-integration";
+import {
+  processBattalionRecruitment,
+  processBattalionGuard,
+} from "./tick-battalion-integration";
 
 export type TickSummary = {
   restartedRegistrationCycles: number;
@@ -2909,6 +2913,14 @@ async function processCycleTick(
     cycleStatus: cycle.status,
     ruleset: cycle.ruleset,
   });
+  // Load battalions and war policies for battalion-based recruitment + guard.
+  const battalions = await db.battalion.findMany({
+    where: { cycleId },
+  });
+  const warPolicies = await db.warPolicy.findMany({
+    where: { cycleId },
+  });
+
   const fortressLookup = new Map(
     fortresses.map((fortress) => [fortress.id, fortress])
   );
@@ -5167,6 +5179,53 @@ async function processCycleTick(
   if (scoreEvents.length > 0) {
     await db.scoreEvent.createMany({
       data: scoreEvents,
+    });
+  }
+
+  // === BATTALION RECRUITMENT & GUARD DISTRIBUTION ===
+  if (isSeasonFour) {
+    // Build recruiters map from fortress data.
+    const recruitersByFortress = new Map<string, number>();
+    const raceByFortress = new Map<string, string | null>();
+    const levelByFortress = new Map<string, number>();
+    const barracksByFortress = new Map<string, number>();
+    const goldByFortress = new Map<string, number>();
+    const maxArmyByFortress = new Map<string, number>();
+    const guardPercentByFortress = new Map<string, number>();
+    const ownedTilesByFortress = new Map<string, string[]>();
+
+    for (const fortress of fortresses) {
+      if (fortress.isNpc) continue;
+      recruitersByFortress.set(fortress.id, fortress.recruitersAssigned);
+      raceByFortress.set(fortress.id, fortress.race);
+      levelByFortress.set(fortress.id, fortress.level);
+      barracksByFortress.set(fortress.id, 0);
+      goldByFortress.set(fortress.id, currentGold.get(fortress.id) ?? fortress.gold);
+      const policy = warPolicies.find((p) => p.fortressId === fortress.id);
+      maxArmyByFortress.set(fortress.id, policy?.maxArmySize ?? 500);
+      guardPercentByFortress.set(fortress.id, policy?.guardPercent ?? 30);
+      ownedTilesByFortress.set(
+        fortress.id,
+        mapHexOwnerships
+          .filter((o) => o.ownerFortressId === fortress.id)
+          .map((o) => o.tileId),
+      );
+    }
+
+    await processBattalionRecruitment({
+      ctx: { db, cycleId, now: tickAt },
+      recruitersByFortress,
+      raceByFortress,
+      levelByFortress,
+      barracksLevelByFortress: barracksByFortress,
+      goldByFortress,
+      maxArmyByFortress,
+    });
+
+    await processBattalionGuard({
+      ctx: { db, cycleId, now: tickAt },
+      guardPercentByFortress,
+      ownedTilesByFortress,
     });
   }
 
