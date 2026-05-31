@@ -1411,6 +1411,59 @@
   50% { filter: drop-shadow(0 0 8px rgba(68, 136, 255, 0.7)); }
 }
 
+/* ── Reinforcement particles ────────────────────────────────────────── */
+.reinforcementLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.reinforcementParticle {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: none; /* position driven by JS */
+}
+
+.reinforcementSprite {
+  display: block;
+  width: 18px;
+  height: 18px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  opacity: 0.85;
+  filter: drop-shadow(0 0 4px rgba(100, 200, 255, 0.6));
+}
+
+.reinforcementSprite[data-variant="unit-1"] { background-image: url(/assets/sprites/unit-1.png); }
+.reinforcementSprite[data-variant="unit-2"] { background-image: url(/assets/sprites/unit-2.png); }
+.reinforcementSprite[data-variant="unit-3"] { background-image: url(/assets/sprites/unit-3.png); }
+.reinforcementSprite[data-variant="unit-4"] { background-image: url(/assets/sprites/unit-4.png); }
+.reinforcementSprite[data-variant="unit-5"] { background-image: url(/assets/sprites/unit-5.png); }
+.reinforcementSprite[data-variant="unit-6"] { background-image: url(/assets/sprites/unit-6.png); }
+
+.reinforcementCount {
+  position: absolute;
+  right: -8px;
+  bottom: -4px;
+  min-width: 14px;
+  height: 12px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: rgba(12, 18, 28, 0.9);
+  color: #7ec8ff;
+  font-size: 0.5rem;
+  font-weight: 700;
+  line-height: 12px;
+  text-align: center;
+}
+
 /* March path animation */
 .marchPathSvg polyline {
   animation: marchDash 1s linear infinite;
