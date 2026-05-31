@@ -2192,15 +2192,8 @@ export async function setBattalionModeAction(args: {
   const userId = session?.user?.id;
   if (!userId) return { ok: false, error: "Sign in to manage battalions." };
   try {
-    const { prisma } = await import("@/lib/prisma");
-    const bn = await prisma.battalion.findFirst({
-      where: { id: args.battalionId, fortressId: args.fortressId },
-    });
-    if (!bn) return { ok: false, error: "Battalion not found." };
-    await prisma.battalion.update({
-      where: { id: args.battalionId },
-      data: { mode: args.mode },
-    });
+    const { setBattalionMode } = await import("@/lib/game/battalion-service");
+    await setBattalionMode({ userId, ...args });
     notifyAndRevalidate("battalion-mode", GAMEPLAY_REVALIDATE_PATHS);
     return { ok: true };
   } catch (error) {

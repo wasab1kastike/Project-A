@@ -16,6 +16,7 @@ import {
   getBattalionSlots,
   generateBattalionName,
   type BattalionTier,
+  type BattalionMode,
 } from "./battalion-types";
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -409,5 +410,27 @@ export async function retreatFront(args: {
     await tx.battalionAssignment.deleteMany({
       where: { frontId: args.frontId },
     });
+  });
+}
+
+export async function setBattalionMode({
+  userId,
+  battalionId,
+  fortressId,
+  mode,
+}: {
+  userId: string;
+  battalionId: string;
+  fortressId: string;
+  mode: string;
+}): Promise<void> {
+  const validModes = ["GUARD", "ATTACK", "RESERVE", "ALLIANCE"];
+  if (!validModes.includes(mode)) {
+    throw new GameError(`Invalid mode: ${mode}. Use GUARD, ATTACK, RESERVE, or ALLIANCE.`);
+  }
+
+  await prisma.battalion.update({
+    where: { id: battalionId, fortressId },
+    data: { mode },
   });
 }
