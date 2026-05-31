@@ -429,8 +429,10 @@ export async function setBattalionMode({
     throw new GameError(`Invalid mode: ${mode}. Use GUARD, ATTACK, RESERVE, or ALLIANCE.`);
   }
 
+  console.log(`[battalion-mode] ${userId} setting ${battalionId} to ${mode}`);
   await prisma.battalion.update({
     where: { id: battalionId, fortressId },
     data: { mode },
   });
+  console.log(`[battalion-mode] success`);
 }

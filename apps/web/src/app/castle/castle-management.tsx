@@ -1602,26 +1602,28 @@ export function CastleManagement({
                 </div>
                 <div style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12, flexWrap: "wrap" }}>
                   <select
-                    value={(bn as any).mode ?? "GUARD"}
+                    defaultValue={(bn as any).mode ?? "GUARD"}
                     onChange={async (e) => {
-                      const mode = e.target.value;
+                      const selectEl = e.target as HTMLSelectElement;
+                      const newMode = selectEl.value;
+                      selectEl.disabled = true;
                       try {
                         const { setBattalionModeAction } = await import("@/app/game-actions");
                         const result = await setBattalionModeAction({
                           battalionId: bn.id,
                           fortressId: playerSummary.id,
-                          mode,
+                          mode: newMode,
                         });
-                        if (result && !result.ok) {
-                          console.error("setBattalionModeAction failed:", result.error);
-                          // Revert the select visually.
-                          (e.target as HTMLSelectElement).value = (bn as any).mode ?? "GUARD";
-                        } else {
-                          refreshView();
+                        if (!result?.ok) {
+                          selectEl.value = (bn as any).mode ?? "GUARD";
+                          console.error("Failed:", result?.error);
                         }
                       } catch (err) {
-                        console.error("setBattalionModeAction error:", err);
-                        (e.target as HTMLSelectElement).value = (bn as any).mode ?? "GUARD";
+                        selectEl.value = (bn as any).mode ?? "GUARD";
+                        console.error("Error:", err);
+                      } finally {
+                        selectEl.disabled = false;
+                        refreshView();
                       }
                     }}
                     style={{
