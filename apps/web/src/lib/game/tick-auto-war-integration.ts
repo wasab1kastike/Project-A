@@ -189,6 +189,18 @@ export async function processAutoWarDispatch(args: {
     const commitAmount = Math.max(1, Math.floor(totalAvailable * rate));
     const cappedAmount = Math.min(commitAmount, Math.max(10, defender.army * 2));
 
+    // Deduct army from battalions proportionally.
+    let remainingDeduction = cappedAmount;
+    for (const bn of battalions) {
+      if (remainingDeduction <= 0) break;
+      const take = Math.min(bn.size, remainingDeduction);
+      await db.battalion.update({
+        where: { id: bn.id },
+        data: { size: { decrement: take } },
+      });
+      remainingDeduction -= take;
+    }
+
     try {
       await db.$transaction(async (tx) => {
         const order = await tx.armyOrder.create({
