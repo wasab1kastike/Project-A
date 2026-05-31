@@ -172,6 +172,36 @@
   gap: 10px;
 }
 
+.termsForm {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 8px;
+  background: rgba(3, 10, 16, 0.3);
+}
+
+.termsLabel {
+  margin: 0;
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.termsForm select,
+.termsForm input {
+  width: 100%;
+  min-height: 32px;
+  padding: 0 8px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 6px;
+  background: rgba(3, 10, 16, 0.5);
+  color: var(--foreground);
+  font: inherit;
+}
+
 .orderControl {
   display: flex;
   align-items: center;
