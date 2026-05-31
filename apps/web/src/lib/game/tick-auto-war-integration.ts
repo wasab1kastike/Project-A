@@ -173,14 +173,14 @@ export async function processAutoWarDispatch(args: {
     let activeIds = assignedIds;
     if (activeIds.length === 0) {
       const idle = await db.battalion.findMany({
-        where: { fortressId: attacker.id, size: { gt: 0 } },
+        where: { fortressId: attacker.id, size: { gt: 0 }, mode: "ATTACK" },
         select: { id: true, size: true },
       });
       activeIds = idle.map((b) => b.id);
     }
 
     const battalions = await db.battalion.findMany({
-      where: { id: { in: activeIds }, size: { gt: 0 } },
+      where: { id: { in: activeIds }, size: { gt: 0 }, mode: "ATTACK" },
       select: { id: true, size: true },
     });
     const totalAvailable = battalions.reduce((s, b) => s + b.size, 0);

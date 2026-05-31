@@ -223,7 +223,7 @@ export async function processBattalionGuard(args: {
     if (guardPercent <= 0) continue;
 
     const fortressBattalions: Battalion[] = allBattalions
-      .filter((b) => b.fortressId === fortressId && b.size > 0)
+      .filter((b) => b.fortressId === fortressId && b.size > 0 && (b.mode ?? "GUARD") === "GUARD")
       .map((b) => ({
         id: b.id,
         name: b.name,
@@ -331,7 +331,7 @@ export async function reconcileBattalionCasualties(args: {
 
     const netLoss = preArmy - postArmy;
     const fortressBattalions = allBattalions.filter(
-      (b) => b.fortressId === fortressId && b.size > 0,
+      (b) => b.fortressId === fortressId && b.size > 0 && (b.mode ?? "GUARD") === "GUARD",
     );
 
     if (fortressBattalions.length === 0) continue;

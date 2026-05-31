@@ -819,6 +819,7 @@ export async function getHomePageState({
           xp: true,
           readyAt: true,
           stance: true,
+          mode: true,
           garrisonedAt: true,
         },
       },
@@ -4097,6 +4098,7 @@ export async function getHomePageState({
       xp: b.xp,
       readyAt: b.readyAt?.getTime() ?? null,
       stance: b.stance,
+      mode: b.mode ?? "GUARD",
       garrisonedAt: b.garrisonedAt,
     })),
     warFronts: (cycle.warFronts ?? []).map((f) => ({

@@ -1398,6 +1398,7 @@ model Battalion {
   xp                Int       @default(0)
   readyAt           DateTime?
   stance            String    @default("REST") // FORTIFY, PATROL, TRAINING, AMBUSH, REST, MOBILE
+  mode              String    @default("GUARD") // GUARD, ATTACK, RESERVE, ALLIANCE
   garrisonedAt      String?   // tileId if stationed
   stanceLockedUntil DateTime?
   createdAt         DateTime  @default(now())

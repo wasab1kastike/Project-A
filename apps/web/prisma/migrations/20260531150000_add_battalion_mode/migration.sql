@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Battalion" ADD COLUMN "mode" TEXT NOT NULL DEFAULT 'GUARD';

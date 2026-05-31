@@ -2183,6 +2183,31 @@ export async function setBattalionStanceAction(args: {
   }
 }
 
+export async function setBattalionModeAction(args: {
+  battalionId: string;
+  fortressId: string;
+  mode: string;
+}): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) return { ok: false, error: "Sign in to manage battalions." };
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    const bn = await prisma.battalion.findFirst({
+      where: { id: args.battalionId, fortressId: args.fortressId },
+    });
+    if (!bn) return { ok: false, error: "Battalion not found." };
+    await prisma.battalion.update({
+      where: { id: args.battalionId },
+      data: { mode: args.mode },
+    });
+    notifyAndRevalidate("battalion-mode", GAMEPLAY_REVALIDATE_PATHS);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: getActionErrorMessage(error) };
+  }
+}
+
 export async function promoteBattalionAction(args: {
   battalionId: string;
   fortressId: string;

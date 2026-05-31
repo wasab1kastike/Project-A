@@ -75,6 +75,16 @@ export const BattalionStance = {
 export type BattalionStance =
   (typeof BattalionStance)[keyof typeof BattalionStance];
 
+export const BattalionMode = {
+  GUARD: "GUARD",
+  ATTACK: "ATTACK",
+  RESERVE: "RESERVE",
+  ALLIANCE: "ALLIANCE",
+} as const;
+
+export type BattalionMode =
+  (typeof BattalionMode)[keyof typeof BattalionMode];
+
 export type StanceEffects = {
   defenseMultiplier: number;
   damageDealtMultiplier: number;
@@ -168,6 +178,8 @@ export type Battalion = {
   readyAt: number | null;
   /** Current stance. */
   stance: BattalionStance;
+  /** Current mode: GUARD, ATTACK, RESERVE, ALLIANCE. Defaults to GUARD. */
+  mode?: BattalionMode;
   /** Tile ID where this battalion is garrisoned. Null = at fortress. */
   garrisonedAt: string | null;
   /** When the garrison/fortify lock-in expires (epoch ms). Null = not locked. */
