@@ -4,6 +4,7 @@ import type { Session } from "next-auth";
 
 import { auth } from "@/auth";
 import { getCastlePageState } from "@/lib/game/castle-read-model";
+import { getPoliticsPageState } from "@/lib/game/politics-read-model";
 import { CastleManagement } from "./castle-management";
 import styles from "./page.module.css";
 
@@ -49,11 +50,13 @@ export default async function CastlePage() {
   }
 
   let state: Awaited<ReturnType<typeof getCastlePageState>>;
+  let politicsState: Awaited<ReturnType<typeof getPoliticsPageState>> | null = null;
 
   try {
-    state = await getCastlePageState({
-      userId: session.user.id,
-    });
+    [state, politicsState] = await Promise.all([
+      getCastlePageState({ userId: session.user.id }),
+      getPoliticsPageState({ userId: session.user.id }),
+    ]);
   } catch (error) {
     const errorId = "castle-load-error";
     console.error("Failed to load castle page state", {
@@ -81,6 +84,7 @@ export default async function CastlePage() {
         <CastleManagement
           playerSummary={state.playerSummary}
           targets={state.availableTargets}
+          politicsState={politicsState}
         />
       </div>
     </main>
