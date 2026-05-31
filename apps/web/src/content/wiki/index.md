@@ -1,28 +1,27 @@
 # Project-A Wiki
 
-Welcome to the rulebook. Everything you need to know to play.
+Welcome to the Season 4 rulebook. This wiki covers the current game systems.
 
-## Getting Started
+## Game Overview
+
+Project-A is a browser-based multiplayer strategy game. You control a fortress, manage battalions, forge alliances, and conquer territory on a hex-grid map. The game is **policy-driven** — you set strategy, and your armies execute automatically.
+
+## Quick Navigation
 
 | Section | What You'll Learn |
 |---------|-------------------|
-| [Getting Started](getting-started) | Joining a season, picking your race, first moves |
-| [Races](races) | Dwarfs, Orks, Space Murines, Unstable Unicorns — who to play |
-| [Economy](economy) | Gold, food, army, workers, upgrades, recruitment |
-| [Combat](combat) | Attacks, battlefields, territory campaigns, standing orders |
-| [Diplomacy](diplomacy) | Alliances, war, peace, trust tiers |
-| [Trade](trade) | Trade offers, convoys, escorts, raids |
-| [Abilities](abilities) | Season 4 race abilities — active and passive mechanics |
+| [Getting Started](getting-started) | Joining, picking a race, first moves |
+| [Races](races) | Dwarfs, Orks, Space Murines, Unicorns |
+| [Economy](economy) | Workers, production, upgrades, skills |
+| [Army & War](army) | Battalions, auto-war, guards, combat |
+| [Diplomacy](diplomacy) | Alliances, war, peace, trade |
+| [Expansion](expansion) | Tile pressure, ownership decay, territory |
+| [Abilities](abilities) | Race abilities and skill trees |
 
-## Quick Rules
+## Season 4 Principles
 
-- **One fortress per player per season**. Pick your name, race, and doctrine wisely.
-- **The map is a hex grid**. Claim tiles, build your economy, attack enemies.
-- **Points win seasons**. Everything you do earns points — the leaderboard is the scoreboard.
-- **Ticks run every minute**. Your workers produce, your army marches, your grudges grow.
-- **Diplomacy matters**. Allies share trust bonuses; wars have 24-hour warnings.
-- **Season 4 is current**. Doctrines, pressure system, and race abilities are live.
-
-## Need Help?
-
-Ask in global chat — the community is friendly. Admins are marked with a ⚡ icon.
+- **Passive recruitment**: Army grows from assigned recruiters each tick
+- **Auto-war**: Declare war → battalions attack automatically
+- **Guard %**: Set a percentage of army to defend tiles
+- **Dynamic territory**: Tiles decay without maintenance
+- **Battalions**: Named, persistent army groups with tiers and XP
