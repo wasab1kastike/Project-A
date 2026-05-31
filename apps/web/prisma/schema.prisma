@@ -619,6 +619,19 @@ model DiplomacyRelation {
   collateralGold           Int                     @default(0)
   collateralFood           Int                     @default(0)
   collateralArmy           Int                     @default(0)
+  // Alliance offer terms — resources/tile offered as part of alliance proposal
+  allianceOfferGold        Int                     @default(0)
+  allianceOfferFood        Int                     @default(0)
+  allianceOfferArmy        Int                     @default(0)
+  allianceOfferTileId      String?
+  allianceOfferDirection   String?                 // "A_TO_B" or "B_TO_A" — who pays whom
+  // Peace treaty reparations
+  peaceLockedUntil         DateTime?
+  peaceReparationGold      Int                     @default(0)
+  peaceReparationFood      Int                     @default(0)
+  peaceReparationArmy      Int                     @default(0)
+  peaceReparationTileId    String?
+  peaceReparationFromId    String?                 // which fortress pays reparations
   createdAt                DateTime                @default(now())
   updatedAt                DateTime                @updatedAt
   cycle                    Cycle                   @relation(fields: [cycleId], references: [id], onDelete: Cascade)

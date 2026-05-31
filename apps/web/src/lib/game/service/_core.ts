@@ -1372,11 +1372,21 @@ export async function proposeAlliance({
   targetFortressId,
   now = new Date(),
   db = prisma,
+  offerGold = 0,
+  offerFood = 0,
+  offerArmy = 0,
+  offerTileId,
+  offerDirection,
 }: {
   userId: string;
   targetFortressId: string;
   now?: Date;
   db?: PrismaClient;
+  offerGold?: number;
+  offerFood?: number;
+  offerArmy?: number;
+  offerTileId?: string | null;
+  offerDirection?: string | null; // "A_TO_B" (proposer→receiver) or "B_TO_A" (receiver→proposer)
 }) {
   return db.$transaction(async (tx) => {
     const cycle = await getCurrentCycle(tx);
@@ -1421,6 +1431,35 @@ export async function proposeAlliance({
       throw new GameError("Alliances may only be proposed while relations are neutral.");
     }
 
+    // Validate alliance offer terms
+    const hasOffer = offerGold > 0 || offerFood > 0 || offerArmy > 0 || offerTileId;
+    if (hasOffer) {
+      if (!offerDirection || !["A_TO_B", "B_TO_A"].includes(offerDirection)) {
+        throw new GameError("Offer direction must be A_TO_B (proposer→receiver) or B_TO_A (receiver→proposer).");
+      }
+
+      const payerId = offerDirection === "A_TO_B" ? actor.id : target.id;
+      const payer = offerDirection === "A_TO_B" ? actor : target;
+
+      if (offerGold > 0 && payer.gold < offerGold) {
+        throw new GameError(`The offering fortress doesn't have ${offerGold.toLocaleString()} gold.`);
+      }
+      if (offerFood > 0 && payer.food < offerFood) {
+        throw new GameError(`The offering fortress doesn't have ${offerFood.toLocaleString()} food.`);
+      }
+      if (offerArmy > 0 && payer.army < offerArmy) {
+        throw new GameError(`The offering fortress doesn't have ${offerArmy.toLocaleString()} army.`);
+      }
+      if (offerTileId) {
+        const tileOwnership = await tx.mapHexOwnership.findUnique({
+          where: { cycleId_tileId: { cycleId: cycle.id, tileId: offerTileId } },
+        });
+        if (!tileOwnership || tileOwnership.ownerFortressId !== payerId) {
+          throw new GameError(`The offering fortress doesn't own the offered tile.`);
+        }
+      }
+    }
+
     return tx.diplomacyRelation.upsert({
       where: {
         cycleId_fortressAId_fortressBId: {
@@ -1434,6 +1473,11 @@ export async function proposeAlliance({
         status: DiplomacyRelationStatus.ALLIANCE_PENDING,
         allianceProposedById: actor.id,
         allianceProposedAt: now,
+        allianceOfferGold: offerGold,
+        allianceOfferFood: offerFood,
+        allianceOfferArmy: offerArmy,
+        allianceOfferTileId: offerTileId ?? null,
+        allianceOfferDirection: offerDirection ?? null,
       },
       update: {
         status: DiplomacyRelationStatus.ALLIANCE_PENDING,
@@ -1444,6 +1488,11 @@ export async function proposeAlliance({
         warStartsAt: null,
         peaceProposedById: null,
         peaceProposedAt: null,
+        allianceOfferGold: offerGold,
+        allianceOfferFood: offerFood,
+        allianceOfferArmy: offerArmy,
+        allianceOfferTileId: offerTileId ?? null,
+        allianceOfferDirection: offerDirection ?? null,
       },
     });
   }, SERVICE_TRANSACTION_OPTIONS);
@@ -1531,6 +1580,61 @@ export async function acceptAlliance({
       }),
     ]);
 
+    // Transfer alliance offer resources/tile if terms were included
+    if (
+      relation.allianceOfferGold > 0 ||
+      relation.allianceOfferFood > 0 ||
+      relation.allianceOfferArmy > 0 ||
+      relation.allianceOfferTileId
+    ) {
+      const direction = relation.allianceOfferDirection;
+      const proposerId = relation.allianceProposedById === pair.fortressAId
+        ? pair.fortressAId
+        : pair.fortressBId;
+      const receiverId = proposerId === pair.fortressAId
+        ? pair.fortressBId
+        : pair.fortressAId;
+      const payerId = direction === "A_TO_B" ? proposerId : receiverId;
+      const recipientId = payerId === proposerId ? receiverId : proposerId;
+
+      if (relation.allianceOfferGold > 0) {
+        await tx.fortress.update({
+          where: { id: payerId },
+          data: { gold: { decrement: relation.allianceOfferGold } },
+        });
+        await tx.fortress.update({
+          where: { id: recipientId },
+          data: { gold: { increment: relation.allianceOfferGold } },
+        });
+      }
+      if (relation.allianceOfferFood > 0) {
+        await tx.fortress.update({
+          where: { id: payerId },
+          data: { food: { decrement: relation.allianceOfferFood } },
+        });
+        await tx.fortress.update({
+          where: { id: recipientId },
+          data: { food: { increment: relation.allianceOfferFood } },
+        });
+      }
+      if (relation.allianceOfferArmy > 0) {
+        await tx.fortress.update({
+          where: { id: payerId },
+          data: { army: { decrement: relation.allianceOfferArmy } },
+        });
+        await tx.fortress.update({
+          where: { id: recipientId },
+          data: { army: { increment: relation.allianceOfferArmy } },
+        });
+      }
+      if (relation.allianceOfferTileId) {
+        await tx.mapHexOwnership.update({
+          where: { cycleId_tileId: { cycleId: cycle.id, tileId: relation.allianceOfferTileId } },
+          data: { ownerFortressId: recipientId },
+        });
+      }
+    }
+
     return tx.diplomacyRelation.update({
       where: { id: relation.id },
       data: {
@@ -1540,6 +1644,11 @@ export async function acceptAlliance({
         allianceTrustTier: 1,
         allianceEscrowGoldEach: terms.escrowGold,
         allianceEscrowFoodEach: terms.escrowFood,
+        allianceOfferGold: 0,
+        allianceOfferFood: 0,
+        allianceOfferArmy: 0,
+        allianceOfferTileId: null,
+        allianceOfferDirection: null,
       },
     });
   }, SERVICE_TRANSACTION_OPTIONS);
@@ -1920,6 +2029,16 @@ export async function betrayAlliance({
       throw new GameError("Only an active alliance can be betrayed.");
     }
 
+    // Block betrayal during unbreakable peace period
+    if (relation.peaceLockedUntil && now < relation.peaceLockedUntil) {
+      const hoursLeft = Math.ceil(
+        (relation.peaceLockedUntil.getTime() - now.getTime()) / 3600000
+      );
+      throw new GameError(
+        `Peace treaty is unbreakable for ${hoursLeft} more hour${hoursLeft === 1 ? "" : "s"}.`
+      );
+    }
+
     await tx.fortress.update({
       where: { id: target.id },
       data: {
@@ -1994,10 +2113,26 @@ export async function declareWar({
         },
       },
     });
+
     const effectiveStatus = getEffectiveDiplomacyStatus({
       relation: existing,
       now,
     });
+
+    // Block war during unbreakable peace period (only if not already at war)
+    if (
+      existing?.peaceLockedUntil &&
+      now < existing.peaceLockedUntil &&
+      effectiveStatus !== DiplomacyRelationStatus.WAR &&
+      effectiveStatus !== DiplomacyRelationStatus.WAR_PENDING
+    ) {
+      const hoursLeft = Math.ceil(
+        (existing.peaceLockedUntil.getTime() - now.getTime()) / 3600000
+      );
+      throw new GameError(
+        `Peace treaty is unbreakable for ${hoursLeft} more hour${hoursLeft === 1 ? "" : "s"}.`
+      );
+    }
 
     if (effectiveStatus === DiplomacyRelationStatus.ALLIED) {
       throw new GameError("Use betrayal to break an alliance and begin immediate war.");
@@ -2218,11 +2353,19 @@ export async function proposePeace({
   targetFortressId,
   now = new Date(),
   db = prisma,
+  reparationGold = 0,
+  reparationFood = 0,
+  reparationArmy = 0,
+  reparationTileId,
 }: {
   userId: string;
   targetFortressId: string;
   now?: Date;
   db?: PrismaClient;
+  reparationGold?: number;
+  reparationFood?: number;
+  reparationArmy?: number;
+  reparationTileId?: string | null;
 }) {
   return db.$transaction(async (tx) => {
     const cycle = await getCurrentCycle(tx);
@@ -2280,6 +2423,11 @@ export async function proposePeace({
         status: DiplomacyRelationStatus.PEACE_PENDING,
         peaceProposedById: actor.id,
         peaceProposedAt: now,
+        peaceReparationGold: reparationGold,
+        peaceReparationFood: reparationFood,
+        peaceReparationArmy: reparationArmy,
+        peaceReparationTileId: reparationTileId ?? null,
+        peaceReparationFromId: actor.id, // proposer is offering these reparations
       },
     });
   }, SERVICE_TRANSACTION_OPTIONS);
@@ -2389,6 +2537,62 @@ export async function acceptPeace({
       });
     }
 
+    // Transfer peace reparations (payer → recipient)
+    if (
+      relation.peaceReparationGold > 0 ||
+      relation.peaceReparationFood > 0 ||
+      relation.peaceReparationArmy > 0 ||
+      relation.peaceReparationTileId
+    ) {
+      const payerId = relation.peaceReparationFromId;
+      const recipientId = payerId === pair.fortressAId
+        ? pair.fortressBId
+        : pair.fortressAId;
+
+      if (!payerId) {
+        throw new GameError("Peace reparation payer is not set.");
+      }
+
+      if (relation.peaceReparationGold > 0) {
+        await tx.fortress.update({
+          where: { id: payerId },
+          data: { gold: { decrement: relation.peaceReparationGold } },
+        });
+        await tx.fortress.update({
+          where: { id: recipientId },
+          data: { gold: { increment: relation.peaceReparationGold } },
+        });
+      }
+      if (relation.peaceReparationFood > 0) {
+        await tx.fortress.update({
+          where: { id: payerId },
+          data: { food: { decrement: relation.peaceReparationFood } },
+        });
+        await tx.fortress.update({
+          where: { id: recipientId },
+          data: { food: { increment: relation.peaceReparationFood } },
+        });
+      }
+      if (relation.peaceReparationArmy > 0) {
+        await tx.fortress.update({
+          where: { id: payerId },
+          data: { army: { decrement: relation.peaceReparationArmy } },
+        });
+        await tx.fortress.update({
+          where: { id: recipientId },
+          data: { army: { increment: relation.peaceReparationArmy } },
+        });
+      }
+      if (relation.peaceReparationTileId) {
+        await tx.mapHexOwnership.update({
+          where: { cycleId_tileId: { cycleId: cycle.id, tileId: relation.peaceReparationTileId } },
+          data: { ownerFortressId: recipientId },
+        });
+      }
+    }
+
+    const PEACE_LOCK_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
+
     return tx.diplomacyRelation.update({
       where: {
         id: relation.id,
@@ -2405,6 +2609,12 @@ export async function acceptPeace({
         collateralArmy: 0,
         casusBelliFortressId: null,
         casusBelliExpiresAt: null,
+        peaceReparationGold: 0,
+        peaceReparationFood: 0,
+        peaceReparationArmy: 0,
+        peaceReparationTileId: null,
+        peaceReparationFromId: null,
+        peaceLockedUntil: new Date(now.getTime() + PEACE_LOCK_DURATION_MS),
       },
     });
   }, SERVICE_TRANSACTION_OPTIONS);

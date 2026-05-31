@@ -340,7 +340,14 @@ export async function activateCasusBelliWarAction(targetFortressId: string) {
   }
 }
 
-export async function proposeAllianceAction(targetFortressId: string) {
+export async function proposeAllianceAction(
+  targetFortressId: string,
+  offerGold?: number,
+  offerFood?: number,
+  offerArmy?: number,
+  offerTileId?: string | null,
+  offerDirection?: string | null,
+) {
   const session = await auth();
   const userId = session?.user?.id;
 
@@ -352,7 +359,15 @@ export async function proposeAllianceAction(targetFortressId: string) {
   }
 
   try {
-    await proposeAlliance({ userId, targetFortressId });
+    await proposeAlliance({
+      userId,
+      targetFortressId,
+      offerGold,
+      offerFood,
+      offerArmy,
+      offerTileId,
+      offerDirection,
+    });
     notifyAndRevalidate("politics-propose-alliance", ["/", "/politics"]);
     return { ok: true } satisfies InlineActionResult;
   } catch (error) {
@@ -547,7 +562,13 @@ export async function betrayAllianceAction(targetFortressId: string) {
   }
 }
 
-export async function proposePeaceAction(targetFortressId: string) {
+export async function proposePeaceAction(
+  targetFortressId: string,
+  reparationGold?: number,
+  reparationFood?: number,
+  reparationArmy?: number,
+  reparationTileId?: string | null,
+) {
   const session = await auth();
   const userId = session?.user?.id;
 
@@ -562,6 +583,10 @@ export async function proposePeaceAction(targetFortressId: string) {
     await proposePeace({
       userId,
       targetFortressId,
+      reparationGold,
+      reparationFood,
+      reparationArmy,
+      reparationTileId,
     });
     notifyAndRevalidate("politics-propose-peace", ["/", "/politics"]);
     return {
