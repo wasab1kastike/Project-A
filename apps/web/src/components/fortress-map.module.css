@@ -1399,3 +1399,60 @@
 @keyframes marchDash {
   to { stroke-dashoffset: -14; }
 }
+
+/* Diplomacy borders */
+.warMarker .fortressSprite {
+  filter: drop-shadow(0 0 8px rgba(255, 60, 40, 0.6)) drop-shadow(0 0 2px rgba(255, 60, 40, 0.8));
+  animation: warPulse 2s ease-in-out infinite;
+}
+
+.alliedMarker .fortressSprite {
+  filter: drop-shadow(0 0 6px rgba(68, 136, 255, 0.5)) drop-shadow(0 0 2px rgba(68, 136, 255, 0.7));
+}
+
+/* Convoy markers */
+.convoyLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.convoyMarker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: left 5s linear, top 5s linear;
+}
+
+.convoyDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ffd700;
+  box-shadow: 0 0 6px rgba(255, 215, 0, 0.6);
+  animation: convoyPulse 1.5s ease-in-out infinite;
+}
+
+.convoyLabel {
+  position: absolute;
+  top: -14px;
+  font-size: 9px;
+  color: #ffd700;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+@keyframes convoyPulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.3); }
+}
+
+@keyframes warPulse {
+  0%, 100% { filter: drop-shadow(0 0 6px rgba(255,60,40,0.4)) drop-shadow(0 0 2px rgba(255,60,40,0.6)); }
+  50% { filter: drop-shadow(0 0 12px rgba(255,60,40,0.8)) drop-shadow(0 0 4px rgba(255,60,40,1)); }
+}

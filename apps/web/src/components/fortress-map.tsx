@@ -62,6 +62,8 @@ type MapFortress = {
   fortressCosmeticVariant: string | null;
   isCurrentUser: boolean;
   isTargetable: boolean;
+  /** Player's relation to this fortress: war, allied, neutral */
+  diplomacyStatus?: "WAR" | "ALLIED" | "NEUTRAL" | null;
 };
 
 type AttackUnitMarker = {
@@ -226,6 +228,16 @@ type FortressMapProps = {
     unitSpriteVariant: string;
     unitCosmeticVariant: string | null;
     race: string | null;
+  }>;
+  convoyMarkers?: Array<{
+    id: string;
+    fromFortressId: string;
+    toFortressId: string;
+    gold: number;
+    food: number;
+    army: number;
+    departedAt: number | null;
+    arrivesAt: number | null;
   }>;
   onSelectFortress?: (fortress: MapFortress) => void;
   onConfirmAttackTarget?: (
@@ -982,6 +994,7 @@ export const FortressMap = memo(function FortressMap({
   alliedRoads = [],
   roadSegments = [],
   battalionMarkers = [],
+  convoyMarkers = [],
   onSelectFortress,
   onConfirmAttackTarget,
   onSelectMapHex,
@@ -1665,6 +1678,37 @@ export const FortressMap = memo(function FortressMap({
               })}
             </div>
           ) : null}
+          {convoyMarkers.length > 0 ? (
+            <div className={styles.convoyLayer} aria-label="Trade convoys">
+              {convoyMarkers.map((convoy) => {
+                const from = fortresses.find((f) => f.id === convoy.fromFortressId);
+                const to = fortresses.find((f) => f.id === convoy.toFortressId);
+                if (!from || !to) return null;
+                const totalCargo = convoy.gold + convoy.food + convoy.army;
+                const cargoLabel = convoy.gold > 0 ? `${convoy.gold}g` : convoy.food > 0 ? `${convoy.food}f` : `${convoy.army}a`;
+                const nowMs = Date.now();
+                const progress = convoy.departedAt && convoy.arrivesAt
+                  ? Math.min(1, Math.max(0, (nowMs - convoy.departedAt) / (convoy.arrivesAt - convoy.departedAt)))
+                  : 0;
+                const x = from.mapX + (to.mapX - from.mapX) * progress;
+                const y = from.mapY + (to.mapY - from.mapY) * progress;
+                return (
+                  <div
+                    key={convoy.id}
+                    className={styles.convoyMarker}
+                    style={{
+                      left: `${x}%`,
+                      top: `${y}%`,
+                    }}
+                    title={`Convoy: ${totalCargo} cargo (${cargoLabel})`}
+                  >
+                    <span className={styles.convoyDot} />
+                    <span className={styles.convoyLabel}>{totalCargo}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
           {fortresses.length === 0 ? (
             <div className={styles.emptyState}>
               No fortresses on the battlefield yet.
@@ -1707,6 +1751,8 @@ export const FortressMap = memo(function FortressMap({
                 selectedTargetId === fortress.id ? styles.selected : "",
                 selectable ? styles.selectable : "",
                 fortress.isTargetable ? styles.targetable : "",
+                fortress.diplomacyStatus === "WAR" ? styles.warMarker : "",
+                fortress.diplomacyStatus === "ALLIED" ? styles.alliedMarker : "",
               ]
                 .filter(Boolean)
                 .join(" ");

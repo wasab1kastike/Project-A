@@ -304,6 +304,7 @@ function HomeClientContent({
           attackUnits={state.attackUnits}
           alliedRoads={state.alliedRoads ?? []}
           roadSegments={state.roadSegments ?? []}
+          convoyMarkers={(state as any).convoyMarkers ?? []}
           battalionMarkers={(state.battalions ?? [])
             .filter((bn: any) => bn.garrisonedAt != null)
             .map((bn: any) => {
