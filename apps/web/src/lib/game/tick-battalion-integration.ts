@@ -274,6 +274,26 @@ export async function processBattalionGuard(args: {
         },
       });
     }
+
+    // Create visible marching units for new assignments.
+    for (const assignment of result.assignments) {
+      if (assignment.unitsAssigned <= 0) continue;
+      if (!ownedTiles.includes(assignment.tileId)) continue;
+
+      // Find the fortress position from the fortress lookup (passed via ctx).
+      // Since we don't have map positions here, use a short arrival time.
+      await ctx.db.attackUnit.create({
+        data: {
+          cycleId: ctx.cycleId,
+          attackerFortressId: fortressId,
+          targetFortressId: fortressId, // self-target for reinforcement
+          fortifyTargetTileId: assignment.tileId,
+          armyAmount: assignment.unitsAssigned,
+          launchedAt: ctx.now,
+          arrivesAt: new Date(ctx.now.getTime() + 60_000), // 1 minute
+        },
+      });
+    }
   }
 }
 
