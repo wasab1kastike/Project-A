@@ -2672,8 +2672,8 @@ async function processCycleTick(
     // are picked up in the same tick.
     const [warRelations, currentCampaigns, lightFortresses, ownerships] = await Promise.all([
       db.diplomacyRelation.findMany({
-        where: { cycleId, status: "WAR" },
-        select: { status: true, fortressAId: true, fortressBId: true },
+        where: { cycleId, status: { in: ["WAR", "WAR_PENDING"] } },
+        select: { status: true, fortressAId: true, fortressBId: true, warStartsAt: true },
       }),
       db.territoryCampaign.findMany({
         where: {
@@ -2698,6 +2698,10 @@ async function processCycleTick(
       }),
     ]);
 
+    const activeWars = warRelations.filter(
+      (r) => r.status === "WAR" || (r.status === "WAR_PENDING" && r.warStartsAt && r.warStartsAt <= tickAt),
+    );
+
     await processAutoWarDispatch({
       db,
       cycleId,
@@ -2710,8 +2714,8 @@ async function processCycleTick(
         mapY: f.mapY,
         ownerId: f.ownerId ?? "",
       })),
-      diplomacyRelations: warRelations.map((r) => ({
-        status: r.status,
+      diplomacyRelations: activeWars.map((r) => ({
+        status: "WAR" as const,
         fortressAId: r.fortressAId,
         fortressBId: r.fortressBId,
       })),
@@ -2797,8 +2801,8 @@ async function processCycleTick(
         army: f.army,
         ownerId: f.ownerId ?? "",
       })),
-      diplomacyRelations: warRelations.map((r) => ({
-        status: r.status,
+      diplomacyRelations: activeWars.map((r) => ({
+        status: "WAR" as const,
         fortressAId: r.fortressAId,
         fortressBId: r.fortressBId,
       })),
@@ -2814,8 +2818,8 @@ async function processCycleTick(
       cycleId,
       now: tickAt,
       diplomacyRelations: [
-        ...warRelations.map((r) => ({
-          status: r.status,
+        ...activeWars.map((r) => ({
+          status: "WAR" as const,
           fortressAId: r.fortressAId,
           fortressBId: r.fortressBId,
         })),
