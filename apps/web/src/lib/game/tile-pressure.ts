@@ -197,3 +197,103 @@ export function getNeutralPressureClaimWinner({
 
   return tied ? null : leader.fortressId;
 }
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Ownership Pressure — Season 4 Dynamic Territory
+// ═════════════════════════════════════════════════════════════════════════════
+
+/** Base decay: ownership pressure lost per tick (2 per minute). */
+export const OWNERSHIP_PRESSURE_DECAY_PER_TICK = 2;
+
+/** Maintenance: pressure regained per pressure worker assigned to this tile. */
+export const OWNERSHIP_PRESSURE_MAINTENANCE_PER_WORKER = 1;
+
+/** Enemy pressure: each enemy pressure point reduces ownership by this much. */
+export const ENEMY_PRESSURE_DECAY_MULTIPLIER = 0.5;
+
+/** Guard presence: reduces decay by this fraction (0.5 = 50% reduction). */
+export const GUARD_DECAY_REDUCTION = 0.5;
+
+/** Warning threshold: player gets notified when pressure drops below this. */
+export const OWNERSHIP_PRESSURE_WARNING = 200;
+
+/** Maximum ownership pressure (cap). */
+export const MAX_OWNERSHIP_PRESSURE = 600;
+
+export type OwnershipPressureInput = {
+  tileId: string;
+  ownerFortressId: string;
+  currentPressure: number;
+  maintenanceWorkers: number;
+  enemyPressureOnTile: number;
+  hasGuard: boolean;
+};
+
+export type OwnershipPressureResult = {
+  tileId: string;
+  newPressure: number;
+  becameNeutral: boolean;
+};
+
+/**
+ * Process ownership pressure for a single tile.
+ * Returns the new pressure and whether the tile was lost.
+ */
+export function processOwnershipPressure(
+  input: OwnershipPressureInput,
+): OwnershipPressureResult {
+  let pressure = input.currentPressure;
+
+  // Base decay.
+  let decay = OWNERSHIP_PRESSURE_DECAY_PER_TICK;
+
+  // Guard presence halves decay.
+  if (input.hasGuard) {
+    decay = Math.floor(decay * (1 - GUARD_DECAY_REDUCTION));
+  }
+
+  // Enemy pressure accelerates decay.
+  const enemyDecay = Math.floor(
+    input.enemyPressureOnTile * ENEMY_PRESSURE_DECAY_MULTIPLIER,
+  );
+  decay += enemyDecay;
+
+  // Maintenance workers add pressure.
+  const maintenance = input.maintenanceWorkers * OWNERSHIP_PRESSURE_MAINTENANCE_PER_WORKER;
+
+  pressure = pressure - decay + maintenance;
+
+  // Cap at max.
+  pressure = Math.min(pressure, MAX_OWNERSHIP_PRESSURE);
+
+  const becameNeutral = pressure <= 0;
+
+  return {
+    tileId: input.tileId,
+    newPressure: Math.max(0, pressure),
+    becameNeutral,
+  };
+}
+
+/**
+ * Batch process ownership pressure for all owned tiles.
+ * Returns updates for tiles that changed and a list of tiles that became neutral.
+ */
+export function processAllOwnershipPressure(inputs: OwnershipPressureInput[]): {
+  updates: Array<{ tileId: string; newPressure: number }>;
+  lostTiles: string[];
+} {
+  const updates: Array<{ tileId: string; newPressure: number }> = [];
+  const lostTiles: string[] = [];
+
+  for (const input of inputs) {
+    const result = processOwnershipPressure(input);
+    if (result.becameNeutral) {
+      lostTiles.push(input.tileId);
+    } else if (result.newPressure !== input.currentPressure) {
+      updates.push({ tileId: input.tileId, newPressure: result.newPressure });
+    }
+  }
+
+  return { updates, lostTiles };
+}

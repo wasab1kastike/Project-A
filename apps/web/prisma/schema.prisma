@@ -528,15 +528,16 @@ model UnicornShatteredRealityRoll {
 }
 
 model MapHexOwnership {
-  id              String   @id @default(cuid())
-  cycleId         String
-  tileId          String
-  ownerFortressId String
-  claimedAt       DateTime @default(now())
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  cycle           Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  ownerFortress   Fortress @relation("MapHexOwner", fields: [ownerFortressId], references: [id], onDelete: Cascade)
+  id                 String   @id @default(cuid())
+  cycleId            String
+  tileId             String
+  ownerFortressId    String
+  claimedAt          DateTime @default(now())
+  ownershipPressure  Int      @default(600)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  cycle              Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  ownerFortress      Fortress @relation("MapHexOwner", fields: [ownerFortressId], references: [id], onDelete: Cascade)
 
   @@unique([cycleId, tileId])
   @@index([ownerFortressId])
