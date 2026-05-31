@@ -1849,70 +1849,36 @@ export function CastleManagement({
           </div>
         </dl>
       </section>
+      {/* Guard Status */}
+      <section className={styles.panel}>
+        <div className={styles.panelHeader}>
+          <span>Guard Status</span>
+          <strong>{playerSummary.warPolicy?.guardPercent ?? 30}% allocated</strong>
+        </div>
+        <p className={styles.muted} style={{ marginBottom: 8 }}>
+          Guards auto-distribute to owned tiles. They slow tile decay (-50%), add to battlefield defense, and are visible on the map.
+        </p>
+        <dl className={styles.readinessGrid}>
+          <div>
+            <dt>Guarding battalions</dt>
+            <dd>{(playerSummary.battalions ?? []).filter((b: any) => b.garrisonedAt).length}</dd>
+          </div>
+          <div>
+            <dt>Guard army</dt>
+            <dd>{Math.floor((playerSummary.army ?? 0) * (playerSummary.warPolicy?.guardPercent ?? 30) / 100).toLocaleString()}</dd>
+          </div>
+          <div>
+            <dt>Tiles defended</dt>
+            <dd>{(playerSummary.battalions ?? []).filter((b: any) => b.garrisonedAt).length}</dd>
+          </div>
+        </dl>
+      </section>
+
       {playerSummary.operationsSummary ? (
         <section className={styles.panel}>
           <div className={styles.panelHeader}>
-            <span>Standing orders</span>
-            <strong>{playerSummary.operationsSummary.activeOrderCount} active</strong>
-          </div>
-          <div className={styles.operationGroup}>
-            <div className={styles.operationTitle}>
-              <img
-                className={styles.rowCrest}
-                src="/assets/ui/crest-guard.webp"
-                alt=""
-              />
-              <strong>Guards</strong>
-            </div>
-            <p className={styles.muted}>
-              Guard allocation is now set via the % slider above. Army
-              automatically distributes to owned tiles by priority.
-            </p>
-          </div>
-          <div className={styles.operationGroup}>
-            <div className={styles.operationTitle}>
-              <img
-                className={styles.rowCrest}
-                src="/assets/ui/crest-campaign.webp"
-                alt=""
-              />
-              <strong>Campaigns</strong>
-            </div>
-            {playerSummary.operationsSummary.campaigns.length > 0 ? (
-              playerSummary.operationsSummary.campaigns.map((campaign) => (
-                <div className={styles.operationRow} key={campaign.id}>
-                  <div className={styles.campaignDetail}>
-                    <div className={styles.statusRow}>
-                      <strong>
-                        Tile {campaign.tileId} vs {campaign.opponentName}
-                      </strong>
-                      <span>{getCampaignStatusLabel(campaign.status)}</span>
-                    </div>
-                    <small>{campaign.committedArmy} army committed</small>
-                    <progress max={campaign.threshold} value={campaign.progress} />
-                    <small>
-                      {campaign.progress} / {campaign.threshold}
-                      {campaign.status === "SIEGE_WARNING" &&
-                      campaign.responseEndsAt
-                        ? ` - warning until ${formatTime(campaign.responseEndsAt)}`
-                        : ""}
-                    </small>
-                  </div>
-                  {campaign.canRecall ? (
-                    <form action={recallArmyOrderFormAction}>
-                      <input
-                        type="hidden"
-                        name="armyOrderId"
-                        value={campaign.orderId}
-                      />
-                      <button type="submit">Recall campaign</button>
-                    </form>
-                  ) : null}
-                </div>
-              ))
-            ) : (
-              <p className={styles.muted}>No active territorial campaigns.</p>
-            )}
+            <span>Standing Orders</span>
+            <strong>Escort & Raid</strong>
           </div>
           <div className={styles.operationGroup}>
             <div className={styles.operationTitle}>
@@ -1936,9 +1902,9 @@ export function CastleManagement({
                 </strong>
               </div>
             </div>
-            <Link className={styles.textLink} href="/politics">
-              Manage logistics in Politics
-            </Link>
+            <p className={styles.muted} style={{ marginTop: 8 }}>
+              Escort your convoys to protect cargo. Raid enemy convoys to steal resources. Manage from <strong>Diplomacy</strong> tab.
+            </p>
           </div>
         </section>
       ) : null}
