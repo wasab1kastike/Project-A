@@ -1496,6 +1496,29 @@ export function CastleManagement({
 
       {activeTab === "WAR_ROOM" ? (
         <>
+      {/* Pool Summary */}
+      <section className={styles.panel}>
+        <div className={styles.panelHeader}><span>Battalion Pools</span></div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {(() => {
+            const bnList = playerSummary.battalions ?? [];
+            const pools: Record<string, number> = { GUARD: 0, ATTACK: 0, RESERVE: 0, ALLIANCE: 0 };
+            for (const b of bnList) pools[(b as any).mode ?? "GUARD"] += (b as any).size ?? 0;
+            const styles: Record<string, { bg: string; color: string; icon: string }> = {
+              GUARD: { bg: "#1a3a5c", color: "#6ab0ff", icon: "🛡" },
+              ATTACK: { bg: "#3a2a0a", color: "#ffb040", icon: "⚔" },
+              RESERVE: { bg: "#2a2a2a", color: "#888", icon: "📦" },
+              ALLIANCE: { bg: "#2a1a3a", color: "#c080ff", icon: "🤝" },
+            };
+            return Object.entries(pools).map(([mode, size]) => (
+              <span key={mode} style={{ fontSize: 12, background: styles[mode]?.bg, padding: "2px 8px", borderRadius: 4, color: styles[mode]?.color }}>
+                {styles[mode]?.icon} {mode}: {size.toLocaleString()}
+              </span>
+            ));
+          })()}
+        </div>
+      </section>
+
       {/* Upkeep Summary */}
       <section className={styles.panel}>
         <div className={styles.panelHeader}>
@@ -1589,16 +1612,35 @@ export function CastleManagement({
                   </span>
                 </div>
                 <div style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12, flexWrap: "wrap" }}>
-                  <span style={{
-                    fontSize: 11,
-                    padding: "1px 6px",
-                    borderRadius: 3,
-                    background: bn.garrisonedAt ? "#1a3a5c" : bn.frontId ? "#3a2a0a" : bn.readyAt ? "#4a2020" : "#2a3a2a",
-                    color: bn.garrisonedAt ? "#6ab0ff" : bn.frontId ? "#ffb040" : bn.readyAt ? "#ff6060" : "#60c060",
-                    fontWeight: 600,
-                  }}>
-                    {bn.garrisonedAt ? "Guarding" : bn.frontId ? "On front" : bn.readyAt ? "Resting" : "Idle"}
-                  </span>
+                  <select
+                    value={(bn as any).mode ?? "GUARD"}
+                    onChange={async (e) => {
+                      const mode = e.target.value;
+                      const { setBattalionModeAction } = await import("@/app/game-actions");
+                      const result = await setBattalionModeAction({
+                        battalionId: bn.id,
+                        fortressId: playerSummary.id,
+                        mode,
+                      });
+                      if (!result.ok) alert(result.error);
+                      refreshView();
+                    }}
+                    style={{
+                      fontSize: 11,
+                      padding: "1px 4px",
+                      background: (bn as any).mode === "ATTACK" ? "#3a2a0a" : (bn as any).mode === "GUARD" ? "#1a3a5c" : (bn as any).mode === "RESERVE" ? "#2a2a2a" : "#2a1a3a",
+                      color: (bn as any).mode === "ATTACK" ? "#ffb040" : (bn as any).mode === "GUARD" ? "#6ab0ff" : (bn as any).mode === "RESERVE" ? "#888" : "#c080ff",
+                      border: "1px solid var(--border)",
+                      borderRadius: 3,
+                      cursor: "pointer",
+                      fontWeight: 600,
+                    }}
+                  >
+                    <option value="GUARD">🛡 Guard</option>
+                    <option value="ATTACK">⚔ Attack</option>
+                    <option value="RESERVE">📦 Reserve</option>
+                    <option value="ALLIANCE">🤝 Alliance</option>
+                  </select>
                   <span style={{ color: "var(--text-muted)" }}>
                     {bn.size}/{bn.maxSize}
                   </span>
