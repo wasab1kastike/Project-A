@@ -209,12 +209,12 @@ export async function processAutoWarDispatch(args: {
     const arrivesAt = new Date(now.getTime() + travelMinutes * 60_000);
 
     try {
+      // Create a direct attack — arrival triggers createBattlefieldFromAttackUnit.
       await db.attackUnit.create({
         data: {
           cycleId,
           attackerFortressId: attacker.id,
           targetFortressId: defender.id,
-          fortifyTargetTileId: target.tileId,
           armyAmount: cappedAmount,
           launchedAt: now,
           arrivesAt,
