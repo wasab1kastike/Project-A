@@ -788,6 +788,7 @@ export async function getHomePageState({
           tileId: true,
           claimedAt: true,
           ownerFortressId: true,
+          ownershipPressure: true,
           ownerFortress: {
             select: {
               id: true,
@@ -2799,6 +2800,7 @@ export async function getHomePageState({
     canPrioritizePressure: boolean;
     pressurePriorityDisabledReason: string | null;
     attackPriority: number;
+    ownershipPressure: number | null;
     activeBattlefieldId: string | null;
     attackDisabledReason: string | null;
     canStartCampaign: boolean;
@@ -2996,6 +2998,7 @@ export async function getHomePageState({
       pressureLeaderFortressId: pressureState.pressureLeaderFortressId,
       pressureLeaderLabel: pressureState.pressureLeaderLabel,
       attackPriority: 0,
+      ownershipPressure: ownership.ownershipPressure ?? null,
       canPrioritizePressure: pressureState.canPrioritizePressure,
       pressurePriorityDisabledReason:
         pressureState.pressurePriorityDisabledReason,
@@ -3109,6 +3112,7 @@ export async function getHomePageState({
       pressureLeaderFortressId: null,
       pressureLeaderLabel: null,
       attackPriority: 0,
+      ownershipPressure: null,
       canPrioritizePressure: false,
       pressurePriorityDisabledReason:
         isSeasonFour
@@ -3184,6 +3188,7 @@ export async function getHomePageState({
       pressureLeaderFortressId: pressureState.pressureLeaderFortressId,
       pressureLeaderLabel: pressureState.pressureLeaderLabel,
       attackPriority: 0,
+      ownershipPressure: null, // neutral tiles have no ownership pressure
       canPrioritizePressure: pressureState.canPrioritizePressure,
       pressurePriorityDisabledReason:
         pressureState.pressurePriorityDisabledReason,

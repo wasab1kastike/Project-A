@@ -115,6 +115,8 @@ type MapHexOwnershipMarker = {
   pressurePriorityDisabledReason?: string | null;
   /** Attack priority: 0=none, 1=tertiary, 2=secondary, 3=primary */
   attackPriority?: number;
+  /** Current ownership pressure (for owned tiles, 0-600). */
+  ownershipPressure?: number | null;
   activeBattlefieldId?: string | null;
   attackDisabledReason?: string | null;
   canStartCampaign?: boolean;

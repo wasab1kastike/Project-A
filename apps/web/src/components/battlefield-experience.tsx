@@ -1592,7 +1592,7 @@ export function BattlefieldExperience({
         ) : null}
         {!selectedTileIsHomeOfA && selectedOwnership ? (
           <div>
-            <dt>Pressure</dt>
+            <dt>Claim Pressure</dt>
             <dd>
               {selectedOwnership.pressureThreshold != null
                 ? `You ${selectedOwnership.pressurePlayerProgress ?? 0}/${selectedOwnership.pressureThreshold}`
@@ -1600,9 +1600,18 @@ export function BattlefieldExperience({
               {selectedOwnership.pressureLeaderLabel &&
               selectedOwnership.pressureProgress != null &&
               selectedOwnership.pressureThreshold != null
-                ? `, leader ${selectedOwnership.pressureLeaderLabel} ${selectedOwnership.pressureProgress}/${selectedOwnership.pressureThreshold}`
+                ? ` · leader: ${selectedOwnership.pressureLeaderLabel} ${selectedOwnership.pressureProgress}/${selectedOwnership.pressureThreshold}`
                 : ""}
             </dd>
+            {selectedOwnership.ownershipPressure != null ? (
+              <>
+                <dt>Ownership</dt>
+                <dd style={{ color: selectedOwnership.ownershipPressure < 200 ? "#ff6060" : "inherit" }}>
+                  {selectedOwnership.ownershipPressure}/600
+                  {selectedOwnership.ownershipPressure < 200 ? " ⚠" : ""}
+                </dd>
+              </>
+            ) : null}
           </div>
         ) : null}
         {playerSummary?.seasonFourRulesEnabled &&
