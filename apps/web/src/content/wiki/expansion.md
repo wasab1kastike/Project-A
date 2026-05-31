@@ -1,56 +1,41 @@
-# Expansion & Territory
+# Expansion
 
-> Claiming and holding territory in Season 4.
-
----
-
-## Claiming Tiles
-
-1. Assign **pressure workers** to a neighboring tile
-2. Pressure builds at 1 per worker per tick
-3. At **600 pressure**, the tile flips to your control
-4. Competing pressure delays claims
+> Claiming tiles, pressure, and territory control.
 
 ---
 
-## Dynamic Territory
+## Pressure System
 
-Territory is NOT permanent. Owned tiles decay over time:
+Assign **pressure workers** on the Castle → Economy tab. Each worker generates 1 pressure per tick on priority targets.
 
-| Mechanic | Effect |
+**Claiming a tile:** When your pressure on a neutral tile reaches 600, the tile becomes yours and you earn 5 bonus points. If multiple fortresses are pressuring the same tile, the highest pressure wins. Ties result in no claim.
+
+**Decay:** Unsupported pressure decays at 10% per hour. Maintain pressure workers to keep advancing.
+
+## Ownership Pressure
+
+Owned tiles have **ownership pressure** (0-600) that decays each tick (-2, halved by guards). Pressure workers maintain it (+4 per worker/tick). Low ownership pressure makes tiles vulnerable:
+
+| Pressure | Status |
 |----------|--------|
-| **Base decay** | -2 ownership/tick (5 hours to lose undefended tile) |
-| **Guard presence** | -50% decay rate |
-| **Enemy pressure** | +50% decay per enemy pressure |
-| **Maintenance workers** | +1 ownership/worker/tick |
-| **Lost at 0** | Tile becomes neutral |
+| 400-600 | Firmly held |
+| 200-400 | Stable |
+| Below 200 | ⚠️ Warning — at risk |
+| 0 | Lost — tile becomes neutral |
 
-Keep your territory by:
-- Assigning guard battalions to tiles
-- Maintaining pressure on border tiles
-- Fighting enemies that pressure your land
+## Pressure Heatmap
 
----
+The map shows ownership pressure as a color gradient:
+- **High pressure**: Strong race color dominance (blue/green/gold/purple)
+- **Low pressure**: Subtle race tint, tile looks almost neutral
+- **Neutral tiles under pressure**: Subtle wash of the pressuring race's color
 
-## Tile Types
+This lets you see at a glance which tiles are vulnerable and where expansion is happening.
 
-| Biome | Bonus |
-|-------|-------|
-| Plains | Gold |
-| Forest | Defense + Food |
-| Hills | Defense + Gold |
-| Mountains | Defense |
-| Marsh | Army |
-| Coast | Food |
-| Lake | Food + Gold |
+## Territory Campaigns
 
----
+Campaigns are advanced expansion tools that commit army to claim enemy tiles. They require an active war border and progress through phases: BUILDING → SIEGE_WARNING → ENGAGED → RESOLVED.
 
-## Roads
+## Tile Bonuses
 
-Roads build passively as units cross tiles:
-- **Dirt** (50 crossings): +15% speed
-- **Stone** (200 crossings): +30% speed
-- **Highway** (500 crossings): +50% speed
-
-Roads decay 1% per hour if unused. Visible on the map as colored paths.
+See [Economy](economy) for per-biome resource and point income. Road-connected tiles grant +1 point/tick.
