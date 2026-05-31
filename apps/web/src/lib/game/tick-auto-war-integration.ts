@@ -54,8 +54,9 @@ type CampaignSnapshot = {
  *
  * Call this from tick.ts BEFORE processSeasonFourCampaigns.
  *
- * Current implementation: finds fortresses at war and logs auto-war status.
- * Full integration requires battalion data from DB (not yet modeled).
+ * Finds fortresses at war, dispatches ATTACK-mode battalions to attack
+ * adjacent enemy-owned tiles automatically. Falls back to any connected
+ * enemy tile if no priority tiles are set.
  */
 export async function processAutoWarDispatch(args: {
   db: PrismaClient;

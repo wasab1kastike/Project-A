@@ -170,6 +170,7 @@ import {
   processBattalionRecruitment,
   processBattalionGuard,
   reconcileBattalionCasualties,
+  processReserveHealing,
 } from "./tick-battalion-integration";
 
 export type TickSummary = {
@@ -5608,6 +5609,11 @@ async function processCycleTick(
         previousArmyByFortress: preCombatArmy,
       });
     }
+
+    // RESERVE battalions heal 2% of max size per tick
+    await processReserveHealing({
+      ctx: { db, cycleId },
+    });
   }
 
   return {

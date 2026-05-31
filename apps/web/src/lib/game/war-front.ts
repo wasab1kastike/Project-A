@@ -209,28 +209,33 @@ export type ReachableTarget = {
  * Find the next target tile for a front.
  *
  * Rules:
- * 1. Only tiles with priority > NONE
- * 2. Must be connected to our owned territory
- * 3. Sorted by: priority (descending), then distance (ascending)
- * 4. Returns the highest-priority closest tile
+ * 1. Must be connected to our owned territory
+ * 2. Prioritized tiles (PRIMARY/SECONDARY/TERTIARY) preferred first
+ * 3. Falls back to any connected enemy tile if no priorities set
+ * 4. Sorted by: priority (descending), then distance (ascending)
  */
 export function selectNextTarget(
   targets: ReachableTarget[],
 ): ReachableTarget | null {
-  const eligible = targets.filter(
+  // Prefer prioritized + connected tiles
+  const prioritized = targets.filter(
     (t) => t.priority > TileAttackPriority.NONE && t.isConnected,
   );
 
-  if (eligible.length === 0) return null;
+  if (prioritized.length > 0) {
+    prioritized.sort((a, b) => {
+      if (a.priority !== b.priority) return b.priority - a.priority;
+      return a.distance - b.distance;
+    });
+    return prioritized[0];
+  }
 
-  eligible.sort((a, b) => {
-    // Higher priority first.
-    if (a.priority !== b.priority) return b.priority - a.priority;
-    // Closer first.
-    return a.distance - b.distance;
-  });
+  // Fall back: any connected tile
+  const connected = targets.filter((t) => t.isConnected);
+  if (connected.length === 0) return null;
 
-  return eligible[0];
+  connected.sort((a, b) => a.distance - b.distance);
+  return connected[0];
 }
 
 // ── Battlefield Priority ─────────────────────────────────────────────────────
