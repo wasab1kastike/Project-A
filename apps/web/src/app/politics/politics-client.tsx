@@ -140,6 +140,68 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
   });
   const [orderArmy, setOrderArmy] = useState(100);
 
+  // Alliance/peace terms panel state
+  const [termsPanel, setTermsPanel] = useState<{
+    rowId: string;
+    action: "PROPOSE_ALLIANCE" | "PROPOSE_PEACE";
+  } | null>(null);
+  const [termsGold, setTermsGold] = useState(0);
+  const [termsFood, setTermsFood] = useState(0);
+  const [termsArmy, setTermsArmy] = useState(0);
+  const [termsTileId, setTermsTileId] = useState("");
+  const [termsDirection, setTermsDirection] = useState<"A_TO_B" | "B_TO_A">("A_TO_B");
+
+  function openTermsPanel(row: PoliticsRow, action: "PROPOSE_ALLIANCE" | "PROPOSE_PEACE") {
+    setTermsPanel({ rowId: row.fortressId, action });
+    setTermsGold(0);
+    setTermsFood(0);
+    setTermsArmy(0);
+    setTermsTileId("");
+    setTermsDirection("A_TO_B");
+  }
+
+  function closeTermsPanel() {
+    setTermsPanel(null);
+  }
+
+  async function submitTerms(row: PoliticsRow) {
+    if (!termsPanel || pendingId) return;
+
+    const key = `${row.fortressId}:${termsPanel.action}`;
+    setPendingId(key);
+
+    try {
+      let result;
+
+      if (termsPanel.action === "PROPOSE_ALLIANCE") {
+        result = await proposeAllianceAction(
+          row.fortressId,
+          termsGold || undefined,
+          termsFood || undefined,
+          termsArmy || undefined,
+          termsTileId || undefined,
+          termsDirection,
+        );
+      } else {
+        result = await proposePeaceAction(
+          row.fortressId,
+          termsGold || undefined,
+          termsFood || undefined,
+          termsArmy || undefined,
+          termsTileId || undefined,
+        );
+      }
+
+      if (result?.ok) {
+        closeTermsPanel();
+      } else if (result && !result.ok) {
+        window.alert(result.error);
+      }
+    } finally {
+      setPendingId(null);
+    }
+  }
+
   async function handleAction(row: PoliticsRow, action: PoliticsAction) {
     if (pendingId) {
       return;
@@ -432,6 +494,8 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                         {row.availableActions.length > 0 ? (
                           row.availableActions.map((action) => {
                             const key = `${row.fortressId}:${action}`;
+                            const isTermsAction =
+                              action === "PROPOSE_ALLIANCE" || action === "PROPOSE_PEACE";
 
                             return (
                               <button
@@ -440,7 +504,14 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                                 data-danger={action === "BETRAY_ALLIANCE" || undefined}
                                 disabled={pendingId !== null}
                                 onClick={() => {
-                                  void handleAction(row, action);
+                                  if (isTermsAction) {
+                                    openTermsPanel(
+                                      row,
+                                      action as "PROPOSE_ALLIANCE" | "PROPOSE_PEACE"
+                                    );
+                                  } else {
+                                    void handleAction(row, action);
+                                  }
                                 }}
                               >
                                 {pendingId === key
@@ -461,6 +532,123 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                           </button>
                         )}
                       </div>
+                      {/* Alliance/Peace terms form */}
+                      {termsPanel && termsPanel.rowId === row.fortressId ? (
+                        <div className={styles.termsForm}>
+                          <p className={styles.termsLabel}>
+                            {termsPanel.action === "PROPOSE_ALLIANCE"
+                              ? "Alliance terms (optional)"
+                              : "Peace reparations (optional)"}
+                          </p>
+                          <div className={styles.tradeColumns}>
+                            <fieldset>
+                              <legend>
+                                {termsDirection === "A_TO_B" ? "You pay" : "They pay"}
+                              </legend>
+                              <label>
+                                <span>Gold</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step={100}
+                                  value={termsGold || ""}
+                                  onChange={(e) =>
+                                    setTermsGold(Math.max(0, Number(e.target.value) || 0))
+                                  }
+                                />
+                              </label>
+                              <label>
+                                <span>Food</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step={100}
+                                  value={termsFood || ""}
+                                  onChange={(e) =>
+                                    setTermsFood(Math.max(0, Number(e.target.value) || 0))
+                                  }
+                                />
+                              </label>
+                              <label>
+                                <span>Army</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step={50}
+                                  value={termsArmy || ""}
+                                  onChange={(e) =>
+                                    setTermsArmy(Math.max(0, Number(e.target.value) || 0))
+                                  }
+                                />
+                              </label>
+                            </fieldset>
+                          </div>
+                          {termsPanel.action === "PROPOSE_ALLIANCE" ? (
+                            <label style={{ fontSize: "0.85em", marginTop: 4 }}>
+                              <span>Payment direction</span>
+                              <select
+                                value={termsDirection}
+                                onChange={(e) =>
+                                  setTermsDirection(e.target.value as "A_TO_B" | "B_TO_A")
+                                }
+                              >
+                                <option value="A_TO_B">
+                                  You pay them (proposer → receiver)
+                                </option>
+                                <option value="B_TO_A">
+                                  They pay you (receiver → proposer)
+                                </option>
+                              </select>
+                            </label>
+                          ) : null}
+                          {(state.playerEligibleDeedTiles ?? []).length > 0 ? (
+                            <label style={{ fontSize: "0.85em", marginTop: 4 }}>
+                              <span>Transfer tile</span>
+                              <select
+                                value={termsTileId}
+                                onChange={(e) => setTermsTileId(e.target.value)}
+                              >
+                                <option value="">—</option>
+                                {(state.playerEligibleDeedTiles ?? []).map((tileId: string) => (
+                                  <option key={tileId} value={tileId}>
+                                    {tileId}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          ) : null}
+                          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                            <button
+                              type="button"
+                              disabled={pendingId !== null}
+                              onClick={() => void submitTerms(row)}
+                            >
+                              {pendingId === `${row.fortressId}:${termsPanel.action}`
+                                ? "Sending..."
+                                : termsPanel.action === "PROPOSE_ALLIANCE"
+                                  ? "Propose alliance with terms"
+                                  : "Propose peace with terms"}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={pendingId !== null}
+                              onClick={() => {
+                                closeTermsPanel();
+                                void handleAction(row, termsPanel.action);
+                              }}
+                            >
+                              Skip terms
+                            </button>
+                            <button
+                              type="button"
+                              disabled={pendingId !== null}
+                              onClick={closeTermsPanel}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
                       {row.canRaid || row.activeRaidOrderId ? (
                         <div className={styles.orderControl}>
                           {row.activeRaidOrderId ? (
