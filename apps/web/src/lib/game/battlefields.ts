@@ -543,6 +543,24 @@ export async function createBattlefieldFromAttackUnit({
   const bossReward = isHomeOfABossTarget
     ? getHomeOfABossReward(unit.targetFortress.maxHealth)
     : 0;
+  // Add guard army from garrisoned battalions on the target fortress tile.
+  let guardArmy = 0;
+  if (!isHomeOfABossTarget && unit.targetFortress) {
+    const targetTile = await db.mapHexOwnership.findUnique({
+      where: { cycleId_tileId: { cycleId: unit.cycleId, tileId: HOME_OF_A_TILE_ID } },
+    });
+    const fortTiles = await db.mapHexOwnership.findMany({
+      where: { cycleId: unit.cycleId, ownerFortressId: unit.targetFortressId },
+      select: { tileId: true },
+    });
+    const fortTileIds = fortTiles.map((t) => t.tileId);
+    const garrisons = await db.fortressGarrison.findMany({
+      where: { cycleId: unit.cycleId, tileId: { in: fortTileIds } },
+      select: { army: true },
+    });
+    guardArmy = garrisons.reduce((s, g) => s + g.army, 0);
+  }
+
   const battlefield =
     existing ??
     (await db.battlefield.create({
@@ -557,7 +575,7 @@ export async function createBattlefieldFromAttackUnit({
         attackerArmyRemaining: unit.armyAmount,
         defenderArmyRemaining: isHomeOfABossTarget
           ? unit.targetFortress.health
-          : unit.targetFortress.army,
+          : unit.targetFortress.army + guardArmy,
         pointReward: isHomeOfABossTarget ? bossReward : 0,
         pointsReward: isHomeOfABossTarget
           ? bossReward
