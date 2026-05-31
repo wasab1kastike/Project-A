@@ -2665,6 +2665,69 @@ async function processCycleTick(
   let convoyScoreEventsCreated = 0;
 
   if (isSeasonFour) {
+    // Auto-war dispatch runs BEFORE campaign processing so new campaigns
+    // are picked up in the same tick.
+    const [warRelations, currentCampaigns, lightFortresses, ownerships] = await Promise.all([
+      db.diplomacyRelation.findMany({
+        where: { cycleId, status: "WAR" },
+        select: { status: true, fortressAId: true, fortressBId: true },
+      }),
+      db.territoryCampaign.findMany({
+        where: {
+          cycleId,
+          status: { in: ["BUILDING", "SIEGE_WARNING", "ENGAGED"] },
+        },
+        select: {
+          id: true,
+          attackerFortressId: true,
+          defenderFortressId: true,
+          targetTileId: true,
+          armyOrder: { select: { committedArmy: true, status: true } },
+        },
+      }),
+      db.fortress.findMany({
+        where: { cycleId, isNpc: false },
+        select: { id: true, level: true, army: true, mapX: true, mapY: true, ownerId: true },
+      }),
+      db.mapHexOwnership.findMany({
+        where: { cycleId },
+        select: { ownerFortressId: true, tileId: true },
+      }),
+    ]);
+
+    await processAutoWarDispatch({
+      db,
+      cycleId,
+      now: tickAt,
+      fortresses: lightFortresses.map((f) => ({
+        id: f.id,
+        level: f.level,
+        army: f.army,
+        mapX: f.mapX,
+        mapY: f.mapY,
+        ownerId: f.ownerId ?? "",
+      })),
+      diplomacyRelations: warRelations.map((r) => ({
+        status: r.status,
+        fortressAId: r.fortressAId,
+        fortressBId: r.fortressBId,
+      })),
+      ownedTiles: ownerships.map((o) => ({
+        tileId: o.tileId,
+        ownerFortressId: o.ownerFortressId,
+      })),
+      activeCampaigns: currentCampaigns.map((c) => ({
+        id: c.id,
+        attackerFortressId: c.attackerFortressId,
+        defenderFortressId: c.defenderFortressId,
+        targetTileId: c.targetTileId,
+        armyOrder: c.armyOrder
+          ? { committedArmy: c.armyOrder.committedArmy, status: c.armyOrder.status }
+          : null,
+      })),
+      priorityTiles: [],
+    });
+
     await processSeasonFourCampaigns({ db, cycleId, tickAt });
     convoyScoreEventsCreated = await processSeasonFourConvoys({
       db,
@@ -3183,62 +3246,6 @@ async function processCycleTick(
       data: {
         cancelledAt: tickAt,
       },
-    });
-  }
-
-  // === AUTO-WAR DISPATCH: Create automated campaigns for war fronts ===
-  if (isSeasonFour) {
-    const [warRelations, currentCampaigns] = await Promise.all([
-      db.diplomacyRelation.findMany({
-        where: { cycleId, status: "WAR" },
-        select: { status: true, fortressAId: true, fortressBId: true },
-      }),
-      db.territoryCampaign.findMany({
-        where: {
-          cycleId,
-          status: { in: ["BUILDING", "SIEGE_WARNING", "ENGAGED"] },
-        },
-        select: {
-          id: true,
-          attackerFortressId: true,
-          defenderFortressId: true,
-          targetTileId: true,
-          armyOrder: { select: { committedArmy: true, status: true } },
-        },
-      }),
-    ]);
-
-    await processAutoWarDispatch({
-      db,
-      cycleId,
-      now: tickAt,
-      fortresses: Array.from(fortressLookup.values()).map((f) => ({
-        id: f.id,
-        level: f.level,
-        army: f.army,
-        mapX: f.mapX,
-        mapY: f.mapY,
-        ownerId: f.ownerId ?? "",
-      })),
-      diplomacyRelations: warRelations.map((r) => ({
-        status: r.status,
-        fortressAId: r.fortressAId,
-        fortressBId: r.fortressBId,
-      })),
-      ownedTiles: mapHexOwnerships.map((o) => ({
-        tileId: o.tileId,
-        ownerFortressId: o.ownerFortressId,
-      })),
-      activeCampaigns: currentCampaigns.map((c) => ({
-        id: c.id,
-        attackerFortressId: c.attackerFortressId,
-        defenderFortressId: c.defenderFortressId,
-        targetTileId: c.targetTileId,
-        armyOrder: c.armyOrder
-          ? { committedArmy: c.armyOrder.committedArmy, status: c.armyOrder.status }
-          : null,
-      })),
-      priorityTiles: [],
     });
   }
 
