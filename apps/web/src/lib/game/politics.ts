@@ -31,6 +31,17 @@ export type DiplomacyRelationLike = {
   peaceProposedAt?: Date | null;
   casusBelliFortressId?: string | null;
   casusBelliExpiresAt?: Date | null;
+  peaceLockedUntil?: Date | null;
+  allianceOfferGold?: number;
+  allianceOfferFood?: number;
+  allianceOfferArmy?: number;
+  allianceOfferTileId?: string | null;
+  allianceOfferDirection?: string | null;
+  peaceReparationGold?: number;
+  peaceReparationFood?: number;
+  peaceReparationArmy?: number;
+  peaceReparationTileId?: string | null;
+  peaceReparationFromId?: string | null;
 };
 
 export type DiplomacyRelationPairLike = DiplomacyRelationLike & {

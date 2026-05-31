@@ -490,6 +490,54 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                           {row.allianceEscrowFoodEach.toLocaleString()} food
                         </p>
                       ) : null}
+                      {/* Alliance offer details */}
+                      {row.effectiveStatus === "ALLIANCE_PENDING" &&
+                      (row.allianceOfferGold > 0 ||
+                        row.allianceOfferFood > 0 ||
+                        row.allianceOfferArmy > 0 ||
+                        row.allianceOfferTileId) ? (
+                        <p className={styles.muted} style={{ color: "#ffd700" }}>
+                          Offer:{" "}
+                          {[
+                            row.allianceOfferGold > 0 ? `${row.allianceOfferGold.toLocaleString()} gold` : null,
+                            row.allianceOfferFood > 0 ? `${row.allianceOfferFood.toLocaleString()} food` : null,
+                            row.allianceOfferArmy > 0 ? `${row.allianceOfferArmy.toLocaleString()} army` : null,
+                            row.allianceOfferTileId ? `tile ${row.allianceOfferTileId}` : null,
+                          ]
+                            .filter(Boolean)
+                            .join(", ")}{" "}
+                          ({row.allianceOfferDirection === "B_TO_A" ? "they pay you" : "you pay them"})
+                        </p>
+                      ) : null}
+                      {/* Peace reparation details */}
+                      {row.effectiveStatus === "PEACE_PENDING" &&
+                      (row.peaceReparationGold > 0 ||
+                        row.peaceReparationFood > 0 ||
+                        row.peaceReparationArmy > 0 ||
+                        row.peaceReparationTileId) ? (
+                        <p className={styles.muted} style={{ color: "#ff8c42" }}>
+                          Reparations:{" "}
+                          {[
+                            row.peaceReparationGold > 0 ? `${row.peaceReparationGold.toLocaleString()} gold` : null,
+                            row.peaceReparationFood > 0 ? `${row.peaceReparationFood.toLocaleString()} food` : null,
+                            row.peaceReparationArmy > 0 ? `${row.peaceReparationArmy.toLocaleString()} army` : null,
+                            row.peaceReparationTileId ? `tile ${row.peaceReparationTileId}` : null,
+                          ]
+                            .filter(Boolean)
+                            .join(", ")}
+                        </p>
+                      ) : null}
+                      {/* Peace timer */}
+                      {row.peaceLockedUntil && new Date(row.peaceLockedUntil) > new Date() ? (
+                        <p className={styles.muted} style={{ color: "#6ab0ff" }}>
+                          Unbreakable peace: {(() => {
+                            const hoursLeft = Math.ceil(
+                              (new Date(row.peaceLockedUntil!).getTime() - Date.now()) / 3600000
+                            );
+                            return `${hoursLeft}h remaining`;
+                          })()}
+                        </p>
+                      ) : null}
                       <div className={styles.actions}>
                         {row.availableActions.length > 0 ? (
                           row.availableActions.map((action) => {

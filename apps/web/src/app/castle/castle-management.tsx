@@ -1642,6 +1642,48 @@ export function CastleManagement({
                     <option value="RESERVE">📦 Reserve</option>
                     <option value="ALLIANCE">🤝 Alliance</option>
                   </select>
+                  <select
+                    defaultValue={bn.stance ?? "REST"}
+                    onChange={async (e) => {
+                      const selectEl = e.target as HTMLSelectElement;
+                      const newStance = selectEl.value;
+                      selectEl.disabled = true;
+                      try {
+                        const { setBattalionStanceAction } = await import("@/app/game-actions");
+                        const result = await setBattalionStanceAction({
+                          battalionId: bn.id,
+                          fortressId: playerSummary.id,
+                          stance: newStance,
+                        });
+                        if (!result?.ok) {
+                          selectEl.value = bn.stance ?? "REST";
+                          window.alert(result?.error ?? "Failed to change stance");
+                        }
+                      } catch (err) {
+                        selectEl.value = bn.stance ?? "REST";
+                      } finally {
+                        selectEl.disabled = false;
+                        refreshView();
+                      }
+                    }}
+                    style={{
+                      fontSize: 11,
+                      padding: "1px 4px",
+                      background: "#1a1a2e",
+                      color: "#aaa",
+                      border: "1px solid var(--border)",
+                      borderRadius: 3,
+                      cursor: "pointer",
+                    }}
+                    title="Stance affects combat bonuses and behavior"
+                  >
+                    <option value="FORTIFY">🏰 Fortify</option>
+                    <option value="PATROL">🚶 Patrol</option>
+                    <option value="TRAINING">🎯 Training</option>
+                    <option value="AMBUSH">🗡 Ambush</option>
+                    <option value="REST">💤 Rest</option>
+                    <option value="MOBILE">🏃 Mobile</option>
+                  </select>
                   <span style={{ color: "var(--text-muted)" }}>
                     {bn.size}/{bn.maxSize}
                   </span>
@@ -1802,11 +1844,38 @@ export function CastleManagement({
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                     <strong style={{ color: front.status === "ADVANCING" ? "#4caf50" : front.status === "STALLED" ? "#ff9800" : "#888" }}>
-                      vs. {front.enemyFortressId}
+                      vs. {(targets as any[]).find((t: any) => t.id === front.enemyFortressId)?.name ?? front.enemyFortressId}
                     </strong>
                     <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                      {front.status} · {front.aggression}
+                      {front.status}
                     </span>
+                  </div>
+                  {/* Aggression selector */}
+                  <div style={{ display: "flex", gap: 4, alignItems: "center", marginBottom: 4 }}>
+                    <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Aggression:</span>
+                    <select
+                      defaultValue={front.aggression}
+                      onChange={async (e) => {
+                        const newAggression = e.target.value;
+                        try {
+                          const { setFrontAggressionAction } = await import("@/app/game-actions");
+                          const result = await setFrontAggressionAction({
+                            frontId: front.id,
+                            fortressId: playerSummary.id,
+                            aggression: newAggression,
+                          });
+                          if (!result.ok) alert(result.error);
+                          refreshView();
+                        } catch (err) {
+                          alert("Failed to change aggression.");
+                        }
+                      }}
+                      style={{ fontSize: 11, padding: "1px 4px", background: "var(--bg-raised)", border: "1px solid var(--border)", borderRadius: 3, color: "var(--text)" }}
+                    >
+                      <option value="CAUTIOUS">🟢 Cautious (30%)</option>
+                      <option value="BALANCED">🟡 Balanced (60%)</option>
+                      <option value="AGGRESSIVE">🔴 Aggressive (100%)</option>
+                    </select>
                   </div>
                   {frontBattalions.length > 0 ? (
                     <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
