@@ -164,6 +164,7 @@ import {
 } from "./schema-guards";
 import { processAutoWarDispatch } from "./tick-auto-war-integration";
 import { processAutoRaidDispatch } from "./tick-auto-raid-integration";
+import { processAllianceReinforcements } from "./tick-alliance-integration";
 import { recordUnitRoadCrossings } from "./tick-road-integration";
 import {
   processBattalionRecruitment,
@@ -2801,6 +2802,30 @@ async function processCycleTick(
         fortressAId: r.fortressAId,
         fortressBId: r.fortressBId,
       })),
+    });
+
+    // Alliance reinforcements.
+    const alliedBattlefields = await db.battlefield.findMany({
+      where: { cycleId, status: "ACTIVE" },
+      select: { id: true, defenderBannerFortressId: true, attackerBannerFortressId: true, status: true },
+    });
+    await processAllianceReinforcements({
+      db,
+      cycleId,
+      now: tickAt,
+      diplomacyRelations: [
+        ...warRelations.map((r) => ({
+          status: r.status,
+          fortressAId: r.fortressAId,
+          fortressBId: r.fortressBId,
+        })),
+        // Also need ALLIED relations.
+        ...(await db.diplomacyRelation.findMany({
+          where: { cycleId, status: "ALLIED" },
+          select: { status: true, fortressAId: true, fortressBId: true },
+        })),
+      ],
+      activeBattlefields: alliedBattlefields,
     });
 
     await processSeasonFourCampaigns({ db, cycleId, tickAt });
