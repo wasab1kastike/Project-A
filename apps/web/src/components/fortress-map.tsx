@@ -23,7 +23,7 @@ import {
 import { getAttackTravelMinutes } from "@/lib/game/attacks";
 import { getAttackPresentation } from "@/lib/game/attack-presentation";
 import { getCosmeticSpriteStyle } from "@/lib/game/cosmetic-sprites";
-import { findSimplePath, type PathHexTile } from "@/lib/game/march-pathfinding";
+import { findSimplePath, getHexNeighbors, type PathHexTile } from "@/lib/game/march-pathfinding";
 import type { UnitSpriteVariant } from "@/lib/game/constants";
 import {
   getHomeOfABonus,
@@ -225,6 +225,8 @@ type FortressMapProps = {
     maxSize: number;
     tier: number;
     stance: string;
+    mode: string;
+    fortressId: string;
     unitSpriteVariant: string;
     unitCosmeticVariant: string | null;
     race: string | null;
@@ -1024,6 +1026,22 @@ export const FortressMap = memo(function FortressMap({
   const [pendingTargetId, setPendingTargetId] = useState<string | null>(null);
   const [targetSentArmy, setTargetSentArmy] = useState(1);
 
+  // Patrol animation state — updates every 500ms for smooth GUARD battalion movement
+  const [patrolNowMs, setPatrolNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    const hasGuardBattalions = battalionMarkers.some(
+      (m) => m.mode === "GUARD"
+    );
+    if (!hasGuardBattalions) return;
+
+    const interval = window.setInterval(() => {
+      setPatrolNowMs(Date.now());
+    }, 500);
+
+    return () => window.clearInterval(interval);
+  }, [battalionMarkers.length]);
+
   const ownFortress =
     fortresses.find((fortress) => fortress.isCurrentUser) ?? null;
   const guardMarkers = useMemo(() => {
@@ -1045,6 +1063,89 @@ export const FortressMap = memo(function FortressMap({
         };
       });
   }, [mapHexes, fortresses]);
+
+  // ── Patrol paths for GUARD-mode battalions ──────────────────────────────
+  const patrolData = useMemo(() => {
+    const GUARD_BATTALIONS = battalionMarkers.filter(
+      (m) => m.mode === "GUARD"
+    );
+    if (GUARD_BATTALIONS.length === 0) return null;
+
+    // Tile lookup for hex neighbor computation
+    const tileLookup = new Map<string, PathHexTile>();
+    for (const tile of HEX_TILES) {
+      tileLookup.set(`${tile.col},${tile.row}`, {
+        id: tile.id,
+        col: tile.col,
+        row: tile.row,
+      });
+    }
+
+    // Ownership lookup: tileId → ownerFortressId
+    const ownerByTileId = new Map(
+      mapHexes
+        .filter((h) => h.ownerFortressId != null)
+        .map((h) => [h.tileId, h.ownerFortressId!])
+    );
+
+    // Tile lookup by id: tileId → HexTile
+    const tileById = new Map(HEX_TILES.map((t) => [t.id, t]));
+
+    // Patrol cycle duration per leg (ms)
+    const PATROL_LEG_MS = 12_000;
+
+    const markerPatrols: Array<{
+      markerIndex: number;
+      path: Array<{ xPercent: number; yPercent: number }>;
+      legMs: number;
+    }> = [];
+
+    for (let i = 0; i < battalionMarkers.length; i++) {
+      const m = battalionMarkers[i];
+      if (m.mode !== "GUARD") continue;
+
+      const garrisonTile = tileById.get(m.tileId);
+      if (!garrisonTile) continue;
+
+      // Find adjacent tiles owned by the same fortress
+      const garrisonHex: PathHexTile = {
+        id: garrisonTile.id,
+        col: garrisonTile.col,
+        row: garrisonTile.row,
+      };
+
+      const neighbors = getHexNeighbors(garrisonHex, tileLookup);
+      const ownedNeighbors = neighbors.filter(
+        (n) => ownerByTileId.get(n.id) === m.fortressId
+      );
+
+      if (ownedNeighbors.length === 0) continue; // No patrol — stays at garrison
+
+      // Build patrol cycle: garrison → neighbor1 → neighbor2 → ... → garrison
+      const path: Array<{ xPercent: number; yPercent: number }> = [
+        { xPercent: garrisonTile.xPercent, yPercent: garrisonTile.yPercent },
+      ];
+
+      // Add up to 3 neighbors for a varied patrol
+      for (const n of ownedNeighbors.slice(0, 3)) {
+        const nt = tileById.get(n.id);
+        if (nt) {
+          path.push({ xPercent: nt.xPercent, yPercent: nt.yPercent });
+        }
+      }
+
+      // Close the loop back to garrison
+      path.push({ xPercent: garrisonTile.xPercent, yPercent: garrisonTile.yPercent });
+
+      markerPatrols.push({
+        markerIndex: i,
+        path,
+        legMs: PATROL_LEG_MS,
+      });
+    }
+
+    return { markerPatrols, tileById };
+  }, [battalionMarkers, mapHexes]);
 
   const snappedFortressPositions = useMemo(
     () =>
@@ -1631,9 +1732,35 @@ export const FortressMap = memo(function FortressMap({
           ) : null}
           {battalionMarkers.length > 0 ? (
             <div className={styles.battalionLayer} aria-label="Battalion units">
-              {battalionMarkers.map((marker) => {
+              {battalionMarkers.map((marker, markerIndex) => {
                 const tile = HEX_TILES.find((t) => t.id === marker.tileId);
                 if (!tile) return null;
+
+                // ── Patrol position interpolation ──────────────────────
+                let patrolXPercent = tile.xPercent;
+                let patrolYPercent = tile.yPercent;
+                let isPatrolling = false;
+
+                if (marker.mode === "GUARD" && patrolData) {
+                  const patrol = patrolData.markerPatrols.find(
+                    (p) => p.markerIndex === markerIndex
+                  );
+                  if (patrol && patrol.path.length >= 2) {
+                    isPatrolling = true;
+                    const cycleMs = (patrol.path.length - 1) * patrol.legMs;
+                    const elapsed = (patrolNowMs % (cycleMs || 1)) / (cycleMs || 1);
+                    const totalLegs = patrol.path.length - 1;
+                    const rawLeg = elapsed * totalLegs;
+                    const legIndex = Math.min(Math.floor(rawLeg), totalLegs - 1);
+                    const legProgress = rawLeg - legIndex; // 0..1 within the leg
+
+                    const from = patrol.path[legIndex];
+                    const to = patrol.path[legIndex + 1];
+                    patrolXPercent = from.xPercent + (to.xPercent - from.xPercent) * legProgress;
+                    patrolYPercent = from.yPercent + (to.yPercent - from.yPercent) * legProgress;
+                  }
+                }
+
                 const stanceColors: Record<string, string> = {
                   FORTIFY: "#4488ff", PATROL: "#44cc44", TRAINING: "#ffcc00",
                   AMBUSH: "#ff4444", REST: "#888888", MOBILE: "#aaaaaa",
@@ -1650,10 +1777,10 @@ export const FortressMap = memo(function FortressMap({
                 return (
                   <div
                     key={`bn-${marker.tileId}-${marker.battalionName}`}
-                    className={styles.battalionMarker}
+                    className={`${styles.battalionMarker}${isPatrolling ? ` ${styles.battalionPatrol}` : ""}`}
                     style={{
-                      left: `${tile.xPercent}%`,
-                      top: `${tile.yPercent}%`,
+                      left: `${patrolXPercent}%`,
+                      top: `${patrolYPercent}%`,
                     }}
                     title={`${marker.battalionName} · ${marker.stance} · Tier ${marker.tier} · ${marker.size}/${marker.maxSize}`}
                   >

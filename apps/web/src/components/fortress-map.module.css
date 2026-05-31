@@ -1391,6 +1391,17 @@
   text-align: center;
 }
 
+/* Patrol animation — smooth tile-to-tile movement for GUARD battalions */
+.battalionPatrol {
+  animation: battalionPatrolPulse 2s ease-in-out infinite;
+  transition: left 3s linear, top 3s linear;
+}
+
+@keyframes battalionPatrolPulse {
+  0%, 100% { filter: drop-shadow(0 0 3px rgba(68, 136, 255, 0.4)); }
+  50% { filter: drop-shadow(0 0 8px rgba(68, 136, 255, 0.7)); }
+}
+
 /* March path animation */
 .marchPathSvg polyline {
   animation: marchDash 1s linear infinite;

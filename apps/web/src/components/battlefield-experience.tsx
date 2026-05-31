@@ -410,6 +410,8 @@ export function BattlefieldExperience({
     maxSize: number;
     tier: number;
     stance: string;
+    mode: string;
+    fortressId: string;
     unitSpriteVariant: string;
     unitCosmeticVariant: string | null;
     race: string | null;
