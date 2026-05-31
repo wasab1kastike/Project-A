@@ -9,6 +9,7 @@ import type { PrismaClient } from "@prisma/client";
 import { processRecruitmentTick } from "./recruitment";
 import { processGuardTick, type GuardableTile } from "./guard-system";
 import { getBattalionSlots, generateBattalionName } from "./battalion-types";
+import { HEX_TILES } from "./map-hex";
 import type { Battalion } from "./battalion-types";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -242,11 +243,26 @@ export async function processBattalionGuard(args: {
     const ownedTiles = ownedTilesByFortress.get(fortressId) ?? [];
     if (ownedTiles.length === 0) continue;
 
+    // Check if any tile is adjacent to non-owned tile (border).
+    const borderTileIds = new Set<string>();
+    for (const tileId of ownedTiles) {
+      const tile = HEX_TILES.find((t) => t.id === tileId);
+      if (!tile) continue;
+      const isEven = tile.col % 2 === 0;
+      const offsets: [number, number][] = [[-1,0],[1,0],[0,-1],[0,1]];
+      if (isEven) offsets.push([-1,-1],[-1,1]);
+      else offsets.push([1,-1],[1,1]);
+      for (const [dc, dr] of offsets) {
+        const n = HEX_TILES.find((t) => t.col === tile.col + dc && t.row === tile.row + dr);
+        if (n && !ownedTiles.includes(n.id)) { borderTileIds.add(tileId); break; }
+      }
+    }
+
     const guardableTiles: GuardableTile[] = ownedTiles.map((tileId) => ({
       tileId,
-      priority: 2, // NORMAL
-      isBorder: false, // simplified — caller can enhance
-      enemyProximity: 0,
+      priority: borderTileIds.has(tileId) ? 1 as any : 2, // HIGH if border, NORMAL otherwise
+      isBorder: borderTileIds.has(tileId),
+      enemyProximity: borderTileIds.has(tileId) ? 1 : 0,
       productionValue: 0,
       currentGuardStrength: 0,
     }));
