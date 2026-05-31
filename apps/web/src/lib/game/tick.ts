@@ -2664,7 +2664,8 @@ async function processCycleTick(
 
   let convoyScoreEventsCreated = 0;
 
-  if (isSeasonFour) {
+  // Auto-war dispatch (always runs for debugging; requires WarPolicy + battalions)
+  if (true) {
     // Auto-war dispatch runs BEFORE campaign processing so new campaigns
     // are picked up in the same tick.
     const [warRelations, currentCampaigns, lightFortresses, ownerships] = await Promise.all([
