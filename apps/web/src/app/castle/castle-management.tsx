@@ -1496,6 +1496,59 @@ export function CastleManagement({
 
       {activeTab === "WAR_ROOM" ? (
         <>
+      {/* Upkeep Summary */}
+      <section className={styles.panel}>
+        <div className={styles.panelHeader}>
+          <span>Upkeep</span>
+          <strong>
+            {(() => {
+              const bnList = playerSummary.battalions ?? [];
+              const totalFood = bnList.reduce((s, b: any) => s + Math.ceil(b.size / 100) * ([1, 2, 3, 5][b.tier] ?? 1), 0);
+              const totalGold = bnList.reduce((s, b: any) => s + ([0, 1, 2, 4][b.tier] ?? 0), 0);
+              const maxFood = bnList.reduce((s, b: any) => s + Math.ceil(b.maxSize / 100) * ([1, 2, 3, 5][b.tier] ?? 1), 0);
+              const maxGold = bnList.reduce((s, b: any) => s + ([0, 1, 2, 4][b.tier] ?? 0), 0);
+              return `${totalFood}f + ${totalGold}g / tick`;
+            })()}
+          </strong>
+        </div>
+        <dl className={styles.readinessGrid} style={{ marginBottom: 8 }}>
+          <div>
+            <dt>Current food</dt>
+            <dd>{(playerSummary.food ?? 0).toLocaleString()}</dd>
+          </div>
+          <div>
+            <dt>Current gold</dt>
+            <dd>{(playerSummary.gold ?? 0).toLocaleString()}</dd>
+          </div>
+          <div>
+            <dt>Food/Tick</dt>
+            <dd style={{ color: "var(--text-muted)" }}>
+              {(() => {
+                const bnList = playerSummary.battalions ?? [];
+                const food = bnList.reduce((s, b: any) => s + Math.ceil(b.size / 100) * ([1, 2, 3, 5][b.tier] ?? 1), 0);
+                const gold = bnList.reduce((s, b: any) => s + ([0, 1, 2, 4][b.tier] ?? 0), 0);
+                return `${food}f + ${gold}g`;
+              })()}
+            </dd>
+          </div>
+          <div>
+            <dt>At max cap</dt>
+            <dd style={{ color: "#ff9800" }}>
+              {(() => {
+                const bnList = playerSummary.battalions ?? [];
+                const food = bnList.reduce((s, b: any) => s + Math.ceil(b.maxSize / 100) * ([1, 2, 3, 5][b.tier] ?? 1), 0);
+                const gold = bnList.reduce((s, b: any) => s + ([0, 1, 2, 4][b.tier] ?? 0), 0);
+                return `${food}f + ${gold}g`;
+              })()}
+            </dd>
+          </div>
+        </dl>
+        <p className={styles.muted} style={{ fontSize: 11 }}>
+          Tiered costs: Recruit=1f/100, Regular=2f/100+1g, Veteran=3f/100+2g, Elite=5f/100+4g.
+          Gold shortfall causes -2% equipment decay. Food shortfall causes desertion.
+        </p>
+      </section>
+
       {/* Battalion Roster */}
       <section className={styles.panel}>
         <div className={styles.panelHeader}>
@@ -1800,6 +1853,9 @@ export function CastleManagement({
             <span>Max army size</span>
             <strong>{maxArmySize}</strong>
           </label>
+          <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: -4 }}>
+            Projected upkeep at {maxArmySize} army: ~{Math.ceil(maxArmySize / 100)} food/tick
+          </p>
           <input
             type="number"
             min={100}
