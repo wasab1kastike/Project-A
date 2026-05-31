@@ -163,6 +163,7 @@ import {
   ensureRaceSchemaReadiness,
 } from "./schema-guards";
 import { processAutoWarDispatch } from "./tick-auto-war-integration";
+import { processAutoRaidDispatch } from "./tick-auto-raid-integration";
 import { recordUnitRoadCrossings } from "./tick-road-integration";
 import {
   processBattalionRecruitment,
@@ -2784,6 +2785,23 @@ async function processCycleTick(
         where: { cycleId_tileId: { cycleId, tileId } },
       });
     }
+
+    // Auto-raid: intercept enemy convoys using idle battalions.
+    await processAutoRaidDispatch({
+      db,
+      cycleId,
+      now: tickAt,
+      fortresses: lightFortresses.map((f) => ({
+        id: f.id,
+        army: f.army,
+        ownerId: f.ownerId ?? "",
+      })),
+      diplomacyRelations: warRelations.map((r) => ({
+        status: r.status,
+        fortressAId: r.fortressAId,
+        fortressBId: r.fortressBId,
+      })),
+    });
 
     await processSeasonFourCampaigns({ db, cycleId, tickAt });
     convoyScoreEventsCreated = await processSeasonFourConvoys({
