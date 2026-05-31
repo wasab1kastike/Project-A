@@ -1605,14 +1605,24 @@ export function CastleManagement({
                     value={(bn as any).mode ?? "GUARD"}
                     onChange={async (e) => {
                       const mode = e.target.value;
-                      const { setBattalionModeAction } = await import("@/app/game-actions");
-                      const result = await setBattalionModeAction({
-                        battalionId: bn.id,
-                        fortressId: playerSummary.id,
-                        mode,
-                      });
-                      if (!result.ok) alert(result.error);
-                      refreshView();
+                      try {
+                        const { setBattalionModeAction } = await import("@/app/game-actions");
+                        const result = await setBattalionModeAction({
+                          battalionId: bn.id,
+                          fortressId: playerSummary.id,
+                          mode,
+                        });
+                        if (result && !result.ok) {
+                          console.error("setBattalionModeAction failed:", result.error);
+                          // Revert the select visually.
+                          (e.target as HTMLSelectElement).value = (bn as any).mode ?? "GUARD";
+                        } else {
+                          refreshView();
+                        }
+                      } catch (err) {
+                        console.error("setBattalionModeAction error:", err);
+                        (e.target as HTMLSelectElement).value = (bn as any).mode ?? "GUARD";
+                      }
                     }}
                     style={{
                       fontSize: 11,
