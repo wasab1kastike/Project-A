@@ -1,58 +1,56 @@
 # Trade
 
-> Convoys, cargo, and commerce in Season 4.
+> Convoys, tile deeds, trade routes, and the trade hub bonus.
 
 ---
 
-## Trade Offers
+## Creating Trade Offers
 
-1. Select a recipient fortress
-2. Choose cargo: **gold**, **food**, or **army**
-3. Send offer → recipient accepts → convoy dispatches
-4. Convoy travels across map → arrives → cargo delivered
-5. **Points awarded** to sender on delivery
+From the Politics page, select a trade partner and specify what you send and receive:
+- **Gold, Food, Army** — resources transferred via convoy
+- **Tile deeds** — transfer ownership of a tile (allies only, no active battles on tile)
 
-## Cargo Value
+Both sides must be NEUTRAL or ALLIED. Offers expire after 24 hours.
 
-| Resource | Multiplier |
-|----------|-----------|
-| Gold | 1× |
-| Food | 1.5× |
-| Army | 3× |
+## Convoys
 
-**Space Murines** get extra trade bonuses from skills and race traits.
+When a trade is accepted, convoy legs are created:
+- Resources are **deducted immediately** from the sender
+- Convoys travel for 6+ hours (based on distance)
+- Convoy markers animate on the map as golden dots
+- On arrival, resources are credited to the receiver
 
-## Convoy Mechanics
+## Road Building
 
-| Mechanic | Detail |
-|----------|--------|
-| **Transit time** | Based on distance, reduced by roads |
-| **Escort** | Army protects convoy from raids |
-| **Raid** | Enemy can intercept and steal cargo |
-| **Detection** | Raids can be detected → casus belli |
+Convoys and marching armies build roads on the tiles they traverse. Each passage adds to the tile's crossing count:
 
-## Alliance Trade Bonuses
+| Level | Crossings | Speed Bonus |
+|-------|-----------|-------------|
+| Dirt Path | 50 | 1.15× |
+| Stone Road | 200 | 1.30× |
+| Highway | 500 | 1.50× |
 
-| Trust Tier | Cargo Bonus |
-|------------|-------------|
-| 1 | +10% |
-| 2 | +20% |
-| 3 | +35% |
+Roads decay at 1% per hour of inactivity.
 
-Allies also get faster convoy speed at higher trust tiers.
+## Established Trade Routes
 
-## Profitability
+Fortress pairs with **5+ completed deliveries** get:
+- **Golden trade route line** on the map
+- **1.25× point multiplier** on future deliveries
 
-Trade is highly profitable in Season 4:
-- **Points**: 1 per 500 cargo value (doubled from legacy)
-- **Food value**: 1.5× multiplier makes food trading lucrative
-- **Army value**: 3× multiplier rewards military trade
-- **Skill bonuses**: Murine convoy path adds up to +35% cargo value
+Trade routes are visible on the map as dashed golden lines between trading partners.
 
-## Managing Trade
+## Convoy Interception
 
-All trade is in **Castle → Diplomacy** tab. From there you can:
-- Create trade offers
-- Accept/reject incoming offers
-- Manage escorts and raids
-- View active convoys
+Enemies at war can intercept your convoys:
+- Auto-raid dispatches idle battalions against enemy convoys
+- Manual raid orders can be created from the Politics page
+- Successful raids steal cargo (gold, food, army, points)
+- Detected raids grant casus belli to the victim
+
+## Alliance Delivery Bonus
+
+Allied trade partners get bonus resources on delivery:
+- Tier 1: +10%
+- Tier 2: +15%
+- Tier 3: +25%

@@ -10,6 +10,7 @@ import { DismissiblePhaseCard } from "@/components/dismissible-phase-card";
 
 import { NoticeToast } from "@/components/notice-toast";
 import { PreviousSeasonWinnerCard } from "@/components/previous-season-winner-card";
+import { TutorialPanel, useTutorialState } from "@/components/tutorial-panel";
 import { RealtimeBridge } from "@/components/realtime-bridge";
 import { SeasonTimer } from "@/components/season-timer";
 import CommandDock from "@/components/command-dock";
@@ -342,6 +343,7 @@ function HomeClientContent({
         deadline={state.phase?.deadline?.toISOString() ?? null}
         timerLabel={phaseCopy.timerLabel}
       />
+      <TutorialPanel state={useTutorialState(state.playerSummary)} />
       {!state.cycle || !state.playerSummary ? (
       <header className={styles.topHud} aria-label="Season status">
         <div className={styles.statusCluster}>
