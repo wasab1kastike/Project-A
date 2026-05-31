@@ -211,6 +211,9 @@ export const OWNERSHIP_PRESSURE_MAINTENANCE_PER_WORKER = 4;
 /** Enemy pressure: each enemy pressure point reduces ownership by this much. */
 export const ENEMY_PRESSURE_DECAY_MULTIPLIER = 0.5;
 
+/** Pressure disruption: enemy pressure on a tile also reduces ownership. */
+export const PRESSURE_DISRUPT_MULTIPLIER = 1.0;
+
 /** Guard presence: reduces decay by this fraction (0.5 = 50% reduction). */
 export const GUARD_DECAY_REDUCTION = 0.5;
 

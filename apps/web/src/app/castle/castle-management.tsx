@@ -1744,13 +1744,18 @@ export function CastleManagement({
                     defaultValue=""
                     onChange={async (e) => {
                       if (!e.target.value) return;
-                      const { assignBattalionToFrontAction } = await import("@/app/game-actions");
-                      await assignBattalionToFrontAction({
-                        battalionId: e.target.value,
-                        frontId: front.id,
-                        fortressId: playerSummary.id,
-                      });
-                      refreshView();
+                      try {
+                        const { assignBattalionToFrontAction } = await import("@/app/game-actions");
+                        const result = await assignBattalionToFrontAction({
+                          battalionId: e.target.value,
+                          frontId: front.id,
+                          fortressId: playerSummary.id,
+                        });
+                        if (!result.ok) alert(result.error);
+                        refreshView();
+                      } catch (err) {
+                        alert("Failed to assign battalion.");
+                      }
                     }}
                     style={{ marginTop: 4, width: "100%", fontSize: 12, padding: "2px 4px", background: "var(--bg-raised)", border: "1px solid var(--border)", borderRadius: 3, color: "var(--text)" }}
                   >
