@@ -1034,6 +1034,88 @@ export const FortressMap = memo(function FortressMap({
   const [pendingTargetId, setPendingTargetId] = useState<string | null>(null);
   const [targetSentArmy, setTargetSentArmy] = useState(1);
 
+  // ── Battalion reinforcement particles ─────────────────────────────────
+  // When a battalion's size increases, spawn a small unit sprite that
+  // marches from the fortress to the battalion's garrison tile with
+  // distance-based travel time, just like real attack units.
+  type ReinforcementParticle = {
+    id: string;
+    fromXPercent: number;
+    fromYPercent: number;
+    toXPercent: number;
+    toYPercent: number;
+    createdAt: number;
+    durationMs: number;
+    troopCount: number;
+    unitSpriteVariant: string;
+    unitCosmeticVariant: string | null;
+  };
+  const [reinforcementParticles, setReinforcementParticles] = useState<
+    ReinforcementParticle[]
+  >([]);
+  const prevBattalionSizesRef = useRef<Map<string, number>>(new Map());
+
+  // Rough hex distance → ms conversion (same order of magnitude as attack travel)
+  const BASE_TILE_TRAVEL_MS = 60_000; // 1 minute per tile
+
+  // Detect battalion size increases → spawn reinforcement particles
+  useEffect(() => {
+    const fortressById = new Map(fortresses.map((f) => [f.id, f]));
+    const tileById = new Map(HEX_TILES.map((t) => [t.id, t]));
+    const now = Date.now();
+    const newParticles: ReinforcementParticle[] = [];
+
+    for (const marker of battalionMarkers) {
+      const key = `${marker.fortressId}:${marker.battalionName}`;
+      const prevSize = prevBattalionSizesRef.current.get(key) ?? marker.size;
+      const delta = marker.size - prevSize;
+      if (delta > 0) {
+        const fortress = fortressById.get(marker.fortressId);
+        const tile = tileById.get(marker.tileId);
+        if (fortress && tile) {
+          // Estimate hex distance for travel time
+          const dx = Math.abs(fortress.mapX - tile.xPercent);
+          const dy = Math.abs(fortress.mapY - tile.yPercent);
+          const approxTiles = Math.max(1, Math.round(Math.sqrt(dx * dx + dy * dy) / 3));
+          const travelMs = approxTiles * BASE_TILE_TRAVEL_MS;
+
+          newParticles.push({
+            id: `reinforce-${key}-${now}-${Math.random().toString(36).slice(2, 6)}`,
+            fromXPercent: fortress.mapX,
+            fromYPercent: fortress.mapY,
+            toXPercent: tile.xPercent,
+            toYPercent: tile.yPercent,
+            createdAt: now,
+            durationMs: Math.max(2000, Math.min(travelMs, 120_000)), // 2s–120s
+            troopCount: delta,
+            unitSpriteVariant: marker.unitSpriteVariant,
+            unitCosmeticVariant: marker.unitCosmeticVariant,
+          });
+        }
+      }
+      prevBattalionSizesRef.current.set(key, marker.size);
+    }
+
+    if (newParticles.length > 0) {
+      setReinforcementParticles((prev) => [...prev, ...newParticles]);
+    }
+  }, [battalionMarkers, fortresses]);
+
+  // Drive particle animation + cleanup
+  const [particleNowMs, setParticleNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (reinforcementParticles.length === 0) return;
+    const interval = window.setInterval(() => {
+      const now = Date.now();
+      setParticleNowMs(now);
+      // Cleanup expired particles
+      setReinforcementParticles((prev) =>
+        prev.filter((p) => now - p.createdAt < p.durationMs + 1000)
+      );
+    }, 150);
+    return () => window.clearInterval(interval);
+  }, [reinforcementParticles.length]);
+
   // Patrol animation state — updates every 500ms for smooth GUARD battalion movement
   const [patrolNowMs, setPatrolNowMs] = useState(() => Date.now());
 
@@ -1817,6 +1899,46 @@ export const FortressMap = memo(function FortressMap({
                     </span>
                     <span className={styles.battalionCount}>
                       {marker.size}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+          {reinforcementParticles.length > 0 ? (
+            <div className={styles.reinforcementLayer} aria-label="Troop reinforcements">
+              {reinforcementParticles.map((p) => {
+                const now = Date.now();
+                const elapsed = now - p.createdAt;
+                const progress = Math.min(1, Math.max(0, elapsed / p.durationMs));
+                // Ease-out for natural deceleration
+                const eased = 1 - Math.pow(1 - progress, 3);
+                const x = p.fromXPercent + (p.toXPercent - p.fromXPercent) * eased;
+                const y = p.fromYPercent + (p.toYPercent - p.fromYPercent) * eased;
+                const fadingIn = progress < 0.1;
+                const fadingOut = progress > 0.85;
+                const opacity = fadingIn ? progress / 0.1 : fadingOut ? (1 - progress) / 0.15 : 1;
+
+                return (
+                  <div
+                    key={p.id}
+                    className={styles.reinforcementParticle}
+                    style={{
+                      left: `${x}%`,
+                      top: `${y}%`,
+                      opacity: Math.max(0, Math.min(1, opacity)),
+                    }}
+                    title={`+${p.troopCount} troops`}
+                  >
+                    <span
+                      className={styles.reinforcementSprite}
+                      data-variant={p.unitSpriteVariant}
+                      data-skin={p.unitCosmeticVariant ?? undefined}
+                      style={getCosmeticSpriteStyle("UNIT", p.unitCosmeticVariant) ?? undefined}
+                      aria-hidden="true"
+                    />
+                    <span className={styles.reinforcementCount}>
+                      +{p.troopCount}
                     </span>
                   </div>
                 );
