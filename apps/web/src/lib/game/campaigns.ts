@@ -1,7 +1,7 @@
 import { DiplomacyRelationStatus } from "@/lib/prisma-client";
 import { addHours } from "./time";
 
-export const CAMPAIGN_SIEGE_THRESHOLD = 14_400;
+export const CAMPAIGN_SIEGE_THRESHOLD = 3_600; // 1 hour at 60 army/tick
 export const CAMPAIGN_RESPONSE_HOURS = 12;
 
 export function calculateCampaignProgressPerTick({
@@ -14,15 +14,13 @@ export function calculateCampaignProgressPerTick({
   armyContributionMultiplier?: number;
 }) {
   const workers = Math.max(0, Math.floor(pressureWorkersAssigned));
-  const armyContribution = Math.min(
-    Math.floor(
-      (Math.max(0, committedArmy) / 100) *
-        Math.max(1, armyContributionMultiplier)
-    ),
-    workers
+  const armyContribution = Math.floor(
+    (Math.max(0, committedArmy) / 50) *
+      Math.max(1, armyContributionMultiplier),
   );
 
-  return workers + armyContribution;
+  // Workers add bonus progress but don't cap army.
+  return workers + Math.max(armyContribution, workers > 0 ? workers : armyContribution);
 }
 
 export function getCampaignResponseEndsAt(siegeOpenedAt: Date) {
