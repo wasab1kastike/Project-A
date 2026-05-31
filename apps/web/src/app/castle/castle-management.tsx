@@ -1954,20 +1954,6 @@ export function CastleManagement({
           <strong>Castle actions</strong>
         </div>
         <div className={styles.form}>
-          {playerSummary.canRegisterCommanderName ? (
-            <form
-              action={registerCommanderNameFormAction}
-              className={styles.inlineForm}
-            >
-              <input
-                name="commanderName"
-                defaultValue={playerSummary.commanderName}
-                maxLength={32}
-                required
-              />
-              <button type="submit">Register nick</button>
-            </form>
-          ) : null}
           <form action={renameFortressFormAction} className={styles.inlineForm}>
             <input
               name="fortressName"

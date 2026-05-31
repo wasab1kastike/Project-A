@@ -4,16 +4,13 @@ import Link from "next/link";
 import { useState } from "react";
 import type { Session } from "next-auth";
 import styles from "./page.module.css";
-import { CompensationLootBoxAnnouncement } from "@/components/compensation-loot-box-announcement";
 import { SessionActions } from "@/components/session-actions";
 import { BattlefieldExperience } from "@/components/battlefield-experience";
 import { DismissiblePhaseCard } from "@/components/dismissible-phase-card";
-import { GodEmperorGiftNotice } from "@/components/god-emperor-gift-notice";
-import { LeaderboardAnnouncement } from "@/components/leaderboard-announcement";
+
 import { NoticeToast } from "@/components/notice-toast";
 import { PreviousSeasonWinnerCard } from "@/components/previous-season-winner-card";
 import { RealtimeBridge } from "@/components/realtime-bridge";
-import { SeasonUpdateAnnouncement } from "@/components/season-update-announcement";
 import { SeasonTimer } from "@/components/season-timer";
 import CommandDock from "@/components/command-dock";
 import {
@@ -203,32 +200,15 @@ function HomeClientContent({
             state.cycle?.lastProcessedTickAt ?? null
           )} (live)`
     : null;
-  const showLoginCard = !session?.user;
-  const showJoinCard = Boolean(session?.user && state.canJoinCycle);
-  const showCommanderNameCard = Boolean(
-    session?.user && state.playerSummary?.canRegisterCommanderName
-  );
-  const showArcadeCard = state.phase?.status === "REGISTRATION";
-  const isWaitingForSeason =
-    !state.phase || state.phase.status === "RESOLUTION" || !state.cycle;
-  const showSeasonBanner = Boolean(state.latestSeason && isWaitingForSeason);
-  const showSidePanel = Boolean(
-    blockingMessage ||
-    showLoginCard ||
-    showJoinCard ||
-    showCommanderNameCard ||
-    isWaitingForSeason ||
-    showArcadeCard ||
-    showSeasonBanner
-  );
+  const panelMode: "guest" | "join" | "arcade" | "banner" | "none" =
+    !session?.user ? "guest" :
+    state.canJoinCycle ? "join" :
+    state.phase?.status === "REGISTRATION" ? "arcade" :
+    state.latestSeason && (!state.phase || state.phase.status === "RESOLUTION" || !state.cycle) ? "banner" :
+    "none";
+  const showSidePanel = Boolean(blockingMessage || panelMode !== "none");
   const canDismissPhaseCard = Boolean(
-    showSidePanel &&
-    !blockingMessage &&
-    !showLoginCard &&
-    !showJoinCard &&
-    !showCommanderNameCard &&
-    !showArcadeCard &&
-    !showSeasonBanner
+    showSidePanel && !blockingMessage && panelMode !== "guest" && panelMode !== "join"
   );
   const phaseCardStorageKey = `project-a:phase-card:${
     state.cycle?.id ?? "no-cycle"
@@ -287,33 +267,18 @@ function HomeClientContent({
             };
   
 
-  const centerTitle = blockingMessage
-    ? "Something needs attention."
-    : showLoginCard
-      ? "Join the battlefield."
-      : showCommanderNameCard
-        ? "Choose your in-game nick."
-          : showJoinCard
-            ? state.phase?.status === "ACTIVE"
-              ? "Join the running season."
-              : state.phase?.status === "TESTING"
-                ? "Join testing."
-                : "Claim your fortress."
-          : phaseCopy.title;
-
-  const centerDescription = blockingMessage
-    ? blockingMessage
-    : showLoginCard
-      ? "Sign in to join a fortress, chat, and manage your castle when the season is active."
-      : showCommanderNameCard
-        ? "Set the commander name other players will see this season. Your account name stays private."
-        : showJoinCard
-          ? state.phase?.status === "ACTIVE"
-            ? "This season is already running. Join now to enter immediately if slots are still available."
-            : state.phase?.status === "TESTING"
-              ? "Testing mode is live. Join now to test the sandbox; only your roster identity carries into the real season."
-              : "Build phase is open. Choose your race, name your fortress, and reserve your Season 4 slot."
-          : (state.cycle?.statusMessage ?? state.emptyStateMessage);
+  const joinLabel = state.phase?.status === "ACTIVE" ? "Join the running season." : state.phase?.status === "TESTING" ? "Join testing." : "Claim your fortress.";
+  const joinDesc = state.phase?.status === "ACTIVE" ? "This season is already running. Join now to enter immediately." : state.phase?.status === "TESTING" ? "Testing mode is live. Join now to test." : "Build phase is open. Choose your race, name your fortress, and reserve your slot.";
+  const centerTitle = blockingMessage ? "Something needs attention." :
+    panelMode === "guest" ? "Join the battlefield." :
+    panelMode === "join" ? joinLabel :
+    panelMode === "arcade" ? "Arcade lobby" :
+    panelMode === "banner" ? "Previous season" :
+    phaseCopy.title;
+  const centerDescription = blockingMessage ? blockingMessage :
+    panelMode === "guest" ? "Sign in to join a fortress, chat, and manage your castle." :
+    panelMode === "join" ? joinDesc :
+    (state.cycle?.statusMessage ?? state.emptyStateMessage);
 
   return (
     <main className={styles.page}>
@@ -322,8 +287,6 @@ function HomeClientContent({
           Boolean(state.cycle) && realtimeEnabled
         }
       />
-      <GodEmperorGiftNotice fortressName={state.playerSummary?.name} />
-      <CompensationLootBoxAnnouncement userId={session?.user?.id ?? null} />
 
       <div className={styles.mapLayer}>
         <BattlefieldExperience
@@ -446,12 +409,9 @@ function HomeClientContent({
           <span className={styles.accountChip}>
             {session?.user ? userLabel : "Guest"}
           </span>
-          <LeaderboardAnnouncement
-            leaderboardTitles={state.leaderboardTitles}
-            triggerClassName={styles.hudButton}
-            userId={session?.user?.id ?? null}
-          />
-          <SeasonUpdateAnnouncement userId={session?.user?.id ?? null} />
+          <Link className={styles.hudButton} href="/history">
+            Leaderboard
+          </Link>
           {state.playerSummary ? (
             <Link className={styles.hudButton} href="/castle">
               Castle
@@ -543,16 +503,14 @@ function HomeClientContent({
           <span className={styles.sectionLabel}>
             {blockingMessage
               ? "Status"
-              : showCommanderNameCard
-                ? "Nick registration"
-                : showJoinCard
-                  ? "Join season"
-                  : "Season control"}
+              : panelMode === "guest" ? "Welcome"
+              : panelMode === "join" ? "Join season"
+              : "Season control"}
           </span>
           <h1>{centerTitle}</h1>
           <p>{centerDescription}</p>
 
-          {showLoginCard && !blockingMessage ? (
+          {panelMode === "guest" && !blockingMessage ? (
             <SessionActions
               authConfigured={authConfigured}
               isAuthenticated={false}
@@ -560,7 +518,7 @@ function HomeClientContent({
             />
           ) : null}
 
-          {showJoinCard && !blockingMessage ? (
+          {panelMode === "join" && !blockingMessage ? (
             <div className={styles.joinModal} role="dialog" aria-modal="true">
               <form action={joinFortressFormAction} className={styles.joinForm}>
                 <div className={styles.joinModalHeader}>
@@ -643,7 +601,7 @@ function HomeClientContent({
             </div>
           ) : null}
 
-          {showCommanderNameCard && !blockingMessage ? (
+          {panelMode === "join" && !blockingMessage ? (
             <form
               action={registerCommanderNameFormAction}
               className={styles.form}
@@ -665,7 +623,7 @@ function HomeClientContent({
             </form>
           ) : null}
 
-          {showArcadeCard && !blockingMessage ? (
+          {panelMode === "arcade" && !blockingMessage ? (
             <div className={styles.cardActions}>
               <Link className={styles.secondaryButton} href="/shop">
                 Open shop
@@ -673,7 +631,7 @@ function HomeClientContent({
             </div>
           ) : null}
 
-          {isWaitingForSeason && !showLoginCard && !showJoinCard ? (
+          {panelMode === "banner" && !blockingMessage ? (
             <div className={styles.cardActions}>
               <Link className={styles.secondaryButton} href="/history">
                 Open cycle history
