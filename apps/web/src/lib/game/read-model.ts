@@ -840,6 +840,19 @@ export async function getHomePageState({
           defaultAggression: true,
         },
       },
+      convoyLegs: {
+        where: { status: "IN_TRANSIT" },
+        select: {
+          id: true,
+          fromFortressId: true,
+          toFortressId: true,
+          gold: true,
+          food: true,
+          army: true,
+          departedAt: true,
+          arrivesAt: true,
+        },
+      },
       tilePressurePriorities: {
         select: {
           id: true,
@@ -2222,6 +2235,27 @@ export async function getHomePageState({
       fortress.health > 0
     );
   });
+  const playerDiplomacy = playerFortressId
+    ? await prisma.diplomacyRelation.findMany({
+        where: {
+          cycleId: cycle.id,
+          OR: [
+            { fortressAId: playerFortressId },
+            { fortressBId: playerFortressId },
+          ],
+        },
+        select: { fortressAId: true, fortressBId: true, status: true },
+      })
+    : [];
+
+  const diplomacyByFortress = new Map<string, string>();
+  for (const rel of playerDiplomacy) {
+    const otherId = rel.fortressAId === playerFortressId ? rel.fortressBId : rel.fortressAId;
+    if (rel.status === "WAR" || rel.status === "ALLIED") {
+      diplomacyByFortress.set(otherId, rel.status);
+    }
+  }
+
   const mapFortresses = visibleFortresses.map((fortress) => {
     const canRevealUnicornDecoy =
       fortress.fortressKind === FortressKind.UNICORN_DECOY &&
@@ -2310,6 +2344,7 @@ export async function getHomePageState({
       unitCosmeticVariant: displayOwner?.unitCosmeticVariant ?? null,
       fortressCosmeticVariant: displayOwner?.fortressCosmeticVariant ?? null,
       isCurrentUser: fortress.ownerId === userId,
+      diplomacyStatus: (diplomacyByFortress.get(fortress.id) ?? "NEUTRAL") as "WAR" | "ALLIED" | "NEUTRAL",
       isTargetable:
         !isSeasonFour &&
         playerFortressId !== null &&
@@ -4077,6 +4112,16 @@ export async function getHomePageState({
       maxArmySize: p.maxArmySize,
       guardPercent: p.guardPercent,
       defaultAggression: p.defaultAggression,
+    })),
+    convoyMarkers: (cycle.convoyLegs ?? []).map((leg) => ({
+      id: leg.id,
+      fromFortressId: leg.fromFortressId,
+      toFortressId: leg.toFortressId,
+      gold: leg.gold,
+      food: leg.food,
+      army: leg.army,
+      departedAt: leg.departedAt?.getTime() ?? null,
+      arrivesAt: leg.arrivesAt?.getTime() ?? null,
     })),
   };
 }
