@@ -303,6 +303,7 @@ function HomeClientContent({
           battlefields={state.battlefields}
           attackUnits={state.attackUnits}
           alliedRoads={state.alliedRoads ?? []}
+          tradeRouteLines={(state as any).tradeRouteLines ?? []}
           roadSegments={state.roadSegments ?? []}
           convoyMarkers={(state as any).convoyMarkers ?? []}
           battalionMarkers={(state.battalions ?? [])
