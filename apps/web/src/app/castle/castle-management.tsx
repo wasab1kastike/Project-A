@@ -1519,56 +1519,45 @@ export function CastleManagement({
         </div>
       </section>
 
-      {/* Upkeep Summary */}
+      {/* Costs Summary */}
       <section className={styles.panel}>
         <div className={styles.panelHeader}>
-          <span>Upkeep</span>
-          <strong>
-            {(() => {
-              const bnList = playerSummary.battalions ?? [];
-              const totalFood = bnList.reduce((s, b: any) => s + Math.ceil(b.size / 100) * ([1, 2, 3, 5][b.tier] ?? 1), 0);
-              const totalGold = bnList.reduce((s, b: any) => s + ([0, 1, 2, 4][b.tier] ?? 0), 0);
-              const maxFood = bnList.reduce((s, b: any) => s + Math.ceil(b.maxSize / 100) * ([1, 2, 3, 5][b.tier] ?? 1), 0);
-              const maxGold = bnList.reduce((s, b: any) => s + ([0, 1, 2, 4][b.tier] ?? 0), 0);
-              return `${totalFood}f + ${totalGold}g / tick`;
-            })()}
-          </strong>
+          <span>Costs</span>
         </div>
-        <dl className={styles.readinessGrid} style={{ marginBottom: 8 }}>
-          <div>
-            <dt>Current food</dt>
-            <dd>{(playerSummary.food ?? 0).toLocaleString()}</dd>
-          </div>
-          <div>
-            <dt>Current gold</dt>
-            <dd>{(playerSummary.gold ?? 0).toLocaleString()}</dd>
-          </div>
-          <div>
-            <dt>Food/Tick</dt>
-            <dd style={{ color: "var(--text-muted)" }}>
-              {(() => {
-                const bnList = playerSummary.battalions ?? [];
-                const food = bnList.reduce((s, b: any) => s + Math.ceil(b.size / 100) * ([1, 2, 3, 5][b.tier] ?? 1), 0);
-                const gold = bnList.reduce((s, b: any) => s + ([0, 1, 2, 4][b.tier] ?? 0), 0);
-                return `${food}f + ${gold}g`;
-              })()}
-            </dd>
-          </div>
-          <div>
-            <dt>At max cap</dt>
-            <dd style={{ color: "#ff9800" }}>
-              {(() => {
-                const bnList = playerSummary.battalions ?? [];
-                const food = bnList.reduce((s, b: any) => s + Math.ceil(b.maxSize / 100) * ([1, 2, 3, 5][b.tier] ?? 1), 0);
-                const gold = bnList.reduce((s, b: any) => s + ([0, 1, 2, 4][b.tier] ?? 0), 0);
-                return `${food}f + ${gold}g`;
-              })()}
-            </dd>
-          </div>
-        </dl>
-        <p className={styles.muted} style={{ fontSize: 11 }}>
-          Tiered costs: Recruit=1f/100, Regular=2f/100+1g, Veteran=3f/100+2g, Elite=5f/100+4g.
-          Gold shortfall causes -2% equipment decay. Food shortfall causes desertion.
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13 }}>
+          {(() => {
+            const bnList = playerSummary.battalions ?? [];
+            const totalArmy = bnList.reduce((s, b: any) => s + b.size, 0);
+            const maxArmy = bnList.reduce((s, b: any) => s + b.maxSize, 0);
+            const currentFood = Math.ceil(totalArmy / 50);
+            const maxFood = Math.ceil(maxArmy / 50);
+            const currentGold = Math.ceil(totalArmy * 2);
+            const maxGold = Math.ceil(maxArmy * 2);
+            return (
+              <>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>Upkeep (1f / 50 units)</span>
+                  <strong>{currentFood.toLocaleString()} f/t</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-muted)", fontSize: 12 }}>
+                  <span>At max cap</span>
+                  <span>{maxFood.toLocaleString()} f/t</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>Recruitment (2g / unit)</span>
+                  <strong style={{ color: "#ffb040" }}>{currentGold.toLocaleString()} g</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-muted)", fontSize: 12 }}>
+                  <span>At max cap</span>
+                  <span style={{ color: "#ff9800" }}>{maxGold.toLocaleString()} g</span>
+                </div>
+              </>
+            );
+          })()}
+        </div>
+        <p className={styles.muted} style={{ fontSize: 11, marginTop: 4 }}>
+          Upkeep deducts food each tick. Recruitment deducts gold when filling battalions.
+          Food shortfall → desertion. Gold shortfall → slower recruitment.
         </p>
       </section>
 

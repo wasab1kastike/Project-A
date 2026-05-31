@@ -51,6 +51,8 @@ export type UpkeepBill = {
 /**
  * Calculate the total food and gold upkeep for all battalions.
  */
+const FOOD_PER_50_UNITS = 1;
+
 export function calculateUpkeep(battalions: Battalion[]): UpkeepBill {
   const breakdown: UpkeepBill["breakdown"] = [];
   let totalFood = 0;
@@ -59,12 +61,9 @@ export function calculateUpkeep(battalions: Battalion[]): UpkeepBill {
   for (const b of battalions) {
     if (b.size <= 0) continue;
 
-    const costs = UPKEEP_COSTS[b.tier];
-    const foodCost = Math.ceil((b.size / 100) * costs.foodPerHundred);
-    const goldCost = costs.goldPerBattalion;
-
+    // Simple upkeep: 1 food per 50 units. No tier multipliers, no gold cost.
+    const foodCost = Math.ceil(b.size / 50) * FOOD_PER_50_UNITS;
     totalFood += foodCost;
-    totalGold += goldCost;
 
     breakdown.push({
       battalionId: b.id,
@@ -72,7 +71,7 @@ export function calculateUpkeep(battalions: Battalion[]): UpkeepBill {
       tier: b.tier,
       size: b.size,
       foodCost,
-      goldCost,
+      goldCost: 0, // no gold upkeep
     });
   }
 
