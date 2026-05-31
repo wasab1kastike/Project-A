@@ -372,6 +372,7 @@ export async function getCastlePageState({
               xp: true,
               readyAt: true,
               stance: true,
+              mode: true,
               garrisonedAt: true,
               assignments: {
                 select: {
@@ -1429,6 +1430,7 @@ export async function getCastlePageState({
             xp: b.xp,
             readyAt: b.readyAt?.getTime() ?? null,
             stance: b.stance,
+            mode: b.mode ?? "GUARD",
             garrisonedAt: b.garrisonedAt,
             frontId: b.assignments?.[0]?.frontId ?? null,
           })),

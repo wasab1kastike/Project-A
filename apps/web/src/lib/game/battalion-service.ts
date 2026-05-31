@@ -429,10 +429,17 @@ export async function setBattalionMode({
     throw new GameError(`Invalid mode: ${mode}. Use GUARD, ATTACK, RESERVE, or ALLIANCE.`);
   }
 
-  console.log(`[battalion-mode] ${userId} setting ${battalionId} to ${mode}`);
-  await prisma.battalion.update({
+  // Ownership check
+  const battalion = await prisma.battalion.findFirst({
     where: { id: battalionId, fortressId },
+  });
+
+  if (!battalion) {
+    throw new GameError("Battalion not found.");
+  }
+
+  await prisma.battalion.update({
+    where: { id: battalionId },
     data: { mode },
   });
-  console.log(`[battalion-mode] success`);
 }
