@@ -5,6 +5,7 @@ import type { Session } from "next-auth";
 import { auth } from "@/auth";
 import { getCastlePageState } from "@/lib/game/castle-read-model";
 import { getPoliticsPageState } from "@/lib/game/politics-read-model";
+import { getArcadeHubState } from "@/lib/game/arcade";
 import { CastleManagement } from "./castle-management";
 import styles from "./page.module.css";
 
@@ -51,11 +52,13 @@ export default async function CastlePage() {
 
   let state: Awaited<ReturnType<typeof getCastlePageState>>;
   let politicsState: Awaited<ReturnType<typeof getPoliticsPageState>> | null = null;
+  let shopState: Awaited<ReturnType<typeof getArcadeHubState>> | null = null;
 
   try {
-    [state, politicsState] = await Promise.all([
+    [state, politicsState, shopState] = await Promise.all([
       getCastlePageState({ userId: session.user.id }),
       getPoliticsPageState({ userId: session.user.id }),
+      getArcadeHubState({ userId: session.user.id }),
     ]);
   } catch (error) {
     const errorId = "castle-load-error";
@@ -85,6 +88,7 @@ export default async function CastlePage() {
           playerSummary={state.playerSummary}
           targets={state.availableTargets}
           politicsState={politicsState}
+          shopState={shopState}
         />
       </div>
     </main>

@@ -694,10 +694,12 @@ export function CastleManagement({
   playerSummary,
   targets,
   politicsState,
+  shopState,
 }: {
   playerSummary: PlayerSummary;
   targets: CommandTarget[];
   politicsState: any;
+  shopState: any;
 }) {
   const refreshView = useRefreshView();
   const [workers, setWorkers] = useState({
@@ -2029,20 +2031,108 @@ export function CastleManagement({
       ) : null}
 
       {activeTab === "SHOP" ? (
-      <section className={styles.panel}>
-        <div className={styles.panelHeader}>
-          <span>Cosmetics</span>
-          <strong>Shop</strong>
+      shopState ? (
+        <div style={{ padding: "8px 0" }}>
+          <section className={styles.panel}>
+            <div className={styles.panelHeader}>
+              <span>Shop</span>
+              <strong>{shopState.walletBalance?.toLocaleString() ?? 0} coins</strong>
+            </div>
+            <p className={styles.muted}>
+              Buy loot boxes to unlock unit and fortress skins. Equipped skins
+              show on the map and battlefield.
+            </p>
+          </section>
+          {shopState.shop?.boxes?.length > 0 ? (
+            <section className={styles.panel}>
+              <div className={styles.panelHeader}><span>Loot Boxes</span></div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {shopState.shop.boxes.map((box: any) => (
+                  <form
+                    key={box.type}
+                    action={async () => {
+                      const { purchaseArcadeLootBoxAction } = await import("@/app/game-actions");
+                      const formData = new FormData();
+                      formData.set("boxType", box.type);
+                      await purchaseArcadeLootBoxAction(formData);
+                      refreshView();
+                    }}
+                    style={{
+                      flex: "1 1 140px",
+                      background: "var(--bg-raised)",
+                      borderRadius: 8,
+                      padding: 12,
+                      textAlign: "center",
+                      border: "1px solid var(--border)",
+                    }}
+                  >
+                    <div style={{ fontSize: 24 }}>{box.type === "UNIT" ? "👥" : "🏰"}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{box.type}</div>
+                    <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{box.price} coins</div>
+                    <button
+                      type="submit"
+                      disabled={!shopState.canBuy || (shopState.walletBalance ?? 0) < box.price}
+                      style={{
+                        marginTop: 8,
+                        padding: "4px 12px",
+                        fontSize: 12,
+                        background: "var(--color-accent, #48f)",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: 4,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Buy
+                    </button>
+                  </form>
+                ))}
+              </div>
+            </section>
+          ) : null}
+          {shopState.ownedSkins?.length > 0 ? (
+            <section className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <span>Inventory</span>
+                <strong>{shopState.ownedSkins.length} skins</strong>
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                {shopState.ownedSkins.slice(0, 12).map((skin: any) => (
+                  <div
+                    key={skin.id}
+                    style={{
+                      padding: "4px 8px",
+                      fontSize: 12,
+                      background: skin.equipped ? "#2a4a2a" : "var(--bg-raised)",
+                      borderRadius: 4,
+                      border: skin.equipped ? "1px solid #4caf50" : "1px solid var(--border)",
+                    }}
+                  >
+                    {skin.variantId} {skin.equipped ? "✓" : ""}
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
+          {shopState.unopenedPurchases?.length > 0 ? (
+            <section className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <span>Unopened</span>
+                <strong>{shopState.unopenedPurchases.length} crates</strong>
+              </div>
+              <p className={styles.muted}>
+                Open your crates from the <a href="/shop">full shop page</a> to
+                reveal your skins.
+              </p>
+            </section>
+          ) : null}
         </div>
-        <p className={styles.muted}>
-          Visit the <a href="/shop">full shop</a> to buy loot boxes, equip cosmetics, and manage your fortress and unit skins.
-        </p>
-        <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
-          <a href="/shop" className={styles.button} style={{ textDecoration: "none", padding: "6px 14px", fontSize: "0.8rem" }}>
-            Open Shop
-          </a>
-        </div>
-      </section>
+      ) : (
+        <section className={styles.panel}>
+          <div className={styles.panelHeader}><span>Shop</span></div>
+          <p className={styles.muted}>Loading shop data...</p>
+        </section>
+      )
       ) : null}
 
       </div>
