@@ -2609,6 +2609,7 @@ export function BattlefieldExperience({
           roadSegments={roadSegments}
           battalionMarkers={battalionMarkers}
           convoyMarkers={convoyMarkers}
+          battlefields={battlefields}
           selectedFortressId={selectedFortressId}
           selectedTargetId={selectedTargetId}
           selectedTileId={selectedTileId}
