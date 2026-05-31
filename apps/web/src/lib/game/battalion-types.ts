@@ -179,26 +179,21 @@ export type Battalion = {
 /**
  * Maximum battalion slots by fortress level.
  */
-export const BATTALION_SLOTS_BY_LEVEL: Record<number, number> = {
-  1: 3,
-  2: 3,
-  3: 4,
-  4: 4,
-  5: 5,
-  6: 5,
-  7: 6,
-  8: 6,
-  9: 7,
-  10: 7,
-  11: 8,
-  12: 8,
-  13: 9,
-  14: 9,
-  15: 10,
-};
+/**
+ * Battalion slots based on barracks level (not fortress level).
+ * Default: 3 slots. +1 per 2 barracks levels.
+ */
+export function getBaseBattalionSlots(barracksLevel: number): number {
+  if (barracksLevel <= 1) return 3;
+  if (barracksLevel <= 3) return 4;
+  if (barracksLevel <= 5) return 5;
+  if (barracksLevel <= 7) return 6;
+  if (barracksLevel <= 9) return 7;
+  return 7; // max base slots
+}
 
-/** Maximum natural slots (level 15+). */
-export const MAX_NATURAL_SLOTS = 10;
+/** Maximum natural slots. */
+export const MAX_NATURAL_SLOTS = 7;
 
 /** Extra slots purchasable with gold. */
 export const EXTRA_SLOT_COSTS: number[] = [2_000, 5_000, 12_000];
@@ -208,13 +203,17 @@ export const ABSOLUTE_MAX_BATTALIONS = MAX_NATURAL_SLOTS + EXTRA_SLOT_COSTS.leng
 
 /**
  * Get the total battalion slots for a fortress.
+ * @param barracksLevel — current barracks level (0 = level 1, 9 = level 10)
+ * @param extraSlotsPurchased — bonus slots from skills/shop
+ * @param skillBonus — additional slots from skill tree
  */
 export function getBattalionSlots(
-  level: number,
+  barracksLevel: number,
   extraSlotsPurchased: number,
+  skillBonus = 0,
 ): number {
-  const natural = BATTALION_SLOTS_BY_LEVEL[Math.min(level, 15)] ?? 10;
-  return Math.min(natural + extraSlotsPurchased, ABSOLUTE_MAX_BATTALIONS);
+  const natural = getBaseBattalionSlots(barracksLevel);
+  return Math.min(natural + extraSlotsPurchased + skillBonus, ABSOLUTE_MAX_BATTALIONS);
 }
 
 /**

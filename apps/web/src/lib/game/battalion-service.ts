@@ -13,7 +13,6 @@ import {
   BATTALION_EXPAND_COST_PER_50,
   MAX_BATTALION_SIZE,
   TIER_MAX_SIZES,
-  BATTALION_SLOTS_BY_LEVEL,
   getBattalionSlots,
   generateBattalionName,
   type BattalionTier,
@@ -32,7 +31,7 @@ export async function createBattalion(args: {
   fortressLevel: number;
   existingBattalionCount: number;
 }): Promise<{ id: string; name: string }> {
-  const slots = getBattalionSlots(args.fortressLevel, 0);
+  const slots = getBattalionSlots(args.fortressLevel, 0); // fortress level = barracks level until separate stat
   if (args.existingBattalionCount >= slots) {
     throw new GameError(
       `Maximum battalions reached (${slots}). Upgrade your fortress to unlock more slots.`,
