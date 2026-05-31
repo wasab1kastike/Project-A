@@ -201,37 +201,30 @@ export async function processAutoWarDispatch(args: {
       remainingDeduction -= take;
     }
 
+    // Compute arrival time based on distance.
+    const attackTile = HEX_TILES.find((t) => t.id === target.tileId);
+    const travelMinutes = attackTile
+      ? Math.max(1, Math.floor(estimateDistance(attacker, defender) / 10))
+      : 5;
+    const arrivesAt = new Date(now.getTime() + travelMinutes * 60_000);
+
     try {
-      await db.$transaction(async (tx) => {
-        const order = await tx.armyOrder.create({
-          data: {
-            cycleId,
-            fortressId: attacker.id,
-            type: "CAMPAIGN",
-            status: "ACTIVE",
-            committedArmy: cappedAmount,
-            targetTileId: target.tileId,
-            targetFortressId: defender.id,
-            startsAt: now,
-          },
-        });
-        await tx.territoryCampaign.create({
-          data: {
-            cycleId,
-            attackerFortressId: attacker.id,
-            defenderFortressId: defender.id,
-            targetTileId: target.tileId,
-            armyOrderId: order.id,
-            status: "BUILDING",
-            progress: 0,
-          },
-        });
-        console.log(
-          `[auto-war] ${attacker.id} → ${defender.id}: ${cappedAmount} army → ${target.tileId} (${aggression})`,
-        );
+      await db.attackUnit.create({
+        data: {
+          cycleId,
+          attackerFortressId: attacker.id,
+          targetFortressId: defender.id,
+          fortifyTargetTileId: target.tileId,
+          armyAmount: cappedAmount,
+          launchedAt: now,
+          arrivesAt,
+        },
       });
+      console.log(
+        `[auto-war] ${attacker.id} → ${defender.id}: ${cappedAmount} army → ${target.tileId} (arrives in ${travelMinutes}m)`,
+      );
     } catch (_err) {
-      // Campaign may already exist — fine.
+      // Attack unit creation may fail — fine.
     }
   }
 }
