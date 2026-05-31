@@ -5283,7 +5283,7 @@ async function processCycleTick(
   }
 
   // === BATTALION RECRUITMENT & GUARD DISTRIBUTION ===
-  if (isSeasonFour) {
+  if (true) { // Always run for Season 4 test season
     // Build recruiters map from fortress data.
     const recruitersByFortress = new Map<string, number>();
     const raceByFortress = new Map<string, string | null>();
@@ -5442,7 +5442,8 @@ async function processCycleTick(
   // Distribues combat losses proportionally across battalions.
   // Runs every tick, so multi-tick battles update incrementally.
   // Kill tracking (unitsKilled) is handled separately by the existing combat code.
-  if (isSeasonFour) {
+  // Always reconcile battalion casualties (not gated — needed for all cycles).
+  {
     const postCombatArmy = new Map<string, number>();
     const preCombatArmy = new Map<string, number>();
 
