@@ -1,96 +1,68 @@
 # Combat
 
-> Attacks, battlefields, territory campaigns, and standing orders.
+> How battles work in Season 4.
 
 ---
 
-## Direct Attacks
+## Auto-War
 
-1. Select a target fortress or owned tile
-2. Commit army — units travel across the map
-3. Travel time = distance ÷ speed (modified by race bonuses)
-4. On arrival: `damage = army × attackMultiplier × raceBonus`
-5. Defender's army and fortress HP absorb the damage
-6. Surviving attacker army returns home
+Combat is automated. When you declare war:
 
-### Attack Caps
+1. **Front auto-created** — a war front opens against the enemy
+2. **Battalions dispatch** — idle battalions are committed to attack
+3. **Units march** — visible on the map, following roads
+4. **Battlefield forms** — on arrival, combat begins
+5. **Resolution** — casualties each tick until one side runs out
 
-You can have **2 + fortress level** simultaneous outbound attacks. Space Murines get **2 + 2×level**.
+**Aggression stance** controls how much of each battalion is committed:
+- **Cautious**: 30%
+- **Balanced**: 60% (default)  
+- **Aggressive**: 100%
 
----
+## Battlefield Mechanics
 
-## Battlefields (Season 4)
-
-When multiple attackers target the same fortress, a **Battlefield** forms instead of individual attacks:
-
-| Phase | Timing | What Happens |
-|-------|--------|-------------|
-| **Visible** | Immediately | Battlefield appears on the map for player castle / owned tile battles |
-| **Delay** | 1 hour | Combat casualties start after `startedAt` |
-| **Active** | Until resolved | Casualties ramp from 100→1000 units/tick |
-| **Resolution** | One side at 0 army | Winner takes loot, score, and bragging rights |
-
-### Joining a Battlefield
-
-Reinforce either side by sending army. You'll be added as an `ATTACKER` or `DEFENDER` participant. Reinforcements join immediately but casualties scale with total army committed.
-
-### Battlefield Scoring
-
-- Participants earn `BATTLEFIELD_REWARD` score events
-- The side that initiated the battlefield gets bonus points
-- Loot is distributed based on army contribution
-
-### Exceptions
-
-- **Home of A** battlefields skip the 1-hour delay
-- **Dwarf Rune** battlefields skip the 1-hour delay
-- Reusing an active battlefield does NOT reset `startedAt`
-
----
-
-## Territory Campaigns
-
-Siege a tile to force a battlefield on it:
-
-| Phase | Duration | What Happens |
-|-------|----------|-------------|
-| **Building** | Variable | Progress builds per tick from committed army |
-| **Siege Warning** | 12 hours | Defender gets advance notice |
-| **Engaged** | Until resolved | Battlefield opens on the tile |
-| **Resolved** | — | Winner claims the tile |
-
-Start a campaign with the **CAMPAIGN** standing order. Campaigns can be canceled during the Building phase.
-
----
-
-## Standing Orders
-
-| Order | What It Does |
+| Phase | What Happens |
 |-------|-------------|
-| **GUARD** | Station army on a tile — defends against pressure and attacks |
-| **ESCORT** | Protect a specific convoy leg from enemy raids |
-| **RAID** | Intercept enemy convoys — steal cargo mid-transit |
-| **CAMPAIGN** | Siege a tile to trigger a territory battlefield |
+| **March** | Units travel tile-by-tile (visible on map) |
+| **Arrival** | Battlefield created at target fortress |
+| **Combat** | Both sides lose units each tick |
+| **Resolution** | One side reaches 0 army → winner determined |
 
-Orders consume army that stays committed until the order is completed, transferred, or canceled.
+**Guards** on the defender's tiles add to their army. **Kills** track on the leaderboard.
 
----
+## Battlefield Priority
 
-## Fortress Garrison
-
-Station army on your fortress tiles for passive defense. Garrisoned army:
-- Absorbs attack damage before fortress HP
-- Doesn't produce or move while stationed
-- Can be recalled instantly
-
----
+If you have multiple battlefields, you can prioritize which ones receive reinforcements:
+- **Reinforce First** — all available army routes here
+- **Normal** — standard priority
+- **Low** — only if nothing else needs help
 
 ## Damage Formula
 
 ```
-baseDamage = attackingArmy × attackMultiplier
-attackMultiplier = 1.0 + (upgradeBonus) + (raceBonus) + (bossOrderBuff)
-finalDamage = baseDamage × (1 - defenderDefenseBonus)
+damage = attackingArmy × tierMultiplier × moraleMultiplier
+defense = defendingArmy × defenseMultiplier × guardBonus
 ```
 
-Defender's army absorbs damage first. Remaining damage hits fortress HP. Fortress destroyed at 0 HP — attacker can claim the tile.
+Higher tier battalions deal more damage and take less. Elite (tier 3) deals 1.6× and has 1.45× defense.
+
+## Campaigns
+
+Campaigns are the legacy siege system. Auto-war now uses direct attacks instead.
+
+| Mechanic | Detail |
+|----------|--------|
+| Progress | Army + pressure workers build progress |
+| Threshold | 3,600 to trigger siege warning |
+| Warning | 12-hour response window |
+| Siege | Battlefield opens after warning |
+
+---
+
+## Fatigue
+
+After combat, battalions become fatigued. Fatigued battalions fight at -25% effectiveness. Recovery takes:
+- **Skirmish**: 10 minutes
+- **Full battle**: 30 minutes
+
+Rotate battalions to keep fresh troops on the front.

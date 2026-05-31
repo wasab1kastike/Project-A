@@ -23,6 +23,8 @@ export async function generateStaticParams() {
     "getting-started",
     "races",
     "economy",
+    "army",
+    "expansion",
     "combat",
     "diplomacy",
     "trade",
