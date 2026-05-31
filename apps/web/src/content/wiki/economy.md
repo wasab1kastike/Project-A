@@ -1,98 +1,66 @@
 # Economy
 
-> Gold, food, army, and workers. How your fortress grows.
+> Production, upgrades, skills, and shops.
 
 ---
 
-## Resources
+## Production (Per Tick)
 
-| Resource | Produced By | Used For |
-|----------|------------|----------|
-| **Gold** | Miners, attacks, trade, abilities | Upgrades, abilities, trade, grudge upgrades |
-| **Food** | Farmers, owned tiles | Feeds army. Starvation (0 food) = 2% army lost per tick |
-| **Army** | Recruiters, race bonuses | Attacks, defense, standing orders, battlefields |
-| **Points** | Everything | Leaderboard ranking. Most points = win. |
+| Resource | Per Worker | Race Bonuses |
+|----------|-----------|-------------|
+| Gold | 3 | Dwarfs +1/10 miners |
+| Food | 2 | — |
+| Army | 3 | Orks +1/10 recruiters |
 
-Resources never go below zero.
-
----
-
-## Workers
-
-Assign workers across four roles. Total workers scale with fortress level. Reassignment is instant but once per tick.
-
-| Role | Produces |
-|------|----------|
-| **Miners** | Gold per tick |
-| **Farmers** | Food per tick |
-| **Recruiters** | Process the recruitment queue — army per tick |
-| **Pressure Workers** | Pressure on neighboring tiles (Season 4) |
-
-### Production Formula
-
-```
-Gold  = miners × baseRate × tileBonus × raceBonus
-Food  = farmers × baseRate × tileBonus
-Army  = recruiters process recruitment queue
-```
-
-Race bonuses:
-- Dwarfs: bonus gold from miners on owned tiles
-- Orks: bonus army production during Waaagh
-- Space Murines: bonus trade value
-- Unicorns: Reality Flux random bonuses
+Population: 35 base + 12 per fortress level.
 
 ---
 
-## Upgrades
+## Fortress Upgrades
 
-Castle upgrades improve your fortress. Four paths:
-
-| Path | What It Improves |
-|------|-----------------|
-| **Points** | Score multiplier per tick |
-| **Food** | Food production rate |
-| **Military** | Army production + attack damage |
-| **Defense** | Fortress HP + damage reduction |
-
-Upgrades cost gold and time. One upgrade project active at a time. Costs and durations scale with level.
-
----
-
-## Recruitment
-
-Recruiters process the **recruitment queue** — a running total of pending army orders. Each tick:
-
-1. Recruiters consume gold and food from the queue
-2. Army is added to your fortress
-3. Orks produce bonus army during Waaagh tiers
-4. Space Murines can trade for efficient army delivery
+| Level | Cost |
+|-------|------|
+| 1→2 | 2,000g |
+| 2→3 | 6,000g |
+| 3→4 | 12,000g |
+| 4→5 | 20,000g |
+| 5→6 | 30,000g |
+| 6→7 | 42,000g |
+| 7→8 | 56,000g |
+| 8→9 | 72,000g |
+| 9→10 | 90,000g |
 
 ---
 
-## Tiles & Territory
+## Upkeep
 
-### Owned Tiles
+Battalion upkeep is tiered:
 
-Tiles you control produce bonus resources each tick. More tiles = stronger economy, but harder to defend.
+| Tier | Food/100 units | Gold/Battalion |
+|------|---------------|----------------|
+| Recruit | 1 | 0 |
+| Regular | 2 | 1 |
+| Veteran | 3 | 2 |
+| Elite | 5 | 4 |
 
-### Claiming Tiles (Season 4)
-
-1. Assign **pressure workers** to a neighboring tile
-2. Pressure builds at 1 per worker per tick
-3. At **600 pressure**, if uncontested, the tile flips to you
-4. Competing pressure from other fortresses delays claims
-5. Pressure decays 10% per hour on unsupported tiles
-
-### Tile Priorities
-
-Mark tiles with `TilePressurePriority` to focus your workers' pressure. Unmarked tiles receive pressure only after priorities are satisfied.
+Gold shortfall causes equipment decay (-2% per tick). Food shortfall causes desertion.
 
 ---
 
-## Starvation
+## Skill Trees
 
-If your food hits zero:
-- Army loses **2% per tick** to starvation
-- Production continues but army drains fast
-- Keep food positive — trade for it if you must
+Each race has 3 paths with 8 nodes each. Earn skill points from castle level and owned tiles (max 12 points). Skills provide:
+- Population, production, pressure bonuses
+- Guard efficiency, battalion XP, campaign speed
+- Trade cargo value, road building
+- Promotion discounts, upkeep reductions
+
+---
+
+## Trade
+
+Trade is highly profitable in Season 4:
+- Cargo values: gold 1×, food 1.5×, army 3×
+- Alliance trust tiers add delivery bonuses (10-35%)
+- Points awarded on delivery
+- Space Murines get extra trade bonuses
