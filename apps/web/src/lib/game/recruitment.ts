@@ -15,7 +15,8 @@ import {
 // ── Production Formula ───────────────────────────────────────────────────────
 
 /** Base army units produced per recruiter per tick. */
-export const BASE_RECRUITMENT_RATE = 2; // 2 units per recruiter per tick
+export const BASE_RECRUITMENT_RATE = 3; // 3 units per recruiter per tick
+export const RECRUITMENT_COST_PER_UNIT = 2; // 2 gold per unit produced
 
 /** Bonus recruitment rate from barracks upgrades (0–1 range). */
 export const BARRACKS_BONUS_PER_LEVEL = 0.15; // +15% per barracks level
@@ -33,6 +34,10 @@ export function calculateRecruitment(
   const base = recruiters * BASE_RECRUITMENT_RATE;
   const barracksMultiplier = 1 + barracksLevel * BARRACKS_BONUS_PER_LEVEL;
   return Math.floor(base * barracksMultiplier * raceBonus);
+}
+
+export function getRecruitmentCost(units: number): number {
+  return units * RECRUITMENT_COST_PER_UNIT;
 }
 
 // ── Battalion Auto-Fill ──────────────────────────────────────────────────────
