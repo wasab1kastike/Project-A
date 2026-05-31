@@ -1153,6 +1153,7 @@ async function processSeasonFourConvoys({
       orderBy: [{ arrivesAt: "asc" }, { id: "asc" }],
     });
     let scoreEventsCreated = 0;
+    const deliveredConvoyLegs: Array<{ fromFortressId: string; toFortressId: string }> = [];
 
     for (const leg of legs) {
       const relation = await tx.diplomacyRelation.findUnique({
@@ -1523,6 +1524,11 @@ async function processSeasonFourConvoys({
       });
 
       if (!seized) {
+        deliveredConvoyLegs.push({
+          fromFortressId: leg.fromFortressId,
+          toFortressId: leg.toFortressId,
+        });
+
         await tx.fortress.update({
           where: { id: leg.fromFortressId },
           data: {
@@ -1653,7 +1659,7 @@ async function processSeasonFourConvoys({
       }
     }
 
-    return scoreEventsCreated;
+    return { scoreEventsCreated, deliveredConvoyLegs };
   }, TICK_TRANSACTION_OPTIONS);
 }
 
@@ -2665,6 +2671,7 @@ async function processCycleTick(
   });
 
   let convoyScoreEventsCreated = 0;
+  let deliveredConvoyLegs: Array<{ fromFortressId: string; toFortressId: string }> = [];
 
   // Auto-war dispatch (always runs for debugging; requires WarPolicy + battalions)
   if (true) {
@@ -2833,11 +2840,13 @@ async function processCycleTick(
     });
 
     await processSeasonFourCampaigns({ db, cycleId, tickAt });
-    convoyScoreEventsCreated = await processSeasonFourConvoys({
+    const convoyResult = await processSeasonFourConvoys({
       db,
       cycleId,
       tickAt,
     });
+    convoyScoreEventsCreated = convoyResult.scoreEventsCreated;
+    deliveredConvoyLegs = convoyResult.deliveredConvoyLegs;
   }
 
   // Eternal goblins: loot camps no longer expire from timers
@@ -3590,6 +3599,25 @@ async function processCycleTick(
           now: tickAt,
         });
       }
+    }
+  }
+
+  // Record road crossings for delivered convoy legs (trade caravans build roads).
+  // Each convoy contributes multiple crossings since caravans wear paths faster.
+  const CONVOY_ROAD_CROSSINGS = 10;
+  for (const leg of deliveredConvoyLegs) {
+    const from = fortressLookup.get(leg.fromFortressId);
+    const to = fortressLookup.get(leg.toFortressId);
+    if (from && to) {
+      await recordUnitRoadCrossings({
+        cycleId,
+        originMapX: from.mapX,
+        originMapY: from.mapY,
+        targetMapX: to.mapX,
+        targetMapY: to.mapY,
+        armyAmount: CONVOY_ROAD_CROSSINGS,
+        now: tickAt,
+      });
     }
   }
 

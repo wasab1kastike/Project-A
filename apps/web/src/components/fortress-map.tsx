@@ -213,6 +213,13 @@ type FortressMapProps = {
     x2: number;
     y2: number;
   }>;
+  tradeRouteLines?: Array<{
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+    deliveries: number;
+  }>;
   roadSegments?: Array<{
     tileId: string;
     level: number;
@@ -994,6 +1001,7 @@ export const FortressMap = memo(function FortressMap({
   activeBattleFortressIds = [],
   highlightedTileIds = [],
   alliedRoads = [],
+  tradeRouteLines = [],
   roadSegments = [],
   battalionMarkers = [],
   convoyMarkers = [],
@@ -1666,7 +1674,7 @@ export const FortressMap = memo(function FortressMap({
             highlightedTileIds={highlightedTileIds}
             onSelectMapHex={onSelectMapHex}
           />
-          {(alliedRoads.length > 0 || roadSegments.length > 0) ? (
+          {(alliedRoads.length > 0 || tradeRouteLines.length > 0 || roadSegments.length > 0) ? (
         <svg
           className={styles.roadsLayer}
           viewBox={`0 0 ${MAP_WORLD_WIDTH} ${MAP_WORLD_HEIGHT}`}
@@ -1680,6 +1688,16 @@ export const FortressMap = memo(function FortressMap({
               x2={road.x2 * MAP_WORLD_WIDTH / 100}
               y2={road.y2 * MAP_WORLD_HEIGHT / 100}
               className={styles.roadLine}
+            />
+          ))}
+          {tradeRouteLines.map((route, i) => (
+            <line
+              key={`trade-${i}`}
+              x1={route.x1 * MAP_WORLD_WIDTH / 100}
+              y1={route.y1 * MAP_WORLD_HEIGHT / 100}
+              x2={route.x2 * MAP_WORLD_WIDTH / 100}
+              y2={route.y2 * MAP_WORLD_HEIGHT / 100}
+              className={styles.tradeRouteLine}
             />
           ))}
           {computeRoadEdges(roadSegments, HEX_TILES).map((edge, i) => (

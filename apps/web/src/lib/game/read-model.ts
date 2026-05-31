@@ -4115,6 +4115,38 @@ export async function getHomePageState({
       guardPercent: p.guardPercent,
       defaultAggression: p.defaultAggression,
     })),
+    // Established trade routes: fortress pairs with ≥3 completed deliveries
+    // get a persistent golden trade route line on the map.
+    tradeRouteLines: await (async () => {
+      const completedLegs = await db.convoyLeg.groupBy({
+        by: ["fromFortressId", "toFortressId"],
+        where: {
+          cycleId: cycle.id,
+          status: "DELIVERED",
+        },
+        _count: { id: true },
+      });
+
+      const ESTABLISHED_ROUTE_THRESHOLD = 3;
+      const fortresses = cycle.fortresses ?? [];
+      const fortressById = new Map(fortresses.map((f) => [f.id, f]));
+
+      return completedLegs
+        .filter((leg) => leg._count.id >= ESTABLISHED_ROUTE_THRESHOLD)
+        .map((leg) => {
+          const from = fortressById.get(leg.fromFortressId);
+          const to = fortressById.get(leg.toFortressId);
+          if (!from || !to) return null;
+          return {
+            x1: from.mapX,
+            y1: from.mapY,
+            x2: to.mapX,
+            y2: to.mapY,
+            deliveries: leg._count.id,
+          };
+        })
+        .filter((r): r is NonNullable<typeof r> => r !== null);
+    })(),
     convoyMarkers: (cycle.convoyLegs ?? []).map((leg) => ({
       id: leg.id,
       fromFortressId: leg.fromFortressId,

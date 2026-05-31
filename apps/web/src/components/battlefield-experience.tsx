@@ -383,6 +383,7 @@ export function BattlefieldExperience({
   battlefields,
   attackUnits,
   alliedRoads = [],
+  tradeRouteLines = [],
   roadSegments = [],
   battalionMarkers = [],
   convoyMarkers = [],
@@ -402,6 +403,7 @@ export function BattlefieldExperience({
   battlefields: ActiveBattlefield[];
   attackUnits: AttackUnitMarker[];
   alliedRoads?: Array<{ x1: number; y1: number; x2: number; y2: number }>;
+  tradeRouteLines?: Array<{ x1: number; y1: number; x2: number; y2: number; deliveries: number }>;
   roadSegments?: Array<{ tileId: string; level: number; crossings: number }>;
   battalionMarkers?: Array<{
     tileId: string;
@@ -2603,6 +2605,7 @@ export function BattlefieldExperience({
           mapHexes={mapHexes}
           attackUnits={visibleAttackUnits}
           alliedRoads={alliedRoads}
+          tradeRouteLines={tradeRouteLines}
           roadSegments={roadSegments}
           battalionMarkers={battalionMarkers}
           convoyMarkers={convoyMarkers}
