@@ -30,7 +30,7 @@ const RACE_TOKEN_PATHS: Record<FortressRace, string> = {
 const DOCK_LINKS = [
   { href: "/", label: "Map", icon: "\uD83D\uDDFA" },
   { href: "/castle", label: "Castle", icon: "\uD83C\uDFF0" },
-  { href: "/politics", label: "Politics", icon: "\u2696" },
+  { href: "/wiki", label: "Wiki", icon: "\uD83D\uDCD6" },
   { href: "/history", label: "Reports", icon: "\uD83D\uDCCB" },
 ] as const;
 
@@ -165,7 +165,7 @@ export default function CommandDock({
   const showPlayerStatus = Boolean(state.cycle && state.playerSummary);
 
   function getLinkBadge(href: (typeof DOCK_LINKS)[number]["href"]) {
-    if (href === "/politics" && incomingOffersCount > 0) {
+    if (href === "/wiki") {
       return { text: String(incomingOffersCount), severity: "info" } as const;
     }
 
