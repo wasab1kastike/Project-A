@@ -206,7 +206,7 @@ export function getNeutralPressureClaimWinner({
 export const OWNERSHIP_PRESSURE_DECAY_PER_TICK = 2;
 
 /** Maintenance: pressure regained per pressure worker assigned to this tile. */
-export const OWNERSHIP_PRESSURE_MAINTENANCE_PER_WORKER = 1;
+export const OWNERSHIP_PRESSURE_MAINTENANCE_PER_WORKER = 4;
 
 /** Enemy pressure: each enemy pressure point reduces ownership by this much. */
 export const ENEMY_PRESSURE_DECAY_MULTIPLIER = 0.5;
