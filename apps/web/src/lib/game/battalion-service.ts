@@ -159,7 +159,7 @@ export async function setBattalionStance(args: {
   fortressId: string;
   stance: string;
 }): Promise<void> {
-  const validStances = ["FORTIFY", "MOBILE"]; // REST/TRAINING/PATROL/AMBUSH planned for future
+  const validStances = ["FORTIFY", "PATROL", "TRAINING", "AMBUSH", "REST", "MOBILE"];
   if (!validStances.includes(args.stance)) {
     throw new GameError(`Invalid stance: ${args.stance}`);
   }
@@ -172,9 +172,24 @@ export async function setBattalionStance(args: {
     throw new GameError("Battalion not found.");
   }
 
-  // FORTIFY stance locks the battalion for 1 hour.
+  // PATROL requires a garrisoned position
+  if (args.stance === "PATROL" && !battalion.garrisonedAt) {
+    throw new GameError("PATROL stance requires the battalion to be garrisoned at a tile.");
+  }
+
+  // Stance lock durations (prevents stance-hopping)
+  const LOCK_DURATIONS: Record<string, number> = {
+    FORTIFY: 3_600_000,   // 1 hour
+    AMBUSH: 3_600_000,    // 1 hour
+    PATROL: 0,            // freely switchable
+    TRAINING: 0,          // freely switchable
+    REST: 0,              // freely switchable
+    MOBILE: 0,            // freely switchable
+  };
   const stanceLockedUntil =
-    args.stance === "FORTIFY" ? new Date(Date.now() + 3_600_000) : null;
+    LOCK_DURATIONS[args.stance] > 0
+      ? new Date(Date.now() + LOCK_DURATIONS[args.stance])
+      : null;
 
   await prisma.battalion.update({
     where: { id: args.battalionId },
