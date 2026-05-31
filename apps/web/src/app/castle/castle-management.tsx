@@ -1564,7 +1564,8 @@ export function CastleManagement({
                     defaultValue={bn.maxSize}
                     onBlur={async (e) => {
                       const v = Number(e.target.value);
-                      if (Number.isFinite(v) && v > bn.maxSize && v <= 300) {
+                      const tierMax = [500, 5000, 15000, 50000][bn.tier] ?? 500;
+                      if (Number.isFinite(v) && v >= bn.size && v <= tierMax && v !== bn.maxSize) {
                         const { expandBattalionAction } = await import("@/app/game-actions");
                         await expandBattalionAction({
                           battalionId: bn.id,
