@@ -11,6 +11,7 @@
     "god:run": "tsx src/lib/openclaw/god-runner.ts",
     "lint": "eslint",
     "test:game": "tsx --test src/lib/game/game.test.ts",
+    "test:game:unit": "tsx --test src/lib/game/battalion-integration.test.ts",
     "typecheck": "tsc --noEmit",
     "db:dev": "prisma dev --name project-a",
     "db:deploy": "prisma migrate deploy --schema prisma/schema.prisma",
