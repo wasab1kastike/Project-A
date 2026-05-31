@@ -2662,6 +2662,59 @@ async function processCycleTick(
     isSeasonFour,
   });
 
+  // Process ownership pressure decay for owned tiles.
+  if (isSeasonFour) {
+    const { processAllOwnershipPressure } = await import("./tile-pressure");
+    const allOwnerships = await db.mapHexOwnership.findMany({
+      where: { cycleId },
+      select: { tileId: true, ownerFortressId: true, ownershipPressure: true },
+    });
+    const guardTiles = new Set(
+      (await db.fortressGarrison.findMany({
+        where: { cycleId, army: { gt: 0 } },
+        select: { tileId: true },
+      })).map((g) => g.tileId),
+    );
+
+    // Enemy pressure on each tile.
+    const enemyPressures = await db.tilePressureState.findMany({
+      where: { cycleId },
+      select: { tileId: true, fortressId: true, pressure: true },
+    });
+
+    const enemyPressureByTile = new Map<string, number>();
+    for (const ep of enemyPressures) {
+      const existing = enemyPressureByTile.get(ep.tileId) ?? 0;
+      enemyPressureByTile.set(ep.tileId, existing + ep.pressure);
+    }
+
+    const inputs = allOwnerships.map((o) => ({
+      tileId: o.tileId,
+      ownerFortressId: o.ownerFortressId,
+      currentPressure: o.ownershipPressure,
+      maintenanceWorkers: 0, // future: workersAssignedToTile
+      enemyPressureOnTile: enemyPressureByTile.get(o.tileId) ?? 0,
+      hasGuard: guardTiles.has(o.tileId),
+    }));
+
+    const result = processAllOwnershipPressure(inputs);
+
+    // Write pressure updates.
+    for (const upd of result.updates) {
+      await db.mapHexOwnership.update({
+        where: { cycleId_tileId: { cycleId, tileId: upd.tileId } },
+        data: { ownershipPressure: upd.newPressure },
+      });
+    }
+
+    // Remove lost tiles.
+    for (const tileId of result.lostTiles) {
+      await db.mapHexOwnership.delete({
+        where: { cycleId_tileId: { cycleId, tileId } },
+      });
+    }
+  }
+
   let convoyScoreEventsCreated = 0;
 
   if (isSeasonFour) {
