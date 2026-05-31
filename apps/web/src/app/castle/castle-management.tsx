@@ -1825,7 +1825,7 @@ export function CastleManagement({
           </ul>
         ) : (
           <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
-            No active war fronts. Declare war and open a front from the battlefield.
+            No active war fronts. Go to <strong>Diplomacy</strong> tab → declare war on a player. Battalions will auto-attack on the next tick.
           </p>
         )}
       </section>
