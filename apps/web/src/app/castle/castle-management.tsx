@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useMemo, useState, type FormEvent } from "react";
 import { useRefreshView } from "@/lib/refresh-helpers";
 import { RaceSkillPanel } from "@/components/race-skill-panel";
+import { PoliticsClient } from "@/app/politics/politics-client";
 
 import {
   purchaseSkillNodeAction,
@@ -363,7 +364,7 @@ type CommandTarget = {
 };
 
 type BuildingSpecialization = "POINTS" | "FOOD" | "MILITARY" | "DEFENSE";
-type CastleTab = "OVERVIEW" | "ECONOMY" | "WAR_ROOM" | "POLITICS" | "TRADE" | "SKILLS" | "SHOP";
+type CastleTab = "OVERVIEW" | "ECONOMY" | "WAR_ROOM" | "DIPLOMACY" | "SKILLS" | "SHOP";
 type WorkerAssignmentKey =
   | "minersAssigned"
   | "farmersAssigned"
@@ -505,8 +506,7 @@ const CASTLE_TABS = [
   { key: "OVERVIEW", label: "Overview" },
   { key: "ECONOMY", label: "Economy" },
   { key: "WAR_ROOM", label: "War Room" },
-  { key: "POLITICS", label: "Politics" },
-  { key: "TRADE", label: "Trade" },
+  { key: "DIPLOMACY", label: "Diplomacy" },
   { key: "SKILLS", label: "Skills" },
   { key: "SHOP", label: "Shop" },
 ] as const satisfies readonly { key: CastleTab; label: string }[];
@@ -693,9 +693,11 @@ function getRecruitmentDisplayState({
 export function CastleManagement({
   playerSummary,
   targets,
+  politicsState,
 }: {
   playerSummary: PlayerSummary;
   targets: CommandTarget[];
+  politicsState: any;
 }) {
   const refreshView = useRefreshView();
   const [workers, setWorkers] = useState({
@@ -1978,40 +1980,18 @@ export function CastleManagement({
       </section>
       ) : null}
 
-      {activeTab === "POLITICS" ? (
-      <section className={styles.panel}>
-        <div className={styles.panelHeader}>
-          <span>Politics</span>
-          <strong>Diplomacy</strong>
-        </div>
-        <p className={styles.muted}>
-          Manage alliances, declare war, and negotiate peace from the{" "}
-          <a href="/politics">full politics page</a>.
-        </p>
-        <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
-          <a href="/politics" className={styles.button} style={{ textDecoration: "none", padding: "6px 14px", fontSize: "0.8rem" }}>
-            Open Politics
-          </a>
-        </div>
-      </section>
-      ) : null}
-
-      {activeTab === "TRADE" ? (
-      <section className={styles.panel}>
-        <div className={styles.panelHeader}>
-          <span>Trade</span>
-          <strong>Commerce</strong>
-        </div>
-        <p className={styles.muted}>
-          Create trade offers, manage convoys, and review active trades on the{" "}
-          <a href="/politics">trade page</a>.
-        </p>
-        <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
-          <a href="/politics" className={styles.button} style={{ textDecoration: "none", padding: "6px 14px", fontSize: "0.8rem" }}>
-            Open Trade
-          </a>
-        </div>
-      </section>
+      {activeTab === "DIPLOMACY" ? (
+      politicsState ? (
+        <PoliticsClient state={politicsState} />
+      ) : (
+        <section className={styles.panel}>
+          <div className={styles.panelHeader}>
+            <span>Diplomacy</span>
+            <strong>Politics & Trade</strong>
+          </div>
+          <p className={styles.muted}>Loading diplomacy data...</p>
+        </section>
+      )
       ) : null}
 
       {activeTab === "SKILLS" ? (
