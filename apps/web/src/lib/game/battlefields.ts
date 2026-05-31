@@ -1799,6 +1799,25 @@ export async function processActiveBattlefields({
           createdAt: tickAt,
         });
       }
+
+      // Kill reward points: bonus points for enemy casualties inflicted
+      if (killReward > 0) {
+        const killPoints = Math.max(1, Math.floor(killReward / 2));
+        scoreEvents.push({
+          cycleId,
+          fortressId: participant.fortressId,
+          targetFortressId: battlefield.targetFortressId,
+          eventType: isTileBattle
+            ? ScoreEventType.TILE_BATTLE_REWARD
+            : ScoreEventType.BATTLEFIELD_REWARD,
+          delta: killPoints,
+          createdAt: tickAt,
+        });
+        await db.fortress.update({
+          where: { id: participant.fortressId },
+          data: { points: { increment: killPoints } },
+        });
+      }
     }
 
     const targetGoldLooted = stealsFromPlayerCastle

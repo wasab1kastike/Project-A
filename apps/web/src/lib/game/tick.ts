@@ -833,6 +833,23 @@ async function processTilePressureExpansion({
         },
       });
       ownerByTileId.set(tileId, winnerFortressId);
+
+      // Award points for claiming a neutral tile
+      const TILE_CLAIM_POINTS = 5;
+      await tx.scoreEvent.create({
+        data: {
+          cycleId,
+          fortressId: winnerFortressId,
+          eventType: ScoreEventType.TILE_CLAIM,
+          delta: TILE_CLAIM_POINTS,
+          createdAt: tickAt,
+        },
+      });
+      await tx.fortress.update({
+        where: { id: winnerFortressId },
+        data: { points: { increment: TILE_CLAIM_POINTS } },
+      });
+
       await tx.tilePressurePriority.deleteMany({
         where: {
           cycleId,
@@ -1154,6 +1171,21 @@ async function processSeasonFourConvoys({
     });
     let scoreEventsCreated = 0;
     const deliveredConvoyLegs: Array<{ fromFortressId: string; toFortressId: string }> = [];
+
+    // Count completed deliveries per fortress pair for trade hub bonus
+    const completedDeliveries = await tx.convoyLeg.groupBy({
+      by: ["fromFortressId", "toFortressId"],
+      where: {
+        cycleId,
+        status: ConvoyLegStatus.DELIVERED,
+      },
+      _count: { id: true },
+    });
+    const establishedDeliveriesByPair = new Map<string, number>();
+    for (const row of completedDeliveries) {
+      const key = `${row.fromFortressId}:${row.toFortressId}`;
+      establishedDeliveriesByPair.set(key, row._count.id);
+    }
 
     for (const leg of legs) {
       const relation = await tx.diplomacyRelation.findUnique({
@@ -1509,9 +1541,11 @@ async function processSeasonFourConvoys({
         isAllied: effectiveStatus === DiplomacyRelationStatus.ALLIED,
         trustTier: relation?.allianceTrustTier ?? 0,
       });
+      const pairKey = `${leg.fromFortressId}:${leg.toFortressId}`;
+      const establishedCount = establishedDeliveriesByPair.get(pairKey) ?? 0;
       const points = seized
         ? { total: 0, sender: 0, receiver: 0 }
-        : splitTradeDeliveryPoints(leg.baseCargoValue);
+        : splitTradeDeliveryPoints(leg.baseCargoValue, establishedCount);
 
       await tx.fortress.update({
         where: { id: leg.toFortressId },
@@ -5009,6 +5043,27 @@ async function processCycleTick(
           createdAt: tickAt,
         }
       );
+
+      // Winner bonus: attacker gets bonus points for defeating enemy army
+      if (
+        outcome.outcome === "ATTACKER_WIN" &&
+        outcome.defenderLosses > 0
+      ) {
+        const winnerBonus = Math.max(1, Math.floor(outcome.defenderLosses / 50));
+        scoreEvents.push({
+          cycleId,
+          fortressId: attacker.id,
+          actorId: attacker.ownerId,
+          targetFortressId: target.id,
+          eventType: ScoreEventType.ATTACK_TARGET,
+          delta: winnerBonus,
+          createdAt: tickAt,
+        });
+        currentPoints.set(
+          attacker.id,
+          (currentPoints.get(attacker.id) ?? 0) + winnerBonus
+        );
+      }
     }
   }
 
@@ -5021,6 +5076,17 @@ async function processCycleTick(
       tileId: true,
     },
   });
+
+  // Load road data for road network bonus
+  const roadTiles = new Set(
+    (
+      await db.mapHexRoad.findMany({
+        where: { cycleId, level: { gte: 1 } },
+        select: { tileId: true },
+      })
+    ).map((r) => r.tileId)
+  );
+
   const tileGarrisons = await db.fortressGarrison.findMany({
     where: {
       cycleId,
@@ -5095,7 +5161,10 @@ async function processCycleTick(
 
     tileBonusesByFortressId.set(bonusFortressId, {
       gold: current.gold + boostedBonus.gold,
-      points: current.points + boostedBonus.points,
+      points:
+        current.points +
+        boostedBonus.points +
+        (roadTiles.has(ownership.tileId) ? 1 : 0), // +1 pt/tick for road-connected tiles
       food: current.food + boostedBonus.food,
       army: current.army + boostedBonus.army,
     });

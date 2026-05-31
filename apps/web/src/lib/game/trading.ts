@@ -61,8 +61,15 @@ export function calculateTradeCargoValue(cargo: TradeCargo) {
   return cargo.gold + cargo.food * 1.5 + cargo.army * 3;
 }
 
-export function splitTradeDeliveryPoints(cargoValue: number) {
-  const total = Math.floor(cargoValue / 500); // doubled points (was /1000)
+export function splitTradeDeliveryPoints(
+  cargoValue: number,
+  establishedDeliveries = 0,
+) {
+  const ESTABLISHED_ROUTE_BONUS = 5; // ≥5 deliveries = established trade route
+  const basePoints = Math.floor(cargoValue / 500); // doubled points (was /1000)
+  const bonusMultiplier =
+    establishedDeliveries >= ESTABLISHED_ROUTE_BONUS ? 1.25 : 1.0;
+  const total = Math.floor(basePoints * bonusMultiplier);
   const receiver = Math.floor(total / 2);
 
   return {
