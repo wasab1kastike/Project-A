@@ -198,10 +198,28 @@ type MarkerTapState = {
 
 export type { AttackUnitMarker, MapFortress, MapHexOwnershipMarker };
 
+type BattlefieldIndicatorData = {
+  id: string;
+  targetTileId: string | null;
+  targetFortressId: string | null;
+  attackerArmyRemaining: number;
+  defenderArmyRemaining: number;
+  attackerArmyLabel: string;
+  defenderArmyLabel: string;
+  progress: number;
+  battleIntensityPercent: number;
+  momentumTier: string;
+  incomingAttackerArmy: number;
+  incomingDefenderArmy: number;
+  attackerBanner: { name: string };
+  defenderBanner: { name: string } | null;
+};
+
 type FortressMapProps = {
   fortresses: MapFortress[];
   mapHexes?: MapHexOwnershipMarker[];
   attackUnits?: AttackUnitMarker[];
+  battlefields?: BattlefieldIndicatorData[];
   selectedFortressId?: string | null;
   selectedTargetId?: string | null;
   selectedTileId?: string | null;
@@ -456,11 +474,13 @@ function HexTileMap({
   selectedTileId,
   highlightedTileIds = [],
   onSelectMapHex,
+  battlefieldById,
 }: {
   mapHexes: MapHexOwnershipMarker[];
   selectedTileId?: string | null;
   highlightedTileIds?: string[];
   onSelectMapHex?: (tileId: string) => void;
+  battlefieldById: Map<string, BattlefieldIndicatorData>;
 }) {
   const ownershipByTileId = new Map(
     mapHexes.map((ownership) => [ownership.tileId, ownership])
@@ -655,11 +675,24 @@ function HexTileMap({
               />
             ) : null}
             {ownership?.hasActiveBattle ? (
-              <g className={styles.battleIndicator}>
+              <g
+                className={`${styles.battleIndicator} ${
+                  (() => {
+                    const bf = ownership.activeBattlefieldId
+                      ? battlefieldById.get(ownership.activeBattlefieldId)
+                      : null;
+                    if (!bf) return "";
+                    if (bf.battleIntensityPercent >= 70) return styles.battleIntensityHigh;
+                    if (bf.battleIntensityPercent >= 30) return styles.battleIntensityMid;
+                    return styles.battleIntensityLow;
+                  })()
+                }`}
+              >
+                {/* Crossed swords icon */}
                 <image
                   xlinkHref={CROSSED_SWORDS_PATH}
                   x={tile.x - 20}
-                  y={tile.y - 20}
+                  y={tile.y - 24}
                   width={40}
                   height={40}
                   onError={(e) => {
@@ -668,12 +701,103 @@ function HexTileMap({
                 />
                 <text
                   x={tile.x}
-                  y={tile.y + 6}
+                  y={tile.y + 2}
                   textAnchor="middle"
                   className={styles.battleText}
                 >
                   ⚔️
                 </text>
+                {/* Army counts and progress bar — only if we have detail data */}
+                {(() => {
+                  const bf = ownership.activeBattlefieldId
+                    ? battlefieldById.get(ownership.activeBattlefieldId)
+                    : null;
+                  if (!bf) return null;
+                  return (
+                    <>
+                      {/* Attacker count badge (left) */}
+                      <rect
+                        x={tile.x - 30}
+                        y={tile.y + 6}
+                        width={26}
+                        height={12}
+                        rx={3}
+                        className={styles.battleArmyBadge}
+                        fill="rgba(220,80,40,0.85)"
+                      />
+                      <text
+                        x={tile.x - 17}
+                        y={tile.y + 15}
+                        textAnchor="middle"
+                        className={styles.battleArmyLabel}
+                      >
+                        {bf.attackerArmyLabel}
+                      </text>
+                      {/* Defender count badge (right) */}
+                      <rect
+                        x={tile.x + 4}
+                        y={tile.y + 6}
+                        width={26}
+                        height={12}
+                        rx={3}
+                        className={styles.battleArmyBadge}
+                        fill="rgba(40,120,220,0.85)"
+                      />
+                      <text
+                        x={tile.x + 17}
+                        y={tile.y + 15}
+                        textAnchor="middle"
+                        className={styles.battleArmyLabel}
+                      >
+                        {bf.defenderArmyLabel}
+                      </text>
+                      {/* Progress bar background */}
+                      <rect
+                        x={tile.x - 22}
+                        y={tile.y + 20}
+                        width={44}
+                        height={4}
+                        rx={2}
+                        fill="rgba(0,0,0,0.5)"
+                      />
+                      {/* Progress bar fill */}
+                      <rect
+                        x={tile.x - 22}
+                        y={tile.y + 20}
+                        width={Math.max(2, Math.round(44 * Math.min(1, bf.progress / 100)))}
+                        height={4}
+                        rx={2}
+                        fill={
+                          bf.momentumTier === "ATTACKER_STRONG" || bf.momentumTier === "ATTACKER_EDGE"
+                            ? "#ff6b35"
+                            : bf.momentumTier === "DEFENDER_STRONG" || bf.momentumTier === "DEFENDER_EDGE"
+                            ? "#4488ff"
+                            : "#ffd700"
+                        }
+                      />
+                      {/* Incoming reinforcement arrows */}
+                      {bf.incomingAttackerArmy > 0 ? (
+                        <text
+                          x={tile.x - 30}
+                          y={tile.y - 26}
+                          className={styles.battleReinforceArrow}
+                        >
+                          ▲{bf.incomingAttackerArmy}
+                        </text>
+                      ) : null}
+                      {bf.incomingDefenderArmy > 0 ? (
+                        <text
+                          x={tile.x + 30}
+                          y={tile.y - 26}
+                          textAnchor="end"
+                          className={styles.battleReinforceArrow}
+                        >
+                          ▲{bf.incomingDefenderArmy}
+                        </text>
+                      ) : null}
+                    </>
+                  );
+                })()}
               </g>
             ) : null}
 
@@ -1005,6 +1129,7 @@ export const FortressMap = memo(function FortressMap({
   roadSegments = [],
   battalionMarkers = [],
   convoyMarkers = [],
+  battlefields = [],
   onSelectFortress,
   onConfirmAttackTarget,
   onSelectMapHex,
@@ -1134,6 +1259,13 @@ export const FortressMap = memo(function FortressMap({
 
   const ownFortress =
     fortresses.find((fortress) => fortress.isCurrentUser) ?? null;
+
+  // Battlefield detail lookup: battlefieldId → BattlefieldIndicatorData
+  const battlefieldById = useMemo(
+    () => new Map(battlefields.map((bf) => [bf.id, bf])),
+    [battlefields]
+  );
+
   const guardMarkers = useMemo(() => {
     const spriteByFortressId = new Map(
       fortresses.map((f) => [
@@ -1755,6 +1887,7 @@ export const FortressMap = memo(function FortressMap({
             selectedTileId={selectedTileId}
             highlightedTileIds={highlightedTileIds}
             onSelectMapHex={onSelectMapHex}
+            battlefieldById={battlefieldById}
           />
           {(alliedRoads.length > 0 || tradeRouteLines.length > 0 || roadSegments.length > 0) ? (
         <svg
