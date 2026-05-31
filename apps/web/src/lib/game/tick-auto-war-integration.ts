@@ -77,8 +77,11 @@ export async function processAutoWarDispatch(args: {
   // Find fortresses at war.
   const warPairs = diplomacyRelations.filter((r) => r.status === "WAR");
 
-  console.log(`[auto-war] found ${warPairs.length} war pairs, ${activeCampaigns.length} active campaigns`);
-  if (warPairs.length === 0) return;
+  console.log(`[auto-war] tick check: ${warPairs.length} war pairs, ${activeCampaigns.length} campaigns, ${fortresses.length} fortresses`);
+  if (warPairs.length === 0) {
+    console.log(`[auto-war] no war pairs — diplomacy data: ${diplomacyRelations.length} relations total`);
+    return;
+  }
 
   // Build lookup: fortress ID → owned tiles
   const ownedByFortress = new Map<string, Set<string>>();
