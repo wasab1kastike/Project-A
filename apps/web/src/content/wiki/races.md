@@ -1,96 +1,74 @@
 # Races
 
-> Four races, eight doctrines, infinite grudges.
+> Four races, four playstyles. Choose wisely — it's locked for the season.
 
 ---
 
-## Dwarfs — Grudge & Gold
+## Dwarfs 🪨
 
 > *"The ledger is long, and every debt must be paid."*
 
-Dwarfs are defensive economists. They thrive by holding territory, building grudges against enemies, and investing in deep mining expeditions.
+**Defensive economists**. Excel at holding territory and building grudges.
 
-### Doctrine: Holdfast
-- Stronger fortress HP
-- Slower pressure decay on owned tiles
-- Best for: turtle defense, territory holding
+| Trait | Bonus |
+|-------|-------|
+| Defense | +10% |
+| Gold per 10 miners | +1 |
+| Guard efficiency | +15-25% (skills) |
+| Battalion max size | +15-25% (skills) |
 
-### Doctrine: Watchkeepers
-- Extra grudge slot (4 total)
-- Faster bounty point accrual
-- Best for: grudge economy, bounty hunting
-
-### Abilities
-- **Grudge Economy** (passive) — Declare grudges against enemies. Grudges generate bounty points per tick. Collect bounty when the target takes damage.
-- **Deep Mining** (active, 1h cooldown) — Invest gold in a mining expedition. 30 minutes later, reap the rewards — or the cave-in.
+**Playstyle**: Build a strong economy, fortify borders, and let enemies break against your walls. Use Deep Mining for gold windfalls.
 
 ---
 
-## Orks — Scrap & Waaagh!
+## Orks 💀
 
 > *"Scrap makes da world go round. WAAAGH!"*
 
-Orks are aggressive snowballers. Combat generates scrap, scrap fuels Boss Orders and Waaagh tiers, and Waaagh makes everything better. Keep fighting or decay.
+**Aggressive snowballers**. Combat generates scrap, scrap fuels more combat.
 
-### Doctrine: Marauders
-- Bonus loot from attacks
-- Faster scrap generation from combat
-- Best for: raiding, hit-and-run
+| Trait | Bonus |
+|-------|-------|
+| Army production | +20% |
+| Campaign speed | +10-30% (skills) |
+| Battalion XP | +15% (skills) |
+| Scrap economy | Earn from combat events |
 
-### Doctrine: Siegebreakers
-- Faster campaign progress
-- Bonus battlefield damage
-- Best for: territory conquest, sieges
-
-### Abilities
-- **Scrap Economy** (passive) — Earn scrap from attacks, kills, and tile claims. Decays 1%/tick if not used. Waaagh tier grants passive bonuses.
-- **Boss Orders** (active, 30m cooldown) — More Dakka (attack), Loot Wagons (gold), or Patch Da Fort (defense). Buffs scale with Waaagh tier.
-- **Waaagh Investment** (active, instant) — Spend scrap to advance or reinforce Waaagh tier.
+**Playstyle**: Fight constantly. Every kill generates scrap. Spend scrap on Boss Orders and Waaagh tiers. Never stop attacking.
 
 ---
 
-## Space Murines — Logistics & Speed
+## Space Murines 🚀
 
 > *"The convoy must go through."*
 
-Space Murines are trade specialists. Their convoy network compounds value from active trade routes, and Rapid Response lets them react to threats instantly.
+**Trade specialists**. Excel at logistics and rapid response.
 
-### Doctrine: Convoy Command
-- Extra convoy leg capacity
-- Stronger escort strength
-- Best for: trade empires, allied logistics
+| Trait | Bonus |
+|-------|-------|
+| Convoy speed | +15% |
+| Cargo value | +10-35% (skills) |
+| Road building | +2-4 rate (skills) |
+| Trade offer time | +1 hour |
 
-### Doctrine: Rapid Response
-- Extra Rapid Response charge (4 total)
-- Shorter cooldown (7 min)
-- Best for: reactive defense, multi-front wars
-
-### Abilities
-- **Convoy Network** (passive) — Bonuses to convoy speed, cargo value, and escort strength scale with active convoy legs (1-10).
-- **Rapid Response** (active, 10m cooldown) — Emergency recall or reinforce. 3 charges, regenerate every 2 hours.
+**Playstyle**: Build a trade empire. Use convoys to fund your economy. Roads make everything faster. Rapid Response for emergencies.
 
 ---
 
-## Unstable Unicorns — Chaos & Choice
+## Unstable Unicorns 🦄
 
 > *"Reality is a suggestion. We have better ideas."*
 
-Unicorns live in chaos. Every tick brings a random flux event — mostly good, sometimes bad. Their active ability lets them *choose* their blessing, but it gets more expensive each time.
+**Chaos agents**. Random flux events every tick create unpredictable advantages.
 
-### Doctrine: Glitter Frontier
-- Bonus pressure per worker
-- Cheaper tile claims
-- Best for: expansion, map control
+| Trait | Bonus |
+|-------|-------|
+| Population | +2 |
+| Battalion XP | +10-30% (skills) |
+| Promotion discount | -15-30% (skills) |
+| Reality Flux | Random boons/curses each tick |
 
-### Doctrine: Veiled Network
-- Boosted flux boon weights
-- Reduced curse frequency
-- Best for: chaos mitigation, consistency
-
-### Abilities
-- **Reality Flux** (passive) — Every tick rolls on a 10-outcome table. ~70% boons, 15% neutral, 15% curses. Constant small narrative beats.
-- **Shattered Reality** (active, 2h cooldown) — Choose from 3 outcomes. Cost escalates: 1,000g → 1,500g → 2,000g...
-- **Temporary Teleport** — Lucky Gallop grants a one-time teleport to any unoccupied tile (10 min stay).
+**Playstyle**: Embrace chaos. Flux gives constant small bonuses. Use promotion discounts to field elite troops. Teleport for surprise attacks.
 
 ---
 
@@ -98,11 +76,9 @@ Unicorns live in chaos. Every tick brings a random flux event — mostly good, s
 
 | If you want to... | Play |
 |-------------------|------|
-| Defend and hold ground | Dwarfs (Holdfast) |
-| Hunt bounties and settle scores | Dwarfs (Watchkeepers) |
-| Fight constantly and snowball | Orks (Marauders) |
-| Conquer territory through sieges | Orks (Siegebreakers) |
-| Build a trade empire | Space Murines (Convoy Command) |
-| React instantly to threats | Space Murines (Rapid Response) |
-| Expand across the map fast | Unicorns (Glitter Frontier) |
-| Embrace chaos with a safety net | Unicorns (Veiled Network) |
+| Defend and outlast | **Dwarfs** |
+| Attack relentlessly | **Orks** |
+| Trade and grow rich | **Space Murines** |
+| Adapt to randomness | **Unicorns** |
+
+Each race has unique skill trees. See [Abilities](abilities) for details.
