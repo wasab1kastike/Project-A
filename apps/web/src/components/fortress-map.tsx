@@ -489,6 +489,76 @@ function HexTileMap({
     () => new Set(highlightedTileIds),
     [highlightedTileIds]
   );
+
+  // ── Pressure heatmap colors ──────────────────────────────────────────
+  const PRESSURE_MAX = 600;
+  const PRESSURE_WARN = 200;
+
+  // Race colors for pressure heatmap
+  const RACE_PRESSURE_COLORS: Record<string, [number, number, number]> = {
+    DWARFS: [74, 123, 191],          // blue
+    ORKS: [90, 158, 75],             // green
+    SPACE_MURINES: [212, 168, 67],   // gold
+    UNSTABLE_UNICORNS: [155, 89, 182], // purple
+  };
+
+  // Biome base colors (darkened slightly for blending)
+  const BIOME_BASE_COLORS: Record<string, [number, number, number]> = {
+    water: [31, 103, 128],
+    coast: [74, 144, 149],
+    plains: [111, 148, 67],
+    forest: [47, 116, 69],
+    hills: [138, 125, 75],
+    mountains: [109, 111, 104],
+    marsh: [79, 128, 97],
+    lake: [43, 122, 160],
+  };
+
+  // Blend two RGB colors with a given ratio (0 = pure a, 1 = pure b)
+  function blendRgb(
+    a: [number, number, number],
+    b: [number, number, number],
+    ratio: number
+  ): string {
+    const r = Math.round(a[0] + (b[0] - a[0]) * ratio);
+    const g = Math.round(a[1] + (b[1] - a[1]) * ratio);
+    const bl = Math.round(a[2] + (b[2] - a[2]) * ratio);
+    return `rgb(${r},${g},${bl})`;
+  }
+
+  // Compute pressure heatmap fill color for a tile
+  const pressureFillByTileId = useMemo(() => {
+    const fills = new Map<string, string>();
+    for (const hex of mapHexes) {
+      const biomeRgb = BIOME_BASE_COLORS[hex.biome ?? "plains"] ?? BIOME_BASE_COLORS.plains;
+
+      if (hex.ownerFortressId && hex.ownershipPressure != null) {
+        // Owned tile: blend biome → race color based on ownership pressure
+        const raceRgb = RACE_PRESSURE_COLORS[hex.ownerRace ?? ""] ?? null;
+        if (raceRgb) {
+          const ratio = Math.min(1, hex.ownershipPressure / PRESSURE_MAX);
+          // Ease the blend: subtle at low pressure, dominant at high
+          const eased = ratio < 0.33
+            ? ratio * 0.3  // barely visible below warning
+            : ratio;
+          fills.set(hex.tileId, blendRgb(biomeRgb, raceRgb, Math.min(1, eased)));
+        }
+      } else if (hex.pressureProgress != null && hex.pressureProgress > 0 && hex.pressureLeaderFortressId) {
+        // Neutral/enemy tile under territorial pressure: subtle wash of leader's race color
+        const leaderRace = mapHexes.find(
+          (h) => h.ownerFortressId === hex.pressureLeaderFortressId
+        )?.ownerRace;
+        const raceRgb = RACE_PRESSURE_COLORS[leaderRace ?? ""] ?? null;
+        if (raceRgb && hex.pressureThreshold) {
+          const ratio = Math.min(1, hex.pressureProgress / hex.pressureThreshold);
+          // Very subtle — max 20% race color at full pressure
+          fills.set(hex.tileId, blendRgb(biomeRgb, raceRgb, ratio * 0.2));
+        }
+      }
+    }
+    return fills;
+  }, [mapHexes]);
+
   const tileTapStateRef = useRef<TileTapState | null>(null);
 
   const handleTilePointerDown = useCallback(
@@ -645,7 +715,14 @@ function HexTileMap({
             onPointerUp={(event) => handleTilePointerUp(event, tile.id)}
             onPointerCancel={(event) => clearTileTap(event, tile.id)}
           >
-            <polygon points={getHexPolygonPoints(tile.x, tile.y)} />
+            <polygon
+              points={getHexPolygonPoints(tile.x, tile.y)}
+              style={
+                pressureFillByTileId.has(tile.id)
+                  ? { fill: pressureFillByTileId.get(tile.id) }
+                  : undefined
+              }
+            />
             <polyline
               points={getHexPolygonPoints(tile.x, tile.y, HEX_RADIUS * 0.72)}
               className={styles.hexInner}
