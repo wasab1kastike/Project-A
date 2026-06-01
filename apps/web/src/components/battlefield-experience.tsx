@@ -83,6 +83,7 @@ type PlayerSummary = {
   outboundAttackUnitCount: number;
   maxSimultaneousAttacks: number;
   seasonFourRulesEnabled?: boolean;
+  pressurePriorityLimit?: number;
 };
 
 type PlayerFortress = {
@@ -433,7 +434,6 @@ export function BattlefieldExperience({
     size: number;
     maxSize: number;
     tier: number;
-    stance: string;
     mode: string;
     fortressId: string;
     unitSpriteVariant: string;
@@ -723,7 +723,7 @@ export function BattlefieldExperience({
           ? SEASON_FOUR_CRESTS.GUARD
           : SEASON_FOUR_CRESTS.CAMPAIGN
     : null;
-  const pressurePriorityLimit = 3;
+  const pressurePriorityLimit = playerSummary?.pressurePriorityLimit ?? 3;
   const pressurePriorityQueue = useMemo(
     () =>
       mapHexes

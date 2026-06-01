@@ -71,6 +71,7 @@ import {
   TILE_PRESSURE_CLAIM_THRESHOLD,
   allocatePressureAcrossTargets,
   calculatePressureOutput,
+  getDistanceAdjustedTilePressureClaimThreshold,
   getTilePressurePriorityLimit,
   getTilePressurePrioritySlot,
   getPressureTargetBlockedReason,
@@ -1017,6 +1018,13 @@ export async function getCastlePageState({
   );
   const priorityQueue = orderedPressurePriorities.map((priority) => {
     const ownerFortressId = ownerByTileId.get(priority.tileId) ?? null;
+    const pressureThreshold = playerFortress
+      ? getDistanceAdjustedTilePressureClaimThreshold({
+          isSeasonFour,
+          fortress: playerFortress,
+          tileId: priority.tileId,
+        })
+      : TILE_PRESSURE_CLAIM_THRESHOLD;
 
     return {
       tileId: priority.tileId,
@@ -1027,6 +1035,7 @@ export async function getCastlePageState({
       ownerFortressId,
       targetKind: ownerFortressId ? "WAR" : "EXPANSION",
       progress: progressByTileId.get(priority.tileId) ?? 0,
+      pressureThreshold,
     };
   });
   const activeNeutralPriorities = legalNeutralPressurePriorities.slice(0, 1);
@@ -1042,6 +1051,7 @@ export async function getCastlePageState({
       progress: number;
       outputPerTick: number;
       rank: number;
+      pressureThreshold: number;
     } | null>((leader, priority) => {
       const candidate = {
         tileId: priority.tileId,
@@ -1051,6 +1061,13 @@ export async function getCastlePageState({
           weight: priority.weight,
           limit: priorityLimit,
         }),
+        pressureThreshold: playerFortress
+          ? getDistanceAdjustedTilePressureClaimThreshold({
+              isSeasonFour,
+              fortress: playerFortress,
+              tileId: priority.tileId,
+            })
+          : TILE_PRESSURE_CLAIM_THRESHOLD,
       };
 
       return !leader ||
@@ -1063,9 +1080,9 @@ export async function getCastlePageState({
   const estimatedMinutesRemaining =
     leadingPriority &&
     leadingPriority.outputPerTick > 0 &&
-    leadingPriority.progress < TILE_PRESSURE_CLAIM_THRESHOLD
+    leadingPriority.progress < leadingPriority.pressureThreshold
       ? Math.ceil(
-          (TILE_PRESSURE_CLAIM_THRESHOLD - leadingPriority.progress) /
+          (leadingPriority.pressureThreshold - leadingPriority.progress) /
             leadingPriority.outputPerTick
         )
       : null;
@@ -1076,7 +1093,8 @@ export async function getCastlePageState({
         priorityLimit,
         priorityQueue,
         leadingPriority,
-        pressureThreshold: TILE_PRESSURE_CLAIM_THRESHOLD,
+        pressureThreshold:
+          leadingPriority?.pressureThreshold ?? TILE_PRESSURE_CLAIM_THRESHOLD,
         estimatedMinutesRemaining,
         decayingPressureCount: pressureStates.filter(
           (state) => !priorityTileIds.has(state.tileId)
