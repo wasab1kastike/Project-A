@@ -12346,6 +12346,7 @@ test("season four testing activates when the production flag is enabled", async 
       db: prisma,
       userId: user.id,
       fortressName: "Active Keep",
+      race: "SPACE_MURINES",
       now: new Date("2026-05-31T09:05:00.000Z"),
     });
 
@@ -12371,6 +12372,20 @@ test("season four testing activates when the production flag is enabled", async 
       activeCycle.activeStartedAt?.toISOString(),
       cycle.registrationEndsAt.toISOString()
     );
+
+    const fortress = await prisma.fortress.findUniqueOrThrow({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: user.id,
+        },
+      },
+      select: {
+        race: true,
+      },
+    });
+
+    assert.equal(fortress.race, "SPACE_MURINES");
   } finally {
     if (originalFlag === undefined) {
       delete process.env.SEASON_4_ACTIVATION_ENABLED;
