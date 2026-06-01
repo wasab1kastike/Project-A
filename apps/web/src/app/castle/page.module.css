@@ -845,7 +845,7 @@
 .buildingCardHeader {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 10px;
 }
 
@@ -869,6 +869,94 @@
   font-family: var(--font-ibm-plex-mono);
   font-size: 0.76rem;
   text-transform: uppercase;
+}
+
+.buildingCard .buildingSpriteShell {
+  position: relative;
+  display: grid;
+  width: 68px;
+  height: 68px;
+  flex: none;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(103, 196, 207, 0.18);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 50% 76%, rgba(103, 196, 207, 0.14), transparent 42%),
+    rgba(2, 8, 13, 0.52);
+}
+
+.buildingCard .buildingSpriteShell::after {
+  position: absolute;
+  inset: 7px;
+  border-radius: 7px;
+  background: linear-gradient(
+    120deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.16) 42%,
+    transparent 68%
+  );
+  content: "";
+  opacity: 0;
+  transform: translateX(-115%);
+}
+
+.buildingCard .buildingSpriteShell[data-upgrading="true"]::after {
+  animation: buildingUpgradeSweep 2.4s ease-in-out infinite;
+}
+
+.buildingCard .buildingSprite {
+  display: block;
+  width: 58px;
+  height: 58px;
+  background-repeat: no-repeat;
+  background-size: 1000% 100%;
+  image-rendering: auto;
+}
+
+.buildingCard .buildingCardTitle {
+  display: grid;
+  flex: 1;
+  gap: 3px;
+  min-width: 0;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  text-transform: none;
+}
+
+.buildingCard .buildingCardTitle strong {
+  min-width: 0;
+}
+
+.buildingCard .buildingCardTitle span {
+  color: #9be7ef;
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+}
+
+@keyframes buildingUpgradeSweep {
+  0%,
+  45% {
+    opacity: 0;
+    transform: translateX(-115%);
+  }
+
+  55% {
+    opacity: 0.95;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(115%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .buildingCard .buildingSpriteShell[data-upgrading="true"]::after {
+    animation: none;
+  }
 }
 
 .form label {
