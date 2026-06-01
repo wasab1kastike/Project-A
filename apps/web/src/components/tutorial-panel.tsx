@@ -82,8 +82,8 @@ const TUTORIAL_STEPS: TutorialStep[] = [
     phase: "Politics",
     title: "Open trade",
     description:
-      "Use Politics to send gold, food, army, or allied tile deeds. Accepted cargo travels by convoy and can build roads.",
-    link: { href: "/politics", label: "Open Politics" },
+      "Use the Castle Diplomacy tab to send gold, food, army, or allied tile deeds. Accepted cargo travels by convoy and can build roads.",
+    link: { href: "/castle", label: "Open Castle" },
     autoCheck: (state) => state.hasTradePartners,
   },
   {
@@ -91,8 +91,8 @@ const TUTORIAL_STEPS: TutorialStep[] = [
     phase: "Politics",
     title: "Propose an alliance",
     description:
-      "Alliances use escrow and trust tiers. Betrayal hurts, so choose partners with intent.",
-    link: { href: "/politics", label: "Open Politics" },
+      "Alliances use trust tiers and optional break collateral. Betrayal hurts, so choose partners with intent.",
+    link: { href: "/castle", label: "Open Castle" },
     autoCheck: (state) => state.hasAllies,
   },
   {

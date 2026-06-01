@@ -280,6 +280,7 @@ DiplomacyRelation
 ├── betrayedById, betrayedAt
 ├── casusBelliFortressId, casusBelliExpiresAt
 ├── collateralGold, collateralFood, collateralArmy
+├── collateralDebtFortressId, collateralDebtGold, collateralDebtFood, collateralDebtArmy
 └── @@unique(cycleId, fortressAId, fortressBId)
 ```
 

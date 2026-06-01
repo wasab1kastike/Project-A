@@ -619,6 +619,11 @@ model DiplomacyRelation {
   collateralGold           Int                     @default(0)
   collateralFood           Int                     @default(0)
   collateralArmy           Int                     @default(0)
+  collateralDebtFortressId String?
+  collateralDebtGold       Int                     @default(0)
+  collateralDebtFood       Int                     @default(0)
+  collateralDebtArmy       Int                     @default(0)
+  collateralDebtRecordedAt DateTime?
   // Alliance offer terms — resources/tile offered as part of alliance proposal
   allianceOfferGold        Int                     @default(0)
   allianceOfferFood        Int                     @default(0)
@@ -642,6 +647,7 @@ model DiplomacyRelation {
   @@index([cycleId, status])
   @@index([fortressAId])
   @@index([fortressBId])
+  @@index([collateralDebtFortressId])
 }
 
 model ArmyOrder {

@@ -4,6 +4,7 @@ import { addHours } from "./time";
 export const WAR_DECLARATION_DELAY_HOURS = 24;
 export const CASUS_BELLI_DURATION_HOURS = 24;
 export type AllianceTrustTier = 1 | 2 | 3;
+export type TreatyPayer = "SELF" | "TARGET";
 
 export const ALLIANCE_TRUST_TERMS: Record<
   AllianceTrustTier,
@@ -32,6 +33,14 @@ export type DiplomacyRelationLike = {
   casusBelliFortressId?: string | null;
   casusBelliExpiresAt?: Date | null;
   peaceLockedUntil?: Date | null;
+  collateralGold?: number;
+  collateralFood?: number;
+  collateralArmy?: number;
+  collateralDebtFortressId?: string | null;
+  collateralDebtGold?: number;
+  collateralDebtFood?: number;
+  collateralDebtArmy?: number;
+  collateralDebtRecordedAt?: Date | null;
   allianceOfferGold?: number;
   allianceOfferFood?: number;
   allianceOfferArmy?: number;

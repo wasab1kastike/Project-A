@@ -156,12 +156,13 @@ Allies can upgrade trust (0→3). Higher tiers grant:
 - Bonus cargo value on trade convoys
 - Escrow gold/food pools for mutual defense
 - Shared battlefield participation
+- Optional break collateral in gold, food, and army. It is not paid up front; whoever betrays the alliance pays what they can immediately and any shortfall remains visible treaty debt.
 
 ### War
 
 - 24-hour warning after declaration (`WAR_PENDING`)
 - Casus belli system — justified wars bypass the 24h delay
-- Peace proposals require mutual acceptance
+- Peace proposals require mutual acceptance and may include instant gold, food, army, or tile demands paid by either side on acceptance
 
 ---
 
