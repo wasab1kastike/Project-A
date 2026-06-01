@@ -54,12 +54,55 @@ export async function getPoliticsPageState({
   now?: Date;
   db?: PrismaClient;
 }) {
-  const cycle = await db.cycle.findFirst({
+  const cycleSummary = await db.cycle.findFirst({
     where: {
       resolvedAt: null,
     },
     orderBy: {
       createdAt: "desc",
+    },
+    select: {
+      id: true,
+      ruleset: true,
+      status: true,
+      testingEndsAt: true,
+      activeEndsAt: true,
+    },
+  });
+
+  if (!cycleSummary || !isGameplayWindowOpen(cycleSummary, now)) {
+    return {
+      canUsePolitics: false,
+      disabledReason: "Politics opens during active gameplay.",
+      playerFortress: null,
+      rows: [],
+      incomingTradeOffers: [],
+      outgoingTradeOffers: [],
+      activeConvoyLegs: [],
+      recentConvoyLegs: [],
+      activeArmyOrders: [],
+      recentCovertIncidents: [],
+    };
+  }
+
+  if (!isSeasonFourRuleset(cycleSummary.ruleset)) {
+    return {
+      canUsePolitics: false,
+      disabledReason: "Politics & Trade opens with the Season 4 ruleset.",
+      playerFortress: null,
+      rows: [],
+      incomingTradeOffers: [],
+      outgoingTradeOffers: [],
+      activeConvoyLegs: [],
+      recentConvoyLegs: [],
+      activeArmyOrders: [],
+      recentCovertIncidents: [],
+    };
+  }
+
+  const cycle = await db.cycle.findUnique({
+    where: {
+      id: cycleSummary.id,
     },
     select: {
       id: true,
@@ -130,25 +173,10 @@ export async function getPoliticsPageState({
     },
   });
 
-  if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+  if (!cycle) {
     return {
       canUsePolitics: false,
       disabledReason: "Politics opens during active gameplay.",
-      playerFortress: null,
-      rows: [],
-      incomingTradeOffers: [],
-      outgoingTradeOffers: [],
-      activeConvoyLegs: [],
-      recentConvoyLegs: [],
-      activeArmyOrders: [],
-      recentCovertIncidents: [],
-    };
-  }
-
-  if (!isSeasonFourRuleset(cycle.ruleset)) {
-    return {
-      canUsePolitics: false,
-      disabledReason: "Politics & Trade opens with the Season 4 ruleset.",
       playerFortress: null,
       rows: [],
       incomingTradeOffers: [],
