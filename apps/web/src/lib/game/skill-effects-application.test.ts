@@ -49,7 +49,7 @@ test("battalion slot skill bonus expands available slots", () => {
   assert.equal(getBattalionSlots(1, 0, 3), 6);
 });
 
-test("skill-sized auto-created battalions use the larger max size", () => {
+test("full battalions do not auto-create new battalions", () => {
   const result = processRecruitmentTick({
     battalions: [battalion({ size: 500, maxSize: 500 })],
     recruiters: 100,
@@ -60,9 +60,39 @@ test("skill-sized auto-created battalions use the larger max size", () => {
     defaultBattalionMaxSize: 725,
   });
 
-  const created = result.battalions.find((candidate) => candidate.id !== "b1");
-  assert.equal(result.battalionCreated, true);
-  assert.equal(created?.maxSize, 725);
+  assert.equal(result.battalions.length, 1);
+  assert.equal(result.battalionCreated, false);
+  assert.equal(result.goldSpent, 0);
+  assert.equal(result.unitsWasted, 300);
+});
+
+test("max army size caps new recruitment without trimming existing battalions", () => {
+  const result = processRecruitmentTick({
+    battalions: [battalion({ size: 490, maxSize: 600 })],
+    recruiters: 10,
+    barracksLevel: 0,
+    raceBonus: 1,
+    totalSlots: 3,
+    gold: 0,
+    maxArmySize: 500,
+  });
+
+  assert.equal(result.unitsProduced, 10);
+  assert.equal(result.battalions[0].size, 500);
+  assert.equal(result.unitsWasted, 0);
+
+  const oversized = processRecruitmentTick({
+    battalions: [battalion({ size: 550, maxSize: 600 })],
+    recruiters: 10,
+    barracksLevel: 0,
+    raceBonus: 1,
+    totalSlots: 3,
+    gold: 0,
+    maxArmySize: 500,
+  });
+
+  assert.equal(oversized.unitsProduced, 0);
+  assert.equal(oversized.battalions[0].size, 550);
 });
 
 test("upkeep and promotion discounts apply to battalion systems", () => {
