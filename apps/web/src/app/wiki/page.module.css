@@ -1,286 +1,366 @@
 .page {
-  width: min(1080px, calc(100% - 32px));
+  width: min(1180px, calc(100% - 40px));
   margin: 0 auto;
-  padding: 56px 0 96px;
-}
-
-.hero,
-.stack,
-.card,
-.raceGrid,
-.tokenGrid,
-.legendGrid,
-.raceCard,
-.tokenCard,
-.legendItem,
-.twoCol,
-.navRow,
-.raceHeader,
-.subCard {
-  display: grid;
-  gap: 16px;
+  padding: 28px 0 72px;
 }
 
 .hero {
-  margin-bottom: 24px;
-}
-
-.heroCopy,
-.card,
-.subCard {
-  padding: 24px;
+  position: relative;
+  display: grid;
+  min-height: 420px;
+  overflow: hidden;
   border: 1px solid var(--border-soft);
-  border-radius: 24px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0)),
-    var(--surface);
-  box-shadow: 0 18px 50px rgba(10, 17, 26, 0.18);
+  border-radius: 8px;
+  background: #101923;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
 }
 
-.subCard {
-  border-radius: 18px;
-  margin-top: 8px;
+.heroImage,
+.heroShade {
+  position: absolute;
+  inset: 0;
+}
+
+.heroImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.heroShade {
+  background:
+    linear-gradient(90deg, rgba(5, 10, 16, 0.94), rgba(5, 10, 16, 0.62) 44%, rgba(5, 10, 16, 0.12)),
+    linear-gradient(0deg, rgba(5, 10, 16, 0.64), transparent 48%);
+}
+
+.heroCopy {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  align-content: end;
+  gap: 18px;
+  max-width: 720px;
+  padding: 48px;
 }
 
 .eyebrow,
-.sectionLabel {
+.cardEyebrow {
   color: var(--accent-strong);
   font-family: var(--font-ibm-plex-mono);
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .heroCopy h1 {
-  max-width: 16ch;
-  font-size: clamp(2rem, 5vw, 3.6rem);
-  line-height: 1;
-  letter-spacing: -0.04em;
+  max-width: 13ch;
+  color: #fff;
+  font-size: clamp(2.5rem, 7vw, 5.2rem);
+  line-height: 0.95;
+  letter-spacing: 0;
 }
 
 .heroCopy p,
-.card p,
-.noteList li,
-.quote {
+.sectionHeader p,
+.infoCard p,
+.diagramStep p,
+.highlights p,
+.noteList,
+.compactList {
   color: var(--text-muted);
-  line-height: 1.65;
+  line-height: 1.62;
 }
 
-.navRow {
+.heroCopy > p:last-of-type {
+  max-width: 56ch;
+  color: #dce5ef;
+  font-size: 1.08rem;
+}
+
+.heroActions {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 10px;
 }
 
 .linkButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 46px;
-  padding: 0 18px;
-  border: 1px solid var(--border-soft);
-  border-radius: 999px;
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
   color: var(--foreground);
-  font-weight: 600;
-  text-decoration: none;
-  transition:
-    transform 160ms ease,
-    border-color 160ms ease,
-    background-color 160ms ease;
+  font-weight: 700;
 }
 
-.raceGrid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.tokenGrid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.raceCard {
-  padding: 18px;
+.highlights,
+.pageNav,
+.section,
+.infoCard,
+.diagramStep {
   border: 1px solid var(--border-soft);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.tokenCard {
-  align-content: start;
-  min-height: 100%;
-  padding: 16px;
-  border: 1px solid var(--border-soft);
-  border-radius: 16px;
+  border-radius: 8px;
   background:
-    radial-gradient(circle at 50% 0%, rgba(255, 198, 88, 0.14), transparent 54%),
-    rgba(255, 255, 255, 0.025);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0)),
+    rgba(9, 17, 27, 0.82);
 }
 
-.tokenFrame {
+.highlights {
   display: grid;
-  place-items: center;
-  min-height: 124px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0)),
-    rgba(5, 10, 16, 0.36);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin: 16px 0;
   overflow: hidden;
 }
 
-.tokenFrame img {
-  width: min(112px, 72%);
-  height: auto;
-  image-rendering: pixelated;
-  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.36));
+.highlights p {
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.025);
 }
 
-.tokenRole {
+.pageNav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 10px;
+}
+
+.pageNav a {
   display: inline-flex;
-  width: fit-content;
-  margin-bottom: 6px;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 11px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.pageNav span {
   color: var(--accent-strong);
   font-family: var(--font-ibm-plex-mono);
   font-size: 0.72rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
-.tokenCard h3,
-.legendItem h3 {
-  font-size: 1rem;
-}
-
-.tokenCard p,
-.legendItem p {
-  color: var(--text-muted);
-  line-height: 1.55;
-}
-
-.legendGrid {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-}
-
-.legendItem {
-  grid-template-columns: auto 1fr;
-  align-items: start;
-  padding: 14px;
-  border: 1px solid var(--border-soft);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.legendMark {
-  width: 18px;
-  height: 18px;
-  margin-top: 4px;
-  border: 2px solid currentColor;
-  border-radius: 5px;
-  background: rgba(255, 255, 255, 0.06);
-  box-shadow: 0 0 18px currentColor;
-}
-
-.legendMarkclaimable {
-  color: #72d787;
-}
-
-.legendMarkowned {
-  color: #5da8ff;
-}
-
-.legendMarkcontested {
-  color: #ffce5c;
-}
-
-.legendMarkbattlefield {
-  color: #ff6a55;
-  border-radius: 50%;
-}
-
-.legendMarkhome {
-  color: #f4d36a;
-  transform: rotate(45deg);
-}
-
-.raceHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.raceHeader strong {
-  font-size: 1.15rem;
-}
-
-.raceHeader span {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 40px;
-  height: 32px;
-  border-radius: 10px;
-  border: 1px solid var(--border-soft);
-  font-family: var(--font-ibm-plex-mono);
-  font-size: 0.78rem;
-  letter-spacing: 0.08em;
-  color: var(--accent-strong);
-}
-
-.quote {
-  font-style: italic;
-}
-
-.twoCol {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.twoCol h3,
-.subCard h3 {
-  font-size: 1rem;
-}
-
-.noteList {
+.stack {
   display: grid;
-  gap: 10px;
+  gap: 16px;
+}
+
+.section {
+  position: relative;
+  display: grid;
+  gap: 18px;
+  padding: 24px;
+  overflow: hidden;
+}
+
+.sectionHeader {
+  display: grid;
+  gap: 9px;
+  max-width: 820px;
+}
+
+.sectionHeader h2 {
+  color: var(--foreground);
+  font-size: clamp(1.45rem, 3vw, 2.3rem);
+  line-height: 1.08;
+  letter-spacing: 0;
+}
+
+.sectionImageFrame {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  display: grid;
+  place-items: center;
+  width: 88px;
+  height: 88px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.sectionImageFrame img {
+  max-width: 72px;
+  max-height: 72px;
+  object-fit: contain;
+}
+
+.noteList,
+.compactList {
+  display: grid;
+  gap: 9px;
   padding-left: 18px;
 }
 
-.noteList li::marker {
+.noteList li::marker,
+.compactList li::marker {
   color: var(--accent-strong);
 }
 
-@media (hover: hover) and (pointer: fine) {
-  .linkButton:hover {
-    transform: translateY(-1px);
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.infoCard {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+  padding: 16px;
+}
+
+.infoCard h3 {
+  font-size: 1.08rem;
+}
+
+.cardImageFrame {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1.3;
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(247, 196, 95, 0.13), transparent 56%),
+    rgba(255, 255, 255, 0.025);
+}
+
+.cardImageFrame img {
+  width: min(122px, 78%);
+  height: auto;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 12px 20px rgba(0, 0, 0, 0.4));
+}
+
+.diagram {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  list-style: none;
+}
+
+.diagramStep {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+}
+
+.diagramNumber {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: rgba(247, 196, 95, 0.16);
+  color: var(--accent-strong);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.82rem;
+}
+
+.diagramStep strong {
+  color: var(--foreground);
+  font-size: 1rem;
+}
+
+.tableScroll {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+  color: var(--text-muted);
+  font-size: 0.94rem;
+}
+
+.table th,
+.table td {
+  padding: 11px 12px;
+  border: 1px solid var(--border-soft);
+  text-align: left;
+  vertical-align: top;
+}
+
+.table th {
+  color: var(--foreground);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.table td:first-child {
+  color: #eef4f8;
+  font-weight: 700;
+}
+
+@media (max-width: 1120px) {
+  .cardGrid,
+  .diagram,
+  .highlights {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 840px) {
-  .raceGrid,
-  .tokenGrid,
-  .legendGrid,
-  .twoCol {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 640px) {
+@media (max-width: 700px) {
   .page {
     width: min(100%, calc(100% - 24px));
-    padding: 40px 0 64px;
+    padding: 16px 0 48px;
   }
 
-  .heroCopy,
-  .card,
-  .subCard {
-    padding: 20px;
-    border-radius: 20px;
+  .hero {
+    min-height: 520px;
   }
 
-  .navRow {
-    flex-direction: column;
+  .heroShade {
+    background:
+      linear-gradient(0deg, rgba(5, 10, 16, 0.94), rgba(5, 10, 16, 0.44)),
+      linear-gradient(90deg, rgba(5, 10, 16, 0.72), rgba(5, 10, 16, 0.18));
+  }
+
+  .heroCopy {
+    padding: 28px;
+  }
+
+  .heroActions {
+    display: grid;
   }
 
   .linkButton {
     width: 100%;
+  }
+
+  .highlights,
+  .cardGrid,
+  .diagram {
+    grid-template-columns: 1fr;
+  }
+
+  .section {
+    padding: 18px;
+  }
+
+  .sectionImageFrame {
+    position: static;
+    width: 64px;
+    height: 64px;
+  }
+
+  .sectionImageFrame img {
+    max-width: 52px;
+    max-height: 52px;
+  }
+
+  .pageNav {
+    display: none;
   }
 }
