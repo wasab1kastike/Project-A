@@ -256,6 +256,9 @@ async function ensureBattalionWarSchemaObjects(db: DatabaseClient) {
   await db.$executeRawUnsafe(
     `ALTER TABLE "Battalion" ADD COLUMN IF NOT EXISTS "mode" TEXT NOT NULL DEFAULT 'GUARD'`
   );
+  await db.$executeRawUnsafe(
+    `ALTER TABLE "AttackUnit" ADD COLUMN IF NOT EXISTS "reinforcementBattalionId" TEXT`
+  );
   await db.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "WarFront" (
       "id" TEXT NOT NULL,
@@ -302,6 +305,9 @@ async function ensureBattalionWarSchemaObjects(db: DatabaseClient) {
     `CREATE INDEX IF NOT EXISTS "Battalion_garrisonedAt_idx" ON "Battalion"("garrisonedAt")`
   );
   await db.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "AttackUnit_reinforcementBattalionId_arrivesAt_idx" ON "AttackUnit"("reinforcementBattalionId", "arrivesAt")`
+  );
+  await db.$executeRawUnsafe(
     `CREATE UNIQUE INDEX IF NOT EXISTS "WarFront_cycleId_attackerFortressId_enemyFortressId_key" ON "WarFront"("cycleId", "attackerFortressId", "enemyFortressId")`
   );
   await db.$executeRawUnsafe(
@@ -331,6 +337,10 @@ async function ensureBattalionWarSchemaObjects(db: DatabaseClient) {
     {
       name: "Battalion_fortressId_fkey",
       sql: `ALTER TABLE "Battalion" ADD CONSTRAINT "Battalion_fortressId_fkey" FOREIGN KEY ("fortressId") REFERENCES "Fortress"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
+    },
+    {
+      name: "AttackUnit_reinforcementBattalionId_fkey",
+      sql: `ALTER TABLE "AttackUnit" ADD CONSTRAINT "AttackUnit_reinforcementBattalionId_fkey" FOREIGN KEY ("reinforcementBattalionId") REFERENCES "Battalion"("id") ON DELETE SET NULL ON UPDATE CASCADE`,
     },
     {
       name: "WarFront_cycleId_fkey",

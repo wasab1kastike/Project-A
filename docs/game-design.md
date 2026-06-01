@@ -155,7 +155,7 @@ NEUTRAL ──declare_war──→ WAR_PENDING (24h) ──→ WAR
 Allies can upgrade trust (0→3). Higher tiers grant:
 - Bonus cargo value on trade convoys
 - Escrow gold/food pools for mutual defense
-- Shared battlefield participation
+- Shared battlefield participation through visible incoming reinforcement marches
 - Optional break collateral in gold, food, and army. It is not paid up front; whoever betrays the alliance pays what they can immediately and any shortfall remains visible treaty debt.
 
 ### War
@@ -165,6 +165,8 @@ Allies can upgrade trust (0→3). Higher tiers grant:
 - Peace proposals require mutual acceptance and may include instant gold, food, army, or tile demands paid by either side on acceptance
 - War fronts are automated from the Castle War Room: only ATTACK-mode battalions with troops can be assigned, and active wars evaluate both directions for automatic dispatch.
 - Existing tile pressure priorities double as preferred wartime targets when the prioritized tile is enemy-owned and reachable from your territory.
+- New troops assigned to battalions stationed away from the castle travel as visible reinforcement marches first; they count as pending capacity but do not become usable battalion size until arrival.
+- ALLIANCE-mode battalions automatically support eligible allied defensive battlefields by launching normal incoming reinforcement marches.
 
 ---
 

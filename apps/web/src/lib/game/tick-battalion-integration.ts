@@ -20,6 +20,29 @@ type TickBattalionContext = {
   now: Date;
 };
 
+type FortressPosition = {
+  mapX: number;
+  mapY: number;
+};
+
+function getBattalionReinforcementArrival({
+  now,
+  fortress,
+  tileId,
+}: {
+  now: Date;
+  fortress: FortressPosition;
+  tileId: string;
+}) {
+  const tile = HEX_TILES.find((candidate) => candidate.id === tileId);
+  if (!tile) return new Date(now.getTime() + 60_000);
+
+  const dx = fortress.mapX - tile.xPercent;
+  const dy = fortress.mapY - tile.yPercent;
+  const approxTiles = Math.max(1, Math.ceil(Math.sqrt(dx * dx + dy * dy) / 3));
+  return new Date(now.getTime() + approxTiles * 60_000);
+}
+
 // ── Recruitment ──────────────────────────────────────────────────────────────
 
 /**
@@ -40,8 +63,9 @@ export async function processBattalionRecruitment(args: {
   goldByFortress: Map<string, number>;
   /** Map of fortressId → WarPolicy maxArmySize */
   maxArmyByFortress: Map<string, number>;
+  fortressPositionsById: Map<string, FortressPosition>;
 }): Promise<Map<string, number>> {
-  const { ctx, recruitersByFortress, raceByFortress, levelByFortress, barracksLevelByFortress, goldByFortress, maxArmyByFortress } = args;
+  const { ctx, recruitersByFortress, raceByFortress, levelByFortress, barracksLevelByFortress, goldByFortress, maxArmyByFortress, fortressPositionsById } = args;
 
   // Load all battalions grouped by fortress.
   const allBattalions = await ctx.db.battalion.findMany({
@@ -62,12 +86,39 @@ export async function processBattalionRecruitment(args: {
   });
 
   const battalionsByFortress = new Map<string, Battalion[]>();
+  const persistedSizeByBattalionId = new Map<string, number>();
+  const pendingRecruitsByBattalionId = new Map<string, number>();
+
+  const pendingBattalionReinforcements = await ctx.db.attackUnit.findMany({
+    where: {
+      cycleId: ctx.cycleId,
+      reinforcementBattalionId: { not: null },
+      resolvedAt: null,
+      cancelledAt: null,
+    },
+    select: {
+      reinforcementBattalionId: true,
+      armyAmount: true,
+    },
+  });
+
+  for (const reinforcement of pendingBattalionReinforcements) {
+    if (!reinforcement.reinforcementBattalionId) continue;
+    pendingRecruitsByBattalionId.set(
+      reinforcement.reinforcementBattalionId,
+      (pendingRecruitsByBattalionId.get(reinforcement.reinforcementBattalionId) ?? 0) +
+        reinforcement.armyAmount,
+    );
+  }
+
   for (const b of allBattalions) {
+    persistedSizeByBattalionId.set(b.id, b.size);
+    const pendingRecruits = pendingRecruitsByBattalionId.get(b.id) ?? 0;
     const list = battalionsByFortress.get(b.fortressId) ?? [];
     list.push({
       id: b.id,
       name: b.name,
-      size: b.size,
+      size: Math.min(b.maxSize, b.size + pendingRecruits),
       maxSize: b.maxSize,
       tier: b.tier as Battalion["tier"],
       xp: b.xp,
@@ -101,6 +152,13 @@ export async function processBattalionRecruitment(args: {
     tier: number;
     xp: number;
     stance: string;
+  }> = [];
+
+  const reinforcementLaunches: Array<{
+    battalionId: string;
+    fortressId: string;
+    tileId: string;
+    armyAmount: number;
   }> = [];
 
   for (const [fortressId, recruiters] of recruitersByFortress) {
@@ -155,9 +213,24 @@ export async function processBattalionRecruitment(args: {
           stance: bn.stance,
         });
       } else {
+        const persistedSize = persistedSizeByBattalionId.get(bn.id) ?? bn.size;
+        const virtualBefore =
+          persistedSize + (pendingRecruitsByBattalionId.get(bn.id) ?? 0);
+        const recruitDelta = Math.max(0, bn.size - virtualBefore);
+        const shouldTravel = Boolean(bn.garrisonedAt) && recruitDelta > 0;
+
+        if (shouldTravel && bn.garrisonedAt) {
+          reinforcementLaunches.push({
+            battalionId: bn.id,
+            fortressId,
+            tileId: bn.garrisonedAt,
+            armyAmount: recruitDelta,
+          });
+        }
+
         battalionUpdates.push({
           id: bn.id,
-          size: bn.size,
+          size: bn.garrisonedAt ? persistedSize : bn.size,
           maxSize: bn.maxSize,
           tier: bn.tier,
           xp: bn.xp,
@@ -170,7 +243,11 @@ export async function processBattalionRecruitment(args: {
     }
 
     // Cap at max army size.
-    const totalAfter = result.battalions.reduce((s, b) => s + b.size, 0);
+    const totalAfter = result.battalions.reduce((sum, b) => {
+      const persistedSize = persistedSizeByBattalionId.get(b.id);
+      if (persistedSize === undefined) return sum + b.size;
+      return sum + (b.garrisonedAt ? persistedSize : b.size);
+    }, 0);
     newArmyByFortress.set(fortressId, Math.min(totalAfter, maxArmy));
   }
 
@@ -195,6 +272,29 @@ export async function processBattalionRecruitment(args: {
 
   if (newBattalions.length > 0) {
     await ctx.db.battalion.createMany({ data: newBattalions });
+  }
+
+  for (const launch of reinforcementLaunches) {
+    const fortress = fortressPositionsById.get(launch.fortressId);
+    await ctx.db.attackUnit.create({
+      data: {
+        cycleId: ctx.cycleId,
+        attackerFortressId: launch.fortressId,
+        targetFortressId: launch.fortressId,
+        reinforcementBattalionId: launch.battalionId,
+        armyAmount: launch.armyAmount,
+        launchedAt: ctx.now,
+        arrivesAt: fortress
+          ? getBattalionReinforcementArrival({
+              now: ctx.now,
+              fortress,
+              tileId: launch.tileId,
+            })
+          : new Date(ctx.now.getTime() + 60_000),
+        returnOriginMapX: fortress?.mapX,
+        returnOriginMapY: fortress?.mapY,
+      },
+    });
   }
 
   return newArmyByFortress;

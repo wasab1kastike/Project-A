@@ -1,5 +1,5 @@
 // =============================================================================
-// Tick Alliance Integration — Reinforce allied battlefields
+// Tick Alliance Integration - reinforce allied battlefields
 // =============================================================================
 // Called from tick.ts. ALLIANCE mode battalions auto-reinforce allied battlefields.
 // =============================================================================
@@ -16,6 +16,7 @@ type BattlefieldSnapshot = {
   id: string;
   defenderBannerFortressId: string | null;
   attackerBannerFortressId: string | null;
+  targetTileId?: string | null;
   status: string;
 };
 
@@ -39,30 +40,27 @@ export async function processAllianceReinforcements(args: {
   for (const ally of allies) {
     if (reinforcesCreated >= 5) break;
 
-    // Find which fortress is allied to which.
     const fortA = ally.fortressAId;
     const fortB = ally.fortressBId;
 
-    // For each fortress, find if they have an active battlefield where they're the defender.
     for (const bf of activeBfs) {
       if (reinforcesCreated >= 5) break;
 
-      // Is this battlefield defending an ally?
       const defenderId = bf.defenderBannerFortressId;
       if (!defenderId) continue;
 
-      // Determine which allied fortress can reinforce.
       let reinforcerId: string | null = null;
       if (defenderId === fortA) reinforcerId = fortB;
       else if (defenderId === fortB) reinforcerId = fortA;
       if (!reinforcerId) continue;
 
-      // Check if already reinforcing this battlefield.
       const existingReinforce = await db.attackUnit.findFirst({
         where: {
           cycleId,
           attackerFortressId: reinforcerId,
-          targetFortressId: defenderId, // reinforcing to ally, not against them
+          targetFortressId: defenderId,
+          reinforcementBattlefieldId: bf.id,
+          reinforcementSide: "DEFENDER",
           resolvedAt: null,
           cancelledAt: null,
           arrivesAt: { gt: now },
@@ -70,7 +68,6 @@ export async function processAllianceReinforcements(args: {
       });
       if (existingReinforce) continue;
 
-      // Find ALLIANCE mode battalions with army.
       const allianceBattalions = await db.battalion.findMany({
         where: { fortressId: reinforcerId, size: { gt: 0 }, mode: "ALLIANCE" },
         orderBy: { size: "desc" },
@@ -79,11 +76,9 @@ export async function processAllianceReinforcements(args: {
       });
       if (allianceBattalions.length === 0) continue;
 
-      // Commit up to 50% of alliance battalion army.
       const totalAvailable = allianceBattalions.reduce((s, b) => s + b.size, 0);
       const commitAmount = Math.max(1, Math.floor(totalAvailable * 0.5));
 
-      // Deduct from battalions proportionally.
       let remaining = commitAmount;
       for (const bn of allianceBattalions) {
         if (remaining <= 0) break;
@@ -95,18 +90,39 @@ export async function processAllianceReinforcements(args: {
         remaining -= take;
       }
 
-      // Directly reinforce the allied battlefield.
-      await db.battlefield.update({
-        where: { id: bf.id },
+      const [reinforcer, defender] = await Promise.all([
+        db.fortress.findUnique({
+          where: { id: reinforcerId },
+          select: { mapX: true, mapY: true },
+        }),
+        db.fortress.findUnique({
+          where: { id: defenderId },
+          select: { mapX: true, mapY: true },
+        }),
+      ]);
+      const dx = (reinforcer?.mapX ?? 0) - (defender?.mapX ?? 0);
+      const dy = (reinforcer?.mapY ?? 0) - (defender?.mapY ?? 0);
+      const travelMinutes = Math.max(
+        1,
+        Math.ceil(Math.sqrt(dx * dx + dy * dy) / 10),
+      );
+
+      await db.attackUnit.create({
         data: {
-          defenderArmyRemaining: { increment: commitAmount },
+          cycleId,
+          attackerFortressId: reinforcerId,
+          targetFortressId: defenderId,
+          reinforcementBattlefieldId: bf.id,
+          reinforcementSide: "DEFENDER",
+          armyAmount: commitAmount,
+          launchedAt: now,
+          arrivesAt: new Date(now.getTime() + travelMinutes * 60_000),
+          returnOriginMapX: reinforcer?.mapX,
+          returnOriginMapY: reinforcer?.mapY,
         },
       });
 
       reinforcesCreated++;
-      console.log(
-        `[alliance] ${reinforcerId} → ${defenderId}: ${commitAmount} army reinforced battlefield ${bf.id}`,
-      );
     }
   }
 }
