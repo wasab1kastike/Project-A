@@ -1556,8 +1556,8 @@ export function CastleManagement({
           })()}
         </div>
         <p className={styles.muted} style={{ fontSize: 11, marginTop: 4 }}>
-          Upkeep deducts food each tick. Recruitment deducts gold when filling battalions.
-          Food shortfall → desertion. Gold shortfall → slower recruitment.
+          Upkeep deducts food each tick. Recruitment orders spend gold up front,
+          then recruiters process the queue. Food shortfall causes desertion.
         </p>
       </section>
 
@@ -1996,16 +1996,16 @@ export function CastleManagement({
         </div>
       </section>
 
-      {/* Passive Recruitment */}
+      {/* Recruitment Queue */}
       <section className={styles.panel}>
         <div className={styles.panelHeader}>
           <span>Recruitment</span>
-          <strong>Passive — assign recruiters</strong>
+          <strong>Paid queue</strong>
         </div>
         <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "4px 0" }}>
-          Army grows passively each tick based on assigned recruiters. Adjust
-          recruiters in the <strong>Economy</strong> tab. Cap growth with max
-          army size above.
+          Order army from Castle operations, then assign recruiters in the
+          Economy tab to train queued units into active army. Queued units do
+          not eat until they finish.
         </p>
         <dl className={styles.readinessGrid}>
           <div>
@@ -2013,8 +2013,8 @@ export function CastleManagement({
             <dd>{playerSummary.army}</dd>
           </div>
           <div>
-            <dt>Recruiters assigned</dt>
-            <dd>{playerSummary.recruitersAssigned ?? 0}</dd>
+            <dt>Recruitment queue</dt>
+            <dd>{playerSummary.recruitmentQueue ?? 0}</dd>
           </div>
           <div>
             <dt>Max army cap</dt>
