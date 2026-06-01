@@ -10,6 +10,7 @@ import { PoliticsClient } from "@/app/politics/politics-client";
 import {
   purchaseSkillNodeAction,
   setAllianceSupportPolicyAction,
+  setGuardPercentAction,
   setMaxArmySizeAction,
   createBattalionAction,
   commitNukeComponentBidAction,
@@ -631,7 +632,7 @@ const RACE_TOKEN_PATHS: Partial<Record<FortressRace, string>> = {
 };
 
 function getVisibleBattalionMode(mode: string | null | undefined) {
-  return mode === "GUARD" || !mode ? "RESERVE" : mode;
+  return mode ?? "GUARD";
 }
 
 function getBuildingsForRace(race: string | null): readonly BuildingMetadata[] {
@@ -1248,6 +1249,9 @@ export function CastleManagement({
   const [maxArmySize, setMaxArmySize] = useState(
     playerSummary.warPolicy?.maxArmySize ?? 500
   );
+  const [guardPercent, setGuardPercent] = useState(
+    playerSummary.warPolicy?.guardPercent ?? 30
+  );
   const [allianceSupportAttack, setAllianceSupportAttack] = useState(
     playerSummary.warPolicy?.allianceSupportAttack ?? true
   );
@@ -1276,6 +1280,18 @@ export function CastleManagement({
       const result = await setMaxArmySizeAction({
         fortressId: playerSummary.id,
         maxArmySize: value,
+      });
+      await handleInlineResult(result);
+    },
+    [playerSummary.id]
+  );
+
+  const handleGuardPercentChange = useCallback(
+    async (value: number) => {
+      setGuardPercent(value);
+      const result = await setGuardPercentAction({
+        fortressId: playerSummary.id,
+        guardPercent: value,
       });
       await handleInlineResult(result);
     },
@@ -2411,16 +2427,22 @@ export function CastleManagement({
                             fontSize: 11,
                             padding: "1px 4px",
                             background:
-                              (bn as any).mode === "ATTACK"
+                              getVisibleBattalionMode((bn as any).mode) === "ATTACK"
                                 ? "#3a2a0a"
                                 : getVisibleBattalionMode((bn as any).mode) ===
+                                    "GUARD"
+                                  ? "#123326"
+                                  : getVisibleBattalionMode((bn as any).mode) ===
                                     "RESERVE"
                                     ? "#2a2a2a"
                                     : "#2a1a3a",
                             color:
-                              (bn as any).mode === "ATTACK"
+                              getVisibleBattalionMode((bn as any).mode) === "ATTACK"
                                 ? "#ffb040"
                                 : getVisibleBattalionMode((bn as any).mode) ===
+                                    "GUARD"
+                                  ? "#62d39a"
+                                  : getVisibleBattalionMode((bn as any).mode) ===
                                     "RESERVE"
                                     ? "#888"
                                     : "#c080ff",
@@ -2431,6 +2453,7 @@ export function CastleManagement({
                           }}
                         >
                           <option value="ATTACK">⚔ Attack</option>
+                          <option value="GUARD">🛡 Guard</option>
                           <option value="RESERVE">📦 Reserve</option>
                           <option value="ALLIANCE">🤝 Alliance</option>
                         </select>
@@ -2911,6 +2934,52 @@ export function CastleManagement({
                 >
                   Set the army ceiling here. Use battalion modes and war front
                   aggression to decide how those troops are committed.
+                </p>
+                <label
+                  style={{
+                    fontSize: 13,
+                    display: "flex",
+                    justifyContent: "space-between",
+                    marginTop: 4,
+                  }}
+                >
+                  <span>Guard allocation</span>
+                  <strong>{guardPercent}%</strong>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={guardPercent}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    if (Number.isFinite(v)) {
+                      setGuardPercent(v);
+                    }
+                  }}
+                  onMouseUp={(e) => {
+                    const v = Number((e.target as HTMLInputElement).value);
+                    if (Number.isFinite(v)) {
+                      handleGuardPercentChange(v);
+                    }
+                  }}
+                  onTouchEnd={(e) => {
+                    const v = Number((e.target as HTMLInputElement).value);
+                    if (Number.isFinite(v)) {
+                      handleGuardPercentChange(v);
+                    }
+                  }}
+                />
+                <p
+                  style={{
+                    fontSize: 12,
+                    color: "var(--text-muted)",
+                    margin: 0,
+                  }}
+                >
+                  GUARD battalions use this share of their force to patrol owned
+                  border tiles each tick.
                 </p>
               </div>
             </section>

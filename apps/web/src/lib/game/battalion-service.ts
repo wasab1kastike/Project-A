@@ -633,9 +633,9 @@ export async function setBattalionMode({
   battalionId: string;
   mode: string;
 }): Promise<void> {
-  const validModes = ["ATTACK", "RESERVE", "ALLIANCE"];
+  const validModes = ["ATTACK", "GUARD", "RESERVE", "ALLIANCE"];
   if (!validModes.includes(mode)) {
-    throw new GameError("Invalid mode. Use ATTACK, RESERVE, or ALLIANCE.");
+    throw new GameError("Invalid mode. Use ATTACK, GUARD, RESERVE, or ALLIANCE.");
   }
 
   const battalion = await getOwnedBattalion(prisma, { userId, battalionId });

@@ -355,7 +355,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
           "During war, queued enemy border tiles guide automated War Front targeting.",
           `Owned tiles decay by ${OWNERSHIP_PRESSURE_DECAY_PER_TICK} ownership pressure per tick.`,
           `Each maintenance worker restores ${OWNERSHIP_PRESSURE_MAINTENANCE_PER_WORKER} pressure per tick.`,
-          "Guard automation is temporarily disabled while War Room focuses on battlefronts.",
+          "GUARD-mode battalions use War Room guard allocation to patrol owned border tiles.",
           `Below ${OWNERSHIP_PRESSURE_WARNING} pressure, the tile is in the warning band.`,
           "At 0 pressure, the tile becomes neutral.",
         ],
@@ -582,8 +582,8 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         bullets: [
           "Sender escorts protect outbound scored cargo.",
           "Convoy raid orders are temporarily disabled.",
-          "Guard patrols are temporarily disabled.",
-          "War Room now focuses on battlefronts, battalions, and army recruitment.",
+          "GUARD-mode battalions patrol owned borders through War Room guard allocation.",
+          "Manual guard orders remain disabled; use battalion modes instead.",
         ],
       },
       {

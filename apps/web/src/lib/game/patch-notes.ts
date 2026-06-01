@@ -17,7 +17,7 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
       "Alliance proposals can include break collateral; betrayal pays what is available and records unpaid collateral as treaty debt.",
       "Trade offers can now move score points through convoy legs alongside gold, food, army, and allied tile deeds.",
       "Castle War Room is now simplified around battlefronts, battalions, army recruitment, and optional alliance support.",
-      "Guard orders and convoy raid patrols are temporarily disabled; active guard and raid orders return their committed army on the next tick.",
+      "GUARD battalion mode is back for owned-border patrols; manual guard orders and convoy raid patrols stay disabled, and active legacy guard or raid orders return their committed army on the next tick.",
       "War Front battalions now dispatch from ATTACK mode in both war directions, using reachable tile priorities as target preference.",
       "Battalion reinforcements now march visibly from the castle to remote battalions before those new troops become usable.",
       "Alliance-mode battalions now send visible battlefield reinforcement marches instead of silently adding defenders.",

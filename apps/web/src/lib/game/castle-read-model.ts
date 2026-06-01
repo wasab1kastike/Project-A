@@ -1633,7 +1633,7 @@ export async function getCastlePageState({
             xp: b.xp,
             readyAt: b.readyAt?.getTime() ?? null,
             stance: b.stance,
-            mode: b.mode === "GUARD" || !b.mode ? "RESERVE" : b.mode,
+            mode: b.mode ?? "GUARD",
             garrisonedAt: b.garrisonedAt,
             frontId: b.assignments?.[0]?.frontId ?? null,
           })),
@@ -1650,7 +1650,7 @@ export async function getCastlePageState({
           allianceWarRoom: {
             allianceBattalionArmy: (playerFortress?.battalions ?? [])
               .filter(
-                (b) => (b.mode === "GUARD" || !b.mode ? "RESERVE" : b.mode) === "ALLIANCE"
+                (b) => (b.mode ?? "GUARD") === "ALLIANCE"
               )
               .reduce((sum, battalion) => sum + battalion.size, 0),
             allies: allianceRelations.map((relation) => {

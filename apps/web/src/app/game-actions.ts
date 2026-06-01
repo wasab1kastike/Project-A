@@ -861,7 +861,7 @@ export async function stationGuardOrderAction(tileId: string, armyAmount = 1) {
   return {
     ok: false,
     error:
-      "Guard orders are temporarily disabled while War Room focuses on battlefronts, battalions, and recruitment.",
+      "Manual guard orders are disabled. Set battalions to GUARD in the War Room instead.",
   } satisfies InlineActionResult;
 }
 
@@ -2389,13 +2389,14 @@ export async function setGuardPercentAction(args: {
   const session = await auth();
   const userId = session?.user?.id;
   if (!userId) return { ok: false, error: "Sign in to adjust guard settings." };
-  void args;
-
-  return {
-    ok: false,
-    error:
-      "Guard allocation is temporarily disabled while War Room focuses on battlefronts, battalions, and recruitment.",
-  };
+  try {
+    const { setGuardPercent } = await import("@/lib/game/battalion-service");
+    await setGuardPercent({ userId, ...args });
+    notifyAndRevalidate("guard-percent", GAMEPLAY_REVALIDATE_PATHS);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: getActionErrorMessage(error) };
+  }
 }
 
 export async function setMaxArmySizeAction(args: {

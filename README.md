@@ -242,13 +242,13 @@ The game is now a castle-economy and battlefield-control loop:
 - Delivered convoy cargo awards points from base cargo value; all non-hostile deliveries add a small gold/food bonus, allied Trust raises that bonus, and hostile relations seize in-transit cargo without trade points or delivered score points
 - scored trade convoys can receive an outbound escort; convoy raid patrols are temporarily disabled while War Room focuses on battlefronts, battalions, and recruitment
 - daily nuke bidding runs 14:00-12:00 Europe/Helsinki for Fuel, Rocket, and Wrath of A; bids are private, losing bids are spent, components are tradable by convoy, and launches cost 250,000 gold
-- War Room battalions now only auto-dispatch from ATTACK mode war fronts, with the server validating ownership, costs, and live battalion state before any order changes
+- War Room battalions can run ATTACK war fronts, GUARD owned borders, stay in RESERVE, or reinforce allies, with the server validating ownership, costs, and live battalion state before any order changes
 - new troops assigned to a remote battalion travel from the castle as visible reinforcement marches before they become usable
 - ALLIANCE-mode battalions reinforce allied defensive and attacking battlefields through visible incoming reinforcement marches, controlled from the Castle War Room
 - marching armies, remote battalion reinforcements, War Front launches, allied support, and convoy map legs now use existing roads to reduce movement ETA; the convoy six-hour minimum and PvP preparation delay still stay fixed
 - roads grow from the actual route units travel, including remote battalion reinforcement, battlefield support, returning recalls, and delivered convoys
 - Season 4 territorial war uses standing campaign orders: pressure workers and committed army build a border siege, then a 12-hour warning opens before automatic combat
-- owned Season 4 tile guard orders are temporarily disabled; ordinary tile attacks, reinforcements, and fortification controls are legacy-only
+- manual Season 4 tile guard orders are disabled; use GUARD-mode battalions and guard allocation for owned border patrols
 - direct attacks and battlefield reinforcements both count against the player's simultaneous outbound attack cap
 - player castle and owned-tile battlefields become visible immediately, but combat casualties start one hour after the first attacking army arrives so defenders have time to respond
 - active battlefield casualties are applied every tick, ramping from 100 total units per tick to 1000 after one hour; fights resolve only when one side runs out

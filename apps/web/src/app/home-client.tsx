@@ -347,7 +347,7 @@ function HomeClientContent({
                 maxSize: bn.maxSize,
                 tier: bn.tier,
                 stance: bn.stance,
-                mode: bn.mode === "GUARD" || !bn.mode ? "RESERVE" : bn.mode,
+                mode: bn.mode ?? "GUARD",
                 fortressId: bn.fortressId,
                 unitSpriteVariant: fortress?.unitSpriteVariant ?? "unit-1",
                 unitCosmeticVariant: fortress?.unitCosmeticVariant ?? null,

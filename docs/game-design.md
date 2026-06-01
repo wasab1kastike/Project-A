@@ -218,7 +218,7 @@ Season 4 includes a daily nuke-component race:
 | **ESCORT** | Protect a specific outbound convoy leg |
 | **CAMPAIGN** | Siege a tile to trigger a territory battlefield |
 
-GUARD and RAID orders remain in historical data but are temporarily disabled for new play. Active GUARD and RAID orders are returned by the tick runner.
+Manual GUARD orders and RAID orders remain in historical data but are disabled for new play. Battalion GUARD mode is active: War Room guard allocation distributes GUARD battalions across owned border tiles. Active legacy GUARD and RAID orders are returned by the tick runner.
 
 ---
 
