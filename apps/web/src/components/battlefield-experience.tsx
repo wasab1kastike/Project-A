@@ -16,6 +16,7 @@ import {
   recallAttackUnitAction,
   recallGarrisonArmyAction,
   recallArmyOrderAction,
+  reorderTilePressurePrioritiesAction,
   torchOccupiedMapHexAction,
   setTilePressurePriorityAction,
 } from "@/app/game-actions";
@@ -656,6 +657,8 @@ export function BattlefieldExperience({
     (selectedTileIsHomeOfA ? getHomeOfABonus() : getTileBonus(selectedTile));
   const selectedOwnGarrison = selectedOwnership?.ownGarrison ?? null;
   const selectedPressurePriority = selectedOwnership?.pressurePriority ?? false;
+  const selectedPressurePriorityRank =
+    selectedOwnership?.pressurePriorityRank ?? null;
   const selectedCanPrioritizePressure =
     selectedOwnership?.canPrioritizePressure ?? false;
   const selectedPressurePriorityDisabledReason =
@@ -671,6 +674,24 @@ export function BattlefieldExperience({
           ? SEASON_FOUR_CRESTS.GUARD
           : SEASON_FOUR_CRESTS.CAMPAIGN
     : null;
+  const pressurePriorityLimit = 3;
+  const pressurePriorityQueue = useMemo(
+    () =>
+      mapHexes
+        .filter(
+          (hex) =>
+            hex.pressurePriority &&
+            hex.pressurePriorityRank !== null &&
+            hex.pressurePriorityRank !== undefined
+        )
+        .sort(
+          (left, right) =>
+            (left.pressurePriorityRank ?? pressurePriorityLimit) -
+              (right.pressurePriorityRank ?? pressurePriorityLimit) ||
+            left.tileId.localeCompare(right.tileId)
+        ),
+    [mapHexes]
+  );
   const selectedActiveBattlefieldId =
     selectedOwnership?.activeBattlefieldId ??
     (selectedTileId
@@ -1074,6 +1095,49 @@ export function BattlefieldExperience({
 
     try {
       const result = await clearTilePressurePriorityAction(tileId);
+
+      if (!result.ok) {
+        window.alert(result.error);
+        return;
+      }
+
+      refreshView();
+    } finally {
+      setMapActionPending(false);
+    }
+  }
+
+  async function handleReorderTilePressurePriority(
+    tileId: string,
+    direction: -1 | 1
+  ) {
+    if (mapActionPending || !gameplayOpen) {
+      return;
+    }
+
+    const currentTileIds = pressurePriorityQueue.map((priority) => priority.tileId);
+    const currentIndex = currentTileIds.indexOf(tileId);
+    const nextIndex = currentIndex + direction;
+
+    if (
+      currentIndex < 0 ||
+      nextIndex < 0 ||
+      nextIndex >= currentTileIds.length
+    ) {
+      return;
+    }
+
+    const reorderedTileIds = [...currentTileIds];
+    const [movedTileId] = reorderedTileIds.splice(currentIndex, 1);
+    if (!movedTileId) {
+      return;
+    }
+
+    reorderedTileIds.splice(nextIndex, 0, movedTileId);
+    setMapActionPending(true);
+
+    try {
+      const result = await reorderTilePressurePrioritiesAction(reorderedTileIds);
 
       if (!result.ok) {
         window.alert(result.error);
@@ -1825,9 +1889,78 @@ export function BattlefieldExperience({
           </>
         ) : null}
 
-        {!playerSummary?.seasonFourRulesEnabled &&
-        !selectedOwnership?.ownerFortressId &&
-        !selectedTileIsHomeOfA ? (
+        {playerSummary?.seasonFourRulesEnabled ? (
+          <div className={styles.priorityQueuePanel}>
+            <div className={styles.priorityQueueHeader}>
+              <span>Expansion queue</span>
+              <strong>
+                {pressurePriorityQueue.length} / {pressurePriorityLimit}
+              </strong>
+            </div>
+            {pressurePriorityQueue.length > 0 ? (
+              <div className={styles.priorityQueueList}>
+                {pressurePriorityQueue.map((priority, index) => (
+                  <div className={styles.priorityQueueItem} key={priority.tileId}>
+                    <span>
+                      #{priority.pressurePriorityRank} Tile {priority.tileId}
+                    </span>
+                    <div className={styles.priorityQueueActions}>
+                      <button
+                        className={styles.iconButton}
+                        type="button"
+                        disabled={mapActionPending || index === 0}
+                        title="Move priority up"
+                        onClick={() => {
+                          void handleReorderTilePressurePriority(
+                            priority.tileId,
+                            -1
+                          );
+                        }}
+                      >
+                        ^
+                      </button>
+                      <button
+                        className={styles.iconButton}
+                        type="button"
+                        disabled={
+                          mapActionPending ||
+                          index === pressurePriorityQueue.length - 1
+                        }
+                        title="Move priority down"
+                        onClick={() => {
+                          void handleReorderTilePressurePriority(
+                            priority.tileId,
+                            1
+                          );
+                        }}
+                      >
+                        v
+                      </button>
+                      <button
+                        className={styles.iconButton}
+                        type="button"
+                        disabled={mapActionPending}
+                        title="Remove priority"
+                        onClick={() => {
+                          void handleClearTilePressurePriority(priority.tileId);
+                        }}
+                      >
+                        x
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className={styles.helper}>No queued expansion targets.</p>
+            )}
+          </div>
+        ) : null}
+
+        {playerSummary?.seasonFourRulesEnabled || (
+          !selectedOwnership?.ownerFortressId &&
+          !selectedTileIsHomeOfA
+        ) ? (
           <>
             <button
               className={styles.secondaryButton}
@@ -1845,7 +1978,9 @@ export function BattlefieldExperience({
                 }
               }}
             >
-              {selectedPressurePriority ? "Clear priority" : "Prioritize"}
+              {selectedPressurePriority
+                ? `Clear priority #${selectedPressurePriorityRank ?? ""}`
+                : "Prioritize"}
             </button>
             {selectedPressurePriorityDisabledReason ? (
               <p className={styles.helper}>

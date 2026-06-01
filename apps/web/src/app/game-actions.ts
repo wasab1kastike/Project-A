@@ -80,6 +80,7 @@ import {
   shuffleFortressLocation,
   investOrkWaaaghScrap,
   buyPointsWithGold,
+  reorderTilePressurePriorities,
   setTilePressurePriority,
   stationGuardOrder,
   createEscortOrder,
@@ -278,6 +279,34 @@ export async function clearTilePressurePriorityAction(tileId: string) {
       tileId,
     });
     notifyAndRevalidate("tile-pressure-priority-clear");
+    return {
+      ok: true,
+    } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
+export async function reorderTilePressurePrioritiesAction(tileIds: string[]) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await reorderTilePressurePriorities({
+      userId,
+      tileIds,
+    });
+    notifyAndRevalidate("tile-pressure-priority-reorder");
     return {
       ok: true,
     } satisfies InlineActionResult;

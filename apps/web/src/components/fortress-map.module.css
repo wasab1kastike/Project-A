@@ -200,6 +200,23 @@
   filter: drop-shadow(0 0 7px rgba(255, 238, 150, 0.38));
 }
 
+.pressurePriorityBadge {
+  pointer-events: none;
+}
+
+.pressurePriorityBadge circle {
+  fill: rgba(18, 24, 32, 0.92);
+  stroke: rgba(255, 238, 150, 0.95);
+  stroke-width: 3px;
+}
+
+.pressurePriorityBadge text {
+  fill: #fff3b0;
+  font-size: 15px;
+  font-weight: 800;
+  text-anchor: middle;
+}
+
 /* Attack priority tile markers */
 .attackPriorityPrimaryTile polygon {
   stroke: rgba(255, 60, 40, 0.9);

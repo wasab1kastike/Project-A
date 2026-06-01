@@ -334,6 +334,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
       "Season 4 territory is claimed with pressure, held with ownership pressure, and contested through war campaigns.",
     highlights: [
       `Neutral tile claim threshold: ${TILE_PRESSURE_CLAIM_THRESHOLD}.`,
+      "Each fortress can queue three expansion priorities by default.",
       `Unsupported neutral pressure decays ${TILE_PRESSURE_DECAY_PERCENT_PER_HOUR}% per completed hour.`,
       `Ownership pressure ranges from 0 to ${MAX_OWNERSHIP_PRESSURE}.`,
     ],
@@ -350,6 +351,9 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         eyebrow: "Holding",
         title: "Ownership pressure",
         bullets: [
+          "Queued priorities are ordered. The first legal neutral tile receives all current pressure output.",
+          "If the first queue slot is claimed or becomes invalid, the next legal neutral tile becomes active.",
+          "During war, queued enemy border tiles guide automated War Front targeting.",
           `Owned tiles decay by ${OWNERSHIP_PRESSURE_DECAY_PER_TICK} ownership pressure per tick.`,
           `Each maintenance worker restores ${OWNERSHIP_PRESSURE_MAINTENANCE_PER_WORKER} pressure per tick.`,
           `A guard cuts normal decay by ${Math.round(GUARD_DECAY_REDUCTION * 100)}%.`,

@@ -21,6 +21,7 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
       "ALLIANCE-mode battalions can now auto-deploy to help allies on both attack and defense.",
       "Roads now shorten movement ETA for attacks, fortification marches, remote battalion reinforcements, War Front launches, allied support, and convoy map legs.",
       "The map now shows clearer road levels, route tooltips, and moving-unit ETA savings when roads helped the march.",
+      "Tile expansion priorities are now an ordered three-slot queue with numbered map badges, reorder controls, and shared War Front targeting.",
     ],
     bugFixes: [
       "The tutorial now points politics tasks at the Castle Diplomacy tab, matching the current navigation.",

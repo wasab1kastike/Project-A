@@ -62,11 +62,12 @@ The world is a hex grid. Each tile can be:
 
 Instead of direct tile attacks, Season 4 uses a pressure system:
 
-1. Assign pressure workers to a neighboring tile
+1. Assign pressure workers to expansion
 2. Pressure builds each tick (1 per worker)
 3. At 600 pressure, if uncontested, the tile flips to your control
 4. Pressure decays 10% per hour on unsupported tiles
-5. Priorities (`TilePressurePriority`) target specific tiles first
+5. Players can queue up to three priority tiles. Pressure goes to the first legal neutral tile in queue order, then the next if the earlier tile is claimed or invalid.
+6. During war, the same queued priorities can include reachable enemy-owned tiles and guide automated War Front target selection.
 
 ---
 

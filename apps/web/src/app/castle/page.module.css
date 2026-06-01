@@ -283,6 +283,7 @@
 
 .operationGroup,
 .progressRow,
+.statusList,
 .logisticsRows,
 .campaignDetail {
   display: grid;

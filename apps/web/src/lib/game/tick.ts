@@ -121,6 +121,7 @@ import {
   getNeutralPressureClaimWinner,
   getPressureTargetBlockedReason,
   getTilePressureClaimThreshold,
+  sortTilePressureQueue,
 } from "./tile-pressure";
 import { isSeasonFourRuleset } from "./rulesets";
 import {
@@ -538,7 +539,7 @@ async function processTilePressureExpansion({
   const claimThreshold = getTilePressureClaimThreshold(isSeasonFour);
 
   await db.$transaction(async (tx) => {
-    const [fortresses, ownerships, priorities] = await Promise.all([
+    const [fortresses, ownerships, priorities, diplomacyRelations] = await Promise.all([
       tx.fortress.findMany({
         where: {
           cycleId,
@@ -575,6 +576,17 @@ async function processTilePressureExpansion({
         },
         orderBy: [{ createdAt: "asc" }, { tileId: "asc" }],
       }),
+      tx.diplomacyRelation.findMany({
+        where: {
+          cycleId,
+        },
+        select: {
+          fortressAId: true,
+          fortressBId: true,
+          status: true,
+          warStartsAt: true,
+        },
+      }),
     ]);
 
     const ownerByTileId = new Map(
@@ -583,6 +595,20 @@ async function processTilePressureExpansion({
         ownership.ownerFortressId,
       ])
     );
+    const relationByPairKey = new Map(
+      diplomacyRelations.map((relation) => [
+        `${relation.fortressAId}:${relation.fortressBId}`,
+        relation,
+      ])
+    );
+    const getDiplomacyRelationForPair = (
+      fortressOneId: string,
+      fortressTwoId: string
+    ) => {
+      const pair = getCanonicalDiplomacyPair(fortressOneId, fortressTwoId);
+
+      return relationByPairKey.get(`${pair.fortressAId}:${pair.fortressBId}`);
+    };
     const ownedExpansionTileIds = ownerships
       .map((ownership) => ownership.tileId)
       .filter((tileId) => !isHomeOfATile(tileId));
@@ -717,23 +743,51 @@ async function processTilePressureExpansion({
           fortress,
           ownedTileIds,
         });
-      const isLegalTile = (tileId: string) =>
+      const isLegalPriorityTarget = (tileId: string) => {
+        const ownerFortressId = ownerByTileId.get(tileId) ?? null;
+        const relation =
+          ownerFortressId && ownerFortressId !== fortress.id
+            ? getDiplomacyRelationForPair(fortress.id, ownerFortressId)
+            : null;
+        const effectiveStatus = getEffectiveDiplomacyStatus({
+          relation,
+          now: tickAt,
+        });
+
+        return (
+          getPressureTargetBlockedReason({
+            tile: getTileById(tileId),
+            tileId,
+            ownerFortressId,
+            fortress,
+            ownedTileIds,
+            isHomeOfA: isHomeOfATile,
+            isConnected,
+            allowEnemyOwned: effectiveStatus === DiplomacyRelationStatus.WAR,
+          }) === null
+        );
+      };
+      const isLegalNeutralPressureTile = (tileId: string) =>
+        !ownerByTileId.has(tileId) &&
         getPressureTargetBlockedReason({
           tile: getTileById(tileId),
           tileId,
-          ownerFortressId: ownerByTileId.get(tileId) ?? null,
+          ownerFortressId: null,
           fortress,
           ownedTileIds,
           isHomeOfA: isHomeOfATile,
           isConnected,
         }) === null;
-      const legalPriorities = (
+      const queuedPriorities = sortTilePressureQueue(
         prioritiesByFortressId.get(fortress.id) ?? []
-      ).filter((priority) => isLegalTile(priority.tileId));
+      );
+      const legalNeutralPriorities = queuedPriorities.filter((priority) =>
+        isLegalNeutralPressureTile(priority.tileId)
+      );
 
-      const stalePriorities = (
-        prioritiesByFortressId.get(fortress.id) ?? []
-      ).filter((priority) => !isLegalTile(priority.tileId));
+      const stalePriorities = queuedPriorities.filter(
+        (priority) => !isLegalPriorityTarget(priority.tileId)
+      );
 
       if (stalePriorities.length > 0) {
         await tx.tilePressurePriority.deleteMany({
@@ -752,10 +806,10 @@ async function processTilePressureExpansion({
       }
 
       const targets =
-        legalPriorities.length > 0
-          ? legalPriorities
+        legalNeutralPriorities.length > 0
+          ? legalNeutralPriorities.slice(0, 1)
           : claimableTiles
-              .filter((tile) => isLegalTile(tile.id))
+              .filter((tile) => isLegalNeutralPressureTile(tile.id))
               .map((tile) => ({ tileId: tile.id, weight: 1 }));
 
       for (const allocation of allocatePressureAcrossTargets({
@@ -2182,7 +2236,6 @@ async function completeTestingCycle(
         farmersAssigned: 10,
         recruitersAssigned: 5,
         pressureWorkersAssigned: 0,
-        race: null,
         fortressKind: FortressKind.PLAYER,
         currentAction: FortressAction.GROW,
         targetFortressId: null,

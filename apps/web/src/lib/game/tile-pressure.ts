@@ -3,6 +3,46 @@ import type { FortressRace } from "./races";
 export const TILE_PRESSURE_CLAIM_THRESHOLD = 600;
 export const LEGACY_TILE_PRESSURE_CLAIM_THRESHOLD = 100;
 export const TILE_PRESSURE_DECAY_PERCENT_PER_HOUR = 10;
+export const DEFAULT_TILE_PRESSURE_PRIORITY_LIMIT = 3;
+
+export function getTilePressurePriorityLimit(_fortress?: unknown) {
+  return DEFAULT_TILE_PRESSURE_PRIORITY_LIMIT;
+}
+
+export function getTilePressurePriorityWeightForSlot({
+  slot,
+  limit = DEFAULT_TILE_PRESSURE_PRIORITY_LIMIT,
+}: {
+  slot: number;
+  limit?: number;
+}) {
+  return Math.max(1, limit - Math.max(1, Math.floor(slot)) + 1);
+}
+
+export function getTilePressurePrioritySlot({
+  weight,
+  limit = DEFAULT_TILE_PRESSURE_PRIORITY_LIMIT,
+}: {
+  weight: number;
+  limit?: number;
+}) {
+  const normalizedWeight = Math.max(1, Math.floor(weight));
+  return Math.max(1, limit - normalizedWeight + 1);
+}
+
+export function sortTilePressureQueue<T extends { tileId: string; weight?: number }>(
+  priorities: T[]
+) {
+  return [...priorities].sort((left, right) => {
+    const weightDelta = (right.weight ?? 1) - (left.weight ?? 1);
+
+    if (weightDelta !== 0) {
+      return weightDelta;
+    }
+
+    return left.tileId.localeCompare(right.tileId);
+  });
+}
 
 export function getTilePressureClaimThreshold(isSeasonFour: boolean) {
   return isSeasonFour
@@ -80,6 +120,7 @@ export function getPressureTargetBlockedReason({
   ownedTileIds,
   isHomeOfA,
   isConnected,
+  allowEnemyOwned = false,
 }: {
   tile: { claimable: boolean } | null | undefined;
   tileId: string;
@@ -89,6 +130,7 @@ export function getPressureTargetBlockedReason({
   ownedTileIds: Iterable<string>;
   isHomeOfA: (tileId: string) => boolean;
   isConnected: (input: { tileId: string; ownedTileIds: Iterable<string> }) => boolean;
+  allowEnemyOwned?: boolean;
 }) {
   if (!fortress) {
     return "Join the cycle to prioritize expansion.";
@@ -111,7 +153,9 @@ export function getPressureTargetBlockedReason({
       return diplomacyBlockedReason;
     }
 
-    return "Enemy-owned tiles cannot receive expansion pressure yet.";
+    if (!allowEnemyOwned) {
+      return "Enemy-owned tiles require an active war before they can be queued.";
+    }
   }
 
   if (

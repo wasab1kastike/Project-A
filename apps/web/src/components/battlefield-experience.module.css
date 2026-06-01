@@ -336,6 +336,74 @@
   font-size: 0.92rem;
 }
 
+.priorityQueuePanel {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(247, 196, 95, 0.26);
+  border-radius: 8px;
+  background: rgba(13, 18, 21, 0.66);
+}
+
+.priorityQueueHeader,
+.priorityQueueItem,
+.priorityQueueActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.priorityQueueHeader,
+.priorityQueueItem {
+  justify-content: space-between;
+}
+
+.priorityQueueHeader span,
+.priorityQueueItem span {
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.priorityQueueHeader strong {
+  color: var(--accent-strong);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.78rem;
+}
+
+.priorityQueueList {
+  display: grid;
+  gap: 6px;
+}
+
+.priorityQueueItem {
+  min-height: 34px;
+  padding: 5px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  background: rgba(7, 13, 20, 0.8);
+  color: var(--foreground);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.iconButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
 .tileFeatureCrest {
   width: 48px;
   height: 48px;

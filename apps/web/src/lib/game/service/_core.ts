@@ -96,7 +96,12 @@ import {
   isHomeOfATile,
   isTileConnectedToFortressOrOwnedTiles,
 } from "../territory";
-import { getPressureTargetBlockedReason } from "../tile-pressure";
+import {
+  getPressureTargetBlockedReason,
+  getTilePressurePriorityLimit,
+  getTilePressurePriorityWeightForSlot,
+  sortTilePressureQueue,
+} from "../tile-pressure";
 import { joinBattlefield as joinBattlefieldRecord } from "../battlefields";
 import { getSkillModifiers } from "../race-skill-effects";
 import { getTileAttackBlockedReason } from "../combat-targeting";
@@ -1136,6 +1141,8 @@ export async function setTilePressurePriority({
         ownerId: true,
         mapX: true,
         mapY: true,
+        race: true,
+        level: true,
       },
     });
 
@@ -1174,6 +1181,10 @@ export async function setTilePressurePriority({
             },
           })
         : null;
+    const effectiveDiplomacyStatus = getEffectiveDiplomacyStatus({
+      relation: diplomacyRelation,
+      now,
+    });
 
     const ownedTileIds = await tx.mapHexOwnership.findMany({
       where: {
@@ -1196,6 +1207,11 @@ export async function setTilePressurePriority({
         relation: diplomacyRelation,
         now,
       }),
+      allowEnemyOwned:
+        existing?.ownerFortressId !== undefined &&
+        existing.ownerFortressId !== null &&
+        existing.ownerFortressId !== fortress.id &&
+        effectiveDiplomacyStatus === DiplomacyRelationStatus.WAR,
       fortress,
       ownedTileIds: ownedNormalTileIds,
       isHomeOfA: isHomeOfATile,
@@ -1211,22 +1227,44 @@ export async function setTilePressurePriority({
       throw new GameError(blockedReason);
     }
 
-    return tx.tilePressurePriority.upsert({
+    const priorityLimit = getTilePressurePriorityLimit(fortress);
+    const currentPriorities = await tx.tilePressurePriority.findMany({
       where: {
-        cycleId_fortressId_tileId: {
-          cycleId: cycle.id,
-          fortressId: fortress.id,
-          tileId,
-        },
+        cycleId: cycle.id,
+        fortressId: fortress.id,
       },
-      create: {
+      select: {
+        id: true,
+        tileId: true,
+        weight: true,
+      },
+      orderBy: [{ weight: "desc" }, { createdAt: "asc" }, { tileId: "asc" }],
+    });
+    const existingPriority = currentPriorities.find(
+      (priority) => priority.tileId === tileId
+    );
+
+    if (existingPriority) {
+      return existingPriority;
+    }
+
+    if (currentPriorities.length >= priorityLimit) {
+      throw new GameError(
+        `Your expansion queue is full (${priorityLimit}/${priorityLimit}). Remove a tile before adding another.`
+      );
+    }
+
+    const nextSlot = currentPriorities.length + 1;
+
+    return tx.tilePressurePriority.create({
+      data: {
         cycleId: cycle.id,
         fortressId: fortress.id,
         tileId,
-        weight: 1,
-      },
-      update: {
-        weight: 1,
+        weight: getTilePressurePriorityWeightForSlot({
+          slot: nextSlot,
+          limit: priorityLimit,
+        }),
       },
       select: {
         id: true,
@@ -1236,6 +1274,123 @@ export async function setTilePressurePriority({
         weight: true,
       },
     });
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+export async function reorderTilePressurePriorities({
+  userId,
+  tileIds,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  tileIds: string[];
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("The current cycle is not accepting expansion priorities.");
+    }
+
+    assertSeasonFourFeatureCycle(cycle);
+
+    const fortress = await tx.fortress.findUnique({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: userId,
+        },
+      },
+      select: {
+        id: true,
+        race: true,
+        level: true,
+      },
+    });
+
+    if (!fortress) {
+      throw new GameError("You are not participating in the active cycle.");
+    }
+
+    const requestedTileIds = tileIds
+      .map((candidate) => candidate.trim())
+      .filter((candidate) => candidate.length > 0);
+    const uniqueTileIds = new Set(requestedTileIds);
+
+    if (uniqueTileIds.size !== requestedTileIds.length) {
+      throw new GameError("Expansion queue contains duplicate tiles.");
+    }
+
+    const priorityLimit = getTilePressurePriorityLimit(fortress);
+
+    if (requestedTileIds.length > priorityLimit) {
+      throw new GameError(
+        `Your expansion queue can hold at most ${priorityLimit} tiles.`
+      );
+    }
+
+    const currentPriorities = await tx.tilePressurePriority.findMany({
+      where: {
+        cycleId: cycle.id,
+        fortressId: fortress.id,
+      },
+      select: {
+        id: true,
+        tileId: true,
+        weight: true,
+      },
+    });
+
+    if (requestedTileIds.length !== currentPriorities.length) {
+      throw new GameError("Reorder all currently queued tiles.");
+    }
+
+    const currentTileIds = new Set(
+      currentPriorities.map((priority) => priority.tileId)
+    );
+
+    if (requestedTileIds.some((tileId) => !currentTileIds.has(tileId))) {
+      throw new GameError("You can only reorder your queued expansion tiles.");
+    }
+
+    await Promise.all(
+      requestedTileIds.map((tileId, index) =>
+        tx.tilePressurePriority.update({
+          where: {
+            cycleId_fortressId_tileId: {
+              cycleId: cycle.id,
+              fortressId: fortress.id,
+              tileId,
+            },
+          },
+          data: {
+            weight: getTilePressurePriorityWeightForSlot({
+              slot: index + 1,
+              limit: priorityLimit,
+            }),
+          },
+        })
+      )
+    );
+
+    return sortTilePressureQueue(
+      await tx.tilePressurePriority.findMany({
+        where: {
+          cycleId: cycle.id,
+          fortressId: fortress.id,
+        },
+        select: {
+          id: true,
+          cycleId: true,
+          fortressId: true,
+          tileId: true,
+          weight: true,
+        },
+      })
+    );
   }, SERVICE_TRANSACTION_OPTIONS);
 }
 
@@ -1266,6 +1421,8 @@ export async function clearTilePressurePriority({
       },
       select: {
         id: true,
+        race: true,
+        level: true,
       },
     });
 
@@ -1280,6 +1437,39 @@ export async function clearTilePressurePriority({
         tileId,
       },
     });
+
+    const priorityLimit = getTilePressurePriorityLimit(fortress);
+    const remainingPriorities = await tx.tilePressurePriority.findMany({
+      where: {
+        cycleId: cycle.id,
+        fortressId: fortress.id,
+      },
+      select: {
+        tileId: true,
+        weight: true,
+      },
+      orderBy: [{ weight: "desc" }, { createdAt: "asc" }, { tileId: "asc" }],
+    });
+
+    await Promise.all(
+      sortTilePressureQueue(remainingPriorities).map((priority, index) =>
+        tx.tilePressurePriority.update({
+          where: {
+            cycleId_fortressId_tileId: {
+              cycleId: cycle.id,
+              fortressId: fortress.id,
+              tileId: priority.tileId,
+            },
+          },
+          data: {
+            weight: getTilePressurePriorityWeightForSlot({
+              slot: index + 1,
+              limit: priorityLimit,
+            }),
+          },
+        })
+      )
+    );
 
     return { tileId };
   }, SERVICE_TRANSACTION_OPTIONS);
