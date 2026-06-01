@@ -5,61 +5,57 @@
   z-index: 100;
   display: inline-grid;
   place-items: center;
-  min-width: 56px;
-  height: 36px;
+  min-width: 62px;
+  height: 38px;
   padding: 0 12px;
-  border: 1px solid rgba(247, 196, 95, 0.48);
+  border: 1px solid rgba(247, 196, 95, 0.5);
   border-radius: 8px;
-  background: rgba(8, 14, 22, 0.92);
+  background: rgba(8, 14, 22, 0.94);
   color: var(--accent-strong);
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.36);
   cursor: pointer;
   font-family: var(--font-ibm-plex-mono);
   font-size: 0.76rem;
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .collapsedBadge:hover {
-  border-color: rgba(247, 196, 95, 0.8);
-  background: rgba(20, 28, 38, 0.95);
+  border-color: rgba(247, 196, 95, 0.82);
+  background: rgba(20, 28, 38, 0.96);
 }
 
 .panel {
   position: fixed;
-  top: 80px;
+  top: 82px;
   right: 16px;
   z-index: 99;
-  width: min(360px, calc(100vw - 32px));
-  max-height: calc(100vh - 120px);
-  overflow-y: auto;
+  width: min(350px, calc(100vw - 32px));
+  max-height: calc(100vh - 126px);
+  overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0)),
-    rgba(8, 14, 22, 0.94);
-  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.48);
+    linear-gradient(180deg, rgba(247, 196, 95, 0.08), rgba(255, 255, 255, 0)),
+    rgba(8, 14, 22, 0.95);
+  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.5);
   color: var(--foreground);
   backdrop-filter: blur(14px);
 }
 
 .header {
-  position: sticky;
-  top: 0;
-  z-index: 1;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   padding: 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(8, 14, 22, 0.96);
 }
 
 .title {
   display: block;
   color: #ffffff;
-  font-size: 0.96rem;
-  font-weight: 800;
+  font-size: 0.95rem;
+  font-weight: 850;
 }
 
 .subtitle {
@@ -72,20 +68,20 @@
 .closeButton {
   display: inline-grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 7px;
   background: rgba(255, 255, 255, 0.04);
   color: var(--text-muted);
   cursor: pointer;
   font: inherit;
-  font-weight: 800;
+  font-weight: 900;
 }
 
 .closeButton:hover {
   color: var(--foreground);
-  border-color: rgba(255, 255, 255, 0.26);
+  border-color: rgba(255, 255, 255, 0.28);
 }
 
 .progressWrap {
@@ -93,11 +89,11 @@
   grid-template-columns: auto 1fr;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
+  padding: 10px 12px 8px;
   color: var(--accent-strong);
   font-family: var(--font-ibm-plex-mono);
-  font-size: 0.74rem;
-  font-weight: 700;
+  font-size: 0.72rem;
+  font-weight: 800;
 }
 
 .progressTrack {
@@ -114,76 +110,74 @@
   background: linear-gradient(90deg, #7ddc8c, var(--accent-strong));
 }
 
-.steps {
+.stepRail {
   display: grid;
-  gap: 1px;
-  padding: 0;
-  margin: 0;
-  list-style: none;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 5px;
+  padding: 0 12px 12px;
 }
 
-.step {
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.025);
-  transition:
-    background-color 160ms ease,
-    opacity 160ms ease;
+.railDot {
+  display: inline-grid;
+  place-items: center;
+  aspect-ratio: 1;
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.68rem;
+  font-weight: 800;
 }
 
-.step:hover {
-  background: rgba(255, 255, 255, 0.055);
+.railDot[data-active="true"] {
+  border-color: rgba(247, 196, 95, 0.78);
+  background: rgba(247, 196, 95, 0.16);
+  color: var(--accent-strong);
 }
 
-.stepDone {
-  opacity: 0.68;
+.railDot[data-done="true"] {
+  border-color: rgba(125, 220, 140, 0.66);
+  background: rgba(125, 220, 140, 0.18);
+  color: #aef1bb;
 }
 
-.stepDone:hover {
-  opacity: 0.9;
-}
-
-.stepContent {
+.focusStep {
   display: grid;
-  gap: 6px;
+  gap: 9px;
+  margin: 0 12px 12px;
+  padding: 13px;
+  border: 1px solid rgba(103, 196, 207, 0.18);
+  border-radius: 8px;
+  background: rgba(3, 10, 16, 0.42);
 }
 
-.stepPhase {
-  width: fit-content;
+.stepMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   color: var(--accent-strong);
   font-family: var(--font-ibm-plex-mono);
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-size: 0.68rem;
+  font-weight: 800;
   text-transform: uppercase;
 }
 
-.stepTitle {
-  display: grid;
-  grid-template-columns: 22px 1fr;
-  align-items: center;
-  gap: 8px;
+.focusStep h2 {
+  margin: 0;
   color: #ffffff;
-  font-size: 0.9rem;
-  font-weight: 800;
-  line-height: 1.25;
+  font-size: 1.06rem;
+  line-height: 1.2;
 }
 
-.stepState {
-  display: inline-grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 6px;
-  color: #06110a;
-  font-family: var(--font-ibm-plex-mono);
-  font-size: 0.56rem;
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.stepState[data-done="true"] {
-  border-color: rgba(125, 220, 140, 0.72);
-  background: #7ddc8c;
+.objective {
+  margin: 0;
+  color: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 750;
 }
 
 .stepDesc {
@@ -194,27 +188,29 @@
 }
 
 .stepActions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   margin-top: 2px;
 }
 
 .stepLink,
-.stepCheck {
+.stepCheck,
+.navButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 30px;
+  min-height: 34px;
   padding: 0 10px;
   border-radius: 7px;
+  font: inherit;
   font-size: 0.76rem;
-  font-weight: 800;
+  font-weight: 850;
+  text-align: center;
 }
 
 .stepLink {
-  border: 1px solid rgba(247, 196, 95, 0.32);
+  border: 1px solid rgba(247, 196, 95, 0.36);
   color: var(--accent-strong);
   text-decoration: none;
 }
@@ -223,16 +219,93 @@
   border-color: rgba(247, 196, 95, 0.72);
 }
 
-.stepCheck {
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--text-muted);
+.stepCheck,
+.navButton {
   cursor: pointer;
 }
 
+.stepCheck {
+  border: 1px solid rgba(125, 220, 140, 0.35);
+  background: rgba(125, 220, 140, 0.12);
+  color: #b9f3c3;
+}
+
+.stepCheck[data-done="true"] {
+  background: rgba(125, 220, 140, 0.24);
+}
+
+.navButton {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--text-muted);
+}
+
+.navButton:hover,
 .stepCheck:hover {
   color: var(--foreground);
-  border-color: rgba(255, 255, 255, 0.24);
+  border-color: rgba(255, 255, 255, 0.26);
+}
+
+.stepDrawer {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.stepDrawer summary {
+  cursor: pointer;
+  padding: 10px 12px;
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.stepList {
+  display: grid;
+  gap: 1px;
+  max-height: 240px;
+  padding: 0;
+  margin: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.stepList li {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.stepList li[data-done="true"] {
+  opacity: 0.68;
+}
+
+.stepList button {
+  display: grid;
+  width: 100%;
+  gap: 2px;
+  padding: 9px 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.stepList button:hover {
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.stepList span {
+  color: var(--accent-strong);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.64rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.stepList strong {
+  color: #ffffff;
+  font-size: 0.8rem;
 }
 
 @media (max-width: 640px) {
@@ -242,11 +315,19 @@
     bottom: 58px;
     left: 12px;
     width: auto;
-    max-height: min(68vh, 620px);
+    max-height: min(72vh, 620px);
   }
 
   .collapsedBadge {
     right: 12px;
     bottom: 12px;
+  }
+
+  .stepRail {
+    gap: 4px;
+  }
+
+  .stepActions {
+    grid-template-columns: 1fr;
   }
 }
