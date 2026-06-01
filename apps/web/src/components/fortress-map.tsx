@@ -75,6 +75,9 @@ type AttackUnitMarker = {
   recalledAt: Date | null;
   targetBattalionName?: string | null;
   reinforcementSide?: "ATTACKER" | "DEFENDER" | null;
+  roadSavedSeconds?: number;
+  roadSpeedMultiplier?: number;
+  routeTileIds?: string[];
   returnOrigin: {
     mapX: number;
     mapY: number;
@@ -398,22 +401,28 @@ function DwarfRuneSprite() {
 
 // ── Road Rendering Helpers ───────────────────────────────────────────────────
 
-type RoadEdge = { x1: number; y1: number; x2: number; y2: number; level: number };
+type RoadEdge = {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  level: number;
+  crossings: number;
+};
 
 function computeRoadEdges(
-  segments: Array<{ tileId: string; level: number }>,
+  segments: Array<{ tileId: string; level: number; crossings?: number }>,
   hexTiles: typeof HEX_TILES,
 ): RoadEdge[] {
   if (segments.length === 0) return [];
 
-  const roadMap = new Map(segments.map((s) => [s.tileId, s.level]));
-  const tileLookup = new Map(hexTiles.map((t) => [t.id, t]));
+  const roadMap = new Map(segments.map((s) => [s.tileId, s]));
   const edges: RoadEdge[] = [];
   const seen = new Set<string>();
 
   for (const tile of hexTiles) {
-    const myLevel = roadMap.get(tile.id);
-    if (!myLevel || myLevel <= 0) continue;
+    const myRoad = roadMap.get(tile.id);
+    if (!myRoad || myRoad.level <= 0) continue;
 
     // Compute adjacent hex tiles by checking grid adjacency.
     // Even columns: neighbors at (col±1, row), (col, row±1), (col-1, row±1)
@@ -437,8 +446,8 @@ function computeRoadEdges(
       );
       if (!neighborTile) continue;
 
-      const neighborLevel = roadMap.get(neighborTile.id);
-      if (!neighborLevel || neighborLevel <= 0) continue;
+      const neighborRoad = roadMap.get(neighborTile.id);
+      if (!neighborRoad || neighborRoad.level <= 0) continue;
 
       const edgeKey = [tile.id, neighborTile.id].sort().join("-");
       if (seen.has(edgeKey)) continue;
@@ -449,7 +458,8 @@ function computeRoadEdges(
         y1: tile.yPercent,
         x2: neighborTile.xPercent,
         y2: neighborTile.yPercent,
-        level: Math.min(myLevel, neighborLevel),
+        level: Math.min(myRoad.level, neighborRoad.level),
+        crossings: Math.min(myRoad.crossings ?? 0, neighborRoad.crossings ?? 0),
       });
     }
   }
@@ -465,9 +475,38 @@ function getRoadLevelClass(level: number): string {
 }
 
 function getRoadStrokeWidth(level: number): number {
-  if (level >= 3) return 3;
-  if (level >= 2) return 2;
-  return 1.5;
+  if (level >= 3) return 4;
+  if (level >= 2) return 2.8;
+  return 2;
+}
+
+function getRoadLabel(level: number) {
+  if (level >= 3) return "Highway";
+  if (level >= 2) return "Stone road";
+  if (level >= 1) return "Dirt path";
+  return "Road";
+}
+
+function getRoadSpeedLabel(level: number) {
+  if (level >= 3) return "1.5x";
+  if (level >= 2) return "1.3x";
+  if (level >= 1) return "1.15x";
+  return "1x";
+}
+
+function findNearestHexTile(point: { x: number; y: number }) {
+  let closest: (typeof HEX_TILES)[number] | null = null;
+  let closestDist = Infinity;
+  for (const tile of HEX_TILES) {
+    const dx = tile.xPercent - point.x;
+    const dy = tile.yPercent - point.y;
+    const dist = dx * dx + dy * dy;
+    if (dist < closestDist) {
+      closestDist = dist;
+      closest = tile;
+    }
+  }
+  return closest;
 }
 
 // ── Hex Tile Map ─────────────────────────────────────────────────────────────
@@ -1013,20 +1052,32 @@ function AttackUnitsLayer({
         const progress = presentation.progress;
 
         // Compute tile-by-tile march path.
-        const hexLookup = new Map(
-          HEX_TILES.map((t) => [t.id, { id: t.id, col: t.col, row: t.row }]),
-        );
-        const startTile = hexLookup.get(
-          `${Math.round(origin.x / (MAP_WORLD_WIDTH / 100))},${Math.round(origin.y / (MAP_WORLD_HEIGHT / 100))}`,
-        );
-        const endTile = hexLookup.get(
-          `${Math.round(target.x / (MAP_WORLD_WIDTH / 100))},${Math.round(target.y / (MAP_WORLD_HEIGHT / 100))}`,
-        );
-
         // Build path waypoints in % coordinates.
         let waypoints: Array<{ x: number; y: number }> = [origin, target];
-        if (startTile && endTile) {
-          const tilePath = findSimplePath(startTile, endTile, hexLookup);
+        const routeTiles =
+          unit.routeTileIds && unit.routeTileIds.length > 1
+            ? unit.routeTileIds
+                .map((tileId) => HEX_TILES.find((tile) => tile.id === tileId))
+                .filter((tile): tile is (typeof HEX_TILES)[number] => Boolean(tile))
+            : [];
+        if (routeTiles.length > 1) {
+          waypoints = routeTiles.map((tile) => ({
+            x: tile.xPercent,
+            y: tile.yPercent,
+          }));
+        } else {
+          const hexLookup = new Map(
+            HEX_TILES.map((t) => [t.id, { id: t.id, col: t.col, row: t.row }]),
+          );
+          const startHex = findNearestHexTile(origin);
+          const endHex = findNearestHexTile(target);
+          const startTile = startHex ? hexLookup.get(startHex.id) : null;
+          const endTile = endHex ? hexLookup.get(endHex.id) : null;
+
+          const tilePath =
+            startTile && endTile
+              ? findSimplePath(startTile, endTile, hexLookup)
+              : null;
           if (tilePath) {
             waypoints = tilePath.map((tileId) => {
               const tile = HEX_TILES.find((t) => t.id === tileId);
@@ -1171,6 +1222,14 @@ function AttackUnitsLayer({
                 <span>{unitTitle}</span>
                 <span>{statusText}</span>
                 <em>{formatSecondsRemaining(secondsRemaining)} ETA</em>
+                {unit.roadSavedSeconds && unit.roadSavedSeconds > 0 ? (
+                  <span className={styles.attackUnitRoadBonus}>
+                    Roads saved {formatSecondsRemaining(unit.roadSavedSeconds)}
+                    {unit.roadSpeedMultiplier && unit.roadSpeedMultiplier > 1
+                      ? ` (${unit.roadSpeedMultiplier.toFixed(2)}x)`
+                      : ""}
+                  </span>
+                ) : null}
                 {unit.canRecall && onRecallAttackUnit ? (
                   <button
                     type="button"
@@ -1945,9 +2004,29 @@ export const FortressMap = memo(function FortressMap({
               y2={edge.y2 * MAP_WORLD_HEIGHT / 100}
               className={`${styles.roadLine} ${getRoadLevelClass(edge.level)}`}
               strokeWidth={getRoadStrokeWidth(edge.level)}
-            />
+            >
+              <title>
+                {`${getRoadLabel(edge.level)} - ${edge.crossings} crossings - ${getRoadSpeedLabel(edge.level)} speed`}
+              </title>
+            </line>
           ))}
         </svg>
+      ) : null}
+      {roadSegments.length > 0 ? (
+        <div className={styles.roadLegend} aria-label="Road speeds">
+          <span className={styles.roadLegendItem}>
+            <i className={styles.roadLegendSwatch} data-level="dirt" />
+            Dirt 1.15x
+          </span>
+          <span className={styles.roadLegendItem}>
+            <i className={styles.roadLegendSwatch} data-level="stone" />
+            Stone 1.3x
+          </span>
+          <span className={styles.roadLegendItem}>
+            <i className={styles.roadLegendSwatch} data-level="highway" />
+            Highway 1.5x
+          </span>
+        </div>
       ) : null}
       <AttackUnitsLayer
             attackUnits={attackUnits}

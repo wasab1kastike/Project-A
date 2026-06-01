@@ -5,10 +5,10 @@
 // tiles that units walked through.
 // =============================================================================
 
-import type { PrismaClient } from "@prisma/client";
 import { HEX_TILES } from "./map-hex";
-import { findSimplePath } from "./march-pathfinding";
-import { recordPathCrossings } from "./road-persistence";
+import { findMarchPath, findSimplePath } from "./march-pathfinding";
+import { loadRoadsForCycle, recordPathCrossings } from "./road-persistence";
+import { findClosestHexTile, getRoadWeightsFromSegments } from "./road-travel";
 
 /**
  * Record road crossings for an attack unit that has arrived at its target.
@@ -37,41 +37,24 @@ export async function recordUnitRoadCrossings(args: {
 
   if (armyAmount <= 0) return;
 
-  // Snap origin and target to nearest hex tiles.
   const originTile = findClosestHexTile(originMapX, originMapY);
   const targetTile = findClosestHexTile(targetMapX, targetMapY);
 
   if (!originTile || !targetTile) return;
   if (originTile.id === targetTile.id) return;
 
-  // Compute path.
   const tileLookup = new Map(HEX_TILES.map((t) => [t.id, { id: t.id, col: t.col, row: t.row }]));
-  const path = findSimplePath(originTile, targetTile, tileLookup);
+  const currentRoads = await loadRoadsForCycle(cycleId);
+  const roadPath = findMarchPath({
+    startTile: originTile,
+    endTile: targetTile,
+    tileLookup,
+    roads: getRoadWeightsFromSegments([...currentRoads.values()]),
+    ownedTileIds: new Set(),
+  });
+  const path = roadPath?.tiles ?? findSimplePath(originTile, targetTile, tileLookup);
 
   if (!path || path.length === 0) return;
 
   await recordPathCrossings(cycleId, path, armyAmount, now.getTime());
-}
-
-/**
- * Find the hex tile closest to a given map position (in % coordinates 0-100).
- */
-function findClosestHexTile(
-  mapX: number,
-  mapY: number,
-): (typeof HEX_TILES)[number] | null {
-  let closest: (typeof HEX_TILES)[number] | null = null;
-  let closestDist = Infinity;
-
-  for (const tile of HEX_TILES) {
-    const dx = tile.xPercent - mapX;
-    const dy = tile.yPercent - mapY;
-    const dist = dx * dx + dy * dy;
-    if (dist < closestDist) {
-      closestDist = dist;
-      closest = tile;
-    }
-  }
-
-  return closest;
 }

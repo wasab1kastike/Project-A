@@ -51,8 +51,9 @@ export function getHexNeighbors(
   for (const [dc, dr] of offsets) {
     const neighborCol = tile.col + dc;
     const neighborRow = tile.row + dr;
-    const neighborId = `${neighborCol},${neighborRow}`;
-    const neighbor = tileLookup.get(neighborId);
+    const neighbor =
+      tileLookup.get(`${neighborCol}:${neighborRow}`) ??
+      tileLookup.get(`${neighborCol},${neighborRow}`);
     if (neighbor) neighbors.push(neighbor);
   }
   return neighbors;

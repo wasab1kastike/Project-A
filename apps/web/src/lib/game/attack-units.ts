@@ -1,11 +1,12 @@
 import { Prisma, PrismaClient, RaceAbilityKind } from "@/lib/prisma-client";
-import { getAttackArrivalAt } from "./attacks";
+import { getAttackArrivalAt, getAttackTravelMinutes } from "./attacks";
 import { GameError } from "./errors";
 import { getHelsinkiHourKey, getRaceBuffTier } from "./race-buffs";
 import { getRaceModifiers } from "./races";
 import type { FortressRace } from "./races";
 import { getOrkBossOrderSpeedMultiplier } from "./orks";
 import { getTileById, isHomeOfATile } from "./territory";
+import { getRoadAdjustedAttackArrival } from "./road-travel";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -411,25 +412,32 @@ export async function launchAttackUnit({
     race: attacker.race,
     ownedTileBiomes,
   });
-  const arrivesAt = getAttackArrivalAt({
-    launchedAt,
-    origin: attacker,
-    target,
-    attackerRace: attacker.race,
-    raceBuffTier: buffTier,
-    speedMultiplier:
-      getDwarfAttackSpeedMultiplier(attacker) *
-      (await getOrkBossOrderAttackSpeedMultiplier({
-        db,
-        fortress: attacker,
-        now: launchedAt,
-      })),
-    waaagh: await getOrkWaaghActive({
+  const speedMultiplier =
+    getDwarfAttackSpeedMultiplier(attacker) *
+    (await getOrkBossOrderAttackSpeedMultiplier({
       db,
       fortress: attacker,
       now: launchedAt,
-      raceBuffTier: buffTier,
-    }),
+    }));
+  const waaagh = await getOrkWaaghActive({
+    db,
+    fortress: attacker,
+    now: launchedAt,
+    raceBuffTier: buffTier,
+  });
+  const baseMinutes = getAttackTravelMinutes(attacker, target, {
+    attackerRace: attacker.race,
+    raceBuffTier: buffTier,
+    speedMultiplier,
+    waaagh,
+  });
+  const { arrivesAt } = await getRoadAdjustedAttackArrival({
+    db,
+    cycleId: cycle.id,
+    launchedAt,
+    origin: attacker,
+    target,
+    baseMinutes,
   });
 
   if (cycle.activeEndsAt && arrivesAt > cycle.activeEndsAt) {

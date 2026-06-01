@@ -5,6 +5,7 @@
 // =============================================================================
 
 import type { PrismaClient } from "@prisma/client";
+import { getRoadAdjustedAttackArrival } from "./road-travel";
 
 type DiplomacySnapshot = {
   status: string;
@@ -102,10 +103,18 @@ export async function processAllianceReinforcements(args: {
       ]);
       const dx = (reinforcer?.mapX ?? 0) - (defender?.mapX ?? 0);
       const dy = (reinforcer?.mapY ?? 0) - (defender?.mapY ?? 0);
-      const travelMinutes = Math.max(
+      const baseMinutes = Math.max(
         1,
         Math.ceil(Math.sqrt(dx * dx + dy * dy) / 10),
       );
+      const { arrivesAt } = await getRoadAdjustedAttackArrival({
+        db,
+        cycleId,
+        launchedAt: now,
+        origin: { mapX: reinforcer?.mapX ?? 0, mapY: reinforcer?.mapY ?? 0 },
+        target: { mapX: defender?.mapX ?? 0, mapY: defender?.mapY ?? 0 },
+        baseMinutes,
+      });
 
       await db.attackUnit.create({
         data: {
@@ -116,7 +125,7 @@ export async function processAllianceReinforcements(args: {
           reinforcementSide: "DEFENDER",
           armyAmount: commitAmount,
           launchedAt: now,
-          arrivesAt: new Date(now.getTime() + travelMinutes * 60_000),
+          arrivesAt,
           returnOriginMapX: reinforcer?.mapX,
           returnOriginMapY: reinforcer?.mapY,
         },

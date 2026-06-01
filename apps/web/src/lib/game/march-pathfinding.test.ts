@@ -21,6 +21,10 @@ function makeTile(col: number, row: number): PathHexTile {
   return { id: `${col},${row}`, col, row };
 }
 
+function makeColonTile(col: number, row: number): PathHexTile {
+  return { id: `${col}:${row}`, col, row };
+}
+
 function buildGrid(cols: number, rows: number): {
   tiles: PathHexTile[];
   lookup: Map<string, PathHexTile>;
@@ -57,6 +61,17 @@ describe("march-pathfinding", () => {
       for (const n of neighbors) {
         assert.ok(lookup.has(n.id));
       }
+    });
+    it("supports colon-delimited map tile ids", () => {
+      const tiles = [
+        makeColonTile(0, 0),
+        makeColonTile(1, 0),
+        makeColonTile(0, 1),
+      ];
+      const lookup = new Map(tiles.map((tile) => [tile.id, tile]));
+      const neighbors = getHexNeighbors(makeColonTile(0, 0), lookup);
+      assert.ok(neighbors.some((neighbor) => neighbor.id === "1:0"));
+      assert.ok(neighbors.some((neighbor) => neighbor.id === "0:1"));
     });
   });
 

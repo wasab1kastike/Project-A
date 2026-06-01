@@ -35,7 +35,7 @@ import {
 } from "./balance";
 import { getChatLimits } from "./chat";
 import { getCommunityWishVoteBudget } from "./community-wishes";
-import { normalizeUnitSpriteVariant } from "./attacks";
+import { getAttackTravelMinutes, normalizeUnitSpriteVariant } from "./attacks";
 import {
   formatApproximateForce,
   formatRaidBattleReport,
@@ -103,6 +103,7 @@ import {
   getTilePressureClaimThreshold,
 } from "./tile-pressure";
 import { isSeasonFourRuleset } from "./rulesets";
+import { calculateRoadAdjustedTravel } from "./road-travel";
 
 export type HomePageState = Awaited<ReturnType<typeof getHomePageState>>;
 
@@ -2372,6 +2373,12 @@ export async function getHomePageState({
             : true),
     };
   });
+  const roadSegments = (cycle.mapHexRoads ?? []).map((r) => ({
+    tileId: r.tileId,
+    crossings: r.crossings,
+    level: r.level,
+    lastUsedAt: r.lastUsedAt?.getTime() ?? null,
+  }));
   const globalChatMessages = await db.chatMessage.findMany({
     where: {
       cycleId: cycle.id,
@@ -3827,12 +3834,7 @@ export async function getHomePageState({
         return { x1: a.mapX, y1: a.mapY, x2: b.mapX, y2: b.mapY };
       })
       .filter((r): r is NonNullable<typeof r> => r !== null),
-    roadSegments: (cycle.mapHexRoads ?? []).map((r) => ({
-      tileId: r.tileId,
-      crossings: r.crossings,
-      level: r.level,
-      lastUsedAt: r.lastUsedAt?.getTime() ?? null,
-    })),
+    roadSegments,
     mapHexes: mappedMapHexes,
     homeOfA: {
       tileId: HOME_OF_A_TILE_ID,
@@ -3909,6 +3911,40 @@ export async function getHomePageState({
         tileTargetId && isHomeOfATile(tileTargetId)
           ? getHomeOfAMapPosition()
           : null;
+      const originPoint =
+        unit.recalledAt &&
+        unit.returnOriginMapX !== null &&
+        unit.returnOriginMapY !== null
+          ? {
+              mapX: unit.returnOriginMapX,
+              mapY: unit.returnOriginMapY,
+            }
+          : {
+              mapX: unit.attackerFortress.mapX,
+              mapY: unit.attackerFortress.mapY,
+            };
+      const targetPoint = unit.recalledAt
+        ? {
+            mapX: unit.attackerFortress.mapX,
+            mapY: unit.attackerFortress.mapY,
+          }
+        : homeTarget
+          ? homeTarget
+          : tileTarget
+            ? {
+                mapX: Math.round(tileTarget.xPercent),
+                mapY: Math.round(tileTarget.yPercent),
+              }
+            : {
+                mapX: unit.targetFortress.mapX,
+                mapY: unit.targetFortress.mapY,
+              };
+      const roadTravel = calculateRoadAdjustedTravel({
+        origin: originPoint,
+        target: targetPoint,
+        baseMinutes: getAttackTravelMinutes(originPoint, targetPoint),
+        roadSegments,
+      });
       return {
         id: unit.id,
         armyAmount:
@@ -3956,6 +3992,9 @@ export async function getHomePageState({
           | "BATTALION_REINFORCEMENT",
         targetBattalionName: unit.reinforcementBattalion?.name ?? null,
         reinforcementSide: unit.reinforcementSide ?? null,
+        roadSavedSeconds: roadTravel.savedMinutes * 60,
+        roadSpeedMultiplier: roadTravel.speedMultiplier,
+        routeTileIds: roadTravel.routeTileIds,
         attacker: {
           id: unit.attackerFortress.id,
           name: unit.attackerFortress.name,

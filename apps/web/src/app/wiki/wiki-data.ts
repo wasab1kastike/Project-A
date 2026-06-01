@@ -362,7 +362,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         eyebrow: "Movement",
         title: "Roads",
         body:
-          `Marching armies and convoys build roads. Roads decay ${Math.round(ROAD_DECAY_RATE_PER_HOUR * 100)}% per inactive hour.`,
+          `Marching armies, reinforcement routes, War Front launches, and delivered convoys build roads on their actual hex route. Roads reduce future movement ETA, but not the six-hour convoy minimum or one-hour PvP preparation delay. Roads decay ${Math.round(ROAD_DECAY_RATE_PER_HOUR * 100)}% per inactive hour.`,
         table: {
           headers: ["Road", "Crossings", "Speed multiplier"],
           rows: [

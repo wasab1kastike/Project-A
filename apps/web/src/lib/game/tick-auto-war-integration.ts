@@ -12,6 +12,7 @@ import {
   type ReachableTarget,
 } from "./war-front";
 import { HEX_TILES } from "./map-hex";
+import { getRoadAdjustedAttackArrival } from "./road-travel";
 
 type FortressSnapshot = {
   id: string;
@@ -172,8 +173,15 @@ export async function processAutoWarDispatch(args: {
       const rate = AGGRESSION_STANCE_COMMITMENT[aggression];
       const commitAmount = Math.max(1, Math.floor(totalAvailable * rate));
       const cappedAmount = Math.min(commitAmount, Math.max(10, defender.army * 2));
-      const travelMinutes = Math.max(1, Math.floor(estimateDistance(attacker, defender) / 10));
-      const arrivesAt = new Date(now.getTime() + travelMinutes * 60_000);
+      const baseMinutes = Math.max(1, Math.floor(estimateDistance(attacker, defender) / 10));
+      const { arrivesAt } = await getRoadAdjustedAttackArrival({
+        db,
+        cycleId,
+        launchedAt: now,
+        origin: attacker,
+        target: defender,
+        baseMinutes,
+      });
 
       try {
         await db.$transaction(async (tx) => {
