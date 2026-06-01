@@ -800,6 +800,315 @@ function getRecruitmentDisplayState({
   };
 }
 
+function getShopSkinMeta(slot: ArcadeCosmeticSlot, variant: string) {
+  const skin = getArcadeLootBoxSkin(slot, variant);
+
+  return {
+    name: skin?.name ?? variant,
+    rarity: skin?.rarity ?? "Common",
+  };
+}
+
+function CastleShopPanel({ shopState }: { shopState: ArcadeHubState | null }) {
+  if (!shopState) {
+    return (
+      <section className={styles.panel}>
+        <div className={styles.panelHeader}>
+          <span>Shop</span>
+        </div>
+        <p className={styles.muted}>Loading shop data...</p>
+      </section>
+    );
+  }
+
+  const walletBalance = shopState.walletBalance ?? 0;
+  const canAccessShop =
+    shopState.canBuy ||
+    shopState.canOpen ||
+    shopState.unopenedPurchases.length > 0 ||
+    shopState.ownedSkins.unit.length > 0 ||
+    shopState.ownedSkins.fortress.length > 0;
+  const unitCrateAffordable = walletBalance >= shopState.shop.unitCratePrice;
+  const fortressCrateAffordable =
+    walletBalance >= shopState.shop.fortressCratePrice;
+  const equippedUnitSkin = shopState.ownedSkins.unit.some(
+    (skin) => skin.equipped
+  );
+  const equippedFortressSkin = shopState.ownedSkins.fortress.some(
+    (skin) => skin.equipped
+  );
+
+  if (!canAccessShop) {
+    return (
+      <section className={`${styles.panel} ${styles.shopConsole}`}>
+        <div className={styles.shopStatusBar}>
+          <div>
+            <span>Shop</span>
+            <strong>Locked</strong>
+          </div>
+          <div>
+            <span>Wallet</span>
+            <strong>{walletBalance.toLocaleString()} coins</strong>
+          </div>
+        </div>
+        <p className={styles.muted}>
+          {shopState.lockedMessage ??
+            "Join the current cycle before buying crates or managing skins."}
+        </p>
+        <Link className={styles.textLink} href="/shop">
+          Open full shop
+        </Link>
+      </section>
+    );
+  }
+
+  return (
+    <div className={styles.shopConsole}>
+      <section className={styles.panel}>
+        <div className={styles.shopStatusBar}>
+          <div>
+            <span>Wallet</span>
+            <strong>{walletBalance.toLocaleString()} coins</strong>
+          </div>
+          <div>
+            <span>Status</span>
+            <strong>{shopState.canBuy ? "Open" : "Collection"}</strong>
+          </div>
+          <div>
+            <span>Duplicate refund</span>
+            <strong>{shopState.shop.duplicateRefund} coins</strong>
+          </div>
+        </div>
+      </section>
+
+      <section className={styles.panel}>
+        <div className={styles.panelHeader}>
+          <span>Crates</span>
+          <strong>{shopState.unopenedPurchases.length} unopened</strong>
+        </div>
+        <div className={styles.shopCrateGrid}>
+          <form
+            className={styles.shopCrateCard}
+            action={purchaseArcadeLootBoxAction}
+          >
+            <input type="hidden" name="returnTo" value="/castle" />
+            <input
+              type="hidden"
+              name="crateType"
+              value={ArcadeLootBoxType.UNIT}
+            />
+            <div className={styles.shopCrateArt} data-crate="unit">
+              Unit
+            </div>
+            <div>
+              <strong>Unit crate</strong>
+              <p>Random unit skin for marching armies.</p>
+            </div>
+            <div className={styles.shopCrateFooter}>
+              <span>{shopState.shop.unitCratePrice} coins</span>
+              <button
+                type="submit"
+                disabled={!shopState.canBuy || !unitCrateAffordable}
+              >
+                Buy
+              </button>
+            </div>
+          </form>
+
+          <form
+            className={styles.shopCrateCard}
+            action={purchaseArcadeLootBoxAction}
+          >
+            <input type="hidden" name="returnTo" value="/castle" />
+            <input
+              type="hidden"
+              name="crateType"
+              value={ArcadeLootBoxType.FORTRESS}
+            />
+            <div className={styles.shopCrateArt} data-crate="fortress">
+              Keep
+            </div>
+            <div>
+              <strong>Fortress crate</strong>
+              <p>Random fortress skin for your map stronghold.</p>
+            </div>
+            <div className={styles.shopCrateFooter}>
+              <span>{shopState.shop.fortressCratePrice} coins</span>
+              <button
+                type="submit"
+                disabled={!shopState.canBuy || !fortressCrateAffordable}
+              >
+                Buy
+              </button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section className={styles.panel}>
+        <div className={styles.panelHeader}>
+          <span>Unopened</span>
+          <strong>{shopState.unopenedPurchases.length} crates</strong>
+        </div>
+        {shopState.unopenedPurchases.length > 0 ? (
+          <div className={styles.shopPurchaseList}>
+            {shopState.unopenedPurchases.map((purchase) => (
+              <form
+                action={openArcadeLootBoxAction}
+                className={styles.shopPurchaseRow}
+                key={purchase.id}
+              >
+                <input type="hidden" name="returnTo" value="/castle" />
+                <input type="hidden" name="purchaseId" value={purchase.id} />
+                <div>
+                  <strong>
+                    {purchase.crateType === ArcadeLootBoxType.UNIT
+                      ? "Unit crate"
+                      : "Fortress crate"}
+                  </strong>
+                  <span>
+                    Bought {formatTime(purchase.createdAt)} for{" "}
+                    {purchase.price} coins
+                  </span>
+                </div>
+                {shopState.canOpen ? <button type="submit">Open</button> : null}
+              </form>
+            ))}
+          </div>
+        ) : (
+          <p className={styles.muted}>No unopened crates right now.</p>
+        )}
+      </section>
+
+      <section className={styles.panel}>
+        <div className={styles.panelHeader}>
+          <span>Inventory</span>
+          <strong>
+            {shopState.ownedSkins.unit.length +
+              shopState.ownedSkins.fortress.length}{" "}
+            skins
+          </strong>
+        </div>
+        <div className={styles.shopInventoryGrid}>
+          <div className={styles.shopInventoryColumn}>
+            <div className={styles.shopInventoryHeader}>
+              <strong>Unit skins</strong>
+              {equippedUnitSkin ? (
+                <form action={unequipCosmeticAction}>
+                  <input type="hidden" name="returnTo" value="/castle" />
+                  <input
+                    type="hidden"
+                    name="slot"
+                    value={ArcadeCosmeticSlot.UNIT}
+                  />
+                  <button type="submit">Use default</button>
+                </form>
+              ) : null}
+            </div>
+            {shopState.ownedSkins.unit.length > 0 ? (
+              <div className={styles.shopSkinList}>
+                {shopState.ownedSkins.unit.map((skin) => {
+                  const meta = getShopSkinMeta(
+                    ArcadeCosmeticSlot.UNIT,
+                    skin.variant
+                  );
+
+                  return (
+                    <div className={styles.shopSkinRow} key={skin.id}>
+                      <div>
+                        <strong>{meta.name}</strong>
+                        <span>
+                          <small data-rarity={meta.rarity}>{meta.rarity}</small>
+                          {skin.equipped ? <small>Equipped</small> : null}
+                        </span>
+                      </div>
+                      {!skin.equipped ? (
+                        <form action={equipCosmeticUnlockAction}>
+                          <input type="hidden" name="returnTo" value="/castle" />
+                          <input
+                            type="hidden"
+                            name="unlockId"
+                            value={skin.id}
+                          />
+                          <input
+                            type="hidden"
+                            name="slot"
+                            value={ArcadeCosmeticSlot.UNIT}
+                          />
+                          <button type="submit">Equip</button>
+                        </form>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className={styles.muted}>No unit skins unlocked yet.</p>
+            )}
+          </div>
+
+          <div className={styles.shopInventoryColumn}>
+            <div className={styles.shopInventoryHeader}>
+              <strong>Fortress skins</strong>
+              {equippedFortressSkin ? (
+                <form action={unequipCosmeticAction}>
+                  <input type="hidden" name="returnTo" value="/castle" />
+                  <input
+                    type="hidden"
+                    name="slot"
+                    value={ArcadeCosmeticSlot.FORTRESS}
+                  />
+                  <button type="submit">Use default</button>
+                </form>
+              ) : null}
+            </div>
+            {shopState.ownedSkins.fortress.length > 0 ? (
+              <div className={styles.shopSkinList}>
+                {shopState.ownedSkins.fortress.map((skin) => {
+                  const meta = getShopSkinMeta(
+                    ArcadeCosmeticSlot.FORTRESS,
+                    skin.variant
+                  );
+
+                  return (
+                    <div className={styles.shopSkinRow} key={skin.id}>
+                      <div>
+                        <strong>{meta.name}</strong>
+                        <span>
+                          <small data-rarity={meta.rarity}>{meta.rarity}</small>
+                          {skin.equipped ? <small>Equipped</small> : null}
+                        </span>
+                      </div>
+                      {!skin.equipped ? (
+                        <form action={equipCosmeticUnlockAction}>
+                          <input type="hidden" name="returnTo" value="/castle" />
+                          <input
+                            type="hidden"
+                            name="unlockId"
+                            value={skin.id}
+                          />
+                          <input
+                            type="hidden"
+                            name="slot"
+                            value={ArcadeCosmeticSlot.FORTRESS}
+                          />
+                          <button type="submit">Equip</button>
+                        </form>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className={styles.muted}>No fortress skins unlocked yet.</p>
+            )}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export function CastleManagement({
   playerSummary,
   targets,
@@ -810,7 +1119,7 @@ export function CastleManagement({
   playerSummary: PlayerSummary;
   targets: CommandTarget[];
   politicsState: any;
-  shopState: any;
+  shopState: ArcadeHubState | null;
   nukeState: NukeState;
 }) {
   const searchParams = useSearchParams();
@@ -3215,132 +3524,7 @@ export function CastleManagement({
           </section>
         ) : null}
 
-        {activeTab === "SHOP" ? (
-          shopState ? (
-            <div style={{ padding: "8px 0" }}>
-              <section className={styles.panel}>
-                <div className={styles.panelHeader}>
-                  <span>Shop</span>
-                  <strong>
-                    {shopState.walletBalance?.toLocaleString() ?? 0} coins
-                  </strong>
-                </div>
-                <p className={styles.muted}>
-                  Buy loot boxes to unlock unit and fortress skins. Equipped
-                  skins show on the map and battlefield.
-                </p>
-              </section>
-              {shopState.shop?.boxes?.length > 0 ? (
-                <section className={styles.panel}>
-                  <div className={styles.panelHeader}>
-                    <span>Loot Boxes</span>
-                  </div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                    {shopState.shop.boxes.map((box: any) => (
-                      <form
-                        key={box.type}
-                        action={async () => {
-                          const { purchaseArcadeLootBoxAction } =
-                            await import("@/app/game-actions");
-                          const formData = new FormData();
-                          formData.set("boxType", box.type);
-                          await purchaseArcadeLootBoxAction(formData);
-                          refreshView();
-                        }}
-                        style={{
-                          flex: "1 1 140px",
-                          background: "var(--bg-raised)",
-                          borderRadius: 8,
-                          padding: 12,
-                          textAlign: "center",
-                          border: "1px solid var(--border)",
-                        }}
-                      >
-                        <div style={{ fontSize: 24 }}>
-                          {box.type === "UNIT" ? "👥" : "🏰"}
-                        </div>
-                        <div style={{ fontSize: 13, fontWeight: 600 }}>
-                          {box.type}
-                        </div>
-                        <div
-                          style={{ fontSize: 12, color: "var(--text-muted)" }}
-                        >
-                          {box.price} coins
-                        </div>
-                        <button
-                          type="submit"
-                          disabled={
-                            !shopState.canBuy ||
-                            (shopState.walletBalance ?? 0) < box.price
-                          }
-                          style={{
-                            marginTop: 8,
-                            padding: "4px 12px",
-                            fontSize: 12,
-                            background: "var(--color-accent, #48f)",
-                            color: "#fff",
-                            border: "none",
-                            borderRadius: 4,
-                            cursor: "pointer",
-                          }}
-                        >
-                          Buy
-                        </button>
-                      </form>
-                    ))}
-                  </div>
-                </section>
-              ) : null}
-              {shopState.ownedSkins?.length > 0 ? (
-                <section className={styles.panel}>
-                  <div className={styles.panelHeader}>
-                    <span>Inventory</span>
-                    <strong>{shopState.ownedSkins.length} skins</strong>
-                  </div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                    {shopState.ownedSkins.slice(0, 12).map((skin: any) => (
-                      <div
-                        key={skin.id}
-                        style={{
-                          padding: "4px 8px",
-                          fontSize: 12,
-                          background: skin.equipped
-                            ? "#2a4a2a"
-                            : "var(--bg-raised)",
-                          borderRadius: 4,
-                          border: skin.equipped
-                            ? "1px solid #4caf50"
-                            : "1px solid var(--border)",
-                        }}
-                      >
-                        {skin.variantId} {skin.equipped ? "✓" : ""}
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              ) : null}
-              {shopState.unopenedPurchases?.length > 0 ? (
-                <section className={styles.panel}>
-                  <div className={styles.panelHeader}>
-                    <span>Unopened</span>
-                    <strong>{shopState.unopenedPurchases.length} crates</strong>
-                  </div>
-                  <p className={styles.muted}>
-                    Open your crates from the <a href="/shop">full shop page</a>{" "}
-                    to reveal your skins.
-                  </p>
-                </section>
-              ) : null}
-            </div>
-          ) : (
-            <section className={styles.panel}>
-              <div className={styles.panelHeader}>
-                <span>Shop</span>
-              </div>
-              <p className={styles.muted}>Loading shop data...</p>
-            </section>
-          )
-        ) : null}
+        {activeTab === "SHOP" ? <CastleShopPanel shopState={shopState} /> : null}
       </div>
     </div>
   );
