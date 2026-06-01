@@ -227,7 +227,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
     subtitle:
       "Each race is a season-long playstyle commitment with passive modifiers and three skill paths.",
     highlights: [
-      "Skill points come from castle levels and owned normal territory.",
+      "Skill points come from castle milestones and owned normal territory.",
       "Maximum skill points: 12.",
       "A full skill branch costs 8 points, leaving 4 for other paths.",
     ],
@@ -616,8 +616,8 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         eyebrow: "Progression",
         title: "How skills work",
         bullets: [
-          "Earn +1 skill point per castle level starting at level 2.",
-          "Earn +1 skill point per 3 owned normal tiles.",
+          "Earn +1 skill point at castle level 3, then every 2 castle levels.",
+          "Earn +1 skill point per 5 owned normal tiles.",
           "Economy improves income, upkeep, and expansion slots; Territory improves pressure and tile control; Military improves battalions and recruitment.",
           "Race-specific behavior should be intentional: read the path before spending.",
         ],

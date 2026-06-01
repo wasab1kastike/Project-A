@@ -165,7 +165,7 @@ RaceSkillPurchase
 └── @@unique([fortressId, nodeKey]) — one entry per node per fortress
 ```
 
-**Skill points:** +1 per castle level + 1 per 3 owned tiles, capped at 12. Each race exposes 3 paths with 8 sequential nodes each. A full path costs 8 points and leaves 4 points for other paths.
+**Skill points:** +1 at castle level 3, then every 2 castle levels, plus +1 per 5 owned normal tiles, capped at 12. Each race exposes 3 paths with 8 sequential nodes each. A full path costs 8 points and leaves 4 points for other paths.
 
 ### 2.4 Fortress / Economy Domain
 
