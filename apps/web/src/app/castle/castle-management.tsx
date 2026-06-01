@@ -30,6 +30,10 @@ import {
 import type { ArcadeHubState } from "@/lib/game/arcade";
 import { getArcadeLootBoxSkin } from "@/lib/game/constants";
 import {
+  getCosmeticSpriteStyle,
+  type CosmeticSpriteSlot,
+} from "@/lib/game/cosmetic-sprites";
+import {
   formatDeepMiningImpact,
   formatUnicornShatteredRealityImpact,
   getDeepMiningStatus,
@@ -67,7 +71,7 @@ import {
 import {
   getPressureWorkerDescription,
   getPressureWorkerLabel,
-} from "@/lib/game/tile-pressure";
+} from "@/lib/game/pressure-workers";
 import {
   calculateRecruitmentProgress,
   getArmyUpkeepCost,
@@ -809,6 +813,67 @@ function getShopSkinMeta(slot: ArcadeCosmeticSlot, variant: string) {
   };
 }
 
+function toCosmeticSpriteSlot(slot: ArcadeCosmeticSlot): CosmeticSpriteSlot {
+  return slot === ArcadeCosmeticSlot.FORTRESS ? "FORTRESS" : "UNIT";
+}
+
+function ShopSkinSprite({
+  slot,
+  variant,
+  className,
+}: {
+  slot: ArcadeCosmeticSlot;
+  variant: string | null | undefined;
+  className: string;
+}) {
+  const spriteSlot = toCosmeticSpriteSlot(slot);
+  const spriteStyle = getCosmeticSpriteStyle(spriteSlot, variant);
+
+  return (
+    <span
+      className={className}
+      data-slot={spriteSlot.toLowerCase()}
+      data-empty={spriteStyle ? undefined : "true"}
+      style={spriteStyle ?? undefined}
+      aria-hidden="true"
+    >
+      {spriteStyle ? null : spriteSlot === "UNIT" ? "Unit" : "Keep"}
+    </span>
+  );
+}
+
+function ShopEquippedPreview({
+  slot,
+  variant,
+}: {
+  slot: ArcadeCosmeticSlot;
+  variant: string | null;
+}) {
+  const meta = variant
+    ? getShopSkinMeta(slot, variant)
+    : {
+        name: slot === ArcadeCosmeticSlot.UNIT ? "Default unit" : "Default keep",
+        rarity: "Standard",
+      };
+
+  return (
+    <article className={styles.shopPreviewCard}>
+      <ShopSkinSprite
+        slot={slot}
+        variant={variant}
+        className={styles.shopPreviewSprite}
+      />
+      <div>
+        <span>
+          {slot === ArcadeCosmeticSlot.UNIT ? "Selected unit" : "Selected keep"}
+        </span>
+        <strong>{meta.name}</strong>
+        <small>{meta.rarity}</small>
+      </div>
+    </article>
+  );
+}
+
 function CastleShopPanel({ shopState }: { shopState: ArcadeHubState | null }) {
   if (!shopState) {
     return (
@@ -878,6 +943,23 @@ function CastleShopPanel({ shopState }: { shopState: ArcadeHubState | null }) {
             <span>Duplicate refund</span>
             <strong>{shopState.shop.duplicateRefund} coins</strong>
           </div>
+        </div>
+      </section>
+
+      <section className={styles.panel}>
+        <div className={styles.panelHeader}>
+          <span>Selected skins</span>
+          <strong>Preview</strong>
+        </div>
+        <div className={styles.shopPreviewGrid}>
+          <ShopEquippedPreview
+            slot={ArcadeCosmeticSlot.UNIT}
+            variant={shopState.equippedSkins.unit}
+          />
+          <ShopEquippedPreview
+            slot={ArcadeCosmeticSlot.FORTRESS}
+            variant={shopState.equippedSkins.fortress}
+          />
         </div>
       </section>
 
@@ -1015,12 +1097,21 @@ function CastleShopPanel({ shopState }: { shopState: ArcadeHubState | null }) {
 
                   return (
                     <div className={styles.shopSkinRow} key={skin.id}>
-                      <div>
-                        <strong>{meta.name}</strong>
-                        <span>
-                          <small data-rarity={meta.rarity}>{meta.rarity}</small>
-                          {skin.equipped ? <small>Equipped</small> : null}
-                        </span>
+                      <div className={styles.shopSkinSummary}>
+                        <ShopSkinSprite
+                          slot={ArcadeCosmeticSlot.UNIT}
+                          variant={skin.variant}
+                          className={styles.shopSkinThumb}
+                        />
+                        <div>
+                          <strong>{meta.name}</strong>
+                          <span>
+                            <small data-rarity={meta.rarity}>
+                              {meta.rarity}
+                            </small>
+                            {skin.equipped ? <small>Equipped</small> : null}
+                          </span>
+                        </div>
                       </div>
                       {!skin.equipped ? (
                         <form action={equipCosmeticUnlockAction}>
@@ -1072,12 +1163,21 @@ function CastleShopPanel({ shopState }: { shopState: ArcadeHubState | null }) {
 
                   return (
                     <div className={styles.shopSkinRow} key={skin.id}>
-                      <div>
-                        <strong>{meta.name}</strong>
-                        <span>
-                          <small data-rarity={meta.rarity}>{meta.rarity}</small>
-                          {skin.equipped ? <small>Equipped</small> : null}
-                        </span>
+                      <div className={styles.shopSkinSummary}>
+                        <ShopSkinSprite
+                          slot={ArcadeCosmeticSlot.FORTRESS}
+                          variant={skin.variant}
+                          className={styles.shopSkinThumb}
+                        />
+                        <div>
+                          <strong>{meta.name}</strong>
+                          <span>
+                            <small data-rarity={meta.rarity}>
+                              {meta.rarity}
+                            </small>
+                            {skin.equipped ? <small>Equipped</small> : null}
+                          </span>
+                        </div>
                       </div>
                       {!skin.equipped ? (
                         <form action={equipCosmeticUnlockAction}>
@@ -3265,9 +3365,11 @@ export function CastleManagement({
 
         {activeTab === "DIPLOMACY" ? (
           politicsState ? (
-            <PoliticsClient state={politicsState} />
+            <div className={styles.fullWidthPanel}>
+              <PoliticsClient state={politicsState} />
+            </div>
           ) : (
-            <section className={styles.panel}>
+            <section className={`${styles.panel} ${styles.fullWidthPanel}`}>
               <div className={styles.panelHeader}>
                 <span>Diplomacy</span>
                 <strong>Politics & Trade</strong>
