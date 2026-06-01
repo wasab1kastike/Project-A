@@ -129,6 +129,7 @@ export function calculateStolenConvoyCargo(
     gold: Math.floor(cargo.gold * share),
     food: Math.floor(cargo.food * share),
     army: Math.floor(cargo.army * share),
+    points: Math.floor(cargo.points * share),
   };
   const baseValue = calculateTradeCargoValue(stolen);
 

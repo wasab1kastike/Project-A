@@ -1,5 +1,5 @@
 // =============================================================================
-// Tick Auto-Raid Integration — Automated convoy interception
+// Tick Auto-Raid Integration - Automated convoy interception
 // =============================================================================
 // Called from tick.ts. When at war, idle battalions auto-intercept enemy convoys.
 // =============================================================================
@@ -18,15 +18,6 @@ type DiplomacySnapshot = {
   fortressBId: string;
 };
 
-type ConvoySnapshot = {
-  id: string;
-  fromFortressId: string;
-  toFortressId: string;
-  gold: number;
-  food: number;
-  army: number;
-};
-
 export async function processAutoRaidDispatch(args: {
   db: PrismaClient;
   cycleId: string;
@@ -36,70 +27,92 @@ export async function processAutoRaidDispatch(args: {
 }): Promise<void> {
   const { db, cycleId, now, fortresses, diplomacyRelations } = args;
 
-  const warPairs = diplomacyRelations.filter((r) => r.status === "WAR");
+  const warPairs = diplomacyRelations.filter((relation) => relation.status === "WAR");
   if (warPairs.length === 0) return;
 
-  // Find enemy convoys in transit.
   const convoys = await db.convoyLeg.findMany({
     where: { cycleId, status: "IN_TRANSIT" },
-    select: { id: true, fromFortressId: true, toFortressId: true, gold: true, food: true, army: true },
+    select: { id: true, fromFortressId: true, toFortressId: true },
   });
 
   if (convoys.length === 0) return;
 
+  const existingRaidOrders = await db.armyOrder.findMany({
+    where: { cycleId, type: "RAID", status: "ACTIVE" },
+    select: { fortressId: true, targetFortressId: true },
+  });
+  const activeRaidKeys = new Set(
+    existingRaidOrders
+      .filter((order) => order.targetFortressId)
+      .map((order) => `${order.fortressId}:${order.targetFortressId}`)
+  );
   let raidsCreated = 0;
 
   for (const war of warPairs) {
-    if (raidsCreated >= 5) break; // Cap at 5 raids per tick.
+    if (raidsCreated >= 5) break;
 
-    const attacker = fortresses.find((f) => f.id === war.fortressAId);
-    if (!attacker) continue;
+    const sides = [
+      { attackerId: war.fortressAId, targetId: war.fortressBId },
+      { attackerId: war.fortressBId, targetId: war.fortressAId },
+    ];
 
-    // Find an enemy convoy going to/from the war target that we can raid.
-    const targetConvoy = convoys.find(
-      (c) =>
-        c.toFortressId === war.fortressBId ||
-        c.fromFortressId === war.fortressBId,
-    );
-    if (!targetConvoy) continue;
+    for (const side of sides) {
+      if (raidsCreated >= 5) break;
 
-    // Find idle battalion with army.
-    const battalions = await db.battalion.findMany({
-      where: { fortressId: attacker.id, size: { gt: 0 } },
-      orderBy: { size: "desc" },
-      take: 1,
-       select: { id: true, size: true },
-    });
-    if (battalions.length === 0) continue;
+      const raidKey = `${side.attackerId}:${side.targetId}`;
+      if (activeRaidKeys.has(raidKey)) continue;
 
-    const bn = battalions[0];
-    const raidAmount = Math.min(bn.size, Math.max(1, Math.floor(bn.size * 0.3)));
+      const attacker = fortresses.find((fortress) => fortress.id === side.attackerId);
+      if (!attacker) continue;
 
-    // Deduct army from battalion.
-    await db.battalion.update({
-      where: { id: bn.id },
-      data: { size: { decrement: raidAmount } },
-    });
-
-    // Create RAID army order.
-    try {
-      await db.armyOrder.create({
-        data: {
-          cycleId,
-          fortressId: attacker.id,
-          type: "RAID",
-          status: "ACTIVE",
-          committedArmy: raidAmount,
-          targetFortressId: war.fortressBId,
-          startsAt: now,
-        },
-      });
-      raidsCreated++;
-      console.log(
-        `[auto-raid] ${attacker.id} → convoy ${targetConvoy.id}: ${raidAmount} army raiding`,
+      const targetConvoy = convoys.find(
+        (convoy) =>
+          (convoy.toFortressId === side.targetId ||
+            convoy.fromFortressId === side.targetId) &&
+          convoy.toFortressId !== attacker.id &&
+          convoy.fromFortressId !== attacker.id
       );
-    } catch (_err) {
-      // Fine.
+      if (!targetConvoy) continue;
+
+      const battalions = await db.battalion.findMany({
+        where: { fortressId: attacker.id, size: { gt: 0 } },
+        orderBy: { size: "desc" },
+        take: 1,
+        select: { id: true, size: true },
+      });
+      if (battalions.length === 0) continue;
+
+      const battalion = battalions[0]!;
+      const raidAmount = Math.min(
+        battalion.size,
+        Math.max(1, Math.floor(battalion.size * 0.3))
+      );
+
+      await db.battalion.update({
+        where: { id: battalion.id },
+        data: { size: { decrement: raidAmount } },
+      });
+
+      try {
+        await db.armyOrder.create({
+          data: {
+            cycleId,
+            fortressId: attacker.id,
+            type: "RAID",
+            status: "ACTIVE",
+            committedArmy: raidAmount,
+            targetFortressId: side.targetId,
+            startsAt: now,
+          },
+        });
+        activeRaidKeys.add(raidKey);
+        raidsCreated++;
+        console.log(
+          `[auto-raid] ${attacker.id} -> convoy ${targetConvoy.id}: ${raidAmount} army raiding`
+        );
+      } catch (_err) {
+        // Duplicate or stale orders can be ignored; the next tick re-evaluates.
+      }
     }
   }
 }

@@ -11,6 +11,7 @@ import {
   setGuardPercentAction,
   setMaxArmySizeAction,
   createBattalionAction,
+  createRaidOrderAction,
 } from "@/app/game-actions";
 import { CastleUpgradeSpecialization } from "@/lib/prisma-client";
 import {
@@ -715,6 +716,8 @@ export function CastleManagement({
   const [recruitPending, setRecruitPending] = useState(false);
   const [goldToConvert, setGoldToConvert] = useState(getGoldToPointsRatio());
   const [activeTab, setActiveTab] = useState<CastleTab>("OVERVIEW");
+  const [warRoomOrderArmy, setWarRoomOrderArmy] = useState(100);
+  const [warRoomPendingId, setWarRoomPendingId] = useState<string | null>(null);
   const [guardPercent, setGuardPercent] = useState(
     playerSummary.warPolicy?.guardPercent ?? 30,
   );
@@ -898,6 +901,30 @@ export function CastleManagement({
     }
 
     refreshView();
+  }
+
+  async function handleWarRoomOrder(
+    key: string,
+    action: () => Promise<{ ok: boolean; error?: string }>
+  ) {
+    if (warRoomPendingId) {
+      return;
+    }
+
+    setWarRoomPendingId(key);
+
+    try {
+      const result = await action();
+
+      if (!result.ok) {
+        window.alert(result.error);
+        return;
+      }
+
+      refreshView();
+    } finally {
+      setWarRoomPendingId(null);
+    }
   }
 
   async function buyPointsWithGoldFormAction(formData: FormData): Promise<void> {
@@ -1559,6 +1586,95 @@ export function CastleManagement({
           Upkeep deducts food each tick. Recruitment orders spend gold up front,
           then recruiters process the queue. Food shortfall causes desertion.
         </p>
+      </section>
+
+      <section className={styles.panel}>
+        <div className={styles.panelHeader}>
+          <span>Convoy Raids</span>
+          <strong>{politicsState?.activeArmyOrders?.filter((order: any) => order.type === "RAID").length ?? 0} active</strong>
+        </div>
+        <p className={styles.muted} style={{ marginBottom: 8 }}>
+          Raid patrols watch hostile or neutral convoy routes. Trade convoy escorts still live with the convoy itself.
+        </p>
+        <div className={styles.form}>
+          <label>
+            <span>Army to commit</span>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={warRoomOrderArmy}
+              onChange={(event) =>
+                setWarRoomOrderArmy(
+                  Math.max(1, Number.parseInt(event.target.value || "1", 10))
+                )
+              }
+            />
+          </label>
+        </div>
+        <div className={styles.operationGroup}>
+          {(politicsState?.rows ?? []).some((row: any) => row.canRaid || row.activeRaidOrderId) ? (
+            (politicsState?.rows ?? [])
+              .filter((row: any) => row.canRaid || row.activeRaidOrderId)
+              .map((row: any) => (
+                <div key={row.fortressId} className={styles.statusRow}>
+                  <span>{row.commanderName || row.name}</span>
+                  {row.activeRaidOrderId ? (
+                    <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <strong>{row.activeRaidArmy?.toLocaleString()} army</strong>
+                      <button
+                        type="button"
+                        disabled={warRoomPendingId !== null}
+                        onClick={() =>
+                          void handleWarRoomOrder(
+                            `raid:recall:${row.activeRaidOrderId}`,
+                            () => recallArmyOrderAction(row.activeRaidOrderId)
+                          )
+                        }
+                      >
+                        Recall
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={warRoomPendingId !== null}
+                      onClick={() =>
+                        void handleWarRoomOrder(
+                          `raid:create:${row.fortressId}`,
+                          () => createRaidOrderAction(row.fortressId, warRoomOrderArmy)
+                        )
+                      }
+                    >
+                      Raid routes
+                    </button>
+                  )}
+                </div>
+              ))
+          ) : (
+            <p className={styles.muted}>No eligible convoy raid targets right now.</p>
+          )}
+        </div>
+        {politicsState?.recentConvoyLegs?.some((leg: any) => leg.raidedByCurrentPlayer) ? (
+          <div className={styles.operationGroup}>
+            <div className={styles.operationTitle}>
+              <strong>Recent interceptions</strong>
+            </div>
+            {politicsState.recentConvoyLegs
+              .filter((leg: any) => leg.raidedByCurrentPlayer)
+              .slice(0, 4)
+              .map((leg: any) => (
+                <div key={leg.id} className={styles.statusRow}>
+                  <span>{leg.counterpartName}</span>
+                  <strong>
+                    {leg.status === "INTERCEPTED"
+                      ? `${leg.stolenGold.toLocaleString()}g / ${leg.stolenFood.toLocaleString()}f / ${leg.stolenArmy.toLocaleString()}a / ${leg.stolenPoints.toLocaleString()}p`
+                      : "failed"}
+                  </strong>
+                </div>
+              ))}
+          </div>
+        ) : null}
       </section>
 
       {/* Battalion Roster */}

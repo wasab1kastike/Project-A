@@ -1306,6 +1306,7 @@ async function getActivePlayerFortressForPolitics({
       gold: true,
       food: true,
       army: true,
+      points: true,
       race: true,
       mapX: true,
       mapY: true,
@@ -1340,6 +1341,7 @@ async function getTargetPlayerFortressForPolitics({
       gold: true,
       food: true,
       army: true,
+      points: true,
       mapX: true,
       mapY: true,
     },
@@ -2729,9 +2731,11 @@ export type CreateTradeOfferInput = {
   offeredGold: number;
   offeredFood: number;
   offeredArmy: number;
+  offeredPoints?: number;
   requestedGold: number;
   requestedFood: number;
   requestedArmy: number;
+  requestedPoints?: number;
   offeredTileId?: string;
   requestedTileId?: string;
 };
@@ -2740,13 +2744,14 @@ function assertTradeCargoAvailable({
   fortress,
   cargo,
 }: {
-  fortress: { gold: number; food: number; army: number };
+  fortress: { gold: number; food: number; army: number; points: number };
   cargo: TradeCargo;
 }) {
   if (
     fortress.gold < cargo.gold ||
     fortress.food < cargo.food ||
-    fortress.army < cargo.army
+    fortress.army < cargo.army ||
+    fortress.points < cargo.points
   ) {
     throw new GameError(
       "That fortress does not have the committed trade cargo available."
@@ -2767,6 +2772,7 @@ function tradeLineItemsForCargo({
     { kind: TradeLineItemKind.GOLD, amount: cargo.gold },
     { kind: TradeLineItemKind.FOOD, amount: cargo.food },
     { kind: TradeLineItemKind.ARMY, amount: cargo.army },
+    { kind: TradeLineItemKind.POINTS, amount: cargo.points },
   ]
     .filter((lineItem) => lineItem.amount > 0)
     .map((lineItem) => ({ ...lineItem, fromFortressId, toFortressId }));
@@ -2783,7 +2789,7 @@ function getTradeCargoFromLineItems({
   }[];
   fromFortressId: string;
 }) {
-  const cargo: TradeCargo = { gold: 0, food: 0, army: 0 };
+  const cargo: TradeCargo = { gold: 0, food: 0, army: 0, points: 0 };
 
   for (const lineItem of lineItems) {
     if (lineItem.fromFortressId !== fromFortressId || !lineItem.amount) {
@@ -2796,6 +2802,8 @@ function getTradeCargoFromLineItems({
       cargo.food += lineItem.amount;
     } else if (lineItem.kind === TradeLineItemKind.ARMY) {
       cargo.army += lineItem.amount;
+    } else if (lineItem.kind === TradeLineItemKind.POINTS) {
+      cargo.points += lineItem.amount;
     }
   }
 
@@ -2808,9 +2816,11 @@ export async function createTradeOffer({
   offeredGold,
   offeredFood,
   offeredArmy,
+  offeredPoints = 0,
   requestedGold,
   requestedFood,
   requestedArmy,
+  requestedPoints = 0,
   offeredTileId,
   requestedTileId,
   now = new Date(),
@@ -2851,11 +2861,13 @@ export async function createTradeOffer({
         gold: offeredGold,
         food: offeredFood,
         army: offeredArmy,
+        points: offeredPoints,
       });
       requested = normalizeTradeCargo({
         gold: requestedGold,
         food: requestedFood,
         army: requestedArmy,
+        points: requestedPoints,
       });
     } catch (error) {
       throw new GameError(
@@ -3104,6 +3116,9 @@ export async function acceptTradeOffer({
     assertTradeCargoAvailable({ fortress: sender, cargo: senderCargo });
     assertTradeCargoAvailable({ fortress: receiver, cargo: receiverCargo });
 
+    const deedLineItem = offer.lineItems.find(
+      (item) => item.kind === TradeLineItemKind.TILE
+    );
     const legs = [
       { cargo: senderCargo, from: sender, to: receiver },
       { cargo: receiverCargo, from: receiver, to: sender },
@@ -3122,19 +3137,18 @@ export async function acceptTradeOffer({
           to: leg.to,
         }),
       }));
-    const deedLineItem = offer.lineItems.find(
-      (item) => item.kind === TradeLineItemKind.TILE
-    );
 
     if (deedLineItem?.tileId) {
+      const deedSender = deedLineItem.fromFortressId === sender.id ? sender : receiver;
+      const deedReceiver = deedLineItem.toFortressId === sender.id ? sender : receiver;
       const deedValidation = validateTileDeedAllowed({
         tileId: deedLineItem.tileId,
         senderFortressId: deedLineItem.fromFortressId,
         receiverFortressId: deedLineItem.toFortressId,
-        senderMapX: sender.mapX,
-        senderMapY: sender.mapY,
-        receiverMapX: receiver.mapX,
-        receiverMapY: receiver.mapY,
+        senderMapX: deedSender.mapX,
+        senderMapY: deedSender.mapY,
+        receiverMapX: deedReceiver.mapX,
+        receiverMapY: deedReceiver.mapY,
         senderOwnedTileIds: (
           await tx.mapHexOwnership.findMany({
             where: {
@@ -3218,6 +3232,7 @@ export async function acceptTradeOffer({
           gold: { decrement: leg.cargo.gold },
           food: { decrement: leg.cargo.food },
           army: { decrement: leg.cargo.army },
+          points: { decrement: leg.cargo.points },
         },
       });
     }
@@ -3237,6 +3252,7 @@ export async function acceptTradeOffer({
         gold: leg.cargo.gold,
         food: leg.cargo.food,
         army: leg.cargo.army,
+        points: leg.cargo.points,
         baseCargoValue: calculateTradeCargoValue(leg.cargo),
         deedTileId:
           deedLineItem?.tileId && leg.from.id === deedLineItem.fromFortressId

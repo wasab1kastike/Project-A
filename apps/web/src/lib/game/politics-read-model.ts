@@ -414,6 +414,7 @@ export async function getPoliticsPageState({
     bonusGold: leg.bonusGold,
     bonusFood: leg.bonusFood,
     pointsAwarded: leg.pointsAwarded,
+    points: leg.points,
     arrivesAt: leg.arrivesAt,
     settledAt: leg.settledAt,
     canEscort:
@@ -441,6 +442,7 @@ export async function getPoliticsPageState({
     stolenGold: leg.stolenGold,
     stolenFood: leg.stolenFood,
     stolenArmy: leg.stolenArmy,
+    stolenPoints: leg.stolenPoints,
     stolenCargoValue: leg.stolenCargoValue,
     raidedByCurrentPlayer:
       leg.interceptedByOrder?.fortressId === playerFortress.id,

@@ -149,7 +149,7 @@ const pressureFlow: readonly WikiDiagramStep[] = [
 ];
 
 const convoyFlow: readonly WikiDiagramStep[] = [
-  { label: "Offer", detail: "Gold, food, army, or allied tile deeds." },
+  { label: "Offer", detail: "Gold, food, army, points, or allied tile deeds." },
   { label: "Accept", detail: "Cargo leaves sender immediately." },
   { label: "Travel", detail: "Minimum 6 hours plus route distance." },
   { label: "Arrive", detail: "Delivered value awards shared trade points." },
@@ -541,7 +541,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
     highlights: [
       "Accepted trade creates one convoy leg per direction.",
       "Cargo is deducted from the sender immediately.",
-      "Trade can move gold, food, army, and allied tile deeds.",
+      "Trade can move gold, food, army, score points, and allied tile deeds.",
     ],
     sections: [
       {
@@ -569,7 +569,8 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         bullets: [
           "Sender escorts protect outbound scored cargo.",
           "Raid orders watch non-allied routes for eligible cargo.",
-          "A successful raid steals half the cargo.",
+          "A successful raid steals half the cargo, including traded score points.",
+          "Raid patrols are managed from the Castle War Room; convoy escorts stay with outbound trade convoys.",
           "Guard patrols can detect raids and expose the raider as an enemy.",
           "Detected raids grant the victim 24 hours to invoke immediate war.",
         ],

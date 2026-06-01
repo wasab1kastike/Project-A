@@ -33,21 +33,22 @@ test("trade allows neutral and allied relations only", () => {
 });
 
 test("trade cargo must be whole non-negative values and cannot be empty", () => {
-  assert.deepEqual(normalizeTradeCargo({ gold: 1, food: 2, army: 3 }), {
+  assert.deepEqual(normalizeTradeCargo({ gold: 1, food: 2, army: 3, points: 4 }), {
     gold: 1,
     food: 2,
     army: 3,
+    points: 4,
   });
   assert.throws(
-    () => normalizeTradeCargo({ gold: -1, food: 0, army: 0 }),
+    () => normalizeTradeCargo({ gold: -1, food: 0, army: 0, points: 0 }),
     /non-negative/
   );
   assert.throws(
-    () => normalizeTradeCargo({ gold: 0.5, food: 0, army: 0 }),
+    () => normalizeTradeCargo({ gold: 0.5, food: 0, army: 0, points: 0 }),
     /whole number/
   );
-  assert.equal(hasTradeCargo({ gold: 0, food: 0, army: 0 }), false);
-  assert.equal(hasTradeCargo({ gold: 0, food: 1, army: 0 }), true);
+  assert.equal(hasTradeCargo({ gold: 0, food: 0, army: 0, points: 0 }), false);
+  assert.equal(hasTradeCargo({ gold: 0, food: 0, army: 0, points: 1 }), true);
 });
 
 test("offers expire after one day and convoys add six hours to base travel", () => {
@@ -69,31 +70,31 @@ test("offers expire after one day and convoys add six hours to base travel", () 
 
 test("delivery scores base cargo and gives the sender the odd point", () => {
   assert.equal(
-    calculateTradeCargoValue({ gold: 1_000, food: 500, army: 250 }),
-    2_000
+    calculateTradeCargoValue({ gold: 1_000, food: 500, army: 250, points: 50 }),
+    2_550
   );
   assert.deepEqual(splitTradeDeliveryPoints(3_999), {
-    total: 3,
-    sender: 2,
-    receiver: 1,
+    total: 7,
+    sender: 4,
+    receiver: 3,
   });
 });
 
 test("alliance bonuses apply to delivered resources but not army", () => {
   assert.deepEqual(
     getAllianceDeliveryBonus({
-      cargo: { gold: 101, food: 99, army: 100 },
+      cargo: { gold: 101, food: 99, army: 100, points: 50 },
       isAllied: true,
       trustTier: 2,
     }),
-    { percent: 15, gold: 15, food: 14, army: 0 }
+    { percent: 15, gold: 15, food: 14, army: 0, points: 0 }
   );
   assert.deepEqual(
     getAllianceDeliveryBonus({
-      cargo: { gold: 101, food: 99, army: 100 },
+      cargo: { gold: 101, food: 99, army: 100, points: 50 },
       isAllied: false,
       trustTier: 2,
     }),
-    { percent: 0, gold: 0, food: 0, army: 0 }
+    { percent: 0, gold: 0, food: 0, army: 0, points: 0 }
   );
 });

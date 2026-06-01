@@ -168,12 +168,12 @@ Allies can upgrade trust (0→3). Higher tiers grant:
 
 ## Trade
 
-1. Create a trade offer — select goods (gold, food, army) and recipient
+1. Create a trade offer - select goods (gold, food, army, score points, or one allied tile deed) and recipient
 2. Recipient accepts → **Convoy Legs** spawn
 3. Convoys travel between fortresses (duration based on distance)
 4. On arrival, cargo is delivered and points awarded
-5. Convoy legs can be **intercepted** by enemy RAID orders
-6. **ESCORT** orders protect convoys; alliance trust tiers add cargo bonuses
+5. Convoy legs can be **intercepted** by enemy RAID orders managed from the War Room
+6. **ESCORT** orders protect outbound convoys; alliance trust tiers add cargo bonuses
 
 ---
 

@@ -12,9 +12,13 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
     newFeatures: [
       "Castle Diplomacy now supports peace offers with optional demands from either side.",
       "Alliance proposals can include break collateral; betrayal pays what is available and records unpaid collateral as treaty debt.",
+      "Trade offers can now move score points through convoy legs alongside gold, food, army, and allied tile deeds.",
+      "Raid patrol setup moved into the Castle War Room, while convoy escorts stay with outbound trade convoys.",
     ],
     bugFixes: [
       "The tutorial now points politics tasks at the Castle Diplomacy tab, matching the current navigation.",
+      "Tile-only deed trades now create convoy legs correctly instead of tripping over cargo setup.",
+      "Automatic wartime convoy raids now consider both sides of a war and avoid duplicate active raid patrols.",
     ],
   },
   {

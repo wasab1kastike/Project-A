@@ -722,6 +722,7 @@ enum TradeLineItemKind {
   GOLD
   FOOD
   ARMY
+  POINTS
   TILE
 }
 
@@ -781,6 +782,7 @@ model ConvoyLeg {
   gold               Int             @default(0)
   food               Int             @default(0)
   army               Int             @default(0)
+  points             Int             @default(0)
   baseCargoValue     Int
   bonusGold          Int             @default(0)
   bonusFood          Int             @default(0)
@@ -795,6 +797,7 @@ model ConvoyLeg {
   stolenGold         Int             @default(0)
   stolenFood         Int             @default(0)
   stolenArmy         Int             @default(0)
+  stolenPoints       Int             @default(0)
   stolenCargoValue   Int             @default(0)
   raidDetected       Boolean         @default(false)
   departedAt         DateTime
