@@ -169,6 +169,7 @@ import { processAllianceReinforcements } from "./tick-alliance-integration";
 import { recordUnitRoadCrossings } from "./tick-road-integration";
 import {
   processBattalionRecruitment,
+  processBattalionGuard,
   reconcileBattalionCasualties,
   processReserveHealing,
 } from "./tick-battalion-integration";
@@ -1860,19 +1861,6 @@ async function retireDisabledGuardAndRaidOrders({
   cycleId: string;
   tickAt: Date;
 }) {
-  await db.battalion.updateMany({
-    where: {
-      cycleId,
-      mode: "GUARD",
-    },
-    data: {
-      mode: "RESERVE",
-      stance: "REST",
-      garrisonedAt: null,
-      stanceLockedUntil: null,
-    },
-  });
-
   const disabledOrders = await db.armyOrder.findMany({
     where: {
       cycleId,
@@ -5753,6 +5741,8 @@ async function processCycleTick(
     const barracksByFortress = new Map<string, number>();
     const goldByFortress = new Map<string, number>();
     const maxArmyByFortress = new Map<string, number>();
+    const guardPercentByFortress = new Map<string, number>();
+    const ownedTilesByFortress = new Map<string, string[]>();
 
     for (const fortress of fortresses) {
       if (fortress.isNpc) continue;
@@ -5763,7 +5753,21 @@ async function processCycleTick(
       goldByFortress.set(fortress.id, currentGold.get(fortress.id) ?? fortress.gold);
       const policy = warPolicies.find((p) => p.fortressId === fortress.id);
       maxArmyByFortress.set(fortress.id, policy?.maxArmySize ?? 500);
+      guardPercentByFortress.set(fortress.id, policy?.guardPercent ?? 30);
+      ownedTilesByFortress.set(
+        fortress.id,
+        mapHexOwnerships
+          .filter((ownership) => ownership.ownerFortressId === fortress.id)
+          .map((ownership) => ownership.tileId),
+      );
     }
+
+    const fortressPositionsById = new Map(
+      fortresses.map((fortress) => [
+        fortress.id,
+        { mapX: fortress.mapX, mapY: fortress.mapY },
+      ]),
+    );
 
     const recruitedArmyByFortress = await processBattalionRecruitment({
       ctx: { db, cycleId, now: tickAt },
@@ -5785,12 +5789,14 @@ async function processCycleTick(
           currentArmy.get(fortress.id) ?? fortress.army,
         ])
       ),
-      fortressPositionsById: new Map(
-        fortresses.map((fortress) => [
-          fortress.id,
-          { mapX: fortress.mapX, mapY: fortress.mapY },
-        ]),
-      ),
+      fortressPositionsById,
+    });
+
+    await processBattalionGuard({
+      ctx: { db, cycleId, now: tickAt },
+      guardPercentByFortress,
+      ownedTilesByFortress,
+      fortressPositionsById,
     });
 
     for (const [fortressId, army] of recruitedArmyByFortress) {

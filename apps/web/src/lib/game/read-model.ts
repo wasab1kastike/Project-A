@@ -3252,7 +3252,7 @@ export async function getHomePageState({
       });
     })();
     const guardDisabledReason =
-      "Guard orders are temporarily disabled while War Room focuses on battlefronts, battalions, and recruitment.";
+      "Manual guard orders are disabled. Set battalions to GUARD in the War Room instead.";
 
     return {
       id: ownership.id,
@@ -4427,7 +4427,7 @@ export async function getHomePageState({
       xp: b.xp,
       readyAt: b.readyAt?.getTime() ?? null,
       stance: b.stance,
-      mode: b.mode === "GUARD" || !b.mode ? "RESERVE" : b.mode,
+      mode: b.mode ?? "GUARD",
       garrisonedAt: b.garrisonedAt,
     })),
     warFronts: (cycle.warFronts ?? []).map((f) => ({
