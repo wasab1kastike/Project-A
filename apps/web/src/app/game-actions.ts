@@ -117,11 +117,23 @@ function redirectToHome(
 function redirectToArcade(
   kind: "error" | "notice",
   message: string,
-  details?: Record<string, string>
+  details?: Record<string, string>,
+  path = "/shop"
 ): never {
   const params = new URLSearchParams(details);
   params.set(kind, message);
-  redirect(`/shop?${params.toString()}`);
+  const separator = path.includes("?") ? "&" : "?";
+  redirect(`${path}${separator}${params.toString()}`);
+}
+
+function getArcadeReturnPath(formData: FormData) {
+  const returnTo = getString(formData, "returnTo");
+
+  return returnTo === "/castle" ? "/castle?tab=shop" : "/shop";
+}
+
+function getRevalidationPath(path: string) {
+  return path.split("?")[0] || path;
 }
 
 async function requireUserId() {
@@ -164,10 +176,15 @@ function finishAction(notice: string): never {
 
 function finishArcadeAction(
   notice: string,
-  details?: Record<string, string>
+  details?: Record<string, string>,
+  path = "/shop"
 ): never {
   revalidatePath("/shop");
-  redirectToArcade("notice", notice, details);
+  const revalidationPath = getRevalidationPath(path);
+  if (revalidationPath !== "/shop") {
+    revalidatePath(revalidationPath);
+  }
+  redirectToArcade("notice", notice, details, path);
 }
 
 const GAMEPLAY_REVALIDATE_PATHS = ["/"];
@@ -2023,6 +2040,7 @@ export async function playArcadeGameAction(formData: FormData) {
 export async function purchaseArcadeLootBoxAction(formData: FormData) {
   const userId = await requireArcadeUserId();
   const crateType = getString(formData, "crateType");
+  const returnPath = getArcadeReturnPath(formData);
 
   try {
     await purchaseArcadeLootBox({
@@ -2034,18 +2052,29 @@ export async function purchaseArcadeLootBoxAction(formData: FormData) {
     });
     emitProjectARefresh("arcade-loot-box-purchase");
   } catch (error) {
-    redirectToArcade("error", getActionErrorMessage(error));
+    redirectToArcade(
+      "error",
+      getActionErrorMessage(error),
+      undefined,
+      returnPath
+    );
   }
 
-  finishArcadeAction("Loot box purchased.");
+  finishArcadeAction("Loot box purchased.", undefined, returnPath);
 }
 
 export async function openArcadeLootBoxAction(formData: FormData) {
   const userId = await requireArcadeUserId();
   const purchaseId = getString(formData, "purchaseId");
+  const returnPath = getArcadeReturnPath(formData);
 
   if (!purchaseId) {
-    redirectToArcade("error", "Loot box is missing its purchase reference.");
+    redirectToArcade(
+      "error",
+      "Loot box is missing its purchase reference.",
+      undefined,
+      returnPath
+    );
   }
 
   try {
@@ -2059,9 +2088,14 @@ export async function openArcadeLootBoxAction(formData: FormData) {
       slot: result.slot,
       variant: result.variant,
       duplicate: result.duplicatePayout > 0 ? "1" : "0",
-    });
+    }, returnPath);
   } catch (error) {
-    redirectToArcade("error", getActionErrorMessage(error));
+    redirectToArcade(
+      "error",
+      getActionErrorMessage(error),
+      undefined,
+      returnPath
+    );
   }
 }
 
@@ -2069,9 +2103,15 @@ export async function equipCosmeticUnlockAction(formData: FormData) {
   const userId = await requireArcadeUserId();
   const unlockId = getString(formData, "unlockId");
   const slot = getString(formData, "slot");
+  const returnPath = getArcadeReturnPath(formData);
 
   if (!unlockId) {
-    redirectToArcade("error", "Cosmetic unlock is missing its reference.");
+    redirectToArcade(
+      "error",
+      "Cosmetic unlock is missing its reference.",
+      undefined,
+      returnPath
+    );
   }
 
   try {
@@ -2085,18 +2125,29 @@ export async function equipCosmeticUnlockAction(formData: FormData) {
     });
     emitProjectARefresh("arcade-cosmetic-equip");
   } catch (error) {
-    redirectToArcade("error", getActionErrorMessage(error));
+    redirectToArcade(
+      "error",
+      getActionErrorMessage(error),
+      undefined,
+      returnPath
+    );
   }
 
-  finishArcadeAction("Cosmetic equipped.");
+  finishArcadeAction("Cosmetic equipped.", undefined, returnPath);
 }
 
 export async function unequipCosmeticAction(formData: FormData) {
   const userId = await requireArcadeUserId();
   const slot = getString(formData, "slot");
+  const returnPath = getArcadeReturnPath(formData);
 
   if (!slot) {
-    redirectToArcade("error", "Cosmetic slot is missing.");
+    redirectToArcade(
+      "error",
+      "Cosmetic slot is missing.",
+      undefined,
+      returnPath
+    );
   }
 
   try {
@@ -2109,10 +2160,15 @@ export async function unequipCosmeticAction(formData: FormData) {
     });
     emitProjectARefresh("arcade-cosmetic-equip");
   } catch (error) {
-    redirectToArcade("error", getActionErrorMessage(error));
+    redirectToArcade(
+      "error",
+      getActionErrorMessage(error),
+      undefined,
+      returnPath
+    );
   }
 
-  finishArcadeAction("Using default skin.");
+  finishArcadeAction("Using default skin.", undefined, returnPath);
 }
 
 export async function sendChatMessageAction(

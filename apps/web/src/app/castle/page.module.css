@@ -198,6 +198,194 @@
   object-fit: contain;
 }
 
+.shopConsole {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+
+.shopStatusBar {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.shopStatusBar div {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(103, 196, 207, 0.16);
+  border-radius: 8px;
+  background: var(--console-recess);
+}
+
+.shopStatusBar span,
+.shopCrateFooter span,
+.shopPurchaseRow span,
+.shopSkinRow small {
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+
+.shopStatusBar strong {
+  display: block;
+  overflow: hidden;
+  margin-top: 4px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shopCrateGrid,
+.shopInventoryGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.shopCrateCard,
+.shopInventoryColumn,
+.shopPurchaseRow,
+.shopSkinRow {
+  min-width: 0;
+  border: 1px solid rgba(103, 196, 207, 0.18);
+  border-radius: 8px;
+  background: rgba(3, 10, 16, 0.42);
+}
+
+.shopCrateCard {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.shopCrateCard p {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.shopCrateArt {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  border: 1px solid rgba(247, 196, 95, 0.24);
+  border-radius: 8px;
+  background: rgba(247, 196, 95, 0.1);
+  color: #ffe1a1;
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.shopCrateArt[data-crate="fortress"] {
+  border-color: rgba(103, 196, 207, 0.26);
+  background: rgba(103, 196, 207, 0.11);
+  color: #9be7ef;
+}
+
+.shopCrateFooter,
+.shopInventoryHeader,
+.shopPurchaseRow,
+.shopSkinRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.shopCrateCard button,
+.shopPurchaseRow button,
+.shopInventoryHeader button,
+.shopSkinRow button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(247, 196, 95, 0.34);
+  border-radius: 8px;
+  background: rgba(247, 196, 95, 0.9);
+  color: #14202f;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.shopCrateCard button:disabled,
+.shopPurchaseRow button:disabled,
+.shopInventoryHeader button:disabled,
+.shopSkinRow button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.shopPurchaseList,
+.shopSkinList,
+.shopInventoryColumn {
+  display: grid;
+  gap: 8px;
+}
+
+.shopPurchaseRow,
+.shopSkinRow {
+  padding: 10px;
+}
+
+.shopPurchaseRow > div,
+.shopSkinRow > div {
+  min-width: 0;
+}
+
+.shopPurchaseRow strong,
+.shopSkinRow strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shopInventoryColumn {
+  padding: 12px;
+}
+
+.shopInventoryHeader {
+  align-items: flex-start;
+}
+
+.shopInventoryHeader form {
+  flex: none;
+}
+
+.shopSkinRow span {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 5px;
+}
+
+.shopSkinRow small {
+  padding: 3px 6px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 999px;
+  background: rgba(2, 8, 13, 0.46);
+}
+
+.shopSkinRow small[data-rarity="Rare"] {
+  border-color: rgba(103, 196, 207, 0.28);
+  color: #9be7ef;
+}
+
+.shopSkinRow small[data-rarity="Epic"] {
+  border-color: rgba(192, 132, 252, 0.3);
+  color: #d8b4fe;
+}
+
+.shopSkinRow small[data-rarity="Legendary"] {
+  border-color: rgba(247, 196, 95, 0.34);
+  color: #ffe1a1;
+}
+
 .nukeConsole {
   align-content: start;
 }
@@ -683,12 +871,27 @@
   }
 
   .nukeStorageRack,
-  .nukeMarketGrid {
+  .nukeMarketGrid,
+  .shopStatusBar,
+  .shopCrateGrid,
+  .shopInventoryGrid {
     grid-template-columns: 1fr;
   }
 
   .nukeActionButton,
-  .nukeDangerButton {
+  .nukeDangerButton,
+  .shopCrateCard button,
+  .shopPurchaseRow button,
+  .shopInventoryHeader button,
+  .shopSkinRow button {
     width: 100%;
+  }
+
+  .shopPurchaseRow,
+  .shopSkinRow,
+  .shopCrateFooter,
+  .shopInventoryHeader {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
