@@ -2191,7 +2191,7 @@ export const FortressMap = memo(function FortressMap({
                     }
                     onClick={() => onSelectMapHex?.(tile.id)}
                   >
-                    <img src="/assets/nukes/map-bid-icon.svg" alt="" aria-hidden="true" />
+                    <img src="/assets/nukes/map-bid-icon.png" alt="" aria-hidden="true" />
                     <span>{nukeBiddingMarker.canLaunch ? "Ready" : nukeBiddingMarker.status}</span>
                   </button>
                 );

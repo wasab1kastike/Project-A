@@ -1684,7 +1684,7 @@ export function BattlefieldExperience({
           {selectedTileIsHomeOfA && nukeState ? (
             <div className={styles.nukeMapNotice}>
               <img
-                src="/assets/nukes/map-bid-icon.svg"
+                src="/assets/nukes/map-bid-icon.png"
                 alt=""
                 aria-hidden="true"
               />

@@ -16,11 +16,19 @@ import {
   createRaidOrderAction,
   commitNukeComponentBidAction,
   launchNukeAction,
+  equipCosmeticUnlockAction,
+  openArcadeLootBoxAction,
+  purchaseArcadeLootBoxAction,
+  unequipCosmeticAction,
 } from "@/app/game-actions";
 import {
+  ArcadeCosmeticSlot,
+  ArcadeLootBoxType,
   CastleUpgradeSpecialization,
   NukeComponentKind,
 } from "@/lib/prisma-client";
+import type { ArcadeHubState } from "@/lib/game/arcade";
+import { getArcadeLootBoxSkin } from "@/lib/game/constants";
 import {
   formatDeepMiningImpact,
   formatUnicornShatteredRealityImpact,
@@ -587,19 +595,19 @@ const NUKE_COMPONENTS = [
     kind: NukeComponentKind.FUEL,
     label: "Fuel",
     bidResource: "gold",
-    sprite: "/assets/nukes/fuel.svg",
+    sprite: "/assets/nukes/fuel.png",
   },
   {
     kind: NukeComponentKind.ROCKET,
     label: "Rocket",
     bidResource: "food",
-    sprite: "/assets/nukes/rocket.svg",
+    sprite: "/assets/nukes/rocket.png",
   },
   {
     kind: NukeComponentKind.WRATH_OF_A,
     label: "Wrath of A",
     bidResource: "army",
-    sprite: "/assets/nukes/wrath-of-a.svg",
+    sprite: "/assets/nukes/wrath-of-a.png",
   },
 ] as const;
 const CASTLE_TABS = [
@@ -2961,17 +2969,17 @@ export function CastleManagement({
         ) : null}
 
         {activeTab === "NUKES" ? (
-          <section className={styles.panel}>
+          <section className={`${styles.panel} ${styles.nukeConsole}`}>
             <div className={styles.panelHeader}>
               <span>Nukes</span>
               <strong>{nukeState?.round.status ?? "offline"}</strong>
             </div>
             {nukeState ? (
               <>
-                <div className={styles.expansionStatus}>
+                <div className={styles.nukeStatusStrip}>
                   <img
-                    src="/assets/nukes/nuke-ready.svg"
-                    className={styles.featureCrest}
+                    src="/assets/nukes/nuke-ready.png"
+                    className={styles.nukeHeroSprite}
                     alt=""
                     aria-hidden="true"
                   />
@@ -2992,83 +3000,149 @@ export function CastleManagement({
                   </div>
                 </div>
 
-                <div className={styles.buildingGrid}>
-                  {NUKE_COMPONENTS.map((component) => {
-                    const ownBids = nukeState.round.playerBids.filter(
-                      (bid) => bid.componentKind === component.kind
-                    );
-                    return (
-                      <article
-                        key={component.kind}
-                        className={styles.buildingCard}
-                      >
-                        <div className={styles.buildingCardHeader}>
+                <section className={styles.nukeStorage}>
+                  <div className={styles.panelHeader}>
+                    <span>Storage</span>
+                    <strong>
+                      {nukeState.canLaunch ? "nuke ready" : "parts held"}
+                    </strong>
+                  </div>
+                  <div className={styles.nukeStorageRack}>
+                    {NUKE_COMPONENTS.map((component) => {
+                      const owned = nukeState.inventory[component.kind] ?? 0;
+                      return (
+                        <article
+                          key={component.kind}
+                          className={styles.nukeStorageCell}
+                          data-ready={owned > 0 ? "true" : "false"}
+                        >
                           <img
                             src={component.sprite}
-                            className={styles.featureCrest}
+                            className={styles.nukeStorageSprite}
                             alt=""
                             aria-hidden="true"
                           />
                           <div>
                             <strong>{component.label}</strong>
-                            <small>
-                              Inventory:{" "}
-                              {nukeState.inventory[component.kind] ?? 0}
-                            </small>
+                            <span>{owned.toLocaleString()} / 1</span>
                           </div>
-                        </div>
-                        <label>
-                          Bid {component.bidResource}
-                          <input
-                            type="number"
-                            min={1}
-                            step={1}
-                            value={nukeBidAmounts[component.kind] ?? 1}
-                            disabled={!nukeState.round.isOpen}
-                            onChange={(event) =>
-                              setNukeBidAmounts((current) => ({
-                                ...current,
-                                [component.kind]: Math.max(
-                                  1,
-                                  Number(event.target.value) || 1
-                                ),
-                              }))
-                            }
-                          />
-                        </label>
-                        <button
-                          type="button"
-                          className={styles.nukeActionButton}
-                          disabled={
-                            !nukeState.round.isOpen ||
-                            nukePending === `bid:${component.kind}`
-                          }
-                          onClick={() => void handleNukeBid(component.kind)}
-                        >
-                          {nukePending === `bid:${component.kind}`
-                            ? "Committing..."
-                            : `Commit ${component.bidResource}`}
-                        </button>
-                        {ownBids.length > 0 ? (
-                          <small>
-                            Your committed total:{" "}
-                            {ownBids.reduce((sum, bid) => sum + bid.amount, 0)}
-                          </small>
-                        ) : null}
-                      </article>
-                    );
-                  })}
-                </div>
+                        </article>
+                      );
+                    })}
+                    <article
+                      className={styles.nukeStorageCell}
+                      data-ready={nukeState.canLaunch ? "true" : "false"}
+                    >
+                      <img
+                        src="/assets/nukes/nuke-ready.png"
+                        className={styles.nukeStorageSprite}
+                        alt=""
+                        aria-hidden="true"
+                      />
+                      <div>
+                        <strong>Completed nuke</strong>
+                        <span>
+                          {nukeState.canLaunch ? "Ready" : "Incomplete"}
+                        </span>
+                      </div>
+                    </article>
+                  </div>
+                </section>
 
-                <div className={styles.panel}>
+                <section className={styles.nukeMarket}>
+                  <div className={styles.panelHeader}>
+                    <span>Daily market</span>
+                    <strong>
+                      {nukeState.round.isOpen ? "accepting bids" : "closed"}
+                    </strong>
+                  </div>
+                  <div className={styles.nukeMarketGrid}>
+                    {NUKE_COMPONENTS.map((component) => {
+                      const ownBids = nukeState.round.playerBids.filter(
+                        (bid) => bid.componentKind === component.kind
+                      );
+                      const committedTotal = ownBids.reduce(
+                        (sum, bid) => sum + bid.amount,
+                        0
+                      );
+                      return (
+                        <article
+                          key={component.kind}
+                          className={styles.nukeBidCard}
+                        >
+                          <div className={styles.nukeBidHeader}>
+                            <img
+                              src={component.sprite}
+                              className={styles.nukeBidSprite}
+                              alt=""
+                              aria-hidden="true"
+                            />
+                            <div>
+                              <strong>{component.label}</strong>
+                              <small>
+                                Highest private {component.bidResource}{" "}
+                                commitment wins.
+                              </small>
+                            </div>
+                          </div>
+                          <div className={styles.nukeBidMeta}>
+                            <span>
+                              Owned{" "}
+                              {(
+                                nukeState.inventory[component.kind] ?? 0
+                              ).toLocaleString()}
+                            </span>
+                            <span>
+                              Committed {committedTotal.toLocaleString()}
+                            </span>
+                          </div>
+                          <label className={styles.nukeBidField}>
+                            <span>Bid {component.bidResource}</span>
+                            <input
+                              type="number"
+                              min={1}
+                              step={1}
+                              value={nukeBidAmounts[component.kind] ?? 1}
+                              disabled={!nukeState.round.isOpen}
+                              onChange={(event) =>
+                                setNukeBidAmounts((current) => ({
+                                  ...current,
+                                  [component.kind]: Math.max(
+                                    1,
+                                    Number(event.target.value) || 1
+                                  ),
+                                }))
+                              }
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            className={styles.nukeActionButton}
+                            disabled={
+                              !nukeState.round.isOpen ||
+                              nukePending === `bid:${component.kind}`
+                            }
+                            onClick={() => void handleNukeBid(component.kind)}
+                          >
+                            {nukePending === `bid:${component.kind}`
+                              ? "Committing..."
+                              : `Commit ${component.bidResource}`}
+                          </button>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </section>
+
+                <section className={styles.nukeLaunchPanel}>
                   <div className={styles.panelHeader}>
                     <span>Launch</span>
                     <strong>
                       {nukeState.launchGoldCost.toLocaleString()} gold
                     </strong>
                   </div>
-                  <label>
-                    Target
+                  <label className={styles.nukeBidField}>
+                    <span>Target</span>
                     <select
                       value={nukeTargetId}
                       onChange={(event) => setNukeTargetId(event.target.value)}
@@ -3097,7 +3171,7 @@ export function CastleManagement({
                   >
                     {nukePending === "launch" ? "Launching..." : "Launch nuke"}
                   </button>
-                </div>
+                </section>
               </>
             ) : (
               <p>Nuke bidding opens during Season 4 gameplay.</p>
