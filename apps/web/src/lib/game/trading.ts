@@ -1,5 +1,12 @@
 import { DiplomacyRelationStatus } from "@/lib/prisma-client";
 import { getAttackTravelMinutes } from "./attacks";
+import {
+  calculateNukeComponentCargoValue,
+  EMPTY_NUKE_COMPONENT_CARGO,
+  hasNukeComponentCargo,
+  normalizeNukeComponentCargo,
+  type NukeComponentCargo,
+} from "./nukes";
 import { getAllianceTrustTerms, isAllianceTrustTier } from "./politics";
 import { addHours, addMinutes } from "./time";
 
@@ -11,6 +18,7 @@ export type TradeCargo = {
   food: number;
   army: number;
   points: number;
+  nukeComponents?: NukeComponentCargo;
 };
 
 export const EMPTY_TRADE_CARGO: TradeCargo = {
@@ -18,6 +26,7 @@ export const EMPTY_TRADE_CARGO: TradeCargo = {
   food: 0,
   army: 0,
   points: 0,
+  nukeComponents: EMPTY_NUKE_COMPONENT_CARGO,
 };
 
 export function getTradeBlockedReason(status: DiplomacyRelationStatus) {
@@ -42,7 +51,8 @@ export function canTradeWithRelation(status: DiplomacyRelationStatus) {
 }
 
 export function normalizeTradeCargo(input: TradeCargo): TradeCargo {
-  const values = Object.entries(input);
+  const { nukeComponents, ...resources } = input;
+  const values = Object.entries(resources);
 
   for (const [resource, amount] of values) {
     if (!Number.isInteger(amount) || amount < 0) {
@@ -52,7 +62,18 @@ export function normalizeTradeCargo(input: TradeCargo): TradeCargo {
     }
   }
 
-  return { ...input };
+  const normalized = normalizeNukeComponentCargo(
+    nukeComponents ?? EMPTY_NUKE_COMPONENT_CARGO
+  );
+  const base = {
+    ...resources,
+  };
+
+  return nukeComponents ? { ...base, nukeComponents: normalized } : base;
+}
+
+export function getTradeNukeComponents(cargo: TradeCargo): NukeComponentCargo {
+  return cargo.nukeComponents ?? EMPTY_NUKE_COMPONENT_CARGO;
 }
 
 export function hasTradeCargo(cargo: TradeCargo) {
@@ -60,12 +81,19 @@ export function hasTradeCargo(cargo: TradeCargo) {
     cargo.gold > 0 ||
     cargo.food > 0 ||
     cargo.army > 0 ||
-    cargo.points > 0
+    cargo.points > 0 ||
+    hasNukeComponentCargo(getTradeNukeComponents(cargo))
   );
 }
 
 export function calculateTradeCargoValue(cargo: TradeCargo) {
-  return cargo.gold + cargo.food * 1.5 + cargo.army * 3 + cargo.points;
+  return (
+    cargo.gold +
+    cargo.food * 1.5 +
+    cargo.army * 3 +
+    cargo.points +
+    calculateNukeComponentCargoValue(getTradeNukeComponents(cargo))
+  );
 }
 
 export function splitTradeDeliveryPoints(

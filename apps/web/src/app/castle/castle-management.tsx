@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useMemo, useState, type FormEvent } from "react";
+import { useSearchParams } from "next/navigation";
 import { useRefreshView } from "@/lib/refresh-helpers";
 import { RaceSkillPanel } from "@/components/race-skill-panel";
 import { PoliticsClient } from "@/app/politics/politics-client";
@@ -13,8 +14,13 @@ import {
   setMaxArmySizeAction,
   createBattalionAction,
   createRaidOrderAction,
+  commitNukeComponentBidAction,
+  launchNukeAction,
 } from "@/app/game-actions";
-import { CastleUpgradeSpecialization } from "@/lib/prisma-client";
+import {
+  CastleUpgradeSpecialization,
+  NukeComponentKind,
+} from "@/lib/prisma-client";
 import {
   formatDeepMiningImpact,
   formatUnicornShatteredRealityImpact,
@@ -403,8 +409,42 @@ type CommandTarget = {
   isNpc: boolean;
 };
 
+type NukeState = {
+  round: {
+    startsAt: Date;
+    endsAt: Date;
+    status: string;
+    isOpen: boolean;
+    bidsArePrivate: boolean;
+    playerBids: Array<{
+      id: string;
+      componentKind: NukeComponentKind;
+      label: string;
+      amount: number;
+      createdAt: Date;
+    }>;
+  };
+  inventory: Record<NukeComponentKind, number>;
+  canLaunch: boolean;
+  launchGoldCost: number;
+  launchDisabledReason: string | null;
+  eligibleTargets: Array<{
+    id: string;
+    name: string;
+    commanderName: string;
+    level: number;
+  }>;
+} | null;
+
 type BuildingSpecialization = "POINTS" | "FOOD" | "MILITARY" | "DEFENSE";
-type CastleTab = "OVERVIEW" | "ECONOMY" | "WAR_ROOM" | "DIPLOMACY" | "SKILLS" | "SHOP";
+type CastleTab =
+  | "OVERVIEW"
+  | "ECONOMY"
+  | "WAR_ROOM"
+  | "NUKES"
+  | "DIPLOMACY"
+  | "SKILLS"
+  | "SHOP";
 type WorkerAssignmentKey =
   | "minersAssigned"
   | "farmersAssigned"
@@ -542,14 +582,36 @@ const RACE_TIER_BIOME_REQUIREMENTS: Record<FortressRace, string> = {
 };
 
 const RACE_TIER_THRESHOLDS_LABEL = "Tier 1/2/3 at 3/6/9 matching tiles";
+const NUKE_COMPONENTS = [
+  {
+    kind: NukeComponentKind.FUEL,
+    label: "Fuel",
+    bidResource: "gold",
+    sprite: "/assets/nukes/fuel.svg",
+  },
+  {
+    kind: NukeComponentKind.ROCKET,
+    label: "Rocket",
+    bidResource: "food",
+    sprite: "/assets/nukes/rocket.svg",
+  },
+  {
+    kind: NukeComponentKind.WRATH_OF_A,
+    label: "Wrath of A",
+    bidResource: "army",
+    sprite: "/assets/nukes/wrath-of-a.svg",
+  },
+] as const;
 const CASTLE_TABS = [
   { key: "OVERVIEW", label: "Overview" },
   { key: "ECONOMY", label: "Economy" },
   { key: "WAR_ROOM", label: "War Room" },
+  { key: "NUKES", label: "Nukes" },
   { key: "DIPLOMACY", label: "Diplomacy" },
   { key: "SKILLS", label: "Skills" },
   { key: "SHOP", label: "Shop" },
 ] as const satisfies readonly { key: CastleTab; label: string }[];
+const CASTLE_TAB_KEYS = new Set<CastleTab>(CASTLE_TABS.map((tab) => tab.key));
 const RACE_TOKEN_PATHS: Partial<Record<FortressRace, string>> = {
   DWARFS: "/assets/token-dwarf.png",
   ORKS: "/assets/token-orks.png",
@@ -735,12 +797,20 @@ export function CastleManagement({
   targets,
   politicsState,
   shopState,
+  nukeState,
 }: {
   playerSummary: PlayerSummary;
   targets: CommandTarget[];
   politicsState: any;
   shopState: any;
+  nukeState: NukeState;
 }) {
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get("tab")?.toUpperCase();
+  const initialTab =
+    requestedTab && CASTLE_TAB_KEYS.has(requestedTab as CastleTab)
+      ? (requestedTab as CastleTab)
+      : "OVERVIEW";
   const refreshView = useRefreshView();
   const [workers, setWorkers] = useState({
     minersAssigned: playerSummary.minersAssigned,
@@ -754,25 +824,36 @@ export function CastleManagement({
   const [recruitError, setRecruitError] = useState<string | null>(null);
   const [recruitPending, setRecruitPending] = useState(false);
   const [goldToConvert, setGoldToConvert] = useState(getGoldToPointsRatio());
-  const [activeTab, setActiveTab] = useState<CastleTab>("OVERVIEW");
+  const [activeTab, setActiveTab] = useState<CastleTab>(initialTab);
   const [warRoomOrderArmy, setWarRoomOrderArmy] = useState(100);
   const [warRoomPendingId, setWarRoomPendingId] = useState<string | null>(null);
   const [guardPercent, setGuardPercent] = useState(
-    playerSummary.warPolicy?.guardPercent ?? 30,
+    playerSummary.warPolicy?.guardPercent ?? 30
   );
   const [maxArmySize, setMaxArmySize] = useState(
-    playerSummary.warPolicy?.maxArmySize ?? 500,
+    playerSummary.warPolicy?.maxArmySize ?? 500
   );
   const [allianceSupportAttack, setAllianceSupportAttack] = useState(
-    playerSummary.warPolicy?.allianceSupportAttack ?? true,
+    playerSummary.warPolicy?.allianceSupportAttack ?? true
   );
   const [allianceSupportDefense, setAllianceSupportDefense] = useState(
-    playerSummary.warPolicy?.allianceSupportDefense ?? true,
+    playerSummary.warPolicy?.allianceSupportDefense ?? true
   );
   const [allianceSupportPercent, setAllianceSupportPercent] = useState(
-    playerSummary.warPolicy?.allianceSupportPercent ?? 50,
+    playerSummary.warPolicy?.allianceSupportPercent ?? 50
   );
   const [battalionPending, setBattalionPending] = useState(false);
+  const [nukeBidAmounts, setNukeBidAmounts] = useState<
+    Record<NukeComponentKind, number>
+  >({
+    [NukeComponentKind.FUEL]: 1000,
+    [NukeComponentKind.ROCKET]: 1000,
+    [NukeComponentKind.WRATH_OF_A]: 100,
+  });
+  const [nukePending, setNukePending] = useState<string | null>(null);
+  const [nukeTargetId, setNukeTargetId] = useState(
+    nukeState?.eligibleTargets[0]?.id ?? ""
+  );
 
   const handleGuardPercentChange = useCallback(
     async (value: number) => {
@@ -783,7 +864,7 @@ export function CastleManagement({
       });
       await handleInlineResult(result);
     },
-    [playerSummary.id],
+    [playerSummary.id]
   );
 
   const handleMaxArmySizeChange = useCallback(
@@ -795,7 +876,7 @@ export function CastleManagement({
       });
       await handleInlineResult(result);
     },
-    [playerSummary.id],
+    [playerSummary.id]
   );
 
   const saveAllianceSupportPolicy = useCallback(
@@ -811,7 +892,7 @@ export function CastleManagement({
       });
       await handleInlineResult(result);
     },
-    [allianceSupportAttack, allianceSupportDefense, allianceSupportPercent],
+    [allianceSupportAttack, allianceSupportDefense, allianceSupportPercent]
   );
 
   const handleCreateBattalion = useCallback(async () => {
@@ -826,9 +907,38 @@ export function CastleManagement({
     }
   }, [playerSummary.id]);
 
+  const handleNukeBid = useCallback(
+    async (componentKind: NukeComponentKind) => {
+      setNukePending(`bid:${componentKind}`);
+      try {
+        const result = await commitNukeComponentBidAction(
+          componentKind,
+          nukeBidAmounts[componentKind] ?? 0
+        );
+        await handleInlineResult(result);
+      } finally {
+        setNukePending(null);
+      }
+    },
+    [nukeBidAmounts]
+  );
+
+  const handleNukeLaunch = useCallback(async () => {
+    if (!nukeTargetId) return;
+    setNukePending("launch");
+    try {
+      const result = await launchNukeAction(nukeTargetId);
+      await handleInlineResult(result);
+    } finally {
+      setNukePending(null);
+    }
+  }, [nukeTargetId]);
+
   const buildings = getBuildingsForRace(playerSummary.race);
   const raceTokenPath =
-    playerSummary.race && (playerSummary.race && isFortressRace(playerSummary.race!))
+    playerSummary.race &&
+    playerSummary.race &&
+    isFortressRace(playerSummary.race!)
       ? RACE_TOKEN_PATHS[playerSummary.race]
       : null;
   const castleSpecializationCounts =
@@ -946,7 +1056,9 @@ export function CastleManagement({
     return typeof value === "string" ? value : "";
   }
 
-  async function handleInlineResult(result: { ok: true } | { ok: false; error: string }) {
+  async function handleInlineResult(
+    result: { ok: true } | { ok: false; error: string }
+  ) {
     if (!result.ok) {
       window.alert(result.error);
       return;
@@ -979,10 +1091,14 @@ export function CastleManagement({
     }
   }
 
-  async function buyPointsWithGoldFormAction(formData: FormData): Promise<void> {
+  async function buyPointsWithGoldFormAction(
+    formData: FormData
+  ): Promise<void> {
     const goldAmount = Number(getStringValue(formData, "goldAmount"));
     await handleInlineResult(
-      await buyPointsWithGoldAction(Number.isFinite(goldAmount) ? goldAmount : 0)
+      await buyPointsWithGoldAction(
+        Number.isFinite(goldAmount) ? goldAmount : 0
+      )
     );
   }
 
@@ -990,7 +1106,9 @@ export function CastleManagement({
     formData: FormData
   ): Promise<void> {
     await handleInlineResult(
-      await purchaseFortressUpgradeAction(getStringValue(formData, "specialization"))
+      await purchaseFortressUpgradeAction(
+        getStringValue(formData, "specialization")
+      )
     );
   }
 
@@ -1008,12 +1126,16 @@ export function CastleManagement({
     await handleInlineResult(await activateWaaaghAction());
   }
 
-  async function activateOrkBossOrderFormAction(formData: FormData): Promise<void> {
+  async function activateOrkBossOrderFormAction(
+    formData: FormData
+  ): Promise<void> {
     const kind = getStringValue(formData, "kind");
     await handleInlineResult(await activateOrkBossOrderAction(kind as never));
   }
 
-  async function investOrkWaaaghScrapFormAction(formData: FormData): Promise<void> {
+  async function investOrkWaaaghScrapFormAction(
+    formData: FormData
+  ): Promise<void> {
     const kind = getStringValue(formData, "kind");
     await handleInlineResult(await investOrkWaaaghScrapAction(kind));
   }
@@ -1070,9 +1192,13 @@ export function CastleManagement({
     );
   }
 
-  async function chooseDwarfGrudgeFormAction(formData: FormData): Promise<void> {
+  async function chooseDwarfGrudgeFormAction(
+    formData: FormData
+  ): Promise<void> {
     await handleInlineResult(
-      await chooseDwarfGrudgeAction(getStringValue(formData, "targetFortressId"))
+      await chooseDwarfGrudgeAction(
+        getStringValue(formData, "targetFortressId")
+      )
     );
   }
 
@@ -1089,13 +1215,17 @@ export function CastleManagement({
     );
   }
 
-  async function selectFortressRaceFormAction(formData: FormData): Promise<void> {
+  async function selectFortressRaceFormAction(
+    formData: FormData
+  ): Promise<void> {
     await handleInlineResult(
       await selectFortressRaceAction(getStringValue(formData, "race"))
     );
   }
 
-  async function selectFortressDoctrineFormAction(formData: FormData): Promise<void> {
+  async function selectFortressDoctrineFormAction(
+    formData: FormData
+  ): Promise<void> {
     await handleInlineResult(
       await selectFortressDoctrineAction(getStringValue(formData, "doctrine"))
     );
@@ -1200,1359 +1330,1943 @@ export function CastleManagement({
         role="tabpanel"
         aria-labelledby={`castle-tab-${activeTab.toLowerCase()}`}
       >
-      {activeTab === "OVERVIEW" ? (
-        <>
-      <section className={styles.panel}>
-        <div className={styles.panelHeader}>
-          <span>Castle</span>
-          <strong>Level {playerSummary.displayedCastleLevel}</strong>
-        </div>
-        <h1>{playerSummary.name}</h1>
-        <dl className={styles.statGrid}>
-          <div>
-            <dt>Points</dt>
-            <dd>{playerSummary.points}</dd>
-          </div>
-          <div>
-            <dt>Gold</dt>
-            <dd>{playerSummary.gold}</dd>
-          </div>
-          <div>
-            <dt>Food</dt>
-            <dd>{playerSummary.food}</dd>
-          </div>
-          <div>
-            <dt>Army</dt>
-            <dd>{playerSummary.army}</dd>
-          </div>
-          <div>
-            <dt>Queue</dt>
-            <dd>{playerSummary.recruitmentQueue}</dd>
-          </div>
-          <div>
-            <dt>Defense</dt>
-            <dd>x{playerSummary.defenseMultiplier.toFixed(2)}</dd>
-          </div>
-        </dl>
-        <form action={buyPointsWithGoldFormAction} className={styles.form}>
-          <label>
-            Buy points with gold
-            <input
-              type="number"
-              name="goldAmount"
-              min={getGoldToPointsRatio()}
-              step={1}
-              value={goldToConvert}
-              onChange={(event) => {
-                const value = event.currentTarget.valueAsNumber;
-                setGoldToConvert(
-                  Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0
-                );
-              }}
-            />
-          </label>
-          <p className={styles.muted}>
-            Rate: {getGoldToPointsRatio()} gold = 1 point. This converts{" "}
-            {goldToConvert} gold into {pointsFromGold} points.
-          </p>
-          <button type="submit" disabled={!canConvertGoldToPoints}>
-            Convert gold to points
-          </button>
-        </form>
-      </section>
+        {activeTab === "OVERVIEW" ? (
+          <>
+            <section className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <span>Castle</span>
+                <strong>Level {playerSummary.displayedCastleLevel}</strong>
+              </div>
+              <h1>{playerSummary.name}</h1>
+              <dl className={styles.statGrid}>
+                <div>
+                  <dt>Points</dt>
+                  <dd>{playerSummary.points}</dd>
+                </div>
+                <div>
+                  <dt>Gold</dt>
+                  <dd>{playerSummary.gold}</dd>
+                </div>
+                <div>
+                  <dt>Food</dt>
+                  <dd>{playerSummary.food}</dd>
+                </div>
+                <div>
+                  <dt>Army</dt>
+                  <dd>{playerSummary.army}</dd>
+                </div>
+                <div>
+                  <dt>Queue</dt>
+                  <dd>{playerSummary.recruitmentQueue}</dd>
+                </div>
+                <div>
+                  <dt>Defense</dt>
+                  <dd>x{playerSummary.defenseMultiplier.toFixed(2)}</dd>
+                </div>
+              </dl>
+              <form
+                action={buyPointsWithGoldFormAction}
+                className={styles.form}
+              >
+                <label>
+                  Buy points with gold
+                  <input
+                    type="number"
+                    name="goldAmount"
+                    min={getGoldToPointsRatio()}
+                    step={1}
+                    value={goldToConvert}
+                    onChange={(event) => {
+                      const value = event.currentTarget.valueAsNumber;
+                      setGoldToConvert(
+                        Number.isFinite(value)
+                          ? Math.max(0, Math.floor(value))
+                          : 0
+                      );
+                    }}
+                  />
+                </label>
+                <p className={styles.muted}>
+                  Rate: {getGoldToPointsRatio()} gold = 1 point. This converts{" "}
+                  {goldToConvert} gold into {pointsFromGold} points.
+                </p>
+                <button type="submit" disabled={!canConvertGoldToPoints}>
+                  Convert gold to points
+                </button>
+              </form>
+            </section>
 
-      <section className={styles.panel}>
-        <div className={styles.panelHeader}>
-          <span>Owned land</span>
-          <strong>{playerSummary.ownedTileSummary.totalTileCount} tiles</strong>
-        </div>
-        <dl className={styles.statGrid}>
-          <div>
-            <dt>Gold/tick</dt>
-            <dd>+{playerSummary.ownedTileSummary.goldIncome}</dd>
-          </div>
-          <div>
-            <dt>Points/tick</dt>
-            <dd>+{playerSummary.ownedTileSummary.pointIncome}</dd>
-          </div>
-          <div>
-            <dt>Food/tick</dt>
-            <dd>+{playerSummary.ownedTileSummary.foodIncome}</dd>
-          </div>
-          <div>
-            <dt>Army/tick</dt>
-            <dd>+{playerSummary.ownedTileSummary.armyIncome}</dd>
-          </div>
-          <div>
-            <dt>Worker pool</dt>
-            <dd>+{playerSummary.ownedTileSummary.workerPoolBonus}</dd>
-          </div>
-          <div>
-            <dt>Defense</dt>
-            <dd>+{playerSummary.ownedTileSummary.defenseBonusPercent}%</dd>
-          </div>
-        </dl>
-        <p className={styles.muted}>
-          {playerSummary.doctrinesEnabled
-            ? "Neutral borders grow through pressure priorities. The center monument is preserved and provides no income."
-            : "Normal hexes now feed gold and food, while Home of A generates score income."}
-        </p>
-      </section>
-
-      {playerSummary.expansionSummary ? (
-        <section className={styles.panel}>
-          <div className={styles.panelHeader}>
-            <span>Expansion</span>
-            <strong>
-              {playerSummary.expansionSummary.activePriorityCount} /{" "}
-              {playerSummary.expansionSummary.priorityLimit} queued
-            </strong>
-          </div>
-          <div className={styles.operationTitle}>
-            <img
-              className={styles.rowCrest}
-              src="/assets/ui/crest-pressure.webp"
-              alt=""
-            />
-            <div>
-              <strong>Pressure momentum</strong>
+            <section className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <span>Owned land</span>
+                <strong>
+                  {playerSummary.ownedTileSummary.totalTileCount} tiles
+                </strong>
+              </div>
+              <dl className={styles.statGrid}>
+                <div>
+                  <dt>Gold/tick</dt>
+                  <dd>+{playerSummary.ownedTileSummary.goldIncome}</dd>
+                </div>
+                <div>
+                  <dt>Points/tick</dt>
+                  <dd>+{playerSummary.ownedTileSummary.pointIncome}</dd>
+                </div>
+                <div>
+                  <dt>Food/tick</dt>
+                  <dd>+{playerSummary.ownedTileSummary.foodIncome}</dd>
+                </div>
+                <div>
+                  <dt>Army/tick</dt>
+                  <dd>+{playerSummary.ownedTileSummary.armyIncome}</dd>
+                </div>
+                <div>
+                  <dt>Worker pool</dt>
+                  <dd>+{playerSummary.ownedTileSummary.workerPoolBonus}</dd>
+                </div>
+                <div>
+                  <dt>Defense</dt>
+                  <dd>
+                    +{playerSummary.ownedTileSummary.defenseBonusPercent}%
+                  </dd>
+                </div>
+              </dl>
               <p className={styles.muted}>
-                {playerSummary.pressureWorkersAssigned} workers generate{" "}
-                {playerSummary.expansionSummary.pressureOutput} pressure per
-                tick.
+                {playerSummary.doctrinesEnabled
+                  ? "Neutral borders grow through pressure priorities. The center monument is preserved and provides no income."
+                  : "Normal hexes now feed gold and food, while Home of A generates score income."}
               </p>
-            </div>
-          </div>
-          {playerSummary.expansionSummary.leadingPriority ? (
-            <div className={styles.progressRow}>
-              <div className={styles.statusRow}>
-                <span>Leading claim</span>
-                <strong>
-                  #{playerSummary.expansionSummary.leadingPriority.rank} Tile{" "}
-                  {playerSummary.expansionSummary.leadingPriority.tileId}
-                </strong>
-              </div>
-              <progress
-                max={playerSummary.expansionSummary.pressureThreshold}
-                value={playerSummary.expansionSummary.leadingPriority.progress}
-              />
-              <div className={styles.statusRow}>
-                <span>
-                  {playerSummary.expansionSummary.leadingPriority.progress} /{" "}
-                  {playerSummary.expansionSummary.pressureThreshold}
-                </span>
-                {playerSummary.expansionSummary.estimatedMinutesRemaining !==
-                null ? (
-                  <small>
-                    {formatEstimate(
-                      playerSummary.expansionSummary.estimatedMinutesRemaining
-                    )}{" "}
-                    at current uncontested allocation
-                  </small>
-                ) : null}
-              </div>
-            </div>
-          ) : (
-            <p className={styles.muted}>No neutral tile currently prioritized.</p>
-          )}
-          {playerSummary.expansionSummary.priorityQueue.length > 0 ? (
-            <div className={styles.statusList}>
-              {playerSummary.expansionSummary.priorityQueue.map((priority) => (
-                <div className={styles.statusRow} key={priority.tileId}>
-                  <span>
-                    #{priority.rank} Tile {priority.tileId}
-                  </span>
+            </section>
+
+            {playerSummary.expansionSummary ? (
+              <section className={styles.panel}>
+                <div className={styles.panelHeader}>
+                  <span>Expansion</span>
                   <strong>
-                    {priority.targetKind === "WAR"
-                      ? "War target"
-                      : `${priority.progress} / ${playerSummary.expansionSummary?.pressureThreshold ?? 600}`}
+                    {playerSummary.expansionSummary.activePriorityCount} /{" "}
+                    {playerSummary.expansionSummary.priorityLimit} queued
                   </strong>
                 </div>
-              ))}
-            </div>
-          ) : null}
-          {playerSummary.expansionSummary.decayingPressureCount > 0 ? (
-            <p className={styles.warning}>
-              {playerSummary.expansionSummary.decayingPressureCount} unsupported
-              pressure{" "}
-              {playerSummary.expansionSummary.decayingPressureCount === 1
-                ? "claim is"
-                : "claims are"}{" "}
-              decaying without an active priority.
-            </p>
-          ) : null}
-          <Link className={styles.textLink} href="/">
-            Change priorities on battlefield
-          </Link>
-        </section>
-      ) : null}
-        </>
-      ) : null}
-
-      {activeTab === "ECONOMY" ? (
-        <>
-      <section className={styles.panel}>
-        <div className={styles.panelHeader}>
-          <span>Buildings</span>
-          <strong>
-            {playerSummary.activeCastleUpgradeProject
-              ? "Construction active"
-              : `${playerSummary.level} upgrades`}
-          </strong>
-        </div>
-        <div className={styles.buildingGrid}>
-          {buildings.map((building) => {
-            const buildingLevel =
-              playerSummary.castleSpecializationCounts?.[building.key] ?? 0;
-            const projectedProduction = calculateTickProduction({
-              level: playerSummary.level,
-              race: playerSummary.race as never,
-              food: playerSummary.food,
-              castleSpecializations: {
-                ...castleSpecializationCounts,
-                [building.key]: buildingLevel + 1,
-              },
-              ...workers,
-            });
-            const upgradeOption =
-              playerSummary.buildingUpgradeOptions?.[building.key] ?? null;
-            const activeProject =
-              playerSummary.activeCastleUpgradeProject?.specialization ===
-              building.key
-                ? playerSummary.activeCastleUpgradeProject
-                : null;
-
-            return (
-              <article key={building.key} className={styles.buildingCard}>
-                <div className={styles.buildingCardHeader}>
-                  <strong>{building.name}</strong>
-                  <span>Level {buildingLevel}</span>
-                </div>
-                <p>{building.role}</p>
-                <small>
-                  {getBuildingEffect({
-                    key: building.key,
-                    level: buildingLevel,
-                    production,
-                    defenseMultiplier: playerSummary.defenseMultiplier,
-                    population: playerSummary.population,
-                  })}
-                </small>
-                <small>
-                  Next level:{" "}
-                  {getBuildingUpgradeBenefitPreview({
-                    key: building.key,
-                    level: buildingLevel,
-                    currentProduction: production,
-                    projectedProduction,
-                  })}
-                </small>
-                {building.workerKey ? (
-                  <small>Workers: {workers[building.workerKey]} assigned</small>
-                ) : null}
-                {activeProject ? (
-                  <p className={styles.muted}>
-                    Upgrading to level {activeProject.level}; completes at{" "}
-                    {formatTime(activeProject.completesAt)}.
-                  </p>
-                ) : playerSummary.upgradesUnlocked &&
-                  upgradeOption !== null &&
-                  upgradeOption.nextCost !== null &&
-                  playerSummary.pendingUpgradeSpecializationLevel === null ? (
-                  <form
-                    action={purchaseFortressUpgradeFormAction}
-                    className={styles.form}
-                  >
-                    <input
-                      name="specialization"
-                      type="hidden"
-                      value={building.key}
-                    />
-                    <p>
-                      Upgrade costs {upgradeOption?.nextCost} gold and{" "}
-                      {upgradeOption?.nextDurationMinutes} minutes.
-                      {building.key === "DEFENSE"
-                        ? " Raises castle level."
-                        : upgradeOption?.maxLevel !== null
-                        ? ` Max level: ${upgradeOption?.maxLevel}.`
-                        : ""}
+                <div className={styles.operationTitle}>
+                  <img
+                    className={styles.rowCrest}
+                    src="/assets/ui/crest-pressure.webp"
+                    alt=""
+                  />
+                  <div>
+                    <strong>Pressure momentum</strong>
+                    <p className={styles.muted}>
+                      {playerSummary.pressureWorkersAssigned} workers generate{" "}
+                      {playerSummary.expansionSummary.pressureOutput} pressure
+                      per tick.
                     </p>
-                    <button
-                      type="submit"
-                      disabled={
-                        !playerSummary.canPurchaseUpgrade ||
-                        !upgradeOption?.canUpgrade
+                  </div>
+                </div>
+                {playerSummary.expansionSummary.leadingPriority ? (
+                  <div className={styles.progressRow}>
+                    <div className={styles.statusRow}>
+                      <span>Leading claim</span>
+                      <strong>
+                        #{playerSummary.expansionSummary.leadingPriority.rank}{" "}
+                        Tile{" "}
+                        {playerSummary.expansionSummary.leadingPriority.tileId}
+                      </strong>
+                    </div>
+                    <progress
+                      max={playerSummary.expansionSummary.pressureThreshold}
+                      value={
+                        playerSummary.expansionSummary.leadingPriority.progress
                       }
-                    >
-                      Upgrade {building.name}
-                    </button>
-                  </form>
+                    />
+                    <div className={styles.statusRow}>
+                      <span>
+                        {
+                          playerSummary.expansionSummary.leadingPriority
+                            .progress
+                        }{" "}
+                        / {playerSummary.expansionSummary.pressureThreshold}
+                      </span>
+                      {playerSummary.expansionSummary
+                        .estimatedMinutesRemaining !== null ? (
+                        <small>
+                          {formatEstimate(
+                            playerSummary.expansionSummary
+                              .estimatedMinutesRemaining
+                          )}{" "}
+                          at current uncontested allocation
+                        </small>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : (
+                  <p className={styles.muted}>
+                    No neutral tile currently prioritized.
+                  </p>
+                )}
+                {playerSummary.expansionSummary.priorityQueue.length > 0 ? (
+                  <div className={styles.statusList}>
+                    {playerSummary.expansionSummary.priorityQueue.map(
+                      (priority) => (
+                        <div className={styles.statusRow} key={priority.tileId}>
+                          <span>
+                            #{priority.rank} Tile {priority.tileId}
+                          </span>
+                          <strong>
+                            {priority.targetKind === "WAR"
+                              ? "War target"
+                              : `${priority.progress} / ${playerSummary.expansionSummary?.pressureThreshold ?? 600}`}
+                          </strong>
+                        </div>
+                      )
+                    )}
+                  </div>
                 ) : null}
-              </article>
-            );
-          })}
-        </div>
-        {playerSummary.pendingUpgradeSpecializationLevel !== null ? (
-          <form
-            action={choosePendingUpgradeSpecializationFormAction}
-            className={styles.form}
-          >
-            <p>
-              Choose a building for level{" "}
-              {playerSummary.pendingUpgradeSpecializationLevel}.
-            </p>
-            <BuildingChoiceFields buildings={buildings} />
-            <button type="submit">Lock building</button>
-          </form>
-        ) : playerSummary.activeCastleUpgradeProject ? (
-          <p className={styles.muted}>
-            One building can be under construction at a time. Gold has already
-            been spent for the active upgrade.
-          </p>
-        ) : (
-          <p className={styles.muted}>
-            Castle upgrades are available once gameplay starts.
-          </p>
-        )}
-      </section>
+                {playerSummary.expansionSummary.decayingPressureCount > 0 ? (
+                  <p className={styles.warning}>
+                    {playerSummary.expansionSummary.decayingPressureCount}{" "}
+                    unsupported pressure{" "}
+                    {playerSummary.expansionSummary.decayingPressureCount === 1
+                      ? "claim is"
+                      : "claims are"}{" "}
+                    decaying without an active priority.
+                  </p>
+                ) : null}
+                <Link className={styles.textLink} href="/">
+                  Change priorities on battlefield
+                </Link>
+              </section>
+            ) : null}
+          </>
+        ) : null}
 
-      <section className={styles.panel}>
-        <div className={styles.panelHeader}>
-          <span>Workers</span>
-          <strong>
-            {assigned}/{playerSummary.population}
-          </strong>
-        </div>
-        <form className={styles.form} onSubmit={saveWorkers}>
-          <label>
-            Miners
-            <input
-              type="number"
-              min={0}
-              value={workers.minersAssigned}
-              onChange={(event) =>
-                setWorker("minersAssigned", event.currentTarget.valueAsNumber)
-              }
-            />
-          </label>
-          <label>
-            Farmers
-            <input
-              type="number"
-              min={0}
-              value={workers.farmersAssigned}
-              onChange={(event) =>
-                setWorker("farmersAssigned", event.currentTarget.valueAsNumber)
-              }
-            />
-          </label>
-          <label>
-            Recruiters
-            <input
-              type="number"
-              min={0}
-              value={workers.recruitersAssigned}
-              onChange={(event) =>
-                setWorker(
-                  "recruitersAssigned",
-                  event.currentTarget.valueAsNumber
-                )
-              }
-            />
-          </label>
-          <label>
-            {pressureWorkerLabel}
-            <input
-              type="number"
-              min={0}
-              value={workers.pressureWorkersAssigned}
-              onChange={(event) =>
-                setWorker(
-                  "pressureWorkersAssigned",
-                  event.currentTarget.valueAsNumber
-                )
-              }
-            />
-            <small>{pressureWorkerDescription}</small>
-          </label>
-          <p className={styles.muted}>
-            Tick preview: +{production.goldProduced} gold, +
-            {production.foodProduced} food, {production.armyRequested} queue
-            capacity, -
-            {recruitmentDisplay.armyUpkeep} food upkeep. If unpaid, active army
-            loses {recruitmentDisplay.starvationAttritionPercent}%.
-          </p>
-          {workerError ? <p className={styles.error}>{workerError}</p> : null}
-          <button type="submit" disabled={workerPending || !playerSummary.race}>
-            Save workers
-          </button>
-        </form>
-      </section>
-        </>
-      ) : null}
-
-      {activeTab === "WAR_ROOM" ? (
-        <>
-      {/* Pool Summary */}
-      <section className={styles.panel}>
-        <div className={styles.panelHeader}><span>Battalion Pools</span></div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {(() => {
-            const bnList = playerSummary.battalions ?? [];
-            const pools: Record<string, number> = { GUARD: 0, ATTACK: 0, RESERVE: 0, ALLIANCE: 0 };
-            for (const b of bnList) pools[(b as any).mode ?? "GUARD"] += (b as any).size ?? 0;
-            const styles: Record<string, { bg: string; color: string; icon: string }> = {
-              GUARD: { bg: "#1a3a5c", color: "#6ab0ff", icon: "🛡" },
-              ATTACK: { bg: "#3a2a0a", color: "#ffb040", icon: "⚔" },
-              RESERVE: { bg: "#2a2a2a", color: "#888", icon: "📦" },
-              ALLIANCE: { bg: "#2a1a3a", color: "#c080ff", icon: "🤝" },
-            };
-            return Object.entries(pools).map(([mode, size]) => (
-              <span key={mode} style={{ fontSize: 12, background: styles[mode]?.bg, padding: "2px 8px", borderRadius: 4, color: styles[mode]?.color }}>
-                {styles[mode]?.icon} {mode}: {size.toLocaleString()}
-              </span>
-            ));
-          })()}
-        </div>
-      </section>
-
-      {/* Costs Summary */}
-      <section className={styles.panel}>
-        <div className={styles.panelHeader}>
-          <span>Costs</span>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13 }}>
-          {(() => {
-            const bnList = playerSummary.battalions ?? [];
-            const totalArmy = bnList.reduce((s, b: any) => s + b.size, 0);
-            const maxArmy = bnList.reduce((s, b: any) => s + b.maxSize, 0);
-            const currentFood = Math.ceil(totalArmy / 50);
-            const maxFood = Math.ceil(maxArmy / 50);
-            const currentGold = Math.ceil(totalArmy * 2);
-            const maxGold = Math.ceil(maxArmy * 2);
-            return (
-              <>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>Upkeep (1f / 50 units)</span>
-                  <strong>{currentFood.toLocaleString()} f/t</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-muted)", fontSize: 12 }}>
-                  <span>At max cap</span>
-                  <span>{maxFood.toLocaleString()} f/t</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>Recruitment (2g / unit)</span>
-                  <strong style={{ color: "#ffb040" }}>{currentGold.toLocaleString()} g</strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-muted)", fontSize: 12 }}>
-                  <span>At max cap</span>
-                  <span style={{ color: "#ff9800" }}>{maxGold.toLocaleString()} g</span>
-                </div>
-              </>
-            );
-          })()}
-        </div>
-        <p className={styles.muted} style={{ fontSize: 11, marginTop: 4 }}>
-          Upkeep deducts food each tick. Recruitment orders spend gold up front,
-          then recruiters process the queue. Food shortfall causes desertion.
-        </p>
-      </section>
-
-      <section className={styles.panel}>
-        <div className={styles.panelHeader}>
-          <span>Alliance Support</span>
-          <strong>{playerSummary.allianceWarRoom.allianceBattalionArmy.toLocaleString()} ready</strong>
-        </div>
-        <div style={{ display: "grid", gap: 10 }}>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", fontSize: 13 }}>
-            <label style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
-              <input
-                type="checkbox"
-                checked={allianceSupportDefense}
-                onChange={(event) => {
-                  const checked = event.currentTarget.checked;
-                  setAllianceSupportDefense(checked);
-                  void saveAllianceSupportPolicy({ supportDefense: checked });
-                }}
-              />
-              Defend allies
-            </label>
-            <label style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
-              <input
-                type="checkbox"
-                checked={allianceSupportAttack}
-                onChange={(event) => {
-                  const checked = event.currentTarget.checked;
-                  setAllianceSupportAttack(checked);
-                  void saveAllianceSupportPolicy({ supportAttack: checked });
-                }}
-              />
-              Join allied attacks
-            </label>
-          </div>
-          <label style={{ display: "grid", gap: 4, fontSize: 13 }}>
-            <span style={{ display: "flex", justifyContent: "space-between" }}>
-              <span>Commit from ALLIANCE battalions</span>
-              <strong>{allianceSupportPercent}%</strong>
-            </span>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              step={5}
-              value={allianceSupportPercent}
-              onChange={(event) => {
-                const value = Number(event.currentTarget.value);
-                setAllianceSupportPercent(value);
-              }}
-              onMouseUp={(event) =>
-                void saveAllianceSupportPolicy({
-                  supportPercent: Number(event.currentTarget.value),
-                })
-              }
-              onTouchEnd={(event) =>
-                void saveAllianceSupportPolicy({
-                  supportPercent: Number(event.currentTarget.value),
-                })
-              }
-              onBlur={(event) =>
-                void saveAllianceSupportPolicy({
-                  supportPercent: Number(event.currentTarget.value),
-                })
-              }
-            />
-          </label>
-          <p className={styles.muted} style={{ fontSize: 12, margin: 0 }}>
-            Battalions set to ALLIANCE automatically march to allied active battlefields on the enabled sides.
-          </p>
-        </div>
-
-        <div className={styles.operationGroup} style={{ marginTop: 10 }}>
-          <div className={styles.operationTitle}>
-            <strong>Allies</strong>
-          </div>
-          {playerSummary.allianceWarRoom.allies.length > 0 ? (
-            playerSummary.allianceWarRoom.allies.map((ally) => (
-              <div key={ally.fortressId} className={styles.statusRow}>
-                <span>{ally.name}</span>
-                <strong>Trust {ally.trustTier}</strong>
-              </div>
-            ))
-          ) : (
-            <p className={styles.muted}>No active alliances.</p>
-          )}
-        </div>
-
-        {playerSummary.allianceWarRoom.battlefields.length > 0 ? (
-          <div className={styles.operationGroup}>
-            <div className={styles.operationTitle}>
-              <strong>Allied battlefields</strong>
-            </div>
-            {playerSummary.allianceWarRoom.battlefields.map((battlefield) => (
-              <div key={battlefield.id} className={styles.statusRow}>
-                <span>
-                  {battlefield.allyName} {battlefield.alliedSide === "ATTACKER" ? "attacking" : "defending"} {battlefield.targetLabel}
-                </span>
+        {activeTab === "ECONOMY" ? (
+          <>
+            <section className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <span>Buildings</span>
                 <strong>
-                  {battlefield.attackerArmyRemaining.toLocaleString()} / {battlefield.defenderArmyRemaining.toLocaleString()}
+                  {playerSummary.activeCastleUpgradeProject
+                    ? "Construction active"
+                    : `${playerSummary.level} upgrades`}
                 </strong>
               </div>
-            ))}
-          </div>
-        ) : null}
+              <div className={styles.buildingGrid}>
+                {buildings.map((building) => {
+                  const buildingLevel =
+                    playerSummary.castleSpecializationCounts?.[building.key] ??
+                    0;
+                  const projectedProduction = calculateTickProduction({
+                    level: playerSummary.level,
+                    race: playerSummary.race as never,
+                    food: playerSummary.food,
+                    castleSpecializations: {
+                      ...castleSpecializationCounts,
+                      [building.key]: buildingLevel + 1,
+                    },
+                    ...workers,
+                  });
+                  const upgradeOption =
+                    playerSummary.buildingUpgradeOptions?.[building.key] ??
+                    null;
+                  const activeProject =
+                    playerSummary.activeCastleUpgradeProject?.specialization ===
+                    building.key
+                      ? playerSummary.activeCastleUpgradeProject
+                      : null;
 
-        {playerSummary.allianceWarRoom.outgoingReinforcements.length > 0 ? (
-          <div className={styles.operationGroup}>
-            <div className={styles.operationTitle}>
-              <strong>Support en route</strong>
-            </div>
-            {playerSummary.allianceWarRoom.outgoingReinforcements.map((unit) => (
-              <div key={unit.id} className={styles.statusRow}>
-                <span>
-                  {unit.armyAmount.toLocaleString()} to {unit.allyName} ({unit.side?.toLowerCase() ?? "support"})
-                </span>
-                <strong>{new Date(unit.arrivesAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</strong>
+                  return (
+                    <article key={building.key} className={styles.buildingCard}>
+                      <div className={styles.buildingCardHeader}>
+                        <strong>{building.name}</strong>
+                        <span>Level {buildingLevel}</span>
+                      </div>
+                      <p>{building.role}</p>
+                      <small>
+                        {getBuildingEffect({
+                          key: building.key,
+                          level: buildingLevel,
+                          production,
+                          defenseMultiplier: playerSummary.defenseMultiplier,
+                          population: playerSummary.population,
+                        })}
+                      </small>
+                      <small>
+                        Next level:{" "}
+                        {getBuildingUpgradeBenefitPreview({
+                          key: building.key,
+                          level: buildingLevel,
+                          currentProduction: production,
+                          projectedProduction,
+                        })}
+                      </small>
+                      {building.workerKey ? (
+                        <small>
+                          Workers: {workers[building.workerKey]} assigned
+                        </small>
+                      ) : null}
+                      {activeProject ? (
+                        <p className={styles.muted}>
+                          Upgrading to level {activeProject.level}; completes at{" "}
+                          {formatTime(activeProject.completesAt)}.
+                        </p>
+                      ) : playerSummary.upgradesUnlocked &&
+                        upgradeOption !== null &&
+                        upgradeOption.nextCost !== null &&
+                        playerSummary.pendingUpgradeSpecializationLevel ===
+                          null ? (
+                        <form
+                          action={purchaseFortressUpgradeFormAction}
+                          className={styles.form}
+                        >
+                          <input
+                            name="specialization"
+                            type="hidden"
+                            value={building.key}
+                          />
+                          <p>
+                            Upgrade costs {upgradeOption?.nextCost} gold and{" "}
+                            {upgradeOption?.nextDurationMinutes} minutes.
+                            {building.key === "DEFENSE"
+                              ? " Raises castle level."
+                              : upgradeOption?.maxLevel !== null
+                                ? ` Max level: ${upgradeOption?.maxLevel}.`
+                                : ""}
+                          </p>
+                          <button
+                            type="submit"
+                            disabled={
+                              !playerSummary.canPurchaseUpgrade ||
+                              !upgradeOption?.canUpgrade
+                            }
+                          >
+                            Upgrade {building.name}
+                          </button>
+                        </form>
+                      ) : null}
+                    </article>
+                  );
+                })}
               </div>
-            ))}
-          </div>
-        ) : null}
-      </section>
+              {playerSummary.pendingUpgradeSpecializationLevel !== null ? (
+                <form
+                  action={choosePendingUpgradeSpecializationFormAction}
+                  className={styles.form}
+                >
+                  <p>
+                    Choose a building for level{" "}
+                    {playerSummary.pendingUpgradeSpecializationLevel}.
+                  </p>
+                  <BuildingChoiceFields buildings={buildings} />
+                  <button type="submit">Lock building</button>
+                </form>
+              ) : playerSummary.activeCastleUpgradeProject ? (
+                <p className={styles.muted}>
+                  One building can be under construction at a time. Gold has
+                  already been spent for the active upgrade.
+                </p>
+              ) : (
+                <p className={styles.muted}>
+                  Castle upgrades are available once gameplay starts.
+                </p>
+              )}
+            </section>
 
-      <section className={styles.panel}>
-        <div className={styles.panelHeader}>
-          <span>Convoy Raids</span>
-          <strong>{politicsState?.activeArmyOrders?.filter((order: any) => order.type === "RAID").length ?? 0} active</strong>
-        </div>
-        <p className={styles.muted} style={{ marginBottom: 8 }}>
-          Raid patrols watch hostile or neutral convoy routes. Trade convoy escorts still live with the convoy itself.
-        </p>
-        <div className={styles.form}>
-          <label>
-            <span>Army to commit</span>
-            <input
-              type="number"
-              min={1}
-              step={1}
-              value={warRoomOrderArmy}
-              onChange={(event) =>
-                setWarRoomOrderArmy(
-                  Math.max(1, Number.parseInt(event.target.value || "1", 10))
-                )
-              }
-            />
-          </label>
-        </div>
-        <div className={styles.operationGroup}>
-          {(politicsState?.rows ?? []).some((row: any) => row.canRaid || row.activeRaidOrderId) ? (
-            (politicsState?.rows ?? [])
-              .filter((row: any) => row.canRaid || row.activeRaidOrderId)
-              .map((row: any) => (
-                <div key={row.fortressId} className={styles.statusRow}>
-                  <span>{row.commanderName || row.name}</span>
-                  {row.activeRaidOrderId ? (
-                    <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                      <strong>{row.activeRaidArmy?.toLocaleString()} army</strong>
-                      <button
-                        type="button"
-                        disabled={warRoomPendingId !== null}
-                        onClick={() =>
-                          void handleWarRoomOrder(
-                            `raid:recall:${row.activeRaidOrderId}`,
-                            () => recallArmyOrderAction(row.activeRaidOrderId)
-                          )
-                        }
-                      >
-                        Recall
-                      </button>
-                    </span>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled={warRoomPendingId !== null}
-                      onClick={() =>
-                        void handleWarRoomOrder(
-                          `raid:create:${row.fortressId}`,
-                          () => createRaidOrderAction(row.fortressId, warRoomOrderArmy)
-                        )
-                      }
+            <section className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <span>Workers</span>
+                <strong>
+                  {assigned}/{playerSummary.population}
+                </strong>
+              </div>
+              <form className={styles.form} onSubmit={saveWorkers}>
+                <label>
+                  Miners
+                  <input
+                    type="number"
+                    min={0}
+                    value={workers.minersAssigned}
+                    onChange={(event) =>
+                      setWorker(
+                        "minersAssigned",
+                        event.currentTarget.valueAsNumber
+                      )
+                    }
+                  />
+                </label>
+                <label>
+                  Farmers
+                  <input
+                    type="number"
+                    min={0}
+                    value={workers.farmersAssigned}
+                    onChange={(event) =>
+                      setWorker(
+                        "farmersAssigned",
+                        event.currentTarget.valueAsNumber
+                      )
+                    }
+                  />
+                </label>
+                <label>
+                  Recruiters
+                  <input
+                    type="number"
+                    min={0}
+                    value={workers.recruitersAssigned}
+                    onChange={(event) =>
+                      setWorker(
+                        "recruitersAssigned",
+                        event.currentTarget.valueAsNumber
+                      )
+                    }
+                  />
+                </label>
+                <label>
+                  {pressureWorkerLabel}
+                  <input
+                    type="number"
+                    min={0}
+                    value={workers.pressureWorkersAssigned}
+                    onChange={(event) =>
+                      setWorker(
+                        "pressureWorkersAssigned",
+                        event.currentTarget.valueAsNumber
+                      )
+                    }
+                  />
+                  <small>{pressureWorkerDescription}</small>
+                </label>
+                <p className={styles.muted}>
+                  Tick preview: +{production.goldProduced} gold, +
+                  {production.foodProduced} food, {production.armyRequested}{" "}
+                  queue capacity, -{recruitmentDisplay.armyUpkeep} food upkeep.
+                  If unpaid, active army loses{" "}
+                  {recruitmentDisplay.starvationAttritionPercent}%.
+                </p>
+                {workerError ? (
+                  <p className={styles.error}>{workerError}</p>
+                ) : null}
+                <button
+                  type="submit"
+                  disabled={workerPending || !playerSummary.race}
+                >
+                  Save workers
+                </button>
+              </form>
+            </section>
+          </>
+        ) : null}
+
+        {activeTab === "WAR_ROOM" ? (
+          <>
+            {/* Pool Summary */}
+            <section className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <span>Battalion Pools</span>
+              </div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {(() => {
+                  const bnList = playerSummary.battalions ?? [];
+                  const pools: Record<string, number> = {
+                    GUARD: 0,
+                    ATTACK: 0,
+                    RESERVE: 0,
+                    ALLIANCE: 0,
+                  };
+                  for (const b of bnList)
+                    pools[(b as any).mode ?? "GUARD"] += (b as any).size ?? 0;
+                  const styles: Record<
+                    string,
+                    { bg: string; color: string; icon: string }
+                  > = {
+                    GUARD: { bg: "#1a3a5c", color: "#6ab0ff", icon: "🛡" },
+                    ATTACK: { bg: "#3a2a0a", color: "#ffb040", icon: "⚔" },
+                    RESERVE: { bg: "#2a2a2a", color: "#888", icon: "📦" },
+                    ALLIANCE: { bg: "#2a1a3a", color: "#c080ff", icon: "🤝" },
+                  };
+                  return Object.entries(pools).map(([mode, size]) => (
+                    <span
+                      key={mode}
+                      style={{
+                        fontSize: 12,
+                        background: styles[mode]?.bg,
+                        padding: "2px 8px",
+                        borderRadius: 4,
+                        color: styles[mode]?.color,
+                      }}
                     >
-                      Raid routes
-                    </button>
-                  )}
-                </div>
-              ))
-          ) : (
-            <p className={styles.muted}>No eligible convoy raid targets right now.</p>
-          )}
-        </div>
-        {politicsState?.recentConvoyLegs?.some((leg: any) => leg.raidedByCurrentPlayer) ? (
-          <div className={styles.operationGroup}>
-            <div className={styles.operationTitle}>
-              <strong>Recent interceptions</strong>
-            </div>
-            {politicsState.recentConvoyLegs
-              .filter((leg: any) => leg.raidedByCurrentPlayer)
-              .slice(0, 4)
-              .map((leg: any) => (
-                <div key={leg.id} className={styles.statusRow}>
-                  <span>{leg.counterpartName}</span>
-                  <strong>
-                    {leg.status === "INTERCEPTED"
-                      ? `${leg.stolenGold.toLocaleString()}g / ${leg.stolenFood.toLocaleString()}f / ${leg.stolenArmy.toLocaleString()}a / ${leg.stolenPoints.toLocaleString()}p`
-                      : "failed"}
-                  </strong>
-                </div>
-              ))}
-          </div>
-        ) : null}
-      </section>
+                      {styles[mode]?.icon} {mode}: {size.toLocaleString()}
+                    </span>
+                  ));
+                })()}
+              </div>
+            </section>
 
-      {/* Battalion Roster */}
-      <section className={styles.panel}>
-        <div className={styles.panelHeader}>
-          <span>Battalions</span>
-          <strong>{playerSummary.battalions?.length ?? 0} active</strong>
-        </div>
-        <div style={{ fontSize: 12, color: "var(--text-muted)", margin: "4px 0 8px", lineHeight: 1.5 }}>
-          <strong>Reserves:</strong>{" "}
-          {(() => {
-            const totalBn = (playerSummary.battalions ?? []).reduce((s, b) => s + b.size, 0);
-            const reserves = Math.max(0, (playerSummary.army ?? 0) - totalBn);
-            return `${reserves.toLocaleString()} unassigned`;
-          })()}
-          {" · "}
-          <strong>Tiers:</strong>{" "}
-          <span title="1.0× dmg/def, max 500">Recruit</span> →{" "}
-          <span title="1.15× dmg, 1.10× def, max 5k">Regular (1.5k)</span> →{" "}
-          <span title="1.35× dmg, 1.25× def, max 15k">Veteran (5k)</span> →{" "}
-          <span title="1.60× dmg, 1.45× def, max 50k">Elite (15k)</span>
-        </div>
-        {playerSummary.battalions && playerSummary.battalions.length > 0 ? (
-          <ul style={{ listStyle: "none", padding: 0, margin: "8px 0 0" }}>
-            {playerSummary.battalions.map((bn) => (
-              <li
-                key={bn.id}
+            {/* Costs Summary */}
+            <section className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <span>Costs</span>
+              </div>
+              <div
                 style={{
-                  padding: "8px 10px",
-                  background: "var(--bg-raised)",
-                  borderRadius: 6,
-                  marginBottom: 6,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
                   fontSize: 13,
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                  <strong>{bn.name}</strong>
-                  <span style={{ color: "var(--text-muted)", fontSize: 12 }}>
-                    {bn.size}/{bn.maxSize} · Tier {bn.tier}
-                  </span>
-                </div>
-                <div style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12, flexWrap: "wrap" }}>
-                  <select
-                    defaultValue={(bn as any).mode ?? "GUARD"}
-                    onChange={async (e) => {
-                      const selectEl = e.target as HTMLSelectElement;
-                      const newMode = selectEl.value;
-                      selectEl.disabled = true;
-                      try {
-                        const { setBattalionModeAction } = await import("@/app/game-actions");
-                        const result = await setBattalionModeAction({
-                          battalionId: bn.id,
-                          mode: newMode,
-                        });
-                        if (!result?.ok) {
-                          selectEl.value = (bn as any).mode ?? "GUARD";
-                          console.error("Failed:", result?.error);
-                        }
-                      } catch (err) {
-                        selectEl.value = (bn as any).mode ?? "GUARD";
-                        console.error("Error:", err);
-                      } finally {
-                        selectEl.disabled = false;
-                        refreshView();
-                      }
-                    }}
-                    style={{
-                      fontSize: 11,
-                      padding: "1px 4px",
-                      background: (bn as any).mode === "ATTACK" ? "#3a2a0a" : (bn as any).mode === "GUARD" ? "#1a3a5c" : (bn as any).mode === "RESERVE" ? "#2a2a2a" : "#2a1a3a",
-                      color: (bn as any).mode === "ATTACK" ? "#ffb040" : (bn as any).mode === "GUARD" ? "#6ab0ff" : (bn as any).mode === "RESERVE" ? "#888" : "#c080ff",
-                      border: "1px solid var(--border)",
-                      borderRadius: 3,
-                      cursor: "pointer",
-                      fontWeight: 600,
-                    }}
-                  >
-                    <option value="GUARD">🛡 Guard</option>
-                    <option value="ATTACK">⚔ Attack</option>
-                    <option value="RESERVE">📦 Reserve</option>
-                    <option value="ALLIANCE">🤝 Alliance</option>
-                  </select>
-                  <select
-                    defaultValue={bn.stance ?? "REST"}
-                    onChange={async (e) => {
-                      const selectEl = e.target as HTMLSelectElement;
-                      const newStance = selectEl.value;
-                      selectEl.disabled = true;
-                      try {
-                        const { setBattalionStanceAction } = await import("@/app/game-actions");
-                        const result = await setBattalionStanceAction({
-                          battalionId: bn.id,
-                          stance: newStance,
-                        });
-                        if (!result?.ok) {
-                          selectEl.value = bn.stance ?? "REST";
-                          window.alert(result?.error ?? "Failed to change stance");
-                        }
-                      } catch (err) {
-                        selectEl.value = bn.stance ?? "REST";
-                      } finally {
-                        selectEl.disabled = false;
-                        refreshView();
-                      }
-                    }}
-                    style={{
-                      fontSize: 11,
-                      padding: "1px 4px",
-                      background: "#1a1a2e",
-                      color: "#aaa",
-                      border: "1px solid var(--border)",
-                      borderRadius: 3,
-                      cursor: "pointer",
-                    }}
-                    title="Stance affects combat bonuses and behavior"
-                  >
-                    <option value="FORTIFY">🏰 Fortify</option>
-                    <option value="PATROL">🚶 Patrol</option>
-                    <option value="TRAINING">🎯 Training</option>
-                    <option value="AMBUSH">🗡 Ambush</option>
-                    <option value="REST">💤 Rest</option>
-                    <option value="MOBILE">🏃 Mobile</option>
-                  </select>
-                  <span style={{ color: "var(--text-muted)" }}>
-                    {bn.size}/{bn.maxSize}
-                  </span>
-                  {bn.xp > 0 ? (
-                    <span style={{ color: "#ffd700", fontSize: 11 }}>{bn.xp} XP</span>
-                  ) : null}
-                </div>
-                <div style={{ marginTop: 4, display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap" }}>
-                  <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Max:</span>
-                  <input
-                    type="number"
-                    key={`${bn.id}-${bn.maxSize}`}
-                    min={bn.size}
-                    max={[500, 5000, 15000, 50000][bn.tier] ?? 500}
-                    step={bn.tier >= 2 ? 1000 : bn.tier >= 1 ? 500 : 50}
-                    defaultValue={bn.maxSize}
-                    onBlur={async (e) => {
-                      const v = Number(e.target.value);
-                      const tierMax = [500, 5000, 15000, 50000][bn.tier] ?? 500;
-                      if (Number.isFinite(v) && v >= bn.size && v <= tierMax && v !== bn.maxSize) {
-                        const { expandBattalionAction } = await import("@/app/game-actions");
-                        await expandBattalionAction({
-                          battalionId: bn.id,
-                          targetMaxSize: v,
-                        });
-                        refreshView();
-                      }
-                    }}
-                    style={{
-                      width: 50,
-                      padding: "1px 4px",
-                      fontSize: 11,
-                      background: "var(--bg-raised)",
-                      border: "1px solid var(--border)",
-                      borderRadius: 3,
-                      color: "var(--text)",
-                    }}
-                  />
-                  {bn.tier < 3 ? (() => {
-                    const baseCost = [2000, 8000, 25000, 0][bn.tier] ?? 0;
-                    const perUnit = bn.size * 8;
-                    const totalCost = baseCost + perUnit;
-                    return (
-                    <button
-                      type="button"
-                      title={`Promote to tier ${bn.tier + 1}: ${totalCost.toLocaleString()} gold`}
-                      onClick={async () => {
-                        const { promoteBattalionAction } = await import("@/app/game-actions");
-                        const result = await promoteBattalionAction({
-                          battalionId: bn.id,
-                        });
-                        if (result.ok) refreshView();
-                        else window.alert(result.error);
-                      }}
-                      disabled={bn.tier >= 3}
-                      style={{
-                        fontSize: 11,
-                        padding: "2px 6px",
-                        background: "var(--bg-raised)",
-                        border: "1px solid #ffd700",
-                        borderRadius: 3,
-                        color: bn.tier >= 3 ? "var(--text-muted)" : "#ffd700",
-                        cursor: bn.tier >= 3 ? "default" : "pointer",
-                      }}
-                    >
-                      Promote ({totalCost.toLocaleString()}g)
-                    </button>
-                    );
-                  })() : (
-                    <span style={{ fontSize: 11, color: "#ffd700" }}>MAX TIER</span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (!confirm(`Disband ${bn.name}? 50% gold refund.`)) return;
-                      const { disbandBattalionAction } = await import("@/app/game-actions");
-                      await disbandBattalionAction({
-                        battalionId: bn.id,
-                      });
-                      refreshView();
-                    }}
-                    style={{
-                      fontSize: 11,
-                      padding: "2px 8px",
-                      background: "var(--bg-raised)",
-                      border: "1px solid #f44336",
-                      borderRadius: 3,
-                      color: "#f44336",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Disband
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
-            No battalions. Commission one to get started.
-          </p>
-        )}
-        <button
-          type="button"
-          onClick={handleCreateBattalion}
-          disabled={battalionPending}
-          style={{
-            marginTop: 8,
-            padding: "6px 12px",
-            fontSize: 13,
-            background: "var(--color-accent, #48f)",
-            color: "#fff",
-            border: "none",
-            borderRadius: 4,
-            cursor: "pointer",
-            width: "100%",
-          }}
-        >
-          {battalionPending ? "Commissioning..." : "Commission Battalion"}
-        </button>
-      </section>
+                {(() => {
+                  const bnList = playerSummary.battalions ?? [];
+                  const totalArmy = bnList.reduce((s, b: any) => s + b.size, 0);
+                  const maxArmy = bnList.reduce(
+                    (s, b: any) => s + b.maxSize,
+                    0
+                  );
+                  const currentFood = Math.ceil(totalArmy / 50);
+                  const maxFood = Math.ceil(maxArmy / 50);
+                  const currentGold = Math.ceil(totalArmy * 2);
+                  const maxGold = Math.ceil(maxArmy * 2);
+                  return (
+                    <>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                        }}
+                      >
+                        <span>Upkeep (1f / 50 units)</span>
+                        <strong>{currentFood.toLocaleString()} f/t</strong>
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          color: "var(--text-muted)",
+                          fontSize: 12,
+                        }}
+                      >
+                        <span>At max cap</span>
+                        <span>{maxFood.toLocaleString()} f/t</span>
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                        }}
+                      >
+                        <span>Recruitment (2g / unit)</span>
+                        <strong style={{ color: "#ffb040" }}>
+                          {currentGold.toLocaleString()} g
+                        </strong>
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          color: "var(--text-muted)",
+                          fontSize: 12,
+                        }}
+                      >
+                        <span>At max cap</span>
+                        <span style={{ color: "#ff9800" }}>
+                          {maxGold.toLocaleString()} g
+                        </span>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+              <p
+                className={styles.muted}
+                style={{ fontSize: 11, marginTop: 4 }}
+              >
+                Upkeep deducts food each tick. Recruitment orders spend gold up
+                front, then recruiters process the queue. Food shortfall causes
+                desertion.
+              </p>
+            </section>
 
-      {/* War Fronts */}
-      <section className={styles.panel}>
-        <div className={styles.panelHeader}>
-          <span>War Fronts</span>
-          <strong>
-            {playerSummary.warFronts?.filter((f) => f.status === "ADVANCING" || f.status === "STALLED").length ?? 0} active
-          </strong>
-        </div>
-
-        {playerSummary.warFronts && playerSummary.warFronts.length > 0 ? (
-          <ul style={{ listStyle: "none", padding: 0, margin: "8px 0 0" }}>
-            {playerSummary.warFronts.map((front) => {
-              const frontBattalions = playerSummary.battalions?.filter(
-                (b) => b.frontId === front.id,
-              ) ?? [];
-              return (
-                <li
-                  key={front.id}
+            <section className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <span>Alliance Support</span>
+                <strong>
+                  {playerSummary.allianceWarRoom.allianceBattalionArmy.toLocaleString()}{" "}
+                  ready
+                </strong>
+              </div>
+              <div style={{ display: "grid", gap: 10 }}>
+                <div
                   style={{
-                    padding: "8px 10px",
-                    background: "var(--bg-raised)",
-                    borderRadius: 6,
-                    marginBottom: 6,
+                    display: "flex",
+                    gap: 10,
+                    flexWrap: "wrap",
                     fontSize: 13,
                   }}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                    <strong style={{ color: front.status === "ADVANCING" ? "#4caf50" : front.status === "STALLED" ? "#ff9800" : "#888" }}>
-                      vs. {(targets as any[]).find((t: any) => t.id === front.enemyFortressId)?.name ?? front.enemyFortressId}
-                    </strong>
-                    <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                      {front.status}
-                    </span>
-                  </div>
-                  {/* Aggression selector */}
-                  <div style={{ display: "flex", gap: 4, alignItems: "center", marginBottom: 4 }}>
-                    <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Aggression:</span>
-                    <select
-                      defaultValue={front.aggression}
-                      onChange={async (e) => {
-                        const newAggression = e.target.value;
-                        try {
-                          const { setFrontAggressionAction } = await import("@/app/game-actions");
-                          const result = await setFrontAggressionAction({
-                            frontId: front.id,
-                            fortressId: playerSummary.id,
-                            aggression: newAggression,
-                          });
-                          if (!result.ok) alert(result.error);
-                          refreshView();
-                        } catch (err) {
-                          alert("Failed to change aggression.");
-                        }
+                  <label
+                    style={{
+                      display: "inline-flex",
+                      gap: 6,
+                      alignItems: "center",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={allianceSupportDefense}
+                      onChange={(event) => {
+                        const checked = event.currentTarget.checked;
+                        setAllianceSupportDefense(checked);
+                        void saveAllianceSupportPolicy({
+                          supportDefense: checked,
+                        });
                       }}
-                      style={{ fontSize: 11, padding: "1px 4px", background: "var(--bg-raised)", border: "1px solid var(--border)", borderRadius: 3, color: "var(--text)" }}
-                    >
-                      <option value="CAUTIOUS">🟢 Cautious (30%)</option>
-                      <option value="BALANCED">🟡 Balanced (60%)</option>
-                      <option value="AGGRESSIVE">🔴 Aggressive (100%)</option>
-                    </select>
+                    />
+                    Defend allies
+                  </label>
+                  <label
+                    style={{
+                      display: "inline-flex",
+                      gap: 6,
+                      alignItems: "center",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={allianceSupportAttack}
+                      onChange={(event) => {
+                        const checked = event.currentTarget.checked;
+                        setAllianceSupportAttack(checked);
+                        void saveAllianceSupportPolicy({
+                          supportAttack: checked,
+                        });
+                      }}
+                    />
+                    Join allied attacks
+                  </label>
+                </div>
+                <label style={{ display: "grid", gap: 4, fontSize: 13 }}>
+                  <span
+                    style={{ display: "flex", justifyContent: "space-between" }}
+                  >
+                    <span>Commit from ALLIANCE battalions</span>
+                    <strong>{allianceSupportPercent}%</strong>
+                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={allianceSupportPercent}
+                    onChange={(event) => {
+                      const value = Number(event.currentTarget.value);
+                      setAllianceSupportPercent(value);
+                    }}
+                    onMouseUp={(event) =>
+                      void saveAllianceSupportPolicy({
+                        supportPercent: Number(event.currentTarget.value),
+                      })
+                    }
+                    onTouchEnd={(event) =>
+                      void saveAllianceSupportPolicy({
+                        supportPercent: Number(event.currentTarget.value),
+                      })
+                    }
+                    onBlur={(event) =>
+                      void saveAllianceSupportPolicy({
+                        supportPercent: Number(event.currentTarget.value),
+                      })
+                    }
+                  />
+                </label>
+                <p className={styles.muted} style={{ fontSize: 12, margin: 0 }}>
+                  Battalions set to ALLIANCE automatically march to allied
+                  active battlefields on the enabled sides.
+                </p>
+              </div>
+
+              <div className={styles.operationGroup} style={{ marginTop: 10 }}>
+                <div className={styles.operationTitle}>
+                  <strong>Allies</strong>
+                </div>
+                {playerSummary.allianceWarRoom.allies.length > 0 ? (
+                  playerSummary.allianceWarRoom.allies.map((ally) => (
+                    <div key={ally.fortressId} className={styles.statusRow}>
+                      <span>{ally.name}</span>
+                      <strong>Trust {ally.trustTier}</strong>
+                    </div>
+                  ))
+                ) : (
+                  <p className={styles.muted}>No active alliances.</p>
+                )}
+              </div>
+
+              {playerSummary.allianceWarRoom.battlefields.length > 0 ? (
+                <div className={styles.operationGroup}>
+                  <div className={styles.operationTitle}>
+                    <strong>Allied battlefields</strong>
                   </div>
-                  {frontBattalions.length > 0 ? (
-                    <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                      {frontBattalions.map((b) => (
-                        <div key={b.id} style={{ display: "flex", justifyContent: "space-between" }}>
-                          <span>{b.name} ({b.size})</span>
+                  {playerSummary.allianceWarRoom.battlefields.map(
+                    (battlefield) => (
+                      <div key={battlefield.id} className={styles.statusRow}>
+                        <span>
+                          {battlefield.allyName}{" "}
+                          {battlefield.alliedSide === "ATTACKER"
+                            ? "attacking"
+                            : "defending"}{" "}
+                          {battlefield.targetLabel}
+                        </span>
+                        <strong>
+                          {battlefield.attackerArmyRemaining.toLocaleString()} /{" "}
+                          {battlefield.defenderArmyRemaining.toLocaleString()}
+                        </strong>
+                      </div>
+                    )
+                  )}
+                </div>
+              ) : null}
+
+              {playerSummary.allianceWarRoom.outgoingReinforcements.length >
+              0 ? (
+                <div className={styles.operationGroup}>
+                  <div className={styles.operationTitle}>
+                    <strong>Support en route</strong>
+                  </div>
+                  {playerSummary.allianceWarRoom.outgoingReinforcements.map(
+                    (unit) => (
+                      <div key={unit.id} className={styles.statusRow}>
+                        <span>
+                          {unit.armyAmount.toLocaleString()} to {unit.allyName}{" "}
+                          ({unit.side?.toLowerCase() ?? "support"})
+                        </span>
+                        <strong>
+                          {new Date(unit.arrivesAt).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </strong>
+                      </div>
+                    )
+                  )}
+                </div>
+              ) : null}
+            </section>
+
+            <section className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <span>Convoy Raids</span>
+                <strong>
+                  {politicsState?.activeArmyOrders?.filter(
+                    (order: any) => order.type === "RAID"
+                  ).length ?? 0}{" "}
+                  active
+                </strong>
+              </div>
+              <p className={styles.muted} style={{ marginBottom: 8 }}>
+                Raid patrols watch hostile or neutral convoy routes. Trade
+                convoy escorts still live with the convoy itself.
+              </p>
+              <div className={styles.form}>
+                <label>
+                  <span>Army to commit</span>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={warRoomOrderArmy}
+                    onChange={(event) =>
+                      setWarRoomOrderArmy(
+                        Math.max(
+                          1,
+                          Number.parseInt(event.target.value || "1", 10)
+                        )
+                      )
+                    }
+                  />
+                </label>
+              </div>
+              <div className={styles.operationGroup}>
+                {(politicsState?.rows ?? []).some(
+                  (row: any) => row.canRaid || row.activeRaidOrderId
+                ) ? (
+                  (politicsState?.rows ?? [])
+                    .filter((row: any) => row.canRaid || row.activeRaidOrderId)
+                    .map((row: any) => (
+                      <div key={row.fortressId} className={styles.statusRow}>
+                        <span>{row.commanderName || row.name}</span>
+                        {row.activeRaidOrderId ? (
+                          <span
+                            style={{
+                              display: "flex",
+                              gap: 6,
+                              alignItems: "center",
+                            }}
+                          >
+                            <strong>
+                              {row.activeRaidArmy?.toLocaleString()} army
+                            </strong>
+                            <button
+                              type="button"
+                              disabled={warRoomPendingId !== null}
+                              onClick={() =>
+                                void handleWarRoomOrder(
+                                  `raid:recall:${row.activeRaidOrderId}`,
+                                  () =>
+                                    recallArmyOrderAction(row.activeRaidOrderId)
+                                )
+                              }
+                            >
+                              Recall
+                            </button>
+                          </span>
+                        ) : (
                           <button
                             type="button"
-                            onClick={async () => {
-                              const { removeBattalionFromFrontAction } = await import("@/app/game-actions");
-                              await removeBattalionFromFrontAction({
-                                battalionId: b.id,
-                                frontId: front.id,
-                              });
-                              refreshView();
-                            }}
-                            style={{ fontSize: 11, padding: "0 4px", background: "none", border: "none", color: "#f44336", cursor: "pointer" }}
+                            disabled={warRoomPendingId !== null}
+                            onClick={() =>
+                              void handleWarRoomOrder(
+                                `raid:create:${row.fortressId}`,
+                                () =>
+                                  createRaidOrderAction(
+                                    row.fortressId,
+                                    warRoomOrderArmy
+                                  )
+                              )
+                            }
                           >
-                            ✕
+                            Raid routes
                           </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                      No battalions assigned.
-                    </div>
-                  )}
-                  <select
-                    defaultValue=""
-                    onChange={async (e) => {
-                      if (!e.target.value) return;
-                      try {
-                        const { assignBattalionToFrontAction } = await import("@/app/game-actions");
-                        const result = await assignBattalionToFrontAction({
-                          battalionId: e.target.value,
-                          frontId: front.id,
-                        });
-                        if (!result.ok) alert(result.error);
-                        refreshView();
-                      } catch (err) {
-                        alert("Failed to assign battalion.");
-                      }
-                    }}
-                    style={{ marginTop: 4, width: "100%", fontSize: 12, padding: "2px 4px", background: "var(--bg-raised)", border: "1px solid var(--border)", borderRadius: 3, color: "var(--text)" }}
-                  >
-                    <option value="">Assign battalion…</option>
-                    {(playerSummary.battalions ?? [])
-                      .filter((b) => !b.frontId && ((b as any).mode ?? "GUARD") === "ATTACK" && b.size > 0)
-                      .map((b) => (
-                        <option key={b.id} value={b.id}>{b.name} ({b.size})</option>
-                      ))}
-                  </select>
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
-            No active war fronts. Go to <strong>Diplomacy</strong> tab → declare war on a player. Battalions will auto-attack on the next tick.
-          </p>
-        )}
-      </section>
-
-      {/* Guard & Army Settings */}
-      <section className={styles.panel}>
-        <div className={styles.panelHeader}>
-          <span>Army Settings</span>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "4px 0" }}>
-          <label style={{ fontSize: 13, display: "flex", justifyContent: "space-between" }}>
-            <span>Guard allocation</span>
-            <strong>{guardPercent}%</strong>
-          </label>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            step={5}
-            value={guardPercent}
-            onChange={(e) => handleGuardPercentChange(Number(e.target.value))}
-            style={{ width: "100%" }}
-          />
-          <label style={{ fontSize: 13, display: "flex", justifyContent: "space-between" }}>
-            <span>Max army size</span>
-            <strong>{maxArmySize}</strong>
-          </label>
-          <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: -4 }}>
-            Projected upkeep at {maxArmySize} army: ~{Math.ceil(maxArmySize / 100)} food/tick
-          </p>
-          <input
-            type="number"
-            min={100}
-            step={50}
-            value={maxArmySize}
-            onChange={(e) => {
-              const v = Number(e.target.value);
-              if (Number.isFinite(v) && v >= 100) {
-                setMaxArmySize(v);
-                handleMaxArmySizeChange(v);
-              }
-            }}
-            style={{
-              width: "100%",
-              padding: "4px 8px",
-              background: "var(--bg-raised)",
-              border: "1px solid var(--border)",
-              borderRadius: 4,
-              color: "var(--text)",
-              fontSize: 13,
-            }}
-          />
-          <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>
-            Guards auto-distribute to owned tiles by priority. Set aggression per front from the battlefield.
-          </p>
-        </div>
-      </section>
-
-      {/* Recruitment Queue */}
-      <section className={styles.panel}>
-        <div className={styles.panelHeader}>
-          <span>Recruitment</span>
-          <strong>Paid queue</strong>
-        </div>
-        <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "4px 0" }}>
-          Order army from Castle operations, then assign recruiters in the
-          Economy tab to train queued units into active army. Queued units do
-          not eat until they finish.
-        </p>
-        <dl className={styles.readinessGrid}>
-          <div>
-            <dt>Available army</dt>
-            <dd>{playerSummary.army}</dd>
-          </div>
-          <div>
-            <dt>Recruitment queue</dt>
-            <dd>{playerSummary.recruitmentQueue ?? 0}</dd>
-          </div>
-          <div>
-            <dt>Max army cap</dt>
-            <dd>{playerSummary.warPolicy?.maxArmySize ?? 500}</dd>
-          </div>
-        </dl>
-      </section>
-      {/* Guard Status */}
-      <section className={styles.panel}>
-        <div className={styles.panelHeader}>
-          <span>Guard Status</span>
-          <strong>{playerSummary.warPolicy?.guardPercent ?? 30}% allocated</strong>
-        </div>
-        <p className={styles.muted} style={{ marginBottom: 8 }}>
-          Guards auto-distribute to owned tiles. They slow tile decay (-50%), add to battlefield defense, and are visible on the map.
-        </p>
-        <dl className={styles.readinessGrid}>
-          <div>
-            <dt>Guarding battalions</dt>
-            <dd>{(playerSummary.battalions ?? []).filter((b: any) => b.garrisonedAt).length}</dd>
-          </div>
-          <div>
-            <dt>Guard army</dt>
-            <dd>{Math.floor((playerSummary.army ?? 0) * (playerSummary.warPolicy?.guardPercent ?? 30) / 100).toLocaleString()}</dd>
-          </div>
-          <div>
-            <dt>Tiles defended</dt>
-            <dd>{(playerSummary.battalions ?? []).filter((b: any) => b.garrisonedAt).length}</dd>
-          </div>
-        </dl>
-      </section>
-
-      {playerSummary.operationsSummary ? (
-        <section className={styles.panel}>
-          <div className={styles.panelHeader}>
-            <span>Standing Orders</span>
-            <strong>Escort & Raid</strong>
-          </div>
-          <div className={styles.operationGroup}>
-            <div className={styles.operationTitle}>
-              <strong>Logistics</strong>
-            </div>
-            <div className={styles.logisticsRows}>
-              <div className={styles.statusRow}>
-                <span>Escorts</span>
-                <strong>
-                  {playerSummary.operationsSummary.logistics.escortCount} orders
-                  {" / "}
-                  {playerSummary.operationsSummary.logistics.escortArmy} army
-                </strong>
+                        )}
+                      </div>
+                    ))
+                ) : (
+                  <p className={styles.muted}>
+                    No eligible convoy raid targets right now.
+                  </p>
+                )}
               </div>
-              <div className={styles.statusRow}>
-                <span>Raids</span>
-                <strong>
-                  {playerSummary.operationsSummary.logistics.raidCount} orders
-                  {" / "}
-                  {playerSummary.operationsSummary.logistics.raidArmy} army
-                </strong>
-              </div>
-            </div>
-            <p className={styles.muted} style={{ marginTop: 8 }}>
-              Escort your convoys to protect cargo. Raid enemy convoys to steal resources. Manage from <strong>Diplomacy</strong> tab.
-            </p>
-          </div>
-        </section>
-      ) : null}
-        </>
-      ) : null}
+              {politicsState?.recentConvoyLegs?.some(
+                (leg: any) => leg.raidedByCurrentPlayer
+              ) ? (
+                <div className={styles.operationGroup}>
+                  <div className={styles.operationTitle}>
+                    <strong>Recent interceptions</strong>
+                  </div>
+                  {politicsState.recentConvoyLegs
+                    .filter((leg: any) => leg.raidedByCurrentPlayer)
+                    .slice(0, 4)
+                    .map((leg: any) => (
+                      <div key={leg.id} className={styles.statusRow}>
+                        <span>{leg.counterpartName}</span>
+                        <strong>
+                          {leg.status === "INTERCEPTED"
+                            ? `${leg.stolenGold.toLocaleString()}g / ${leg.stolenFood.toLocaleString()}f / ${leg.stolenArmy.toLocaleString()}a / ${leg.stolenPoints.toLocaleString()}p`
+                            : "failed"}
+                        </strong>
+                      </div>
+                    ))}
+                </div>
+              ) : null}
+            </section>
 
-
-
-      {activeTab === "OVERVIEW" ? (
-      <section className={styles.panel}>
-        <div className={styles.panelHeader}>
-          <span>Utility</span>
-          <strong>Castle actions</strong>
-        </div>
-        <div className={styles.form}>
-          <form action={renameFortressFormAction} className={styles.inlineForm}>
-            <input
-              name="fortressName"
-              defaultValue={playerSummary.name}
-              maxLength={32}
-              required
-            />
-            <button type="submit" disabled={!playerSummary.canRename}>
-              Rename
-            </button>
-          </form>
-        </div>
-      </section>
-      ) : null}
-
-      {activeTab === "DIPLOMACY" ? (
-      politicsState ? (
-        <PoliticsClient state={politicsState} />
-      ) : (
-        <section className={styles.panel}>
-          <div className={styles.panelHeader}>
-            <span>Diplomacy</span>
-            <strong>Politics & Trade</strong>
-          </div>
-          <p className={styles.muted}>Loading diplomacy data...</p>
-        </section>
-      )
-      ) : null}
-
-      {activeTab === "SKILLS" ? (
-      <section className={styles.panel}>
-        <div className={styles.panelHeader}>
-          <span>Skills</span>
-          <strong>{playerSummary.race ?? "Choose a race"}</strong>
-        </div>
-        {playerSummary.race && (playerSummary.race && isFortressRace(playerSummary.race!)) ? (
-          <RaceSkillPanel
-            skillState={{
-              race: playerSummary.race,
-              purchasedNodeKeys: playerSummary.skillPurchases.map(
-                (purchase) => purchase.nodeKey
-              ),
-              earnedPoints: playerSummary.skillPointsEarned,
-              totalPurchased: playerSummary.skillPurchases.length,
-              playerLevel: playerSummary.level,
-              tileCount: playerSummary.ownedTileSummary.totalTileCount,
-            }}
-            onPurchase={async (nodeKey) => {
-              const result = await purchaseSkillNodeAction(
-                playerSummary.id,
-                nodeKey
-              );
-              if (!result.ok) window.alert(result.error);
-            }}
-          />
-        ) : (
-          <p className={styles.muted}>
-            Skill tree available after choosing a race.
-          </p>
-        )}
-      </section>
-      ) : null}
-
-      {activeTab === "SHOP" ? (
-      shopState ? (
-        <div style={{ padding: "8px 0" }}>
-          <section className={styles.panel}>
-            <div className={styles.panelHeader}>
-              <span>Shop</span>
-              <strong>{shopState.walletBalance?.toLocaleString() ?? 0} coins</strong>
-            </div>
-            <p className={styles.muted}>
-              Buy loot boxes to unlock unit and fortress skins. Equipped skins
-              show on the map and battlefield.
-            </p>
-          </section>
-          {shopState.shop?.boxes?.length > 0 ? (
+            {/* Battalion Roster */}
             <section className={styles.panel}>
-              <div className={styles.panelHeader}><span>Loot Boxes</span></div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {shopState.shop.boxes.map((box: any) => (
-                  <form
-                    key={box.type}
-                    action={async () => {
-                      const { purchaseArcadeLootBoxAction } = await import("@/app/game-actions");
-                      const formData = new FormData();
-                      formData.set("boxType", box.type);
-                      await purchaseArcadeLootBoxAction(formData);
-                      refreshView();
-                    }}
-                    style={{
-                      flex: "1 1 140px",
-                      background: "var(--bg-raised)",
-                      borderRadius: 8,
-                      padding: 12,
-                      textAlign: "center",
-                      border: "1px solid var(--border)",
-                    }}
-                  >
-                    <div style={{ fontSize: 24 }}>{box.type === "UNIT" ? "👥" : "🏰"}</div>
-                    <div style={{ fontSize: 13, fontWeight: 600 }}>{box.type}</div>
-                    <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{box.price} coins</div>
-                    <button
-                      type="submit"
-                      disabled={!shopState.canBuy || (shopState.walletBalance ?? 0) < box.price}
+              <div className={styles.panelHeader}>
+                <span>Battalions</span>
+                <strong>{playerSummary.battalions?.length ?? 0} active</strong>
+              </div>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "var(--text-muted)",
+                  margin: "4px 0 8px",
+                  lineHeight: 1.5,
+                }}
+              >
+                <strong>Reserves:</strong>{" "}
+                {(() => {
+                  const totalBn = (playerSummary.battalions ?? []).reduce(
+                    (s, b) => s + b.size,
+                    0
+                  );
+                  const reserves = Math.max(
+                    0,
+                    (playerSummary.army ?? 0) - totalBn
+                  );
+                  return `${reserves.toLocaleString()} unassigned`;
+                })()}
+                {" · "}
+                <strong>Tiers:</strong>{" "}
+                <span title="1.0× dmg/def, max 500">Recruit</span> →{" "}
+                <span title="1.15× dmg, 1.10× def, max 5k">Regular (1.5k)</span>{" "}
+                →{" "}
+                <span title="1.35× dmg, 1.25× def, max 15k">Veteran (5k)</span>{" "}
+                → <span title="1.60× dmg, 1.45× def, max 50k">Elite (15k)</span>
+              </div>
+              {playerSummary.battalions &&
+              playerSummary.battalions.length > 0 ? (
+                <ul
+                  style={{ listStyle: "none", padding: 0, margin: "8px 0 0" }}
+                >
+                  {playerSummary.battalions.map((bn) => (
+                    <li
+                      key={bn.id}
                       style={{
-                        marginTop: 8,
-                        padding: "4px 12px",
-                        fontSize: 12,
-                        background: "var(--color-accent, #48f)",
-                        color: "#fff",
-                        border: "none",
-                        borderRadius: 4,
-                        cursor: "pointer",
+                        padding: "8px 10px",
+                        background: "var(--bg-raised)",
+                        borderRadius: 6,
+                        marginBottom: 6,
+                        fontSize: 13,
                       }}
                     >
-                      Buy
-                    </button>
-                  </form>
-                ))}
-              </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          marginBottom: 4,
+                        }}
+                      >
+                        <strong>{bn.name}</strong>
+                        <span
+                          style={{ color: "var(--text-muted)", fontSize: 12 }}
+                        >
+                          {bn.size}/{bn.maxSize} · Tier {bn.tier}
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 6,
+                          alignItems: "center",
+                          fontSize: 12,
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <select
+                          defaultValue={(bn as any).mode ?? "GUARD"}
+                          onChange={async (e) => {
+                            const selectEl = e.target as HTMLSelectElement;
+                            const newMode = selectEl.value;
+                            selectEl.disabled = true;
+                            try {
+                              const { setBattalionModeAction } =
+                                await import("@/app/game-actions");
+                              const result = await setBattalionModeAction({
+                                battalionId: bn.id,
+                                mode: newMode,
+                              });
+                              if (!result?.ok) {
+                                selectEl.value = (bn as any).mode ?? "GUARD";
+                                console.error("Failed:", result?.error);
+                              }
+                            } catch (err) {
+                              selectEl.value = (bn as any).mode ?? "GUARD";
+                              console.error("Error:", err);
+                            } finally {
+                              selectEl.disabled = false;
+                              refreshView();
+                            }
+                          }}
+                          style={{
+                            fontSize: 11,
+                            padding: "1px 4px",
+                            background:
+                              (bn as any).mode === "ATTACK"
+                                ? "#3a2a0a"
+                                : (bn as any).mode === "GUARD"
+                                  ? "#1a3a5c"
+                                  : (bn as any).mode === "RESERVE"
+                                    ? "#2a2a2a"
+                                    : "#2a1a3a",
+                            color:
+                              (bn as any).mode === "ATTACK"
+                                ? "#ffb040"
+                                : (bn as any).mode === "GUARD"
+                                  ? "#6ab0ff"
+                                  : (bn as any).mode === "RESERVE"
+                                    ? "#888"
+                                    : "#c080ff",
+                            border: "1px solid var(--border)",
+                            borderRadius: 3,
+                            cursor: "pointer",
+                            fontWeight: 600,
+                          }}
+                        >
+                          <option value="GUARD">🛡 Guard</option>
+                          <option value="ATTACK">⚔ Attack</option>
+                          <option value="RESERVE">📦 Reserve</option>
+                          <option value="ALLIANCE">🤝 Alliance</option>
+                        </select>
+                        <select
+                          defaultValue={bn.stance ?? "REST"}
+                          onChange={async (e) => {
+                            const selectEl = e.target as HTMLSelectElement;
+                            const newStance = selectEl.value;
+                            selectEl.disabled = true;
+                            try {
+                              const { setBattalionStanceAction } =
+                                await import("@/app/game-actions");
+                              const result = await setBattalionStanceAction({
+                                battalionId: bn.id,
+                                stance: newStance,
+                              });
+                              if (!result?.ok) {
+                                selectEl.value = bn.stance ?? "REST";
+                                window.alert(
+                                  result?.error ?? "Failed to change stance"
+                                );
+                              }
+                            } catch (err) {
+                              selectEl.value = bn.stance ?? "REST";
+                            } finally {
+                              selectEl.disabled = false;
+                              refreshView();
+                            }
+                          }}
+                          style={{
+                            fontSize: 11,
+                            padding: "1px 4px",
+                            background: "#1a1a2e",
+                            color: "#aaa",
+                            border: "1px solid var(--border)",
+                            borderRadius: 3,
+                            cursor: "pointer",
+                          }}
+                          title="Stance affects combat bonuses and behavior"
+                        >
+                          <option value="FORTIFY">🏰 Fortify</option>
+                          <option value="PATROL">🚶 Patrol</option>
+                          <option value="TRAINING">🎯 Training</option>
+                          <option value="AMBUSH">🗡 Ambush</option>
+                          <option value="REST">💤 Rest</option>
+                          <option value="MOBILE">🏃 Mobile</option>
+                        </select>
+                        <span style={{ color: "var(--text-muted)" }}>
+                          {bn.size}/{bn.maxSize}
+                        </span>
+                        {bn.xp > 0 ? (
+                          <span style={{ color: "#ffd700", fontSize: 11 }}>
+                            {bn.xp} XP
+                          </span>
+                        ) : null}
+                      </div>
+                      <div
+                        style={{
+                          marginTop: 4,
+                          display: "flex",
+                          gap: 4,
+                          alignItems: "center",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <span
+                          style={{ fontSize: 11, color: "var(--text-muted)" }}
+                        >
+                          Max:
+                        </span>
+                        <input
+                          type="number"
+                          key={`${bn.id}-${bn.maxSize}`}
+                          min={bn.size}
+                          max={[500, 5000, 15000, 50000][bn.tier] ?? 500}
+                          step={bn.tier >= 2 ? 1000 : bn.tier >= 1 ? 500 : 50}
+                          defaultValue={bn.maxSize}
+                          onBlur={async (e) => {
+                            const v = Number(e.target.value);
+                            const tierMax =
+                              [500, 5000, 15000, 50000][bn.tier] ?? 500;
+                            if (
+                              Number.isFinite(v) &&
+                              v >= bn.size &&
+                              v <= tierMax &&
+                              v !== bn.maxSize
+                            ) {
+                              const { expandBattalionAction } =
+                                await import("@/app/game-actions");
+                              await expandBattalionAction({
+                                battalionId: bn.id,
+                                targetMaxSize: v,
+                              });
+                              refreshView();
+                            }
+                          }}
+                          style={{
+                            width: 50,
+                            padding: "1px 4px",
+                            fontSize: 11,
+                            background: "var(--bg-raised)",
+                            border: "1px solid var(--border)",
+                            borderRadius: 3,
+                            color: "var(--text)",
+                          }}
+                        />
+                        {bn.tier < 3 ? (
+                          (() => {
+                            const baseCost =
+                              [2000, 8000, 25000, 0][bn.tier] ?? 0;
+                            const perUnit = bn.size * 8;
+                            const totalCost = baseCost + perUnit;
+                            return (
+                              <button
+                                type="button"
+                                title={`Promote to tier ${bn.tier + 1}: ${totalCost.toLocaleString()} gold`}
+                                onClick={async () => {
+                                  const { promoteBattalionAction } =
+                                    await import("@/app/game-actions");
+                                  const result = await promoteBattalionAction({
+                                    battalionId: bn.id,
+                                  });
+                                  if (result.ok) refreshView();
+                                  else window.alert(result.error);
+                                }}
+                                disabled={bn.tier >= 3}
+                                style={{
+                                  fontSize: 11,
+                                  padding: "2px 6px",
+                                  background: "var(--bg-raised)",
+                                  border: "1px solid #ffd700",
+                                  borderRadius: 3,
+                                  color:
+                                    bn.tier >= 3
+                                      ? "var(--text-muted)"
+                                      : "#ffd700",
+                                  cursor: bn.tier >= 3 ? "default" : "pointer",
+                                }}
+                              >
+                                Promote ({totalCost.toLocaleString()}g)
+                              </button>
+                            );
+                          })()
+                        ) : (
+                          <span style={{ fontSize: 11, color: "#ffd700" }}>
+                            MAX TIER
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (
+                              !confirm(`Disband ${bn.name}? 50% gold refund.`)
+                            )
+                              return;
+                            const { disbandBattalionAction } =
+                              await import("@/app/game-actions");
+                            await disbandBattalionAction({
+                              battalionId: bn.id,
+                            });
+                            refreshView();
+                          }}
+                          style={{
+                            fontSize: 11,
+                            padding: "2px 8px",
+                            background: "var(--bg-raised)",
+                            border: "1px solid #f44336",
+                            borderRadius: 3,
+                            color: "#f44336",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Disband
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                  No battalions. Commission one to get started.
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={handleCreateBattalion}
+                disabled={battalionPending}
+                style={{
+                  marginTop: 8,
+                  padding: "6px 12px",
+                  fontSize: 13,
+                  background: "var(--color-accent, #48f)",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 4,
+                  cursor: "pointer",
+                  width: "100%",
+                }}
+              >
+                {battalionPending ? "Commissioning..." : "Commission Battalion"}
+              </button>
             </section>
-          ) : null}
-          {shopState.ownedSkins?.length > 0 ? (
-            <section className={styles.panel}>
-              <div className={styles.panelHeader}>
-                <span>Inventory</span>
-                <strong>{shopState.ownedSkins.length} skins</strong>
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                {shopState.ownedSkins.slice(0, 12).map((skin: any) => (
-                  <div
-                    key={skin.id}
-                    style={{
-                      padding: "4px 8px",
-                      fontSize: 12,
-                      background: skin.equipped ? "#2a4a2a" : "var(--bg-raised)",
-                      borderRadius: 4,
-                      border: skin.equipped ? "1px solid #4caf50" : "1px solid var(--border)",
-                    }}
-                  >
-                    {skin.variantId} {skin.equipped ? "✓" : ""}
-                  </div>
-                ))}
-              </div>
-            </section>
-          ) : null}
-          {shopState.unopenedPurchases?.length > 0 ? (
-            <section className={styles.panel}>
-              <div className={styles.panelHeader}>
-                <span>Unopened</span>
-                <strong>{shopState.unopenedPurchases.length} crates</strong>
-              </div>
-              <p className={styles.muted}>
-                Open your crates from the <a href="/shop">full shop page</a> to
-                reveal your skins.
-              </p>
-            </section>
-          ) : null}
-        </div>
-      ) : (
-        <section className={styles.panel}>
-          <div className={styles.panelHeader}><span>Shop</span></div>
-          <p className={styles.muted}>Loading shop data...</p>
-        </section>
-      )
-      ) : null}
 
+            {/* War Fronts */}
+            <section className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <span>War Fronts</span>
+                <strong>
+                  {playerSummary.warFronts?.filter(
+                    (f) => f.status === "ADVANCING" || f.status === "STALLED"
+                  ).length ?? 0}{" "}
+                  active
+                </strong>
+              </div>
+
+              {playerSummary.warFronts && playerSummary.warFronts.length > 0 ? (
+                <ul
+                  style={{ listStyle: "none", padding: 0, margin: "8px 0 0" }}
+                >
+                  {playerSummary.warFronts.map((front) => {
+                    const frontBattalions =
+                      playerSummary.battalions?.filter(
+                        (b) => b.frontId === front.id
+                      ) ?? [];
+                    return (
+                      <li
+                        key={front.id}
+                        style={{
+                          padding: "8px 10px",
+                          background: "var(--bg-raised)",
+                          borderRadius: 6,
+                          marginBottom: 6,
+                          fontSize: 13,
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            marginBottom: 4,
+                          }}
+                        >
+                          <strong
+                            style={{
+                              color:
+                                front.status === "ADVANCING"
+                                  ? "#4caf50"
+                                  : front.status === "STALLED"
+                                    ? "#ff9800"
+                                    : "#888",
+                            }}
+                          >
+                            vs.{" "}
+                            {(targets as any[]).find(
+                              (t: any) => t.id === front.enemyFortressId
+                            )?.name ?? front.enemyFortressId}
+                          </strong>
+                          <span
+                            style={{ fontSize: 11, color: "var(--text-muted)" }}
+                          >
+                            {front.status}
+                          </span>
+                        </div>
+                        {/* Aggression selector */}
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 4,
+                            alignItems: "center",
+                            marginBottom: 4,
+                          }}
+                        >
+                          <span
+                            style={{ fontSize: 11, color: "var(--text-muted)" }}
+                          >
+                            Aggression:
+                          </span>
+                          <select
+                            defaultValue={front.aggression}
+                            onChange={async (e) => {
+                              const newAggression = e.target.value;
+                              try {
+                                const { setFrontAggressionAction } =
+                                  await import("@/app/game-actions");
+                                const result = await setFrontAggressionAction({
+                                  frontId: front.id,
+                                  fortressId: playerSummary.id,
+                                  aggression: newAggression,
+                                });
+                                if (!result.ok) alert(result.error);
+                                refreshView();
+                              } catch (err) {
+                                alert("Failed to change aggression.");
+                              }
+                            }}
+                            style={{
+                              fontSize: 11,
+                              padding: "1px 4px",
+                              background: "var(--bg-raised)",
+                              border: "1px solid var(--border)",
+                              borderRadius: 3,
+                              color: "var(--text)",
+                            }}
+                          >
+                            <option value="CAUTIOUS">🟢 Cautious (30%)</option>
+                            <option value="BALANCED">🟡 Balanced (60%)</option>
+                            <option value="AGGRESSIVE">
+                              🔴 Aggressive (100%)
+                            </option>
+                          </select>
+                        </div>
+                        {frontBattalions.length > 0 ? (
+                          <div
+                            style={{ fontSize: 12, color: "var(--text-muted)" }}
+                          >
+                            {frontBattalions.map((b) => (
+                              <div
+                                key={b.id}
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                }}
+                              >
+                                <span>
+                                  {b.name} ({b.size})
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    const { removeBattalionFromFrontAction } =
+                                      await import("@/app/game-actions");
+                                    await removeBattalionFromFrontAction({
+                                      battalionId: b.id,
+                                      frontId: front.id,
+                                    });
+                                    refreshView();
+                                  }}
+                                  style={{
+                                    fontSize: 11,
+                                    padding: "0 4px",
+                                    background: "none",
+                                    border: "none",
+                                    color: "#f44336",
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div
+                            style={{ fontSize: 12, color: "var(--text-muted)" }}
+                          >
+                            No battalions assigned.
+                          </div>
+                        )}
+                        <select
+                          defaultValue=""
+                          onChange={async (e) => {
+                            if (!e.target.value) return;
+                            try {
+                              const { assignBattalionToFrontAction } =
+                                await import("@/app/game-actions");
+                              const result = await assignBattalionToFrontAction(
+                                {
+                                  battalionId: e.target.value,
+                                  frontId: front.id,
+                                }
+                              );
+                              if (!result.ok) alert(result.error);
+                              refreshView();
+                            } catch (err) {
+                              alert("Failed to assign battalion.");
+                            }
+                          }}
+                          style={{
+                            marginTop: 4,
+                            width: "100%",
+                            fontSize: 12,
+                            padding: "2px 4px",
+                            background: "var(--bg-raised)",
+                            border: "1px solid var(--border)",
+                            borderRadius: 3,
+                            color: "var(--text)",
+                          }}
+                        >
+                          <option value="">Assign battalion…</option>
+                          {(playerSummary.battalions ?? [])
+                            .filter(
+                              (b) =>
+                                !b.frontId &&
+                                ((b as any).mode ?? "GUARD") === "ATTACK" &&
+                                b.size > 0
+                            )
+                            .map((b) => (
+                              <option key={b.id} value={b.id}>
+                                {b.name} ({b.size})
+                              </option>
+                            ))}
+                        </select>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                  No active war fronts. Go to <strong>Diplomacy</strong> tab →
+                  declare war on a player. Battalions will auto-attack on the
+                  next tick.
+                </p>
+              )}
+            </section>
+
+            {/* Guard & Army Settings */}
+            <section className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <span>Army Settings</span>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10,
+                  padding: "4px 0",
+                }}
+              >
+                <label
+                  style={{
+                    fontSize: 13,
+                    display: "flex",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <span>Guard allocation</span>
+                  <strong>{guardPercent}%</strong>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={guardPercent}
+                  onChange={(e) =>
+                    handleGuardPercentChange(Number(e.target.value))
+                  }
+                  style={{ width: "100%" }}
+                />
+                <label
+                  style={{
+                    fontSize: 13,
+                    display: "flex",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <span>Max army size</span>
+                  <strong>{maxArmySize}</strong>
+                </label>
+                <p
+                  style={{
+                    fontSize: 11,
+                    color: "var(--text-muted)",
+                    marginTop: -4,
+                  }}
+                >
+                  Projected upkeep at {maxArmySize} army: ~
+                  {Math.ceil(maxArmySize / 100)} food/tick
+                </p>
+                <input
+                  type="number"
+                  min={100}
+                  step={50}
+                  value={maxArmySize}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    if (Number.isFinite(v) && v >= 100) {
+                      setMaxArmySize(v);
+                      handleMaxArmySizeChange(v);
+                    }
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "4px 8px",
+                    background: "var(--bg-raised)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 4,
+                    color: "var(--text)",
+                    fontSize: 13,
+                  }}
+                />
+                <p
+                  style={{
+                    fontSize: 12,
+                    color: "var(--text-muted)",
+                    margin: 0,
+                  }}
+                >
+                  Guards auto-distribute to owned tiles by priority. Set
+                  aggression per front from the battlefield.
+                </p>
+              </div>
+            </section>
+
+            {/* Recruitment Queue */}
+            <section className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <span>Recruitment</span>
+                <strong>Paid queue</strong>
+              </div>
+              <p
+                style={{
+                  fontSize: 13,
+                  color: "var(--text-muted)",
+                  margin: "4px 0",
+                }}
+              >
+                Order army from Castle operations, then assign recruiters in the
+                Economy tab to train queued units into active army. Queued units
+                do not eat until they finish.
+              </p>
+              <dl className={styles.readinessGrid}>
+                <div>
+                  <dt>Available army</dt>
+                  <dd>{playerSummary.army}</dd>
+                </div>
+                <div>
+                  <dt>Recruitment queue</dt>
+                  <dd>{playerSummary.recruitmentQueue ?? 0}</dd>
+                </div>
+                <div>
+                  <dt>Max army cap</dt>
+                  <dd>{playerSummary.warPolicy?.maxArmySize ?? 500}</dd>
+                </div>
+              </dl>
+            </section>
+            {/* Guard Status */}
+            <section className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <span>Guard Status</span>
+                <strong>
+                  {playerSummary.warPolicy?.guardPercent ?? 30}% allocated
+                </strong>
+              </div>
+              <p className={styles.muted} style={{ marginBottom: 8 }}>
+                Guards auto-distribute to owned tiles. They slow tile decay
+                (-50%), add to battlefield defense, and are visible on the map.
+              </p>
+              <dl className={styles.readinessGrid}>
+                <div>
+                  <dt>Guarding battalions</dt>
+                  <dd>
+                    {
+                      (playerSummary.battalions ?? []).filter(
+                        (b: any) => b.garrisonedAt
+                      ).length
+                    }
+                  </dd>
+                </div>
+                <div>
+                  <dt>Guard army</dt>
+                  <dd>
+                    {Math.floor(
+                      ((playerSummary.army ?? 0) *
+                        (playerSummary.warPolicy?.guardPercent ?? 30)) /
+                        100
+                    ).toLocaleString()}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Tiles defended</dt>
+                  <dd>
+                    {
+                      (playerSummary.battalions ?? []).filter(
+                        (b: any) => b.garrisonedAt
+                      ).length
+                    }
+                  </dd>
+                </div>
+              </dl>
+            </section>
+
+            {playerSummary.operationsSummary ? (
+              <section className={styles.panel}>
+                <div className={styles.panelHeader}>
+                  <span>Standing Orders</span>
+                  <strong>Escort & Raid</strong>
+                </div>
+                <div className={styles.operationGroup}>
+                  <div className={styles.operationTitle}>
+                    <strong>Logistics</strong>
+                  </div>
+                  <div className={styles.logisticsRows}>
+                    <div className={styles.statusRow}>
+                      <span>Escorts</span>
+                      <strong>
+                        {playerSummary.operationsSummary.logistics.escortCount}{" "}
+                        orders
+                        {" / "}
+                        {
+                          playerSummary.operationsSummary.logistics.escortArmy
+                        }{" "}
+                        army
+                      </strong>
+                    </div>
+                    <div className={styles.statusRow}>
+                      <span>Raids</span>
+                      <strong>
+                        {playerSummary.operationsSummary.logistics.raidCount}{" "}
+                        orders
+                        {" / "}
+                        {
+                          playerSummary.operationsSummary.logistics.raidArmy
+                        }{" "}
+                        army
+                      </strong>
+                    </div>
+                  </div>
+                  <p className={styles.muted} style={{ marginTop: 8 }}>
+                    Escort your convoys to protect cargo. Raid enemy convoys to
+                    steal resources. Manage from <strong>Diplomacy</strong> tab.
+                  </p>
+                </div>
+              </section>
+            ) : null}
+          </>
+        ) : null}
+
+        {activeTab === "OVERVIEW" ? (
+          <section className={styles.panel}>
+            <div className={styles.panelHeader}>
+              <span>Utility</span>
+              <strong>Castle actions</strong>
+            </div>
+            <div className={styles.form}>
+              <form
+                action={renameFortressFormAction}
+                className={styles.inlineForm}
+              >
+                <input
+                  name="fortressName"
+                  defaultValue={playerSummary.name}
+                  maxLength={32}
+                  required
+                />
+                <button type="submit" disabled={!playerSummary.canRename}>
+                  Rename
+                </button>
+              </form>
+            </div>
+          </section>
+        ) : null}
+
+        {activeTab === "DIPLOMACY" ? (
+          politicsState ? (
+            <PoliticsClient state={politicsState} />
+          ) : (
+            <section className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <span>Diplomacy</span>
+                <strong>Politics & Trade</strong>
+              </div>
+              <p className={styles.muted}>Loading diplomacy data...</p>
+            </section>
+          )
+        ) : null}
+
+        {activeTab === "NUKES" ? (
+          <section className={styles.panel}>
+            <div className={styles.panelHeader}>
+              <span>Nukes</span>
+              <strong>{nukeState?.round.status ?? "offline"}</strong>
+            </div>
+            {nukeState ? (
+              <>
+                <div className={styles.expansionStatus}>
+                  <img
+                    src="/assets/nukes/nuke-ready.svg"
+                    className={styles.featureCrest}
+                    alt=""
+                    aria-hidden="true"
+                  />
+                  <div>
+                    <span className={styles.eyebrow}>
+                      {nukeState.round.isOpen
+                        ? "Bidding open"
+                        : "Bidding closed"}
+                    </span>
+                    <strong>
+                      {new Date(nukeState.round.startsAt).toLocaleString()} -{" "}
+                      {new Date(nukeState.round.endsAt).toLocaleString()}
+                    </strong>
+                    <small>
+                      Live bids are private. Only your own commitments are
+                      shown.
+                    </small>
+                  </div>
+                </div>
+
+                <div className={styles.buildingGrid}>
+                  {NUKE_COMPONENTS.map((component) => {
+                    const ownBids = nukeState.round.playerBids.filter(
+                      (bid) => bid.componentKind === component.kind
+                    );
+                    return (
+                      <article
+                        key={component.kind}
+                        className={styles.buildingCard}
+                      >
+                        <div className={styles.buildingCardHeader}>
+                          <img
+                            src={component.sprite}
+                            className={styles.featureCrest}
+                            alt=""
+                            aria-hidden="true"
+                          />
+                          <div>
+                            <strong>{component.label}</strong>
+                            <small>
+                              Inventory:{" "}
+                              {nukeState.inventory[component.kind] ?? 0}
+                            </small>
+                          </div>
+                        </div>
+                        <label>
+                          Bid {component.bidResource}
+                          <input
+                            type="number"
+                            min={1}
+                            step={1}
+                            value={nukeBidAmounts[component.kind] ?? 1}
+                            disabled={!nukeState.round.isOpen}
+                            onChange={(event) =>
+                              setNukeBidAmounts((current) => ({
+                                ...current,
+                                [component.kind]: Math.max(
+                                  1,
+                                  Number(event.target.value) || 1
+                                ),
+                              }))
+                            }
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          className={styles.nukeActionButton}
+                          disabled={
+                            !nukeState.round.isOpen ||
+                            nukePending === `bid:${component.kind}`
+                          }
+                          onClick={() => void handleNukeBid(component.kind)}
+                        >
+                          {nukePending === `bid:${component.kind}`
+                            ? "Committing..."
+                            : `Commit ${component.bidResource}`}
+                        </button>
+                        {ownBids.length > 0 ? (
+                          <small>
+                            Your committed total:{" "}
+                            {ownBids.reduce((sum, bid) => sum + bid.amount, 0)}
+                          </small>
+                        ) : null}
+                      </article>
+                    );
+                  })}
+                </div>
+
+                <div className={styles.panel}>
+                  <div className={styles.panelHeader}>
+                    <span>Launch</span>
+                    <strong>
+                      {nukeState.launchGoldCost.toLocaleString()} gold
+                    </strong>
+                  </div>
+                  <label>
+                    Target
+                    <select
+                      value={nukeTargetId}
+                      onChange={(event) => setNukeTargetId(event.target.value)}
+                    >
+                      {nukeState.eligibleTargets.map((target) => (
+                        <option key={target.id} value={target.id}>
+                          {target.name} - level {target.level + 1}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {nukeState.launchDisabledReason ? (
+                    <p className={styles.muted}>
+                      {nukeState.launchDisabledReason}
+                    </p>
+                  ) : null}
+                  <button
+                    type="button"
+                    className={styles.nukeDangerButton}
+                    disabled={
+                      !nukeState.canLaunch ||
+                      !nukeTargetId ||
+                      nukePending === "launch"
+                    }
+                    onClick={() => void handleNukeLaunch()}
+                  >
+                    {nukePending === "launch" ? "Launching..." : "Launch nuke"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <p>Nuke bidding opens during Season 4 gameplay.</p>
+            )}
+          </section>
+        ) : null}
+
+        {activeTab === "SKILLS" ? (
+          <section className={styles.panel}>
+            <div className={styles.panelHeader}>
+              <span>Skills</span>
+              <strong>{playerSummary.race ?? "Choose a race"}</strong>
+            </div>
+            {playerSummary.race &&
+            playerSummary.race &&
+            isFortressRace(playerSummary.race!) ? (
+              <RaceSkillPanel
+                skillState={{
+                  race: playerSummary.race,
+                  purchasedNodeKeys: playerSummary.skillPurchases.map(
+                    (purchase) => purchase.nodeKey
+                  ),
+                  earnedPoints: playerSummary.skillPointsEarned,
+                  totalPurchased: playerSummary.skillPurchases.length,
+                  playerLevel: playerSummary.level,
+                  tileCount: playerSummary.ownedTileSummary.totalTileCount,
+                }}
+                onPurchase={async (nodeKey) => {
+                  const result = await purchaseSkillNodeAction(
+                    playerSummary.id,
+                    nodeKey
+                  );
+                  if (!result.ok) window.alert(result.error);
+                }}
+              />
+            ) : (
+              <p className={styles.muted}>
+                Skill tree available after choosing a race.
+              </p>
+            )}
+          </section>
+        ) : null}
+
+        {activeTab === "SHOP" ? (
+          shopState ? (
+            <div style={{ padding: "8px 0" }}>
+              <section className={styles.panel}>
+                <div className={styles.panelHeader}>
+                  <span>Shop</span>
+                  <strong>
+                    {shopState.walletBalance?.toLocaleString() ?? 0} coins
+                  </strong>
+                </div>
+                <p className={styles.muted}>
+                  Buy loot boxes to unlock unit and fortress skins. Equipped
+                  skins show on the map and battlefield.
+                </p>
+              </section>
+              {shopState.shop?.boxes?.length > 0 ? (
+                <section className={styles.panel}>
+                  <div className={styles.panelHeader}>
+                    <span>Loot Boxes</span>
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {shopState.shop.boxes.map((box: any) => (
+                      <form
+                        key={box.type}
+                        action={async () => {
+                          const { purchaseArcadeLootBoxAction } =
+                            await import("@/app/game-actions");
+                          const formData = new FormData();
+                          formData.set("boxType", box.type);
+                          await purchaseArcadeLootBoxAction(formData);
+                          refreshView();
+                        }}
+                        style={{
+                          flex: "1 1 140px",
+                          background: "var(--bg-raised)",
+                          borderRadius: 8,
+                          padding: 12,
+                          textAlign: "center",
+                          border: "1px solid var(--border)",
+                        }}
+                      >
+                        <div style={{ fontSize: 24 }}>
+                          {box.type === "UNIT" ? "👥" : "🏰"}
+                        </div>
+                        <div style={{ fontSize: 13, fontWeight: 600 }}>
+                          {box.type}
+                        </div>
+                        <div
+                          style={{ fontSize: 12, color: "var(--text-muted)" }}
+                        >
+                          {box.price} coins
+                        </div>
+                        <button
+                          type="submit"
+                          disabled={
+                            !shopState.canBuy ||
+                            (shopState.walletBalance ?? 0) < box.price
+                          }
+                          style={{
+                            marginTop: 8,
+                            padding: "4px 12px",
+                            fontSize: 12,
+                            background: "var(--color-accent, #48f)",
+                            color: "#fff",
+                            border: "none",
+                            borderRadius: 4,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Buy
+                        </button>
+                      </form>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+              {shopState.ownedSkins?.length > 0 ? (
+                <section className={styles.panel}>
+                  <div className={styles.panelHeader}>
+                    <span>Inventory</span>
+                    <strong>{shopState.ownedSkins.length} skins</strong>
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                    {shopState.ownedSkins.slice(0, 12).map((skin: any) => (
+                      <div
+                        key={skin.id}
+                        style={{
+                          padding: "4px 8px",
+                          fontSize: 12,
+                          background: skin.equipped
+                            ? "#2a4a2a"
+                            : "var(--bg-raised)",
+                          borderRadius: 4,
+                          border: skin.equipped
+                            ? "1px solid #4caf50"
+                            : "1px solid var(--border)",
+                        }}
+                      >
+                        {skin.variantId} {skin.equipped ? "✓" : ""}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+              {shopState.unopenedPurchases?.length > 0 ? (
+                <section className={styles.panel}>
+                  <div className={styles.panelHeader}>
+                    <span>Unopened</span>
+                    <strong>{shopState.unopenedPurchases.length} crates</strong>
+                  </div>
+                  <p className={styles.muted}>
+                    Open your crates from the <a href="/shop">full shop page</a>{" "}
+                    to reveal your skins.
+                  </p>
+                </section>
+              ) : null}
+            </div>
+          ) : (
+            <section className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <span>Shop</span>
+              </div>
+              <p className={styles.muted}>Loading shop data...</p>
+            </section>
+          )
+        ) : null}
       </div>
     </div>
   );

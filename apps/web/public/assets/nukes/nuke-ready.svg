@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" role="img" aria-label="Completed nuke">
+  <path fill="#1f2937" stroke="#e5e7eb" stroke-width="4" d="M40 5c13 10 20 26 17 52H23C20 31 27 15 40 5z"/>
+  <path fill="#ef4444" d="M23 57h34l10 18-20-7H33l-20 7z"/>
+  <path fill="#facc15" d="M40 21 50 48h-6l-2-6h-5l-2 6h-6z"/>
+  <circle cx="40" cy="34" r="28" fill="none" stroke="#f97316" stroke-width="3" stroke-dasharray="5 6"/>
+</svg>

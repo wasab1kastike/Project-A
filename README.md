@@ -239,6 +239,7 @@ The game is now a castle-economy and battlefield-control loop:
 - the Castle Diplomacy tab supports peace offers with optional demands from either side, while trade offers move accepted gold, food, army, score points, and allied tile deeds as six-hour-minimum convoy legs
 - Delivered convoy cargo awards points from base cargo value and allied Trust bonuses add only delivered gold and food; hostile relations seize in-transit cargo without trade points or delivered score points
 - scored trade convoys can receive an outbound escort; raid patrols are managed from the Castle War Room and can steal half the cargo, including traded score points
+- daily nuke bidding runs 14:00-12:00 Europe/Helsinki for Fuel, Rocket, and Wrath of A; bids are private, losing bids are spent, components are tradable by convoy, and launches cost 250,000 gold
 - guard orders now detect convoy raids as covert incidents: an exposed raider becomes an enemy and the detecting fortress can invoke immediate war during the 24-hour casus belli window
 - War Room battalions now only auto-dispatch from ATTACK mode war fronts, with the server validating ownership, costs, and live battalion state before any order changes
 - new troops assigned to a remote battalion travel from the castle as visible reinforcement marches before they become usable

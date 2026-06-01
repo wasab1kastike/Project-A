@@ -19,6 +19,8 @@ import {
   TerritoryCampaignStatus,
   TradeLineItemKind,
   TradeOfferStatus,
+  NukeComponentKind,
+  NukeComponentRoundStatus,
   OrkBossOrderKind,
   OrkScrapEventReason,
   OrkWaaaghInvestmentKind,
@@ -134,11 +136,23 @@ import { getCampaignStartBlockedReason } from "../campaigns";
 import {
   calculateTradeCargoValue,
   getTradeBlockedReason,
+  getTradeNukeComponents,
   getTradeOfferExpiresAt,
   hasTradeCargo,
   normalizeTradeCargo,
   type TradeCargo,
 } from "../trading";
+import {
+  allocateNukeArmyLosses,
+  EMPTY_NUKE_COMPONENT_CARGO,
+  getNukeBiddingWindowForDate,
+  getNukeComponentLabel,
+  hasNukeComponentCargo,
+  normalizeNukeComponentCargo,
+  NUKE_COMPONENT_KINDS,
+  NUKE_LAUNCH_GOLD_COST,
+  type NukeComponentCargo,
+} from "../nukes";
 import { getRaidTargetBlockedReason, isConvoyRaidEligible } from "../convoy-conflict";
 import { getDoctrineChangeBlockedReason } from "../doctrines";
 import { getRoadAdjustedConvoyArrival } from "../road-travel";
@@ -2922,10 +2936,16 @@ export type CreateTradeOfferInput = {
   offeredFood: number;
   offeredArmy: number;
   offeredPoints?: number;
+  offeredNukeFuel?: number;
+  offeredNukeRocket?: number;
+  offeredNukeWrathOfA?: number;
   requestedGold: number;
   requestedFood: number;
   requestedArmy: number;
   requestedPoints?: number;
+  requestedNukeFuel?: number;
+  requestedNukeRocket?: number;
+  requestedNukeWrathOfA?: number;
   offeredTileId?: string;
   requestedTileId?: string;
 };
@@ -2949,6 +2969,96 @@ function assertTradeCargoAvailable({
   }
 }
 
+async function getNukeInventoryCargo({
+  tx,
+  cycleId,
+  fortressId,
+}: {
+  tx: DatabaseClient;
+  cycleId: string;
+  fortressId: string;
+}) {
+  const rows = await tx.nukeComponentInventory.findMany({
+    where: { cycleId, fortressId },
+    select: { componentKind: true, quantity: true },
+  });
+  const cargo: NukeComponentCargo = { ...EMPTY_NUKE_COMPONENT_CARGO };
+
+  for (const row of rows) {
+    cargo[row.componentKind] = row.quantity;
+  }
+
+  return cargo;
+}
+
+async function assertNukeComponentCargoAvailable({
+  tx,
+  cycleId,
+  fortressId,
+  cargo,
+}: {
+  tx: DatabaseClient;
+  cycleId: string;
+  fortressId: string;
+  cargo: NukeComponentCargo;
+}) {
+  if (!hasNukeComponentCargo(cargo)) {
+    return;
+  }
+
+  const inventory = await getNukeInventoryCargo({ tx, cycleId, fortressId });
+  for (const kind of NUKE_COMPONENT_KINDS) {
+    if (inventory[kind] < cargo[kind]) {
+      throw new GameError(
+        `That fortress does not have enough ${getNukeComponentLabel(kind)} components available.`
+      );
+    }
+  }
+}
+
+async function applyNukeComponentInventoryDelta({
+  tx,
+  cycleId,
+  fortressId,
+  cargo,
+  direction,
+}: {
+  tx: DatabaseClient;
+  cycleId: string;
+  fortressId: string;
+  cargo: NukeComponentCargo;
+  direction: "increment" | "decrement";
+}) {
+  for (const kind of NUKE_COMPONENT_KINDS) {
+    const amount = cargo[kind];
+    if (amount <= 0) {
+      continue;
+    }
+
+    await tx.nukeComponentInventory.upsert({
+      where: {
+        cycleId_fortressId_componentKind: {
+          cycleId,
+          fortressId,
+          componentKind: kind,
+        },
+      },
+      create: {
+        cycleId,
+        fortressId,
+        componentKind: kind,
+        quantity: direction === "increment" ? amount : 0,
+      },
+      update: {
+        quantity:
+          direction === "increment"
+            ? { increment: amount }
+            : { decrement: amount },
+      },
+    });
+  }
+}
+
 function tradeLineItemsForCargo({
   cargo,
   fromFortressId,
@@ -2958,7 +3068,13 @@ function tradeLineItemsForCargo({
   fromFortressId: string;
   toFortressId: string;
 }) {
-  return [
+  const lineItems: Array<{
+    kind: TradeLineItemKind;
+    amount: number;
+    nukeComponentKind?: NukeComponentKind;
+    fromFortressId: string;
+    toFortressId: string;
+  }> = [
     { kind: TradeLineItemKind.GOLD, amount: cargo.gold },
     { kind: TradeLineItemKind.FOOD, amount: cargo.food },
     { kind: TradeLineItemKind.ARMY, amount: cargo.army },
@@ -2966,6 +3082,21 @@ function tradeLineItemsForCargo({
   ]
     .filter((lineItem) => lineItem.amount > 0)
     .map((lineItem) => ({ ...lineItem, fromFortressId, toFortressId }));
+
+  for (const kind of NUKE_COMPONENT_KINDS) {
+    const nukeComponents = getTradeNukeComponents(cargo);
+    if (nukeComponents[kind] > 0) {
+      lineItems.push({
+        kind: TradeLineItemKind.NUKE_COMPONENT,
+        amount: nukeComponents[kind],
+        nukeComponentKind: kind,
+        fromFortressId,
+        toFortressId,
+      });
+    }
+  }
+
+  return lineItems;
 }
 
 function getTradeCargoFromLineItems({
@@ -2976,10 +3107,17 @@ function getTradeCargoFromLineItems({
     fromFortressId: string;
     kind: TradeLineItemKind;
     amount: number | null;
+    nukeComponentKind?: NukeComponentKind | null;
   }[];
   fromFortressId: string;
 }) {
-  const cargo: TradeCargo = { gold: 0, food: 0, army: 0, points: 0 };
+  const cargo: TradeCargo = {
+    gold: 0,
+    food: 0,
+    army: 0,
+    points: 0,
+    nukeComponents: { ...EMPTY_NUKE_COMPONENT_CARGO },
+  };
 
   for (const lineItem of lineItems) {
     if (lineItem.fromFortressId !== fromFortressId || !lineItem.amount) {
@@ -2994,6 +3132,11 @@ function getTradeCargoFromLineItems({
       cargo.army += lineItem.amount;
     } else if (lineItem.kind === TradeLineItemKind.POINTS) {
       cargo.points += lineItem.amount;
+    } else if (
+      lineItem.kind === TradeLineItemKind.NUKE_COMPONENT &&
+      lineItem.nukeComponentKind
+    ) {
+      cargo.nukeComponents![lineItem.nukeComponentKind] += lineItem.amount;
     }
   }
 
@@ -3007,10 +3150,16 @@ export async function createTradeOffer({
   offeredFood,
   offeredArmy,
   offeredPoints = 0,
+  offeredNukeFuel = 0,
+  offeredNukeRocket = 0,
+  offeredNukeWrathOfA = 0,
   requestedGold,
   requestedFood,
   requestedArmy,
   requestedPoints = 0,
+  requestedNukeFuel = 0,
+  requestedNukeRocket = 0,
+  requestedNukeWrathOfA = 0,
   offeredTileId,
   requestedTileId,
   now = new Date(),
@@ -3052,12 +3201,22 @@ export async function createTradeOffer({
         food: offeredFood,
         army: offeredArmy,
         points: offeredPoints,
+        nukeComponents: normalizeNukeComponentCargo({
+          [NukeComponentKind.FUEL]: offeredNukeFuel,
+          [NukeComponentKind.ROCKET]: offeredNukeRocket,
+          [NukeComponentKind.WRATH_OF_A]: offeredNukeWrathOfA,
+        }),
       });
       requested = normalizeTradeCargo({
         gold: requestedGold,
         food: requestedFood,
         army: requestedArmy,
         points: requestedPoints,
+        nukeComponents: normalizeNukeComponentCargo({
+          [NukeComponentKind.FUEL]: requestedNukeFuel,
+          [NukeComponentKind.ROCKET]: requestedNukeRocket,
+          [NukeComponentKind.WRATH_OF_A]: requestedNukeWrathOfA,
+        }),
       });
     } catch (error) {
       throw new GameError(
@@ -3074,6 +3233,12 @@ export async function createTradeOffer({
     }
 
     assertTradeCargoAvailable({ fortress: sender, cargo: offered });
+    await assertNukeComponentCargoAvailable({
+      tx,
+      cycleId: cycle.id,
+      fortressId: sender.id,
+      cargo: getTradeNukeComponents(offered),
+    });
     const relation = await tx.diplomacyRelation.findUnique({
       where: {
         cycleId_fortressAId_fortressBId: {
@@ -3305,6 +3470,18 @@ export async function acceptTradeOffer({
     });
     assertTradeCargoAvailable({ fortress: sender, cargo: senderCargo });
     assertTradeCargoAvailable({ fortress: receiver, cargo: receiverCargo });
+    await assertNukeComponentCargoAvailable({
+      tx,
+      cycleId: cycle.id,
+      fortressId: sender.id,
+      cargo: getTradeNukeComponents(senderCargo),
+    });
+    await assertNukeComponentCargoAvailable({
+      tx,
+      cycleId: cycle.id,
+      fortressId: receiver.id,
+      cargo: getTradeNukeComponents(receiverCargo),
+    });
 
     const deedLineItem = offer.lineItems.find(
       (item) => item.kind === TradeLineItemKind.TILE
@@ -3431,6 +3608,13 @@ export async function acceptTradeOffer({
           points: { decrement: leg.cargo.points },
         },
       });
+      await applyNukeComponentInventoryDelta({
+        tx,
+        cycleId: cycle.id,
+        fortressId: leg.from.id,
+      cargo: getTradeNukeComponents(leg.cargo),
+        direction: "decrement",
+      });
     }
 
     await tx.tradeOffer.update({
@@ -3449,6 +3633,9 @@ export async function acceptTradeOffer({
         food: leg.cargo.food,
         army: leg.cargo.army,
         points: leg.cargo.points,
+        nukeFuel: getTradeNukeComponents(leg.cargo)[NukeComponentKind.FUEL],
+        nukeRocket: getTradeNukeComponents(leg.cargo)[NukeComponentKind.ROCKET],
+        nukeWrathOfA: getTradeNukeComponents(leg.cargo)[NukeComponentKind.WRATH_OF_A],
         baseCargoValue: calculateTradeCargoValue(leg.cargo),
         deedTileId:
           deedLineItem?.tileId && leg.from.id === deedLineItem.fromFortressId
@@ -3561,6 +3748,525 @@ export async function cancelTradeOffer({
         canceledAt: expired ? null : now,
       },
     });
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+export async function ensureCurrentNukeComponentRound({
+  now = new Date(),
+  db = prisma,
+}: {
+  now?: Date;
+  db?: PrismaClient;
+} = {}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      return null;
+    }
+
+    assertSeasonFourFeatureCycle(cycle);
+    const window = getNukeBiddingWindowForDate(now);
+
+    return tx.nukeComponentRound.upsert({
+      where: {
+        cycleId_startsAt: {
+          cycleId: cycle.id,
+          startsAt: window.startsAt,
+        },
+      },
+      create: {
+        cycleId: cycle.id,
+        startsAt: window.startsAt,
+        endsAt: window.endsAt,
+        status: NukeComponentRoundStatus.OPEN,
+      },
+      update: {
+        endsAt: window.endsAt,
+      },
+    });
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+export async function resolveDueNukeComponentRounds({
+  now = new Date(),
+  db = prisma,
+}: {
+  now?: Date;
+  db?: PrismaClient;
+} = {}) {
+  return db.$transaction(async (tx) => {
+    const cycles = await tx.cycle.findMany({
+      where: {
+        resolvedAt: null,
+        ruleset: CycleRuleset.SEASON_4,
+      },
+      select: { id: true, status: true, testingEndsAt: true, activeEndsAt: true },
+    });
+    let awarded = 0;
+
+    for (const cycle of cycles) {
+      if (!isGameplayWindowOpen(cycle, now)) {
+        continue;
+      }
+
+      const rounds = await tx.nukeComponentRound.findMany({
+        where: {
+          cycleId: cycle.id,
+          status: NukeComponentRoundStatus.OPEN,
+          endsAt: { lte: now },
+        },
+        include: {
+          bids: {
+            orderBy: [{ amount: "desc" }, { createdAt: "asc" }, { id: "asc" }],
+          },
+        },
+      });
+
+      for (const round of rounds) {
+        const winners: Array<{
+          componentKind: NukeComponentKind;
+          fortressId: string;
+          amount: number;
+        }> = [];
+
+        for (const componentKind of NUKE_COMPONENT_KINDS) {
+          const winner = round.bids.find(
+            (bid) => bid.componentKind === componentKind
+          );
+
+          if (!winner) {
+            continue;
+          }
+
+          await tx.nukeComponentInventory.upsert({
+            where: {
+              cycleId_fortressId_componentKind: {
+                cycleId: cycle.id,
+                fortressId: winner.fortressId,
+                componentKind,
+              },
+            },
+            create: {
+              cycleId: cycle.id,
+              fortressId: winner.fortressId,
+              componentKind,
+              quantity: 1,
+            },
+            update: { quantity: { increment: 1 } },
+          });
+          await tx.scoreEvent.create({
+            data: {
+              cycleId: cycle.id,
+              fortressId: winner.fortressId,
+              eventType: ScoreEventType.NUKE_COMPONENT_AWARDED,
+              delta: 0,
+              createdAt: now,
+            },
+          });
+          winners.push({
+            componentKind,
+            fortressId: winner.fortressId,
+            amount: winner.amount,
+          });
+          awarded += 1;
+        }
+
+        await tx.nukeComponentRound.update({
+          where: { id: round.id },
+          data: {
+            status: NukeComponentRoundStatus.RESOLVED,
+            resolvedAt: now,
+          },
+        });
+
+        if (winners.length > 0) {
+          const systemUser = await ensureNpcSystemUser(tx);
+          const fortressNames = await tx.fortress.findMany({
+            where: { id: { in: winners.map((winner) => winner.fortressId) } },
+            select: { id: true, name: true },
+          });
+          const names = new Map(fortressNames.map((f) => [f.id, f.name]));
+          await tx.chatMessage.create({
+            data: {
+              cycleId: cycle.id,
+              authorId: systemUser.id,
+              type: ChatMessageType.TEXT,
+              body:
+                "Daily nuke components awarded: " +
+                winners
+                  .map(
+                    (winner) =>
+                      `${getNukeComponentLabel(winner.componentKind)} to ${
+                        names.get(winner.fortressId) ?? "an unknown fortress"
+                      }`
+                  )
+                  .join(", ") +
+                ". Losing bids were fed to the machinery. Obviously safe.",
+              createdAt: now,
+            },
+          });
+        }
+      }
+    }
+
+    return { awarded };
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+export async function commitNukeComponentBid({
+  userId,
+  componentKind,
+  amount,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  componentKind: NukeComponentKind;
+  amount: number;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("Nuke bidding is available only during gameplay.");
+    }
+
+    assertSeasonFourFeatureCycle(cycle);
+
+    if (!NUKE_COMPONENT_KINDS.includes(componentKind)) {
+      throw new GameError("That nuke component does not exist.");
+    }
+
+    if (!Number.isInteger(amount) || amount <= 0) {
+      throw new GameError("Commit at least 1 resource to nuke bidding.");
+    }
+
+    const window = getNukeBiddingWindowForDate(now);
+
+    if (!window.isOpen) {
+      throw new GameError("Nuke bidding is closed until 14:00 Europe/Helsinki.");
+    }
+
+    const round = await tx.nukeComponentRound.upsert({
+      where: {
+        cycleId_startsAt: {
+          cycleId: cycle.id,
+          startsAt: window.startsAt,
+        },
+      },
+      create: {
+        cycleId: cycle.id,
+        startsAt: window.startsAt,
+        endsAt: window.endsAt,
+        status: NukeComponentRoundStatus.OPEN,
+      },
+      update: {
+        endsAt: window.endsAt,
+      },
+    });
+
+    if (round.status !== NukeComponentRoundStatus.OPEN || round.endsAt <= now) {
+      throw new GameError("That nuke bidding round is no longer open.");
+    }
+
+    const fortress = await getActivePlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      userId,
+    });
+
+    if (componentKind === NukeComponentKind.FUEL && fortress.gold < amount) {
+      throw new GameError("You do not have enough gold for that Fuel bid.");
+    }
+    if (componentKind === NukeComponentKind.ROCKET && fortress.food < amount) {
+      throw new GameError("You do not have enough food for that Rocket bid.");
+    }
+    if (
+      componentKind === NukeComponentKind.WRATH_OF_A &&
+      fortress.army < amount
+    ) {
+      throw new GameError("You do not have enough idle army for that Wrath of A bid.");
+    }
+
+    await tx.fortress.update({
+      where: { id: fortress.id },
+      data:
+        componentKind === NukeComponentKind.FUEL
+          ? { gold: { decrement: amount } }
+          : componentKind === NukeComponentKind.ROCKET
+            ? { food: { decrement: amount } }
+            : { army: { decrement: amount } },
+    });
+
+    return tx.nukeComponentBid.create({
+      data: {
+        cycleId: cycle.id,
+        roundId: round.id,
+        fortressId: fortress.id,
+        componentKind,
+        amount,
+      },
+    });
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+export async function launchNuke({
+  userId,
+  targetFortressId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  targetFortressId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("Nukes can only be launched during gameplay.");
+    }
+
+    assertSeasonFourFeatureCycle(cycle);
+    const launcher = await getActivePlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      userId,
+    });
+    const target = await tx.fortress.findFirst({
+      where: {
+        id: targetFortressId,
+        cycleId: cycle.id,
+        fortressKind: FortressKind.PLAYER,
+        isNpc: false,
+      },
+      select: { id: true, name: true, commanderName: true, level: true },
+    });
+
+    if (!target || target.id === launcher.id) {
+      throw new GameError("Choose another real player fortress as the nuke target.");
+    }
+
+    if (launcher.gold < NUKE_LAUNCH_GOLD_COST) {
+      throw new GameError("Launching a nuke costs 250,000 gold.");
+    }
+
+    const inventory = await getNukeInventoryCargo({
+      tx,
+      cycleId: cycle.id,
+      fortressId: launcher.id,
+    });
+    for (const kind of NUKE_COMPONENT_KINDS) {
+      if (inventory[kind] < 1) {
+        throw new GameError(`You need ${getNukeComponentLabel(kind)} before launching a nuke.`);
+      }
+    }
+
+    await tx.fortress.update({
+      where: { id: launcher.id },
+      data: { gold: { decrement: NUKE_LAUNCH_GOLD_COST } },
+    });
+    await applyNukeComponentInventoryDelta({
+      tx,
+      cycleId: cycle.id,
+      fortressId: launcher.id,
+      cargo: {
+        [NukeComponentKind.FUEL]: 1,
+        [NukeComponentKind.ROCKET]: 1,
+        [NukeComponentKind.WRATH_OF_A]: 1,
+      },
+      direction: "decrement",
+    });
+
+    const [
+      fullTarget,
+      garrisons,
+      armyOrders,
+      attackUnits,
+      participants,
+      battalions,
+      convoys,
+    ] = await Promise.all([
+      tx.fortress.findUniqueOrThrow({
+        where: { id: target.id },
+        select: { id: true, level: true, army: true },
+      }),
+      tx.fortressGarrison.findMany({
+        where: { cycleId: cycle.id, fortressId: target.id, army: { gt: 0 } },
+        select: { id: true, army: true },
+      }),
+      tx.armyOrder.findMany({
+        where: {
+          cycleId: cycle.id,
+          fortressId: target.id,
+          status: ArmyOrderStatus.ACTIVE,
+          committedArmy: { gt: 0 },
+        },
+        select: { id: true, committedArmy: true },
+      }),
+      tx.attackUnit.findMany({
+        where: {
+          cycleId: cycle.id,
+          attackerFortressId: target.id,
+          resolvedAt: null,
+          cancelledAt: null,
+          recalledAt: null,
+          armyAmount: { gt: 0 },
+        },
+        select: { id: true, armyAmount: true },
+      }),
+      tx.battlefieldParticipant.findMany({
+        where: { fortressId: target.id, armyRemaining: { gt: 0 } },
+        select: { id: true, battlefieldId: true, side: true, armyRemaining: true },
+      }),
+      tx.battalion.findMany({
+        where: { cycleId: cycle.id, fortressId: target.id, size: { gt: 0 } },
+        select: { id: true, size: true },
+      }),
+      tx.convoyLeg.findMany({
+        where: {
+          cycleId: cycle.id,
+          fromFortressId: target.id,
+          status: ConvoyLegStatus.IN_TRANSIT,
+          army: { gt: 0 },
+        },
+        select: { id: true, army: true },
+      }),
+    ]);
+
+    const allocation = allocateNukeArmyLosses([
+      { id: fullTarget.id, kind: "idle", amount: fullTarget.army },
+      ...garrisons.map((row) => ({ id: row.id, kind: "garrison" as const, amount: row.army })),
+      ...armyOrders.map((row) => ({ id: row.id, kind: "armyOrder" as const, amount: row.committedArmy })),
+      ...attackUnits.map((row) => ({ id: row.id, kind: "attackUnit" as const, amount: row.armyAmount })),
+      ...participants.map((row) => ({ id: row.id, kind: "battlefield" as const, amount: row.armyRemaining })),
+      ...battalions.map((row) => ({ id: row.id, kind: "battalion" as const, amount: row.size })),
+      ...convoys.map((row) => ({ id: row.id, kind: "convoy" as const, amount: row.army })),
+    ]);
+    const removedByKind = new Map<string, number>();
+
+    for (const loss of allocation.losses) {
+      removedByKind.set(loss.kind, (removedByKind.get(loss.kind) ?? 0) + loss.loss);
+
+      if (loss.kind === "idle") {
+        await tx.fortress.update({
+          where: { id: loss.id },
+          data: { army: { decrement: loss.loss } },
+        });
+      } else if (loss.kind === "garrison") {
+        await tx.fortressGarrison.update({
+          where: { id: loss.id },
+          data: { army: { decrement: loss.loss } },
+        });
+      } else if (loss.kind === "armyOrder") {
+        await tx.armyOrder.update({
+          where: { id: loss.id },
+          data: { committedArmy: { decrement: loss.loss } },
+        });
+      } else if (loss.kind === "attackUnit") {
+        await tx.attackUnit.update({
+          where: { id: loss.id },
+          data: { armyAmount: { decrement: loss.loss } },
+        });
+      } else if (loss.kind === "battlefield") {
+        const participant = participants.find((row) => row.id === loss.id);
+        await tx.battlefieldParticipant.update({
+          where: { id: loss.id },
+          data: { armyRemaining: { decrement: loss.loss } },
+        });
+        if (participant) {
+          await tx.battlefield.update({
+            where: { id: participant.battlefieldId },
+            data:
+              participant.side === BattlefieldSide.ATTACKER
+                ? { attackerArmyRemaining: { decrement: loss.loss } }
+                : { defenderArmyRemaining: { decrement: loss.loss } },
+          });
+        }
+      } else if (loss.kind === "battalion") {
+        await tx.battalion.update({
+          where: { id: loss.id },
+          data: { size: { decrement: loss.loss } },
+        });
+      } else if (loss.kind === "convoy") {
+        await tx.convoyLeg.update({
+          where: { id: loss.id },
+          data: { army: { decrement: loss.loss } },
+        });
+      }
+    }
+
+    await tx.fortressGarrison.deleteMany({
+      where: { cycleId: cycle.id, fortressId: target.id, army: { lte: 0 } },
+    });
+
+    const nextLevel = Math.max(0, fullTarget.level - 2);
+    const nextDisplayedCap = getDisplayedCastleLevel(nextLevel);
+
+    await tx.fortress.update({
+      where: { id: target.id },
+      data: { level: nextLevel },
+    });
+    await tx.castleUpgradeSpecializationChoice.deleteMany({
+      where: {
+        fortressId: target.id,
+        level: { gt: nextDisplayedCap },
+      },
+    });
+    await tx.castleUpgradeProject.deleteMany({
+      where: {
+        cycleId: cycle.id,
+        fortressId: target.id,
+        completedAt: null,
+        level: { gt: nextDisplayedCap },
+      },
+    });
+
+    await tx.scoreEvent.create({
+      data: {
+        cycleId: cycle.id,
+        fortressId: launcher.id,
+        targetFortressId: target.id,
+        eventType: ScoreEventType.NUKE_LAUNCH,
+        delta: 0,
+        createdAt: now,
+      },
+    });
+    const launch = await tx.nukeLaunch.create({
+      data: {
+        cycleId: cycle.id,
+        launcherFortressId: launcher.id,
+        targetFortressId: target.id,
+        goldCost: NUKE_LAUNCH_GOLD_COST,
+        targetLevelBefore: fullTarget.level,
+        targetLevelAfter: nextLevel,
+        armyRemoved: allocation.targetLoss,
+        idleArmyRemoved: removedByKind.get("idle") ?? 0,
+        garrisonArmyRemoved: removedByKind.get("garrison") ?? 0,
+        armyOrderRemoved: removedByKind.get("armyOrder") ?? 0,
+        attackUnitArmyRemoved: removedByKind.get("attackUnit") ?? 0,
+        battlefieldArmyRemoved: removedByKind.get("battlefield") ?? 0,
+        battalionArmyRemoved: removedByKind.get("battalion") ?? 0,
+        convoyArmyRemoved: removedByKind.get("convoy") ?? 0,
+        launchedAt: now,
+      },
+    });
+    const systemUser = await ensureNpcSystemUser(tx);
+    await tx.chatMessage.create({
+      data: {
+        cycleId: cycle.id,
+        authorId: systemUser.id,
+        type: ChatMessageType.TEXT,
+        body: `${target.name} has been nuked. Castle levels fell by 2 and ${allocation.targetLoss.toLocaleString()} active army evaporated into questionable science.`,
+        createdAt: now,
+      },
+    });
+
+    return launch;
   }, SERVICE_TRANSACTION_OPTIONS);
 }
 

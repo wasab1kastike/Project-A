@@ -183,6 +183,21 @@ Allies can upgrade trust (0→3). Higher tiers grant:
 
 ---
 
+## Nukes
+
+Season 4 includes a daily nuke-component race:
+
+- A global bidding round opens every day at **14:00 Europe/Helsinki** and closes the next day at **12:00 Europe/Helsinki**.
+- Fuel is won with the highest gold bid, Rocket with the highest food bid, and Wrath of A with the highest idle-army bid.
+- Bids are private while the round is live. Only your own committed bids are shown.
+- All bids are spent immediately, including losing bids. Ties go to the earliest bid.
+- Components can be traded through normal convoy offers.
+- Launching requires one Fuel, one Rocket, one Wrath of A, and **250,000 gold**.
+- A nuke can target another real player fortress only.
+- The target loses 2 castle/building levels, floored at 0, and half of active persisted army up to a maximum of 100,000 army removed.
+
+---
+
 ## Roads
 
 - Armies and delivered convoys build roads across the hex route they actually used.

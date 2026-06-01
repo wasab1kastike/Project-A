@@ -127,6 +127,19 @@ enum ScoreEventType {
   MANUAL_ADJUST
   TRADE_DELIVERY
   CONVOY_INTERCEPTION
+  NUKE_COMPONENT_AWARDED
+  NUKE_LAUNCH
+}
+
+enum NukeComponentKind {
+  FUEL
+  ROCKET
+  WRATH_OF_A
+}
+
+enum NukeComponentRoundStatus {
+  OPEN
+  RESOLVED
 }
 
 enum DwarfDeepMiningOutcome {
@@ -345,6 +358,10 @@ model Cycle {
   territoryCampaigns             TerritoryCampaign[]
   tradeOffers                    TradeOffer[]
   convoyLegs                     ConvoyLeg[]
+  nukeComponentRounds            NukeComponentRound[]
+  nukeComponentBids              NukeComponentBid[]
+  nukeComponentInventories       NukeComponentInventory[]
+  nukeLaunches                   NukeLaunch[]
   covertIncidents                CovertIncident[]
   castleUpgradeProjects          CastleUpgradeProject[]
   homeOfAHolders                 HomeOfAHolder[]
@@ -457,6 +474,10 @@ model Fortress {
   receivedTradeOffers            TradeOffer[]                        @relation("TradeOfferReceiver")
   outboundConvoyLegs             ConvoyLeg[]                         @relation("ConvoyLegSender")
   inboundConvoyLegs              ConvoyLeg[]                         @relation("ConvoyLegReceiver")
+  nukeComponentBids              NukeComponentBid[]
+  nukeComponentInventories       NukeComponentInventory[]
+  launchedNukes                  NukeLaunch[]                        @relation("NukeLaunchLauncher")
+  targetedNukes                  NukeLaunch[]                        @relation("NukeLaunchTarget")
   covertIncidentsAsRaider        CovertIncident[]                    @relation("CovertIncidentRaider")
   covertIncidentsAsDetector      CovertIncident[]                    @relation("CovertIncidentDetector")
   homeOfAHoldings                HomeOfAHolder[]                     @relation("HomeOfAHolderFortress")
@@ -723,7 +744,81 @@ enum TradeLineItemKind {
   FOOD
   ARMY
   POINTS
+  NUKE_COMPONENT
   TILE
+}
+
+model NukeComponentRound {
+  id          String                   @id @default(cuid())
+  cycleId     String
+  startsAt    DateTime
+  endsAt      DateTime
+  status      NukeComponentRoundStatus @default(OPEN)
+  resolvedAt  DateTime?
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+  cycle       Cycle                    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  bids        NukeComponentBid[]
+
+  @@unique([cycleId, startsAt])
+  @@index([cycleId, status, endsAt])
+}
+
+model NukeComponentBid {
+  id            String            @id @default(cuid())
+  cycleId       String
+  roundId       String
+  fortressId    String
+  componentKind NukeComponentKind
+  amount        Int
+  createdAt     DateTime          @default(now())
+  cycle         Cycle             @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  round         NukeComponentRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  fortress      Fortress          @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+
+  @@index([cycleId, roundId, componentKind, amount])
+  @@index([fortressId, createdAt])
+}
+
+model NukeComponentInventory {
+  id            String            @id @default(cuid())
+  cycleId       String
+  fortressId    String
+  componentKind NukeComponentKind
+  quantity      Int               @default(0)
+  updatedAt     DateTime          @updatedAt
+  createdAt     DateTime          @default(now())
+  cycle         Cycle             @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress      Fortress          @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+
+  @@unique([cycleId, fortressId, componentKind])
+  @@index([fortressId])
+}
+
+model NukeLaunch {
+  id                     String   @id @default(cuid())
+  cycleId                String
+  launcherFortressId     String
+  targetFortressId       String
+  goldCost               Int
+  targetLevelBefore      Int
+  targetLevelAfter       Int
+  armyRemoved            Int
+  idleArmyRemoved        Int      @default(0)
+  garrisonArmyRemoved    Int      @default(0)
+  armyOrderRemoved       Int      @default(0)
+  attackUnitArmyRemoved  Int      @default(0)
+  battlefieldArmyRemoved Int      @default(0)
+  battalionArmyRemoved   Int      @default(0)
+  convoyArmyRemoved      Int      @default(0)
+  launchedAt             DateTime @default(now())
+  cycle                  Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  launcherFortress       Fortress @relation("NukeLaunchLauncher", fields: [launcherFortressId], references: [id], onDelete: Cascade)
+  targetFortress         Fortress @relation("NukeLaunchTarget", fields: [targetFortressId], references: [id], onDelete: Cascade)
+
+  @@index([cycleId, launchedAt])
+  @@index([launcherFortressId, launchedAt])
+  @@index([targetFortressId, launchedAt])
 }
 
 enum ConvoyLegStatus {
@@ -766,6 +861,7 @@ model TradeLineItem {
   kind           TradeLineItemKind
   amount         Int?
   tileId         String?
+  nukeComponentKind NukeComponentKind?
   createdAt      DateTime          @default(now())
   tradeOffer     TradeOffer        @relation(fields: [tradeOfferId], references: [id], onDelete: Cascade)
 
@@ -783,6 +879,9 @@ model ConvoyLeg {
   food                 Int              @default(0)
   army                 Int              @default(0)
   points               Int              @default(0)
+  nukeFuel             Int              @default(0)
+  nukeRocket           Int              @default(0)
+  nukeWrathOfA         Int              @default(0)
   baseCargoValue       Int
   bonusGold            Int              @default(0)
   bonusFood            Int              @default(0)
@@ -798,6 +897,9 @@ model ConvoyLeg {
   stolenFood           Int              @default(0)
   stolenArmy           Int              @default(0)
   stolenPoints         Int              @default(0)
+  stolenNukeFuel       Int              @default(0)
+  stolenNukeRocket     Int              @default(0)
+  stolenNukeWrathOfA   Int              @default(0)
   stolenCargoValue     Int              @default(0)
   raidDetected         Boolean          @default(false)
   departedAt           DateTime

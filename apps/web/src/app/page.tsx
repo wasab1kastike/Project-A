@@ -101,8 +101,10 @@ function getDegradedHomePageState(): HomePageState {
     emptyStateMessage:
       "Palvelussa on tilapainen hairio. Yrita hetken kuluttua uudelleen.",
     incomingOfferCount: 0,
+    pendingDiplomacyCount: 0,
     incidentCount: 0,
     recallableOrderCount: 0,
+    nukeState: null,
     recentActivity: [],
   };
   return result as HomePageState;

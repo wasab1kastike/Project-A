@@ -555,7 +555,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
     highlights: [
       "Accepted trade creates one convoy leg per direction.",
       "Cargo is deducted from the sender immediately.",
-      "Trade can move gold, food, army, score points, and allied tile deeds.",
+      "Trade can move gold, food, army, score points, nuke components, and allied tile deeds.",
     ],
     sections: [
       {
@@ -583,10 +583,20 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         bullets: [
           "Sender escorts protect outbound scored cargo.",
           "Raid orders watch non-allied routes for eligible cargo.",
-          "A successful raid steals half the cargo, including traded score points.",
+          "A successful raid steals half the cargo, including traded score points and nuke components.",
           "Raid patrols are managed from the Castle War Room; convoy escorts stay with outbound trade convoys.",
           "Guard patrols can detect raids and expose the raider as an enemy.",
           "Detected raids grant the victim 24 hours to invoke immediate war.",
+        ],
+      },
+      {
+        id: "nuke-components",
+        eyebrow: "Season wish",
+        title: "Nuke component trade",
+        bullets: [
+          "Fuel, Rocket, and Wrath of A components can be offered or requested like other cargo.",
+          "Components travel by convoy and are not delivered until the convoy settles.",
+          "Live nuke bids are private; only resolved components can be seen through inventory or trade.",
         ],
       },
     ],

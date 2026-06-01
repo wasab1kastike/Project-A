@@ -20,6 +20,8 @@ export {
   FortressRace,
   FortressDoctrine,
   LootCampVariant,
+  NukeComponentKind,
+  NukeComponentRoundStatus,
   OrkBossOrderKind,
   OrkScrapEventReason,
   OrkWaaaghInvestmentKind,
