@@ -2133,11 +2133,8 @@ export async function purchaseSkillNodeAction(
 // ═════════════════════════════════════════════════════════════════════════════
 
 export async function createBattalionAction(args: {
-  cycleId: string;
-  fortressId: string;
-  race?: string | null;
-  fortressLevel: number;
-  existingBattalionCount: number;
+  fortressId?: string;
+  name?: string;
 }): Promise<InlineActionResult> {
   const session = await auth();
   const userId = session?.user?.id;
@@ -2154,9 +2151,7 @@ export async function createBattalionAction(args: {
 
 export async function expandBattalionAction(args: {
   battalionId: string;
-  fortressId: string;
   targetMaxSize: number;
-  availableGold: number;
 }): Promise<InlineActionResult> {
   const session = await auth();
   const userId = session?.user?.id;
@@ -2173,7 +2168,6 @@ export async function expandBattalionAction(args: {
 
 export async function disbandBattalionAction(args: {
   battalionId: string;
-  fortressId: string;
 }): Promise<InlineActionResult> {
   const session = await auth();
   const userId = session?.user?.id;
@@ -2190,7 +2184,6 @@ export async function disbandBattalionAction(args: {
 
 export async function setBattalionStanceAction(args: {
   battalionId: string;
-  fortressId: string;
   stance: string;
 }): Promise<InlineActionResult> {
   const session = await auth();
@@ -2208,7 +2201,6 @@ export async function setBattalionStanceAction(args: {
 
 export async function setBattalionModeAction(args: {
   battalionId: string;
-  fortressId: string;
   mode: string;
 }): Promise<InlineActionResult> {
   const session = await auth();
@@ -2226,50 +2218,14 @@ export async function setBattalionModeAction(args: {
 
 export async function promoteBattalionAction(args: {
   battalionId: string;
-  fortressId: string;
-  currentTier: number;
-  size: number;
-  maxSize: number;
-  xp: number;
-  readyAt: number | null;
-  stance: string;
-  garrisonedAt: string | null;
 }): Promise<InlineActionResult> {
   const session = await auth();
   const userId = session?.user?.id;
   if (!userId) return { ok: false, error: "Sign in to manage battalions." };
 
   try {
-    const { applyFieldPromotion } = await import("@/lib/game/army-xp");
-    const { prisma } = await import("@/lib/prisma");
-
-    const bn = {
-      id: args.battalionId,
-      name: "",
-      size: args.size,
-      maxSize: args.maxSize,
-      tier: args.currentTier as 0 | 1 | 2,
-      xp: args.xp,
-      readyAt: args.readyAt,
-      stance: args.stance as any,
-      garrisonedAt: args.garrisonedAt,
-      stanceLockedUntil: null,
-    };
-
-    const result = applyFieldPromotion(bn);
-    if (!result) return { ok: false, error: "Cannot promote this battalion." };
-
-    await prisma.$transaction(async (tx) => {
-      await tx.battalion.update({
-        where: { id: args.battalionId },
-        data: { tier: result.newTier, xp: 0 },
-      });
-      await tx.fortress.update({
-        where: { id: args.fortressId },
-        data: { gold: { decrement: result.goldCost } },
-      });
-    });
-
+    const { promoteBattalion } = await import("@/lib/game/battalion-service");
+    await promoteBattalion({ userId, ...args });
     notifyAndRevalidate("battalion-promoted", GAMEPLAY_REVALIDATE_PATHS);
     return { ok: true };
   } catch (error) {
@@ -2278,8 +2234,7 @@ export async function promoteBattalionAction(args: {
 }
 
 export async function setGuardPercentAction(args: {
-  cycleId: string;
-  fortressId: string;
+  fortressId?: string;
   guardPercent: number;
 }): Promise<InlineActionResult> {
   const session = await auth();
@@ -2296,8 +2251,7 @@ export async function setGuardPercentAction(args: {
 }
 
 export async function setMaxArmySizeAction(args: {
-  cycleId: string;
-  fortressId: string;
+  fortressId?: string;
   maxArmySize: number;
 }): Promise<InlineActionResult> {
   const session = await auth();
@@ -2314,8 +2268,7 @@ export async function setMaxArmySizeAction(args: {
 }
 
 export async function createWarFrontAction(args: {
-  cycleId: string;
-  attackerFortressId: string;
+  attackerFortressId?: string;
   enemyFortressId: string;
 }): Promise<InlineActionResult> {
   const session = await auth();
@@ -2334,7 +2287,6 @@ export async function createWarFrontAction(args: {
 export async function assignBattalionToFrontAction(args: {
   battalionId: string;
   frontId: string;
-  fortressId: string;
 }): Promise<InlineActionResult> {
   const session = await auth();
   const userId = session?.user?.id;
@@ -2352,7 +2304,6 @@ export async function assignBattalionToFrontAction(args: {
 export async function removeBattalionFromFrontAction(args: {
   battalionId: string;
   frontId: string;
-  fortressId: string;
 }): Promise<InlineActionResult> {
   const session = await auth();
   const userId = session?.user?.id;
@@ -2369,7 +2320,7 @@ export async function removeBattalionFromFrontAction(args: {
 
 export async function setFrontAggressionAction(args: {
   frontId: string;
-  fortressId: string;
+  fortressId?: string;
   aggression: string;
 }): Promise<InlineActionResult> {
   const session = await auth();
@@ -2387,7 +2338,7 @@ export async function setFrontAggressionAction(args: {
 
 export async function retreatFrontAction(args: {
   frontId: string;
-  fortressId: string;
+  fortressId?: string;
 }): Promise<InlineActionResult> {
   const session = await auth();
   const userId = session?.user?.id;

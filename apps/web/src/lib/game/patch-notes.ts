@@ -14,11 +14,13 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
       "Alliance proposals can include break collateral; betrayal pays what is available and records unpaid collateral as treaty debt.",
       "Trade offers can now move score points through convoy legs alongside gold, food, army, and allied tile deeds.",
       "Raid patrol setup moved into the Castle War Room, while convoy escorts stay with outbound trade convoys.",
+      "War Front battalions now dispatch from ATTACK mode in both war directions, using reachable tile priorities as target preference.",
     ],
     bugFixes: [
       "The tutorial now points politics tasks at the Castle Diplomacy tab, matching the current navigation.",
       "Tile-only deed trades now create convoy legs correctly instead of tripping over cargo setup.",
       "Automatic wartime convoy raids now consider both sides of a war and avoid duplicate active raid patrols.",
+      "Battalion and War Front controls now validate live ownership, costs, mode, and promotion state on the server before applying changes.",
     ],
   },
   {

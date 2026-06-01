@@ -730,49 +730,37 @@ export function CastleManagement({
     async (value: number) => {
       setGuardPercent(value);
       const result = await setGuardPercentAction({
-        cycleId: playerSummary.cycleId,
         fortressId: playerSummary.id,
         guardPercent: value,
       });
       await handleInlineResult(result);
     },
-    [playerSummary.cycleId, playerSummary.id],
+    [playerSummary.id],
   );
 
   const handleMaxArmySizeChange = useCallback(
     async (value: number) => {
       setMaxArmySize(value);
       const result = await setMaxArmySizeAction({
-        cycleId: playerSummary.cycleId,
         fortressId: playerSummary.id,
         maxArmySize: value,
       });
       await handleInlineResult(result);
     },
-    [playerSummary.cycleId, playerSummary.id],
+    [playerSummary.id],
   );
 
   const handleCreateBattalion = useCallback(async () => {
     setBattalionPending(true);
     try {
       const result = await createBattalionAction({
-        cycleId: playerSummary.cycleId,
         fortressId: playerSummary.id,
-        race: playerSummary.race,
-        fortressLevel: playerSummary.level,
-        existingBattalionCount: playerSummary.battalions?.length ?? 0,
       });
       await handleInlineResult(result);
     } finally {
       setBattalionPending(false);
     }
-  }, [
-    playerSummary.cycleId,
-    playerSummary.id,
-    playerSummary.race,
-    playerSummary.level,
-    playerSummary.battalions?.length,
-  ]);
+  }, [playerSummary.id]);
 
   const buildings = getBuildingsForRace(playerSummary.race);
   const raceTokenPath =
@@ -1727,7 +1715,6 @@ export function CastleManagement({
                         const { setBattalionModeAction } = await import("@/app/game-actions");
                         const result = await setBattalionModeAction({
                           battalionId: bn.id,
-                          fortressId: playerSummary.id,
                           mode: newMode,
                         });
                         if (!result?.ok) {
@@ -1768,7 +1755,6 @@ export function CastleManagement({
                         const { setBattalionStanceAction } = await import("@/app/game-actions");
                         const result = await setBattalionStanceAction({
                           battalionId: bn.id,
-                          fortressId: playerSummary.id,
                           stance: newStance,
                         });
                         if (!result?.ok) {
@@ -1823,9 +1809,7 @@ export function CastleManagement({
                         const { expandBattalionAction } = await import("@/app/game-actions");
                         await expandBattalionAction({
                           battalionId: bn.id,
-                          fortressId: playerSummary.id,
                           targetMaxSize: v,
-                          availableGold: playerSummary.gold,
                         });
                         refreshView();
                       }
@@ -1841,8 +1825,8 @@ export function CastleManagement({
                     }}
                   />
                   {bn.tier < 3 ? (() => {
-                    const baseCost = [0, 1500, 5000, 15000][bn.tier] ?? 0;
-                    const perUnit = bn.size * 5;
+                    const baseCost = [2000, 8000, 25000, 0][bn.tier] ?? 0;
+                    const perUnit = bn.size * 8;
                     const totalCost = baseCost + perUnit;
                     return (
                     <button
@@ -1852,16 +1836,9 @@ export function CastleManagement({
                         const { promoteBattalionAction } = await import("@/app/game-actions");
                         const result = await promoteBattalionAction({
                           battalionId: bn.id,
-                          fortressId: playerSummary.id,
-                          currentTier: bn.tier,
-                          size: bn.size,
-                          maxSize: bn.maxSize,
-                          xp: bn.xp,
-                          readyAt: bn.readyAt,
-                          stance: bn.stance,
-                          garrisonedAt: bn.garrisonedAt,
                         });
                         if (result.ok) refreshView();
+                        else window.alert(result.error);
                       }}
                       disabled={bn.tier >= 3}
                       style={{
@@ -1887,7 +1864,6 @@ export function CastleManagement({
                       const { disbandBattalionAction } = await import("@/app/game-actions");
                       await disbandBattalionAction({
                         battalionId: bn.id,
-                        fortressId: playerSummary.id,
                       });
                       refreshView();
                     }}
@@ -2005,7 +1981,6 @@ export function CastleManagement({
                               await removeBattalionFromFrontAction({
                                 battalionId: b.id,
                                 frontId: front.id,
-                                fortressId: playerSummary.id,
                               });
                               refreshView();
                             }}
@@ -2030,7 +2005,6 @@ export function CastleManagement({
                         const result = await assignBattalionToFrontAction({
                           battalionId: e.target.value,
                           frontId: front.id,
-                          fortressId: playerSummary.id,
                         });
                         if (!result.ok) alert(result.error);
                         refreshView();
@@ -2042,7 +2016,7 @@ export function CastleManagement({
                   >
                     <option value="">Assign battalion…</option>
                     {(playerSummary.battalions ?? [])
-                      .filter((b) => !b.frontId)
+                      .filter((b) => !b.frontId && ((b as any).mode ?? "GUARD") === "ATTACK" && b.size > 0)
                       .map((b) => (
                         <option key={b.id} value={b.id}>{b.name} ({b.size})</option>
                       ))}

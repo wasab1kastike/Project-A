@@ -105,7 +105,7 @@ describe("Battalion Naming", () => {
 describe("Recruitment Math", () => {
   it("Calculates base recruitment from recruiters", () => {
     const result = calculateRecruitment(10, 0, 1.0);
-    assert.equal(result, 20); // 10 × 2 × 1.0
+    assert.equal(result, 30); // 10 recruiters * 3 units * 1.0
   });
 
   it("Barracks level increases recruitment", () => {

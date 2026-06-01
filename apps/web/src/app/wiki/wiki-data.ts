@@ -393,7 +393,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         title: "Battalion modes",
         cards: [
           { title: "GUARD", image: "/assets/ui/crest-guard.webp", body: "Defends owned tiles and supports detection." },
-          { title: "ATTACK", image: "/assets/ui/crest-campaign.webp", body: "Auto-dispatches to active war fronts." },
+          { title: "ATTACK", image: "/assets/ui/crest-campaign.webp", body: "Can be assigned to war fronts and auto-dispatches against reachable enemy tiles." },
           { title: "RESERVE", body: "Stays out of combat losses and recovers." },
           { title: "ALLIANCE", body: "Reinforces allied battlefields when eligible." },
         ],

@@ -308,9 +308,15 @@ describe("war-front", () => {
       const result = selectNextTarget(targets);
       assert.equal(result?.tileId, "t2");
     });
-    it("returns null when no eligible targets", () => {
+    it("falls back to connected enemy tiles when no priority targets exist", () => {
       const targets: ReachableTarget[] = [
         { tileId: "t1", priority: TileAttackPriority.NONE, isConnected: true, estimatedDefense: 10, distance: 1 },
+      ];
+      assert.equal(selectNextTarget(targets)?.tileId, "t1");
+    });
+    it("returns null when no connected targets exist", () => {
+      const targets: ReachableTarget[] = [
+        { tileId: "t1", priority: TileAttackPriority.PRIMARY, isConnected: false, estimatedDefense: 10, distance: 1 },
       ];
       assert.equal(selectNextTarget(targets), null);
     });
