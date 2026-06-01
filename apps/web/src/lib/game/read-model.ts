@@ -44,6 +44,7 @@ import {
 import { mapActiveBattlefields } from "./active-battlefield-read-model";
 import {
   ensureBattlefieldPointRewardColumn,
+  ensureBattalionWarSchema,
   ensureCommanderRegistrationColumn,
   ensureHomeOfABossSchema,
   ensureLastReadChatColumn,
@@ -407,6 +408,7 @@ export async function getHomePageState({
 }) {
   await Promise.all([
     ensureBattlefieldPointRewardColumn(db),
+    ensureBattalionWarSchema(db),
     ensureCommanderRegistrationColumn(db),
     ensureHomeOfABossSchema(db),
     ensureLastReadChatColumn(db),

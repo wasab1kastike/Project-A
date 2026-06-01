@@ -49,6 +49,7 @@ import {
 } from "./territory";
 import {
   ensureBattlefieldPointRewardColumn,
+  ensureBattalionWarSchema,
   ensureCommanderRegistrationColumn,
   ensureHomeOfABossSchema,
   ensureRaceSchemaReadiness,
@@ -127,6 +128,7 @@ export async function getCastlePageState({
 }) {
   await Promise.all([
     ensureBattlefieldPointRewardColumn(db),
+    ensureBattalionWarSchema(db),
     ensureCommanderRegistrationColumn(db),
     ensureHomeOfABossSchema(db),
     ensureRaceSchemaReadiness(db),
