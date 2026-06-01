@@ -185,7 +185,7 @@ Allies can upgrade trust (0→3). Higher tiers grant:
 5. **ESCORT** orders protect outbound convoys; alliance trust tiers add cargo bonuses
 6. Convoy raid orders are temporarily disabled while War Room focuses on battlefronts, battalions, and recruitment
 
-Each convoy leg is one trade wagon. A wagon can carry at most **1,000 total gold and food**; army, score points, nuke components, and one eligible allied tile deed use the same convoy leg but do not count against that resource cap.
+Each convoy leg is one trade wagon. A wagon's total **gold plus food** capacity comes from the sender's Trade Wagon building: **100 / 500 / 1,000 / 2,000 / 3,500 / 5,000 / 7,500 / 10,000 / 15,000 / 20,000** from levels 0-9. Army, score points, nuke components, and one eligible allied tile deed use the same convoy leg but do not count against that resource cap.
 
 Successful non-hostile deliveries add a **5% gold and food delivery bonus**. Allied trust increases that total bonus to **15% / 20% / 30%** for Trust I / II / III. Delivery bonuses do not add army, score points, nuke components, or extra trade score.
 

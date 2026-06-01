@@ -35,7 +35,7 @@
 | Enum | Values | Purpose |
 |------|--------|---------|
 | `ScoreEventType` | `GROW_TICK`, `ATTACK_SELF`, `ATTACK_TARGET`, `TILE_CLAIM`, `TILE_BATTLE_REWARD`, `BATTLEFIELD_REWARD`, `MEGA_DAMAGE`, `MEGA_DESTROY_BONUS`, `UNICORN_DECOY_DESTROY`, `LOOT_CAMP_REWARD`, `FORTRESS_UPGRADE_PURCHASE`, `FORTRESS_UPGRADE_SLAYER_BONUS`, `FORTRESS_LOCATION_SHUFFLE_COST`, `DWARF_DEEP_MINING_POINTS`, `DWARF_RUNE_BOUNTY`, `RENAME_COST`, `MANUAL_ADJUST`, `TRADE_DELIVERY`, `CONVOY_INTERCEPTION` | All sources of score changes, audited per fortress |
-| `CastleUpgradeSpecialization` | `POINTS`, `FOOD`, `MILITARY`, `DEFENSE` | Upgrade focus paths |
+| `CastleUpgradeSpecialization` | `POINTS`, `FOOD`, `MILITARY`, `DEFENSE`, `TRADE` | Upgrade focus paths |
 
 ### Race System
 

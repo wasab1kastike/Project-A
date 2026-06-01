@@ -88,7 +88,10 @@ import {
   getBuildingUpgradeComparison,
   getCastleSpecializationMultiplier,
 } from "@/lib/game/specializations";
+import { getTradeWagonResourceLimit } from "@/lib/game/trading";
 import styles from "./page.module.css";
+
+type BuildingSpecialization = "POINTS" | "FOOD" | "MILITARY" | "DEFENSE" | "TRADE";
 
 type PlayerSummary = {
   id: string;
@@ -161,11 +164,11 @@ type PlayerSummary = {
   nextUpgradeDurationMinutes: number | null;
   canPurchaseUpgrade: boolean;
   castleSpecializationCounts: Record<
-    "POINTS" | "FOOD" | "MILITARY" | "DEFENSE",
+    BuildingSpecialization,
     number
   > | null;
   buildingUpgradeOptions: Record<
-    "POINTS" | "FOOD" | "MILITARY" | "DEFENSE",
+    BuildingSpecialization,
     {
       level: number;
       maxLevel: number | null;
@@ -174,10 +177,11 @@ type PlayerSummary = {
       canUpgrade: boolean;
     }
   > | null;
+  tradeWagonResourceLimit: number;
   pendingUpgradeSpecializationLevel: number | null;
   activeCastleUpgradeProject: {
     level: number;
-    specialization: "POINTS" | "FOOD" | "MILITARY" | "DEFENSE";
+    specialization: BuildingSpecialization;
     goldCost: number;
     startedAt: Date;
     completesAt: Date;
@@ -451,7 +455,6 @@ type NukeState = {
   }>;
 } | null;
 
-type BuildingSpecialization = "POINTS" | "FOOD" | "MILITARY" | "DEFENSE";
 type CastleTab =
   | "OVERVIEW"
   | "ECONOMY"
@@ -477,6 +480,7 @@ const BUILDING_WORKER_KEYS = {
   POINTS: "minersAssigned",
   FOOD: "farmersAssigned",
   MILITARY: "recruitersAssigned",
+  TRADE: null,
 } as const satisfies Record<BuildingSpecialization, WorkerAssignmentKey | null>;
 
 const BUILDING_COPY_BY_RACE = {
@@ -497,6 +501,10 @@ const BUILDING_COPY_BY_RACE = {
       name: "Barracks",
       role: "Army recruitment and reinforcement support.",
     },
+    TRADE: {
+      name: "Trade Wagons",
+      role: "Convoy capacity for gold and food shipments.",
+    },
   },
   DWARFS: {
     DEFENSE: {
@@ -514,6 +522,10 @@ const BUILDING_COPY_BY_RACE = {
     MILITARY: {
       name: "Muster Hall",
       role: "Iron muster grounds where grudges become marching orders.",
+    },
+    TRADE: {
+      name: "Runed Cartworks",
+      role: "Stone-ribbed wagons that haul proper tribute through rough roads.",
     },
   },
   UNSTABLE_UNICORNS: {
@@ -533,6 +545,10 @@ const BUILDING_COPY_BY_RACE = {
       name: "Horn Drill Yard",
       role: "A loud training ring for charges, feints, and sudden retreats.",
     },
+    TRADE: {
+      name: "Glitter Caravan",
+      role: "Sparkling wagons with suspiciously elastic cargo space.",
+    },
   },
   SPACE_MURINES: {
     DEFENSE: {
@@ -550,6 +566,10 @@ const BUILDING_COPY_BY_RACE = {
     MILITARY: {
       name: "Drop Barracks",
       role: "Readiness decks that process recruits into deployable strike teams.",
+    },
+    TRADE: {
+      name: "Convoy Command",
+      role: "Logistics bays that move heavier cargo with cleaner manifests.",
     },
   },
   ORKS: {
@@ -569,6 +589,10 @@ const BUILDING_COPY_BY_RACE = {
       name: "Mob Yard",
       role: "A brawling ground where Scrap-funded plans become marching mobs.",
     },
+    TRADE: {
+      name: "Loot Wagons",
+      role: "Big rolling piles of boards, wheels, and optimistic capacity.",
+    },
   },
 } as const satisfies Record<
   BuildingRaceKey,
@@ -580,6 +604,7 @@ const BUILDING_SPECIALIZATIONS = [
   "POINTS",
   "FOOD",
   "MILITARY",
+  "TRADE",
 ] as const satisfies readonly BuildingSpecialization[];
 
 const EMPTY_BUILDING_COUNTS: Record<BuildingSpecialization, number> = {
@@ -587,6 +612,7 @@ const EMPTY_BUILDING_COUNTS: Record<BuildingSpecialization, number> = {
   POINTS: 0,
   FOOD: 0,
   MILITARY: 0,
+  TRADE: 0,
 };
 
 const RACE_TIER_BIOME_REQUIREMENTS: Record<FortressRace, string> = {
@@ -700,6 +726,8 @@ function getBuildingEffect({
       return `+${production.foodProduced} food/tick from farmers`;
     case "MILITARY":
       return "Recruiters process queued army orders";
+    case "TRADE":
+      return `Wagons carry ${getTradeWagonResourceLimit(level).toLocaleString()} gold+food`;
     default:
       return `Level ${level}`;
   }
@@ -738,6 +766,12 @@ function getBuildingUpgradeBenefitPreview({
         projectedProduction.armyRequested - currentProduction.armyRequested;
 
       return `Recruitment capacity ${currentProduction.armyRequested} -> ${projectedProduction.armyRequested} (${diff >= 0 ? "+" : ""}${diff}/tick).`;
+    }
+    case "TRADE": {
+      const currentLimit = getTradeWagonResourceLimit(level);
+      const nextLimit = getTradeWagonResourceLimit(level + 1);
+
+      return `Wagon capacity ${currentLimit.toLocaleString()} -> ${nextLimit.toLocaleString()} gold+food.`;
     }
     default:
       return `Level ${level}`;

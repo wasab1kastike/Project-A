@@ -268,9 +268,20 @@ type FortressMapProps = {
     id: string;
     fromFortressId: string;
     toFortressId: string;
+    fromName?: string;
+    toName?: string;
+    status?: string;
     gold: number;
     food: number;
     army: number;
+    points?: number;
+    nukeFuel?: number;
+    nukeRocket?: number;
+    nukeWrathOfA?: number;
+    baseCargoValue?: number;
+    deedTileId?: string | null;
+    cargoLabel?: string;
+    arrivedAwaitingTick?: boolean;
     departedAt: number | null;
     arrivesAt: number | null;
   }>;
@@ -2204,14 +2215,43 @@ export const FortressMap = memo(function FortressMap({
                 const from = fortresses.find((f) => f.id === convoy.fromFortressId);
                 const to = fortresses.find((f) => f.id === convoy.toFortressId);
                 if (!from || !to) return null;
-                const totalCargo = convoy.gold + convoy.food + convoy.army;
-                const cargoLabel = convoy.gold > 0 ? `${convoy.gold}g` : convoy.food > 0 ? `${convoy.food}f` : `${convoy.army}a`;
+                const totalCargo =
+                  convoy.gold +
+                  convoy.food +
+                  convoy.army +
+                  (convoy.points ?? 0) +
+                  (convoy.nukeFuel ?? 0) +
+                  (convoy.nukeRocket ?? 0) +
+                  (convoy.nukeWrathOfA ?? 0) +
+                  (convoy.deedTileId ? 1 : 0);
+                const cargoLabel =
+                  convoy.cargoLabel ??
+                  (
+                  [
+                    convoy.deedTileId ? `tile ${convoy.deedTileId}` : null,
+                    convoy.gold > 0 ? `${convoy.gold}g` : null,
+                    convoy.food > 0 ? `${convoy.food}f` : null,
+                    convoy.army > 0 ? `${convoy.army} army` : null,
+                    convoy.points && convoy.points > 0 ? `${convoy.points} pts` : null,
+                  ].filter(Boolean).join(", ") || "empty wagon"
+                  );
                 const progress = convoy.departedAt && convoy.arrivesAt
                   ? Math.min(1, Math.max(0, (convoyNowMs - convoy.departedAt) / (convoy.arrivesAt - convoy.departedAt)))
                   : 0;
                 const x = from.mapX + (to.mapX - from.mapX) * progress;
                 const y = from.mapY + (to.mapY - from.mapY) * progress;
                 const angle = Math.atan2(to.mapY - from.mapY, to.mapX - from.mapX) * (180 / Math.PI);
+                const secondsUntilArrival = convoy.arrivesAt
+                  ? Math.ceil((convoy.arrivesAt - convoyNowMs) / 1000)
+                  : null;
+                const timingLabel = convoy.arrivedAwaitingTick || (secondsUntilArrival !== null && secondsUntilArrival <= 0)
+                  ? "arrived, awaiting next tick"
+                  : secondsUntilArrival !== null
+                    ? secondsUntilArrival >= 3600
+                      ? `arrives in ${Math.ceil(secondsUntilArrival / 3600)}h`
+                      : `arrives in ${Math.max(1, Math.ceil(secondsUntilArrival / 60))}m`
+                    : "arrival pending";
+                const routeLabel = `${convoy.fromName ?? from.name} to ${convoy.toName ?? to.name}`;
                 return (
                   <div
                     key={convoy.id}
@@ -2221,7 +2261,7 @@ export const FortressMap = memo(function FortressMap({
                       top: `${y}%`,
                       "--convoy-angle": `${angle}deg`,
                     } as CSSProperties}
-                    title={`Trade wagon: ${totalCargo} cargo (${cargoLabel}) from ${from.name} to ${to.name}`}
+                    title={`Trade wagon: ${cargoLabel}; ${routeLabel}; ${timingLabel}`}
                   >
                     <span
                       className={styles.convoyWagon}
@@ -2240,7 +2280,9 @@ export const FortressMap = memo(function FortressMap({
                       style={getCosmeticSpriteStyle("UNIT", from.unitCosmeticVariant) ?? undefined}
                       aria-hidden="true"
                     />
-                    <span className={styles.convoyLabel}>{totalCargo}</span>
+                    <span className={styles.convoyLabel}>
+                      {convoy.arrivedAwaitingTick ? "Tick" : totalCargo}
+                    </span>
                   </div>
                 );
               })}

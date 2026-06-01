@@ -111,6 +111,7 @@ import {
 } from "./tile-pressure";
 import { isSeasonFourRuleset } from "./rulesets";
 import { calculateRoadAdjustedTravel } from "./road-travel";
+import { getTradeWagonResourceLimit } from "./trading";
 import {
   EMPTY_NUKE_COMPONENT_CARGO,
   calculateCompleteNukeCount,
@@ -229,6 +230,7 @@ const BUILDING_SPECIALIZATIONS = [
   CastleUpgradeSpecialization.POINTS,
   CastleUpgradeSpecialization.FOOD,
   CastleUpgradeSpecialization.MILITARY,
+  CastleUpgradeSpecialization.TRADE,
 ] as const;
 
 type BuildingUpgradeOption = {
@@ -877,14 +879,21 @@ export async function getHomePageState({
         },
       },
       convoyLegs: {
-        where: { status: "IN_TRANSIT", arrivesAt: { gt: now } },
+        where: { status: "IN_TRANSIT" },
         select: {
           id: true,
           fromFortressId: true,
           toFortressId: true,
+          status: true,
           gold: true,
           food: true,
           army: true,
+          points: true,
+          nukeFuel: true,
+          nukeRocket: true,
+          nukeWrathOfA: true,
+          baseCargoValue: true,
+          deedTileId: true,
           departedAt: true,
           arrivesAt: true,
         },
@@ -1413,7 +1422,11 @@ export async function getHomePageState({
       db.convoyLeg.findMany({
         where: {
           cycleId: cycle.id,
-          OR: [{ fromFortressId: pfId }, { toFortressId: pfId }],
+          OR: [
+            { fromFortressId: pfId },
+            { toFortressId: pfId },
+            { interceptedByOrder: { fortressId: pfId } },
+          ],
         },
         select: {
           id: true,
@@ -1427,7 +1440,20 @@ export async function getHomePageState({
           gold: true,
           food: true,
           army: true,
+          points: true,
+          bonusGold: true,
+          bonusFood: true,
+          pointsAwarded: true,
+          nukeFuel: true,
+          nukeRocket: true,
+          nukeWrathOfA: true,
+          stolenGold: true,
+          stolenFood: true,
+          stolenArmy: true,
+          stolenPoints: true,
+          stolenCargoValue: true,
           baseCargoValue: true,
+          interceptedByOrder: { select: { fortressId: true } },
         },
         orderBy: [{ arrivesAt: "desc" }, { settledAt: "desc" }],
         take: 15,
@@ -1492,29 +1518,62 @@ export async function getHomePageState({
     for (const leg of convoys) {
       const isSender = leg.fromFortressId === pfId;
       const outgoing = leg.fromFortressId === pfId;
+      const cargoParts = [
+        leg.deedTileId ? `tile ${leg.deedTileId}` : null,
+        leg.gold > 0 ? `${leg.gold}g` : null,
+        leg.food > 0 ? `${leg.food}f` : null,
+        leg.army > 0 ? `${leg.army} army` : null,
+        leg.points > 0 ? `${leg.points} pts` : null,
+        leg.nukeFuel > 0 ? `${leg.nukeFuel} fuel` : null,
+        leg.nukeRocket > 0 ? `${leg.nukeRocket} rocket` : null,
+        leg.nukeWrathOfA > 0 ? `${leg.nukeWrathOfA} wrath` : null,
+      ].filter(Boolean);
+      const cargoSummary = cargoParts.join(", ") || "no cargo";
+      const raidedByPlayer = leg.interceptedByOrder?.fortressId === pfId;
       if (leg.status === "IN_TRANSIT") {
         items.push({
           id: "convoy:" + leg.id,
           type: "convoy",
           label: outgoing
-            ? "Outbound convoy en route"
-            : "Inbound convoy en route",
+            ? leg.arrivesAt <= now
+              ? "Outbound convoy awaiting tick"
+              : "Outbound convoy en route"
+            : leg.arrivesAt <= now
+              ? "Inbound convoy awaiting tick"
+              : "Inbound convoy en route",
           timestamp: leg.arrivesAt,
+          details: cargoSummary,
           deedTileId: leg.deedTileId ?? undefined,
         });
       } else if (leg.status === "DELIVERED") {
+        const gains = [
+          `value ${leg.baseCargoValue}`,
+          leg.bonusGold + leg.bonusFood > 0
+            ? `bonus ${leg.bonusGold}g/${leg.bonusFood}f`
+            : null,
+          leg.pointsAwarded > 0 ? `${leg.pointsAwarded} trade pts` : null,
+        ].filter(Boolean);
         items.push({
           id: "convoy:" + leg.id,
           type: "convoy",
           label: leg.deedTileId ? "Tile deed delivered" : "Convoy delivered",
           timestamp: leg.settledAt ?? leg.arrivesAt,
-          details:
-            leg.gold > 0 || leg.food > 0
-              ? `${leg.gold}g ${leg.food}f`
-              : undefined,
+          details: `${cargoSummary}; ${gains.join(", ")}`,
           deedTileId: leg.deedTileId ?? undefined,
         });
       } else if (leg.status === "INTERCEPTED" || leg.status === "SEIZED") {
+        const stolenParts = [
+          leg.stolenGold > 0 ? `${leg.stolenGold}g` : null,
+          leg.stolenFood > 0 ? `${leg.stolenFood}f` : null,
+          leg.stolenArmy > 0 ? `${leg.stolenArmy} army` : null,
+          leg.stolenPoints > 0 ? `${leg.stolenPoints} pts` : null,
+        ].filter(Boolean);
+        const lossSummary =
+          leg.status === "INTERCEPTED" && raidedByPlayer
+            ? `stole ${stolenParts.join(", ") || "cargo"}; value ${leg.stolenCargoValue}`
+            : leg.status === "INTERCEPTED"
+            ? `lost ${cargoSummary}; stolen value ${leg.stolenCargoValue}`
+            : `lost ${cargoSummary}`;
         items.push({
           id: "convoy:" + leg.id,
           type: "convoy",
@@ -1523,7 +1582,9 @@ export async function getHomePageState({
               ? "Convoy intercepted"
               : "Convoy seized",
           timestamp: leg.settledAt ?? leg.arrivesAt,
-          details: leg.deedFailureReason ?? undefined,
+          details: leg.deedFailureReason
+            ? `${lossSummary}; ${leg.deedFailureReason}`
+            : lossSummary,
           deedTileId: leg.deedTileId ?? undefined,
         });
       }
@@ -3761,6 +3822,10 @@ export async function getHomePageState({
             canAffordUpgrade &&
             activeCastleUpgradeProject === null,
           castleSpecializationCounts: playerCastleSpecializationCounts,
+          tradeWagonResourceLimit: getTradeWagonResourceLimit(
+            playerCastleSpecializationCounts?.[CastleUpgradeSpecialization.TRADE] ??
+              0
+          ),
           buildingUpgradeOptions,
           castleUpgradeChoices: playerFortress.castleUpgradeSpecializations,
           pendingUpgradeSpecializationLevel,
@@ -4492,15 +4557,45 @@ export async function getHomePageState({
         })
         .filter((r): r is NonNullable<typeof r> => r !== null);
     })(),
-    convoyMarkers: (cycle.convoyLegs ?? []).map((leg) => ({
-      id: leg.id,
-      fromFortressId: leg.fromFortressId,
-      toFortressId: leg.toFortressId,
-      gold: leg.gold,
-      food: leg.food,
-      army: leg.army,
-      departedAt: leg.departedAt?.getTime() ?? null,
-      arrivesAt: leg.arrivesAt?.getTime() ?? null,
-    })),
+    convoyMarkers: (cycle.convoyLegs ?? []).map((leg) => {
+      const from = (cycle.fortresses ?? []).find(
+        (fortress) => fortress.id === leg.fromFortressId
+      );
+      const to = (cycle.fortresses ?? []).find(
+        (fortress) => fortress.id === leg.toFortressId
+      );
+      const cargoParts = [
+        leg.deedTileId ? `tile ${leg.deedTileId}` : null,
+        leg.gold > 0 ? `${leg.gold.toLocaleString("en-US")}g` : null,
+        leg.food > 0 ? `${leg.food.toLocaleString("en-US")}f` : null,
+        leg.army > 0 ? `${leg.army.toLocaleString("en-US")} army` : null,
+        leg.points > 0 ? `${leg.points.toLocaleString("en-US")} pts` : null,
+        leg.nukeFuel > 0 ? `${leg.nukeFuel.toLocaleString("en-US")} fuel` : null,
+        leg.nukeRocket > 0 ? `${leg.nukeRocket.toLocaleString("en-US")} rocket` : null,
+        leg.nukeWrathOfA > 0 ? `${leg.nukeWrathOfA.toLocaleString("en-US")} wrath` : null,
+      ].filter(Boolean);
+
+      return {
+        id: leg.id,
+        fromFortressId: leg.fromFortressId,
+        toFortressId: leg.toFortressId,
+        fromName: from?.name ?? "Unknown fortress",
+        toName: to?.name ?? "Unknown fortress",
+        status: leg.status,
+        gold: leg.gold,
+        food: leg.food,
+        army: leg.army,
+        points: leg.points,
+        nukeFuel: leg.nukeFuel,
+        nukeRocket: leg.nukeRocket,
+        nukeWrathOfA: leg.nukeWrathOfA,
+        baseCargoValue: leg.baseCargoValue,
+        deedTileId: leg.deedTileId,
+        cargoLabel: cargoParts.join(", ") || "empty wagon",
+        arrivedAwaitingTick: leg.arrivesAt <= now,
+        departedAt: leg.departedAt?.getTime() ?? null,
+        arrivesAt: leg.arrivesAt?.getTime() ?? null,
+      };
+    }),
   };
 }

@@ -568,7 +568,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         bullets: [
           "Trade offers expire after 24 hours.",
           "Convoy legs take at least 6 hours plus map travel time.",
-          "Each convoy wagon can carry up to 1,000 total gold and food.",
+          "Trade Wagon building upgrades raise each convoy wagon from 100 up to 20,000 total gold and food.",
           "Delivered base cargo value awards shared points.",
           "Every non-hostile delivery adds a small gold and food bonus; allied trust makes that bonus larger.",
           "If relations turn hostile before arrival, cargo can be seized without trade points.",

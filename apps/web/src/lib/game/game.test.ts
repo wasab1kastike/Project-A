@@ -2826,6 +2826,22 @@ test("season four bilateral trade accepts cargo and delivers allied convoy bonus
     senderFortress.id,
     receiverFortress.id,
   ].sort();
+  await prisma.castleUpgradeSpecializationChoice.createMany({
+    data: [
+      {
+        cycleId: cycle.id,
+        fortressId: senderFortress.id,
+        specialization: CastleUpgradeSpecialization.TRADE,
+        level: 2,
+      },
+      {
+        cycleId: cycle.id,
+        fortressId: receiverFortress.id,
+        specialization: CastleUpgradeSpecialization.TRADE,
+        level: 1,
+      },
+    ],
+  });
   await prisma.diplomacyRelation.create({
     data: {
       cycleId: cycle.id,
@@ -2884,6 +2900,19 @@ test("season four bilateral trade accepts cargo and delivers allied convoy bonus
     where: { tradeOfferId: offer.id },
     data: { arrivesAt: new Date("2026-04-20T12:01:00.000Z") },
   });
+  const awaitingTickState = await getHomePageState({
+    userId: sender.id,
+    now: new Date("2026-04-20T12:01:30.000Z"),
+    db: prisma,
+  });
+  assert.equal(awaitingTickState.convoyMarkers.length, 2);
+  assert.ok(
+    awaitingTickState.convoyMarkers.every(
+      (marker) => marker.arrivedAwaitingTick === true
+    )
+  );
+  assert.match(awaitingTickState.convoyMarkers[0]?.cargoLabel ?? "", /gold|food/);
+
   await runGameTick({
     now: new Date("2026-04-20T12:02:00.000Z"),
     db: prisma,
@@ -2902,6 +2931,16 @@ test("season four bilateral trade accepts cargo and delivers allied convoy bonus
   const tradeEvents = await prisma.scoreEvent.findMany({
     where: { cycleId: cycle.id, eventType: ScoreEventType.TRADE_DELIVERY },
   });
+  const deliveredState = await getHomePageState({
+    userId: sender.id,
+    now: new Date("2026-04-20T12:02:30.000Z"),
+    db: prisma,
+  });
+  const deliveredPoliticsState = await getPoliticsPageState({
+    userId: sender.id,
+    now: new Date("2026-04-20T12:02:30.000Z"),
+    db: prisma,
+  });
 
   assert.equal(completed.status, TradeOfferStatus.COMPLETED);
   assert.ok(delivered.every((leg) => leg.status === ConvoyLegStatus.DELIVERED));
@@ -2911,6 +2950,106 @@ test("season four bilateral trade accepts cargo and delivers allied convoy bonus
   assert.equal(senderAfter.deliveredCargoValue, 1_360);
   assert.equal(senderAfter.points, 96);
   assert.equal(tradeEvents.reduce((sum, event) => sum + event.delta, 0), 3);
+  assert.equal(deliveredState.convoyMarkers.length, 0);
+  assert.ok(
+    deliveredState.recentActivity.some(
+      (item) =>
+        item.label === "Convoy delivered" &&
+        item.details?.includes("value 1360")
+    )
+  );
+  assert.ok(
+    deliveredPoliticsState.tradeLog.some(
+      (entry) =>
+        entry.title.includes("Delivered") &&
+        entry.profitLabel.includes("+")
+    )
+  );
+});
+
+test("season four trade wagon capacity follows the trade building level", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const sender = await createUser(prisma, "wagon-cap-sender@example.com");
+  const receiver = await createUser(prisma, "wagon-cap-receiver@example.com");
+  const cycle = await seedActiveCommunityWishCycle(
+    prisma,
+    [
+      { userId: sender.id, commanderName: "Wagon Alpha", fortressName: "Small Cart", points: 0 },
+      { userId: receiver.id, commanderName: "Wagon Beta", fortressName: "Big Cart", points: 0 },
+    ],
+    new Date("2026-04-22T12:00:00.000Z")
+  );
+  await markSeasonFourCycle(prisma, cycle.id);
+  const [senderFortress, receiverFortress] = await Promise.all([
+    prisma.fortress.update({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: sender.id } },
+      data: { gold: 5_000, food: 5_000 },
+    }),
+    prisma.fortress.update({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: receiver.id } },
+      data: { gold: 5_000, food: 5_000 },
+    }),
+  ]);
+
+  await assert.rejects(
+    () =>
+      createTradeOffer({
+        userId: sender.id,
+        targetFortressId: receiverFortress.id,
+        offeredGold: 101,
+        offeredFood: 0,
+        offeredArmy: 0,
+        requestedGold: 0,
+        requestedFood: 0,
+        requestedArmy: 0,
+        now: new Date("2026-04-20T12:00:00.000Z"),
+        db: prisma,
+      }),
+    /can carry 100 total gold and food/
+  );
+
+  await prisma.castleUpgradeSpecializationChoice.createMany({
+    data: [
+      {
+        cycleId: cycle.id,
+        fortressId: senderFortress.id,
+        specialization: CastleUpgradeSpecialization.TRADE,
+        level: 1,
+      },
+      {
+        cycleId: cycle.id,
+        fortressId: receiverFortress.id,
+        specialization: CastleUpgradeSpecialization.TRADE,
+        level: 1,
+      },
+    ],
+  });
+
+  const offer = await createTradeOffer({
+    userId: sender.id,
+    targetFortressId: receiverFortress.id,
+    offeredGold: 500,
+    offeredFood: 0,
+    offeredArmy: 0,
+    requestedGold: 250,
+    requestedFood: 250,
+    requestedArmy: 0,
+    now: new Date("2026-04-20T12:00:10.000Z"),
+    db: prisma,
+  });
+  const accepted = await acceptTradeOffer({
+    userId: receiver.id,
+    tradeOfferId: offer.id,
+    now: new Date("2026-04-20T12:00:20.000Z"),
+    db: prisma,
+  });
+
+  assert.equal(accepted.convoyLegs.length, 2);
 });
 
 test("season four trade offers can cancel or reject and hostile transit is seized", async (context) => {
@@ -2940,6 +3079,14 @@ test("season four trade offers can cancel or reject and hostile transit is seize
       where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: beta.id } },
     }),
   ]);
+  await prisma.castleUpgradeSpecializationChoice.create({
+    data: {
+      cycleId: cycle.id,
+      fortressId: alphaFortress.id,
+      specialization: CastleUpgradeSpecialization.TRADE,
+      level: 2,
+    },
+  });
   const first = await createTradeOffer({
     userId: alpha.id,
     targetFortressId: betaFortress.id,
@@ -3049,7 +3196,7 @@ test("season four trade offers can cancel or reject and hostile transit is seize
         now: new Date("2026-04-20T12:01:10.000Z"),
         db: prisma,
       }),
-    /at most 1,000 total gold and food/
+    /can carry 1,000 total gold and food/
   );
   const third = await createTradeOffer({
     userId: alpha.id,
@@ -3210,6 +3357,14 @@ test("season four escort and raid orders intercept scored convoys and expose det
       data: { army: 2_000 },
     }),
   ]);
+  await prisma.castleUpgradeSpecializationChoice.create({
+    data: {
+      cycleId: cycle.id,
+      fortressId: senderFortress.id,
+      specialization: CastleUpgradeSpecialization.TRADE,
+      level: 3,
+    },
+  });
   const guardTile = HEX_SPAWN_TILES.find(
     (tile) => tile.spawnable && !isHomeOfATile(tile.id)
   );
@@ -3323,6 +3478,18 @@ test("season four escort and raid orders intercept scored convoys and expose det
   });
   assert.equal(politicsState.recentConvoyLegs[0]?.status, ConvoyLegStatus.INTERCEPTED);
   assert.equal(politicsState.recentCovertIncidents[0]?.raiderName, "Hidden Wake");
+  const raiderPoliticsState = await getPoliticsPageState({
+    userId: raider.id,
+    now: tickAt,
+    db: prisma,
+  });
+  assert.ok(
+    raiderPoliticsState.tradeLog.some(
+      (entry) =>
+        entry.title.includes("Privateer") &&
+        entry.profitLabel === "+1,000 cargo value"
+    )
+  );
 
   const recalledRaid = await recallArmyOrder({
     userId: raider.id,
