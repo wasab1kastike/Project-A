@@ -54,20 +54,42 @@ export default async function CastlePage() {
   let politicsState: Awaited<ReturnType<typeof getPoliticsPageState>> | null = null;
   let shopState: Awaited<ReturnType<typeof getArcadeHubState>> | null = null;
 
-  try {
-    [state, politicsState, shopState] = await Promise.all([
-      getCastlePageState({ userId: session.user.id }),
-      getPoliticsPageState({ userId: session.user.id }),
-      getArcadeHubState({ userId: session.user.id }),
-    ]);
-  } catch (error) {
-    const errorId = "castle-load-error";
+  const [castleResult, politicsResult, shopResult] = await Promise.allSettled([
+    getCastlePageState({ userId: session.user.id }),
+    getPoliticsPageState({ userId: session.user.id }),
+    getArcadeHubState({ userId: session.user.id }),
+  ]);
+
+  if (castleResult.status === "rejected") {
+    const errorId = "castle-load-error:castle-state";
     console.error("Failed to load castle page state", {
       errorId,
       userId: session.user.id,
-      error,
+      error: castleResult.reason,
     });
     return <CastleLoadError errorId={errorId} />;
+  }
+
+  state = castleResult.value;
+
+  if (politicsResult.status === "rejected") {
+    console.error("Failed to load castle politics state", {
+      errorId: "castle-load-error:politics-state",
+      userId: session.user.id,
+      error: politicsResult.reason,
+    });
+  } else {
+    politicsState = politicsResult.value;
+  }
+
+  if (shopResult.status === "rejected") {
+    console.error("Failed to load castle shop state", {
+      errorId: "castle-load-error:shop-state",
+      userId: session.user.id,
+      error: shopResult.reason,
+    });
+  } else {
+    shopState = shopResult.value;
   }
 
   if (!state.playerSummary) {

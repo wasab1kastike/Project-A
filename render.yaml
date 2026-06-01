@@ -37,6 +37,8 @@ services:
       # Shared secret for inbound OpenClaw God Emperor chat narration.
       - key: OPENCLAW_GOD_SHARED_SECRET
         sync: false
+      - key: SEASON_4_ACTIVATION_ENABLED
+        value: "true"
 
   - type: cron
     name: project-a-game-tick
@@ -59,6 +61,8 @@ services:
         fromDatabase:
           name: project-a-db
           property: connectionString
+      - key: SEASON_4_ACTIVATION_ENABLED
+        value: "true"
 
 databases:
   - name: project-a-db

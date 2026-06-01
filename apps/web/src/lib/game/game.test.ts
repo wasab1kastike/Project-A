@@ -12260,6 +12260,126 @@ test("testing allows joins and gameplay, then resets sandbox progress at season 
   );
 });
 
+test("season four testing activation waits for the explicit production flag", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const originalFlag = process.env.SEASON_4_ACTIVATION_ENABLED;
+
+  try {
+    delete process.env.SEASON_4_ACTIVATION_ENABLED;
+
+    const cycle = await seedOpenCycle(
+      prisma,
+      new Date("2026-05-31T09:00:00.000Z")
+    );
+    const user = await createUser(
+      prisma,
+      "season-four-activation-held@example.com"
+    );
+
+    await markSeasonFourCycle(prisma, cycle.id);
+    await joinRegistrationCycle({
+      db: prisma,
+      userId: user.id,
+      fortressName: "Held Keep",
+      now: new Date("2026-05-31T09:05:00.000Z"),
+    });
+
+    await runGameTick({
+      db: prisma,
+      now: addHours(cycle.registrationEndsAt, -24),
+    });
+
+    const summary = await runGameTick({
+      db: prisma,
+      now: cycle.registrationEndsAt,
+    });
+    const delayedCycle = await prisma.cycle.findUniqueOrThrow({
+      where: {
+        id: cycle.id,
+      },
+    });
+
+    assert.equal(summary.testingCyclesCompleted, 0);
+    assert.equal(summary.activatedCycles, 0);
+    assert.equal(delayedCycle.status, CycleStatus.TESTING);
+    assert.equal(
+      delayedCycle.activeStartedAt?.toISOString(),
+      addHours(cycle.registrationEndsAt, 24).toISOString()
+    );
+  } finally {
+    if (originalFlag === undefined) {
+      delete process.env.SEASON_4_ACTIVATION_ENABLED;
+    } else {
+      process.env.SEASON_4_ACTIVATION_ENABLED = originalFlag;
+    }
+  }
+});
+
+test("season four testing activates when the production flag is enabled", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const originalFlag = process.env.SEASON_4_ACTIVATION_ENABLED;
+
+  try {
+    process.env.SEASON_4_ACTIVATION_ENABLED = "true";
+
+    const cycle = await seedOpenCycle(
+      prisma,
+      new Date("2026-05-31T09:00:00.000Z")
+    );
+    const user = await createUser(
+      prisma,
+      "season-four-activation-enabled@example.com"
+    );
+
+    await markSeasonFourCycle(prisma, cycle.id);
+    await joinRegistrationCycle({
+      db: prisma,
+      userId: user.id,
+      fortressName: "Active Keep",
+      now: new Date("2026-05-31T09:05:00.000Z"),
+    });
+
+    await runGameTick({
+      db: prisma,
+      now: addHours(cycle.registrationEndsAt, -24),
+    });
+
+    const summary = await runGameTick({
+      db: prisma,
+      now: cycle.registrationEndsAt,
+    });
+    const activeCycle = await prisma.cycle.findUniqueOrThrow({
+      where: {
+        id: cycle.id,
+      },
+    });
+
+    assert.equal(summary.testingCyclesCompleted, 1);
+    assert.equal(summary.activatedCycles, 1);
+    assert.equal(activeCycle.status, CycleStatus.ACTIVE);
+    assert.equal(
+      activeCycle.activeStartedAt?.toISOString(),
+      cycle.registrationEndsAt.toISOString()
+    );
+  } finally {
+    if (originalFlag === undefined) {
+      delete process.env.SEASON_4_ACTIVATION_ENABLED;
+    } else {
+      process.env.SEASON_4_ACTIVATION_ENABLED = originalFlag;
+    }
+  }
+});
+
 test("non-empty registration transitions to active exactly once", async (context) => {
   const prisma = getPrismaOrSkip(context);
 

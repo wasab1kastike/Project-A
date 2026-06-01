@@ -24,6 +24,7 @@
     "db:grant-may-18-combat-compensation": "tsx prisma/grant-may-18-combat-compensation.ts",
     "db:schedule-current-season-early-end": "tsx prisma/schedule-current-season-early-end.ts",
     "db:start-season-four-registration": "tsx prisma/start-season-four-registration.ts",
+    "db:activate-season-four": "tsx prisma/activate-season-four.ts",
     "db:reset-season-one": "tsx prisma/reset-season-one.ts",
     "db:allocate-season-one-coins": "tsx prisma/allocate-season-one-coins.ts"
   },
