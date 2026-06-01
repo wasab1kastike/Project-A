@@ -236,13 +236,15 @@ The game is now a castle-economy and battlefield-control loop:
 - miners produce gold, farmers produce food, and recruiters process queued army orders instead of passively creating army
 - recruiting army costs 1 gold per unit up front; queued units complete over ticks based on assigned recruiters and race bonuses
 - active army, not queued army, consumes food upkeep at 0.01 food per unit per tick; if upkeep cannot be paid, food falls to zero and active army loses 2% that tick
-- neutral tiles are acquired automatically through an ordered queue of up to three connected pressure priorities; the first legal neutral queue target receives all pressure until it is claimed or invalid
+- neutral tiles are acquired automatically through an ordered pressure-priority queue that stays filled to the fortress's current slot limit; the first legal neutral queue target receives all pressure until it is claimed or invalid, and farther tiles need more pressure while unsupported pushes decay faster
 - the Castle Diplomacy tab supports bilateral alliances with fixed trust escrow tiers plus optional break collateral; betrayal immediately begins war, pays what it can, and records unpaid collateral as debt
 - the Castle Diplomacy tab supports peace offers with optional demands from either side, while trade offers move accepted gold, food, army, score points, and allied tile deeds as six-hour-minimum convoy legs capped at 1,000 total gold and food per wagon
 - Delivered convoy cargo awards points from base cargo value; all non-hostile deliveries add a small gold/food bonus, allied Trust raises that bonus, and hostile relations seize in-transit cargo without trade points or delivered score points
 - scored trade convoys can receive an outbound escort; convoy raid patrols are temporarily disabled while War Room focuses on battlefronts, battalions, and recruitment
 - daily nuke bidding runs 14:00-12:00 Europe/Helsinki for Fuel, Rocket, and Wrath of A; bids are private, losing bids are spent, components are tradable by convoy, and launches cost 250,000 gold
-- War Room battalions can run ATTACK war fronts, GUARD owned borders, stay in RESERVE, or reinforce allies, with the server validating ownership, costs, and live battalion state before any order changes
+- War Room battalions use one of four jobs: RESERVE, GUARD, ATTACK, or ALLIANCE. Stances are no longer player-facing controls.
+- Battalions do not heal passively; refill damaged battalions by assigning recruiters and training new members.
+- Idle battalions roam owned tiles on the map until their job triggers: guards patrol borders, attackers launch from war fronts, allies reinforce battlefields, and reserves stay near the castle core.
 - new troops assigned to a remote battalion travel from the castle as visible reinforcement marches before they become usable
 - ALLIANCE-mode battalions reinforce allied defensive and attacking battlefields through visible incoming reinforcement marches, controlled from the Castle War Room
 - marching armies, remote battalion reinforcements, War Front launches, allied support, and convoy map legs now use existing roads to reduce movement ETA; the convoy six-hour minimum and PvP preparation delay still stay fixed

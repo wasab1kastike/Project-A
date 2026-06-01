@@ -6,6 +6,11 @@ import {
   allocatePressureAcrossTargets,
   calculatePressureOutput,
   canPressureTarget,
+  chooseAutoTilePressurePriorityCandidates,
+  findCastleAnchorTile,
+  getDistanceAdjustedTilePressureClaimThreshold,
+  getDistanceAdjustedTilePressureDecayPercent,
+  getHexRingDistance,
   getNeutralPressureClaimWinner,
   getPressureTargetBlockedReason,
   getTilePressureClaimThreshold,
@@ -66,6 +71,192 @@ test("unsupported pressure decays ten percent per completed hour", () => {
   assert.equal(
     applyUnsupportedPressureDecay({ pressure: 600, elapsedHours: 2 }),
     486
+  );
+});
+
+test("unsupported pressure can decay faster for distant tiles", () => {
+  assert.equal(
+    applyUnsupportedPressureDecay({
+      pressure: 600,
+      elapsedHours: 1,
+      decayPercentPerHour: 14,
+    }),
+    516
+  );
+});
+
+test("castle anchor and hex ring distance use map tiles", () => {
+  const tiles = [
+    {
+      id: "0:0",
+      col: 0,
+      row: 0,
+      x: 0,
+      y: 0,
+      xPercent: 10,
+      yPercent: 10,
+      biome: "plains" as const,
+      spawnable: true,
+      claimable: true,
+    },
+    {
+      id: "1:0",
+      col: 1,
+      row: 0,
+      x: 0,
+      y: 0,
+      xPercent: 20,
+      yPercent: 10,
+      biome: "plains" as const,
+      spawnable: true,
+      claimable: true,
+    },
+    {
+      id: "2:0",
+      col: 2,
+      row: 0,
+      x: 0,
+      y: 0,
+      xPercent: 30,
+      yPercent: 10,
+      biome: "plains" as const,
+      spawnable: true,
+      claimable: true,
+    },
+  ];
+
+  assert.equal(
+    findCastleAnchorTile({ fortress: { mapX: 11, mapY: 10 }, tiles })?.id,
+    "0:0"
+  );
+  assert.equal(
+    getHexRingDistance({ fromTileId: "0:0", toTileId: "2:0", tiles }),
+    2
+  );
+});
+
+test("distance adjusted pressure thresholds and decay use gentle capped tiers", () => {
+  const tiles = Array.from({ length: 12 }, (_, index) => ({
+    id: `${index}:0`,
+    col: index,
+    row: 0,
+    x: 0,
+    y: 0,
+    xPercent: index * 5,
+    yPercent: 0,
+    biome: "plains" as const,
+    spawnable: true,
+    claimable: true,
+  }));
+  const fortress = { mapX: 0, mapY: 0 };
+
+  assert.equal(
+    getDistanceAdjustedTilePressureClaimThreshold({
+      isSeasonFour: true,
+      fortress,
+      tileId: "1:0",
+      tiles,
+    }),
+    600
+  );
+  assert.equal(
+    getDistanceAdjustedTilePressureClaimThreshold({
+      isSeasonFour: true,
+      fortress,
+      tileId: "3:0",
+      tiles,
+    }),
+    720
+  );
+  assert.equal(
+    getDistanceAdjustedTilePressureClaimThreshold({
+      isSeasonFour: true,
+      fortress,
+      tileId: "11:0",
+      tiles,
+    }),
+    1200
+  );
+  assert.equal(
+    getDistanceAdjustedTilePressureDecayPercent({
+      fortress,
+      tileId: "3:0",
+      tiles,
+    }),
+    14
+  );
+  assert.equal(
+    getDistanceAdjustedTilePressureDecayPercent({
+      fortress,
+      tileId: "11:0",
+      tiles,
+    }),
+    30
+  );
+});
+
+test("auto pressure candidates prefer nearest legal neutral tiles", () => {
+  const tiles = [
+    {
+      id: "0:0",
+      col: 0,
+      row: 0,
+      x: 0,
+      y: 0,
+      xPercent: 0,
+      yPercent: 0,
+      biome: "plains" as const,
+      spawnable: true,
+      claimable: true,
+    },
+    {
+      id: "1:0",
+      col: 1,
+      row: 0,
+      x: 0,
+      y: 0,
+      xPercent: 10,
+      yPercent: 0,
+      biome: "plains" as const,
+      spawnable: true,
+      claimable: true,
+    },
+    {
+      id: "2:0",
+      col: 2,
+      row: 0,
+      x: 0,
+      y: 0,
+      xPercent: 20,
+      yPercent: 0,
+      biome: "plains" as const,
+      spawnable: true,
+      claimable: true,
+    },
+    {
+      id: "3:0",
+      col: 3,
+      row: 0,
+      x: 0,
+      y: 0,
+      xPercent: 30,
+      yPercent: 0,
+      biome: "plains" as const,
+      spawnable: true,
+      claimable: true,
+    },
+  ];
+
+  assert.deepEqual(
+    chooseAutoTilePressurePriorityCandidates({
+      fortress: { mapX: 0, mapY: 0 },
+      tiles,
+      distanceTiles: tiles,
+      limit: 2,
+      existingTileIds: ["1:0"],
+      isLegalNeutralPressureTile: (tileId) => tileId !== "0:0",
+    }),
+    [{ tileId: "2:0" }, { tileId: "3:0" }]
   );
 });
 

@@ -119,9 +119,14 @@ import {
   applyUnsupportedPressureDecay,
   allocatePressureAcrossTargets,
   calculatePressureOutput,
+  chooseAutoTilePressurePriorityCandidates,
+  getDistanceAdjustedTilePressureClaimThreshold,
+  getDistanceAdjustedTilePressureDecayPercent,
   getNeutralPressureClaimWinner,
   getPressureTargetBlockedReason,
   getTilePressureClaimThreshold,
+  getTilePressurePriorityLimit,
+  getTilePressurePriorityWeightForSlot,
   sortTilePressureQueue,
 } from "./tile-pressure";
 import { isSeasonFourRuleset } from "./rulesets";
@@ -655,7 +660,95 @@ async function processTilePressureExpansion({
     }
 
     const claimableTiles = HEX_TILES.filter((tile) => tile.claimable);
+    const fortressById = new Map(fortresses.map((fortress) => [fortress.id, fortress]));
     const pressuredTileIds = new Set<string>();
+    const normalizePriorityWeights = async (fortress: (typeof fortresses)[number]) => {
+      const priorityLimit = getTilePressurePriorityLimit(fortress);
+      const normalizedPriorities = sortTilePressureQueue(
+        prioritiesByFortressId.get(fortress.id) ?? []
+      ).slice(0, priorityLimit);
+
+      await Promise.all(
+        normalizedPriorities.map((priority, index) =>
+          tx.tilePressurePriority.update({
+            where: {
+              cycleId_fortressId_tileId: {
+                cycleId,
+                fortressId: fortress.id,
+                tileId: priority.tileId,
+              },
+            },
+            data: {
+              weight: getTilePressurePriorityWeightForSlot({
+                slot: index + 1,
+                limit: priorityLimit,
+              }),
+            },
+          })
+        )
+      );
+
+      prioritiesByFortressId.set(
+        fortress.id,
+        normalizedPriorities.map((priority, index) => ({
+          tileId: priority.tileId,
+          weight: getTilePressurePriorityWeightForSlot({
+            slot: index + 1,
+            limit: priorityLimit,
+          }),
+        }))
+      );
+    };
+    const fillNeutralPressurePriorities = async ({
+      fortress,
+      isLegalNeutralPressureTile,
+    }: {
+      fortress: (typeof fortresses)[number];
+      isLegalNeutralPressureTile: (tileId: string) => boolean;
+    }) => {
+      const priorityLimit = getTilePressurePriorityLimit(fortress);
+      const currentPriorities = sortTilePressureQueue(
+        prioritiesByFortressId.get(fortress.id) ?? []
+      );
+
+      if (currentPriorities.length < priorityLimit) {
+        const autoCandidates = chooseAutoTilePressurePriorityCandidates({
+          fortress,
+          tiles: claimableTiles,
+          limit: priorityLimit - currentPriorities.length,
+          existingTileIds: currentPriorities.map((priority) => priority.tileId),
+          isLegalNeutralPressureTile,
+        });
+
+        for (const candidate of autoCandidates) {
+          const nextSlot =
+            (prioritiesByFortressId.get(fortress.id) ?? []).length + 1;
+          const priority = {
+            tileId: candidate.tileId,
+            weight: getTilePressurePriorityWeightForSlot({
+              slot: nextSlot,
+              limit: priorityLimit,
+            }),
+          };
+
+          await tx.tilePressurePriority.create({
+            data: {
+              cycleId,
+              fortressId: fortress.id,
+              tileId: priority.tileId,
+              weight: priority.weight,
+            },
+          });
+
+          prioritiesByFortressId.set(fortress.id, [
+            ...(prioritiesByFortressId.get(fortress.id) ?? []),
+            priority,
+          ]);
+        }
+      }
+
+      await normalizePriorityWeights(fortress);
+    };
 
     if (ownedExpansionTileIds.length > 0) {
       await tx.tilePressureState.deleteMany({
@@ -675,6 +768,7 @@ async function processTilePressureExpansion({
           },
           select: {
             id: true,
+            fortressId: true,
             tileId: true,
             pressure: true,
             lastPressuredAt: true,
@@ -696,10 +790,17 @@ async function processTilePressureExpansion({
       if (elapsedHours <= 0) {
         continue;
       }
+      const fortress = fortressById.get(state.fortressId);
 
       const pressure = applyUnsupportedPressureDecay({
         pressure: state.pressure,
         elapsedHours,
+        decayPercentPerHour: fortress
+          ? getDistanceAdjustedTilePressureDecayPercent({
+              fortress,
+              tileId: state.tileId,
+            })
+          : undefined,
       });
 
       if (pressure <= 0) {
@@ -785,9 +886,6 @@ async function processTilePressureExpansion({
       const queuedPriorities = sortTilePressureQueue(
         prioritiesByFortressId.get(fortress.id) ?? []
       );
-      const legalNeutralPriorities = queuedPriorities.filter((priority) =>
-        isLegalNeutralPressureTile(priority.tileId)
-      );
 
       const stalePriorities = queuedPriorities.filter(
         (priority) => !isLegalPriorityTarget(priority.tileId)
@@ -803,15 +901,28 @@ async function processTilePressureExpansion({
             },
           },
         });
+        const staleTileIds = new Set(stalePriorities.map((priority) => priority.tileId));
+        prioritiesByFortressId.set(
+          fortress.id,
+          queuedPriorities.filter((priority) => !staleTileIds.has(priority.tileId))
+        );
       }
+
+      await fillNeutralPressurePriorities({
+        fortress,
+        isLegalNeutralPressureTile,
+      });
 
       if (pressure <= 0) {
         continue;
       }
 
+      const legalNeutralPressurePriorities = sortTilePressureQueue(
+        prioritiesByFortressId.get(fortress.id) ?? []
+      ).filter((priority) => isLegalNeutralPressureTile(priority.tileId));
       const targets =
-        legalNeutralPriorities.length > 0
-          ? legalNeutralPriorities.slice(0, 1)
+        legalNeutralPressurePriorities.length > 0
+          ? legalNeutralPressurePriorities.slice(0, 1)
           : claimableTiles
               .filter((tile) => isLegalNeutralPressureTile(tile.id))
               .map((tile) => ({ tileId: tile.id, weight: 1 }));
@@ -865,18 +976,27 @@ async function processTilePressureExpansion({
         where: {
           cycleId,
           tileId,
-          pressure: {
-            gte: claimThreshold,
-          },
         },
         select: {
           fortressId: true,
           pressure: true,
         },
       });
+      const eligibleStates = states.filter((state) => {
+        const fortress = fortressById.get(state.fortressId);
+        const threshold = fortress
+          ? getDistanceAdjustedTilePressureClaimThreshold({
+              isSeasonFour,
+              fortress,
+              tileId,
+            })
+          : claimThreshold;
+
+        return state.pressure >= threshold;
+      });
       const winnerFortressId = getNeutralPressureClaimWinner({
-        states,
-        threshold: claimThreshold,
+        states: eligibleStates,
+        threshold: 0,
       });
 
       if (!winnerFortressId) {
@@ -920,6 +1040,38 @@ async function processTilePressureExpansion({
           cycleId,
           tileId,
         },
+      });
+    }
+
+    for (const fortress of fortresses) {
+      const ownedTileIds = ownedTileIdsByFortressId.get(fortress.id) ?? [];
+      const isConnected = ({
+        tileId,
+        ownedTileIds,
+      }: {
+        tileId: string;
+        ownedTileIds: Iterable<string>;
+      }) =>
+        isTileConnectedToFortressOrOwnedTiles({
+          tileId,
+          fortress,
+          ownedTileIds,
+        });
+      const isLegalNeutralPressureTile = (tileId: string) =>
+        !ownerByTileId.has(tileId) &&
+        getPressureTargetBlockedReason({
+          tile: getTileById(tileId),
+          tileId,
+          ownerFortressId: null,
+          fortress,
+          ownedTileIds,
+          isHomeOfA: isHomeOfATile,
+          isConnected,
+        }) === null;
+
+      await fillNeutralPressurePriorities({
+        fortress,
+        isLegalNeutralPressureTile,
       });
     }
   }, TICK_TRANSACTION_OPTIONS);

@@ -43,7 +43,7 @@ You assign workers across four roles:
 | Miners | Gold | Dwarfs produce more on owned tiles |
 | Farmers | Food | — |
 | Recruiters | Army | Recruitment queue processes per tick |
-| Pressure Workers | Tile pressure | Claims neutral tiles at 600 pressure |
+| Pressure Workers | Tile pressure | Claims nearby neutral tiles at 600 pressure; farther tiles require more |
 
 Worker count scales with fortress level. Reassignment is instant but only once per tick.
 
@@ -64,10 +64,11 @@ Instead of direct tile attacks, Season 4 uses a pressure system:
 
 1. Assign pressure workers to expansion
 2. Pressure builds each tick (1 per worker)
-3. At 600 pressure, if uncontested, the tile flips to your control
-4. Pressure decays 10% per hour on unsupported tiles
-5. Players can queue up to three priority tiles. Pressure goes to the first legal neutral tile in queue order, then the next if the earlier tile is claimed or invalid.
-6. During war, the same queued priorities can include reachable enemy-owned tiles and guide automated War Front target selection.
+3. At 600 pressure, if uncontested, a castle-adjacent tile flips to your control
+4. Each ring beyond castle-adjacent adds 10% required pressure, capped at double the base threshold
+5. Pressure decays 10% per hour on unsupported castle-adjacent tiles, plus 2% per farther ring, capped at 30% per hour
+6. The priority queue automatically stays filled to the fortress's current slot limit, starting at three slots and expanding through skills. Pressure goes to the first legal neutral tile in queue order, then the next if the earlier tile is claimed or invalid.
+7. During war, the same queued priorities can include reachable enemy-owned tiles and guide automated War Front target selection. Automatic refill only chooses neutral expansion targets.
 
 ---
 
@@ -164,6 +165,9 @@ Allies can upgrade trust (0→3). Higher tiers grant:
 - 24-hour warning after declaration (`WAR_PENDING`)
 - Casus belli system — justified wars bypass the 24h delay
 - Peace proposals require mutual acceptance and may include instant gold, food, army, or tile demands paid by either side on acceptance
+- War Room battalions use four player-facing jobs: RESERVE, GUARD, ATTACK, and ALLIANCE. The older stance layer is hidden and normalized by the server.
+- Idle battalions roam owned tiles on the map until their job triggers: RESERVE stays near the castle core, GUARD patrols owned borders, ATTACK launches through war fronts, and ALLIANCE supports allied battlefields.
+- Battalions do not heal passively. Damaged battalions are refilled by assigning recruiters and training new members.
 - War fronts are automated from the Castle War Room: only ATTACK-mode battalions with troops can be assigned, and active wars evaluate both directions for automatic dispatch.
 - Existing tile pressure priorities double as preferred wartime targets when the prioritized tile is enemy-owned and reachable from your territory.
 - New troops assigned to battalions stationed away from the castle travel as visible reinforcement marches first; they count as pending capacity but do not become usable battalion size until arrival.

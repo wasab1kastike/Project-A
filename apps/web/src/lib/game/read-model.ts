@@ -102,6 +102,7 @@ import {
 } from "./campaigns";
 import {
   getNeutralPressureClaimWinner,
+  getDistanceAdjustedTilePressureClaimThreshold,
   getPressureTargetBlockedReason,
   getTilePressureClaimThreshold,
   getTilePressurePriorityLimit,
@@ -3033,6 +3034,13 @@ export async function getHomePageState({
         : pressureLeaderFortressId === playerFortress?.id
           ? "You"
           : "Another fortress";
+    const pressureThreshold = playerFortress
+      ? getDistanceAdjustedTilePressureClaimThreshold({
+          isSeasonFour,
+          fortress: playerFortress,
+          tileId: tile.id,
+        })
+      : pressureClaimThreshold;
     const isConnectedToPlayerTerritory =
       playerFortress !== null
         ? isTileConnectedToFortressOrOwnedTiles({
@@ -3101,7 +3109,7 @@ export async function getHomePageState({
       pressurePriorityRank: priority?.rank ?? null,
       pressurePlayerProgress: ownState?.pressure ?? null,
       pressureProgress: ownState?.pressure ?? leader?.pressure ?? null,
-      pressureThreshold: pressureClaimThreshold,
+      pressureThreshold,
       pressureLeaderFortressId,
       pressureLeaderLabel,
       canPrioritizePressure: pressurePriorityDisabledReason === null,
@@ -3654,6 +3662,7 @@ export async function getHomePageState({
           farmersAssigned: playerFortress.farmersAssigned,
           recruitersAssigned: playerFortress.recruitersAssigned,
           pressureWorkersAssigned: playerFortress.pressureWorkersAssigned,
+          pressurePriorityLimit,
           race: playerFortress.race,
           currentAction: playerFortress.currentAction,
           mapX: playerFortress.mapX,
@@ -3711,6 +3720,7 @@ export async function getHomePageState({
           farmersAssigned: playerFortress.farmersAssigned,
           recruitersAssigned: playerFortress.recruitersAssigned,
           pressureWorkersAssigned: playerFortress.pressureWorkersAssigned,
+          pressurePriorityLimit,
           race: playerFortress.race,
           currentAction: playerFortress.currentAction,
           currentTargetId: playerFortress.targetFortressId,

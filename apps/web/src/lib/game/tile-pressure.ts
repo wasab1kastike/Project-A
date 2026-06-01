@@ -1,4 +1,5 @@
 import { getSkillModifiers } from "./race-skill-effects";
+import { HEX_TILES, type HexTile } from "./map-hex";
 import { isFortressRace, type FortressRace } from "./races";
 export {
   getPressureWorkerDescription,
@@ -8,6 +9,10 @@ export {
 export const TILE_PRESSURE_CLAIM_THRESHOLD = 600;
 export const LEGACY_TILE_PRESSURE_CLAIM_THRESHOLD = 100;
 export const TILE_PRESSURE_DECAY_PERCENT_PER_HOUR = 10;
+export const TILE_PRESSURE_DISTANCE_THRESHOLD_STEP_PERCENT = 10;
+export const TILE_PRESSURE_DISTANCE_DECAY_STEP_PERCENT = 2;
+export const TILE_PRESSURE_MAX_DISTANCE_THRESHOLD_MULTIPLIER = 2;
+export const TILE_PRESSURE_MAX_DECAY_PERCENT_PER_HOUR = 30;
 export const DEFAULT_TILE_PRESSURE_PRIORITY_LIMIT = 3;
 
 export function getTilePressurePriorityLimit(fortress?: {
@@ -70,6 +75,177 @@ export function getTilePressureClaimThreshold(isSeasonFour: boolean) {
     : LEGACY_TILE_PRESSURE_CLAIM_THRESHOLD;
 }
 
+export function findCastleAnchorTile({
+  fortress,
+  tiles = HEX_TILES,
+}: {
+  fortress: { mapX: number; mapY: number };
+  tiles?: readonly HexTile[];
+}) {
+  return tiles.reduce<HexTile | null>((nearest, candidate) => {
+    if (!nearest) return candidate;
+
+    const candidateDistance = Math.hypot(
+      candidate.xPercent - fortress.mapX,
+      candidate.yPercent - fortress.mapY
+    );
+    const nearestDistance = Math.hypot(
+      nearest.xPercent - fortress.mapX,
+      nearest.yPercent - fortress.mapY
+    );
+
+    if (candidateDistance !== nearestDistance) {
+      return candidateDistance < nearestDistance ? candidate : nearest;
+    }
+
+    return candidate.id.localeCompare(nearest.id) < 0 ? candidate : nearest;
+  }, null);
+}
+
+export function getHexRingDistance({
+  fromTileId,
+  toTileId,
+  tiles = HEX_TILES,
+}: {
+  fromTileId: string;
+  toTileId: string;
+  tiles?: readonly HexTile[];
+}) {
+  if (fromTileId === toTileId) return 0;
+
+  const tileByCoordinate = new Map(
+    tiles.map((tile) => [`${tile.col}:${tile.row}`, tile] as const)
+  );
+  const tileById = new Map(tiles.map((tile) => [tile.id, tile] as const));
+  const start = tileById.get(fromTileId);
+
+  if (!start || !tileById.has(toTileId)) {
+    return null;
+  }
+
+  const visited = new Set([fromTileId]);
+  const queue: Array<{ tile: HexTile; distance: number }> = [
+    { tile: start, distance: 0 },
+  ];
+
+  for (let index = 0; index < queue.length; index += 1) {
+    const current = queue[index]!;
+    const neighborOffsets =
+      current.tile.row % 2 === 0
+        ? [
+            [-1, -1],
+            [0, -1],
+            [-1, 0],
+            [1, 0],
+            [-1, 1],
+            [0, 1],
+          ]
+        : [
+            [0, -1],
+            [1, -1],
+            [-1, 0],
+            [1, 0],
+            [0, 1],
+            [1, 1],
+          ];
+
+    for (const [colOffset, rowOffset] of neighborOffsets) {
+      const neighbor = tileByCoordinate.get(
+        `${current.tile.col + colOffset}:${current.tile.row + rowOffset}`
+      );
+
+      if (!neighbor || visited.has(neighbor.id)) {
+        continue;
+      }
+
+      const distance = current.distance + 1;
+      if (neighbor.id === toTileId) {
+        return distance;
+      }
+
+      visited.add(neighbor.id);
+      queue.push({ tile: neighbor, distance });
+    }
+  }
+
+  return null;
+}
+
+export function getTilePressureDistanceRing({
+  fortress,
+  tileId,
+  tiles = HEX_TILES,
+}: {
+  fortress: { mapX: number; mapY: number };
+  tileId: string;
+  tiles?: readonly HexTile[];
+}) {
+  const anchor = findCastleAnchorTile({ fortress, tiles });
+
+  if (!anchor) {
+    return 1;
+  }
+
+  return Math.max(
+    1,
+    getHexRingDistance({ fromTileId: anchor.id, toTileId: tileId, tiles }) ?? 1
+  );
+}
+
+export function getTilePressureDistanceMultiplier(distanceRing: number) {
+  const extraRings = Math.max(0, Math.floor(distanceRing) - 1);
+  const multiplier =
+    1 + (extraRings * TILE_PRESSURE_DISTANCE_THRESHOLD_STEP_PERCENT) / 100;
+
+  return Math.min(TILE_PRESSURE_MAX_DISTANCE_THRESHOLD_MULTIPLIER, multiplier);
+}
+
+export function getDistanceAdjustedTilePressureClaimThreshold({
+  isSeasonFour,
+  fortress,
+  tileId,
+  tiles = HEX_TILES,
+}: {
+  isSeasonFour: boolean;
+  fortress: { mapX: number; mapY: number };
+  tileId: string;
+  tiles?: readonly HexTile[];
+}) {
+  const baseThreshold = getTilePressureClaimThreshold(isSeasonFour);
+
+  if (!isSeasonFour) {
+    return baseThreshold;
+  }
+
+  return Math.ceil(
+    baseThreshold *
+      getTilePressureDistanceMultiplier(
+        getTilePressureDistanceRing({ fortress, tileId, tiles })
+      )
+  );
+}
+
+export function getDistanceAdjustedTilePressureDecayPercent({
+  fortress,
+  tileId,
+  tiles = HEX_TILES,
+}: {
+  fortress: { mapX: number; mapY: number };
+  tileId: string;
+  tiles?: readonly HexTile[];
+}) {
+  const extraRings = Math.max(
+    0,
+    getTilePressureDistanceRing({ fortress, tileId, tiles }) - 1
+  );
+
+  return Math.min(
+    TILE_PRESSURE_MAX_DECAY_PERCENT_PER_HOUR,
+    TILE_PRESSURE_DECAY_PERCENT_PER_HOUR +
+      extraRings * TILE_PRESSURE_DISTANCE_DECAY_STEP_PERCENT
+  );
+}
+
 export function calculatePressureOutput({
   pressureWorkersAssigned,
 }: {
@@ -86,9 +262,11 @@ export function calculatePressureOutput({
 export function applyUnsupportedPressureDecay({
   pressure,
   elapsedHours,
+  decayPercentPerHour = TILE_PRESSURE_DECAY_PERCENT_PER_HOUR,
 }: {
   pressure: number;
   elapsedHours: number;
+  decayPercentPerHour?: number;
 }) {
   const wholeHours = Math.max(0, Math.floor(elapsedHours));
   if (wholeHours <= 0) return Math.max(0, Math.floor(pressure));
@@ -97,10 +275,46 @@ export function applyUnsupportedPressureDecay({
   // per-hour floor loop (≈1 unit difference at high hours), but O(1) instead
   // of O(hours) — safe for large catch-up intervals.
   const decayFactor = Math.pow(
-    1 - TILE_PRESSURE_DECAY_PERCENT_PER_HOUR / 100,
+    1 - Math.max(0, Math.min(100, decayPercentPerHour)) / 100,
     wholeHours,
   );
   return Math.max(0, Math.floor(Math.max(0, Math.floor(pressure)) * decayFactor));
+}
+
+export function chooseAutoTilePressurePriorityCandidates({
+  fortress,
+  tiles,
+  distanceTiles = HEX_TILES,
+  limit,
+  existingTileIds = [],
+  isLegalNeutralPressureTile,
+}: {
+  fortress: { mapX: number; mapY: number };
+  tiles: readonly HexTile[];
+  distanceTiles?: readonly HexTile[];
+  limit: number;
+  existingTileIds?: Iterable<string>;
+  isLegalNeutralPressureTile: (tileId: string) => boolean;
+}) {
+  const existing = new Set(existingTileIds);
+
+  return tiles
+    .filter((tile) => !existing.has(tile.id) && isLegalNeutralPressureTile(tile.id))
+    .map((tile) => ({
+      tileId: tile.id,
+      distanceRing: getTilePressureDistanceRing({
+        fortress,
+        tileId: tile.id,
+        tiles: distanceTiles,
+      }),
+    }))
+    .sort(
+      (left, right) =>
+        left.distanceRing - right.distanceRing ||
+        left.tileId.localeCompare(right.tileId)
+    )
+    .slice(0, Math.max(0, Math.floor(limit)))
+    .map((candidate) => ({ tileId: candidate.tileId }));
 }
 
 export function getPressureTargetBlockedReason({

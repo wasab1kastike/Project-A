@@ -128,6 +128,7 @@ import {
   getUnicornTeleportClaimAvailability,
 } from "./race-buffs";
 import {
+  HEX_TILES,
   HEX_SPAWN_TILES,
   MAP_WORLD_HEIGHT,
   MAP_WORLD_WIDTH,
@@ -230,7 +231,12 @@ import {
   isHomeOfATile,
   isTileConnectedToFortressOrOwnedTiles,
 } from "./territory";
-import { TILE_PRESSURE_CLAIM_THRESHOLD } from "./tile-pressure";
+import {
+  chooseAutoTilePressurePriorityCandidates,
+  getDistanceAdjustedTilePressureClaimThreshold,
+  getTilePressurePriorityLimit,
+  TILE_PRESSURE_CLAIM_THRESHOLD,
+} from "./tile-pressure";
 import {
   classifyWinnerRequest,
   reviewWinnerRequest,
@@ -1105,6 +1111,201 @@ test("pressure priority automatically claims neutral tile and applies tick bonus
   assert.equal(clearedPressureStateCount, 0);
   assert.equal(claimedTile?.pressureProgress, null);
   assert.equal(claimedTile?.pressurePlayerProgress, null);
+});
+
+test("pressure tick auto-fills nearest neutral priority slots", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const user = await createUser(prisma, "auto-priority-fill@example.com");
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: user.id,
+      commanderName: "Auto Queue",
+      fortressName: "Queue Keep",
+      points: 100,
+    },
+  ]);
+  await markSeasonFourCycle(prisma, cycle.id);
+  const fortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: user.id,
+      },
+    },
+    include: {
+      skillPurchases: {
+        select: { nodeKey: true },
+      },
+    },
+  });
+  await prisma.fortress.update({
+    where: { id: fortress.id },
+    data: { pressureWorkersAssigned: 0 },
+  });
+
+  await runGameTick({
+    now: new Date("2026-04-20T12:02:00.000Z"),
+    db: prisma,
+  });
+
+  const priorities = await prisma.tilePressurePriority.findMany({
+    where: {
+      cycleId: cycle.id,
+      fortressId: fortress.id,
+    },
+    orderBy: [{ weight: "desc" }, { tileId: "asc" }],
+  });
+  const priorityLimit = getTilePressurePriorityLimit(fortress);
+  const expected = chooseAutoTilePressurePriorityCandidates({
+    fortress,
+    tiles: HEX_TILES.filter((tile) => tile.claimable),
+    limit: priorityLimit,
+    isLegalNeutralPressureTile: (tileId) =>
+      isTileConnectedToFortressOrOwnedTiles({
+        tileId,
+        fortress,
+        ownedTileIds: [],
+      }),
+  }).map((priority) => priority.tileId);
+
+  assert.equal(priorities.length, priorityLimit);
+  assert.deepEqual(
+    priorities.map((priority) => priority.tileId),
+    expected
+  );
+});
+
+test("pressure tick replaces claimed priorities and uses distance threshold", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const user = await createUser(prisma, "distance-pressure@example.com");
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: user.id,
+      commanderName: "Distant Claim",
+      fortressName: "Distance Keep",
+      points: 100,
+    },
+  ]);
+  await markSeasonFourCycle(prisma, cycle.id);
+  const fortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: user.id,
+      },
+    },
+  });
+  const firstTile = HEX_TILES.find(
+    (candidate) =>
+      candidate.claimable &&
+      isTileConnectedToFortressOrOwnedTiles({
+        tileId: candidate.id,
+        fortress,
+        ownedTileIds: [],
+      })
+  );
+
+  assert.ok(firstTile);
+
+  await prisma.mapHexOwnership.create({
+    data: {
+      cycleId: cycle.id,
+      tileId: firstTile.id,
+      ownerFortressId: fortress.id,
+      claimedAt: new Date("2026-04-20T12:00:00.000Z"),
+    },
+  });
+
+  const farTile = HEX_TILES.find(
+    (candidate) =>
+      candidate.claimable &&
+      candidate.id !== firstTile.id &&
+      isTileConnectedToFortressOrOwnedTiles({
+        tileId: candidate.id,
+        fortress,
+        ownedTileIds: [firstTile.id],
+      }) &&
+      getDistanceAdjustedTilePressureClaimThreshold({
+        isSeasonFour: true,
+        fortress,
+        tileId: candidate.id,
+      }) > TILE_PRESSURE_CLAIM_THRESHOLD
+  );
+
+  assert.ok(farTile);
+
+  const threshold = getDistanceAdjustedTilePressureClaimThreshold({
+    isSeasonFour: true,
+    fortress,
+    tileId: farTile.id,
+  });
+  await prisma.fortress.update({
+    where: { id: fortress.id },
+    data: {
+      minersAssigned: 0,
+      farmersAssigned: 0,
+      recruitersAssigned: 0,
+      pressureWorkersAssigned: threshold - 1,
+    },
+  });
+  await setTilePressurePriority({
+    userId: user.id,
+    tileId: farTile.id,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+    db: prisma,
+  });
+
+  await runGameTick({
+    now: new Date("2026-04-20T12:02:00.000Z"),
+    db: prisma,
+  });
+
+  const unclaimedAtBaseThreshold = await prisma.mapHexOwnership.findUnique({
+    where: {
+      cycleId_tileId: {
+        cycleId: cycle.id,
+        tileId: farTile.id,
+      },
+    },
+  });
+  assert.equal(unclaimedAtBaseThreshold, null);
+
+  await prisma.fortress.update({
+    where: { id: fortress.id },
+    data: { pressureWorkersAssigned: 1 },
+  });
+  await runGameTick({
+    now: new Date("2026-04-20T12:03:00.000Z"),
+    db: prisma,
+  });
+
+  const claimed = await prisma.mapHexOwnership.findUnique({
+    where: {
+      cycleId_tileId: {
+        cycleId: cycle.id,
+        tileId: farTile.id,
+      },
+    },
+  });
+  const replacedPriorityCount = await prisma.tilePressurePriority.count({
+    where: {
+      cycleId: cycle.id,
+      fortressId: fortress.id,
+    },
+  });
+
+  assert.equal(claimed?.ownerFortressId, fortress.id);
+  assert.equal(replacedPriorityCount, getTilePressurePriorityLimit(fortress));
 });
 
 test("pressure tick clears stale enemy-owned priority and avoids enemy pressure", async (context) => {

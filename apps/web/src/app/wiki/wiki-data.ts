@@ -30,6 +30,9 @@ import {
   OWNERSHIP_PRESSURE_WARNING,
   TILE_PRESSURE_CLAIM_THRESHOLD,
   TILE_PRESSURE_DECAY_PERCENT_PER_HOUR,
+  TILE_PRESSURE_DISTANCE_DECAY_STEP_PERCENT,
+  TILE_PRESSURE_DISTANCE_THRESHOLD_STEP_PERCENT,
+  TILE_PRESSURE_MAX_DECAY_PERCENT_PER_HOUR,
 } from "@/lib/game/tile-pressure";
 import {
   ROAD_DECAY_RATE_PER_HOUR,
@@ -142,8 +145,8 @@ const seasonLoop: readonly WikiDiagramStep[] = [
 
 const pressureFlow: readonly WikiDiagramStep[] = [
   { label: "Assign", detail: "Put workers into race-flavored pressure." },
-  { label: "Prioritize", detail: "Mark connected neutral border tiles." },
-  { label: "Claim", detail: `${TILE_PRESSURE_CLAIM_THRESHOLD} pressure wins if there is no tie.` },
+  { label: "Prioritize", detail: "The queue auto-fills with connected neutral borders." },
+  { label: "Claim", detail: `${TILE_PRESSURE_CLAIM_THRESHOLD}+ pressure wins if there is no tie.` },
   { label: "Hold", detail: "Ownership pressure decays unless maintained." },
 ];
 
@@ -332,9 +335,10 @@ export const WIKI_PAGES: readonly WikiPage[] = [
     subtitle:
       "Season 4 territory is claimed with pressure, held with ownership pressure, and contested through war campaigns.",
     highlights: [
-      `Neutral tile claim threshold: ${TILE_PRESSURE_CLAIM_THRESHOLD}.`,
-      "Each fortress can queue three expansion priorities by default.",
-      `Unsupported neutral pressure decays ${TILE_PRESSURE_DECAY_PERCENT_PER_HOUR}% per completed hour.`,
+      `Nearby neutral tile claim threshold: ${TILE_PRESSURE_CLAIM_THRESHOLD}.`,
+      "Each fortress keeps its priority queue filled to the current slot limit, starting at three slots.",
+      `Each farther ring adds ${TILE_PRESSURE_DISTANCE_THRESHOLD_STEP_PERCENT}% required pressure.`,
+      `Unsupported neutral pressure decays ${TILE_PRESSURE_DECAY_PERCENT_PER_HOUR}% per completed hour plus ${TILE_PRESSURE_DISTANCE_DECAY_STEP_PERCENT}% per farther ring, capped at ${TILE_PRESSURE_MAX_DECAY_PERCENT_PER_HOUR}%.`,
       `Ownership pressure ranges from 0 to ${MAX_OWNERSHIP_PRESSURE}.`,
     ],
     sections: [
@@ -351,7 +355,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         title: "Ownership pressure",
         bullets: [
           "Queued priorities are ordered. The first legal neutral tile receives all current pressure output.",
-          "If the first queue slot is claimed or becomes invalid, the next legal neutral tile becomes active.",
+          "If a queue slot is claimed or becomes invalid, the system appends the nearest legal neutral replacement.",
           "During war, queued enemy border tiles guide automated War Front targeting.",
           `Owned tiles decay by ${OWNERSHIP_PRESSURE_DECAY_PER_TICK} ownership pressure per tick.`,
           `Each maintenance worker restores ${OWNERSHIP_PRESSURE_MAINTENANCE_PER_WORKER} pressure per tick.`,
@@ -383,7 +387,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
     navIcon: "05",
     title: "Army And War",
     subtitle:
-      "Battalions give your army identity: modes decide what they try to do, stances decide how they behave when it matters.",
+      "Battalions give your army identity through four clear jobs: Reserve, Guard, Attack, and Alliance.",
     highlights: [
       `New battalions start at ${DEFAULT_BATTALION_MAX_SIZE} max size.`,
       `Commission cost: ${BATTALION_COMMISSION_COST} gold.`,
@@ -393,28 +397,23 @@ export const WIKI_PAGES: readonly WikiPage[] = [
       {
         id: "modes",
         eyebrow: "Automation",
-        title: "Battalion modes",
+        title: "Battalion jobs",
         cards: [
+          { title: "RESERVE", body: "Roams near your castle core but does not trigger automatically." },
+          { title: "GUARD", body: "Patrols owned borders through War Room guard allocation." },
           { title: "ATTACK", image: "/assets/ui/crest-campaign.webp", body: "Can be assigned to war fronts and auto-dispatches against reachable enemy tiles." },
-          { title: "RESERVE", body: "Stays out of combat losses and recovers." },
           { title: "ALLIANCE", body: "Sends visible reinforcement marches to eligible allied defensive or attacking battlefields, using the War Room support policy." },
         ],
       },
       {
-        id: "stances",
-        eyebrow: "Posture",
-        title: "Stances",
-        table: {
-          headers: ["Stance", "Effect"],
-          rows: [
-            ["FORTIFY", "+30% defense, -50% casualties taken, 1-hour lock."],
-            ["PATROL", "Mobile watch posture for future scouting rules."],
-            ["TRAINING", "+1 XP per tick for the lowest-tier battalion."],
-            ["AMBUSH", "+40% first-round damage, 1-hour lock."],
-            ["REST", "Morale and healing; cannot fight."],
-            ["MOBILE", "Moving or on an order; no special modifier."],
-          ],
-        },
+        id: "refilling",
+        eyebrow: "Recovery",
+        title: "Refilling battalions",
+        bullets: [
+          "Battalions do not heal passively.",
+          "Assign recruiters to train new members and refill damaged battalions.",
+          "The older stance layer is handled internally and is no longer a player-facing control.",
+        ],
       },
       {
         id: "reinforcements",
@@ -493,7 +492,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         bullets: [
           "Map distance, roads, race effects, and orders affect arrival timing.",
           "Baseline travel uses map speed from the game constants.",
-          "Some race and stance effects change visibility or timing rather than raw attack power.",
+          "Some race and job effects change visibility or timing rather than raw attack power.",
         ],
       },
     ],

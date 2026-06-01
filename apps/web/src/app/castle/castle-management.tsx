@@ -316,6 +316,7 @@ type PlayerSummary = {
       progress: number;
       outputPerTick: number;
       rank: number;
+      pressureThreshold: number;
     } | null;
     pressureThreshold: number;
     priorityLimit: number;
@@ -325,6 +326,7 @@ type PlayerSummary = {
       ownerFortressId: string | null;
       targetKind: string;
       progress: number;
+      pressureThreshold: number;
     }>;
     estimatedMinutesRemaining: number | null;
     decayingPressureCount: number;
@@ -1909,7 +1911,7 @@ export function CastleManagement({
                           <strong>
                             {priority.targetKind === "WAR"
                               ? "War target"
-                              : `${priority.progress} / ${playerSummary.expansionSummary?.pressureThreshold ?? 600}`}
+                              : `${priority.progress} / ${priority.pressureThreshold}`}
                           </strong>
                         </div>
                       )
