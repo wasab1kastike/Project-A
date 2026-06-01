@@ -1448,6 +1448,7 @@ async function processSeasonFourConvoys({
               gold: leg.gold,
               food: leg.food,
               army: leg.army,
+              points: leg.points,
             }, getStolenCargoDoctrineMultiplier(
               raidDoctrine.doctrine,
               raidDoctrine.tier
@@ -1459,7 +1460,7 @@ async function processSeasonFourConvoys({
                 gold: { increment: stolen.gold },
                 food: { increment: stolen.food },
                 army: { increment: stolen.army },
-                points: { increment: stolen.scorePoints },
+                points: { increment: stolen.points + stolen.scorePoints },
                 interceptedCargoValue: { increment: stolen.baseValue },
               },
             });
@@ -1489,6 +1490,7 @@ async function processSeasonFourConvoys({
                 stolenGold: stolen.gold,
                 stolenFood: stolen.food,
                 stolenArmy: stolen.army,
+                stolenPoints: stolen.points,
                 stolenCargoValue: stolen.baseValue,
                 raidDetected: detected,
                 deedFailureReason: leg.deedTileId
@@ -1538,7 +1540,7 @@ async function processSeasonFourConvoys({
       await returnEscort();
 
       const bonus = getAllianceDeliveryBonus({
-        cargo: { gold: leg.gold, food: leg.food, army: leg.army },
+        cargo: { gold: leg.gold, food: leg.food, army: leg.army, points: leg.points },
         isAllied: effectiveStatus === DiplomacyRelationStatus.ALLIED,
         trustTier: relation?.allianceTrustTier ?? 0,
       });
@@ -1554,7 +1556,7 @@ async function processSeasonFourConvoys({
           gold: { increment: leg.gold + (seized ? 0 : bonus.gold) },
           food: { increment: leg.food + (seized ? 0 : bonus.food) },
           army: { increment: leg.army },
-          points: { increment: points.receiver },
+          points: { increment: seized ? 0 : leg.points + points.receiver },
         },
       });
 

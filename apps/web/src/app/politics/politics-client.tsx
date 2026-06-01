@@ -14,7 +14,6 @@ import {
   cancelTradeOfferAction,
   createTradeOfferAction,
   createEscortOrderAction,
-  createRaidOrderAction,
   declareWarAction,
   proposeAllianceAction,
   proposeAllianceTrustUpgradeAction,
@@ -154,9 +153,11 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
     offeredGold: 0,
     offeredFood: 0,
     offeredArmy: 0,
+    offeredPoints: 0,
     requestedGold: 0,
     requestedFood: 0,
     requestedArmy: 0,
+    requestedPoints: 0,
     offeredTileId: '',
     requestedTileId: '',
   });
@@ -333,9 +334,11 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
         offeredGold: tradeCargo.offeredGold,
         offeredFood: tradeCargo.offeredFood,
         offeredArmy: tradeCargo.offeredArmy,
+        offeredPoints: tradeCargo.offeredPoints,
         requestedGold: tradeCargo.requestedGold,
         requestedFood: tradeCargo.requestedFood,
         requestedArmy: tradeCargo.requestedArmy,
+        requestedPoints: tradeCargo.requestedPoints,
         offeredTileId: tradeCargo.offeredTileId || undefined,
         requestedTileId: tradeCargo.requestedTileId || undefined,
       });
@@ -347,9 +350,11 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
           offeredGold: 0,
           offeredFood: 0,
           offeredArmy: 0,
+          offeredPoints: 0,
           requestedGold: 0,
           requestedFood: 0,
           requestedArmy: 0,
+          requestedPoints: 0,
           offeredTileId: '',
           requestedTileId: '',
         });
@@ -445,6 +450,7 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
       leg.gold > 0 ? `${leg.gold.toLocaleString()} gold` : null,
       leg.food > 0 ? `${leg.food.toLocaleString()} food` : null,
       leg.army > 0 ? `${leg.army.toLocaleString()} army` : null,
+      leg.points > 0 ? `${leg.points.toLocaleString()} points` : null,
     ].filter(Boolean);
 
     if (leg.deedFailureReason) {
@@ -765,55 +771,6 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                             </button>
                           </div>
                         </div>
-                      ) : null}                      {row.canRaid || row.activeRaidOrderId ? (
-                        <div className={styles.orderControl}>
-                          {row.activeRaidOrderId ? (
-                            <>
-                              <span>
-                                Raid watching routes: {row.activeRaidArmy?.toLocaleString()} army
-                              </span>
-                              <button
-                                type="button"
-                                disabled={pendingId !== null}
-                                onClick={() =>
-                                  void handleOrder(`recall:${row.activeRaidOrderId}`, () =>
-                                    recallArmyOrderAction(row.activeRaidOrderId!)
-                                  )
-                                }
-                              >
-                                Recall raid
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <input
-                                type="number"
-                                min={1}
-                                step={1}
-                                value={orderArmy}
-                                onChange={(event) =>
-                                  setOrderArmy(
-                                    Math.max(1, Number.parseInt(event.target.value || "1", 10))
-                                  )
-                                }
-                                aria-label="Army for raid order"
-                              />
-                              <button
-                                type="button"
-                                disabled={pendingId !== null}
-                                onClick={() =>
-                                  void handleOrder(`raid:${row.fortressId}`, () =>
-                                    createRaidOrderAction(row.fortressId, orderArmy)
-                                  )
-                                }
-                              >
-                                Raid routes
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      ) : row.raidDisabledReason ? (
-                        <p className={styles.muted}>{row.raidDisabledReason}</p>
                       ) : null}
                       {row.disabledReason ? (
                         <p className={styles.muted}>{row.disabledReason}</p>
@@ -867,7 +824,7 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
               <div className={styles.tradeColumns}>
                 <fieldset>
                   <legend>You send</legend>
-                  {(["Gold", "Food", "Army"] as const).map((kind) => {
+                  {(["Gold", "Food", "Army", "Points"] as const).map((kind) => {
                     const key = `offered${kind}` as keyof typeof tradeCargo;
 
                     return (
@@ -886,7 +843,7 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                 </fieldset>
                 <fieldset>
                   <legend>You receive</legend>
-                  {(["Gold", "Food", "Army"] as const).map((kind) => {
+                  {(["Gold", "Food", "Army", "Points"] as const).map((kind) => {
                     const key = `requested${kind}` as keyof typeof tradeCargo;
 
                     return (
@@ -1096,20 +1053,6 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
               )}
             </div>
 
-            {state.activeArmyOrders.some((order) => order.type === "RAID") ? (
-              <div className={styles.tradeSection}>
-                <h3>Raid Patrols</h3>
-                {state.activeArmyOrders
-                  .filter((order) => order.type === "RAID")
-                  .map((order) => (
-                    <article key={order.id} className={styles.tradeCard}>
-                      <strong>Watching {order.targetName}</strong>
-                      <p>{order.committedArmy.toLocaleString()} committed army</p>
-                    </article>
-                  ))}
-              </div>
-            ) : null}
-
             {state.recentConvoyLegs.length > 0 ? (
               <div className={styles.tradeSection}>
                 <h3>Results</h3>
@@ -1130,7 +1073,7 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                     </strong>
                     <p>
                       {leg.status === "INTERCEPTED" && leg.raidedByCurrentPlayer
-                        ? `${leg.stolenGold.toLocaleString()} gold, ${leg.stolenFood.toLocaleString()} food, ${leg.stolenArmy.toLocaleString()} army stolen`
+                        ? `${leg.stolenGold.toLocaleString()} gold, ${leg.stolenFood.toLocaleString()} food, ${leg.stolenArmy.toLocaleString()} army, ${leg.stolenPoints.toLocaleString()} points stolen`
                         : formatLegCargo(leg)}
                       {leg.bonusGold + leg.bonusFood > 0
                         ? ` + ${leg.bonusGold.toLocaleString()} gold / ${leg.bonusFood.toLocaleString()} food alliance bonus`

@@ -77,12 +77,12 @@ test("convoy encounters apply bounded casualties and theft from stolen base carg
     { raidLosses: 1, escortLosses: 1 }
   );
   assert.deepEqual(
-    calculateStolenConvoyCargo({ gold: 1_501, food: 501, army: 501 }),
-    { gold: 750, food: 250, army: 250, baseValue: 1_500, scorePoints: 1 }
+    calculateStolenConvoyCargo({ gold: 1_501, food: 501, army: 501, points: 0 }),
+    { gold: 750, food: 250, army: 250, points: 0, baseValue: 1_875, scorePoints: 1 }
   );
   assert.deepEqual(
-    calculateStolenConvoyCargo({ gold: 1_000, food: 1_000, army: 100 }, 1.3),
-    { gold: 650, food: 650, army: 65, baseValue: 1_430, scorePoints: 1 }
+    calculateStolenConvoyCargo({ gold: 1_000, food: 1_000, army: 100, points: 10 }, 1.3),
+    { gold: 650, food: 650, army: 65, points: 6, baseValue: 1_826, scorePoints: 1 }
   );
 });
 

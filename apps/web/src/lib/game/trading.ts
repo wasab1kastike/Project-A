@@ -10,12 +10,14 @@ export type TradeCargo = {
   gold: number;
   food: number;
   army: number;
+  points: number;
 };
 
 export const EMPTY_TRADE_CARGO: TradeCargo = {
   gold: 0,
   food: 0,
   army: 0,
+  points: 0,
 };
 
 export function getTradeBlockedReason(status: DiplomacyRelationStatus) {
@@ -54,11 +56,16 @@ export function normalizeTradeCargo(input: TradeCargo): TradeCargo {
 }
 
 export function hasTradeCargo(cargo: TradeCargo) {
-  return cargo.gold > 0 || cargo.food > 0 || cargo.army > 0;
+  return (
+    cargo.gold > 0 ||
+    cargo.food > 0 ||
+    cargo.army > 0 ||
+    cargo.points > 0
+  );
 }
 
 export function calculateTradeCargoValue(cargo: TradeCargo) {
-  return cargo.gold + cargo.food * 1.5 + cargo.army * 3;
+  return cargo.gold + cargo.food * 1.5 + cargo.army * 3 + cargo.points;
 }
 
 export function splitTradeDeliveryPoints(
@@ -117,5 +124,6 @@ export function getAllianceDeliveryBonus({
     gold: Math.floor((cargo.gold * percent) / 100),
     food: Math.floor((cargo.food * percent) / 100),
     army: 0,
+    points: 0,
   };
 }
