@@ -23,6 +23,11 @@ type BattlefieldParticipant = {
   side: BattlefieldSide;
   armyCommitted: number;
   armyRemaining: number;
+  fortress?: {
+    name: string;
+    commanderName: string;
+    ownerId: string | null;
+  };
 };
 
 type BattlefieldIncomingReinforcement = {
@@ -333,6 +338,27 @@ export function mapActiveBattlefields({
           }
         : null,
       participantCount: battlefield.participants.length,
+      participantForces: battlefield.participants
+        .map((participant) => ({
+          fortressId: participant.fortressId,
+          side: participant.side,
+          fortressName: participant.fortress?.name ?? "Unknown fortress",
+          commanderName: participant.fortress?.commanderName ?? "Unknown",
+          armyCommitted: participant.armyCommitted,
+          armyRemaining: Math.max(0, participant.armyRemaining),
+          armyLost: Math.max(
+            0,
+            participant.armyCommitted - participant.armyRemaining
+          ),
+          isCurrentUser: participant.fortress?.ownerId === userId,
+        }))
+        .sort((left, right) => {
+          if (left.side !== right.side) {
+            return left.side === BattlefieldSide.ATTACKER ? -1 : 1;
+          }
+
+          return right.armyRemaining - left.armyRemaining;
+        }),
       currentUserSide: currentParticipant?.side ?? null,
       canRecall: canRecallOwnArmy,
       recallDisabledReason: canRecallOwnArmy

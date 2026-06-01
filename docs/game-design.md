@@ -168,7 +168,7 @@ Allies can upgrade trust (0→3). Higher tiers grant:
 - Existing tile pressure priorities double as preferred wartime targets when the prioritized tile is enemy-owned and reachable from your territory.
 - New troops assigned to battalions stationed away from the castle travel as visible reinforcement marches first; they count as pending capacity but do not become usable battalion size until arrival.
 - ALLIANCE-mode battalions automatically support eligible allied defensive and attacking battlefields by launching normal incoming reinforcement marches. War Room policy toggles can allow attack support, defense support, and choose what percent of ALLIANCE troops each support march commits.
-- Roads reduce movement ETA for manual attacks, remote battalion reinforcement, guard fortification marches, War Front launches, and allied battlefield support. Roads do not shorten the one-hour PvP preparation delay.
+- Roads reduce movement ETA for manual attacks, remote battalion reinforcement, War Front launches, and allied battlefield support. Roads do not shorten the one-hour PvP preparation delay.
 
 ---
 
@@ -178,8 +178,12 @@ Allies can upgrade trust (0→3). Higher tiers grant:
 2. Recipient accepts → **Convoy Legs** spawn
 3. Convoys travel between fortresses with a fixed six-hour minimum plus road-adjusted map travel
 4. On arrival, cargo is delivered and points awarded
-5. Convoy legs can be **intercepted** by enemy RAID orders managed from the War Room
-6. **ESCORT** orders protect outbound convoys; alliance trust tiers add cargo bonuses
+5. **ESCORT** orders protect outbound convoys; alliance trust tiers add cargo bonuses
+6. Convoy raid orders are temporarily disabled while War Room focuses on battlefronts, battalions, and recruitment
+
+Each convoy leg is one trade wagon. A wagon can carry at most **1,000 total gold and food**; army, score points, nuke components, and one eligible allied tile deed use the same convoy leg but do not count against that resource cap.
+
+Successful non-hostile deliveries add a **5% gold and food delivery bonus**. Allied trust increases that total bonus to **15% / 20% / 30%** for Trust I / II / III. Delivery bonuses do not add army, score points, nuke components, or extra trade score.
 
 ---
 
@@ -211,10 +215,10 @@ Season 4 includes a daily nuke-component race:
 
 | Order | Purpose |
 |-------|---------|
-| **GUARD** | Station army on a tile — defends against pressure and attacks |
-| **ESCORT** | Protect a specific convoy leg from raids |
-| **RAID** | Intercept enemy convoys on a tile — steal cargo |
+| **ESCORT** | Protect a specific outbound convoy leg |
 | **CAMPAIGN** | Siege a tile to trigger a territory battlefield |
+
+GUARD and RAID orders remain in historical data but are temporarily disabled for new play. Active GUARD and RAID orders are returned by the tick runner.
 
 ---
 
@@ -228,6 +232,15 @@ Season 4 includes a daily nuke-component race:
 | **Unstable Unicorns** | Chaos, unpredictability | Reality Flux passive + Shattered Reality choice |
 
 See [Season 4](season-4.md) for full race ability details.
+
+### Skill Specializations
+
+Each race has three 8-node skill paths: Economy, Territory, and Military. Players can earn up to 12 skill points, so one full path still leaves 4 points for a secondary path.
+
+- Economy paths improve food/gold output, reduce army upkeep, and can add expansion priority slots.
+- Territory paths improve pressure, tile defense, and neutral claim thresholds.
+- Military paths improve recruitment, battalion slots, battalion size, XP, and promotion costs.
+- Nodes 4 and 8 are the main build-changing unlocks; the nodes between them are smaller ramp bonuses.
 
 ---
 

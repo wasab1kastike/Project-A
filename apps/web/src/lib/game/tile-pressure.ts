@@ -1,12 +1,32 @@
-import type { FortressRace } from "./races";
+import { getSkillModifiers } from "./race-skill-effects";
+import { isFortressRace, type FortressRace } from "./races";
+export {
+  getPressureWorkerDescription,
+  getPressureWorkerLabel,
+} from "./pressure-workers";
 
 export const TILE_PRESSURE_CLAIM_THRESHOLD = 600;
 export const LEGACY_TILE_PRESSURE_CLAIM_THRESHOLD = 100;
 export const TILE_PRESSURE_DECAY_PERCENT_PER_HOUR = 10;
 export const DEFAULT_TILE_PRESSURE_PRIORITY_LIMIT = 3;
 
-export function getTilePressurePriorityLimit(_fortress?: unknown) {
-  return DEFAULT_TILE_PRESSURE_PRIORITY_LIMIT;
+export function getTilePressurePriorityLimit(fortress?: {
+  race?: FortressRace | string | null;
+  skillPurchases?: Array<{ nodeKey: string }> | null;
+}) {
+  if (!fortress?.race || !isFortressRace(fortress.race)) {
+    return DEFAULT_TILE_PRESSURE_PRIORITY_LIMIT;
+  }
+
+  const modifiers = getSkillModifiers({
+    race: fortress.race,
+    purchases: fortress.skillPurchases ?? [],
+  });
+
+  return Math.max(
+    DEFAULT_TILE_PRESSURE_PRIORITY_LIMIT,
+    DEFAULT_TILE_PRESSURE_PRIORITY_LIMIT + modifiers.pressurePriorityLimitBonus
+  );
 }
 
 export function getTilePressurePriorityWeightForSlot({
@@ -48,34 +68,6 @@ export function getTilePressureClaimThreshold(isSeasonFour: boolean) {
   return isSeasonFour
     ? TILE_PRESSURE_CLAIM_THRESHOLD
     : LEGACY_TILE_PRESSURE_CLAIM_THRESHOLD;
-}
-
-const PRESSURE_WORKER_LABELS = {
-  DWARFS: "Beer Culture",
-  ORKS: "Scavenge Mob",
-  SPACE_MURINES: "Imperial Faith",
-  UNSTABLE_UNICORNS: "Glitter Distribution",
-} as const satisfies Record<FortressRace, string>;
-
-const PRESSURE_WORKER_DESCRIPTIONS = {
-  DWARFS:
-    "Beer halls, grudges, and stubborn customs push nearby borders outward.",
-  ORKS: "Scavenge crews spread noise, scrap, and territorial momentum.",
-  SPACE_MURINES:
-    "Imperial rites and doctrine project control across the frontier.",
-  UNSTABLE_UNICORNS: "Wild magic bends nearby claims toward the herd.",
-} as const satisfies Record<FortressRace, string>;
-
-export function getPressureWorkerLabel(race: FortressRace | null | undefined) {
-  return race ? PRESSURE_WORKER_LABELS[race] : "Pressure";
-}
-
-export function getPressureWorkerDescription(
-  race: FortressRace | null | undefined
-) {
-  return race
-    ? PRESSURE_WORKER_DESCRIPTIONS[race]
-    : "Workers assigned to future border pressure and idle expansion.";
 }
 
 export function calculatePressureOutput({

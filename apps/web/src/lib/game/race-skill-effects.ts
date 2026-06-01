@@ -1,5 +1,5 @@
 import type { FortressRace } from "./races";
-import { getActiveSkillRewards } from "./race-skill-service";
+import { getPurchasedNodeRewards } from "./race-skill-tree";
 
 export type SkillModifiers = {
   pressureMultiplier: number;
@@ -23,6 +23,13 @@ export type SkillModifiers = {
   populationBonus: number;
   populationPerOwnedTile: number;
   attackSlotBonus: number;
+  pressurePriorityLimitBonus: number;
+  upkeepDiscountPercent: number;
+  recruitmentRateMultiplier: number;
+  battalionSlotBonus: number;
+  battalionMaxSizePercent: number;
+  battalionXpMultiplier: number;
+  promotionDiscountPercent: number;
   instantReinforce: boolean;
   precisionStrikeChance: number;
   prismaticClaimChance: number;
@@ -56,6 +63,13 @@ const EMPTY_MODIFIERS: SkillModifiers = {
   populationBonus: 0,
   populationPerOwnedTile: 0,
   attackSlotBonus: 0,
+  pressurePriorityLimitBonus: 0,
+  upkeepDiscountPercent: 0,
+  recruitmentRateMultiplier: 1,
+  battalionSlotBonus: 0,
+  battalionMaxSizePercent: 0,
+  battalionXpMultiplier: 1,
+  promotionDiscountPercent: 0,
   instantReinforce: false,
   precisionStrikeChance: 0,
   prismaticClaimChance: 0,
@@ -78,7 +92,10 @@ export function getSkillModifiers({
 }): SkillModifiers {
   if (!race) return EMPTY_MODIFIERS;
 
-  const rewards = getActiveSkillRewards({ race, purchases });
+  const rewards = getPurchasedNodeRewards({
+    race,
+    nodeKeys: purchases.map((purchase) => purchase.nodeKey),
+  });
   const mods: SkillModifiers = { ...EMPTY_MODIFIERS };
 
   for (const r of rewards) {
@@ -148,6 +165,33 @@ export function getSkillModifiers({
         break;
       case "attackSlot":
         mods.attackSlotBonus = r.value ?? 0;
+        break;
+      case "pressurePrioritySlots":
+        mods.pressurePriorityLimitBonus += r.value ?? 0;
+        break;
+      case "upkeepDiscount":
+        mods.upkeepDiscountPercent = Math.max(
+          mods.upkeepDiscountPercent,
+          r.value ?? 0
+        );
+        break;
+      case "recruitmentRate":
+        mods.recruitmentRateMultiplier += (r.value ?? 0) / 100;
+        break;
+      case "battalionSlots":
+        mods.battalionSlotBonus += r.value ?? 0;
+        break;
+      case "battalionMaxSize":
+        mods.battalionMaxSizePercent += r.value ?? 0;
+        break;
+      case "battalionXpRate":
+        mods.battalionXpMultiplier += (r.value ?? 0) / 100;
+        break;
+      case "promotionDiscount":
+        mods.promotionDiscountPercent = Math.max(
+          mods.promotionDiscountPercent,
+          r.value ?? 0
+        );
         break;
       case "instantReinforce":
         mods.instantReinforce = true;

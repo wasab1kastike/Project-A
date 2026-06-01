@@ -165,12 +165,10 @@ import {
   ensureRaceSchemaReadiness,
 } from "./schema-guards";
 import { processAutoWarDispatch } from "./tick-auto-war-integration";
-import { processAutoRaidDispatch } from "./tick-auto-raid-integration";
 import { processAllianceReinforcements } from "./tick-alliance-integration";
 import { recordUnitRoadCrossings } from "./tick-road-integration";
 import {
   processBattalionRecruitment,
-  processBattalionGuard,
   reconcileBattalionCasualties,
   processReserveHealing,
 } from "./tick-battalion-integration";
@@ -1853,6 +1851,76 @@ async function finalizeSeasonFourCampaigns({
   });
 }
 
+async function retireDisabledGuardAndRaidOrders({
+  db,
+  cycleId,
+  tickAt,
+}: {
+  db: PrismaClient;
+  cycleId: string;
+  tickAt: Date;
+}) {
+  await db.battalion.updateMany({
+    where: {
+      cycleId,
+      mode: "GUARD",
+    },
+    data: {
+      mode: "RESERVE",
+      stance: "REST",
+      garrisonedAt: null,
+      stanceLockedUntil: null,
+    },
+  });
+
+  const disabledOrders = await db.armyOrder.findMany({
+    where: {
+      cycleId,
+      status: ArmyOrderStatus.ACTIVE,
+      type: { in: [ArmyOrderType.GUARD, ArmyOrderType.RAID] },
+    },
+    select: {
+      id: true,
+      fortressId: true,
+      committedArmy: true,
+    },
+  });
+
+  if (disabledOrders.length === 0) {
+    return;
+  }
+
+  const armyByFortress = new Map<string, number>();
+  for (const order of disabledOrders) {
+    armyByFortress.set(
+      order.fortressId,
+      (armyByFortress.get(order.fortressId) ?? 0) + order.committedArmy
+    );
+  }
+
+  await db.$transaction(async (tx) => {
+    await Promise.all(
+      Array.from(armyByFortress.entries()).map(([fortressId, army]) =>
+        tx.fortress.update({
+          where: { id: fortressId },
+          data: { army: { increment: army } },
+        })
+      )
+    );
+
+    await tx.armyOrder.updateMany({
+      where: {
+        id: { in: disabledOrders.map((order) => order.id) },
+        status: ArmyOrderStatus.ACTIVE,
+      },
+      data: {
+        status: ArmyOrderStatus.RETURNED,
+        returnedAt: tickAt,
+      },
+    });
+  });
+}
+
 function isUniqueTickError(error: unknown) {
   return (
     error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -2837,6 +2905,12 @@ async function processCycleTick(
     isSeasonFour,
   });
 
+  await retireDisabledGuardAndRaidOrders({
+    db,
+    cycleId,
+    tickAt,
+  });
+
   let convoyScoreEventsCreated = 0;
   let deliveredConvoyLegs: Array<{ fromFortressId: string; toFortressId: string }> = [];
 
@@ -2984,23 +3058,6 @@ async function processCycleTick(
         where: { cycleId_tileId: { cycleId, tileId } },
       });
     }
-
-    // Auto-raid: intercept enemy convoys using idle battalions.
-    await processAutoRaidDispatch({
-      db,
-      cycleId,
-      now: tickAt,
-      fortresses: lightFortresses.map((f) => ({
-        id: f.id,
-        army: f.army,
-        ownerId: f.ownerId ?? "",
-      })),
-      diplomacyRelations: activeWars.map((r) => ({
-        status: "WAR" as const,
-        fortressAId: r.fortressAId,
-        fortressBId: r.fortressBId,
-      })),
-    });
 
     // Alliance reinforcements.
     const alliedBattlefields = await db.battlefield.findMany({
@@ -5544,7 +5601,12 @@ async function processCycleTick(
 
     const currentArmyValue = currentArmy.get(fortress.id) ?? fortress.army;
     // Calculate final food/army state after production, upkeep, and starvation.
-    const activeArmyUpkeep = Math.floor(getArmyUpkeepCost(currentArmyValue));
+    const activeArmyUpkeep = Math.floor(
+      getArmyUpkeepCost(
+        currentArmyValue,
+        skillModifiers?.upkeepDiscountPercent ?? 0
+      )
+    );
     const foodBeforeUpkeep =
       (currentFood.get(fortress.id) ?? fortress.food) + producedFood;
     const starvationArmyLoss =
@@ -5682,7 +5744,7 @@ async function processCycleTick(
     });
   }
 
-  // === BATTALION RECRUITMENT & GUARD DISTRIBUTION ===
+  // === BATTALION RECRUITMENT ===
   if (true) { // Always run for Season 4 test season
     // Build recruiters map from fortress data.
     const recruitersByFortress = new Map<string, number>();
@@ -5691,8 +5753,6 @@ async function processCycleTick(
     const barracksByFortress = new Map<string, number>();
     const goldByFortress = new Map<string, number>();
     const maxArmyByFortress = new Map<string, number>();
-    const guardPercentByFortress = new Map<string, number>();
-    const ownedTilesByFortress = new Map<string, string[]>();
 
     for (const fortress of fortresses) {
       if (fortress.isNpc) continue;
@@ -5703,16 +5763,9 @@ async function processCycleTick(
       goldByFortress.set(fortress.id, currentGold.get(fortress.id) ?? fortress.gold);
       const policy = warPolicies.find((p) => p.fortressId === fortress.id);
       maxArmyByFortress.set(fortress.id, policy?.maxArmySize ?? 500);
-      guardPercentByFortress.set(fortress.id, policy?.guardPercent ?? 30);
-      ownedTilesByFortress.set(
-        fortress.id,
-        mapHexOwnerships
-          .filter((o) => o.ownerFortressId === fortress.id)
-          .map((o) => o.tileId),
-      );
     }
 
-    await processBattalionRecruitment({
+    const recruitedArmyByFortress = await processBattalionRecruitment({
       ctx: { db, cycleId, now: tickAt },
       recruitersByFortress,
       raceByFortress,
@@ -5720,6 +5773,18 @@ async function processCycleTick(
       barracksLevelByFortress: barracksByFortress,
       goldByFortress,
       maxArmyByFortress,
+      skillPurchasesByFortress: new Map(
+        fortresses.map((fortress) => [
+          fortress.id,
+          fortress.skillPurchases ?? [],
+        ])
+      ),
+      currentArmyByFortress: new Map(
+        fortresses.map((fortress) => [
+          fortress.id,
+          currentArmy.get(fortress.id) ?? fortress.army,
+        ])
+      ),
       fortressPositionsById: new Map(
         fortresses.map((fortress) => [
           fortress.id,
@@ -5728,17 +5793,21 @@ async function processCycleTick(
       ),
     });
 
-    await processBattalionGuard({
-      ctx: { db, cycleId, now: tickAt },
-      guardPercentByFortress,
-      ownedTilesByFortress,
-      fortressPositionsById: new Map(
-        fortresses.map((fortress) => [
-          fortress.id,
-          { mapX: fortress.mapX, mapY: fortress.mapY },
-        ]),
-      ),
-    });
+    for (const [fortressId, army] of recruitedArmyByFortress) {
+      currentArmy.set(fortressId, army);
+    }
+
+    if (recruitedArmyByFortress.size > 0) {
+      await Promise.all(
+        Array.from(recruitedArmyByFortress.entries()).map(
+          ([fortressId, army]) =>
+            db.fortress.update({
+              where: { id: fortressId },
+              data: { army },
+            })
+        )
+      );
+    }
 
     // Apply tiered battalion upkeep (replaces flat food cost).
     const allBattalionsAfter = await db.battalion.findMany({
@@ -5767,6 +5836,13 @@ async function processCycleTick(
         })),
         food: currentFood.get(fortress.id) ?? fortress.food,
         gold: currentGold.get(fortress.id) ?? fortress.gold,
+        upkeepDiscountPercent:
+          fortress.race && isFortressRace(fortress.race)
+            ? getSkillModifiers({
+                race: fortress.race,
+                purchases: fortress.skillPurchases ?? [],
+              }).upkeepDiscountPercent
+            : 0,
       });
 
       // Apply upkeep results.

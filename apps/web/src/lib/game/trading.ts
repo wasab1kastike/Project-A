@@ -12,6 +12,8 @@ import { addHours, addMinutes } from "./time";
 
 export const TRADE_OFFER_EXPIRY_HOURS = 24;
 export const CONVOY_MINIMUM_TRAVEL_HOURS = 6;
+export const TRADE_WAGON_RESOURCE_LIMIT = 1_000;
+export const TRADE_BASE_DELIVERY_BONUS_PERCENT = 5;
 
 export type TradeCargo = {
   gold: number;
@@ -86,6 +88,20 @@ export function hasTradeCargo(cargo: TradeCargo) {
   );
 }
 
+export function getTradeCargoResourceAmount(cargo: TradeCargo) {
+  return cargo.gold + cargo.food;
+}
+
+export function assertTradeCargoWithinWagonLimit(cargo: TradeCargo) {
+  const resourceAmount = getTradeCargoResourceAmount(cargo);
+
+  if (resourceAmount > TRADE_WAGON_RESOURCE_LIMIT) {
+    throw new Error(
+      `Each trade wagon can carry at most ${TRADE_WAGON_RESOURCE_LIMIT.toLocaleString("en-US")} total gold and food.`
+    );
+  }
+}
+
 export function calculateTradeCargoValue(cargo: TradeCargo) {
   return (
     cargo.gold +
@@ -143,9 +159,10 @@ export function getAllianceDeliveryBonus({
   trustTier: number;
 }) {
   const percent =
-    isAllied && isAllianceTrustTier(trustTier)
+    TRADE_BASE_DELIVERY_BONUS_PERCENT +
+    (isAllied && isAllianceTrustTier(trustTier)
       ? getAllianceTrustTerms(trustTier).deliveryBonusPercent
-      : 0;
+      : 0);
 
   return {
     percent,

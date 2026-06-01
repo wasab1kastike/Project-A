@@ -237,13 +237,15 @@
 }
 
 .shopCrateGrid,
-.shopInventoryGrid {
+.shopInventoryGrid,
+.shopPreviewGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
 .shopCrateCard,
+.shopPreviewCard,
 .shopInventoryColumn,
 .shopPurchaseRow,
 .shopSkinRow {
@@ -257,6 +259,77 @@
   display: grid;
   gap: 10px;
   padding: 12px;
+}
+
+.shopPreviewCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+}
+
+.shopPreviewCard div {
+  min-width: 0;
+}
+
+.shopPreviewCard span,
+.shopPreviewCard small {
+  display: block;
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+}
+
+.shopPreviewCard strong {
+  display: block;
+  overflow: hidden;
+  margin: 4px 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shopPreviewSprite,
+.shopSkinThumb {
+  display: grid;
+  flex: none;
+  place-items: center;
+  border: 1px solid rgba(103, 196, 207, 0.22);
+  border-radius: 8px;
+  background-color: rgba(2, 8, 13, 0.54);
+  background-repeat: no-repeat;
+  color: #9be7ef;
+  font-family: var(--font-ibm-plex-mono);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.shopPreviewSprite {
+  width: 76px;
+  height: 76px;
+  background-size: contain;
+}
+
+.shopPreviewSprite[data-slot="unit"] {
+  background-size: 88%;
+}
+
+.shopSkinThumb {
+  width: 42px;
+  height: 42px;
+  background-size: contain;
+  font-size: 0.58rem;
+}
+
+.shopSkinThumb[data-slot="unit"] {
+  background-size: 86%;
+}
+
+.shopPreviewSprite[data-empty="true"],
+.shopSkinThumb[data-empty="true"] {
+  border-color: rgba(247, 196, 95, 0.24);
+  background: rgba(247, 196, 95, 0.08);
+  color: #ffe1a1;
 }
 
 .shopCrateCard p {
@@ -334,6 +407,16 @@
 
 .shopPurchaseRow > div,
 .shopSkinRow > div {
+  min-width: 0;
+}
+
+.shopSkinSummary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.shopSkinSummary > div {
   min-width: 0;
 }
 
@@ -575,6 +658,11 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
+}
+
+.fullWidthPanel {
+  grid-column: 1 / -1;
+  min-width: 0;
 }
 
 .panel {
@@ -874,6 +962,7 @@
   .nukeMarketGrid,
   .shopStatusBar,
   .shopCrateGrid,
+  .shopPreviewGrid,
   .shopInventoryGrid {
     grid-template-columns: 1fr;
   }

@@ -83,9 +83,7 @@ import {
   buyPointsWithGold,
   reorderTilePressurePriorities,
   setTilePressurePriority,
-  stationGuardOrder,
   createEscortOrder,
-  createRaidOrder,
   startTerritoryCampaign,
   recallArmyOrder,
   createTradeOffer,
@@ -857,16 +855,14 @@ export async function stationGuardOrderAction(tileId: string, armyAmount = 1) {
     } satisfies InlineActionResult;
   }
 
-  try {
-    await stationGuardOrder({ userId, tileId, armyAmount });
-    notifyAndRevalidate("army-order-guard", ["/", "/castle"]);
-    return { ok: true } satisfies InlineActionResult;
-  } catch (error) {
-    return {
-      ok: false,
-      error: getActionErrorMessage(error),
-    } satisfies InlineActionResult;
-  }
+  void tileId;
+  void armyAmount;
+
+  return {
+    ok: false,
+    error:
+      "Guard orders are temporarily disabled while War Room focuses on battlefronts, battalions, and recruitment.",
+  } satisfies InlineActionResult;
 }
 
 export async function createEscortOrderAction(
@@ -909,16 +905,14 @@ export async function createRaidOrderAction(
     } satisfies InlineActionResult;
   }
 
-  try {
-    await createRaidOrder({ userId, targetFortressId, armyAmount });
-    notifyAndRevalidate("army-order-raid", ["/politics", "/", "/castle"]);
-    return { ok: true } satisfies InlineActionResult;
-  } catch (error) {
-    return {
-      ok: false,
-      error: getActionErrorMessage(error),
-    } satisfies InlineActionResult;
-  }
+  void targetFortressId;
+  void armyAmount;
+
+  return {
+    ok: false,
+    error:
+      "Convoy raids are temporarily disabled while War Room focuses on battlefronts, battalions, and recruitment.",
+  } satisfies InlineActionResult;
 }
 
 export async function startTerritoryCampaignAction(
@@ -2395,14 +2389,13 @@ export async function setGuardPercentAction(args: {
   const session = await auth();
   const userId = session?.user?.id;
   if (!userId) return { ok: false, error: "Sign in to adjust guard settings." };
-  try {
-    const { setGuardPercent } = await import("@/lib/game/battalion-service");
-    await setGuardPercent({ userId, ...args });
-    notifyAndRevalidate("guard-percent", GAMEPLAY_REVALIDATE_PATHS);
-    return { ok: true };
-  } catch (error) {
-    return { ok: false, error: getActionErrorMessage(error) };
-  }
+  void args;
+
+  return {
+    ok: false,
+    error:
+      "Guard allocation is temporarily disabled while War Room focuses on battlefronts, battalions, and recruitment.",
+  };
 }
 
 export async function setMaxArmySizeAction(args: {

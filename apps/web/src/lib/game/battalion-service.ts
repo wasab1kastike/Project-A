@@ -20,6 +20,7 @@ import {
   type BattalionMode,
 } from "./battalion-types";
 import { applyFieldPromotion } from "./army-xp";
+import { getSkillModifiers } from "./race-skill-effects";
 
 type BattalionPrisma = typeof prisma;
 type BattalionTx = Prisma.TransactionClient;
@@ -32,6 +33,7 @@ type OwnedFortress = {
   level: number;
   gold: number;
   race: FortressRace | null;
+  skillPurchases: Array<{ nodeKey: string }>;
 };
 
 const ACTIVE_BATTALION_CYCLE_STATUSES = [
@@ -59,6 +61,9 @@ async function getOwnedFortress(
       level: true,
       gold: true,
       race: true,
+      skillPurchases: {
+        select: { nodeKey: true },
+      },
     },
   });
 
@@ -91,6 +96,9 @@ async function getOwnedBattalion(
           level: true,
           gold: true,
           race: true,
+          skillPurchases: {
+            select: { nodeKey: true },
+          },
         },
       },
     },
@@ -129,10 +137,20 @@ export async function createBattalion(args: {
 }): Promise<{ id: string; name: string }> {
   return prisma.$transaction(async (tx) => {
     const fortress = await getOwnedFortress(tx, args);
+    const skillModifiers = fortress.race
+      ? getSkillModifiers({
+          race: fortress.race,
+          purchases: fortress.skillPurchases,
+        })
+      : null;
     const existingBattalionCount = await tx.battalion.count({
       where: { cycleId: fortress.cycleId, fortressId: fortress.id },
     });
-    const slots = getBattalionSlots(fortress.level, 0);
+    const slots = getBattalionSlots(
+      fortress.level,
+      0,
+      skillModifiers?.battalionSlotBonus ?? 0,
+    );
 
     if (existingBattalionCount >= slots) {
       throw new GameError(
@@ -159,10 +177,14 @@ export async function createBattalion(args: {
         fortressId: fortress.id,
         name,
         size: 0,
-        maxSize: DEFAULT_BATTALION_MAX_SIZE,
+        maxSize: Math.floor(
+          DEFAULT_BATTALION_MAX_SIZE *
+            (1 + (skillModifiers?.battalionMaxSizePercent ?? 0) / 100),
+        ),
         tier: 0,
         xp: 0,
         stance: "REST",
+        mode: "RESERVE",
       },
       select: { id: true, name: true },
     });
@@ -183,11 +205,20 @@ export async function expandBattalion(args: {
 }): Promise<void> {
   await prisma.$transaction(async (tx) => {
     const battalion = await getOwnedBattalion(tx, args);
+    const skillModifiers = battalion.fortress.race
+      ? getSkillModifiers({
+          race: battalion.fortress.race,
+          purchases: battalion.fortress.skillPurchases,
+        })
+      : null;
     const tierMax =
       TIER_MAX_SIZES[battalion.tier as BattalionTier] ?? MAX_BATTALION_SIZE;
+    const skilledTierMax = Math.floor(
+      tierMax * (1 + (skillModifiers?.battalionMaxSizePercent ?? 0) / 100),
+    );
     const targetSize = Math.max(
       battalion.maxSize,
-      Math.min(args.targetMaxSize, tierMax),
+      Math.min(args.targetMaxSize, skilledTierMax),
     );
 
     if (targetSize <= battalion.maxSize) {
@@ -291,7 +322,16 @@ export async function promoteBattalion(args: {
 }): Promise<void> {
   await prisma.$transaction(async (tx) => {
     const battalion = await getOwnedBattalion(tx, args);
-    const result = applyFieldPromotion(toArmyXpBattalion(battalion));
+    const skillModifiers = battalion.fortress.race
+      ? getSkillModifiers({
+          race: battalion.fortress.race,
+          purchases: battalion.fortress.skillPurchases,
+        })
+      : null;
+    const result = applyFieldPromotion(
+      toArmyXpBattalion(battalion),
+      skillModifiers?.promotionDiscountPercent ?? 0,
+    );
 
     if (!result) {
       throw new GameError("Cannot promote this battalion.");
@@ -593,9 +633,9 @@ export async function setBattalionMode({
   battalionId: string;
   mode: string;
 }): Promise<void> {
-  const validModes = ["GUARD", "ATTACK", "RESERVE", "ALLIANCE"];
+  const validModes = ["ATTACK", "RESERVE", "ALLIANCE"];
   if (!validModes.includes(mode)) {
-    throw new GameError(`Invalid mode: ${mode}. Use GUARD, ATTACK, RESERVE, or ALLIANCE.`);
+    throw new GameError("Invalid mode. Use ATTACK, RESERVE, or ALLIANCE.");
   }
 
   const battalion = await getOwnedBattalion(prisma, { userId, battalionId });

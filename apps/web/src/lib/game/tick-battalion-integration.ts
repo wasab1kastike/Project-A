@@ -8,10 +8,17 @@
 import type { PrismaClient } from "@prisma/client";
 import { processRecruitmentTick } from "./recruitment";
 import { processGuardTick, type GuardableTile } from "./guard-system";
-import { getBattalionSlots, generateBattalionName } from "./battalion-types";
+import {
+  BattalionTier,
+  DEFAULT_BATTALION_MAX_SIZE,
+  getBattalionSlots,
+  generateBattalionName,
+} from "./battalion-types";
 import { HEX_TILES } from "./map-hex";
 import type { Battalion } from "./battalion-types";
 import { getRoadAdjustedAttackArrival } from "./road-travel";
+import { getSkillModifiers } from "./race-skill-effects";
+import { isFortressRace } from "./races";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -77,9 +84,24 @@ export async function processBattalionRecruitment(args: {
   goldByFortress: Map<string, number>;
   /** Map of fortressId → WarPolicy maxArmySize */
   maxArmyByFortress: Map<string, number>;
+  /** Map of fortressId → purchased skill node keys */
+  skillPurchasesByFortress?: Map<string, Array<{ nodeKey: string }>>;
+  /** Existing scalar fortress army, used to seed battalions for migrated players. */
+  currentArmyByFortress?: Map<string, number>;
   fortressPositionsById: Map<string, FortressPosition>;
 }): Promise<Map<string, number>> {
-  const { ctx, recruitersByFortress, raceByFortress, levelByFortress, barracksLevelByFortress, goldByFortress, maxArmyByFortress, fortressPositionsById } = args;
+  const {
+    ctx,
+    recruitersByFortress,
+    raceByFortress,
+    levelByFortress,
+    barracksLevelByFortress,
+    goldByFortress,
+    maxArmyByFortress,
+    skillPurchasesByFortress,
+    currentArmyByFortress,
+    fortressPositionsById,
+  } = args;
 
   // Load all battalions grouped by fortress.
   const allBattalions = await ctx.db.battalion.findMany({
@@ -166,6 +188,7 @@ export async function processBattalionRecruitment(args: {
     tier: number;
     xp: number;
     stance: string;
+    mode: string;
   }> = [];
 
   const reinforcementLaunches: Array<{
@@ -188,23 +211,73 @@ export async function processBattalionRecruitment(args: {
     const barracksLevel = barracksLevelByFortress.get(fortressId) ?? 0;
     const gold = goldByFortress.get(fortressId) ?? 0;
     const maxArmy = maxArmyByFortress.get(fortressId) ?? 500;
-    const existing = battalionsByFortress.get(fortressId) ?? [];
-    const totalSlots = getBattalionSlots(level, 0);
+    const skillModifiers =
+      race && isFortressRace(race)
+        ? getSkillModifiers({
+            race,
+            purchases: skillPurchasesByFortress?.get(fortressId) ?? [],
+          })
+        : null;
+    const battalionMaxSizeMultiplier =
+      1 + (skillModifiers?.battalionMaxSizePercent ?? 0) / 100;
+    const defaultBattalionMaxSize = Math.floor(
+      DEFAULT_BATTALION_MAX_SIZE * battalionMaxSizeMultiplier
+    );
+    const storedExisting = battalionsByFortress.get(fortressId) ?? [];
+    const migratedArmy = Math.max(
+      0,
+      currentArmyByFortress?.get(fortressId) ?? 0
+    );
+    const existing =
+      storedExisting.length === 0 && migratedArmy > 0
+        ? [
+            {
+              id: `seed_${fortressId}`,
+              name: generateBattalionName(
+                (race as
+                  | "DWARFS"
+                  | "ORKS"
+                  | "SPACE_MURINES"
+                  | "UNSTABLE_UNICORNS") ?? "DWARFS",
+                0
+              ),
+              size: Math.min(migratedArmy, maxArmy),
+              maxSize: Math.max(
+                defaultBattalionMaxSize,
+                Math.min(migratedArmy, maxArmy)
+              ),
+              tier: BattalionTier.RECRUIT,
+              xp: 0,
+              readyAt: null,
+              stance: "REST" as Battalion["stance"],
+              garrisonedAt: null,
+              stanceLockedUntil: null,
+            },
+          ]
+        : storedExisting;
+    const totalSlots = getBattalionSlots(
+      level,
+      0,
+      skillModifiers?.battalionSlotBonus ?? 0
+    );
 
     // Race bonus: base 1.0, adjust per race.
     const raceBonus =
       race === "ORKS" ? 1.2 :
       race === "SPACE_MURINES" ? 1.1 :
       1.0;
+    const recruitmentBonus =
+      raceBonus * (skillModifiers?.recruitmentRateMultiplier ?? 1);
 
     const result = processRecruitmentTick({
       battalions: existing,
       recruiters,
       barracksLevel,
-      raceBonus,
+      raceBonus: recruitmentBonus,
       totalSlots,
       gold,
       preferredBattalionId: undefined,
+      defaultBattalionMaxSize,
       newBattalionName: generateBattalionName(
         (race as "DWARFS" | "ORKS" | "SPACE_MURINES" | "UNSTABLE_UNICORNS") ?? "DWARFS",
         existing.length,
@@ -225,6 +298,7 @@ export async function processBattalionRecruitment(args: {
           tier: bn.tier,
           xp: bn.xp,
           stance: bn.stance,
+          mode: "RESERVE",
         });
       } else {
         const persistedSize = persistedSizeByBattalionId.get(bn.id) ?? bn.size;

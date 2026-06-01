@@ -134,6 +134,7 @@ import { isSeasonFourRuleset } from "../rulesets";
 import { validateTileDeedAllowed } from "../tile-deeds";
 import { getCampaignStartBlockedReason } from "../campaigns";
 import {
+  assertTradeCargoWithinWagonLimit,
   calculateTradeCargoValue,
   getTradeBlockedReason,
   getTradeNukeComponents,
@@ -1157,6 +1158,9 @@ export async function setTilePressurePriority({
         mapY: true,
         race: true,
         level: true,
+        skillPurchases: {
+          select: { nodeKey: true },
+        },
       },
     });
 
@@ -1322,6 +1326,9 @@ export async function reorderTilePressurePriorities({
         id: true,
         race: true,
         level: true,
+        skillPurchases: {
+          select: { nodeKey: true },
+        },
       },
     });
 
@@ -1437,6 +1444,9 @@ export async function clearTilePressurePriority({
         id: true,
         race: true,
         level: true,
+        skillPurchases: {
+          select: { nodeKey: true },
+        },
       },
     });
 
@@ -3224,6 +3234,15 @@ export async function createTradeOffer({
       );
     }
 
+    try {
+      assertTradeCargoWithinWagonLimit(offered);
+      assertTradeCargoWithinWagonLimit(requested);
+    } catch (error) {
+      throw new GameError(
+        error instanceof Error ? error.message : "Trade cargo is too large."
+      );
+    }
+
     const deedTileId = offeredTileId ?? requestedTileId ?? null;
 
     if (!hasTradeCargo(offered) && !hasTradeCargo(requested) && !deedTileId) {
@@ -3468,6 +3487,16 @@ export async function acceptTradeOffer({
       lineItems: offer.lineItems,
       fromFortressId: receiver.id,
     });
+
+    try {
+      assertTradeCargoWithinWagonLimit(senderCargo);
+      assertTradeCargoWithinWagonLimit(receiverCargo);
+    } catch (error) {
+      throw new GameError(
+        error instanceof Error ? error.message : "Trade cargo is too large."
+      );
+    }
+
     assertTradeCargoAvailable({ fortress: sender, cargo: senderCargo });
     assertTradeCargoAvailable({ fortress: receiver, cargo: receiverCargo });
     await assertNukeComponentCargoAvailable({

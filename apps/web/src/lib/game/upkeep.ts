@@ -53,16 +53,23 @@ export type UpkeepBill = {
  */
 const FOOD_PER_50_UNITS = 1;
 
-export function calculateUpkeep(battalions: Battalion[]): UpkeepBill {
+export function calculateUpkeep(
+  battalions: Battalion[],
+  upkeepDiscountPercent = 0,
+): UpkeepBill {
   const breakdown: UpkeepBill["breakdown"] = [];
   let totalFood = 0;
   let totalGold = 0;
+  const discountMultiplier =
+    1 - Math.max(0, Math.min(90, upkeepDiscountPercent)) / 100;
 
   for (const b of battalions) {
     if (b.size <= 0) continue;
 
     // Simple upkeep: 1 food per 50 units. No tier multipliers, no gold cost.
-    const foodCost = Math.ceil(b.size / 50) * FOOD_PER_50_UNITS;
+    const foodCost = Math.ceil(
+      Math.ceil(b.size / 50) * FOOD_PER_50_UNITS * discountMultiplier,
+    );
     totalFood += foodCost;
 
     breakdown.push({
@@ -114,8 +121,12 @@ export function processUpkeepTick(args: {
   battalions: Battalion[];
   food: number;
   gold: number;
+  upkeepDiscountPercent?: number;
 }): UpkeepTickResult {
-  const bill = calculateUpkeep(args.battalions);
+  const bill = calculateUpkeep(
+    args.battalions,
+    args.upkeepDiscountPercent ?? 0,
+  );
 
   // Deduct what we can.
   const foodPaid = Math.min(args.food, bill.totalFood);

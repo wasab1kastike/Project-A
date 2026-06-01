@@ -114,6 +114,7 @@ export function createBattalion(args: {
   id: string;
   name: string;
   gold: number;
+  maxSize?: number;
 }): { battalion: Battalion; goldCost: number } | { error: string } {
   if (args.gold < BATTALION_COMMISSION_COST) {
     return {
@@ -125,7 +126,10 @@ export function createBattalion(args: {
     id: args.id,
     name: args.name,
     size: 0,
-    maxSize: DEFAULT_BATTALION_MAX_SIZE,
+    maxSize: Math.max(
+      DEFAULT_BATTALION_MAX_SIZE,
+      Math.floor(args.maxSize ?? DEFAULT_BATTALION_MAX_SIZE),
+    ),
     tier: BattalionTier.RECRUIT,
     xp: 0,
     readyAt: null,
@@ -220,6 +224,7 @@ export function processRecruitmentTick(args: {
   preferredBattalionId?: string;
   /** Race-specific name for auto-created battalions. Falls back to generic if omitted. */
   newBattalionName?: string;
+  defaultBattalionMaxSize?: number;
 }): RecruitmentTickResult {
   let { battalions } = args;
   let goldSpent = 0;
@@ -253,6 +258,7 @@ export function processRecruitmentTick(args: {
       id: `bn_${Date.now()}_${existingCount}`,
       name,
       gold: args.gold,
+      maxSize: args.defaultBattalionMaxSize,
     });
 
     if ("battalion" in result) {

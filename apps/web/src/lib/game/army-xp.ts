@@ -123,13 +123,16 @@ export const FIELD_PROMOTION_COST_PER_UNIT = 8;
  */
 export function calculateFieldPromotionCost(
   battalion: Battalion,
+  promotionDiscountPercent = 0,
 ): number | null {
   if (battalion.tier >= BattalionTier.ELITE) return null;
 
   const base = FIELD_PROMOTION_BASE_COST[battalion.tier];
   const perUnit = battalion.size * FIELD_PROMOTION_COST_PER_UNIT;
+  const discountMultiplier =
+    1 - Math.max(0, Math.min(90, promotionDiscountPercent)) / 100;
 
-  return base + perUnit;
+  return Math.ceil((base + perUnit) * discountMultiplier);
 }
 
 /**
@@ -138,10 +141,11 @@ export function calculateFieldPromotionCost(
  */
 export function applyFieldPromotion(
   battalion: Battalion,
+  promotionDiscountPercent = 0,
 ): { battalion: Battalion; newTier: BattalionTier; goldCost: number } | null {
   if (battalion.tier >= BattalionTier.ELITE) return null;
 
-  const cost = calculateFieldPromotionCost(battalion);
+  const cost = calculateFieldPromotionCost(battalion, promotionDiscountPercent);
   if (cost === null) return null;
 
   const newTier = (battalion.tier + 1) as BattalionTier;
@@ -169,7 +173,10 @@ export const TRAINING_XP_PER_TICK = 1;
  * Apply training XP to eligible battalions.
  * Only battalions in TRAINING stance with the lowest tier get XP.
  */
-export function applyTrainingXp(battalions: Battalion[]): Battalion[] {
+export function applyTrainingXp(
+  battalions: Battalion[],
+  xpMultiplier = 1,
+): Battalion[] {
   if (battalions.length === 0) return battalions;
 
   // Find the lowest tier among training battalions.
@@ -185,7 +192,10 @@ export function applyTrainingXp(battalions: Battalion[]): Battalion[] {
 
   return battalions.map((b) => {
     if (b.stance === "TRAINING" && b.tier === lowestTier) {
-      return { ...b, xp: b.xp + TRAINING_XP_PER_TICK };
+      return {
+        ...b,
+        xp: b.xp + Math.max(1, Math.floor(TRAINING_XP_PER_TICK * xpMultiplier)),
+      };
     }
     return b;
   });
@@ -208,8 +218,11 @@ export type XpTickResult = {
 /**
  * Process one tick of XP: apply training XP, check for auto-promotions.
  */
-export function processXpTick(battalions: Battalion[]): XpTickResult {
-  let updated = applyTrainingXp(battalions);
+export function processXpTick(
+  battalions: Battalion[],
+  xpMultiplier = 1,
+): XpTickResult {
+  let updated = applyTrainingXp(battalions, xpMultiplier);
   const promotions: XpTickResult["promotions"] = [];
 
   // Check each battalion for tier advancement.

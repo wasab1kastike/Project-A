@@ -225,8 +225,17 @@ export function processRecruitmentQueue(
  *   - Army: 500 units
  *   - Upkeep: 500 * 0.01 = 5 food/tick
  */
-export function getArmyUpkeepCost(activeArmyCount: number): number {
-  return Math.max(0, Math.floor(activeArmyCount)) * ARMY_UPKEEP_PER_UNIT;
+export function getArmyUpkeepCost(
+  activeArmyCount: number,
+  upkeepDiscountPercent = 0
+): number {
+  const discountMultiplier =
+    1 - Math.max(0, Math.min(90, upkeepDiscountPercent)) / 100;
+  return (
+    Math.max(0, Math.floor(activeArmyCount)) *
+    ARMY_UPKEEP_PER_UNIT *
+    discountMultiplier
+  );
 }
 
 /**
@@ -258,11 +267,12 @@ export function getStarvationArmyLoss(activeArmyCount: number): number {
  * @returns Upkeep details
  */
 export function calculateArmyUpkeep(
-  activeArmyCount: number
+  activeArmyCount: number,
+  upkeepDiscountPercent = 0
 ): ArmyUpkeepCalculation {
   return {
     activeArmyCount,
-    foodCostPerTick: getArmyUpkeepCost(activeArmyCount),
+    foodCostPerTick: getArmyUpkeepCost(activeArmyCount, upkeepDiscountPercent),
   };
 }
 
@@ -275,14 +285,18 @@ export function calculateArmyUpkeep(
  */
 export function canSustainArmy(
   activeArmyCount: number,
-  availableFood: number
+  availableFood: number,
+  upkeepDiscountPercent = 0
 ): {
   isSustainable: boolean;
   upkeepPerTick: number;
   foodRemaining: number;
   ticksUntilStarving: number;
 } {
-  const upkeepPerTick = getArmyUpkeepCost(activeArmyCount);
+  const upkeepPerTick = getArmyUpkeepCost(
+    activeArmyCount,
+    upkeepDiscountPercent
+  );
   const foodRemaining = availableFood - upkeepPerTick;
   const ticksUntilStarving =
     upkeepPerTick > 0

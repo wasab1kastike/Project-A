@@ -60,179 +60,171 @@ function path(
   };
 }
 
-const pop = (value: number, label = `+${value} pop`) =>
-  reward(label, "population", value, value >= 3);
 const pressure = (value: number) =>
   reward(`+${value}% pressure`, "pressure", value, value >= 15);
 const food = (value: number) =>
   reward(`+${value} food/10 farmers`, "foodPerTenFarmers", value, value >= 4);
 const gold = (value: number) =>
   reward(`+${value} gold/10 miners`, "goldPerTenMiners", value, value >= 4);
-const army = (value: number) =>
-  reward(`+${value} army/10 recruiters`, "armyPerTenRecruiters", value, value >= 3);
 const tileDefense = (value: number) =>
   reward(`+${value}% tile defense`, "tileDefense", value, value >= 20);
 const claimThreshold = (value: number) =>
   reward(`${value} claim threshold`, "claimThreshold", value, true);
-const popPerTile = (value: number) =>
-  reward(`+${value} pop/owned tile`, "populationPerOwnedTile", value, true);
 
 // ── New Season 4 effects ────────────────────────────────────────────────────
 const battalionSize = (value: number) =>
   reward(`+${value}% battalion max size`, "battalionMaxSize", value, value >= 20);
 const battalionXp = (value: number) =>
   reward(`+${value}% battalion XP`, "battalionXpRate", value, value >= 15);
-const guardEff = (value: number) =>
-  reward(`+${value}% guard defense`, "guardEfficiency", value, value >= 15);
-const campaignSpd = (value: number) =>
-  reward(`+${value}% campaign speed`, "campaignSpeed", value, value >= 15);
-const roadBuild = (value: number) =>
-  reward(`+${value} road build rate`, "roadBuildingRate", value, value >= 2);
-const tradeVal = (value: number) =>
-  reward(`+${value}% trade cargo value`, "tradeCargoValue", value, value >= 15);
 const upkeepDisc = (value: number) =>
-  reward(`-${value}% battalion upkeep`, "upkeepDiscount", value, value >= 10);
+  reward(`-${value}% army upkeep`, "upkeepDiscount", value, value >= 10);
 const promoDisc = (value: number) =>
   reward(`-${value}% promotion cost`, "promotionDiscount", value, value >= 15);
+const prioritySlots = (value: number) =>
+  reward(`+${value} expansion slot${value === 1 ? "" : "s"}`, "pressurePrioritySlots", value, true);
+const recruitRate = (value: number) =>
+  reward(`+${value}% recruitment rate`, "recruitmentRate", value, value >= 40);
+const battalionSlots = (value: number) =>
+  reward(`+${value} battalion slot${value === 1 ? "" : "s"}`, "battalionSlots", value, true);
 
 export const RACE_SKILL_TREES: Record<FortressRace, RaceSkillTree> = {
   DWARFS: {
     race: "DWARFS",
     paths: [
-      path("bastion", "Runebound Bastion", "Stone, spite, and impossible walls.", [
-        { level: 1, name: "Gate Oaths", description: "+1 population", rewards: [pop(1)] },
-        { level: 2, name: "Shieldwall Masonry", description: "+10% guard defense", rewards: [guardEff(10)] },
-        { level: 3, name: "Deep Quarters", description: "+2 population", rewards: [pop(2)] },
-        { level: 4, name: "Iron-Clad Parapets", description: "+15% guard defense", rewards: [guardEff(15)] },
-        { level: 5, name: "Runic Murder Holes", description: "+20% tile defense", rewards: [tileDefense(20)] },
-        { level: 6, name: "Ancestor Vaults", description: "+15% battalion max size", rewards: [battalionSize(15)] },
-        { level: 7, name: "Mountain Citadel", description: "+25% guard defense", rewards: [guardEff(25)] },
-        { level: 8, name: "The Hold Endures", description: "+25% battalion size, -15% upkeep", rewards: [battalionSize(25), upkeepDisc(15)] },
+      path("economy", "Grudge Economy", "Every insult becomes food, gold, or cheaper upkeep.", [
+        { level: 1, name: "Red Ink Rations", description: "+3 food per 10 farmers", rewards: [food(3)] },
+        { level: 2, name: "Debt Mine", description: "+3 gold per 10 miners", rewards: [gold(3)] },
+        { level: 3, name: "Stone Pantry", description: "-10% army upkeep", rewards: [upkeepDisc(10)] },
+        { level: 4, name: "Claim Ledgers", description: "+1 expansion priority slot", rewards: [prioritySlots(1)] },
+        { level: 5, name: "Vengeful Harvest", description: "+5 food per 10 farmers", rewards: [food(5)] },
+        { level: 6, name: "Audited Veins", description: "+5 gold per 10 miners", rewards: [gold(5)] },
+        { level: 7, name: "Oathbound Stores", description: "-20% army upkeep", rewards: [upkeepDisc(20)] },
+        { level: 8, name: "The Grudge Pays", description: "+2 expansion slots, -30% upkeep", rewards: [prioritySlots(2), upkeepDisc(30)] },
       ]),
-      path("seismic", "Seismic Claim", "Make the map move before armies do.", [
-        { level: 1, name: "Stone Listening", description: "+5% pressure", rewards: [pressure(5)] },
-        { level: 2, name: "Faultline Stakes", description: "+8% pressure", rewards: [pressure(8)] },
-        { level: 3, name: "Mountain Pull", description: "Neutral claims at 560 pressure", rewards: [claimThreshold(560)] },
-        { level: 4, name: "Tremor Teams", description: "+12% pressure", rewards: [pressure(12)] },
-        { level: 5, name: "Tectonic Writ", description: "Neutral claims at 520 pressure", rewards: [claimThreshold(520)] },
-        { level: 6, name: "Quake Surveyors", description: "+16% pressure", rewards: [pressure(16)] },
-        { level: 7, name: "Deep Claim", description: "Neutral claims at 480 pressure", rewards: [claimThreshold(480)] },
-        { level: 8, name: "World-Anvil Decree", description: "+22% pressure", rewards: [pressure(22)] },
+      path("territory", "Seismic Claim", "Make borders move before armies do.", [
+        { level: 1, name: "Stone Listening", description: "+10% pressure", rewards: [pressure(10)] },
+        { level: 2, name: "Shieldwall Stakes", description: "+10% tile defense", rewards: [tileDefense(10)] },
+        { level: 3, name: "Faultline Teams", description: "+12% pressure", rewards: [pressure(12)] },
+        { level: 4, name: "Mountain Pull", description: "Neutral claims at 540 pressure", rewards: [claimThreshold(540)] },
+        { level: 5, name: "Tectonic Writ", description: "+20% pressure", rewards: [pressure(20)] },
+        { level: 6, name: "Runic Borders", description: "+20% tile defense", rewards: [tileDefense(20)] },
+        { level: 7, name: "Deep Claim", description: "Neutral claims at 500 pressure", rewards: [claimThreshold(500)] },
+        { level: 8, name: "World-Anvil Decree", description: "+35% pressure, +1 expansion slot", rewards: [pressure(35), prioritySlots(1)] },
       ]),
-      path("grudge", "Grudge Ledger", "Economy built from remembered insults.", [
-        { level: 1, name: "Red Ink Rations", description: "+2 food per 10 farmers", rewards: [food(2)] },
-        { level: 2, name: "Debt Mine", description: "+2 gold per 10 miners", rewards: [gold(2)] },
-        { level: 3, name: "Stone Pantry", description: "+3 food per 10 farmers", rewards: [food(3)] },
-        { level: 4, name: "Interest in Blood", description: "+4 gold per 10 miners", rewards: [gold(4)] },
-        { level: 5, name: "Audited Veins", description: "+3 gold per 10 miners", rewards: [gold(3)] },
-        { level: 6, name: "Vengeful Harvest", description: "+4 food per 10 farmers", rewards: [food(4)] },
-        { level: 7, name: "Bookkeeper Kings", description: "+4 food per 10 farmers", rewards: [food(4)] },
-        { level: 8, name: "The Grudge Pays", description: "+5 gold per 10 miners", rewards: [gold(5)] },
+      path("military", "Runebound Host", "Compact companies, stubborn veterans, heavy muster.", [
+        { level: 1, name: "Drilled Muster", description: "+20% recruitment rate", rewards: [recruitRate(20)] },
+        { level: 2, name: "Clan Veterans", description: "+15% battalion XP", rewards: [battalionXp(15)] },
+        { level: 3, name: "Deep Barracks", description: "+20% battalion max size", rewards: [battalionSize(20)] },
+        { level: 4, name: "Ancestor Companies", description: "+1 battalion slot", rewards: [battalionSlots(1)] },
+        { level: 5, name: "Rune Drill", description: "+40% recruitment rate", rewards: [recruitRate(40)] },
+        { level: 6, name: "Field Smiths", description: "-25% promotion cost", rewards: [promoDisc(25)] },
+        { level: 7, name: "Oath Host", description: "+25% battalion max size", rewards: [battalionSize(25)] },
+        { level: 8, name: "The Hold Marches", description: "+2 battalion slots, +60% recruitment", rewards: [battalionSlots(2), recruitRate(60)] },
       ]),
     ],
   },
   ORKS: {
     race: "ORKS",
     paths: [
-      path("marauder", "Marauder Mob", "Loot-fueled growth with teeth.", [
-        { level: 1, name: "Shiny Finderz", description: "+1 gold per 10 miners", rewards: [gold(1)] },
-        { level: 2, name: "Snack Raidz", description: "+10% campaign speed", rewards: [campaignSpd(10)] },
-        { level: 3, name: "Bigger Loot Pile", description: "+2 gold per 10 miners", rewards: [gold(2)] },
-        { level: 4, name: "Camp Followers", description: "+15% battalion XP", rewards: [battalionXp(15)] },
-        { level: 5, name: "Da Tax Is Punchin'", description: "+3 gold per 10 miners", rewards: [gold(3)] },
-        { level: 6, name: "Feed Da Ladz", description: "+20% campaign speed", rewards: [campaignSpd(20)] },
-        { level: 7, name: "Loot-Tower Banner", description: "+3 population", rewards: [pop(3)] },
-        { level: 8, name: "Da Biggest Pile", description: "+30% campaign, -20% upkeep", rewards: [campaignSpd(30), upkeepDisc(20)] },
+      path("economy", "Loot Economy", "Scrap, snacks, and enough ledgers to be dangerous.", [
+        { level: 1, name: "Snack Finderz", description: "+3 food per 10 farmers", rewards: [food(3)] },
+        { level: 2, name: "Shiny Mine", description: "+3 gold per 10 miners", rewards: [gold(3)] },
+        { level: 3, name: "Cheap Grub", description: "-10% army upkeep", rewards: [upkeepDisc(10)] },
+        { level: 4, name: "More Places Ta Grab", description: "+1 expansion priority slot", rewards: [prioritySlots(1)] },
+        { level: 5, name: "Bigger Snack Pile", description: "+5 food per 10 farmers", rewards: [food(5)] },
+        { level: 6, name: "Da Tax Is Punchin'", description: "+5 gold per 10 miners", rewards: [gold(5)] },
+        { level: 7, name: "Feed Da Ladz", description: "-20% army upkeep", rewards: [upkeepDisc(20)] },
+        { level: 8, name: "Da Biggest Pile", description: "+2 expansion slots, -30% upkeep", rewards: [prioritySlots(2), upkeepDisc(30)] },
       ]),
-      path("siegebreaker", "Siegebreaker Tide", "Push borders by being louder than walls.", [
-        { level: 1, name: "Rock Lobbas", description: "+5% pressure", rewards: [pressure(5)] },
-        { level: 2, name: "Bootprints Everywhere", description: "+1 population", rewards: [pop(1)] },
-        { level: 3, name: "Wall Shouters", description: "+10% pressure", rewards: [pressure(10)] },
-        { level: 4, name: "More Ladz at Front", description: "+2 population", rewards: [pop(2)] },
-        { level: 5, name: "Krumper Crews", description: "Neutral claims at 540 pressure", rewards: [claimThreshold(540)] },
-        { level: 6, name: "Green Tide Survey", description: "+15% pressure", rewards: [pressure(15)] },
+      path("territory", "Green Tide Claim", "Push borders by being louder than walls.", [
+        { level: 1, name: "Rock Lobbas", description: "+10% pressure", rewards: [pressure(10)] },
+        { level: 2, name: "Scrap Stakes", description: "+10% tile defense", rewards: [tileDefense(10)] },
+        { level: 3, name: "Wall Shouters", description: "+12% pressure", rewards: [pressure(12)] },
+        { level: 4, name: "Krumper Crews", description: "Neutral claims at 540 pressure", rewards: [claimThreshold(540)] },
+        { level: 5, name: "Bootprints Everywhere", description: "+20% pressure", rewards: [pressure(20)] },
+        { level: 6, name: "Spiky Borders", description: "+20% tile defense", rewards: [tileDefense(20)] },
         { level: 7, name: "Da Big Push", description: "Neutral claims at 500 pressure", rewards: [claimThreshold(500)] },
-        { level: 8, name: "World Krumper", description: "+24% pressure", rewards: [pressure(24)] },
+        { level: 8, name: "World Krumper", description: "+35% pressure, +1 expansion slot", rewards: [pressure(35), prioritySlots(1)] },
       ]),
-      path("waaagh", "WAAAGH Engine", "Recruitment momentum that refuses to stop.", [
-        { level: 1, name: "Louda Drums", description: "+1 army per 10 recruiters", rewards: [army(1)] },
-        { level: 2, name: "Scrap Bunks", description: "+1 population", rewards: [pop(1)] },
-        { level: 3, name: "Momentum Pit", description: "+2 army per 10 recruiters", rewards: [army(2)] },
-        { level: 4, name: "Boss Counting", description: "+1 population per owned tile", rewards: [popPerTile(1)] },
-        { level: 5, name: "More Choppas", description: "+3 army per 10 recruiters", rewards: [army(3)] },
-        { level: 6, name: "Endless Barracks", description: "+3 population", rewards: [pop(3)] },
-        { level: 7, name: "Redline Muster", description: "+4 army per 10 recruiters", rewards: [army(4)] },
-        { level: 8, name: "Endless WAAAGH", description: "+2 population per owned tile", rewards: [popPerTile(2)] },
+      path("military", "WAAAGH Host", "Recruitment momentum that refuses to stop.", [
+        { level: 1, name: "Louda Drums", description: "+20% recruitment rate", rewards: [recruitRate(20)] },
+        { level: 2, name: "Fight Learnin'", description: "+15% battalion XP", rewards: [battalionXp(15)] },
+        { level: 3, name: "Bigger Mobs", description: "+20% battalion max size", rewards: [battalionSize(20)] },
+        { level: 4, name: "More Mobs", description: "+1 battalion slot", rewards: [battalionSlots(1)] },
+        { level: 5, name: "Redline Muster", description: "+40% recruitment rate", rewards: [recruitRate(40)] },
+        { level: 6, name: "Boss Promotions", description: "-25% promotion cost", rewards: [promoDisc(25)] },
+        { level: 7, name: "Endless Barracks", description: "+25% battalion max size", rewards: [battalionSize(25)] },
+        { level: 8, name: "Endless WAAAGH", description: "+2 battalion slots, +60% recruitment", rewards: [battalionSlots(2), recruitRate(60)] },
       ]),
     ],
   },
   SPACE_MURINES: {
     race: "SPACE_MURINES",
     paths: [
-      path("convoy", "Convoy Command", "Disciplined logistics and supply routes.", [
-        { level: 1, name: "Supply Drill", description: "+10% cargo value", rewards: [tradeVal(10)] },
-        { level: 2, name: "Ration Ledgers", description: "+2 road build rate", rewards: [roadBuild(2)] },
-        { level: 3, name: "Armored Manifests", description: "+15% cargo value", rewards: [tradeVal(15)] },
-        { level: 4, name: "Quartermaster Cells", description: "+3 road build rate", rewards: [roadBuild(3)] },
-        { level: 5, name: "Fleet Protocol", description: "+20% cargo value", rewards: [tradeVal(20)] },
-        { level: 6, name: "Secured Depots", description: "+4 road build rate", rewards: [roadBuild(4)] },
-        { level: 7, name: "Orbital Freight", description: "+25% cargo value", rewards: [tradeVal(25)] },
-        { level: 8, name: "Imperial Supply Web", description: "+35% cargo, -15% upkeep", rewards: [tradeVal(35), upkeepDisc(15)] },
+      path("economy", "Convoy Economy", "Disciplined logistics and supply routes.", [
+        { level: 1, name: "Ration Ledgers", description: "+3 food per 10 farmers", rewards: [food(3)] },
+        { level: 2, name: "Supply Drill", description: "+3 gold per 10 miners", rewards: [gold(3)] },
+        { level: 3, name: "Lean Convoys", description: "-10% army upkeep", rewards: [upkeepDisc(10)] },
+        { level: 4, name: "Expansion Dispatch", description: "+1 expansion priority slot", rewards: [prioritySlots(1)] },
+        { level: 5, name: "Secured Depots", description: "+5 food per 10 farmers", rewards: [food(5)] },
+        { level: 6, name: "Fleet Protocol", description: "+5 gold per 10 miners", rewards: [gold(5)] },
+        { level: 7, name: "Imperial Supply Lines", description: "-20% army upkeep", rewards: [upkeepDisc(20)] },
+        { level: 8, name: "Imperial Supply Web", description: "+2 expansion slots, -30% upkeep", rewards: [prioritySlots(2), upkeepDisc(30)] },
       ]),
-      path("rapid", "Rapid Response", "Fast deployment and fortress readiness.", [
-        { level: 1, name: "Quick March", description: "+1 army per 10 recruiters", rewards: [army(1)] },
-        { level: 2, name: "Drop Pod Berths", description: "+1 population", rewards: [pop(1)] },
-        { level: 3, name: "Entrenched Squads", description: "+2 army per 10 recruiters", rewards: [army(2)] },
-        { level: 4, name: "Ready Rooms", description: "+2 population", rewards: [pop(2)] },
-        { level: 5, name: "Orbital Insertion", description: "+3 army per 10 recruiters", rewards: [army(3)] },
-        { level: 6, name: "Fortress Watch", description: "+10% tile defense", rewards: [tileDefense(10)] },
-        { level: 7, name: "Shield Companies", description: "+4 army per 10 recruiters", rewards: [army(4)] },
-        { level: 8, name: "Imperium's Shield", description: "+5 population", rewards: [pop(5)] },
+      path("territory", "Orbital Claim", "Precision claims from above.", [
+        { level: 1, name: "Surveyor Satellites", description: "+10% pressure", rewards: [pressure(10)] },
+        { level: 2, name: "Bastion Telemetry", description: "+10% tile defense", rewards: [tileDefense(10)] },
+        { level: 3, name: "Kinetic Planner", description: "+12% pressure", rewards: [pressure(12)] },
+        { level: 4, name: "Relay Chapels", description: "Neutral claims at 540 pressure", rewards: [claimThreshold(540)] },
+        { level: 5, name: "Precision Strike", description: "+20% pressure", rewards: [pressure(20)] },
+        { level: 6, name: "Orbital Citadel", description: "+20% tile defense", rewards: [tileDefense(20)] },
+        { level: 7, name: "Sky-Law Survey", description: "Neutral claims at 500 pressure", rewards: [claimThreshold(500)] },
+        { level: 8, name: "Sky-Law Mandate", description: "+35% pressure, +1 expansion slot", rewards: [pressure(35), prioritySlots(1)] },
       ]),
-      path("orbital", "Orbital Doctrine", "Precision claims from above.", [
-        { level: 1, name: "Surveyor Satellites", description: "+5% pressure", rewards: [pressure(5)] },
-        { level: 2, name: "Targeting Choir", description: "+1 population", rewards: [pop(1)] },
-        { level: 3, name: "Kinetic Planner", description: "+10% pressure", rewards: [pressure(10)] },
-        { level: 4, name: "Relay Chapels", description: "Neutral claims at 560 pressure", rewards: [claimThreshold(560)] },
-        { level: 5, name: "Precision Strike", description: "+15% pressure", rewards: [pressure(15)] },
-        { level: 6, name: "Bastion Telemetry", description: "+15% tile defense", rewards: [tileDefense(15)] },
-        { level: 7, name: "Orbital Citadel", description: "+3 population", rewards: [pop(3)] },
-        { level: 8, name: "Sky-Law Mandate", description: "+25% pressure", rewards: [pressure(25)] },
+      path("military", "Rapid Response Host", "Fast deployment and fortress readiness.", [
+        { level: 1, name: "Quick March", description: "+20% recruitment rate", rewards: [recruitRate(20)] },
+        { level: 2, name: "Combat Recorders", description: "+15% battalion XP", rewards: [battalionXp(15)] },
+        { level: 3, name: "Drop Pod Berths", description: "+20% battalion max size", rewards: [battalionSize(20)] },
+        { level: 4, name: "Ready Companies", description: "+1 battalion slot", rewards: [battalionSlots(1)] },
+        { level: 5, name: "Orbital Insertion", description: "+40% recruitment rate", rewards: [recruitRate(40)] },
+        { level: 6, name: "Field Commissions", description: "-25% promotion cost", rewards: [promoDisc(25)] },
+        { level: 7, name: "Shield Companies", description: "+25% battalion max size", rewards: [battalionSize(25)] },
+        { level: 8, name: "Imperium's Shield", description: "+2 battalion slots, +60% recruitment", rewards: [battalionSlots(2), recruitRate(60)] },
       ]),
     ],
   },
   UNSTABLE_UNICORNS: {
     race: "UNSTABLE_UNICORNS",
     paths: [
-      path("glitter", "Glitter Frontier", "Prismatic expansion with unreliable borders.", [
-        { level: 1, name: "Sparkle Dust", description: "+5% pressure", rewards: [pressure(5)] },
-        { level: 2, name: "Rainbow Survey", description: "+8% pressure", rewards: [pressure(8)] },
-        { level: 3, name: "Prismatic Pull", description: "Neutral claims at 560 pressure", rewards: [claimThreshold(560)] },
-        { level: 4, name: "Glitterstorm", description: "+13% pressure", rewards: [pressure(13)] },
-        { level: 5, name: "Impossible Stakes", description: "Neutral claims at 520 pressure", rewards: [claimThreshold(520)] },
-        { level: 6, name: "Cascade Dust", description: "+18% pressure", rewards: [pressure(18)] },
-        { level: 7, name: "Unstable Frontier", description: "Neutral claims at 480 pressure", rewards: [claimThreshold(480)] },
-        { level: 8, name: "Color Out Of Map", description: "+26% pressure", rewards: [pressure(26)] },
+      path("economy", "Glitter Economy", "Bend luck until the storehouses agree.", [
+        { level: 1, name: "Phantom Kitchens", description: "+3 food per 10 farmers", rewards: [food(3)] },
+        { level: 2, name: "Reality Pennies", description: "+3 gold per 10 miners", rewards: [gold(3)] },
+        { level: 3, name: "Sugar Discipline", description: "-10% army upkeep", rewards: [upkeepDisc(10)] },
+        { level: 4, name: "Extra Horizons", description: "+1 expansion priority slot", rewards: [prioritySlots(1)] },
+        { level: 5, name: "Lucky Gallop", description: "+5 food per 10 farmers", rewards: [food(5)] },
+        { level: 6, name: "Prismatic Surge", description: "+5 gold per 10 miners", rewards: [gold(5)] },
+        { level: 7, name: "Stable Reality", description: "-20% army upkeep", rewards: [upkeepDisc(20)] },
+        { level: 8, name: "Shattered Ledger", description: "+2 expansion slots, -30% upkeep", rewards: [prioritySlots(2), upkeepDisc(30)] },
       ]),
-      path("veiled", "Veiled Network", "Hidden logistics and suspicious prosperity.", [
-        { level: 1, name: "Shimmer Masks", description: "+10% battalion XP", rewards: [battalionXp(10)] },
-        { level: 2, name: "Mirror Stores", description: "+1 food per 10 farmers", rewards: [food(1)] },
-        { level: 3, name: "False Ledgers", description: "+15% battalion XP", rewards: [battalionXp(15)] },
-        { level: 4, name: "Phantom Kitchens", description: "+2 food per 10 farmers", rewards: [food(2)] },
-        { level: 5, name: "Hidden Quarters", description: "-15% promotion cost", rewards: [promoDisc(15)] },
-        { level: 6, name: "Decoy Treasuries", description: "+25% battalion XP", rewards: [battalionXp(25)] },
-        { level: 7, name: "Invisible Herd", description: "+4 population", rewards: [pop(4)] },
-        { level: 8, name: "Mirror Host", description: "-30% promotion, +30% XP", rewards: [promoDisc(30), battalionXp(30)] },
+      path("territory", "Prismatic Claim", "Expansion with unreliable borders and very reliable glitter.", [
+        { level: 1, name: "Sparkle Dust", description: "+10% pressure", rewards: [pressure(10)] },
+        { level: 2, name: "Rainbow Stakes", description: "+10% tile defense", rewards: [tileDefense(10)] },
+        { level: 3, name: "Glitterstorm", description: "+12% pressure", rewards: [pressure(12)] },
+        { level: 4, name: "Prismatic Pull", description: "Neutral claims at 540 pressure", rewards: [claimThreshold(540)] },
+        { level: 5, name: "Cascade Dust", description: "+20% pressure", rewards: [pressure(20)] },
+        { level: 6, name: "Impossible Stakes", description: "+20% tile defense", rewards: [tileDefense(20)] },
+        { level: 7, name: "Unstable Frontier", description: "Neutral claims at 500 pressure", rewards: [claimThreshold(500)] },
+        { level: 8, name: "Color Out Of Map", description: "+35% pressure, +1 expansion slot", rewards: [pressure(35), prioritySlots(1)] },
       ]),
-      path("shattered", "Shattered Reality", "Bend luck until the economy agrees.", [
-        { level: 1, name: "Lucky Streak", description: "+15% battalion XP", rewards: [battalionXp(15)] },
-        { level: 2, name: "Reality Pennies", description: "+1 gold per 10 miners", rewards: [gold(1)] },
-        { level: 3, name: "Fortune's Gait", description: "+2 food per 10 farmers", rewards: [food(2)] },
-        { level: 4, name: "Helpful Paradox", description: "+1 army per 10 recruiters", rewards: [army(1)] },
-        { level: 5, name: "Lucky Gallop", description: "+3 food per 10 farmers", rewards: [food(3)] },
-        { level: 6, name: "Prismatic Surge", description: "+3 gold per 10 miners", rewards: [gold(3)] },
-        { level: 7, name: "Reality Stable", description: "+3 population", rewards: [pop(3)] },
-        { level: 8, name: "Shattered Mirror", description: "+5 food per 10 farmers", rewards: [food(5)] },
+      path("military", "Mirror Host", "Decoy companies, impossible veterans, sudden reinforcements.", [
+        { level: 1, name: "Lucky Muster", description: "+20% recruitment rate", rewards: [recruitRate(20)] },
+        { level: 2, name: "Shimmer Masks", description: "+15% battalion XP", rewards: [battalionXp(15)] },
+        { level: 3, name: "Hidden Quarters", description: "+20% battalion max size", rewards: [battalionSize(20)] },
+        { level: 4, name: "Mirror Companies", description: "+1 battalion slot", rewards: [battalionSlots(1)] },
+        { level: 5, name: "Helpful Paradox", description: "+40% recruitment rate", rewards: [recruitRate(40)] },
+        { level: 6, name: "False Commissions", description: "-25% promotion cost", rewards: [promoDisc(25)] },
+        { level: 7, name: "Invisible Herd", description: "+25% battalion max size", rewards: [battalionSize(25)] },
+        { level: 8, name: "Shattered Mirror Host", description: "+2 battalion slots, +60% recruitment", rewards: [battalionSlots(2), recruitRate(60)] },
       ]),
     ],
   },

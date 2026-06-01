@@ -16,7 +16,7 @@ import {
 import { isSeasonFourRuleset } from "./rulesets";
 import { isHomeOfATile } from "./territory";
 import { getTradeBlockedReason } from "./trading";
-import { getRaidTargetBlockedReason, isConvoyRaidEligible } from "./convoy-conflict";
+import { isConvoyRaidEligible } from "./convoy-conflict";
 
 function getMinutesUntil(from: Date, to: Date | null | undefined) {
   if (!to || to <= from) {
@@ -260,7 +260,7 @@ export async function getPoliticsPageState({
         cycleId: cycle.id,
         fortressId: playerFortress.id,
         status: ArmyOrderStatus.ACTIVE,
-        type: { in: [ArmyOrderType.ESCORT, ArmyOrderType.RAID] },
+        type: ArmyOrderType.ESCORT,
       },
       orderBy: { createdAt: "desc" },
     }),
@@ -313,18 +313,6 @@ export async function getPoliticsPageState({
       const tradeDisabledReason = getTradeBlockedReason(
         getEffectiveDiplomacyStatus({ relation, now })
       );
-      const activeRaidOrder = activeArmyOrders.find(
-        (order) =>
-          order.type === ArmyOrderType.RAID &&
-          order.targetFortressId === fortress.id
-      );
-      const raidDisabledReason =
-        activeRaidOrder !== undefined
-          ? "A raid order is already watching these routes."
-          : getRaidTargetBlockedReason(
-              getEffectiveDiplomacyStatus({ relation, now })
-            );
-
       return {
         fortressId: fortress.id,
         name: fortress.name,
@@ -403,10 +391,6 @@ export async function getPoliticsPageState({
         disabledReason: presentation.disabledReason,
         canTrade: tradeDisabledReason === null,
         tradeDisabledReason,
-        canRaid: raidDisabledReason === null,
-        raidDisabledReason,
-        activeRaidOrderId: activeRaidOrder?.id ?? null,
-        activeRaidArmy: activeRaidOrder?.committedArmy ?? null,
       };
     });
   const fortressNames = new Map(
@@ -530,10 +514,7 @@ export async function getPoliticsPageState({
       id: order.id,
       type: order.type,
       committedArmy: order.committedArmy,
-      targetName:
-        order.type === ArmyOrderType.RAID && order.targetFortressId
-          ? fortressNames.get(order.targetFortressId) ?? "Unknown fortress"
-          : null,
+      targetName: null,
     })),
     recentCovertIncidents: recentCovertIncidents.map((incident) => ({
       id: incident.id,

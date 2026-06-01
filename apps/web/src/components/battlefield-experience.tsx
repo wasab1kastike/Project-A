@@ -141,6 +141,16 @@ type ActiveBattlefield = {
     commanderName: string;
   } | null;
   participantCount: number;
+  participantForces: Array<{
+    fortressId: string;
+    side: "ATTACKER" | "DEFENDER";
+    fortressName: string;
+    commanderName: string;
+    armyCommitted: number;
+    armyRemaining: number;
+    armyLost: number;
+    isCurrentUser: boolean;
+  }>;
   currentUserSide: "ATTACKER" | "DEFENDER" | null;
   canRecall: boolean;
   recallDisabledReason: string | null;
@@ -1192,12 +1202,11 @@ export function BattlefieldExperience({
     }
   }
 
-  // Removed: manual tile attack, fortify, campaign, guard.
-  // Replaced by auto-war dispatch + guard % slider (Castle → War Room).
+  // Removed: manual tile attack, fortify, campaign, and guard.
+  // Replaced by auto-war dispatch and battalion-focused War Room controls.
   function handleAttackMapHex(_a: string, _b: number) {}
   function handleFortifyMapHex(_a: string, _b: number) {}
   function handleStartTerritoryCampaign(_a: string, _b: number) {}
-  function handleStationGuardOrder(_a: string, _b: number) {}
 
   async function handleRecallArmyOrder(armyOrderId: string) {
     if (mapActionPending || !gameplayOpen) {
@@ -2286,73 +2295,6 @@ export function BattlefieldExperience({
           </>
         ) : null}
 
-        {!selectedSeasonFourFeature &&
-        playerSummary?.seasonFourRulesEnabled &&
-        selectedOwnership?.isCurrentUser ? (
-          <>
-            {selectedOwnership.guardOrderId ? (
-              <>
-                <p className={styles.helper}>
-                  Guard stationed: {selectedOwnership.guardArmy ?? 0} army.
-                </p>
-                <button
-                  className={styles.secondaryButton}
-                  type="button"
-                  disabled={mapActionPending}
-                  onClick={() => {
-                    void handleRecallArmyOrder(selectedOwnership.guardOrderId!);
-                  }}
-                >
-                  Recall guard
-                </button>
-              </>
-            ) : (
-              <>
-                <label className={styles.tileArmyControl}>
-                  <span>
-                    Guard army: {clampedTileFortifyArmy}/{playerSummary.army}
-                  </span>
-                  <input
-                    type="range"
-                    min={1}
-                    max={Math.max(1, playerSummary.army)}
-                    step={1}
-                    value={Math.max(1, clampedTileFortifyArmy)}
-                    disabled={playerSummary.army <= 0}
-                    onChange={(event) => {
-                      const nextArmy = Number(event.currentTarget.value);
-                      setTileFortifyArmy(
-                        Number.isFinite(nextArmy) ? Math.floor(nextArmy) : 1
-                      );
-                    }}
-                  />
-                </label>
-                <button
-                  className={styles.secondaryButton}
-                  type="button"
-                  disabled={
-                    mapActionPending ||
-                    clampedTileFortifyArmy <= 0 ||
-                    !selectedOwnership.canStationGuard
-                  }
-                  onClick={() => {
-                    void handleStationGuardOrder(
-                      selectedTile.id,
-                      clampedTileFortifyArmy
-                    );
-                  }}
-                >
-                  Station guard
-                </button>
-                {selectedOwnership.guardDisabledReason ? (
-                  <p className={styles.helper}>
-                    {selectedOwnership.guardDisabledReason}
-                  </p>
-                ) : null}
-              </>
-            )}
-          </>
-        ) : null}
       </div>
     </aside>
   ) : null;
@@ -2543,6 +2485,21 @@ export function BattlefieldExperience({
                               </dd>
                             </div>
                           </dl>
+                          {battlefield.participantForces.length > 0 ? (
+                            <ul className={styles.compactList}>
+                              {battlefield.participantForces.map((force) => (
+                                <li key={`${battlefield.id}-${force.fortressId}`}>
+                                  {force.side === "ATTACKER" ? "Attack" : "Defense"}:{" "}
+                                  {force.commanderName} ({force.fortressName}){" "}
+                                  {force.armyRemaining}/{force.armyCommitted}
+                                  {force.armyLost > 0
+                                    ? `, ${force.armyLost} lost`
+                                    : ""}
+                                  {force.isCurrentUser ? " - you" : ""}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : null}
                         </>
                       );
                     })()}

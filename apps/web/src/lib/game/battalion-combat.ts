@@ -513,6 +513,7 @@ export function applyCombatResultsToBattalions(args: {
   combatResult: CombatResult;
   now: number;
   isBattlefield: boolean;
+  xpMultiplier?: number;
 }): { battalions: Battalion[]; moraleDeltaAttacker: number; moraleDeltaDefender: number } {
   const updated = args.battalions.map((b) => ({ ...b }));
 
@@ -538,7 +539,9 @@ export function applyCombatResultsToBattalions(args: {
       (x) => x.battalionId === cb.battalion.id,
     );
     if (xpEntry) {
-      updated[idx].xp += xpEntry.xpGained;
+      updated[idx].xp += Math.floor(
+        xpEntry.xpGained * Math.max(0, args.xpMultiplier ?? 1),
+      );
     }
 
     // Reset stance for wiped battalions.

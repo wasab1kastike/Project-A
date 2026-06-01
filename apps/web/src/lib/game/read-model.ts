@@ -532,6 +532,9 @@ export async function getHomePageState({
           recruitersAssigned: true,
           pressureWorkersAssigned: true,
           race: true,
+          skillPurchases: {
+            select: { nodeKey: true },
+          },
           fortressKind: true,
           lootCampVariant: true,
           expiresAt: true,
@@ -872,7 +875,7 @@ export async function getHomePageState({
         },
       },
       convoyLegs: {
-        where: { status: "IN_TRANSIT" },
+        where: { status: "IN_TRANSIT", arrivesAt: { gt: now } },
         select: {
           id: true,
           fromFortressId: true,
@@ -1010,6 +1013,13 @@ export async function getHomePageState({
               side: true,
               armyCommitted: true,
               armyRemaining: true,
+              fortress: {
+                select: {
+                  name: true,
+                  commanderName: true,
+                  ownerId: true,
+                },
+              },
             },
           },
           incomingReinforcements: {
@@ -1431,7 +1441,7 @@ export async function getHomePageState({
           cycleId: cycle.id,
           fortressId: pfId,
           status: "ACTIVE",
-          type: { in: ["GUARD", "CAMPAIGN"] },
+          type: "CAMPAIGN",
         },
         select: {
           id: true,
@@ -1835,9 +1845,9 @@ export async function getHomePageState({
   }
 
   let playerEscortArmy = 0;
-  let playerRaidArmy = 0;
+  const playerRaidArmy = 0;
   let playerCampaignArmy = 0;
-  let playerGuardArmy = 0;
+  const playerGuardArmy = 0;
   let playerQueuedArmy = 0;
 
   if (playerFortress) {
@@ -1845,10 +1855,8 @@ export async function getHomePageState({
     for (const order of cycle.armyOrders) {
       if (order.fortressId !== playerFortress.id) continue;
       if (order.type === "ESCORT") playerEscortArmy += order.committedArmy;
-      else if (order.type === "RAID") playerRaidArmy += order.committedArmy;
       else if (order.type === "CAMPAIGN")
         playerCampaignArmy += order.committedArmy;
-      else if (order.type === "GUARD") playerGuardArmy += order.committedArmy;
     }
   }
 
@@ -2972,18 +2980,6 @@ export async function getHomePageState({
       campaign,
     ])
   );
-  const ownGuardOrderByTileId = new Map(
-    playerFortress
-      ? cycle.armyOrders
-          .filter(
-            (order) =>
-              order.fortressId === playerFortress.id &&
-              order.type === ArmyOrderType.GUARD &&
-              order.targetTileId
-          )
-          .map((order) => [order.targetTileId!, order])
-      : []
-  );
   const pressureStatesByTileId = new Map<
     string,
     Array<{ fortressId: string; pressure: number }>
@@ -3215,7 +3211,6 @@ export async function getHomePageState({
         };
     const bonus = isHomeOwnership ? homeTileBonus : getTileBonus(tile);
     const activeCampaign = activeCampaignByTileId.get(ownership.tileId) ?? null;
-    const ownGuardOrder = ownGuardOrderByTileId.get(ownership.tileId) ?? null;
     const campaignDisabledReason = (() => {
       if (isHomeOwnership) {
         return homeMonumentReason;
@@ -3256,31 +3251,8 @@ export async function getHomePageState({
         hasActiveBattlefield: activeBattleTileIds.has(ownership.tileId),
       });
     })();
-    const guardDisabledReason = (() => {
-      if (isHomeOwnership) {
-        return homeMonumentReason;
-      }
-
-      if (!isSeasonFour) {
-        return "Standing guard orders are available only in Season 4.";
-      }
-
-      if (!gameplayOpen) {
-        return "Guard orders can only be changed during gameplay.";
-      }
-
-      if (!playerFortress || ownership.ownerFortressId !== playerFortress.id) {
-        return "Guard orders may be stationed only on your owned tiles.";
-      }
-
-      if (ownGuardOrder) {
-        return null;
-      }
-
-      return playerFortress.army > 0
-        ? null
-        : "You need idle army to station guards.";
-    })();
+    const guardDisabledReason =
+      "Guard orders are temporarily disabled while War Room focuses on battlefronts, battalions, and recruitment.";
 
     return {
       id: ownership.id,
@@ -3373,10 +3345,10 @@ export async function getHomePageState({
         playerFortress &&
         activeCampaign.attackerFortressId === playerFortress.id
       ),
-      canStationGuard: guardDisabledReason === null && !ownGuardOrder,
+      canStationGuard: false,
       guardDisabledReason,
-      guardOrderId: ownGuardOrder?.id ?? null,
-      guardArmy: ownGuardOrder?.committedArmy ?? null,
+      guardOrderId: null,
+      guardArmy: null,
       bonus,
       isHomeOfA: isHomeOwnership,
       pointIncome: isHomeOwnership
@@ -4455,7 +4427,7 @@ export async function getHomePageState({
       xp: b.xp,
       readyAt: b.readyAt?.getTime() ?? null,
       stance: b.stance,
-      mode: b.mode ?? "GUARD",
+      mode: b.mode === "GUARD" || !b.mode ? "RESERVE" : b.mode,
       garrisonedAt: b.garrisonedAt,
     })),
     warFronts: (cycle.warFronts ?? []).map((f) => ({

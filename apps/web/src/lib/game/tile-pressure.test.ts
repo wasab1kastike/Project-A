@@ -177,6 +177,28 @@ test("pressure priority queue defaults to three ordered slots", () => {
   );
 });
 
+test("pressure priority limit expands from skill slots", () => {
+  const fortress = {
+    race: "DWARFS" as const,
+    skillPurchases: [
+      { nodeKey: "economy-1" },
+      { nodeKey: "economy-2" },
+      { nodeKey: "economy-3" },
+      { nodeKey: "economy-4" },
+      { nodeKey: "economy-5" },
+      { nodeKey: "economy-6" },
+      { nodeKey: "economy-7" },
+      { nodeKey: "economy-8" },
+    ],
+  };
+
+  assert.equal(getTilePressurePriorityLimit(fortress), 6);
+  assert.equal(getTilePressurePriorityWeightForSlot({ slot: 1, limit: 6 }), 6);
+  assert.equal(getTilePressurePriorityWeightForSlot({ slot: 6, limit: 6 }), 1);
+  assert.equal(getTilePressurePrioritySlot({ weight: 6, limit: 6 }), 1);
+  assert.equal(getTilePressurePrioritySlot({ weight: 1, limit: 6 }), 6);
+});
+
 test("neutral pressure claim requires threshold and no tie", () => {
   assert.equal(
     getNeutralPressureClaimWinner({

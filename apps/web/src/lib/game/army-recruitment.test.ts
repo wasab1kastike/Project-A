@@ -130,12 +130,14 @@ test("army upkeep cost is 0.01 food per unit per tick", () => {
   assert.equal(getArmyUpkeepCost(100), 1);
   assert.equal(getArmyUpkeepCost(500), 5);
   assert.equal(getArmyUpkeepCost(1000), 10);
+  assert.equal(getArmyUpkeepCost(1000, 30), 7);
 });
 
 test("army upkeep calculation returns detailed breakdown", () => {
   const upkeep = calculateArmyUpkeep(100);
   assert.equal(upkeep.activeArmyCount, 100);
   assert.equal(upkeep.foodCostPerTick, 1);
+  assert.equal(calculateArmyUpkeep(1000, 30).foodCostPerTick, 7);
 });
 
 test("army sustainability check validates food reserves against upkeep", () => {

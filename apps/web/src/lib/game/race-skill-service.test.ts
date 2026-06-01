@@ -66,33 +66,33 @@ test("race skill node purchases require previous branch nodes", () => {
     () =>
       assertSkillNodeCanBePurchased({
         race: "DWARFS",
-        nodeKey: "bastion-3",
-        purchases: [{ nodeKey: "bastion-1" }],
+        nodeKey: "economy-3",
+        purchases: [{ nodeKey: "economy-1" }],
         availablePoints: 4,
       }),
     /previous node/
   );
 
   assert.equal(
-    assertSkillNodeCanBePurchased({
-      race: "DWARFS",
-      nodeKey: "bastion-2",
-      purchases: [{ nodeKey: "bastion-1" }],
-      availablePoints: 4,
-    }).key,
-    "bastion-2"
+      assertSkillNodeCanBePurchased({
+        race: "DWARFS",
+        nodeKey: "economy-2",
+        purchases: [{ nodeKey: "economy-1" }],
+        availablePoints: 4,
+      }).key,
+    "economy-2"
   );
 });
 
 test("race skill rewards aggregate from purchased nodes", () => {
   const rewards = getActiveSkillRewards({
     race: "ORKS",
-    purchases: [{ nodeKey: "waaagh-1" }, { nodeKey: "waaagh-2" }],
+    purchases: [{ nodeKey: "military-1" }, { nodeKey: "military-2" }],
   });
 
   assert.deepEqual(
     rewards.map((reward) => reward.effect),
-    ["armyPerTenRecruiters", "population"]
+    ["recruitmentRate", "battalionXpRate"]
   );
 });
 
@@ -100,20 +100,42 @@ test("race skill modifiers add rewards from every purchased node", () => {
   const modifiers = getSkillModifiers({
     race: "SPACE_MURINES",
     purchases: [
-      { nodeKey: "rapid-1" },
-      { nodeKey: "rapid-2" },
-      { nodeKey: "rapid-3" },
-      { nodeKey: "rapid-4" },
-      { nodeKey: "rapid-5" },
-      { nodeKey: "rapid-6" },
-      { nodeKey: "rapid-7" },
-      { nodeKey: "rapid-8" },
+      { nodeKey: "military-1" },
+      { nodeKey: "military-2" },
+      { nodeKey: "military-3" },
+      { nodeKey: "military-4" },
+      { nodeKey: "military-5" },
+      { nodeKey: "military-6" },
+      { nodeKey: "military-7" },
+      { nodeKey: "military-8" },
     ],
   });
 
-  assert.equal(modifiers.armyPerTenRecruitersBonus, 10);
-  assert.equal(modifiers.populationBonus, 8);
-  assert.equal(modifiers.tileDefensePercent, 10);
+  assert.equal(modifiers.recruitmentRateMultiplier, 2.2);
+  assert.equal(modifiers.battalionSlotBonus, 3);
+  assert.equal(modifiers.battalionMaxSizePercent, 45);
+  assert.equal(modifiers.battalionXpMultiplier, 1.15);
+  assert.equal(modifiers.promotionDiscountPercent, 25);
+});
+
+test("every declared race skill reward effect is handled by modifiers", () => {
+  const allPurchases = RACE_SKILL_TREES.DWARFS.paths.flatMap((path) =>
+    path.nodes.map((node) => ({ nodeKey: node.key }))
+  );
+  const modifiers = getSkillModifiers({
+    race: "DWARFS",
+    purchases: allPurchases,
+  });
+
+  assert.equal(modifiers.foodPerTenFarmersBonus, 8);
+  assert.equal(modifiers.goldPerTenMinersBonus, 8);
+  assert.equal(modifiers.upkeepDiscountPercent, 30);
+  assert.equal(modifiers.pressurePriorityLimitBonus, 4);
+  assert.ok(modifiers.pressureMultiplier > 1);
+  assert.equal(modifiers.tileDefensePercent, 30);
+  assert.equal(modifiers.claimThreshold, 500);
+  assert.equal(modifiers.recruitmentRateMultiplier, 2.2);
+  assert.equal(modifiers.battalionSlotBonus, 3);
 });
 
 test("race skill reset migration moves purchases to node keys only", () => {
@@ -130,4 +152,17 @@ test("race skill reset migration moves purchases to node keys only", () => {
   assert.match(migration, /ADD COLUMN "nodeKey"/);
   assert.match(migration, /DROP COLUMN IF EXISTS "path"/);
   assert.match(migration, /DROP COLUMN IF EXISTS "tier"/);
+});
+
+test("role tree respec migration clears old purchases", () => {
+  const currentDir = dirname(fileURLToPath(import.meta.url));
+  const migration = readFileSync(
+    resolve(
+      currentDir,
+      "../../../prisma/migrations/20260601210000_reset_race_skill_purchases_for_role_trees/migration.sql"
+    ),
+    "utf8"
+  );
+
+  assert.match(migration, /DELETE FROM "RaceSkillPurchase";/);
 });

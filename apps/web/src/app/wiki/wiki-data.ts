@@ -24,7 +24,6 @@ import {
   TIER_MAX_SIZES,
 } from "@/lib/game/battalion-types";
 import {
-  GUARD_DECAY_REDUCTION,
   MAX_OWNERSHIP_PRESSURE,
   OWNERSHIP_PRESSURE_DECAY_PER_TICK,
   OWNERSHIP_PRESSURE_MAINTENANCE_PER_WORKER,
@@ -93,19 +92,19 @@ const raceCards: readonly WikiCard[] = [
       "+1 gold per 10 miners.",
       "+10% defense from race modifiers.",
       "Slower army travel, stronger border holding.",
-      "Skill paths: Bastion, Seismic, Grudgebearer.",
+      "Skill paths: Grudge Economy, Seismic Claim, Runebound Host.",
     ],
   },
   {
     title: "Orks",
     eyebrow: "Scrap tempo",
     image: "/assets/token-orks.png",
-    body: "Best for players who want aggressive campaigns, raid pressure, and combat momentum.",
+    body: "Best for players who want aggressive campaigns, battlefront pressure, and combat momentum.",
     bullets: [
       "+1 army per 10 recruiters.",
       "+6 carry capacity per surviving attacker.",
       "Scrap powers Ork-specific war investments.",
-      "Skill paths: Marauder, Siegebreaker, WAAAGH Engine.",
+      "Skill paths: Loot Economy, Green Tide Claim, WAAAGH Host.",
     ],
   },
   {
@@ -117,7 +116,7 @@ const raceCards: readonly WikiCard[] = [
       "+1 army per 10 recruiters.",
       "+5% defense from race modifiers.",
       "Convoy and response skills support allied planning.",
-      "Skill paths: Convoy Command, Rapid Response, Orbital Doctrine.",
+      "Skill paths: Convoy Economy, Orbital Claim, Rapid Response Host.",
     ],
   },
   {
@@ -129,7 +128,7 @@ const raceCards: readonly WikiCard[] = [
       "+2 population.",
       "+1 food per 10 farmers.",
       "Transit army size is harder for enemies to read.",
-      "Skill paths: Glitter Frontier, Veiled Network, Shattered Reality.",
+      "Skill paths: Glitter Economy, Prismatic Claim, Mirror Host.",
     ],
   },
 ];
@@ -209,7 +208,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
             ["Road network", "Road-connected owned tiles add point income."],
             ["Neutral claims", "Claiming a neutral tile grants 5 bonus points."],
             ["Convoys", "Delivered cargo value creates shared trade points."],
-            ["Interceptions", "Successful raids can score from stolen cargo."],
+            ["Interceptions", "Convoy raids are temporarily disabled."],
             ["Castle PvP", "Castle wins can transfer a small score slice when points exist."],
             ["Gold conversion", "Castle utility can convert gold into points."],
           ],
@@ -356,7 +355,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
           "During war, queued enemy border tiles guide automated War Front targeting.",
           `Owned tiles decay by ${OWNERSHIP_PRESSURE_DECAY_PER_TICK} ownership pressure per tick.`,
           `Each maintenance worker restores ${OWNERSHIP_PRESSURE_MAINTENANCE_PER_WORKER} pressure per tick.`,
-          `A guard cuts normal decay by ${Math.round(GUARD_DECAY_REDUCTION * 100)}%.`,
+          "Guard automation is temporarily disabled while War Room focuses on battlefronts.",
           `Below ${OWNERSHIP_PRESSURE_WARNING} pressure, the tile is in the warning band.`,
           "At 0 pressure, the tile becomes neutral.",
         ],
@@ -396,7 +395,6 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         eyebrow: "Automation",
         title: "Battalion modes",
         cards: [
-          { title: "GUARD", image: "/assets/ui/crest-guard.webp", body: "Defends owned tiles and supports detection." },
           { title: "ATTACK", image: "/assets/ui/crest-campaign.webp", body: "Can be assigned to war fronts and auto-dispatches against reachable enemy tiles." },
           { title: "RESERVE", body: "Stays out of combat losses and recovers." },
           { title: "ALLIANCE", body: "Sends visible reinforcement marches to eligible allied defensive or attacking battlefields, using the War Room support policy." },
@@ -410,7 +408,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
           headers: ["Stance", "Effect"],
           rows: [
             ["FORTIFY", "+30% defense, -50% casualties taken, 1-hour lock."],
-            ["PATROL", "Raid detection and response speed, but more casualties if attacked."],
+            ["PATROL", "Mobile watch posture for future scouting rules."],
             ["TRAINING", "+1 XP per tick for the lowest-tier battalion."],
             ["AMBUSH", "+40% first-round damage, 1-hour lock."],
             ["REST", "Morale and healing; cannot fight."],
@@ -510,7 +508,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
     highlights: [
       "Neutral fortresses can trade, ally, or move toward war.",
       "Trust tiers increase escrow, optional collateral raises the stakes, and allied deliveries improve.",
-      "Detected covert raids create a 24-hour immediate-war window.",
+      "Historical detected covert raids remain visible, but new convoy raids are temporarily disabled.",
     ],
     sections: [
       {
@@ -551,7 +549,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
     navIcon: "08",
     title: "Trade",
     subtitle:
-      "Convoys turn diplomacy into map pressure: cargo travels, roads improve, escorts protect, and raiders hunt scored value.",
+      "Convoys turn diplomacy into map pressure: cargo travels, roads improve, and escorts protect scored value.",
     highlights: [
       "Accepted trade creates one convoy leg per direction.",
       "Cargo is deducted from the sender immediately.",
@@ -571,22 +569,21 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         bullets: [
           "Trade offers expire after 24 hours.",
           "Convoy legs take at least 6 hours plus map travel time.",
+          "Each convoy wagon can carry up to 1,000 total gold and food.",
           "Delivered base cargo value awards shared points.",
-          "Allied trust bonuses add delivered gold and food, not extra trade points.",
+          "Every non-hostile delivery adds a small gold and food bonus; allied trust makes that bonus larger.",
           "If relations turn hostile before arrival, cargo can be seized without trade points.",
         ],
       },
       {
         id: "raids",
         eyebrow: "Interception",
-        title: "Escorts, raids, and guards",
+        title: "Escorts",
         bullets: [
           "Sender escorts protect outbound scored cargo.",
-          "Raid orders watch non-allied routes for eligible cargo.",
-          "A successful raid steals half the cargo, including traded score points and nuke components.",
-          "Raid patrols are managed from the Castle War Room; convoy escorts stay with outbound trade convoys.",
-          "Guard patrols can detect raids and expose the raider as an enemy.",
-          "Detected raids grant the victim 24 hours to invoke immediate war.",
+          "Convoy raid orders are temporarily disabled.",
+          "Guard patrols are temporarily disabled.",
+          "War Room now focuses on battlefronts, battalions, and army recruitment.",
         ],
       },
       {
@@ -611,7 +608,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
     highlights: [
       "Maximum 12 skill points.",
       "Three paths per race, eight nodes per path.",
-      "A full path costs 8 points.",
+      "A full path costs 8 points; nodes 4 and 8 are the major specialization unlocks.",
     ],
     sections: [
       {
@@ -621,7 +618,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         bullets: [
           "Earn +1 skill point per castle level starting at level 2.",
           "Earn +1 skill point per 3 owned normal tiles.",
-          "Nodes usually start as small bonuses and build toward stronger capstones.",
+          "Economy improves income, upkeep, and expansion slots; Territory improves pressure and tile control; Military improves battalions and recruitment.",
           "Race-specific behavior should be intentional: read the path before spending.",
         ],
       },
@@ -632,10 +629,10 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         table: {
           headers: ["Race", "Path 1", "Path 2", "Path 3"],
           rows: [
-            ["Dwarfs", "Bastion", "Seismic", "Grudgebearer"],
-            ["Orks", "Marauder", "Siegebreaker", "WAAAGH Engine"],
-            ["Space Murines", "Convoy Command", "Rapid Response", "Orbital Doctrine"],
-            ["Unstable Unicorns", "Glitter Frontier", "Veiled Network", "Shattered Reality"],
+            ["Dwarfs", "Grudge Economy", "Seismic Claim", "Runebound Host"],
+            ["Orks", "Loot Economy", "Green Tide Claim", "WAAAGH Host"],
+            ["Space Murines", "Convoy Economy", "Orbital Claim", "Rapid Response Host"],
+            ["Unstable Unicorns", "Glitter Economy", "Prismatic Claim", "Mirror Host"],
           ],
         },
       },

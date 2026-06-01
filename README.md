@@ -231,23 +231,24 @@ The game is now a castle-economy and battlefield-control loop:
 - fortresses can rename for free during `REGISTRATION`; active renames cost 10 gold
 - players pick one race per cycle, then assign workers to miners, farmers, and recruiters on the Castle page
 - Legacy race abilities remain readable in prior-season history, but are unavailable in the Season 4 ruleset; each race instead selects one passive standing doctrine with a 12-hour change cooldown
+- Season 4 race skills are role-focused Economy, Territory, and Military paths with 8 nodes per path, 12 total points, and major specialization unlocks at nodes 4 and 8
+- the skill-tree role revamp resets existing race skill purchases so players can rebuild around the new economy, pressure, and battalion bonuses
 - miners produce gold, farmers produce food, and recruiters process queued army orders instead of passively creating army
 - recruiting army costs 1 gold per unit up front; queued units complete over ticks based on assigned recruiters and race bonuses
 - active army, not queued army, consumes food upkeep at 0.01 food per unit per tick; if upkeep cannot be paid, food falls to zero and active army loses 2% that tick
 - neutral tiles are acquired automatically through an ordered queue of up to three connected pressure priorities; the first legal neutral queue target receives all pressure until it is claimed or invalid
 - the Castle Diplomacy tab supports bilateral alliances with fixed trust escrow tiers plus optional break collateral; betrayal immediately begins war, pays what it can, and records unpaid collateral as debt
-- the Castle Diplomacy tab supports peace offers with optional demands from either side, while trade offers move accepted gold, food, army, score points, and allied tile deeds as six-hour-minimum convoy legs
-- Delivered convoy cargo awards points from base cargo value and allied Trust bonuses add only delivered gold and food; hostile relations seize in-transit cargo without trade points or delivered score points
-- scored trade convoys can receive an outbound escort; raid patrols are managed from the Castle War Room and can steal half the cargo, including traded score points
+- the Castle Diplomacy tab supports peace offers with optional demands from either side, while trade offers move accepted gold, food, army, score points, and allied tile deeds as six-hour-minimum convoy legs capped at 1,000 total gold and food per wagon
+- Delivered convoy cargo awards points from base cargo value; all non-hostile deliveries add a small gold/food bonus, allied Trust raises that bonus, and hostile relations seize in-transit cargo without trade points or delivered score points
+- scored trade convoys can receive an outbound escort; convoy raid patrols are temporarily disabled while War Room focuses on battlefronts, battalions, and recruitment
 - daily nuke bidding runs 14:00-12:00 Europe/Helsinki for Fuel, Rocket, and Wrath of A; bids are private, losing bids are spent, components are tradable by convoy, and launches cost 250,000 gold
-- guard orders now detect convoy raids as covert incidents: an exposed raider becomes an enemy and the detecting fortress can invoke immediate war during the 24-hour casus belli window
 - War Room battalions now only auto-dispatch from ATTACK mode war fronts, with the server validating ownership, costs, and live battalion state before any order changes
 - new troops assigned to a remote battalion travel from the castle as visible reinforcement marches before they become usable
 - ALLIANCE-mode battalions reinforce allied defensive and attacking battlefields through visible incoming reinforcement marches, controlled from the Castle War Room
 - marching armies, remote battalion reinforcements, War Front launches, allied support, and convoy map legs now use existing roads to reduce movement ETA; the convoy six-hour minimum and PvP preparation delay still stay fixed
-- roads grow from the actual route units travel, including tile fortification, remote battalion reinforcement, battlefield support, returning recalls, and delivered convoys
+- roads grow from the actual route units travel, including remote battalion reinforcement, battlefield support, returning recalls, and delivered convoys
 - Season 4 territorial war uses standing campaign orders: pressure workers and committed army build a border siege, then a 12-hour warning opens before automatic combat
-- owned Season 4 tiles can station guard orders; ordinary tile attacks, reinforcements, and fortification controls are legacy-only
+- owned Season 4 tile guard orders are temporarily disabled; ordinary tile attacks, reinforcements, and fortification controls are legacy-only
 - direct attacks and battlefield reinforcements both count against the player's simultaneous outbound attack cap
 - player castle and owned-tile battlefields become visible immediately, but combat casualties start one hour after the first attacking army arrives so defenders have time to respond
 - active battlefield casualties are applied every tick, ramping from 100 total units per tick to 1000 after one hour; fights resolve only when one side runs out

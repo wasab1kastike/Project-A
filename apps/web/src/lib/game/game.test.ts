@@ -2638,8 +2638,8 @@ test("season four bilateral trade accepts cargo and delivers allied convoy bonus
   const offer = await createTradeOffer({
     userId: sender.id,
     targetFortressId: receiverFortress.id,
-    offeredGold: 2_000,
-    offeredFood: 1_000,
+    offeredGold: 600,
+    offeredFood: 300,
     offeredArmy: 100,
     offeredPoints: 10,
     requestedGold: 0,
@@ -2672,8 +2672,8 @@ test("season four bilateral trade accepts cargo and delivers allied convoy bonus
     prisma.fortress.findUniqueOrThrow({ where: { id: senderFortress.id } }),
     prisma.fortress.findUniqueOrThrow({ where: { id: receiverFortress.id } }),
   ]);
-  assert.equal(balances[0].gold, 18_000);
-  assert.equal(balances[0].food, 19_000);
+  assert.equal(balances[0].gold, 19_400);
+  assert.equal(balances[0].food, 19_700);
   assert.equal(balances[0].army, 1_900);
   assert.equal(balances[0].points, 90);
   assert.equal(balances[1].food, 19_500);
@@ -2704,12 +2704,12 @@ test("season four bilateral trade accepts cargo and delivers allied convoy bonus
 
   assert.equal(completed.status, TradeOfferStatus.COMPLETED);
   assert.ok(delivered.every((leg) => leg.status === ConvoyLegStatus.DELIVERED));
-  assert.equal(delivered[0]?.baseCargoValue, 3_210);
-  assert.equal(delivered[0]?.bonusGold, 300);
-  assert.equal(delivered[0]?.bonusFood, 150);
-  assert.equal(senderAfter.deliveredCargoValue, 3_210);
-  assert.equal(senderAfter.points, 98);
-  assert.equal(tradeEvents.reduce((sum, event) => sum + event.delta, 0), 7);
+  assert.equal(delivered[0]?.baseCargoValue, 1_360);
+  assert.equal(delivered[0]?.bonusGold, 120);
+  assert.equal(delivered[0]?.bonusFood, 60);
+  assert.equal(senderAfter.deliveredCargoValue, 1_360);
+  assert.equal(senderAfter.points, 96);
+  assert.equal(tradeEvents.reduce((sum, event) => sum + event.delta, 0), 3);
 });
 
 test("season four trade offers can cancel or reject and hostile transit is seized", async (context) => {
@@ -2834,6 +2834,22 @@ test("season four trade offers can cancel or reject and hostile transit is seize
     now: new Date("2026-04-22T11:59:20.000Z"),
     db: prisma,
   });
+  await assert.rejects(
+    () =>
+      createTradeOffer({
+        userId: alpha.id,
+        targetFortressId: betaFortress.id,
+        offeredGold: 1_001,
+        offeredFood: 0,
+        offeredArmy: 0,
+        requestedGold: 0,
+        requestedFood: 0,
+        requestedArmy: 0,
+        now: new Date("2026-04-20T12:01:10.000Z"),
+        db: prisma,
+      }),
+    /at most 1,000 total gold and food/
+  );
   const third = await createTradeOffer({
     userId: alpha.id,
     targetFortressId: betaFortress.id,

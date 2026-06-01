@@ -347,7 +347,7 @@ function HomeClientContent({
                 maxSize: bn.maxSize,
                 tier: bn.tier,
                 stance: bn.stance,
-                mode: bn.mode ?? "GUARD",
+                mode: bn.mode === "GUARD" || !bn.mode ? "RESERVE" : bn.mode,
                 fortressId: bn.fortressId,
                 unitSpriteVariant: fortress?.unitSpriteVariant ?? "unit-1",
                 unitCosmeticVariant: fortress?.unitCosmeticVariant ?? null,
@@ -752,11 +752,6 @@ function HomeClientContent({
                       {state.playerSummary.defendingArmy} Def
                     </span>
                   ) : null}
-                  {state.playerSummary.guardArmy > 0 ? (
-                    <span title="Standing guard order">
-                      {state.playerSummary.guardArmy} Guard
-                    </span>
-                  ) : null}
                   {state.playerSummary.marchingArmy > 0 ? (
                     <span title="Traveling to target">
                       {state.playerSummary.marchingArmy} Mar
@@ -765,11 +760,6 @@ function HomeClientContent({
                   {state.playerSummary.escortArmy > 0 ? (
                     <span title="Escorting convoy">
                       {state.playerSummary.escortArmy} Esc
-                    </span>
-                  ) : null}
-                  {state.playerSummary.raidArmy > 0 ? (
-                    <span title="Raiding convoy routes">
-                      {state.playerSummary.raidArmy} Raid
                     </span>
                   ) : null}
                   {state.playerSummary.campaignArmy > 0 ? (

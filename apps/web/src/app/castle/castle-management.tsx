@@ -9,11 +9,9 @@ import { PoliticsClient } from "@/app/politics/politics-client";
 
 import {
   purchaseSkillNodeAction,
-  setGuardPercentAction,
   setAllianceSupportPolicyAction,
   setMaxArmySizeAction,
   createBattalionAction,
-  createRaidOrderAction,
   commitNukeComponentBidAction,
   launchNukeAction,
   equipCosmeticUnlockAction,
@@ -29,6 +27,10 @@ import {
 } from "@/lib/prisma-client";
 import type { ArcadeHubState } from "@/lib/game/arcade";
 import { getArcadeLootBoxSkin } from "@/lib/game/constants";
+import {
+  getCosmeticSpriteStyle,
+  type CosmeticSpriteSlot,
+} from "@/lib/game/cosmetic-sprites";
 import {
   formatDeepMiningImpact,
   formatUnicornShatteredRealityImpact,
@@ -67,7 +69,7 @@ import {
 import {
   getPressureWorkerDescription,
   getPressureWorkerLabel,
-} from "@/lib/game/tile-pressure";
+} from "@/lib/game/pressure-workers";
 import {
   calculateRecruitmentProgress,
   getArmyUpkeepCost,
@@ -363,6 +365,7 @@ type PlayerSummary = {
     xp: number;
     readyAt: number | null;
     stance: string;
+    mode?: string | null;
     garrisonedAt: string | null;
     frontId: string | null;
   }>;
@@ -627,6 +630,10 @@ const RACE_TOKEN_PATHS: Partial<Record<FortressRace, string>> = {
   UNSTABLE_UNICORNS: "/assets/token-unstable-unicorns.png",
 };
 
+function getVisibleBattalionMode(mode: string | null | undefined) {
+  return mode === "GUARD" || !mode ? "RESERVE" : mode;
+}
+
 function getBuildingsForRace(race: string | null): readonly BuildingMetadata[] {
   const raceKey: BuildingRaceKey =
     race && isFortressRace(race) ? race : "DEFAULT";
@@ -809,6 +816,67 @@ function getShopSkinMeta(slot: ArcadeCosmeticSlot, variant: string) {
   };
 }
 
+function toCosmeticSpriteSlot(slot: ArcadeCosmeticSlot): CosmeticSpriteSlot {
+  return slot === ArcadeCosmeticSlot.FORTRESS ? "FORTRESS" : "UNIT";
+}
+
+function ShopSkinSprite({
+  slot,
+  variant,
+  className,
+}: {
+  slot: ArcadeCosmeticSlot;
+  variant: string | null | undefined;
+  className: string;
+}) {
+  const spriteSlot = toCosmeticSpriteSlot(slot);
+  const spriteStyle = getCosmeticSpriteStyle(spriteSlot, variant);
+
+  return (
+    <span
+      className={className}
+      data-slot={spriteSlot.toLowerCase()}
+      data-empty={spriteStyle ? undefined : "true"}
+      style={spriteStyle ?? undefined}
+      aria-hidden="true"
+    >
+      {spriteStyle ? null : spriteSlot === "UNIT" ? "Unit" : "Keep"}
+    </span>
+  );
+}
+
+function ShopEquippedPreview({
+  slot,
+  variant,
+}: {
+  slot: ArcadeCosmeticSlot;
+  variant: string | null;
+}) {
+  const meta = variant
+    ? getShopSkinMeta(slot, variant)
+    : {
+        name: slot === ArcadeCosmeticSlot.UNIT ? "Default unit" : "Default keep",
+        rarity: "Standard",
+      };
+
+  return (
+    <article className={styles.shopPreviewCard}>
+      <ShopSkinSprite
+        slot={slot}
+        variant={variant}
+        className={styles.shopPreviewSprite}
+      />
+      <div>
+        <span>
+          {slot === ArcadeCosmeticSlot.UNIT ? "Selected unit" : "Selected keep"}
+        </span>
+        <strong>{meta.name}</strong>
+        <small>{meta.rarity}</small>
+      </div>
+    </article>
+  );
+}
+
 function CastleShopPanel({ shopState }: { shopState: ArcadeHubState | null }) {
   if (!shopState) {
     return (
@@ -878,6 +946,23 @@ function CastleShopPanel({ shopState }: { shopState: ArcadeHubState | null }) {
             <span>Duplicate refund</span>
             <strong>{shopState.shop.duplicateRefund} coins</strong>
           </div>
+        </div>
+      </section>
+
+      <section className={styles.panel}>
+        <div className={styles.panelHeader}>
+          <span>Selected skins</span>
+          <strong>Preview</strong>
+        </div>
+        <div className={styles.shopPreviewGrid}>
+          <ShopEquippedPreview
+            slot={ArcadeCosmeticSlot.UNIT}
+            variant={shopState.equippedSkins.unit}
+          />
+          <ShopEquippedPreview
+            slot={ArcadeCosmeticSlot.FORTRESS}
+            variant={shopState.equippedSkins.fortress}
+          />
         </div>
       </section>
 
@@ -1015,12 +1100,21 @@ function CastleShopPanel({ shopState }: { shopState: ArcadeHubState | null }) {
 
                   return (
                     <div className={styles.shopSkinRow} key={skin.id}>
-                      <div>
-                        <strong>{meta.name}</strong>
-                        <span>
-                          <small data-rarity={meta.rarity}>{meta.rarity}</small>
-                          {skin.equipped ? <small>Equipped</small> : null}
-                        </span>
+                      <div className={styles.shopSkinSummary}>
+                        <ShopSkinSprite
+                          slot={ArcadeCosmeticSlot.UNIT}
+                          variant={skin.variant}
+                          className={styles.shopSkinThumb}
+                        />
+                        <div>
+                          <strong>{meta.name}</strong>
+                          <span>
+                            <small data-rarity={meta.rarity}>
+                              {meta.rarity}
+                            </small>
+                            {skin.equipped ? <small>Equipped</small> : null}
+                          </span>
+                        </div>
                       </div>
                       {!skin.equipped ? (
                         <form action={equipCosmeticUnlockAction}>
@@ -1072,12 +1166,21 @@ function CastleShopPanel({ shopState }: { shopState: ArcadeHubState | null }) {
 
                   return (
                     <div className={styles.shopSkinRow} key={skin.id}>
-                      <div>
-                        <strong>{meta.name}</strong>
-                        <span>
-                          <small data-rarity={meta.rarity}>{meta.rarity}</small>
-                          {skin.equipped ? <small>Equipped</small> : null}
-                        </span>
+                      <div className={styles.shopSkinSummary}>
+                        <ShopSkinSprite
+                          slot={ArcadeCosmeticSlot.FORTRESS}
+                          variant={skin.variant}
+                          className={styles.shopSkinThumb}
+                        />
+                        <div>
+                          <strong>{meta.name}</strong>
+                          <span>
+                            <small data-rarity={meta.rarity}>
+                              {meta.rarity}
+                            </small>
+                            {skin.equipped ? <small>Equipped</small> : null}
+                          </span>
+                        </div>
                       </div>
                       {!skin.equipped ? (
                         <form action={equipCosmeticUnlockAction}>
@@ -1142,11 +1245,6 @@ export function CastleManagement({
   const [recruitPending, setRecruitPending] = useState(false);
   const [goldToConvert, setGoldToConvert] = useState(getGoldToPointsRatio());
   const [activeTab, setActiveTab] = useState<CastleTab>(initialTab);
-  const [warRoomOrderArmy, setWarRoomOrderArmy] = useState(100);
-  const [warRoomPendingId, setWarRoomPendingId] = useState<string | null>(null);
-  const [guardPercent, setGuardPercent] = useState(
-    playerSummary.warPolicy?.guardPercent ?? 30
-  );
   const [maxArmySize, setMaxArmySize] = useState(
     playerSummary.warPolicy?.maxArmySize ?? 500
   );
@@ -1170,18 +1268,6 @@ export function CastleManagement({
   const [nukePending, setNukePending] = useState<string | null>(null);
   const [nukeTargetId, setNukeTargetId] = useState(
     nukeState?.eligibleTargets[0]?.id ?? ""
-  );
-
-  const handleGuardPercentChange = useCallback(
-    async (value: number) => {
-      setGuardPercent(value);
-      const result = await setGuardPercentAction({
-        fortressId: playerSummary.id,
-        guardPercent: value,
-      });
-      await handleInlineResult(result);
-    },
-    [playerSummary.id]
   );
 
   const handleMaxArmySizeChange = useCallback(
@@ -1382,30 +1468,6 @@ export function CastleManagement({
     }
 
     refreshView();
-  }
-
-  async function handleWarRoomOrder(
-    key: string,
-    action: () => Promise<{ ok: boolean; error?: string }>
-  ) {
-    if (warRoomPendingId) {
-      return;
-    }
-
-    setWarRoomPendingId(key);
-
-    try {
-      const result = await action();
-
-      if (!result.ok) {
-        window.alert(result.error);
-        return;
-      }
-
-      refreshView();
-    } finally {
-      setWarRoomPendingId(null);
-    }
   }
 
   async function buyPointsWithGoldFormAction(
@@ -2076,133 +2138,6 @@ export function CastleManagement({
 
         {activeTab === "WAR_ROOM" ? (
           <>
-            {/* Pool Summary */}
-            <section className={styles.panel}>
-              <div className={styles.panelHeader}>
-                <span>Battalion Pools</span>
-              </div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {(() => {
-                  const bnList = playerSummary.battalions ?? [];
-                  const pools: Record<string, number> = {
-                    GUARD: 0,
-                    ATTACK: 0,
-                    RESERVE: 0,
-                    ALLIANCE: 0,
-                  };
-                  for (const b of bnList)
-                    pools[(b as any).mode ?? "GUARD"] += (b as any).size ?? 0;
-                  const styles: Record<
-                    string,
-                    { bg: string; color: string; icon: string }
-                  > = {
-                    GUARD: { bg: "#1a3a5c", color: "#6ab0ff", icon: "🛡" },
-                    ATTACK: { bg: "#3a2a0a", color: "#ffb040", icon: "⚔" },
-                    RESERVE: { bg: "#2a2a2a", color: "#888", icon: "📦" },
-                    ALLIANCE: { bg: "#2a1a3a", color: "#c080ff", icon: "🤝" },
-                  };
-                  return Object.entries(pools).map(([mode, size]) => (
-                    <span
-                      key={mode}
-                      style={{
-                        fontSize: 12,
-                        background: styles[mode]?.bg,
-                        padding: "2px 8px",
-                        borderRadius: 4,
-                        color: styles[mode]?.color,
-                      }}
-                    >
-                      {styles[mode]?.icon} {mode}: {size.toLocaleString()}
-                    </span>
-                  ));
-                })()}
-              </div>
-            </section>
-
-            {/* Costs Summary */}
-            <section className={styles.panel}>
-              <div className={styles.panelHeader}>
-                <span>Costs</span>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 6,
-                  fontSize: 13,
-                }}
-              >
-                {(() => {
-                  const bnList = playerSummary.battalions ?? [];
-                  const totalArmy = bnList.reduce((s, b: any) => s + b.size, 0);
-                  const maxArmy = bnList.reduce(
-                    (s, b: any) => s + b.maxSize,
-                    0
-                  );
-                  const currentFood = Math.ceil(totalArmy / 50);
-                  const maxFood = Math.ceil(maxArmy / 50);
-                  const currentGold = Math.ceil(totalArmy * 2);
-                  const maxGold = Math.ceil(maxArmy * 2);
-                  return (
-                    <>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                        }}
-                      >
-                        <span>Upkeep (1f / 50 units)</span>
-                        <strong>{currentFood.toLocaleString()} f/t</strong>
-                      </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          color: "var(--text-muted)",
-                          fontSize: 12,
-                        }}
-                      >
-                        <span>At max cap</span>
-                        <span>{maxFood.toLocaleString()} f/t</span>
-                      </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                        }}
-                      >
-                        <span>Recruitment (2g / unit)</span>
-                        <strong style={{ color: "#ffb040" }}>
-                          {currentGold.toLocaleString()} g
-                        </strong>
-                      </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          color: "var(--text-muted)",
-                          fontSize: 12,
-                        }}
-                      >
-                        <span>At max cap</span>
-                        <span style={{ color: "#ff9800" }}>
-                          {maxGold.toLocaleString()} g
-                        </span>
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
-              <p
-                className={styles.muted}
-                style={{ fontSize: 11, marginTop: 4 }}
-              >
-                Upkeep deducts food each tick. Recruitment orders spend gold up
-                front, then recruiters process the queue. Food shortfall causes
-                desertion.
-              </p>
-            </section>
-
             <section className={styles.panel}>
               <div className={styles.panelHeader}>
                 <span>Alliance Support</span>
@@ -2368,123 +2303,6 @@ export function CastleManagement({
               ) : null}
             </section>
 
-            <section className={styles.panel}>
-              <div className={styles.panelHeader}>
-                <span>Convoy Raids</span>
-                <strong>
-                  {politicsState?.activeArmyOrders?.filter(
-                    (order: any) => order.type === "RAID"
-                  ).length ?? 0}{" "}
-                  active
-                </strong>
-              </div>
-              <p className={styles.muted} style={{ marginBottom: 8 }}>
-                Raid patrols watch hostile or neutral convoy routes. Trade
-                convoy escorts still live with the convoy itself.
-              </p>
-              <div className={styles.form}>
-                <label>
-                  <span>Army to commit</span>
-                  <input
-                    type="number"
-                    min={1}
-                    step={1}
-                    value={warRoomOrderArmy}
-                    onChange={(event) =>
-                      setWarRoomOrderArmy(
-                        Math.max(
-                          1,
-                          Number.parseInt(event.target.value || "1", 10)
-                        )
-                      )
-                    }
-                  />
-                </label>
-              </div>
-              <div className={styles.operationGroup}>
-                {(politicsState?.rows ?? []).some(
-                  (row: any) => row.canRaid || row.activeRaidOrderId
-                ) ? (
-                  (politicsState?.rows ?? [])
-                    .filter((row: any) => row.canRaid || row.activeRaidOrderId)
-                    .map((row: any) => (
-                      <div key={row.fortressId} className={styles.statusRow}>
-                        <span>{row.commanderName || row.name}</span>
-                        {row.activeRaidOrderId ? (
-                          <span
-                            style={{
-                              display: "flex",
-                              gap: 6,
-                              alignItems: "center",
-                            }}
-                          >
-                            <strong>
-                              {row.activeRaidArmy?.toLocaleString()} army
-                            </strong>
-                            <button
-                              type="button"
-                              disabled={warRoomPendingId !== null}
-                              onClick={() =>
-                                void handleWarRoomOrder(
-                                  `raid:recall:${row.activeRaidOrderId}`,
-                                  () =>
-                                    recallArmyOrderAction(row.activeRaidOrderId)
-                                )
-                              }
-                            >
-                              Recall
-                            </button>
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            disabled={warRoomPendingId !== null}
-                            onClick={() =>
-                              void handleWarRoomOrder(
-                                `raid:create:${row.fortressId}`,
-                                () =>
-                                  createRaidOrderAction(
-                                    row.fortressId,
-                                    warRoomOrderArmy
-                                  )
-                              )
-                            }
-                          >
-                            Raid routes
-                          </button>
-                        )}
-                      </div>
-                    ))
-                ) : (
-                  <p className={styles.muted}>
-                    No eligible convoy raid targets right now.
-                  </p>
-                )}
-              </div>
-              {politicsState?.recentConvoyLegs?.some(
-                (leg: any) => leg.raidedByCurrentPlayer
-              ) ? (
-                <div className={styles.operationGroup}>
-                  <div className={styles.operationTitle}>
-                    <strong>Recent interceptions</strong>
-                  </div>
-                  {politicsState.recentConvoyLegs
-                    .filter((leg: any) => leg.raidedByCurrentPlayer)
-                    .slice(0, 4)
-                    .map((leg: any) => (
-                      <div key={leg.id} className={styles.statusRow}>
-                        <span>{leg.counterpartName}</span>
-                        <strong>
-                          {leg.status === "INTERCEPTED"
-                            ? `${leg.stolenGold.toLocaleString()}g / ${leg.stolenFood.toLocaleString()}f / ${leg.stolenArmy.toLocaleString()}a / ${leg.stolenPoints.toLocaleString()}p`
-                            : "failed"}
-                        </strong>
-                      </div>
-                    ))}
-                </div>
-              ) : null}
-            </section>
-
             {/* Battalion Roster */}
             <section className={styles.panel}>
               <div className={styles.panelHeader}>
@@ -2559,7 +2377,9 @@ export function CastleManagement({
                         }}
                       >
                         <select
-                          defaultValue={(bn as any).mode ?? "GUARD"}
+                          defaultValue={getVisibleBattalionMode(
+                            (bn as any).mode
+                          )}
                           onChange={async (e) => {
                             const selectEl = e.target as HTMLSelectElement;
                             const newMode = selectEl.value;
@@ -2572,11 +2392,15 @@ export function CastleManagement({
                                 mode: newMode,
                               });
                               if (!result?.ok) {
-                                selectEl.value = (bn as any).mode ?? "GUARD";
+                                selectEl.value = getVisibleBattalionMode(
+                                  (bn as any).mode
+                                );
                                 console.error("Failed:", result?.error);
                               }
                             } catch (err) {
-                              selectEl.value = (bn as any).mode ?? "GUARD";
+                              selectEl.value = getVisibleBattalionMode(
+                                (bn as any).mode
+                              );
                               console.error("Error:", err);
                             } finally {
                               selectEl.disabled = false;
@@ -2589,17 +2413,15 @@ export function CastleManagement({
                             background:
                               (bn as any).mode === "ATTACK"
                                 ? "#3a2a0a"
-                                : (bn as any).mode === "GUARD"
-                                  ? "#1a3a5c"
-                                  : (bn as any).mode === "RESERVE"
+                                : getVisibleBattalionMode((bn as any).mode) ===
+                                    "RESERVE"
                                     ? "#2a2a2a"
                                     : "#2a1a3a",
                             color:
                               (bn as any).mode === "ATTACK"
                                 ? "#ffb040"
-                                : (bn as any).mode === "GUARD"
-                                  ? "#6ab0ff"
-                                  : (bn as any).mode === "RESERVE"
+                                : getVisibleBattalionMode((bn as any).mode) ===
+                                    "RESERVE"
                                     ? "#888"
                                     : "#c080ff",
                             border: "1px solid var(--border)",
@@ -2608,7 +2430,6 @@ export function CastleManagement({
                             fontWeight: 600,
                           }}
                         >
-                          <option value="GUARD">🛡 Guard</option>
                           <option value="ATTACK">⚔ Attack</option>
                           <option value="RESERVE">📦 Reserve</option>
                           <option value="ALLIANCE">🤝 Alliance</option>
@@ -3003,7 +2824,8 @@ export function CastleManagement({
                             .filter(
                               (b) =>
                                 !b.frontId &&
-                                ((b as any).mode ?? "GUARD") === "ATTACK" &&
+                                getVisibleBattalionMode((b as any).mode) ===
+                                  "ATTACK" &&
                                 b.size > 0
                             )
                             .map((b) => (
@@ -3025,7 +2847,7 @@ export function CastleManagement({
               )}
             </section>
 
-            {/* Guard & Army Settings */}
+            {/* Army Settings */}
             <section className={styles.panel}>
               <div className={styles.panelHeader}>
                 <span>Army Settings</span>
@@ -3038,27 +2860,6 @@ export function CastleManagement({
                   padding: "4px 0",
                 }}
               >
-                <label
-                  style={{
-                    fontSize: 13,
-                    display: "flex",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <span>Guard allocation</span>
-                  <strong>{guardPercent}%</strong>
-                </label>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  step={5}
-                  value={guardPercent}
-                  onChange={(e) =>
-                    handleGuardPercentChange(Number(e.target.value))
-                  }
-                  style={{ width: "100%" }}
-                />
                 <label
                   style={{
                     fontSize: 13,
@@ -3108,8 +2909,8 @@ export function CastleManagement({
                     margin: 0,
                   }}
                 >
-                  Guards auto-distribute to owned tiles by priority. Set
-                  aggression per front from the battlefield.
+                  Set the army ceiling here. Use battalion modes and war front
+                  aggression to decide how those troops are committed.
                 </p>
               </div>
             </section>
@@ -3146,95 +2947,6 @@ export function CastleManagement({
                 </div>
               </dl>
             </section>
-            {/* Guard Status */}
-            <section className={styles.panel}>
-              <div className={styles.panelHeader}>
-                <span>Guard Status</span>
-                <strong>
-                  {playerSummary.warPolicy?.guardPercent ?? 30}% allocated
-                </strong>
-              </div>
-              <p className={styles.muted} style={{ marginBottom: 8 }}>
-                Guards auto-distribute to owned tiles. They slow tile decay
-                (-50%), add to battlefield defense, and are visible on the map.
-              </p>
-              <dl className={styles.readinessGrid}>
-                <div>
-                  <dt>Guarding battalions</dt>
-                  <dd>
-                    {
-                      (playerSummary.battalions ?? []).filter(
-                        (b: any) => b.garrisonedAt
-                      ).length
-                    }
-                  </dd>
-                </div>
-                <div>
-                  <dt>Guard army</dt>
-                  <dd>
-                    {Math.floor(
-                      ((playerSummary.army ?? 0) *
-                        (playerSummary.warPolicy?.guardPercent ?? 30)) /
-                        100
-                    ).toLocaleString()}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Tiles defended</dt>
-                  <dd>
-                    {
-                      (playerSummary.battalions ?? []).filter(
-                        (b: any) => b.garrisonedAt
-                      ).length
-                    }
-                  </dd>
-                </div>
-              </dl>
-            </section>
-
-            {playerSummary.operationsSummary ? (
-              <section className={styles.panel}>
-                <div className={styles.panelHeader}>
-                  <span>Standing Orders</span>
-                  <strong>Escort & Raid</strong>
-                </div>
-                <div className={styles.operationGroup}>
-                  <div className={styles.operationTitle}>
-                    <strong>Logistics</strong>
-                  </div>
-                  <div className={styles.logisticsRows}>
-                    <div className={styles.statusRow}>
-                      <span>Escorts</span>
-                      <strong>
-                        {playerSummary.operationsSummary.logistics.escortCount}{" "}
-                        orders
-                        {" / "}
-                        {
-                          playerSummary.operationsSummary.logistics.escortArmy
-                        }{" "}
-                        army
-                      </strong>
-                    </div>
-                    <div className={styles.statusRow}>
-                      <span>Raids</span>
-                      <strong>
-                        {playerSummary.operationsSummary.logistics.raidCount}{" "}
-                        orders
-                        {" / "}
-                        {
-                          playerSummary.operationsSummary.logistics.raidArmy
-                        }{" "}
-                        army
-                      </strong>
-                    </div>
-                  </div>
-                  <p className={styles.muted} style={{ marginTop: 8 }}>
-                    Escort your convoys to protect cargo. Raid enemy convoys to
-                    steal resources. Manage from <strong>Diplomacy</strong> tab.
-                  </p>
-                </div>
-              </section>
-            ) : null}
           </>
         ) : null}
 
@@ -3265,9 +2977,11 @@ export function CastleManagement({
 
         {activeTab === "DIPLOMACY" ? (
           politicsState ? (
-            <PoliticsClient state={politicsState} />
+            <div className={styles.fullWidthPanel}>
+              <PoliticsClient state={politicsState} />
+            </div>
           ) : (
-            <section className={styles.panel}>
+            <section className={`${styles.panel} ${styles.fullWidthPanel}`}>
               <div className={styles.panelHeader}>
                 <span>Diplomacy</span>
                 <strong>Politics & Trade</strong>

@@ -1090,13 +1090,7 @@ export async function getCastlePageState({
           0
         ),
         activeOrderCount: activeArmyOrders.length,
-        guards: activeArmyOrders
-          .filter((order) => order.type === ArmyOrderType.GUARD)
-          .map((order) => ({
-            id: order.id,
-            tileId: order.targetTileId ?? "Unknown tile",
-            committedArmy: order.committedArmy,
-          })),
+        guards: [],
         campaigns: campaigns.map((campaign) => ({
           id: campaign.id,
           orderId: campaign.armyOrder.id,
@@ -1116,9 +1110,6 @@ export async function getCastlePageState({
             if (order.type === ArmyOrderType.ESCORT) {
               summary.escortCount += 1;
               summary.escortArmy += order.committedArmy;
-            } else if (order.type === ArmyOrderType.RAID) {
-              summary.raidCount += 1;
-              summary.raidArmy += order.committedArmy;
             }
 
             return summary;
@@ -1642,7 +1633,7 @@ export async function getCastlePageState({
             xp: b.xp,
             readyAt: b.readyAt?.getTime() ?? null,
             stance: b.stance,
-            mode: b.mode ?? "GUARD",
+            mode: b.mode === "GUARD" || !b.mode ? "RESERVE" : b.mode,
             garrisonedAt: b.garrisonedAt,
             frontId: b.assignments?.[0]?.frontId ?? null,
           })),
@@ -1658,7 +1649,9 @@ export async function getCastlePageState({
             : null,
           allianceWarRoom: {
             allianceBattalionArmy: (playerFortress?.battalions ?? [])
-              .filter((b) => (b.mode ?? "GUARD") === "ALLIANCE")
+              .filter(
+                (b) => (b.mode === "GUARD" || !b.mode ? "RESERVE" : b.mode) === "ALLIANCE"
+              )
               .reduce((sum, battalion) => sum + battalion.size, 0),
             allies: allianceRelations.map((relation) => {
               const allyId =
