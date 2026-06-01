@@ -241,10 +241,10 @@ export async function processBattalionRecruitment(args: {
                   | "UNSTABLE_UNICORNS") ?? "DWARFS",
                 0
               ),
-              size: Math.min(migratedArmy, maxArmy),
+              size: migratedArmy,
               maxSize: Math.max(
                 defaultBattalionMaxSize,
-                Math.min(migratedArmy, maxArmy)
+                migratedArmy
               ),
               tier: BattalionTier.RECRUIT,
               xp: 0,
@@ -278,6 +278,7 @@ export async function processBattalionRecruitment(args: {
       gold,
       preferredBattalionId: undefined,
       defaultBattalionMaxSize,
+      maxArmySize: maxArmy,
       newBattalionName: generateBattalionName(
         (race as "DWARFS" | "ORKS" | "SPACE_MURINES" | "UNSTABLE_UNICORNS") ?? "DWARFS",
         existing.length,
@@ -330,13 +331,13 @@ export async function processBattalionRecruitment(args: {
       }
     }
 
-    // Cap at max army size.
+    // Max army size caps future recruitment, not existing battalion totals.
     const totalAfter = result.battalions.reduce((sum, b) => {
       const persistedSize = persistedSizeByBattalionId.get(b.id);
       if (persistedSize === undefined) return sum + b.size;
       return sum + (b.garrisonedAt ? persistedSize : b.size);
     }, 0);
-    newArmyByFortress.set(fortressId, Math.min(totalAfter, maxArmy));
+    newArmyByFortress.set(fortressId, totalAfter);
   }
 
   // Write to DB.

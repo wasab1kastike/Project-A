@@ -97,7 +97,7 @@ Upgrades cost gold and take time. One upgrade project active at a time.
 
 ### Recruitment
 
-Recruiters pull from a recruitment queue (single integer). The queue processes per tick based on recruiter count and race bonuses. Orks produce army faster during Waaagh; Space Murines trade for army efficiently.
+Recruiters refill commissioned battalions each tick based on recruiter count and race bonuses. Full battalions and the max army ceiling stop new recruits until the player expands or commissions more battalion room. Existing oversized battalions are not trimmed by the ceiling. Orks produce army faster during Waaagh; Space Murines trade for army efficiently.
 
 ---
 
@@ -167,7 +167,7 @@ Allies can upgrade trust (0→3). Higher tiers grant:
 - Peace proposals require mutual acceptance and may include instant gold, food, army, or tile demands paid by either side on acceptance
 - War Room battalions use four player-facing jobs: RESERVE, GUARD, ATTACK, and ALLIANCE. The older stance layer is hidden and normalized by the server.
 - Idle battalions roam owned tiles on the map until their job triggers: RESERVE stays near the castle core, GUARD patrols owned borders, ATTACK launches through war fronts, and ALLIANCE supports allied battlefields.
-- Battalions do not heal passively. Damaged battalions are refilled by assigning recruiters and training new members.
+- Battalions do not heal passively. Damaged battalions are refilled by assigning recruiters and training new members; new battalions are commissioned manually.
 - War fronts are automated from the Castle War Room: only ATTACK-mode battalions with troops can be assigned, and active wars evaluate both directions for automatic dispatch.
 - Existing tile pressure priorities double as preferred wartime targets when the prioritized tile is enemy-owned and reachable from your territory.
 - New troops assigned to battalions stationed away from the castle travel as visible reinforcement marches first; they count as pending capacity but do not become usable battalion size until arrival.
@@ -185,9 +185,9 @@ Allies can upgrade trust (0→3). Higher tiers grant:
 5. **ESCORT** orders protect outbound convoys; alliance trust tiers add cargo bonuses
 6. Convoy raid orders are temporarily disabled while War Room focuses on battlefronts, battalions, and recruitment
 
-Each convoy leg is one trade wagon. A wagon's total **gold plus food** capacity comes from the sender's Trade Wagon building: **100 / 500 / 1,000 / 2,000 / 3,500 / 5,000 / 7,500 / 10,000 / 15,000 / 20,000** from levels 0-9. Army, score points, nuke components, and one eligible allied tile deed use the same convoy leg but do not count against that resource cap.
+Each convoy leg is one trade wagon. A fortress can run **3 active outbound wagons** by default, with skill nodes able to raise that limit. A wagon's total **gold plus food** capacity comes from the sender's Trade Wagon building: **100 / 500 / 1,000 / 2,000 / 3,500 / 5,000 / 7,500 / 10,000 / 15,000 / 20,000** from levels 0-9, before skill capacity bonuses. Army, score points, nuke components, and one eligible allied tile deed use the same convoy leg but do not count against that resource cap.
 
-Successful non-hostile deliveries add a **5% gold and food delivery bonus**. Allied trust increases that total bonus to **15% / 20% / 30%** for Trust I / II / III. Delivery bonuses do not add army, score points, nuke components, or extra trade score.
+Successful non-hostile deliveries add a **5% gold and food delivery bonus**. Allied trust increases that total bonus to **15% / 20% / 30%** for Trust I / II / III, and skill nodes can improve trade profit further. Delivery bonuses do not add army, score points, nuke components, or extra trade score.
 
 ---
 
@@ -222,7 +222,7 @@ Season 4 includes a daily nuke-component race:
 | **ESCORT** | Protect a specific outbound convoy leg |
 | **CAMPAIGN** | Siege a tile to trigger a territory battlefield |
 
-Manual GUARD orders and RAID orders remain in historical data but are disabled for new play. Battalion GUARD mode is active: War Room guard allocation distributes GUARD battalions across owned border tiles. Active legacy GUARD and RAID orders are returned by the tick runner.
+Manual GUARD orders and RAID orders remain in historical data but are disabled for new play. Battalion GUARD mode is active for owned border patrols. Active legacy GUARD and RAID orders are returned by the tick runner.
 
 ---
 
@@ -239,11 +239,11 @@ See [Season 4](season-4.md) for full race ability details.
 
 ### Skill Specializations
 
-Each race has three 8-node skill paths: Economy, Territory, and Military. Players can earn up to 12 skill points, so one full path still leaves 4 points for a secondary path.
+Each race has three 8-node skill paths: Economy, Territory, and Military. Players can earn up to 12 skill points, so one full path still leaves 4 points for a secondary path. Skill points arrive at castle level 3, then every 2 castle levels, plus 1 point per 5 owned normal tiles.
 
-- Economy paths improve food/gold output, reduce army upkeep, and can add expansion priority slots.
+- Economy paths improve food/gold output, reduce army upkeep, add expansion priority slots, and improve trade wagon capacity, active wagon count, and trade profit.
 - Territory paths improve pressure, tile defense, and neutral claim thresholds.
-- Military paths improve recruitment, battalion slots, battalion size, XP, and promotion costs.
+- Military paths improve recruitment, battalion slots, battalion size, and promotion costs.
 - Nodes 4 and 8 are the main build-changing unlocks; the nodes between them are smaller ramp bonuses.
 
 ---
