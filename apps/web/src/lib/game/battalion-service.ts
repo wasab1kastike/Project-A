@@ -395,6 +395,36 @@ export async function setDefaultAggression(args: {
 // War Fronts
 // ═════════════════════════════════════════════════════════════════════════════
 
+export async function setAllianceSupportPolicy(args: {
+  userId: string;
+  fortressId?: string;
+  supportAttack: boolean;
+  supportDefense: boolean;
+  supportPercent: number;
+}): Promise<void> {
+  const supportPercent = Math.max(0, Math.min(100, Math.floor(args.supportPercent)));
+  const fortress = await getOwnedFortress(prisma, args);
+
+  await prisma.warPolicy.upsert({
+    where: { cycleId_fortressId: { cycleId: fortress.cycleId, fortressId: fortress.id } },
+    create: {
+      cycleId: fortress.cycleId,
+      fortressId: fortress.id,
+      defaultAggression: "BALANCED",
+      maxArmySize: 500,
+      guardPercent: 30,
+      allianceSupportAttack: args.supportAttack,
+      allianceSupportDefense: args.supportDefense,
+      allianceSupportPercent: supportPercent,
+    },
+    update: {
+      allianceSupportAttack: args.supportAttack,
+      allianceSupportDefense: args.supportDefense,
+      allianceSupportPercent: supportPercent,
+    },
+  });
+}
+
 export async function createWarFront(args: {
   userId: string;
   attackerFortressId?: string;

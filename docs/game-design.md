@@ -166,7 +166,7 @@ Allies can upgrade trust (0→3). Higher tiers grant:
 - War fronts are automated from the Castle War Room: only ATTACK-mode battalions with troops can be assigned, and active wars evaluate both directions for automatic dispatch.
 - Existing tile pressure priorities double as preferred wartime targets when the prioritized tile is enemy-owned and reachable from your territory.
 - New troops assigned to battalions stationed away from the castle travel as visible reinforcement marches first; they count as pending capacity but do not become usable battalion size until arrival.
-- ALLIANCE-mode battalions automatically support eligible allied defensive battlefields by launching normal incoming reinforcement marches.
+- ALLIANCE-mode battalions automatically support eligible allied defensive and attacking battlefields by launching normal incoming reinforcement marches. War Room policy toggles can allow attack support, defense support, and choose what percent of ALLIANCE troops each support march commits.
 - Roads reduce movement ETA for manual attacks, remote battalion reinforcement, guard fortification marches, War Front launches, and allied battlefield support. Roads do not shorten the one-hour PvP preparation delay.
 
 ---

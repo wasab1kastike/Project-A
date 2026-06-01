@@ -9,6 +9,7 @@ import { PoliticsClient } from "@/app/politics/politics-client";
 import {
   purchaseSkillNodeAction,
   setGuardPercentAction,
+  setAllianceSupportPolicyAction,
   setMaxArmySizeAction,
   createBattalionAction,
   createRaidOrderAction,
@@ -346,7 +347,36 @@ type PlayerSummary = {
     maxArmySize: number;
     guardPercent: number;
     defaultAggression: string;
+    allianceSupportAttack: boolean;
+    allianceSupportDefense: boolean;
+    allianceSupportPercent: number;
   } | null;
+  allianceWarRoom: {
+    allianceBattalionArmy: number;
+    allies: Array<{
+      fortressId: string;
+      name: string;
+      commanderName: string;
+      trustTier: number;
+    }>;
+    battlefields: Array<{
+      id: string;
+      targetLabel: string;
+      alliedSide: "ATTACKER" | "DEFENDER" | null;
+      allyName: string;
+      opponentName: string;
+      attackerArmyRemaining: number;
+      defenderArmyRemaining: number;
+    }>;
+    outgoingReinforcements: Array<{
+      id: string;
+      armyAmount: number;
+      arrivesAt: Date;
+      side: "ATTACKER" | "DEFENDER" | null;
+      allyName: string;
+      targetLabel: string;
+    }>;
+  };
   warFronts: Array<{
     id: string;
     attackerFortressId: string;
@@ -724,6 +754,15 @@ export function CastleManagement({
   const [maxArmySize, setMaxArmySize] = useState(
     playerSummary.warPolicy?.maxArmySize ?? 500,
   );
+  const [allianceSupportAttack, setAllianceSupportAttack] = useState(
+    playerSummary.warPolicy?.allianceSupportAttack ?? true,
+  );
+  const [allianceSupportDefense, setAllianceSupportDefense] = useState(
+    playerSummary.warPolicy?.allianceSupportDefense ?? true,
+  );
+  const [allianceSupportPercent, setAllianceSupportPercent] = useState(
+    playerSummary.warPolicy?.allianceSupportPercent ?? 50,
+  );
   const [battalionPending, setBattalionPending] = useState(false);
 
   const handleGuardPercentChange = useCallback(
@@ -748,6 +787,22 @@ export function CastleManagement({
       await handleInlineResult(result);
     },
     [playerSummary.id],
+  );
+
+  const saveAllianceSupportPolicy = useCallback(
+    async (next?: {
+      supportAttack?: boolean;
+      supportDefense?: boolean;
+      supportPercent?: number;
+    }) => {
+      const result = await setAllianceSupportPolicyAction({
+        supportAttack: next?.supportAttack ?? allianceSupportAttack,
+        supportDefense: next?.supportDefense ?? allianceSupportDefense,
+        supportPercent: next?.supportPercent ?? allianceSupportPercent,
+      });
+      await handleInlineResult(result);
+    },
+    [allianceSupportAttack, allianceSupportDefense, allianceSupportPercent],
   );
 
   const handleCreateBattalion = useCallback(async () => {
@@ -1574,6 +1629,126 @@ export function CastleManagement({
           Upkeep deducts food each tick. Recruitment orders spend gold up front,
           then recruiters process the queue. Food shortfall causes desertion.
         </p>
+      </section>
+
+      <section className={styles.panel}>
+        <div className={styles.panelHeader}>
+          <span>Alliance Support</span>
+          <strong>{playerSummary.allianceWarRoom.allianceBattalionArmy.toLocaleString()} ready</strong>
+        </div>
+        <div style={{ display: "grid", gap: 10 }}>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", fontSize: 13 }}>
+            <label style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+              <input
+                type="checkbox"
+                checked={allianceSupportDefense}
+                onChange={(event) => {
+                  const checked = event.currentTarget.checked;
+                  setAllianceSupportDefense(checked);
+                  void saveAllianceSupportPolicy({ supportDefense: checked });
+                }}
+              />
+              Defend allies
+            </label>
+            <label style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+              <input
+                type="checkbox"
+                checked={allianceSupportAttack}
+                onChange={(event) => {
+                  const checked = event.currentTarget.checked;
+                  setAllianceSupportAttack(checked);
+                  void saveAllianceSupportPolicy({ supportAttack: checked });
+                }}
+              />
+              Join allied attacks
+            </label>
+          </div>
+          <label style={{ display: "grid", gap: 4, fontSize: 13 }}>
+            <span style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>Commit from ALLIANCE battalions</span>
+              <strong>{allianceSupportPercent}%</strong>
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={allianceSupportPercent}
+              onChange={(event) => {
+                const value = Number(event.currentTarget.value);
+                setAllianceSupportPercent(value);
+              }}
+              onMouseUp={(event) =>
+                void saveAllianceSupportPolicy({
+                  supportPercent: Number(event.currentTarget.value),
+                })
+              }
+              onTouchEnd={(event) =>
+                void saveAllianceSupportPolicy({
+                  supportPercent: Number(event.currentTarget.value),
+                })
+              }
+              onBlur={(event) =>
+                void saveAllianceSupportPolicy({
+                  supportPercent: Number(event.currentTarget.value),
+                })
+              }
+            />
+          </label>
+          <p className={styles.muted} style={{ fontSize: 12, margin: 0 }}>
+            Battalions set to ALLIANCE automatically march to allied active battlefields on the enabled sides.
+          </p>
+        </div>
+
+        <div className={styles.operationGroup} style={{ marginTop: 10 }}>
+          <div className={styles.operationTitle}>
+            <strong>Allies</strong>
+          </div>
+          {playerSummary.allianceWarRoom.allies.length > 0 ? (
+            playerSummary.allianceWarRoom.allies.map((ally) => (
+              <div key={ally.fortressId} className={styles.statusRow}>
+                <span>{ally.name}</span>
+                <strong>Trust {ally.trustTier}</strong>
+              </div>
+            ))
+          ) : (
+            <p className={styles.muted}>No active alliances.</p>
+          )}
+        </div>
+
+        {playerSummary.allianceWarRoom.battlefields.length > 0 ? (
+          <div className={styles.operationGroup}>
+            <div className={styles.operationTitle}>
+              <strong>Allied battlefields</strong>
+            </div>
+            {playerSummary.allianceWarRoom.battlefields.map((battlefield) => (
+              <div key={battlefield.id} className={styles.statusRow}>
+                <span>
+                  {battlefield.allyName} {battlefield.alliedSide === "ATTACKER" ? "attacking" : "defending"} {battlefield.targetLabel}
+                </span>
+                <strong>
+                  {battlefield.attackerArmyRemaining.toLocaleString()} / {battlefield.defenderArmyRemaining.toLocaleString()}
+                </strong>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {playerSummary.allianceWarRoom.outgoingReinforcements.length > 0 ? (
+          <div className={styles.operationGroup}>
+            <div className={styles.operationTitle}>
+              <strong>Support en route</strong>
+            </div>
+            {playerSummary.allianceWarRoom.outgoingReinforcements.map((unit) => (
+              <div key={unit.id} className={styles.statusRow}>
+                <span>
+                  {unit.armyAmount.toLocaleString()} to {unit.allyName} ({unit.side?.toLowerCase() ?? "support"})
+                </span>
+                <strong>{new Date(unit.arrivesAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</strong>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </section>
 
       <section className={styles.panel}>

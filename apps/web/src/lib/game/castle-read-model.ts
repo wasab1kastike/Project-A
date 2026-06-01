@@ -389,6 +389,9 @@ export async function getCastlePageState({
               maxArmySize: true,
               guardPercent: true,
               defaultAggression: true,
+              allianceSupportAttack: true,
+              allianceSupportDefense: true,
+              allianceSupportPercent: true,
             },
           },
           warFronts: {
@@ -509,6 +512,82 @@ export async function getCastlePageState({
         .map((ownership) => getTileById(ownership.tileId)?.biome ?? null)
         .filter((biome): biome is NonNullable<typeof biome> => biome !== null)
     : [];
+  const allianceRelations = playerFortress
+    ? await db.diplomacyRelation.findMany({
+        where: {
+          cycleId: cycle.id,
+          status: "ALLIED",
+          OR: [
+            { fortressAId: playerFortress.id },
+            { fortressBId: playerFortress.id },
+          ],
+        },
+        select: {
+          fortressAId: true,
+          fortressBId: true,
+          allianceTrustTier: true,
+        },
+      })
+    : [];
+  const alliedFortressIds = new Set(
+    allianceRelations.map((relation) =>
+      relation.fortressAId === playerFortress?.id
+        ? relation.fortressBId
+        : relation.fortressAId,
+    ),
+  );
+  const [allianceBattlefields, outgoingAllianceReinforcements] = playerFortress
+    ? await Promise.all([
+        alliedFortressIds.size > 0
+          ? db.battlefield.findMany({
+              where: {
+                cycleId: cycle.id,
+                status: "ACTIVE",
+                OR: [
+                  { attackerBannerFortressId: { in: [...alliedFortressIds] } },
+                  { defenderBannerFortressId: { in: [...alliedFortressIds] } },
+                ],
+              },
+              orderBy: [{ startedAt: "desc" }, { id: "desc" }],
+              take: 8,
+              select: {
+                id: true,
+                targetTileId: true,
+                targetFortressId: true,
+                attackerBannerFortressId: true,
+                defenderBannerFortressId: true,
+                attackerArmyRemaining: true,
+                defenderArmyRemaining: true,
+              },
+            })
+          : [],
+        db.attackUnit.findMany({
+          where: {
+            cycleId: cycle.id,
+            attackerFortressId: playerFortress.id,
+            reinforcementBattlefieldId: { not: null },
+            resolvedAt: null,
+            cancelledAt: null,
+          },
+          orderBy: [{ arrivesAt: "asc" }, { id: "asc" }],
+          take: 8,
+          select: {
+            id: true,
+            armyAmount: true,
+            arrivesAt: true,
+            reinforcementSide: true,
+            reinforcementBattlefield: {
+              select: {
+                id: true,
+                targetTileId: true,
+                attackerBannerFortressId: true,
+                defenderBannerFortressId: true,
+              },
+            },
+          },
+        }),
+      ])
+    : [[], []];
   const playerOwnedTileCount = getRaceTierTileCount({
     race: playerFortress?.race,
     ownedTileBiomes: playerOwnedTileBiomes,
@@ -1441,8 +1520,80 @@ export async function getCastlePageState({
                 maxArmySize: playerFortress.warPolicies[0].maxArmySize,
                 guardPercent: playerFortress.warPolicies[0].guardPercent,
                 defaultAggression: playerFortress.warPolicies[0].defaultAggression,
+                allianceSupportAttack: playerFortress.warPolicies[0].allianceSupportAttack,
+                allianceSupportDefense: playerFortress.warPolicies[0].allianceSupportDefense,
+                allianceSupportPercent: playerFortress.warPolicies[0].allianceSupportPercent,
               }
             : null,
+          allianceWarRoom: {
+            allianceBattalionArmy: (playerFortress?.battalions ?? [])
+              .filter((b) => (b.mode ?? "GUARD") === "ALLIANCE")
+              .reduce((sum, battalion) => sum + battalion.size, 0),
+            allies: allianceRelations.map((relation) => {
+              const allyId =
+                relation.fortressAId === playerFortress?.id
+                  ? relation.fortressBId
+                  : relation.fortressAId;
+              const ally = targetLookup.get(allyId);
+              return {
+                fortressId: allyId,
+                name: ally?.name ?? "Unknown ally",
+                commanderName: ally?.commanderName ?? "Unknown commander",
+                trustTier: relation.allianceTrustTier,
+              };
+            }),
+            battlefields: allianceBattlefields.map((battlefield) => {
+              const attacker = targetLookup.get(battlefield.attackerBannerFortressId);
+              const defender = battlefield.defenderBannerFortressId
+                ? targetLookup.get(battlefield.defenderBannerFortressId)
+                : null;
+              const alliedSide: "ATTACKER" | "DEFENDER" | null = alliedFortressIds.has(battlefield.attackerBannerFortressId)
+                ? "ATTACKER"
+                : battlefield.defenderBannerFortressId &&
+                    alliedFortressIds.has(battlefield.defenderBannerFortressId)
+                  ? "DEFENDER"
+                  : null;
+
+              return {
+                id: battlefield.id,
+                targetLabel: battlefield.targetTileId
+                  ? `Tile ${battlefield.targetTileId}`
+                  : battlefield.targetFortressId
+                    ? targetLookup.get(battlefield.targetFortressId)?.name ?? "Castle"
+                    : "Battlefield",
+                alliedSide,
+                allyName:
+                  alliedSide === "ATTACKER"
+                    ? attacker?.name ?? "Ally"
+                    : defender?.name ?? "Ally",
+                opponentName:
+                  alliedSide === "ATTACKER"
+                    ? defender?.name ?? "Defender"
+                    : attacker?.name ?? "Attacker",
+                attackerArmyRemaining: battlefield.attackerArmyRemaining,
+                defenderArmyRemaining: battlefield.defenderArmyRemaining,
+              };
+            }),
+            outgoingReinforcements: outgoingAllianceReinforcements.map((unit) => {
+              const battlefield = unit.reinforcementBattlefield;
+              const alliedFortressId =
+                unit.reinforcementSide === "ATTACKER"
+                  ? battlefield?.attackerBannerFortressId
+                  : battlefield?.defenderBannerFortressId;
+              const ally = alliedFortressId ? targetLookup.get(alliedFortressId) : null;
+
+              return {
+                id: unit.id,
+                armyAmount: unit.armyAmount,
+                arrivesAt: unit.arrivesAt,
+                side: unit.reinforcementSide,
+                allyName: ally?.name ?? "Ally",
+                targetLabel: battlefield?.targetTileId
+                  ? `Tile ${battlefield.targetTileId}`
+                  : "Battlefield",
+              };
+            }),
+          },
           warFronts: (playerFortress?.warFronts ?? []).map((f) => ({
             id: f.id,
             attackerFortressId: f.attackerFortressId,
