@@ -176,7 +176,6 @@ import {
   processBattalionRecruitment,
   processBattalionGuard,
   reconcileBattalionCasualties,
-  processReserveHealing,
 } from "./tick-battalion-integration";
 import {
   ensureCurrentNukeComponentRound,
@@ -662,6 +661,15 @@ async function processTilePressureExpansion({
     const claimableTiles = HEX_TILES.filter((tile) => tile.claimable);
     const fortressById = new Map(fortresses.map((fortress) => [fortress.id, fortress]));
     const pressuredTileIds = new Set<string>();
+    const removePressurePriorityTileFromQueue = (tileId: string) => {
+      for (const [fortressId, fortressPriorities] of prioritiesByFortressId) {
+        const remainingPriorities = fortressPriorities.filter(
+          (priority) => priority.tileId !== tileId
+        );
+        if (remainingPriorities.length === fortressPriorities.length) continue;
+        prioritiesByFortressId.set(fortressId, remainingPriorities);
+      }
+    };
     const normalizePriorityWeights = async (fortress: (typeof fortresses)[number]) => {
       const priorityLimit = getTilePressurePriorityLimit(fortress);
       const normalizedPriorities = sortTilePressureQueue(
@@ -670,13 +678,11 @@ async function processTilePressureExpansion({
 
       await Promise.all(
         normalizedPriorities.map((priority, index) =>
-          tx.tilePressurePriority.update({
+          tx.tilePressurePriority.updateMany({
             where: {
-              cycleId_fortressId_tileId: {
-                cycleId,
-                fortressId: fortress.id,
-                tileId: priority.tileId,
-              },
+              cycleId,
+              fortressId: fortress.id,
+              tileId: priority.tileId,
             },
             data: {
               weight: getTilePressurePriorityWeightForSlot({
@@ -1035,6 +1041,7 @@ async function processTilePressureExpansion({
           tileId,
         },
       });
+      removePressurePriorityTileFromQueue(tileId);
       await tx.tilePressureState.deleteMany({
         where: {
           cycleId,
@@ -6111,10 +6118,6 @@ async function processCycleTick(
       });
     }
 
-    // RESERVE battalions heal 2% of max size per tick
-    await processReserveHealing({
-      ctx: { db, cycleId },
-    });
   }
 
   return {

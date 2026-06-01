@@ -1379,13 +1379,11 @@ export async function reorderTilePressurePriorities({
 
     await Promise.all(
       requestedTileIds.map((tileId, index) =>
-        tx.tilePressurePriority.update({
+        tx.tilePressurePriority.updateMany({
           where: {
-            cycleId_fortressId_tileId: {
-              cycleId: cycle.id,
-              fortressId: fortress.id,
-              tileId,
-            },
+            cycleId: cycle.id,
+            fortressId: fortress.id,
+            tileId,
           },
           data: {
             weight: getTilePressurePriorityWeightForSlot({
@@ -1477,13 +1475,11 @@ export async function clearTilePressurePriority({
 
     await Promise.all(
       sortTilePressureQueue(remainingPriorities).map((priority, index) =>
-        tx.tilePressurePriority.update({
+        tx.tilePressurePriority.updateMany({
           where: {
-            cycleId_fortressId_tileId: {
-              cycleId: cycle.id,
-              fortressId: fortress.id,
-              tileId: priority.tileId,
-            },
+            cycleId: cycle.id,
+            fortressId: fortress.id,
+            tileId: priority.tileId,
           },
           data: {
             weight: getTilePressurePriorityWeightForSlot({

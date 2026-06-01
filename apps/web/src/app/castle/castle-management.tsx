@@ -2383,6 +2383,8 @@ export function CastleManagement({
                   return `${reserves.toLocaleString()} unassigned`;
                 })()}
                 {" · "}
+                Refill battalions with recruiters; they do not heal passively.
+                {" · "}
                 <strong>Tiers:</strong>{" "}
                 <span title="1.0× dmg/def, max 500">Recruit</span> →{" "}
                 <span title="1.15× dmg, 1.10× def, max 5k">Regular (1.5k)</span>{" "}
@@ -2489,54 +2491,10 @@ export function CastleManagement({
                             fontWeight: 600,
                           }}
                         >
-                          <option value="ATTACK">⚔ Attack</option>
-                          <option value="GUARD">🛡 Guard</option>
-                          <option value="RESERVE">📦 Reserve</option>
-                          <option value="ALLIANCE">🤝 Alliance</option>
-                        </select>
-                        <select
-                          defaultValue={bn.stance ?? "REST"}
-                          onChange={async (e) => {
-                            const selectEl = e.target as HTMLSelectElement;
-                            const newStance = selectEl.value;
-                            selectEl.disabled = true;
-                            try {
-                              const { setBattalionStanceAction } =
-                                await import("@/app/game-actions");
-                              const result = await setBattalionStanceAction({
-                                battalionId: bn.id,
-                                stance: newStance,
-                              });
-                              if (!result?.ok) {
-                                selectEl.value = bn.stance ?? "REST";
-                                window.alert(
-                                  result?.error ?? "Failed to change stance"
-                                );
-                              }
-                            } catch (err) {
-                              selectEl.value = bn.stance ?? "REST";
-                            } finally {
-                              selectEl.disabled = false;
-                              refreshView();
-                            }
-                          }}
-                          style={{
-                            fontSize: 11,
-                            padding: "1px 4px",
-                            background: "#1a1a2e",
-                            color: "#aaa",
-                            border: "1px solid var(--border)",
-                            borderRadius: 3,
-                            cursor: "pointer",
-                          }}
-                          title="Stance affects combat bonuses and behavior"
-                        >
-                          <option value="FORTIFY">🏰 Fortify</option>
-                          <option value="PATROL">🚶 Patrol</option>
-                          <option value="TRAINING">🎯 Training</option>
-                          <option value="AMBUSH">🗡 Ambush</option>
-                          <option value="REST">💤 Rest</option>
-                          <option value="MOBILE">🏃 Mobile</option>
+                          <option value="RESERVE">Reserve</option>
+                          <option value="GUARD">Guard</option>
+                          <option value="ATTACK">Attack</option>
+                          <option value="ALLIANCE">Alliance</option>
                         </select>
                         <span style={{ color: "var(--text-muted)" }}>
                           {bn.size}/{bn.maxSize}

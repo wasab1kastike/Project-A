@@ -654,6 +654,7 @@
   background: transparent;
   filter: drop-shadow(0 15px 12px rgba(0, 0, 0, 0.22));
   overflow: visible;
+  animation: fortressIdle 5.8s ease-in-out infinite;
 }
 
 .spriteFrame::before {
@@ -671,6 +672,17 @@
   );
   content: "";
   transform: translateX(-50%);
+}
+
+@keyframes fortressIdle {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-2px);
+  }
 }
 
 .fortressSprite,
@@ -1359,6 +1371,243 @@
 }
 
 /* Trade route lines — golden dashed lines between established trading partners */
+.mapLifeLayer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.mapLifeSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.lifeDomain {
+  fill: none;
+  stroke: rgba(247, 196, 95, 0.34);
+  stroke-width: 2;
+  stroke-dasharray: 11 13;
+  stroke-linejoin: round;
+  opacity: 0.42;
+  filter: drop-shadow(0 0 7px rgba(247, 196, 95, 0.18));
+  vector-effect: non-scaling-stroke;
+  animation: lifeDomainPulse var(--life-duration, 4.6s) ease-in-out infinite;
+  animation-delay: var(--life-delay, 0s);
+}
+
+.lifeDomain[data-race="DWARFS"] {
+  stroke: rgba(183, 130, 74, 0.46);
+  filter: drop-shadow(0 0 7px rgba(183, 130, 74, 0.2));
+}
+
+.lifeDomain[data-race="ORKS"] {
+  stroke: rgba(100, 210, 91, 0.48);
+  filter: drop-shadow(0 0 7px rgba(100, 210, 91, 0.22));
+}
+
+.lifeDomain[data-race="SPACE_MURINES"] {
+  stroke: rgba(126, 200, 255, 0.48);
+  filter: drop-shadow(0 0 7px rgba(126, 200, 255, 0.22));
+}
+
+.lifeDomain[data-race="UNSTABLE_UNICORNS"] {
+  stroke: rgba(232, 139, 255, 0.5);
+  filter: drop-shadow(0 0 8px rgba(232, 139, 255, 0.24));
+}
+
+.lifeOwnDomain {
+  stroke-width: 3;
+  stroke-dasharray: 16 10;
+  opacity: 0.58;
+  filter: drop-shadow(0 0 10px rgba(255, 225, 139, 0.34));
+}
+
+.lifeRoadShimmer {
+  fill: none;
+  stroke: rgba(255, 246, 181, 0.55);
+  stroke-dasharray: 2 24;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.76;
+  filter: drop-shadow(0 0 5px rgba(255, 214, 90, 0.22));
+  vector-effect: non-scaling-stroke;
+  animation: lifeRoadFlow 2.8s linear infinite;
+  animation-delay: var(--life-delay, 0s);
+}
+
+.lifeRoadShimmer:global(.roadDirt) {
+  stroke: rgba(255, 198, 126, 0.45);
+  stroke-dasharray: 2 30;
+}
+
+.lifeRoadShimmer:global(.roadStone) {
+  stroke: rgba(232, 240, 255, 0.55);
+  stroke-dasharray: 2 25;
+}
+
+.lifeRoadShimmer:global(.roadHighway) {
+  stroke: rgba(255, 224, 98, 0.74);
+  stroke-dasharray: 3 19;
+  filter: drop-shadow(0 0 7px rgba(255, 214, 90, 0.38));
+}
+
+.lifeTradeTicks {
+  fill: none;
+  stroke: rgba(255, 224, 112, 0.74);
+  stroke-dasharray: 1 26;
+  stroke-linecap: round;
+  opacity: 0.78;
+  filter: drop-shadow(0 0 6px rgba(255, 211, 85, 0.32));
+  vector-effect: non-scaling-stroke;
+  animation: lifeTradeFlow 2.1s linear infinite;
+  animation-delay: var(--life-delay, 0s);
+}
+
+.lifeBattlePuff {
+  fill: rgba(226, 210, 184, 0.5);
+  opacity: 0;
+  filter: drop-shadow(0 0 5px rgba(255, 120, 75, 0.22));
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: lifeBattlePuff var(--life-duration, 4s) ease-out infinite;
+  animation-delay: var(--life-delay, 0s);
+}
+
+.lifeBattlePuff[data-intensity="mid"] {
+  fill: rgba(232, 188, 139, 0.62);
+  filter: drop-shadow(0 0 7px rgba(255, 128, 77, 0.36));
+}
+
+.lifeBattlePuff[data-intensity="high"] {
+  fill: rgba(255, 168, 101, 0.74);
+  filter: drop-shadow(0 0 9px rgba(255, 92, 63, 0.52));
+}
+
+.lifeFortressAura {
+  position: absolute;
+  width: 86px;
+  height: 44px;
+  border-radius: 999px;
+  background: radial-gradient(
+    ellipse,
+    rgba(247, 196, 95, 0.22),
+    rgba(247, 196, 95, 0.08) 48%,
+    transparent 73%
+  );
+  opacity: 0.5;
+  transform: translate(-50%, 6px) scale(0.94);
+  animation: lifeFortressAura var(--life-duration, 4.8s) ease-in-out infinite;
+  animation-delay: var(--life-delay, 0s);
+}
+
+.lifeFortressAura[data-race="DWARFS"] {
+  background: radial-gradient(
+    ellipse,
+    rgba(214, 152, 83, 0.28),
+    rgba(214, 152, 83, 0.1) 48%,
+    transparent 73%
+  );
+}
+
+.lifeFortressAura[data-race="ORKS"] {
+  background: radial-gradient(
+    ellipse,
+    rgba(101, 226, 91, 0.27),
+    rgba(101, 226, 91, 0.1) 48%,
+    transparent 73%
+  );
+}
+
+.lifeFortressAura[data-race="SPACE_MURINES"] {
+  background: radial-gradient(
+    ellipse,
+    rgba(126, 200, 255, 0.28),
+    rgba(126, 200, 255, 0.1) 48%,
+    transparent 73%
+  );
+}
+
+.lifeFortressAura[data-race="UNSTABLE_UNICORNS"] {
+  background: radial-gradient(
+    ellipse,
+    rgba(232, 139, 255, 0.31),
+    rgba(232, 139, 255, 0.11) 48%,
+    transparent 73%
+  );
+}
+
+.lifeOwnFortressAura {
+  width: 108px;
+  height: 54px;
+  opacity: 0.72;
+  background: radial-gradient(
+    ellipse,
+    rgba(255, 226, 139, 0.34),
+    rgba(255, 226, 139, 0.13) 50%,
+    transparent 76%
+  );
+}
+
+@keyframes lifeDomainPulse {
+  0%,
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0.32;
+  }
+
+  50% {
+    stroke-dashoffset: -18;
+    opacity: 0.62;
+  }
+}
+
+@keyframes lifeRoadFlow {
+  to {
+    stroke-dashoffset: -52;
+  }
+}
+
+@keyframes lifeTradeFlow {
+  to {
+    stroke-dashoffset: -54;
+  }
+}
+
+@keyframes lifeBattlePuff {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.55);
+  }
+
+  22% {
+    opacity: 0.84;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(var(--puff-x, 0), var(--puff-y, -22px)) scale(1.75);
+  }
+}
+
+@keyframes lifeFortressAura {
+  0%,
+  100% {
+    opacity: 0.38;
+    transform: translate(-50%, 6px) scale(0.92);
+  }
+
+  50% {
+    opacity: 0.74;
+    transform: translate(-50%, 6px) scale(1.08);
+  }
+}
+
 .tradeRouteLine {
   stroke: #FFD700;
   stroke-width: 2;
@@ -1381,6 +1630,22 @@
   width: 22px;
   height: 22px;
   pointer-events: auto;
+  animation: guardIdle 2.8s ease-in-out infinite;
+}
+
+.guardMarker::after {
+  position: absolute;
+  right: 1px;
+  top: 2px;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 210, 98, 0.88);
+  box-shadow:
+    0 0 6px rgba(255, 181, 68, 0.72),
+    0 0 12px rgba(255, 109, 56, 0.28);
+  content: "";
+  animation: guardTorch 1.7s ease-in-out infinite;
 }
 
 .guardSprite {
@@ -1427,6 +1692,30 @@
   font-weight: 700;
   line-height: 14px;
   text-align: center;
+}
+
+@keyframes guardIdle {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) translateY(0);
+  }
+
+  50% {
+    transform: translate(-50%, -50%) translateY(-2px);
+  }
+}
+
+@keyframes guardTorch {
+  0%,
+  100% {
+    opacity: 0.62;
+    transform: scale(0.82);
+  }
+
+  45% {
+    opacity: 1;
+    transform: scale(1.22);
+  }
 }
 
 /* Battalion markers */
@@ -1780,4 +2069,35 @@
 @keyframes warPulse {
   0%, 100% { filter: drop-shadow(0 0 6px rgba(255,60,40,0.4)) drop-shadow(0 0 2px rgba(255,60,40,0.6)); }
   50% { filter: drop-shadow(0 0 12px rgba(255,60,40,0.8)) drop-shadow(0 0 4px rgba(255,60,40,1)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lifeRoadShimmer,
+  .lifeTradeTicks,
+  .lifeBattlePuff {
+    animation: none;
+    opacity: 0;
+  }
+
+  .lifeDomain,
+  .lifeFortressAura,
+  .spriteFrame,
+  .guardMarker,
+  .guardMarker::after,
+  .battalionMarker,
+  .battalionPatrol,
+  .convoyWagon,
+  .warMarker .fortressSprite,
+  .nukeBiddingMarker[data-open="true"] {
+    animation: none;
+  }
+
+  .lifeDomain {
+    opacity: 0.36;
+    stroke-dashoffset: 0;
+  }
+
+  .lifeFortressAura {
+    opacity: 0.42;
+  }
 }
