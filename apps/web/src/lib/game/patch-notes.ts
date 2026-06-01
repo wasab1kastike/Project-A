@@ -17,6 +17,8 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
       "War Front battalions now dispatch from ATTACK mode in both war directions, using reachable tile priorities as target preference.",
       "Battalion reinforcements now march visibly from the castle to remote battalions before those new troops become usable.",
       "Alliance-mode battalions now send visible battlefield reinforcement marches instead of silently adding defenders.",
+      "Roads now shorten movement ETA for attacks, fortification marches, remote battalion reinforcements, War Front launches, allied support, and convoy map legs.",
+      "The map now shows clearer road levels, route tooltips, and moving-unit ETA savings when roads helped the march.",
     ],
     bugFixes: [
       "The tutorial now points politics tasks at the Castle Diplomacy tab, matching the current navigation.",
@@ -24,6 +26,7 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
       "Automatic wartime convoy raids now consider both sides of a war and avoid duplicate active raid patrols.",
       "Battalion and War Front controls now validate live ownership, costs, mode, and promotion state on the server before applying changes.",
       "Pending battalion reinforcements now count against battalion capacity, preventing overfill while troops are still on the road.",
+      "Road growth now follows the actual tile or battlefield destination instead of assuming every arrived unit marched castle-to-castle.",
     ],
   },
   {

@@ -128,7 +128,6 @@ import { validateTileDeedAllowed } from "../tile-deeds";
 import { getCampaignStartBlockedReason } from "../campaigns";
 import {
   calculateTradeCargoValue,
-  getConvoyArrivalAt,
   getTradeBlockedReason,
   getTradeOfferExpiresAt,
   hasTradeCargo,
@@ -137,6 +136,7 @@ import {
 } from "../trading";
 import { getRaidTargetBlockedReason, isConvoyRaidEligible } from "../convoy-conflict";
 import { getDoctrineChangeBlockedReason } from "../doctrines";
+import { getRoadAdjustedConvoyArrival } from "../road-travel";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 
@@ -3119,7 +3119,7 @@ export async function acceptTradeOffer({
     const deedLineItem = offer.lineItems.find(
       (item) => item.kind === TradeLineItemKind.TILE
     );
-    const legs = [
+    const legCandidates = [
       { cargo: senderCargo, from: sender, to: receiver },
       { cargo: receiverCargo, from: receiver, to: sender },
     ]
@@ -3128,15 +3128,21 @@ export async function acceptTradeOffer({
           hasTradeCargo(leg.cargo) ||
           (deedLineItem?.tileId &&
             deedLineItem.fromFortressId === leg.from.id)
-      )
-      .map((leg) => ({
+      );
+    const legs = await Promise.all(
+      legCandidates.map(async (leg) => ({
         ...leg,
-        arrivesAt: getConvoyArrivalAt({
-          acceptedAt: now,
-          from: leg.from,
-          to: leg.to,
-        }),
-      }));
+        arrivesAt: (
+          await getRoadAdjustedConvoyArrival({
+            db: tx,
+            cycleId: cycle.id,
+            acceptedAt: now,
+            from: leg.from,
+            to: leg.to,
+          })
+        ).arrivesAt,
+      })),
+    );
 
     if (deedLineItem?.tileId) {
       const deedSender = deedLineItem.fromFortressId === sender.id ? sender : receiver;

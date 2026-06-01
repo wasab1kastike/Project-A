@@ -11,6 +11,7 @@ import { processGuardTick, type GuardableTile } from "./guard-system";
 import { getBattalionSlots, generateBattalionName } from "./battalion-types";
 import { HEX_TILES } from "./map-hex";
 import type { Battalion } from "./battalion-types";
+import { getRoadAdjustedAttackArrival } from "./road-travel";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -25,11 +26,15 @@ type FortressPosition = {
   mapY: number;
 };
 
-function getBattalionReinforcementArrival({
+async function getBattalionReinforcementArrival({
+  db,
+  cycleId,
   now,
   fortress,
   tileId,
 }: {
+  db: PrismaClient;
+  cycleId: string;
   now: Date;
   fortress: FortressPosition;
   tileId: string;
@@ -40,7 +45,16 @@ function getBattalionReinforcementArrival({
   const dx = fortress.mapX - tile.xPercent;
   const dy = fortress.mapY - tile.yPercent;
   const approxTiles = Math.max(1, Math.ceil(Math.sqrt(dx * dx + dy * dy) / 3));
-  return new Date(now.getTime() + approxTiles * 60_000);
+  const { arrivesAt } = await getRoadAdjustedAttackArrival({
+    db,
+    cycleId,
+    launchedAt: now,
+    origin: fortress,
+    target: { mapX: tile.xPercent, mapY: tile.yPercent },
+    baseMinutes: approxTiles,
+  });
+
+  return arrivesAt;
 }
 
 // ── Recruitment ──────────────────────────────────────────────────────────────
@@ -276,6 +290,16 @@ export async function processBattalionRecruitment(args: {
 
   for (const launch of reinforcementLaunches) {
     const fortress = fortressPositionsById.get(launch.fortressId);
+    const arrivesAt = fortress
+      ? await getBattalionReinforcementArrival({
+          db: ctx.db,
+          cycleId: ctx.cycleId,
+          now: ctx.now,
+          fortress,
+          tileId: launch.tileId,
+        })
+      : new Date(ctx.now.getTime() + 60_000);
+
     await ctx.db.attackUnit.create({
       data: {
         cycleId: ctx.cycleId,
@@ -284,13 +308,7 @@ export async function processBattalionRecruitment(args: {
         reinforcementBattalionId: launch.battalionId,
         armyAmount: launch.armyAmount,
         launchedAt: ctx.now,
-        arrivesAt: fortress
-          ? getBattalionReinforcementArrival({
-              now: ctx.now,
-              fortress,
-              tileId: launch.tileId,
-            })
-          : new Date(ctx.now.getTime() + 60_000),
+        arrivesAt,
         returnOriginMapX: fortress?.mapX,
         returnOriginMapY: fortress?.mapY,
       },
@@ -312,8 +330,9 @@ export async function processBattalionGuard(args: {
   guardPercentByFortress: Map<string, number>;
   /** Map of fortressId → owned tile IDs */
   ownedTilesByFortress: Map<string, string[]>;
+  fortressPositionsById: Map<string, FortressPosition>;
 }): Promise<void> {
-  const { ctx, guardPercentByFortress, ownedTilesByFortress } = args;
+  const { ctx, guardPercentByFortress, ownedTilesByFortress, fortressPositionsById } = args;
 
   // Load battalions.
   const allBattalions = await ctx.db.battalion.findMany({
@@ -396,8 +415,17 @@ export async function processBattalionGuard(args: {
       if (assignment.unitsAssigned <= 0) continue;
       if (!ownedTiles.includes(assignment.tileId)) continue;
 
-      // Find the fortress position from the fortress lookup (passed via ctx).
-      // Since we don't have map positions here, use a short arrival time.
+      const fortress = fortressPositionsById.get(fortressId);
+      const arrivesAt = fortress
+        ? await getBattalionReinforcementArrival({
+            db: ctx.db,
+            cycleId: ctx.cycleId,
+            now: ctx.now,
+            fortress,
+            tileId: assignment.tileId,
+          })
+        : new Date(ctx.now.getTime() + 60_000);
+
       await ctx.db.attackUnit.create({
         data: {
           cycleId: ctx.cycleId,
@@ -406,7 +434,9 @@ export async function processBattalionGuard(args: {
           fortifyTargetTileId: assignment.tileId,
           armyAmount: assignment.unitsAssigned,
           launchedAt: ctx.now,
-          arrivesAt: new Date(ctx.now.getTime() + 60_000), // 1 minute
+          arrivesAt,
+          returnOriginMapX: fortress?.mapX,
+          returnOriginMapY: fortress?.mapY,
         },
       });
     }

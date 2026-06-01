@@ -3454,6 +3454,16 @@ async function processCycleTick(
       pointsLooted: true,
       foodLooted: true,
       armyLooted: true,
+      reinforcementBattlefield: {
+        select: {
+          targetTileId: true,
+        },
+      },
+      reinforcementBattalion: {
+        select: {
+          garrisonedAt: true,
+        },
+      },
     },
   });
 
@@ -3717,12 +3727,32 @@ async function processCycleTick(
       const attacker = fortressLookup.get(unit.attackerFortressId);
       const target = fortressLookup.get(unit.targetFortressId);
       if (attacker && target) {
+        const origin = {
+          mapX: unit.returnOriginMapX ?? attacker.mapX,
+          mapY: unit.returnOriginMapY ?? attacker.mapY,
+        };
+        let destination = unit.recalledAt
+          ? { mapX: attacker.mapX, mapY: attacker.mapY }
+          : { mapX: target.mapX, mapY: target.mapY };
+        const targetTileId =
+          !unit.recalledAt &&
+          (unit.fortifyTargetTileId ??
+            unit.reinforcementBattalion?.garrisonedAt ??
+            unit.reinforcementBattlefield?.targetTileId);
+        const targetTile = targetTileId ? getTileById(targetTileId) : null;
+        if (targetTile) {
+          destination = {
+            mapX: targetTile.xPercent,
+            mapY: targetTile.yPercent,
+          };
+        }
+
         await recordUnitRoadCrossings({
           cycleId,
-          originMapX: attacker.mapX,
-          originMapY: attacker.mapY,
-          targetMapX: target.mapX,
-          targetMapY: target.mapY,
+          originMapX: origin.mapX,
+          originMapY: origin.mapY,
+          targetMapX: destination.mapX,
+          targetMapY: destination.mapY,
           armyAmount: unit.armyAmount,
           now: tickAt,
         });
@@ -5570,6 +5600,12 @@ async function processCycleTick(
       ctx: { db, cycleId, now: tickAt },
       guardPercentByFortress,
       ownedTilesByFortress,
+      fortressPositionsById: new Map(
+        fortresses.map((fortress) => [
+          fortress.id,
+          { mapX: fortress.mapX, mapY: fortress.mapY },
+        ]),
+      ),
     });
 
     // Apply tiered battalion upkeep (replaces flat food cost).

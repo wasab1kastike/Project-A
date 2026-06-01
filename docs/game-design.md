@@ -167,6 +167,7 @@ Allies can upgrade trust (0→3). Higher tiers grant:
 - Existing tile pressure priorities double as preferred wartime targets when the prioritized tile is enemy-owned and reachable from your territory.
 - New troops assigned to battalions stationed away from the castle travel as visible reinforcement marches first; they count as pending capacity but do not become usable battalion size until arrival.
 - ALLIANCE-mode battalions automatically support eligible allied defensive battlefields by launching normal incoming reinforcement marches.
+- Roads reduce movement ETA for manual attacks, remote battalion reinforcement, guard fortification marches, War Front launches, and allied battlefield support. Roads do not shorten the one-hour PvP preparation delay.
 
 ---
 
@@ -174,10 +175,19 @@ Allies can upgrade trust (0→3). Higher tiers grant:
 
 1. Create a trade offer - select goods (gold, food, army, score points, or one allied tile deed) and recipient
 2. Recipient accepts → **Convoy Legs** spawn
-3. Convoys travel between fortresses (duration based on distance)
+3. Convoys travel between fortresses with a fixed six-hour minimum plus road-adjusted map travel
 4. On arrival, cargo is delivered and points awarded
 5. Convoy legs can be **intercepted** by enemy RAID orders managed from the War Room
 6. **ESCORT** orders protect outbound convoys; alliance trust tiers add cargo bonuses
+
+---
+
+## Roads
+
+- Armies and delivered convoys build roads across the hex route they actually used.
+- Dirt paths, stone roads, and highways reduce future movement time by 1.15x, 1.3x, and 1.5x on those route tiles.
+- Road level is locked into a march when the unit launches; later road growth does not retime units already on the map.
+- Road lines on the map show level and crossings, while moving unit popovers show ETA saved when roads helped.
 
 ---
 
