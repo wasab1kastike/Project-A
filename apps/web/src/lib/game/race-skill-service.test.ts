@@ -100,19 +100,20 @@ test("race skill modifiers add rewards from every purchased node", () => {
   const modifiers = getSkillModifiers({
     race: "SPACE_MURINES",
     purchases: [
-      { nodeKey: "convoy-1" },
-      { nodeKey: "convoy-2" },
-      { nodeKey: "convoy-3" },
-      { nodeKey: "convoy-4" },
-      { nodeKey: "convoy-5" },
-      { nodeKey: "convoy-6" },
-      { nodeKey: "convoy-7" },
-      { nodeKey: "convoy-8" },
+      { nodeKey: "rapid-1" },
+      { nodeKey: "rapid-2" },
+      { nodeKey: "rapid-3" },
+      { nodeKey: "rapid-4" },
+      { nodeKey: "rapid-5" },
+      { nodeKey: "rapid-6" },
+      { nodeKey: "rapid-7" },
+      { nodeKey: "rapid-8" },
     ],
   });
 
-  assert.equal(modifiers.goldPerTenMinersBonus, 10);
-  assert.equal(modifiers.foodPerTenFarmersBonus, 11);
+  assert.equal(modifiers.armyPerTenRecruitersBonus, 10);
+  assert.equal(modifiers.populationBonus, 8);
+  assert.equal(modifiers.tileDefensePercent, 10);
 });
 
 test("race skill reset migration moves purchases to node keys only", () => {

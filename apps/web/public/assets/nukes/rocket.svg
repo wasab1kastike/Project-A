@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Nuke rocket">
+  <path fill="#e5e7eb" stroke="#334155" stroke-width="3" d="M32 4c10 8 14 20 12 36H20C18 24 22 12 32 4z"/>
+  <path fill="#ef4444" d="M20 40h24l7 16-13-6H26l-13 6z"/>
+  <circle cx="32" cy="24" r="7" fill="#67e8f9" stroke="#0f172a" stroke-width="3"/>
+  <path fill="#f59e0b" d="M27 50h10l-5 12z"/>
+</svg>

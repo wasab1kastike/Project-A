@@ -247,7 +247,7 @@ export function getDisplayedCastleLevel(dbLevel: number) {
 /**
  * Calculates total fortress population available for worker assignment.
  *
- * Formula: BASE_POPULATION (25) + level*10 + race_population_bonus
+ * Formula: BASE_POPULATION (35) + level*12 + race_population_bonus
  *
  * Race bonuses:
  * - DWARFS: +0

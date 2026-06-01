@@ -177,8 +177,7 @@ function HomeClientContent({
     ) ?? state.leaderboardTitles[0];
   const leaderboard = state.leaderboard.slice(0, 3);
   const categoryLeaderboard =
-    state.leaderboards[selectedLeaderboardCategory]?.slice(0, 3) ??
-    leaderboard;
+    state.leaderboards[selectedLeaderboardCategory]?.slice(0, 3) ?? leaderboard;
   const isGameplayPhase =
     state.phase?.status === "ACTIVE" || state.phase?.status === "TESTING";
   const tickDelayMinutes = state.cycle?.tickDelayMinutes ?? null;
@@ -202,14 +201,24 @@ function HomeClientContent({
           )} (live)`
     : null;
   const panelMode: "guest" | "join" | "arcade" | "banner" | "none" =
-    !session?.user ? "guest" :
-    state.canJoinCycle ? "join" :
-    state.phase?.status === "REGISTRATION" ? "arcade" :
-    state.latestSeason && (!state.phase || state.phase.status === "RESOLUTION" || !state.cycle) ? "banner" :
-    "none";
+    !session?.user
+      ? "guest"
+      : state.canJoinCycle
+        ? "join"
+        : state.phase?.status === "REGISTRATION"
+          ? "arcade"
+          : state.latestSeason &&
+              (!state.phase ||
+                state.phase.status === "RESOLUTION" ||
+                !state.cycle)
+            ? "banner"
+            : "none";
   const showSidePanel = Boolean(blockingMessage || panelMode !== "none");
   const canDismissPhaseCard = Boolean(
-    showSidePanel && !blockingMessage && panelMode !== "guest" && panelMode !== "join"
+    showSidePanel &&
+    !blockingMessage &&
+    panelMode !== "guest" &&
+    panelMode !== "join"
   );
   const phaseCardStorageKey = `project-a:phase-card:${
     state.cycle?.id ?? "no-cycle"
@@ -266,28 +275,41 @@ function HomeClientContent({
               battlefieldDescription:
                 "The map updates when the next season starts.",
             };
-  
 
-  const joinLabel = state.phase?.status === "ACTIVE" ? "Join the running season." : state.phase?.status === "TESTING" ? "Join testing." : "Claim your fortress.";
-  const joinDesc = state.phase?.status === "ACTIVE" ? "This season is already running. Join now to enter immediately." : state.phase?.status === "TESTING" ? "Testing mode is live. Join now to test." : "Build phase is open. Choose your race, name your fortress, and reserve your slot.";
-  const centerTitle = blockingMessage ? "Something needs attention." :
-    panelMode === "guest" ? "Join the battlefield." :
-    panelMode === "join" ? joinLabel :
-    panelMode === "arcade" ? "Arcade lobby" :
-    panelMode === "banner" ? "Previous season" :
-    phaseCopy.title;
-  const centerDescription = blockingMessage ? blockingMessage :
-    panelMode === "guest" ? "Sign in to join a fortress, chat, and manage your castle." :
-    panelMode === "join" ? joinDesc :
-    (state.cycle?.statusMessage ?? state.emptyStateMessage);
+  const joinLabel =
+    state.phase?.status === "ACTIVE"
+      ? "Join the running season."
+      : state.phase?.status === "TESTING"
+        ? "Join testing."
+        : "Claim your fortress.";
+  const joinDesc =
+    state.phase?.status === "ACTIVE"
+      ? "This season is already running. Join now to enter immediately."
+      : state.phase?.status === "TESTING"
+        ? "Testing mode is live. Join now to test."
+        : "Build phase is open. Choose your race, name your fortress, and reserve your slot.";
+  const centerTitle = blockingMessage
+    ? "Something needs attention."
+    : panelMode === "guest"
+      ? "Join the battlefield."
+      : panelMode === "join"
+        ? joinLabel
+        : panelMode === "arcade"
+          ? "Arcade lobby"
+          : panelMode === "banner"
+            ? "Previous season"
+            : phaseCopy.title;
+  const centerDescription = blockingMessage
+    ? blockingMessage
+    : panelMode === "guest"
+      ? "Sign in to join a fortress, chat, and manage your castle."
+      : panelMode === "join"
+        ? joinDesc
+        : (state.cycle?.statusMessage ?? state.emptyStateMessage);
 
   return (
     <main className={styles.page}>
-      <RealtimeBridge
-        enabled={
-          Boolean(state.cycle) && realtimeEnabled
-        }
-      />
+      <RealtimeBridge enabled={Boolean(state.cycle) && realtimeEnabled} />
 
       <div className={styles.mapLayer}>
         <BattlefieldExperience
@@ -307,10 +329,17 @@ function HomeClientContent({
           tradeRouteLines={(state as any).tradeRouteLines ?? []}
           roadSegments={state.roadSegments ?? []}
           convoyMarkers={(state as any).convoyMarkers ?? []}
+          diplomacyNotice={{
+            pendingDiplomacyCount: (state as any).pendingDiplomacyCount ?? 0,
+            incomingTradeOfferCount: state.incomingOfferCount ?? 0,
+          }}
+          nukeState={(state as any).nukeState ?? null}
           battalionMarkers={(state.battalions ?? [])
             .filter((bn: any) => bn.garrisonedAt != null)
             .map((bn: any) => {
-              const fortress = state.mapFortresses?.find((f: any) => f.id === bn.fortressId);
+              const fortress = state.mapFortresses?.find(
+                (f: any) => f.id === bn.fortressId
+              );
               return {
                 tileId: bn.garrisonedAt,
                 battalionName: bn.name,
@@ -345,129 +374,145 @@ function HomeClientContent({
       />
       <TutorialPanel state={useTutorialState(state.playerSummary)} />
       {!state.cycle || !state.playerSummary ? (
-      <header className={styles.topHud} aria-label="Season status">
-        <div className={styles.statusCluster}>
-          <span className={styles.phaseBadge}>
-            {state.phase?.label ?? "Waiting for a cycle"}
-          </span>
-          <SeasonTimer
-            deadline={state.phase?.deadline?.toISOString() ?? null}
-            label={phaseCopy.timerLabel}
-            variant="compact"
-          />
-          {tickStatusText ? (
-            <span
-              className={`${styles.tickStatus} ${
-                hasTickDelayWarning ? styles.tickStatusWarning : ""
-              }`}
-            >
-              {tickStatusText}
+        <header className={styles.topHud} aria-label="Season status">
+          <div className={styles.statusCluster}>
+            <span className={styles.phaseBadge}>
+              {state.phase?.label ?? "Waiting for a cycle"}
             </span>
-          ) : null}
-          {isRefreshing ? (
-            <span className={styles.tickStatus}>Syncing...</span>
-          ) : lastRefreshError ? (
-            <span className={`${styles.tickStatus} ${styles.tickStatusWarning}`}>
-              Live sync delayed
-              <button
-                className={styles.retrySyncButton}
-                onClick={() => window.dispatchEvent(new CustomEvent("manual-sync-retry"))}
-                style={{ marginLeft: 8 }}
-              >
-                Retry sync
-              </button>
-            </span>
-          ) : null}
-          <dl className={styles.hudStats}>
-            <div>
-              <dt>Joined</dt>
-              <dd>{joinedText}</dd>
-            </div>
-            <div>
-              <dt>Open</dt>
-              <dd>{remainingText}</dd>
-            </div>
-          </dl>
-          <div className={styles.raceCounter} aria-label="Players by race">
-            {raceCounts.map((race) => (
-              <span
-                className={styles.raceCount}
-                title={`${race.label}: ${race.count}`}
-                key={race.key}
-              >
-                <span
-                  className={styles.raceCountToken}
-                  style={{
-                    backgroundImage: `url("${RACE_TOKEN_PATHS[race.key]}")`,
-                  }}
-                  aria-hidden="true"
-                />
-                <span className={styles.raceCountValue}>
-                  <span className={styles.raceCountLabel}>{race.label}</span>
-                  {race.count}
-                </span>
-              </span>
-            ))}
-          </div>
-        </div>
-
-        <nav className={styles.topLinks} aria-label="Account and pages">
-          <span className={styles.accountChip}>
-            {session?.user ? userLabel : "Guest"}
-          </span>
-          <Link className={styles.hudButton} href="/history">
-            Leaderboard
-          </Link>
-          {state.playerSummary ? (
-            <Link className={styles.hudButton} href="/castle">
-              Castle
-            </Link>
-          ) : null}
-          {PRIMARY_GAME_NAV_LINKS.filter(
-            (link) =>
-              link.href !== PATCH_NOTES_PAGE_HREF &&
-              link.href !== WIKI_PAGE_HREF
-          ).map((link) => (
-            <Link className={styles.hudButton} href={link.href} key={link.href}>
-              {link.label}
-            </Link>
-          ))}
-          <Link className={styles.hudButton} href={WIKI_PAGE_HREF}>
-            Wiki
-          </Link>
-          {PRIMARY_GAME_NAV_LINKS.filter(
-            (link) => link.href === PATCH_NOTES_PAGE_HREF
-          ).map((link) => (
-            <Link className={styles.hudButton} href={link.href} key={link.href}>
-              {link.label}
-            </Link>
-          ))}
-          {isAdmin ? (
-            <Link className={styles.hudButton} href="/admin">
-              Admin
-            </Link>
-          ) : null}
-          <div
-            id="battlefield-top-actions"
-            className={styles.battlefieldTopActions}
-          />
-          {session?.user ? (
-            <SessionActions
-              authConfigured={authConfigured}
-              isAuthenticated
-              isAdmin={isAdmin}
+            <SeasonTimer
+              deadline={state.phase?.deadline?.toISOString() ?? null}
+              label={phaseCopy.timerLabel}
               variant="compact"
             />
-          ) : null}
-          <Link
-            href="/wiki"
-            className={styles.headerLink}
-            style={{ fontSize: "0.8rem", color: "var(--text-muted)", textDecoration: "none" }}
-          >
-            Wiki
-          </Link>
-        </nav>
-      </header>
+            {tickStatusText ? (
+              <span
+                className={`${styles.tickStatus} ${
+                  hasTickDelayWarning ? styles.tickStatusWarning : ""
+                }`}
+              >
+                {tickStatusText}
+              </span>
+            ) : null}
+            {isRefreshing ? (
+              <span className={styles.tickStatus}>Syncing...</span>
+            ) : lastRefreshError ? (
+              <span
+                className={`${styles.tickStatus} ${styles.tickStatusWarning}`}
+              >
+                Live sync delayed
+                <button
+                  className={styles.retrySyncButton}
+                  onClick={() =>
+                    window.dispatchEvent(new CustomEvent("manual-sync-retry"))
+                  }
+                  style={{ marginLeft: 8 }}
+                >
+                  Retry sync
+                </button>
+              </span>
+            ) : null}
+            <dl className={styles.hudStats}>
+              <div>
+                <dt>Joined</dt>
+                <dd>{joinedText}</dd>
+              </div>
+              <div>
+                <dt>Open</dt>
+                <dd>{remainingText}</dd>
+              </div>
+            </dl>
+            <div className={styles.raceCounter} aria-label="Players by race">
+              {raceCounts.map((race) => (
+                <span
+                  className={styles.raceCount}
+                  title={`${race.label}: ${race.count}`}
+                  key={race.key}
+                >
+                  <span
+                    className={styles.raceCountToken}
+                    style={{
+                      backgroundImage: `url("${RACE_TOKEN_PATHS[race.key]}")`,
+                    }}
+                    aria-hidden="true"
+                  />
+                  <span className={styles.raceCountValue}>
+                    <span className={styles.raceCountLabel}>{race.label}</span>
+                    {race.count}
+                  </span>
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <nav className={styles.topLinks} aria-label="Account and pages">
+            <span className={styles.accountChip}>
+              {session?.user ? userLabel : "Guest"}
+            </span>
+            <Link className={styles.hudButton} href="/history">
+              Leaderboard
+            </Link>
+            {state.playerSummary ? (
+              <Link className={styles.hudButton} href="/castle">
+                Castle
+              </Link>
+            ) : null}
+            {PRIMARY_GAME_NAV_LINKS.filter(
+              (link) =>
+                link.href !== PATCH_NOTES_PAGE_HREF &&
+                link.href !== WIKI_PAGE_HREF
+            ).map((link) => (
+              <Link
+                className={styles.hudButton}
+                href={link.href}
+                key={link.href}
+              >
+                {link.label}
+              </Link>
+            ))}
+            <Link className={styles.hudButton} href={WIKI_PAGE_HREF}>
+              Wiki
+            </Link>
+            {PRIMARY_GAME_NAV_LINKS.filter(
+              (link) => link.href === PATCH_NOTES_PAGE_HREF
+            ).map((link) => (
+              <Link
+                className={styles.hudButton}
+                href={link.href}
+                key={link.href}
+              >
+                {link.label}
+              </Link>
+            ))}
+            {isAdmin ? (
+              <Link className={styles.hudButton} href="/admin">
+                Admin
+              </Link>
+            ) : null}
+            <div
+              id="battlefield-top-actions"
+              className={styles.battlefieldTopActions}
+            />
+            {session?.user ? (
+              <SessionActions
+                authConfigured={authConfigured}
+                isAuthenticated
+                isAdmin={isAdmin}
+                variant="compact"
+              />
+            ) : null}
+            <Link
+              href="/wiki"
+              className={styles.headerLink}
+              style={{
+                fontSize: "0.8rem",
+                color: "var(--text-muted)",
+                textDecoration: "none",
+              }}
+            >
+              Wiki
+            </Link>
+          </nav>
+        </header>
       ) : null}
 
       {notice ? <NoticeToast message={notice} autoDismissMs={5000} /> : null}
@@ -509,9 +554,11 @@ function HomeClientContent({
           <span className={styles.sectionLabel}>
             {blockingMessage
               ? "Status"
-              : panelMode === "guest" ? "Welcome"
-              : panelMode === "join" ? "Join season"
-              : "Season control"}
+              : panelMode === "guest"
+                ? "Welcome"
+                : panelMode === "join"
+                  ? "Join season"
+                  : "Season control"}
           </span>
           <h1>{centerTitle}</h1>
           <p>{centerDescription}</p>
@@ -692,15 +739,49 @@ function HomeClientContent({
               <div className={styles.armyChip}>
                 <dt>Army</dt>
                 <dd className={styles.armyCompact}>
-                  <span title="Available at fortress">{state.playerSummary.idleArmy} Idle</span>
-                  {state.playerSummary.queuedArmy > 0 ? <span title="Recruitment queue">{state.playerSummary.queuedArmy} Q</span> : null}
-                  {state.playerSummary.defendingArmy > 0 ? <span title="Garrisoned on tiles">{state.playerSummary.defendingArmy} Def</span> : null}
-                  {state.playerSummary.guardArmy > 0 ? <span title="Standing guard order">{state.playerSummary.guardArmy} Guard</span> : null}
-                  {state.playerSummary.marchingArmy > 0 ? <span title="Traveling to target">{state.playerSummary.marchingArmy} Mar</span> : null}
-                  {state.playerSummary.escortArmy > 0 ? <span title="Escorting convoy">{state.playerSummary.escortArmy} Esc</span> : null}
-                  {state.playerSummary.raidArmy > 0 ? <span title="Raiding convoy routes">{state.playerSummary.raidArmy} Raid</span> : null}
-                  {state.playerSummary.campaignArmy > 0 ? <span title="Building campaign">{state.playerSummary.campaignArmy} Camp</span> : null}
-                  {state.playerSummary.fightingArmy > 0 ? <span title="In active battle">{state.playerSummary.fightingArmy} Fight</span> : null}
+                  <span title="Available at fortress">
+                    {state.playerSummary.idleArmy} Idle
+                  </span>
+                  {state.playerSummary.queuedArmy > 0 ? (
+                    <span title="Recruitment queue">
+                      {state.playerSummary.queuedArmy} Q
+                    </span>
+                  ) : null}
+                  {state.playerSummary.defendingArmy > 0 ? (
+                    <span title="Garrisoned on tiles">
+                      {state.playerSummary.defendingArmy} Def
+                    </span>
+                  ) : null}
+                  {state.playerSummary.guardArmy > 0 ? (
+                    <span title="Standing guard order">
+                      {state.playerSummary.guardArmy} Guard
+                    </span>
+                  ) : null}
+                  {state.playerSummary.marchingArmy > 0 ? (
+                    <span title="Traveling to target">
+                      {state.playerSummary.marchingArmy} Mar
+                    </span>
+                  ) : null}
+                  {state.playerSummary.escortArmy > 0 ? (
+                    <span title="Escorting convoy">
+                      {state.playerSummary.escortArmy} Esc
+                    </span>
+                  ) : null}
+                  {state.playerSummary.raidArmy > 0 ? (
+                    <span title="Raiding convoy routes">
+                      {state.playerSummary.raidArmy} Raid
+                    </span>
+                  ) : null}
+                  {state.playerSummary.campaignArmy > 0 ? (
+                    <span title="Building campaign">
+                      {state.playerSummary.campaignArmy} Camp
+                    </span>
+                  ) : null}
+                  {state.playerSummary.fightingArmy > 0 ? (
+                    <span title="In active battle">
+                      {state.playerSummary.fightingArmy} Fight
+                    </span>
+                  ) : null}
                 </dd>
               </div>
               {state.playerSummary.currentTargetName ? (
@@ -716,8 +797,6 @@ function HomeClientContent({
             </p>
           )}
         </section>
-
-
 
         <section className={styles.leaderboardStrip}>
           <div className={styles.leaderboardHeader}>
@@ -754,7 +833,8 @@ function HomeClientContent({
                     <small className={styles.crownBadge}>Slayer of A</small>
                   ) : null}
                   <em>
-                    {entry.metric} {selectedLeaderboardTitle?.metricLabel ?? "pts"}
+                    {entry.metric}{" "}
+                    {selectedLeaderboardTitle?.metricLabel ?? "pts"}
                   </em>
                 </li>
               ))}
@@ -764,7 +844,8 @@ function HomeClientContent({
           )}
           {selectedLeaderboardTitle ? (
             <p className={styles.leaderboardBuff}>
-              {selectedLeaderboardTitle.title}: {selectedLeaderboardTitle.buffLabel}
+              {selectedLeaderboardTitle.title}:{" "}
+              {selectedLeaderboardTitle.buffLabel}
             </p>
           ) : null}
         </section>

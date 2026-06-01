@@ -3,6 +3,7 @@
 import {
   Fragment,
   memo,
+  type CSSProperties,
   type PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
@@ -273,6 +274,11 @@ type FortressMapProps = {
     departedAt: number | null;
     arrivesAt: number | null;
   }>;
+  nukeBiddingMarker?: {
+    isOpen: boolean;
+    canLaunch: boolean;
+    status: string;
+  } | null;
   onSelectFortress?: (fortress: MapFortress) => void;
   onConfirmAttackTarget?: (
     fortress: MapFortress,
@@ -1300,6 +1306,7 @@ export const FortressMap = memo(function FortressMap({
   roadSegments = [],
   battalionMarkers = [],
   convoyMarkers = [],
+  nukeBiddingMarker = null,
   battlefields = [],
   onSelectFortress,
   onConfirmAttackTarget,
@@ -1329,9 +1336,20 @@ export const FortressMap = memo(function FortressMap({
   const [dragStart, setDragStart] = useState<DragStart | null>(null);
   const [pendingTargetId, setPendingTargetId] = useState<string | null>(null);
   const [targetSentArmy, setTargetSentArmy] = useState(1);
+  const [convoyNowMs, setConvoyNowMs] = useState(() => Date.now());
 
   // Patrol animation state — updates every 500ms for smooth GUARD battalion movement
   const [patrolNowMs, setPatrolNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (convoyMarkers.length === 0) return;
+
+    const interval = window.setInterval(() => {
+      setConvoyNowMs(Date.now());
+    }, 5000);
+
+    return () => window.clearInterval(interval);
+  }, [convoyMarkers.length]);
 
   useEffect(() => {
     const hasGuardBattalions = battalionMarkers.some(
@@ -2147,6 +2165,39 @@ export const FortressMap = memo(function FortressMap({
               })}
             </div>
           ) : null}
+          {nukeBiddingMarker ? (
+            <div className={styles.nukeBiddingLayer} aria-label="Nuke bidding">
+              {(() => {
+                const tile = HEX_TILES.find((candidate) =>
+                  isHomeOfATile(candidate.id)
+                );
+                if (!tile) return null;
+
+                return (
+                  <button
+                    type="button"
+                    className={styles.nukeBiddingMarker}
+                    data-open={nukeBiddingMarker.isOpen ? "true" : "false"}
+                    style={{
+                      left: `${tile.xPercent + 3}%`,
+                      top: `${tile.yPercent - 4}%`,
+                    }}
+                    title={
+                      nukeBiddingMarker.canLaunch
+                        ? "Nuke ready in Castle > Nukes"
+                        : nukeBiddingMarker.isOpen
+                          ? "Nuke component bidding open"
+                          : "Nuke component bidding closed"
+                    }
+                    onClick={() => onSelectMapHex?.(tile.id)}
+                  >
+                    <img src="/assets/nukes/map-bid-icon.svg" alt="" aria-hidden="true" />
+                    <span>{nukeBiddingMarker.canLaunch ? "Ready" : nukeBiddingMarker.status}</span>
+                  </button>
+                );
+              })()}
+            </div>
+          ) : null}
           {convoyMarkers.length > 0 ? (
             <div className={styles.convoyLayer} aria-label="Trade convoys">
               {convoyMarkers.map((convoy) => {
@@ -2155,12 +2206,12 @@ export const FortressMap = memo(function FortressMap({
                 if (!from || !to) return null;
                 const totalCargo = convoy.gold + convoy.food + convoy.army;
                 const cargoLabel = convoy.gold > 0 ? `${convoy.gold}g` : convoy.food > 0 ? `${convoy.food}f` : `${convoy.army}a`;
-                const nowMs = Date.now();
                 const progress = convoy.departedAt && convoy.arrivesAt
-                  ? Math.min(1, Math.max(0, (nowMs - convoy.departedAt) / (convoy.arrivesAt - convoy.departedAt)))
+                  ? Math.min(1, Math.max(0, (convoyNowMs - convoy.departedAt) / (convoy.arrivesAt - convoy.departedAt)))
                   : 0;
                 const x = from.mapX + (to.mapX - from.mapX) * progress;
                 const y = from.mapY + (to.mapY - from.mapY) * progress;
+                const angle = Math.atan2(to.mapY - from.mapY, to.mapX - from.mapX) * (180 / Math.PI);
                 return (
                   <div
                     key={convoy.id}
@@ -2168,10 +2219,27 @@ export const FortressMap = memo(function FortressMap({
                     style={{
                       left: `${x}%`,
                       top: `${y}%`,
-                    }}
-                    title={`Convoy: ${totalCargo} cargo (${cargoLabel})`}
+                      "--convoy-angle": `${angle}deg`,
+                    } as CSSProperties}
+                    title={`Trade wagon: ${totalCargo} cargo (${cargoLabel}) from ${from.name} to ${to.name}`}
                   >
-                    <span className={styles.convoyDot} />
+                    <span
+                      className={styles.convoyWagon}
+                      data-race={from.race ?? undefined}
+                      aria-hidden="true"
+                    >
+                      <span className={styles.convoyCanopy} />
+                      <span className={styles.convoyBed} />
+                      <span className={styles.convoyWheel} data-wheel="rear" />
+                      <span className={styles.convoyWheel} data-wheel="front" />
+                    </span>
+                    <span
+                      className={styles.convoyEscort}
+                      data-variant={from.unitSpriteVariant}
+                      data-skin={from.unitCosmeticVariant ?? undefined}
+                      style={getCosmeticSpriteStyle("UNIT", from.unitCosmeticVariant) ?? undefined}
+                      aria-hidden="true"
+                    />
                     <span className={styles.convoyLabel}>{totalCargo}</span>
                   </div>
                 );

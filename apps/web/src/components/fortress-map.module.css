@@ -1593,38 +1593,188 @@
   z-index: 4;
 }
 
+.nukeBiddingLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.nukeBiddingMarker {
+  position: absolute;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  width: 48px;
+  min-height: 52px;
+  padding: 3px;
+  border: 1px solid rgba(248, 113, 113, 0.72);
+  border-radius: 8px;
+  background: rgba(69, 10, 10, 0.82);
+  color: #fee2e2;
+  font: inherit;
+  font-size: 0.58rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.nukeBiddingMarker[data-open="true"] {
+  animation: nukeMarkerPulse 1.8s ease-in-out infinite;
+}
+
+.nukeBiddingMarker img {
+  width: 30px;
+  height: 30px;
+}
+
+@keyframes nukeMarkerPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(248, 113, 113, 0);
+  }
+
+  50% {
+    box-shadow: 0 0 16px rgba(248, 113, 113, 0.52);
+  }
+}
+
 .convoyMarker {
   position: absolute;
   transform: translate(-50%, -50%);
-  width: 16px;
-  height: 16px;
+  width: 46px;
+  height: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: left 5s linear, top 5s linear;
+  filter: drop-shadow(0 7px 0 rgba(0, 0, 0, 0.26))
+    drop-shadow(0 0 10px rgba(255, 215, 0, 0.22));
 }
 
-.convoyDot {
-  width: 8px;
+.convoyWagon {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 32px;
+  height: 20px;
+  transform: translate(-50%, -50%) rotate(var(--convoy-angle, 0deg));
+  transform-origin: center;
+  animation: convoyBob 0.85s ease-in-out infinite;
+}
+
+.convoyBed,
+.convoyCanopy {
+  position: absolute;
+  left: 4px;
+  width: 24px;
+  border: 1px solid rgba(50, 32, 12, 0.82);
+}
+
+.convoyBed {
+  bottom: 4px;
+  height: 9px;
+  border-radius: 3px 5px 3px 3px;
+  background: linear-gradient(180deg, #9f6d2d 0%, #5f3918 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 231, 165, 0.35);
+}
+
+.convoyCanopy {
+  bottom: 11px;
   height: 8px;
+  border-radius: 9px 9px 3px 3px;
+  background: #d9b34f;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.convoyWagon[data-race="DWARFS"] .convoyCanopy {
+  background: linear-gradient(180deg, #d9c37a 0%, #9a7b37 100%);
+}
+
+.convoyWagon[data-race="ORKS"] .convoyCanopy {
+  background: linear-gradient(180deg, #9ac36b 0%, #4d7a34 100%);
+}
+
+.convoyWagon[data-race="SPACE_MURINES"] .convoyCanopy {
+  background: linear-gradient(180deg, #84bde0 0%, #356d9e 100%);
+}
+
+.convoyWagon[data-race="UNSTABLE_UNICORNS"] .convoyCanopy {
+  background: linear-gradient(180deg, #e8a9ff 0%, #9f5fd4 100%);
+}
+
+.convoyWheel {
+  position: absolute;
+  bottom: 0;
+  width: 7px;
+  height: 7px;
+  border: 2px solid #2a2018;
   border-radius: 50%;
-  background: #ffd700;
-  box-shadow: 0 0 6px rgba(255, 215, 0, 0.6);
-  animation: convoyPulse 1.5s ease-in-out infinite;
+  background: #c5a15e;
+}
+
+.convoyWheel[data-wheel="rear"] {
+  left: 6px;
+}
+
+.convoyWheel[data-wheel="front"] {
+  right: 5px;
+}
+
+.convoyEscort {
+  position: absolute;
+  right: -2px;
+  bottom: -1px;
+  width: 18px;
+  height: 18px;
+  background-image: url("/assets/unit-sprites.png");
+  background-repeat: no-repeat;
+  background-size: 300% 200%;
+  image-rendering: pixelated;
+  transform: scaleX(-1);
+}
+
+.convoyEscort[data-variant="unit-1"] {
+  background-position: 0 0;
+}
+.convoyEscort[data-variant="unit-2"] {
+  background-position: -100% 0;
+}
+.convoyEscort[data-variant="unit-3"] {
+  background-position: -200% 0;
+}
+.convoyEscort[data-variant="unit-4"] {
+  background-position: 0 -100%;
+}
+.convoyEscort[data-variant="unit-5"] {
+  background-position: -100% -100%;
+}
+.convoyEscort[data-variant="unit-6"] {
+  background-position: -200% -100%;
 }
 
 .convoyLabel {
   position: absolute;
-  top: -14px;
-  font-size: 9px;
-  color: #ffd700;
+  top: -10px;
+  min-width: 18px;
+  padding: 1px 5px;
+  border: 1px solid rgba(255, 238, 179, 0.45);
+  border-radius: 999px;
+  background: rgba(18, 14, 8, 0.84);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.58rem;
+  line-height: 1.1;
+  color: #ffe487;
   white-space: nowrap;
-  font-weight: 600;
+  font-weight: 800;
+  text-align: center;
 }
 
-@keyframes convoyPulse {
-  0%, 100% { opacity: 0.6; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.3); }
+@keyframes convoyBob {
+  0%, 100% { margin-top: 0; }
+  50% { margin-top: -2px; }
 }
 
 @keyframes warPulse {

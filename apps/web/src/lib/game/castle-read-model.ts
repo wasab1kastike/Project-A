@@ -10,6 +10,7 @@ import {
   OrkWaaaghInvestmentKind,
   RaceAbilityKind,
   TerritoryCampaignStatus,
+  NukeComponentRoundStatus,
   type PrismaClient,
 } from "@/lib/prisma-client";
 import {
@@ -75,6 +76,15 @@ import {
   getPressureTargetBlockedReason,
   sortTilePressureQueue,
 } from "./tile-pressure";
+import {
+  EMPTY_NUKE_COMPONENT_CARGO,
+  getNukeBiddingWindowForDate,
+  getNukeComponentLabel,
+  getNukeRoundState,
+  NUKE_COMPONENT_KINDS,
+  NUKE_LAUNCH_GOLD_COST,
+  type NukeComponentCargo,
+} from "./nukes";
 
 const BUILDING_SPECIALIZATIONS = [
   CastleUpgradeSpecialization.DEFENSE,
@@ -438,6 +448,7 @@ export async function getCastlePageState({
     return {
       playerSummary: null,
       availableTargets: [],
+      nukeState: null,
     };
   }
 
@@ -1176,6 +1187,98 @@ export async function getCastlePageState({
           })
       : [];
 
+  const nukeState =
+    isSeasonFour && gameplayOpen
+      ? await (async () => {
+          const window = getNukeBiddingWindowForDate(now);
+          const round = await db.nukeComponentRound.findUnique({
+            where: {
+              cycleId_startsAt: {
+                cycleId: cycle.id,
+                startsAt: window.startsAt,
+              },
+            },
+            include: {
+              bids: {
+                where: { fortressId: playerFortress?.id ?? "__spectator__" },
+                orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+                select: {
+                  id: true,
+                  componentKind: true,
+                  amount: true,
+                  createdAt: true,
+                },
+              },
+            },
+          });
+          const inventoryRows = playerFortress
+            ? await db.nukeComponentInventory.findMany({
+                where: { cycleId: cycle.id, fortressId: playerFortress.id },
+                select: { componentKind: true, quantity: true },
+              })
+            : [];
+          const inventory: NukeComponentCargo = { ...EMPTY_NUKE_COMPONENT_CARGO };
+
+          for (const row of inventoryRows) {
+            inventory[row.componentKind] = row.quantity;
+          }
+
+          const canLaunch =
+            playerFortress !== null &&
+            playerFortress.gold >= NUKE_LAUNCH_GOLD_COST &&
+            NUKE_COMPONENT_KINDS.every((kind) => inventory[kind] >= 1);
+
+          return {
+            round: {
+              id: round?.id ?? null,
+              startsAt: window.startsAt,
+              endsAt: window.endsAt,
+              status:
+                round?.status === NukeComponentRoundStatus.RESOLVED
+                  ? "resolved"
+                  : getNukeRoundState(now, window.startsAt, window.endsAt),
+              isOpen:
+                window.isOpen &&
+                round?.status !== NukeComponentRoundStatus.RESOLVED,
+              bidsArePrivate: true,
+              playerBids:
+                round?.bids.map((bid) => ({
+                  id: bid.id,
+                  componentKind: bid.componentKind,
+                  label: getNukeComponentLabel(bid.componentKind),
+                  amount: bid.amount,
+                  createdAt: bid.createdAt,
+                })) ?? [],
+            },
+            inventory,
+            canLaunch,
+            launchGoldCost: NUKE_LAUNCH_GOLD_COST,
+            launchDisabledReason: playerFortress
+              ? canLaunch
+                ? null
+                : playerFortress.gold < NUKE_LAUNCH_GOLD_COST
+                  ? "Launching a nuke costs 250,000 gold."
+                  : "Collect Fuel, Rocket, and Wrath of A before launching."
+              : "Join the cycle before building nukes.",
+            eligibleTargets: playerFortress
+              ? playerFortresses
+                  .filter(
+                    (fortress) =>
+                      fortress.id !== playerFortress.id &&
+                      fortress.fortressKind === FortressKind.PLAYER &&
+                      !fortress.isNpc
+                  )
+                  .map((fortress) => ({
+                    id: fortress.id,
+                    name: fortress.name,
+                    commanderName: fortress.commanderName,
+                    level: fortress.level,
+                  }))
+              : [],
+          };
+        })()
+      : null;
+
   return {
     playerSummary: playerFortress
       ? {
@@ -1655,6 +1758,7 @@ export async function getCastlePageState({
         }
       : null,
     availableTargets,
+    nukeState,
     canJoinCycle:
       Boolean(userId) &&
       (registrationOpen || testingOpen || activeOpen) &&

@@ -18,6 +18,7 @@ import {
   ConvoyLegStatus,
   TerritoryCampaignStatus,
   TradeOfferStatus,
+  NukeComponentKind,
 } from "@/lib/prisma-client";
 import { prisma } from "@/lib/prisma";
 import { ensureOpenRegistrationCycle } from "./bootstrap";
@@ -173,6 +174,10 @@ import {
   reconcileBattalionCasualties,
   processReserveHealing,
 } from "./tick-battalion-integration";
+import {
+  ensureCurrentNukeComponentRound,
+  resolveDueNukeComponentRounds,
+} from "./service";
 
 export type TickSummary = {
   restartedRegistrationCycles: number;
@@ -1503,6 +1508,11 @@ async function processSeasonFourConvoys({
               food: leg.food,
               army: leg.army,
               points: leg.points,
+              nukeComponents: {
+                FUEL: leg.nukeFuel,
+                ROCKET: leg.nukeRocket,
+                WRATH_OF_A: leg.nukeWrathOfA,
+              },
             }, getStolenCargoDoctrineMultiplier(
               raidDoctrine.doctrine,
               raidDoctrine.tier
@@ -1518,6 +1528,34 @@ async function processSeasonFourConvoys({
                 interceptedCargoValue: { increment: stolen.baseValue },
               },
             });
+            const stolenNukeComponents =
+              stolen.nukeComponents ?? {
+                FUEL: 0,
+                ROCKET: 0,
+                WRATH_OF_A: 0,
+              };
+            for (const [componentKind, quantity] of Object.entries(
+              stolenNukeComponents
+            )) {
+              if (quantity <= 0) continue;
+              const kind = componentKind as NukeComponentKind;
+              await tx.nukeComponentInventory.upsert({
+                where: {
+                  cycleId_fortressId_componentKind: {
+                    cycleId,
+                    fortressId: raidOrder.fortressId,
+                    componentKind: kind,
+                  },
+                },
+                create: {
+                  cycleId,
+                  fortressId: raidOrder.fortressId,
+                  componentKind: kind,
+                  quantity,
+                },
+                update: { quantity: { increment: quantity } },
+              });
+            }
 
             if (stolen.scorePoints > 0) {
               await tx.scoreEvent.create({
@@ -1545,6 +1583,9 @@ async function processSeasonFourConvoys({
                 stolenFood: stolen.food,
                 stolenArmy: stolen.army,
                 stolenPoints: stolen.points,
+                stolenNukeFuel: stolenNukeComponents.FUEL,
+                stolenNukeRocket: stolenNukeComponents.ROCKET,
+                stolenNukeWrathOfA: stolenNukeComponents.WRATH_OF_A,
                 stolenCargoValue: stolen.baseValue,
                 raidDetected: detected,
                 deedFailureReason: leg.deedTileId
@@ -1594,7 +1635,17 @@ async function processSeasonFourConvoys({
       await returnEscort();
 
       const bonus = getAllianceDeliveryBonus({
-        cargo: { gold: leg.gold, food: leg.food, army: leg.army, points: leg.points },
+        cargo: {
+          gold: leg.gold,
+          food: leg.food,
+          army: leg.army,
+          points: leg.points,
+          nukeComponents: {
+            FUEL: leg.nukeFuel,
+            ROCKET: leg.nukeRocket,
+            WRATH_OF_A: leg.nukeWrathOfA,
+          },
+        },
         isAllied: effectiveStatus === DiplomacyRelationStatus.ALLIED,
         trustTier: relation?.allianceTrustTier ?? 0,
       });
@@ -1613,6 +1664,32 @@ async function processSeasonFourConvoys({
           points: { increment: seized ? 0 : leg.points + points.receiver },
         },
       });
+      if (!seized) {
+        for (const [componentKind, quantity] of Object.entries({
+          FUEL: leg.nukeFuel,
+          ROCKET: leg.nukeRocket,
+          WRATH_OF_A: leg.nukeWrathOfA,
+        })) {
+          if (quantity <= 0) continue;
+          const kind = componentKind as NukeComponentKind;
+          await tx.nukeComponentInventory.upsert({
+            where: {
+              cycleId_fortressId_componentKind: {
+                cycleId,
+                fortressId: leg.toFortressId,
+                componentKind: kind,
+              },
+            },
+            create: {
+              cycleId,
+              fortressId: leg.toFortressId,
+              componentKind: kind,
+              quantity,
+            },
+            update: { quantity: { increment: quantity } },
+          });
+        }
+      }
 
       if (!seized) {
         deliveredConvoyLegs.push({
@@ -2957,6 +3034,8 @@ async function processCycleTick(
     });
     convoyScoreEventsCreated = convoyResult.scoreEventsCreated;
     deliveredConvoyLegs = convoyResult.deliveredConvoyLegs;
+    await resolveDueNukeComponentRounds({ now: tickAt, db });
+    await ensureCurrentNukeComponentRound({ now: tickAt, db });
   }
 
   // Eternal goblins: loot camps no longer expire from timers

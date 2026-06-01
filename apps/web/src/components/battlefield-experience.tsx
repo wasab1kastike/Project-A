@@ -388,6 +388,11 @@ export function BattlefieldExperience({
   roadSegments = [],
   battalionMarkers = [],
   convoyMarkers = [],
+  diplomacyNotice = {
+    pendingDiplomacyCount: 0,
+    incomingTradeOfferCount: 0,
+  },
+  nukeState = null,
   battleReports,
   chat,
   phaseStatus,
@@ -404,7 +409,13 @@ export function BattlefieldExperience({
   battlefields: ActiveBattlefield[];
   attackUnits: AttackUnitMarker[];
   alliedRoads?: Array<{ x1: number; y1: number; x2: number; y2: number }>;
-  tradeRouteLines?: Array<{ x1: number; y1: number; x2: number; y2: number; deliveries: number }>;
+  tradeRouteLines?: Array<{
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+    deliveries: number;
+  }>;
   roadSegments?: Array<{ tileId: string; level: number; crossings: number }>;
   battalionMarkers?: Array<{
     tileId: string;
@@ -429,6 +440,19 @@ export function BattlefieldExperience({
     departedAt: number | null;
     arrivesAt: number | null;
   }>;
+  diplomacyNotice?: {
+    pendingDiplomacyCount: number;
+    incomingTradeOfferCount: number;
+  };
+  nukeState?: {
+    round: {
+      status: string;
+      isOpen: boolean;
+      startsAt: Date | string;
+      endsAt: Date | string;
+    };
+    canLaunch: boolean;
+  } | null;
   battleReports: BattleReport[];
   availableTargets: unknown[];
   chat: ChatProps;
@@ -633,6 +657,21 @@ export function BattlefieldExperience({
   }, [attackUnits, optimisticAttackUnits]);
 
   const gameplayOpen = phaseStatus === "ACTIVE" || phaseStatus === "TESTING";
+  const pendingDiplomacyCount = diplomacyNotice.pendingDiplomacyCount;
+  const incomingTradeOfferCount = diplomacyNotice.incomingTradeOfferCount;
+  const pendingCommandCount = pendingDiplomacyCount + incomingTradeOfferCount;
+  const hasPendingCommandNotice =
+    Boolean(playerSummary) && gameplayOpen && pendingCommandCount > 0;
+  const pendingCommandLabel = [
+    pendingDiplomacyCount > 0
+      ? `${pendingDiplomacyCount} diplomac${pendingDiplomacyCount === 1 ? "y item" : "y items"}`
+      : null,
+    incomingTradeOfferCount > 0
+      ? `${incomingTradeOfferCount} trade offer${incomingTradeOfferCount === 1 ? "" : "s"}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" and ");
   const hasUnreadChat = unreadChatCount > 0;
   const unreadBadgeLabel =
     unreadChatCount > 99 ? "99+" : unreadChatCount.toString();
@@ -1115,7 +1154,9 @@ export function BattlefieldExperience({
       return;
     }
 
-    const currentTileIds = pressurePriorityQueue.map((priority) => priority.tileId);
+    const currentTileIds = pressurePriorityQueue.map(
+      (priority) => priority.tileId
+    );
     const currentIndex = currentTileIds.indexOf(tileId);
     const nextIndex = currentIndex + direction;
 
@@ -1137,7 +1178,8 @@ export function BattlefieldExperience({
     setMapActionPending(true);
 
     try {
-      const result = await reorderTilePressurePrioritiesAction(reorderedTileIds);
+      const result =
+        await reorderTilePressurePrioritiesAction(reorderedTileIds);
 
       if (!result.ok) {
         window.alert(result.error);
@@ -1639,7 +1681,35 @@ export function BattlefieldExperience({
 
       {selectedSeasonFourFeature && playerSummary ? (
         <section className="tileCommandPanel" aria-label="Tile info">
-          <p style={{ fontSize: 13, color: "var(--text-muted)", padding: "8px 0", margin: 0 }}>
+          {selectedTileIsHomeOfA && nukeState ? (
+            <div className={styles.nukeMapNotice}>
+              <img
+                src="/assets/nukes/map-bid-icon.svg"
+                alt=""
+                aria-hidden="true"
+              />
+              <div>
+                <strong>
+                  {nukeState.round.isOpen
+                    ? "Nuke component bidding is open"
+                    : "Nuke component bidding is closed"}
+                </strong>
+                <span>
+                  {nukeState.canLaunch
+                    ? "You have a complete nuke. Launch from Castle > Nukes."
+                    : `Window: ${new Date(nukeState.round.startsAt).toLocaleTimeString()} - ${new Date(nukeState.round.endsAt).toLocaleTimeString()}`}
+                </span>
+              </div>
+            </div>
+          ) : null}
+          <p
+            style={{
+              fontSize: 13,
+              color: "var(--text-muted)",
+              padding: "8px 0",
+              margin: 0,
+            }}
+          >
             Manage army, war fronts, guard allocation, and campaign dispatch
             from <strong>Castle &rarr; War Room</strong>.
           </p>
@@ -1648,95 +1718,102 @@ export function BattlefieldExperience({
 
       <details className={styles.tileDetails}>
         <summary>Tile details</summary>
-      <dl className={styles.tileStats}>
-        <div>
-          <dt>Owner</dt>
-          <dd>
-            {selectedOwnership?.ownerFortressId
-              ? selectedOwnership.isCurrentUser
-                ? "You"
-                : selectedOwnership.ownerName
-              : "Neutral"}
-          </dd>
-        </div>
-        <div>
-          <dt>Bonus</dt>
-          <dd>{selectedTileBonus.label}</dd>
-        </div>
-        {selectedOwnership?.pointIncome ? (
+        <dl className={styles.tileStats}>
           <div>
-            <dt>Objective</dt>
-            <dd>+{selectedOwnership.pointIncome} points / tick</dd>
-          </div>
-        ) : null}
-        {!selectedTileIsHomeOfA && selectedOwnership ? (
-          <div>
-            <dt>Claim Pressure</dt>
+            <dt>Owner</dt>
             <dd>
-              {selectedOwnership.pressureThreshold != null
-                ? `You ${selectedOwnership.pressurePlayerProgress ?? 0}/${selectedOwnership.pressureThreshold}`
-                : "-"}
-              {selectedOwnership.pressureLeaderLabel &&
-              selectedOwnership.pressureProgress != null &&
-              selectedOwnership.pressureThreshold != null
-                ? ` · leader: ${selectedOwnership.pressureLeaderLabel} ${selectedOwnership.pressureProgress}/${selectedOwnership.pressureThreshold}`
-                : ""}
-            </dd>
-            {selectedOwnership.ownershipPressure != null ? (
-              <>
-                <dt>Ownership</dt>
-                <dd style={{ color: selectedOwnership.ownershipPressure < 200 ? "#ff6060" : "inherit" }}>
-                  {selectedOwnership.ownershipPressure}/600
-                  {selectedOwnership.ownershipPressure < 200 ? " ⚠" : ""}
-                </dd>
-              </>
-            ) : null}
-          </div>
-        ) : null}
-        {playerSummary?.seasonFourRulesEnabled &&
-        selectedOwnership?.campaignStatus ? (
-          <div>
-            <dt>Campaign</dt>
-            <dd>
-              {selectedOwnership.campaignStatus === "SIEGE_WARNING"
-                ? "Siege warning"
-                : selectedOwnership.campaignStatus === "ENGAGED"
-                  ? "Siege active"
-                  : "Building pressure"}
-              {selectedOwnership.campaignProgress != null &&
-              selectedOwnership.campaignThreshold != null
-                ? ` ${selectedOwnership.campaignProgress}/${selectedOwnership.campaignThreshold}`
-                : ""}
+              {selectedOwnership?.ownerFortressId
+                ? selectedOwnership.isCurrentUser
+                  ? "You"
+                  : selectedOwnership.ownerName
+                : "Neutral"}
             </dd>
           </div>
-        ) : null}
-        {!selectedTileIsHomeOfA && !selectedOwnership?.ownerFortressId ? (
           <div>
-            <dt>Priority</dt>
-            <dd>{selectedPressurePriority ? "Yes" : "No"}</dd>
+            <dt>Bonus</dt>
+            <dd>{selectedTileBonus.label}</dd>
           </div>
-        ) : null}
-        {!selectedTileIsHomeOfA && selectedOwnership ? (
+          {selectedOwnership?.pointIncome ? (
+            <div>
+              <dt>Objective</dt>
+              <dd>+{selectedOwnership.pointIncome} points / tick</dd>
+            </div>
+          ) : null}
+          {!selectedTileIsHomeOfA && selectedOwnership ? (
+            <div>
+              <dt>Claim Pressure</dt>
+              <dd>
+                {selectedOwnership.pressureThreshold != null
+                  ? `You ${selectedOwnership.pressurePlayerProgress ?? 0}/${selectedOwnership.pressureThreshold}`
+                  : "-"}
+                {selectedOwnership.pressureLeaderLabel &&
+                selectedOwnership.pressureProgress != null &&
+                selectedOwnership.pressureThreshold != null
+                  ? ` · leader: ${selectedOwnership.pressureLeaderLabel} ${selectedOwnership.pressureProgress}/${selectedOwnership.pressureThreshold}`
+                  : ""}
+              </dd>
+              {selectedOwnership.ownershipPressure != null ? (
+                <>
+                  <dt>Ownership</dt>
+                  <dd
+                    style={{
+                      color:
+                        selectedOwnership.ownershipPressure < 200
+                          ? "#ff6060"
+                          : "inherit",
+                    }}
+                  >
+                    {selectedOwnership.ownershipPressure}/600
+                    {selectedOwnership.ownershipPressure < 200 ? " ⚠" : ""}
+                  </dd>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+          {playerSummary?.seasonFourRulesEnabled &&
+          selectedOwnership?.campaignStatus ? (
+            <div>
+              <dt>Campaign</dt>
+              <dd>
+                {selectedOwnership.campaignStatus === "SIEGE_WARNING"
+                  ? "Siege warning"
+                  : selectedOwnership.campaignStatus === "ENGAGED"
+                    ? "Siege active"
+                    : "Building pressure"}
+                {selectedOwnership.campaignProgress != null &&
+                selectedOwnership.campaignThreshold != null
+                  ? ` ${selectedOwnership.campaignProgress}/${selectedOwnership.campaignThreshold}`
+                  : ""}
+              </dd>
+            </div>
+          ) : null}
+          {!selectedTileIsHomeOfA && !selectedOwnership?.ownerFortressId ? (
+            <div>
+              <dt>Priority</dt>
+              <dd>{selectedPressurePriority ? "Yes" : "No"}</dd>
+            </div>
+          ) : null}
+          {!selectedTileIsHomeOfA && selectedOwnership ? (
+            <div>
+              <dt>Connected</dt>
+              <dd>
+                {selectedOwnership.isConnectedToPlayerTerritory ? "Yes" : "No"}
+              </dd>
+            </div>
+          ) : null}
           <div>
-            <dt>Connected</dt>
+            <dt>State</dt>
             <dd>
-              {selectedOwnership.isConnectedToPlayerTerritory ? "Yes" : "No"}
-            </dd>
-          </div>
-        ) : null}
-        <div>
-          <dt>State</dt>
-          <dd>
-            {selectedActiveBattlefieldId
-              ? "Contested"
-              : selectedOwnership?.occupyingGarrison
-                ? selectedOwnership.occupyingGarrison.isCurrentUser
-                  ? "Occupied by you"
-                  : "Occupied"
-                : selectedOwnership?.ownerFortressId
-                  ? selectedOwnership.canAttack
-                    ? "Attackable"
-                    : "Controlled"
+              {selectedActiveBattlefieldId
+                ? "Contested"
+                : selectedOwnership?.occupyingGarrison
+                  ? selectedOwnership.occupyingGarrison.isCurrentUser
+                    ? "Occupied by you"
+                    : "Occupied"
+                  : selectedOwnership?.ownerFortressId
+                    ? selectedOwnership.canAttack
+                      ? "Attackable"
+                      : "Controlled"
                     : selectedTileIsHomeOfA
                       ? homeOfA?.canAttack
                         ? "Attackable"
@@ -1744,111 +1821,115 @@ export function BattlefieldExperience({
                       : selectedCanPrioritizePressure
                         ? "Pressure target"
                         : "Unavailable"}
-          </dd>
-        </div>
-      </dl>
-
-      {selectedOwnership?.holders?.length ? (
-        <ul className={styles.compactList}>
-          {selectedOwnership.holders.slice(0, 4).map((holder) => (
-            <li key={`${holder.fortressName}:${holder.commanderName}`}>
-              {holder.fortressName}: weight {holder.contributionWeight}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
-      {selectedOwnership?.occupyingGarrison ? (
-        <p className={styles.helper}>
-          Occupied by {selectedOwnership.occupyingGarrison.fortressName} with{" "}
-          {selectedOwnership.occupyingGarrison.army} army. The strongest
-          occupier receives this tile&apos;s bonus.
-        </p>
-      ) : null}
-
-      {selectedOwnGarrison ? (
-        <div className={styles.recallPanel}>
-          <div className={styles.recallPanelHeader}>
-            <span>Holding force</span>
-            <strong>{selectedOwnGarrison.army} army</strong>
+            </dd>
           </div>
-          <p className={styles.recallCopy}>
-            Recall marches home; losses stay lost.
-          </p>
-          {selectedOwnGarrison.army > 0 ? (
-            <label className={styles.tileArmyControl}>
-              <span>
-                Recall: {getGarrisonRecallArmy(selectedOwnGarrison)}/
-                {selectedOwnGarrison.army}
-              </span>
-              <input
-                type="range"
-                min={1}
-                max={Math.max(1, selectedOwnGarrison.army)}
-                step={1}
-                value={Math.max(1, getGarrisonRecallArmy(selectedOwnGarrison))}
-                onChange={(event) => {
-                  const nextArmy = Number(event.currentTarget.value);
-                  setGarrisonRecallArmyById((current) => ({
-                    ...current,
-                    [selectedOwnGarrison.id]: Number.isFinite(nextArmy)
-                      ? Math.floor(nextArmy)
-                      : 1,
-                  }));
-                }}
-              />
-            </label>
-          ) : null}
-          <button
-            className={styles.secondaryButton}
-            type="button"
-            disabled={
-              !selectedOwnGarrison.canRecall ||
-              garrisonRecallPendingId === selectedOwnGarrison.id
-            }
-            title={selectedOwnGarrison.recallDisabledReason ?? undefined}
-            onClick={() => {
-              void handleRecallGarrisonArmy(
-                selectedOwnGarrison,
-                getGarrisonRecallArmy(selectedOwnGarrison)
-              );
-            }}
-          >
-            {garrisonRecallPendingId === selectedOwnGarrison.id
-              ? "Recalling..."
-              : `Recall ${getGarrisonRecallArmy(selectedOwnGarrison)} army`}
-          </button>
-          <button
-            className={styles.secondaryButton}
-            type="button"
-            disabled={
-              !selectedOwnGarrison.canTorch ||
-              garrisonTorchPendingId === selectedOwnGarrison.id
-            }
-            title={selectedOwnGarrison.torchDisabledReason ?? undefined}
-            onClick={() => {
-              void handleTorchOccupiedMapHex(selectedOwnGarrison);
-            }}
-          >
-            {garrisonTorchPendingId === selectedOwnGarrison.id
-              ? "Torching..."
-              : "Torch tile"}
-          </button>
-        </div>
-      ) : null}
+        </dl>
 
-      {selectedActiveBattlefieldId ? (
-        <p className={styles.helper}>
-          {getSelectedBattlefieldHelper({
-            battlefield: selectedActiveBattlefield,
-            isHomeOfA: selectedTileIsHomeOfA,
-          })}
-        </p>
-      ) : null}
+        {selectedOwnership?.holders?.length ? (
+          <ul className={styles.compactList}>
+            {selectedOwnership.holders.slice(0, 4).map((holder) => (
+              <li key={`${holder.fortressName}:${holder.commanderName}`}>
+                {holder.fortressName}: weight {holder.contributionWeight}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+
+        {selectedOwnership?.occupyingGarrison ? (
+          <p className={styles.helper}>
+            Occupied by {selectedOwnership.occupyingGarrison.fortressName} with{" "}
+            {selectedOwnership.occupyingGarrison.army} army. The strongest
+            occupier receives this tile&apos;s bonus.
+          </p>
+        ) : null}
+
+        {selectedOwnGarrison ? (
+          <div className={styles.recallPanel}>
+            <div className={styles.recallPanelHeader}>
+              <span>Holding force</span>
+              <strong>{selectedOwnGarrison.army} army</strong>
+            </div>
+            <p className={styles.recallCopy}>
+              Recall marches home; losses stay lost.
+            </p>
+            {selectedOwnGarrison.army > 0 ? (
+              <label className={styles.tileArmyControl}>
+                <span>
+                  Recall: {getGarrisonRecallArmy(selectedOwnGarrison)}/
+                  {selectedOwnGarrison.army}
+                </span>
+                <input
+                  type="range"
+                  min={1}
+                  max={Math.max(1, selectedOwnGarrison.army)}
+                  step={1}
+                  value={Math.max(
+                    1,
+                    getGarrisonRecallArmy(selectedOwnGarrison)
+                  )}
+                  onChange={(event) => {
+                    const nextArmy = Number(event.currentTarget.value);
+                    setGarrisonRecallArmyById((current) => ({
+                      ...current,
+                      [selectedOwnGarrison.id]: Number.isFinite(nextArmy)
+                        ? Math.floor(nextArmy)
+                        : 1,
+                    }));
+                  }}
+                />
+              </label>
+            ) : null}
+            <button
+              className={styles.secondaryButton}
+              type="button"
+              disabled={
+                !selectedOwnGarrison.canRecall ||
+                garrisonRecallPendingId === selectedOwnGarrison.id
+              }
+              title={selectedOwnGarrison.recallDisabledReason ?? undefined}
+              onClick={() => {
+                void handleRecallGarrisonArmy(
+                  selectedOwnGarrison,
+                  getGarrisonRecallArmy(selectedOwnGarrison)
+                );
+              }}
+            >
+              {garrisonRecallPendingId === selectedOwnGarrison.id
+                ? "Recalling..."
+                : `Recall ${getGarrisonRecallArmy(selectedOwnGarrison)} army`}
+            </button>
+            <button
+              className={styles.secondaryButton}
+              type="button"
+              disabled={
+                !selectedOwnGarrison.canTorch ||
+                garrisonTorchPendingId === selectedOwnGarrison.id
+              }
+              title={selectedOwnGarrison.torchDisabledReason ?? undefined}
+              onClick={() => {
+                void handleTorchOccupiedMapHex(selectedOwnGarrison);
+              }}
+            >
+              {garrisonTorchPendingId === selectedOwnGarrison.id
+                ? "Torching..."
+                : "Torch tile"}
+            </button>
+          </div>
+        ) : null}
+
+        {selectedActiveBattlefieldId ? (
+          <p className={styles.helper}>
+            {getSelectedBattlefieldHelper({
+              battlefield: selectedActiveBattlefield,
+              isHomeOfA: selectedTileIsHomeOfA,
+            })}
+          </p>
+        ) : null}
       </details>
 
       <div className={styles.tileActions}>
-        {(locationShuffleCost !== null && !playerSummary?.seasonFourRulesEnabled) ? (
+        {locationShuffleCost !== null &&
+        !playerSummary?.seasonFourRulesEnabled ? (
           <>
             <button
               className={styles.secondaryButton}
@@ -1900,7 +1981,10 @@ export function BattlefieldExperience({
             {pressurePriorityQueue.length > 0 ? (
               <div className={styles.priorityQueueList}>
                 {pressurePriorityQueue.map((priority, index) => (
-                  <div className={styles.priorityQueueItem} key={priority.tileId}>
+                  <div
+                    className={styles.priorityQueueItem}
+                    key={priority.tileId}
+                  >
                     <span>
                       #{priority.pressurePriorityRank} Tile {priority.tileId}
                     </span>
@@ -1957,10 +2041,8 @@ export function BattlefieldExperience({
           </div>
         ) : null}
 
-        {playerSummary?.seasonFourRulesEnabled || (
-          !selectedOwnership?.ownerFortressId &&
-          !selectedTileIsHomeOfA
-        ) ? (
+        {playerSummary?.seasonFourRulesEnabled ||
+        (!selectedOwnership?.ownerFortressId && !selectedTileIsHomeOfA) ? (
           <>
             <button
               className={styles.secondaryButton}
@@ -1990,7 +2072,8 @@ export function BattlefieldExperience({
           </>
         ) : null}
 
-        {selectedTileTargetableCastle && !playerSummary?.seasonFourRulesEnabled ? (
+        {selectedTileTargetableCastle &&
+        !playerSummary?.seasonFourRulesEnabled ? (
           <>
             <label className={styles.tileArmyControl}>
               <span>
@@ -2066,14 +2149,14 @@ export function BattlefieldExperience({
         ) : null}
 
         {!playerSummary?.seasonFourRulesEnabled &&
-        (selectedOwnership?.attackDisabledReason ||
-        (selectedTileIsHomeOfA && homeOfA?.attackDisabledReason) ? (
-          <p className={styles.helper}>
-            {selectedTileIsHomeOfA
-              ? homeOfA?.attackDisabledReason
-              : selectedOwnership?.attackDisabledReason}
-          </p>
-        ) : null)}
+          (selectedOwnership?.attackDisabledReason ||
+          (selectedTileIsHomeOfA && homeOfA?.attackDisabledReason) ? (
+            <p className={styles.helper}>
+              {selectedTileIsHomeOfA
+                ? homeOfA?.attackDisabledReason
+                : selectedOwnership?.attackDisabledReason}
+            </p>
+          ) : null)}
 
         {selectedOwnership?.isCurrentUser &&
         !playerSummary?.seasonFourRulesEnabled ? (
@@ -2146,7 +2229,9 @@ export function BattlefieldExperience({
                     type="button"
                     disabled={mapActionPending}
                     onClick={() => {
-                      void handleRecallArmyOrder(selectedOwnership.campaignOrderId!);
+                      void handleRecallArmyOrder(
+                        selectedOwnership.campaignOrderId!
+                      );
                     }}
                   >
                     Recall campaign
@@ -2728,11 +2813,26 @@ export function BattlefieldExperience({
           />
         ) : null}
         {!playerSummary?.seasonFourRulesEnabled ? (
-        <NoticeToast
-          autoDismissMs={5000}
-          message="Castle Yeet is live: arm it from the Battlefield map, then pick a destination tile to relocate your castle."
-          storageKey={CASTLE_YEET_NOTICE_STORAGE_KEY}
-        />
+          <NoticeToast
+            autoDismissMs={5000}
+            message="Castle Yeet is live: arm it from the Battlefield map, then pick a destination tile to relocate your castle."
+            storageKey={CASTLE_YEET_NOTICE_STORAGE_KEY}
+          />
+        ) : null}
+        {hasPendingCommandNotice ? (
+          <a
+            className={styles.diplomacyMapNotice}
+            href="/castle?tab=diplomacy"
+            aria-label={`Open Castle Diplomacy, ${pendingCommandLabel} pending`}
+          >
+            <span className={styles.diplomacyMapNoticeBadge}>
+              {pendingCommandCount}
+            </span>
+            <span>
+              <strong>Diplomacy needs attention</strong>
+              <span>{pendingCommandLabel} pending</span>
+            </span>
+          </a>
         ) : null}
         <FortressMap
           className={immersive ? styles.fullMap : undefined}
@@ -2744,6 +2844,15 @@ export function BattlefieldExperience({
           roadSegments={roadSegments}
           battalionMarkers={battalionMarkers}
           convoyMarkers={convoyMarkers}
+          nukeBiddingMarker={
+            nukeState
+              ? {
+                  isOpen: nukeState.round.isOpen,
+                  canLaunch: nukeState.canLaunch,
+                  status: nukeState.round.status,
+                }
+              : null
+          }
           battlefields={battlefields}
           selectedFortressId={selectedFortressId}
           selectedTargetId={selectedTargetId}

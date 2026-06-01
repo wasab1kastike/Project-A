@@ -15,6 +15,8 @@ import {
   RaceAbilityKind,
   WinnerRequestStatus,
   TerritoryCampaignStatus,
+  NukeComponentKind,
+  NukeComponentRoundStatus,
   type PrismaClient,
 } from "@/lib/prisma-client";
 import {
@@ -108,6 +110,15 @@ import {
 } from "./tile-pressure";
 import { isSeasonFourRuleset } from "./rulesets";
 import { calculateRoadAdjustedTravel } from "./road-travel";
+import {
+  EMPTY_NUKE_COMPONENT_CARGO,
+  getNukeBiddingWindowForDate,
+  getNukeComponentLabel,
+  getNukeRoundState,
+  NUKE_COMPONENT_KINDS,
+  NUKE_LAUNCH_GOLD_COST,
+  type NukeComponentCargo,
+} from "./nukes";
 
 export type HomePageState = Awaited<ReturnType<typeof getHomePageState>>;
 
@@ -1110,18 +1121,19 @@ export async function getHomePageState({
       canJoinCycle: false,
       canEditRegistrationName: false,
       incomingOfferCount: 0,
-    incidentCount: 0,
-    recallableOrderCount: 0,
-    recentActivity: [],
-    emptyStateMessage:
+      pendingDiplomacyCount: 0,
+      incidentCount: 0,
+      recallableOrderCount: 0,
+      nukeState: null,
+      recentActivity: [],
+      emptyStateMessage:
         "No unresolved cycle exists yet. Run the seed flow to bootstrap registration.",
     };
   }
 
   const isSeasonFour = isSeasonFourRuleset(cycle.ruleset);
   const pressureClaimThreshold = getTilePressureClaimThreshold(isSeasonFour);
-  const homeMonumentReason =
-    "The center monument is inaccessible in Season 4.";
+  const homeMonumentReason = "The center monument is inaccessible in Season 4.";
   const homeTileBonus = isSeasonFour
     ? {
         gold: 0,
@@ -1166,14 +1178,53 @@ export async function getHomePageState({
       commanderNameByOwnerId.set(fortress.ownerId, fortress.commanderName);
     }
   }
-  const [incomingOfferCount, incidentCount, recallableOrderCount] =
+  const [
+    incomingOfferCount,
+    pendingDiplomacyCount,
+    incidentCount,
+    recallableOrderCount,
+  ] =
     playerFortress && isSeasonFour
       ? await Promise.all([
           db.tradeOffer.count({
             where: {
               cycleId: cycle.id,
               receiverFortressId: playerFortress.id,
-              status: 'PENDING',
+              status: "PENDING",
+            },
+          }),
+          db.diplomacyRelation.count({
+            where: {
+              cycleId: cycle.id,
+              OR: [
+                { fortressAId: playerFortress.id },
+                { fortressBId: playerFortress.id },
+              ],
+              AND: [
+                {
+                  OR: [
+                    {
+                      status: DiplomacyRelationStatus.ALLIANCE_PENDING,
+                      allianceProposedById: { not: playerFortress.id },
+                    },
+                    {
+                      status: DiplomacyRelationStatus.PEACE_PENDING,
+                      peaceProposedById: { not: playerFortress.id },
+                    },
+                    {
+                      status: DiplomacyRelationStatus.WAR_PENDING,
+                      warDeclaredById: { not: playerFortress.id },
+                      warStartsAt: { gt: now },
+                    },
+                    {
+                      trustUpgradeProposedById: {
+                        not: playerFortress.id,
+                      },
+                      trustUpgradeTier: { not: null },
+                    },
+                  ],
+                },
+              ],
             },
           }),
           db.covertIncident.count({
@@ -1190,125 +1241,304 @@ export async function getHomePageState({
             where: {
               cycleId: cycle.id,
               fortressId: playerFortress.id,
-              status: 'ACTIVE',
+              status: "ACTIVE",
               OR: [
                 { campaign: null },
-                { campaign: { status: { notIn: ['ENGAGED', 'RESOLVED'] } } },
+                { campaign: { status: { notIn: ["ENGAGED", "RESOLVED"] } } },
               ],
             },
           }),
         ])
-      : [0, 0, 0];
+      : [0, 0, 0, 0];
+
+  const nukeState = isSeasonFour
+    ? await (async () => {
+        const window = getNukeBiddingWindowForDate(now);
+        const round = await db.nukeComponentRound.findUnique({
+          where: {
+            cycleId_startsAt: {
+              cycleId: cycle.id,
+              startsAt: window.startsAt,
+            },
+          },
+          include: {
+            bids: {
+              where: { fortressId: playerFortress?.id ?? "__spectator__" },
+              orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+              select: {
+                id: true,
+                componentKind: true,
+                amount: true,
+                createdAt: true,
+              },
+            },
+          },
+        });
+        const inventoryRows = playerFortress
+          ? await db.nukeComponentInventory.findMany({
+              where: { cycleId: cycle.id, fortressId: playerFortress.id },
+              select: { componentKind: true, quantity: true },
+            })
+          : [];
+        const inventory: NukeComponentCargo = { ...EMPTY_NUKE_COMPONENT_CARGO };
+
+        for (const row of inventoryRows) {
+          inventory[row.componentKind] = row.quantity;
+        }
+
+        const recentLaunches = await db.nukeLaunch.findMany({
+          where: { cycleId: cycle.id },
+          orderBy: [{ launchedAt: "desc" }, { id: "desc" }],
+          take: 5,
+          select: {
+            id: true,
+            launcherFortressId: true,
+            targetFortressId: true,
+            targetLevelBefore: true,
+            targetLevelAfter: true,
+            armyRemoved: true,
+            launchedAt: true,
+          },
+        });
+        const canLaunch =
+          playerFortress !== null &&
+          playerFortress.gold >= NUKE_LAUNCH_GOLD_COST &&
+          NUKE_COMPONENT_KINDS.every((kind) => inventory[kind] >= 1);
+
+        return {
+          round: {
+            id: round?.id ?? null,
+            startsAt: window.startsAt,
+            endsAt: window.endsAt,
+            status:
+              round?.status === NukeComponentRoundStatus.RESOLVED
+                ? "resolved"
+                : getNukeRoundState(now, window.startsAt, window.endsAt),
+            isOpen:
+              window.isOpen &&
+              round?.status !== NukeComponentRoundStatus.RESOLVED,
+            bidsArePrivate: true,
+            playerBids:
+              round?.bids?.map((bid) => ({
+                id: bid.id,
+                componentKind: bid.componentKind,
+                label: getNukeComponentLabel(bid.componentKind),
+                amount: bid.amount,
+                createdAt: bid.createdAt,
+              })) ?? [],
+          },
+          inventory,
+          canLaunch,
+          launchGoldCost: NUKE_LAUNCH_GOLD_COST,
+          launchDisabledReason: playerFortress
+            ? canLaunch
+              ? null
+              : playerFortress.gold < NUKE_LAUNCH_GOLD_COST
+                ? "Launching a nuke costs 250,000 gold."
+                : "Collect Fuel, Rocket, and Wrath of A before launching."
+            : "Join the cycle before building nukes.",
+          eligibleTargets: playerFortress
+            ? playerFortresses
+                .filter(
+                  (fortress) =>
+                    fortress.id !== playerFortress.id &&
+                    fortress.fortressKind === FortressKind.PLAYER &&
+                    !fortress.isNpc
+                )
+                .map((fortress) => ({
+                  id: fortress.id,
+                  name: fortress.name,
+                  commanderName: fortress.commanderName,
+                  level: fortress.level,
+                }))
+            : [],
+          recentLaunches,
+        };
+      })()
+    : null;
 
   let recentActivity: Array<{
-    id: string; type: string; label: string; timestamp: Date;
-    details?: string; status?: string; tileId?: string; deedTileId?: string;
+    id: string;
+    type: string;
+    label: string;
+    timestamp: Date;
+    details?: string;
+    status?: string;
+    tileId?: string;
+    deedTileId?: string;
   }> = [];
 
   if (playerFortress && isSeasonFour) {
     const pfId = playerFortress.id;
-          const [offers, incidents, convoys, sieges, orders] = await Promise.all([
-            db.tradeOffer.findMany({
-              where: { cycleId: cycle.id, receiverFortressId: pfId, status: 'PENDING' },
-              select: { id: true, createdAt: true, senderFortressId: true },
-              orderBy: { createdAt: "desc" },
-              take: 5,
-            }),
-            db.covertIncident.findMany({
-              where: { cycleId: cycle.id, OR: [{ detectingFortressId: pfId }, { raiderFortressId: pfId }] },
-              select: { id: true, detectedAt: true, detectingFortressId: true, raiderFortressId: true, casusBelliExpiresAt: true },
-              orderBy: { detectedAt: "desc" },
-              take: 5,
-            }),
-            db.convoyLeg.findMany({
-              where: {
-                cycleId: cycle.id,
-                OR: [{ fromFortressId: pfId }, { toFortressId: pfId }],
-              },
-              select: {
-                id: true, fromFortressId: true, toFortressId: true,
-                status: true, arrivesAt: true, settledAt: true,
-                deedTileId: true, deedFailureReason: true,
-                gold: true, food: true, army: true, baseCargoValue: true,
-              },
-              orderBy: [{ arrivesAt: "desc" }, { settledAt: "desc" }],
-              take: 15,
-            }),
-            db.territoryCampaign.findMany({
-              where: { cycleId: cycle.id, defenderFortressId: pfId, status: 'SIEGE_WARNING' },
-              select: { id: true, targetTileId: true, responseEndsAt: true },
-            }),
-            db.armyOrder.findMany({
-              where: { cycleId: cycle.id, fortressId: pfId, status: 'ACTIVE', type: { in: ['GUARD', 'CAMPAIGN'] } },
-              select: { id: true, type: true, committedArmy: true, targetTileId: true },
-              take: 5,
-            }),
-          ]);
+    const [offers, incidents, convoys, sieges, orders] = await Promise.all([
+      db.tradeOffer.findMany({
+        where: {
+          cycleId: cycle.id,
+          receiverFortressId: pfId,
+          status: "PENDING",
+        },
+        select: { id: true, createdAt: true, senderFortressId: true },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+      }),
+      db.covertIncident.findMany({
+        where: {
+          cycleId: cycle.id,
+          OR: [{ detectingFortressId: pfId }, { raiderFortressId: pfId }],
+        },
+        select: {
+          id: true,
+          detectedAt: true,
+          detectingFortressId: true,
+          raiderFortressId: true,
+          casusBelliExpiresAt: true,
+        },
+        orderBy: { detectedAt: "desc" },
+        take: 5,
+      }),
+      db.convoyLeg.findMany({
+        where: {
+          cycleId: cycle.id,
+          OR: [{ fromFortressId: pfId }, { toFortressId: pfId }],
+        },
+        select: {
+          id: true,
+          fromFortressId: true,
+          toFortressId: true,
+          status: true,
+          arrivesAt: true,
+          settledAt: true,
+          deedTileId: true,
+          deedFailureReason: true,
+          gold: true,
+          food: true,
+          army: true,
+          baseCargoValue: true,
+        },
+        orderBy: [{ arrivesAt: "desc" }, { settledAt: "desc" }],
+        take: 15,
+      }),
+      db.territoryCampaign.findMany({
+        where: {
+          cycleId: cycle.id,
+          defenderFortressId: pfId,
+          status: "SIEGE_WARNING",
+        },
+        select: { id: true, targetTileId: true, responseEndsAt: true },
+      }),
+      db.armyOrder.findMany({
+        where: {
+          cycleId: cycle.id,
+          fortressId: pfId,
+          status: "ACTIVE",
+          type: { in: ["GUARD", "CAMPAIGN"] },
+        },
+        select: {
+          id: true,
+          type: true,
+          committedArmy: true,
+          targetTileId: true,
+        },
+        take: 5,
+      }),
+    ]);
 
-          const items: Array<{
-            id: string; type: string; label: string; timestamp: Date;
-            details?: string; status?: string; tileId?: string; deedTileId?: string;
-          }> = [];
+    const items: Array<{
+      id: string;
+      type: string;
+      label: string;
+      timestamp: Date;
+      details?: string;
+      status?: string;
+      tileId?: string;
+      deedTileId?: string;
+    }> = [];
 
-          for (const o of offers) {
-            items.push({ id: 'offer:' + o.id, type: 'offer', label: 'Incoming trade offer', timestamp: o.createdAt });
-          }
-          for (const inc of incidents) {
-            const isDetector = inc.detectingFortressId === pfId;
-            items.push({
-              id: 'incident:' + inc.id, type: 'incident',
-              label: isDetector ? 'Raid detected' : 'Raid exposed',
-              timestamp: inc.detectedAt,
-              status: inc.casusBelliExpiresAt && inc.casusBelliExpiresAt > now ? 'casus belli active' : undefined,
-            });
-          }
-          for (const leg of convoys) {
-            const isSender = leg.fromFortressId === pfId;
-            const outgoing = leg.fromFortressId === pfId;
-            if (leg.status === 'IN_TRANSIT') {
-              items.push({
-                id: 'convoy:' + leg.id, type: 'convoy',
-                label: outgoing ? 'Outbound convoy en route' : 'Inbound convoy en route',
-                timestamp: leg.arrivesAt,
-                deedTileId: leg.deedTileId ?? undefined,
-              });
-            } else if (leg.status === 'DELIVERED') {
-              items.push({
-                id: 'convoy:' + leg.id, type: 'convoy',
-                label: leg.deedTileId ? 'Tile deed delivered' : 'Convoy delivered',
-                timestamp: leg.settledAt ?? leg.arrivesAt,
-                details: leg.gold > 0 || leg.food > 0 ? `${leg.gold}g ${leg.food}f` : undefined,
-                deedTileId: leg.deedTileId ?? undefined,
-              });
-            } else if (leg.status === 'INTERCEPTED' || leg.status === 'SEIZED') {
-              items.push({
-                id: 'convoy:' + leg.id, type: 'convoy',
-                label: leg.status === 'INTERCEPTED' ? 'Convoy intercepted' : 'Convoy seized',
-                timestamp: leg.settledAt ?? leg.arrivesAt,
-                details: leg.deedFailureReason ?? undefined,
-                deedTileId: leg.deedTileId ?? undefined,
-              });
-            }
-          }
-          for (const s of sieges) {
-            items.push({
-              id: 'siege:' + s.id, type: 'siege', label: 'Siege warning on tile ' + s.targetTileId,
-              timestamp: s.responseEndsAt ?? now,
-              tileId: s.targetTileId,
-            });
-          }
-          for (const ord of orders) {
-            items.push({
-              id: 'order:' + ord.id, type: 'army',
-              label: ord.type === 'CAMPAIGN' ? 'Campaign active' : 'Guard stationed on ' + (ord.targetTileId ?? '?'),
-              timestamp: now,
-              details: ord.committedArmy + ' army',
-            });
-          }
+    for (const o of offers) {
+      items.push({
+        id: "offer:" + o.id,
+        type: "offer",
+        label: "Incoming trade offer",
+        timestamp: o.createdAt,
+      });
+    }
+    for (const inc of incidents) {
+      const isDetector = inc.detectingFortressId === pfId;
+      items.push({
+        id: "incident:" + inc.id,
+        type: "incident",
+        label: isDetector ? "Raid detected" : "Raid exposed",
+        timestamp: inc.detectedAt,
+        status:
+          inc.casusBelliExpiresAt && inc.casusBelliExpiresAt > now
+            ? "casus belli active"
+            : undefined,
+      });
+    }
+    for (const leg of convoys) {
+      const isSender = leg.fromFortressId === pfId;
+      const outgoing = leg.fromFortressId === pfId;
+      if (leg.status === "IN_TRANSIT") {
+        items.push({
+          id: "convoy:" + leg.id,
+          type: "convoy",
+          label: outgoing
+            ? "Outbound convoy en route"
+            : "Inbound convoy en route",
+          timestamp: leg.arrivesAt,
+          deedTileId: leg.deedTileId ?? undefined,
+        });
+      } else if (leg.status === "DELIVERED") {
+        items.push({
+          id: "convoy:" + leg.id,
+          type: "convoy",
+          label: leg.deedTileId ? "Tile deed delivered" : "Convoy delivered",
+          timestamp: leg.settledAt ?? leg.arrivesAt,
+          details:
+            leg.gold > 0 || leg.food > 0
+              ? `${leg.gold}g ${leg.food}f`
+              : undefined,
+          deedTileId: leg.deedTileId ?? undefined,
+        });
+      } else if (leg.status === "INTERCEPTED" || leg.status === "SEIZED") {
+        items.push({
+          id: "convoy:" + leg.id,
+          type: "convoy",
+          label:
+            leg.status === "INTERCEPTED"
+              ? "Convoy intercepted"
+              : "Convoy seized",
+          timestamp: leg.settledAt ?? leg.arrivesAt,
+          details: leg.deedFailureReason ?? undefined,
+          deedTileId: leg.deedTileId ?? undefined,
+        });
+      }
+    }
+    for (const s of sieges) {
+      items.push({
+        id: "siege:" + s.id,
+        type: "siege",
+        label: "Siege warning on tile " + s.targetTileId,
+        timestamp: s.responseEndsAt ?? now,
+        tileId: s.targetTileId,
+      });
+    }
+    for (const ord of orders) {
+      items.push({
+        id: "order:" + ord.id,
+        type: "army",
+        label:
+          ord.type === "CAMPAIGN"
+            ? "Campaign active"
+            : "Guard stationed on " + (ord.targetTileId ?? "?"),
+        timestamp: now,
+        details: ord.committedArmy + " army",
+      });
+    }
 
-          items.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-          recentActivity = items.slice(0, 20);
-        }
+    items.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    recentActivity = items.slice(0, 20);
+  }
 
   const registrationOpen =
     cycle.status === CycleStatus.REGISTRATION && cycle.registrationEndsAt > now;
@@ -1418,7 +1648,9 @@ export async function getHomePageState({
     leaderboardTitleConfigs.map((config) => [
       config.category,
       [...playerFortresses]
-        .sort(compareLeaderboardFortresses(config.category, tileCountsByFortressId))
+        .sort(
+          compareLeaderboardFortresses(config.category, tileCountsByFortressId)
+        )
         .slice(0, 3)
         .map((fortress, index) =>
           mapLeaderboardEntry(config.category, fortress, index)
@@ -1612,10 +1844,11 @@ export async function getHomePageState({
     playerQueuedArmy = playerFortress.recruitmentQueue;
     for (const order of cycle.armyOrders) {
       if (order.fortressId !== playerFortress.id) continue;
-      if (order.type === 'ESCORT') playerEscortArmy += order.committedArmy;
-      else if (order.type === 'RAID') playerRaidArmy += order.committedArmy;
-      else if (order.type === 'CAMPAIGN') playerCampaignArmy += order.committedArmy;
-      else if (order.type === 'GUARD') playerGuardArmy += order.committedArmy;
+      if (order.type === "ESCORT") playerEscortArmy += order.committedArmy;
+      else if (order.type === "RAID") playerRaidArmy += order.committedArmy;
+      else if (order.type === "CAMPAIGN")
+        playerCampaignArmy += order.committedArmy;
+      else if (order.type === "GUARD") playerGuardArmy += order.committedArmy;
     }
   }
 
@@ -2114,19 +2347,29 @@ export async function getHomePageState({
             ? 0
             : getBattlefieldCasualtyBudget(battleAgeMinutes);
         const attackerLosses = battlefield.participants
-          .filter((participant) => participant.side === BattlefieldSide.ATTACKER)
+          .filter(
+            (participant) => participant.side === BattlefieldSide.ATTACKER
+          )
           .reduce(
             (sum, participant) =>
               sum +
-              Math.max(0, participant.armyCommitted - participant.armyRemaining),
+              Math.max(
+                0,
+                participant.armyCommitted - participant.armyRemaining
+              ),
             0
           );
         const defenderParticipantLosses = battlefield.participants
-          .filter((participant) => participant.side === BattlefieldSide.DEFENDER)
+          .filter(
+            (participant) => participant.side === BattlefieldSide.DEFENDER
+          )
           .reduce(
             (sum, participant) =>
               sum +
-              Math.max(0, participant.armyCommitted - participant.armyRemaining),
+              Math.max(
+                0,
+                participant.armyCommitted - participant.armyRemaining
+              ),
             0
           );
         const defenderNativeLosses =
@@ -2139,8 +2382,7 @@ export async function getHomePageState({
                   battlefield.defenderArmyRemaining
               )
             : 0;
-        const defenderLosses =
-          defenderParticipantLosses + defenderNativeLosses;
+        const defenderLosses = defenderParticipantLosses + defenderNativeLosses;
 
         return {
           type: "BATTLEFIELD" as const,
@@ -2236,10 +2478,7 @@ export async function getHomePageState({
     )
     .slice(0, 5);
   const visibleFortresses = cycle.fortresses.filter((fortress) => {
-    if (
-      isSeasonFour &&
-      fortress.fortressKind !== FortressKind.PLAYER
-    ) {
+    if (isSeasonFour && fortress.fortressKind !== FortressKind.PLAYER) {
       return false;
     }
 
@@ -2270,7 +2509,8 @@ export async function getHomePageState({
 
   const diplomacyByFortress = new Map<string, string>();
   for (const rel of playerDiplomacy) {
-    const otherId = rel.fortressAId === playerFortressId ? rel.fortressBId : rel.fortressAId;
+    const otherId =
+      rel.fortressAId === playerFortressId ? rel.fortressBId : rel.fortressAId;
     if (rel.status === "WAR" || rel.status === "ALLIED") {
       diplomacyByFortress.set(otherId, rel.status);
     }
@@ -2364,7 +2604,10 @@ export async function getHomePageState({
       unitCosmeticVariant: displayOwner?.unitCosmeticVariant ?? null,
       fortressCosmeticVariant: displayOwner?.fortressCosmeticVariant ?? null,
       isCurrentUser: fortress.ownerId === userId,
-      diplomacyStatus: (diplomacyByFortress.get(fortress.id) ?? "NEUTRAL") as "WAR" | "ALLIED" | "NEUTRAL",
+      diplomacyStatus: (diplomacyByFortress.get(fortress.id) ?? "NEUTRAL") as
+        | "WAR"
+        | "ALLIED"
+        | "NEUTRAL",
       isTargetable:
         !isSeasonFour &&
         playerFortressId !== null &&
@@ -2592,9 +2835,7 @@ export async function getHomePageState({
     homeBoss !== null &&
     homeBoss.health > 0 &&
     (!homeRespawnsAt || homeRespawnsAt <= now);
-  const homeStatus: "ALIVE" | "DEFEATED" = homeBossAlive
-    ? "ALIVE"
-    : "DEFEATED";
+  const homeStatus: "ALIVE" | "DEFEATED" = homeBossAlive ? "ALIVE" : "DEFEATED";
   const homeReward = homeBoss ? getHomeOfABossReward(homeBoss.maxHealth) : 0;
   const homeHolders: Array<{
     fortressId: string;
@@ -2726,7 +2967,10 @@ export async function getHomePageState({
     cycle.mapHexOwnerships.map((ownership) => ownership.tileId)
   );
   const activeCampaignByTileId = new Map(
-    cycle.territoryCampaigns.map((campaign) => [campaign.targetTileId, campaign])
+    cycle.territoryCampaigns.map((campaign) => [
+      campaign.targetTileId,
+      campaign,
+    ])
   );
   const ownGuardOrderByTileId = new Map(
     playerFortress
@@ -2784,7 +3028,9 @@ export async function getHomePageState({
       getNeutralPressureClaimWinner({
         states,
         threshold: pressureClaimThreshold,
-      }) ?? leader?.fortressId ?? null;
+      }) ??
+      leader?.fortressId ??
+      null;
     const pressureLeaderLabel =
       pressureLeaderFortressId === null
         ? null
@@ -2823,31 +3069,33 @@ export async function getHomePageState({
       });
       const isQueued = pressurePriorityByTileId.has(tile.id);
 
-      return getPressureTargetBlockedReason({
-        tile,
-        tileId: tile.id,
-        ownerFortressId,
-        diplomacyBlockedReason: getDiplomacyPressureBlockedReason({
-          relation: diplomacyRelation,
-          now,
-        }),
-        allowEnemyOwned:
-          ownerFortressId !== null &&
-          ownerFortressId !== playerFortress.id &&
-          effectiveDiplomacyStatus === DiplomacyRelationStatus.WAR,
-        fortress: playerFortress,
-        ownedTileIds: ownedNormalTileIds,
-        isHomeOfA: isHomeOfATile,
-        isConnected: ({ tileId, ownedTileIds }) =>
-          isTileConnectedToFortressOrOwnedTiles({
-            tileId,
-            fortress: playerFortress,
-            ownedTileIds,
+      return (
+        getPressureTargetBlockedReason({
+          tile,
+          tileId: tile.id,
+          ownerFortressId,
+          diplomacyBlockedReason: getDiplomacyPressureBlockedReason({
+            relation: diplomacyRelation,
+            now,
           }),
-      }) ??
+          allowEnemyOwned:
+            ownerFortressId !== null &&
+            ownerFortressId !== playerFortress.id &&
+            effectiveDiplomacyStatus === DiplomacyRelationStatus.WAR,
+          fortress: playerFortress,
+          ownedTileIds: ownedNormalTileIds,
+          isHomeOfA: isHomeOfATile,
+          isConnected: ({ tileId, ownedTileIds }) =>
+            isTileConnectedToFortressOrOwnedTiles({
+              tileId,
+              fortress: playerFortress,
+              ownedTileIds,
+            }),
+        }) ??
         (!isQueued && pressurePriorityQueue.length >= pressurePriorityLimit
           ? `Expansion queue is full (${pressurePriorityLimit}/${pressurePriorityLimit}).`
-          : null);
+          : null)
+      );
     })();
     const priority = pressurePriorityByTileId.get(tile.id) ?? null;
 
@@ -2965,9 +3213,7 @@ export async function getHomePageState({
           pressurePriorityDisabledReason:
             "That map tile cannot receive pressure.",
         };
-    const bonus = isHomeOwnership
-      ? homeTileBonus
-      : getTileBonus(tile);
+    const bonus = isHomeOwnership ? homeTileBonus : getTileBonus(tile);
     const activeCampaign = activeCampaignByTileId.get(ownership.tileId) ?? null;
     const ownGuardOrder = ownGuardOrderByTileId.get(ownership.tileId) ?? null;
     const campaignDisabledReason = (() => {
@@ -3064,22 +3310,19 @@ export async function getHomePageState({
           ? ownership.ownerFortress.ownerId === userId
           : false,
       hasActiveBattle: activeBattleTileIds.has(ownership.tileId),
-      canAttack:
-        isHomeOwnership
-          ? canAttackHomeOfA
-          : !isSeasonFour && getTileAttackDisabledReason(ownership) === null,
-      canFortify:
-        isHomeOwnership
-          ? false
-          : !isSeasonFour && getTileFortifyDisabledReason(ownership) === null,
-      fortifyDisabledReason:
-        isHomeOwnership
-          ? isSeasonFour
-            ? homeMonumentReason
-            : "Home of A is a daily boss and cannot be fortified."
-          : isSeasonFour
-            ? "Season 4 defense uses standing guard orders."
-            : getTileFortifyDisabledReason(ownership),
+      canAttack: isHomeOwnership
+        ? canAttackHomeOfA
+        : !isSeasonFour && getTileAttackDisabledReason(ownership) === null,
+      canFortify: isHomeOwnership
+        ? false
+        : !isSeasonFour && getTileFortifyDisabledReason(ownership) === null,
+      fortifyDisabledReason: isHomeOwnership
+        ? isSeasonFour
+          ? homeMonumentReason
+          : "Home of A is a daily boss and cannot be fortified."
+        : isSeasonFour
+          ? "Season 4 defense uses standing guard orders."
+          : getTileFortifyDisabledReason(ownership),
       isConnectedToPlayerTerritory: pressureState.isConnectedToPlayerTerritory,
       pressurePriority: pressureState.pressurePriority,
       pressurePriorityRank: pressureState.pressurePriorityRank,
@@ -3095,11 +3338,10 @@ export async function getHomePageState({
         pressureState.pressurePriorityDisabledReason,
       activeBattlefieldId:
         activeBattlefieldByTileId.get(ownership.tileId)?.id ?? null,
-      attackDisabledReason:
-        isHomeOwnership
-          ? isSeasonFour
-            ? homeMonumentReason
-            : canAttackHomeOfA
+      attackDisabledReason: isHomeOwnership
+        ? isSeasonFour
+          ? homeMonumentReason
+          : canAttackHomeOfA
             ? null
             : !gameplayOpen
               ? "Home of A can only be attacked during gameplay."
@@ -3110,9 +3352,9 @@ export async function getHomePageState({
                   : homeRespawnsAt && homeRespawnsAt > now
                     ? "Home of A is defeated and waiting to respawn."
                     : "Home of A is not attackable right now."
-          : isSeasonFour
-            ? "Season 4 territory attacks use campaign orders."
-            : getTileAttackDisabledReason(ownership),
+        : isSeasonFour
+          ? "Season 4 territory attacks use campaign orders."
+          : getTileAttackDisabledReason(ownership),
       canStartCampaign: campaignDisabledReason === null,
       campaignDisabledReason,
       campaignId: activeCampaign?.id ?? null,
@@ -3126,19 +3368,22 @@ export async function getHomePageState({
       campaignProgress: activeCampaign?.progress ?? null,
       campaignThreshold: activeCampaign ? CAMPAIGN_SIEGE_THRESHOLD : null,
       campaignResponseEndsAt: activeCampaign?.responseEndsAt ?? null,
-      isOwnCampaign:
-        Boolean(
-          activeCampaign &&
-            playerFortress &&
-            activeCampaign.attackerFortressId === playerFortress.id
-        ),
+      isOwnCampaign: Boolean(
+        activeCampaign &&
+        playerFortress &&
+        activeCampaign.attackerFortressId === playerFortress.id
+      ),
       canStationGuard: guardDisabledReason === null && !ownGuardOrder,
       guardDisabledReason,
       guardOrderId: ownGuardOrder?.id ?? null,
       guardArmy: ownGuardOrder?.committedArmy ?? null,
       bonus,
       isHomeOfA: isHomeOwnership,
-      pointIncome: isHomeOwnership ? null : bonus.points > 0 ? bonus.points : null,
+      pointIncome: isHomeOwnership
+        ? null
+        : bonus.points > 0
+          ? bonus.points
+          : null,
       holders: isHomeOwnership ? homeHolders : [],
       occupyingGarrison: occupyingGarrison
         ? {
@@ -3206,24 +3451,23 @@ export async function getHomePageState({
       attackPriority: 0,
       ownershipPressure: null,
       canPrioritizePressure: false,
-      pressurePriorityDisabledReason:
-        isSeasonFour
-          ? homeMonumentReason
-          : "Home of A is a daily boss and cannot receive expansion pressure.",
+      pressurePriorityDisabledReason: isSeasonFour
+        ? homeMonumentReason
+        : "Home of A is a daily boss and cannot receive expansion pressure.",
       activeBattlefieldId: null,
       attackDisabledReason: isSeasonFour
         ? homeMonumentReason
         : canAttackHomeOfA
-        ? null
-        : !gameplayOpen
-          ? "Home of A can only be attacked during gameplay."
-          : !playerFortress
-            ? "Join the cycle to attack Home of A."
-            : playerFortress.army <= 0
-              ? "You need idle army to attack Home of A."
-              : homeRespawnsAt && homeRespawnsAt > now
-                ? "Home of A is defeated and waiting to respawn."
-              : "Home of A is not attackable right now.",
+          ? null
+          : !gameplayOpen
+            ? "Home of A can only be attacked during gameplay."
+            : !playerFortress
+              ? "Join the cycle to attack Home of A."
+              : playerFortress.army <= 0
+                ? "You need idle army to attack Home of A."
+                : homeRespawnsAt && homeRespawnsAt > now
+                  ? "Home of A is defeated and waiting to respawn."
+                  : "Home of A is not attackable right now.",
       canStartCampaign: false,
       campaignDisabledReason: homeMonumentReason,
       campaignId: null,
@@ -3864,7 +4108,7 @@ export async function getHomePageState({
     }),
     mapFortresses,
     alliedRoads: (cycle.diplomacyRelations ?? [])
-      .filter((rel) => rel.status === 'ALLIED')
+      .filter((rel) => rel.status === "ALLIED")
       .map((rel) => {
         const fortresses = cycle.fortresses ?? [];
         const a = fortresses.find((f) => f.id === rel.fortressAId);
@@ -3879,10 +4123,9 @@ export async function getHomePageState({
       tileId: HOME_OF_A_TILE_ID,
       pointIncome: 0,
       status: homeStatus,
-      statusLabel:
-        isSeasonFour
-          ? "Monument: inaccessible in Season 4"
-          : homeStatus === "ALIVE"
+      statusLabel: isSeasonFour
+        ? "Monument: inaccessible in Season 4"
+        : homeStatus === "ALIVE"
           ? `Boss alive: ${homeBoss?.health ?? 0}/${homeBoss?.maxHealth ?? 0} HP`
           : homeRespawnsAt && homeRespawnsAt > now
             ? `Defeated. Respawns at ${formatHelsinkiTime(homeRespawnsAt)}`
@@ -3893,7 +4136,7 @@ export async function getHomePageState({
       drainLabel: isSeasonFour
         ? "Preserved as a historical landmark"
         : "Killer receives a 12h +25% combat and economy buff",
-      neutralDefenseArmy: isSeasonFour ? 0 : homeBoss?.health ?? 0,
+      neutralDefenseArmy: isSeasonFour ? 0 : (homeBoss?.health ?? 0),
       holderCount: 0,
       ownerFortressId: null,
       ownerName: isSeasonFour ? "Monument" : "Home of A",
@@ -3903,24 +4146,24 @@ export async function getHomePageState({
       isCurrentUserHolder: false,
       holders: homeHolders,
       activeBattlefieldId: null,
-      bossHealth: isSeasonFour ? 0 : homeBoss?.health ?? 0,
-      bossMaxHealth: isSeasonFour ? 0 : homeBoss?.maxHealth ?? 0,
+      bossHealth: isSeasonFour ? 0 : (homeBoss?.health ?? 0),
+      bossMaxHealth: isSeasonFour ? 0 : (homeBoss?.maxHealth ?? 0),
       bossReward: isSeasonFour ? 0 : homeReward,
       respawnsAt: isSeasonFour ? null : homeRespawnsAt,
       canAttack: canAttackHomeOfA,
       attackDisabledReason: isSeasonFour
         ? homeMonumentReason
         : canAttackHomeOfA
-        ? null
-        : !gameplayOpen
-          ? "Home of A can only be attacked during gameplay."
-          : !playerFortress
-            ? "Join the cycle to attack Home of A."
-            : playerFortress.army <= 0
-              ? "You need idle army to attack Home of A."
-              : homeRespawnsAt && homeRespawnsAt > now
-                ? "Home of A is defeated and waiting to respawn."
-                : "Home of A is not attackable right now.",
+          ? null
+          : !gameplayOpen
+            ? "Home of A can only be attacked during gameplay."
+            : !playerFortress
+              ? "Join the cycle to attack Home of A."
+              : playerFortress.army <= 0
+                ? "You need idle army to attack Home of A."
+                : homeRespawnsAt && homeRespawnsAt > now
+                  ? "Home of A is defeated and waiting to respawn."
+                  : "Home of A is not attackable right now.",
     },
     battlefields: mapActiveBattlefields({
       battlefields: isSeasonFour
@@ -3928,8 +4171,7 @@ export async function getHomePageState({
             (battlefield) =>
               !isHomeOfATile(battlefield.targetTileId ?? "") &&
               (!battlefield.targetFortress ||
-                battlefield.targetFortress.fortressKind ===
-                  FortressKind.PLAYER)
+                battlefield.targetFortress.fortressKind === FortressKind.PLAYER)
           )
         : cycle.battlefields,
       cycleId: cycle.id,
@@ -4057,12 +4299,12 @@ export async function getHomePageState({
           name: unit.reinforcementBattalion
             ? unit.reinforcementBattalion.name
             : unit.fortifyTargetTileId
-            ? isHomeOfATile(unit.fortifyTargetTileId)
-              ? "Home of A"
-              : `Tile ${unit.fortifyTargetTileId}`
-            : unit.reinforcementBattlefield
-              ? "Battlefield reinforcement"
-            : unit.targetFortress.name,
+              ? isHomeOfATile(unit.fortifyTargetTileId)
+                ? "Home of A"
+                : `Tile ${unit.fortifyTargetTileId}`
+              : unit.reinforcementBattlefield
+                ? "Battlefield reinforcement"
+                : unit.targetFortress.name,
           mapX: homeTarget
             ? homeTarget.mapX
             : tileTarget
@@ -4114,18 +4356,18 @@ export async function getHomePageState({
       submissionHint: isSeasonFour
         ? "Community wishes are archived and are not part of Season 4 gameplay."
         : !userId
-        ? "Sign in and join this cycle to suggest a community wish."
-        : !communityWishSourcePlayerFortress
-          ? usingResolvedWishWindow
-            ? "Only players from the last finished season can suggest a community wish."
-            : "Only players in this cycle can suggest a community wish."
-          : communityWishVotingOpen
-            ? "Winner wish is guaranteed. Community wish is vote-based. You can edit your short English wish and vote until Monday 25 May at 12:00."
-            : communityWishProposalOpen
-              ? usingResolvedWishWindow
-                ? "Winner wish is guaranteed. Community wish is vote-based. You can edit your short English wish until Monday 25 May at 12:00 and vote once voting opens."
-                : "Winner wish is guaranteed. Community wish is vote-based. Submit one short English wish while the season is live."
-              : "Community wishes are closed for this cycle.",
+          ? "Sign in and join this cycle to suggest a community wish."
+          : !communityWishSourcePlayerFortress
+            ? usingResolvedWishWindow
+              ? "Only players from the last finished season can suggest a community wish."
+              : "Only players in this cycle can suggest a community wish."
+            : communityWishVotingOpen
+              ? "Winner wish is guaranteed. Community wish is vote-based. You can edit your short English wish and vote until Monday 25 May at 12:00."
+              : communityWishProposalOpen
+                ? usingResolvedWishWindow
+                  ? "Winner wish is guaranteed. Community wish is vote-based. You can edit your short English wish until Monday 25 May at 12:00 and vote once voting opens."
+                  : "Winner wish is guaranteed. Community wish is vote-based. Submit one short English wish while the season is live."
+                : "Community wishes are closed for this cycle.",
       proposals: mappedCommunityWishProposals,
     },
     battleReports,
@@ -4199,8 +4441,10 @@ export async function getHomePageState({
     recentActivity,
     emptyStateMessage: null,
     incomingOfferCount,
+    pendingDiplomacyCount,
     incidentCount,
     recallableOrderCount,
+    nukeState,
     battalions: (cycle.battalions ?? []).map((b) => ({
       id: b.id,
       fortressId: b.fortressId,

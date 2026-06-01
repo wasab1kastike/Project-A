@@ -2,7 +2,7 @@ import {
   ConvoyLegStatus,
   DiplomacyRelationStatus,
 } from "@/lib/prisma-client";
-import { calculateTradeCargoValue, type TradeCargo } from "./trading";
+import { calculateTradeCargoValue, getTradeNukeComponents, type TradeCargo } from "./trading";
 
 export const RAID_ELIGIBLE_CARGO_VALUE = 1_000;
 export const RAID_WINNER_CASUALTY_PERCENT = 15;
@@ -125,11 +125,21 @@ export function calculateStolenConvoyCargo(
   stolenCargoMultiplier = 1
 ) {
   const share = Math.min(1, 0.5 * Math.max(1, stolenCargoMultiplier));
+  const nukeComponents = getTradeNukeComponents(cargo);
   const stolen = {
     gold: Math.floor(cargo.gold * share),
     food: Math.floor(cargo.food * share),
     army: Math.floor(cargo.army * share),
     points: Math.floor(cargo.points * share),
+    ...(cargo.nukeComponents
+      ? {
+          nukeComponents: {
+            FUEL: Math.floor(nukeComponents.FUEL * share),
+            ROCKET: Math.floor(nukeComponents.ROCKET * share),
+            WRATH_OF_A: Math.floor(nukeComponents.WRATH_OF_A * share),
+          },
+        }
+      : {}),
   };
   const baseValue = calculateTradeCargoValue(stolen);
 

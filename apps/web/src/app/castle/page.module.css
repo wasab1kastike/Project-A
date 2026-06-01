@@ -43,9 +43,33 @@
 .form button:disabled,
 .inlineForm button:disabled,
 .raceCard button:disabled,
-.operationRow button:disabled {
+.operationRow button:disabled,
+.nukeActionButton:disabled,
+.nukeDangerButton:disabled {
   cursor: not-allowed;
   opacity: 0.48;
+}
+
+.nukeActionButton,
+.nukeDangerButton {
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.nukeActionButton {
+  border: 1px solid rgba(103, 196, 207, 0.45);
+  background: rgba(103, 196, 207, 0.9);
+  color: #061016;
+}
+
+.nukeDangerButton {
+  border: 1px solid rgba(248, 113, 113, 0.55);
+  background: #ef4444;
+  color: #fff7ed;
 }
 
 .eyebrow,

@@ -10,36 +10,36 @@ import {
   getCampaignStartBlockedReason,
 } from "./campaigns";
 
-test("campaign army may at most double pressure worker progress", () => {
+test("campaign workers add floor progress without capping committed army", () => {
   assert.equal(
     calculateCampaignProgressPerTick({
       pressureWorkersAssigned: 10,
       committedArmy: 1_000,
     }),
-    20
+    30
   );
   assert.equal(
     calculateCampaignProgressPerTick({
       pressureWorkersAssigned: 10,
       committedArmy: 100_000,
     }),
-    20
+    2010
   );
   assert.equal(
     calculateCampaignProgressPerTick({
       pressureWorkersAssigned: 10,
       committedArmy: 500,
     }),
-    15
+    20
   );
-  assert.equal(CAMPAIGN_SIEGE_THRESHOLD, 14_400);
+  assert.equal(CAMPAIGN_SIEGE_THRESHOLD, 3_600);
   assert.equal(
     calculateCampaignProgressPerTick({
       pressureWorkersAssigned: 10,
       committedArmy: 500,
       armyContributionMultiplier: 1.3,
     }),
-    16
+    23
   );
   assert.equal(
     calculateCampaignProgressPerTick({
@@ -47,7 +47,7 @@ test("campaign army may at most double pressure worker progress", () => {
       committedArmy: 100_000,
       armyContributionMultiplier: 1.3,
     }),
-    20
+    2610
   );
 });
 

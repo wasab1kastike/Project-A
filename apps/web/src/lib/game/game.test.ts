@@ -790,16 +790,16 @@ test("territory bonuses are deterministic", () => {
   );
 
   assert.ok(tile);
-  assert.deepEqual(getTileBonus(tile), {
-    gold: 1,
-    points: 0,
-    food: 2,
-    army: 0,
-    population: 0,
-    defensePercent: 0,
-    label: "+1 gold, +2 food / tick",
+    assert.deepEqual(getTileBonus(tile), {
+      gold: 1,
+      points: 1,
+      food: 2,
+      army: 0,
+      population: 0,
+      defensePercent: 0,
+      label: "+1 gold, +2 food, +1 point / tick",
+    });
   });
-});
 
 test("battlefield progress advances by one to five percent per tick", () => {
   const tickAt = new Date("2026-05-05T12:00:00.000Z");

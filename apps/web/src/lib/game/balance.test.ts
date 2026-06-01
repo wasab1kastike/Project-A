@@ -28,8 +28,8 @@ test("castle specialization counts use stored upgrade levels", () => {
 test("balance helpers derive castle level, population, and defense from db level", () => {
   assert.equal(getDisplayedCastleLevel(0), 1);
   assert.equal(getDisplayedCastleLevel(1), 2);
-  assert.equal(getFortressPopulation(0), 25);
-  assert.equal(getFortressPopulation(2), 45);
+  assert.equal(getFortressPopulation(0), 35);
+  assert.equal(getFortressPopulation(2), 59);
   assert.equal(getDefenseBonusPercent(0), 0.1);
   assert.equal(getFortressDefenseMultiplier(0), 1.1);
   assert.equal(getFortressDefenseMultiplier(2), 1.3);
@@ -37,7 +37,7 @@ test("balance helpers derive castle level, population, and defense from db level
 });
 
 test("race modifiers adjust population, defense, production, and carry capacity", () => {
-  assert.equal(getFortressPopulation(0, "UNSTABLE_UNICORNS"), 27);
+  assert.equal(getFortressPopulation(0, "UNSTABLE_UNICORNS"), 37);
   assert.equal(getDefenseBonusPercent(0, "DWARFS"), 0.2);
   assert.equal(getFortressDefenseMultiplier(0, "SPACE_MURINES"), 1.15);
   assert.equal(getEffectiveDefendingArmy(100, 0, "DWARFS"), 120);
@@ -67,9 +67,9 @@ test("race modifiers adjust population, defense, production, and carry capacity"
     recruitersAssigned: 20,
   });
 
-  assert.equal(dwarfProduction.goldProduced, 22);
-  assert.equal(unicornProduction.foodProduced, 22);
-  assert.equal(murineProduction.armyRequested, 22);
+  assert.equal(dwarfProduction.goldProduced, 62);
+  assert.equal(unicornProduction.foodProduced, 42);
+  assert.equal(murineProduction.armyRequested, 62);
 
   const baseRaid = calculateRaidOutcome({
     attackArmy: 20,
@@ -92,7 +92,7 @@ test("race modifiers adjust population, defense, production, and carry capacity"
 });
 
 test("null legacy race uses base economy and combat safely", () => {
-  assert.equal(getFortressPopulation(0, null), 25);
+  assert.equal(getFortressPopulation(0, null), 35);
   assert.equal(getFortressDefenseMultiplier(0, null), 1.1);
 
   const production = calculateTickProduction({
@@ -104,9 +104,9 @@ test("null legacy race uses base economy and combat safely", () => {
     recruitersAssigned: 5,
   });
 
-  assert.equal(production.goldProduced, 10);
-  assert.equal(production.foodProduced, 10);
-  assert.equal(production.armyRequested, 5);
+  assert.equal(production.goldProduced, 30);
+  assert.equal(production.foodProduced, 20);
+  assert.equal(production.armyRequested, 15);
 });
 
 test("worker assignment validation allows idle population and rejects overflow", () => {
@@ -122,11 +122,17 @@ test("worker assignment validation allows idle population and rejects overflow",
     farmersAssigned: 0,
     recruitersAssigned: 0,
   });
-  const overflow = validateWorkerAssignments({
+  const validExpandedWorkforce = validateWorkerAssignments({
     level: 0,
     minersAssigned: 11,
     farmersAssigned: 10,
     recruitersAssigned: 5,
+  });
+  const overflow = validateWorkerAssignments({
+    level: 0,
+    minersAssigned: 12,
+    farmersAssigned: 12,
+    recruitersAssigned: 12,
   });
   const negative = validateWorkerAssignments({
     level: 0,
@@ -134,11 +140,18 @@ test("worker assignment validation allows idle population and rejects overflow",
     farmersAssigned: 10,
     recruitersAssigned: 5,
   });
-  const pressureOverflow = validateWorkerAssignments({
+  const pressureValidExpandedWorkforce = validateWorkerAssignments({
     level: 0,
     minersAssigned: 10,
     farmersAssigned: 10,
     recruitersAssigned: 5,
+    pressureWorkersAssigned: 1,
+  });
+  const pressureOverflow = validateWorkerAssignments({
+    level: 0,
+    minersAssigned: 13,
+    farmersAssigned: 12,
+    recruitersAssigned: 10,
     pressureWorkersAssigned: 1,
   });
   const pressureNegative = validateWorkerAssignments({
@@ -158,8 +171,10 @@ test("worker assignment validation allows idle population and rejects overflow",
 
   assert.equal(valid.isValid, true);
   assert.equal(idle.isValid, true);
+  assert.equal(validExpandedWorkforce.isValid, true);
   assert.equal(overflow.isValid, false);
   assert.equal(negative.isValid, false);
+  assert.equal(pressureValidExpandedWorkforce.isValid, true);
   assert.equal(pressureOverflow.isValid, false);
   assert.equal(pressureNegative.isValid, false);
   assert.equal(pressureFractional.isValid, false);
@@ -176,12 +191,12 @@ test("tick production converts workers into gold, food, and food-limited army", 
     recruitersAssigned: 5,
   });
 
-  assert.equal(production.population, 25);
-  assert.equal(production.goldProduced, 2);
-  assert.equal(production.foodProduced, 3);
-  assert.equal(production.armyRequested, 5);
-  assert.equal(production.armyProduced, 4);
-  assert.equal(production.foodConsumed, 4);
+  assert.equal(production.population, 35);
+  assert.equal(production.goldProduced, 6);
+  assert.equal(production.foodProduced, 6);
+  assert.equal(production.armyRequested, 15);
+  assert.equal(production.armyProduced, 7);
+  assert.equal(production.foodConsumed, 7);
   assert.equal(production.foodAfterProduction, 0);
 });
 
@@ -200,9 +215,9 @@ test("castle specializations stack production and defense bonuses", () => {
     },
   });
 
-  assert.equal(production.goldProduced, 24);
-  assert.equal(production.foodProduced, 22);
-  assert.equal(production.armyRequested, 26);
+  assert.equal(production.goldProduced, 72);
+  assert.equal(production.foodProduced, 44);
+  assert.equal(production.armyRequested, 78);
   assert.equal(
     getDefenseBonusPercent(0, null, {
       POINTS: 0,

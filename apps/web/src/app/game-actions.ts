@@ -27,6 +27,7 @@ import {
   ArcadeLootBoxType,
   BattlefieldSide,
   FortressAction,
+  NukeComponentKind,
   OrkBossOrderKind,
   OrkWaaaghInvestmentKind,
   RaceAbilityKind,
@@ -91,6 +92,8 @@ import {
   acceptTradeOffer,
   rejectTradeOffer,
   cancelTradeOffer,
+  commitNukeComponentBid,
+  launchNuke,
 } from "@/lib/game/service";
 import type { CreateTradeOfferInput } from "@/lib/game/service";
 import type { AttackUnitLaunchMarker } from "@/lib/game/service";
@@ -738,6 +741,55 @@ export async function cancelTradeOfferAction(tradeOfferId: string) {
   try {
     await cancelTradeOffer({ userId, tradeOfferId });
     notifyAndRevalidate("trade-offer-cancel", ["/politics"]);
+    return { ok: true } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
+export async function commitNukeComponentBidAction(
+  componentKind: NukeComponentKind,
+  amount: number
+) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before bidding on nuke components.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await commitNukeComponentBid({ userId, componentKind, amount });
+    notifyAndRevalidate("nuke-component-bid", ["/", "/castle"]);
+    return { ok: true } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
+export async function launchNukeAction(targetFortressId: string) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before launching a nuke.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await launchNuke({ userId, targetFortressId });
+    notifyAndRevalidate("nuke-launch", ["/", "/castle", "/politics"]);
     return { ok: true } satisfies InlineActionResult;
   } catch (error) {
     return {

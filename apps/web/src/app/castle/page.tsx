@@ -111,6 +111,7 @@ export default async function CastlePage() {
           targets={state.availableTargets}
           politicsState={politicsState}
           shopState={shopState}
+          nukeState={state.nukeState}
         />
       </div>
     </main>

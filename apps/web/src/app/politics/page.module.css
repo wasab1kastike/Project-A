@@ -1,138 +1,173 @@
-.page {
-  min-height: 100vh;
-  padding: 28px;
-  background:
-    radial-gradient(circle at top left, rgba(103, 196, 207, 0.16), transparent 34%),
-    #07111a;
-  color: var(--foreground);
-}
-
-.shell {
-  width: min(1180px, 100%);
-  margin: 0 auto;
+.commandSurface {
+  --surface: rgba(9, 19, 29, 0.82);
+  --surface-strong: rgba(9, 19, 29, 0.94);
+  --recess: rgba(3, 10, 16, 0.46);
+  --line: rgba(148, 163, 184, 0.22);
+  --line-soft: rgba(103, 196, 207, 0.16);
   display: grid;
-  gap: 18px;
+  gap: 12px;
+  min-width: 0;
 }
 
-.topbar,
-.panelHeader,
-.cardHeader {
+.commandHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.commandHeader h2,
+.panelHeader h3 {
+  margin: 0;
+}
+
+.commandMetrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(74px, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.commandMetrics div {
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: var(--recess);
+}
+
+.commandMetrics dt {
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+}
+
+.commandMetrics dd {
+  margin: 4px 0 0;
+  font-weight: 800;
+}
+
+.commandGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 390px);
+  gap: 14px;
+  align-items: start;
+}
+
+.panel,
+.tradePanel,
+.tradeSection,
+.tradeForm,
+.relationTable,
+.relationIdentity,
+.relationStatus,
+.relationIntel,
+.termsForm {
+  display: grid;
+  gap: 10px;
+}
+
+.panel {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.panelHeader {
   display: flex;
   align-items: start;
   justify-content: space-between;
-  gap: 14px;
+  gap: 12px;
 }
 
-.topbar a,
-.actions button,
-.orderControl button,
-.tradeForm button {
-  min-height: 38px;
-  padding: 0 14px;
-  border: 1px solid rgba(247, 196, 95, 0.34);
-  border-radius: 8px;
-  background: rgba(247, 196, 95, 0.9);
-  color: #14202f;
-  font: inherit;
-  font-weight: 700;
-  text-decoration: none;
-  cursor: pointer;
+.panelHeader strong,
+.relationIdentity strong,
+.tradeCard strong {
+  overflow-wrap: anywhere;
 }
 
-.actions button:disabled,
-.orderControl button:disabled,
-.tradeForm button:disabled {
-  cursor: not-allowed;
-  opacity: 0.52;
+.panelBadges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.actions button[data-danger="true"] {
-  border-color: rgba(248, 95, 95, 0.42);
-  background: rgba(248, 95, 95, 0.16);
-  color: #ffb5b5;
+.offerBadge {
+  padding: 2px 7px;
+  border: 1px solid rgba(103, 196, 207, 0.32);
+  border-radius: 999px;
+  background: rgba(103, 196, 207, 0.14);
+  color: #b8f5ff;
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
 }
 
 .eyebrow {
   color: var(--accent-strong);
   font-family: var(--font-ibm-plex-mono);
-  font-size: 0.76rem;
+  font-size: 0.72rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.titleBlock,
-.hero,
-.panel,
-.relationList,
-.card,
-.tradePanel,
-.tradeSection {
+.relationHead,
+.relationRow {
   display: grid;
+  grid-template-columns:
+    minmax(150px, 0.85fr) minmax(116px, 0.55fr) minmax(220px, 1.2fr)
+    minmax(150px, 0.75fr);
   gap: 12px;
+  align-items: center;
 }
 
-.titleBlock h1,
-.hero h2,
-.panel h2 {
-  margin: 0;
+.relationHead {
+  padding: 0 10px;
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.66rem;
+  text-transform: uppercase;
 }
 
-.hero,
-.panel {
-  padding: 16px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
+.relationRow {
+  padding: 12px;
+  border: 1px solid var(--line-soft);
   border-radius: 8px;
-  background: rgba(9, 19, 29, 0.82);
+  background: rgba(3, 10, 16, 0.34);
 }
 
-.hero p,
+.relationIdentity {
+  gap: 3px;
+}
+
+.relationIdentity span,
+.relationIdentity small,
 .muted,
-.treatyNote,
-.debtNote,
 .timing,
 .tradeCard p,
-.tradeCard time {
+.tradeCard time,
+.relationIntel p {
   margin: 0;
   color: var(--text-muted);
-  line-height: 1.5;
+  line-height: 1.45;
 }
 
-.treatyNote {
-  color: #ffd27a;
+.relationIdentity small {
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
 }
 
-.debtNote {
-  color: #ffabab;
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(330px, 1fr);
-  gap: 14px;
-  align-items: start;
-}
-
-.card {
-  padding: 12px;
-  border: 1px solid rgba(103, 196, 207, 0.18);
-  border-radius: 8px;
-  background: rgba(3, 10, 16, 0.42);
-}
-
-.cardHeader div {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.cardHeader strong,
-.cardHeader span {
-  overflow-wrap: anywhere;
-}
-
-.cardHeader div > span {
-  color: var(--text-muted);
-  font-size: 0.82rem;
+.relationStatus {
+  justify-items: start;
 }
 
 .relationChip {
@@ -146,6 +181,7 @@
   color: rgba(236, 248, 252, 0.96);
   font-family: var(--font-ibm-plex-mono);
   font-size: 0.64rem;
+  font-weight: 800;
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -171,45 +207,148 @@
   color: #9ce8bf;
 }
 
-.actions {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 8px;
+.treatyNote,
+.offerNote {
+  color: #ffd27a;
 }
 
-.tradeForm {
+.debtNote {
+  color: #ffabab;
+}
+
+.peaceNote {
+  color: #ffb47a;
+}
+
+.lockNote {
+  color: #9fd0ff;
+}
+
+.actions,
+.formActions {
   display: grid;
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 7px;
+}
+
+.actions button,
+.orderControl button,
+.tradeForm button,
+.formActions button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgba(247, 196, 95, 0.34);
+  border-radius: 8px;
+  background: rgba(247, 196, 95, 0.9);
+  color: #14202f;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.actions button:disabled,
+.orderControl button:disabled,
+.tradeForm button:disabled,
+.formActions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.actions button[data-danger="true"] {
+  border-color: rgba(248, 95, 95, 0.42);
+  background: rgba(248, 95, 95, 0.16);
+  color: #ffb5b5;
 }
 
 .termsForm {
-  display: grid;
-  gap: 8px;
-  margin-top: 10px;
-  padding: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  grid-column: 1 / -1;
+  padding: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 8px;
-  background: rgba(3, 10, 16, 0.3);
+  background: rgba(3, 10, 16, 0.48);
 }
 
-.termsLabel {
+.termsLabel,
+.tradeColumns legend,
+.tradeSection h3 {
   margin: 0;
   color: var(--text-muted);
   font-family: var(--font-ibm-plex-mono);
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   text-transform: uppercase;
 }
 
+.tradeForm select,
+.tradeForm input,
 .termsForm select,
-.termsForm input {
+.termsForm input,
+.orderControl input,
+.deedDetails select {
   width: 100%;
-  min-height: 32px;
-  padding: 0 8px;
+  min-height: 34px;
+  padding: 0 9px;
   border: 1px solid rgba(148, 163, 184, 0.25);
   border-radius: 6px;
   background: rgba(3, 10, 16, 0.5);
   color: var(--foreground);
   font: inherit;
+}
+
+.formLabel,
+.deedDetails label {
+  display: grid;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: 0.84rem;
+}
+
+.tradeColumns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.tradeColumns fieldset {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 9px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 8px;
+}
+
+.tradeColumns label {
+  display: grid;
+  grid-template-columns: 1fr minmax(64px, 84px);
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.deedDetails {
+  display: grid;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 0.84rem;
+}
+
+.deedDetails summary {
+  cursor: pointer;
+  color: var(--foreground);
+  font-weight: 800;
+}
+
+.tradeCard {
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+  border: 1px solid rgba(103, 196, 207, 0.16);
+  border-radius: 8px;
+  background: rgba(3, 10, 16, 0.34);
 }
 
 .orderControl {
@@ -222,99 +361,35 @@
 
 .orderControl input {
   width: 84px;
-  min-height: 38px;
-  padding: 0 9px;
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  border-radius: 6px;
-  background: rgba(3, 10, 16, 0.5);
-  color: var(--foreground);
-  font: inherit;
+  flex: none;
 }
 
-.orderControl button {
-  min-height: 38px;
-  padding: 0 12px;
-  border: 1px solid rgba(247, 196, 95, 0.34);
-  border-radius: 8px;
-  background: rgba(247, 196, 95, 0.9);
-  color: #14202f;
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.tradeForm select,
-.tradeForm input {
-  width: 100%;
-  min-height: 36px;
-  padding: 0 9px;
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  border-radius: 6px;
-  background: rgba(3, 10, 16, 0.5);
-  color: var(--foreground);
-  font: inherit;
-}
-
-.tradeColumns {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.tradeColumns fieldset {
-  margin: 0;
-  padding: 9px;
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  border-radius: 8px;
-  display: grid;
-  gap: 7px;
-}
-
-.tradeColumns legend,
-.tradeSection h3 {
-  margin: 0;
-  color: var(--text-muted);
-  font-family: var(--font-ibm-plex-mono);
-  font-size: 0.7rem;
-  text-transform: uppercase;
-}
-
-.tradeColumns label {
-  display: grid;
-  grid-template-columns: 1fr minmax(64px, 84px);
-  align-items: center;
-  gap: 6px;
-  color: var(--text-muted);
-  font-size: 0.82rem;
-}
-
-.tradeCard {
-  padding: 10px;
-  border: 1px solid rgba(103, 196, 207, 0.16);
-  border-radius: 8px;
-  background: rgba(3, 10, 16, 0.34);
-  display: grid;
-  gap: 7px;
-}
-
-.tradeCard strong {
-  overflow-wrap: anywhere;
+@media (max-width: 1050px) {
+  .commandGrid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 760px) {
-  .page {
-    padding: 18px;
-  }
-
-  .topbar,
-  .grid,
+  .commandHeader,
   .panelHeader,
-  .cardHeader {
+  .relationHead,
+  .relationRow {
     display: grid;
     grid-template-columns: 1fr;
   }
 
+  .commandMetrics,
   .tradeColumns {
+    grid-template-columns: 1fr;
+  }
+
+  .relationHead {
+    display: none;
+  }
+
+  .actions,
+  .formActions {
     grid-template-columns: 1fr;
   }
 }
