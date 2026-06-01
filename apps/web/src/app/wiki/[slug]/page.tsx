@@ -1,34 +1,22 @@
 import { notFound } from "next/navigation";
-import { getWikiPage } from "../content-loader";
+import { getWikiPage, WIKI_PAGE_SLUGS } from "../wiki-data";
+import { WikiPageView } from "../wiki-page-view";
 
-export default async function WikiPage({
+export default async function WikiSlugPage({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const result = await getWikiPage(slug);
+  const page = getWikiPage(slug);
 
-  if (!result) notFound();
+  if (!page) {
+    notFound();
+  }
 
-  return (
-    <article>
-      <div dangerouslySetInnerHTML={{ __html: result.content }} />
-    </article>
-  );
+  return <WikiPageView page={page} />;
 }
 
-export async function generateStaticParams() {
-  const slugs = [
-    "getting-started",
-    "races",
-    "economy",
-    "army",
-    "expansion",
-    "combat",
-    "diplomacy",
-    "trade",
-    "abilities",
-  ];
-  return slugs.map((slug) => ({ slug }));
+export function generateStaticParams() {
+  return WIKI_PAGE_SLUGS.map((slug) => ({ slug }));
 }
