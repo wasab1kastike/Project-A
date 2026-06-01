@@ -7,6 +7,7 @@ let commanderRegistrationColumnPromise: Promise<void> | null = null;
 let lastReadChatColumnPromise: Promise<void> | null = null;
 let homeOfABossSchemaPromise: Promise<void> | null = null;
 let battlefieldPointRewardColumnPromise: Promise<void> | null = null;
+let battalionWarSchemaPromise: Promise<void> | null = null;
 
 const REQUIRED_DWARF_DEEP_MINING_ROLL_COLUMNS = [
   "committedGold",
@@ -231,6 +232,148 @@ async function ensureHomeOfABossSchemaObjects(db: DatabaseClient) {
   `);
 }
 
+async function ensureBattalionWarSchemaObjects(db: DatabaseClient) {
+  await db.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "Battalion" (
+      "id" TEXT NOT NULL,
+      "cycleId" TEXT NOT NULL,
+      "fortressId" TEXT NOT NULL,
+      "name" TEXT NOT NULL,
+      "size" INTEGER NOT NULL DEFAULT 0,
+      "maxSize" INTEGER NOT NULL DEFAULT 100,
+      "tier" INTEGER NOT NULL DEFAULT 0,
+      "xp" INTEGER NOT NULL DEFAULT 0,
+      "readyAt" TIMESTAMP(3),
+      "stance" TEXT NOT NULL DEFAULT 'REST',
+      "mode" TEXT NOT NULL DEFAULT 'GUARD',
+      "garrisonedAt" TEXT,
+      "stanceLockedUntil" TIMESTAMP(3),
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL,
+      CONSTRAINT "Battalion_pkey" PRIMARY KEY ("id")
+    )
+  `);
+  await db.$executeRawUnsafe(
+    `ALTER TABLE "Battalion" ADD COLUMN IF NOT EXISTS "mode" TEXT NOT NULL DEFAULT 'GUARD'`
+  );
+  await db.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "WarFront" (
+      "id" TEXT NOT NULL,
+      "cycleId" TEXT NOT NULL,
+      "attackerFortressId" TEXT NOT NULL,
+      "enemyFortressId" TEXT NOT NULL,
+      "status" TEXT NOT NULL DEFAULT 'ADVANCING',
+      "aggression" TEXT NOT NULL DEFAULT 'BALANCED',
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL,
+      CONSTRAINT "WarFront_pkey" PRIMARY KEY ("id")
+    )
+  `);
+  await db.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "BattalionAssignment" (
+      "id" TEXT NOT NULL,
+      "battalionId" TEXT NOT NULL,
+      "frontId" TEXT NOT NULL,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "BattalionAssignment_pkey" PRIMARY KEY ("id")
+    )
+  `);
+  await db.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "WarPolicy" (
+      "id" TEXT NOT NULL,
+      "cycleId" TEXT NOT NULL,
+      "fortressId" TEXT NOT NULL,
+      "maxArmySize" INTEGER NOT NULL DEFAULT 500,
+      "guardPercent" INTEGER NOT NULL DEFAULT 30,
+      "defaultAggression" TEXT NOT NULL DEFAULT 'BALANCED',
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL,
+      CONSTRAINT "WarPolicy_pkey" PRIMARY KEY ("id")
+    )
+  `);
+
+  await db.$executeRawUnsafe(
+    `CREATE UNIQUE INDEX IF NOT EXISTS "Battalion_cycleId_fortressId_name_key" ON "Battalion"("cycleId", "fortressId", "name")`
+  );
+  await db.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "Battalion_cycleId_fortressId_idx" ON "Battalion"("cycleId", "fortressId")`
+  );
+  await db.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "Battalion_garrisonedAt_idx" ON "Battalion"("garrisonedAt")`
+  );
+  await db.$executeRawUnsafe(
+    `CREATE UNIQUE INDEX IF NOT EXISTS "WarFront_cycleId_attackerFortressId_enemyFortressId_key" ON "WarFront"("cycleId", "attackerFortressId", "enemyFortressId")`
+  );
+  await db.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "WarFront_cycleId_attackerFortressId_idx" ON "WarFront"("cycleId", "attackerFortressId")`
+  );
+  await db.$executeRawUnsafe(
+    `CREATE UNIQUE INDEX IF NOT EXISTS "BattalionAssignment_battalionId_key" ON "BattalionAssignment"("battalionId")`
+  );
+  await db.$executeRawUnsafe(
+    `CREATE UNIQUE INDEX IF NOT EXISTS "BattalionAssignment_battalionId_frontId_key" ON "BattalionAssignment"("battalionId", "frontId")`
+  );
+  await db.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "BattalionAssignment_frontId_idx" ON "BattalionAssignment"("frontId")`
+  );
+  await db.$executeRawUnsafe(
+    `CREATE UNIQUE INDEX IF NOT EXISTS "WarPolicy_cycleId_fortressId_key" ON "WarPolicy"("cycleId", "fortressId")`
+  );
+  await db.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "WarPolicy_cycleId_idx" ON "WarPolicy"("cycleId")`
+  );
+
+  const constraints = [
+    {
+      name: "Battalion_cycleId_fkey",
+      sql: `ALTER TABLE "Battalion" ADD CONSTRAINT "Battalion_cycleId_fkey" FOREIGN KEY ("cycleId") REFERENCES "Cycle"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
+    },
+    {
+      name: "Battalion_fortressId_fkey",
+      sql: `ALTER TABLE "Battalion" ADD CONSTRAINT "Battalion_fortressId_fkey" FOREIGN KEY ("fortressId") REFERENCES "Fortress"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
+    },
+    {
+      name: "WarFront_cycleId_fkey",
+      sql: `ALTER TABLE "WarFront" ADD CONSTRAINT "WarFront_cycleId_fkey" FOREIGN KEY ("cycleId") REFERENCES "Cycle"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
+    },
+    {
+      name: "WarFront_attackerFortressId_fkey",
+      sql: `ALTER TABLE "WarFront" ADD CONSTRAINT "WarFront_attackerFortressId_fkey" FOREIGN KEY ("attackerFortressId") REFERENCES "Fortress"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
+    },
+    {
+      name: "BattalionAssignment_battalionId_fkey",
+      sql: `ALTER TABLE "BattalionAssignment" ADD CONSTRAINT "BattalionAssignment_battalionId_fkey" FOREIGN KEY ("battalionId") REFERENCES "Battalion"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
+    },
+    {
+      name: "BattalionAssignment_frontId_fkey",
+      sql: `ALTER TABLE "BattalionAssignment" ADD CONSTRAINT "BattalionAssignment_frontId_fkey" FOREIGN KEY ("frontId") REFERENCES "WarFront"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
+    },
+    {
+      name: "WarPolicy_cycleId_fkey",
+      sql: `ALTER TABLE "WarPolicy" ADD CONSTRAINT "WarPolicy_cycleId_fkey" FOREIGN KEY ("cycleId") REFERENCES "Cycle"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
+    },
+    {
+      name: "WarPolicy_fortressId_fkey",
+      sql: `ALTER TABLE "WarPolicy" ADD CONSTRAINT "WarPolicy_fortressId_fkey" FOREIGN KEY ("fortressId") REFERENCES "Fortress"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
+    },
+  ];
+
+  for (const constraint of constraints) {
+    await db.$executeRawUnsafe(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = '${constraint.name}'
+        ) THEN
+          ${constraint.sql};
+        END IF;
+      END $$;
+    `);
+  }
+}
+
 export async function ensureCommanderRegistrationColumn(
   db: DatabaseClient = prisma
 ) {
@@ -275,4 +418,14 @@ export async function ensureBattlefieldPointRewardColumn(
 
   battlefieldPointRewardColumnPromise ??= addBattlefieldPointRewardColumn(db);
   await battlefieldPointRewardColumnPromise;
+}
+
+export async function ensureBattalionWarSchema(db: DatabaseClient = prisma) {
+  if (db !== prisma) {
+    await ensureBattalionWarSchemaObjects(db);
+    return;
+  }
+
+  battalionWarSchemaPromise ??= ensureBattalionWarSchemaObjects(db);
+  await battalionWarSchemaPromise;
 }
