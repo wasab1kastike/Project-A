@@ -39,3 +39,15 @@ test("tutorial teaches Season 4 recruitment and retired PvE correctly", () => {
   assert.doesNotMatch(source, /Army grows passively each tick/i);
   assert.doesNotMatch(source, /Home of A is a daily boss/i);
 });
+
+test("tutorial is a focused stepper instead of a flat always-open list", () => {
+  const source = readFileSync(tutorialFiles[0], "utf8");
+  const css = readFileSync(tutorialFiles[1], "utf8");
+
+  assert.match(source, /Back/);
+  assert.match(source, /Next/);
+  assert.match(source, /Mark done/);
+  assert.match(source, /All steps/);
+  assert.match(css, /\.focusStep/);
+  assert.match(css, /\.stepRail/);
+});
