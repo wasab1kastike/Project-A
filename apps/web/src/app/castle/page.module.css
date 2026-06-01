@@ -98,7 +98,10 @@
 
 .commandHeader {
   display: grid;
-  grid-template-columns: minmax(270px, 1.2fr) minmax(300px, 1fr) minmax(210px, 0.8fr);
+  grid-template-columns: minmax(270px, 1.2fr) minmax(300px, 1fr) minmax(
+      210px,
+      0.8fr
+    );
   align-items: center;
   gap: 16px;
   padding: 14px 16px;
@@ -193,6 +196,164 @@
   height: 46px;
   flex: none;
   object-fit: contain;
+}
+
+.nukeConsole {
+  align-content: start;
+}
+
+.nukeStatusStrip {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(250, 204, 21, 0.18);
+  border-radius: 8px;
+  background: linear-gradient(
+    90deg,
+    rgba(69, 10, 10, 0.34),
+    rgba(3, 10, 16, 0.36)
+  );
+}
+
+.nukeStatusStrip strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.88rem;
+}
+
+.nukeHeroSprite {
+  width: 58px;
+  height: 58px;
+  flex: none;
+  object-fit: contain;
+}
+
+.nukeStorage,
+.nukeMarket,
+.nukeLaunchPanel {
+  display: grid;
+  gap: 12px;
+}
+
+.nukeStorageRack {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.nukeStorageCell,
+.nukeBidCard,
+.nukeLaunchPanel {
+  min-width: 0;
+  border: 1px solid rgba(103, 196, 207, 0.18);
+  border-radius: 8px;
+  background: rgba(3, 10, 16, 0.42);
+}
+
+.nukeStorageCell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+}
+
+.nukeStorageCell[data-ready="true"] {
+  border-color: rgba(250, 204, 21, 0.34);
+  background: rgba(113, 63, 18, 0.22);
+}
+
+.nukeStorageSprite {
+  width: 46px;
+  height: 46px;
+  flex: none;
+  object-fit: contain;
+}
+
+.nukeStorageCell strong,
+.nukeBidHeader strong {
+  display: block;
+  font-size: 0.9rem;
+}
+
+.nukeStorageCell span,
+.nukeBidMeta span {
+  color: #9be7ef;
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.nukeMarketGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.nukeBidCard {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.nukeBidHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.nukeBidHeader small {
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.nukeBidSprite {
+  width: 52px;
+  height: 52px;
+  flex: none;
+  object-fit: contain;
+}
+
+.nukeBidMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.nukeBidMeta span {
+  padding: 4px 7px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 999px;
+  background: rgba(2, 8, 13, 0.46);
+}
+
+.nukeBidField {
+  display: grid;
+  gap: 6px;
+  color: var(--text-muted);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+}
+
+.nukeBidField input,
+.nukeBidField select {
+  min-height: 38px;
+  width: 100%;
+  padding: 0 10px;
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  border-radius: 8px;
+  background: rgba(2, 8, 13, 0.68);
+  color: var(--foreground);
+  font: inherit;
+}
+
+.nukeLaunchPanel {
+  padding: 12px;
+  border-color: rgba(248, 113, 113, 0.24);
+  background: rgba(69, 10, 10, 0.22);
 }
 
 .tabBar {
@@ -515,5 +676,19 @@
 
   .statusRow strong {
     text-align: left;
+  }
+
+  .nukeStatusStrip {
+    align-items: flex-start;
+  }
+
+  .nukeStorageRack,
+  .nukeMarketGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .nukeActionButton,
+  .nukeDangerButton {
+    width: 100%;
   }
 }
