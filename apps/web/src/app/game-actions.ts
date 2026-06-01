@@ -2216,6 +2216,24 @@ export async function setBattalionModeAction(args: {
   }
 }
 
+export async function setAllianceSupportPolicyAction(args: {
+  supportAttack: boolean;
+  supportDefense: boolean;
+  supportPercent: number;
+}): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) return { ok: false, error: "Sign in to manage alliance support." };
+  try {
+    const { setAllianceSupportPolicy } = await import("@/lib/game/battalion-service");
+    await setAllianceSupportPolicy({ userId, ...args });
+    notifyAndRevalidate("alliance-support-policy", GAMEPLAY_REVALIDATE_PATHS);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: getActionErrorMessage(error) };
+  }
+}
+
 export async function promoteBattalionAction(args: {
   battalionId: string;
 }): Promise<InlineActionResult> {

@@ -242,7 +242,7 @@ The game is now a castle-economy and battlefield-control loop:
 - guard orders now detect convoy raids as covert incidents: an exposed raider becomes an enemy and the detecting fortress can invoke immediate war during the 24-hour casus belli window
 - War Room battalions now only auto-dispatch from ATTACK mode war fronts, with the server validating ownership, costs, and live battalion state before any order changes
 - new troops assigned to a remote battalion travel from the castle as visible reinforcement marches before they become usable
-- ALLIANCE-mode battalions reinforce allied defensive battlefields through visible incoming reinforcement marches instead of instant hidden support
+- ALLIANCE-mode battalions reinforce allied defensive and attacking battlefields through visible incoming reinforcement marches, controlled from the Castle War Room
 - marching armies, remote battalion reinforcements, War Front launches, allied support, and convoy map legs now use existing roads to reduce movement ETA; the convoy six-hour minimum and PvP preparation delay still stay fixed
 - roads grow from the actual route units travel, including tile fortification, remote battalion reinforcement, battlefield support, returning recalls, and delivered convoys
 - Season 4 territorial war uses standing campaign orders: pressure workers and committed army build a border siege, then a 12-hour warning opens before automatic combat

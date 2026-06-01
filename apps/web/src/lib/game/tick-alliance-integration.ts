@@ -1,7 +1,8 @@
 // =============================================================================
 // Tick Alliance Integration - reinforce allied battlefields
 // =============================================================================
-// Called from tick.ts. ALLIANCE mode battalions auto-reinforce allied battlefields.
+// Called from tick.ts. ALLIANCE mode battalions auto-reinforce allied attack
+// and defense battlefields according to each fortress' WarPolicy.
 // =============================================================================
 
 import type { PrismaClient } from "@prisma/client";
@@ -20,6 +21,8 @@ type BattlefieldSnapshot = {
   targetTileId?: string | null;
   status: string;
 };
+
+type SupportSide = "ATTACKER" | "DEFENDER";
 
 export async function processAllianceReinforcements(args: {
   db: PrismaClient;
@@ -47,91 +50,169 @@ export async function processAllianceReinforcements(args: {
     for (const bf of activeBfs) {
       if (reinforcesCreated >= 5) break;
 
+      const opportunities: Array<{
+        alliedFortressId: string | null;
+        reinforcerId: string;
+        targetFortressId: string;
+        side: SupportSide;
+      }> = [];
+      const attackerId = bf.attackerBannerFortressId;
       const defenderId = bf.defenderBannerFortressId;
-      if (!defenderId) continue;
 
-      let reinforcerId: string | null = null;
-      if (defenderId === fortA) reinforcerId = fortB;
-      else if (defenderId === fortB) reinforcerId = fortA;
-      if (!reinforcerId) continue;
-
-      const existingReinforce = await db.attackUnit.findFirst({
-        where: {
-          cycleId,
-          attackerFortressId: reinforcerId,
+      if (attackerId === fortA && defenderId) {
+        opportunities.push({
+          alliedFortressId: attackerId,
+          reinforcerId: fortB,
           targetFortressId: defenderId,
-          reinforcementBattlefieldId: bf.id,
-          reinforcementSide: "DEFENDER",
-          resolvedAt: null,
-          cancelledAt: null,
-          arrivesAt: { gt: now },
-        },
-      });
-      if (existingReinforce) continue;
-
-      const allianceBattalions = await db.battalion.findMany({
-        where: { fortressId: reinforcerId, size: { gt: 0 }, mode: "ALLIANCE" },
-        orderBy: { size: "desc" },
-        select: { id: true, size: true },
-        take: 3,
-      });
-      if (allianceBattalions.length === 0) continue;
-
-      const totalAvailable = allianceBattalions.reduce((s, b) => s + b.size, 0);
-      const commitAmount = Math.max(1, Math.floor(totalAvailable * 0.5));
-
-      let remaining = commitAmount;
-      for (const bn of allianceBattalions) {
-        if (remaining <= 0) break;
-        const take = Math.min(bn.size, remaining);
-        await db.battalion.update({
-          where: { id: bn.id },
-          data: { size: { decrement: take } },
+          side: "ATTACKER",
         });
-        remaining -= take;
+      } else if (attackerId === fortB && defenderId) {
+        opportunities.push({
+          alliedFortressId: attackerId,
+          reinforcerId: fortA,
+          targetFortressId: defenderId,
+          side: "ATTACKER",
+        });
       }
 
-      const [reinforcer, defender] = await Promise.all([
-        db.fortress.findUnique({
-          where: { id: reinforcerId },
-          select: { mapX: true, mapY: true },
-        }),
-        db.fortress.findUnique({
-          where: { id: defenderId },
-          select: { mapX: true, mapY: true },
-        }),
-      ]);
-      const dx = (reinforcer?.mapX ?? 0) - (defender?.mapX ?? 0);
-      const dy = (reinforcer?.mapY ?? 0) - (defender?.mapY ?? 0);
-      const baseMinutes = Math.max(
-        1,
-        Math.ceil(Math.sqrt(dx * dx + dy * dy) / 10),
-      );
-      const { arrivesAt } = await getRoadAdjustedAttackArrival({
-        db,
-        cycleId,
-        launchedAt: now,
-        origin: { mapX: reinforcer?.mapX ?? 0, mapY: reinforcer?.mapY ?? 0 },
-        target: { mapX: defender?.mapX ?? 0, mapY: defender?.mapY ?? 0 },
-        baseMinutes,
-      });
-
-      await db.attackUnit.create({
-        data: {
-          cycleId,
-          attackerFortressId: reinforcerId,
+      if (defenderId === fortA) {
+        opportunities.push({
+          alliedFortressId: defenderId,
+          reinforcerId: fortB,
           targetFortressId: defenderId,
-          reinforcementBattlefieldId: bf.id,
-          reinforcementSide: "DEFENDER",
-          armyAmount: commitAmount,
-          launchedAt: now,
-          arrivesAt,
-          returnOriginMapX: reinforcer?.mapX,
-          returnOriginMapY: reinforcer?.mapY,
-        },
-      });
+          side: "DEFENDER",
+        });
+      } else if (defenderId === fortB) {
+        opportunities.push({
+          alliedFortressId: defenderId,
+          reinforcerId: fortA,
+          targetFortressId: defenderId,
+          side: "DEFENDER",
+        });
+      }
 
-      reinforcesCreated++;
+      for (const opportunity of opportunities) {
+        if (reinforcesCreated >= 5) break;
+
+        const created = await createAllianceReinforcement({
+          db,
+          cycleId,
+          now,
+          battlefieldId: bf.id,
+          ...opportunity,
+        });
+        if (created) reinforcesCreated++;
+      }
     }
   }
+}
+
+async function createAllianceReinforcement(args: {
+  db: PrismaClient;
+  cycleId: string;
+  now: Date;
+  battlefieldId: string;
+  alliedFortressId: string | null;
+  reinforcerId: string;
+  targetFortressId: string;
+  side: SupportSide;
+}) {
+  const { db, cycleId, now, battlefieldId, reinforcerId, targetFortressId, side } = args;
+  if (reinforcerId === args.alliedFortressId) return false;
+
+  const policy = await db.warPolicy.findUnique({
+    where: {
+      cycleId_fortressId: {
+        cycleId,
+        fortressId: reinforcerId,
+      },
+    },
+    select: {
+      allianceSupportAttack: true,
+      allianceSupportDefense: true,
+      allianceSupportPercent: true,
+    },
+  });
+  const supportAttack = policy?.allianceSupportAttack ?? true;
+  const supportDefense = policy?.allianceSupportDefense ?? true;
+  if (side === "ATTACKER" && !supportAttack) return false;
+  if (side === "DEFENDER" && !supportDefense) return false;
+
+  const existingReinforce = await db.attackUnit.findFirst({
+    where: {
+      cycleId,
+      attackerFortressId: reinforcerId,
+      targetFortressId,
+      reinforcementBattlefieldId: battlefieldId,
+      reinforcementSide: side,
+      resolvedAt: null,
+      cancelledAt: null,
+      arrivesAt: { gt: now },
+    },
+  });
+  if (existingReinforce) return false;
+
+  const allianceBattalions = await db.battalion.findMany({
+    where: { fortressId: reinforcerId, size: { gt: 0 }, mode: "ALLIANCE" },
+    orderBy: { size: "desc" },
+    select: { id: true, size: true },
+    take: 3,
+  });
+  if (allianceBattalions.length === 0) return false;
+
+  const totalAvailable = allianceBattalions.reduce((sum, battalion) => sum + battalion.size, 0);
+  const supportPercent = Math.max(0, Math.min(100, policy?.allianceSupportPercent ?? 50));
+  if (supportPercent <= 0) return false;
+  const commitAmount = Math.max(1, Math.floor((totalAvailable * supportPercent) / 100));
+  if (commitAmount <= 0) return false;
+
+  let remaining = commitAmount;
+  for (const battalion of allianceBattalions) {
+    if (remaining <= 0) break;
+    const take = Math.min(battalion.size, remaining);
+    await db.battalion.update({
+      where: { id: battalion.id },
+      data: { size: { decrement: take } },
+    });
+    remaining -= take;
+  }
+
+  const [reinforcer, target] = await Promise.all([
+    db.fortress.findUnique({
+      where: { id: reinforcerId },
+      select: { mapX: true, mapY: true },
+    }),
+    db.fortress.findUnique({
+      where: { id: targetFortressId },
+      select: { mapX: true, mapY: true },
+    }),
+  ]);
+  const dx = (reinforcer?.mapX ?? 0) - (target?.mapX ?? 0);
+  const dy = (reinforcer?.mapY ?? 0) - (target?.mapY ?? 0);
+  const baseMinutes = Math.max(1, Math.ceil(Math.sqrt(dx * dx + dy * dy) / 10));
+  const { arrivesAt } = await getRoadAdjustedAttackArrival({
+    db,
+    cycleId,
+    launchedAt: now,
+    origin: { mapX: reinforcer?.mapX ?? 0, mapY: reinforcer?.mapY ?? 0 },
+    target: { mapX: target?.mapX ?? 0, mapY: target?.mapY ?? 0 },
+    baseMinutes,
+  });
+
+  await db.attackUnit.create({
+    data: {
+      cycleId,
+      attackerFortressId: reinforcerId,
+      targetFortressId,
+      reinforcementBattlefieldId: battlefieldId,
+      reinforcementSide: side,
+      armyAmount: commitAmount,
+      launchedAt: now,
+      arrivesAt,
+      returnOriginMapX: reinforcer?.mapX,
+      returnOriginMapY: reinforcer?.mapY,
+    },
+  });
+
+  return true;
 }

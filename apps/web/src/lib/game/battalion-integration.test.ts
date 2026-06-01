@@ -156,6 +156,9 @@ describe("Battalion reinforcement travel", () => {
           return args;
         },
       },
+      mapHexRoad: {
+        findMany: async () => [],
+      },
     };
 
     await processBattalionRecruitment({
@@ -212,6 +215,9 @@ describe("Battalion reinforcement travel", () => {
           attackUnitCreates.push(args);
           return args;
         },
+      },
+      mapHexRoad: {
+        findMany: async () => [],
       },
     };
 

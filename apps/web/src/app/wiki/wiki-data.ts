@@ -395,7 +395,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
           { title: "GUARD", image: "/assets/ui/crest-guard.webp", body: "Defends owned tiles and supports detection." },
           { title: "ATTACK", image: "/assets/ui/crest-campaign.webp", body: "Can be assigned to war fronts and auto-dispatches against reachable enemy tiles." },
           { title: "RESERVE", body: "Stays out of combat losses and recovers." },
-          { title: "ALLIANCE", body: "Sends visible reinforcement marches to eligible allied defensive battlefields." },
+          { title: "ALLIANCE", body: "Sends visible reinforcement marches to eligible allied defensive or attacking battlefields, using the War Room support policy." },
         ],
       },
       {

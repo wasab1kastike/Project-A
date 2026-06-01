@@ -851,6 +851,9 @@ export async function getHomePageState({
           maxArmySize: true,
           guardPercent: true,
           defaultAggression: true,
+          allianceSupportAttack: true,
+          allianceSupportDefense: true,
+          allianceSupportPercent: true,
         },
       },
       convoyLegs: {
@@ -4188,6 +4191,9 @@ export async function getHomePageState({
       maxArmySize: p.maxArmySize,
       guardPercent: p.guardPercent,
       defaultAggression: p.defaultAggression,
+      allianceSupportAttack: p.allianceSupportAttack,
+      allianceSupportDefense: p.allianceSupportDefense,
+      allianceSupportPercent: p.allianceSupportPercent,
     })),
     // Established trade routes: fortress pairs with ≥3 completed deliveries
     // get a persistent golden trade route line on the map.
