@@ -512,6 +512,18 @@ function getRoadSpeedLabel(level: number) {
   return "1x";
 }
 
+function getLifeSeedStyle(
+  seed: string,
+  extra?: CSSProperties
+): CSSProperties {
+  const hash = hashString(seed);
+  return {
+    "--life-delay": `${-((hash % 4200) / 1000).toFixed(2)}s`,
+    "--life-duration": `${3.8 + (hash % 1800) / 1000}s`,
+    ...extra,
+  } as CSSProperties;
+}
+
 function findNearestHexTile(point: { x: number; y: number }) {
   let closest: (typeof HEX_TILES)[number] | null = null;
   let closestDist = Infinity;
@@ -528,6 +540,152 @@ function findNearestHexTile(point: { x: number; y: number }) {
 }
 
 // ── Hex Tile Map ─────────────────────────────────────────────────────────────
+
+function MapLifeLayer({
+  mapHexes,
+  roadEdges,
+  tradeRouteLines,
+  battlefields,
+  fortresses,
+}: {
+  mapHexes: MapHexOwnershipMarker[];
+  roadEdges: RoadEdge[];
+  tradeRouteLines: NonNullable<FortressMapProps["tradeRouteLines"]>;
+  battlefields: BattlefieldIndicatorData[];
+  fortresses: MapFortress[];
+}) {
+  const activeBattleByTileId = useMemo(() => {
+    const byId = new Map(
+      battlefields.map((battlefield) => [battlefield.id, battlefield])
+    );
+    return new Map(
+      mapHexes
+        .filter((hex) => hex.hasActiveBattle && hex.activeBattlefieldId)
+        .map((hex) => [
+          hex.tileId,
+          byId.get(hex.activeBattlefieldId!) ?? null,
+        ])
+    );
+  }, [battlefields, mapHexes]);
+
+  return (
+    <div className={styles.mapLifeLayer} aria-hidden="true">
+      <svg
+        className={styles.mapLifeSvg}
+        viewBox={`0 0 ${MAP_WORLD_WIDTH} ${MAP_WORLD_HEIGHT}`}
+      >
+        {mapHexes.map((hex) => {
+          const tile = HEX_TILES.find((candidate) => candidate.id === hex.tileId);
+          if (!tile || !hex.ownerFortressId) return null;
+
+          return (
+            <polygon
+              key={`domain-${hex.tileId}`}
+              className={`${styles.lifeDomain} ${
+                hex.isCurrentUser ? styles.lifeOwnDomain : ""
+              }`}
+              data-race={hex.ownerRace ?? undefined}
+              points={getHexPolygonPoints(tile.x, tile.y, HEX_RADIUS * 0.96)}
+              style={getLifeSeedStyle(hex.tileId)}
+            />
+          );
+        })}
+        {roadEdges.map((edge, index) => (
+          <line
+            key={`road-life-${index}`}
+            x1={(edge.x1 * MAP_WORLD_WIDTH) / 100}
+            y1={(edge.y1 * MAP_WORLD_HEIGHT) / 100}
+            x2={(edge.x2 * MAP_WORLD_WIDTH) / 100}
+            y2={(edge.y2 * MAP_WORLD_HEIGHT) / 100}
+            className={`${styles.lifeRoadShimmer} ${getRoadLevelClass(edge.level)}`}
+            strokeWidth={Math.max(2, getRoadStrokeWidth(edge.level) + 1.4)}
+            style={getLifeSeedStyle(
+              `road-${edge.x1}-${edge.y1}-${edge.x2}-${edge.y2}`
+            )}
+          />
+        ))}
+        {tradeRouteLines.map((route, index) => (
+          <line
+            key={`trade-life-${index}`}
+            x1={(route.x1 * MAP_WORLD_WIDTH) / 100}
+            y1={(route.y1 * MAP_WORLD_HEIGHT) / 100}
+            x2={(route.x2 * MAP_WORLD_WIDTH) / 100}
+            y2={(route.y2 * MAP_WORLD_HEIGHT) / 100}
+            className={styles.lifeTradeTicks}
+            strokeWidth={Math.min(
+              5,
+              2 + Math.log2(Math.max(1, route.deliveries))
+            )}
+            style={getLifeSeedStyle(`trade-${index}-${route.deliveries}`)}
+          />
+        ))}
+        {Array.from(activeBattleByTileId.entries()).map(
+          ([tileId, battlefield]) => {
+            const tile = HEX_TILES.find((candidate) => candidate.id === tileId);
+            if (!tile) return null;
+
+            const intensity = battlefield?.battleIntensityPercent ?? 30;
+            const puffCount = intensity >= 70 ? 5 : intensity >= 30 ? 4 : 3;
+
+            return Array.from({ length: puffCount }, (_, puffIndex) => {
+              const hash = hashString(`${tileId}:${puffIndex}`);
+              const angle = (hash % 360) * (Math.PI / 180);
+              const radius = 9 + (hash % 22);
+              const x = tile.x + Math.cos(angle) * radius;
+              const y = tile.y + Math.sin(angle) * radius * 0.55;
+
+              return (
+                <circle
+                  key={`battle-life-${tileId}-${puffIndex}`}
+                  cx={x}
+                  cy={y}
+                  r={3 + (hash % 6)}
+                  className={styles.lifeBattlePuff}
+                  data-intensity={
+                    intensity >= 70 ? "high" : intensity >= 30 ? "mid" : "low"
+                  }
+                  style={getLifeSeedStyle(`${tileId}:${puffIndex}`, {
+                    "--puff-x": `${(hash % 15) - 7}px`,
+                    "--puff-y": `${-14 - (hash % 16)}px`,
+                  } as CSSProperties)}
+                />
+              );
+            });
+          }
+        )}
+      </svg>
+      {fortresses
+        .filter((fortress) => fortress.fortressKind === "PLAYER")
+        .map((fortress) => {
+          const ownerTile = findNearestHexTile({
+            x: fortress.mapX,
+            y: fortress.mapY,
+          });
+          const ownerHex = ownerTile
+            ? mapHexes.find(
+                (hex) =>
+                  hex.tileId === ownerTile.id &&
+                  hex.ownerFortressId === fortress.id
+              )
+            : null;
+
+          return (
+            <span
+              key={`fortress-life-${fortress.id}`}
+              className={`${styles.lifeFortressAura} ${
+                fortress.isCurrentUser ? styles.lifeOwnFortressAura : ""
+              }`}
+              data-race={fortress.race ?? ownerHex?.ownerRace ?? undefined}
+              style={getLifeSeedStyle(fortress.id, {
+                left: `${fortress.mapX}%`,
+                top: `${fortress.mapY}%`,
+              })}
+            />
+          );
+        })}
+    </div>
+  );
+}
 
 function HexTileMap({
   mapHexes,
@@ -1363,10 +1521,7 @@ export const FortressMap = memo(function FortressMap({
   }, [convoyMarkers.length]);
 
   useEffect(() => {
-    const hasGuardBattalions = battalionMarkers.some(
-      (m) => m.mode === "GUARD"
-    );
-    if (!hasGuardBattalions) return;
+    if (battalionMarkers.length === 0) return;
 
     const interval = window.setInterval(() => {
       setPatrolNowMs(Date.now());
@@ -1406,10 +1561,7 @@ export const FortressMap = memo(function FortressMap({
 
   // ── Patrol paths for GUARD-mode battalions ──────────────────────────────
   const patrolData = useMemo(() => {
-    const GUARD_BATTALIONS = battalionMarkers.filter(
-      (m) => m.mode === "GUARD"
-    );
-    if (GUARD_BATTALIONS.length === 0) return null;
+    if (battalionMarkers.length === 0) return null;
 
     // Tile lookup for hex neighbor computation
     const tileLookup = new Map<string, PathHexTile>();
@@ -1442,8 +1594,6 @@ export const FortressMap = memo(function FortressMap({
 
     for (let i = 0; i < battalionMarkers.length; i++) {
       const m = battalionMarkers[i];
-      if (m.mode !== "GUARD") continue;
-
       const garrisonTile = tileById.get(m.tileId);
       if (!garrisonTile) continue;
 
@@ -1486,6 +1636,11 @@ export const FortressMap = memo(function FortressMap({
 
     return { markerPatrols, tileById };
   }, [battalionMarkers, mapHexes]);
+
+  const roadEdges = useMemo(
+    () => computeRoadEdges(roadSegments, HEX_TILES),
+    [roadSegments]
+  );
 
   const snappedFortressPositions = useMemo(
     () =>
@@ -2033,7 +2188,7 @@ export const FortressMap = memo(function FortressMap({
               className={styles.tradeRouteLine}
             />
           ))}
-          {computeRoadEdges(roadSegments, HEX_TILES).map((edge, i) => (
+          {roadEdges.map((edge, i) => (
             <line
               key={`road-${i}`}
               x1={edge.x1 * MAP_WORLD_WIDTH / 100}
@@ -2066,6 +2221,13 @@ export const FortressMap = memo(function FortressMap({
           </span>
         </div>
       ) : null}
+      <MapLifeLayer
+        mapHexes={mapHexes}
+        roadEdges={roadEdges}
+        tradeRouteLines={tradeRouteLines}
+        battlefields={battlefields}
+        fortresses={fortresses}
+      />
       <AttackUnitsLayer
             attackUnits={attackUnits}
             onRecallAttackUnit={onRecallAttackUnit}
@@ -2112,7 +2274,7 @@ export const FortressMap = memo(function FortressMap({
                 let patrolYPercent = tile.yPercent;
                 let isPatrolling = false;
 
-                if (marker.mode === "GUARD" && patrolData) {
+                if (patrolData) {
                   const patrol = patrolData.markerPatrols.find(
                     (p) => p.markerIndex === markerIndex
                   );
@@ -2132,9 +2294,11 @@ export const FortressMap = memo(function FortressMap({
                   }
                 }
 
-                const stanceColors: Record<string, string> = {
-                  FORTIFY: "#4488ff", PATROL: "#44cc44", TRAINING: "#ffcc00",
-                  AMBUSH: "#ff4444", REST: "#888888", MOBILE: "#aaaaaa",
+                const modeColors: Record<string, string> = {
+                  RESERVE: "#888888",
+                  GUARD: "#44cc88",
+                  ATTACK: "#ffb040",
+                  ALLIANCE: "#c080ff",
                 };
                 const raceIcons: Record<string, string[]> = {
                   DWARFS: ["", "⛏", "⛏⛏", "⛏⛏⛏"],
@@ -2153,7 +2317,7 @@ export const FortressMap = memo(function FortressMap({
                       left: `${patrolXPercent}%`,
                       top: `${patrolYPercent}%`,
                     }}
-                    title={`${marker.battalionName} · ${marker.stance} · Tier ${marker.tier} · ${marker.size}/${marker.maxSize}`}
+                    title={`${marker.battalionName} - ${marker.mode} - Tier ${marker.tier} - ${marker.size}/${marker.maxSize}`}
                   >
                     <span
                       className={styles.battalionSprite}
@@ -2164,7 +2328,7 @@ export const FortressMap = memo(function FortressMap({
                     />
                     <span
                       className={styles.battalionBadge}
-                      style={{ backgroundColor: stanceColors[marker.stance] ?? "#888" }}
+                      style={{ backgroundColor: modeColors[marker.mode] ?? "#888" }}
                     >
                       {tierLabel}
                     </span>

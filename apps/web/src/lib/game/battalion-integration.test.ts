@@ -12,6 +12,7 @@ import {
   BATTALION_TIER_NAMES,
   TIER_MULTIPLIERS,
   generateBattalionName,
+  getBattalionModeUpdate,
   getBattalionSlots,
   TIER_MAX_SIZES,
 } from "./battalion-types";
@@ -20,6 +21,7 @@ import {
 } from "./recruitment";
 import { processBattalionRecruitment } from "./tick-battalion-integration";
 import { processOwnershipPressure } from "./tile-pressure";
+import { processGuardTick } from "./guard-system";
 
 // ═════════════════════════════════════════════════════════════════════════════
 // Battalion Types — tiers, slots, naming
@@ -69,6 +71,69 @@ describe("Battalion Slots", () => {
 
   it("Slot count never exceeds max", () => {
     assert.ok(getBattalionSlots(15, 10, 5) <= 13);
+  });
+});
+
+describe("Battalion mode jobs", () => {
+  it("normalizes each public job to its hidden stance", () => {
+    assert.deepEqual(getBattalionModeUpdate("RESERVE"), {
+      mode: "RESERVE",
+      stance: "REST",
+      garrisonedAt: null,
+      stanceLockedUntil: null,
+    });
+    assert.deepEqual(getBattalionModeUpdate("GUARD"), {
+      mode: "GUARD",
+      stance: "FORTIFY",
+      stanceLockedUntil: null,
+    });
+    assert.deepEqual(getBattalionModeUpdate("ATTACK"), {
+      mode: "ATTACK",
+      stance: "MOBILE",
+      garrisonedAt: null,
+      stanceLockedUntil: null,
+    });
+    assert.deepEqual(getBattalionModeUpdate("ALLIANCE"), {
+      mode: "ALLIANCE",
+      stance: "MOBILE",
+      garrisonedAt: null,
+      stanceLockedUntil: null,
+    });
+  });
+
+  it("guard assignment uses the hidden guard stance", () => {
+    const result = processGuardTick({
+      battalions: [
+        {
+          id: "bn_guard",
+          name: "Border Guard",
+          size: 50,
+          maxSize: 100,
+          tier: BattalionTier.RECRUIT,
+          xp: 0,
+          readyAt: null,
+          stance: "REST",
+          mode: "GUARD",
+          garrisonedAt: null,
+          stanceLockedUntil: null,
+        },
+      ],
+      ownedTiles: [
+        {
+          tileId: "20:15",
+          priority: 3,
+          isBorder: true,
+          enemyProximity: 1,
+          productionValue: 0,
+          currentGuardStrength: 0,
+        },
+      ],
+      config: { guardPercent: 100, defaultStance: "FORTIFY" },
+    });
+
+    assert.equal(result.assignments.length, 1);
+    assert.equal(result.battalions[0]?.garrisonedAt, "20:15");
+    assert.equal(result.battalions[0]?.stance, "FORTIFY");
   });
 });
 

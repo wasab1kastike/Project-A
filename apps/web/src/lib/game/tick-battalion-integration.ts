@@ -426,7 +426,7 @@ export async function processBattalionGuard(args: {
         tier: b.tier as Battalion["tier"],
         xp: b.xp,
         readyAt: b.readyAt?.getTime() ?? null,
-        stance: b.stance as Battalion["stance"],
+        stance: "FORTIFY" as Battalion["stance"],
         garrisonedAt: b.garrisonedAt,
         stanceLockedUntil: b.stanceLockedUntil?.getTime() ?? null,
       }));
@@ -460,9 +460,6 @@ export async function processBattalionGuard(args: {
       currentGuardStrength: 0,
     }));
 
-    // Only auto-assign guard stance for battalions that aren't already on a
-    // specific stance (REST, TRAINING, PATROL, AMBUSH are player-chosen and
-    // should not be overwritten).
     const result = processGuardTick({
       battalions: fortressBattalions,
       ownedTiles: guardableTiles,
@@ -516,7 +513,6 @@ export async function processBattalionGuard(args: {
     }
   }
 }
-
 // ── Combat Casualty Reconciliation ───────────────────────────────────────────
 
 /**
@@ -596,40 +592,6 @@ export async function reconcileBattalionCasualties(args: {
     await ctx.db.battalion.updateMany({
       where: { id: { in: battalionsToDisband } },
       data: { size: 0, stance: "REST", garrisonedAt: null },
-    });
-  }
-}
-
-// ── RESERVE Healing ──────────────────────────────────────────────────────────
-
-/**
- * RESERVE-mode battalions passively heal 2% of their max size per tick.
- * This represents troops resting and recovering behind the lines.
- */
-export async function processReserveHealing(args: {
-  ctx: { db: PrismaClient; cycleId: string };
-}): Promise<void> {
-  const { ctx } = args;
-
-  const reserveBattalions = await ctx.db.battalion.findMany({
-    where: {
-      cycleId: ctx.cycleId,
-      mode: "RESERVE",
-      size: { gt: 0 },
-    },
-    select: { id: true, size: true, maxSize: true },
-  });
-
-  const HEAL_RATE = 0.02; // 2% of max size per tick
-
-  for (const bn of reserveBattalions) {
-    if (bn.size >= bn.maxSize) continue;
-    const healAmount = Math.max(1, Math.floor(bn.maxSize * HEAL_RATE));
-    const newSize = Math.min(bn.maxSize, bn.size + healAmount);
-
-    await ctx.db.battalion.update({
-      where: { id: bn.id },
-      data: { size: newSize },
     });
   }
 }

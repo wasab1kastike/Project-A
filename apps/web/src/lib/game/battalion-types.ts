@@ -85,6 +85,48 @@ export const BattalionMode = {
 export type BattalionMode =
   (typeof BattalionMode)[keyof typeof BattalionMode];
 
+export const BATTALION_MODE_LABELS: Record<BattalionMode, string> = {
+  [BattalionMode.RESERVE]: "Reserve",
+  [BattalionMode.GUARD]: "Guard",
+  [BattalionMode.ATTACK]: "Attack",
+  [BattalionMode.ALLIANCE]: "Alliance",
+};
+
+export function normalizeBattalionMode(
+  mode: string | null | undefined,
+): BattalionMode {
+  if (
+    mode === BattalionMode.ATTACK ||
+    mode === BattalionMode.GUARD ||
+    mode === BattalionMode.RESERVE ||
+    mode === BattalionMode.ALLIANCE
+  ) {
+    return mode;
+  }
+  return BattalionMode.GUARD;
+}
+
+export function getHiddenStanceForMode(mode: BattalionMode): BattalionStance {
+  if (mode === BattalionMode.RESERVE) return BattalionStance.REST;
+  if (mode === BattalionMode.GUARD) return BattalionStance.FORTIFY;
+  return BattalionStance.MOBILE;
+}
+
+export function getBattalionModeUpdate(mode: string): {
+  mode: BattalionMode;
+  stance: BattalionStance;
+  garrisonedAt?: null;
+  stanceLockedUntil: null;
+} {
+  const normalizedMode = normalizeBattalionMode(mode);
+  return {
+    mode: normalizedMode,
+    stance: getHiddenStanceForMode(normalizedMode),
+    ...(normalizedMode === BattalionMode.GUARD ? {} : { garrisonedAt: null }),
+    stanceLockedUntil: null,
+  };
+}
+
 export type StanceEffects = {
   defenseMultiplier: number;
   damageDealtMultiplier: number;

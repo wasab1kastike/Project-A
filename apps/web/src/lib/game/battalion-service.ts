@@ -16,8 +16,9 @@ import {
   TIER_MAX_SIZES,
   getBattalionSlots,
   generateBattalionName,
+  getBattalionModeUpdate,
+  normalizeBattalionMode,
   type BattalionTier,
-  type BattalionMode,
 } from "./battalion-types";
 import { applyFieldPromotion } from "./army-xp";
 import { getSkillModifiers } from "./race-skill-effects";
@@ -281,38 +282,12 @@ export async function setBattalionStance(args: {
   battalionId: string;
   stance: string;
 }): Promise<void> {
-  const validStances = ["FORTIFY", "PATROL", "TRAINING", "AMBUSH", "REST", "MOBILE"];
-  if (!validStances.includes(args.stance)) {
-    throw new GameError(`Invalid stance: ${args.stance}`);
-  }
-
   const battalion = await getOwnedBattalion(prisma, args);
-
-  // PATROL requires a garrisoned position
-  if (args.stance === "PATROL" && !battalion.garrisonedAt) {
-    throw new GameError("PATROL stance requires the battalion to be garrisoned at a tile.");
-  }
-
-  // Stance lock durations (prevents stance-hopping)
-  const LOCK_DURATIONS: Record<string, number> = {
-    FORTIFY: 3_600_000,   // 1 hour
-    AMBUSH: 3_600_000,    // 1 hour
-    PATROL: 0,            // freely switchable
-    TRAINING: 0,          // freely switchable
-    REST: 0,              // freely switchable
-    MOBILE: 0,            // freely switchable
-  };
-  const stanceLockedUntil =
-    LOCK_DURATIONS[args.stance] > 0
-      ? new Date(Date.now() + LOCK_DURATIONS[args.stance])
-      : null;
+  const update = getBattalionModeUpdate(battalion.mode ?? "GUARD");
 
   await prisma.battalion.update({
     where: { id: args.battalionId },
-    data: {
-      stance: args.stance,
-      stanceLockedUntil,
-    },
+    data: update,
   });
 }
 
@@ -633,21 +608,22 @@ export async function setBattalionMode({
   battalionId: string;
   mode: string;
 }): Promise<void> {
-  const validModes = ["ATTACK", "GUARD", "RESERVE", "ALLIANCE"];
-  if (!validModes.includes(mode)) {
+  const normalizedMode = normalizeBattalionMode(mode);
+  if (normalizedMode !== mode) {
     throw new GameError("Invalid mode. Use ATTACK, GUARD, RESERVE, or ALLIANCE.");
   }
 
   const battalion = await getOwnedBattalion(prisma, { userId, battalionId });
+  const update = getBattalionModeUpdate(normalizedMode);
 
   await prisma.$transaction(async (tx) => {
-    if (mode !== "ATTACK") {
+    if (normalizedMode !== "ATTACK") {
       await tx.battalionAssignment.deleteMany({ where: { battalionId } });
     }
 
     await tx.battalion.update({
       where: { id: battalion.id },
-      data: { mode },
+      data: update,
     });
   });
 }
