@@ -12,6 +12,7 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
     newFeatures: [
       "Nukes are now available as the latest season wish: daily private bidding awards Fuel, Rocket, and Wrath of A components from 14:00 to 12:00 Europe/Helsinki.",
       "Completed nukes cost 250,000 gold to launch, consume all three components, and can crater another real player fortress by lowering buildings and cutting active army.",
+      "Nuke parts now clearly stockpile: you can hold multiple Fuel, Rocket, and Wrath of A components and launch one completed set at a time.",
       "Nuke components can move through existing trade offers and convoy legs, with small component sprites and a center-tile bidding marker on the map.",
       "Castle Diplomacy now supports peace offers with optional demands from either side.",
       "Alliance proposals can include break collateral; betrayal pays what is available and records unpaid collateral as treaty debt.",

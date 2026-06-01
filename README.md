@@ -241,7 +241,7 @@ The game is now a castle-economy and battlefield-control loop:
 - the Castle Diplomacy tab supports peace offers with optional demands from either side, while trade offers move accepted gold, food, army, score points, and allied tile deeds as six-hour-minimum convoy legs capped at 1,000 total gold and food per wagon
 - Delivered convoy cargo awards points from base cargo value; all non-hostile deliveries add a small gold/food bonus, allied Trust raises that bonus, and hostile relations seize in-transit cargo without trade points or delivered score points
 - scored trade convoys can receive an outbound escort; convoy raid patrols are temporarily disabled while War Room focuses on battlefronts, battalions, and recruitment
-- daily nuke bidding runs 14:00-12:00 Europe/Helsinki for Fuel, Rocket, and Wrath of A; bids are private, losing bids are spent, components are tradable by convoy, and launches cost 250,000 gold
+- daily nuke bidding runs 14:00-12:00 Europe/Helsinki for Fuel, Rocket, and Wrath of A; bids are private, losing bids are spent, components stockpile without a one-per-kind cap, components are tradable by convoy, and launches cost 250,000 gold plus one of each component
 - War Room battalions use one of four jobs: RESERVE, GUARD, ATTACK, or ALLIANCE. Stances are no longer player-facing controls.
 - Battalions do not heal passively; refill damaged battalions by assigning recruiters and training new members.
 - Idle battalions roam owned tiles on the map until their job triggers: guards patrol borders, attackers launch from war fronts, allies reinforce battlefields, and reserves stay near the castle core.

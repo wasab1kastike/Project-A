@@ -3,6 +3,7 @@ import test from "node:test";
 import { NukeComponentKind } from "@/lib/prisma-client";
 import {
   allocateNukeArmyLosses,
+  calculateCompleteNukeCount,
   chooseNukeComponentWinner,
   getNukeBiddingWindowForDate,
   NUKE_ARMY_DAMAGE_CAP,
@@ -81,5 +82,16 @@ test("nuke component enum includes the required parts", () => {
       NukeComponentKind.WRATH_OF_A,
     ],
     ["FUEL", "ROCKET", "WRATH_OF_A"]
+  );
+});
+
+test("nuke components can stockpile beyond one complete set", () => {
+  assert.equal(
+    calculateCompleteNukeCount({
+      [NukeComponentKind.FUEL]: 3,
+      [NukeComponentKind.ROCKET]: 2,
+      [NukeComponentKind.WRATH_OF_A]: 4,
+    }),
+    2
   );
 });

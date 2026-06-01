@@ -46,6 +46,10 @@ export function calculateNukeComponentCargoValue(cargo: NukeComponentCargo) {
   );
 }
 
+export function calculateCompleteNukeCount(cargo: NukeComponentCargo) {
+  return Math.min(...NUKE_COMPONENT_KINDS.map((kind) => cargo[kind]));
+}
+
 export function getNukeComponentLabel(kind: NukeComponentKind) {
   switch (kind) {
     case NukeComponentKind.FUEL:
