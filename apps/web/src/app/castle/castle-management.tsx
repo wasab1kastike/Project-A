@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+} from "react";
 import { useSearchParams } from "next/navigation";
 import { useRefreshView } from "@/lib/refresh-helpers";
 import { RaceSkillPanel } from "@/components/race-skill-panel";
@@ -614,6 +620,70 @@ const EMPTY_BUILDING_COUNTS: Record<BuildingSpecialization, number> = {
   MILITARY: 0,
   TRADE: 0,
 };
+
+const BUILDING_SPRITE_FRAME_COUNT = 10;
+const DEFAULT_BUILDING_SPRITES: Record<BuildingSpecialization, string> = {
+  DEFENSE: "/assets/buildings/building-defense.png",
+  POINTS: "/assets/buildings/building-points.png",
+  FOOD: "/assets/buildings/building-food.png",
+  MILITARY: "/assets/buildings/building-military.png",
+  TRADE: "/assets/buildings/building-trade.png",
+};
+const BUILDING_SPRITES_BY_RACE: Record<
+  FortressRace,
+  Record<BuildingSpecialization, string>
+> = {
+  DWARFS: {
+    DEFENSE: "/assets/buildings/building-dwarfs-defense.png",
+    POINTS: "/assets/buildings/building-dwarfs-points.png",
+    FOOD: "/assets/buildings/building-dwarfs-food.png",
+    MILITARY: "/assets/buildings/building-dwarfs-military.png",
+    TRADE: "/assets/buildings/building-dwarfs-trade.png",
+  },
+  ORKS: {
+    DEFENSE: "/assets/buildings/building-orks-defense.png",
+    POINTS: "/assets/buildings/building-orks-points.png",
+    FOOD: "/assets/buildings/building-orks-food.png",
+    MILITARY: "/assets/buildings/building-orks-military.png",
+    TRADE: "/assets/buildings/building-orks-trade.png",
+  },
+  SPACE_MURINES: {
+    DEFENSE: "/assets/buildings/building-space-murines-defense.png",
+    POINTS: "/assets/buildings/building-space-murines-points.png",
+    FOOD: "/assets/buildings/building-space-murines-food.png",
+    MILITARY: "/assets/buildings/building-space-murines-military.png",
+    TRADE: "/assets/buildings/building-space-murines-trade.png",
+  },
+  UNSTABLE_UNICORNS: {
+    DEFENSE: "/assets/buildings/building-unstable-unicorns-defense.png",
+    POINTS: "/assets/buildings/building-unstable-unicorns-points.png",
+    FOOD: "/assets/buildings/building-unstable-unicorns-food.png",
+    MILITARY: "/assets/buildings/building-unstable-unicorns-military.png",
+    TRADE: "/assets/buildings/building-unstable-unicorns-trade.png",
+  },
+};
+
+function getBuildingSpriteStyle(
+  specialization: BuildingSpecialization,
+  level: number,
+  race: string | null
+): CSSProperties {
+  const frame = Math.min(
+    Math.max(Math.trunc(level), 0),
+    BUILDING_SPRITE_FRAME_COUNT - 1
+  );
+  const position =
+    frame === 0 ? 0 : (frame / (BUILDING_SPRITE_FRAME_COUNT - 1)) * 100;
+  const raceSprites =
+    race && isFortressRace(race) ? BUILDING_SPRITES_BY_RACE[race] : null;
+
+  return {
+    backgroundImage: `url(${
+      raceSprites?.[specialization] ?? DEFAULT_BUILDING_SPRITES[specialization]
+    })`,
+    backgroundPosition: `${position}% 0`,
+  };
+}
 
 const RACE_TIER_BIOME_REQUIREMENTS: Record<FortressRace, string> = {
   DWARFS: "Mountains",
@@ -2009,8 +2079,25 @@ export function CastleManagement({
                   return (
                     <article key={building.key} className={styles.buildingCard}>
                       <div className={styles.buildingCardHeader}>
-                        <strong>{building.name}</strong>
-                        <span>Level {buildingLevel}</span>
+                        <span
+                          className={styles.buildingSpriteShell}
+                          data-building={building.key.toLowerCase()}
+                          data-upgrading={activeProject ? "true" : undefined}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className={styles.buildingSprite}
+                            style={getBuildingSpriteStyle(
+                              building.key,
+                              buildingLevel,
+                              playerSummary.race
+                            )}
+                          />
+                        </span>
+                        <span className={styles.buildingCardTitle}>
+                          <strong>{building.name}</strong>
+                          <span>Level {buildingLevel}</span>
+                        </span>
                       </div>
                       <p>{building.role}</p>
                       <small>
