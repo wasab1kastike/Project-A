@@ -3,6 +3,9 @@ import { GameError } from "./errors";
 import { isFortressRace, type FortressRace } from "./races";
 import {
   MAX_SKILL_POINTS,
+  SKILL_POINT_CASTLE_LEVEL_INTERVAL,
+  SKILL_POINT_FIRST_CASTLE_LEVEL,
+  SKILL_POINT_TILE_INTERVAL,
   getPurchasedNodeRewards,
   getRaceSkillTree,
   getSkillNode,
@@ -41,8 +44,18 @@ export function getEarnedSkillPoints(fortress: {
   level: number;
   ownedTileCount: number;
 }): number {
-  const fromLevel = Math.max(0, fortress.level - 1);
-  const fromTiles = Math.floor(fortress.ownedTileCount / 3);
+  const normalizedLevel = Math.max(1, Math.floor(fortress.level));
+  const fromLevel =
+    normalizedLevel < SKILL_POINT_FIRST_CASTLE_LEVEL
+      ? 0
+      : 1 +
+        Math.floor(
+          (normalizedLevel - SKILL_POINT_FIRST_CASTLE_LEVEL) /
+            SKILL_POINT_CASTLE_LEVEL_INTERVAL
+        );
+  const fromTiles = Math.floor(
+    Math.max(0, fortress.ownedTileCount) / SKILL_POINT_TILE_INTERVAL
+  );
   return Math.min(getMaxSkillPoints(), fromLevel + fromTiles);
 }
 
@@ -107,7 +120,7 @@ export function assertSkillNodeCanBePurchased({
 
   if (availablePoints <= 0) {
     throw new GameError(
-      "No skill points available. Level up your castle or claim more territory."
+      "No skill points available. Reach higher castle milestones or claim more territory."
     );
   }
 

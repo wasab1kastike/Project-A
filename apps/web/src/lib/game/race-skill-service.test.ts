@@ -13,6 +13,17 @@ import {
 import { getSkillModifiers } from "./race-skill-effects";
 import { RACE_SKILL_TREES, SKILL_NODES_PER_PATH } from "./race-skill-tree";
 
+test("race skill earned points start later and use slower milestones", () => {
+  assert.equal(getEarnedSkillPoints({ level: 1, ownedTileCount: 0 }), 0);
+  assert.equal(getEarnedSkillPoints({ level: 2, ownedTileCount: 0 }), 0);
+  assert.equal(getEarnedSkillPoints({ level: 3, ownedTileCount: 0 }), 1);
+  assert.equal(getEarnedSkillPoints({ level: 4, ownedTileCount: 0 }), 1);
+  assert.equal(getEarnedSkillPoints({ level: 5, ownedTileCount: 0 }), 2);
+  assert.equal(getEarnedSkillPoints({ level: 3, ownedTileCount: 4 }), 1);
+  assert.equal(getEarnedSkillPoints({ level: 3, ownedTileCount: 5 }), 2);
+  assert.equal(getEarnedSkillPoints({ level: 7, ownedTileCount: 10 }), 5);
+});
+
 test("race skill earned points are capped at twelve", () => {
   assert.equal(getMaxSkillPoints(), 12);
   assert.equal(
