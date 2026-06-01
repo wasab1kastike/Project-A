@@ -2714,7 +2714,13 @@ async function processCycleTick(
   if (true) {
     // Auto-war dispatch runs BEFORE campaign processing so new campaigns
     // are picked up in the same tick.
-    const [warRelations, currentCampaigns, lightFortresses, ownerships] = await Promise.all([
+    const [
+      warRelations,
+      currentCampaigns,
+      lightFortresses,
+      ownerships,
+      pressurePriorities,
+    ] = await Promise.all([
       db.diplomacyRelation.findMany({
         where: { cycleId, status: { in: ["WAR", "WAR_PENDING"] } },
         select: { status: true, fortressAId: true, fortressBId: true, warStartsAt: true },
@@ -2739,6 +2745,10 @@ async function processCycleTick(
       db.mapHexOwnership.findMany({
         where: { cycleId },
         select: { ownerFortressId: true, tileId: true },
+      }),
+      db.tilePressurePriority.findMany({
+        where: { cycleId },
+        select: { fortressId: true, tileId: true, weight: true },
       }),
     ]);
 
@@ -2776,7 +2786,17 @@ async function processCycleTick(
           ? { committedArmy: c.armyOrder.committedArmy, status: c.armyOrder.status }
           : null,
       })),
-      priorityTiles: [],
+      priorityTiles: pressurePriorities.map((priority) => {
+        const targetOwner = ownerships.find(
+          (ownership) => ownership.tileId === priority.tileId,
+        )?.ownerFortressId;
+        return {
+          fortressId: priority.fortressId,
+          tileId: priority.tileId,
+          priority: Math.max(1, Math.min(3, priority.weight)) as 1 | 2 | 3,
+          targetEnemyId: targetOwner ?? null,
+        };
+      }),
     });
 
     // Ownership pressure processing (after auto-war, before campaigns).

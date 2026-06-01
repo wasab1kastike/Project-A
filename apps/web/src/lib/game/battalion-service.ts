@@ -6,6 +6,7 @@
 // =============================================================================
 
 import { prisma } from "@/lib/prisma";
+import { CycleStatus, Prisma, type FortressRace } from "@/lib/prisma-client";
 import { GameError } from "./errors";
 import {
   DEFAULT_BATTALION_MAX_SIZE,
@@ -18,6 +19,104 @@ import {
   type BattalionTier,
   type BattalionMode,
 } from "./battalion-types";
+import { applyFieldPromotion } from "./army-xp";
+
+type BattalionPrisma = typeof prisma;
+type BattalionTx = Prisma.TransactionClient;
+type BattalionDb = BattalionPrisma | BattalionTx;
+
+type OwnedFortress = {
+  id: string;
+  cycleId: string;
+  ownerId: string;
+  level: number;
+  gold: number;
+  race: FortressRace | null;
+};
+
+const ACTIVE_BATTALION_CYCLE_STATUSES = [
+  CycleStatus.REGISTRATION,
+  CycleStatus.TESTING,
+  CycleStatus.ACTIVE,
+];
+
+async function getOwnedFortress(
+  db: BattalionDb,
+  args: { userId: string; fortressId?: string },
+): Promise<OwnedFortress> {
+  const fortress = await db.fortress.findFirst({
+    where: {
+      ownerId: args.userId,
+      isNpc: false,
+      ...(args.fortressId ? { id: args.fortressId } : {}),
+      cycle: { status: { in: ACTIVE_BATTALION_CYCLE_STATUSES } },
+    },
+    orderBy: { joinedAt: "desc" },
+    select: {
+      id: true,
+      cycleId: true,
+      ownerId: true,
+      level: true,
+      gold: true,
+      race: true,
+    },
+  });
+
+  if (!fortress) {
+    throw new GameError("Active fortress not found.");
+  }
+
+  return fortress;
+}
+
+async function getOwnedBattalion(
+  db: BattalionDb,
+  args: { userId: string; battalionId: string },
+) {
+  const battalion = await db.battalion.findFirst({
+    where: {
+      id: args.battalionId,
+      fortress: {
+        ownerId: args.userId,
+        isNpc: false,
+        cycle: { status: { in: ACTIVE_BATTALION_CYCLE_STATUSES } },
+      },
+    },
+    include: {
+      fortress: {
+        select: {
+          id: true,
+          cycleId: true,
+          ownerId: true,
+          level: true,
+          gold: true,
+          race: true,
+        },
+      },
+    },
+  });
+
+  if (!battalion) {
+    throw new GameError("Battalion not found.");
+  }
+
+  return battalion;
+}
+
+function toArmyXpBattalion(battalion: Awaited<ReturnType<typeof getOwnedBattalion>>) {
+  return {
+    id: battalion.id,
+    name: battalion.name,
+    size: battalion.size,
+    maxSize: battalion.maxSize,
+    tier: battalion.tier as 0 | 1 | 2 | 3,
+    xp: battalion.xp,
+    readyAt: battalion.readyAt?.getTime() ?? null,
+    stance: battalion.stance as never,
+    garrisonedAt: battalion.garrisonedAt,
+    stanceLockedUntil: battalion.stanceLockedUntil?.getTime() ?? null,
+  };
+}
 
 // ═════════════════════════════════════════════════════════════════════════════
 // Battalion CRUD
@@ -25,93 +124,93 @@ import {
 
 export async function createBattalion(args: {
   userId: string;
-  cycleId: string;
-  fortressId: string;
   name?: string;
-  race?: string | null;
-  fortressLevel: number;
-  existingBattalionCount: number;
+  fortressId?: string;
 }): Promise<{ id: string; name: string }> {
-  const slots = getBattalionSlots(args.fortressLevel, 0); // fortress level = barracks level until separate stat
-  if (args.existingBattalionCount >= slots) {
-    throw new GameError(
-      `Maximum battalions reached (${slots}). Upgrade your fortress to unlock more slots.`,
-    );
-  }
+  return prisma.$transaction(async (tx) => {
+    const fortress = await getOwnedFortress(tx, args);
+    const existingBattalionCount = await tx.battalion.count({
+      where: { cycleId: fortress.cycleId, fortressId: fortress.id },
+    });
+    const slots = getBattalionSlots(fortress.level, 0);
 
-  const name =
-    args.name ??
-    generateBattalionName(
-      (args.race as "DWARFS" | "ORKS" | "SPACE_MURINES" | "UNSTABLE_UNICORNS") ??
-        "DWARFS",
-      args.existingBattalionCount,
-    );
+    if (existingBattalionCount >= slots) {
+      throw new GameError(
+        `Maximum battalions reached (${slots}). Upgrade your fortress to unlock more slots.`,
+      );
+    }
 
-  const battalion = await prisma.battalion.create({
-    data: {
-      cycleId: args.cycleId,
-      fortressId: args.fortressId,
-      name,
-      size: 0,
-      maxSize: DEFAULT_BATTALION_MAX_SIZE,
-      tier: 0,
-      xp: 0,
-      stance: "REST",
-    },
-    select: { id: true, name: true },
+    if (fortress.gold < BATTALION_COMMISSION_COST) {
+      throw new GameError(
+        `Commissioning a battalion costs ${BATTALION_COMMISSION_COST} gold.`,
+      );
+    }
+
+    const name =
+      args.name ??
+      generateBattalionName(
+        fortress.race ?? "DWARFS",
+        existingBattalionCount,
+      );
+
+    const battalion = await tx.battalion.create({
+      data: {
+        cycleId: fortress.cycleId,
+        fortressId: fortress.id,
+        name,
+        size: 0,
+        maxSize: DEFAULT_BATTALION_MAX_SIZE,
+        tier: 0,
+        xp: 0,
+        stance: "REST",
+      },
+      select: { id: true, name: true },
+    });
+
+    await tx.fortress.update({
+      where: { id: fortress.id },
+      data: { gold: { decrement: BATTALION_COMMISSION_COST } },
+    });
+
+    return battalion;
   });
-
-  return battalion;
 }
 
 export async function expandBattalion(args: {
   userId: string;
   battalionId: string;
-  fortressId: string;
   targetMaxSize: number;
-  availableGold: number;
 }): Promise<void> {
-  const battalion = await prisma.battalion.findFirst({
-    where: { id: args.battalionId, fortressId: args.fortressId },
-  });
-
-  if (!battalion) {
-    throw new GameError("Battalion not found.");
-  }
-
-  const tierMax = TIER_MAX_SIZES[battalion.tier as BattalionTier] ?? MAX_BATTALION_SIZE;
-  const targetSize = Math.max(
-    battalion.maxSize,
-    Math.min(args.targetMaxSize, tierMax),
-  );
-
-  if (targetSize <= battalion.maxSize) {
-    throw new GameError("New max size must be larger than current.");
-  }
-
-  const increment = targetSize - battalion.maxSize;
-  const cost = Math.ceil((increment / 50) * BATTALION_EXPAND_COST_PER_50);
-
-  if (args.availableGold < cost) {
-    throw new GameError(
-      `Expanding to ${targetSize} costs ${cost} gold (you have ${args.availableGold}).`,
-    );
-  }
-
   await prisma.$transaction(async (tx) => {
+    const battalion = await getOwnedBattalion(tx, args);
+    const tierMax =
+      TIER_MAX_SIZES[battalion.tier as BattalionTier] ?? MAX_BATTALION_SIZE;
+    const targetSize = Math.max(
+      battalion.maxSize,
+      Math.min(args.targetMaxSize, tierMax),
+    );
+
+    if (targetSize <= battalion.maxSize) {
+      throw new GameError("New max size must be larger than current.");
+    }
+
+    const increment = targetSize - battalion.maxSize;
+    const cost = Math.ceil((increment / 50) * BATTALION_EXPAND_COST_PER_50);
+
+    if (battalion.fortress.gold < cost) {
+      throw new GameError(
+        `Expanding to ${targetSize} costs ${cost} gold (you have ${battalion.fortress.gold}).`,
+      );
+    }
+
     await tx.battalion.update({
       where: { id: args.battalionId },
       data: { maxSize: targetSize },
     });
 
     await tx.fortress.update({
-      where: { id: args.fortressId },
+      where: { id: battalion.fortressId },
       data: { gold: { decrement: cost } },
-    });
-
-    await tx.fortress.update({
-      where: { id: args.fortressId },
-      data: { gold: { decrement: BATTALION_EXPAND_COST_PER_50 } },
     });
   });
 }
@@ -119,15 +218,8 @@ export async function expandBattalion(args: {
 export async function disbandBattalion(args: {
   userId: string;
   battalionId: string;
-  fortressId: string;
 }): Promise<{ goldRefund: number }> {
-  const battalion = await prisma.battalion.findFirst({
-    where: { id: args.battalionId, fortressId: args.fortressId },
-  });
-
-  if (!battalion) {
-    throw new GameError("Battalion not found.");
-  }
+  const battalion = await getOwnedBattalion(prisma, args);
 
   // Check if battalion is assigned to a front.
   const assignment = await prisma.battalionAssignment.findUnique({
@@ -145,7 +237,7 @@ export async function disbandBattalion(args: {
   await prisma.$transaction(async (tx) => {
     await tx.battalion.delete({ where: { id: args.battalionId } });
     await tx.fortress.update({
-      where: { id: args.fortressId },
+      where: { id: battalion.fortressId },
       data: { gold: { increment: refund } },
     });
   });
@@ -156,7 +248,6 @@ export async function disbandBattalion(args: {
 export async function setBattalionStance(args: {
   userId: string;
   battalionId: string;
-  fortressId: string;
   stance: string;
 }): Promise<void> {
   const validStances = ["FORTIFY", "PATROL", "TRAINING", "AMBUSH", "REST", "MOBILE"];
@@ -164,13 +255,7 @@ export async function setBattalionStance(args: {
     throw new GameError(`Invalid stance: ${args.stance}`);
   }
 
-  const battalion = await prisma.battalion.findFirst({
-    where: { id: args.battalionId, fortressId: args.fortressId },
-  });
-
-  if (!battalion) {
-    throw new GameError("Battalion not found.");
-  }
+  const battalion = await getOwnedBattalion(prisma, args);
 
   // PATROL requires a garrisoned position
   if (args.stance === "PATROL" && !battalion.garrisonedAt) {
@@ -200,25 +285,55 @@ export async function setBattalionStance(args: {
   });
 }
 
+export async function promoteBattalion(args: {
+  userId: string;
+  battalionId: string;
+}): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const battalion = await getOwnedBattalion(tx, args);
+    const result = applyFieldPromotion(toArmyXpBattalion(battalion));
+
+    if (!result) {
+      throw new GameError("Cannot promote this battalion.");
+    }
+
+    if (battalion.fortress.gold < result.goldCost) {
+      throw new GameError(
+        `Promoting this battalion costs ${result.goldCost} gold (you have ${battalion.fortress.gold}).`,
+      );
+    }
+
+    await tx.battalion.update({
+      where: { id: args.battalionId },
+      data: { tier: result.newTier, xp: 0 },
+    });
+    await tx.fortress.update({
+      where: { id: battalion.fortressId },
+      data: { gold: { decrement: result.goldCost } },
+    });
+  });
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // War Policy
 // ═════════════════════════════════════════════════════════════════════════════
 
 export async function setGuardPercent(args: {
   userId: string;
-  cycleId: string;
-  fortressId: string;
+  fortressId?: string;
   guardPercent: number;
 }): Promise<void> {
   if (args.guardPercent < 0 || args.guardPercent > 100) {
     throw new GameError("Guard percentage must be between 0 and 100.");
   }
 
+  const fortress = await getOwnedFortress(prisma, args);
+
   await prisma.warPolicy.upsert({
-    where: { cycleId_fortressId: { cycleId: args.cycleId, fortressId: args.fortressId } },
+    where: { cycleId_fortressId: { cycleId: fortress.cycleId, fortressId: fortress.id } },
     create: {
-      cycleId: args.cycleId,
-      fortressId: args.fortressId,
+      cycleId: fortress.cycleId,
+      fortressId: fortress.id,
       guardPercent: args.guardPercent,
       maxArmySize: 500,
       defaultAggression: "BALANCED",
@@ -229,19 +344,20 @@ export async function setGuardPercent(args: {
 
 export async function setMaxArmySize(args: {
   userId: string;
-  cycleId: string;
-  fortressId: string;
+  fortressId?: string;
   maxArmySize: number;
 }): Promise<void> {
   if (args.maxArmySize < 100) {
     throw new GameError("Maximum army size must be at least 100.");
   }
 
+  const fortress = await getOwnedFortress(prisma, args);
+
   await prisma.warPolicy.upsert({
-    where: { cycleId_fortressId: { cycleId: args.cycleId, fortressId: args.fortressId } },
+    where: { cycleId_fortressId: { cycleId: fortress.cycleId, fortressId: fortress.id } },
     create: {
-      cycleId: args.cycleId,
-      fortressId: args.fortressId,
+      cycleId: fortress.cycleId,
+      fortressId: fortress.id,
       maxArmySize: args.maxArmySize,
       guardPercent: 30,
       defaultAggression: "BALANCED",
@@ -252,8 +368,7 @@ export async function setMaxArmySize(args: {
 
 export async function setDefaultAggression(args: {
   userId: string;
-  cycleId: string;
-  fortressId: string;
+  fortressId?: string;
   aggression: string;
 }): Promise<void> {
   const valid = ["CAUTIOUS", "BALANCED", "AGGRESSIVE"];
@@ -261,11 +376,13 @@ export async function setDefaultAggression(args: {
     throw new GameError(`Invalid aggression: ${args.aggression}`);
   }
 
+  const fortress = await getOwnedFortress(prisma, args);
+
   await prisma.warPolicy.upsert({
-    where: { cycleId_fortressId: { cycleId: args.cycleId, fortressId: args.fortressId } },
+    where: { cycleId_fortressId: { cycleId: fortress.cycleId, fortressId: fortress.id } },
     create: {
-      cycleId: args.cycleId,
-      fortressId: args.fortressId,
+      cycleId: fortress.cycleId,
+      fortressId: fortress.id,
       defaultAggression: args.aggression,
       maxArmySize: 500,
       guardPercent: 30,
@@ -280,18 +397,22 @@ export async function setDefaultAggression(args: {
 
 export async function createWarFront(args: {
   userId: string;
-  cycleId: string;
-  attackerFortressId: string;
+  attackerFortressId?: string;
   enemyFortressId: string;
 }): Promise<{ id: string }> {
+  const attacker = await getOwnedFortress(prisma, {
+    userId: args.userId,
+    fortressId: args.attackerFortressId,
+  });
+
   // Check that the two fortresses are at war.
   const relation = await prisma.diplomacyRelation.findFirst({
     where: {
-      cycleId: args.cycleId,
+      cycleId: attacker.cycleId,
       status: "WAR",
       OR: [
-        { fortressAId: args.attackerFortressId, fortressBId: args.enemyFortressId },
-        { fortressAId: args.enemyFortressId, fortressBId: args.attackerFortressId },
+        { fortressAId: attacker.id, fortressBId: args.enemyFortressId },
+        { fortressAId: args.enemyFortressId, fortressBId: attacker.id },
       ],
     },
   });
@@ -306,8 +427,8 @@ export async function createWarFront(args: {
   const existing = await prisma.warFront.findUnique({
     where: {
       cycleId_attackerFortressId_enemyFortressId: {
-        cycleId: args.cycleId,
-        attackerFortressId: args.attackerFortressId,
+        cycleId: attacker.cycleId,
+        attackerFortressId: attacker.id,
         enemyFortressId: args.enemyFortressId,
       },
     },
@@ -319,8 +440,8 @@ export async function createWarFront(args: {
 
   const front = await prisma.warFront.create({
     data: {
-      cycleId: args.cycleId,
-      attackerFortressId: args.attackerFortressId,
+      cycleId: attacker.cycleId,
+      attackerFortressId: attacker.id,
       enemyFortressId: args.enemyFortressId,
       status: "ADVANCING",
       aggression: "BALANCED",
@@ -335,17 +456,16 @@ export async function assignBattalionToFront(args: {
   userId: string;
   battalionId: string;
   frontId: string;
-  fortressId: string;
 }): Promise<void> {
   // Verify battalion belongs to this fortress.
-  const battalion = await prisma.battalion.findFirst({
-    where: { id: args.battalionId, fortressId: args.fortressId },
-  });
-  if (!battalion) throw new GameError("Battalion not found.");
+  const battalion = await getOwnedBattalion(prisma, args);
+  if ((battalion.mode ?? "GUARD") !== "ATTACK" || battalion.size <= 0) {
+    throw new GameError("Only attack-ready battalions with troops can join a war front.");
+  }
 
   // Verify front exists and belongs to this fortress.
   const front = await prisma.warFront.findFirst({
-    where: { id: args.frontId, attackerFortressId: args.fortressId },
+    where: { id: args.frontId, attackerFortressId: battalion.fortressId },
   });
   if (!front) throw new GameError("War front not found.");
 
@@ -369,10 +489,14 @@ export async function removeBattalionFromFront(args: {
   userId: string;
   battalionId: string;
   frontId: string;
-  fortressId: string;
 }): Promise<void> {
+  const battalion = await getOwnedBattalion(prisma, args);
   const assignment = await prisma.battalionAssignment.findFirst({
-    where: { battalionId: args.battalionId, frontId: args.frontId },
+    where: {
+      battalionId: battalion.id,
+      frontId: args.frontId,
+      front: { attackerFortressId: battalion.fortressId },
+    },
   });
   if (!assignment) throw new GameError("Battalion is not assigned to this front.");
 
@@ -384,7 +508,7 @@ export async function removeBattalionFromFront(args: {
 export async function setFrontAggression(args: {
   userId: string;
   frontId: string;
-  fortressId: string;
+  fortressId?: string;
   aggression: string;
 }): Promise<void> {
   const valid = ["CAUTIOUS", "BALANCED", "AGGRESSIVE"];
@@ -392,8 +516,9 @@ export async function setFrontAggression(args: {
     throw new GameError(`Invalid aggression: ${args.aggression}`);
   }
 
+  const fortress = await getOwnedFortress(prisma, args);
   const front = await prisma.warFront.findFirst({
-    where: { id: args.frontId, attackerFortressId: args.fortressId },
+    where: { id: args.frontId, attackerFortressId: fortress.id },
   });
   if (!front) throw new GameError("War front not found.");
 
@@ -406,10 +531,11 @@ export async function setFrontAggression(args: {
 export async function retreatFront(args: {
   userId: string;
   frontId: string;
-  fortressId: string;
+  fortressId?: string;
 }): Promise<void> {
+  const fortress = await getOwnedFortress(prisma, args);
   const front = await prisma.warFront.findFirst({
-    where: { id: args.frontId, attackerFortressId: args.fortressId },
+    where: { id: args.frontId, attackerFortressId: fortress.id },
   });
   if (!front) throw new GameError("War front not found.");
 
@@ -431,12 +557,10 @@ export async function retreatFront(args: {
 export async function setBattalionMode({
   userId,
   battalionId,
-  fortressId,
   mode,
 }: {
   userId: string;
   battalionId: string;
-  fortressId: string;
   mode: string;
 }): Promise<void> {
   const validModes = ["GUARD", "ATTACK", "RESERVE", "ALLIANCE"];
@@ -444,17 +568,16 @@ export async function setBattalionMode({
     throw new GameError(`Invalid mode: ${mode}. Use GUARD, ATTACK, RESERVE, or ALLIANCE.`);
   }
 
-  // Ownership check
-  const battalion = await prisma.battalion.findFirst({
-    where: { id: battalionId, fortressId },
-  });
+  const battalion = await getOwnedBattalion(prisma, { userId, battalionId });
 
-  if (!battalion) {
-    throw new GameError("Battalion not found.");
-  }
+  await prisma.$transaction(async (tx) => {
+    if (mode !== "ATTACK") {
+      await tx.battalionAssignment.deleteMany({ where: { battalionId } });
+    }
 
-  await prisma.battalion.update({
-    where: { id: battalionId },
-    data: { mode },
+    await tx.battalion.update({
+      where: { id: battalion.id },
+      data: { mode },
+    });
   });
 }

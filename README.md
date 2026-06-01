@@ -240,6 +240,7 @@ The game is now a castle-economy and battlefield-control loop:
 - Delivered convoy cargo awards points from base cargo value and allied Trust bonuses add only delivered gold and food; hostile relations seize in-transit cargo without trade points or delivered score points
 - scored trade convoys can receive an outbound escort; raid patrols are managed from the Castle War Room and can steal half the cargo, including traded score points
 - guard orders now detect convoy raids as covert incidents: an exposed raider becomes an enemy and the detecting fortress can invoke immediate war during the 24-hour casus belli window
+- War Room battalions now only auto-dispatch from ATTACK mode war fronts, with the server validating ownership, costs, and live battalion state before any order changes
 - Season 4 territorial war uses standing campaign orders: pressure workers and committed army build a border siege, then a 12-hour warning opens before automatic combat
 - owned Season 4 tiles can station guard orders; ordinary tile attacks, reinforcements, and fortification controls are legacy-only
 - direct attacks and battlefield reinforcements both count against the player's simultaneous outbound attack cap
