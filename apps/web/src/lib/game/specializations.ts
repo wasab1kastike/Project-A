@@ -5,6 +5,7 @@ export const CASTLE_UPGRADE_SPECIALIZATIONS = [
   CastleUpgradeSpecialization.FOOD,
   CastleUpgradeSpecialization.MILITARY,
   CastleUpgradeSpecialization.DEFENSE,
+  CastleUpgradeSpecialization.TRADE,
 ] as const;
 
 export type CastleSpecializationCounts = Record<CastleUpgradeSpecialization, number>;
@@ -14,6 +15,7 @@ export const EMPTY_CASTLE_SPECIALIZATION_COUNTS: CastleSpecializationCounts = {
   [CastleUpgradeSpecialization.FOOD]: 0,
   [CastleUpgradeSpecialization.MILITARY]: 0,
   [CastleUpgradeSpecialization.DEFENSE]: 0,
+  [CastleUpgradeSpecialization.TRADE]: 0,
 };
 
 export function isCastleUpgradeSpecialization(

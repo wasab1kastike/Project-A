@@ -185,7 +185,7 @@ Allies can upgrade trust (0→3). Higher tiers grant:
 5. **ESCORT** orders protect outbound convoys; alliance trust tiers add cargo bonuses
 6. Convoy raid orders are temporarily disabled while War Room focuses on battlefronts, battalions, and recruitment
 
-Each convoy leg is one trade wagon. A wagon can carry at most **1,000 total gold and food**; army, score points, nuke components, and one eligible allied tile deed use the same convoy leg but do not count against that resource cap.
+Each convoy leg is one trade wagon. A wagon's total **gold plus food** capacity comes from the sender's Trade Wagon building: **100 / 500 / 1,000 / 2,000 / 3,500 / 5,000 / 7,500 / 10,000 / 15,000 / 20,000** from levels 0-9. Army, score points, nuke components, and one eligible allied tile deed use the same convoy leg but do not count against that resource cap.
 
 Successful non-hostile deliveries add a **5% gold and food delivery bonus**. Allied trust increases that total bonus to **15% / 20% / 30%** for Trust I / II / III. Delivery bonuses do not add army, score points, nuke components, or extra trade score.
 
@@ -199,8 +199,8 @@ Season 4 includes a daily nuke-component race:
 - Fuel is won with the highest gold bid, Rocket with the highest food bid, and Wrath of A with the highest idle-army bid.
 - Bids are private while the round is live. Only your own committed bids are shown.
 - All bids are spent immediately, including losing bids. Ties go to the earliest bid.
-- Components can be traded through normal convoy offers.
-- Launching requires one Fuel, one Rocket, one Wrath of A, and **250,000 gold**.
+- Components can be stockpiled without a one-per-kind cap and traded through normal convoy offers.
+- Launching consumes one Fuel, one Rocket, one Wrath of A, and **250,000 gold**.
 - A nuke can target another real player fortress only.
 - The target loses 2 castle/building levels, floored at 0, and half of active persisted army up to a maximum of 100,000 army removed.
 

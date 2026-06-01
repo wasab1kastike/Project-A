@@ -33,9 +33,10 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
       "Farther neutral expansion now needs more pressure and unsupported distant pressure decays faster, so the frontier has to earn its dramatic little march.",
       "Race skill trees are now role-focused: Economy, Territory, and Military paths use smaller ramp nodes with major unlocks at nodes 4 and 8.",
       "Economy skills can add expansion priority slots and reduce army upkeep; Military skills can add battalion slots, larger battalions, faster recruitment, XP, and cheaper promotions.",
+      "Castle Economy now has Trade Wagons: wagon gold+food capacity starts at 100 and upgrades through the building ladder up to 20,000.",
     ],
     bugFixes: [
-      "Overdue convoy wagons no longer keep animating on the map after their scheduled arrival; trade wagons now cap carried gold plus food at 1,000 per leg, and every successful delivery adds a small gold/food bonus with bigger allied Trust bonuses.",
+      "Overdue convoy wagons no longer keep animating on the map after their scheduled arrival; every successful delivery adds a small gold/food bonus with bigger allied Trust bonuses.",
       "The tutorial now points politics tasks at the Castle Diplomacy tab, matching the current navigation.",
       "Tile-only deed trades now create convoy legs correctly instead of tripping over cargo setup.",
       "Automatic wartime convoy raid dispatch is disabled during the War Room simplification pass.",

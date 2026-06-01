@@ -86,12 +86,14 @@ import {
   NUKE_LAUNCH_GOLD_COST,
   type NukeComponentCargo,
 } from "./nukes";
+import { getTradeWagonResourceLimit } from "./trading";
 
 const BUILDING_SPECIALIZATIONS = [
   CastleUpgradeSpecialization.DEFENSE,
   CastleUpgradeSpecialization.POINTS,
   CastleUpgradeSpecialization.FOOD,
   CastleUpgradeSpecialization.MILITARY,
+  CastleUpgradeSpecialization.TRADE,
 ] as const;
 
 type BuildingUpgradeOption = {
@@ -1397,6 +1399,10 @@ export async function getCastlePageState({
             canAffordUpgrade &&
             activeCastleUpgradeProject === null,
           castleSpecializationCounts: playerCastleSpecializationCounts,
+          tradeWagonResourceLimit: getTradeWagonResourceLimit(
+            playerCastleSpecializationCounts?.[CastleUpgradeSpecialization.TRADE] ??
+              0
+          ),
           buildingUpgradeOptions,
           castleUpgradeChoices: playerFortress.castleUpgradeSpecializations,
           pendingUpgradeSpecializationLevel,

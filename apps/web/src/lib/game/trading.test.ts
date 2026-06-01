@@ -11,10 +11,12 @@ import {
   getConvoyArrivalAt,
   getTradeBlockedReason,
   getTradeOfferExpiresAt,
+  getTradeWagonResourceLimit,
   hasTradeCargo,
   normalizeTradeCargo,
   splitTradeDeliveryPoints,
   TRADE_WAGON_RESOURCE_LIMIT,
+  TRADE_WAGON_RESOURCE_LIMITS,
 } from "./trading";
 
 test("trade allows neutral and allied relations only", () => {
@@ -53,14 +55,45 @@ test("trade cargo must be whole non-negative values and cannot be empty", () => 
   assert.equal(hasTradeCargo({ gold: 0, food: 0, army: 0, points: 1 }), true);
 });
 
+test("trade wagon capacity follows the trade building level ladder", () => {
+  assert.equal(TRADE_WAGON_RESOURCE_LIMIT, 100);
+  assert.deepEqual([...TRADE_WAGON_RESOURCE_LIMITS], [
+    100,
+    500,
+    1_000,
+    2_000,
+    3_500,
+    5_000,
+    7_500,
+    10_000,
+    15_000,
+    20_000,
+  ]);
+  assert.equal(getTradeWagonResourceLimit(0), 100);
+  assert.equal(getTradeWagonResourceLimit(1), 500);
+  assert.equal(getTradeWagonResourceLimit(9), 20_000);
+  assert.equal(getTradeWagonResourceLimit(99), 20_000);
+});
+
 test("trade wagons cap total transported resources", () => {
   assert.doesNotThrow(() =>
     assertTradeCargoWithinWagonLimit({
-      gold: 600,
-      food: 400,
+      gold: 60,
+      food: 40,
       army: 5_000,
       points: 500,
     })
+  );
+  assert.doesNotThrow(() =>
+    assertTradeCargoWithinWagonLimit(
+      {
+        gold: 600,
+        food: 400,
+        army: 5_000,
+        points: 500,
+      },
+      2
+    )
   );
   assert.throws(
     () =>
@@ -70,7 +103,7 @@ test("trade wagons cap total transported resources", () => {
         army: 0,
         points: 0,
       }),
-    /at most 1,000 total gold and food/
+    /can carry 100 total gold and food/
   );
 });
 

@@ -1524,6 +1524,12 @@ async function getActivePlayerFortressForPolitics({
       race: true,
       mapX: true,
       mapY: true,
+      castleUpgradeSpecializations: {
+        select: {
+          specialization: true,
+          level: true,
+        },
+      },
     },
   });
 
@@ -1558,6 +1564,12 @@ async function getTargetPlayerFortressForPolitics({
       points: true,
       mapX: true,
       mapY: true,
+      castleUpgradeSpecializations: {
+        select: {
+          specialization: true,
+          level: true,
+        },
+      },
     },
   });
 
@@ -3235,8 +3247,18 @@ export async function createTradeOffer({
     }
 
     try {
-      assertTradeCargoWithinWagonLimit(offered);
-      assertTradeCargoWithinWagonLimit(requested);
+      assertTradeCargoWithinWagonLimit(
+        offered,
+        countCastleSpecializations(sender.castleUpgradeSpecializations)[
+          CastleUpgradeSpecialization.TRADE
+        ]
+      );
+      assertTradeCargoWithinWagonLimit(
+        requested,
+        countCastleSpecializations(receiver.castleUpgradeSpecializations)[
+          CastleUpgradeSpecialization.TRADE
+        ]
+      );
     } catch (error) {
       throw new GameError(
         error instanceof Error ? error.message : "Trade cargo is too large."
@@ -3489,8 +3511,18 @@ export async function acceptTradeOffer({
     });
 
     try {
-      assertTradeCargoWithinWagonLimit(senderCargo);
-      assertTradeCargoWithinWagonLimit(receiverCargo);
+      assertTradeCargoWithinWagonLimit(
+        senderCargo,
+        countCastleSpecializations(sender.castleUpgradeSpecializations)[
+          CastleUpgradeSpecialization.TRADE
+        ]
+      );
+      assertTradeCargoWithinWagonLimit(
+        receiverCargo,
+        countCastleSpecializations(receiver.castleUpgradeSpecializations)[
+          CastleUpgradeSpecialization.TRADE
+        ]
+      );
     } catch (error) {
       throw new GameError(
         error instanceof Error ? error.message : "Trade cargo is too large."

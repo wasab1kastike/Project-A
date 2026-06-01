@@ -179,6 +179,9 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
   const [termsArmy, setTermsArmy] = useState(0);
   const [termsTileId, setTermsTileId] = useState("");
   const [termsPayer, setTermsPayer] = useState<TreatyPayer>("SELF");
+  const selectedTradeTarget = tradeTargetId
+    ? state.rows.find((row) => row.fortressId === tradeTargetId) ?? null
+    : null;
 
   function openTermsPanel(
     row: PoliticsRow,
@@ -487,6 +490,26 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
     }
 
     return items.join(", ") || "empty";
+  }
+
+  function formatConvoyTiming(
+    leg: PoliticsPageState["activeConvoyLegs"][number]
+  ) {
+    if (leg.arrivedAwaitingTick) {
+      return "Arrived, awaiting next tick";
+    }
+
+    const seconds = Math.ceil((leg.arrivesAt.getTime() - renderedAt) / 1000);
+
+    if (seconds <= 0) {
+      return "Arrived, awaiting next tick";
+    }
+
+    if (seconds >= 3600) {
+      return `Arrives in ${Math.ceil(seconds / 3600)}h`;
+    }
+
+    return `Arrives in ${Math.max(1, Math.ceil(seconds / 60))}m`;
   }
 
   return (
@@ -905,6 +928,16 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                 ))
               )}
             </select>
+            <p className={styles.muted}>
+              Wagon capacity: you can send{" "}
+              {(state.playerFortress?.tradeWagonResourceLimit ?? 0).toLocaleString()}{" "}
+              gold+food
+              {selectedTradeTarget
+                ? `; ${selectedTradeTarget.name} can send ${selectedTradeTarget.tradeWagonResourceLimit.toLocaleString()} gold+food`
+                : ""}
+              . Army, points, components, and tile deeds do not count against
+              this cap.
+            </p>
             <div className={styles.tradeColumns}>
               <fieldset>
                 <legend>You send</legend>
@@ -1137,7 +1170,9 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                         : "This convoy survived a raid attempt."}
                     </p>
                   ) : null}
-                  <time>{leg.arrivesAt.toLocaleString()}</time>
+                  <time>
+                    {formatConvoyTiming(leg)} - {leg.arrivesAt.toLocaleString()}
+                  </time>
                   {leg.outgoing &&
                   (leg.canEscort || leg.activeEscortOrderId) ? (
                     <div className={styles.orderControl}>
@@ -1199,6 +1234,23 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
               ))
             )}
           </div>
+
+          {state.tradeLog.length > 0 ? (
+            <div className={styles.tradeSection}>
+              <h3>Trade Log</h3>
+              {state.tradeLog.map((entry) => (
+                <article key={entry.id} className={styles.tradeCard}>
+                  <strong>{entry.title}</strong>
+                  <p>
+                    {entry.detail}
+                    {" - "}
+                    <span>{entry.profitLabel}</span>
+                  </p>
+                  <time>{entry.timestamp.toLocaleString()}</time>
+                </article>
+              ))}
+            </div>
+          ) : null}
 
           {state.recentConvoyLegs.length > 0 ? (
             <div className={styles.tradeSection}>

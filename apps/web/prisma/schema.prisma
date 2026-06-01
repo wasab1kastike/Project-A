@@ -65,6 +65,7 @@ enum CastleUpgradeSpecialization {
   FOOD
   MILITARY
   DEFENSE
+  TRADE
 }
 
 enum RaceAbilityKind {

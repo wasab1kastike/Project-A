@@ -12,7 +12,19 @@ import { addHours, addMinutes } from "./time";
 
 export const TRADE_OFFER_EXPIRY_HOURS = 24;
 export const CONVOY_MINIMUM_TRAVEL_HOURS = 6;
-export const TRADE_WAGON_RESOURCE_LIMIT = 1_000;
+export const TRADE_WAGON_RESOURCE_LIMITS = [
+  100,
+  500,
+  1_000,
+  2_000,
+  3_500,
+  5_000,
+  7_500,
+  10_000,
+  15_000,
+  20_000,
+] as const;
+export const TRADE_WAGON_RESOURCE_LIMIT = TRADE_WAGON_RESOURCE_LIMITS[0];
 export const TRADE_BASE_DELIVERY_BONUS_PERCENT = 5;
 
 export type TradeCargo = {
@@ -92,12 +104,28 @@ export function getTradeCargoResourceAmount(cargo: TradeCargo) {
   return cargo.gold + cargo.food;
 }
 
-export function assertTradeCargoWithinWagonLimit(cargo: TradeCargo) {
-  const resourceAmount = getTradeCargoResourceAmount(cargo);
+export function getTradeWagonResourceLimit(tradeBuildingLevel: number) {
+  const normalizedLevel = Number.isInteger(tradeBuildingLevel)
+    ? Math.max(0, tradeBuildingLevel)
+    : 0;
 
-  if (resourceAmount > TRADE_WAGON_RESOURCE_LIMIT) {
+  return (
+    TRADE_WAGON_RESOURCE_LIMITS[
+      Math.min(normalizedLevel, TRADE_WAGON_RESOURCE_LIMITS.length - 1)
+    ] ?? TRADE_WAGON_RESOURCE_LIMIT
+  );
+}
+
+export function assertTradeCargoWithinWagonLimit(
+  cargo: TradeCargo,
+  tradeBuildingLevel = 0
+) {
+  const resourceAmount = getTradeCargoResourceAmount(cargo);
+  const resourceLimit = getTradeWagonResourceLimit(tradeBuildingLevel);
+
+  if (resourceAmount > resourceLimit) {
     throw new Error(
-      `Each trade wagon can carry at most ${TRADE_WAGON_RESOURCE_LIMIT.toLocaleString("en-US")} total gold and food.`
+      `Your wagon can carry ${resourceLimit.toLocaleString("en-US")} total gold and food. Upgrade Trade Wagons to move more.`
     );
   }
 }

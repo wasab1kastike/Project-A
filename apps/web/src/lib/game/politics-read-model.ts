@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import {
   ArmyOrderStatus,
   ArmyOrderType,
+  CastleUpgradeSpecialization,
   CycleStatus,
   FortressKind,
   ConvoyLegStatus,
@@ -15,8 +16,9 @@ import {
 } from "./politics";
 import { isSeasonFourRuleset } from "./rulesets";
 import { isHomeOfATile } from "./territory";
-import { getTradeBlockedReason } from "./trading";
+import { getTradeBlockedReason, getTradeWagonResourceLimit } from "./trading";
 import { isConvoyRaidEligible } from "./convoy-conflict";
+import { countCastleSpecializations } from "./specializations";
 
 function getMinutesUntil(from: Date, to: Date | null | undefined) {
   if (!to || to <= from) {
@@ -80,6 +82,7 @@ export async function getPoliticsPageState({
       outgoingTradeOffers: [],
       activeConvoyLegs: [],
       recentConvoyLegs: [],
+      tradeLog: [],
       activeArmyOrders: [],
       recentCovertIncidents: [],
     };
@@ -95,6 +98,7 @@ export async function getPoliticsPageState({
       outgoingTradeOffers: [],
       activeConvoyLegs: [],
       recentConvoyLegs: [],
+      tradeLog: [],
       activeArmyOrders: [],
       recentCovertIncidents: [],
     };
@@ -127,6 +131,12 @@ export async function getPoliticsPageState({
           gold: true,
           food: true,
           army: true,
+          castleUpgradeSpecializations: {
+            select: {
+              specialization: true,
+              level: true,
+            },
+          },
         },
       },
       diplomacyRelations: {
@@ -183,6 +193,7 @@ export async function getPoliticsPageState({
       outgoingTradeOffers: [],
       activeConvoyLegs: [],
       recentConvoyLegs: [],
+      tradeLog: [],
       activeArmyOrders: [],
       recentCovertIncidents: [],
     };
@@ -201,6 +212,7 @@ export async function getPoliticsPageState({
       outgoingTradeOffers: [],
       activeConvoyLegs: [],
       recentConvoyLegs: [],
+      tradeLog: [],
       activeArmyOrders: [],
       recentCovertIncidents: [],
     };
@@ -313,11 +325,17 @@ export async function getPoliticsPageState({
       const tradeDisabledReason = getTradeBlockedReason(
         getEffectiveDiplomacyStatus({ relation, now })
       );
+      const castleSpecializations = countCastleSpecializations(
+        fortress.castleUpgradeSpecializations
+      );
       return {
         fortressId: fortress.id,
         name: fortress.name,
         commanderName: fortress.commanderName,
         race: fortress.race,
+        tradeWagonResourceLimit: getTradeWagonResourceLimit(
+          castleSpecializations[CastleUpgradeSpecialization.TRADE]
+        ),
         ownedTileIds: (ownedTileIdsByFortressId.get(fortress.id) ?? []).filter(
           (tileId: string) => !isHomeOfATile(tileId)
         ),
@@ -396,6 +414,9 @@ export async function getPoliticsPageState({
   const fortressNames = new Map(
     cycle.fortresses.map((fortress) => [fortress.id, fortress.name])
   );
+  const playerCastleSpecializations = countCastleSpecializations(
+    playerFortress.castleUpgradeSpecializations
+  );
   const normalizeOffer = (offer: (typeof tradeOffers)[number]) => ({
     id: offer.id,
     senderFortressId: offer.senderFortressId,
@@ -432,6 +453,8 @@ export async function getPoliticsPageState({
     nukeWrathOfA: leg.nukeWrathOfA,
     arrivesAt: leg.arrivesAt,
     settledAt: leg.settledAt,
+    arrivedAwaitingTick:
+      leg.status === ConvoyLegStatus.IN_TRANSIT && leg.arrivesAt <= now,
     canEscort:
       leg.fromFortressId === playerFortress.id &&
       isConvoyRaidEligible({ ...leg, hasDeed: Boolean(leg.deedTileId) }) &&
@@ -468,6 +491,82 @@ export async function getPoliticsPageState({
     deedSettledAt: leg.deedSettledAt,
     deedFailureReason: leg.deedFailureReason,
   });
+  const normalizeTradeLogEntry = (leg: (typeof convoyLegs)[number]) => {
+    const raidedByCurrentPlayer =
+      leg.interceptedByOrder?.fortressId === playerFortress.id;
+    const outgoing = leg.fromFortressId === playerFortress.id;
+    const counterpartName =
+      fortressNames.get(
+        leg.fromFortressId === playerFortress.id
+          ? leg.toFortressId
+          : leg.fromFortressId
+      ) ?? "Unknown fortress";
+    const cargoParts = [
+      leg.deedTileId ? `tile ${leg.deedTileId}` : null,
+      leg.gold > 0 ? `${leg.gold.toLocaleString("en-US")} gold` : null,
+      leg.food > 0 ? `${leg.food.toLocaleString("en-US")} food` : null,
+      leg.army > 0 ? `${leg.army.toLocaleString("en-US")} army` : null,
+      leg.points > 0 ? `${leg.points.toLocaleString("en-US")} points` : null,
+      leg.nukeFuel > 0 ? `${leg.nukeFuel.toLocaleString("en-US")} fuel` : null,
+      leg.nukeRocket > 0 ? `${leg.nukeRocket.toLocaleString("en-US")} rocket` : null,
+      leg.nukeWrathOfA > 0 ? `${leg.nukeWrathOfA.toLocaleString("en-US")} wrath` : null,
+    ].filter(Boolean);
+    const cargo = cargoParts.join(", ") || "no cargo";
+
+    if (leg.status === ConvoyLegStatus.INTERCEPTED && raidedByCurrentPlayer) {
+      const stolenParts = [
+        leg.stolenGold > 0 ? `${leg.stolenGold.toLocaleString("en-US")} gold` : null,
+        leg.stolenFood > 0 ? `${leg.stolenFood.toLocaleString("en-US")} food` : null,
+        leg.stolenArmy > 0 ? `${leg.stolenArmy.toLocaleString("en-US")} army` : null,
+        leg.stolenPoints > 0 ? `${leg.stolenPoints.toLocaleString("en-US")} points` : null,
+      ].filter(Boolean);
+
+      return {
+        id: leg.id,
+        timestamp: leg.settledAt ?? leg.arrivesAt,
+        outcome: "gain" as const,
+        title: `Privateer raid from ${counterpartName}`,
+        detail: stolenParts.join(", ") || "Cargo intercepted",
+        profitLabel: `+${leg.stolenCargoValue.toLocaleString("en-US")} cargo value`,
+      };
+    }
+
+    if (leg.status === ConvoyLegStatus.DELIVERED) {
+      const bonusValue = leg.bonusGold + leg.bonusFood;
+      const gains = [
+        `cargo value ${leg.baseCargoValue.toLocaleString("en-US")}`,
+        bonusValue > 0
+          ? `bonus ${leg.bonusGold.toLocaleString("en-US")} gold / ${leg.bonusFood.toLocaleString("en-US")} food`
+          : null,
+        leg.pointsAwarded > 0
+          ? `${leg.pointsAwarded.toLocaleString("en-US")} trade points`
+          : null,
+      ].filter(Boolean);
+
+      return {
+        id: leg.id,
+        timestamp: leg.settledAt ?? leg.arrivesAt,
+        outcome: "gain" as const,
+        title: `${outgoing ? "Delivered to" : "Received from"} ${counterpartName}`,
+        detail: `${cargo}; ${gains.join(", ")}`,
+        profitLabel: `+${(leg.baseCargoValue + bonusValue + leg.pointsAwarded).toLocaleString("en-US")} value`,
+      };
+    }
+
+    return {
+      id: leg.id,
+      timestamp: leg.settledAt ?? leg.arrivesAt,
+      outcome: "loss" as const,
+      title:
+        leg.status === ConvoyLegStatus.INTERCEPTED
+          ? `Lost to raid near ${counterpartName}`
+          : `Seized on route with ${counterpartName}`,
+      detail: leg.deedFailureReason
+        ? `${cargo}; ${leg.deedFailureReason}`
+        : cargo,
+      profitLabel: `-${leg.baseCargoValue.toLocaleString("en-US")} cargo value`,
+    };
+  };
 
   return {
     canUsePolitics: true,
@@ -483,6 +582,9 @@ export async function getPoliticsPageState({
       gold: playerFortress.gold,
       food: playerFortress.food,
       army: playerFortress.army,
+      tradeWagonResourceLimit: getTradeWagonResourceLimit(
+        playerCastleSpecializations[CastleUpgradeSpecialization.TRADE]
+      ),
     },
     rows,
     incomingTradeOffers: tradeOffers
@@ -510,6 +612,16 @@ export async function getPoliticsPageState({
       )
       .slice(0, 10)
       .map(normalizeLeg),
+    tradeLog: convoyLegs
+      .filter(
+        (leg) =>
+          leg.status !== ConvoyLegStatus.IN_TRANSIT &&
+          (leg.fromFortressId === playerFortress.id ||
+            leg.toFortressId === playerFortress.id ||
+            leg.interceptedByOrder?.fortressId === playerFortress.id)
+      )
+      .slice(0, 8)
+      .map(normalizeTradeLogEntry),
     activeArmyOrders: activeArmyOrders.map((order) => ({
       id: order.id,
       type: order.type,
