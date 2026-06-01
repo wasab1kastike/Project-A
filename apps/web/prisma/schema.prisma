@@ -473,7 +473,7 @@ model Fortress {
   skillPurchases                 RaceSkillPurchase[]
   battalions                     Battalion[]
   warPolicies                    WarPolicy[]
-  warFronts                      WarFront[] @relation("WarFrontAttacker")
+  warFronts                      WarFront[]                          @relation("WarFrontAttacker")
 
   @@unique([cycleId, ownerId])
   @@unique([cycleId, commanderName])
@@ -528,16 +528,16 @@ model UnicornShatteredRealityRoll {
 }
 
 model MapHexOwnership {
-  id                 String   @id @default(cuid())
-  cycleId            String
-  tileId             String
-  ownerFortressId    String
-  claimedAt          DateTime @default(now())
-  ownershipPressure  Int      @default(600)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  cycle              Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  ownerFortress      Fortress @relation("MapHexOwner", fields: [ownerFortressId], references: [id], onDelete: Cascade)
+  id                String   @id @default(cuid())
+  cycleId           String
+  tileId            String
+  ownerFortressId   String
+  claimedAt         DateTime @default(now())
+  ownershipPressure Int      @default(600)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  cycle             Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  ownerFortress     Fortress @relation("MapHexOwner", fields: [ownerFortressId], references: [id], onDelete: Cascade)
 
   @@unique([cycleId, tileId])
   @@index([ownerFortressId])
@@ -561,17 +561,17 @@ model TilePressurePriority {
 }
 
 model TilePressureState {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   cycleId         String
   tileId          String
   fortressId      String
-  pressure        Int      @default(0)
+  pressure        Int       @default(0)
   lastPressuredAt DateTime
   lastDecayedAt   DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  cycle           Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  fortress        Fortress @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  cycle           Cycle     @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress        Fortress  @relation(fields: [fortressId], references: [id], onDelete: Cascade)
 
   @@unique([cycleId, tileId, fortressId])
   @@index([cycleId, tileId])
@@ -579,15 +579,15 @@ model TilePressureState {
 }
 
 model MapHexRoad {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   cycleId    String
   tileId     String
-  crossings  Int      @default(0)
-  level      Int      @default(0) // 0=NONE, 1=DIRT, 2=STONE, 3=HIGHWAY
+  crossings  Int       @default(0)
+  level      Int       @default(0) // 0=NONE, 1=DIRT, 2=STONE, 3=HIGHWAY
   lastUsedAt DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  cycle      Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  cycle      Cycle     @relation(fields: [cycleId], references: [id], onDelete: Cascade)
 
   @@unique([cycleId, tileId])
   @@index([cycleId])
@@ -629,14 +629,14 @@ model DiplomacyRelation {
   allianceOfferFood        Int                     @default(0)
   allianceOfferArmy        Int                     @default(0)
   allianceOfferTileId      String?
-  allianceOfferDirection   String?                 // "A_TO_B" or "B_TO_A" — who pays whom
+  allianceOfferDirection   String? // "A_TO_B" or "B_TO_A" — who pays whom
   // Peace treaty reparations
   peaceLockedUntil         DateTime?
   peaceReparationGold      Int                     @default(0)
   peaceReparationFood      Int                     @default(0)
   peaceReparationArmy      Int                     @default(0)
   peaceReparationTileId    String?
-  peaceReparationFromId    String?                 // which fortress pays reparations
+  peaceReparationFromId    String? // which fortress pays reparations
   createdAt                DateTime                @default(now())
   updatedAt                DateTime                @updatedAt
   cycle                    Cycle                   @relation(fields: [cycleId], references: [id], onDelete: Cascade)
@@ -651,26 +651,26 @@ model DiplomacyRelation {
 }
 
 model ArmyOrder {
-  id               String          @id @default(cuid())
+  id               String             @id @default(cuid())
   cycleId          String
   fortressId       String
   type             ArmyOrderType
-  status           ArmyOrderStatus @default(ACTIVE)
+  status           ArmyOrderStatus    @default(ACTIVE)
   targetTileId     String?
   targetFortressId String?
-  convoyLegId      String?         @unique
+  convoyLegId      String?            @unique
   committedArmy    Int
   startsAt         DateTime
   transferredAt    DateTime?
   returnedAt       DateTime?
   canceledAt       DateTime?
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  cycle            Cycle           @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  fortress         Fortress        @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  cycle            Cycle              @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress         Fortress           @relation(fields: [fortressId], references: [id], onDelete: Cascade)
   campaign         TerritoryCampaign?
-  convoyLeg        ConvoyLeg?      @relation("ConvoyLegEscort", fields: [convoyLegId], references: [id], onDelete: SetNull)
-  raidedConvoyLegs ConvoyLeg[]     @relation("ConvoyLegRaid")
+  convoyLeg        ConvoyLeg?         @relation("ConvoyLegEscort", fields: [convoyLegId], references: [id], onDelete: SetNull)
+  raidedConvoyLegs ConvoyLeg[]        @relation("ConvoyLegRaid")
   covertIncidents  CovertIncident[]
 
   @@index([cycleId, status, type])
@@ -680,28 +680,28 @@ model ArmyOrder {
 }
 
 model TerritoryCampaign {
-  id                String                  @id @default(cuid())
-  cycleId           String
+  id                 String                  @id @default(cuid())
+  cycleId            String
   attackerFortressId String
   defenderFortressId String
-  armyOrderId       String                  @unique
-  targetTileId      String
-  battlefieldId     String?                 @unique
-  status            TerritoryCampaignStatus @default(BUILDING)
-  progress          Int                     @default(0)
-  siegeOpenedAt     DateTime?
-  responseEndsAt    DateTime?
-  engagedAt         DateTime?
-  resolvedAt        DateTime?
-  canceledAt        DateTime?
+  armyOrderId        String                  @unique
+  targetTileId       String
+  battlefieldId      String?                 @unique
+  status             TerritoryCampaignStatus @default(BUILDING)
+  progress           Int                     @default(0)
+  siegeOpenedAt      DateTime?
+  responseEndsAt     DateTime?
+  engagedAt          DateTime?
+  resolvedAt         DateTime?
+  canceledAt         DateTime?
   cancellationReason String?
-  createdAt         DateTime                @default(now())
-  updatedAt         DateTime                @updatedAt
-  cycle             Cycle                   @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  attackerFortress  Fortress                @relation("TerritoryCampaignAttacker", fields: [attackerFortressId], references: [id], onDelete: Cascade)
-  defenderFortress  Fortress                @relation("TerritoryCampaignDefender", fields: [defenderFortressId], references: [id], onDelete: Cascade)
-  armyOrder         ArmyOrder               @relation(fields: [armyOrderId], references: [id], onDelete: Cascade)
-  battlefield       Battlefield?            @relation(fields: [battlefieldId], references: [id], onDelete: SetNull)
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  cycle              Cycle                   @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  attackerFortress   Fortress                @relation("TerritoryCampaignAttacker", fields: [attackerFortressId], references: [id], onDelete: Cascade)
+  defenderFortress   Fortress                @relation("TerritoryCampaignDefender", fields: [defenderFortressId], references: [id], onDelete: Cascade)
+  armyOrder          ArmyOrder               @relation(fields: [armyOrderId], references: [id], onDelete: Cascade)
+  battlefield        Battlefield?            @relation(fields: [battlefieldId], references: [id], onDelete: SetNull)
 
   @@index([cycleId, status])
   @@index([cycleId, targetTileId, status])
@@ -773,45 +773,45 @@ model TradeLineItem {
 }
 
 model ConvoyLeg {
-  id                 String          @id @default(cuid())
-  cycleId            String
-  tradeOfferId       String
-  fromFortressId     String
-  toFortressId       String
-  status             ConvoyLegStatus @default(IN_TRANSIT)
-  gold               Int             @default(0)
-  food               Int             @default(0)
-  army               Int             @default(0)
-  points             Int             @default(0)
-  baseCargoValue     Int
-  bonusGold          Int             @default(0)
-  bonusFood          Int             @default(0)
-  pointsAwarded      Int             @default(0)
-  deedTileId         String?
-  deedSettledAt      DateTime?
-  deedFailureReason  String?
+  id                   String           @id @default(cuid())
+  cycleId              String
+  tradeOfferId         String
+  fromFortressId       String
+  toFortressId         String
+  status               ConvoyLegStatus  @default(IN_TRANSIT)
+  gold                 Int              @default(0)
+  food                 Int              @default(0)
+  army                 Int              @default(0)
+  points               Int              @default(0)
+  baseCargoValue       Int
+  bonusGold            Int              @default(0)
+  bonusFood            Int              @default(0)
+  pointsAwarded        Int              @default(0)
+  deedTileId           String?
+  deedSettledAt        DateTime?
+  deedFailureReason    String?
   interceptedByOrderId String?
-  encounterResolvedAt DateTime?
-  encounterSucceeded Boolean?
-  interceptedAt      DateTime?
-  stolenGold         Int             @default(0)
-  stolenFood         Int             @default(0)
-  stolenArmy         Int             @default(0)
-  stolenPoints       Int             @default(0)
-  stolenCargoValue   Int             @default(0)
-  raidDetected       Boolean         @default(false)
-  departedAt         DateTime
-  arrivesAt          DateTime
-  settledAt          DateTime?
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
-  cycle              Cycle           @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  tradeOffer         TradeOffer      @relation(fields: [tradeOfferId], references: [id], onDelete: Cascade)
-  fromFortress       Fortress        @relation("ConvoyLegSender", fields: [fromFortressId], references: [id], onDelete: Cascade)
-  toFortress         Fortress        @relation("ConvoyLegReceiver", fields: [toFortressId], references: [id], onDelete: Cascade)
-  escortOrder        ArmyOrder?      @relation("ConvoyLegEscort")
-  interceptedByOrder ArmyOrder?      @relation("ConvoyLegRaid", fields: [interceptedByOrderId], references: [id], onDelete: SetNull)
-  covertIncidents    CovertIncident[]
+  encounterResolvedAt  DateTime?
+  encounterSucceeded   Boolean?
+  interceptedAt        DateTime?
+  stolenGold           Int              @default(0)
+  stolenFood           Int              @default(0)
+  stolenArmy           Int              @default(0)
+  stolenPoints         Int              @default(0)
+  stolenCargoValue     Int              @default(0)
+  raidDetected         Boolean          @default(false)
+  departedAt           DateTime
+  arrivesAt            DateTime
+  settledAt            DateTime?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  cycle                Cycle            @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  tradeOffer           TradeOffer       @relation(fields: [tradeOfferId], references: [id], onDelete: Cascade)
+  fromFortress         Fortress         @relation("ConvoyLegSender", fields: [fromFortressId], references: [id], onDelete: Cascade)
+  toFortress           Fortress         @relation("ConvoyLegReceiver", fields: [toFortressId], references: [id], onDelete: Cascade)
+  escortOrder          ArmyOrder?       @relation("ConvoyLegEscort")
+  interceptedByOrder   ArmyOrder?       @relation("ConvoyLegRaid", fields: [interceptedByOrderId], references: [id], onDelete: SetNull)
+  covertIncidents      CovertIncident[]
 
   @@index([cycleId, status, arrivesAt])
   @@index([cycleId, status, encounterResolvedAt, arrivesAt])
@@ -822,20 +822,20 @@ model ConvoyLeg {
 }
 
 model CovertIncident {
-  id                    String       @id @default(cuid())
-  cycleId               String
-  convoyLegId           String
-  raidOrderId           String
-  raiderFortressId      String
-  detectingFortressId   String
-  detectedAt            DateTime
-  casusBelliExpiresAt   DateTime?
-  createdAt             DateTime     @default(now())
-  cycle                 Cycle        @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  convoyLeg             ConvoyLeg    @relation(fields: [convoyLegId], references: [id], onDelete: Cascade)
-  raidOrder             ArmyOrder    @relation(fields: [raidOrderId], references: [id], onDelete: Cascade)
-  raiderFortress        Fortress     @relation("CovertIncidentRaider", fields: [raiderFortressId], references: [id], onDelete: Cascade)
-  detectingFortress     Fortress     @relation("CovertIncidentDetector", fields: [detectingFortressId], references: [id], onDelete: Cascade)
+  id                  String    @id @default(cuid())
+  cycleId             String
+  convoyLegId         String
+  raidOrderId         String
+  raiderFortressId    String
+  detectingFortressId String
+  detectedAt          DateTime
+  casusBelliExpiresAt DateTime?
+  createdAt           DateTime  @default(now())
+  cycle               Cycle     @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  convoyLeg           ConvoyLeg @relation(fields: [convoyLegId], references: [id], onDelete: Cascade)
+  raidOrder           ArmyOrder @relation(fields: [raidOrderId], references: [id], onDelete: Cascade)
+  raiderFortress      Fortress  @relation("CovertIncidentRaider", fields: [raiderFortressId], references: [id], onDelete: Cascade)
+  detectingFortress   Fortress  @relation("CovertIncidentDetector", fields: [detectingFortressId], references: [id], onDelete: Cascade)
 
   @@unique([convoyLegId, detectingFortressId])
   @@index([cycleId, detectedAt])
@@ -1108,6 +1108,7 @@ model AttackUnit {
   attackerFortressId         String
   targetFortressId           String
   reinforcementBattlefieldId String?
+  reinforcementBattalionId   String?
   reinforcementSide          BattlefieldSide?
   fortifyTargetTileId        String?
   armyAmount                 Int              @default(1)
@@ -1134,11 +1135,13 @@ model AttackUnit {
   attackerFortress           Fortress         @relation("AttackUnitAttacker", fields: [attackerFortressId], references: [id], onDelete: Cascade)
   targetFortress             Fortress         @relation("AttackUnitTarget", fields: [targetFortressId], references: [id], onDelete: Cascade)
   reinforcementBattlefield   Battlefield?     @relation("BattlefieldReinforcements", fields: [reinforcementBattlefieldId], references: [id], onDelete: SetNull)
+  reinforcementBattalion     Battalion?       @relation("BattalionReinforcements", fields: [reinforcementBattalionId], references: [id], onDelete: SetNull)
 
   @@index([cycleId, arrivesAt])
   @@index([fortifyTargetTileId, arrivesAt])
   @@index([cycleId, resolvedAt, cancelledAt, launchedAt], map: "AttackUnit_cycleId_resolvedAt_cancelledAt_launchedAt_idx")
   @@index([reinforcementBattlefieldId, arrivesAt])
+  @@index([reinforcementBattalionId, arrivesAt])
   @@index([attackerFortressId, resolvedAt, cancelledAt])
   @@index([targetFortressId])
   @@index([updatedAt, id], map: "AttackUnit_updatedAt_id_idx")
@@ -1410,24 +1413,25 @@ model FortressGarrison {
 }
 
 model Battalion {
-  id                String    @id @default(cuid())
-  cycleId           String
-  fortressId        String
-  name              String
-  size              Int       @default(0)
-  maxSize           Int       @default(100)
-  tier              Int       @default(0) // 0=RECRUIT, 1=REGULAR, 2=VETERAN, 3=ELITE
-  xp                Int       @default(0)
-  readyAt           DateTime?
-  stance            String    @default("REST") // FORTIFY, PATROL, TRAINING, AMBUSH, REST, MOBILE
-  mode              String    @default("GUARD") // GUARD, ATTACK, RESERVE, ALLIANCE
-  garrisonedAt      String?   // tileId if stationed
-  stanceLockedUntil DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  cycle             Cycle     @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  fortress          Fortress  @relation(fields: [fortressId], references: [id], onDelete: Cascade)
-  assignments       BattalionAssignment[]
+  id                     String                @id @default(cuid())
+  cycleId                String
+  fortressId             String
+  name                   String
+  size                   Int                   @default(0)
+  maxSize                Int                   @default(100)
+  tier                   Int                   @default(0) // 0=RECRUIT, 1=REGULAR, 2=VETERAN, 3=ELITE
+  xp                     Int                   @default(0)
+  readyAt                DateTime?
+  stance                 String                @default("REST") // FORTIFY, PATROL, TRAINING, AMBUSH, REST, MOBILE
+  mode                   String                @default("GUARD") // GUARD, ATTACK, RESERVE, ALLIANCE
+  garrisonedAt           String? // tileId if stationed
+  stanceLockedUntil      DateTime?
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+  cycle                  Cycle                 @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress               Fortress              @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+  assignments            BattalionAssignment[]
+  incomingReinforcements AttackUnit[]          @relation("BattalionReinforcements")
 
   @@unique([cycleId, fortressId, name])
   @@index([cycleId, fortressId])
@@ -1435,16 +1439,16 @@ model Battalion {
 }
 
 model WarFront {
-  id                 String   @id @default(cuid())
-  cycleId            String
-  attackerFortressId String
-  enemyFortressId    String
-  status             String   @default("ADVANCING") // ADVANCING, STALLED, VICTORIOUS, DEFEATED, RETREATING
-  aggression         String   @default("BALANCED") // CAUTIOUS, BALANCED, AGGRESSIVE
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  cycle                Cycle              @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  attackerFortress     Fortress           @relation("WarFrontAttacker", fields: [attackerFortressId], references: [id], onDelete: Cascade)
+  id                   String                @id @default(cuid())
+  cycleId              String
+  attackerFortressId   String
+  enemyFortressId      String
+  status               String                @default("ADVANCING") // ADVANCING, STALLED, VICTORIOUS, DEFEATED, RETREATING
+  aggression           String                @default("BALANCED") // CAUTIOUS, BALANCED, AGGRESSIVE
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  cycle                Cycle                 @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  attackerFortress     Fortress              @relation("WarFrontAttacker", fields: [attackerFortressId], references: [id], onDelete: Cascade)
   battalionAssignments BattalionAssignment[]
 
   @@unique([cycleId, attackerFortressId, enemyFortressId])
@@ -1452,10 +1456,10 @@ model WarFront {
 }
 
 model BattalionAssignment {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   battalionId String
   frontId     String
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
   battalion   Battalion @relation(fields: [battalionId], references: [id], onDelete: Cascade)
   front       WarFront  @relation(fields: [frontId], references: [id], onDelete: Cascade)
 
@@ -1465,16 +1469,16 @@ model BattalionAssignment {
 }
 
 model WarPolicy {
-  id                  String   @id @default(cuid())
-  cycleId             String
-  fortressId          String
-  maxArmySize         Int      @default(500)
-  guardPercent        Int      @default(30)
-  defaultAggression   String   @default("BALANCED")
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  cycle               Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  fortress            Fortress @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+  id                String   @id @default(cuid())
+  cycleId           String
+  fortressId        String
+  maxArmySize       Int      @default(500)
+  guardPercent      Int      @default(30)
+  defaultAggression String   @default("BALANCED")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  cycle             Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress          Fortress @relation(fields: [fortressId], references: [id], onDelete: Cascade)
 
   @@unique([cycleId, fortressId])
   @@index([cycleId])

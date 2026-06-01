@@ -395,7 +395,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
           { title: "GUARD", image: "/assets/ui/crest-guard.webp", body: "Defends owned tiles and supports detection." },
           { title: "ATTACK", image: "/assets/ui/crest-campaign.webp", body: "Can be assigned to war fronts and auto-dispatches against reachable enemy tiles." },
           { title: "RESERVE", body: "Stays out of combat losses and recovers." },
-          { title: "ALLIANCE", body: "Reinforces allied battlefields when eligible." },
+          { title: "ALLIANCE", body: "Sends visible reinforcement marches to eligible allied defensive battlefields." },
         ],
       },
       {
@@ -413,6 +413,16 @@ export const WIKI_PAGES: readonly WikiPage[] = [
             ["MOBILE", "Moving or on an order; no special modifier."],
           ],
         },
+      },
+      {
+        id: "reinforcements",
+        eyebrow: "Movement",
+        title: "Reinforcements",
+        bullets: [
+          "New troops for a remote battalion march from the castle before they become usable.",
+          "Pending battalion reinforcements reserve capacity so battalions do not overfill while troops travel.",
+          "Battlefield reinforcements appear on the map with routes and ETA before they join the fight.",
+        ],
       },
       {
         id: "tiers",

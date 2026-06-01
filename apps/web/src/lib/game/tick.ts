@@ -2875,7 +2875,7 @@ async function processCycleTick(
     // Alliance reinforcements.
     const alliedBattlefields = await db.battlefield.findMany({
       where: { cycleId, status: "ACTIVE" },
-      select: { id: true, defenderBannerFortressId: true, attackerBannerFortressId: true, status: true },
+      select: { id: true, targetTileId: true, defenderBannerFortressId: true, attackerBannerFortressId: true, status: true },
     });
     await processAllianceReinforcements({
       db,
@@ -3436,6 +3436,7 @@ async function processCycleTick(
       attackerFortressId: true,
       targetFortressId: true,
       reinforcementBattlefieldId: true,
+      reinforcementBattalionId: true,
       reinforcementSide: true,
       fortifyTargetTileId: true,
       armyAmount: true,
@@ -3459,6 +3460,76 @@ async function processCycleTick(
   const resolvedBatchAttackUnitIds = new Set<string>();
   for (const unit of dueAttackUnits) {
     // All arrivals are processed and committed to their battlefields before any battlefield is resolved.
+    if (unit.reinforcementBattalionId) {
+      const battalion = await db.battalion.findUnique({
+        where: {
+          id: unit.reinforcementBattalionId,
+        },
+        select: {
+          id: true,
+          size: true,
+          maxSize: true,
+        },
+      });
+
+      let acceptedArmy = 0;
+      let returnedArmy = unit.armyAmount;
+
+      if (battalion) {
+        acceptedArmy = Math.max(
+          0,
+          Math.min(unit.armyAmount, battalion.maxSize - battalion.size),
+        );
+        returnedArmy = unit.armyAmount - acceptedArmy;
+
+        if (acceptedArmy > 0) {
+          await db.battalion.update({
+            where: {
+              id: battalion.id,
+            },
+            data: {
+              size: {
+                increment: acceptedArmy,
+              },
+            },
+          });
+        }
+      } else {
+        await db.fortress.update({
+          where: {
+            id: unit.attackerFortressId,
+          },
+          data: {
+            army: {
+              increment: returnedArmy,
+            },
+          },
+        });
+      }
+
+      await db.attackUnit.update({
+        where: {
+          id: unit.id,
+        },
+        data: {
+          resolvedAt: tickAt,
+          defenderArmyAtBattleStart: null,
+          resolvedAttackPower: 0,
+          resolvedDefensePower: 0,
+          attackerSurvivors: acceptedArmy,
+          attackerRetired: 0,
+          attackerReturned: battalion ? 0 : returnedArmy,
+          defenderLosses: 0,
+          pointsLooted: 0,
+          foodLooted: 0,
+          armyLooted: 0,
+        },
+      });
+      resolvedBatchAttackUnitIds.add(unit.id);
+      resolvedAttackUnits += 1;
+      continue;
+    }
+
     if (unit.fortifyTargetTileId) {
       const existingGarrison = await db.fortressGarrison.findFirst({
         where: {
@@ -5487,6 +5558,12 @@ async function processCycleTick(
       barracksLevelByFortress: barracksByFortress,
       goldByFortress,
       maxArmyByFortress,
+      fortressPositionsById: new Map(
+        fortresses.map((fortress) => [
+          fortress.id,
+          { mapX: fortress.mapX, mapY: fortress.mapY },
+        ]),
+      ),
     });
 
     await processBattalionGuard({

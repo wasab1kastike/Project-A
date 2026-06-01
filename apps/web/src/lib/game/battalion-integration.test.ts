@@ -18,6 +18,7 @@ import {
 import {
   calculateRecruitment,
 } from "./recruitment";
+import { processBattalionRecruitment } from "./tick-battalion-integration";
 import { processOwnershipPressure } from "./tile-pressure";
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -118,6 +119,115 @@ describe("Recruitment Math", () => {
     const base = calculateRecruitment(10, 0, 1.0);
     const ork = calculateRecruitment(10, 0, 1.2);
     assert.ok(ork > base, `Race bonus should increase output: ${base} vs ${ork}`);
+  });
+});
+
+describe("Battalion reinforcement travel", () => {
+  it("sends new remote battalion recruits as pending map reinforcements", async () => {
+    const battalionUpdates: Array<{ where: { id: string }; data: { size: number } }> = [];
+    const attackUnitCreates: Array<{ data: { reinforcementBattalionId?: string | null; armyAmount: number } }> = [];
+    const db = {
+      battalion: {
+        findMany: async () => [
+          {
+            id: "bn_1",
+            fortressId: "fort_1",
+            name: "Iron Hammers",
+            size: 10,
+            maxSize: 20,
+            tier: 0,
+            xp: 0,
+            readyAt: null,
+            stance: "FORTIFY",
+            garrisonedAt: "20:15",
+            stanceLockedUntil: null,
+          },
+        ],
+        update: async (args: { where: { id: string }; data: { size: number } }) => {
+          battalionUpdates.push(args);
+          return args;
+        },
+        createMany: async () => ({ count: 0 }),
+      },
+      attackUnit: {
+        findMany: async () => [],
+        create: async (args: { data: { reinforcementBattalionId?: string | null; armyAmount: number } }) => {
+          attackUnitCreates.push(args);
+          return args;
+        },
+      },
+    };
+
+    await processBattalionRecruitment({
+      ctx: { db: db as any, cycleId: "cycle_1", now: new Date("2026-06-01T12:00:00.000Z") },
+      recruitersByFortress: new Map([["fort_1", 1]]),
+      raceByFortress: new Map([["fort_1", "DWARFS"]]),
+      levelByFortress: new Map([["fort_1", 1]]),
+      barracksLevelByFortress: new Map([["fort_1", 0]]),
+      goldByFortress: new Map([["fort_1", 1000]]),
+      maxArmyByFortress: new Map([["fort_1", 500]]),
+      fortressPositionsById: new Map([["fort_1", { mapX: 50, mapY: 50 }]]),
+    });
+
+    assert.equal(battalionUpdates[0]?.data.size, 10);
+    assert.equal(attackUnitCreates.length, 1);
+    assert.equal(attackUnitCreates[0]?.data.reinforcementBattalionId, "bn_1");
+    assert.equal(attackUnitCreates[0]?.data.armyAmount, 3);
+  });
+
+  it("counts pending battalion reinforcements against capacity", async () => {
+    const battalionUpdates: Array<{ where: { id: string }; data: { size: number } }> = [];
+    const attackUnitCreates: Array<{ data: { armyAmount: number } }> = [];
+    const db = {
+      battalion: {
+        findMany: async () => [
+          {
+            id: "bn_1",
+            fortressId: "fort_1",
+            name: "Iron Hammers",
+            size: 10,
+            maxSize: 12,
+            tier: 0,
+            xp: 0,
+            readyAt: null,
+            stance: "FORTIFY",
+            garrisonedAt: "20:15",
+            stanceLockedUntil: null,
+          },
+        ],
+        update: async (args: { where: { id: string }; data: { size: number } }) => {
+          battalionUpdates.push(args);
+          return args;
+        },
+        createMany: async () => ({ count: 0 }),
+      },
+      attackUnit: {
+        findMany: async () => [
+          {
+            reinforcementBattalionId: "bn_1",
+            armyAmount: 2,
+          },
+        ],
+        create: async (args: { data: { armyAmount: number } }) => {
+          attackUnitCreates.push(args);
+          return args;
+        },
+      },
+    };
+
+    await processBattalionRecruitment({
+      ctx: { db: db as any, cycleId: "cycle_1", now: new Date("2026-06-01T12:00:00.000Z") },
+      recruitersByFortress: new Map([["fort_1", 1]]),
+      raceByFortress: new Map([["fort_1", "DWARFS"]]),
+      levelByFortress: new Map([["fort_1", 1]]),
+      barracksLevelByFortress: new Map([["fort_1", 0]]),
+      goldByFortress: new Map([["fort_1", 1000]]),
+      maxArmyByFortress: new Map([["fort_1", 500]]),
+      fortressPositionsById: new Map([["fort_1", { mapX: 50, mapY: 50 }]]),
+    });
+
+    assert.equal(battalionUpdates[0]?.data.size, 10);
+    assert.equal(attackUnitCreates.length, 0);
   });
 });
 

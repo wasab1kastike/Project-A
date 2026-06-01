@@ -750,6 +750,7 @@ export async function getHomePageState({
           launchedAt: true,
           arrivesAt: true,
           recalledAt: true,
+          reinforcementSide: true,
           fortifyTargetTileId: true,
           returnOriginMapX: true,
           returnOriginMapY: true,
@@ -779,7 +780,15 @@ export async function getHomePageState({
           },
           reinforcementBattlefield: {
             select: {
+              id: true,
               targetTileId: true,
+            },
+          },
+          reinforcementBattalion: {
+            select: {
+              id: true,
+              name: true,
+              garrisonedAt: true,
             },
           },
         },
@@ -3892,6 +3901,7 @@ export async function getHomePageState({
     attackUnits: cycle.attackUnits.map((unit) => {
       const tileTargetId =
         unit.fortifyTargetTileId ??
+        unit.reinforcementBattalion?.garrisonedAt ??
         unit.reinforcementBattlefield?.targetTileId ??
         null;
       const tileTarget = tileTargetId ? getTileById(tileTargetId) : null;
@@ -3920,7 +3930,9 @@ export async function getHomePageState({
         canRecall:
           Boolean(userId) &&
           unit.attackerFortress.ownerId === userId &&
-          unit.recalledAt === null,
+          unit.recalledAt === null &&
+          !unit.reinforcementBattalion &&
+          !unit.reinforcementBattlefield,
         canInstantRecall:
           !isSeasonFour &&
           Boolean(userId) &&
@@ -3931,6 +3943,19 @@ export async function getHomePageState({
           (!latestInstantRecallUse ||
             getHelsinkiHourKey(latestInstantRecallUse.usedAt) !==
               currentHourKey),
+        kind: (unit.reinforcementBattalion
+          ? "BATTALION_REINFORCEMENT"
+          : unit.reinforcementBattlefield
+            ? "BATTLEFIELD_REINFORCEMENT"
+            : unit.fortifyTargetTileId
+              ? "FORTIFY"
+              : "ATTACK") as
+          | "ATTACK"
+          | "FORTIFY"
+          | "BATTLEFIELD_REINFORCEMENT"
+          | "BATTALION_REINFORCEMENT",
+        targetBattalionName: unit.reinforcementBattalion?.name ?? null,
+        reinforcementSide: unit.reinforcementSide ?? null,
         attacker: {
           id: unit.attackerFortress.id,
           name: unit.attackerFortress.name,
@@ -3946,11 +3971,19 @@ export async function getHomePageState({
             unit.attackerFortress.owner?.unitCosmeticVariant ?? null,
         },
         target: {
-          id: unit.fortifyTargetTileId ?? unit.targetFortress.id,
-          name: unit.fortifyTargetTileId
+          id:
+            unit.reinforcementBattalion?.id ??
+            unit.fortifyTargetTileId ??
+            unit.reinforcementBattlefield?.id ??
+            unit.targetFortress.id,
+          name: unit.reinforcementBattalion
+            ? unit.reinforcementBattalion.name
+            : unit.fortifyTargetTileId
             ? isHomeOfATile(unit.fortifyTargetTileId)
               ? "Home of A"
               : `Tile ${unit.fortifyTargetTileId}`
+            : unit.reinforcementBattlefield
+              ? "Battlefield reinforcement"
             : unit.targetFortress.name,
           mapX: homeTarget
             ? homeTarget.mapX
