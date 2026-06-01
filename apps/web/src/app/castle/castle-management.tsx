@@ -298,8 +298,17 @@ type PlayerSummary = {
       tileId: string;
       progress: number;
       outputPerTick: number;
+      rank: number;
     } | null;
     pressureThreshold: number;
+    priorityLimit: number;
+    priorityQueue: Array<{
+      tileId: string;
+      rank: number;
+      ownerFortressId: string | null;
+      targetKind: string;
+      progress: number;
+    }>;
     estimatedMinutesRemaining: number | null;
     decayingPressureCount: number;
   } | null;
@@ -1295,7 +1304,8 @@ export function CastleManagement({
           <div className={styles.panelHeader}>
             <span>Expansion</span>
             <strong>
-              {playerSummary.expansionSummary.activePriorityCount} priorities
+              {playerSummary.expansionSummary.activePriorityCount} /{" "}
+              {playerSummary.expansionSummary.priorityLimit} queued
             </strong>
           </div>
           <div className={styles.operationTitle}>
@@ -1318,7 +1328,8 @@ export function CastleManagement({
               <div className={styles.statusRow}>
                 <span>Leading claim</span>
                 <strong>
-                  Tile {playerSummary.expansionSummary.leadingPriority.tileId}
+                  #{playerSummary.expansionSummary.leadingPriority.rank} Tile{" "}
+                  {playerSummary.expansionSummary.leadingPriority.tileId}
                 </strong>
               </div>
               <progress
@@ -1344,6 +1355,22 @@ export function CastleManagement({
           ) : (
             <p className={styles.muted}>No neutral tile currently prioritized.</p>
           )}
+          {playerSummary.expansionSummary.priorityQueue.length > 0 ? (
+            <div className={styles.statusList}>
+              {playerSummary.expansionSummary.priorityQueue.map((priority) => (
+                <div className={styles.statusRow} key={priority.tileId}>
+                  <span>
+                    #{priority.rank} Tile {priority.tileId}
+                  </span>
+                  <strong>
+                    {priority.targetKind === "WAR"
+                      ? "War target"
+                      : `${priority.progress} / ${playerSummary.expansionSummary?.pressureThreshold ?? 600}`}
+                  </strong>
+                </div>
+              ))}
+            </div>
+          ) : null}
           {playerSummary.expansionSummary.decayingPressureCount > 0 ? (
             <p className={styles.warning}>
               {playerSummary.expansionSummary.decayingPressureCount} unsupported

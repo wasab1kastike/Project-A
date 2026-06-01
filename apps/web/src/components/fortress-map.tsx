@@ -114,6 +114,7 @@ type MapHexOwnershipMarker = {
   fortifyDisabledReason?: string | null;
   isConnectedToPlayerTerritory?: boolean;
   pressurePriority?: boolean;
+  pressurePriorityRank?: number | null;
   pressurePlayerProgress?: number | null;
   pressureProgress?: number | null;
   pressureThreshold?: number | null;
@@ -769,6 +770,14 @@ function HexTileMap({
               points={getHexPolygonPoints(tile.x, tile.y, HEX_RADIUS * 0.72)}
               className={styles.hexInner}
             />
+            {ownership?.pressurePriorityRank ? (
+              <g className={styles.pressurePriorityBadge}>
+                <circle cx={tile.x + 22} cy={tile.y - 22} r={13} />
+                <text x={tile.x + 22} y={tile.y - 17}>
+                  {ownership.pressurePriorityRank}
+                </text>
+              </g>
+            ) : null}
             {tile.biome === "forest" ? (
               <path
                 className={styles.hexFeature}

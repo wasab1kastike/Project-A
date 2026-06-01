@@ -9,8 +9,12 @@ import {
   getNeutralPressureClaimWinner,
   getPressureTargetBlockedReason,
   getTilePressureClaimThreshold,
+  getTilePressurePriorityLimit,
+  getTilePressurePrioritySlot,
+  getTilePressurePriorityWeightForSlot,
   getPressureWorkerDescription,
   getPressureWorkerLabel,
+  sortTilePressureQueue,
   TILE_PRESSURE_CLAIM_THRESHOLD,
 } from "./tile-pressure";
 
@@ -111,6 +115,17 @@ test("pressure target legality rejects enemy-owned tiles", () => {
   );
 });
 
+test("pressure target legality allows enemy-owned tiles only when explicitly enabled", () => {
+  assert.equal(
+    getPressureTargetBlockedReason({
+      ...baseTargetInput,
+      ownerFortressId: "fortress-b",
+      allowEnemyOwned: true,
+    }),
+    null
+  );
+});
+
 test("pressure target legality rejects disconnected and unclaimable tiles", () => {
   assert.match(
     getPressureTargetBlockedReason({
@@ -141,6 +156,24 @@ test("pressure allocation splits output across weighted targets", () => {
       { tileId: "a", pressure: 3 },
       { tileId: "b", pressure: 2 },
     ]
+  );
+});
+
+test("pressure priority queue defaults to three ordered slots", () => {
+  assert.equal(getTilePressurePriorityLimit(), 3);
+  assert.equal(getTilePressurePriorityWeightForSlot({ slot: 1 }), 3);
+  assert.equal(getTilePressurePriorityWeightForSlot({ slot: 2 }), 2);
+  assert.equal(getTilePressurePriorityWeightForSlot({ slot: 3 }), 1);
+  assert.equal(getTilePressurePrioritySlot({ weight: 3 }), 1);
+  assert.equal(getTilePressurePrioritySlot({ weight: 2 }), 2);
+  assert.equal(getTilePressurePrioritySlot({ weight: 1 }), 3);
+  assert.deepEqual(
+    sortTilePressureQueue([
+      { tileId: "b", weight: 1 },
+      { tileId: "a", weight: 3 },
+      { tileId: "c", weight: 2 },
+    ]).map((priority) => priority.tileId),
+    ["a", "c", "b"]
   );
 });
 

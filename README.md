@@ -234,7 +234,7 @@ The game is now a castle-economy and battlefield-control loop:
 - miners produce gold, farmers produce food, and recruiters process queued army orders instead of passively creating army
 - recruiting army costs 1 gold per unit up front; queued units complete over ticks based on assigned recruiters and race bonuses
 - active army, not queued army, consumes food upkeep at 0.01 food per unit per tick; if upkeep cannot be paid, food falls to zero and active army loses 2% that tick
-- neutral tiles are acquired automatically through connected pressure priorities; the idle expansion baseline requires 600 pressure, or roughly one hour with ten focused pressure workers
+- neutral tiles are acquired automatically through an ordered queue of up to three connected pressure priorities; the first legal neutral queue target receives all pressure until it is claimed or invalid
 - the Castle Diplomacy tab supports bilateral alliances with fixed trust escrow tiers plus optional break collateral; betrayal immediately begins war, pays what it can, and records unpaid collateral as debt
 - the Castle Diplomacy tab supports peace offers with optional demands from either side, while trade offers move accepted gold, food, army, score points, and allied tile deeds as six-hour-minimum convoy legs
 - Delivered convoy cargo awards points from base cargo value and allied Trust bonuses add only delivered gold and food; hostile relations seize in-transit cargo without trade points or delivered score points

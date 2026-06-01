@@ -7,6 +7,7 @@ import {
   BattlefieldStatus,
   ArmyOrderType,
   CastleUpgradeSpecialization,
+  DiplomacyRelationStatus,
   FortressKind,
   OrkBossOrderKind,
   OrkWaaaghInvestmentKind,
@@ -101,6 +102,9 @@ import {
   getNeutralPressureClaimWinner,
   getPressureTargetBlockedReason,
   getTilePressureClaimThreshold,
+  getTilePressurePriorityLimit,
+  getTilePressurePrioritySlot,
+  sortTilePressureQueue,
 } from "./tile-pressure";
 import { isSeasonFourRuleset } from "./rulesets";
 import { calculateRoadAdjustedTravel } from "./road-travel";
@@ -2698,12 +2702,25 @@ export async function getHomePageState({
       ownership.ownerFortressId,
     ])
   );
-  const pressurePriorityTileIds = new Set(
-    playerFortress
-      ? cycle.tilePressurePriorities
-          .filter((priority) => priority.fortressId === playerFortress.id)
-          .map((priority) => priority.tileId)
-      : []
+  const pressurePriorityLimit = playerFortress
+    ? getTilePressurePriorityLimit(playerFortress)
+    : 0;
+  const pressurePriorityQueue = playerFortress
+    ? sortTilePressureQueue(
+        cycle.tilePressurePriorities.filter(
+          (priority) => priority.fortressId === playerFortress.id
+        )
+      ).map((priority) => ({
+        tileId: priority.tileId,
+        weight: priority.weight,
+        rank: getTilePressurePrioritySlot({
+          weight: priority.weight,
+          limit: pressurePriorityLimit,
+        }),
+      }))
+    : [];
+  const pressurePriorityByTileId = new Map(
+    pressurePriorityQueue.map((priority) => [priority.tileId, priority])
   );
   const claimedTileIds = new Set(
     cycle.mapHexOwnerships.map((ownership) => ownership.tileId)
@@ -2800,6 +2817,11 @@ export async function getHomePageState({
               fortressTwoId: ownerFortressId,
             })
           : null;
+      const effectiveDiplomacyStatus = getEffectiveDiplomacyStatus({
+        relation: diplomacyRelation,
+        now,
+      });
+      const isQueued = pressurePriorityByTileId.has(tile.id);
 
       return getPressureTargetBlockedReason({
         tile,
@@ -2809,6 +2831,10 @@ export async function getHomePageState({
           relation: diplomacyRelation,
           now,
         }),
+        allowEnemyOwned:
+          ownerFortressId !== null &&
+          ownerFortressId !== playerFortress.id &&
+          effectiveDiplomacyStatus === DiplomacyRelationStatus.WAR,
         fortress: playerFortress,
         ownedTileIds: ownedNormalTileIds,
         isHomeOfA: isHomeOfATile,
@@ -2818,12 +2844,17 @@ export async function getHomePageState({
             fortress: playerFortress,
             ownedTileIds,
           }),
-      });
+      }) ??
+        (!isQueued && pressurePriorityQueue.length >= pressurePriorityLimit
+          ? `Expansion queue is full (${pressurePriorityLimit}/${pressurePriorityLimit}).`
+          : null);
     })();
+    const priority = pressurePriorityByTileId.get(tile.id) ?? null;
 
     return {
       isConnectedToPlayerTerritory,
-      pressurePriority: pressurePriorityTileIds.has(tile.id),
+      pressurePriority: priority !== null,
+      pressurePriorityRank: priority?.rank ?? null,
       pressurePlayerProgress: ownState?.pressure ?? null,
       pressureProgress: ownState?.pressure ?? leader?.pressure ?? null,
       pressureThreshold: pressureClaimThreshold,
@@ -2849,6 +2880,7 @@ export async function getHomePageState({
     fortifyDisabledReason: string | null;
     isConnectedToPlayerTerritory: boolean;
     pressurePriority: boolean;
+    pressurePriorityRank: number | null;
     pressurePlayerProgress: number | null;
     pressureProgress: number | null;
     pressureThreshold: number | null;
@@ -2923,6 +2955,7 @@ export async function getHomePageState({
       : {
           isConnectedToPlayerTerritory: false,
           pressurePriority: false,
+          pressurePriorityRank: null,
           pressurePlayerProgress: null,
           pressureProgress: null,
           pressureThreshold: null,
@@ -3049,6 +3082,7 @@ export async function getHomePageState({
             : getTileFortifyDisabledReason(ownership),
       isConnectedToPlayerTerritory: pressureState.isConnectedToPlayerTerritory,
       pressurePriority: pressureState.pressurePriority,
+      pressurePriorityRank: pressureState.pressurePriorityRank,
       pressurePlayerProgress: pressureState.pressurePlayerProgress,
       pressureProgress: pressureState.pressureProgress,
       pressureThreshold: pressureState.pressureThreshold,
@@ -3163,6 +3197,7 @@ export async function getHomePageState({
         : "Home of A is a daily boss and cannot be fortified.",
       isConnectedToPlayerTerritory: false,
       pressurePriority: false,
+      pressurePriorityRank: null,
       pressurePlayerProgress: null,
       pressureProgress: null,
       pressureThreshold: null,
@@ -3239,6 +3274,7 @@ export async function getHomePageState({
       fortifyDisabledReason: "Own this tile before fortifying it.",
       isConnectedToPlayerTerritory: pressureState.isConnectedToPlayerTerritory,
       pressurePriority: pressureState.pressurePriority,
+      pressurePriorityRank: pressureState.pressurePriorityRank,
       pressurePlayerProgress: pressureState.pressurePlayerProgress,
       pressureProgress: pressureState.pressureProgress,
       pressureThreshold: pressureState.pressureThreshold,

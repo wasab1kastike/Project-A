@@ -70,7 +70,10 @@ import {
   TILE_PRESSURE_CLAIM_THRESHOLD,
   allocatePressureAcrossTargets,
   calculatePressureOutput,
+  getTilePressurePriorityLimit,
+  getTilePressurePrioritySlot,
   getPressureTargetBlockedReason,
+  sortTilePressureQueue,
 } from "./tile-pressure";
 
 const BUILDING_SPECIALIZATIONS = [
@@ -877,9 +880,7 @@ export async function getCastlePageState({
               tileId: true,
               weight: true,
             },
-            orderBy: {
-              tileId: "asc",
-            },
+            orderBy: [{ weight: "desc" }, { createdAt: "asc" }, { tileId: "asc" }],
           }),
           db.tilePressureState.findMany({
             where: {
@@ -972,15 +973,20 @@ export async function getCastlePageState({
       })
     : 0;
   const ownedNormalTileIds = ownedNormalTiles.map((tile) => tile.id);
-  const legalPressurePriorities =
+  const priorityLimit = playerFortress
+    ? getTilePressurePriorityLimit(playerFortress)
+    : 0;
+  const orderedPressurePriorities = sortTilePressureQueue(pressurePriorities);
+  const legalNeutralPressurePriorities =
     playerFortress === null
       ? []
-      : pressurePriorities.filter(
+      : orderedPressurePriorities.filter(
           (priority) =>
+            !ownerByTileId.has(priority.tileId) &&
             getPressureTargetBlockedReason({
               tile: getTileById(priority.tileId),
               tileId: priority.tileId,
-              ownerFortressId: ownerByTileId.get(priority.tileId) ?? null,
+              ownerFortressId: null,
               fortress: playerFortress,
               ownedTileIds: ownedNormalTileIds,
               isHomeOfA: isHomeOfATile,
@@ -993,27 +999,47 @@ export async function getCastlePageState({
             }) === null
         );
   const priorityTileIds = new Set(
-    legalPressurePriorities.map((priority) => priority.tileId)
-  );
-  const allocationsByTileId = new Map(
-    allocatePressureAcrossTargets({
-      pressure: pressureOutput,
-      targets: legalPressurePriorities,
-    }).map((allocation) => [allocation.tileId, allocation.pressure])
+    orderedPressurePriorities.map((priority) => priority.tileId)
   );
   const progressByTileId = new Map(
     pressureStates.map((state) => [state.tileId, state.pressure])
   );
+  const priorityQueue = orderedPressurePriorities.map((priority) => {
+    const ownerFortressId = ownerByTileId.get(priority.tileId) ?? null;
+
+    return {
+      tileId: priority.tileId,
+      rank: getTilePressurePrioritySlot({
+        weight: priority.weight,
+        limit: priorityLimit,
+      }),
+      ownerFortressId,
+      targetKind: ownerFortressId ? "WAR" : "EXPANSION",
+      progress: progressByTileId.get(priority.tileId) ?? 0,
+    };
+  });
+  const activeNeutralPriorities = legalNeutralPressurePriorities.slice(0, 1);
+  const allocationsByTileId = new Map(
+    allocatePressureAcrossTargets({
+      pressure: pressureOutput,
+      targets: activeNeutralPriorities,
+    }).map((allocation) => [allocation.tileId, allocation.pressure])
+  );
   const leadingPriority =
-    legalPressurePriorities.reduce<{
+    activeNeutralPriorities.reduce<{
       tileId: string;
       progress: number;
       outputPerTick: number;
+      rank: number;
     } | null>((leader, priority) => {
       const candidate = {
         tileId: priority.tileId,
         progress: progressByTileId.get(priority.tileId) ?? 0,
         outputPerTick: allocationsByTileId.get(priority.tileId) ?? 0,
+        rank: getTilePressurePrioritySlot({
+          weight: priority.weight,
+          limit: priorityLimit,
+        }),
       };
 
       return !leader ||
@@ -1035,7 +1061,9 @@ export async function getCastlePageState({
   const expansionSummary = isSeasonFour
     ? {
         pressureOutput,
-        activePriorityCount: legalPressurePriorities.length,
+        activePriorityCount: orderedPressurePriorities.length,
+        priorityLimit,
+        priorityQueue,
         leadingPriority,
         pressureThreshold: TILE_PRESSURE_CLAIM_THRESHOLD,
         estimatedMinutesRemaining,
