@@ -305,7 +305,7 @@ export async function declareWarAction(targetFortressId: string) {
       userId,
       targetFortressId,
     });
-    notifyAndRevalidate("politics-declare-war", ["/", "/politics"]);
+    notifyAndRevalidate("politics-declare-war", ["/", "/castle", "/politics"]);
     return {
       ok: true,
     } satisfies InlineActionResult;
@@ -330,7 +330,7 @@ export async function activateCasusBelliWarAction(targetFortressId: string) {
 
   try {
     await activateCasusBelliWar({ userId, targetFortressId });
-    notifyAndRevalidate("politics-activate-casus-belli-war", ["/", "/politics"]);
+    notifyAndRevalidate("politics-activate-casus-belli-war", ["/", "/castle", "/politics"]);
     return { ok: true } satisfies InlineActionResult;
   } catch (error) {
     return {
@@ -340,14 +340,12 @@ export async function activateCasusBelliWarAction(targetFortressId: string) {
   }
 }
 
-export async function proposeAllianceAction(
-  targetFortressId: string,
-  offerGold?: number,
-  offerFood?: number,
-  offerArmy?: number,
-  offerTileId?: string | null,
-  offerDirection?: string | null,
-) {
+export async function proposeAllianceAction(input: {
+  targetFortressId: string;
+  collateralGold?: number;
+  collateralFood?: number;
+  collateralArmy?: number;
+}) {
   const session = await auth();
   const userId = session?.user?.id;
 
@@ -361,14 +359,12 @@ export async function proposeAllianceAction(
   try {
     await proposeAlliance({
       userId,
-      targetFortressId,
-      offerGold,
-      offerFood,
-      offerArmy,
-      offerTileId,
-      offerDirection,
+      targetFortressId: input.targetFortressId,
+      collateralGold: input.collateralGold,
+      collateralFood: input.collateralFood,
+      collateralArmy: input.collateralArmy,
     });
-    notifyAndRevalidate("politics-propose-alliance", ["/", "/politics"]);
+    notifyAndRevalidate("politics-propose-alliance", ["/", "/castle", "/politics"]);
     return { ok: true } satisfies InlineActionResult;
   } catch (error) {
     return {
@@ -391,7 +387,7 @@ export async function acceptAllianceAction(targetFortressId: string) {
 
   try {
     await acceptAlliance({ userId, targetFortressId });
-    notifyAndRevalidate("politics-accept-alliance", ["/", "/politics"]);
+    notifyAndRevalidate("politics-accept-alliance", ["/", "/castle", "/politics"]);
     return { ok: true } satisfies InlineActionResult;
   } catch (error) {
     return {
@@ -414,7 +410,7 @@ export async function cancelAllianceProposalAction(targetFortressId: string) {
 
   try {
     await cancelAllianceProposal({ userId, targetFortressId });
-    notifyAndRevalidate("politics-cancel-alliance", ["/", "/politics"]);
+    notifyAndRevalidate("politics-cancel-alliance", ["/", "/castle", "/politics"]);
     return { ok: true } satisfies InlineActionResult;
   } catch (error) {
     return {
@@ -437,7 +433,7 @@ export async function rejectAllianceProposalAction(targetFortressId: string) {
 
   try {
     await rejectAllianceProposal({ userId, targetFortressId });
-    notifyAndRevalidate("politics-reject-alliance", ["/", "/politics"]);
+    notifyAndRevalidate("politics-reject-alliance", ["/", "/castle", "/politics"]);
     return { ok: true } satisfies InlineActionResult;
   } catch (error) {
     return {
@@ -460,7 +456,7 @@ export async function proposeAllianceTrustUpgradeAction(targetFortressId: string
 
   try {
     await proposeAllianceTrustUpgrade({ userId, targetFortressId });
-    notifyAndRevalidate("politics-propose-trust-upgrade", ["/", "/politics"]);
+    notifyAndRevalidate("politics-propose-trust-upgrade", ["/", "/castle", "/politics"]);
     return { ok: true } satisfies InlineActionResult;
   } catch (error) {
     return {
@@ -483,7 +479,7 @@ export async function acceptAllianceTrustUpgradeAction(targetFortressId: string)
 
   try {
     await acceptAllianceTrustUpgrade({ userId, targetFortressId });
-    notifyAndRevalidate("politics-accept-trust-upgrade", ["/", "/politics"]);
+    notifyAndRevalidate("politics-accept-trust-upgrade", ["/", "/castle", "/politics"]);
     return { ok: true } satisfies InlineActionResult;
   } catch (error) {
     return {
@@ -506,7 +502,7 @@ export async function cancelAllianceTrustUpgradeAction(targetFortressId: string)
 
   try {
     await cancelAllianceTrustUpgrade({ userId, targetFortressId });
-    notifyAndRevalidate("politics-cancel-trust-upgrade", ["/", "/politics"]);
+    notifyAndRevalidate("politics-cancel-trust-upgrade", ["/", "/castle", "/politics"]);
     return { ok: true } satisfies InlineActionResult;
   } catch (error) {
     return {
@@ -529,7 +525,7 @@ export async function rejectAllianceTrustUpgradeAction(targetFortressId: string)
 
   try {
     await rejectAllianceTrustUpgrade({ userId, targetFortressId });
-    notifyAndRevalidate("politics-reject-trust-upgrade", ["/", "/politics"]);
+    notifyAndRevalidate("politics-reject-trust-upgrade", ["/", "/castle", "/politics"]);
     return { ok: true } satisfies InlineActionResult;
   } catch (error) {
     return {
@@ -552,7 +548,7 @@ export async function betrayAllianceAction(targetFortressId: string) {
 
   try {
     await betrayAlliance({ userId, targetFortressId });
-    notifyAndRevalidate("politics-betray-alliance", ["/", "/politics"]);
+    notifyAndRevalidate("politics-betray-alliance", ["/", "/castle", "/politics"]);
     return { ok: true } satisfies InlineActionResult;
   } catch (error) {
     return {
@@ -562,13 +558,14 @@ export async function betrayAllianceAction(targetFortressId: string) {
   }
 }
 
-export async function proposePeaceAction(
-  targetFortressId: string,
-  reparationGold?: number,
-  reparationFood?: number,
-  reparationArmy?: number,
-  reparationTileId?: string | null,
-) {
+export async function proposePeaceAction(input: {
+  targetFortressId: string;
+  reparationGold?: number;
+  reparationFood?: number;
+  reparationArmy?: number;
+  reparationTileId?: string | null;
+  reparationPayer?: "SELF" | "TARGET";
+}) {
   const session = await auth();
   const userId = session?.user?.id;
 
@@ -582,13 +579,14 @@ export async function proposePeaceAction(
   try {
     await proposePeace({
       userId,
-      targetFortressId,
-      reparationGold,
-      reparationFood,
-      reparationArmy,
-      reparationTileId,
+      targetFortressId: input.targetFortressId,
+      reparationGold: input.reparationGold,
+      reparationFood: input.reparationFood,
+      reparationArmy: input.reparationArmy,
+      reparationTileId: input.reparationTileId,
+      reparationPayer: input.reparationPayer,
     });
-    notifyAndRevalidate("politics-propose-peace", ["/", "/politics"]);
+    notifyAndRevalidate("politics-propose-peace", ["/", "/castle", "/politics"]);
     return {
       ok: true,
     } satisfies InlineActionResult;
@@ -616,7 +614,7 @@ export async function acceptPeaceAction(targetFortressId: string) {
       userId,
       targetFortressId,
     });
-    notifyAndRevalidate("politics-accept-peace", ["/", "/politics"]);
+    notifyAndRevalidate("politics-accept-peace", ["/", "/castle", "/politics"]);
     return {
       ok: true,
     } satisfies InlineActionResult;
@@ -841,7 +839,7 @@ export async function startTerritoryCampaignAction(
 
   try {
     await startTerritoryCampaign({ userId, tileId, armyAmount });
-    notifyAndRevalidate("territory-campaign-start", ["/", "/politics"]);
+    notifyAndRevalidate("territory-campaign-start", ["/", "/castle", "/politics"]);
     return { ok: true } satisfies InlineActionResult;
   } catch (error) {
     return {

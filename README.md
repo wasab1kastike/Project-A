@@ -235,8 +235,8 @@ The game is now a castle-economy and battlefield-control loop:
 - recruiting army costs 1 gold per unit up front; queued units complete over ticks based on assigned recruiters and race bonuses
 - active army, not queued army, consumes food upkeep at 0.01 food per unit per tick; if upkeep cannot be paid, food falls to zero and active army loses 2% that tick
 - neutral tiles are acquired automatically through connected pressure priorities; the idle expansion baseline requires 600 pressure, or roughly one hour with ten focused pressure workers
-- `/politics` now pretests bilateral alliances with fixed trust escrow tiers; betrayal immediately begins war and awards both escrow shares to the harmed ally
-- `/politics` now supports bilateral gold, food, and army offers between neutral or allied fortresses; accepted cargo moves as independent six-hour-minimum convoy legs
+- the Castle Diplomacy tab supports bilateral alliances with fixed trust escrow tiers plus optional break collateral; betrayal immediately begins war, pays what it can, and records unpaid collateral as debt
+- the Castle Diplomacy tab supports peace offers with optional demands from either side, while trade offers move accepted gold, food, army, and allied tile deeds as six-hour-minimum convoy legs
 - Delivered convoy cargo awards points from base cargo value and allied Trust bonuses add only delivered gold and food; hostile relations seize in-transit cargo without points
 - scored trade convoys can receive an outbound escort or face one automatic interception attempt from standing raid orders; a successful raid steals half the cargo and awards points from stolen value
 - guard orders now detect convoy raids as covert incidents: an exposed raider becomes an enemy and the detecting fortress can invoke immediate war during the 24-hour casus belli window

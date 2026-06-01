@@ -1555,6 +1555,199 @@ test("alliances escrow trust deposits and betrayal compensates the harmed ally",
   assert.equal(harmedAlly.food, 60_000);
 });
 
+test("alliance collateral is paid on betrayal and unpaid collateral becomes debt", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const alpha = await createUser(prisma, "collateral-alpha@example.com");
+  const beta = await createUser(prisma, "collateral-beta@example.com");
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: alpha.id,
+      commanderName: "Collateral Alpha",
+      fortressName: "Debt Hall",
+      points: 100,
+    },
+    {
+      userId: beta.id,
+      commanderName: "Collateral Beta",
+      fortressName: "Claim Hall",
+      points: 100,
+    },
+  ]);
+  await markSeasonFourCycle(prisma, cycle.id);
+  const [alphaFortress, betaFortress] = await Promise.all([
+    prisma.fortress.update({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: alpha.id } },
+      data: { gold: 10_000, food: 10_000, army: 1_000 },
+    }),
+    prisma.fortress.update({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: beta.id } },
+      data: { gold: 10_000, food: 10_000, army: 1_000 },
+    }),
+  ]);
+
+  const proposed = await proposeAlliance({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    collateralGold: 1_000,
+    collateralFood: 500,
+    collateralArmy: 300,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+    db: prisma,
+  });
+
+  assert.equal(proposed.collateralGold, 1_000);
+  assert.equal(proposed.collateralFood, 500);
+  assert.equal(proposed.collateralArmy, 300);
+
+  await acceptAlliance({
+    userId: beta.id,
+    targetFortressId: alphaFortress.id,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+    db: prisma,
+  });
+  await prisma.fortress.update({
+    where: { id: alphaFortress.id },
+    data: { gold: 400, food: 100, army: 50 },
+  });
+
+  const betrayed = await betrayAlliance({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    now: new Date("2026-04-20T12:02:00.000Z"),
+    db: prisma,
+  });
+  const harmed = await prisma.fortress.findUniqueOrThrow({
+    where: { id: betaFortress.id },
+  });
+
+  assert.equal(betrayed.status, DiplomacyRelationStatus.WAR);
+  assert.equal(betrayed.collateralDebtFortressId, alphaFortress.id);
+  assert.equal(betrayed.collateralDebtGold, 600);
+  assert.equal(betrayed.collateralDebtFood, 400);
+  assert.equal(betrayed.collateralDebtArmy, 250);
+  assert.equal(harmed.gold, 12_400);
+  assert.equal(harmed.food, 12_100);
+  assert.equal(harmed.army, 1_050);
+
+  await prisma.fortress.update({
+    where: { id: alphaFortress.id },
+    data: { gold: 500, food: 500, army: 500 },
+  });
+  await proposePeace({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    reparationGold: 200,
+    reparationFood: 100,
+    reparationArmy: 50,
+    reparationPayer: "SELF",
+    now: new Date("2026-04-20T12:03:00.000Z"),
+    db: prisma,
+  });
+  const acceptedPeace = await acceptPeace({
+    userId: beta.id,
+    targetFortressId: alphaFortress.id,
+    now: new Date("2026-04-20T12:04:00.000Z"),
+    db: prisma,
+  });
+
+  assert.equal(acceptedPeace.status, DiplomacyRelationStatus.NEUTRAL);
+  assert.equal(acceptedPeace.collateralDebtFortressId, alphaFortress.id);
+  assert.equal(acceptedPeace.collateralDebtGold, 400);
+  assert.equal(acceptedPeace.collateralDebtFood, 300);
+  assert.equal(acceptedPeace.collateralDebtArmy, 200);
+});
+
+test("peace terms can demand payment and tile transfer from the target", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const alpha = await createUser(prisma, "peace-demand-alpha@example.com");
+  const beta = await createUser(prisma, "peace-demand-beta@example.com");
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: alpha.id,
+      commanderName: "Demand Alpha",
+      fortressName: "Terms Hall",
+      points: 100,
+    },
+    {
+      userId: beta.id,
+      commanderName: "Demand Beta",
+      fortressName: "Payment Hall",
+      points: 100,
+    },
+  ]);
+  await markSeasonFourCycle(prisma, cycle.id);
+  const [alphaFortress, betaFortress] = await Promise.all([
+    prisma.fortress.update({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: alpha.id } },
+      data: { gold: 100, food: 100, army: 100 },
+    }),
+    prisma.fortress.update({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: beta.id } },
+      data: { gold: 2_000, food: 1_000, army: 500 },
+    }),
+  ]);
+  const betaTile = "18:15";
+  await prisma.mapHexOwnership.create({
+    data: {
+      cycleId: cycle.id,
+      tileId: betaTile,
+      ownerFortressId: betaFortress.id,
+    },
+  });
+
+  await declareWar({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+    db: prisma,
+  });
+  const proposed = await proposePeace({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    reparationGold: 700,
+    reparationFood: 300,
+    reparationArmy: 80,
+    reparationTileId: betaTile,
+    reparationPayer: "TARGET",
+    now: new Date("2026-04-20T12:01:00.000Z"),
+    db: prisma,
+  });
+
+  assert.equal(proposed.peaceReparationFromId, betaFortress.id);
+
+  await acceptPeace({
+    userId: beta.id,
+    targetFortressId: alphaFortress.id,
+    now: new Date("2026-04-20T12:02:00.000Z"),
+    db: prisma,
+  });
+  const [alphaAfter, betaAfter, tileAfter] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({ where: { id: alphaFortress.id } }),
+    prisma.fortress.findUniqueOrThrow({ where: { id: betaFortress.id } }),
+    prisma.mapHexOwnership.findUniqueOrThrow({
+      where: { cycleId_tileId: { cycleId: cycle.id, tileId: betaTile } },
+    }),
+  ]);
+
+  assert.equal(alphaAfter.gold, 800);
+  assert.equal(alphaAfter.food, 400);
+  assert.equal(alphaAfter.army, 180);
+  assert.equal(betaAfter.gold, 1_300);
+  assert.equal(betaAfter.food, 700);
+  assert.equal(betaAfter.army, 420);
+  assert.equal(tileAfter.ownerFortressId, alphaFortress.id);
+});
+
 test("detected covert raid grants the victim immediate war through casus belli", async (context) => {
   const prisma = getPrismaOrSkip(context);
 

@@ -121,6 +121,7 @@ import {
   getEffectiveDiplomacyStatus,
   hasActiveCasusBelli,
   getWarStartsAt,
+  type TreatyPayer,
 } from "../politics";
 import { isSeasonFourRuleset } from "../rulesets";
 import { validateTileDeedAllowed } from "../tile-deeds";
@@ -1367,26 +1368,101 @@ function assertCanDepositAllianceEscrow({
   }
 }
 
+function normalizeTreatyAmount(value: number | undefined, label: string) {
+  const amount = value ?? 0;
+
+  if (!Number.isFinite(amount) || amount < 0 || !Number.isInteger(amount)) {
+    throw new GameError(`${label} must be a whole number of 0 or more.`);
+  }
+
+  return amount;
+}
+
+function resolveTreatyPayer({
+  payer,
+  actorId,
+  targetId,
+}: {
+  payer: TreatyPayer;
+  actorId: string;
+  targetId: string;
+}) {
+  if (payer === "SELF") {
+    return actorId;
+  }
+
+  if (payer === "TARGET") {
+    return targetId;
+  }
+
+  throw new GameError("Treaty payer must be SELF or TARGET.");
+}
+
+async function assertPeaceTermsPayable({
+  tx,
+  cycleId,
+  payerId,
+  gold,
+  food,
+  army,
+  tileId,
+}: {
+  tx: Prisma.TransactionClient;
+  cycleId: string;
+  payerId: string;
+  gold: number;
+  food: number;
+  army: number;
+  tileId: string | null;
+}) {
+  const payer = await tx.fortress.findUnique({
+    where: { id: payerId },
+    select: { gold: true, food: true, army: true },
+  });
+
+  if (!payer) {
+    throw new GameError("Peace payer is no longer available.");
+  }
+
+  if (payer.gold < gold) {
+    throw new GameError("Peace payer does not have enough gold.");
+  }
+
+  if (payer.food < food) {
+    throw new GameError("Peace payer does not have enough food.");
+  }
+
+  if (payer.army < army) {
+    throw new GameError("Peace payer does not have enough army.");
+  }
+
+  if (tileId) {
+    const tileOwnership = await tx.mapHexOwnership.findUnique({
+      where: { cycleId_tileId: { cycleId, tileId } },
+    });
+
+    if (!tileOwnership || tileOwnership.ownerFortressId !== payerId) {
+      throw new GameError("Peace payer does not own the demanded tile.");
+    }
+  }
+}
+
 export async function proposeAlliance({
   userId,
   targetFortressId,
   now = new Date(),
   db = prisma,
-  offerGold = 0,
-  offerFood = 0,
-  offerArmy = 0,
-  offerTileId,
-  offerDirection,
+  collateralGold = 0,
+  collateralFood = 0,
+  collateralArmy = 0,
 }: {
   userId: string;
   targetFortressId: string;
   now?: Date;
   db?: PrismaClient;
-  offerGold?: number;
-  offerFood?: number;
-  offerArmy?: number;
-  offerTileId?: string | null;
-  offerDirection?: string | null; // "A_TO_B" (proposer→receiver) or "B_TO_A" (receiver→proposer)
+  collateralGold?: number;
+  collateralFood?: number;
+  collateralArmy?: number;
 }) {
   return db.$transaction(async (tx) => {
     const cycle = await getCurrentCycle(tx);
@@ -1431,35 +1507,18 @@ export async function proposeAlliance({
       throw new GameError("Alliances may only be proposed while relations are neutral.");
     }
 
-    // Validate alliance offer terms
-    const hasOffer = offerGold > 0 || offerFood > 0 || offerArmy > 0 || offerTileId;
-    if (hasOffer) {
-      if (!offerDirection || !["A_TO_B", "B_TO_A"].includes(offerDirection)) {
-        throw new GameError("Offer direction must be A_TO_B (proposer→receiver) or B_TO_A (receiver→proposer).");
-      }
-
-      const payerId = offerDirection === "A_TO_B" ? actor.id : target.id;
-      const payer = offerDirection === "A_TO_B" ? actor : target;
-
-      if (offerGold > 0 && payer.gold < offerGold) {
-        throw new GameError(`The offering fortress doesn't have ${offerGold.toLocaleString()} gold.`);
-      }
-      if (offerFood > 0 && payer.food < offerFood) {
-        throw new GameError(`The offering fortress doesn't have ${offerFood.toLocaleString()} food.`);
-      }
-      if (offerArmy > 0 && payer.army < offerArmy) {
-        throw new GameError(`The offering fortress doesn't have ${offerArmy.toLocaleString()} army.`);
-      }
-      if (offerTileId) {
-        const tileOwnership = await tx.mapHexOwnership.findUnique({
-          where: { cycleId_tileId: { cycleId: cycle.id, tileId: offerTileId } },
-        });
-        if (!tileOwnership || tileOwnership.ownerFortressId !== payerId) {
-          throw new GameError(`The offering fortress doesn't own the offered tile.`);
-        }
-      }
-    }
-
+    const normalizedCollateralGold = normalizeTreatyAmount(
+      collateralGold,
+      "Alliance collateral gold"
+    );
+    const normalizedCollateralFood = normalizeTreatyAmount(
+      collateralFood,
+      "Alliance collateral food"
+    );
+    const normalizedCollateralArmy = normalizeTreatyAmount(
+      collateralArmy,
+      "Alliance collateral army"
+    );
     return tx.diplomacyRelation.upsert({
       where: {
         cycleId_fortressAId_fortressBId: {
@@ -1473,11 +1532,14 @@ export async function proposeAlliance({
         status: DiplomacyRelationStatus.ALLIANCE_PENDING,
         allianceProposedById: actor.id,
         allianceProposedAt: now,
-        allianceOfferGold: offerGold,
-        allianceOfferFood: offerFood,
-        allianceOfferArmy: offerArmy,
-        allianceOfferTileId: offerTileId ?? null,
-        allianceOfferDirection: offerDirection ?? null,
+        collateralGold: normalizedCollateralGold,
+        collateralFood: normalizedCollateralFood,
+        collateralArmy: normalizedCollateralArmy,
+        allianceOfferGold: 0,
+        allianceOfferFood: 0,
+        allianceOfferArmy: 0,
+        allianceOfferTileId: null,
+        allianceOfferDirection: null,
       },
       update: {
         status: DiplomacyRelationStatus.ALLIANCE_PENDING,
@@ -1488,11 +1550,14 @@ export async function proposeAlliance({
         warStartsAt: null,
         peaceProposedById: null,
         peaceProposedAt: null,
-        allianceOfferGold: offerGold,
-        allianceOfferFood: offerFood,
-        allianceOfferArmy: offerArmy,
-        allianceOfferTileId: offerTileId ?? null,
-        allianceOfferDirection: offerDirection ?? null,
+        collateralGold: normalizedCollateralGold,
+        collateralFood: normalizedCollateralFood,
+        collateralArmy: normalizedCollateralArmy,
+        allianceOfferGold: 0,
+        allianceOfferFood: 0,
+        allianceOfferArmy: 0,
+        allianceOfferTileId: null,
+        allianceOfferDirection: null,
       },
     });
   }, SERVICE_TRANSACTION_OPTIONS);
@@ -1580,61 +1645,6 @@ export async function acceptAlliance({
       }),
     ]);
 
-    // Transfer alliance offer resources/tile if terms were included
-    if (
-      relation.allianceOfferGold > 0 ||
-      relation.allianceOfferFood > 0 ||
-      relation.allianceOfferArmy > 0 ||
-      relation.allianceOfferTileId
-    ) {
-      const direction = relation.allianceOfferDirection;
-      const proposerId = relation.allianceProposedById === pair.fortressAId
-        ? pair.fortressAId
-        : pair.fortressBId;
-      const receiverId = proposerId === pair.fortressAId
-        ? pair.fortressBId
-        : pair.fortressAId;
-      const payerId = direction === "A_TO_B" ? proposerId : receiverId;
-      const recipientId = payerId === proposerId ? receiverId : proposerId;
-
-      if (relation.allianceOfferGold > 0) {
-        await tx.fortress.update({
-          where: { id: payerId },
-          data: { gold: { decrement: relation.allianceOfferGold } },
-        });
-        await tx.fortress.update({
-          where: { id: recipientId },
-          data: { gold: { increment: relation.allianceOfferGold } },
-        });
-      }
-      if (relation.allianceOfferFood > 0) {
-        await tx.fortress.update({
-          where: { id: payerId },
-          data: { food: { decrement: relation.allianceOfferFood } },
-        });
-        await tx.fortress.update({
-          where: { id: recipientId },
-          data: { food: { increment: relation.allianceOfferFood } },
-        });
-      }
-      if (relation.allianceOfferArmy > 0) {
-        await tx.fortress.update({
-          where: { id: payerId },
-          data: { army: { decrement: relation.allianceOfferArmy } },
-        });
-        await tx.fortress.update({
-          where: { id: recipientId },
-          data: { army: { increment: relation.allianceOfferArmy } },
-        });
-      }
-      if (relation.allianceOfferTileId) {
-        await tx.mapHexOwnership.update({
-          where: { cycleId_tileId: { cycleId: cycle.id, tileId: relation.allianceOfferTileId } },
-          data: { ownerFortressId: recipientId },
-        });
-      }
-    }
-
     return tx.diplomacyRelation.update({
       where: { id: relation.id },
       data: {
@@ -1715,6 +1725,9 @@ async function closeAllianceProposal({
         status: DiplomacyRelationStatus.NEUTRAL,
         allianceProposedById: null,
         allianceProposedAt: null,
+        collateralGold: 0,
+        collateralFood: 0,
+        collateralArmy: 0,
       },
     });
   }, SERVICE_TRANSACTION_OPTIONS);
@@ -2039,6 +2052,35 @@ export async function betrayAlliance({
       );
     }
 
+    const paidCollateralGold = Math.min(actor.gold, relation.collateralGold);
+    const paidCollateralFood = Math.min(actor.food, relation.collateralFood);
+    const paidCollateralArmy = Math.min(actor.army, relation.collateralArmy);
+    const debtGold = relation.collateralGold - paidCollateralGold;
+    const debtFood = relation.collateralFood - paidCollateralFood;
+    const debtArmy = relation.collateralArmy - paidCollateralArmy;
+    const hasPaidCollateral =
+      paidCollateralGold > 0 || paidCollateralFood > 0 || paidCollateralArmy > 0;
+    const hasCollateralDebt = debtGold > 0 || debtFood > 0 || debtArmy > 0;
+
+    if (hasPaidCollateral) {
+      await tx.fortress.update({
+        where: { id: actor.id },
+        data: {
+          gold: { decrement: paidCollateralGold },
+          food: { decrement: paidCollateralFood },
+          army: { decrement: paidCollateralArmy },
+        },
+      });
+      await tx.fortress.update({
+        where: { id: target.id },
+        data: {
+          gold: { increment: paidCollateralGold },
+          food: { increment: paidCollateralFood },
+          army: { increment: paidCollateralArmy },
+        },
+      });
+    }
+
     await tx.fortress.update({
       where: { id: target.id },
       data: {
@@ -2059,6 +2101,14 @@ export async function betrayAlliance({
         allianceTrustTier: 0,
         allianceEscrowGoldEach: 0,
         allianceEscrowFoodEach: 0,
+        collateralGold: 0,
+        collateralFood: 0,
+        collateralArmy: 0,
+        collateralDebtFortressId: hasCollateralDebt ? actor.id : null,
+        collateralDebtGold: debtGold,
+        collateralDebtFood: debtFood,
+        collateralDebtArmy: debtArmy,
+        collateralDebtRecordedAt: hasCollateralDebt ? now : null,
         trustUpgradeProposedById: null,
         trustUpgradeProposedAt: null,
         trustUpgradeTier: null,
@@ -2357,6 +2407,7 @@ export async function proposePeace({
   reparationFood = 0,
   reparationArmy = 0,
   reparationTileId,
+  reparationPayer = "SELF",
 }: {
   userId: string;
   targetFortressId: string;
@@ -2366,6 +2417,7 @@ export async function proposePeace({
   reparationFood?: number;
   reparationArmy?: number;
   reparationTileId?: string | null;
+  reparationPayer?: TreatyPayer;
 }) {
   return db.$transaction(async (tx) => {
     const cycle = await getCurrentCycle(tx);
@@ -2415,6 +2467,24 @@ export async function proposePeace({
       throw new GameError("Peace can only be proposed from a hostile relation.");
     }
 
+    const normalizedReparationGold = normalizeTreatyAmount(
+      reparationGold,
+      "Peace gold"
+    );
+    const normalizedReparationFood = normalizeTreatyAmount(
+      reparationFood,
+      "Peace food"
+    );
+    const normalizedReparationArmy = normalizeTreatyAmount(
+      reparationArmy,
+      "Peace army"
+    );
+    const payerId = resolveTreatyPayer({
+      payer: reparationPayer,
+      actorId: actor.id,
+      targetId: target.id,
+    });
+
     return tx.diplomacyRelation.update({
       where: {
         id: relation.id,
@@ -2423,11 +2493,11 @@ export async function proposePeace({
         status: DiplomacyRelationStatus.PEACE_PENDING,
         peaceProposedById: actor.id,
         peaceProposedAt: now,
-        peaceReparationGold: reparationGold,
-        peaceReparationFood: reparationFood,
-        peaceReparationArmy: reparationArmy,
+        peaceReparationGold: normalizedReparationGold,
+        peaceReparationFood: normalizedReparationFood,
+        peaceReparationArmy: normalizedReparationArmy,
         peaceReparationTileId: reparationTileId ?? null,
-        peaceReparationFromId: actor.id, // proposer is offering these reparations
+        peaceReparationFromId: payerId,
       },
     });
   }, SERVICE_TRANSACTION_OPTIONS);
@@ -2553,6 +2623,16 @@ export async function acceptPeace({
         throw new GameError("Peace reparation payer is not set.");
       }
 
+      await assertPeaceTermsPayable({
+        tx,
+        cycleId: cycle.id,
+        payerId,
+        gold: relation.peaceReparationGold,
+        food: relation.peaceReparationFood,
+        army: relation.peaceReparationArmy,
+        tileId: relation.peaceReparationTileId,
+      });
+
       if (relation.peaceReparationGold > 0) {
         await tx.fortress.update({
           where: { id: payerId },
@@ -2591,6 +2671,21 @@ export async function acceptPeace({
       }
     }
 
+    const peacePayerId = relation.peaceReparationFromId;
+    const peacePayerSettlesDebt =
+      peacePayerId !== null &&
+      peacePayerId === relation.collateralDebtFortressId;
+    const remainingDebtGold = peacePayerSettlesDebt
+      ? Math.max(0, relation.collateralDebtGold - relation.peaceReparationGold)
+      : relation.collateralDebtGold;
+    const remainingDebtFood = peacePayerSettlesDebt
+      ? Math.max(0, relation.collateralDebtFood - relation.peaceReparationFood)
+      : relation.collateralDebtFood;
+    const remainingDebtArmy = peacePayerSettlesDebt
+      ? Math.max(0, relation.collateralDebtArmy - relation.peaceReparationArmy)
+      : relation.collateralDebtArmy;
+    const hasRemainingDebt =
+      remainingDebtGold > 0 || remainingDebtFood > 0 || remainingDebtArmy > 0;
     const PEACE_LOCK_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
     return tx.diplomacyRelation.update({
@@ -2607,6 +2702,15 @@ export async function acceptPeace({
         collateralGold: 0,
         collateralFood: 0,
         collateralArmy: 0,
+        collateralDebtFortressId: hasRemainingDebt
+          ? relation.collateralDebtFortressId
+          : null,
+        collateralDebtGold: remainingDebtGold,
+        collateralDebtFood: remainingDebtFood,
+        collateralDebtArmy: remainingDebtArmy,
+        collateralDebtRecordedAt: hasRemainingDebt
+          ? relation.collateralDebtRecordedAt
+          : null,
         casusBelliFortressId: null,
         casusBelliExpiresAt: null,
         peaceReparationGold: 0,

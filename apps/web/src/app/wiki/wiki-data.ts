@@ -492,10 +492,10 @@ export const WIKI_PAGES: readonly WikiPage[] = [
     navIcon: "07",
     title: "Diplomacy",
     subtitle:
-      "Alliances are backed by escrow, betrayal has teeth, and peace locks create real breathing room.",
+      "Alliances are backed by trust, betrayal has teeth, and peace locks create real breathing room.",
     highlights: [
       "Neutral fortresses can trade, ally, or move toward war.",
-      "Trust tiers increase escrow and improve allied deliveries.",
+      "Trust tiers increase escrow, optional collateral raises the stakes, and allied deliveries improve.",
       "Detected covert raids create a 24-hour immediate-war window.",
     ],
     sections: [
@@ -507,11 +507,11 @@ export const WIKI_PAGES: readonly WikiPage[] = [
           headers: ["State", "Meaning"],
           rows: [
             ["NEUTRAL", "Default relation; trade, alliance proposals, or war setup are available."],
-            ["ALLIANCE_PENDING", "A proposal is waiting for acceptance."],
+            ["ALLIANCE_PENDING", "A proposal, possibly with break collateral, is waiting for acceptance."],
             ["ALLIED", "Escrow is locked and allied trade can receive bonuses."],
             ["WAR_PENDING", "A war warning is active before normal hostilities."],
             ["WAR", "Campaigns and hostile orders are live."],
-            ["PEACE_PENDING", "A peace offer is waiting for acceptance."],
+            ["PEACE_PENDING", "A peace offer, possibly with instant demands, is waiting for acceptance."],
             ["ENEMY", "Casus belli exists; immediate war can be invoked."],
           ],
         },
@@ -525,7 +525,8 @@ export const WIKI_PAGES: readonly WikiPage[] = [
           "Trust II raises each escrow to 10,000 gold and 10,000 food.",
           "Trust III raises each escrow to 30,000 gold and 30,000 food.",
           "Betrayal starts war immediately and gives escrow shares to the harmed ally.",
-          "Peace can include reparations and creates a 24-hour unbreakable period.",
+          "Optional alliance collateral is paid only if the alliance breaks; unpaid collateral becomes visible debt.",
+          "Peace can demand gold, food, army, or a tile from either side and creates a 24-hour unbreakable period.",
         ],
       },
     ],

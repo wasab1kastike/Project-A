@@ -107,6 +107,14 @@ export async function getPoliticsPageState({
           casusBelliFortressId: true,
           casusBelliExpiresAt: true,
           peaceLockedUntil: true,
+          collateralGold: true,
+          collateralFood: true,
+          collateralArmy: true,
+          collateralDebtFortressId: true,
+          collateralDebtGold: true,
+          collateralDebtFood: true,
+          collateralDebtArmy: true,
+          collateralDebtRecordedAt: true,
           allianceOfferGold: true,
           allianceOfferFood: true,
           allianceOfferArmy: true,
@@ -294,6 +302,9 @@ export async function getPoliticsPageState({
         name: fortress.name,
         commanderName: fortress.commanderName,
         race: fortress.race,
+        ownedTileIds: (ownedTileIdsByFortressId.get(fortress.id) ?? []).filter(
+          (tileId: string) => !isHomeOfATile(tileId)
+        ),
         eligibleDeedTiles:
           presentation.effectiveStatus === 'ALLIED'
             ? (ownedTileIdsByFortressId.get(fortress.id) ?? []).filter(
@@ -333,6 +344,20 @@ export async function getPoliticsPageState({
           casusBelliExpiresAt !== null &&
           casusBelliExpiresAt > now,
         peaceLockedUntil: relation?.peaceLockedUntil ?? null,
+        collateralGold: relation?.collateralGold ?? 0,
+        collateralFood: relation?.collateralFood ?? 0,
+        collateralArmy: relation?.collateralArmy ?? 0,
+        collateralDebtFortressId: relation?.collateralDebtFortressId ?? null,
+        collateralDebtGold: relation?.collateralDebtGold ?? 0,
+        collateralDebtFood: relation?.collateralDebtFood ?? 0,
+        collateralDebtArmy: relation?.collateralDebtArmy ?? 0,
+        collateralDebtRecordedAt: relation?.collateralDebtRecordedAt ?? null,
+        collateralDebtOwedByCurrentPlayer:
+          relation?.collateralDebtFortressId === playerFortress.id,
+        collateralDebtOwedToCurrentPlayer:
+          relation?.collateralDebtFortressId !== null &&
+          relation?.collateralDebtFortressId !== undefined &&
+          relation.collateralDebtFortressId !== playerFortress.id,
         allianceOfferGold: relation?.allianceOfferGold ?? 0,
         allianceOfferFood: relation?.allianceOfferFood ?? 0,
         allianceOfferArmy: relation?.allianceOfferArmy ?? 0,
@@ -343,6 +368,8 @@ export async function getPoliticsPageState({
         peaceReparationArmy: relation?.peaceReparationArmy ?? 0,
         peaceReparationTileId: relation?.peaceReparationTileId ?? null,
         peaceReparationFromId: relation?.peaceReparationFromId ?? null,
+        peaceReparationFromCurrentPlayer:
+          relation?.peaceReparationFromId === playerFortress.id,
         availableAction: presentation.availableAction,
         availableActions: presentation.availableActions,
         disabledReason: presentation.disabledReason,

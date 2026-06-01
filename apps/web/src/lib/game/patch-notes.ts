@@ -7,6 +7,17 @@ export type PatchNotesRelease = {
 
 export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
   {
+    date: "2026-06-01",
+    title: "Treaty desk cleanup",
+    newFeatures: [
+      "Castle Diplomacy now supports peace offers with optional demands from either side.",
+      "Alliance proposals can include break collateral; betrayal pays what is available and records unpaid collateral as treaty debt.",
+    ],
+    bugFixes: [
+      "The tutorial now points politics tasks at the Castle Diplomacy tab, matching the current navigation.",
+    ],
+  },
+  {
     date: "2026-05-29",
     title: "Richer skill trees",
     newFeatures: [

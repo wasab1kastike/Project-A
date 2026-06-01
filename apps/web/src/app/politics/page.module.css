@@ -87,12 +87,22 @@
 
 .hero p,
 .muted,
+.treatyNote,
+.debtNote,
 .timing,
 .tradeCard p,
 .tradeCard time {
   margin: 0;
   color: var(--text-muted);
   line-height: 1.5;
+}
+
+.treatyNote {
+  color: #ffd27a;
+}
+
+.debtNote {
+  color: #ffabab;
 }
 
 .grid {

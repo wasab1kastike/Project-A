@@ -29,6 +29,7 @@ import styles from "./page.module.css";
 
 type PoliticsRow = PoliticsPageState["rows"][number];
 type PoliticsAction = PoliticsRow["availableActions"][number];
+type TreatyPayer = "SELF" | "TARGET";
 
 function getStatusLabel(status: PoliticsRow["effectiveStatus"]) {
   switch (status) {
@@ -122,6 +123,27 @@ function getTimingLabel(row: PoliticsRow) {
   return null;
 }
 
+function formatTerms({
+  gold,
+  food,
+  army,
+  tileId,
+}: {
+  gold: number;
+  food: number;
+  army: number;
+  tileId?: string | null;
+}) {
+  return [
+    gold > 0 ? `${gold.toLocaleString()} gold` : null,
+    food > 0 ? `${food.toLocaleString()} food` : null,
+    army > 0 ? `${army.toLocaleString()} army` : null,
+    tileId ? `tile ${tileId}` : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
 export function PoliticsClient({ state }: { state: PoliticsPageState }) {
   const [pendingId, setPendingId] = useState<string | null>(null);
   const tradeTargets = state.rows.filter((row) => row.canTrade);
@@ -149,7 +171,7 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
   const [termsFood, setTermsFood] = useState(0);
   const [termsArmy, setTermsArmy] = useState(0);
   const [termsTileId, setTermsTileId] = useState("");
-  const [termsDirection, setTermsDirection] = useState<"A_TO_B" | "B_TO_A">("A_TO_B");
+  const [termsPayer, setTermsPayer] = useState<TreatyPayer>("SELF");
 
   function openTermsPanel(row: PoliticsRow, action: "PROPOSE_ALLIANCE" | "PROPOSE_PEACE") {
     setTermsPanel({ rowId: row.fortressId, action });
@@ -157,7 +179,7 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
     setTermsFood(0);
     setTermsArmy(0);
     setTermsTileId("");
-    setTermsDirection("A_TO_B");
+    setTermsPayer("SELF");
   }
 
   function closeTermsPanel() {
@@ -174,22 +196,21 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
       let result;
 
       if (termsPanel.action === "PROPOSE_ALLIANCE") {
-        result = await proposeAllianceAction(
-          row.fortressId,
-          termsGold || undefined,
-          termsFood || undefined,
-          termsArmy || undefined,
-          termsTileId || undefined,
-          termsDirection,
-        );
+        result = await proposeAllianceAction({
+          targetFortressId: row.fortressId,
+          collateralGold: termsGold || undefined,
+          collateralFood: termsFood || undefined,
+          collateralArmy: termsArmy || undefined,
+        });
       } else {
-        result = await proposePeaceAction(
-          row.fortressId,
-          termsGold || undefined,
-          termsFood || undefined,
-          termsArmy || undefined,
-          termsTileId || undefined,
-        );
+        result = await proposePeaceAction({
+          targetFortressId: row.fortressId,
+          reparationGold: termsGold || undefined,
+          reparationFood: termsFood || undefined,
+          reparationArmy: termsArmy || undefined,
+          reparationTileId: termsTileId || undefined,
+          reparationPayer: termsPayer,
+        });
       }
 
       if (result?.ok) {
@@ -237,7 +258,9 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
           result = await activateCasusBelliWarAction(row.fortressId);
           break;
         case "PROPOSE_ALLIANCE":
-          result = await proposeAllianceAction(row.fortressId);
+          result = await proposeAllianceAction({
+            targetFortressId: row.fortressId,
+          });
           break;
         case "ACCEPT_ALLIANCE":
           result = await acceptAllianceAction(row.fortressId);
@@ -264,7 +287,9 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
           result = await betrayAllianceAction(row.fortressId);
           break;
         case "PROPOSE_PEACE":
-          result = await proposePeaceAction(row.fortressId);
+          result = await proposePeaceAction({
+            targetFortressId: row.fortressId,
+          });
           break;
         case "ACCEPT_PEACE":
           result = await acceptPeaceAction(row.fortressId);
@@ -490,7 +515,37 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                           {row.allianceEscrowFoodEach.toLocaleString()} food
                         </p>
                       ) : null}
-                      {/* Alliance offer details */}
+                      {(row.effectiveStatus === "ALLIED" ||
+                        row.effectiveStatus === "ALLIANCE_PENDING") &&
+                      (row.collateralGold > 0 ||
+                        row.collateralFood > 0 ||
+                        row.collateralArmy > 0) ? (
+                        <p className={styles.treatyNote}>
+                          Break collateral:{" "}
+                          {formatTerms({
+                            gold: row.collateralGold,
+                            food: row.collateralFood,
+                            army: row.collateralArmy,
+                          })}
+                        </p>
+                      ) : null}
+                      {row.collateralDebtFortressId &&
+                      (row.collateralDebtGold > 0 ||
+                        row.collateralDebtFood > 0 ||
+                        row.collateralDebtArmy > 0) ? (
+                        <p className={styles.debtNote}>
+                          {row.collateralDebtOwedByCurrentPlayer
+                            ? "You owe"
+                            : "Owed to you"}
+                          {": "}
+                          {formatTerms({
+                            gold: row.collateralDebtGold,
+                            food: row.collateralDebtFood,
+                            army: row.collateralDebtArmy,
+                          })}
+                        </p>
+                      ) : null}
+                      {/* Legacy alliance offer details */}
                       {row.effectiveStatus === "ALLIANCE_PENDING" &&
                       (row.allianceOfferGold > 0 ||
                         row.allianceOfferFood > 0 ||
@@ -516,15 +571,16 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                         row.peaceReparationArmy > 0 ||
                         row.peaceReparationTileId) ? (
                         <p className={styles.muted} style={{ color: "#ff8c42" }}>
-                          Reparations:{" "}
-                          {[
-                            row.peaceReparationGold > 0 ? `${row.peaceReparationGold.toLocaleString()} gold` : null,
-                            row.peaceReparationFood > 0 ? `${row.peaceReparationFood.toLocaleString()} food` : null,
-                            row.peaceReparationArmy > 0 ? `${row.peaceReparationArmy.toLocaleString()} army` : null,
-                            row.peaceReparationTileId ? `tile ${row.peaceReparationTileId}` : null,
-                          ]
-                            .filter(Boolean)
-                            .join(", ")}
+                          Peace terms:{" "}
+                          {row.peaceReparationFromCurrentPlayer
+                            ? "you pay "
+                            : "they pay "}
+                          {formatTerms({
+                            gold: row.peaceReparationGold,
+                            food: row.peaceReparationFood,
+                            army: row.peaceReparationArmy,
+                            tileId: row.peaceReparationTileId,
+                          })}
                         </p>
                       ) : null}
                       {/* Peace timer */}
@@ -585,13 +641,17 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                         <div className={styles.termsForm}>
                           <p className={styles.termsLabel}>
                             {termsPanel.action === "PROPOSE_ALLIANCE"
-                              ? "Alliance terms (optional)"
-                              : "Peace reparations (optional)"}
+                              ? "Alliance break collateral (optional)"
+                              : "Peace terms (optional)"}
                           </p>
                           <div className={styles.tradeColumns}>
                             <fieldset>
                               <legend>
-                                {termsDirection === "A_TO_B" ? "You pay" : "They pay"}
+                                {termsPanel.action === "PROPOSE_ALLIANCE"
+                                  ? "Breaker owes"
+                                  : termsPayer === "SELF"
+                                    ? "You pay"
+                                    : "They pay"}
                               </legend>
                               <label>
                                 <span>Gold</span>
@@ -632,32 +692,41 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                             </fieldset>
                           </div>
                           {termsPanel.action === "PROPOSE_ALLIANCE" ? (
+                            <p className={styles.muted}>
+                              These terms are not paid now. Whoever breaks the
+                              alliance owes this collateral to the harmed ally.
+                            </p>
+                          ) : (
                             <label style={{ fontSize: "0.85em", marginTop: 4 }}>
-                              <span>Payment direction</span>
+                              <span>Peace payer</span>
                               <select
-                                value={termsDirection}
-                                onChange={(e) =>
-                                  setTermsDirection(e.target.value as "A_TO_B" | "B_TO_A")
-                                }
+                                value={termsPayer}
+                                onChange={(e) => {
+                                  setTermsPayer(e.target.value as TreatyPayer);
+                                  setTermsTileId("");
+                                }}
                               >
-                                <option value="A_TO_B">
-                                  You pay them (proposer → receiver)
-                                </option>
-                                <option value="B_TO_A">
-                                  They pay you (receiver → proposer)
-                                </option>
+                                <option value="SELF">You pay them</option>
+                                <option value="TARGET">They pay you</option>
                               </select>
                             </label>
-                          ) : null}
-                          {(state.playerEligibleDeedTiles ?? []).length > 0 ? (
+                          )}
+                          {termsPanel.action === "PROPOSE_PEACE" &&
+                          ((termsPayer === "SELF"
+                            ? state.playerEligibleDeedTiles
+                            : row.ownedTileIds) ?? []
+                          ).length > 0 ? (
                             <label style={{ fontSize: "0.85em", marginTop: 4 }}>
                               <span>Transfer tile</span>
                               <select
                                 value={termsTileId}
                                 onChange={(e) => setTermsTileId(e.target.value)}
                               >
-                                <option value="">—</option>
-                                {(state.playerEligibleDeedTiles ?? []).map((tileId: string) => (
+                                <option value="">-</option>
+                                {((termsPayer === "SELF"
+                                  ? state.playerEligibleDeedTiles
+                                  : row.ownedTileIds) ?? []
+                                ).map((tileId: string) => (
                                   <option key={tileId} value={tileId}>
                                     {tileId}
                                   </option>
@@ -674,8 +743,8 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                               {pendingId === `${row.fortressId}:${termsPanel.action}`
                                 ? "Sending..."
                                 : termsPanel.action === "PROPOSE_ALLIANCE"
-                                  ? "Propose alliance with terms"
-                                  : "Propose peace with terms"}
+                                  ? "Propose alliance"
+                                  : "Propose peace"}
                             </button>
                             <button
                               type="button"
@@ -696,8 +765,7 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                             </button>
                           </div>
                         </div>
-                      ) : null}
-                      {row.canRaid || row.activeRaidOrderId ? (
+                      ) : null}                      {row.canRaid || row.activeRaidOrderId ? (
                         <div className={styles.orderControl}>
                           {row.activeRaidOrderId ? (
                             <>
