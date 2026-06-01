@@ -79,6 +79,7 @@ import {
 } from "./tile-pressure";
 import {
   EMPTY_NUKE_COMPONENT_CARGO,
+  calculateCompleteNukeCount,
   getNukeBiddingWindowForDate,
   getNukeComponentLabel,
   getNukeRoundState,
@@ -1236,6 +1237,7 @@ export async function getCastlePageState({
             playerFortress !== null &&
             playerFortress.gold >= NUKE_LAUNCH_GOLD_COST &&
             NUKE_COMPONENT_KINDS.every((kind) => inventory[kind] >= 1);
+          const completeNukeCount = calculateCompleteNukeCount(inventory);
 
           return {
             round: {
@@ -1260,6 +1262,7 @@ export async function getCastlePageState({
                 })) ?? [],
             },
             inventory,
+            completeNukeCount,
             canLaunch,
             launchGoldCost: NUKE_LAUNCH_GOLD_COST,
             launchDisabledReason: playerFortress

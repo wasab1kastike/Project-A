@@ -591,6 +591,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         title: "Nuke component trade",
         bullets: [
           "Fuel, Rocket, and Wrath of A components can be offered or requested like other cargo.",
+          "Components stockpile, so a fortress can hold more than one of each part.",
           "Components travel by convoy and are not delivered until the convoy settles.",
           "Live nuke bids are private; only resolved components can be seen through inventory or trade.",
         ],

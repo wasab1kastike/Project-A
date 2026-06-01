@@ -439,6 +439,7 @@ type NukeState = {
     }>;
   };
   inventory: Record<NukeComponentKind, number>;
+  completeNukeCount: number;
   canLaunch: boolean;
   launchGoldCost: number;
   launchDisabledReason: string | null;
@@ -3098,7 +3099,9 @@ export function CastleManagement({
                   <div className={styles.panelHeader}>
                     <span>Storage</span>
                     <strong>
-                      {nukeState.canLaunch ? "nuke ready" : "parts held"}
+                      {nukeState.completeNukeCount > 0
+                        ? `${nukeState.completeNukeCount.toLocaleString()} ready`
+                        : "parts held"}
                     </strong>
                   </div>
                   <div className={styles.nukeStorageRack}>
@@ -3118,7 +3121,7 @@ export function CastleManagement({
                           />
                           <div>
                             <strong>{component.label}</strong>
-                            <span>{owned.toLocaleString()} / 1</span>
+                            <span>{owned.toLocaleString()} stockpiled</span>
                           </div>
                         </article>
                       );
@@ -3136,7 +3139,9 @@ export function CastleManagement({
                       <div>
                         <strong>Completed nuke</strong>
                         <span>
-                          {nukeState.canLaunch ? "Ready" : "Incomplete"}
+                          {nukeState.completeNukeCount > 0
+                            ? `${nukeState.completeNukeCount.toLocaleString()} ready`
+                            : "Incomplete"}
                         </span>
                       </div>
                     </article>

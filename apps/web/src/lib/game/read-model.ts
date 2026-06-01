@@ -113,6 +113,7 @@ import { isSeasonFourRuleset } from "./rulesets";
 import { calculateRoadAdjustedTravel } from "./road-travel";
 import {
   EMPTY_NUKE_COMPONENT_CARGO,
+  calculateCompleteNukeCount,
   getNukeBiddingWindowForDate,
   getNukeComponentLabel,
   getNukeRoundState,
@@ -1315,6 +1316,7 @@ export async function getHomePageState({
           playerFortress !== null &&
           playerFortress.gold >= NUKE_LAUNCH_GOLD_COST &&
           NUKE_COMPONENT_KINDS.every((kind) => inventory[kind] >= 1);
+        const completeNukeCount = calculateCompleteNukeCount(inventory);
 
         return {
           round: {
@@ -1339,6 +1341,7 @@ export async function getHomePageState({
               })) ?? [],
           },
           inventory,
+          completeNukeCount,
           canLaunch,
           launchGoldCost: NUKE_LAUNCH_GOLD_COST,
           launchDisabledReason: playerFortress
