@@ -1291,38 +1291,135 @@
   inset: 0;
   width: 100%;
   height: 100%;
+  overflow: visible;
   pointer-events: none;
   z-index: 1;
 }
 
-.roadLine {
-  stroke: var(--color-accent, #48f);
-  stroke-width: 2.5;
-  stroke-dasharray: 6 4;
+.roadSegment,
+.alliedRouteSegment,
+.tradeRouteSegment {
+  pointer-events: none;
+}
+
+.roadSegment line,
+.alliedRouteSegment line,
+.tradeRouteSegment line {
   stroke-linecap: round;
   stroke-linejoin: round;
-  opacity: 0.72;
-  filter: drop-shadow(0 0 3px rgba(6, 9, 12, 0.8));
+  vector-effect: non-scaling-stroke;
   pointer-events: stroke;
 }
 
-/* Road level colors */
-.roadLine:global(.roadDirt) {
-  stroke: #b7824a;
-  stroke-dasharray: 4 8;
-  opacity: 0.62;
+.roadBed {
+  stroke: rgba(22, 15, 9, 0.72);
+  opacity: 0.72;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7));
 }
 
-.roadLine:global(.roadStone) {
-  stroke: #b8bec6;
-  stroke-dasharray: 8 3;
-  opacity: 0.76;
-}
-
-.roadLine:global(.roadHighway) {
-  stroke: #ffd45a;
-  stroke-dasharray: none;
+.roadSurface {
+  stroke: #9c6d3a;
   opacity: 0.9;
+}
+
+.roadTexture,
+.roadCenter {
+  opacity: 0;
+}
+
+.roadSegment[data-level="dirt"] .roadBed {
+  stroke: rgba(53, 32, 15, 0.68);
+}
+
+.roadSegment[data-level="dirt"] .roadSurface {
+  stroke: #a8733f;
+  stroke-dasharray: 3.2 3.8;
+}
+
+.roadSegment[data-level="dirt"] .roadTexture {
+  stroke: rgba(255, 214, 145, 0.5);
+  stroke-dasharray: 1 8;
+  opacity: 0.72;
+}
+
+.roadSegment[data-level="stone"] .roadBed {
+  stroke: rgba(32, 36, 40, 0.82);
+}
+
+.roadSegment[data-level="stone"] .roadSurface {
+  stroke: #9ea7ad;
+  stroke-dasharray: 7 2.6;
+}
+
+.roadSegment[data-level="stone"] .roadTexture {
+  stroke: rgba(242, 247, 250, 0.56);
+  stroke-dasharray: 1.1 3.2;
+  opacity: 0.84;
+}
+
+.roadSegment[data-level="highway"] .roadBed {
+  stroke: rgba(16, 22, 24, 0.9);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.72))
+    drop-shadow(0 0 5px rgba(255, 214, 90, 0.2));
+}
+
+.roadSegment[data-level="highway"] .roadSurface {
+  stroke: #5f7781;
+}
+
+.roadSegment[data-level="highway"] .roadTexture {
+  stroke: rgba(191, 222, 229, 0.45);
+  stroke-dasharray: 10 5;
+  opacity: 0.66;
+}
+
+.roadSegment[data-level="highway"] .roadCenter {
+  stroke: #ffe16d;
+  stroke-dasharray: 5 6;
+  opacity: 0.9;
+}
+
+.routeBed,
+.tradeRouteBed {
+  stroke: rgba(4, 8, 12, 0.74);
+  opacity: 0.72;
+  filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.7));
+}
+
+.alliedRouteLine {
+  stroke: rgba(109, 215, 197, 0.78);
+  stroke-dasharray: 7 5;
+  opacity: 0.8;
+}
+
+.alliedRoutePulse {
+  stroke: rgba(214, 255, 235, 0.86);
+  stroke-dasharray: 1 15;
+  opacity: 0.72;
+  animation: routeFlow 1.9s linear infinite;
+}
+
+.tradeRouteBed {
+  stroke: rgba(42, 25, 5, 0.7);
+}
+
+.tradeRouteLine {
+  stroke: rgba(244, 180, 70, 0.78);
+  stroke-dasharray: 11 5;
+  opacity: 0.78;
+}
+
+.tradeRouteCargo {
+  stroke: rgba(255, 238, 157, 0.9);
+  stroke-dasharray: 1 18;
+  opacity: 0.86;
+  animation: routeFlow 2.2s linear infinite;
+}
+
+@keyframes routeFlow {
+  to {
+    stroke-dashoffset: -24;
+  }
 }
 
 .roadLegend {
@@ -1355,19 +1452,33 @@
 }
 
 .roadLegendSwatch {
-  width: 18px;
-  height: 3px;
+  width: 22px;
+  height: 5px;
   border-radius: 999px;
-  background: #b7824a;
+  background:
+    repeating-linear-gradient(90deg, #a8733f 0 5px, transparent 5px 8px),
+    rgba(53, 32, 15, 0.72);
+  box-shadow: 0 0 0 1px rgba(16, 10, 5, 0.55);
 }
 
 .roadLegendSwatch[data-level="stone"] {
-  background: #b8bec6;
+  background:
+    repeating-linear-gradient(90deg, #d8e0e5 0 2px, #9ea7ad 2px 6px), #4d565c;
 }
 
 .roadLegendSwatch[data-level="highway"] {
-  height: 4px;
-  background: #ffd45a;
+  height: 6px;
+  background:
+    linear-gradient(
+      180deg,
+      transparent 0 38%,
+      #ffe16d 38% 62%,
+      transparent 62%
+    ),
+    #5f7781;
+  box-shadow:
+    0 0 0 1px rgba(16, 22, 24, 0.8),
+    0 0 8px rgba(255, 214, 90, 0.22);
 }
 
 /* Trade route lines — golden dashed lines between established trading partners */
@@ -1630,13 +1741,6 @@
   }
 }
 
-.tradeRouteLine {
-  stroke: #FFD700;
-  stroke-width: 2;
-  stroke-dasharray: 10 6;
-  stroke-linecap: round;
-  opacity: 0.5;
-}
 
 /* Guards overlay (replaces old SVG guard indicators) */
 .guardsLayer {
@@ -1889,11 +1993,39 @@
 
 .marchPathSvg polyline {
   vector-effect: non-scaling-stroke;
+}
+
+.marchRouteTrack {
+  stroke: rgba(5, 9, 13, 0.72);
+  stroke-width: 2.25;
+  opacity: 0.62;
+  filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.72));
+}
+
+.marchRouteCompleted {
+  stroke: var(--march-color, #ff8c42);
+  stroke-width: 1.35;
+  opacity: 0.7;
+}
+
+.marchRouteRemaining {
+  stroke: var(--march-color, #ff8c42);
+  stroke-width: 1.05;
+  opacity: 0.44;
   animation: marchDash 1.4s linear infinite;
 }
 
-.marchPathSvg[data-crowded="true"] polyline {
+.marchPathSvg[data-crowded="true"] .marchRouteTrack {
+  opacity: 0.36;
+}
+
+.marchPathSvg[data-crowded="true"] .marchRouteCompleted {
+  opacity: 0.52;
+}
+
+.marchPathSvg[data-crowded="true"] .marchRouteRemaining {
   animation: none;
+  opacity: 0.28;
 }
 
 @keyframes marchDash {
@@ -2059,6 +2191,12 @@
   .lifeBattlePuff {
     animation: none;
     opacity: 0;
+  }
+
+  .alliedRoutePulse,
+  .tradeRouteCargo,
+  .marchRouteRemaining {
+    animation: none;
   }
 
   .lifeDomain,
