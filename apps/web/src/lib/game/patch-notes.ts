@@ -30,6 +30,7 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
       "ALLIANCE-mode battalions can now auto-deploy to help allies on both attack and defense.",
       "Roads now shorten movement ETA for attacks, fortification marches, remote battalion reinforcements, War Front launches, allied support, and convoy map legs.",
       "The map now shows clearer road levels, route tooltips, and moving-unit ETA savings when roads helped the march.",
+      "Trade offers can now exceed a single wagon's gold+food capacity; large accepted trades queue sequential wagon runs and dispatch more cargo as outbound wagon slots free up.",
       "Tile expansion priorities are now an ordered three-slot queue with numbered map badges, reorder controls, and shared War Front targeting.",
       "Expansion queues now auto-fill to the fortress's current priority-slot limit, replacing claimed or invalid neutral targets with the nearest legal border tiles.",
       "Farther neutral expansion now needs more pressure and unsupported distant pressure decays faster, so the frontier has to earn its dramatic little march.",

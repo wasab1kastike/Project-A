@@ -3155,7 +3155,7 @@ test("concurrent trade accepts cannot duplicate army convoy cargo", async (conte
   assert.equal(reloadedSender.army + convoyArmy, 5);
 });
 
-test("season four trade wagon capacity follows the trade building level", async (context) => {
+test("season four large trade offers queue sequential wagon runs", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -3173,7 +3173,7 @@ test("season four trade wagon capacity follows the trade building level", async 
     new Date("2026-04-22T12:00:00.000Z")
   );
   await markSeasonFourCycle(prisma, cycle.id);
-  const [senderFortress, receiverFortress] = await Promise.all([
+  const [, receiverFortress] = await Promise.all([
     prisma.fortress.update({
       where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: sender.id } },
       data: { gold: 5_000, food: 5_000 },
@@ -3184,48 +3184,14 @@ test("season four trade wagon capacity follows the trade building level", async 
     }),
   ]);
 
-  await assert.rejects(
-    () =>
-      createTradeOffer({
-        userId: sender.id,
-        targetFortressId: receiverFortress.id,
-        offeredGold: 101,
-        offeredFood: 0,
-        offeredArmy: 0,
-        requestedGold: 0,
-        requestedFood: 0,
-        requestedArmy: 0,
-        now: new Date("2026-04-20T12:00:00.000Z"),
-        db: prisma,
-      }),
-    /can carry 100 total gold and food/
-  );
-
-  await prisma.castleUpgradeSpecializationChoice.createMany({
-    data: [
-      {
-        cycleId: cycle.id,
-        fortressId: senderFortress.id,
-        specialization: CastleUpgradeSpecialization.TRADE,
-        level: 1,
-      },
-      {
-        cycleId: cycle.id,
-        fortressId: receiverFortress.id,
-        specialization: CastleUpgradeSpecialization.TRADE,
-        level: 1,
-      },
-    ],
-  });
-
   const offer = await createTradeOffer({
     userId: sender.id,
     targetFortressId: receiverFortress.id,
-    offeredGold: 500,
-    offeredFood: 0,
+    offeredGold: 0,
+    offeredFood: 1_000,
     offeredArmy: 0,
-    requestedGold: 250,
-    requestedFood: 250,
+    requestedGold: 0,
+    requestedFood: 0,
     requestedArmy: 0,
     now: new Date("2026-04-20T12:00:10.000Z"),
     db: prisma,
@@ -3237,7 +3203,43 @@ test("season four trade wagon capacity follows the trade building level", async 
     db: prisma,
   });
 
-  assert.equal(accepted.convoyLegs.length, 2);
+  assert.equal(offer.status, TradeOfferStatus.PENDING);
+  assert.equal(accepted.status, TradeOfferStatus.ACCEPTED);
+  assert.equal(accepted.convoyLegs.length, 3);
+  assert.equal(
+    accepted.convoyLegs.reduce((sum, leg) => sum + leg.food, 0),
+    300
+  );
+
+  for (let batch = 0; batch < 4; batch += 1) {
+    const tickAt = new Date(`2026-04-20T12:0${batch + 1}:00.000Z`);
+
+    await prisma.convoyLeg.updateMany({
+      where: {
+        tradeOfferId: offer.id,
+        status: ConvoyLegStatus.IN_TRANSIT,
+      },
+      data: { arrivesAt: tickAt },
+    });
+    await runGameTick({ now: tickAt, db: prisma });
+  }
+
+  const [completedOffer, deliveredLegs, receiverAfter] = await Promise.all([
+    prisma.tradeOffer.findUniqueOrThrow({ where: { id: offer.id } }),
+    prisma.convoyLeg.findMany({
+      where: { tradeOfferId: offer.id },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.fortress.findUniqueOrThrow({ where: { id: receiverFortress.id } }),
+  ]);
+
+  assert.equal(completedOffer.status, TradeOfferStatus.COMPLETED);
+  assert.equal(deliveredLegs.length, 10);
+  assert.ok(
+    deliveredLegs.every((leg) => leg.status === ConvoyLegStatus.DELIVERED)
+  );
+  assert.equal(deliveredLegs.reduce((sum, leg) => sum + leg.food, 0), 1_000);
+  assert.equal(receiverAfter.food, 6_050);
 });
 
 test("season four active outbound trade wagons are capped and skill-expandable", async (context) => {

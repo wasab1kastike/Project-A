@@ -135,7 +135,6 @@ import { isSeasonFourRuleset } from "../rulesets";
 import { validateTileDeedAllowed } from "../tile-deeds";
 import { getCampaignStartBlockedReason } from "../campaigns";
 import {
-  assertTradeCargoWithinWagonLimit,
   assertActiveTradeWagonLimit,
   calculateTradeCargoValue,
   getActiveTradeWagonLimit,
@@ -144,6 +143,7 @@ import {
   getTradeOfferExpiresAt,
   hasTradeCargo,
   normalizeTradeCargo,
+  splitTradeCargoIntoWagonRuns,
   type TradeCargo,
 } from "../trading";
 import {
@@ -3264,30 +3264,6 @@ export async function createTradeOffer({
       );
     }
 
-    const senderSkillModifiers = getFortressSkillModifiers(sender);
-    const receiverSkillModifiers = getFortressSkillModifiers(receiver);
-
-    try {
-      assertTradeCargoWithinWagonLimit(
-        offered,
-        countCastleSpecializations(sender.castleUpgradeSpecializations)[
-          CastleUpgradeSpecialization.TRADE
-        ],
-        senderSkillModifiers?.tradeWagonCapacityPercent ?? 0
-      );
-      assertTradeCargoWithinWagonLimit(
-        requested,
-        countCastleSpecializations(receiver.castleUpgradeSpecializations)[
-          CastleUpgradeSpecialization.TRADE
-        ],
-        receiverSkillModifiers?.tradeWagonCapacityPercent ?? 0
-      );
-    } catch (error) {
-      throw new GameError(
-        error instanceof Error ? error.message : "Trade cargo is too large."
-      );
-    }
-
     const deedTileId = offeredTileId ?? requestedTileId ?? null;
 
     if (!hasTradeCargo(offered) && !hasTradeCargo(requested) && !deedTileId) {
@@ -3535,27 +3511,6 @@ export async function acceptTradeOffer({
     const senderSkillModifiers = getFortressSkillModifiers(sender);
     const receiverSkillModifiers = getFortressSkillModifiers(receiver);
 
-    try {
-      assertTradeCargoWithinWagonLimit(
-        senderCargo,
-        countCastleSpecializations(sender.castleUpgradeSpecializations)[
-          CastleUpgradeSpecialization.TRADE
-        ],
-        senderSkillModifiers?.tradeWagonCapacityPercent ?? 0
-      );
-      assertTradeCargoWithinWagonLimit(
-        receiverCargo,
-        countCastleSpecializations(receiver.castleUpgradeSpecializations)[
-          CastleUpgradeSpecialization.TRADE
-        ],
-        receiverSkillModifiers?.tradeWagonCapacityPercent ?? 0
-      );
-    } catch (error) {
-      throw new GameError(
-        error instanceof Error ? error.message : "Trade cargo is too large."
-      );
-    }
-
     assertTradeCargoAvailable({ fortress: sender, cargo: senderCargo });
     assertTradeCargoAvailable({ fortress: receiver, cargo: receiverCargo });
     await assertNukeComponentCargoAvailable({
@@ -3574,50 +3529,88 @@ export async function acceptTradeOffer({
     const deedLineItem = offer.lineItems.find(
       (item) => item.kind === TradeLineItemKind.TILE
     );
-    const legCandidates = [
-      { cargo: senderCargo, from: sender, to: receiver },
-      { cargo: receiverCargo, from: receiver, to: sender },
-    ]
-      .filter(
-        (leg) =>
-          hasTradeCargo(leg.cargo) ||
-          (deedLineItem?.tileId &&
-            deedLineItem.fromFortressId === leg.from.id)
+    const senderTradeLevel = countCastleSpecializations(
+      sender.castleUpgradeSpecializations
+    )[CastleUpgradeSpecialization.TRADE];
+    const receiverTradeLevel = countCastleSpecializations(
+      receiver.castleUpgradeSpecializations
+    )[CastleUpgradeSpecialization.TRADE];
+    const transportPlans = [
+      {
+        cargo: senderCargo,
+        from: sender,
+        to: receiver,
+        skillModifiers: senderSkillModifiers,
+        tradeLevel: senderTradeLevel,
+      },
+      {
+        cargo: receiverCargo,
+        from: receiver,
+        to: sender,
+        skillModifiers: receiverSkillModifiers,
+        tradeLevel: receiverTradeLevel,
+      },
+    ].map((plan) => {
+      const chunks = splitTradeCargoIntoWagonRuns(
+        plan.cargo,
+        plan.tradeLevel,
+        plan.skillModifiers?.tradeWagonCapacityPercent ?? 0
       );
+      const carriesDeed =
+        deedLineItem?.tileId && deedLineItem.fromFortressId === plan.from.id;
 
-    const outboundLegsByFortressId = new Map<string, number>();
-    for (const leg of legCandidates) {
-      outboundLegsByFortressId.set(
-        leg.from.id,
-        (outboundLegsByFortressId.get(leg.from.id) ?? 0) + 1
-      );
-    }
-    for (const [fortressId, newWagons] of outboundLegsByFortressId) {
-      const fortress = fortressId === sender.id ? sender : receiver;
-      const skillModifiers =
-        fortressId === sender.id ? senderSkillModifiers : receiverSkillModifiers;
+      if (carriesDeed && chunks.length === 0) {
+        chunks.push({
+          gold: 0,
+          food: 0,
+          army: 0,
+          points: 0,
+          nukeComponents: EMPTY_NUKE_COMPONENT_CARGO,
+        });
+      }
+
+      return { ...plan, chunks, deedTileId: carriesDeed ? deedLineItem.tileId : null };
+    });
+    const legCandidates: Array<{
+      cargo: TradeCargo;
+      from: typeof sender;
+      to: typeof receiver;
+      deedTileId: string | null;
+    }> = [];
+
+    for (const plan of transportPlans.filter((plan) => plan.chunks.length > 0)) {
       const activeOutboundWagons = await tx.convoyLeg.count({
         where: {
           cycleId: cycle.id,
-          fromFortressId: fortressId,
+          fromFortressId: plan.from.id,
           status: ConvoyLegStatus.IN_TRANSIT,
         },
       });
       const wagonLimit = getActiveTradeWagonLimit(
-        skillModifiers?.tradeWagonSlotBonus ?? 0
+        plan.skillModifiers?.tradeWagonSlotBonus ?? 0
       );
 
       try {
         assertActiveTradeWagonLimit({
-          activeOutboundWagons: activeOutboundWagons + newWagons - 1,
+          activeOutboundWagons,
           wagonLimit,
         });
       } catch (error) {
         throw new GameError(
           error instanceof Error
-            ? `${fortress.id === sender.id ? "Your fortress" : "The other fortress"}: ${error.message}`
+            ? `${plan.from.id === receiver.id ? "Your fortress" : "The other fortress"}: ${error.message}`
             : "A fortress has no free outbound trade wagons."
         );
+      }
+
+      const freeWagons = Math.max(0, wagonLimit - activeOutboundWagons);
+      for (const [index, cargo] of plan.chunks.slice(0, freeWagons).entries()) {
+        legCandidates.push({
+          cargo,
+          from: plan.from,
+          to: plan.to,
+          deedTileId: index === 0 ? plan.deedTileId : null,
+        });
       }
     }
     const legs = await Promise.all(
@@ -3782,10 +3775,7 @@ export async function acceptTradeOffer({
         nukeRocket: getTradeNukeComponents(leg.cargo)[NukeComponentKind.ROCKET],
         nukeWrathOfA: getTradeNukeComponents(leg.cargo)[NukeComponentKind.WRATH_OF_A],
         baseCargoValue: calculateTradeCargoValue(leg.cargo),
-        deedTileId:
-          deedLineItem?.tileId && leg.from.id === deedLineItem.fromFortressId
-            ? deedLineItem.tileId
-            : null,
+        deedTileId: leg.deedTileId,
         departedAt: now,
         arrivesAt: leg.arrivesAt,
       })),

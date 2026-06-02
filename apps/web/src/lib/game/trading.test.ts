@@ -17,6 +17,7 @@ import {
   getTradeWagonResourceLimit,
   hasTradeCargo,
   normalizeTradeCargo,
+  splitTradeCargoIntoWagonRuns,
   splitTradeDeliveryPoints,
   TRADE_WAGON_RESOURCE_LIMIT,
   TRADE_WAGON_RESOURCE_LIMITS,
@@ -120,6 +121,52 @@ test("trade wagons cap total transported resources", () => {
       0,
       25
     )
+  );
+});
+
+test("trade cargo splits into sequential wagon runs", () => {
+  assert.deepEqual(
+    splitTradeCargoIntoWagonRuns({
+      gold: 0,
+      food: 1_000,
+      army: 0,
+      points: 0,
+    }).map((run) => ({ gold: run.gold, food: run.food })),
+    Array.from({ length: 10 }, () => ({ gold: 0, food: 100 }))
+  );
+
+  assert.deepEqual(
+    splitTradeCargoIntoWagonRuns({
+      gold: 250,
+      food: 175,
+      army: 0,
+      points: 0,
+    }).map((run) => ({ gold: run.gold, food: run.food })),
+    [
+      { gold: 100, food: 0 },
+      { gold: 100, food: 0 },
+      { gold: 50, food: 50 },
+      { gold: 0, food: 100 },
+      { gold: 0, food: 25 },
+    ]
+  );
+
+  assert.deepEqual(
+    splitTradeCargoIntoWagonRuns({
+      gold: 0,
+      food: 0,
+      army: 50,
+      points: 25,
+    }),
+    [
+      {
+        gold: 0,
+        food: 0,
+        army: 50,
+        points: 25,
+        nukeComponents: { FUEL: 0, ROCKET: 0, WRATH_OF_A: 0 },
+      },
+    ]
   );
 });
 

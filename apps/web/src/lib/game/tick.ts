@@ -18,6 +18,7 @@ import {
   ConvoyLegStatus,
   TerritoryCampaignStatus,
   TradeOfferStatus,
+  TradeLineItemKind,
   NukeComponentKind,
 } from "@/lib/prisma-client";
 import { prisma } from "@/lib/prisma";
@@ -141,8 +142,13 @@ import {
   getEffectiveDiplomacyStatus,
 } from "./politics";
 import {
+  calculateTradeCargoValue,
+  getActiveTradeWagonLimit,
   getAllianceDeliveryBonus,
+  getTradeNukeComponents,
   splitTradeDeliveryPoints,
+  splitTradeCargoIntoWagonRuns,
+  type TradeCargo,
 } from "./trading";
 import {
   calculateConvoyEncounterCasualties,
@@ -172,6 +178,7 @@ import {
 import { processAutoWarDispatch } from "./tick-auto-war-integration";
 import { processAllianceReinforcements } from "./tick-alliance-integration";
 import { recordUnitRoadCrossings } from "./tick-road-integration";
+import { getRoadAdjustedConvoyArrival } from "./road-travel";
 import {
   processBattalionRecruitment,
   processBattalionGuard,
@@ -1327,6 +1334,394 @@ async function processSeasonFourCampaigns({
   }, TICK_TRANSACTION_OPTIONS);
 }
 
+function getTradeCargoFromLineItems({
+  lineItems,
+  fromFortressId,
+}: {
+  lineItems: {
+    fromFortressId: string;
+    kind: TradeLineItemKind;
+    amount: number | null;
+    nukeComponentKind?: NukeComponentKind | null;
+  }[];
+  fromFortressId: string;
+}) {
+  const cargo: TradeCargo = {
+    gold: 0,
+    food: 0,
+    army: 0,
+    points: 0,
+    nukeComponents: {
+      [NukeComponentKind.FUEL]: 0,
+      [NukeComponentKind.ROCKET]: 0,
+      [NukeComponentKind.WRATH_OF_A]: 0,
+    },
+  };
+
+  for (const lineItem of lineItems) {
+    if (lineItem.fromFortressId !== fromFortressId || !lineItem.amount) {
+      continue;
+    }
+
+    if (lineItem.kind === TradeLineItemKind.GOLD) {
+      cargo.gold += lineItem.amount;
+    } else if (lineItem.kind === TradeLineItemKind.FOOD) {
+      cargo.food += lineItem.amount;
+    } else if (lineItem.kind === TradeLineItemKind.ARMY) {
+      cargo.army += lineItem.amount;
+    } else if (lineItem.kind === TradeLineItemKind.POINTS) {
+      cargo.points += lineItem.amount;
+    } else if (
+      lineItem.kind === TradeLineItemKind.NUKE_COMPONENT &&
+      lineItem.nukeComponentKind
+    ) {
+      cargo.nukeComponents![lineItem.nukeComponentKind] += lineItem.amount;
+    }
+  }
+
+  return cargo;
+}
+
+function subtractLaunchedTradeCargo({
+  original,
+  launched,
+}: {
+  original: TradeCargo;
+  launched: TradeCargo;
+}) {
+  const originalNukes = getTradeNukeComponents(original);
+  const launchedNukes = getTradeNukeComponents(launched);
+
+  return {
+    gold: Math.max(0, original.gold - launched.gold),
+    food: Math.max(0, original.food - launched.food),
+    army: Math.max(0, original.army - launched.army),
+    points: Math.max(0, original.points - launched.points),
+    nukeComponents: {
+      [NukeComponentKind.FUEL]: Math.max(
+        0,
+        originalNukes[NukeComponentKind.FUEL] -
+          launchedNukes[NukeComponentKind.FUEL]
+      ),
+      [NukeComponentKind.ROCKET]: Math.max(
+        0,
+        originalNukes[NukeComponentKind.ROCKET] -
+          launchedNukes[NukeComponentKind.ROCKET]
+      ),
+      [NukeComponentKind.WRATH_OF_A]: Math.max(
+        0,
+        originalNukes[NukeComponentKind.WRATH_OF_A] -
+          launchedNukes[NukeComponentKind.WRATH_OF_A]
+      ),
+    },
+  };
+}
+
+async function getQueuedTradeWagonRuns({
+  tx,
+  tradeOfferId,
+  fromFortressId,
+  toFortressId,
+}: {
+  tx: Prisma.TransactionClient;
+  tradeOfferId: string;
+  fromFortressId: string;
+  toFortressId: string;
+}) {
+  const [offer, launchedLegs, fromFortress] = await Promise.all([
+    tx.tradeOffer.findUniqueOrThrow({
+      where: { id: tradeOfferId },
+      include: { lineItems: true },
+    }),
+    tx.convoyLeg.findMany({
+      where: { tradeOfferId, fromFortressId, toFortressId },
+      select: {
+        gold: true,
+        food: true,
+        army: true,
+        points: true,
+        nukeFuel: true,
+        nukeRocket: true,
+        nukeWrathOfA: true,
+        deedTileId: true,
+      },
+    }),
+    tx.fortress.findUniqueOrThrow({
+      where: { id: fromFortressId },
+      select: {
+        race: true,
+        castleUpgradeSpecializations: true,
+        skillPurchases: { select: { nodeKey: true } },
+      },
+    }),
+  ]);
+  const launchedCargo = launchedLegs.reduce<TradeCargo>(
+    (total, leg) => {
+      const totalNukes = getTradeNukeComponents(total);
+
+      return {
+        gold: total.gold + leg.gold,
+        food: total.food + leg.food,
+        army: total.army + leg.army,
+        points: total.points + leg.points,
+        nukeComponents: {
+          [NukeComponentKind.FUEL]:
+            totalNukes[NukeComponentKind.FUEL] + leg.nukeFuel,
+          [NukeComponentKind.ROCKET]:
+            totalNukes[NukeComponentKind.ROCKET] + leg.nukeRocket,
+          [NukeComponentKind.WRATH_OF_A]:
+            totalNukes[NukeComponentKind.WRATH_OF_A] + leg.nukeWrathOfA,
+        },
+      };
+    },
+    {
+      gold: 0,
+      food: 0,
+      army: 0,
+      points: 0,
+      nukeComponents: {
+        [NukeComponentKind.FUEL]: 0,
+        [NukeComponentKind.ROCKET]: 0,
+        [NukeComponentKind.WRATH_OF_A]: 0,
+      },
+    }
+  );
+  const originalCargo = getTradeCargoFromLineItems({
+    lineItems: offer.lineItems,
+    fromFortressId,
+  });
+  const remainingCargo = subtractLaunchedTradeCargo({
+    original: originalCargo,
+    launched: launchedCargo,
+  });
+  const skillModifiers =
+    fromFortress.race && isFortressRace(fromFortress.race)
+      ? getSkillModifiers({
+          race: fromFortress.race,
+          purchases: fromFortress.skillPurchases ?? [],
+        })
+      : null;
+  const tradeLevel = countCastleSpecializations(
+    fromFortress.castleUpgradeSpecializations
+  )[CastleUpgradeSpecialization.TRADE];
+  const chunks = splitTradeCargoIntoWagonRuns(
+    remainingCargo,
+    tradeLevel,
+    skillModifiers?.tradeWagonCapacityPercent ?? 0
+  );
+  const deedLineItem = offer.lineItems.find(
+    (lineItem) =>
+      lineItem.kind === TradeLineItemKind.TILE &&
+      lineItem.fromFortressId === fromFortressId &&
+      lineItem.toFortressId === toFortressId &&
+      lineItem.tileId
+  );
+  const deedAlreadyLaunched = launchedLegs.some((leg) => leg.deedTileId);
+
+  if (deedLineItem?.tileId && !deedAlreadyLaunched && chunks.length === 0) {
+    chunks.push({
+      gold: 0,
+      food: 0,
+      army: 0,
+      points: 0,
+      nukeComponents: {
+        [NukeComponentKind.FUEL]: 0,
+        [NukeComponentKind.ROCKET]: 0,
+        [NukeComponentKind.WRATH_OF_A]: 0,
+      },
+    });
+  }
+
+  return {
+    chunks,
+    deedTileId:
+      deedLineItem?.tileId && !deedAlreadyLaunched ? deedLineItem.tileId : null,
+    wagonLimit: getActiveTradeWagonLimit(
+      skillModifiers?.tradeWagonSlotBonus ?? 0
+    ),
+  };
+}
+
+async function launchQueuedTradeWagonRuns({
+  tx,
+  cycleId,
+  tradeOfferId,
+  fromFortressId,
+  toFortressId,
+  departedAt,
+}: {
+  tx: Prisma.TransactionClient;
+  cycleId: string;
+  tradeOfferId: string;
+  fromFortressId: string;
+  toFortressId: string;
+  departedAt: Date;
+}) {
+  const queued = await getQueuedTradeWagonRuns({
+    tx,
+    tradeOfferId,
+    fromFortressId,
+    toFortressId,
+  });
+
+  if (queued.chunks.length === 0) {
+    return 0;
+  }
+
+  const activeOutboundWagons = await tx.convoyLeg.count({
+    where: {
+      cycleId,
+      fromFortressId,
+      status: ConvoyLegStatus.IN_TRANSIT,
+    },
+  });
+  const freeWagons = Math.max(0, queued.wagonLimit - activeOutboundWagons);
+
+  if (freeWagons <= 0) {
+    return 0;
+  }
+
+  const [fromFortress, toFortress] = await Promise.all([
+    tx.fortress.findUniqueOrThrow({
+      where: { id: fromFortressId },
+      select: { mapX: true, mapY: true },
+    }),
+    tx.fortress.findUniqueOrThrow({
+      where: { id: toFortressId },
+      select: { mapX: true, mapY: true },
+    }),
+  ]);
+  const legs = await Promise.all(
+    queued.chunks.slice(0, freeWagons).map(async (cargo, index) => ({
+      cargo,
+      deedTileId: index === 0 ? queued.deedTileId : null,
+      arrivesAt: (
+        await getRoadAdjustedConvoyArrival({
+          db: tx,
+          cycleId,
+          acceptedAt: departedAt,
+          from: fromFortress,
+          to: toFortress,
+        })
+      ).arrivesAt,
+    }))
+  );
+
+  await tx.convoyLeg.createMany({
+    data: legs.map((leg) => ({
+      cycleId,
+      tradeOfferId,
+      fromFortressId,
+      toFortressId,
+      status: ConvoyLegStatus.IN_TRANSIT,
+      gold: leg.cargo.gold,
+      food: leg.cargo.food,
+      army: leg.cargo.army,
+      points: leg.cargo.points,
+      nukeFuel: getTradeNukeComponents(leg.cargo)[NukeComponentKind.FUEL],
+      nukeRocket: getTradeNukeComponents(leg.cargo)[NukeComponentKind.ROCKET],
+      nukeWrathOfA:
+        getTradeNukeComponents(leg.cargo)[NukeComponentKind.WRATH_OF_A],
+      baseCargoValue: calculateTradeCargoValue(leg.cargo),
+      deedTileId: leg.deedTileId,
+      departedAt,
+      arrivesAt: leg.arrivesAt,
+    })),
+  });
+
+  return legs.length;
+}
+
+async function hasQueuedTradeWagonRuns({
+  tx,
+  tradeOfferId,
+}: {
+  tx: Prisma.TransactionClient;
+  tradeOfferId: string;
+}) {
+  const offer = await tx.tradeOffer.findUniqueOrThrow({
+    where: { id: tradeOfferId },
+    include: { lineItems: true },
+  });
+  const directions = new Set(
+    offer.lineItems.map(
+      (lineItem) => `${lineItem.fromFortressId}:${lineItem.toFortressId}`
+    )
+  );
+
+  for (const direction of directions) {
+    const [fromFortressId, toFortressId] = direction.split(":");
+
+    if (!fromFortressId || !toFortressId) {
+      continue;
+    }
+
+    const queued = await getQueuedTradeWagonRuns({
+      tx,
+      tradeOfferId,
+      fromFortressId,
+      toFortressId,
+    });
+
+    if (queued.chunks.length > 0) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+async function advanceTradeOfferAfterConvoySettlement({
+  tx,
+  cycleId,
+  leg,
+  tickAt,
+}: {
+  tx: Prisma.TransactionClient;
+  cycleId: string;
+  leg: {
+    id: string;
+    tradeOfferId: string;
+    fromFortressId: string;
+    toFortressId: string;
+  };
+  tickAt: Date;
+}) {
+  await launchQueuedTradeWagonRuns({
+    tx,
+    cycleId,
+    tradeOfferId: leg.tradeOfferId,
+    fromFortressId: leg.fromFortressId,
+    toFortressId: leg.toFortressId,
+    departedAt: tickAt,
+  });
+
+  const unsettled = await tx.convoyLeg.count({
+    where: {
+      tradeOfferId: leg.tradeOfferId,
+      status: ConvoyLegStatus.IN_TRANSIT,
+      id: { not: leg.id },
+    },
+  });
+
+  if (unsettled === 0) {
+    const hasQueuedRuns = await hasQueuedTradeWagonRuns({
+      tx,
+      tradeOfferId: leg.tradeOfferId,
+    });
+
+    if (!hasQueuedRuns) {
+      await tx.tradeOffer.update({
+        where: { id: leg.tradeOfferId },
+        data: {
+          status: TradeOfferStatus.COMPLETED,
+          completedAt: tickAt,
+        },
+      });
+    }
+  }
+}
+
 async function processSeasonFourConvoys({
   db,
   cycleId,
@@ -1768,23 +2163,12 @@ async function processSeasonFourConvoys({
               },
             });
 
-            const unsettled = await tx.convoyLeg.count({
-              where: {
-                tradeOfferId: leg.tradeOfferId,
-                status: ConvoyLegStatus.IN_TRANSIT,
-                id: { not: leg.id },
-              },
+            await advanceTradeOfferAfterConvoySettlement({
+              tx,
+              cycleId,
+              leg,
+              tickAt,
             });
-
-            if (unsettled === 0) {
-              await tx.tradeOffer.update({
-                where: { id: leg.tradeOfferId },
-                data: {
-                  status: TradeOfferStatus.COMPLETED,
-                  completedAt: tickAt,
-                },
-              });
-            }
 
             continue;
           }
@@ -1986,23 +2370,12 @@ async function processSeasonFourConvoys({
         },
       });
 
-      const unsettled = await tx.convoyLeg.count({
-        where: {
-          tradeOfferId: leg.tradeOfferId,
-          status: ConvoyLegStatus.IN_TRANSIT,
-          id: { not: leg.id },
-        },
+      await advanceTradeOfferAfterConvoySettlement({
+        tx,
+        cycleId,
+        leg,
+        tickAt,
       });
-
-      if (unsettled === 0) {
-        await tx.tradeOffer.update({
-          where: { id: leg.tradeOfferId },
-          data: {
-            status: TradeOfferStatus.COMPLETED,
-            completedAt: tickAt,
-          },
-        });
-      }
     }
 
     return { scoreEventsCreated, deliveredConvoyLegs };
