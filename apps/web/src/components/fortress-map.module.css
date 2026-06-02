@@ -1933,83 +1933,29 @@
 .convoyMarker {
   position: absolute;
   transform: translate(-50%, -50%);
-  width: 46px;
-  height: 34px;
+  width: 58px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: left 5s linear, top 5s linear;
-  filter: drop-shadow(0 7px 0 rgba(0, 0, 0, 0.26))
-    drop-shadow(0 0 10px rgba(255, 215, 0, 0.22));
+  filter: drop-shadow(0 8px 0 rgba(0, 0, 0, 0.2))
+    drop-shadow(0 0 10px rgba(255, 215, 0, 0.18));
 }
 
 .convoyWagon {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 32px;
-  height: 20px;
+  width: 46px;
+  height: 46px;
+  background-repeat: no-repeat;
+  background-size: 1000% 100%;
   transform: translate(-50%, -50%) rotate(var(--convoy-angle, 0deg));
   transform-origin: center;
+  filter: drop-shadow(0 5px 5px rgba(0, 0, 0, 0.42));
   animation: convoyBob 0.85s ease-in-out infinite;
-}
-
-.convoyBed,
-.convoyCanopy {
-  position: absolute;
-  left: 4px;
-  width: 24px;
-  border: 1px solid rgba(50, 32, 12, 0.82);
-}
-
-.convoyBed {
-  bottom: 4px;
-  height: 9px;
-  border-radius: 3px 5px 3px 3px;
-  background: linear-gradient(180deg, #9f6d2d 0%, #5f3918 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 231, 165, 0.35);
-}
-
-.convoyCanopy {
-  bottom: 11px;
-  height: 8px;
-  border-radius: 9px 9px 3px 3px;
-  background: #d9b34f;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
-}
-
-.convoyWagon[data-race="DWARFS"] .convoyCanopy {
-  background: linear-gradient(180deg, #d9c37a 0%, #9a7b37 100%);
-}
-
-.convoyWagon[data-race="ORKS"] .convoyCanopy {
-  background: linear-gradient(180deg, #9ac36b 0%, #4d7a34 100%);
-}
-
-.convoyWagon[data-race="SPACE_MURINES"] .convoyCanopy {
-  background: linear-gradient(180deg, #84bde0 0%, #356d9e 100%);
-}
-
-.convoyWagon[data-race="UNSTABLE_UNICORNS"] .convoyCanopy {
-  background: linear-gradient(180deg, #e8a9ff 0%, #9f5fd4 100%);
-}
-
-.convoyWheel {
-  position: absolute;
-  bottom: 0;
-  width: 7px;
-  height: 7px;
-  border: 2px solid #2a2018;
-  border-radius: 50%;
-  background: #c5a15e;
-}
-
-.convoyWheel[data-wheel="rear"] {
-  left: 6px;
-}
-
-.convoyWheel[data-wheel="front"] {
-  right: 5px;
+  image-rendering: auto;
 }
 
 .convoyEscort {
@@ -2046,7 +1992,7 @@
 
 .convoyLabel {
   position: absolute;
-  top: -10px;
+  top: -6px;
   min-width: 18px;
   padding: 1px 5px;
   border: 1px solid rgba(255, 238, 179, 0.45);
