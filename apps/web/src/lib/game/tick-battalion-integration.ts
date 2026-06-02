@@ -89,7 +89,10 @@ export async function processBattalionRecruitment(args: {
   /** Existing scalar fortress army, used to seed battalions for migrated players. */
   currentArmyByFortress?: Map<string, number>;
   fortressPositionsById: Map<string, FortressPosition>;
-}): Promise<Map<string, number>> {
+}): Promise<{
+  armyByFortress: Map<string, number>;
+  goldSpentByFortress: Map<string, number>;
+}> {
   const {
     ctx,
     recruitersByFortress,
@@ -167,6 +170,7 @@ export async function processBattalionRecruitment(args: {
   }
 
   const newArmyByFortress = new Map<string, number>(); // total army after recruitment
+  const goldSpentByFortress = new Map<string, number>();
   const battalionUpdates: Array<{
     id: string;
     size: number;
@@ -284,6 +288,9 @@ export async function processBattalionRecruitment(args: {
         existing.length,
       ),
     });
+    if (result.goldSpent > 0) {
+      goldSpentByFortress.set(fortressId, result.goldSpent);
+    }
 
     // Stage updates.
     for (const bn of result.battalions) {
@@ -391,7 +398,7 @@ export async function processBattalionRecruitment(args: {
     });
   }
 
-  return newArmyByFortress;
+  return { armyByFortress: newArmyByFortress, goldSpentByFortress };
 }
 
 // ── Guard Distribution ───────────────────────────────────────────────────────

@@ -87,20 +87,12 @@ export function distributeRecruits(
 // ── Battalion Expansion ──────────────────────────────────────────────────────
 
 /**
- * Expand a battalion's maxSize by 50.
- * Costs gold. Max size is capped.
+ * Expand a battalion's maxSize by 50. Max size is capped.
  */
 export function expandBattalion(args: {
   battalion: Battalion;
-  gold: number;
-  expandCost: number;
   maxBattalionSize: number;
 }): { battalion: Battalion; goldCost: number } | { error: string } {
-  if (args.gold < args.expandCost) {
-    return {
-      error: `Expanding battalion costs ${args.expandCost} gold.`,
-    };
-  }
   if (args.battalion.maxSize >= args.maxBattalionSize) {
     return { error: "Battalion is already at maximum size." };
   }
@@ -112,7 +104,7 @@ export function expandBattalion(args: {
 
   return {
     battalion: { ...args.battalion, maxSize: newMaxSize },
-    goldCost: args.expandCost,
+    goldCost: 0,
   };
 }
 
@@ -141,7 +133,7 @@ export type RecruitmentTickResult = {
   unitsWasted: number;
   /** Always false. New battalions are commissioned manually. */
   battalionCreated: boolean;
-  /** Always 0. New battalions are commissioned manually. */
+  /** Gold spent on units actually produced this tick. */
   goldSpent: number;
 };
 
@@ -183,11 +175,23 @@ export function processRecruitmentTick(args: {
     (sum, battalion) => sum + battalion.size,
     0,
   );
-  const capRoom =
+  const battalionRoom = battalions.reduce(
+    (sum, battalion) => sum + Math.max(0, battalion.maxSize - battalion.size),
+    0,
+  );
+  const armyCapRoom =
     args.maxArmySize === undefined
       ? Number.POSITIVE_INFINITY
       : Math.max(0, args.maxArmySize - currentTotal);
-  const produced = Math.min(uncappedProduced, capRoom);
+  const affordableUnits = Math.floor(
+    Math.max(0, args.gold) / RECRUITMENT_COST_PER_UNIT,
+  );
+  const produced = Math.min(
+    uncappedProduced,
+    battalionRoom,
+    armyCapRoom,
+    affordableUnits,
+  );
 
   // 2. Distribute to existing battalions.
   const distResult = distributeRecruits(
@@ -202,6 +206,6 @@ export function processRecruitmentTick(args: {
     unitsProduced: produced,
     unitsWasted: distResult.wasted,
     battalionCreated: false,
-    goldSpent: 0,
+    goldSpent: getRecruitmentCost(produced),
   };
 }

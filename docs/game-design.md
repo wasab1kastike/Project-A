@@ -246,7 +246,7 @@ Each race has three 8-node skill paths: Economy, Territory, and Military. Player
 
 - Economy paths improve food/gold output, reduce army upkeep, add expansion priority slots, and improve trade wagon capacity, active wagon count, and trade profit.
 - Territory paths improve pressure, tile defense, and neutral claim thresholds.
-- Military paths improve recruitment, battalion slots, battalion size, and promotion costs.
+- Military paths improve recruitment, battalion slots, battalion size, and promotion costs. Battalion max-size capacity changes are free within tier caps; recruiters spend gold only for units actually trained each tick.
 - Nodes 4 and 8 are the main build-changing unlocks; the nodes between them are smaller ramp bonuses.
 
 ---

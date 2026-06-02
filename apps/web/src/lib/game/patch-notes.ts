@@ -21,6 +21,7 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
       "Battalion controls now use four jobs only: RESERVE, GUARD, ATTACK, and ALLIANCE. Stances are handled behind the curtain.",
       "Battalions no longer heal passively; recruiters are the way to refill battered units.",
       "Recruiters now refill commissioned battalions only; full battalions and max army size stop new recruits until commanders make more room.",
+      "Battalion max-size changes are now free within tier caps; recruiters spend gold per tick only for units they actually train.",
       "Idle battalions now roam owned tiles on the map until their job has something to do.",
       "GUARD battalion mode is back for owned-border patrols; manual guard orders and convoy raid patrols stay disabled, and active legacy guard or raid orders return their committed army on the next tick.",
       "War Front battalions now dispatch from ATTACK mode in both war directions, using reachable tile priorities as target preference.",
