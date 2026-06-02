@@ -238,6 +238,11 @@ type TileTapState = {
   cancelled: boolean;
 };
 
+type TilePointerTarget = {
+  tileId: string;
+  selectable: boolean;
+};
+
 type MarkerTapState = {
   fortressId: string;
   pointerId: number;
@@ -628,6 +633,44 @@ const HEX_TILE_DOMAIN_POINTS = new Map(
     getHexPolygonPoints(tile.x, tile.y, HEX_RADIUS * 0.96),
   ])
 );
+const HEX_TILE_FEATURE_PATHS = new Map<string, string>(
+  HEX_TILES.flatMap((tile): Array<[string, string]> => {
+    if (tile.biome === "forest") {
+      return [
+        [
+          tile.id,
+          `M ${tile.x - 15} ${tile.y + 12} h 30 l -15 -28 z M ${tile.x - 4} ${
+            tile.y + 16
+          } h 8 v 10 h -8 z`,
+        ],
+      ];
+    }
+
+    if (tile.biome === "hills" || tile.biome === "mountains") {
+      return [
+        [
+          tile.id,
+          `M ${tile.x - 25} ${tile.y + 16} l 19 -32 l 20 32 z M ${tile.x - 3} ${
+            tile.y + 16
+          } l 18 -25 l 20 25 z`,
+        ],
+      ];
+    }
+
+    if (tile.biome === "marsh") {
+      return [
+        [
+          tile.id,
+          `M ${tile.x - 25} ${tile.y + 11} q 12 -10 24 0 t 24 0 M ${
+            tile.x - 18
+          } ${tile.y - 3} v 22 M ${tile.x + 11} ${tile.y - 6} v 24`,
+        ],
+      ];
+    }
+
+    return [];
+  })
+);
 const PRESSURE_MAX = 600;
 const RACE_PRESSURE_COLORS: Record<string, [number, number, number]> = {
   DWARFS: [74, 123, 191],
@@ -659,6 +702,30 @@ const BATTALION_RACE_TIER_LABELS: Record<string, string[]> = {
   SPACE_MURINES: ["", "★", "★★", "★★★"],
   UNSTABLE_UNICORNS: ["", "🦄", "🦄🦄", "🦄🦄🦄"],
 };
+
+function getTilePointerTarget(
+  event: ReactPointerEvent<SVGSVGElement>
+): TilePointerTarget | null {
+  const target = event.target;
+  if (!(target instanceof Element)) {
+    return null;
+  }
+
+  const tileElement = target.closest("[data-tile-id]");
+  if (!tileElement || !event.currentTarget.contains(tileElement)) {
+    return null;
+  }
+
+  const tileId = tileElement.getAttribute("data-tile-id");
+  if (!tileId) {
+    return null;
+  }
+
+  return {
+    tileId,
+    selectable: tileElement.getAttribute("data-tile-selectable") === "true",
+  };
+}
 
 function blendRgb(
   a: [number, number, number],
@@ -930,12 +997,9 @@ const HexTileMap = memo(function HexTileMap({
   const tileTapStateRef = useRef<TileTapState | null>(null);
 
   const handleTilePointerDown = useCallback(
-    (
-      event: ReactPointerEvent<SVGGElement>,
-      tileId: string,
-      selectable: boolean
-    ) => {
-      if (!selectable) {
+    (event: ReactPointerEvent<SVGSVGElement>) => {
+      const tileTarget = getTilePointerTarget(event);
+      if (!tileTarget?.selectable) {
         return;
       }
 
@@ -945,7 +1009,7 @@ const HexTileMap = memo(function HexTileMap({
 
       event.stopPropagation();
       tileTapStateRef.current = {
-        tileId,
+        tileId: tileTarget.tileId,
         pointerId: event.pointerId,
         startX: event.clientX,
         startY: event.clientY,
@@ -956,13 +1020,15 @@ const HexTileMap = memo(function HexTileMap({
   );
 
   const handleTilePointerMove = useCallback(
-    (event: ReactPointerEvent<SVGGElement>, tileId: string) => {
+    (event: ReactPointerEvent<SVGSVGElement>) => {
+      const tileTarget = getTilePointerTarget(event);
       const tapState = tileTapStateRef.current;
 
       if (
         !tapState ||
+        !tileTarget ||
         tapState.pointerId !== event.pointerId ||
-        tapState.tileId !== tileId
+        tapState.tileId !== tileTarget.tileId
       ) {
         return;
       }
@@ -980,14 +1046,10 @@ const HexTileMap = memo(function HexTileMap({
   );
 
   const clearTileTap = useCallback(
-    (event: ReactPointerEvent<SVGGElement>, tileId: string) => {
+    (event: ReactPointerEvent<SVGSVGElement>) => {
       const tapState = tileTapStateRef.current;
 
-      if (
-        tapState &&
-        tapState.pointerId === event.pointerId &&
-        tapState.tileId === tileId
-      ) {
+      if (tapState && tapState.pointerId === event.pointerId) {
         tileTapStateRef.current = null;
       }
     },
@@ -995,13 +1057,15 @@ const HexTileMap = memo(function HexTileMap({
   );
 
   const handleTilePointerUp = useCallback(
-    (event: ReactPointerEvent<SVGGElement>, tileId: string) => {
+    (event: ReactPointerEvent<SVGSVGElement>) => {
+      const tileTarget = getTilePointerTarget(event);
       const tapState = tileTapStateRef.current;
 
       if (
         !tapState ||
+        !tileTarget ||
         tapState.pointerId !== event.pointerId ||
-        tapState.tileId !== tileId
+        tapState.tileId !== tileTarget.tileId
       ) {
         return;
       }
@@ -1010,7 +1074,7 @@ const HexTileMap = memo(function HexTileMap({
       tileTapStateRef.current = null;
 
       if (!tapState.cancelled) {
-        onSelectMapHex?.(tileId);
+        onSelectMapHex?.(tileTarget.tileId);
       }
     },
     [onSelectMapHex]
@@ -1022,6 +1086,10 @@ const HexTileMap = memo(function HexTileMap({
       viewBox={`0 0 ${MAP_WORLD_WIDTH} ${MAP_WORLD_HEIGHT}`}
       aria-hidden="true"
       role="presentation"
+      onPointerDown={handleTilePointerDown}
+      onPointerMove={handleTilePointerMove}
+      onPointerUp={handleTilePointerUp}
+      onPointerCancel={clearTileTap}
     >
       <rect
         width={MAP_WORLD_WIDTH}
@@ -1042,6 +1110,18 @@ const HexTileMap = memo(function HexTileMap({
           : "";
         const isHomeTile = isHomeOfATile(tile.id);
         const isOwnedTile = Boolean(ownership?.ownerFortressId);
+        const isHighlightedTile = highlightedTileIdSet.has(tile.id);
+        const isSelectedTile = selectedTileId === tile.id;
+        const showInnerDetail =
+          isSelectedTile ||
+          isHighlightedTile ||
+          isHomeTile ||
+          Boolean(ownership?.hasActiveBattle) ||
+          Boolean(ownership?.pressurePriorityRank) ||
+          Boolean(ownership?.isCurrentUser);
+        const featurePath = reducedVisualLoad
+          ? null
+          : HEX_TILE_FEATURE_PATHS.get(tile.id);
         const bonus =
           ownership?.bonus ??
           (isHomeTile ? getHomeOfABonus() : getTileBonus(tile));
@@ -1050,9 +1130,7 @@ const HexTileMap = memo(function HexTileMap({
           styles[`${tile.biome}Tile`],
           tile.spawnable ? styles.spawnableTile : "",
           tile.claimable ? styles.selectableTile : "",
-          highlightedTileIdSet.has(tile.id)
-            ? styles.highlightedTeleportTile
-            : "",
+          isHighlightedTile ? styles.highlightedTeleportTile : "",
           isOwnedTile ? styles.ownedTile : "",
           isOwnedTile && ownership?.ownerRace
             ? (OWNED_TILE_RACE_CLASS_BY_RACE[ownership.ownerRace] ?? "")
@@ -1071,7 +1149,7 @@ const HexTileMap = memo(function HexTileMap({
           isOwnedTile && ownership?.isCurrentUser ? styles.ownTile : "",
           ownership?.canAttack ? styles.attackableTile : "",
           ownership?.hasActiveBattle ? styles.contestedTile : "",
-          selectedTileId === tile.id ? styles.selectedTile : "",
+          isSelectedTile ? styles.selectedTile : "",
         ]
           .filter(Boolean)
           .join(" ");
@@ -1092,12 +1170,8 @@ const HexTileMap = memo(function HexTileMap({
                       : ""
                   }, ${bonus.label}`
             }
-            onPointerDown={(event) =>
-              handleTilePointerDown(event, tile.id, tile.claimable)
-            }
-            onPointerMove={(event) => handleTilePointerMove(event, tile.id)}
-            onPointerUp={(event) => handleTilePointerUp(event, tile.id)}
-            onPointerCancel={(event) => clearTileTap(event, tile.id)}
+            data-tile-id={tile.id}
+            data-tile-selectable={tile.claimable ? "true" : "false"}
           >
             <polygon
               points={HEX_TILE_POLYGON_POINTS.get(tile.id)}
@@ -1107,10 +1181,12 @@ const HexTileMap = memo(function HexTileMap({
                   : undefined
               }
             />
-            <polyline
-              points={HEX_TILE_INNER_POINTS.get(tile.id)}
-              className={styles.hexInner}
-            />
+            {showInnerDetail ? (
+              <polyline
+                points={HEX_TILE_INNER_POINTS.get(tile.id)}
+                className={styles.hexInner}
+              />
+            ) : null}
             {ownership?.pressurePriorityRank ? (
               <g className={styles.pressurePriorityBadge}>
                 <circle cx={tile.x + 22} cy={tile.y - 22} r={13} />
@@ -1119,30 +1195,8 @@ const HexTileMap = memo(function HexTileMap({
                 </text>
               </g>
             ) : null}
-            {!reducedVisualLoad && tile.biome === "forest" ? (
-              <path
-                className={styles.hexFeature}
-                d={`M ${tile.x - 15} ${tile.y + 12} h 30 l -15 -28 z M ${tile.x - 4} ${
-                  tile.y + 16
-                } h 8 v 10 h -8 z`}
-              />
-            ) : null}
-            {!reducedVisualLoad &&
-            (tile.biome === "hills" || tile.biome === "mountains") ? (
-              <path
-                className={styles.hexFeature}
-                d={`M ${tile.x - 25} ${tile.y + 16} l 19 -32 l 20 32 z M ${tile.x - 3} ${
-                  tile.y + 16
-                } l 18 -25 l 20 25 z`}
-              />
-            ) : null}
-            {!reducedVisualLoad && tile.biome === "marsh" ? (
-              <path
-                className={styles.hexFeature}
-                d={`M ${tile.x - 25} ${tile.y + 11} q 12 -10 24 0 t 24 0 M ${tile.x - 18} ${
-                  tile.y - 3
-                } v 22 M ${tile.x + 11} ${tile.y - 6} v 24`}
-              />
+            {featurePath ? (
+              <path className={styles.hexFeature} d={featurePath} />
             ) : null}
             {ownership?.hasActiveBattle ? (
               <g
