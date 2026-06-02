@@ -15,6 +15,7 @@ import { PoliticsClient } from "@/app/politics/politics-client";
 
 import {
   purchaseSkillNodeAction,
+  resetSkillNodeAction,
   setAllianceSupportPolicyAction,
   setMaxArmySizeAction,
   createBattalionAction,
@@ -3469,13 +3470,21 @@ export function CastleManagement({
                   totalPurchased: playerSummary.skillPurchases.length,
                   playerLevel: playerSummary.level,
                   tileCount: playerSummary.ownedTileSummary.totalTileCount,
+                  gold: playerSummary.gold,
                 }}
                 onPurchase={async (nodeKey) => {
                   const result = await purchaseSkillNodeAction(
                     playerSummary.id,
                     nodeKey
                   );
-                  if (!result.ok) window.alert(result.error);
+                  await handleInlineResult(result);
+                }}
+                onReset={async (nodeKey) => {
+                  const result = await resetSkillNodeAction(
+                    playerSummary.id,
+                    nodeKey
+                  );
+                  await handleInlineResult(result);
                 }}
               />
             ) : (

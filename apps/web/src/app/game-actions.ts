@@ -2259,6 +2259,27 @@ export async function purchaseSkillNodeAction(
   }
 }
 
+export async function resetSkillNodeAction(
+  fortressId: string,
+  nodeKey: string
+): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return { ok: false, error: "Sign in to respec skill points." };
+  }
+
+  try {
+    const { resetSkillNode } = await import("@/lib/game/race-skill-service");
+    await resetSkillNode({ userId, fortressId, nodeKey });
+    notifyAndRevalidate("skill-respec", GAMEPLAY_REVALIDATE_PATHS);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: getActionErrorMessage(error) };
+  }
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // Battalion & War Front Actions (Season 4)
 // ═════════════════════════════════════════════════════════════════════════════

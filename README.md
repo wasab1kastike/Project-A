@@ -232,6 +232,7 @@ The game is now a castle-economy and battlefield-control loop:
 - players pick one race per cycle, then assign workers to miners, farmers, and recruiters on the Castle page
 - Legacy race abilities remain readable in prior-season history, but are unavailable in the Season 4 ruleset; each race instead selects one passive standing doctrine with a 12-hour change cooldown
 - Season 4 race skills are role-focused Economy, Territory, and Military paths with 8 nodes per path, 12 total points, and major specialization unlocks at nodes 4 and 8; points arrive at castle level 3, then every 2 castle levels, and every 5 owned normal tiles
+- one skill point can be respecced from the end of an unlocked branch for 25,000 gold
 - the skill-tree role revamp resets existing race skill purchases so players can rebuild around the new economy, pressure, trade logistics, and battalion bonuses
 - miners produce gold, farmers produce food, and recruiters process queued army orders instead of passively creating army
 - recruiting army costs 1 gold per unit up front; queued units complete over ticks based on assigned recruiters and race bonuses

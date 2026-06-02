@@ -4,6 +4,7 @@ import { dirname, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import {
+  assertSkillNodeCanBeReset,
   assertSkillNodeCanBePurchased,
   getAvailableSkillPoints,
   getActiveSkillRewards,
@@ -11,7 +12,11 @@ import {
   getMaxSkillPoints,
 } from "./race-skill-service";
 import { getSkillModifiers } from "./race-skill-effects";
-import { RACE_SKILL_TREES, SKILL_NODES_PER_PATH } from "./race-skill-tree";
+import {
+  RACE_SKILL_TREES,
+  SKILL_NODES_PER_PATH,
+  SKILL_POINT_RESPEC_GOLD_COST,
+} from "./race-skill-tree";
 
 test("race skill earned points start later and use slower milestones", () => {
   assert.equal(getEarnedSkillPoints({ level: 1, ownedTileCount: 0 }), 0);
@@ -92,6 +97,42 @@ test("race skill node purchases require previous branch nodes", () => {
         availablePoints: 4,
       }).key,
     "economy-2"
+  );
+});
+
+test("race skill respec only removes the highest purchased node in a branch", () => {
+  assert.throws(
+    () =>
+      assertSkillNodeCanBeReset({
+        race: "DWARFS",
+        nodeKey: "economy-1",
+        purchases: [{ nodeKey: "economy-1" }, { nodeKey: "economy-2" }],
+        gold: SKILL_POINT_RESPEC_GOLD_COST,
+      }),
+    /higher nodes/
+  );
+
+  assert.equal(
+    assertSkillNodeCanBeReset({
+      race: "DWARFS",
+      nodeKey: "economy-2",
+      purchases: [{ nodeKey: "economy-1" }, { nodeKey: "economy-2" }],
+      gold: SKILL_POINT_RESPEC_GOLD_COST,
+    }).key,
+    "economy-2"
+  );
+});
+
+test("race skill respec requires the gold fee", () => {
+  assert.throws(
+    () =>
+      assertSkillNodeCanBeReset({
+        race: "DWARFS",
+        nodeKey: "economy-1",
+        purchases: [{ nodeKey: "economy-1" }],
+        gold: SKILL_POINT_RESPEC_GOLD_COST - 1,
+      }),
+    /25,000 gold/
   );
 });
 
