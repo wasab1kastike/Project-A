@@ -1404,7 +1404,8 @@ export async function getCastlePageState({
           castleSpecializationCounts: playerCastleSpecializationCounts,
           tradeWagonResourceLimit: getTradeWagonResourceLimit(
             playerCastleSpecializationCounts?.[CastleUpgradeSpecialization.TRADE] ??
-              0
+              0,
+            playerSkillModifiers?.tradeWagonCapacityPercent ?? 0
           ),
           buildingUpgradeOptions,
           castleUpgradeChoices: playerFortress.castleUpgradeSpecializations,

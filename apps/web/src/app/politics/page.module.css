@@ -257,6 +257,18 @@
   gap: 7px;
 }
 
+.actionStack {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+}
+
+.actionCost {
+  color: rgba(226, 232, 240, 0.76);
+  font-size: 0.72rem;
+  line-height: 1.25;
+}
+
 .actions button,
 .orderControl button,
 .tradeForm button,

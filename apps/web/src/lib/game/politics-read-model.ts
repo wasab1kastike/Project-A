@@ -12,13 +12,21 @@ import {
 import {
   findDiplomacyRelationForPair,
   getEffectiveDiplomacyStatus,
+  getAllianceTrustTerms,
   getPoliticsRelationPresentation,
+  isAllianceTrustTier,
 } from "./politics";
 import { isSeasonFourRuleset } from "./rulesets";
 import { isHomeOfATile } from "./territory";
-import { getTradeBlockedReason, getTradeWagonResourceLimit } from "./trading";
+import {
+  getActiveTradeWagonLimit,
+  getTradeBlockedReason,
+  getTradeWagonResourceLimit,
+} from "./trading";
 import { isConvoyRaidEligible } from "./convoy-conflict";
 import { countCastleSpecializations } from "./specializations";
+import { getSkillModifiers } from "./race-skill-effects";
+import { isFortressRace } from "./races";
 
 function getMinutesUntil(from: Date, to: Date | null | undefined) {
   if (!to || to <= from) {
@@ -128,6 +136,9 @@ export async function getPoliticsPageState({
           points: true,
           joinedAt: true,
           race: true,
+          skillPurchases: {
+            select: { nodeKey: true },
+          },
           gold: true,
           food: true,
           army: true,
@@ -229,7 +240,13 @@ export async function getPoliticsPageState({
     }, [])
   );
 
-  const [tradeOffers, convoyLegs, activeArmyOrders, recentCovertIncidents] = await Promise.all([
+  const [
+    tradeOffers,
+    convoyLegs,
+    activeOutboundWagonGroups,
+    activeArmyOrders,
+    recentCovertIncidents,
+  ] = await Promise.all([
     db.tradeOffer.findMany({
       where: {
         cycleId: cycle.id,
@@ -267,6 +284,14 @@ export async function getPoliticsPageState({
       orderBy: { createdAt: "desc" },
       take: 30,
     }),
+    db.convoyLeg.groupBy({
+      by: ["fromFortressId"],
+      where: {
+        cycleId: cycle.id,
+        status: ConvoyLegStatus.IN_TRANSIT,
+      },
+      _count: { id: true },
+    }),
     db.armyOrder.findMany({
       where: {
         cycleId: cycle.id,
@@ -288,6 +313,14 @@ export async function getPoliticsPageState({
       take: 12,
     }),
   ]);
+
+  const activeOutboundWagonsByFortressId = new Map<string, number>();
+  for (const row of activeOutboundWagonGroups) {
+    activeOutboundWagonsByFortressId.set(
+      row.fromFortressId,
+      row._count.id
+    );
+  }
 
   const rows = cycle.fortresses
     .filter((fortress) => fortress.id !== playerFortress.id)
@@ -328,14 +361,33 @@ export async function getPoliticsPageState({
       const castleSpecializations = countCastleSpecializations(
         fortress.castleUpgradeSpecializations
       );
+      const skillModifiers =
+        fortress.race && isFortressRace(fortress.race)
+          ? getSkillModifiers({
+              race: fortress.race,
+              purchases: fortress.skillPurchases,
+            })
+          : null;
+      const activeOutboundWagons =
+        activeOutboundWagonsByFortressId.get(fortress.id) ?? 0;
+      const activeTradeWagonLimit = getActiveTradeWagonLimit(
+        skillModifiers?.tradeWagonSlotBonus ?? 0
+      );
+      const trustUpgradeTerms =
+        relation?.trustUpgradeTier && isAllianceTrustTier(relation.trustUpgradeTier)
+          ? getAllianceTrustTerms(relation.trustUpgradeTier)
+          : null;
       return {
         fortressId: fortress.id,
         name: fortress.name,
         commanderName: fortress.commanderName,
         race: fortress.race,
         tradeWagonResourceLimit: getTradeWagonResourceLimit(
-          castleSpecializations[CastleUpgradeSpecialization.TRADE]
+          castleSpecializations[CastleUpgradeSpecialization.TRADE],
+          skillModifiers?.tradeWagonCapacityPercent ?? 0
         ),
+        activeOutboundWagons,
+        activeTradeWagonLimit,
         ownedTileIds: (ownedTileIdsByFortressId.get(fortress.id) ?? []).filter(
           (tileId: string) => !isHomeOfATile(tileId)
         ),
@@ -356,6 +408,8 @@ export async function getPoliticsPageState({
         allianceEscrowGoldEach: relation?.allianceEscrowGoldEach ?? 0,
         allianceEscrowFoodEach: relation?.allianceEscrowFoodEach ?? 0,
         trustUpgradeTier: relation?.trustUpgradeTier ?? null,
+        trustUpgradeEscrowGoldEach: trustUpgradeTerms?.escrowGold ?? null,
+        trustUpgradeEscrowFoodEach: trustUpgradeTerms?.escrowFood ?? null,
         trustUpgradeProposedByCurrentPlayer:
           trustUpgradeProposedById !== null &&
           trustUpgradeProposedById === playerFortress.id,
@@ -417,6 +471,15 @@ export async function getPoliticsPageState({
   const playerCastleSpecializations = countCastleSpecializations(
     playerFortress.castleUpgradeSpecializations
   );
+  const playerSkillModifiers =
+    playerFortress.race && isFortressRace(playerFortress.race)
+      ? getSkillModifiers({
+          race: playerFortress.race,
+          purchases: playerFortress.skillPurchases,
+        })
+      : null;
+  const playerActiveOutboundWagons =
+    activeOutboundWagonsByFortressId.get(playerFortress.id) ?? 0;
   const normalizeOffer = (offer: (typeof tradeOffers)[number]) => ({
     id: offer.id,
     senderFortressId: offer.senderFortressId,
@@ -583,7 +646,12 @@ export async function getPoliticsPageState({
       food: playerFortress.food,
       army: playerFortress.army,
       tradeWagonResourceLimit: getTradeWagonResourceLimit(
-        playerCastleSpecializations[CastleUpgradeSpecialization.TRADE]
+        playerCastleSpecializations[CastleUpgradeSpecialization.TRADE],
+        playerSkillModifiers?.tradeWagonCapacityPercent ?? 0
+      ),
+      activeOutboundWagons: playerActiveOutboundWagons,
+      activeTradeWagonLimit: getActiveTradeWagonLimit(
+        playerSkillModifiers?.tradeWagonSlotBonus ?? 0
       ),
     },
     rows,

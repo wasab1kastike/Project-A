@@ -5,8 +5,11 @@ import { DiplomacyRelationStatus } from "@/lib/prisma-client";
 import { getAttackTravelMinutes } from "./attacks";
 import {
   assertTradeCargoWithinWagonLimit,
+  assertActiveTradeWagonLimit,
   calculateTradeCargoValue,
   canTradeWithRelation,
+  DEFAULT_ACTIVE_TRADE_WAGON_LIMIT,
+  getActiveTradeWagonLimit,
   getAllianceDeliveryBonus,
   getConvoyArrivalAt,
   getTradeBlockedReason,
@@ -73,6 +76,7 @@ test("trade wagon capacity follows the trade building level ladder", () => {
   assert.equal(getTradeWagonResourceLimit(1), 500);
   assert.equal(getTradeWagonResourceLimit(9), 20_000);
   assert.equal(getTradeWagonResourceLimit(99), 20_000);
+  assert.equal(getTradeWagonResourceLimit(1, 25), 625);
 });
 
 test("trade wagons cap total transported resources", () => {
@@ -105,6 +109,38 @@ test("trade wagons cap total transported resources", () => {
       }),
     /can carry 100 total gold and food/
   );
+  assert.doesNotThrow(() =>
+    assertTradeCargoWithinWagonLimit(
+      {
+        gold: 110,
+        food: 15,
+        army: 0,
+        points: 0,
+      },
+      0,
+      25
+    )
+  );
+});
+
+test("active outbound wagon limit defaults to three and expands from skills", () => {
+  assert.equal(DEFAULT_ACTIVE_TRADE_WAGON_LIMIT, 3);
+  assert.equal(getActiveTradeWagonLimit(), 3);
+  assert.equal(getActiveTradeWagonLimit(2), 5);
+  assert.doesNotThrow(() =>
+    assertActiveTradeWagonLimit({
+      activeOutboundWagons: 2,
+      wagonLimit: 3,
+    })
+  );
+  assert.throws(
+    () =>
+      assertActiveTradeWagonLimit({
+        activeOutboundWagons: 3,
+        wagonLimit: 3,
+      }),
+    /3 active outbound wagons/
+  );
 });
 
 test("offers expire after one day and convoys add six hours to base travel", () => {
@@ -134,6 +170,11 @@ test("delivery scores base cargo and gives the sender the odd point", () => {
     sender: 4,
     receiver: 3,
   });
+  assert.deepEqual(splitTradeDeliveryPoints(3_999, 0, 20), {
+    total: 8,
+    sender: 4,
+    receiver: 4,
+  });
 });
 
 test("delivery bonuses apply to resources and alliances add a larger bonus", () => {
@@ -150,7 +191,8 @@ test("delivery bonuses apply to resources and alliances add a larger bonus", () 
       cargo: { gold: 101, food: 99, army: 100, points: 50 },
       isAllied: false,
       trustTier: 2,
+      tradeProfitPercent: 10,
     }),
-    { percent: 5, gold: 5, food: 4, army: 0, points: 0 }
+    { percent: 15, gold: 15, food: 14, army: 0, points: 0 }
   );
 });

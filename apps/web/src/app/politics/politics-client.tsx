@@ -142,6 +142,10 @@ function formatTerms({
     .join(", ");
 }
 
+function formatTermsOrNone(input: Parameters<typeof formatTerms>[0]) {
+  return formatTerms(input) || "no resources";
+}
+
 export function PoliticsClient({ state }: { state: PoliticsPageState }) {
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [renderedAt] = useState(() => Date.now());
@@ -182,6 +186,13 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
   const selectedTradeTarget = tradeTargetId
     ? state.rows.find((row) => row.fortressId === tradeTargetId) ?? null
     : null;
+
+  const liveTermsSummary = formatTermsOrNone({
+    gold: termsGold,
+    food: termsFood,
+    army: termsArmy,
+    tileId: termsTileId || null,
+  });
 
   function openTermsPanel(
     row: PoliticsRow,
@@ -602,6 +613,12 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                           {row.allianceEscrowFoodEach.toLocaleString()} food
                         </p>
                       ) : null}
+                      {row.effectiveStatus === "ALLIED" &&
+                      row.trustUpgradeTier ? (
+                        <p className={styles.treatyNote}>
+                          Trust upgrade requested: tier {row.trustUpgradeTier}
+                        </p>
+                      ) : null}
                       {(row.effectiveStatus === "ALLIED" ||
                         row.effectiveStatus === "ALLIANCE_PENDING") &&
                       (row.collateralGold > 0 ||
@@ -664,7 +681,7 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                           {row.peaceReparationFromCurrentPlayer
                             ? "you pay "
                             : "they pay "}
-                          {formatTerms({
+                          {formatTermsOrNone({
                             gold: row.peaceReparationGold,
                             food: row.peaceReparationFood,
                             army: row.peaceReparationArmy,
@@ -702,32 +719,66 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                           const isTermsAction =
                             action === "PROPOSE_ALLIANCE" ||
                             action === "PROPOSE_PEACE";
+                          const acceptanceCost =
+                            action === "ACCEPT_ALLIANCE"
+                              ? `Escrow due now: ${row.allianceEscrowGoldEach.toLocaleString()} gold + ${row.allianceEscrowFoodEach.toLocaleString()} food each${
+                                  row.collateralGold > 0 ||
+                                  row.collateralFood > 0 ||
+                                  row.collateralArmy > 0
+                                    ? `; break collateral ${formatTermsOrNone({
+                                        gold: row.collateralGold,
+                                        food: row.collateralFood,
+                                        army: row.collateralArmy,
+                                      })}`
+                                    : ""
+                                }`
+                              : action === "ACCEPT_TRUST_UPGRADE" &&
+                                  row.trustUpgradeTier
+                                ? `Escrow due after accept: ${(row.trustUpgradeEscrowGoldEach ?? 0).toLocaleString()} gold + ${(row.trustUpgradeEscrowFoodEach ?? 0).toLocaleString()} food each`
+                                : action === "ACCEPT_PEACE"
+                                  ? `Due on accept: ${
+                                      row.peaceReparationFromCurrentPlayer
+                                        ? "you pay "
+                                        : "they pay "
+                                    }${formatTermsOrNone({
+                                      gold: row.peaceReparationGold,
+                                      food: row.peaceReparationFood,
+                                      army: row.peaceReparationArmy,
+                                      tileId: row.peaceReparationTileId,
+                                    })}`
+                                  : null;
 
                           return (
-                            <button
-                              key={action}
-                              type="button"
-                              data-danger={
-                                action === "BETRAY_ALLIANCE" || undefined
-                              }
-                              disabled={pendingId !== null}
-                              onClick={() => {
-                                if (isTermsAction) {
-                                  openTermsPanel(
-                                    row,
-                                    action as
-                                      | "PROPOSE_ALLIANCE"
-                                      | "PROPOSE_PEACE"
-                                  );
-                                } else {
-                                  void handleAction(row, action);
+                            <div key={action} className={styles.actionStack}>
+                              <button
+                                type="button"
+                                data-danger={
+                                  action === "BETRAY_ALLIANCE" || undefined
                                 }
-                              }}
-                            >
-                              {pendingId === key
-                                ? "Sending..."
-                                : getActionLabel(action)}
-                            </button>
+                                disabled={pendingId !== null}
+                                onClick={() => {
+                                  if (isTermsAction) {
+                                    openTermsPanel(
+                                      row,
+                                      action as
+                                        | "PROPOSE_ALLIANCE"
+                                        | "PROPOSE_PEACE"
+                                    );
+                                  } else {
+                                    void handleAction(row, action);
+                                  }
+                                }}
+                              >
+                                {pendingId === key
+                                  ? "Sending..."
+                                  : getActionLabel(action)}
+                              </button>
+                              {acceptanceCost ? (
+                                <small className={styles.actionCost}>
+                                  {acceptanceCost}
+                                </small>
+                              ) : null}
+                            </div>
                           );
                         })
                       ) : (
@@ -747,8 +798,17 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                       <div className={styles.termsForm}>
                         <p className={styles.termsLabel}>
                           {termsPanel.action === "PROPOSE_ALLIANCE"
-                            ? "Alliance break collateral (optional)"
-                            : "Peace terms (optional)"}
+                            ? "Alliance break collateral"
+                            : "Peace reparation"}
+                        </p>
+                        <p className={styles.treatyNote}>
+                          {termsPanel.action === "PROPOSE_ALLIANCE"
+                            ? `Whoever betrays owes: ${liveTermsSummary}`
+                            : `${
+                                termsPayer === "SELF"
+                                  ? "You pay on acceptance"
+                                  : "They pay on acceptance"
+                              }: ${liveTermsSummary}`}
                         </p>
                         <div className={styles.tradeColumns}>
                           <fieldset>
@@ -932,8 +992,11 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
               Wagon capacity: you can send{" "}
               {(state.playerFortress?.tradeWagonResourceLimit ?? 0).toLocaleString()}{" "}
               gold+food
+              {state.playerFortress
+                ? `; outbound wagons ${state.playerFortress.activeOutboundWagons}/${state.playerFortress.activeTradeWagonLimit}`
+                : ""}
               {selectedTradeTarget
-                ? `; ${selectedTradeTarget.name} can send ${selectedTradeTarget.tradeWagonResourceLimit.toLocaleString()} gold+food`
+                ? `; ${selectedTradeTarget.name} can send ${selectedTradeTarget.tradeWagonResourceLimit.toLocaleString()} gold+food and has ${selectedTradeTarget.activeOutboundWagons}/${selectedTradeTarget.activeTradeWagonLimit} outbound wagons active`
                 : ""}
               . Army, points, components, and tile deeds do not count against
               this cap.

@@ -30,6 +30,9 @@ export type SkillModifiers = {
   battalionMaxSizePercent: number;
   battalionXpMultiplier: number;
   promotionDiscountPercent: number;
+  tradeWagonCapacityPercent: number;
+  tradeProfitPercent: number;
+  tradeWagonSlotBonus: number;
   instantReinforce: boolean;
   precisionStrikeChance: number;
   prismaticClaimChance: number;
@@ -70,6 +73,9 @@ const EMPTY_MODIFIERS: SkillModifiers = {
   battalionMaxSizePercent: 0,
   battalionXpMultiplier: 1,
   promotionDiscountPercent: 0,
+  tradeWagonCapacityPercent: 0,
+  tradeProfitPercent: 0,
+  tradeWagonSlotBonus: 0,
   instantReinforce: false,
   precisionStrikeChance: 0,
   prismaticClaimChance: 0,
@@ -192,6 +198,15 @@ export function getSkillModifiers({
           mods.promotionDiscountPercent,
           r.value ?? 0
         );
+        break;
+      case "tradeWagonCapacity":
+        mods.tradeWagonCapacityPercent += r.value ?? 0;
+        break;
+      case "tradeProfit":
+        mods.tradeProfitPercent += r.value ?? 0;
+        break;
+      case "tradeWagonSlots":
+        mods.tradeWagonSlotBonus += r.value ?? 0;
         break;
       case "instantReinforce":
         mods.instantReinforce = true;

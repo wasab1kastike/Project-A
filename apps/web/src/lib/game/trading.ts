@@ -26,6 +26,7 @@ export const TRADE_WAGON_RESOURCE_LIMITS = [
 ] as const;
 export const TRADE_WAGON_RESOURCE_LIMIT = TRADE_WAGON_RESOURCE_LIMITS[0];
 export const TRADE_BASE_DELIVERY_BONUS_PERCENT = 5;
+export const DEFAULT_ACTIVE_TRADE_WAGON_LIMIT = 3;
 
 export type TradeCargo = {
   gold: number;
@@ -104,28 +105,55 @@ export function getTradeCargoResourceAmount(cargo: TradeCargo) {
   return cargo.gold + cargo.food;
 }
 
-export function getTradeWagonResourceLimit(tradeBuildingLevel: number) {
+export function getTradeWagonResourceLimit(
+  tradeBuildingLevel: number,
+  capacityBonusPercent = 0
+) {
   const normalizedLevel = Number.isInteger(tradeBuildingLevel)
     ? Math.max(0, tradeBuildingLevel)
     : 0;
 
-  return (
+  const baseLimit =
     TRADE_WAGON_RESOURCE_LIMITS[
       Math.min(normalizedLevel, TRADE_WAGON_RESOURCE_LIMITS.length - 1)
-    ] ?? TRADE_WAGON_RESOURCE_LIMIT
-  );
+    ] ?? TRADE_WAGON_RESOURCE_LIMIT;
+  const multiplier = 1 + Math.max(0, capacityBonusPercent) / 100;
+
+  return Math.floor(baseLimit * multiplier);
 }
 
 export function assertTradeCargoWithinWagonLimit(
   cargo: TradeCargo,
-  tradeBuildingLevel = 0
+  tradeBuildingLevel = 0,
+  capacityBonusPercent = 0
 ) {
   const resourceAmount = getTradeCargoResourceAmount(cargo);
-  const resourceLimit = getTradeWagonResourceLimit(tradeBuildingLevel);
+  const resourceLimit = getTradeWagonResourceLimit(
+    tradeBuildingLevel,
+    capacityBonusPercent
+  );
 
   if (resourceAmount > resourceLimit) {
     throw new Error(
       `Your wagon can carry ${resourceLimit.toLocaleString("en-US")} total gold and food. Upgrade Trade Wagons to move more.`
+    );
+  }
+}
+
+export function getActiveTradeWagonLimit(slotBonus = 0) {
+  return DEFAULT_ACTIVE_TRADE_WAGON_LIMIT + Math.max(0, Math.floor(slotBonus));
+}
+
+export function assertActiveTradeWagonLimit({
+  activeOutboundWagons,
+  wagonLimit,
+}: {
+  activeOutboundWagons: number;
+  wagonLimit: number;
+}) {
+  if (activeOutboundWagons >= wagonLimit) {
+    throw new Error(
+      `You already have ${wagonLimit.toLocaleString("en-US")} active outbound wagons. Wait for one to arrive or unlock more wagon slots.`
     );
   }
 }
@@ -143,12 +171,14 @@ export function calculateTradeCargoValue(cargo: TradeCargo) {
 export function splitTradeDeliveryPoints(
   cargoValue: number,
   establishedDeliveries = 0,
+  tradeProfitPercent = 0,
 ) {
   const ESTABLISHED_ROUTE_BONUS = 5; // ≥5 deliveries = established trade route
   const basePoints = Math.floor(cargoValue / 500); // doubled points (was /1000)
   const bonusMultiplier =
     establishedDeliveries >= ESTABLISHED_ROUTE_BONUS ? 1.25 : 1.0;
-  const total = Math.floor(basePoints * bonusMultiplier);
+  const skillMultiplier = 1 + Math.max(0, tradeProfitPercent) / 100;
+  const total = Math.floor(basePoints * bonusMultiplier * skillMultiplier);
   const receiver = Math.floor(total / 2);
 
   return {
@@ -181,16 +211,22 @@ export function getAllianceDeliveryBonus({
   cargo,
   isAllied,
   trustTier,
+  tradeProfitPercent = 0,
 }: {
   cargo: TradeCargo;
   isAllied: boolean;
   trustTier: number;
+  tradeProfitPercent?: number;
 }) {
-  const percent =
-    TRADE_BASE_DELIVERY_BONUS_PERCENT +
-    (isAllied && isAllianceTrustTier(trustTier)
+  const alliancePercent =
+    isAllied && isAllianceTrustTier(trustTier)
       ? getAllianceTrustTerms(trustTier).deliveryBonusPercent
-      : 0);
+      : 0;
+  const percent = Math.floor(
+    TRADE_BASE_DELIVERY_BONUS_PERCENT +
+      alliancePercent +
+      Math.max(0, tradeProfitPercent)
+  );
 
   return {
     percent,

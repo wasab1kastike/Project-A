@@ -41,6 +41,13 @@ import {
   ROAD_THRESHOLDS,
   RoadLevel,
 } from "@/lib/game/supply-lines";
+import {
+  MAX_SKILL_POINTS,
+  SKILL_NODES_PER_PATH,
+  SKILL_POINT_CASTLE_LEVEL_INTERVAL,
+  SKILL_POINT_FIRST_CASTLE_LEVEL,
+  SKILL_POINT_TILE_INTERVAL,
+} from "@/lib/game/race-skill-tree";
 
 export type WikiTable = {
   headers: readonly string[];
@@ -228,8 +235,10 @@ export const WIKI_PAGES: readonly WikiPage[] = [
       "Each race is a season-long playstyle commitment with passive modifiers and three skill paths.",
     highlights: [
       "Skill points come from castle milestones and owned normal territory.",
-      "Maximum skill points: 12.",
-      "A full skill branch costs 8 points, leaving 4 for other paths.",
+      `Maximum skill points: ${MAX_SKILL_POINTS}.`,
+      `A full skill branch costs ${SKILL_NODES_PER_PATH} points, leaving ${
+        MAX_SKILL_POINTS - SKILL_NODES_PER_PATH
+      } for other paths.`,
     ],
     sections: [
       {
@@ -568,9 +577,10 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         bullets: [
           "Trade offers expire after 24 hours.",
           "Convoy legs take at least 6 hours plus map travel time.",
-          "Trade Wagon building upgrades raise each convoy wagon from 100 up to 20,000 total gold and food.",
+          "Fortresses can run 3 active outbound wagons by default; skill nodes can unlock more.",
+          "Trade Wagon building upgrades raise each convoy wagon from 100 up to 20,000 total gold and food before skill capacity bonuses.",
           "Delivered base cargo value awards shared points.",
-          "Every non-hostile delivery adds a small gold and food bonus; allied trust makes that bonus larger.",
+          "Every non-hostile delivery adds a small gold and food bonus; allied trust and trade skills make that bonus larger.",
           "If relations turn hostile before arrival, cargo can be seized without trade points.",
         ],
       },
@@ -606,9 +616,9 @@ export const WIKI_PAGES: readonly WikiPage[] = [
     subtitle:
       "Season 4 uses race skill trees instead of legacy active-ability timing as the main race progression layer.",
     highlights: [
-      "Maximum 12 skill points.",
-      "Three paths per race, eight nodes per path.",
-      "A full path costs 8 points; nodes 4 and 8 are the major specialization unlocks.",
+      `Maximum ${MAX_SKILL_POINTS} skill points.`,
+      `Three paths per race, ${SKILL_NODES_PER_PATH} nodes per path.`,
+      `A full path costs ${SKILL_NODES_PER_PATH} points; nodes 4 and ${SKILL_NODES_PER_PATH} are the major specialization unlocks.`,
     ],
     sections: [
       {
@@ -616,9 +626,9 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         eyebrow: "Progression",
         title: "How skills work",
         bullets: [
-          "Earn +1 skill point at castle level 3, then every 2 castle levels.",
-          "Earn +1 skill point per 5 owned normal tiles.",
-          "Economy improves income, upkeep, and expansion slots; Territory improves pressure and tile control; Military improves battalions and recruitment.",
+          `Earn +1 skill point at castle level ${SKILL_POINT_FIRST_CASTLE_LEVEL}, then every ${SKILL_POINT_CASTLE_LEVEL_INTERVAL} castle levels.`,
+          `Earn +1 skill point per ${SKILL_POINT_TILE_INTERVAL} owned normal tiles.`,
+          "Economy improves income, upkeep, expansion slots, and trade logistics; Territory improves pressure and tile control; Military improves battalions and recruitment.",
           "Race-specific behavior should be intentional: read the path before spending.",
         ],
       },
