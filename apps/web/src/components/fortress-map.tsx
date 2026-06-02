@@ -181,6 +181,33 @@ type Point = {
   y: number;
 };
 
+const TRADE_WAGON_SPRITE_FRAME_COUNT = 10;
+const TRADE_WAGON_SPRITES: Record<NonNullable<MapFortress["race"]>, string> = {
+  DWARFS: "/assets/wagons/wagon-dwarfs.png",
+  ORKS: "/assets/wagons/wagon-orks.png",
+  SPACE_MURINES: "/assets/wagons/wagon-space-murines.png",
+  UNSTABLE_UNICORNS: "/assets/wagons/wagon-unstable-unicorns.png",
+};
+
+function getTradeWagonSpriteStyle(
+  race: MapFortress["race"],
+  level: number | null | undefined
+): CSSProperties {
+  const frame = Math.min(
+    Math.max(Math.trunc(level ?? 0), 0),
+    TRADE_WAGON_SPRITE_FRAME_COUNT - 1
+  );
+  const position =
+    frame === 0 ? 0 : (frame / (TRADE_WAGON_SPRITE_FRAME_COUNT - 1)) * 100;
+
+  return {
+    backgroundImage: `url(${
+      race ? TRADE_WAGON_SPRITES[race] : "/assets/wagons/wagon-default.png"
+    })`,
+    backgroundPosition: `${position}% 0`,
+  };
+}
+
 type DragStart = {
   x: number;
   y: number;
@@ -282,6 +309,8 @@ type FortressMapProps = {
     deedTileId?: string | null;
     cargoLabel?: string;
     arrivedAwaitingTick?: boolean;
+    senderRace?: MapFortress["race"];
+    tradeLevel?: number;
     departedAt: number | null;
     arrivesAt: number | null;
   }>;
@@ -2415,6 +2444,8 @@ export const FortressMap = memo(function FortressMap({
                       ? `arrives in ${Math.ceil(secondsUntilArrival / 3600)}h`
                       : `arrives in ${Math.max(1, Math.ceil(secondsUntilArrival / 60))}m`
                     : "arrival pending";
+                const tradeLevel = convoy.tradeLevel ?? 0;
+                const senderRace = convoy.senderRace ?? from.race;
                 const routeLabel = `${convoy.fromName ?? from.name} to ${convoy.toName ?? to.name}`;
                 return (
                   <div
@@ -2425,18 +2456,15 @@ export const FortressMap = memo(function FortressMap({
                       top: `${y}%`,
                       "--convoy-angle": `${angle}deg`,
                     } as CSSProperties}
-                    title={`Trade wagon: ${cargoLabel}; ${routeLabel}; ${timingLabel}`}
+                    title={`Trade wagon L${tradeLevel}: ${cargoLabel}; ${routeLabel}; ${timingLabel}`}
                   >
                     <span
                       className={styles.convoyWagon}
-                      data-race={from.race ?? undefined}
+                      data-race={senderRace ?? undefined}
+                      data-level={tradeLevel}
+                      style={getTradeWagonSpriteStyle(senderRace, tradeLevel)}
                       aria-hidden="true"
-                    >
-                      <span className={styles.convoyCanopy} />
-                      <span className={styles.convoyBed} />
-                      <span className={styles.convoyWheel} data-wheel="rear" />
-                      <span className={styles.convoyWheel} data-wheel="front" />
-                    </span>
+                    />
                     <span
                       className={styles.convoyEscort}
                       data-variant={from.unitSpriteVariant}

@@ -4573,6 +4573,9 @@ export async function getHomePageState({
       const to = (cycle.fortresses ?? []).find(
         (fortress) => fortress.id === leg.toFortressId
       );
+      const senderSpecializations = countCastleSpecializations(
+        from?.castleUpgradeSpecializations ?? []
+      );
       const cargoParts = [
         leg.deedTileId ? `tile ${leg.deedTileId}` : null,
         leg.gold > 0 ? `${leg.gold.toLocaleString("en-US")}g` : null,
@@ -4602,6 +4605,8 @@ export async function getHomePageState({
         deedTileId: leg.deedTileId,
         cargoLabel: cargoParts.join(", ") || "empty wagon",
         arrivedAwaitingTick: leg.arrivesAt <= now,
+        senderRace: from?.race ?? null,
+        tradeLevel: senderSpecializations[CastleUpgradeSpecialization.TRADE] ?? 0,
         departedAt: leg.departedAt?.getTime() ?? null,
         arrivesAt: leg.arrivesAt?.getTime() ?? null,
       };
