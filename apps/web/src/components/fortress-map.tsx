@@ -1413,6 +1413,33 @@ function pointsToPolyline(points: Array<{ x: number; y: number }>) {
   return points.map((point) => `${point.x},${point.y}`).join(" ");
 }
 
+function useMapMotionClock(enabled: boolean, intervalMs: number) {
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
+    let animationFrameId = 0;
+    let lastTickAt = 0;
+
+    const tick = () => {
+      const nextNow = Date.now();
+      if (lastTickAt === 0 || nextNow - lastTickAt >= intervalMs) {
+        lastTickAt = nextNow;
+        setNowMs(nextNow);
+      }
+      animationFrameId = window.requestAnimationFrame(tick);
+    };
+
+    animationFrameId = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(animationFrameId);
+  }, [enabled, intervalMs]);
+
+  return nowMs;
+}
+
 // ── Attack Units Layer ───────────────────────────────────────────────────────
 
 function AttackUnitsLayer({
@@ -1426,24 +1453,12 @@ function AttackUnitsLayer({
     attackUnit: AttackUnitMarker
   ) => void | Promise<void>;
 }) {
-  const [nowMs, setNowMs] = useState(() => Date.now());
+  const nowMs = useMapMotionClock(
+    attackUnits.length > 0,
+    attackUnits.length > 10 ? 600 : 300
+  );
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [recallPendingId, setRecallPendingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (attackUnits.length === 0) {
-      return;
-    }
-
-    const interval = window.setInterval(
-      () => {
-        setNowMs(Date.now());
-      },
-      attackUnits.length > 10 ? 1000 : 750
-    );
-
-    return () => window.clearInterval(interval);
-  }, [attackUnits.length]);
 
   const attackUnitViews = useMemo(
     () =>
@@ -1968,7 +1983,7 @@ const BattalionMarkersLayer = memo(function BattalionMarkersLayer({
       }
     >();
 
-    if (reducedVisualLoad || battalionMarkers.length === 0) {
+    if (battalionMarkers.length === 0) {
       return markerPatrols;
     }
 
@@ -2019,21 +2034,12 @@ const BattalionMarkersLayer = memo(function BattalionMarkersLayer({
     }
 
     return markerPatrols;
-  }, [battalionMarkers, mapHexes, reducedVisualLoad]);
+  }, [battalionMarkers, mapHexes]);
 
-  const [patrolNowMs, setPatrolNowMs] = useState(() => Date.now());
-
-  useEffect(() => {
-    if (patrolByMarkerIndex.size === 0) {
-      return;
-    }
-
-    const interval = window.setInterval(() => {
-      setPatrolNowMs(Date.now());
-    }, 1500);
-
-    return () => window.clearInterval(interval);
-  }, [patrolByMarkerIndex.size]);
+  const patrolNowMs = useMapMotionClock(
+    patrolByMarkerIndex.size > 0,
+    reducedVisualLoad ? 2200 : 900
+  );
 
   if (battalionMarkers.length === 0) {
     return null;
@@ -2118,21 +2124,11 @@ const ConvoyMarkersLayer = memo(function ConvoyMarkersLayer({
   convoyMarkers: NonNullable<FortressMapProps["convoyMarkers"]>;
   fortresses: MapFortress[];
 }) {
-  const [convoyNowMs, setConvoyNowMs] = useState(() => Date.now());
+  const convoyNowMs = useMapMotionClock(convoyMarkers.length > 0, 1000);
   const fortressById = useMemo(
     () => new Map(fortresses.map((fortress) => [fortress.id, fortress])),
     [fortresses]
   );
-
-  useEffect(() => {
-    if (convoyMarkers.length === 0) return;
-
-    const interval = window.setInterval(() => {
-      setConvoyNowMs(Date.now());
-    }, 5000);
-
-    return () => window.clearInterval(interval);
-  }, [convoyMarkers.length]);
 
   if (convoyMarkers.length === 0) {
     return null;

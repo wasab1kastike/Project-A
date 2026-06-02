@@ -92,7 +92,6 @@
 .viewportContent[data-reduced-visual-load="true"] .guardMarker::after,
 .viewportContent[data-reduced-visual-load="true"] .battalionMarker,
 .viewportContent[data-reduced-visual-load="true"] .battalionPatrol,
-.viewportContent[data-reduced-visual-load="true"] .convoyWagon,
 .viewportContent[data-reduced-visual-load="true"] .battleIndicator,
 .viewportContent[data-reduced-visual-load="true"] .battleText,
 .viewportContent[data-reduced-visual-load="true"] .warMarker .fortressSprite,
@@ -1948,7 +1947,7 @@
 /* Patrol animation — smooth tile-to-tile movement for GUARD battalions */
 .battalionPatrol {
   animation: battalionPatrolPulse 2s ease-in-out infinite;
-  transition: left 3s linear, top 3s linear;
+  transition: left 900ms linear, top 900ms linear;
 }
 
 @keyframes battalionPatrolPulse {
@@ -2134,7 +2133,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: left 5s linear, top 5s linear;
+  transition: left 1000ms linear, top 1000ms linear;
   filter: drop-shadow(0 8px 0 rgba(0, 0, 0, 0.2))
     drop-shadow(0 0 10px rgba(255, 215, 0, 0.18));
 }
@@ -2204,8 +2203,14 @@
 }
 
 @keyframes convoyBob {
-  0%, 100% { margin-top: 0; }
-  50% { margin-top: -2px; }
+  0%, 100% {
+    transform: translate(-50%, -50%) translateY(0)
+      rotate(var(--convoy-angle, 0deg));
+  }
+  50% {
+    transform: translate(-50%, -50%) translateY(-2px)
+      rotate(var(--convoy-angle, 0deg));
+  }
 }
 
 @keyframes warPulse {
