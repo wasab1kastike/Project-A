@@ -28,6 +28,8 @@ import styles from "./page.module.css";
 type PoliticsRow = PoliticsPageState["rows"][number];
 type PoliticsAction = PoliticsRow["availableActions"][number];
 type TreatyPayer = "SELF" | "TARGET";
+type ActiveTradeDirection =
+  PoliticsPageState["activeTradeOffers"][number]["directions"][number];
 
 function getStatusLabel(status: PoliticsRow["effectiveStatus"]) {
   switch (status) {
@@ -544,6 +546,96 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
     return cargoParts.join(", ") || "nothing";
   }
 
+  function formatTradeCargoTotals(
+    cargo: {
+      gold: number;
+      food: number;
+      army: number;
+      points: number;
+      nukeFuel: number;
+      nukeRocket: number;
+      nukeWrathOfA: number;
+    },
+    deedTileIds: string[] = []
+  ) {
+    const items = [
+      cargo.gold > 0 ? `${cargo.gold.toLocaleString()} gold` : null,
+      cargo.food > 0 ? `${cargo.food.toLocaleString()} food` : null,
+      cargo.army > 0 ? `${cargo.army.toLocaleString()} army` : null,
+      cargo.points > 0 ? `${cargo.points.toLocaleString()} points` : null,
+      cargo.nukeFuel > 0 ? `${cargo.nukeFuel.toLocaleString()} fuel` : null,
+      cargo.nukeRocket > 0
+        ? `${cargo.nukeRocket.toLocaleString()} rocket`
+        : null,
+      cargo.nukeWrathOfA > 0
+        ? `${cargo.nukeWrathOfA.toLocaleString()} wrath`
+        : null,
+      ...deedTileIds.map((tileId) => `Tile ${tileId}`),
+    ].filter(Boolean);
+
+    return items.join(", ") || "nothing";
+  }
+
+  function formatTradeProgress(direction: ActiveTradeDirection) {
+    const lines = [
+      direction.total.gold > 0
+        ? `Gold ${direction.delivered.gold.toLocaleString()} / ${direction.total.gold.toLocaleString()} delivered`
+        : null,
+      direction.total.food > 0
+        ? `Food ${direction.delivered.food.toLocaleString()} / ${direction.total.food.toLocaleString()} delivered`
+        : null,
+      direction.total.army > 0
+        ? `Army ${direction.delivered.army.toLocaleString()} / ${direction.total.army.toLocaleString()} delivered`
+        : null,
+      direction.total.points > 0
+        ? `Points ${direction.delivered.points.toLocaleString()} / ${direction.total.points.toLocaleString()} delivered`
+        : null,
+      direction.total.nukeFuel > 0
+        ? `Fuel ${direction.delivered.nukeFuel.toLocaleString()} / ${direction.total.nukeFuel.toLocaleString()} delivered`
+        : null,
+      direction.total.nukeRocket > 0
+        ? `Rocket ${direction.delivered.nukeRocket.toLocaleString()} / ${direction.total.nukeRocket.toLocaleString()} delivered`
+        : null,
+      direction.total.nukeWrathOfA > 0
+        ? `Wrath ${direction.delivered.nukeWrathOfA.toLocaleString()} / ${direction.total.nukeWrathOfA.toLocaleString()} delivered`
+        : null,
+      direction.totalDeedTileIds.length > 0
+        ? `Deeds ${direction.deliveredDeedTileIds.length.toLocaleString()} / ${direction.totalDeedTileIds.length.toLocaleString()} delivered`
+        : null,
+    ].filter(Boolean);
+
+    return lines.join("; ") || "No cargo";
+  }
+
+  function formatTradeDirectionDetail(direction: ActiveTradeDirection) {
+    const parts = [
+      `runs ${direction.settledRunCount.toLocaleString()} settled / ${direction.activeRunCount.toLocaleString()} active / ${direction.queuedRunCount.toLocaleString()} queued`,
+    ];
+    const inTransit = formatTradeCargoTotals(direction.inTransit);
+    const queued = formatTradeCargoTotals(
+      direction.queued,
+      direction.queuedDeedTileIds
+    );
+    const lost = formatTradeCargoTotals(
+      direction.lost,
+      direction.lostDeedTileIds
+    );
+
+    if (inTransit !== "nothing") {
+      parts.push(`in transit: ${inTransit}`);
+    }
+
+    if (queued !== "nothing") {
+      parts.push(`queued: ${queued}`);
+    }
+
+    if (lost !== "nothing") {
+      parts.push(`lost/seized: ${lost}`);
+    }
+
+    return parts.join("; ");
+  }
+
   function formatLegCargo(leg: PoliticsPageState["activeConvoyLegs"][number]) {
     const items = [
       leg.deedTileId ? `Tile ${leg.deedTileId}` : null,
@@ -581,6 +673,24 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
     }
 
     return `Arrives in ${Math.max(1, Math.ceil(seconds / 60))}m`;
+  }
+
+  function formatEta(date: Date | null) {
+    if (!date) {
+      return "Unknown";
+    }
+
+    const seconds = Math.ceil((date.getTime() - renderedAt) / 1000);
+
+    if (seconds <= 0) {
+      return "Arrived, awaiting tick";
+    }
+
+    if (seconds >= 3600) {
+      return `~${Math.ceil(seconds / 3600)}h`;
+    }
+
+    return `~${Math.max(1, Math.ceil(seconds / 60))}m`;
   }
 
   return (
@@ -1270,6 +1380,39 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                       Cancel
                     </button>
                   </div>
+                </article>
+              ))
+            )}
+          </div>
+
+          <div className={styles.tradeSection}>
+            <h3>Active Trades</h3>
+            {state.activeTradeOffers.length === 0 ? (
+              <p className={styles.muted}>No accepted trades are being fulfilled.</p>
+            ) : (
+              state.activeTradeOffers.map((offer) => (
+                <article key={offer.id} className={styles.tradeCard}>
+                  <strong>{offer.counterpartName}</strong>
+                  {offer.directions.map((direction) => (
+                    <div
+                      key={`${offer.id}:${direction.fromFortressId}:${direction.toFortressId}`}
+                      className={styles.tradeProgress}
+                    >
+                      <p>
+                        {direction.outgoing ? "You send" : "You receive"}:{" "}
+                        {formatTradeProgress(direction)}
+                      </p>
+                      <p>{formatTradeDirectionDetail(direction)}</p>
+                      <time>
+                        Next arrival: {formatEta(direction.nextArrivalAt)}; estimated fulfillment:{" "}
+                        {formatEta(direction.estimatedFulfillmentAt)}
+                      </time>
+                    </div>
+                  ))}
+                  <time>
+                    Whole trade estimated fulfillment:{" "}
+                    {formatEta(offer.estimatedFulfillmentAt)}
+                  </time>
                 </article>
               ))
             )}
