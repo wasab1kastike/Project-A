@@ -64,23 +64,41 @@ function getOwnedRoamTile(args: {
 }): string | null {
   if (args.fallbackTileId) return args.fallbackTileId;
 
+  const ownFortress = (args.mapFortresses ?? []).find(
+    (fortress) => fortress.id === args.fortressId,
+  );
+  const tileById = new Map(HEX_TILES.map((tile) => [tile.id, tile]));
+  const nearestMapTileToPoint = (
+    point: { mapX: number; mapY: number } | null,
+  ) => {
+    if (!point) return null;
+
+    return (
+      [...HEX_TILES].sort((a, b) => {
+        const da = Math.hypot(a.xPercent - point.mapX, a.yPercent - point.mapY);
+        const db = Math.hypot(b.xPercent - point.mapX, b.yPercent - point.mapY);
+        return da - db;
+      })[0]?.id ?? null
+    );
+  };
   const ownedTileIds = new Set(
     (args.mapHexes ?? [])
       .filter((hex) => hex.ownerFortressId === args.fortressId)
       .map((hex) => hex.tileId),
   );
-  if (ownedTileIds.size === 0) return null;
+  if (ownedTileIds.size === 0) {
+    return nearestMapTileToPoint(ownFortress ?? null);
+  }
 
-  const ownFortress = (args.mapFortresses ?? []).find(
-    (fortress) => fortress.id === args.fortressId,
-  );
-  const tileById = new Map(HEX_TILES.map((tile) => [tile.id, tile]));
   const ownedTiles = [...ownedTileIds]
     .map((tileId) => tileById.get(tileId))
     .filter((tile): tile is NonNullable<typeof tile> => Boolean(tile));
 
   const nearestToPoint = (point: { mapX: number; mapY: number } | null) => {
-    if (!point || ownedTiles.length === 0) return ownedTiles[0]?.id ?? null;
+    if (ownedTiles.length === 0) {
+      return nearestMapTileToPoint(point ?? ownFortress ?? null);
+    }
+    if (!point) return ownedTiles[0]?.id ?? null;
     return (
       [...ownedTiles].sort((a, b) => {
         const da = Math.hypot(a.xPercent - point.mapX, a.yPercent - point.mapY);
@@ -436,6 +454,7 @@ function HomeClientContent({
               });
               if (!tileId) return null;
               return {
+                id: bn.id,
                 tileId,
                 battalionName: bn.name,
                 size: bn.size,

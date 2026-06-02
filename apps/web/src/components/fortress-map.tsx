@@ -303,6 +303,7 @@ type FortressMapProps = {
     crossings: number;
   }>;
   battalionMarkers?: Array<{
+    id: string;
     tileId: string;
     battalionName: string;
     size: number;
@@ -1950,6 +1951,23 @@ type GuardMarkerView = {
   unitCosmeticVariant: string | null;
 };
 
+function getBattalionFormationOffset(index: number, total: number) {
+  if (total <= 1) {
+    return { x: 0, y: 0 };
+  }
+
+  const markersPerRing = Math.min(total, 8);
+  const ring = Math.floor(index / markersPerRing);
+  const ringIndex = index % markersPerRing;
+  const radius = (total <= 3 ? 16 : total <= 6 ? 22 : 28) + ring * 10;
+  const angle = -Math.PI / 2 + (Math.PI * 2 * ringIndex) / markersPerRing;
+
+  return {
+    x: Math.round(Math.cos(angle) * radius),
+    y: Math.round(Math.sin(angle) * radius),
+  };
+}
+
 const GuardMarkersLayer = memo(function GuardMarkersLayer({
   guardMarkers,
 }: {
@@ -2063,6 +2081,29 @@ const BattalionMarkersLayer = memo(function BattalionMarkersLayer({
     return markerPatrols;
   }, [battalionMarkers, mapHexes]);
 
+  const formationByMarkerIndex = useMemo(() => {
+    const markerTileIndexes = new Map<number, number>();
+    const tileCounts = new Map<string, number>();
+
+    for (let i = 0; i < battalionMarkers.length; i++) {
+      const tileId = battalionMarkers[i].tileId;
+      const currentCount = tileCounts.get(tileId) ?? 0;
+      markerTileIndexes.set(i, currentCount);
+      tileCounts.set(tileId, currentCount + 1);
+    }
+
+    const formations = new Map<number, { x: number; y: number }>();
+    for (const [markerIndex, tileIndex] of markerTileIndexes) {
+      const tileId = battalionMarkers[markerIndex].tileId;
+      formations.set(
+        markerIndex,
+        getBattalionFormationOffset(tileIndex, tileCounts.get(tileId) ?? 1)
+      );
+    }
+
+    return formations;
+  }, [battalionMarkers]);
+
   const patrolNowMs = useMapMotionClock(
     patrolByMarkerIndex.size > 0,
     reducedVisualLoad ? 2200 : 900
@@ -2109,17 +2150,23 @@ const BattalionMarkersLayer = memo(function BattalionMarkersLayer({
           race: marker.race as MapFortress["race"],
           seed: marker.fortressId,
         });
+        const formationOffset = formationByMarkerIndex.get(markerIndex) ?? {
+          x: 0,
+          y: 0,
+        };
 
         return (
           <div
-            key={`bn-${marker.tileId}-${marker.battalionName}`}
+            key={marker.id}
             className={`${styles.battalionMarker}${
               isPatrolling ? ` ${styles.battalionPatrol}` : ""
             }`}
             style={{
               left: `${patrolXPercent}%`,
               top: `${patrolYPercent}%`,
-            }}
+              "--battalion-offset-x": `${formationOffset.x}px`,
+              "--battalion-offset-y": `${formationOffset.y}px`,
+            } as CSSProperties}
             title={`${marker.battalionName} - ${marker.mode} - Tier ${marker.tier}`}
           >
             <span
