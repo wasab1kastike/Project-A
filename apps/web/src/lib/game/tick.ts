@@ -1710,6 +1710,54 @@ async function hasQueuedTradeWagonRuns({
   return false;
 }
 
+async function launchQueuedAcceptedTradeOfferRuns({
+  tx,
+  cycleId,
+  tickAt,
+}: {
+  tx: Prisma.TransactionClient;
+  cycleId: string;
+  tickAt: Date;
+}) {
+  const acceptedOffers = await tx.tradeOffer.findMany({
+    where: {
+      cycleId,
+      status: TradeOfferStatus.ACCEPTED,
+    },
+    include: { lineItems: true },
+    orderBy: [
+      { acceptedAt: "asc" },
+      { createdAt: "asc" },
+      { id: "asc" },
+    ],
+  });
+
+  for (const offer of acceptedOffers) {
+    const directions = new Set(
+      offer.lineItems.map(
+        (lineItem) => `${lineItem.fromFortressId}:${lineItem.toFortressId}`
+      )
+    );
+
+    for (const direction of directions) {
+      const [fromFortressId, toFortressId] = direction.split(":");
+
+      if (!fromFortressId || !toFortressId) {
+        continue;
+      }
+
+      await launchQueuedTradeWagonRuns({
+        tx,
+        cycleId,
+        tradeOfferId: offer.id,
+        fromFortressId,
+        toFortressId,
+        departedAt: tickAt,
+      });
+    }
+  }
+}
+
 async function advanceTradeOfferAfterConvoySettlement({
   tx,
   cycleId,
@@ -1812,6 +1860,7 @@ async function processSeasonFourConvoys({
       },
       data: { status: TradeOfferStatus.EXPIRED },
     });
+    await launchQueuedAcceptedTradeOfferRuns({ tx, cycleId, tickAt });
 
     const legs = await tx.convoyLeg.findMany({
       where: {
@@ -2416,6 +2465,8 @@ async function processSeasonFourConvoys({
         tickAt,
       });
     }
+
+    await launchQueuedAcceptedTradeOfferRuns({ tx, cycleId, tickAt });
 
     return { scoreEventsCreated, deliveredConvoyLegs };
   }, TICK_TRANSACTION_OPTIONS);

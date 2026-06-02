@@ -135,7 +135,6 @@ import { isSeasonFourRuleset } from "../rulesets";
 import { validateTileDeedAllowed } from "../tile-deeds";
 import { getCampaignStartBlockedReason } from "../campaigns";
 import {
-  assertActiveTradeWagonLimit,
   calculateTradeCargoValue,
   getActiveTradeWagonLimit,
   getTradeBlockedReason,
@@ -3589,21 +3588,8 @@ export async function acceptTradeOffer({
       const wagonLimit = getActiveTradeWagonLimit(
         plan.skillModifiers?.tradeWagonSlotBonus ?? 0
       );
-
-      try {
-        assertActiveTradeWagonLimit({
-          activeOutboundWagons,
-          wagonLimit,
-        });
-      } catch (error) {
-        throw new GameError(
-          error instanceof Error
-            ? `${plan.from.id === receiver.id ? "Your fortress" : "The other fortress"}: ${error.message}`
-            : "A fortress has no free outbound trade wagons."
-        );
-      }
-
       const freeWagons = Math.max(0, wagonLimit - activeOutboundWagons);
+
       for (const [index, cargo] of plan.chunks.slice(0, freeWagons).entries()) {
         legCandidates.push({
           cargo,
@@ -3760,26 +3746,28 @@ export async function acceptTradeOffer({
       });
     }
 
-    await tx.convoyLeg.createMany({
-      data: legs.map((leg) => ({
-        cycleId: cycle.id,
-        tradeOfferId: offer.id,
-        fromFortressId: leg.from.id,
-        toFortressId: leg.to.id,
-        status: ConvoyLegStatus.IN_TRANSIT,
-        gold: leg.cargo.gold,
-        food: leg.cargo.food,
-        army: leg.cargo.army,
-        points: leg.cargo.points,
-        nukeFuel: getTradeNukeComponents(leg.cargo)[NukeComponentKind.FUEL],
-        nukeRocket: getTradeNukeComponents(leg.cargo)[NukeComponentKind.ROCKET],
-        nukeWrathOfA: getTradeNukeComponents(leg.cargo)[NukeComponentKind.WRATH_OF_A],
-        baseCargoValue: calculateTradeCargoValue(leg.cargo),
-        deedTileId: leg.deedTileId,
-        departedAt: now,
-        arrivesAt: leg.arrivesAt,
-      })),
-    });
+    if (legs.length > 0) {
+      await tx.convoyLeg.createMany({
+        data: legs.map((leg) => ({
+          cycleId: cycle.id,
+          tradeOfferId: offer.id,
+          fromFortressId: leg.from.id,
+          toFortressId: leg.to.id,
+          status: ConvoyLegStatus.IN_TRANSIT,
+          gold: leg.cargo.gold,
+          food: leg.cargo.food,
+          army: leg.cargo.army,
+          points: leg.cargo.points,
+          nukeFuel: getTradeNukeComponents(leg.cargo)[NukeComponentKind.FUEL],
+          nukeRocket: getTradeNukeComponents(leg.cargo)[NukeComponentKind.ROCKET],
+          nukeWrathOfA: getTradeNukeComponents(leg.cargo)[NukeComponentKind.WRATH_OF_A],
+          baseCargoValue: calculateTradeCargoValue(leg.cargo),
+          deedTileId: leg.deedTileId,
+          departedAt: now,
+          arrivesAt: leg.arrivesAt,
+        })),
+      });
+    }
 
     return tx.tradeOffer.findUniqueOrThrow({
       where: { id: offer.id },
