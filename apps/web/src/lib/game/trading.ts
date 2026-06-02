@@ -140,6 +140,80 @@ export function assertTradeCargoWithinWagonLimit(
   }
 }
 
+export function splitTradeCargoIntoWagonRuns(
+  cargo: TradeCargo,
+  tradeBuildingLevel = 0,
+  capacityBonusPercent = 0
+) {
+  const resourceLimit = Math.max(
+    1,
+    getTradeWagonResourceLimit(tradeBuildingLevel, capacityBonusPercent)
+  );
+  const nukeComponents = getTradeNukeComponents(cargo);
+  const runs: TradeCargo[] = [];
+  let remainingGold = cargo.gold;
+  let remainingFood = cargo.food;
+
+  while (remainingGold > 0 || remainingFood > 0) {
+    const gold = Math.min(remainingGold, resourceLimit);
+    remainingGold -= gold;
+    const foodCapacity = resourceLimit - gold;
+    const food = Math.min(remainingFood, foodCapacity);
+    remainingFood -= food;
+
+    runs.push({
+      gold,
+      food,
+      army: 0,
+      points: 0,
+      nukeComponents: EMPTY_NUKE_COMPONENT_CARGO,
+    });
+  }
+
+  const nonResourceCargo = {
+    army: cargo.army,
+    points: cargo.points,
+    nukeComponents,
+  };
+  const hasNonResourceCargo =
+    nonResourceCargo.army > 0 ||
+    nonResourceCargo.points > 0 ||
+    hasNukeComponentCargo(nonResourceCargo.nukeComponents);
+
+  if (hasNonResourceCargo) {
+    if (runs.length === 0) {
+      runs.push({
+        gold: 0,
+        food: 0,
+        army: nonResourceCargo.army,
+        points: nonResourceCargo.points,
+        nukeComponents: nonResourceCargo.nukeComponents,
+      });
+    } else {
+      runs[0] = {
+        ...runs[0],
+        army: nonResourceCargo.army,
+        points: nonResourceCargo.points,
+        nukeComponents: nonResourceCargo.nukeComponents,
+      };
+    }
+  }
+
+  return runs;
+}
+
+export function getTradeWagonRunCount(
+  cargo: TradeCargo,
+  tradeBuildingLevel = 0,
+  capacityBonusPercent = 0
+) {
+  return splitTradeCargoIntoWagonRuns(
+    cargo,
+    tradeBuildingLevel,
+    capacityBonusPercent
+  ).length;
+}
+
 export function getActiveTradeWagonLimit(slotBonus = 0) {
   return DEFAULT_ACTIVE_TRADE_WAGON_LIMIT + Math.max(0, Math.floor(slotBonus));
 }

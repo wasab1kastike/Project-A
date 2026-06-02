@@ -146,6 +146,42 @@ function formatTermsOrNone(input: Parameters<typeof formatTerms>[0]) {
   return formatTerms(input) || "no resources";
 }
 
+function estimateTradeRuns({
+  gold,
+  food,
+  army,
+  points,
+  nukeFuel,
+  nukeRocket,
+  nukeWrathOfA,
+  tileId,
+  wagonResourceLimit,
+}: {
+  gold: number;
+  food: number;
+  army: number;
+  points: number;
+  nukeFuel: number;
+  nukeRocket: number;
+  nukeWrathOfA: number;
+  tileId: string;
+  wagonResourceLimit: number;
+}) {
+  const resourceRuns =
+    gold + food > 0
+      ? Math.ceil((gold + food) / Math.max(1, wagonResourceLimit))
+      : 0;
+  const hasNonResourceCargo =
+    army > 0 ||
+    points > 0 ||
+    nukeFuel > 0 ||
+    nukeRocket > 0 ||
+    nukeWrathOfA > 0 ||
+    tileId.length > 0;
+
+  return Math.max(resourceRuns, hasNonResourceCargo ? 1 : 0);
+}
+
 export function PoliticsClient({ state }: { state: PoliticsPageState }) {
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [renderedAt] = useState(() => Date.now());
@@ -186,6 +222,30 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
   const selectedTradeTarget = tradeTargetId
     ? state.rows.find((row) => row.fortressId === tradeTargetId) ?? null
     : null;
+  const offeredRunCount = estimateTradeRuns({
+    gold: tradeCargo.offeredGold,
+    food: tradeCargo.offeredFood,
+    army: tradeCargo.offeredArmy,
+    points: tradeCargo.offeredPoints,
+    nukeFuel: tradeCargo.offeredNukeFuel,
+    nukeRocket: tradeCargo.offeredNukeRocket,
+    nukeWrathOfA: tradeCargo.offeredNukeWrathOfA,
+    tileId: tradeCargo.offeredTileId,
+    wagonResourceLimit: state.playerFortress?.tradeWagonResourceLimit ?? 1,
+  });
+  const requestedRunCount = selectedTradeTarget
+    ? estimateTradeRuns({
+        gold: tradeCargo.requestedGold,
+        food: tradeCargo.requestedFood,
+        army: tradeCargo.requestedArmy,
+        points: tradeCargo.requestedPoints,
+        nukeFuel: tradeCargo.requestedNukeFuel,
+        nukeRocket: tradeCargo.requestedNukeRocket,
+        nukeWrathOfA: tradeCargo.requestedNukeWrathOfA,
+        tileId: tradeCargo.requestedTileId,
+        wagonResourceLimit: selectedTradeTarget.tradeWagonResourceLimit,
+      })
+    : 0;
 
   const liveTermsSummary = formatTermsOrNone({
     gold: termsGold,
@@ -989,17 +1049,22 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
               )}
             </select>
             <p className={styles.muted}>
-              Wagon capacity: you can send{" "}
+              Wagon capacity per run: you can send{" "}
               {(state.playerFortress?.tradeWagonResourceLimit ?? 0).toLocaleString()}{" "}
               gold+food
               {state.playerFortress
                 ? `; outbound wagons ${state.playerFortress.activeOutboundWagons}/${state.playerFortress.activeTradeWagonLimit}`
                 : ""}
               {selectedTradeTarget
-                ? `; ${selectedTradeTarget.name} can send ${selectedTradeTarget.tradeWagonResourceLimit.toLocaleString()} gold+food and has ${selectedTradeTarget.activeOutboundWagons}/${selectedTradeTarget.activeTradeWagonLimit} outbound wagons active`
+                ? `; ${selectedTradeTarget.name} can send ${selectedTradeTarget.tradeWagonResourceLimit.toLocaleString()} gold+food per run and has ${selectedTradeTarget.activeOutboundWagons}/${selectedTradeTarget.activeTradeWagonLimit} outbound wagons active`
                 : ""}
-              . Army, points, components, and tile deeds do not count against
-              this cap.
+              . This offer uses {offeredRunCount.toLocaleString()} outgoing run
+              {offeredRunCount === 1 ? "" : "s"}
+              {requestedRunCount > 0
+                ? ` and requests ${requestedRunCount.toLocaleString()} return run${requestedRunCount === 1 ? "" : "s"}`
+                : ""}
+              . Army, points, components, and tile deeds ride with the first
+              run and do not count against the gold+food cap.
             </p>
             <div className={styles.tradeColumns}>
               <fieldset>
