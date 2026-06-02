@@ -87,20 +87,12 @@ export function distributeRecruits(
 // ── Battalion Expansion ──────────────────────────────────────────────────────
 
 /**
- * Expand a battalion's maxSize by 50.
- * Costs gold. Max size is capped.
+ * Expand a battalion's maxSize by 50. Max size is capped.
  */
 export function expandBattalion(args: {
   battalion: Battalion;
-  gold: number;
-  expandCost: number;
   maxBattalionSize: number;
 }): { battalion: Battalion; goldCost: number } | { error: string } {
-  if (args.gold < args.expandCost) {
-    return {
-      error: `Expanding battalion costs ${args.expandCost} gold.`,
-    };
-  }
   if (args.battalion.maxSize >= args.maxBattalionSize) {
     return { error: "Battalion is already at maximum size." };
   }
@@ -112,7 +104,7 @@ export function expandBattalion(args: {
 
   return {
     battalion: { ...args.battalion, maxSize: newMaxSize },
-    goldCost: args.expandCost,
+    goldCost: 0,
   };
 }
 
