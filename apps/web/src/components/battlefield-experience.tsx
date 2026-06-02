@@ -431,6 +431,7 @@ export function BattlefieldExperience({
   }>;
   roadSegments?: Array<{ tileId: string; level: number; crossings: number }>;
   battalionMarkers?: Array<{
+    id: string;
     tileId: string;
     battalionName: string;
     size: number;

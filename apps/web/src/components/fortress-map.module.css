@@ -1873,7 +1873,12 @@
 
 .battalionMarker {
   position: absolute;
-  transform: translate(-50%, -50%);
+  --battalion-offset-x: 0px;
+  --battalion-offset-y: 0px;
+  transform: translate(
+    calc(-50% + var(--battalion-offset-x)),
+    calc(-50% + var(--battalion-offset-y))
+  );
   width: 50px;
   height: 50px;
   display: flex;
@@ -1883,8 +1888,18 @@
 }
 
 @keyframes battalionIdle {
-  0%, 100% { transform: translate(-50%, -50%) translateY(0); }
-  50% { transform: translate(-50%, -50%) translateY(-3px); }
+  0%, 100% {
+    transform: translate(
+      calc(-50% + var(--battalion-offset-x)),
+      calc(-50% + var(--battalion-offset-y))
+    );
+  }
+  50% {
+    transform: translate(
+      calc(-50% + var(--battalion-offset-x)),
+      calc(-50% + var(--battalion-offset-y) - 3px)
+    );
+  }
 }
 
 .battalionSprite {
