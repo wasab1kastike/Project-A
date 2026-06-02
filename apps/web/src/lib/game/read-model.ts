@@ -4250,7 +4250,16 @@ export async function getHomePageState({
       playerFortress,
       userId,
     }),
-    attackUnits: cycle.attackUnits.map((unit) => {
+    attackUnits: cycle.attackUnits.filter(
+      (unit) =>
+        !(
+          isSeasonFour &&
+          unit.fortifyTargetTileId &&
+          unit.attackerFortress.id === unit.targetFortress.id &&
+          !unit.reinforcementBattlefield &&
+          !unit.reinforcementBattalion
+        )
+    ).map((unit) => {
       const tileTargetId =
         unit.fortifyTargetTileId ??
         unit.reinforcementBattalion?.garrisonedAt ??

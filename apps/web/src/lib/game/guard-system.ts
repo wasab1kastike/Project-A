@@ -172,14 +172,16 @@ export type BattalionAssignment = {
 /**
  * Assign battalions to tiles based on the guard distribution.
  *
- * Takes units from battalions NOT currently on orders (stance = REST or FORTIFY or TRAINING or PATROL or AMBUSH)
- * and assigns them to tiles proportionally. Battalions already on a tile stay there.
+ * Battalions are indivisible. The distribution chooses where whole
+ * battalions should patrol; it must never peel units off one battalion into
+ * several tile assignments.
  *
  * Returns the updated battalion list and the assignments made.
  */
 export function assignBattalionsToTiles(args: {
   battalions: Battalion[];
   distribution: GuardDistribution[];
+  guardPoolSize: number;
   defaultStance: BattalionStance;
 }): { battalions: Battalion[]; assignments: BattalionAssignment[] } {
   const assignments: BattalionAssignment[] = [];
@@ -193,42 +195,48 @@ export function assignBattalionsToTiles(args: {
       b.size > 0,
   );
 
-  if (available.length === 0 || args.distribution.length === 0) {
+  if (
+    available.length === 0 ||
+    args.distribution.length === 0 ||
+    args.guardPoolSize <= 0
+  ) {
     return { battalions: updated, assignments };
   }
 
-  // Total available guard strength.
-  let availableStrength = available.reduce((s, b) => s + b.size, 0);
+  const targetTiles = [...args.distribution]
+    .filter((dist) => dist.assignedStrength > 0 || dist.weight > 0)
+    .sort((a, b) => b.assignedStrength - a.assignedStrength || b.weight - a.weight);
 
-  for (const dist of args.distribution) {
-    if (availableStrength <= 0) break;
-    if (dist.assignedStrength <= 0) continue;
+  if (targetTiles.length === 0) {
+    return { battalions: updated, assignments };
+  }
 
-    let remaining = dist.assignedStrength;
+  let assignedStrength = 0;
+  let targetIndex = 0;
 
-    for (const bat of available) {
-      if (remaining <= 0) break;
-      if (bat.size <= 0) continue;
+  for (const bat of available) {
+    if (assignedStrength >= args.guardPoolSize && assignments.length > 0) {
+      break;
+    }
 
-      const toAssign = Math.min(bat.size, remaining);
-      bat.size -= toAssign;
-      remaining -= toAssign;
-      availableStrength -= toAssign;
+    const target = targetTiles[targetIndex % targetTiles.length];
+    targetIndex++;
 
-      assignments.push({
-        battalionId: bat.id,
-        tileId: dist.tileId,
-        unitsAssigned: toAssign,
-        stance: args.defaultStance,
-      });
+    assignments.push({
+      battalionId: bat.id,
+      tileId: target.tileId,
+      unitsAssigned: bat.size,
+      stance: args.defaultStance,
+    });
 
-      // Update battalion garrison status. Stance is now hidden behind mode,
-      // so guards always use the guard stance.
-      const original = updated.find((b) => b.id === bat.id);
-      if (original) {
-        original.garrisonedAt = dist.tileId;
-        original.stance = args.defaultStance;
-      }
+    assignedStrength += bat.size;
+
+    // Update battalion garrison status. Stance is now hidden behind mode,
+    // so guards always use the guard stance.
+    const original = updated.find((b) => b.id === bat.id);
+    if (original) {
+      original.garrisonedAt = target.tileId;
+      original.stance = args.defaultStance;
     }
   }
 
@@ -273,6 +281,7 @@ export function processGuardTick(args: {
   const { battalions, assignments } = assignBattalionsToTiles({
     battalions: args.battalions,
     distribution,
+    guardPoolSize,
     defaultStance: args.config.defaultStance,
   });
 

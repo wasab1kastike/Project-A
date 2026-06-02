@@ -4255,8 +4255,40 @@ async function processCycleTick(
   });
 
   const resolvedBatchAttackUnitIds = new Set<string>();
+  const retiredSeasonFourSelfFortifyUnitIds = new Set<string>();
   for (const unit of dueAttackUnits) {
     // All arrivals are processed and committed to their battlefields before any battlefield is resolved.
+    if (
+      isSeasonFour &&
+      unit.fortifyTargetTileId &&
+      unit.attackerFortressId === unit.targetFortressId &&
+      !unit.reinforcementBattlefieldId &&
+      !unit.reinforcementBattalionId
+    ) {
+      await db.attackUnit.update({
+        where: {
+          id: unit.id,
+        },
+        data: {
+          resolvedAt: tickAt,
+          defenderArmyAtBattleStart: null,
+          resolvedAttackPower: 0,
+          resolvedDefensePower: 0,
+          attackerSurvivors: 0,
+          attackerRetired: unit.armyAmount,
+          attackerReturned: 0,
+          defenderLosses: 0,
+          pointsLooted: 0,
+          foodLooted: 0,
+          armyLooted: 0,
+        },
+      });
+      retiredSeasonFourSelfFortifyUnitIds.add(unit.id);
+      resolvedBatchAttackUnitIds.add(unit.id);
+      resolvedAttackUnits += 1;
+      continue;
+    }
+
     if (unit.reinforcementBattalionId) {
       const battalion = await db.battalion.findUnique({
         where: {
@@ -4510,6 +4542,10 @@ async function processCycleTick(
 
   // Record road crossings for all arrived units.
   for (const unit of dueAttackUnits) {
+    if (retiredSeasonFourSelfFortifyUnitIds.has(unit.id)) {
+      continue;
+    }
+
     if (unit.armyAmount > 0) {
       const attacker = fortressLookup.get(unit.attackerFortressId);
       const target = fortressLookup.get(unit.targetFortressId);

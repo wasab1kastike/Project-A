@@ -19,7 +19,11 @@ import {
 import {
   calculateRecruitment,
 } from "./recruitment";
-import { processBattalionRecruitment } from "./tick-battalion-integration";
+import { applyFieldPromotion } from "./army-xp";
+import {
+  processBattalionGuard,
+  processBattalionRecruitment,
+} from "./tick-battalion-integration";
 import { processOwnershipPressure } from "./tile-pressure";
 import { processGuardTick } from "./guard-system";
 
@@ -135,6 +139,105 @@ describe("Battalion mode jobs", () => {
     assert.equal(result.battalions[0]?.garrisonedAt, "20:15");
     assert.equal(result.battalions[0]?.stance, "FORTIFY");
   });
+
+  it("does not split one guard battalion across several tiles", () => {
+    const result = processGuardTick({
+      battalions: [
+        {
+          id: "bn_guard",
+          name: "Border Guard",
+          size: 100,
+          maxSize: 100,
+          tier: BattalionTier.RECRUIT,
+          xp: 0,
+          readyAt: null,
+          stance: "REST",
+          mode: "GUARD",
+          garrisonedAt: null,
+          stanceLockedUntil: null,
+        },
+      ],
+      ownedTiles: [
+        {
+          tileId: "20:15",
+          priority: 3,
+          isBorder: true,
+          enemyProximity: 1,
+          productionValue: 0,
+          currentGuardStrength: 0,
+        },
+        {
+          tileId: "21:15",
+          priority: 3,
+          isBorder: true,
+          enemyProximity: 1,
+          productionValue: 0,
+          currentGuardStrength: 0,
+        },
+      ],
+      config: { guardPercent: 100, defaultStance: "FORTIFY" },
+    });
+
+    assert.equal(result.assignments.length, 1);
+    assert.equal(result.assignments[0]?.battalionId, "bn_guard");
+    assert.equal(result.assignments[0]?.unitsAssigned, 100);
+    assert.equal(result.battalions[0]?.size, 100);
+  });
+
+  it("guard tick does not create legacy fortify attack units", async () => {
+    const battalionUpdates: Array<{
+      where: { id: string };
+      data: { stance: string; garrisonedAt: string | null };
+    }> = [];
+    const attackUnitCreates: unknown[] = [];
+    const db = {
+      battalion: {
+        findMany: async () => [
+          {
+            id: "bn_guard",
+            cycleId: "cycle_1",
+            fortressId: "fort_1",
+            name: "Border Guard",
+            size: 100,
+            maxSize: 100,
+            tier: 0,
+            xp: 0,
+            readyAt: null,
+            stance: "REST",
+            mode: "GUARD",
+            garrisonedAt: null,
+            stanceLockedUntil: null,
+          },
+        ],
+        update: async (args: (typeof battalionUpdates)[number]) => {
+          battalionUpdates.push(args);
+          return args;
+        },
+      },
+      attackUnit: {
+        create: async (args: unknown) => {
+          attackUnitCreates.push(args);
+          return args;
+        },
+      },
+    };
+
+    await processBattalionGuard({
+      ctx: {
+        db: db as any,
+        cycleId: "cycle_1",
+        now: new Date("2026-06-01T12:00:00.000Z"),
+      },
+      guardPercentByFortress: new Map([["fort_1", 100]]),
+      ownedTilesByFortress: new Map([["fort_1", ["20:15", "21:15"]]]),
+      fortressPositionsById: new Map([["fort_1", { mapX: 50, mapY: 50 }]]),
+    });
+
+    assert.equal(battalionUpdates.length, 1);
+    assert.equal(battalionUpdates[0]?.data.stance, "FORTIFY");
+    assert.ok(battalionUpdates[0]?.data.garrisonedAt);
+    assert.equal(attackUnitCreates.length, 0);
+  });
 });
 
 describe("Tier Max Sizes", () => {
@@ -152,6 +255,30 @@ describe("Tier Max Sizes", () => {
 
   it("Elite max is 50000", () => {
     assert.equal(TIER_MAX_SIZES[BattalionTier.ELITE], 50_000);
+  });
+
+  it("field promotion advances one tier and unlocks the next expansion cap", () => {
+    const promotion = applyFieldPromotion({
+      id: "bn_regular",
+      name: "Iron Hammers",
+      size: 400,
+      maxSize: 500,
+      tier: BattalionTier.RECRUIT,
+      xp: 90,
+      readyAt: null,
+      stance: "REST",
+      mode: "RESERVE",
+      garrisonedAt: null,
+      stanceLockedUntil: null,
+    });
+
+    assert.ok(promotion);
+    assert.equal(promotion.newTier, BattalionTier.REGULAR);
+    assert.equal(promotion.battalion.tier, BattalionTier.REGULAR);
+    assert.equal(promotion.battalion.xp, 0);
+    assert.equal(promotion.battalion.size, 400);
+    assert.equal(promotion.battalion.maxSize, 500);
+    assert.equal(TIER_MAX_SIZES[promotion.newTier], 5_000);
   });
 });
 
