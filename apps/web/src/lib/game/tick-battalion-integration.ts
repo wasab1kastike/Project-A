@@ -380,6 +380,7 @@ export async function processBattalionRecruitment(args: {
         cycleId: ctx.cycleId,
         attackerFortressId: launch.fortressId,
         targetFortressId: launch.fortressId,
+        fortifyTargetTileId: launch.tileId,
         reinforcementBattalionId: launch.battalionId,
         armyAmount: launch.armyAmount,
         launchedAt: ctx.now,
