@@ -4,12 +4,14 @@ import test from "node:test";
 import {
   applyUnsupportedPressureDecay,
   allocatePressureAcrossTargets,
+  calculateOwnershipMaintenanceWorkers,
   calculatePressureOutput,
   canPressureTarget,
   chooseAutoTilePressurePriorityCandidates,
   findCastleAnchorTile,
   getDistanceAdjustedTilePressureClaimThreshold,
   getDistanceAdjustedTilePressureDecayPercent,
+  getExpansionTileCapacity,
   getHexRingDistance,
   getNeutralPressureClaimWinner,
   getPressureTargetBlockedReason,
@@ -54,6 +56,86 @@ test("pressure output matches assigned pressure workers", () => {
     calculatePressureOutput({
       pressureWorkersAssigned: -5,
       race: "ORKS",
+    }),
+    0
+  );
+});
+
+test("expansion tile capacity follows assigned pressure workers", () => {
+  assert.equal(getExpansionTileCapacity({ pressureWorkersAssigned: 0 }), 8);
+  assert.equal(getExpansionTileCapacity({ pressureWorkersAssigned: 4 }), 16);
+  assert.equal(getExpansionTileCapacity({ pressureWorkersAssigned: 4.9 }), 16);
+  assert.equal(getExpansionTileCapacity({ pressureWorkersAssigned: -2 }), 8);
+  assert.equal(
+    getExpansionTileCapacity({
+      pressureWorkersAssigned: 4,
+      race: "DWARFS",
+    }),
+    18
+  );
+  assert.equal(
+    getExpansionTileCapacity({
+      pressureWorkersAssigned: 4,
+      race: "ORKS",
+      skillPurchases: [{ nodeKey: "territory-1" }],
+    }),
+    16
+  );
+  assert.equal(
+    getExpansionTileCapacity({
+      pressureWorkersAssigned: 4,
+      race: "ORKS",
+      skillPurchases: [
+        { nodeKey: "territory-1" },
+        { nodeKey: "territory-2" },
+        { nodeKey: "territory-3" },
+      ],
+    }),
+    17
+  );
+});
+
+test("ownership maintenance stops when held tiles exceed tile capacity", () => {
+  assert.equal(
+    calculateOwnershipMaintenanceWorkers({
+      pressureWorkersAssigned: 4,
+      ownedTileCount: 2,
+    }),
+    8
+  );
+  assert.equal(
+    calculateOwnershipMaintenanceWorkers({
+      pressureWorkersAssigned: 2,
+      ownedTileCount: 12,
+    }),
+    1
+  );
+  assert.equal(
+    calculateOwnershipMaintenanceWorkers({
+      pressureWorkersAssigned: 2,
+      ownedTileCount: 13,
+    }),
+    0
+  );
+  assert.equal(
+    calculateOwnershipMaintenanceWorkers({
+      pressureWorkersAssigned: 2,
+      ownedTileCount: 13,
+      race: "DWARFS",
+    }),
+    1
+  );
+  assert.equal(
+    calculateOwnershipMaintenanceWorkers({
+      pressureWorkersAssigned: 0,
+      ownedTileCount: 8,
+    }),
+    1
+  );
+  assert.equal(
+    calculateOwnershipMaintenanceWorkers({
+      pressureWorkersAssigned: 0,
+      ownedTileCount: 9,
     }),
     0
   );

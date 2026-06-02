@@ -72,6 +72,7 @@ import {
   allocatePressureAcrossTargets,
   calculatePressureOutput,
   getDistanceAdjustedTilePressureClaimThreshold,
+  getExpansionTileCapacity,
   getTilePressurePriorityLimit,
   getTilePressurePrioritySlot,
   getPressureTargetBlockedReason,
@@ -987,6 +988,13 @@ export async function getCastlePageState({
         pressureWorkersAssigned: playerFortress.pressureWorkersAssigned,
       })
     : 0;
+  const expansionTileCapacity = playerFortress
+    ? getExpansionTileCapacity({
+        pressureWorkersAssigned: playerFortress.pressureWorkersAssigned,
+        race: playerFortress.race,
+        skillPurchases: playerFortress.skillPurchases,
+      })
+    : 0;
   const ownedNormalTileIds = ownedNormalTiles.map((tile) => tile.id);
   const priorityLimit = playerFortress
     ? getTilePressurePriorityLimit(playerFortress)
@@ -1042,10 +1050,11 @@ export async function getCastlePageState({
     };
   });
   const activeNeutralPriorities = legalNeutralPressurePriorities.slice(0, 1);
+  const expansionAtCapacity = ownedNormalTileIds.length >= expansionTileCapacity;
   const allocationsByTileId = new Map(
     allocatePressureAcrossTargets({
-      pressure: pressureOutput,
-      targets: activeNeutralPriorities,
+      pressure: expansionAtCapacity ? 0 : pressureOutput,
+      targets: expansionAtCapacity ? [] : activeNeutralPriorities,
     }).map((allocation) => [allocation.tileId, allocation.pressure])
   );
   const leadingPriority =
@@ -1092,6 +1101,12 @@ export async function getCastlePageState({
   const expansionSummary = isSeasonFour
     ? {
         pressureOutput,
+        tileCapacity: expansionTileCapacity,
+        tilesHeld: ownedNormalTileIds.length,
+        tilesOverCapacity: Math.max(
+          0,
+          ownedNormalTileIds.length - expansionTileCapacity
+        ),
         activePriorityCount: orderedPressurePriorities.length,
         priorityLimit,
         priorityQueue,

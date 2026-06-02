@@ -43,7 +43,7 @@ You assign workers across four roles:
 | Miners | Gold | Dwarfs produce more on owned tiles |
 | Farmers | Food | — |
 | Recruiters | Army | Recruitment queue processes per tick |
-| Pressure Workers | Tile pressure | Claims nearby neutral tiles at 600 pressure; farther tiles require more |
+| Pressure Workers | Tile pressure | Claims and holds nearby neutral tiles; 8 normal tiles are free, then each assigned worker supports two more before skill and race bonuses |
 
 Worker count scales with fortress level. Reassignment is instant but only once per tick.
 
@@ -67,8 +67,11 @@ Instead of direct tile attacks, Season 4 uses a pressure system:
 3. At 600 pressure, if uncontested, a castle-adjacent tile flips to your control
 4. Each ring beyond castle-adjacent adds 10% required pressure, capped at double the base threshold
 5. Pressure decays 10% per hour on unsupported castle-adjacent tiles, plus 2% per farther ring, capped at 30% per hour
-6. The priority queue automatically stays filled to the fortress's current slot limit, starting at three slots and expanding through skills. Pressure goes to the first legal neutral tile in queue order, then the next if the earlier tile is claimed or invalid.
-7. During war, the same queued priorities can include reachable enemy-owned tiles and guide automated War Front target selection. Automatic refill only chooses neutral expansion targets.
+6. A fortress can maintain 8 claimed normal tiles without pressure workers, then two more normal tiles per assigned pressure worker before skill and race bonuses. Pressure skill bonuses increase the worker-supported capacity, and Dwarfs receive a racial holding bonus.
+7. Free capacity means free to maintain after claiming; neutral tiles still need pressure to flip.
+8. If a fortress owns more normal tiles than its tile capacity allows, those owned tiles lose ownership pressure and eventually become neutral at 0.
+9. The priority queue automatically stays filled while the fortress is below its tile capacity, starting at three queue slots and expanding through skills. Pressure goes to the first legal neutral tile in queue order, then the next if the earlier tile is claimed or invalid.
+10. During war, the same queued priorities can include reachable enemy-owned tiles and guide automated War Front target selection. Automatic refill only chooses neutral expansion targets.
 
 ---
 

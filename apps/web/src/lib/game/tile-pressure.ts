@@ -1,6 +1,6 @@
 import { getSkillModifiers } from "./race-skill-effects";
 import { HEX_TILES, type HexTile } from "./map-hex";
-import { isFortressRace, type FortressRace } from "./races";
+import { getRaceModifiers, isFortressRace, type FortressRace } from "./races";
 export {
   getPressureWorkerDescription,
   getPressureWorkerLabel,
@@ -14,6 +14,8 @@ export const TILE_PRESSURE_DISTANCE_DECAY_STEP_PERCENT = 2;
 export const TILE_PRESSURE_MAX_DISTANCE_THRESHOLD_MULTIPLIER = 2;
 export const TILE_PRESSURE_MAX_DECAY_PERCENT_PER_HOUR = 30;
 export const DEFAULT_TILE_PRESSURE_PRIORITY_LIMIT = 3;
+export const FREE_EXPANSION_TILE_CAPACITY = 8;
+export const BASE_EXPANSION_TILES_PER_PRESSURE_WORKER = 2;
 
 export function getTilePressurePriorityLimit(fortress?: {
   race?: FortressRace | string | null;
@@ -257,6 +259,70 @@ export function calculatePressureOutput({
   }
 
   return Math.max(0, Math.floor(pressureWorkersAssigned));
+}
+
+export function getExpansionTileCapacity({
+  pressureWorkersAssigned,
+  race,
+  skillPurchases,
+}: {
+  pressureWorkersAssigned: number;
+  race?: FortressRace | string | null;
+  skillPurchases?: Array<{ nodeKey: string }> | null;
+}) {
+  const workerCapacity =
+    calculatePressureOutput({ pressureWorkersAssigned }) *
+    BASE_EXPANSION_TILES_PER_PRESSURE_WORKER;
+
+  if (!race || !isFortressRace(race)) {
+    return FREE_EXPANSION_TILE_CAPACITY + workerCapacity;
+  }
+
+  const skillModifiers = getSkillModifiers({
+    race,
+    purchases: skillPurchases ?? [],
+  });
+  const raceModifiers = getRaceModifiers(race);
+
+  return Math.max(
+    0,
+    FREE_EXPANSION_TILE_CAPACITY +
+      Math.floor(
+        workerCapacity *
+          skillModifiers.pressureMultiplier *
+          raceModifiers.expansionTileCapacityMultiplier
+      )
+  );
+}
+
+export function calculateOwnershipMaintenanceWorkers({
+  pressureWorkersAssigned,
+  ownedTileCount,
+  race,
+  skillPurchases,
+}: {
+  pressureWorkersAssigned: number;
+  ownedTileCount: number;
+  race?: FortressRace | string | null;
+  skillPurchases?: Array<{ nodeKey: string }> | null;
+}) {
+  const tileCount = Math.max(0, Math.floor(ownedTileCount));
+
+  if (tileCount <= 0) {
+    return 0;
+  }
+
+  const capacity = getExpansionTileCapacity({
+    pressureWorkersAssigned,
+    race,
+    skillPurchases,
+  });
+
+  if (tileCount > capacity) {
+    return 0;
+  }
+
+  return Math.floor(capacity / tileCount);
 }
 
 export function applyUnsupportedPressureDecay({

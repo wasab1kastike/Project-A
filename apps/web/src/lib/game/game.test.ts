@@ -1146,7 +1146,7 @@ test("pressure tick auto-fills nearest neutral priority slots", async (context) 
   });
   await prisma.fortress.update({
     where: { id: fortress.id },
-    data: { pressureWorkersAssigned: 0 },
+    data: { pressureWorkersAssigned: 3 },
   });
 
   await runGameTick({
@@ -2854,6 +2854,9 @@ test("castle season four summaries report expansion and active operations", asyn
   const operations = state.playerSummary?.operationsSummary;
 
   assert.equal(expansion?.pressureOutput, 12);
+  assert.equal(expansion?.tileCapacity, 32);
+  assert.equal(expansion?.tilesHeld, 0);
+  assert.equal(expansion?.tilesOverCapacity, 0);
   assert.equal(expansion?.activePriorityCount, 2);
   assert.equal(expansion?.leadingPriority?.tileId, leadingTile.id);
   assert.equal(expansion?.leadingPriority?.progress, 320);
