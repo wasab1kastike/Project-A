@@ -114,6 +114,13 @@ import { isSeasonFourRuleset } from "./rulesets";
 import { calculateRoadAdjustedTravel } from "./road-travel";
 import { getSkillModifiers } from "./race-skill-effects";
 import { getTradeWagonResourceLimit } from "./trading";
+import { getArmyUpkeepCost } from "./army-recruitment";
+import { calculateFieldPromotionCost } from "./army-xp";
+import {
+  BATTALION_TIER_NAMES,
+  TIER_MAX_SIZES,
+  type BattalionTier,
+} from "./battalion-types";
 import {
   EMPTY_NUKE_COMPONENT_CARGO,
   calculateCompleteNukeCount,
@@ -3034,6 +3041,100 @@ export async function getHomePageState({
           purchases: playerFortress.skillPurchases,
         })
       : null;
+  const playerBattalions = playerFortress
+    ? (cycle.battalions ?? []).filter(
+        (battalion) => battalion.fortressId === playerFortress.id,
+      )
+    : [];
+  const playerWarPolicy = playerFortress
+    ? (cycle.warPolicies ?? []).find(
+        (policy) => policy.fortressId === playerFortress.id,
+      ) ?? null
+    : null;
+  const activeBattalionArmy = playerBattalions.reduce(
+    (sum, battalion) => sum + Math.max(0, battalion.size),
+    0,
+  );
+  const pendingBattalionReinforcementArmy = playerFortress
+    ? cycle.attackUnits
+        .filter(
+          (unit) =>
+            unit.attackerFortress.id === playerFortress.id &&
+            unit.reinforcementBattalion !== null,
+        )
+        .reduce((sum, unit) => sum + Math.max(0, unit.armyAmount ?? 0), 0)
+    : 0;
+  const maxArmySize = playerWarPolicy?.maxArmySize ?? 500;
+  const armyBreakdown = playerFortress
+    ? {
+        totalActiveBattalionArmy: activeBattalionArmy,
+        pendingBattalionReinforcements: pendingBattalionReinforcementArmy,
+        maxArmySize,
+        remainingFillRoom: Math.max(
+          0,
+          maxArmySize - activeBattalionArmy - pendingBattalionReinforcementArmy,
+        ),
+        legacyRecruitmentQueue: playerFortress.recruitmentQueue,
+        upkeepFoodPerTick: Math.floor(
+          getArmyUpkeepCost(
+            activeBattalionArmy,
+            playerSkillModifiers?.upkeepDiscountPercent ?? 0,
+          ),
+        ),
+      }
+    : null;
+  const playerBattalionSummaries = playerFortress
+    ? playerBattalions.map((battalion) => {
+        const tier = battalion.tier as BattalionTier;
+        const nextTier = tier < 3 ? ((tier + 1) as BattalionTier) : null;
+        const tierMaxSize = TIER_MAX_SIZES[tier] ?? battalion.maxSize;
+        const skilledTierMaxSize = Math.floor(
+          tierMaxSize *
+            (1 + (playerSkillModifiers?.battalionMaxSizePercent ?? 0) / 100),
+        );
+        const promotionCost = calculateFieldPromotionCost(
+          {
+            id: battalion.id,
+            name: battalion.name,
+            size: battalion.size,
+            maxSize: battalion.maxSize,
+            tier,
+            xp: battalion.xp,
+            readyAt: battalion.readyAt?.getTime() ?? null,
+            stance: battalion.stance as never,
+            mode: (battalion.mode ?? "GUARD") as never,
+            garrisonedAt: battalion.garrisonedAt,
+            stanceLockedUntil: null,
+          },
+          playerSkillModifiers?.promotionDiscountPercent ?? 0,
+        );
+
+        return {
+          id: battalion.id,
+          fortressId: battalion.fortressId,
+          name: battalion.name,
+          size: battalion.size,
+          maxSize: battalion.maxSize,
+          tier: battalion.tier,
+          tierName: BATTALION_TIER_NAMES[tier] ?? `Tier ${battalion.tier}`,
+          tierMaxSize,
+          skilledTierMaxSize,
+          nextTierName:
+            nextTier === null ? null : BATTALION_TIER_NAMES[nextTier],
+          promotionCost,
+          canPromote:
+            gameplayOpen &&
+            promotionCost !== null &&
+            playerFortress.gold >= promotionCost,
+          canExpand: battalion.maxSize < skilledTierMaxSize,
+          xp: battalion.xp,
+          readyAt: battalion.readyAt?.getTime() ?? null,
+          stance: battalion.stance,
+          mode: battalion.mode ?? "GUARD",
+          garrisonedAt: battalion.garrisonedAt,
+        };
+      })
+    : [];
   const pressurePriorityQueue = playerFortress
     ? sortTilePressureQueue(
         cycle.tilePressurePriorities.filter(
@@ -3739,6 +3840,8 @@ export async function getHomePageState({
           fightingArmy: playerBattlefieldArmy,
           defendingArmy: playerGarrisonArmy,
           recruitmentQueue: playerFortress.recruitmentQueue,
+          armyBreakdown,
+          battalions: playerBattalionSummaries,
           minersAssigned: playerFortress.minersAssigned,
           farmersAssigned: playerFortress.farmersAssigned,
           recruitersAssigned: playerFortress.recruitersAssigned,
@@ -3799,11 +3902,15 @@ export async function getHomePageState({
           fightingArmy: playerBattlefieldArmy,
           defendingArmy: playerGarrisonArmy,
           recruitmentQueue: playerFortress.recruitmentQueue,
+          armyBreakdown,
+          battalions: playerBattalionSummaries,
           minersAssigned: playerFortress.minersAssigned,
           farmersAssigned: playerFortress.farmersAssigned,
           recruitersAssigned: playerFortress.recruitersAssigned,
           pressureWorkersAssigned: playerFortress.pressureWorkersAssigned,
           pressurePriorityLimit,
+          expansionTileCapacity,
+          ownedNormalTileCount: ownedNormalTileIds.length,
           race: playerFortress.race,
           currentAction: playerFortress.currentAction,
           currentTargetId: playerFortress.targetFortressId,

@@ -3922,9 +3922,13 @@ async function processCycleTick(
   const currentArmy = new Map(
     fortresses.map((fortress) => [fortress.id, fortress.army])
   );
+  const nonCombatArmyDeltaForBattalionReconciliation = new Map<string, number>();
   const currentRecruitmentQueue = new Map(
     fortresses.map((fortress) => [fortress.id, fortress.recruitmentQueue])
   );
+  const seasonFourLegacyRecruitmentQueue = isSeasonFour
+    ? new Map(currentRecruitmentQueue)
+    : new Map<string, number>();
   const currentHealth = new Map(
     fortresses.map((fortress) => [fortress.id, fortress.health])
   );
@@ -6216,12 +6220,14 @@ async function processCycleTick(
     const producedFood = economyHalted
       ? 0
       : Math.floor((production.foodProduced + skillFoodBonus) * economyMultiplier);
-    const recruitmentResult = economyHalted
+    const recruitmentResult = economyHalted || isSeasonFour
       ? {
           unitsCreated: 0,
           newQueue:
-            currentRecruitmentQueue.get(fortress.id) ??
-            fortress.recruitmentQueue,
+            isSeasonFour
+              ? 0
+              : currentRecruitmentQueue.get(fortress.id) ??
+                fortress.recruitmentQueue,
         }
       : processRecruitmentQueue(
           currentRecruitmentQueue.get(fortress.id) ?? fortress.recruitmentQueue,
@@ -6231,20 +6237,25 @@ async function processCycleTick(
             castleSpecializations[CastleUpgradeSpecialization.MILITARY]
           ) * economyMultiplier
         );
-    const armyProduced = recruitmentResult.unitsCreated + skillArmyBonus;
+    const armyProduced = isSeasonFour
+      ? 0
+      : recruitmentResult.unitsCreated + skillArmyBonus;
 
     const currentArmyValue = currentArmy.get(fortress.id) ?? fortress.army;
     // Calculate final food/army state after production, upkeep, and starvation.
-    const activeArmyUpkeep = Math.floor(
-      getArmyUpkeepCost(
-        currentArmyValue,
-        skillModifiers?.upkeepDiscountPercent ?? 0
-      )
-    );
+    const activeArmyUpkeep = isSeasonFour
+      ? 0
+      : Math.floor(
+          getArmyUpkeepCost(
+            currentArmyValue,
+            skillModifiers?.upkeepDiscountPercent ?? 0
+          )
+        );
     const foodBeforeUpkeep =
       (currentFood.get(fortress.id) ?? fortress.food) + producedFood;
     const starvationArmyLoss =
       !economyHalted &&
+      !isSeasonFour &&
       fortress.fortressKind === FortressKind.PLAYER &&
       activeArmyUpkeep > 0 &&
       foodBeforeUpkeep < activeArmyUpkeep
@@ -6379,7 +6390,7 @@ async function processCycleTick(
   }
 
   // === BATTALION RECRUITMENT ===
-  if (true) { // Always run for Season 4 test season
+  if (isSeasonFour) {
     // Build recruiters map from fortress data.
     const recruitersByFortress = new Map<string, number>();
     const raceByFortress = new Map<string, string | null>();
@@ -6435,6 +6446,7 @@ async function processCycleTick(
           currentArmy.get(fortress.id) ?? fortress.army,
         ])
       ),
+      legacyRecruitmentQueueByFortress: seasonFourLegacyRecruitmentQueue,
       fortressPositionsById,
     });
 
@@ -6445,23 +6457,21 @@ async function processCycleTick(
       fortressPositionsById,
     });
 
+    const seasonFourArmyByFortress = new Map<string, number>();
     for (const [fortressId, army] of recruitedArmyByFortress) {
+      const previousArmy = currentArmy.get(fortressId) ?? 0;
       currentArmy.set(fortressId, army);
-    }
-
-    if (recruitedArmyByFortress.size > 0) {
-      await Promise.all(
-        Array.from(recruitedArmyByFortress.entries()).map(
-          ([fortressId, army]) =>
-            db.fortress.update({
-              where: { id: fortressId },
-              data: { army },
-            })
-        )
+      currentRecruitmentQueue.set(fortressId, 0);
+      seasonFourArmyByFortress.set(fortressId, army);
+      nonCombatArmyDeltaForBattalionReconciliation.set(
+        fortressId,
+        (nonCombatArmyDeltaForBattalionReconciliation.get(fortressId) ?? 0) +
+          (army - previousArmy),
       );
     }
 
-    // Apply tiered battalion upkeep (replaces flat food cost).
+    // Apply battalion upkeep once for Season 4. The old scalar upkeep path is
+    // skipped above, so this is the single active army upkeep pass.
     const allBattalionsAfter = await db.battalion.findMany({
       where: { cycleId },
     });
@@ -6498,8 +6508,8 @@ async function processCycleTick(
       });
 
       // Apply upkeep results.
-      currentFood.set(fortress.id, upkeepResult.foodPaid);
-      currentGold.set(fortress.id, upkeepResult.goldPaid);
+      currentFood.set(fortress.id, upkeepResult.foodRemaining);
+      currentGold.set(fortress.id, upkeepResult.goldRemaining);
 
       // Write battalion size changes from desertion.
       for (const bn of upkeepResult.battalions) {
@@ -6510,6 +6520,36 @@ async function processCycleTick(
           });
         }
       }
+
+      const armyAfterUpkeep = upkeepResult.battalions.reduce(
+        (sum, battalion) => sum + Math.max(0, battalion.size),
+        0,
+      );
+      const previousArmy = currentArmy.get(fortress.id) ?? 0;
+      currentArmy.set(fortress.id, armyAfterUpkeep);
+      seasonFourArmyByFortress.set(fortress.id, armyAfterUpkeep);
+      nonCombatArmyDeltaForBattalionReconciliation.set(
+        fortress.id,
+        (nonCombatArmyDeltaForBattalionReconciliation.get(fortress.id) ?? 0) +
+          (armyAfterUpkeep - previousArmy),
+      );
+    }
+
+    if (seasonFourArmyByFortress.size > 0) {
+      await Promise.all(
+        Array.from(seasonFourArmyByFortress.entries()).map(
+          ([fortressId, army]) =>
+            db.fortress.update({
+              where: { id: fortressId },
+              data: {
+                army,
+                recruitmentQueue: 0,
+                food: currentFood.get(fortressId) ?? 0,
+                gold: currentGold.get(fortressId) ?? 0,
+              },
+            })
+        )
+      );
     }
   }
 
@@ -6590,7 +6630,9 @@ async function processCycleTick(
     for (const fortress of fortresses) {
       if (fortress.isNpc) continue;
       const post = currentArmy.get(fortress.id) ?? fortress.army;
-      const pre = fortress.army;
+      const pre =
+        fortress.army +
+        (nonCombatArmyDeltaForBattalionReconciliation.get(fortress.id) ?? 0);
       if (post !== pre) {
         postCombatArmy.set(fortress.id, post);
         preCombatArmy.set(fortress.id, pre);

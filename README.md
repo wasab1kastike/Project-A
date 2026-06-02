@@ -233,9 +233,9 @@ The game is now a castle-economy and battlefield-control loop:
 - Legacy race abilities remain readable in prior-season history, but are unavailable in the Season 4 ruleset; each race instead selects one passive standing doctrine with a 12-hour change cooldown
 - Season 4 race skills are role-focused Economy, Territory, and Military paths with 8 nodes per path, 12 total points, and major specialization unlocks at nodes 4 and 8; points arrive at castle level 3, then every 2 castle levels, and every 5 owned normal tiles
 - the skill-tree role revamp resets existing race skill purchases so players can rebuild around the new economy, pressure, trade logistics, and battalion bonuses
-- miners produce gold, farmers produce food, and recruiters process queued army orders instead of passively creating army
-- recruiting army costs 1 gold per unit up front; queued units complete over ticks based on assigned recruiters and race bonuses
-- active army, not queued army, consumes food upkeep at 0.01 food per unit per tick; if upkeep cannot be paid, food falls to zero and active army loses 2% that tick
+- miners produce gold, farmers produce food, and recruiters passively refill commissioned battalions
+- recruiting no longer creates a paid army queue in Season 4; existing legacy queue values drain into battalion capacity, then clear
+- active battalion army consumes food upkeep at 0.01 food per unit per tick; if upkeep cannot be paid, food falls to zero and active army loses 2% that tick
 - neutral tiles are acquired automatically through an ordered pressure-priority queue until the fortress reaches its tile capacity; the first 8 normal tiles are free to maintain after claiming, each pressure worker supports 2 more before skill and race bonuses, and excess owned tiles decay back toward neutral when capacity drops
 - the Castle Diplomacy tab supports bilateral alliances with fixed trust escrow tiers plus optional break collateral; betrayal immediately begins war, pays what it can, and records unpaid collateral as debt
 - the Castle Diplomacy tab supports peace offers with visible demands from either side, while trade offers move accepted gold, food, army, score points, and allied tile deeds as six-hour-minimum convoy legs; Trade Wagon building upgrades raise each wagon run's gold+food capacity from 100 up to 20,000, and larger trades queue multiple runs
@@ -244,7 +244,8 @@ The game is now a castle-economy and battlefield-control loop:
 - scored trade convoys can receive an outbound escort; convoy raid patrols are temporarily disabled while War Room focuses on battlefronts, battalions, and recruitment
 - daily nuke bidding runs 14:00-12:00 Europe/Helsinki for Fuel, Rocket, and Wrath of A; bids are private, losing bids are spent, components stockpile without a one-per-kind cap, components are tradable by convoy, and launches cost 250,000 gold plus one of each component
 - War Room battalions use one of four jobs: RESERVE, GUARD, ATTACK, or ALLIANCE. Stances are no longer player-facing controls.
-- Battalions do not heal passively; refill commissioned battalions by assigning recruiters and training new members. Full battalions and the max army ceiling stop new recruits until more room is created.
+- Battalions do not heal passively; refill commissioned battalions by assigning recruiters and training new members. Full battalions, pending remote reinforcements, and the max army ceiling stop new recruits until more room is created.
+- Battalions stay whole: guards patrol as one battalion, promotions advance one tier, and Military skills can raise battalion caps or reduce promotion costs.
 - Idle battalions roam owned tiles on the map until their job triggers: guards patrol borders, attackers launch from war fronts, allies reinforce battlefields, and reserves stay near the castle core.
 - new troops assigned to a remote battalion travel from the castle as visible reinforcement marches before they become usable
 - ALLIANCE-mode battalions reinforce allied defensive and attacking battlefields through visible incoming reinforcement marches, controlled from the Castle War Room

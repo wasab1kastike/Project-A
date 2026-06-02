@@ -839,8 +839,8 @@ function HomeClientContent({
                     {state.playerSummary.idleArmy} Idle
                   </span>
                   {state.playerSummary.queuedArmy > 0 ? (
-                    <span title="Recruitment queue">
-                      {state.playerSummary.queuedArmy} Q
+                    <span title="Legacy recruits pending battalion refill">
+                      {state.playerSummary.queuedArmy} Legacy
                     </span>
                   ) : null}
                   {state.playerSummary.defendingArmy > 0 ? (

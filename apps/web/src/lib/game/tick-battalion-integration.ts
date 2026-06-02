@@ -88,6 +88,8 @@ export async function processBattalionRecruitment(args: {
   skillPurchasesByFortress?: Map<string, Array<{ nodeKey: string }>>;
   /** Existing scalar fortress army, used to seed battalions for migrated players. */
   currentArmyByFortress?: Map<string, number>;
+  /** One-time cleanup of old paid recruitment queues into battalion capacity. */
+  legacyRecruitmentQueueByFortress?: Map<string, number>;
   fortressPositionsById: Map<string, FortressPosition>;
 }): Promise<Map<string, number>> {
   const {
@@ -100,6 +102,7 @@ export async function processBattalionRecruitment(args: {
     maxArmyByFortress,
     skillPurchasesByFortress,
     currentArmyByFortress,
+    legacyRecruitmentQueueByFortress,
     fortressPositionsById,
   } = args;
 
@@ -199,10 +202,26 @@ export async function processBattalionRecruitment(args: {
   }> = [];
 
   for (const [fortressId, recruiters] of recruitersByFortress) {
-    if (recruiters <= 0) {
+    const legacyQueuedUnits = Math.max(
+      0,
+      Math.floor(legacyRecruitmentQueueByFortress?.get(fortressId) ?? 0),
+    );
+    const storedExisting = battalionsByFortress.get(fortressId) ?? [];
+    const migratedArmy = Math.max(
+      0,
+      currentArmyByFortress?.get(fortressId) ?? 0
+    );
+
+    if (
+      recruiters <= 0 &&
+      legacyQueuedUnits <= 0 &&
+      (storedExisting.length > 0 || migratedArmy <= 0)
+    ) {
       // Still sum existing battalion sizes.
-      const existing = battalionsByFortress.get(fortressId) ?? [];
-      newArmyByFortress.set(fortressId, existing.reduce((s, b) => s + b.size, 0));
+      newArmyByFortress.set(
+        fortressId,
+        storedExisting.reduce((s, b) => s + b.size, 0)
+      );
       continue;
     }
 
@@ -222,11 +241,6 @@ export async function processBattalionRecruitment(args: {
       1 + (skillModifiers?.battalionMaxSizePercent ?? 0) / 100;
     const defaultBattalionMaxSize = Math.floor(
       DEFAULT_BATTALION_MAX_SIZE * battalionMaxSizeMultiplier
-    );
-    const storedExisting = battalionsByFortress.get(fortressId) ?? [];
-    const migratedArmy = Math.max(
-      0,
-      currentArmyByFortress?.get(fortressId) ?? 0
     );
     const existing =
       storedExisting.length === 0 && migratedArmy > 0
@@ -268,6 +282,9 @@ export async function processBattalionRecruitment(args: {
       1.0;
     const recruitmentBonus =
       raceBonus * (skillModifiers?.recruitmentRateMultiplier ?? 1);
+    const flatSkillUnits = Math.floor(
+      (recruiters / 10) * (skillModifiers?.armyPerTenRecruitersBonus ?? 0),
+    );
 
     const result = processRecruitmentTick({
       battalions: existing,
@@ -279,6 +296,7 @@ export async function processBattalionRecruitment(args: {
       preferredBattalionId: undefined,
       defaultBattalionMaxSize,
       maxArmySize: maxArmy,
+      bonusUnits: flatSkillUnits + legacyQueuedUnits,
       newBattalionName: generateBattalionName(
         (race as "DWARFS" | "ORKS" | "SPACE_MURINES" | "UNSTABLE_UNICORNS") ?? "DWARFS",
         existing.length,
@@ -288,7 +306,7 @@ export async function processBattalionRecruitment(args: {
     // Stage updates.
     for (const bn of result.battalions) {
       // Check if this battalion is new (not in existing list).
-      const isNew = !existing.some((e) => e.id === bn.id);
+      const isNew = !storedExisting.some((e) => e.id === bn.id);
       if (isNew) {
         newBattalions.push({
           cycleId: ctx.cycleId,

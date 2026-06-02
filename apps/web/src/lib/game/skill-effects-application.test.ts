@@ -97,7 +97,7 @@ test("max army size caps new recruitment without trimming existing battalions", 
 
 test("upkeep and promotion discounts apply to battalion systems", () => {
   const bill = calculateUpkeep([battalion()], 30);
-  assert.equal(bill.totalFood, 7);
+  assert.equal(bill.totalFood, 3);
 
   const promotion = applyFieldPromotion(battalion({ size: 100 }), 25);
   assert.equal(promotion?.goldCost, 2100);

@@ -12,6 +12,7 @@ import {
   BATTALION_TIER_NAMES,
   MORALE_EVENTS,
 } from "./battalion-types";
+import { getArmyUpkeepCost, getStarvationArmyLoss } from "./army-recruitment";
 
 // ── Upkeep Costs ─────────────────────────────────────────────────────────────
 
@@ -51,26 +52,28 @@ export type UpkeepBill = {
 /**
  * Calculate the total food and gold upkeep for all battalions.
  */
-const FOOD_PER_50_UNITS = 1;
-
 export function calculateUpkeep(
   battalions: Battalion[],
   upkeepDiscountPercent = 0,
 ): UpkeepBill {
   const breakdown: UpkeepBill["breakdown"] = [];
-  let totalFood = 0;
-  let totalGold = 0;
-  const discountMultiplier =
-    1 - Math.max(0, Math.min(90, upkeepDiscountPercent)) / 100;
+  const totalUnits = battalions.reduce(
+    (sum, battalion) => sum + Math.max(0, battalion.size),
+    0,
+  );
+  const totalFood = Math.floor(
+    getArmyUpkeepCost(totalUnits, upkeepDiscountPercent),
+  );
+  const totalGold = 0;
+  let assignedFood = 0;
+  const activeBattalions = battalions.filter((b) => b.size > 0);
 
-  for (const b of battalions) {
-    if (b.size <= 0) continue;
-
-    // Simple upkeep: 1 food per 50 units. No tier multipliers, no gold cost.
-    const foodCost = Math.ceil(
-      Math.ceil(b.size / 50) * FOOD_PER_50_UNITS * discountMultiplier,
-    );
-    totalFood += foodCost;
+  for (const [index, b] of activeBattalions.entries()) {
+    const foodCost =
+      index === activeBattalions.length - 1
+        ? Math.max(0, totalFood - assignedFood)
+        : Math.floor(totalFood * (b.size / Math.max(1, totalUnits)));
+    assignedFood += foodCost;
 
     breakdown.push({
       battalionId: b.id,
@@ -103,10 +106,10 @@ export type UpkeepTickResult = {
   equipmentDecay: boolean;
   /** Morale change from starvation. */
   moraleDelta: number;
-  /** Food paid this tick. */
-  foodPaid: number;
-  /** Gold paid this tick. */
-  goldPaid: number;
+  /** Food remaining after upkeep. */
+  foodRemaining: number;
+  /** Gold remaining after upkeep. */
+  goldRemaining: number;
 };
 
 /**
@@ -129,11 +132,13 @@ export function processUpkeepTick(args: {
   );
 
   // Deduct what we can.
-  const foodPaid = Math.min(args.food, bill.totalFood);
-  const goldPaid = Math.min(args.gold, bill.totalGold);
+  const foodSpent = Math.min(args.food, bill.totalFood);
+  const goldSpent = Math.min(args.gold, bill.totalGold);
+  const foodRemaining = Math.max(0, args.food - foodSpent);
+  const goldRemaining = Math.max(0, args.gold - goldSpent);
 
-  const foodShortfall = bill.totalFood - foodPaid;
-  const goldShortfall = bill.totalGold - goldPaid;
+  const foodShortfall = bill.totalFood - foodSpent;
+  const goldShortfall = bill.totalGold - goldSpent;
 
   let battalions = args.battalions.map((b) => ({ ...b }));
   let unitsDeserted = 0;
@@ -141,9 +146,10 @@ export function processUpkeepTick(args: {
 
   // ── Food Shortfall → Desertion ───────────────────────────────────────
   if (foodShortfall > 0) {
-    // Desertion rate: 2% of army per missing food unit, doubled if food=0 (starvation).
     const isStarving = args.food <= 0;
-    const baseDesertionRate = isStarving ? 0.04 : 0.02;
+    let remainingDesertion = getStarvationArmyLoss(
+      battalions.reduce((sum, battalion) => sum + Math.max(0, battalion.size), 0),
+    );
 
     // Desertion targets lowest-tier battalions first.
     const sortedByTier = [...battalions]
@@ -151,14 +157,14 @@ export function processUpkeepTick(args: {
       .sort((a, b) => a.b.tier - b.b.tier);
 
     for (const { b, idx } of sortedByTier) {
-      if (foodShortfall <= 0) break;
+      if (remainingDesertion <= 0) break;
       if (b.size <= 0) continue;
 
-      const deserting = Math.ceil(b.size * baseDesertionRate * foodShortfall);
-      const actual = Math.min(deserting, b.size);
+      const actual = Math.min(remainingDesertion, b.size);
 
       battalions[idx].size -= actual;
       unitsDeserted += actual;
+      remainingDesertion -= actual;
     }
 
     moraleDelta += isStarving
@@ -177,8 +183,8 @@ export function processUpkeepTick(args: {
     unitsDeserted,
     equipmentDecay,
     moraleDelta,
-    foodPaid,
-    goldPaid,
+    foodRemaining,
+    goldRemaining,
   };
 }
 

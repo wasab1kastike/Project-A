@@ -9,14 +9,19 @@ import {
 } from "@/lib/game/constants";
 import {
   ARMY_UPKEEP_PER_UNIT,
-  RECRUITMENT_COST_PER_UNIT,
   RECRUITMENT_RATE_PER_RECRUITER,
   STARVATION_ATTRITION_RATE,
 } from "@/lib/game/army-recruitment";
 import {
+  FIELD_PROMOTION_BASE_COST,
+  FIELD_PROMOTION_COST_PER_UNIT,
+} from "@/lib/game/army-xp";
+import {
   ABSOLUTE_MAX_BATTALIONS,
+  BATTALION_TIER_NAMES,
   BATTALION_COMMISSION_COST,
   BATTALION_EXPAND_COST_PER_50,
+  BattalionTier,
   DEFAULT_BATTALION_MAX_SIZE,
   EXTRA_SLOT_COSTS,
   MAX_NATURAL_SLOTS,
@@ -200,7 +205,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
     highlights: [
       "The season winner is the fortress with the most points when active play resolves.",
       "Home of A and loot camps are legacy-only in Season 4.",
-      "Recruitment is paid up front, then recruiters process the queue.",
+      "Recruitment is passive: recruiters refill commissioned battalions up to the max army ceiling.",
     ],
     sections: [
       {
@@ -212,7 +217,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         bullets: [
           "Choose race carefully; it is locked for the season.",
           "Assign miners, farmers, recruiters, and pressure workers from Castle.",
-          `Order army when you can pay ${RECRUITMENT_COST_PER_UNIT} gold per unit, then keep recruiters assigned.`,
+          "Commission battalions, assign recruiters, and set max army size so passive refill has room to work.",
           "Prioritize connected neutral border tiles from the battlefield map.",
           "Use Politics and Trade before war so allies, convoys, and targets are clear.",
           `Keep gold for utility; rename alone costs ${ACTIVE_RENAME_COST} gold.`,
@@ -302,7 +307,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
     subtitle:
       "Gold buys choices, food sustains active army, points win seasons, and idle workers are lost tempo.",
     highlights: [
-      "Recruiters process paid queue; they do not mint free army from nothing.",
+      "Recruiters passively refill commissioned battalions; no new battalion is auto-created by overflow.",
       `Active army upkeep is ${ARMY_UPKEEP_PER_UNIT} food per unit per tick.`,
       `Starvation removes ${Math.round(STARVATION_ATTRITION_RATE * 100)}% of active army per starving tick, minimum 1.`,
     ],
@@ -316,20 +321,20 @@ export const WIKI_PAGES: readonly WikiPage[] = [
           rows: [
             ["Miners", "Gold income", "Recruitment, upgrades, utility, trade."],
             ["Farmers", "Food income", "Army upkeep and trade."],
-            ["Recruiters", `${RECRUITMENT_RATE_PER_RECRUITER} queued unit per recruiter per tick`, "Turns paid queue into active army."],
+            ["Recruiters", `${RECRUITMENT_RATE_PER_RECRUITER} refill capacity per recruiter per tick`, "Fills commissioned battalions up to their room and the max army ceiling."],
             ["Pressure workers", "Border pressure", "Claim and maintain territory."],
           ],
         },
       },
       {
         id: "recruitment",
-        eyebrow: "Army queue",
-        title: "Buying and training army",
+        eyebrow: "Army refill",
+        title: "Passive battalion recruitment",
         diagram: [
-          { label: "Order", detail: `${RECRUITMENT_COST_PER_UNIT} gold per unit is paid immediately.` },
-          { label: "Queue", detail: "Queued units are not active and have no upkeep." },
-          { label: "Train", detail: "Recruiters process the queue each tick." },
-          { label: "Active", detail: "Finished units join army and begin food upkeep." },
+          { label: "Commission", detail: "Create battalions and choose their max size." },
+          { label: "Assign", detail: "Recruiters create refill capacity each tick." },
+          { label: "Fill", detail: "Damaged or underfilled battalions receive new members while room exists." },
+          { label: "Ceiling", detail: "Max army size and pending remote reinforcements reserve capacity." },
         ],
       },
       {
@@ -423,6 +428,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
       `New battalions start at ${DEFAULT_BATTALION_MAX_SIZE} max size.`,
       `Commission cost: ${BATTALION_COMMISSION_COST} gold.`,
       `Natural slots cap at ${MAX_NATURAL_SLOTS}; absolute cap is ${ABSOLUTE_MAX_BATTALIONS}.`,
+      "Battalions are whole units: Guard battalions patrol as one battalion, not as split legacy marches.",
     ],
     sections: [
       {
@@ -443,6 +449,8 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         bullets: [
           "Battalions do not heal passively.",
           "Assign recruiters to train new members and refill damaged battalions.",
+          "Recruitment stops when battalions are full, when pending remote reinforcements reserve the open room, or when active battalion army reaches max army size.",
+          "Recruiters never auto-commission a new battalion; commanders choose when to add another unit.",
           "The older stance layer is handled internally and is no longer a player-facing control.",
         ],
       },
@@ -463,12 +471,18 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         table: {
           headers: ["Tier", "Max size"],
           rows: [
-            ["Recruit", `${TIER_MAX_SIZES[0]}`],
-            ["Regular", `${TIER_MAX_SIZES[1]}`],
-            ["Veteran", `${TIER_MAX_SIZES[2]}`],
-            ["Elite", `${TIER_MAX_SIZES[3]}`],
+            [BATTALION_TIER_NAMES[BattalionTier.RECRUIT], `${TIER_MAX_SIZES[BattalionTier.RECRUIT]}`],
+            [BATTALION_TIER_NAMES[BattalionTier.REGULAR], `${TIER_MAX_SIZES[BattalionTier.REGULAR]}`],
+            [BATTALION_TIER_NAMES[BattalionTier.VETERAN], `${TIER_MAX_SIZES[BattalionTier.VETERAN]}`],
+            [BATTALION_TIER_NAMES[BattalionTier.ELITE], `${TIER_MAX_SIZES[BattalionTier.ELITE]}`],
           ],
         },
+        bullets: [
+          "Promotions advance one tier at a time and unlock that tier's expansion cap.",
+          `Field promotion cost is the tier base cost plus ${FIELD_PROMOTION_COST_PER_UNIT} gold per current battalion member before skill discounts.`,
+          `Current tier base costs are Recruit ${FIELD_PROMOTION_BASE_COST[BattalionTier.RECRUIT]}, Regular ${FIELD_PROMOTION_BASE_COST[BattalionTier.REGULAR]}, and Veteran ${FIELD_PROMOTION_BASE_COST[BattalionTier.VETERAN]} gold.`,
+          "Military skills can increase battalion size caps, add battalion slots, speed refill, and discount promotions.",
+        ],
       },
       {
         id: "morale",

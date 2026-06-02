@@ -66,6 +66,30 @@ test("wiki does not describe retired Season 4 PvE as live", () => {
   }
 });
 
+test("wiki does not describe retired paid recruitment as live Season 4", () => {
+  const forbiddenPatterns = [
+    /recruitment is paid up front/i,
+    /pay .*gold per unit/i,
+    /gold per unit is paid/i,
+    /buy queued army/i,
+    /buy army/i,
+    /paid queue/i,
+    /turns paid queue into active army/i,
+  ];
+
+  for (const filePath of wikiRuntimeFiles) {
+    const source = readFileSync(filePath, "utf8");
+
+    for (const pattern of forbiddenPatterns) {
+      assert.equal(
+        pattern.test(source),
+        false,
+        `${filePath} matches forbidden paid-recruitment pattern ${pattern}`,
+      );
+    }
+  }
+});
+
 test("wiki image assets exist", () => {
   const source = wikiRuntimeFiles
     .map((filePath) => readFileSync(filePath, "utf8"))

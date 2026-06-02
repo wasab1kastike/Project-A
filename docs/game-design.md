@@ -42,7 +42,7 @@ You assign workers across four roles:
 |------|----------|-------|
 | Miners | Gold | Dwarfs produce more on owned tiles |
 | Farmers | Food | — |
-| Recruiters | Army | Recruitment queue processes per tick |
+| Recruiters | Army | Passively refill commissioned battalions |
 | Pressure Workers | Tile pressure | Claims and holds nearby neutral tiles; 8 normal tiles are free, then each assigned worker supports two more before skill and race bonuses |
 
 Worker count scales with fortress level. Reassignment is instant but only once per tick.
@@ -82,7 +82,7 @@ Instead of direct tile attacks, Season 4 uses a pressure system:
 ```
 Gold  = miners × baseRate × tileBonus × raceBonus
 Food  = farmers × baseRate × tileBonus
-Army  = recruiters process the recruitment queue
+Army  = recruiters refill commissioned battalions
 ```
 
 ### Upgrades
@@ -100,7 +100,9 @@ Upgrades cost gold and take time. One upgrade project active at a time.
 
 ### Recruitment
 
-Recruiters refill commissioned battalions each tick based on recruiter count and race bonuses. Full battalions and the max army ceiling stop new recruits until the player expands or commissions more battalion room. Existing oversized battalions are not trimmed by the ceiling. Orks produce army faster during Waaagh; Space Murines trade for army efficiently.
+Recruiters refill commissioned battalions each tick based on recruiter count and race bonuses. Recruitment is passive in Season 4: players choose recruiter count, battalion capacity, and max army size instead of buying new queued army. Full battalions, pending remote reinforcement marches, and the max army ceiling stop new recruits until the player expands or commissions more battalion room. Existing oversized battalions are not trimmed by the ceiling, and existing legacy queue values drain into battalion capacity before clearing. Orks produce army faster during Waaagh; Space Murines trade for army efficiently.
+
+Battalions stay whole. GUARD battalions patrol as a single battalion, not as split legacy fortify marches. Promotions advance one tier at a time and unlock the next tier's expansion cap; Military skills can adjust battalion size caps, recruitment speed, and promotion costs.
 
 ---
 

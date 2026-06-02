@@ -89,6 +89,13 @@ import {
   type NukeComponentCargo,
 } from "./nukes";
 import { getTradeWagonResourceLimit } from "./trading";
+import {
+  BATTALION_TIER_NAMES,
+  TIER_MAX_SIZES,
+  type BattalionTier,
+} from "./battalion-types";
+import { calculateFieldPromotionCost } from "./army-xp";
+import { getArmyUpkeepCost } from "./army-recruitment";
 
 const BUILDING_SPECIALIZATIONS = [
   CastleUpgradeSpecialization.DEFENSE,
@@ -606,6 +613,21 @@ export async function getCastlePageState({
         }),
       ])
     : [[], []];
+  const pendingBattalionReinforcements = playerFortress
+    ? await db.attackUnit.findMany({
+        where: {
+          cycleId: cycle.id,
+          attackerFortressId: playerFortress.id,
+          reinforcementBattalionId: { not: null },
+          resolvedAt: null,
+          cancelledAt: null,
+        },
+        select: {
+          reinforcementBattalionId: true,
+          armyAmount: true,
+        },
+      })
+    : [];
   const playerOwnedTileCount = getRaceTierTileCount({
     race: playerFortress?.race,
     ownedTileBiomes: playerOwnedTileBiomes,
@@ -883,6 +905,35 @@ export async function getCastlePageState({
     (playerSkillModifiers?.populationBonus ?? 0) +
     (playerSkillModifiers?.populationPerOwnedTile ?? 0) *
       ownedNormalTiles.length;
+  const playerWarPolicy = playerFortress?.warPolicies?.[0] ?? null;
+  const activeBattalionArmy = (playerFortress?.battalions ?? []).reduce(
+    (sum, battalion) => sum + Math.max(0, battalion.size),
+    0,
+  );
+  const pendingBattalionReinforcementArmy =
+    pendingBattalionReinforcements.reduce(
+      (sum, reinforcement) => sum + Math.max(0, reinforcement.armyAmount),
+      0,
+    );
+  const maxArmySize = playerWarPolicy?.maxArmySize ?? 500;
+  const armyBreakdown = playerFortress
+    ? {
+        totalActiveBattalionArmy: activeBattalionArmy,
+        pendingBattalionReinforcements: pendingBattalionReinforcementArmy,
+        maxArmySize,
+        remainingFillRoom: Math.max(
+          0,
+          maxArmySize - activeBattalionArmy - pendingBattalionReinforcementArmy,
+        ),
+        legacyRecruitmentQueue: playerFortress.recruitmentQueue,
+        upkeepFoodPerTick: Math.floor(
+          getArmyUpkeepCost(
+            activeBattalionArmy,
+            playerSkillModifiers?.upkeepDiscountPercent ?? 0,
+          ),
+        ),
+      }
+    : null;
   const seasonFourRecords =
     playerFortress && isSeasonFour
       ? await Promise.all([
@@ -1339,6 +1390,7 @@ export async function getCastlePageState({
           food: playerFortress.food,
           army: playerFortress.army,
           recruitmentQueue: playerFortress.recruitmentQueue,
+          armyBreakdown,
           minersAssigned: playerFortress.minersAssigned,
           farmersAssigned: playerFortress.farmersAssigned,
           recruitersAssigned: playerFortress.recruitersAssigned,
@@ -1666,26 +1718,64 @@ export async function getCastlePageState({
           ownedTileSummary,
           expansionSummary,
           operationsSummary,
-          battalions: (playerFortress?.battalions ?? []).map((b) => ({
-            id: b.id,
-            name: b.name,
-            size: b.size,
-            maxSize: b.maxSize,
-            tier: b.tier,
-            xp: b.xp,
-            readyAt: b.readyAt?.getTime() ?? null,
-            stance: b.stance,
-            mode: b.mode ?? "GUARD",
-            garrisonedAt: b.garrisonedAt,
-            frontId: b.assignments?.[0]?.frontId ?? null,
-          })),
-          warPolicy: playerFortress?.warPolicies?.[0]
+          battalions: (playerFortress?.battalions ?? []).map((b) => {
+            const tier = b.tier as BattalionTier;
+            const nextTier =
+              tier < 3 ? ((tier + 1) as BattalionTier) : null;
+            const tierMaxSize = TIER_MAX_SIZES[tier] ?? b.maxSize;
+            const skilledTierMaxSize = Math.floor(
+              tierMaxSize *
+                (1 + (playerSkillModifiers?.battalionMaxSizePercent ?? 0) / 100),
+            );
+            const promotionCost = calculateFieldPromotionCost(
+              {
+                id: b.id,
+                name: b.name,
+                size: b.size,
+                maxSize: b.maxSize,
+                tier,
+                xp: b.xp,
+                readyAt: b.readyAt?.getTime() ?? null,
+                stance: b.stance as never,
+                mode: (b.mode ?? "GUARD") as never,
+                garrisonedAt: b.garrisonedAt,
+                stanceLockedUntil: null,
+              },
+              playerSkillModifiers?.promotionDiscountPercent ?? 0,
+            );
+
+            return {
+              id: b.id,
+              name: b.name,
+              size: b.size,
+              maxSize: b.maxSize,
+              tier: b.tier,
+              tierName: BATTALION_TIER_NAMES[tier] ?? `Tier ${b.tier}`,
+              tierMaxSize,
+              skilledTierMaxSize,
+              nextTierName:
+                nextTier === null ? null : BATTALION_TIER_NAMES[nextTier],
+              promotionCost,
+              canPromote:
+                gameplayOpen &&
+                promotionCost !== null &&
+                playerFortress.gold >= promotionCost,
+              canExpand: b.maxSize < skilledTierMaxSize,
+              xp: b.xp,
+              readyAt: b.readyAt?.getTime() ?? null,
+              stance: b.stance,
+              mode: b.mode ?? "GUARD",
+              garrisonedAt: b.garrisonedAt,
+              frontId: b.assignments?.[0]?.frontId ?? null,
+            };
+          }),
+          warPolicy: playerWarPolicy
             ? {
-                maxArmySize: playerFortress.warPolicies[0].maxArmySize,
-                guardPercent: playerFortress.warPolicies[0].guardPercent,
-                defaultAggression: playerFortress.warPolicies[0].defaultAggression,
-                allianceSupportAttack: playerFortress.warPolicies[0].allianceSupportAttack,
-                allianceSupportDefense: playerFortress.warPolicies[0].allianceSupportDefense,
+                maxArmySize: playerWarPolicy.maxArmySize,
+                guardPercent: playerWarPolicy.guardPercent,
+                defaultAggression: playerWarPolicy.defaultAggression,
+                allianceSupportAttack: playerWarPolicy.allianceSupportAttack,
+                allianceSupportDefense: playerWarPolicy.allianceSupportDefense,
               }
             : null,
           allianceWarRoom: {

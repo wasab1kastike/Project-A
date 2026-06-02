@@ -6634,6 +6634,12 @@ export async function recruitArmy({
         );
       }
 
+      if (isSeasonFourRuleset(cycle.ruleset)) {
+        throw new GameError(
+          "Season 4 recruitment is passive. Assign recruiters and set max army size in the War Room."
+        );
+      }
+
       const fortress = await tx.fortress.findUnique({
         where: {
           cycleId_ownerId: {

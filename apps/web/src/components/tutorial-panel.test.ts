@@ -34,8 +34,10 @@ test("tutorial panel source has no mojibake markers", () => {
 test("tutorial teaches Season 4 recruitment and retired PvE correctly", () => {
   const source = readFileSync(tutorialFiles[0], "utf8");
 
-  assert.match(source, /Recruitment is not free passive growth/);
+  assert.match(source, /Recruits fill those battalions passively while room exists/);
   assert.match(source, /Home of A and loot camps are not live Season 4 targets/);
+  assert.doesNotMatch(source, /Order paid recruits/i);
+  assert.doesNotMatch(source, /Queue army with gold/i);
   assert.doesNotMatch(source, /Army grows passively each tick/i);
   assert.doesNotMatch(source, /Home of A is a daily boss/i);
 });

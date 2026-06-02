@@ -18,7 +18,7 @@ export type TutorialState = {
   hasBattalions: boolean;
   hasAssignedWorkers: boolean;
   hasPressureWorkers: boolean;
-  hasRecruitmentQueued: boolean;
+  hasRecruitmentStarted: boolean;
   hasOwnedTiles: boolean;
   hasTradePartners: boolean;
   hasAllies: boolean;
@@ -40,7 +40,7 @@ const TUTORIAL_STEPS: TutorialStep[] = [
     title: "Assign economy workers",
     objective: "Set your first economy split.",
     description:
-      "Open Castle and assign miners for gold, farmers for food, and recruiters for queue processing.",
+      "Open Castle and assign miners for gold, farmers for food, and recruiters for battalion refill.",
     link: { href: "/castle", label: "Open Castle" },
     autoCheck: (state) => state.hasAssignedWorkers,
   },
@@ -57,12 +57,12 @@ const TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: "order-recruits",
     phase: "Army",
-    title: "Order paid recruits",
-    objective: "Queue army with gold.",
+    title: "Fill battalions",
+    objective: "Create army room.",
     description:
-      "Recruitment is not free passive growth. Spend gold on army orders; recruiters turn that queue into active army over ticks.",
+      "Commission battalions, set max army size, and assign recruiters. Recruits fill those battalions passively while room exists.",
     link: { href: "/castle", label: "Open Castle" },
-    autoCheck: (state) => state.hasRecruitmentQueued,
+    autoCheck: (state) => state.hasRecruitmentStarted,
   },
   {
     id: "commission-battalion",
@@ -397,7 +397,7 @@ export function useTutorialState(playerSummary: any): TutorialState {
       (playerSummary?.farmersAssigned ?? 0) > 0 ||
       (playerSummary?.recruitersAssigned ?? 0) > 0,
     hasPressureWorkers: (playerSummary?.pressureWorkersAssigned ?? 0) > 0,
-    hasRecruitmentQueued:
+    hasRecruitmentStarted:
       (playerSummary?.recruitmentQueue ?? 0) > 0 ||
       (playerSummary?.battalions ?? []).some((b: any) => (b?.size ?? 0) > 0),
     hasOwnedTiles: (playerSummary?.ownedTileCount ?? 0) > 1,

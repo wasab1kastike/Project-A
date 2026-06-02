@@ -60,7 +60,6 @@ import {
   reinforceDwarfRuneOfGrudgesAction,
   registerCommanderNameFormAction,
   renameFortressAction,
-  recruitArmyAction,
   recallArmyOrderAction,
   selectFortressRaceAction,
   selectFortressDoctrineAction,
@@ -77,11 +76,10 @@ import {
   getPressureWorkerLabel,
 } from "@/lib/game/pressure-workers";
 import {
-  calculateRecruitmentProgress,
   getArmyUpkeepCost,
-  getRecruitmentCost,
   STARVATION_ATTRITION_RATE,
 } from "@/lib/game/army-recruitment";
+import { getExpansionTileCapacity } from "@/lib/game/tile-pressure";
 import {
   RACE_DEFINITIONS,
   isFortressRace,
@@ -113,6 +111,14 @@ type PlayerSummary = {
   food: number;
   army: number;
   recruitmentQueue: number;
+  armyBreakdown: {
+    totalActiveBattalionArmy: number;
+    pendingBattalionReinforcements: number;
+    maxArmySize: number;
+    remainingFillRoom: number;
+    legacyRecruitmentQueue: number;
+    upkeepFoodPerTick: number;
+  } | null;
   minersAssigned: number;
   farmersAssigned: number;
   recruitersAssigned: number;
@@ -377,6 +383,13 @@ type PlayerSummary = {
     size: number;
     maxSize: number;
     tier: number;
+    tierName: string;
+    tierMaxSize: number;
+    skilledTierMaxSize: number;
+    nextTierName: string | null;
+    promotionCost: number | null;
+    canPromote: boolean;
+    canExpand: boolean;
     xp: number;
     readyAt: number | null;
     stance: string;
@@ -835,7 +848,7 @@ function getBuildingEffect({
     case "FOOD":
       return `+${production.foodProduced} food/tick from farmers`;
     case "MILITARY":
-      return "Recruiters process queued army orders";
+      return "Recruiters refill commissioned battalions";
     case "TRADE":
       return `Wagons carry ${getTradeWagonResourceLimit(level).toLocaleString()} gold+food`;
     default:
@@ -911,48 +924,6 @@ function BuildingChoiceFields({
       ))}
     </div>
   );
-}
-
-function getRecruitmentQueueCompletionText(ticksToComplete: number): string {
-  return Number.isFinite(ticksToComplete)
-    ? `${ticksToComplete} ticks`
-    : "no ticks until recruiters are assigned";
-}
-
-function getRecruitmentDisplayState({
-  army,
-  gold,
-  race,
-  recruitAmount,
-  recruitmentQueue,
-  recruitersAssigned,
-  recruitmentCapacityMultiplier,
-}: {
-  army: number;
-  gold: number;
-  race: string | null;
-  recruitAmount: number;
-  recruitmentQueue: number;
-  recruitersAssigned: number;
-  recruitmentCapacityMultiplier: number;
-}) {
-  const recruitmentProgress = calculateRecruitmentProgress(
-    recruitmentQueue,
-    recruitersAssigned,
-    race as never,
-    recruitmentCapacityMultiplier
-  );
-  const recruitCost = getRecruitmentCost(recruitAmount);
-
-  return {
-    armyUpkeep: Math.floor(getArmyUpkeepCost(army)),
-    canSubmitRecruitment: Boolean(race) && recruitCost <= gold,
-    queueCompletionText: getRecruitmentQueueCompletionText(
-      recruitmentProgress.ticksToComplete
-    ),
-    recruitCost,
-    starvationAttritionPercent: Math.round(STARVATION_ATTRITION_RATE * 100),
-  };
 }
 
 function getShopSkinMeta(slot: ArcadeCosmeticSlot, variant: string) {
@@ -1388,9 +1359,6 @@ export function CastleManagement({
   });
   const [workerError, setWorkerError] = useState<string | null>(null);
   const [workerPending, setWorkerPending] = useState(false);
-  const [recruitAmount, setRecruitAmount] = useState(10);
-  const [recruitError, setRecruitError] = useState<string | null>(null);
-  const [recruitPending, setRecruitPending] = useState(false);
   const [goldToConvert, setGoldToConvert] = useState(getGoldToPointsRatio());
   const [activeTab, setActiveTab] = useState<CastleTab>(initialTab);
   const [maxArmySize, setMaxArmySize] = useState(
@@ -1436,12 +1404,25 @@ export function CastleManagement({
     [playerSummary.id]
   );
 
+  const saveAllianceSupportPolicy = useCallback(
+    async (next?: {
+      supportAttack?: boolean;
+      supportDefense?: boolean;
+    }) => {
+      const result = await setAllianceSupportPolicyAction({
+        supportAttack: next?.supportAttack ?? allianceSupportAttack,
+        supportDefense: next?.supportDefense ?? allianceSupportDefense,
+      });
+      await handleInlineResult(result);
+    },
+    [allianceSupportAttack, allianceSupportDefense]
+  );
+
   const saveBattalionMaxSize = useCallback(
     async (battalion: BattalionSummary) => {
       const draft =
         battalionMaxSizeDrafts[battalion.id] ?? String(battalion.maxSize);
       const targetMaxSize = Number(draft);
-      const tierMax = [500, 5000, 15000, 50000][battalion.tier] ?? 500;
 
       setBattalionMaxSizeErrors((current) => {
         return omitRecordKey(current, battalion.id);
@@ -1478,10 +1459,10 @@ export function CastleManagement({
         return;
       }
 
-      if (targetMaxSize > tierMax) {
+      if (targetMaxSize > battalion.skilledTierMaxSize) {
         setBattalionMaxSizeErrors((current) => ({
           ...current,
-          [battalion.id]: `This tier caps at ${tierMax.toLocaleString()}.`,
+          [battalion.id]: `This tier caps at ${battalion.skilledTierMaxSize.toLocaleString()}.`,
         }));
         return;
       }
@@ -1511,20 +1492,6 @@ export function CastleManagement({
       }
     },
     [battalionMaxSizeDrafts, refreshView]
-  );
-
-  const saveAllianceSupportPolicy = useCallback(
-    async (next?: {
-      supportAttack?: boolean;
-      supportDefense?: boolean;
-    }) => {
-      const result = await setAllianceSupportPolicyAction({
-        supportAttack: next?.supportAttack ?? allianceSupportAttack,
-        supportDefense: next?.supportDefense ?? allianceSupportDefense,
-      });
-      await handleInlineResult(result);
-    },
-    [allianceSupportAttack, allianceSupportDefense]
   );
 
   const handleCreateBattalion = useCallback(async () => {
@@ -1609,18 +1576,40 @@ export function CastleManagement({
   const pressureWorkerDescription = getPressureWorkerDescription(
     playerSummary.race as never
   );
-  const recruitmentCapacityMultiplier = getCastleSpecializationMultiplier(
-    castleSpecializationCounts[CastleUpgradeSpecialization.MILITARY]
-  );
-  const recruitmentDisplay = getRecruitmentDisplayState({
-    army: playerSummary.army,
-    gold: playerSummary.gold,
-    race: playerSummary.race,
-    recruitAmount,
-    recruitmentQueue: playerSummary.recruitmentQueue,
-    recruitersAssigned: workers.recruitersAssigned,
-    recruitmentCapacityMultiplier,
-  });
+  const armyBreakdown = playerSummary.armyBreakdown;
+  const recruitmentDisplay = {
+    armyUpkeep:
+      armyBreakdown?.upkeepFoodPerTick ??
+      Math.floor(getArmyUpkeepCost(playerSummary.army)),
+    starvationAttritionPercent: Math.round(STARVATION_ATTRITION_RATE * 100),
+  };
+  const projectedExpansionTileCapacity = playerSummary.expansionSummary
+    ? getExpansionTileCapacity({
+        pressureWorkersAssigned: workers.pressureWorkersAssigned,
+        race: playerSummary.race,
+        skillPurchases: playerSummary.skillPurchases,
+      })
+    : null;
+  const currentExpansionTileCapacity =
+    playerSummary.expansionSummary?.tileCapacity ?? null;
+  const expansionTileCapacityPreview =
+    currentExpansionTileCapacity !== null &&
+    projectedExpansionTileCapacity !== null
+      ? currentExpansionTileCapacity === projectedExpansionTileCapacity
+        ? `${projectedExpansionTileCapacity}`
+        : `${currentExpansionTileCapacity} -> ${projectedExpansionTileCapacity}`
+      : null;
+  const workerTickPreview = [
+    `+${production.goldProduced} gold`,
+    `+${production.foodProduced} food`,
+    `${production.armyRequested} passive recruit capacity`,
+    expansionTileCapacityPreview
+      ? `tile cap ${expansionTileCapacityPreview}`
+      : null,
+    `-${recruitmentDisplay.armyUpkeep} food upkeep`,
+  ]
+    .filter((part) => part !== null)
+    .join(", ");
   const pointsFromGold = convertGoldToPoints(goldToConvert);
   const canConvertGoldToPoints =
     pointsFromGold > 0 &&
@@ -1659,27 +1648,6 @@ export function CastleManagement({
       refreshView();
     } finally {
       setWorkerPending(false);
-    }
-  }
-
-  async function recruitArmy(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setRecruitError(null);
-    setRecruitPending(true);
-
-    try {
-      const result = await recruitArmyAction({
-        unitCount: recruitAmount,
-      });
-
-      if (!result.ok) {
-        setRecruitError(result.error);
-        return;
-      }
-
-      refreshView();
-    } finally {
-      setRecruitPending(false);
     }
   }
 
@@ -1964,8 +1932,8 @@ export function CastleManagement({
                   <dd>{playerSummary.army}</dd>
                 </div>
                 <div>
-                  <dt>Queue</dt>
-                  <dd>{playerSummary.recruitmentQueue}</dd>
+                  <dt>Fill room</dt>
+                  <dd>{armyBreakdown?.remainingFillRoom ?? 0}</dd>
                 </div>
                 <div>
                   <dt>Defense</dt>
@@ -2380,10 +2348,7 @@ export function CastleManagement({
                   <small>{pressureWorkerDescription}</small>
                 </label>
                 <p className={styles.muted}>
-                  Tick preview: +{production.goldProduced} gold, +
-                  {production.foodProduced} food, {production.armyRequested}{" "}
-                  queue capacity, -{recruitmentDisplay.armyUpkeep} food upkeep.
-                  If unpaid, active army loses{" "}
+                  Tick preview: {workerTickPreview}. If unpaid, active army loses{" "}
                   {recruitmentDisplay.starvationAttritionPercent}%.
                 </p>
                 {workerError ? (
@@ -2547,27 +2512,18 @@ export function CastleManagement({
                   lineHeight: 1.5,
                 }}
               >
-                <strong>Reserves:</strong>{" "}
-                {(() => {
-                  const totalBn = (playerSummary.battalions ?? []).reduce(
-                    (s, b) => s + b.size,
-                    0
-                  );
-                  const reserves = Math.max(
-                    0,
-                    (playerSummary.army ?? 0) - totalBn
-                  );
-                  return `${reserves.toLocaleString()} unassigned`;
-                })()}
+                <strong>Fill room:</strong>{" "}
+                {(armyBreakdown?.remainingFillRoom ?? 0).toLocaleString()} left
+                {" · "}
+                <strong>Pending:</strong>{" "}
+                {(
+                  armyBreakdown?.pendingBattalionReinforcements ?? 0
+                ).toLocaleString()} marching
                 {" · "}
                 Refill battalions with recruiters; they do not heal passively.
                 {" · "}
                 <strong>Tiers:</strong>{" "}
-                <span title="1.0× dmg/def, max 500">Recruit</span> →{" "}
-                <span title="1.15× dmg, 1.10× def, max 5k">Regular (1.5k)</span>{" "}
-                →{" "}
-                <span title="1.35× dmg, 1.25× def, max 15k">Veteran (5k)</span>{" "}
-                → <span title="1.60× dmg, 1.45× def, max 50k">Elite (15k)</span>
+                promotions advance one tier and unlock that tier's expansion cap.
               </div>
               {playerSummary.battalions &&
               playerSummary.battalions.length > 0 ? (
@@ -2596,7 +2552,7 @@ export function CastleManagement({
                         <span
                           style={{ color: "var(--text-muted)", fontSize: 12 }}
                         >
-                          {bn.size}/{bn.maxSize} · Tier {bn.tier}
+                          {bn.size}/{bn.maxSize} · {bn.tierName}
                         </span>
                       </div>
                       <div
@@ -2696,113 +2652,111 @@ export function CastleManagement({
                         >
                           Max:
                         </span>
-                          <input
-                            type="number"
-                            key={`${bn.id}-${bn.maxSize}`}
-                            min={bn.size}
-                            max={[500, 5000, 15000, 50000][bn.tier] ?? 500}
-                            step={bn.tier >= 2 ? 1000 : bn.tier >= 1 ? 500 : 50}
-                            value={
-                              battalionMaxSizeDrafts[bn.id] ?? String(bn.maxSize)
+                        <input
+                          type="number"
+                          key={`${bn.id}-${bn.maxSize}`}
+                          min={bn.size}
+                          max={bn.skilledTierMaxSize}
+                          step={
+                            bn.skilledTierMaxSize >= 15000
+                              ? 1000
+                              : bn.skilledTierMaxSize >= 5000
+                                ? 500
+                                : 50
+                          }
+                          value={
+                            battalionMaxSizeDrafts[bn.id] ??
+                            String(bn.maxSize)
+                          }
+                          disabled={battalionMaxSizePending === bn.id}
+                          aria-label={`Maximum size for ${bn.name}`}
+                          onChange={(event) => {
+                            const nextValue = event.target.value;
+                            setBattalionMaxSizeDrafts((current) => ({
+                              ...current,
+                              [bn.id]: nextValue,
+                            }));
+                            setBattalionMaxSizeErrors((current) => {
+                              return omitRecordKey(current, bn.id);
+                            });
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              void saveBattalionMaxSize(bn);
                             }
-                            disabled={battalionMaxSizePending === bn.id}
-                            aria-label={`Maximum size for ${bn.name}`}
-                            onChange={(event) => {
-                              const nextValue = event.target.value;
-                              setBattalionMaxSizeDrafts((current) => ({
-                                ...current,
-                                [bn.id]: nextValue,
-                              }));
-                              setBattalionMaxSizeErrors((current) => {
-                                return omitRecordKey(current, bn.id);
-                              });
-                            }}
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                event.preventDefault();
-                                void saveBattalionMaxSize(bn);
-                              }
-                            }}
-                            style={{
-                              width: 50,
-                              padding: "1px 4px",
-                              fontSize: 11,
-                              background: "var(--bg-raised)",
-                              border: "1px solid var(--border)",
-                              borderRadius: 3,
-                              color: "var(--text)",
-                            }}
-                          />
+                          }}
+                          style={{
+                            width: 50,
+                            padding: "1px 4px",
+                            fontSize: 11,
+                            background: "var(--bg-raised)",
+                            border: "1px solid var(--border)",
+                            borderRadius: 3,
+                            color: "var(--text)",
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void saveBattalionMaxSize(bn)}
+                          disabled={
+                            battalionMaxSizePending === bn.id ||
+                            (battalionMaxSizeDrafts[bn.id] ??
+                              String(bn.maxSize)) === String(bn.maxSize)
+                          }
+                          style={{
+                            fontSize: 11,
+                            padding: "2px 6px",
+                            background: "var(--bg-raised)",
+                            border: "1px solid var(--border)",
+                            borderRadius: 3,
+                            color: "var(--text)",
+                            cursor:
+                              battalionMaxSizePending === bn.id
+                                ? "default"
+                                : "pointer",
+                          }}
+                        >
+                          {battalionMaxSizePending === bn.id
+                            ? "Saving..."
+                            : "Save max"}
+                        </button>
+                        {bn.promotionCost !== null && bn.nextTierName ? (
                           <button
                             type="button"
-                            onClick={() => void saveBattalionMaxSize(bn)}
-                            disabled={
-                              battalionMaxSizePending === bn.id ||
-                              (battalionMaxSizeDrafts[bn.id] ??
-                                String(bn.maxSize)) === String(bn.maxSize)
-                            }
+                            title={`Promote to ${bn.nextTierName}: ${bn.promotionCost.toLocaleString()} gold`}
+                            onClick={async () => {
+                              const { promoteBattalionAction } =
+                                await import("@/app/game-actions");
+                              const result = await promoteBattalionAction({
+                                battalionId: bn.id,
+                              });
+                              if (result.ok) refreshView();
+                              else window.alert(result.error);
+                            }}
+                            disabled={!bn.canPromote}
                             style={{
                               fontSize: 11,
                               padding: "2px 6px",
                               background: "var(--bg-raised)",
-                              border: "1px solid var(--border)",
+                              border: "1px solid #ffd700",
                               borderRadius: 3,
-                              color: "var(--text)",
-                              cursor:
-                                battalionMaxSizePending === bn.id
-                                  ? "default"
-                                  : "pointer",
+                              color: bn.canPromote
+                                ? "#ffd700"
+                                : "var(--text-muted)",
+                              cursor: bn.canPromote ? "pointer" : "default",
                             }}
                           >
-                            {battalionMaxSizePending === bn.id
-                              ? "Saving..."
-                              : "Save max"}
+                            Promote ({bn.promotionCost.toLocaleString()}g)
                           </button>
-                          {bn.tier < 3 ? (
-                            (() => {
-                              const baseCost =
-                                [2000, 8000, 25000, 0][bn.tier] ?? 0;
-                            const perUnit = bn.size * 8;
-                            const totalCost = baseCost + perUnit;
-                            return (
-                              <button
-                                type="button"
-                                title={`Promote to tier ${bn.tier + 1}: ${totalCost.toLocaleString()} gold`}
-                                onClick={async () => {
-                                  const { promoteBattalionAction } =
-                                    await import("@/app/game-actions");
-                                  const result = await promoteBattalionAction({
-                                    battalionId: bn.id,
-                                  });
-                                  if (result.ok) refreshView();
-                                  else window.alert(result.error);
-                                }}
-                                disabled={bn.tier >= 3}
-                                style={{
-                                  fontSize: 11,
-                                  padding: "2px 6px",
-                                  background: "var(--bg-raised)",
-                                  border: "1px solid #ffd700",
-                                  borderRadius: 3,
-                                  color:
-                                    bn.tier >= 3
-                                      ? "var(--text-muted)"
-                                      : "#ffd700",
-                                  cursor: bn.tier >= 3 ? "default" : "pointer",
-                                }}
-                              >
-                                Promote ({totalCost.toLocaleString()}g)
-                              </button>
-                            );
-                          })()
                         ) : (
                           <span style={{ fontSize: 11, color: "#ffd700" }}>
                             MAX TIER
                           </span>
                         )}
-                          <button
-                            type="button"
-                            onClick={async () => {
+                        <button
+                          type="button"
+                          onClick={async () => {
                             if (
                               !confirm(`Disband ${bn.name}? 50% gold refund.`)
                             )
@@ -2823,19 +2777,19 @@ export function CastleManagement({
                             color: "#f44336",
                             cursor: "pointer",
                           }}
+                        >
+                          Disband
+                        </button>
+                        {battalionMaxSizeErrors[bn.id] ? (
+                          <span
+                            className={styles.error}
+                            style={{ flexBasis: "100%", fontSize: 11 }}
                           >
-                            Disband
-                          </button>
-                          {battalionMaxSizeErrors[bn.id] ? (
-                            <span
-                              className={styles.error}
-                              style={{ flexBasis: "100%", fontSize: 11 }}
-                            >
-                              {battalionMaxSizeErrors[bn.id]}
-                            </span>
-                          ) : null}
-                        </div>
-                      </li>
+                            {battalionMaxSizeErrors[bn.id]}
+                          </span>
+                        ) : null}
+                      </div>
+                    </li>
                   ))}
                 </ul>
               ) : (
@@ -3144,11 +3098,11 @@ export function CastleManagement({
               </div>
             </section>
 
-            {/* Recruitment Queue */}
+            {/* Passive Recruitment */}
             <section className={styles.panel}>
               <div className={styles.panelHeader}>
                 <span>Recruitment</span>
-                <strong>Paid queue</strong>
+                <strong>Passive refill</strong>
               </div>
               <p
                 style={{
@@ -3157,24 +3111,46 @@ export function CastleManagement({
                   margin: "4px 0",
                 }}
               >
-                Assign recruiters in the Economy tab to refill commissioned
-                battalions. Full battalions and the max army ceiling stop new
-                recruits until you expand or commission more room.
+                Recruiters refill commissioned battalions each tick. Full
+                battalions, pending remote reinforcements, and the max army
+                ceiling stop new recruits until more room opens.
               </p>
               <dl className={styles.readinessGrid}>
                 <div>
-                  <dt>Available army</dt>
-                  <dd>{playerSummary.army}</dd>
+                  <dt>Active battalions</dt>
+                  <dd>
+                    {(
+                      armyBreakdown?.totalActiveBattalionArmy ??
+                      playerSummary.army
+                    ).toLocaleString()}
+                  </dd>
                 </div>
                 <div>
-                  <dt>Recruitment queue</dt>
-                  <dd>{playerSummary.recruitmentQueue ?? 0}</dd>
+                  <dt>Pending</dt>
+                  <dd>
+                    {(
+                      armyBreakdown?.pendingBattalionReinforcements ?? 0
+                    ).toLocaleString()}
+                  </dd>
                 </div>
                 <div>
                   <dt>Max army cap</dt>
-                  <dd>{playerSummary.warPolicy?.maxArmySize ?? 500}</dd>
+                  <dd>{(armyBreakdown?.maxArmySize ?? 500).toLocaleString()}</dd>
+                </div>
+                <div>
+                  <dt>Fill room</dt>
+                  <dd>
+                    {(armyBreakdown?.remainingFillRoom ?? 0).toLocaleString()}
+                  </dd>
                 </div>
               </dl>
+              {(armyBreakdown?.legacyRecruitmentQueue ?? 0) > 0 ? (
+                <p className={styles.muted}>
+                  Legacy queued army:{" "}
+                  {armyBreakdown!.legacyRecruitmentQueue.toLocaleString()} will
+                  be converted into battalion refill capacity on the next tick.
+                </p>
+              ) : null}
             </section>
           </>
         ) : null}

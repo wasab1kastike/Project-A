@@ -16394,6 +16394,79 @@ test("starving active army loses attrition when food cannot cover upkeep", async
   });
 });
 
+test("season four tick does not process paid queue recruitment alongside passive battalions", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const cycle = await seedOpenCycle(prisma);
+  await markSeasonFourCycle(prisma, cycle.id);
+  const user = await createUser(prisma, "season-four-queue-regression@example.com");
+
+  await joinRegistrationCycle({
+    db: prisma,
+    userId: user.id,
+    fortressName: "Passive Queue Regression",
+    now: new Date("2026-04-19T12:05:00.000Z"),
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+  });
+
+  const fortress = await prisma.fortress.findFirstOrThrow({
+    where: {
+      cycleId: cycle.id,
+      ownerId: user.id,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  await prisma.fortress.update({
+    where: {
+      id: fortress.id,
+    },
+    data: {
+      army: 0,
+      minersAssigned: 0,
+      farmersAssigned: 0,
+      recruitersAssigned: 10,
+      recruitmentQueue: 100,
+    },
+  });
+
+  await runGameTick({
+    db: prisma,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+  });
+
+  const refreshed = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      id: fortress.id,
+    },
+    select: {
+      army: true,
+      recruitmentQueue: true,
+    },
+  });
+  const battalionCount = await prisma.battalion.count({
+    where: {
+      fortressId: fortress.id,
+    },
+  });
+
+  assert.deepEqual(refreshed, {
+    army: 0,
+    recruitmentQueue: 0,
+  });
+  assert.equal(battalionCount, 0);
+});
+
 test("recalled attack units return home without damaging the target", async (context) => {
   const prisma = getPrismaOrSkip(context);
 

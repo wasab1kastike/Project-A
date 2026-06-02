@@ -439,6 +439,114 @@ describe("Battalion reinforcement travel", () => {
     assert.equal(attackUnitCreates.length, 0);
   });
 
+  it("drains legacy queued recruits through passive battalion refill", async () => {
+    const battalionUpdates: Array<{ where: { id: string }; data: { size: number } }> = [];
+    const battalionCreateMany: Array<{ data: unknown[] }> = [];
+    const db = {
+      battalion: {
+        findMany: async () => [
+          {
+            id: "bn_1",
+            fortressId: "fort_1",
+            name: "Iron Hammers",
+            size: 10,
+            maxSize: 100,
+            tier: 0,
+            xp: 0,
+            readyAt: null,
+            stance: "REST",
+            garrisonedAt: null,
+            stanceLockedUntil: null,
+          },
+        ],
+        update: async (args: { where: { id: string }; data: { size: number } }) => {
+          battalionUpdates.push(args);
+          return args;
+        },
+        createMany: async (args: { data: unknown[] }) => {
+          battalionCreateMany.push(args);
+          return { count: args.data.length };
+        },
+      },
+      attackUnit: {
+        findMany: async () => [],
+        create: async (args: unknown) => args,
+      },
+      mapHexRoad: {
+        findMany: async () => [],
+      },
+    };
+
+    const recruitedArmyByFortress = await processBattalionRecruitment({
+      ctx: { db: db as any, cycleId: "cycle_1", now: new Date("2026-06-01T12:00:00.000Z") },
+      recruitersByFortress: new Map([["fort_1", 0]]),
+      raceByFortress: new Map([["fort_1", "DWARFS"]]),
+      levelByFortress: new Map([["fort_1", 1]]),
+      barracksLevelByFortress: new Map([["fort_1", 0]]),
+      goldByFortress: new Map([["fort_1", 1000]]),
+      maxArmyByFortress: new Map([["fort_1", 500]]),
+      fortressPositionsById: new Map([["fort_1", { mapX: 50, mapY: 50 }]]),
+      legacyRecruitmentQueueByFortress: new Map([["fort_1", 25]]),
+    });
+
+    assert.equal(battalionUpdates[0]?.data.size, 35);
+    assert.equal(battalionCreateMany.length, 0);
+    assert.equal(recruitedArmyByFortress.get("fort_1"), 35);
+  });
+
+  it("seeds existing scalar army into a persisted battalion without recruiters", async () => {
+    const battalionUpdates: unknown[] = [];
+    const battalionCreateMany: Array<{
+      data: Array<{
+        fortressId: string;
+        size: number;
+        maxSize: number;
+        tier: number;
+      }>;
+    }> = [];
+    const db = {
+      battalion: {
+        findMany: async () => [],
+        update: async (args: unknown) => {
+          battalionUpdates.push(args);
+          return args;
+        },
+        createMany: async (args: (typeof battalionCreateMany)[number]) => {
+          battalionCreateMany.push(args);
+          return { count: args.data.length };
+        },
+      },
+      attackUnit: {
+        findMany: async () => [],
+        create: async (args: unknown) => args,
+      },
+      mapHexRoad: {
+        findMany: async () => [],
+      },
+    };
+
+    const recruitedArmyByFortress = await processBattalionRecruitment({
+      ctx: { db: db as any, cycleId: "cycle_1", now: new Date("2026-06-01T12:00:00.000Z") },
+      recruitersByFortress: new Map([["fort_1", 0]]),
+      raceByFortress: new Map([["fort_1", "DWARFS"]]),
+      levelByFortress: new Map([["fort_1", 1]]),
+      barracksLevelByFortress: new Map([["fort_1", 0]]),
+      goldByFortress: new Map([["fort_1", 1000]]),
+      maxArmyByFortress: new Map([["fort_1", 500]]),
+      currentArmyByFortress: new Map([["fort_1", 120]]),
+      fortressPositionsById: new Map([["fort_1", { mapX: 50, mapY: 50 }]]),
+    });
+
+    assert.equal(battalionUpdates.length, 0);
+    assert.equal(battalionCreateMany.length, 1);
+    assert.equal(battalionCreateMany[0]?.data.length, 1);
+    assert.equal(battalionCreateMany[0]?.data[0]?.fortressId, "fort_1");
+    assert.equal(battalionCreateMany[0]?.data[0]?.size, 120);
+    assert.equal(battalionCreateMany[0]?.data[0]?.maxSize, 500);
+    assert.equal(battalionCreateMany[0]?.data[0]?.tier, BattalionTier.RECRUIT);
+    assert.equal(recruitedArmyByFortress.get("fort_1"), 120);
+  });
+
   it("does not auto-create battalions when recruitment overflows capacity", async () => {
     const battalionUpdates: Array<{ where: { id: string }; data: { size: number } }> = [];
     const battalionCreateMany: Array<{ data: unknown[] }> = [];
