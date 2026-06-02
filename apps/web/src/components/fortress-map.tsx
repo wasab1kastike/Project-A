@@ -75,6 +75,15 @@ type MapFortress = {
   diplomacyStatus?: "WAR" | "ALLIED" | "NEUTRAL" | null;
 };
 
+type NukeLaunchEffect = {
+  id: string;
+  targetFortressId: string;
+  targetName: string;
+  armyRemoved: number;
+  launchedAt: Date | string;
+  shouldAnimate: boolean;
+};
+
 type AttackUnitMarker = {
   id: string;
   kind?:
@@ -341,6 +350,7 @@ type FortressMapProps = {
     departedAt: number | null;
     arrivesAt: number | null;
   }>;
+  nukeLaunchEffects?: NukeLaunchEffect[];
   nukeBiddingMarker?: {
     isOpen: boolean;
     canLaunch: boolean;
@@ -2151,6 +2161,67 @@ const BattalionMarkersLayer = memo(function BattalionMarkersLayer({
   );
 });
 
+const NukeEffectsLayer = memo(function NukeEffectsLayer({
+  effects,
+  fortresses,
+  reducedVisualLoad,
+}: {
+  effects: NukeLaunchEffect[];
+  fortresses: MapFortress[];
+  reducedVisualLoad: boolean;
+}) {
+  const fortressById = useMemo(
+    () => new Map(fortresses.map((fortress) => [fortress.id, fortress])),
+    [fortresses]
+  );
+
+  if (effects.length === 0) {
+    return null;
+  }
+
+  return (
+    <div
+      className={styles.nukeEffectsLayer}
+      data-reduced={reducedVisualLoad ? "true" : "false"}
+      aria-label="Recent nuke fallout"
+    >
+      {effects.map((effect) => {
+        const targetFortress = fortressById.get(effect.targetFortressId);
+        if (!targetFortress) return null;
+
+        return (
+          <div
+            key={effect.id}
+            className={styles.nukeEffect}
+            data-animate={effect.shouldAnimate ? "true" : "false"}
+            style={{
+              left: `${targetFortress.mapX}%`,
+              top: `${targetFortress.mapY}%`,
+            }}
+            title={`${effect.targetName} was nuked. ${effect.armyRemoved.toLocaleString()} army removed.`}
+          >
+            <span className={styles.nukeScorch} aria-hidden="true" />
+            <span className={styles.nukeFalloutRing} aria-hidden="true" />
+            <span className={styles.nukeFalloutHaze} aria-hidden="true" />
+            {effect.shouldAnimate ? (
+              <>
+                <span className={styles.nukeFlash} aria-hidden="true" />
+                <span className={styles.nukeShockwave} aria-hidden="true" />
+                <span className={styles.nukeFireball} aria-hidden="true" />
+                <span className={styles.nukeStem} aria-hidden="true" />
+                <span className={styles.nukeCap} aria-hidden="true" />
+              </>
+            ) : null}
+            <span className={styles.nukeFalloutLabel} aria-hidden="true">
+              Fallout
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+});
+
 const ConvoyMarkersLayer = memo(function ConvoyMarkersLayer({
   convoyMarkers,
   fortresses,
@@ -2569,6 +2640,7 @@ export const FortressMap = memo(function FortressMap({
   roadSegments = [],
   battalionMarkers = [],
   convoyMarkers = [],
+  nukeLaunchEffects = [],
   nukeBiddingMarker = null,
   battlefields = [],
   onSelectFortress,
@@ -3251,6 +3323,11 @@ export const FortressMap = memo(function FortressMap({
               })()}
             </div>
           ) : null}
+          <NukeEffectsLayer
+            effects={nukeLaunchEffects}
+            fortresses={fortresses}
+            reducedVisualLoad={reducedMapVisualLoad}
+          />
           <ConvoyMarkersLayer
             convoyMarkers={convoyMarkers}
             fortresses={fortresses}
