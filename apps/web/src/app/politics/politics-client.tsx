@@ -636,6 +636,10 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
     return parts.join("; ");
   }
 
+  function isTradeDirectionFulfilled(direction: ActiveTradeDirection) {
+    return direction.activeRunCount === 0 && direction.queuedRunCount === 0;
+  }
+
   function formatLegCargo(leg: PoliticsPageState["activeConvoyLegs"][number]) {
     const items = [
       leg.deedTileId ? `Tile ${leg.deedTileId}` : null,
@@ -675,9 +679,9 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
     return `Arrives in ${Math.max(1, Math.ceil(seconds / 60))}m`;
   }
 
-  function formatEta(date: Date | null) {
+  function formatEta(date: Date | null, fallback = "Unknown") {
     if (!date) {
-      return "Unknown";
+      return fallback;
     }
 
     const seconds = Math.ceil((date.getTime() - renderedAt) / 1000);
@@ -1393,25 +1397,42 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
               state.activeTradeOffers.map((offer) => (
                 <article key={offer.id} className={styles.tradeCard}>
                   <strong>{offer.counterpartName}</strong>
-                  {offer.directions.map((direction) => (
-                    <div
-                      key={`${offer.id}:${direction.fromFortressId}:${direction.toFortressId}`}
-                      className={styles.tradeProgress}
-                    >
-                      <p>
-                        {direction.outgoing ? "You send" : "You receive"}:{" "}
-                        {formatTradeProgress(direction)}
-                      </p>
-                      <p>{formatTradeDirectionDetail(direction)}</p>
-                      <time>
-                        Next arrival: {formatEta(direction.nextArrivalAt)}; estimated fulfillment:{" "}
-                        {formatEta(direction.estimatedFulfillmentAt)}
-                      </time>
-                    </div>
-                  ))}
+                  {offer.directions.map((direction) => {
+                    const fulfilled = isTradeDirectionFulfilled(direction);
+
+                    return (
+                      <div
+                        key={`${offer.id}:${direction.fromFortressId}:${direction.toFortressId}`}
+                        className={styles.tradeProgress}
+                      >
+                        <p>
+                          {direction.outgoing ? "You send" : "You receive"}:{" "}
+                          {formatTradeProgress(direction)}
+                        </p>
+                        <p>{formatTradeDirectionDetail(direction)}</p>
+                        <time>
+                          {direction.nextArrivalAt
+                            ? `Next arrival: ${formatEta(direction.nextArrivalAt)}; `
+                            : fulfilled
+                              ? "No wagons still moving; "
+                              : "Next arrival: waiting for wagon slot; "}
+                          estimated fulfillment:{" "}
+                          {formatEta(
+                            direction.estimatedFulfillmentAt,
+                            fulfilled ? "Fulfilled" : "Pending"
+                          )}
+                        </time>
+                      </div>
+                    );
+                  })}
                   <time>
                     Whole trade estimated fulfillment:{" "}
-                    {formatEta(offer.estimatedFulfillmentAt)}
+                    {formatEta(
+                      offer.estimatedFulfillmentAt,
+                      offer.directions.every(isTradeDirectionFulfilled)
+                        ? "Fulfilled"
+                        : "Pending"
+                    )}
                   </time>
                 </article>
               ))
@@ -1518,36 +1539,6 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                     <span>{entry.profitLabel}</span>
                   </p>
                   <time>{entry.timestamp.toLocaleString()}</time>
-                </article>
-              ))}
-            </div>
-          ) : null}
-
-          {state.recentConvoyLegs.length > 0 ? (
-            <div className={styles.tradeSection}>
-              <h3>Results</h3>
-              {state.recentConvoyLegs.map((leg) => (
-                <article key={leg.id} className={styles.tradeCard}>
-                  <strong>
-                    {leg.status === "SEIZED"
-                      ? "Seized"
-                      : leg.status === "INTERCEPTED"
-                        ? leg.raidedByCurrentPlayer
-                          ? "Intercepted"
-                          : "Lost to raid"
-                        : leg.encounterSucceeded === false
-                          ? "Survived raid"
-                          : "Delivered"}
-                    : {leg.counterpartName}
-                  </strong>
-                  <p>
-                    {leg.status === "INTERCEPTED" && leg.raidedByCurrentPlayer
-                      ? `${leg.stolenGold.toLocaleString()} gold, ${leg.stolenFood.toLocaleString()} food, ${leg.stolenArmy.toLocaleString()} army, ${leg.stolenPoints.toLocaleString()} points stolen`
-                      : formatLegCargo(leg)}
-                    {leg.bonusGold + leg.bonusFood > 0
-                      ? ` + ${leg.bonusGold.toLocaleString()} gold / ${leg.bonusFood.toLocaleString()} food alliance bonus`
-                      : ""}
-                  </p>
                 </article>
               ))}
             </div>
