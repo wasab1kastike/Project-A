@@ -6415,7 +6415,10 @@ async function processCycleTick(
       ]),
     );
 
-    const recruitedArmyByFortress = await processBattalionRecruitment({
+    const {
+      armyByFortress: recruitedArmyByFortress,
+      goldSpentByFortress: battalionRecruitmentGoldSpentByFortress,
+    } = await processBattalionRecruitment({
       ctx: { db, cycleId, now: tickAt },
       recruitersByFortress,
       raceByFortress,
@@ -6449,13 +6452,33 @@ async function processCycleTick(
       currentArmy.set(fortressId, army);
     }
 
-    if (recruitedArmyByFortress.size > 0) {
+    for (const [fortressId, goldSpent] of battalionRecruitmentGoldSpentByFortress) {
+      currentGold.set(
+        fortressId,
+        Math.max(0, (currentGold.get(fortressId) ?? 0) - goldSpent),
+      );
+    }
+
+    if (
+      recruitedArmyByFortress.size > 0 ||
+      battalionRecruitmentGoldSpentByFortress.size > 0
+    ) {
+      const changedFortressIds = new Set([
+        ...recruitedArmyByFortress.keys(),
+        ...battalionRecruitmentGoldSpentByFortress.keys(),
+      ]);
       await Promise.all(
-        Array.from(recruitedArmyByFortress.entries()).map(
-          ([fortressId, army]) =>
+        Array.from(changedFortressIds).map((fortressId) =>
             db.fortress.update({
               where: { id: fortressId },
-              data: { army },
+              data: {
+                ...(recruitedArmyByFortress.has(fortressId)
+                  ? { army: recruitedArmyByFortress.get(fortressId) }
+                  : {}),
+                ...(battalionRecruitmentGoldSpentByFortress.has(fortressId)
+                  ? { gold: currentGold.get(fortressId) ?? 0 }
+                  : {}),
+              },
             })
         )
       );

@@ -233,8 +233,8 @@ The game is now a castle-economy and battlefield-control loop:
 - Legacy race abilities remain readable in prior-season history, but are unavailable in the Season 4 ruleset; each race instead selects one passive standing doctrine with a 12-hour change cooldown
 - Season 4 race skills are role-focused Economy, Territory, and Military paths with 8 nodes per path, 12 total points, and major specialization unlocks at nodes 4 and 8; points arrive at castle level 3, then every 2 castle levels, and every 5 owned normal tiles
 - the skill-tree role revamp resets existing race skill purchases so players can rebuild around the new economy, pressure, trade logistics, and battalion bonuses
-- miners produce gold, farmers produce food, and recruiters process queued army orders instead of passively creating army
-- recruiting army costs 1 gold per unit up front; queued units complete over ticks based on assigned recruiters and race bonuses
+- miners produce gold, farmers produce food, and recruiters fill commissioned battalions with open capacity
+- battalion recruits cost 2 gold per unit when produced each tick; max-size capacity changes are free within the battalion tier cap
 - active army, not queued army, consumes food upkeep at 0.01 food per unit per tick; if upkeep cannot be paid, food falls to zero and active army loses 2% that tick
 - neutral tiles are acquired automatically through an ordered pressure-priority queue until the fortress reaches its tile capacity; the first 8 normal tiles are free to maintain after claiming, each pressure worker supports 2 more before skill and race bonuses, and excess owned tiles decay back toward neutral when capacity drops
 - the Castle Diplomacy tab supports bilateral alliances with fixed trust escrow tiers plus optional break collateral; betrayal immediately begins war, pays what it can, and records unpaid collateral as debt

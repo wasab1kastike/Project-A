@@ -3,7 +3,11 @@ import test from "node:test";
 
 import { applyFieldPromotion, applyTrainingXp } from "./army-xp";
 import { BattalionTier, getBattalionSlots, type Battalion } from "./battalion-types";
-import { processRecruitmentTick } from "./recruitment";
+import {
+  RECRUITMENT_COST_PER_UNIT,
+  expandBattalion,
+  processRecruitmentTick,
+} from "./recruitment";
 import { calculateUpkeep } from "./upkeep";
 
 function battalion(overrides: Partial<Battalion> = {}): Battalion {
@@ -30,7 +34,7 @@ test("recruitment skill multiplier increases battalion production", () => {
     barracksLevel: 0,
     raceBonus: 1,
     totalSlots: 3,
-    gold: 0,
+    gold: 1_000,
   });
   const skilled = processRecruitmentTick({
     battalions: [battalion({ size: 0 })],
@@ -38,7 +42,7 @@ test("recruitment skill multiplier increases battalion production", () => {
     barracksLevel: 0,
     raceBonus: 2.2,
     totalSlots: 3,
-    gold: 0,
+    gold: 1_000,
   });
 
   assert.equal(baseline.unitsProduced, 30);
@@ -63,7 +67,63 @@ test("full battalions do not auto-create new battalions", () => {
   assert.equal(result.battalions.length, 1);
   assert.equal(result.battalionCreated, false);
   assert.equal(result.goldSpent, 0);
-  assert.equal(result.unitsWasted, 300);
+  assert.equal(result.unitsProduced, 0);
+  assert.equal(result.unitsWasted, 0);
+});
+
+test("battalion max-size expansion is free capacity only", () => {
+  const result = expandBattalion({
+    battalion: battalion({ maxSize: 500 }),
+    maxBattalionSize: 5_000,
+  });
+
+  assert.ok("battalion" in result);
+  assert.equal(result.battalion.maxSize, 550);
+  assert.equal(result.goldCost, 0);
+});
+
+test("battalion recruitment spends gold for units actually produced", () => {
+  const result = processRecruitmentTick({
+    battalions: [battalion({ size: 0 })],
+    recruiters: 10,
+    barracksLevel: 0,
+    raceBonus: 1,
+    totalSlots: 3,
+    gold: 1_000,
+  });
+
+  assert.equal(result.unitsProduced, 30);
+  assert.equal(result.goldSpent, 30 * RECRUITMENT_COST_PER_UNIT);
+});
+
+test("battalion recruitment is limited by available gold", () => {
+  const result = processRecruitmentTick({
+    battalions: [battalion({ size: 0 })],
+    recruiters: 10,
+    barracksLevel: 0,
+    raceBonus: 1,
+    totalSlots: 3,
+    gold: 11,
+  });
+
+  assert.equal(result.unitsProduced, 5);
+  assert.equal(result.goldSpent, 10);
+  assert.equal(result.battalions[0].size, 5);
+});
+
+test("battalion recruitment produces no units with zero gold", () => {
+  const result = processRecruitmentTick({
+    battalions: [battalion({ size: 0 })],
+    recruiters: 10,
+    barracksLevel: 0,
+    raceBonus: 1,
+    totalSlots: 3,
+    gold: 0,
+  });
+
+  assert.equal(result.unitsProduced, 0);
+  assert.equal(result.goldSpent, 0);
+  assert.equal(result.battalions[0].size, 0);
 });
 
 test("max army size caps new recruitment without trimming existing battalions", () => {
@@ -73,7 +133,7 @@ test("max army size caps new recruitment without trimming existing battalions", 
     barracksLevel: 0,
     raceBonus: 1,
     totalSlots: 3,
-    gold: 0,
+    gold: 1_000,
     maxArmySize: 500,
   });
 
@@ -87,7 +147,7 @@ test("max army size caps new recruitment without trimming existing battalions", 
     barracksLevel: 0,
     raceBonus: 1,
     totalSlots: 3,
-    gold: 0,
+    gold: 1_000,
     maxArmySize: 500,
   });
 

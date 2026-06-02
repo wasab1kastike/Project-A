@@ -11,7 +11,6 @@ import { GameError } from "./errors";
 import {
   DEFAULT_BATTALION_MAX_SIZE,
   BATTALION_COMMISSION_COST,
-  BATTALION_EXPAND_COST_PER_50,
   MAX_BATTALION_SIZE,
   TIER_MAX_SIZES,
   getBattalionSlots,
@@ -226,23 +225,9 @@ export async function expandBattalion(args: {
       throw new GameError("New max size must be larger than current.");
     }
 
-    const increment = targetSize - battalion.maxSize;
-    const cost = Math.ceil((increment / 50) * BATTALION_EXPAND_COST_PER_50);
-
-    if (battalion.fortress.gold < cost) {
-      throw new GameError(
-        `Expanding to ${targetSize} costs ${cost} gold (you have ${battalion.fortress.gold}).`,
-      );
-    }
-
     await tx.battalion.update({
       where: { id: args.battalionId },
       data: { maxSize: targetSize },
-    });
-
-    await tx.fortress.update({
-      where: { id: battalion.fortressId },
-      data: { gold: { decrement: cost } },
     });
   });
 }

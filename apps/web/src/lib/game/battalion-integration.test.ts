@@ -361,7 +361,7 @@ describe("Battalion reinforcement travel", () => {
       },
     };
 
-    await processBattalionRecruitment({
+    const result = await processBattalionRecruitment({
       ctx: { db: db as any, cycleId: "cycle_1", now: new Date("2026-06-01T12:00:00.000Z") },
       recruitersByFortress: new Map([["fort_1", 1]]),
       raceByFortress: new Map([["fort_1", "DWARFS"]]),
@@ -379,6 +379,7 @@ describe("Battalion reinforcement travel", () => {
     assert.equal(attackUnitCreates[0]?.data.fortifyTargetTileId, "20:15");
     assert.equal(attackUnitCreates[0]?.data.reinforcementBattalionId, "bn_1");
     assert.equal(attackUnitCreates[0]?.data.armyAmount, 3);
+    assert.equal(result.goldSpentByFortress.get("fort_1"), 6);
   });
 
   it("counts pending battalion reinforcements against capacity", async () => {
@@ -477,7 +478,7 @@ describe("Battalion reinforcement travel", () => {
       },
     };
 
-    const recruitedArmyByFortress = await processBattalionRecruitment({
+    const result = await processBattalionRecruitment({
       ctx: { db: db as any, cycleId: "cycle_1", now: new Date("2026-06-01T12:00:00.000Z") },
       recruitersByFortress: new Map([["fort_1", 100]]),
       raceByFortress: new Map([["fort_1", "DWARFS"]]),
@@ -490,7 +491,8 @@ describe("Battalion reinforcement travel", () => {
 
     assert.equal(battalionUpdates[0]?.data.size, 500);
     assert.equal(battalionCreateMany.length, 0);
-    assert.equal(recruitedArmyByFortress.get("fort_1"), 500);
+    assert.equal(result.armyByFortress.get("fort_1"), 500);
+    assert.equal(result.goldSpentByFortress.get("fort_1"), undefined);
   });
 
   it("caps new recruitment at max army size without trimming oversized battalions", async () => {
@@ -540,7 +542,7 @@ describe("Battalion reinforcement travel", () => {
       },
     };
 
-    const recruitedArmyByFortress = await processBattalionRecruitment({
+    const result = await processBattalionRecruitment({
       ctx: { db: db as any, cycleId: "cycle_1", now: new Date("2026-06-01T12:00:00.000Z") },
       recruitersByFortress: new Map([
         ["fort_1", 10],
@@ -576,8 +578,10 @@ describe("Battalion reinforcement travel", () => {
     const fort2Update = battalionUpdates.find((update) => update.where.id === "bn_2");
     assert.equal(fort1Update?.data.size, 500);
     assert.equal(fort2Update?.data.size, 550);
-    assert.equal(recruitedArmyByFortress.get("fort_1"), 500);
-    assert.equal(recruitedArmyByFortress.get("fort_2"), 550);
+    assert.equal(result.armyByFortress.get("fort_1"), 500);
+    assert.equal(result.armyByFortress.get("fort_2"), 550);
+    assert.equal(result.goldSpentByFortress.get("fort_1"), 10);
+    assert.equal(result.goldSpentByFortress.get("fort_2"), undefined);
   });
 });
 

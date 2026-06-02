@@ -9,20 +9,19 @@ import {
 } from "@/lib/game/constants";
 import {
   ARMY_UPKEEP_PER_UNIT,
-  RECRUITMENT_COST_PER_UNIT,
   RECRUITMENT_RATE_PER_RECRUITER,
   STARVATION_ATTRITION_RATE,
 } from "@/lib/game/army-recruitment";
 import {
   ABSOLUTE_MAX_BATTALIONS,
   BATTALION_COMMISSION_COST,
-  BATTALION_EXPAND_COST_PER_50,
   DEFAULT_BATTALION_MAX_SIZE,
   EXTRA_SLOT_COSTS,
   MAX_NATURAL_SLOTS,
   MORALE_THRESHOLDS,
   TIER_MAX_SIZES,
 } from "@/lib/game/battalion-types";
+import { RECRUITMENT_COST_PER_UNIT as BATTALION_RECRUITMENT_COST_PER_UNIT } from "@/lib/game/recruitment";
 import {
   MAX_OWNERSHIP_PRESSURE,
   OWNERSHIP_PRESSURE_DECAY_PER_TICK,
@@ -200,7 +199,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
     highlights: [
       "The season winner is the fortress with the most points when active play resolves.",
       "Home of A and loot camps are legacy-only in Season 4.",
-      "Recruitment is paid up front, then recruiters process the queue.",
+      "Battalion recruits are paid for when recruiters produce units each tick.",
     ],
     sections: [
       {
@@ -212,7 +211,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         bullets: [
           "Choose race carefully; it is locked for the season.",
           "Assign miners, farmers, recruiters, and pressure workers from Castle.",
-          `Order army when you can pay ${RECRUITMENT_COST_PER_UNIT} gold per unit, then keep recruiters assigned.`,
+          `Keep gold available for recruiters: battalion recruits cost ${BATTALION_RECRUITMENT_COST_PER_UNIT} gold per unit as they are trained each tick.`,
           "Prioritize connected neutral border tiles from the battlefield map.",
           "Use Politics and Trade before war so allies, convoys, and targets are clear.",
           `Keep gold for utility; rename alone costs ${ACTIVE_RENAME_COST} gold.`,
@@ -323,12 +322,12 @@ export const WIKI_PAGES: readonly WikiPage[] = [
       },
       {
         id: "recruitment",
-        eyebrow: "Army queue",
-        title: "Buying and training army",
+        eyebrow: "Battalions",
+        title: "Training army",
         diagram: [
-          { label: "Order", detail: `${RECRUITMENT_COST_PER_UNIT} gold per unit is paid immediately.` },
-          { label: "Queue", detail: "Queued units are not active and have no upkeep." },
-          { label: "Train", detail: "Recruiters process the queue each tick." },
+          { label: "Capacity", detail: "Set battalion max size for free within the current tier cap." },
+          { label: "Train", detail: `Recruiters create units each tick while gold is available at ${BATTALION_RECRUITMENT_COST_PER_UNIT} gold per unit.` },
+          { label: "Assign", detail: "New units fill commissioned battalions with open room." },
           { label: "Active", detail: "Finished units join army and begin food upkeep." },
         ],
       },
@@ -478,7 +477,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
           `Inspired morale starts at ${MORALE_THRESHOLDS.INSPIRED}.`,
           `Shaken morale starts below ${MORALE_THRESHOLDS.STEADY}; broken is below ${MORALE_THRESHOLDS.SHAKEN}.`,
           `Extra battalion slots cost ${EXTRA_SLOT_COSTS.join(", ")} gold.`,
-          `Capacity expansion uses ${BATTALION_EXPAND_COST_PER_50} gold steps.`,
+          "Battalion max-size changes are free; recruiters only charge for units actually trained.",
         ],
       },
     ],
