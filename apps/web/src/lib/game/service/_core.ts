@@ -50,6 +50,7 @@ import {
   launchAttackUnit,
   recallAttackUnit as recallAttackUnitRecord,
   instantRecallGarrison as instantRecallGarrisonRecord,
+  reserveIdleArmy,
 } from "../attack-units";
 import { GameError } from "../errors";
 import { assertWorkerAssignments, getDisplayedCastleLevel } from "../balance";
@@ -3721,13 +3722,39 @@ export async function acceptTradeOffer({
       );
     }
 
+    const acceptedOffer = await tx.tradeOffer.updateMany({
+      where: {
+        id: offer.id,
+        status: TradeOfferStatus.PENDING,
+      },
+      data: {
+        status: TradeOfferStatus.ACCEPTED,
+        acceptedAt: now,
+      },
+    });
+
+    if (acceptedOffer.count !== 1) {
+      throw new GameError("That trade offer is no longer pending.");
+    }
+
     for (const leg of legs) {
+      if (leg.cargo.army > 0) {
+        await reserveIdleArmy({
+          db: tx,
+          fortressId: leg.from.id,
+          armyAmount: leg.cargo.army,
+          errorMessage:
+            leg.from.id === receiver.id
+              ? "You do not have enough idle army for that trade."
+              : "The other fortress no longer has enough idle army for that trade.",
+        });
+      }
+
       await tx.fortress.update({
         where: { id: leg.from.id },
         data: {
           gold: { decrement: leg.cargo.gold },
           food: { decrement: leg.cargo.food },
-          army: { decrement: leg.cargo.army },
           points: { decrement: leg.cargo.points },
         },
       });
@@ -3739,11 +3766,6 @@ export async function acceptTradeOffer({
         direction: "decrement",
       });
     }
-
-    await tx.tradeOffer.update({
-      where: { id: offer.id },
-      data: { status: TradeOfferStatus.ACCEPTED, acceptedAt: now },
-    });
 
     await tx.convoyLeg.createMany({
       data: legs.map((leg) => ({
@@ -4114,15 +4136,22 @@ export async function commitNukeComponentBid({
       throw new GameError("You do not have enough idle army for that Wrath of A bid.");
     }
 
-    await tx.fortress.update({
-      where: { id: fortress.id },
-      data:
-        componentKind === NukeComponentKind.FUEL
-          ? { gold: { decrement: amount } }
-          : componentKind === NukeComponentKind.ROCKET
-            ? { food: { decrement: amount } }
-            : { army: { decrement: amount } },
-    });
+    if (componentKind === NukeComponentKind.WRATH_OF_A) {
+      await reserveIdleArmy({
+        db: tx,
+        fortressId: fortress.id,
+        armyAmount: amount,
+        errorMessage: "You do not have enough idle army for that Wrath of A bid.",
+      });
+    } else {
+      await tx.fortress.update({
+        where: { id: fortress.id },
+        data:
+          componentKind === NukeComponentKind.FUEL
+            ? { gold: { decrement: amount } }
+            : { food: { decrement: amount } },
+      });
+    }
 
     return tx.nukeComponentBid.create({
       data: {
@@ -4457,9 +4486,11 @@ export async function stationGuardOrder({
       throw new GameError("You already have a guard order stationed on that tile.");
     }
 
-    await tx.fortress.update({
-      where: { id: fortress.id },
-      data: { army: { decrement: armyAmount } },
+    await reserveIdleArmy({
+      db: tx,
+      fortressId: fortress.id,
+      armyAmount,
+      errorMessage: "You do not have enough idle army for that guard order.",
     });
 
     return tx.armyOrder.create({
@@ -4538,9 +4569,11 @@ export async function createEscortOrder({
       throw new GameError("That convoy already has an active escort.");
     }
 
-    await tx.fortress.update({
-      where: { id: fortress.id },
-      data: { army: { decrement: armyAmount } },
+    await reserveIdleArmy({
+      db: tx,
+      fortressId: fortress.id,
+      armyAmount,
+      errorMessage: "You do not have enough idle army for that escort.",
     });
 
     return tx.armyOrder.create({
@@ -4634,9 +4667,11 @@ export async function createRaidOrder({
       throw new GameError("You already have an active raid watching those routes.");
     }
 
-    await tx.fortress.update({
-      where: { id: raider.id },
-      data: { army: { decrement: armyAmount } },
+    await reserveIdleArmy({
+      db: tx,
+      fortressId: raider.id,
+      armyAmount,
+      errorMessage: "You do not have enough idle army for that raid.",
     });
 
     return tx.armyOrder.create({
@@ -4765,9 +4800,11 @@ export async function startTerritoryCampaign({
       throw new GameError(blockedReason ?? "Campaigns target enemy territory.");
     }
 
-    await tx.fortress.update({
-      where: { id: attacker.id },
-      data: { army: { decrement: armyAmount } },
+    await reserveIdleArmy({
+      db: tx,
+      fortressId: attacker.id,
+      armyAmount,
+      errorMessage: "You do not have enough idle army for that campaign.",
     });
     const order = await tx.armyOrder.create({
       data: {
