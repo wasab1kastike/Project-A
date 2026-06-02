@@ -568,6 +568,14 @@ function findNearestHexTile(point: { x: number; y: number }) {
   return closest;
 }
 
+const HEX_TILE_BY_ID = new Map(HEX_TILES.map((tile) => [tile.id, tile]));
+const PATH_HEX_LOOKUP = new Map(
+  HEX_TILES.map((tile) => [
+    tile.id,
+    { id: tile.id, col: tile.col, row: tile.row },
+  ]),
+);
+
 // ── Hex Tile Map ─────────────────────────────────────────────────────────────
 
 function MapLifeLayer({
@@ -576,12 +584,14 @@ function MapLifeLayer({
   tradeRouteLines,
   battlefields,
   fortresses,
+  reducedVisualLoad,
 }: {
   mapHexes: MapHexOwnershipMarker[];
   roadEdges: RoadEdge[];
   tradeRouteLines: NonNullable<FortressMapProps["tradeRouteLines"]>;
   battlefields: BattlefieldIndicatorData[];
   fortresses: MapFortress[];
+  reducedVisualLoad: boolean;
 }) {
   const activeBattleByTileId = useMemo(() => {
     const byId = new Map(
@@ -598,7 +608,11 @@ function MapLifeLayer({
   }, [battlefields, mapHexes]);
 
   return (
-    <div className={styles.mapLifeLayer} aria-hidden="true">
+    <div
+      className={styles.mapLifeLayer}
+      data-reduced={reducedVisualLoad ? "true" : "false"}
+      aria-hidden="true"
+    >
       <svg
         className={styles.mapLifeSvg}
         viewBox={`0 0 ${MAP_WORLD_WIDTH} ${MAP_WORLD_HEIGHT}`}
@@ -619,42 +633,54 @@ function MapLifeLayer({
             />
           );
         })}
-        {roadEdges.map((edge, index) => (
-          <line
-            key={`road-life-${index}`}
-            x1={(edge.x1 * MAP_WORLD_WIDTH) / 100}
-            y1={(edge.y1 * MAP_WORLD_HEIGHT) / 100}
-            x2={(edge.x2 * MAP_WORLD_WIDTH) / 100}
-            y2={(edge.y2 * MAP_WORLD_HEIGHT) / 100}
-            className={`${styles.lifeRoadShimmer} ${getRoadLevelClass(edge.level)}`}
-            strokeWidth={Math.max(2, getRoadStrokeWidth(edge.level) + 1.4)}
-            style={getLifeSeedStyle(
-              `road-${edge.x1}-${edge.y1}-${edge.x2}-${edge.y2}`
-            )}
-          />
-        ))}
-        {tradeRouteLines.map((route, index) => (
-          <line
-            key={`trade-life-${index}`}
-            x1={(route.x1 * MAP_WORLD_WIDTH) / 100}
-            y1={(route.y1 * MAP_WORLD_HEIGHT) / 100}
-            x2={(route.x2 * MAP_WORLD_WIDTH) / 100}
-            y2={(route.y2 * MAP_WORLD_HEIGHT) / 100}
-            className={styles.lifeTradeTicks}
-            strokeWidth={Math.min(
-              5,
-              2 + Math.log2(Math.max(1, route.deliveries))
-            )}
-            style={getLifeSeedStyle(`trade-${index}-${route.deliveries}`)}
-          />
-        ))}
+        {!reducedVisualLoad
+          ? roadEdges.map((edge, index) => (
+              <line
+                key={`road-life-${index}`}
+                x1={(edge.x1 * MAP_WORLD_WIDTH) / 100}
+                y1={(edge.y1 * MAP_WORLD_HEIGHT) / 100}
+                x2={(edge.x2 * MAP_WORLD_WIDTH) / 100}
+                y2={(edge.y2 * MAP_WORLD_HEIGHT) / 100}
+                className={`${styles.lifeRoadShimmer} ${getRoadLevelClass(edge.level)}`}
+                strokeWidth={Math.max(2, getRoadStrokeWidth(edge.level) + 1.4)}
+                style={getLifeSeedStyle(
+                  `road-${edge.x1}-${edge.y1}-${edge.x2}-${edge.y2}`
+                )}
+              />
+            ))
+          : null}
+        {!reducedVisualLoad
+          ? tradeRouteLines.map((route, index) => (
+              <line
+                key={`trade-life-${index}`}
+                x1={(route.x1 * MAP_WORLD_WIDTH) / 100}
+                y1={(route.y1 * MAP_WORLD_HEIGHT) / 100}
+                x2={(route.x2 * MAP_WORLD_WIDTH) / 100}
+                y2={(route.y2 * MAP_WORLD_HEIGHT) / 100}
+                className={styles.lifeTradeTicks}
+                strokeWidth={Math.min(
+                  5,
+                  2 + Math.log2(Math.max(1, route.deliveries))
+                )}
+                style={getLifeSeedStyle(`trade-${index}-${route.deliveries}`)}
+              />
+            ))
+          : null}
         {Array.from(activeBattleByTileId.entries()).map(
           ([tileId, battlefield]) => {
             const tile = HEX_TILES.find((candidate) => candidate.id === tileId);
             if (!tile) return null;
 
             const intensity = battlefield?.battleIntensityPercent ?? 30;
-            const puffCount = intensity >= 70 ? 5 : intensity >= 30 ? 4 : 3;
+            const puffCount = reducedVisualLoad
+              ? intensity >= 70
+                ? 2
+                : 1
+              : intensity >= 70
+                ? 5
+                : intensity >= 30
+                  ? 4
+                  : 3;
 
             return Array.from({ length: puffCount }, (_, puffIndex) => {
               const hash = hashString(`${tileId}:${puffIndex}`);
@@ -684,7 +710,11 @@ function MapLifeLayer({
         )}
       </svg>
       {fortresses
-        .filter((fortress) => fortress.fortressKind === "PLAYER")
+        .filter(
+          (fortress) =>
+            fortress.fortressKind === "PLAYER" &&
+            (!reducedVisualLoad || fortress.isCurrentUser)
+        )
         .map((fortress) => {
           const ownerTile = findNearestHexTile({
             x: fortress.mapX,
@@ -1140,13 +1170,6 @@ function HexTileMap({
   );
 }
 
-function getInterpolatedPoint(origin: Point, target: Point, progress: number) {
-  return {
-    x: origin.x + (target.x - origin.x) * progress,
-    y: origin.y + (target.y - origin.y) * progress,
-  };
-}
-
 function formatSecondsRemaining(seconds: number) {
   if (seconds < 60) {
     return `${seconds}s`;
@@ -1157,46 +1180,78 @@ function formatSecondsRemaining(seconds: number) {
 
 // ── March Path Interpolation ─────────────────────────────────────────────────
 
-/**
- * Given a path of tile center points, compute the position at a given progress
- * (0-1) along the cumulative length of the path.
- */
-function getPointAlongPath(
+function splitPathAtProgress(
   waypoints: Array<{ x: number; y: number }>,
   progress: number,
-): { x: number; y: number } {
-  if (waypoints.length === 0) return { x: 0, y: 0 };
-  if (waypoints.length === 1) return waypoints[0];
+): {
+  currentPoint: { x: number; y: number };
+  completedPoints: Array<{ x: number; y: number }>;
+  remainingPoints: Array<{ x: number; y: number }>;
+} {
+  if (waypoints.length <= 1) {
+    const point = waypoints[0] ?? { x: 0, y: 0 };
+    return {
+      currentPoint: point,
+      completedPoints: [point],
+      remainingPoints: [point],
+    };
+  }
 
   const clamped = Math.max(0, Math.min(1, progress));
-
-  // Calculate segment lengths.
   const segments: { from: Point; to: Point; length: number }[] = [];
   let totalLength = 0;
+
   for (let i = 0; i < waypoints.length - 1; i++) {
     const dx = waypoints[i + 1].x - waypoints[i].x;
     const dy = waypoints[i + 1].y - waypoints[i].y;
-    const len = Math.sqrt(dx * dx + dy * dy);
-    segments.push({ from: waypoints[i], to: waypoints[i + 1], length: len });
-    totalLength += len;
+    const length = Math.sqrt(dx * dx + dy * dy);
+    segments.push({ from: waypoints[i], to: waypoints[i + 1], length });
+    totalLength += length;
   }
 
-  if (totalLength <= 0) return waypoints[0];
+  if (totalLength <= 0) {
+    return {
+      currentPoint: waypoints[0],
+      completedPoints: [waypoints[0]],
+      remainingPoints: [waypoints[0]],
+    };
+  }
 
-  const targetDist = clamped * totalLength;
+  const targetDistance = clamped * totalLength;
   let accumulated = 0;
-  for (const seg of segments) {
-    if (accumulated + seg.length >= targetDist) {
-      const segProgress = (targetDist - accumulated) / seg.length;
+
+  for (let segmentIndex = 0; segmentIndex < segments.length; segmentIndex++) {
+    const segment = segments[segmentIndex];
+    const segmentEnd = accumulated + segment.length;
+
+    if (segmentEnd >= targetDistance) {
+      const segmentProgress =
+        segment.length <= 0 ? 0 : (targetDistance - accumulated) / segment.length;
+      const currentPoint = {
+        x: segment.from.x + (segment.to.x - segment.from.x) * segmentProgress,
+        y: segment.from.y + (segment.to.y - segment.from.y) * segmentProgress,
+      };
+
       return {
-        x: seg.from.x + (seg.to.x - seg.from.x) * segProgress,
-        y: seg.from.y + (seg.to.y - seg.from.y) * segProgress,
+        currentPoint,
+        completedPoints: [...waypoints.slice(0, segmentIndex + 1), currentPoint],
+        remainingPoints: [currentPoint, ...waypoints.slice(segmentIndex + 1)],
       };
     }
-    accumulated += seg.length;
+
+    accumulated = segmentEnd;
   }
 
-  return waypoints[waypoints.length - 1];
+  const currentPoint = waypoints[waypoints.length - 1];
+  return {
+    currentPoint,
+    completedPoints: [...waypoints],
+    remainingPoints: [currentPoint],
+  };
+}
+
+function pointsToPolyline(points: Array<{ x: number; y: number }>) {
+  return points.map((point) => `${point.x},${point.y}`).join(" ");
 }
 
 // ── Attack Units Layer ───────────────────────────────────────────────────────
@@ -1223,18 +1278,14 @@ function AttackUnitsLayer({
 
     const interval = window.setInterval(() => {
       setNowMs(Date.now());
-    }, 250);
+    }, attackUnits.length > 10 ? 1000 : 750);
 
     return () => window.clearInterval(interval);
   }, [attackUnits.length]);
 
-  if (attackUnits.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className={styles.attackLayer} aria-label="Active attacks">
-      {attackUnits.map((unit) => {
+  const attackUnitViews = useMemo(
+    () =>
+      attackUnits.map((unit) => {
         const skinStyle = getCosmeticSpriteStyle(
           "UNIT",
           unit.attacker.unitCosmeticVariant
@@ -1242,8 +1293,8 @@ function AttackUnitsLayer({
         const isReturning = Boolean(unit.recalledAt);
         const routeOrigin = isReturning
           ? (unit.returnOrigin ?? {
-              mapX: unit.attacker.mapX,
-              mapY: unit.attacker.mapY,
+              mapX: unit.target.mapX,
+              mapY: unit.target.mapY,
             })
           : unit.attacker;
         const routeTarget = isReturning ? unit.attacker : unit.target;
@@ -1264,48 +1315,45 @@ function AttackUnitsLayer({
         );
         const progress = presentation.progress;
 
-        // Compute tile-by-tile march path.
-        // Build path waypoints in % coordinates.
         let waypoints: Array<{ x: number; y: number }> = [origin, target];
         const routeTiles =
-          unit.routeTileIds && unit.routeTileIds.length > 1
+          !isReturning && unit.routeTileIds && unit.routeTileIds.length > 1
             ? unit.routeTileIds
-                .map((tileId) => HEX_TILES.find((tile) => tile.id === tileId))
+                .map((tileId) => HEX_TILE_BY_ID.get(tileId))
                 .filter((tile): tile is (typeof HEX_TILES)[number] => Boolean(tile))
             : [];
+
         if (routeTiles.length > 1) {
           waypoints = routeTiles.map((tile) => ({
             x: tile.xPercent,
             y: tile.yPercent,
           }));
         } else {
-          const hexLookup = new Map(
-            HEX_TILES.map((t) => [t.id, { id: t.id, col: t.col, row: t.row }]),
-          );
           const startHex = findNearestHexTile(origin);
           const endHex = findNearestHexTile(target);
-          const startTile = startHex ? hexLookup.get(startHex.id) : null;
-          const endTile = endHex ? hexLookup.get(endHex.id) : null;
+          const startTile = startHex ? PATH_HEX_LOOKUP.get(startHex.id) : null;
+          const endTile = endHex ? PATH_HEX_LOOKUP.get(endHex.id) : null;
 
           const tilePath =
             startTile && endTile
-              ? findSimplePath(startTile, endTile, hexLookup)
+              ? findSimplePath(startTile, endTile, PATH_HEX_LOOKUP)
               : null;
           if (tilePath) {
             waypoints = tilePath.map((tileId) => {
-              const tile = HEX_TILES.find((t) => t.id === tileId);
+              const tile = HEX_TILE_BY_ID.get(tileId);
               return tile ? { x: tile.xPercent, y: tile.yPercent } : origin;
             });
           }
         }
 
-        const currentPoint = getPointAlongPath(waypoints, progress);
+        const splitPath = splitPathAtProgress(waypoints, progress);
         const secondsRemaining = Math.max(
           0,
           Math.ceil((new Date(unit.arrivesAt).getTime() - nowMs) / 1000)
         );
-        const anchorPoint = presentation.isImpacting ? (waypoints[waypoints.length - 1] ?? target) : currentPoint;
-        const selected = selectedUnitId === unit.id;
+        const anchorPoint = presentation.isImpacting
+          ? (waypoints[waypoints.length - 1] ?? target)
+          : splitPath.currentPoint;
         const statusText = isReturning
           ? "returning home"
           : unit.kind === "BATTALION_REINFORCEMENT"
@@ -1315,8 +1363,6 @@ function AttackUnitsLayer({
               : unit.kind === "FORTIFY"
                 ? "fortifying"
                 : "on the way";
-
-        // Path line color based on context.
         const pathColor = isReturning
           ? "#4da6ff"
           : unit.kind === "BATTALION_REINFORCEMENT"
@@ -1334,61 +1380,84 @@ function AttackUnitsLayer({
               ? `Reinforcing ${unit.reinforcementSide?.toLowerCase() ?? "battlefield"} side`
               : unit.target.name;
 
+        return {
+          unit,
+          skinStyle,
+          presentation,
+          waypoints,
+          splitPath,
+          secondsRemaining,
+          anchorPoint,
+          statusText,
+          pathColor,
+          pathDasharray,
+          unitTitle,
+        };
+      }),
+    [attackUnits, nowMs]
+  );
+
+  const crowdedAttackLayer = attackUnitViews.length > 8;
+  const visibleRouteViews = attackUnitViews.filter(
+    (view) =>
+      view.waypoints.length > 1 &&
+      view.presentation.showSprite &&
+      (!crowdedAttackLayer || selectedUnitId === view.unit.id)
+  );
+
+  if (attackUnits.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className={styles.attackLayer} aria-label="Active attacks">
+      {visibleRouteViews.length > 0 ? (
+        <svg
+          className={styles.marchPathSvg}
+          data-crowded={crowdedAttackLayer ? "true" : "false"}
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
+          {visibleRouteViews.map((view) => (
+            <Fragment key={`route-${view.unit.id}`}>
+              <polyline
+                points={pointsToPolyline(view.splitPath.completedPoints)}
+                fill="none"
+                stroke={view.pathColor}
+                strokeWidth="1.35"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                opacity={crowdedAttackLayer ? "0.5" : "0.58"}
+              />
+              <polyline
+                points={pointsToPolyline(view.splitPath.remainingPoints)}
+                fill="none"
+                stroke={view.pathColor}
+                strokeWidth="1"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeDasharray={view.pathDasharray}
+                opacity={crowdedAttackLayer ? "0.28" : "0.34"}
+              />
+            </Fragment>
+          ))}
+        </svg>
+      ) : null}
+      {attackUnitViews.map((view) => {
+        const { unit } = view;
+        const selected = selectedUnitId === unit.id;
+
         return (
           <Fragment key={unit.id}>
-            {/* March path line */}
-            {waypoints.length > 1 && presentation.showSprite ? (
-              <svg
-                className={styles.marchPathSvg}
-                viewBox={`0 0 100 100`}
-                preserveAspectRatio="none"
-                aria-hidden="true"
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  width: "100%",
-                  height: "100%",
-                  pointerEvents: "none",
-                  zIndex: 0,
-                }}
-              >
-                {/* Completed portion (solid) */}
-                <polyline
-                  points={waypoints
-                    .slice(0, Math.ceil(waypoints.length * progress) + 1)
-                    .map((p) => `${p.x},${p.y}`)
-                    .join(" ")}
-                  fill="none"
-                  stroke={pathColor}
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  opacity="0.6"
-                />
-                {/* Remaining portion (dashed) */}
-                <polyline
-                  points={waypoints
-                    .slice(Math.floor(waypoints.length * progress))
-                    .map((p) => `${p.x},${p.y}`)
-                    .join(" ")}
-                  fill="none"
-                  stroke={pathColor}
-                  strokeWidth="1"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeDasharray={pathDasharray}
-                  opacity="0.35"
-                />
-              </svg>
-            ) : null}
             <button
               type="button"
               className={`${styles.attackUnit} ${
-                presentation.isImpacting ? styles.attackUnitImpacting : ""
+                view.presentation.isImpacting ? styles.attackUnitImpacting : ""
               } ${selected ? styles.attackUnitSelected : ""}`}
               style={{
-                left: `${anchorPoint.x}%`,
-                top: `${anchorPoint.y}%`,
+                left: `${view.anchorPoint.x}%`,
+                top: `${view.anchorPoint.y}%`,
               }}
               onPointerDown={(event) => event.stopPropagation()}
               onClick={(event) => {
@@ -1398,15 +1467,15 @@ function AttackUnitsLayer({
                 );
               }}
               aria-pressed={selected}
-              aria-label={`${unit.attacker.name} army ${statusText}${unit.armyAmount !== null ? ` with ${unit.armyAmount} army` : ""}. ${secondsRemaining} seconds remaining.`}
+              aria-label={`${unit.attacker.name} army ${view.statusText}${unit.armyAmount !== null ? ` with ${unit.armyAmount} army` : ""}. ${view.secondsRemaining} seconds remaining.`}
             >
-              {presentation.showSprite ? (
+              {view.presentation.showSprite ? (
                 <>
                   <span
                     className={styles.attackUnitSprite}
                     data-variant={unit.attacker.unitSpriteVariant}
                     data-skin={unit.attacker.unitCosmeticVariant ?? undefined}
-                    style={skinStyle ?? undefined}
+                    style={view.skinStyle ?? undefined}
                   />
                   <span className={styles.attackUnitAmount}>
                     {unit.armyAmount ?? "?"}
@@ -1421,8 +1490,8 @@ function AttackUnitsLayer({
               <div
                 className={styles.attackUnitPopover}
                 style={{
-                  left: `${anchorPoint.x}%`,
-                  top: `${anchorPoint.y}%`,
+                  left: `${view.anchorPoint.x}%`,
+                  top: `${view.anchorPoint.y}%`,
                 }}
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={(event) => event.stopPropagation()}
@@ -1432,9 +1501,9 @@ function AttackUnitsLayer({
                     ? `${unit.armyAmount} army`
                     : "Hidden army"}
                 </strong>
-                <span>{unitTitle}</span>
-                <span>{statusText}</span>
-                <em>{formatSecondsRemaining(secondsRemaining)} ETA</em>
+                <span>{view.unitTitle}</span>
+                <span>{view.statusText}</span>
+                <em>{formatSecondsRemaining(view.secondsRemaining)} ETA</em>
                 {unit.roadSavedSeconds && unit.roadSavedSeconds > 0 ? (
                   <span className={styles.attackUnitRoadBonus}>
                     Roads saved {formatSecondsRemaining(unit.roadSavedSeconds)}
@@ -1670,6 +1739,11 @@ export const FortressMap = memo(function FortressMap({
     () => computeRoadEdges(roadSegments, HEX_TILES),
     [roadSegments]
   );
+  const reducedMapVisualLoad =
+    attackUnits.length > 8 ||
+    battlefields.length > 2 ||
+    roadEdges.length + tradeRouteLines.length > 30 ||
+    mapHexes.filter((hex) => hex.ownerFortressId).length > 90;
 
   const snappedFortressPositions = useMemo(
     () =>
@@ -2256,6 +2330,7 @@ export const FortressMap = memo(function FortressMap({
         tradeRouteLines={tradeRouteLines}
         battlefields={battlefields}
         fortresses={fortresses}
+        reducedVisualLoad={reducedMapVisualLoad}
       />
       <AttackUnitsLayer
             attackUnits={attackUnits}

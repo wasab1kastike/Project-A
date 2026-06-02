@@ -1428,6 +1428,28 @@
   filter: drop-shadow(0 0 10px rgba(255, 225, 139, 0.34));
 }
 
+.mapLifeLayer[data-reduced="true"] .lifeDomain {
+  opacity: 0.3;
+  filter: none;
+  animation: none;
+}
+
+.mapLifeLayer[data-reduced="true"] .lifeOwnDomain {
+  opacity: 0.46;
+}
+
+.mapLifeLayer[data-reduced="true"] .lifeBattlePuff {
+  opacity: 0.18;
+  filter: none;
+  animation-duration: 6s;
+}
+
+.mapLifeLayer[data-reduced="true"] .lifeFortressAura {
+  opacity: 0.4;
+  filter: none;
+  animation-duration: 7s;
+}
+
 .lifeRoadShimmer {
   fill: none;
   stroke: rgba(255, 246, 181, 0.55);
@@ -1856,8 +1878,22 @@
 }
 
 /* March path animation */
+.marchPathSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
 .marchPathSvg polyline {
-  animation: marchDash 1s linear infinite;
+  vector-effect: non-scaling-stroke;
+  animation: marchDash 1.4s linear infinite;
+}
+
+.marchPathSvg[data-crowded="true"] polyline {
+  animation: none;
 }
 
 @keyframes marchDash {
