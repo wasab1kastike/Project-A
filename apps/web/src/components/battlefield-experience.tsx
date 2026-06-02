@@ -357,6 +357,10 @@ const SEA_MOUNTAIN_CLAIM_NOTICE_STORAGE_KEY =
   "project-a:sea-mountain-claim-notice:2026-05-11";
 const CASTLE_YEET_NOTICE_STORAGE_KEY =
   "project-a:castle-yeet-notice:2026-05-11";
+const NUKE_LAUNCH_SEEN_STORAGE_PREFIX = "project-a:nuke-launch-seen:v1";
+const NUKE_BLAST_ANIMATION_WINDOW_MS = 2 * 60 * 1000;
+const NUKE_FALLOUT_VISIBLE_MS = 30 * 60 * 1000;
+const NUKE_BLAST_ANIMATION_MS = 4600;
 const BIOME_LABELS: Record<HexBiome, string> = {
   water: "Sea",
   coast: "Coast",
@@ -385,6 +389,24 @@ const SEASON_FOUR_CRESTS = {
     path: "/assets/ui/crest-monument.webp",
   },
 } as const;
+
+function getNukeLaunchSeenStorageKey(launchId: string) {
+  return `${NUKE_LAUNCH_SEEN_STORAGE_PREFIX}:${launchId}`;
+}
+
+function getTimestamp(value: Date | string) {
+  return value instanceof Date ? value.getTime() : new Date(value).getTime();
+}
+
+function formatNukeLaunchNotice({
+  targetName,
+  armyRemoved,
+}: {
+  targetName: string;
+  armyRemoved: number;
+}) {
+  return `Nuke launch detected: ${targetName} lost 2 castle levels and ${armyRemoved.toLocaleString()} army. Questionable science has peaked.`;
+}
 
 export function BattlefieldExperience({
   title,
@@ -479,6 +501,14 @@ export function BattlefieldExperience({
       endsAt: Date | string;
     };
     canLaunch: boolean;
+    recentLaunches: Array<{
+      id: string;
+      targetFortressId: string;
+      targetLevelBefore: number;
+      targetLevelAfter: number;
+      armyRemoved: number;
+      launchedAt: Date | string;
+    }>;
   } | null;
   battleReports: BattleReport[];
   availableTargets: unknown[];
@@ -494,6 +524,14 @@ export function BattlefieldExperience({
   const [battleLogOpen, setBattleLogOpen] = useState(false);
   const [unreadChatCount, setUnreadChatCount] = useState(chat.unreadCount);
   const [unreadBattleReportCount, setUnreadBattleReportCount] = useState(0);
+  const [nukeLaunchNotice, setNukeLaunchNotice] = useState<{
+    id: string;
+    message: string;
+  } | null>(null);
+  const [animatingNukeLaunchIds, setAnimatingNukeLaunchIds] = useState<
+    Set<string>
+  >(() => new Set());
+  const [nukeEffectNow, setNukeEffectNow] = useState(() => Date.now());
   const [selectedFortressId, setSelectedFortressId] = useState<string | null>(
     playerFortress?.id ?? null
   );
@@ -508,8 +546,17 @@ export function BattlefieldExperience({
   const knownBattleReportIdsRef = useRef(
     new Set(battleReports.map((report) => report.id))
   );
+  const seenNukeLaunchIdsRef = useRef(new Set<string>());
   const markChatReadPendingRef = useRef(false);
   const selectedTargetId = null;
+  const recentNukeLaunches = useMemo(
+    () => nukeState?.recentLaunches ?? [],
+    [nukeState?.recentLaunches]
+  );
+  const mapFortressById = useMemo(
+    () => new Map(mapFortresses.map((fortress) => [fortress.id, fortress])),
+    [mapFortresses]
+  );
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
   const [selectedBattlefieldId, setSelectedBattlefieldId] = useState<
     string | null
@@ -579,6 +626,101 @@ export function BattlefieldExperience({
       setOverlayRoot(document.getElementById("battlefield-overlay-root"))
     );
   }, []);
+
+  useEffect(() => {
+    if (recentNukeLaunches.length === 0) {
+      return;
+    }
+
+    setNukeEffectNow(Date.now());
+    const intervalId = window.setInterval(() => {
+      setNukeEffectNow(Date.now());
+    }, 60_000);
+
+    return () => window.clearInterval(intervalId);
+  }, [recentNukeLaunches.length]);
+
+  useEffect(() => {
+    if (recentNukeLaunches.length === 0) {
+      return;
+    }
+
+    const now = Date.now();
+    const unseenLaunches = recentNukeLaunches
+      .filter((launch) => {
+        const launchedAtMs = getTimestamp(launch.launchedAt);
+        if (
+          !Number.isFinite(launchedAtMs) ||
+          launchedAtMs > now ||
+          now - launchedAtMs > NUKE_BLAST_ANIMATION_WINDOW_MS
+        ) {
+          return false;
+        }
+
+        if (seenNukeLaunchIdsRef.current.has(launch.id)) {
+          return false;
+        }
+
+        try {
+          return (
+            window.localStorage.getItem(
+              getNukeLaunchSeenStorageKey(launch.id)
+            ) !== "seen"
+          );
+        } catch {
+          return true;
+        }
+      })
+      .sort(
+        (left, right) =>
+          getTimestamp(right.launchedAt) - getTimestamp(left.launchedAt)
+      );
+
+    if (unseenLaunches.length === 0) {
+      return;
+    }
+
+    const latestLaunch = unseenLaunches[0];
+    const targetFortress = mapFortressById.get(latestLaunch.targetFortressId);
+    const animatedIds = unseenLaunches.map((launch) => launch.id);
+
+    setAnimatingNukeLaunchIds((currentIds) => {
+      const nextIds = new Set(currentIds);
+      for (const launchId of animatedIds) {
+        nextIds.add(launchId);
+      }
+      return nextIds;
+    });
+    setNukeLaunchNotice({
+      id: latestLaunch.id,
+      message: formatNukeLaunchNotice({
+        targetName: targetFortress?.name ?? "Unknown fortress",
+        armyRemoved: latestLaunch.armyRemoved,
+      }),
+    });
+
+    for (const launch of unseenLaunches) {
+      seenNukeLaunchIdsRef.current.add(launch.id);
+      try {
+        window.localStorage.setItem(
+          getNukeLaunchSeenStorageKey(launch.id),
+          "seen"
+        );
+      } catch {
+        // Session memory still prevents repeated alerts when storage is unavailable.
+      }
+    }
+
+    window.setTimeout(() => {
+      setAnimatingNukeLaunchIds((currentIds) => {
+        const nextIds = new Set(currentIds);
+        for (const launchId of animatedIds) {
+          nextIds.delete(launchId);
+        }
+        return nextIds;
+      });
+    }, NUKE_BLAST_ANIMATION_MS);
+  }, [mapFortressById, recentNukeLaunches]);
 
   useEffect(() => {
     if (chatOpen || !chat.persistsUnread) {
@@ -682,6 +824,42 @@ export function BattlefieldExperience({
         new Date(right.launchedAt).getTime()
     );
   }, [attackUnits, optimisticAttackUnits]);
+
+  const nukeLaunchEffects = useMemo(() => {
+    return recentNukeLaunches
+      .map((launch) => {
+        const targetFortress = mapFortressById.get(launch.targetFortressId);
+        const launchedAtMs = getTimestamp(launch.launchedAt);
+
+        if (
+          !targetFortress ||
+          !Number.isFinite(launchedAtMs) ||
+          launchedAtMs > nukeEffectNow ||
+          nukeEffectNow - launchedAtMs > NUKE_FALLOUT_VISIBLE_MS
+        ) {
+          return null;
+        }
+
+        return {
+          id: launch.id,
+          targetFortressId: launch.targetFortressId,
+          targetName: targetFortress.name,
+          armyRemoved: launch.armyRemoved,
+          launchedAt: launch.launchedAt,
+          shouldAnimate: animatingNukeLaunchIds.has(launch.id),
+        };
+      })
+      .filter((launch) => launch !== null)
+      .sort(
+        (left, right) =>
+          getTimestamp(left.launchedAt) - getTimestamp(right.launchedAt)
+      );
+  }, [
+    animatingNukeLaunchIds,
+    mapFortressById,
+    nukeEffectNow,
+    recentNukeLaunches,
+  ]);
 
   const gameplayOpen = phaseStatus === "ACTIVE" || phaseStatus === "TESTING";
   const pendingDiplomacyCount = diplomacyNotice.pendingDiplomacyCount;
@@ -2801,6 +2979,13 @@ export function BattlefieldExperience({
             storageKey={CASTLE_YEET_NOTICE_STORAGE_KEY}
           />
         ) : null}
+        {nukeLaunchNotice ? (
+          <NoticeToast
+            key={nukeLaunchNotice.id}
+            autoDismissMs={7000}
+            message={nukeLaunchNotice.message}
+          />
+        ) : null}
         {hasPendingCommandNotice ? (
           <a
             className={styles.diplomacyMapNotice}
@@ -2826,6 +3011,7 @@ export function BattlefieldExperience({
           roadSegments={roadSegments}
           battalionMarkers={battalionMarkers}
           convoyMarkers={convoyMarkers}
+          nukeLaunchEffects={nukeLaunchEffects}
           nukeBiddingMarker={
             nukeState
               ? {
