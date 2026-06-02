@@ -198,6 +198,7 @@ import {
   updateWorkerAssignment,
   shuffleFortressLocation,
   setTilePressurePriority,
+  reorderTilePressurePriorities,
   stationGuardOrder,
   createEscortOrder,
   createRaidOrder,
@@ -1178,6 +1179,119 @@ test("pressure tick auto-fills nearest neutral priority slots", async (context) 
   assert.deepEqual(
     priorities.map((priority) => priority.tileId),
     expected
+  );
+});
+
+test("stale pressure priority remains clearable and reorderable", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const user = await createUser(prisma, "stale-priority-clear@example.com");
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: user.id,
+      commanderName: "Stale Queue",
+      fortressName: "Stale Queue Keep",
+      points: 100,
+    },
+  ]);
+  await markSeasonFourCycle(prisma, cycle.id);
+  const fortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: user.id,
+      },
+    },
+  });
+  const candidateTiles = HEX_TILES.filter(
+    (candidate) =>
+      candidate.claimable &&
+      isTileConnectedToFortressOrOwnedTiles({
+        tileId: candidate.id,
+        fortress,
+        ownedTileIds: [],
+      })
+  );
+  const [staleTile, remainingTile] = candidateTiles;
+
+  assert.ok(staleTile);
+  assert.ok(remainingTile);
+
+  await setTilePressurePriority({
+    userId: user.id,
+    tileId: staleTile.id,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+    db: prisma,
+  });
+  await setTilePressurePriority({
+    userId: user.id,
+    tileId: remainingTile.id,
+    now: new Date("2026-04-20T12:01:30.000Z"),
+    db: prisma,
+  });
+  await prisma.mapHexOwnership.create({
+    data: {
+      cycleId: cycle.id,
+      tileId: staleTile.id,
+      ownerFortressId: fortress.id,
+      claimedAt: new Date("2026-04-20T12:02:00.000Z"),
+    },
+  });
+
+  const homeState = await getHomePageState({
+    userId: user.id,
+    now: new Date("2026-04-20T12:03:00.000Z"),
+    db: prisma,
+  });
+  const staleMapTile = homeState.mapHexes.find(
+    (mapHex) => mapHex.tileId === staleTile.id
+  );
+
+  assert.equal(staleMapTile?.pressurePriority, true);
+  assert.equal(staleMapTile?.canPrioritizePressure, true);
+  assert.equal(staleMapTile?.pressurePriorityDisabledReason, null);
+
+  await reorderTilePressurePriorities({
+    userId: user.id,
+    tileIds: [remainingTile.id, staleTile.id],
+    now: new Date("2026-04-20T12:04:00.000Z"),
+    db: prisma,
+  });
+
+  const reorderedPriorities = await prisma.tilePressurePriority.findMany({
+    where: {
+      cycleId: cycle.id,
+      fortressId: fortress.id,
+    },
+    orderBy: [{ weight: "desc" }, { tileId: "asc" }],
+  });
+
+  assert.deepEqual(
+    reorderedPriorities.map((priority) => priority.tileId),
+    [remainingTile.id, staleTile.id]
+  );
+
+  await clearTilePressurePriority({
+    userId: user.id,
+    tileId: staleTile.id,
+    db: prisma,
+  });
+
+  const remainingPriorities = await prisma.tilePressurePriority.findMany({
+    where: {
+      cycleId: cycle.id,
+      fortressId: fortress.id,
+    },
+    orderBy: [{ weight: "desc" }, { tileId: "asc" }],
+  });
+
+  assert.deepEqual(
+    remainingPriorities.map((priority) => priority.tileId),
+    [remainingTile.id]
   );
 });
 

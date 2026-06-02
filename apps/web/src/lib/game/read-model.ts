@@ -3128,6 +3128,7 @@ export async function getHomePageState({
             ownedTileIds: ownedNormalTileIds,
           })
         : false;
+    const priority = pressurePriorityByTileId.get(tile.id) ?? null;
     const pressurePriorityDisabledReason = (() => {
       if (!gameplayOpen) {
         return "Expansion priorities can only be changed during gameplay.";
@@ -3135,6 +3136,10 @@ export async function getHomePageState({
 
       if (!playerFortress) {
         return "Join the cycle to prioritize expansion.";
+      }
+
+      if (priority !== null) {
+        return null;
       }
 
       const ownerFortressId = ownerByTileId.get(tile.id) ?? null;
@@ -3150,8 +3155,6 @@ export async function getHomePageState({
         relation: diplomacyRelation,
         now,
       });
-      const isQueued = pressurePriorityByTileId.has(tile.id);
-
       return (
         getPressureTargetBlockedReason({
           tile,
@@ -3175,12 +3178,11 @@ export async function getHomePageState({
               ownedTileIds,
             }),
         }) ??
-        (!isQueued && pressurePriorityQueue.length >= pressurePriorityLimit
+        (pressurePriorityQueue.length >= pressurePriorityLimit
           ? `Expansion queue is full (${pressurePriorityLimit}/${pressurePriorityLimit}).`
           : null)
       );
     })();
-    const priority = pressurePriorityByTileId.get(tile.id) ?? null;
 
     return {
       isConnectedToPlayerTerritory,
