@@ -185,6 +185,7 @@ import {
   attackMapHex,
   declareWar,
   betrayAlliance,
+  resolveAllianceWarChoice,
   fortifyMapHex,
   joinBattlefield,
   proposePeace,
@@ -1976,6 +1977,193 @@ test("alliance collateral is paid on betrayal and unpaid collateral becomes debt
   assert.equal(acceptedPeace.collateralDebtGold, 400);
   assert.equal(acceptedPeace.collateralDebtFood, 300);
   assert.equal(acceptedPeace.collateralDebtArmy, 200);
+});
+
+test("war room exposes ally commitments and forced alliance choice has no betrayal penalty", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const supporter = await createUser(prisma, "ally-choice-supporter@example.com");
+  const attacker = await createUser(prisma, "ally-choice-attacker@example.com");
+  const defender = await createUser(prisma, "ally-choice-defender@example.com");
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: supporter.id,
+      commanderName: "Choice Support",
+      fortressName: "Fork Hall",
+      points: 100,
+    },
+    {
+      userId: attacker.id,
+      commanderName: "Choice Attack",
+      fortressName: "Left Banner",
+      points: 100,
+    },
+    {
+      userId: defender.id,
+      commanderName: "Choice Defense",
+      fortressName: "Right Banner",
+      points: 100,
+    },
+  ]);
+  await markSeasonFourCycle(prisma, cycle.id);
+
+  const [supporterFortress, attackerFortress, defenderFortress] =
+    await Promise.all([
+      prisma.fortress.update({
+        where: {
+          cycleId_ownerId: { cycleId: cycle.id, ownerId: supporter.id },
+        },
+        data: { gold: 20_000, food: 20_000, army: 2_000 },
+      }),
+      prisma.fortress.update({
+        where: {
+          cycleId_ownerId: { cycleId: cycle.id, ownerId: attacker.id },
+        },
+        data: { army: 2_000 },
+      }),
+      prisma.fortress.update({
+        where: {
+          cycleId_ownerId: { cycleId: cycle.id, ownerId: defender.id },
+        },
+        data: { army: 2_000 },
+      }),
+    ]);
+  const pair = (left: string, right: string) => {
+    const [fortressAId, fortressBId] = [left, right].sort();
+    return { fortressAId, fortressBId };
+  };
+
+  await prisma.diplomacyRelation.createMany({
+    data: [
+      {
+        cycleId: cycle.id,
+        ...pair(supporterFortress.id, attackerFortress.id),
+        status: DiplomacyRelationStatus.ALLIED,
+        allianceTrustTier: 2,
+        allianceEscrowGoldEach: 10_000,
+        allianceEscrowFoodEach: 10_000,
+        collateralGold: 1_000,
+        collateralFood: 500,
+        collateralArmy: 250,
+      },
+      {
+        cycleId: cycle.id,
+        ...pair(supporterFortress.id, defenderFortress.id),
+        status: DiplomacyRelationStatus.ALLIED,
+        allianceTrustTier: 2,
+        allianceEscrowGoldEach: 10_000,
+        allianceEscrowFoodEach: 10_000,
+      },
+      {
+        cycleId: cycle.id,
+        ...pair(attackerFortress.id, defenderFortress.id),
+        status: DiplomacyRelationStatus.WAR,
+        warDeclaredById: attackerFortress.id,
+        warDeclaredAt: new Date("2026-04-20T12:00:00.000Z"),
+        warStartsAt: new Date("2026-04-20T12:00:00.000Z"),
+      },
+    ],
+  });
+  const battlefield = await prisma.battlefield.create({
+    data: {
+      cycleId: cycle.id,
+      targetFortressId: defenderFortress.id,
+      attackerBannerFortressId: attackerFortress.id,
+      defenderBannerFortressId: defenderFortress.id,
+      status: BattlefieldStatus.ACTIVE,
+      attackerArmyRemaining: 800,
+      defenderArmyRemaining: 700,
+      startedAt: new Date("2026-04-20T12:00:00.000Z"),
+      participants: {
+        create: [
+          {
+            fortressId: attackerFortress.id,
+            side: BattlefieldSide.ATTACKER,
+            armyCommitted: 1_000,
+            armyRemaining: 800,
+          },
+          {
+            fortressId: defenderFortress.id,
+            side: BattlefieldSide.DEFENDER,
+            armyCommitted: 900,
+            armyRemaining: 700,
+          },
+        ],
+      },
+    },
+  });
+  await prisma.attackUnit.create({
+    data: {
+      cycleId: cycle.id,
+      attackerFortressId: defenderFortress.id,
+      targetFortressId: defenderFortress.id,
+      reinforcementBattlefieldId: battlefield.id,
+      reinforcementSide: BattlefieldSide.DEFENDER,
+      armyAmount: 300,
+      launchedAt: new Date("2026-04-20T12:01:00.000Z"),
+      arrivesAt: new Date("2026-04-20T12:10:00.000Z"),
+    },
+  });
+
+  const castleState = await getCastlePageState({
+    userId: supporter.id,
+    now: new Date("2026-04-20T12:02:00.000Z"),
+    db: prisma,
+  });
+  const warRoom = castleState.playerSummary?.allianceWarRoom;
+  const field = warRoom?.battlefields[0];
+
+  assert.equal(warRoom?.allianceConflicts.length, 1);
+  assert.equal(
+    warRoom?.allianceConflicts[0]?.attackerFortressId,
+    attackerFortress.id
+  );
+  assert.equal(
+    warRoom?.allianceConflicts[0]?.defenderFortressId,
+    defenderFortress.id
+  );
+  assert.equal(field?.attackerForces[0]?.fortressId, attackerFortress.id);
+  assert.equal(field?.attackerForces[0]?.committedArmy, 1_000);
+  assert.equal(field?.attackerForces[0]?.remainingArmy, 800);
+  assert.equal(field?.defenderForces[0]?.fortressId, defenderFortress.id);
+  assert.equal(field?.defenderForces[0]?.committedArmy, 900);
+  assert.equal(field?.defenderForces[0]?.remainingArmy, 700);
+  assert.equal(field?.defenderForces[0]?.incomingArmy, 300);
+
+  const balancesBefore = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({ where: { id: supporterFortress.id } }),
+    prisma.fortress.findUniqueOrThrow({ where: { id: attackerFortress.id } }),
+  ]);
+  const resolved = await resolveAllianceWarChoice({
+    userId: supporter.id,
+    keepFortressId: defenderFortress.id,
+    breakFortressId: attackerFortress.id,
+    now: new Date("2026-04-20T12:03:00.000Z"),
+    db: prisma,
+  });
+  const balancesAfter = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({ where: { id: supporterFortress.id } }),
+    prisma.fortress.findUniqueOrThrow({ where: { id: attackerFortress.id } }),
+  ]);
+
+  assert.equal(resolved.status, DiplomacyRelationStatus.NEUTRAL);
+  assert.equal(resolved.betrayedById, null);
+  assert.equal(resolved.betrayedAt, null);
+  assert.equal(resolved.collateralDebtFortressId, null);
+  assert.equal(resolved.collateralDebtGold, 0);
+  assert.equal(resolved.allianceTrustTier, 0);
+  assert.equal(resolved.allianceEscrowGoldEach, 0);
+  assert.equal(resolved.collateralGold, 0);
+  assert.equal(balancesAfter[0].gold, balancesBefore[0].gold);
+  assert.equal(balancesAfter[0].food, balancesBefore[0].food);
+  assert.equal(balancesAfter[0].army, balancesBefore[0].army);
+  assert.equal(balancesAfter[1].gold, balancesBefore[1].gold);
+  assert.equal(balancesAfter[1].food, balancesBefore[1].food);
+  assert.equal(balancesAfter[1].army, balancesBefore[1].army);
 });
 
 test("peace terms can demand payment and tile transfer from the target", async (context) => {

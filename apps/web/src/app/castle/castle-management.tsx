@@ -17,6 +17,7 @@ import {
   purchaseSkillNodeAction,
   resetSkillNodeAction,
   setAllianceSupportPolicyAction,
+  resolveAllianceWarChoiceAction,
   setMaxArmySizeAction,
   createBattalionAction,
   commitNukeComponentBidAction,
@@ -408,6 +409,36 @@ type PlayerSummary = {
       opponentName: string;
       attackerArmyRemaining: number;
       defenderArmyRemaining: number;
+      attackerForces: Array<{
+        fortressId: string;
+        name: string;
+        commanderName: string;
+        committedArmy: number;
+        remainingArmy: number;
+        incomingArmy: number;
+        nextArrivalAt: Date | null;
+        isAlly: boolean;
+      }>;
+      defenderForces: Array<{
+        fortressId: string;
+        name: string;
+        commanderName: string;
+        committedArmy: number;
+        remainingArmy: number;
+        incomingArmy: number;
+        nextArrivalAt: Date | null;
+        isAlly: boolean;
+      }>;
+    }>;
+    allianceConflicts: Array<{
+      battlefieldId: string;
+      targetLabel: string;
+      relationStatus: string;
+      attackerFortressId: string;
+      attackerName: string;
+      defenderFortressId: string;
+      defenderName: string;
+      recommendation: string;
     }>;
     outgoingReinforcements: Array<{
       id: string;
@@ -805,6 +836,23 @@ function formatEstimate(minutes: number) {
   return remainingMinutes > 0
     ? `about ${hours}h ${remainingMinutes}m`
     : `about ${hours}h`;
+}
+
+type AllianceForceRow =
+  PlayerSummary["allianceWarRoom"]["battlefields"][number]["attackerForces"][number];
+
+function formatAllianceForce(row: AllianceForceRow) {
+  const parts = [
+    `${row.remainingArmy.toLocaleString()} remaining`,
+    row.committedArmy > 0
+      ? `${row.committedArmy.toLocaleString()} committed`
+      : null,
+    row.incomingArmy > 0
+      ? `${row.incomingArmy.toLocaleString()} incoming`
+      : null,
+  ].filter(Boolean);
+
+  return parts.join(", ");
 }
 
 function getCampaignStatusLabel(status: string) {
@@ -1421,6 +1469,9 @@ export function CastleManagement({
     [NukeComponentKind.WRATH_OF_A]: 100,
   });
   const [nukePending, setNukePending] = useState<string | null>(null);
+  const [allianceConflictPending, setAllianceConflictPending] = useState<
+    string | null
+  >(null);
   const [nukeTargetId, setNukeTargetId] = useState(
     nukeState?.eligibleTargets[0]?.id ?? ""
   );
@@ -1526,6 +1577,30 @@ export function CastleManagement({
       await handleInlineResult(result);
     },
     [allianceSupportAttack, allianceSupportDefense]
+  );
+
+  const resolveAllianceConflict = useCallback(
+    async ({
+      keepFortressId,
+      breakFortressId,
+    }: {
+      keepFortressId: string;
+      breakFortressId: string;
+    }) => {
+      const pendingKey = `${keepFortressId}:${breakFortressId}`;
+      setAllianceConflictPending(pendingKey);
+
+      try {
+        const result = await resolveAllianceWarChoiceAction({
+          keepFortressId,
+          breakFortressId,
+        });
+        await handleInlineResult(result);
+      } finally {
+        setAllianceConflictPending(null);
+      }
+    },
+    []
   );
 
   const handleCreateBattalion = useCallback(async () => {
@@ -2483,6 +2558,83 @@ export function CastleManagement({
                 )}
               </div>
 
+              {playerSummary.allianceWarRoom.allianceConflicts.length > 0 ? (
+                <div className={styles.operationGroup}>
+                  <div className={styles.operationTitle}>
+                    <strong>Alliance conflicts</strong>
+                  </div>
+                  {playerSummary.allianceWarRoom.allianceConflicts.map(
+                    (conflict) => {
+                      const keepAttackerKey = `${conflict.attackerFortressId}:${conflict.defenderFortressId}`;
+                      const keepDefenderKey = `${conflict.defenderFortressId}:${conflict.attackerFortressId}`;
+
+                      return (
+                        <div
+                          key={conflict.battlefieldId}
+                          className={styles.operationRow}
+                        >
+                          <div>
+                            <strong>
+                              {conflict.attackerName} vs{" "}
+                              {conflict.defenderName}
+                            </strong>
+                            <small>
+                              {conflict.targetLabel} -{" "}
+                              {conflict.recommendation}
+                            </small>
+                          </div>
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: 6,
+                              flexWrap: "wrap",
+                              justifyContent: "flex-end",
+                            }}
+                          >
+                            <button
+                              type="button"
+                              disabled={
+                                allianceConflictPending !== null
+                              }
+                              onClick={() =>
+                                void resolveAllianceConflict({
+                                  keepFortressId:
+                                    conflict.attackerFortressId,
+                                  breakFortressId:
+                                    conflict.defenderFortressId,
+                                })
+                              }
+                            >
+                              {allianceConflictPending === keepAttackerKey
+                                ? "Keeping..."
+                                : `Keep ${conflict.attackerName}`}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={
+                                allianceConflictPending !== null
+                              }
+                              onClick={() =>
+                                void resolveAllianceConflict({
+                                  keepFortressId:
+                                    conflict.defenderFortressId,
+                                  breakFortressId:
+                                    conflict.attackerFortressId,
+                                })
+                              }
+                            >
+                              {allianceConflictPending === keepDefenderKey
+                                ? "Keeping..."
+                                : `Keep ${conflict.defenderName}`}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
+                  )}
+                </div>
+              ) : null}
+
               {playerSummary.allianceWarRoom.battlefields.length > 0 ? (
                 <div className={styles.operationGroup}>
                   <div className={styles.operationTitle}>
@@ -2490,18 +2642,64 @@ export function CastleManagement({
                   </div>
                   {playerSummary.allianceWarRoom.battlefields.map(
                     (battlefield) => (
-                      <div key={battlefield.id} className={styles.statusRow}>
-                        <span>
-                          {battlefield.allyName}{" "}
-                          {battlefield.alliedSide === "ATTACKER"
-                            ? "attacking"
-                            : "defending"}{" "}
-                          {battlefield.targetLabel}
-                        </span>
-                        <strong>
-                          {battlefield.attackerArmyRemaining.toLocaleString()} /{" "}
-                          {battlefield.defenderArmyRemaining.toLocaleString()}
-                        </strong>
+                      <div
+                        key={battlefield.id}
+                        className={styles.operationRow}
+                      >
+                        <div>
+                          <strong>
+                            {battlefield.allyName}{" "}
+                            {battlefield.alliedSide === "ATTACKER"
+                              ? "attacking"
+                              : battlefield.alliedSide === "DEFENDER"
+                                ? "defending"
+                                : "engaged at"}{" "}
+                            {battlefield.targetLabel}
+                          </strong>
+                          <small>
+                            Total:{" "}
+                            {battlefield.attackerArmyRemaining.toLocaleString()}{" "}
+                            attackers /{" "}
+                            {battlefield.defenderArmyRemaining.toLocaleString()}{" "}
+                            defenders
+                          </small>
+                          {(
+                            [
+                              ["Attackers", battlefield.attackerForces],
+                              ["Defenders", battlefield.defenderForces],
+                            ] as const
+                          ).map(([label, forces]) => (
+                            <div
+                              key={`${battlefield.id}:${label}`}
+                              className={styles.operationGroup}
+                              style={{ marginTop: 8 }}
+                            >
+                              <div className={styles.operationTitle}>
+                                <small>{label}</small>
+                              </div>
+                              {forces.length > 0 ? (
+                                forces.map((force) => (
+                                  <div
+                                    key={`${battlefield.id}:${label}:${force.fortressId}`}
+                                    className={styles.statusRow}
+                                  >
+                                    <span>
+                                      {force.name}
+                                      {force.isAlly ? " (ally)" : ""}
+                                    </span>
+                                    <strong>
+                                      {formatAllianceForce(force)}
+                                    </strong>
+                                  </div>
+                                ))
+                              ) : (
+                                <p className={styles.muted}>
+                                  No committed troops on this side yet.
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )
                   )}

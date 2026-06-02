@@ -24,6 +24,60 @@ type BattlefieldSnapshot = {
 
 type SupportSide = "ATTACKER" | "DEFENDER";
 
+function areHostile(status: string) {
+  return status === "WAR" || status === "WAR_PENDING" || status === "ENEMY";
+}
+
+function relationIncludes(
+  relation: DiplomacySnapshot,
+  fortressOneId: string,
+  fortressTwoId: string
+) {
+  return (
+    (relation.fortressAId === fortressOneId &&
+      relation.fortressBId === fortressTwoId) ||
+    (relation.fortressAId === fortressTwoId &&
+      relation.fortressBId === fortressOneId)
+  );
+}
+
+function isAlliedWith(
+  relations: DiplomacySnapshot[],
+  fortressOneId: string,
+  fortressTwoId: string
+) {
+  return relations.some(
+    (relation) =>
+      relation.status === "ALLIED" &&
+      relationIncludes(relation, fortressOneId, fortressTwoId)
+  );
+}
+
+function hasUnresolvedAllyConflict({
+  relations,
+  reinforcerId,
+  attackerId,
+  defenderId,
+}: {
+  relations: DiplomacySnapshot[];
+  reinforcerId: string;
+  attackerId: string | null;
+  defenderId: string | null;
+}) {
+  if (!attackerId || !defenderId) {
+    return false;
+  }
+
+  return (
+    isAlliedWith(relations, reinforcerId, attackerId) &&
+    isAlliedWith(relations, reinforcerId, defenderId) &&
+    relations.some(
+      (relation) =>
+        areHostile(relation.status) && relationIncludes(relation, attackerId, defenderId)
+    )
+  );
+}
+
 export async function processAllianceReinforcements(args: {
   db: PrismaClient;
   cycleId: string;
@@ -93,6 +147,17 @@ export async function processAllianceReinforcements(args: {
 
       for (const opportunity of opportunities) {
         if (reinforcesCreated >= 5) break;
+
+        if (
+          hasUnresolvedAllyConflict({
+            relations: diplomacyRelations,
+            reinforcerId: opportunity.reinforcerId,
+            attackerId,
+            defenderId,
+          })
+        ) {
+          continue;
+        }
 
         const created = await createAllianceReinforcement({
           db,

@@ -249,7 +249,8 @@ The game is now a castle-economy and battlefield-control loop:
 - Battalions do not heal passively; refill commissioned battalions by assigning recruiters and training new members. Full battalions and the max army ceiling stop new recruits until more room is created.
 - Idle battalions roam owned tiles on the map until their job triggers: guards patrol borders, attackers launch from war fronts, allies reinforce battlefields, and reserves stay near the castle core.
 - new troops assigned to a remote battalion travel from the castle as visible reinforcement marches before they become usable
-- ALLIANCE-mode battalions reinforce allied defensive and attacking battlefields through visible incoming reinforcement marches, controlled from the Castle War Room
+- ALLIANCE-mode battalions reinforce allied defensive and attacking battlefields through visible incoming reinforcement marches, controlled from the Castle War Room; if two allies fight each other, War Room pauses support until you choose which alliance to keep, and the abandoned alliance breaks to neutral without betrayal penalties
+- War Room allied battlefield cards show each side's committed and incoming troops, so commanders can see how much allied army is already involved
 - marching armies, remote battalion reinforcements, War Front launches, allied support, and convoy map legs now use existing roads to reduce movement ETA; the convoy six-hour minimum and PvP preparation delay still stay fixed
 - roads grow from the actual route units travel, including remote battalion reinforcement, battlefield support, returning recalls, and delivered convoys
 - Season 4 territorial war uses standing campaign orders: pressure workers and committed army build a border siege, then a 12-hour warning opens before automatic combat

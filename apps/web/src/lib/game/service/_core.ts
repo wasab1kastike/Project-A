@@ -2364,6 +2364,155 @@ export async function betrayAlliance({
   }, SERVICE_TRANSACTION_OPTIONS);
 }
 
+function isAllianceWarChoiceStatus(status: DiplomacyRelationStatus) {
+  return (
+    status === DiplomacyRelationStatus.WAR ||
+    status === DiplomacyRelationStatus.WAR_PENDING ||
+    status === DiplomacyRelationStatus.ENEMY
+  );
+}
+
+export async function resolveAllianceWarChoice({
+  userId,
+  keepFortressId,
+  breakFortressId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  keepFortressId: string;
+  breakFortressId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("Politics can only change during gameplay.");
+    }
+
+    assertSeasonFourFeatureCycle(cycle);
+
+    const actor = await getActivePlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      userId,
+    });
+
+    if (keepFortressId === breakFortressId) {
+      throw new GameError("Choose two different allied fortresses.");
+    }
+
+    const [keptAlly, abandonedAlly] = await Promise.all([
+      getTargetPlayerFortressForPolitics({
+        tx,
+        cycleId: cycle.id,
+        targetFortressId: keepFortressId,
+      }),
+      getTargetPlayerFortressForPolitics({
+        tx,
+        cycleId: cycle.id,
+        targetFortressId: breakFortressId,
+      }),
+    ]);
+
+    const keptPair = getCanonicalDiplomacyPair(actor.id, keptAlly.id);
+    const abandonedPair = getCanonicalDiplomacyPair(actor.id, abandonedAlly.id);
+    const conflictPair = getCanonicalDiplomacyPair(keptAlly.id, abandonedAlly.id);
+    const [keptRelation, abandonedRelation, conflictRelation] =
+      await Promise.all([
+        tx.diplomacyRelation.findUnique({
+          where: {
+            cycleId_fortressAId_fortressBId: {
+              cycleId: cycle.id,
+              ...keptPair,
+            },
+          },
+        }),
+        tx.diplomacyRelation.findUnique({
+          where: {
+            cycleId_fortressAId_fortressBId: {
+              cycleId: cycle.id,
+              ...abandonedPair,
+            },
+          },
+        }),
+        tx.diplomacyRelation.findUnique({
+          where: {
+            cycleId_fortressAId_fortressBId: {
+              cycleId: cycle.id,
+              ...conflictPair,
+            },
+          },
+        }),
+      ]);
+
+    if (!keptRelation || keptRelation.status !== DiplomacyRelationStatus.ALLIED) {
+      throw new GameError("You must still be allied with the side you keep.");
+    }
+
+    if (
+      !abandonedRelation ||
+      abandonedRelation.status !== DiplomacyRelationStatus.ALLIED
+    ) {
+      throw new GameError("You must still be allied with the side you break.");
+    }
+
+    const conflictStatus = getEffectiveDiplomacyStatus({
+      relation: conflictRelation,
+      now,
+    });
+
+    if (!isAllianceWarChoiceStatus(conflictStatus)) {
+      throw new GameError("Those allies are not in a hostile conflict.");
+    }
+
+    return tx.diplomacyRelation.update({
+      where: { id: abandonedRelation.id },
+      data: {
+        status: DiplomacyRelationStatus.NEUTRAL,
+        allianceProposedById: null,
+        allianceProposedAt: null,
+        allianceTrustTier: 0,
+        allianceEscrowGoldEach: 0,
+        allianceEscrowFoodEach: 0,
+        trustUpgradeProposedById: null,
+        trustUpgradeProposedAt: null,
+        trustUpgradeTier: null,
+        warDeclaredById: null,
+        warDeclaredAt: null,
+        warStartsAt: null,
+        peaceProposedById: null,
+        peaceProposedAt: null,
+        peaceLockedUntil: null,
+        betrayedById: null,
+        betrayedAt: null,
+        casusBelliFortressId: null,
+        casusBelliExpiresAt: null,
+        collateralGold: 0,
+        collateralFood: 0,
+        collateralArmy: 0,
+        collateralDebtFortressId: null,
+        collateralDebtGold: 0,
+        collateralDebtFood: 0,
+        collateralDebtArmy: 0,
+        collateralDebtRecordedAt: null,
+        allianceOfferGold: 0,
+        allianceOfferFood: 0,
+        allianceOfferArmy: 0,
+        allianceOfferTileId: null,
+        allianceOfferDirection: null,
+        peaceReparationGold: 0,
+        peaceReparationFood: 0,
+        peaceReparationArmy: 0,
+        peaceReparationTileId: null,
+        peaceReparationFromId: null,
+      },
+    });
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
 export async function declareWar({
   userId,
   targetFortressId,
