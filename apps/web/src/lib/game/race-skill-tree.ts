@@ -5,6 +5,7 @@ export const SKILL_NODES_PER_PATH = 8;
 export const SKILL_POINT_FIRST_CASTLE_LEVEL = 3;
 export const SKILL_POINT_CASTLE_LEVEL_INTERVAL = 2;
 export const SKILL_POINT_TILE_INTERVAL = 5;
+export const SKILL_POINT_RESPEC_GOLD_COST = 25_000;
 
 export type RaceSkillPath = {
   key: string;

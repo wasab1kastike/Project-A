@@ -6,6 +6,7 @@ import {
   SKILL_POINT_CASTLE_LEVEL_INTERVAL,
   SKILL_POINT_FIRST_CASTLE_LEVEL,
   SKILL_POINT_TILE_INTERVAL,
+  SKILL_POINT_RESPEC_GOLD_COST,
   getPurchasedNodeRewards,
   getRaceSkillTree,
   getSkillNode,
@@ -135,6 +136,47 @@ export function assertSkillNodeCanBePurchased({
   return node;
 }
 
+export function assertSkillNodeCanBeReset({
+  race,
+  nodeKey,
+  purchases,
+  gold,
+}: {
+  race: FortressRace;
+  nodeKey: string;
+  purchases: Array<RaceSkillPurchaseSummary>;
+  gold: number;
+}) {
+  const node = getSkillNode(race, nodeKey);
+
+  if (!node) {
+    throw new GameError("That skill node is not available for your race.");
+  }
+
+  const path = getSkillPathForNode(race, nodeKey);
+  const purchased = getPurchasedNodeKeySet(purchases);
+
+  if (!purchased.has(nodeKey)) {
+    throw new GameError("That skill node is not unlocked.");
+  }
+
+  if (gold < SKILL_POINT_RESPEC_GOLD_COST) {
+    throw new GameError(
+      `Resetting one skill point costs ${SKILL_POINT_RESPEC_GOLD_COST.toLocaleString("en-US")} gold.`
+    );
+  }
+
+  const laterNodePurchased = path?.nodes.some(
+    (candidate) => candidate.level > node.level && purchased.has(candidate.key)
+  );
+
+  if (laterNodePurchased) {
+    throw new GameError("Reset higher nodes in this branch first.");
+  }
+
+  return node;
+}
+
 export async function purchaseSkillNode({
   userId,
   fortressId,
@@ -186,6 +228,70 @@ export async function purchaseSkillNode({
 
     await tx.raceSkillPurchase.create({
       data: { fortressId, nodeKey },
+    });
+
+    return { nodeKey, rewards: node.rewards };
+  });
+}
+
+export async function resetSkillNode({
+  userId,
+  fortressId,
+  nodeKey,
+}: {
+  userId: string;
+  fortressId: string;
+  nodeKey: string;
+}) {
+  return prisma.$transaction(async (tx) => {
+    const fortress = await tx.fortress.findUnique({
+      where: { id: fortressId },
+      select: {
+        id: true,
+        ownerId: true,
+        race: true,
+        gold: true,
+      },
+    });
+
+    if (!fortress || fortress.ownerId !== userId) {
+      throw new GameError("You do not control this fortress.");
+    }
+
+    if (!fortress.race || !isFortressRace(fortress.race)) {
+      throw new GameError("Choose a race before respeccing a skill tree.");
+    }
+
+    const purchases = await tx.raceSkillPurchase.findMany({
+      where: { fortressId },
+      select: { nodeKey: true },
+    });
+
+    const node = assertSkillNodeCanBeReset({
+      race: fortress.race,
+      nodeKey,
+      purchases,
+      gold: fortress.gold,
+    });
+
+    const payment = await tx.fortress.updateMany({
+      where: {
+        id: fortress.id,
+        gold: { gte: SKILL_POINT_RESPEC_GOLD_COST },
+      },
+      data: {
+        gold: { decrement: SKILL_POINT_RESPEC_GOLD_COST },
+      },
+    });
+
+    if (payment.count !== 1) {
+      throw new GameError(
+        `Resetting one skill point costs ${SKILL_POINT_RESPEC_GOLD_COST.toLocaleString("en-US")} gold.`
+      );
+    }
+
+    await tx.raceSkillPurchase.deleteMany({
+      where: { fortressId, nodeKey },
     });
 
     return { nodeKey, rewards: node.rewards };

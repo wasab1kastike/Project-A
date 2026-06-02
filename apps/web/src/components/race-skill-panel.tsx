@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   MAX_SKILL_POINTS,
+  SKILL_POINT_RESPEC_GOLD_COST,
   getRaceSkillTree,
   type RaceSkillNode,
 } from "@/lib/game/race-skill-tree";
@@ -16,6 +17,7 @@ type SkillState = {
   totalPurchased: number;
   playerLevel: number;
   tileCount: number;
+  gold: number;
 };
 
 type NodeState = "active" | "unlockable" | "locked";
@@ -24,19 +26,19 @@ function getNodeState({
   node,
   purchasedNodeKeys,
   availablePoints,
-  purchasePending,
+  actionPending,
 }: {
   node: RaceSkillNode;
   purchasedNodeKeys: Set<string>;
   availablePoints: number;
-  purchasePending: string | null;
+  actionPending: boolean;
 }): NodeState {
   if (purchasedNodeKeys.has(node.key)) return "active";
   const previousKey = `${node.pathKey}-${node.level - 1}`;
   if (
     (node.level === 1 || purchasedNodeKeys.has(previousKey)) &&
     availablePoints > 0 &&
-    purchasePending === null
+    !actionPending
   ) {
     return "unlockable";
   }
@@ -46,11 +48,14 @@ function getNodeState({
 export function RaceSkillPanel({
   skillState,
   onPurchase,
+  onReset,
 }: {
   skillState: SkillState | null;
   onPurchase?: (nodeKey: string) => Promise<void>;
+  onReset?: (nodeKey: string) => Promise<void>;
 }) {
   const [purchasePending, setPurchasePending] = useState<string | null>(null);
+  const [resetPending, setResetPending] = useState<string | null>(null);
 
   if (!skillState) {
     return (
@@ -68,6 +73,8 @@ export function RaceSkillPanel({
     Math.min(MAX_SKILL_POINTS, earnedPoints) - totalPurchased
   );
   const capReached = totalPurchased >= MAX_SKILL_POINTS;
+  const actionPending = purchasePending !== null || resetPending !== null;
+  const canAffordReset = skillState.gold >= SKILL_POINT_RESPEC_GOLD_COST;
 
   return (
     <section className={styles.panel} aria-label="Race skill tree">
@@ -112,10 +119,16 @@ export function RaceSkillPanel({
                     node,
                     purchasedNodeKeys,
                     availablePoints,
-                    purchasePending,
+                    actionPending,
                   });
                   const isPending = purchasePending === node.key;
+                  const isResetPending = resetPending === node.key;
                   const isNextNode = nodeState === "unlockable";
+                  const nextKey = `${node.pathKey}-${node.level + 1}`;
+                  const isResettable =
+                    nodeState === "active" &&
+                    !purchasedNodeKeys.has(nextKey) &&
+                    !actionPending;
                   const canPurchase =
                     nodeState === "unlockable" && !isMaxed && !isPending;
                   const nodeClassName = [
@@ -173,9 +186,37 @@ export function RaceSkillPanel({
                             Unlock
                           </button>
                         ) : null}
+                        {isResettable ? (
+                          <button
+                            className={styles.resetButton}
+                            type="button"
+                            disabled={!canAffordReset}
+                            title={
+                              canAffordReset
+                                ? `Reset this point for ${SKILL_POINT_RESPEC_GOLD_COST.toLocaleString("en-US")} gold`
+                                : `Needs ${SKILL_POINT_RESPEC_GOLD_COST.toLocaleString("en-US")} gold`
+                            }
+                            onClick={async () => {
+                              if (actionPending || !canAffordReset) return;
+                              setResetPending(node.key);
+                              try {
+                                await onReset?.(node.key);
+                              } finally {
+                                setResetPending(null);
+                              }
+                            }}
+                          >
+                            Reset {SKILL_POINT_RESPEC_GOLD_COST.toLocaleString("en-US")}g
+                          </button>
+                        ) : null}
                         {isPending && isNextNode ? (
                           <span className={styles.pendingLabel}>
                             Unlocking...
+                          </span>
+                        ) : null}
+                        {isResetPending ? (
+                          <span className={styles.pendingLabel}>
+                            Resetting...
                           </span>
                         ) : null}
                       </div>

@@ -248,6 +248,7 @@ Each race has three 8-node skill paths: Economy, Territory, and Military. Player
 - Territory paths improve pressure, tile defense, and neutral claim thresholds.
 - Military paths improve recruitment, battalion slots, battalion size, and promotion costs.
 - Nodes 4 and 8 are the main build-changing unlocks; the nodes between them are smaller ramp bonuses.
+- Players can respec one point from the highest unlocked node in a branch for 25,000 gold.
 
 ---
 

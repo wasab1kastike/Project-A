@@ -37,6 +37,7 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
       "Farther neutral expansion now needs more pressure and unsupported distant pressure decays faster, so the frontier has to earn its dramatic little march.",
       "Race skill trees are now role-focused: Economy, Territory, and Military paths use smaller ramp nodes with major unlocks at nodes 4 and 8.",
       "Skill points now arrive later and slower: castle points start at level 3, then every 2 castle levels, and territory points require 5 owned normal tiles.",
+      "Commanders can now respec one skill point from the end of a branch for 25,000 gold.",
       "Economy skills can add expansion priority slots, reduce army upkeep, increase wagon capacity, improve trade profit, and unlock more active wagons.",
       "Military skills can add battalion slots, larger battalions, faster recruitment, and cheaper promotions.",
       "Castle Economy now has Trade Wagons: wagon gold+food capacity starts at 100 and upgrades through the building ladder up to 20,000. Fortresses can run 3 active outbound wagons by default.",

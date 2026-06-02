@@ -46,6 +46,7 @@ import {
   SKILL_NODES_PER_PATH,
   SKILL_POINT_CASTLE_LEVEL_INTERVAL,
   SKILL_POINT_FIRST_CASTLE_LEVEL,
+  SKILL_POINT_RESPEC_GOLD_COST,
   SKILL_POINT_TILE_INTERVAL,
 } from "@/lib/game/race-skill-tree";
 import {
@@ -751,6 +752,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         bullets: [
           `Earn +1 skill point at castle level ${SKILL_POINT_FIRST_CASTLE_LEVEL}, then every ${SKILL_POINT_CASTLE_LEVEL_INTERVAL} castle levels.`,
           `Earn +1 skill point per ${SKILL_POINT_TILE_INTERVAL} owned normal tiles.`,
+          `Respec one point from the highest unlocked node in a branch for ${SKILL_POINT_RESPEC_GOLD_COST.toLocaleString("en-US")} gold.`,
           "Economy improves income, upkeep, expansion slots, and trade logistics; Territory improves pressure and tile control; Military improves battalions and recruitment.",
           "Race-specific behavior should be intentional: read the path before spending.",
         ],
