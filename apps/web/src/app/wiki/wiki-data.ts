@@ -16,7 +16,6 @@ import {
 import {
   ABSOLUTE_MAX_BATTALIONS,
   BATTALION_COMMISSION_COST,
-  BATTALION_EXPAND_COST_PER_50,
   DEFAULT_BATTALION_MAX_SIZE,
   EXTRA_SLOT_COSTS,
   MAX_NATURAL_SLOTS,
@@ -479,7 +478,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
           `Inspired morale starts at ${MORALE_THRESHOLDS.INSPIRED}.`,
           `Shaken morale starts below ${MORALE_THRESHOLDS.STEADY}; broken is below ${MORALE_THRESHOLDS.SHAKEN}.`,
           `Extra battalion slots cost ${EXTRA_SLOT_COSTS.join(", ")} gold.`,
-          `Capacity expansion uses ${BATTALION_EXPAND_COST_PER_50} gold steps.`,
+          "Battalion max-size changes are free within tier caps.",
         ],
       },
     ],

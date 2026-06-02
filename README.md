@@ -236,6 +236,7 @@ The game is now a castle-economy and battlefield-control loop:
 - the skill-tree role revamp resets existing race skill purchases so players can rebuild around the new economy, pressure, trade logistics, and battalion bonuses
 - miners produce gold, farmers produce food, and recruiters process queued army orders instead of passively creating army
 - recruiting army costs 1 gold per unit up front; queued units complete over ticks based on assigned recruiters and race bonuses
+- battalion max-size capacity changes are free within the battalion tier cap
 - active army, not queued army, consumes food upkeep at 0.01 food per unit per tick; if upkeep cannot be paid, food falls to zero and active army loses 2% that tick
 - neutral tiles are acquired automatically through an ordered pressure-priority queue until the fortress reaches its tile capacity; the first 8 normal tiles are free to maintain after claiming, each pressure worker supports 2 more before skill and race bonuses, and excess owned tiles decay back toward neutral when capacity drops
 - the Castle Diplomacy tab supports bilateral alliances with fixed trust escrow tiers plus optional break collateral; betrayal immediately begins war, pays what it can, and records unpaid collateral as debt

@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { applyFieldPromotion, applyTrainingXp } from "./army-xp";
 import { BattalionTier, getBattalionSlots, type Battalion } from "./battalion-types";
-import { processRecruitmentTick } from "./recruitment";
+import { expandBattalion, processRecruitmentTick } from "./recruitment";
 import { calculateUpkeep } from "./upkeep";
 
 function battalion(overrides: Partial<Battalion> = {}): Battalion {
@@ -64,6 +64,17 @@ test("full battalions do not auto-create new battalions", () => {
   assert.equal(result.battalionCreated, false);
   assert.equal(result.goldSpent, 0);
   assert.equal(result.unitsWasted, 300);
+});
+
+test("battalion max-size expansion is free capacity only", () => {
+  const result = expandBattalion({
+    battalion: battalion({ maxSize: 500 }),
+    maxBattalionSize: 5_000,
+  });
+
+  assert.ok("battalion" in result);
+  assert.equal(result.battalion.maxSize, 550);
+  assert.equal(result.goldCost, 0);
 });
 
 test("max army size caps new recruitment without trimming existing battalions", () => {

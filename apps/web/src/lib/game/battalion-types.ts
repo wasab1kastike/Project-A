@@ -296,9 +296,6 @@ export const TIER_MAX_SIZES: Record<BattalionTier, number> = {
 /** Gold cost to commission a new battalion (on top of filling it). */
 export const BATTALION_COMMISSION_COST = 2_000;
 
-/** Gold cost to expand a battalion's maxSize by 10% of current tier max. */
-export const BATTALION_EXPAND_COST_PER_50 = 400;
-
 /** Absolute maximum battalion size (Elite tier). */
 export const MAX_BATTALION_SIZE = TIER_MAX_SIZES[BattalionTier.ELITE];
 
