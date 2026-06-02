@@ -408,7 +408,7 @@ export async function processBattalionGuard(args: {
   ownedTilesByFortress: Map<string, string[]>;
   fortressPositionsById: Map<string, FortressPosition>;
 }): Promise<void> {
-  const { ctx, guardPercentByFortress, ownedTilesByFortress, fortressPositionsById } = args;
+  const { ctx, guardPercentByFortress, ownedTilesByFortress } = args;
 
   // Load battalions.
   const allBattalions = await ctx.db.battalion.findMany({
@@ -483,36 +483,9 @@ export async function processBattalionGuard(args: {
       });
     }
 
-    // Create visible marching units for new assignments.
-    for (const assignment of result.assignments) {
-      if (assignment.unitsAssigned <= 0) continue;
-      if (!ownedTiles.includes(assignment.tileId)) continue;
-
-      const fortress = fortressPositionsById.get(fortressId);
-      const arrivesAt = fortress
-        ? await getBattalionReinforcementArrival({
-            db: ctx.db,
-            cycleId: ctx.cycleId,
-            now: ctx.now,
-            fortress,
-            tileId: assignment.tileId,
-          })
-        : new Date(ctx.now.getTime() + 60_000);
-
-      await ctx.db.attackUnit.create({
-        data: {
-          cycleId: ctx.cycleId,
-          attackerFortressId: fortressId,
-          targetFortressId: fortressId, // self-target for reinforcement
-          fortifyTargetTileId: assignment.tileId,
-          armyAmount: assignment.unitsAssigned,
-          launchedAt: ctx.now,
-          arrivesAt,
-          returnOriginMapX: fortress?.mapX,
-          returnOriginMapY: fortress?.mapY,
-        },
-      });
-    }
+    // GUARD battalions patrol as persistent battalions. Do not create
+    // fortify attack units here; those resolve into legacy garrisons and make
+    // a single battalion appear split across several map orders.
   }
 }
 // ── Combat Casualty Reconciliation ───────────────────────────────────────────
