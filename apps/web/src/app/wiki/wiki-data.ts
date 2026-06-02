@@ -48,6 +48,16 @@ import {
   SKILL_POINT_FIRST_CASTLE_LEVEL,
   SKILL_POINT_TILE_INTERVAL,
 } from "@/lib/game/race-skill-tree";
+import {
+  NUKE_ARMY_DAMAGE_CAP,
+  NUKE_BIDDING_END_HOUR,
+  NUKE_BIDDING_START_HOUR,
+  NUKE_BIDDING_TIMEZONE,
+  NUKE_COMPONENT_KINDS,
+  NUKE_LAUNCH_GOLD_COST,
+  getNukeBidResourceLabel,
+  getNukeComponentLabel,
+} from "@/lib/game/nukes";
 
 export type WikiTable = {
   headers: readonly string[];
@@ -162,6 +172,13 @@ const convoyFlow: readonly WikiDiagramStep[] = [
   { label: "Accept", detail: "Cargo leaves sender immediately." },
   { label: "Travel", detail: "Minimum 6 hours plus route distance." },
   { label: "Arrive", detail: "Delivered value awards shared trade points." },
+];
+
+const nukeFlow: readonly WikiDiagramStep[] = [
+  { label: "Bid", detail: "Commit resources in Castle > Nukes during the daily component window." },
+  { label: "Resolve", detail: "The highest bid for each component wins one part; tied bids go to the earlier bid." },
+  { label: "Stockpile", detail: "Hold or trade Fuel, Rocket, and Wrath of A until you have one of each." },
+  { label: "Launch", detail: `Pick another real player fortress and pay ${NUKE_LAUNCH_GOLD_COST.toLocaleString("en-US")} gold.` },
 ];
 
 const campaignFlow: readonly WikiDiagramStep[] = [
@@ -609,9 +626,109 @@ export const WIKI_PAGES: readonly WikiPage[] = [
     ],
   },
   {
+    slug: "nukes",
+    navLabel: "Nukes",
+    navIcon: "09",
+    title: "Nukes",
+    subtitle:
+      "Nukes are the Season 4 superweapon path: win rare components, assemble one complete payload, then ruin one rival castle's afternoon.",
+    heroImage: "/assets/nukes/nuke-ready.png",
+    highlights: [
+      `Bidding opens daily at ${NUKE_BIDDING_START_HOUR}:00 and closes the next day at ${NUKE_BIDDING_END_HOUR}:00 ${NUKE_BIDDING_TIMEZONE}.`,
+      "You need one Fuel, one Rocket, and one Wrath of A to launch.",
+      `A launch also costs ${NUKE_LAUNCH_GOLD_COST.toLocaleString("en-US")} gold.`,
+    ],
+    sections: [
+      {
+        id: "what-it-is",
+        eyebrow: "Purpose",
+        title: "What a nuke is",
+        body:
+          "A nuke is a late-season strategic strike against another real player fortress. It does not capture land, create a battlefield, or target Home of A; it directly damages the chosen fortress when launched.",
+        cards: [
+          {
+            title: "Fuel",
+            image: "/assets/nukes/fuel.png",
+            body: "The engine part. Won through the highest gold bid in a resolved nuke round.",
+          },
+          {
+            title: "Rocket",
+            image: "/assets/nukes/rocket.png",
+            body: "The delivery part. Won through the highest food bid in a resolved nuke round.",
+          },
+          {
+            title: "Wrath of A",
+            image: "/assets/nukes/wrath-of-a.png",
+            body: "The questionable blessing. Won through the highest idle-army bid in a resolved nuke round.",
+          },
+        ],
+      },
+      {
+        id: "how-to-build",
+        eyebrow: "Assembly",
+        title: "How to get one",
+        diagram: nukeFlow,
+        bullets: [
+          "Open Castle > Nukes to see the current round, your component inventory, your own bids, and launch controls.",
+          "Each bid is private while the round is live; other players cannot inspect your live bid amounts.",
+          "Bids are spent immediately, including losing bids.",
+          "Components stockpile without a one-per-kind cap, so extra parts stay in inventory for later launches or trades.",
+        ],
+      },
+      {
+        id: "component-bids",
+        eyebrow: "Bidding",
+        title: "Which resource each part uses",
+        table: {
+          headers: ["Component", "Bid resource", "Winner"],
+          rows: NUKE_COMPONENT_KINDS.map((kind) => [
+            getNukeComponentLabel(kind),
+            getNukeBidResourceLabel(kind),
+            "Highest bid; earliest bid wins ties.",
+          ]),
+        },
+      },
+      {
+        id: "launching",
+        eyebrow: "Launch",
+        title: "How to use it",
+        bullets: [
+          "You can launch only during active Season 4 gameplay.",
+          `Launching consumes one ${NUKE_COMPONENT_KINDS.map(getNukeComponentLabel).join(", one ")}, and ${NUKE_LAUNCH_GOLD_COST.toLocaleString("en-US")} gold.`,
+          "The target must be another real player fortress in the current cycle.",
+          "You cannot nuke yourself, NPCs, Home of A, or an empty/non-player target.",
+          "Launches are announced in global chat so everyone knows who just got scientifically inconvenienced.",
+        ],
+      },
+      {
+        id: "damage",
+        eyebrow: "Effect",
+        title: "What it does",
+        bullets: [
+          "The target fortress loses 2 castle levels, floored at level 0.",
+          `The target also loses half of active persisted army, capped at ${NUKE_ARMY_DAMAGE_CAP.toLocaleString("en-US")} army removed.`,
+          "Army loss is spread across idle army, garrisons, active orders, attack units, battlefields, battalions, and outbound convoy army.",
+          "Incomplete castle upgrade projects and specialization choices above the new displayed level are cleared.",
+          "A nuke does not award points directly and does not transfer ownership of tiles.",
+        ],
+      },
+      {
+        id: "trading",
+        eyebrow: "Trade",
+        title: "Trading components",
+        bullets: [
+          "Fuel, Rocket, and Wrath of A can be offered or requested in normal trade offers.",
+          "Components travel by convoy and settle only when the convoy arrives.",
+          "Nuke components do not count against the convoy's gold and food capacity.",
+          "If relations turn hostile before a convoy arrives, component cargo follows the same seizure risk as other convoy cargo.",
+        ],
+      },
+    ],
+  },
+  {
     slug: "abilities",
     navLabel: "Skills",
-    navIcon: "09",
+    navIcon: "10",
     title: "Skills",
     subtitle:
       "Season 4 uses race skill trees instead of legacy active-ability timing as the main race progression layer.",
@@ -651,7 +768,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
   {
     slug: "legacy",
     navLabel: "Legacy",
-    navIcon: "10",
+    navIcon: "11",
     title: "Legacy Systems",
     subtitle:
       "These systems may appear in old reports or code names, but they are not live Season 4 map targets.",
