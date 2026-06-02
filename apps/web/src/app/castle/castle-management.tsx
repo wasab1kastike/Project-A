@@ -714,6 +714,37 @@ const NUKE_COMPONENTS = [
     sprite: "/assets/nukes/wrath-of-a.png",
   },
 ] as const;
+const NUKE_RULES = [
+  {
+    label: "Bids",
+    detail: "Fuel uses gold, Rocket uses food, and Wrath of A uses idle army.",
+  },
+  {
+    label: "Winner",
+    detail: "Highest private bid wins; ties go to the earliest bid.",
+  },
+  {
+    label: "Spend",
+    detail: "All bids are spent immediately, even losing bids.",
+  },
+  {
+    label: "Parts",
+    detail: "Parts stockpile and can be traded by convoy.",
+  },
+  {
+    label: "Launch",
+    detail: "Launch costs 250,000 gold plus one of each part.",
+  },
+  {
+    label: "Targets",
+    detail: "Targets must be another real player fortress.",
+  },
+  {
+    label: "Hit",
+    detail:
+      "A hit drops 2 castle levels and removes half active army, capped at 100,000.",
+  },
+] as const;
 const CASTLE_TABS = [
   { key: "OVERVIEW", label: "Overview" },
   { key: "ECONOMY", label: "Economy" },
@@ -3092,6 +3123,21 @@ export function CastleManagement({
                     </small>
                   </div>
                 </div>
+
+                <section className={styles.nukeRules}>
+                  <div className={styles.panelHeader}>
+                    <span>How nukes work</span>
+                    <strong>rules summary</strong>
+                  </div>
+                  <ul className={styles.nukeRulesList}>
+                    {NUKE_RULES.map((rule) => (
+                      <li key={rule.label}>
+                        <strong>{rule.label}</strong>
+                        <span>{rule.detail}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
 
                 <section className={styles.nukeStorage}>
                   <div className={styles.panelHeader}>

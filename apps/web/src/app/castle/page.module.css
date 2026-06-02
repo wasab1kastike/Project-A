@@ -501,6 +501,50 @@
   object-fit: contain;
 }
 
+.nukeRules {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(250, 204, 21, 0.16);
+  border-radius: 8px;
+  background: rgba(3, 10, 16, 0.38);
+}
+
+.nukeRulesList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nukeRulesList li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 6px;
+  background: rgba(2, 8, 13, 0.32);
+  line-height: 1.35;
+}
+
+.nukeRulesList strong {
+  color: #ffe1a1;
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+}
+
+.nukeRulesList span {
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
 .nukeStorage,
 .nukeMarket,
 .nukeLaunchPanel {
@@ -1049,6 +1093,14 @@
 
   .nukeStatusStrip {
     align-items: flex-start;
+  }
+
+  .nukeRulesList {
+    grid-template-columns: 1fr;
+  }
+
+  .nukeRulesList li {
+    grid-template-columns: 1fr;
   }
 
   .nukeStorageRack,
