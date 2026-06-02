@@ -3052,6 +3052,141 @@ test("season four trade wagon capacity follows the trade building level", async 
   assert.equal(accepted.convoyLegs.length, 2);
 });
 
+test("season four active outbound trade wagons are capped and skill-expandable", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const sender = await createUser(prisma, "wagon-limit-sender@example.com");
+  const receiver = await createUser(prisma, "wagon-limit-receiver@example.com");
+  const inboundSender = await createUser(prisma, "wagon-limit-inbound@example.com");
+  const cycle = await seedActiveCommunityWishCycle(
+    prisma,
+    [
+      { userId: sender.id, commanderName: "Limit Alpha", fortressName: "Three Carts", points: 0 },
+      { userId: receiver.id, commanderName: "Limit Beta", fortressName: "Cart Receiver", points: 0 },
+      { userId: inboundSender.id, commanderName: "Limit Gamma", fortressName: "Inbound Cart", points: 0 },
+    ],
+    new Date("2026-04-22T12:00:00.000Z")
+  );
+  await markSeasonFourCycle(prisma, cycle.id);
+
+  const [senderFortress, receiverFortress, inboundFortress] = await Promise.all([
+    prisma.fortress.update({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: sender.id } },
+      data: { gold: 5_000, race: "DWARFS" },
+    }),
+    prisma.fortress.update({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: receiver.id } },
+      data: { gold: 5_000 },
+    }),
+    prisma.fortress.update({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: inboundSender.id } },
+      data: { gold: 5_000 },
+    }),
+  ]);
+
+  for (let index = 0; index < 3; index += 1) {
+    const offer = await createTradeOffer({
+      userId: sender.id,
+      targetFortressId: receiverFortress.id,
+      offeredGold: 100,
+      offeredFood: 0,
+      offeredArmy: 0,
+      requestedGold: 0,
+      requestedFood: 0,
+      requestedArmy: 0,
+      now: new Date(`2026-04-20T12:0${index}:00.000Z`),
+      db: prisma,
+    });
+    await acceptTradeOffer({
+      userId: receiver.id,
+      tradeOfferId: offer.id,
+      now: new Date(`2026-04-20T12:0${index}:10.000Z`),
+      db: prisma,
+    });
+  }
+
+  const inboundOffer = await createTradeOffer({
+    userId: inboundSender.id,
+    targetFortressId: senderFortress.id,
+    offeredGold: 100,
+    offeredFood: 0,
+    offeredArmy: 0,
+    requestedGold: 0,
+    requestedFood: 0,
+    requestedArmy: 0,
+    now: new Date("2026-04-20T12:03:00.000Z"),
+    db: prisma,
+  });
+  await acceptTradeOffer({
+    userId: sender.id,
+    tradeOfferId: inboundOffer.id,
+    now: new Date("2026-04-20T12:03:10.000Z"),
+    db: prisma,
+  });
+
+  const fourthOffer = await createTradeOffer({
+    userId: sender.id,
+    targetFortressId: receiverFortress.id,
+    offeredGold: 100,
+    offeredFood: 0,
+    offeredArmy: 0,
+    requestedGold: 0,
+    requestedFood: 0,
+    requestedArmy: 0,
+    now: new Date("2026-04-20T12:04:00.000Z"),
+    db: prisma,
+  });
+  await assert.rejects(
+    () =>
+      acceptTradeOffer({
+        userId: receiver.id,
+        tradeOfferId: fourthOffer.id,
+        now: new Date("2026-04-20T12:04:10.000Z"),
+        db: prisma,
+      }),
+    /3 active outbound wagons/
+  );
+
+  await prisma.raceSkillPurchase.create({
+    data: {
+      fortressId: senderFortress.id,
+      nodeKey: "economy-8",
+    },
+  });
+  const accepted = await acceptTradeOffer({
+    userId: receiver.id,
+    tradeOfferId: fourthOffer.id,
+    now: new Date("2026-04-20T12:04:20.000Z"),
+    db: prisma,
+  });
+
+  assert.equal(accepted.convoyLegs.length, 1);
+  assert.equal(
+    await prisma.convoyLeg.count({
+      where: {
+        cycleId: cycle.id,
+        fromFortressId: senderFortress.id,
+        status: ConvoyLegStatus.IN_TRANSIT,
+      },
+    }),
+    4
+  );
+  assert.equal(
+    await prisma.convoyLeg.count({
+      where: {
+        cycleId: cycle.id,
+        fromFortressId: inboundFortress.id,
+        status: ConvoyLegStatus.IN_TRANSIT,
+      },
+    }),
+    1
+  );
+});
+
 test("season four trade offers can cancel or reject and hostile transit is seized", async (context) => {
   const prisma = getPrismaOrSkip(context);
 

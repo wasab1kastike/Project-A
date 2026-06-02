@@ -135,7 +135,9 @@ import { validateTileDeedAllowed } from "../tile-deeds";
 import { getCampaignStartBlockedReason } from "../campaigns";
 import {
   assertTradeCargoWithinWagonLimit,
+  assertActiveTradeWagonLimit,
   calculateTradeCargoValue,
+  getActiveTradeWagonLimit,
   getTradeBlockedReason,
   getTradeNukeComponents,
   getTradeOfferExpiresAt,
@@ -159,6 +161,18 @@ import { getDoctrineChangeBlockedReason } from "../doctrines";
 import { getRoadAdjustedConvoyArrival } from "../road-travel";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
+
+function getFortressSkillModifiers(fortress: {
+  race: FortressRace | null;
+  skillPurchases?: Array<{ nodeKey: string }>;
+}) {
+  return fortress.race && isFortressRace(fortress.race)
+    ? getSkillModifiers({
+        race: fortress.race,
+        purchases: fortress.skillPurchases ?? [],
+      })
+    : null;
+}
 
 const DWARF_RUNE_OF_GRUDGES_ANNOUNCEMENTS = [
   "Rune of Grudges flares to life. {ownerFortress} just pinned {targetFortress} to the wall of grudges.",
@@ -1518,6 +1532,9 @@ async function getActivePlayerFortressForPolitics({
       army: true,
       points: true,
       race: true,
+      skillPurchases: {
+        select: { nodeKey: true },
+      },
       mapX: true,
       mapY: true,
       castleUpgradeSpecializations: {
@@ -1558,6 +1575,10 @@ async function getTargetPlayerFortressForPolitics({
       food: true,
       army: true,
       points: true,
+      race: true,
+      skillPurchases: {
+        select: { nodeKey: true },
+      },
       mapX: true,
       mapY: true,
       castleUpgradeSpecializations: {
@@ -3242,18 +3263,23 @@ export async function createTradeOffer({
       );
     }
 
+    const senderSkillModifiers = getFortressSkillModifiers(sender);
+    const receiverSkillModifiers = getFortressSkillModifiers(receiver);
+
     try {
       assertTradeCargoWithinWagonLimit(
         offered,
         countCastleSpecializations(sender.castleUpgradeSpecializations)[
           CastleUpgradeSpecialization.TRADE
-        ]
+        ],
+        senderSkillModifiers?.tradeWagonCapacityPercent ?? 0
       );
       assertTradeCargoWithinWagonLimit(
         requested,
         countCastleSpecializations(receiver.castleUpgradeSpecializations)[
           CastleUpgradeSpecialization.TRADE
-        ]
+        ],
+        receiverSkillModifiers?.tradeWagonCapacityPercent ?? 0
       );
     } catch (error) {
       throw new GameError(
@@ -3505,19 +3531,23 @@ export async function acceptTradeOffer({
       lineItems: offer.lineItems,
       fromFortressId: receiver.id,
     });
+    const senderSkillModifiers = getFortressSkillModifiers(sender);
+    const receiverSkillModifiers = getFortressSkillModifiers(receiver);
 
     try {
       assertTradeCargoWithinWagonLimit(
         senderCargo,
         countCastleSpecializations(sender.castleUpgradeSpecializations)[
           CastleUpgradeSpecialization.TRADE
-        ]
+        ],
+        senderSkillModifiers?.tradeWagonCapacityPercent ?? 0
       );
       assertTradeCargoWithinWagonLimit(
         receiverCargo,
         countCastleSpecializations(receiver.castleUpgradeSpecializations)[
           CastleUpgradeSpecialization.TRADE
-        ]
+        ],
+        receiverSkillModifiers?.tradeWagonCapacityPercent ?? 0
       );
     } catch (error) {
       throw new GameError(
@@ -3553,6 +3583,42 @@ export async function acceptTradeOffer({
           (deedLineItem?.tileId &&
             deedLineItem.fromFortressId === leg.from.id)
       );
+
+    const outboundLegsByFortressId = new Map<string, number>();
+    for (const leg of legCandidates) {
+      outboundLegsByFortressId.set(
+        leg.from.id,
+        (outboundLegsByFortressId.get(leg.from.id) ?? 0) + 1
+      );
+    }
+    for (const [fortressId, newWagons] of outboundLegsByFortressId) {
+      const fortress = fortressId === sender.id ? sender : receiver;
+      const skillModifiers =
+        fortressId === sender.id ? senderSkillModifiers : receiverSkillModifiers;
+      const activeOutboundWagons = await tx.convoyLeg.count({
+        where: {
+          cycleId: cycle.id,
+          fromFortressId: fortressId,
+          status: ConvoyLegStatus.IN_TRANSIT,
+        },
+      });
+      const wagonLimit = getActiveTradeWagonLimit(
+        skillModifiers?.tradeWagonSlotBonus ?? 0
+      );
+
+      try {
+        assertActiveTradeWagonLimit({
+          activeOutboundWagons: activeOutboundWagons + newWagons - 1,
+          wagonLimit,
+        });
+      } catch (error) {
+        throw new GameError(
+          error instanceof Error
+            ? `${fortress.id === sender.id ? "Your fortress" : "The other fortress"}: ${error.message}`
+            : "A fortress has no free outbound trade wagons."
+        );
+      }
+    }
     const legs = await Promise.all(
       legCandidates.map(async (leg) => ({
         ...leg,

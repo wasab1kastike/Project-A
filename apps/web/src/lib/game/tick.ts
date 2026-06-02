@@ -1384,7 +1384,15 @@ async function processSeasonFourConvoys({
         cycleId,
         status: ConvoyLegStatus.IN_TRANSIT,
       },
-      include: { escortOrder: true },
+      include: {
+        escortOrder: true,
+        fromFortress: {
+          select: {
+            race: true,
+            skillPurchases: { select: { nodeKey: true } },
+          },
+        },
+      },
       orderBy: [{ arrivesAt: "asc" }, { id: "asc" }],
     });
     let scoreEventsCreated = 0;
@@ -1418,6 +1426,13 @@ async function processSeasonFourConvoys({
         relation,
         now: tickAt,
       });
+      const senderSkillModifiers =
+        leg.fromFortress.race && isFortressRace(leg.fromFortress.race)
+          ? getSkillModifiers({
+              race: leg.fromFortress.race,
+              purchases: leg.fromFortress.skillPurchases ?? [],
+            })
+          : null;
       const seized =
         effectiveStatus === DiplomacyRelationStatus.ENEMY ||
         effectiveStatus === DiplomacyRelationStatus.WAR;
@@ -1806,12 +1821,17 @@ async function processSeasonFourConvoys({
         },
         isAllied: effectiveStatus === DiplomacyRelationStatus.ALLIED,
         trustTier: relation?.allianceTrustTier ?? 0,
+        tradeProfitPercent: senderSkillModifiers?.tradeProfitPercent ?? 0,
       });
       const pairKey = `${leg.fromFortressId}:${leg.toFortressId}`;
       const establishedCount = establishedDeliveriesByPair.get(pairKey) ?? 0;
       const points = seized
         ? { total: 0, sender: 0, receiver: 0 }
-        : splitTradeDeliveryPoints(leg.baseCargoValue, establishedCount);
+        : splitTradeDeliveryPoints(
+            leg.baseCargoValue,
+            establishedCount,
+            senderSkillModifiers?.tradeProfitPercent ?? 0
+          );
 
       await tx.fortress.update({
         where: { id: leg.toFortressId },
