@@ -291,7 +291,6 @@ async function ensureBattalionWarSchemaObjects(db: DatabaseClient) {
       "defaultAggression" TEXT NOT NULL DEFAULT 'BALANCED',
       "allianceSupportAttack" BOOLEAN NOT NULL DEFAULT true,
       "allianceSupportDefense" BOOLEAN NOT NULL DEFAULT true,
-      "allianceSupportPercent" INTEGER NOT NULL DEFAULT 50,
       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" TIMESTAMP(3) NOT NULL,
       CONSTRAINT "WarPolicy_pkey" PRIMARY KEY ("id")
@@ -303,10 +302,6 @@ async function ensureBattalionWarSchemaObjects(db: DatabaseClient) {
   await db.$executeRawUnsafe(
     `ALTER TABLE "WarPolicy" ADD COLUMN IF NOT EXISTS "allianceSupportDefense" BOOLEAN NOT NULL DEFAULT true`
   );
-  await db.$executeRawUnsafe(
-    `ALTER TABLE "WarPolicy" ADD COLUMN IF NOT EXISTS "allianceSupportPercent" INTEGER NOT NULL DEFAULT 50`
-  );
-
   await db.$executeRawUnsafe(
     `CREATE UNIQUE INDEX IF NOT EXISTS "Battalion_cycleId_fortressId_name_key" ON "Battalion"("cycleId", "fortressId", "name")`
   );

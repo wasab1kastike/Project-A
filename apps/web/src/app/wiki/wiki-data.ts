@@ -433,7 +433,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
           { title: "RESERVE", body: "Roams near your castle core but does not trigger automatically." },
           { title: "GUARD", body: "Patrols owned borders through War Room guard allocation." },
           { title: "ATTACK", image: "/assets/ui/crest-campaign.webp", body: "Can be assigned to war fronts and auto-dispatches against reachable enemy tiles." },
-          { title: "ALLIANCE", body: "Sends visible reinforcement marches to eligible allied defensive or attacking battlefields, using the War Room support policy." },
+          { title: "ALLIANCE", body: "Sends visible reinforcement marches to eligible allied defensive or attacking battlefields when the matching War Room side toggle is enabled." },
         ],
       },
       {

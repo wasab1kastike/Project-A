@@ -409,7 +409,6 @@ export async function getCastlePageState({
               defaultAggression: true,
               allianceSupportAttack: true,
               allianceSupportDefense: true,
-              allianceSupportPercent: true,
             },
           },
           warFronts: {
@@ -1687,7 +1686,6 @@ export async function getCastlePageState({
                 defaultAggression: playerFortress.warPolicies[0].defaultAggression,
                 allianceSupportAttack: playerFortress.warPolicies[0].allianceSupportAttack,
                 allianceSupportDefense: playerFortress.warPolicies[0].allianceSupportDefense,
-                allianceSupportPercent: playerFortress.warPolicies[0].allianceSupportPercent,
               }
             : null,
           allianceWarRoom: {

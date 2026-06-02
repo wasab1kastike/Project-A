@@ -6,7 +6,6 @@ import { processAllianceReinforcements } from "./tick-alliance-integration";
 function createMockDb(options?: {
   supportAttack?: boolean;
   supportDefense?: boolean;
-  supportPercent?: number;
 }) {
   let battalionSize = 100;
   const createdAttackUnits: Array<{
@@ -24,7 +23,6 @@ function createMockDb(options?: {
         findUnique: async () => ({
           allianceSupportAttack: options?.supportAttack ?? true,
           allianceSupportDefense: options?.supportDefense ?? true,
-          allianceSupportPercent: options?.supportPercent ?? 50,
         }),
       },
       attackUnit: {
@@ -83,7 +81,7 @@ describe("processAllianceReinforcements", () => {
     assert.equal(createdAttackUnits.length, 1);
     assert.equal(createdAttackUnits[0]?.data.reinforcementSide, "ATTACKER");
     assert.equal(createdAttackUnits[0]?.data.targetFortressId, "enemy");
-    assert.equal(createdAttackUnits[0]?.data.armyAmount, 50);
+    assert.equal(createdAttackUnits[0]?.data.armyAmount, 100);
   });
 
   it("respects disabled attack support while leaving defense support available", async () => {
