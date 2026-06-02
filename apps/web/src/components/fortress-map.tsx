@@ -522,9 +522,27 @@ function getRoadLevelClass(level: number): string {
 }
 
 function getRoadStrokeWidth(level: number): number {
-  if (level >= 3) return 4;
-  if (level >= 2) return 2.8;
-  return 2;
+  if (level >= 3) return 5.4;
+  if (level >= 2) return 3.8;
+  return 2.7;
+}
+
+function getRoadBedStrokeWidth(level: number): number {
+  if (level >= 3) return 10.8;
+  if (level >= 2) return 8;
+  return 6.2;
+}
+
+function getRoadDetailStrokeWidth(level: number): number {
+  if (level >= 3) return 1;
+  if (level >= 2) return 0.95;
+  return 0.8;
+}
+
+function getRoadLevelKey(level: number): "dirt" | "stone" | "highway" {
+  if (level >= 3) return "highway";
+  if (level >= 2) return "stone";
+  return "dirt";
 }
 
 function getRoadLabel(level: number) {
@@ -1422,23 +1440,28 @@ function AttackUnitsLayer({
           {visibleRouteViews.map((view) => (
             <Fragment key={`route-${view.unit.id}`}>
               <polyline
-                points={pointsToPolyline(view.splitPath.completedPoints)}
+                className={styles.marchRouteTrack}
+                points={pointsToPolyline(view.waypoints)}
                 fill="none"
-                stroke={view.pathColor}
-                strokeWidth="1.35"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                opacity={crowdedAttackLayer ? "0.5" : "0.58"}
               />
               <polyline
+                className={styles.marchRouteCompleted}
+                points={pointsToPolyline(view.splitPath.completedPoints)}
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ "--march-color": view.pathColor } as CSSProperties}
+              />
+              <polyline
+                className={styles.marchRouteRemaining}
                 points={pointsToPolyline(view.splitPath.remainingPoints)}
                 fill="none"
-                stroke={view.pathColor}
-                strokeWidth="1"
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeDasharray={view.pathDasharray}
-                opacity={crowdedAttackLayer ? "0.28" : "0.34"}
+                style={{ "--march-color": view.pathColor } as CSSProperties}
               />
             </Fragment>
           ))}
@@ -2265,65 +2288,143 @@ export const FortressMap = memo(function FortressMap({
             onSelectMapHex={onSelectMapHex}
             battlefieldById={battlefieldById}
           />
-          {(alliedRoads.length > 0 || tradeRouteLines.length > 0 || roadSegments.length > 0) ? (
-        <svg
-          className={styles.roadsLayer}
-          viewBox={`0 0 ${MAP_WORLD_WIDTH} ${MAP_WORLD_HEIGHT}`}
-          aria-hidden="true"
-        >
-          {alliedRoads.map((road, i) => (
-            <line
-              key={`ally-${i}`}
-              x1={road.x1 * MAP_WORLD_WIDTH / 100}
-              y1={road.y1 * MAP_WORLD_HEIGHT / 100}
-              x2={road.x2 * MAP_WORLD_WIDTH / 100}
-              y2={road.y2 * MAP_WORLD_HEIGHT / 100}
-              className={styles.roadLine}
-            />
-          ))}
-          {tradeRouteLines.map((route, i) => (
-            <line
-              key={`trade-${i}`}
-              x1={route.x1 * MAP_WORLD_WIDTH / 100}
-              y1={route.y1 * MAP_WORLD_HEIGHT / 100}
-              x2={route.x2 * MAP_WORLD_WIDTH / 100}
-              y2={route.y2 * MAP_WORLD_HEIGHT / 100}
-              className={styles.tradeRouteLine}
-            />
-          ))}
-          {roadEdges.map((edge, i) => (
-            <line
-              key={`road-${i}`}
-              x1={edge.x1 * MAP_WORLD_WIDTH / 100}
-              y1={edge.y1 * MAP_WORLD_HEIGHT / 100}
-              x2={edge.x2 * MAP_WORLD_WIDTH / 100}
-              y2={edge.y2 * MAP_WORLD_HEIGHT / 100}
-              className={`${styles.roadLine} ${getRoadLevelClass(edge.level)}`}
-              strokeWidth={getRoadStrokeWidth(edge.level)}
+          {alliedRoads.length > 0 ||
+          tradeRouteLines.length > 0 ||
+          roadSegments.length > 0 ? (
+            <svg
+              className={styles.roadsLayer}
+              viewBox={`0 0 ${MAP_WORLD_WIDTH} ${MAP_WORLD_HEIGHT}`}
+              aria-hidden="true"
             >
-              <title>
-                {`${getRoadLabel(edge.level)} - ${edge.crossings} crossings - ${getRoadSpeedLabel(edge.level)} speed`}
-              </title>
-            </line>
-          ))}
-        </svg>
-      ) : null}
-      {roadSegments.length > 0 ? (
-        <div className={styles.roadLegend} aria-label="Road speeds">
-          <span className={styles.roadLegendItem}>
-            <i className={styles.roadLegendSwatch} data-level="dirt" />
-            Dirt 1.15x
-          </span>
-          <span className={styles.roadLegendItem}>
-            <i className={styles.roadLegendSwatch} data-level="stone" />
-            Stone 1.3x
-          </span>
-          <span className={styles.roadLegendItem}>
-            <i className={styles.roadLegendSwatch} data-level="highway" />
-            Highway 1.5x
-          </span>
-        </div>
-      ) : null}
+              {alliedRoads.map((road, i) => (
+                <g key={`ally-${i}`} className={styles.alliedRouteSegment}>
+                  <line
+                    x1={(road.x1 * MAP_WORLD_WIDTH) / 100}
+                    y1={(road.y1 * MAP_WORLD_HEIGHT) / 100}
+                    x2={(road.x2 * MAP_WORLD_WIDTH) / 100}
+                    y2={(road.y2 * MAP_WORLD_HEIGHT) / 100}
+                    className={styles.routeBed}
+                    strokeWidth={5.2}
+                  />
+                  <line
+                    x1={(road.x1 * MAP_WORLD_WIDTH) / 100}
+                    y1={(road.y1 * MAP_WORLD_HEIGHT) / 100}
+                    x2={(road.x2 * MAP_WORLD_WIDTH) / 100}
+                    y2={(road.y2 * MAP_WORLD_HEIGHT) / 100}
+                    className={styles.alliedRouteLine}
+                    strokeWidth={2.8}
+                  />
+                  <line
+                    x1={(road.x1 * MAP_WORLD_WIDTH) / 100}
+                    y1={(road.y1 * MAP_WORLD_HEIGHT) / 100}
+                    x2={(road.x2 * MAP_WORLD_WIDTH) / 100}
+                    y2={(road.y2 * MAP_WORLD_HEIGHT) / 100}
+                    className={styles.alliedRoutePulse}
+                    strokeWidth={0.9}
+                  />
+                </g>
+              ))}
+              {tradeRouteLines.map((route, i) => {
+                const routeWidth = Math.min(
+                  5.2,
+                  2.3 + Math.log2(Math.max(1, route.deliveries)) * 0.42
+                );
+                return (
+                  <g key={`trade-${i}`} className={styles.tradeRouteSegment}>
+                    <line
+                      x1={(route.x1 * MAP_WORLD_WIDTH) / 100}
+                      y1={(route.y1 * MAP_WORLD_HEIGHT) / 100}
+                      x2={(route.x2 * MAP_WORLD_WIDTH) / 100}
+                      y2={(route.y2 * MAP_WORLD_HEIGHT) / 100}
+                      className={styles.tradeRouteBed}
+                      strokeWidth={routeWidth + 3.2}
+                    />
+                    <line
+                      x1={(route.x1 * MAP_WORLD_WIDTH) / 100}
+                      y1={(route.y1 * MAP_WORLD_HEIGHT) / 100}
+                      x2={(route.x2 * MAP_WORLD_WIDTH) / 100}
+                      y2={(route.y2 * MAP_WORLD_HEIGHT) / 100}
+                      className={styles.tradeRouteLine}
+                      strokeWidth={routeWidth}
+                    />
+                    <line
+                      x1={(route.x1 * MAP_WORLD_WIDTH) / 100}
+                      y1={(route.y1 * MAP_WORLD_HEIGHT) / 100}
+                      x2={(route.x2 * MAP_WORLD_WIDTH) / 100}
+                      y2={(route.y2 * MAP_WORLD_HEIGHT) / 100}
+                      className={styles.tradeRouteCargo}
+                      strokeWidth={Math.max(0.8, routeWidth * 0.32)}
+                    />
+                  </g>
+                );
+              })}
+              {roadEdges.map((edge, i) => {
+                const x1 = (edge.x1 * MAP_WORLD_WIDTH) / 100;
+                const y1 = (edge.y1 * MAP_WORLD_HEIGHT) / 100;
+                const x2 = (edge.x2 * MAP_WORLD_WIDTH) / 100;
+                const y2 = (edge.y2 * MAP_WORLD_HEIGHT) / 100;
+                return (
+                  <g
+                    key={`road-${i}`}
+                    className={styles.roadSegment}
+                    data-level={getRoadLevelKey(edge.level)}
+                  >
+                    <title>
+                      {`${getRoadLabel(edge.level)} - ${edge.crossings} crossings - ${getRoadSpeedLabel(edge.level)} speed`}
+                    </title>
+                    <line
+                      x1={x1}
+                      y1={y1}
+                      x2={x2}
+                      y2={y2}
+                      className={styles.roadBed}
+                      strokeWidth={getRoadBedStrokeWidth(edge.level)}
+                    />
+                    <line
+                      x1={x1}
+                      y1={y1}
+                      x2={x2}
+                      y2={y2}
+                      className={styles.roadSurface}
+                      strokeWidth={getRoadStrokeWidth(edge.level)}
+                    />
+                    <line
+                      x1={x1}
+                      y1={y1}
+                      x2={x2}
+                      y2={y2}
+                      className={styles.roadTexture}
+                      strokeWidth={getRoadDetailStrokeWidth(edge.level)}
+                    />
+                    <line
+                      x1={x1}
+                      y1={y1}
+                      x2={x2}
+                      y2={y2}
+                      className={styles.roadCenter}
+                      strokeWidth={getRoadDetailStrokeWidth(edge.level)}
+                    />
+                  </g>
+                );
+              })}
+            </svg>
+          ) : null}
+          {roadSegments.length > 0 ? (
+            <div className={styles.roadLegend} aria-label="Road speeds">
+              <span className={styles.roadLegendItem}>
+                <i className={styles.roadLegendSwatch} data-level="dirt" />
+                Dirt 1.15x
+              </span>
+              <span className={styles.roadLegendItem}>
+                <i className={styles.roadLegendSwatch} data-level="stone" />
+                Stone 1.3x
+              </span>
+              <span className={styles.roadLegendItem}>
+                <i className={styles.roadLegendSwatch} data-level="highway" />
+                Highway 1.5x
+              </span>
+            </div>
+          ) : null}
       <MapLifeLayer
         mapHexes={mapHexes}
         roadEdges={roadEdges}
