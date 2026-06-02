@@ -3359,7 +3359,7 @@ test("season four large trade offers queue sequential wagon runs", async (contex
   assert.equal(receiverAfter.food, 6_050);
 });
 
-test("season four active outbound trade wagons are capped and skill-expandable", async (context) => {
+test("season four full outbound trade wagons queue accepted offers", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -3447,31 +3447,15 @@ test("season four active outbound trade wagons are capped and skill-expandable",
     now: new Date("2026-04-20T12:04:00.000Z"),
     db: prisma,
   });
-  await assert.rejects(
-    () =>
-      acceptTradeOffer({
-        userId: receiver.id,
-        tradeOfferId: fourthOffer.id,
-        now: new Date("2026-04-20T12:04:10.000Z"),
-        db: prisma,
-      }),
-    /3 active outbound wagons/
-  );
-
-  await prisma.raceSkillPurchase.create({
-    data: {
-      fortressId: senderFortress.id,
-      nodeKey: "economy-8",
-    },
-  });
   const accepted = await acceptTradeOffer({
     userId: receiver.id,
     tradeOfferId: fourthOffer.id,
-    now: new Date("2026-04-20T12:04:20.000Z"),
+    now: new Date("2026-04-20T12:04:10.000Z"),
     db: prisma,
   });
 
-  assert.equal(accepted.convoyLegs.length, 1);
+  assert.equal(accepted.status, TradeOfferStatus.ACCEPTED);
+  assert.equal(accepted.convoyLegs.length, 0);
   assert.equal(
     await prisma.convoyLeg.count({
       where: {
@@ -3480,7 +3464,45 @@ test("season four active outbound trade wagons are capped and skill-expandable",
         status: ConvoyLegStatus.IN_TRANSIT,
       },
     }),
-    4
+    3
+  );
+
+  const arrivingLeg = await prisma.convoyLeg.findFirstOrThrow({
+    where: {
+      cycleId: cycle.id,
+      fromFortressId: senderFortress.id,
+      status: ConvoyLegStatus.IN_TRANSIT,
+      tradeOfferId: { not: fourthOffer.id },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+  await prisma.convoyLeg.update({
+    where: { id: arrivingLeg.id },
+    data: { arrivesAt: new Date("2026-04-20T12:05:00.000Z") },
+  });
+  await runGameTick({
+    now: new Date("2026-04-20T12:05:00.000Z"),
+    db: prisma,
+  });
+
+  assert.equal(
+    await prisma.convoyLeg.count({
+      where: {
+        tradeOfferId: fourthOffer.id,
+        fromFortressId: senderFortress.id,
+      },
+    }),
+    1
+  );
+  assert.equal(
+    await prisma.convoyLeg.count({
+      where: {
+        cycleId: cycle.id,
+        fromFortressId: senderFortress.id,
+        status: ConvoyLegStatus.IN_TRANSIT,
+      },
+    }),
+    3
   );
   assert.equal(
     await prisma.convoyLeg.count({
