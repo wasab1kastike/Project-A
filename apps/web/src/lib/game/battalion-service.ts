@@ -415,9 +415,7 @@ export async function setAllianceSupportPolicy(args: {
   fortressId?: string;
   supportAttack: boolean;
   supportDefense: boolean;
-  supportPercent: number;
 }): Promise<void> {
-  const supportPercent = Math.max(0, Math.min(100, Math.floor(args.supportPercent)));
   const fortress = await getOwnedFortress(prisma, args);
 
   await prisma.warPolicy.upsert({
@@ -430,12 +428,10 @@ export async function setAllianceSupportPolicy(args: {
       guardPercent: 30,
       allianceSupportAttack: args.supportAttack,
       allianceSupportDefense: args.supportDefense,
-      allianceSupportPercent: supportPercent,
     },
     update: {
       allianceSupportAttack: args.supportAttack,
       allianceSupportDefense: args.supportDefense,
-      allianceSupportPercent: supportPercent,
     },
   });
 }

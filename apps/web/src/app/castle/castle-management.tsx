@@ -387,7 +387,6 @@ type PlayerSummary = {
     defaultAggression: string;
     allianceSupportAttack: boolean;
     allianceSupportDefense: boolean;
-    allianceSupportPercent: number;
   } | null;
   allianceWarRoom: {
     allianceBattalionArmy: number;
@@ -1361,9 +1360,6 @@ export function CastleManagement({
   const [allianceSupportDefense, setAllianceSupportDefense] = useState(
     playerSummary.warPolicy?.allianceSupportDefense ?? true
   );
-  const [allianceSupportPercent, setAllianceSupportPercent] = useState(
-    playerSummary.warPolicy?.allianceSupportPercent ?? 50
-  );
   const [battalionPending, setBattalionPending] = useState(false);
   const [nukeBidAmounts, setNukeBidAmounts] = useState<
     Record<NukeComponentKind, number>
@@ -1393,16 +1389,14 @@ export function CastleManagement({
     async (next?: {
       supportAttack?: boolean;
       supportDefense?: boolean;
-      supportPercent?: number;
     }) => {
       const result = await setAllianceSupportPolicyAction({
         supportAttack: next?.supportAttack ?? allianceSupportAttack,
         supportDefense: next?.supportDefense ?? allianceSupportDefense,
-        supportPercent: next?.supportPercent ?? allianceSupportPercent,
       });
       await handleInlineResult(result);
     },
-    [allianceSupportAttack, allianceSupportDefense, allianceSupportPercent]
+    [allianceSupportAttack, allianceSupportDefense]
   );
 
   const handleCreateBattalion = useCallback(async () => {
@@ -2320,40 +2314,6 @@ export function CastleManagement({
                     Join allied attacks
                   </label>
                 </div>
-                <label style={{ display: "grid", gap: 4, fontSize: 13 }}>
-                  <span
-                    style={{ display: "flex", justifyContent: "space-between" }}
-                  >
-                    <span>Commit from ALLIANCE battalions</span>
-                    <strong>{allianceSupportPercent}%</strong>
-                  </span>
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    step={5}
-                    value={allianceSupportPercent}
-                    onChange={(event) => {
-                      const value = Number(event.currentTarget.value);
-                      setAllianceSupportPercent(value);
-                    }}
-                    onMouseUp={(event) =>
-                      void saveAllianceSupportPolicy({
-                        supportPercent: Number(event.currentTarget.value),
-                      })
-                    }
-                    onTouchEnd={(event) =>
-                      void saveAllianceSupportPolicy({
-                        supportPercent: Number(event.currentTarget.value),
-                      })
-                    }
-                    onBlur={(event) =>
-                      void saveAllianceSupportPolicy({
-                        supportPercent: Number(event.currentTarget.value),
-                      })
-                    }
-                  />
-                </label>
                 <p className={styles.muted} style={{ fontSize: 12, margin: 0 }}>
                   Battalions set to ALLIANCE automatically march to allied
                   active battlefields on the enabled sides.

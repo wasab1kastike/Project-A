@@ -1580,7 +1580,6 @@ model WarPolicy {
   defaultAggression String   @default("BALANCED")
   allianceSupportAttack  Boolean  @default(true)
   allianceSupportDefense Boolean  @default(true)
-  allianceSupportPercent Int      @default(50)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   cycle             Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)

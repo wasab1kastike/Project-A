@@ -2350,7 +2350,6 @@ export async function setBattalionModeAction(args: {
 export async function setAllianceSupportPolicyAction(args: {
   supportAttack: boolean;
   supportDefense: boolean;
-  supportPercent: number;
 }): Promise<InlineActionResult> {
   const session = await auth();
   const userId = session?.user?.id;

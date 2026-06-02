@@ -130,7 +130,6 @@ async function createAllianceReinforcement(args: {
     select: {
       allianceSupportAttack: true,
       allianceSupportDefense: true,
-      allianceSupportPercent: true,
     },
   });
   const supportAttack = policy?.allianceSupportAttack ?? true;
@@ -161,9 +160,7 @@ async function createAllianceReinforcement(args: {
   if (allianceBattalions.length === 0) return false;
 
   const totalAvailable = allianceBattalions.reduce((sum, battalion) => sum + battalion.size, 0);
-  const supportPercent = Math.max(0, Math.min(100, policy?.allianceSupportPercent ?? 50));
-  if (supportPercent <= 0) return false;
-  const commitAmount = Math.max(1, Math.floor((totalAvailable * supportPercent) / 100));
+  const commitAmount = totalAvailable;
   if (commitAmount <= 0) return false;
 
   let remaining = commitAmount;
