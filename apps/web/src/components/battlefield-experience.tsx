@@ -433,6 +433,8 @@ export function BattlefieldExperience({
   battalionMarkers?: Array<{
     id: string;
     tileId: string;
+    mapX: number;
+    mapY: number;
     battalionName: string;
     size: number;
     maxSize: number;
