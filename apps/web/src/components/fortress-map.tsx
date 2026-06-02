@@ -1959,7 +1959,7 @@ function getBattalionFormationOffset(index: number, total: number) {
   const markersPerRing = Math.min(total, 8);
   const ring = Math.floor(index / markersPerRing);
   const ringIndex = index % markersPerRing;
-  const radius = (total <= 3 ? 16 : total <= 6 ? 22 : 28) + ring * 10;
+  const radius = (total <= 3 ? 34 : total <= 6 ? 48 : 62) + ring * 18;
   const angle = -Math.PI / 2 + (Math.PI * 2 * ringIndex) / markersPerRing;
 
   return {
