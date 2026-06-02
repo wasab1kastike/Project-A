@@ -81,6 +81,23 @@ function sortTilesByDistance(
   });
 }
 
+function getBattalionEntityPosition(tileId: string, tileSlotIndex: number) {
+  const tile = HEX_TILES.find((candidate) => candidate.id === tileId);
+  if (!tile) return null;
+
+  const slotsPerRing = 10;
+  const slot = Math.max(0, tileSlotIndex);
+  const ring = Math.floor(slot / slotsPerRing);
+  const ringSlot = slot % slotsPerRing;
+  const radius = 3.5 + Math.min(ring, 3) * 1.35;
+  const angle = -Math.PI / 2 + (Math.PI * 2 * ringSlot) / slotsPerRing;
+
+  return {
+    mapX: Math.min(98, Math.max(2, tile.xPercent + Math.cos(angle) * radius)),
+    mapY: Math.min(98, Math.max(2, tile.yPercent + Math.sin(angle) * radius)),
+  };
+}
+
 function getOwnedRoamTile(args: {
   job: BattalionJob;
   fortressId: string;
@@ -466,39 +483,56 @@ function HomeClientContent({
             incomingTradeOfferCount: state.incomingOfferCount ?? 0,
           }}
           nukeState={(state as any).nukeState ?? null}
-          battalionMarkers={(state.battalions ?? [])
-            .filter((bn: any) => bn.size > 0)
-            .map((bn: any, battalionIndex: number) => {
-              const fortress = state.mapFortresses?.find(
-                (f: any) => f.id === bn.fortressId
+          battalionMarkers={(() => {
+            const tileMarkerCounts = new Map<string, number>();
+
+            return (state.battalions ?? [])
+              .filter((bn: any) => bn.size > 0)
+              .map((bn: any, battalionIndex: number) => {
+                const fortress = state.mapFortresses?.find(
+                  (f: any) => f.id === bn.fortressId
+                );
+                const mode = getBattalionJob(bn.mode);
+                const tileId = getOwnedRoamTile({
+                  job: mode,
+                  fortressId: bn.fortressId,
+                  mapHexes: state.mapHexes,
+                  mapFortresses: state.mapFortresses,
+                  warFronts: state.warFronts,
+                  fallbackTileId: bn.garrisonedAt,
+                  spreadIndex: battalionIndex,
+                });
+                if (!tileId) return null;
+
+                const tileSlotIndex = tileMarkerCounts.get(tileId) ?? 0;
+                tileMarkerCounts.set(tileId, tileSlotIndex + 1);
+                const position = getBattalionEntityPosition(
+                  tileId,
+                  tileSlotIndex,
+                );
+                if (!position) return null;
+
+                return {
+                  id: bn.id,
+                  tileId,
+                  mapX: position.mapX,
+                  mapY: position.mapY,
+                  battalionName: bn.name,
+                  size: bn.size,
+                  maxSize: bn.maxSize,
+                  tier: bn.tier,
+                  stance: bn.stance,
+                  mode,
+                  fortressId: bn.fortressId,
+                  unitSpriteVariant: fortress?.unitSpriteVariant ?? "unit-1",
+                  unitCosmeticVariant: fortress?.unitCosmeticVariant ?? null,
+                  race: (fortress as any)?.race ?? null,
+                };
+              })
+              .filter((marker): marker is NonNullable<typeof marker> =>
+                Boolean(marker)
               );
-              const mode = getBattalionJob(bn.mode);
-              const tileId = getOwnedRoamTile({
-                job: mode,
-                fortressId: bn.fortressId,
-                mapHexes: state.mapHexes,
-                mapFortresses: state.mapFortresses,
-                warFronts: state.warFronts,
-                fallbackTileId: bn.garrisonedAt,
-                spreadIndex: battalionIndex,
-              });
-              if (!tileId) return null;
-              return {
-                id: bn.id,
-                tileId,
-                battalionName: bn.name,
-                size: bn.size,
-                maxSize: bn.maxSize,
-                tier: bn.tier,
-                stance: bn.stance,
-                mode,
-                fortressId: bn.fortressId,
-                unitSpriteVariant: fortress?.unitSpriteVariant ?? "unit-1",
-                unitCosmeticVariant: fortress?.unitCosmeticVariant ?? null,
-                race: (fortress as any)?.race ?? null,
-              };
-            })
-            .filter((marker): marker is NonNullable<typeof marker> => Boolean(marker))}
+          })()}
           battleReports={state.battleReports}
           availableTargets={state.availableTargets}
           chat={state.chat}
