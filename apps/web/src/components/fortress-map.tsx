@@ -24,7 +24,10 @@ import {
 } from "@/lib/game/map-hex";
 import { getAttackTravelMinutes } from "@/lib/game/attacks";
 import { getAttackPresentation } from "@/lib/game/attack-presentation";
-import { getCosmeticSpriteStyle } from "@/lib/game/cosmetic-sprites";
+import {
+  getCosmeticSpriteStyle,
+  getDefaultRaceCosmeticVariant,
+} from "@/lib/game/cosmetic-sprites";
 import {
   findSimplePath,
   getHexNeighbors,
@@ -99,6 +102,7 @@ type AttackUnitMarker = {
     name: string;
     mapX: number;
     mapY: number;
+    race: MapFortress["race"];
     unitSpriteVariant: UnitSpriteVariant;
     unitCosmeticVariant: string | null;
   };
@@ -414,6 +418,25 @@ function getSpriteVariant(fortress: MapFortress): SpriteVariant {
   return SPRITE_VARIANTS[
     hashString(fortress.spriteSeedId) % SPRITE_VARIANTS.length
   ];
+}
+
+function getEffectiveUnitCosmeticVariant({
+  variant,
+  race,
+  seed,
+}: {
+  variant: string | null | undefined;
+  race: MapFortress["race"];
+  seed: string;
+}) {
+  return (
+    variant ??
+    getDefaultRaceCosmeticVariant({
+      slot: "UNIT",
+      race,
+      seed,
+    })
+  );
 }
 
 function FortressSprite({
@@ -1463,9 +1486,14 @@ function AttackUnitsLayer({
   const attackUnitViews = useMemo(
     () =>
       attackUnits.map((unit) => {
+        const unitCosmeticVariant = getEffectiveUnitCosmeticVariant({
+          variant: unit.attacker.unitCosmeticVariant,
+          race: unit.attacker.race,
+          seed: unit.attacker.id,
+        });
         const skinStyle = getCosmeticSpriteStyle(
           "UNIT",
-          unit.attacker.unitCosmeticVariant
+          unitCosmeticVariant
         );
         const isReturning = Boolean(unit.recalledAt);
         const routeOrigin = isReturning
@@ -1561,6 +1589,7 @@ function AttackUnitsLayer({
 
         return {
           unit,
+          unitCosmeticVariant,
           skinStyle,
           presentation,
           waypoints,
@@ -1651,19 +1680,20 @@ function AttackUnitsLayer({
                 );
               }}
               aria-pressed={selected}
-              aria-label={`${unit.attacker.name} army ${view.statusText}${unit.armyAmount !== null ? ` with ${unit.armyAmount} army` : ""}. ${view.secondsRemaining} seconds remaining.`}
+              aria-label={`${unit.attacker.name} army ${view.statusText}. ${view.secondsRemaining} seconds remaining.`}
             >
               {view.presentation.showSprite ? (
                 <>
                   <span
                     className={styles.attackUnitSprite}
                     data-variant={unit.attacker.unitSpriteVariant}
-                    data-skin={unit.attacker.unitCosmeticVariant ?? undefined}
+                    data-skin={view.unitCosmeticVariant ?? undefined}
                     style={view.skinStyle ?? undefined}
                   />
-                  <span className={styles.attackUnitAmount}>
-                    {unit.armyAmount ?? "?"}
-                  </span>
+                  <span
+                    className={styles.attackUnitPresence}
+                    aria-hidden="true"
+                  />
                 </>
               ) : (
                 <span className={styles.attackImpactPulse} aria-hidden="true" />
@@ -1681,9 +1711,7 @@ function AttackUnitsLayer({
                 onClick={(event) => event.stopPropagation()}
               >
                 <strong>
-                  {unit.armyAmount !== null
-                    ? `${unit.armyAmount} army`
-                    : "Hidden army"}
+                  Army unit
                 </strong>
                 <span>{view.unitTitle}</span>
                 <span>{view.statusText}</span>
@@ -1918,7 +1946,6 @@ const RoadsLayer = memo(function RoadsLayer({
 
 type GuardMarkerView = {
   tileId: string;
-  guardArmy: number;
   unitSpriteVariant: string;
   unitCosmeticVariant: string | null;
 };
@@ -1957,7 +1984,7 @@ const GuardMarkersLayer = memo(function GuardMarkersLayer({
               }
               aria-hidden="true"
             />
-            <span className={styles.guardCount}>{marker.guardArmy}</span>
+            <span className={styles.guardPresence} aria-hidden="true" />
           </div>
         );
       })}
@@ -2077,6 +2104,11 @@ const BattalionMarkersLayer = memo(function BattalionMarkersLayer({
           marker.race && BATTALION_RACE_TIER_LABELS[marker.race]
             ? (BATTALION_RACE_TIER_LABELS[marker.race][marker.tier] ?? "?")
             : (["", "I", "II", "III"][marker.tier] ?? "?");
+        const effectiveUnitCosmeticVariant = getEffectiveUnitCosmeticVariant({
+          variant: marker.unitCosmeticVariant,
+          race: marker.race as MapFortress["race"],
+          seed: marker.fortressId,
+        });
 
         return (
           <div
@@ -2088,14 +2120,14 @@ const BattalionMarkersLayer = memo(function BattalionMarkersLayer({
               left: `${patrolXPercent}%`,
               top: `${patrolYPercent}%`,
             }}
-            title={`${marker.battalionName} - ${marker.mode} - Tier ${marker.tier} - ${marker.size}/${marker.maxSize}`}
+            title={`${marker.battalionName} - ${marker.mode} - Tier ${marker.tier}`}
           >
             <span
               className={styles.battalionSprite}
               data-variant={marker.unitSpriteVariant}
-              data-skin={marker.unitCosmeticVariant ?? undefined}
+              data-skin={effectiveUnitCosmeticVariant ?? undefined}
               style={
-                getCosmeticSpriteStyle("UNIT", marker.unitCosmeticVariant) ??
+                getCosmeticSpriteStyle("UNIT", effectiveUnitCosmeticVariant) ??
                 undefined
               }
               aria-hidden="true"
@@ -2109,7 +2141,6 @@ const BattalionMarkersLayer = memo(function BattalionMarkersLayer({
             >
               {tierLabel}
             </span>
-            <span className={styles.battalionCount}>{marker.size}</span>
           </div>
         );
       })}
@@ -2193,6 +2224,11 @@ const ConvoyMarkersLayer = memo(function ConvoyMarkersLayer({
         const tradeLevel = convoy.tradeLevel ?? 0;
         const senderRace = convoy.senderRace ?? from.race;
         const routeLabel = `${convoy.fromName ?? from.name} to ${convoy.toName ?? to.name}`;
+        const escortUnitCosmeticVariant = getEffectiveUnitCosmeticVariant({
+          variant: from.unitCosmeticVariant,
+          race: from.race,
+          seed: from.id,
+        });
 
         return (
           <div
@@ -2217,9 +2253,9 @@ const ConvoyMarkersLayer = memo(function ConvoyMarkersLayer({
             <span
               className={styles.convoyEscort}
               data-variant={from.unitSpriteVariant}
-              data-skin={from.unitCosmeticVariant ?? undefined}
+              data-skin={escortUnitCosmeticVariant ?? undefined}
               style={
-                getCosmeticSpriteStyle("UNIT", from.unitCosmeticVariant) ??
+                getCosmeticSpriteStyle("UNIT", escortUnitCosmeticVariant) ??
                 undefined
               }
               aria-hidden="true"
@@ -2574,7 +2610,14 @@ export const FortressMap = memo(function FortressMap({
     const spriteByFortressId = new Map(
       fortresses.map((f) => [
         f.id,
-        { sprite: f.unitSpriteVariant, cosmetic: f.unitCosmeticVariant },
+        {
+          sprite: f.unitSpriteVariant,
+          cosmetic: getEffectiveUnitCosmeticVariant({
+            variant: f.unitCosmeticVariant,
+            race: f.race,
+            seed: f.id,
+          }),
+        },
       ])
     );
     return mapHexes
@@ -2585,7 +2628,6 @@ export const FortressMap = memo(function FortressMap({
           : null;
         return {
           tileId: hex.tileId,
-          guardArmy: hex.guardArmy!,
           unitSpriteVariant: info?.sprite ?? "unit-1",
           unitCosmeticVariant: info?.cosmetic ?? null,
         };

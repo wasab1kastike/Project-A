@@ -421,22 +421,18 @@
   50% { transform: translateY(-4px); }
 }
 
-.attackUnitAmount {
+.attackUnitPresence {
   position: absolute;
-  right: -4px;
-  bottom: -2px;
-  min-width: 22px;
-  height: 20px;
-  padding: 0 5px;
+  right: 1px;
+  bottom: 3px;
+  width: 10px;
+  height: 10px;
   border: 1px solid rgba(255, 255, 255, 0.36);
   border-radius: 999px;
-  background: rgba(12, 18, 28, 0.88);
-  color: #fff5cf;
-  font-family: var(--font-ibm-plex-mono);
-  font-size: 0.68rem;
-  font-weight: 800;
-  line-height: 18px;
-  text-align: center;
+  background: rgba(255, 210, 98, 0.92);
+  box-shadow:
+    0 0 6px rgba(255, 181, 68, 0.72),
+    0 0 12px rgba(255, 109, 56, 0.28);
 }
 
 .attackUnitPopover {
@@ -1813,38 +1809,34 @@
 }
 
 .guardSprite[data-variant="unit-1"] {
-  background-position: 0 0;
+  background-position: 0% 0%;
 }
 .guardSprite[data-variant="unit-2"] {
-  background-position: -100% 0;
+  background-position: 50% 0%;
 }
 .guardSprite[data-variant="unit-3"] {
-  background-position: -200% 0;
+  background-position: 100% 0%;
 }
 .guardSprite[data-variant="unit-4"] {
-  background-position: 0 -100%;
+  background-position: 0% 100%;
 }
 .guardSprite[data-variant="unit-5"] {
-  background-position: -100% -100%;
+  background-position: 50% 100%;
 }
 .guardSprite[data-variant="unit-6"] {
-  background-position: -200% -100%;
+  background-position: 100% 100%;
 }
 
-.guardCount {
+.guardPresence {
   position: absolute;
-  right: -4px;
-  bottom: -2px;
-  min-width: 16px;
-  height: 14px;
-  padding: 0 4px;
+  right: 0;
+  bottom: 0;
+  width: 7px;
+  height: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.32);
   border-radius: 999px;
-  background: rgba(12, 18, 28, 0.88);
-  color: #fff5cf;
-  font-size: 0.55rem;
-  font-weight: 700;
-  line-height: 14px;
-  text-align: center;
+  background: rgba(255, 210, 98, 0.92);
+  box-shadow: 0 0 6px rgba(255, 181, 68, 0.64);
 }
 
 @keyframes guardIdle {
@@ -1899,18 +1891,20 @@
   display: block;
   width: 40px;
   height: 40px;
-  background-size: contain;
+  background-image: url("/assets/unit-sprites.png");
+  background-size: 300% 200%;
   background-repeat: no-repeat;
   background-position: center;
+  image-rendering: pixelated;
   opacity: 0.9;
 }
 
-.battalionSprite[data-variant="unit-1"] { background-image: url(/assets/sprites/unit-1.png); }
-.battalionSprite[data-variant="unit-2"] { background-image: url(/assets/sprites/unit-2.png); }
-.battalionSprite[data-variant="unit-3"] { background-image: url(/assets/sprites/unit-3.png); }
-.battalionSprite[data-variant="unit-4"] { background-image: url(/assets/sprites/unit-4.png); }
-.battalionSprite[data-variant="unit-5"] { background-image: url(/assets/sprites/unit-5.png); }
-.battalionSprite[data-variant="unit-6"] { background-image: url(/assets/sprites/unit-6.png); }
+.battalionSprite[data-variant="unit-1"] { background-position: 0% 0%; }
+.battalionSprite[data-variant="unit-2"] { background-position: 50% 0%; }
+.battalionSprite[data-variant="unit-3"] { background-position: 100% 0%; }
+.battalionSprite[data-variant="unit-4"] { background-position: 0% 100%; }
+.battalionSprite[data-variant="unit-5"] { background-position: 50% 100%; }
+.battalionSprite[data-variant="unit-6"] { background-position: 100% 100%; }
 
 .battalionBadge {
   position: absolute;
@@ -1926,22 +1920,6 @@
   align-items: center;
   justify-content: center;
   line-height: 1;
-}
-
-.battalionCount {
-  position: absolute;
-  right: -6px;
-  bottom: -2px;
-  min-width: 18px;
-  height: 15px;
-  padding: 0 4px;
-  border-radius: 999px;
-  background: rgba(12, 18, 28, 0.88);
-  color: #fff5cf;
-  font-size: 0.6rem;
-  font-weight: 700;
-  line-height: 15px;
-  text-align: center;
 }
 
 /* Patrol animation — smooth tile-to-tile movement for GUARD battalions */
@@ -1978,19 +1956,21 @@
   display: block;
   width: 18px;
   height: 18px;
-  background-size: contain;
+  background-image: url("/assets/unit-sprites.png");
+  background-size: 300% 200%;
   background-repeat: no-repeat;
   background-position: center;
+  image-rendering: pixelated;
   opacity: 0.85;
   filter: drop-shadow(0 0 4px rgba(100, 200, 255, 0.6));
 }
 
-.reinforcementSprite[data-variant="unit-1"] { background-image: url(/assets/sprites/unit-1.png); }
-.reinforcementSprite[data-variant="unit-2"] { background-image: url(/assets/sprites/unit-2.png); }
-.reinforcementSprite[data-variant="unit-3"] { background-image: url(/assets/sprites/unit-3.png); }
-.reinforcementSprite[data-variant="unit-4"] { background-image: url(/assets/sprites/unit-4.png); }
-.reinforcementSprite[data-variant="unit-5"] { background-image: url(/assets/sprites/unit-5.png); }
-.reinforcementSprite[data-variant="unit-6"] { background-image: url(/assets/sprites/unit-6.png); }
+.reinforcementSprite[data-variant="unit-1"] { background-position: 0% 0%; }
+.reinforcementSprite[data-variant="unit-2"] { background-position: 50% 0%; }
+.reinforcementSprite[data-variant="unit-3"] { background-position: 100% 0%; }
+.reinforcementSprite[data-variant="unit-4"] { background-position: 0% 100%; }
+.reinforcementSprite[data-variant="unit-5"] { background-position: 50% 100%; }
+.reinforcementSprite[data-variant="unit-6"] { background-position: 100% 100%; }
 
 .reinforcementCount {
   position: absolute;
@@ -2167,22 +2147,22 @@
 }
 
 .convoyEscort[data-variant="unit-1"] {
-  background-position: 0 0;
+  background-position: 0% 0%;
 }
 .convoyEscort[data-variant="unit-2"] {
-  background-position: -100% 0;
+  background-position: 50% 0%;
 }
 .convoyEscort[data-variant="unit-3"] {
-  background-position: -200% 0;
+  background-position: 100% 0%;
 }
 .convoyEscort[data-variant="unit-4"] {
-  background-position: 0 -100%;
+  background-position: 0% 100%;
 }
 .convoyEscort[data-variant="unit-5"] {
-  background-position: -100% -100%;
+  background-position: 50% 100%;
 }
 .convoyEscort[data-variant="unit-6"] {
-  background-position: -200% -100%;
+  background-position: 100% 100%;
 }
 
 .convoyLabel {
