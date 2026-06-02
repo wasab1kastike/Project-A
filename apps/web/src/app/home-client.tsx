@@ -54,6 +54,33 @@ function getBattalionJob(mode: string | null | undefined): BattalionJob {
     : "GUARD";
 }
 
+function pickSpreadTile(
+  tiles: typeof HEX_TILES,
+  spreadIndex: number,
+  maxChoices = tiles.length,
+) {
+  if (tiles.length === 0) return null;
+
+  const choices = tiles.slice(
+    0,
+    Math.max(1, Math.min(maxChoices, tiles.length)),
+  );
+  return choices[spreadIndex % choices.length]?.id ?? null;
+}
+
+function sortTilesByDistance(
+  tiles: typeof HEX_TILES,
+  point: { mapX: number; mapY: number } | null,
+) {
+  if (!point) return [...tiles];
+
+  return [...tiles].sort((a, b) => {
+    const da = Math.hypot(a.xPercent - point.mapX, a.yPercent - point.mapY);
+    const db = Math.hypot(b.xPercent - point.mapX, b.yPercent - point.mapY);
+    return da - db;
+  });
+}
+
 function getOwnedRoamTile(args: {
   job: BattalionJob;
   fortressId: string;
@@ -61,6 +88,7 @@ function getOwnedRoamTile(args: {
   mapFortresses: HomePageState["mapFortresses"];
   warFronts: HomePageState["warFronts"];
   fallbackTileId: string | null | undefined;
+  spreadIndex: number;
 }): string | null {
   if (args.fallbackTileId) return args.fallbackTileId;
 
@@ -71,14 +99,10 @@ function getOwnedRoamTile(args: {
   const nearestMapTileToPoint = (
     point: { mapX: number; mapY: number } | null,
   ) => {
-    if (!point) return null;
-
-    return (
-      [...HEX_TILES].sort((a, b) => {
-        const da = Math.hypot(a.xPercent - point.mapX, a.yPercent - point.mapY);
-        const db = Math.hypot(b.xPercent - point.mapX, b.yPercent - point.mapY);
-        return da - db;
-      })[0]?.id ?? null
+    return pickSpreadTile(
+      sortTilesByDistance(HEX_TILES, point),
+      args.spreadIndex,
+      12,
     );
   };
   const ownedTileIds = new Set(
@@ -98,27 +122,32 @@ function getOwnedRoamTile(args: {
     if (ownedTiles.length === 0) {
       return nearestMapTileToPoint(point ?? ownFortress ?? null);
     }
-    if (!point) return ownedTiles[0]?.id ?? null;
-    return (
-      [...ownedTiles].sort((a, b) => {
-        const da = Math.hypot(a.xPercent - point.mapX, a.yPercent - point.mapY);
-        const db = Math.hypot(b.xPercent - point.mapX, b.yPercent - point.mapY);
-        return da - db;
-      })[0]?.id ?? null
+    return pickSpreadTile(
+      sortTilesByDistance(ownedTiles, point),
+      args.spreadIndex,
+      12,
     );
   };
 
   if (args.job === "GUARD") {
-    const borderTile = ownedTiles.find((tile) =>
-      HEX_TILES.some(
-        (candidate) =>
-          candidate.id !== tile.id &&
-          Math.abs(candidate.col - tile.col) <= 1 &&
-          Math.abs(candidate.row - tile.row) <= 1 &&
-          !ownedTileIds.has(candidate.id),
-      ),
+    const borderTiles = ownedTiles.filter((tile) =>
+      HEX_TILES.some((candidate) => {
+        if (candidate.id === tile.id || ownedTileIds.has(candidate.id)) {
+          return false;
+        }
+
+        const colDistance = Math.abs(candidate.col - tile.col);
+        const rowDistance = Math.abs(candidate.row - tile.row);
+        return colDistance <= 1 && rowDistance <= 1;
+      }),
     );
-    return borderTile?.id ?? nearestToPoint(ownFortress ?? null);
+    return (
+      pickSpreadTile(
+        sortTilesByDistance(borderTiles, ownFortress ?? null),
+        args.spreadIndex,
+        12,
+      ) ?? nearestToPoint(ownFortress ?? null)
+    );
   }
 
   if (args.job === "ATTACK") {
@@ -439,7 +468,7 @@ function HomeClientContent({
           nukeState={(state as any).nukeState ?? null}
           battalionMarkers={(state.battalions ?? [])
             .filter((bn: any) => bn.size > 0)
-            .map((bn: any) => {
+            .map((bn: any, battalionIndex: number) => {
               const fortress = state.mapFortresses?.find(
                 (f: any) => f.id === bn.fortressId
               );
@@ -451,6 +480,7 @@ function HomeClientContent({
                 mapFortresses: state.mapFortresses,
                 warFronts: state.warFronts,
                 fallbackTileId: bn.garrisonedAt,
+                spreadIndex: battalionIndex,
               });
               if (!tileId) return null;
               return {
