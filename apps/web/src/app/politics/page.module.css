@@ -398,6 +398,13 @@
   background: rgba(3, 10, 16, 0.34);
 }
 
+.tradeProgress {
+  display: grid;
+  gap: 4px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+}
+
 .orderControl {
   display: flex;
   align-items: center;

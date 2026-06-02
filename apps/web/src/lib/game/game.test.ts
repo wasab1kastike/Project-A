@@ -3327,6 +3327,21 @@ test("season four large trade offers queue sequential wagon runs", async (contex
     accepted.convoyLegs.reduce((sum, leg) => sum + leg.food, 0),
     300
   );
+  const initialPoliticsState = await getPoliticsPageState({
+    userId: sender.id,
+    now: new Date("2026-04-20T12:00:30.000Z"),
+    db: prisma,
+  });
+  const initialActiveTrade = initialPoliticsState.activeTradeOffers[0];
+  const initialDirection = initialActiveTrade?.directions[0];
+  assert.equal(initialPoliticsState.activeTradeOffers.length, 1);
+  assert.equal(initialDirection?.total.food, 1_000);
+  assert.equal(initialDirection?.delivered.food, 0);
+  assert.equal(initialDirection?.inTransit.food, 300);
+  assert.equal(initialDirection?.queued.food, 700);
+  assert.equal(initialDirection?.activeRunCount, 3);
+  assert.equal(initialDirection?.queuedRunCount, 7);
+  assert.ok(initialActiveTrade?.estimatedFulfillmentAt);
 
   for (let batch = 0; batch < 4; batch += 1) {
     const tickAt = new Date(`2026-04-20T12:0${batch + 1}:00.000Z`);
@@ -3339,6 +3354,27 @@ test("season four large trade offers queue sequential wagon runs", async (contex
       data: { arrivesAt: tickAt },
     });
     await runGameTick({ now: tickAt, db: prisma });
+
+    if (batch === 0) {
+      const partialOffer = await prisma.tradeOffer.findUniqueOrThrow({
+        where: { id: offer.id },
+        select: { status: true },
+      });
+      const partialPoliticsState = await getPoliticsPageState({
+        userId: sender.id,
+        now: new Date("2026-04-20T12:01:30.000Z"),
+        db: prisma,
+      });
+      const partialDirection =
+        partialPoliticsState.activeTradeOffers[0]?.directions[0];
+
+      assert.equal(partialOffer.status, TradeOfferStatus.ACCEPTED);
+      assert.equal(partialDirection?.delivered.food, 300);
+      assert.equal(partialDirection?.inTransit.food, 300);
+      assert.equal(partialDirection?.queued.food, 400);
+      assert.equal(partialDirection?.activeRunCount, 3);
+      assert.equal(partialDirection?.queuedRunCount, 4);
+    }
   }
 
   const [completedOffer, deliveredLegs, receiverAfter] = await Promise.all([
@@ -3357,6 +3393,14 @@ test("season four large trade offers queue sequential wagon runs", async (contex
   );
   assert.equal(deliveredLegs.reduce((sum, leg) => sum + leg.food, 0), 1_000);
   assert.equal(receiverAfter.food, 6_050);
+  assert.equal(
+    (await getPoliticsPageState({
+      userId: sender.id,
+      now: new Date("2026-04-20T12:05:00.000Z"),
+      db: prisma,
+    })).activeTradeOffers.length,
+    0
+  );
 });
 
 test("season four full outbound trade wagons queue accepted offers", async (context) => {

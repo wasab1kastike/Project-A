@@ -6,6 +6,8 @@ import {
   CycleStatus,
   FortressKind,
   ConvoyLegStatus,
+  NukeComponentKind,
+  TradeLineItemKind,
   TradeOfferStatus,
   type PrismaClient,
 } from "@/lib/prisma-client";
@@ -20,8 +22,12 @@ import { isSeasonFourRuleset } from "./rulesets";
 import { isHomeOfATile } from "./territory";
 import {
   getActiveTradeWagonLimit,
+  getConvoyArrivalAt,
   getTradeBlockedReason,
+  getTradeNukeComponents,
   getTradeWagonResourceLimit,
+  splitTradeCargoIntoWagonRuns,
+  type TradeCargo,
 } from "./trading";
 import { isConvoyRaidEligible } from "./convoy-conflict";
 import { countCastleSpecializations } from "./specializations";
@@ -34,6 +40,174 @@ function getMinutesUntil(from: Date, to: Date | null | undefined) {
   }
 
   return Math.ceil((to.getTime() - from.getTime()) / 60000);
+}
+
+function emptyCargo(): TradeCargo {
+  return {
+    gold: 0,
+    food: 0,
+    army: 0,
+    points: 0,
+    nukeComponents: {
+      [NukeComponentKind.FUEL]: 0,
+      [NukeComponentKind.ROCKET]: 0,
+      [NukeComponentKind.WRATH_OF_A]: 0,
+    },
+  };
+}
+
+function addCargo(
+  left: TradeCargo,
+  right: TradeCargo
+): TradeCargo {
+  const leftNukes = getTradeNukeComponents(left);
+  const rightNukes = getTradeNukeComponents(right);
+
+  return {
+    gold: left.gold + right.gold,
+    food: left.food + right.food,
+    army: left.army + right.army,
+    points: left.points + right.points,
+    nukeComponents: {
+      [NukeComponentKind.FUEL]:
+        leftNukes[NukeComponentKind.FUEL] + rightNukes[NukeComponentKind.FUEL],
+      [NukeComponentKind.ROCKET]:
+        leftNukes[NukeComponentKind.ROCKET] +
+        rightNukes[NukeComponentKind.ROCKET],
+      [NukeComponentKind.WRATH_OF_A]:
+        leftNukes[NukeComponentKind.WRATH_OF_A] +
+        rightNukes[NukeComponentKind.WRATH_OF_A],
+    },
+  };
+}
+
+function subtractCargo(
+  original: TradeCargo,
+  launched: TradeCargo
+): TradeCargo {
+  const originalNukes = getTradeNukeComponents(original);
+  const launchedNukes = getTradeNukeComponents(launched);
+
+  return {
+    gold: Math.max(0, original.gold - launched.gold),
+    food: Math.max(0, original.food - launched.food),
+    army: Math.max(0, original.army - launched.army),
+    points: Math.max(0, original.points - launched.points),
+    nukeComponents: {
+      [NukeComponentKind.FUEL]: Math.max(
+        0,
+        originalNukes[NukeComponentKind.FUEL] -
+          launchedNukes[NukeComponentKind.FUEL]
+      ),
+      [NukeComponentKind.ROCKET]: Math.max(
+        0,
+        originalNukes[NukeComponentKind.ROCKET] -
+          launchedNukes[NukeComponentKind.ROCKET]
+      ),
+      [NukeComponentKind.WRATH_OF_A]: Math.max(
+        0,
+        originalNukes[NukeComponentKind.WRATH_OF_A] -
+          launchedNukes[NukeComponentKind.WRATH_OF_A]
+      ),
+    },
+  };
+}
+
+function convoyLegCargo(leg: {
+  gold: number;
+  food: number;
+  army: number;
+  points: number;
+  nukeFuel: number;
+  nukeRocket: number;
+  nukeWrathOfA: number;
+}) {
+  return {
+    gold: leg.gold,
+    food: leg.food,
+    army: leg.army,
+    points: leg.points,
+    nukeComponents: {
+      [NukeComponentKind.FUEL]: leg.nukeFuel,
+      [NukeComponentKind.ROCKET]: leg.nukeRocket,
+      [NukeComponentKind.WRATH_OF_A]: leg.nukeWrathOfA,
+    },
+  };
+}
+
+function cargoFromLineItems({
+  lineItems,
+  fromFortressId,
+}: {
+  lineItems: {
+    fromFortressId: string;
+    kind: TradeLineItemKind;
+    amount: number | null;
+    nukeComponentKind?: NukeComponentKind | null;
+  }[];
+  fromFortressId: string;
+}) {
+  let cargo = emptyCargo();
+
+  for (const lineItem of lineItems) {
+    if (lineItem.fromFortressId !== fromFortressId || !lineItem.amount) {
+      continue;
+    }
+
+    const nukes = getTradeNukeComponents(cargo);
+
+    if (lineItem.kind === TradeLineItemKind.GOLD) {
+      cargo = { ...cargo, gold: cargo.gold + lineItem.amount };
+    } else if (lineItem.kind === TradeLineItemKind.FOOD) {
+      cargo = { ...cargo, food: cargo.food + lineItem.amount };
+    } else if (lineItem.kind === TradeLineItemKind.ARMY) {
+      cargo = { ...cargo, army: cargo.army + lineItem.amount };
+    } else if (lineItem.kind === TradeLineItemKind.POINTS) {
+      cargo = { ...cargo, points: cargo.points + lineItem.amount };
+    } else if (
+      lineItem.kind === TradeLineItemKind.NUKE_COMPONENT &&
+      lineItem.nukeComponentKind
+    ) {
+      cargo = {
+        ...cargo,
+        nukeComponents: {
+          ...nukes,
+          [lineItem.nukeComponentKind]:
+            nukes[lineItem.nukeComponentKind] + lineItem.amount,
+        },
+      };
+    }
+  }
+
+  return cargo;
+}
+
+function serializeCargo(cargo: TradeCargo) {
+  const nukes = getTradeNukeComponents(cargo);
+
+  return {
+    gold: cargo.gold,
+    food: cargo.food,
+    army: cargo.army,
+    points: cargo.points,
+    nukeFuel: nukes[NukeComponentKind.FUEL],
+    nukeRocket: nukes[NukeComponentKind.ROCKET],
+    nukeWrathOfA: nukes[NukeComponentKind.WRATH_OF_A],
+  };
+}
+
+function hasCargo(cargo: TradeCargo) {
+  const nukes = getTradeNukeComponents(cargo);
+
+  return (
+    cargo.gold > 0 ||
+    cargo.food > 0 ||
+    cargo.army > 0 ||
+    cargo.points > 0 ||
+    nukes[NukeComponentKind.FUEL] > 0 ||
+    nukes[NukeComponentKind.ROCKET] > 0 ||
+    nukes[NukeComponentKind.WRATH_OF_A] > 0
+  );
 }
 
 function isGameplayWindowOpen(
@@ -88,6 +262,7 @@ export async function getPoliticsPageState({
       rows: [],
       incomingTradeOffers: [],
       outgoingTradeOffers: [],
+      activeTradeOffers: [],
       activeConvoyLegs: [],
       recentConvoyLegs: [],
       tradeLog: [],
@@ -104,6 +279,7 @@ export async function getPoliticsPageState({
       rows: [],
       incomingTradeOffers: [],
       outgoingTradeOffers: [],
+      activeTradeOffers: [],
       activeConvoyLegs: [],
       recentConvoyLegs: [],
       tradeLog: [],
@@ -134,6 +310,8 @@ export async function getPoliticsPageState({
           commanderName: true,
           name: true,
           points: true,
+          mapX: true,
+          mapY: true,
           joinedAt: true,
           race: true,
           skillPurchases: {
@@ -202,6 +380,7 @@ export async function getPoliticsPageState({
       rows: [],
       incomingTradeOffers: [],
       outgoingTradeOffers: [],
+      activeTradeOffers: [],
       activeConvoyLegs: [],
       recentConvoyLegs: [],
       tradeLog: [],
@@ -221,6 +400,7 @@ export async function getPoliticsPageState({
       rows: [],
       incomingTradeOffers: [],
       outgoingTradeOffers: [],
+      activeTradeOffers: [],
       activeConvoyLegs: [],
       recentConvoyLegs: [],
       tradeLog: [],
@@ -242,8 +422,9 @@ export async function getPoliticsPageState({
 
   const [
     tradeOffers,
+    activeTradeOffers,
     convoyLegs,
-    activeOutboundWagonGroups,
+    activeOutboundWagonLegs,
     activeArmyOrders,
     recentCovertIncidents,
   ] = await Promise.all([
@@ -259,6 +440,43 @@ export async function getPoliticsPageState({
       },
       include: { lineItems: true },
       orderBy: { createdAt: "desc" },
+    }),
+    db.tradeOffer.findMany({
+      where: {
+        cycleId: cycle.id,
+        status: TradeOfferStatus.ACCEPTED,
+        OR: [
+          { senderFortressId: playerFortress.id },
+          { receiverFortressId: playerFortress.id },
+        ],
+      },
+      include: {
+        lineItems: true,
+        convoyLegs: {
+          select: {
+            id: true,
+            fromFortressId: true,
+            toFortressId: true,
+            status: true,
+            gold: true,
+            food: true,
+            army: true,
+            points: true,
+            nukeFuel: true,
+            nukeRocket: true,
+            nukeWrathOfA: true,
+            deedTileId: true,
+            arrivesAt: true,
+            settledAt: true,
+          },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        },
+      },
+      orderBy: [
+        { acceptedAt: "asc" },
+        { createdAt: "asc" },
+        { id: "asc" },
+      ],
     }),
     db.convoyLeg.findMany({
       where: {
@@ -284,13 +502,16 @@ export async function getPoliticsPageState({
       orderBy: { createdAt: "desc" },
       take: 30,
     }),
-    db.convoyLeg.groupBy({
-      by: ["fromFortressId"],
+    db.convoyLeg.findMany({
       where: {
         cycleId: cycle.id,
         status: ConvoyLegStatus.IN_TRANSIT,
       },
-      _count: { id: true },
+      select: {
+        fromFortressId: true,
+        arrivesAt: true,
+      },
+      orderBy: [{ arrivesAt: "asc" }, { id: "asc" }],
     }),
     db.armyOrder.findMany({
       where: {
@@ -315,11 +536,21 @@ export async function getPoliticsPageState({
   ]);
 
   const activeOutboundWagonsByFortressId = new Map<string, number>();
-  for (const row of activeOutboundWagonGroups) {
+  const activeOutboundArrivalsByFortressId = new Map<string, Date[]>();
+  for (const row of activeOutboundWagonLegs) {
     activeOutboundWagonsByFortressId.set(
       row.fromFortressId,
-      row._count.id
+      (activeOutboundWagonsByFortressId.get(row.fromFortressId) ?? 0) + 1
     );
+    const arrivals = activeOutboundArrivalsByFortressId.get(row.fromFortressId);
+
+    if (arrivals) {
+      arrivals.push(row.arrivesAt);
+    } else {
+      activeOutboundArrivalsByFortressId.set(row.fromFortressId, [
+        row.arrivesAt,
+      ]);
+    }
   }
 
   const rows = cycle.fortresses
@@ -467,6 +698,9 @@ export async function getPoliticsPageState({
     });
   const fortressNames = new Map(
     cycle.fortresses.map((fortress) => [fortress.id, fortress.name])
+  );
+  const fortressById = new Map(
+    cycle.fortresses.map((fortress) => [fortress.id, fortress])
   );
   const playerCastleSpecializations = countCastleSpecializations(
     playerFortress.castleUpgradeSpecializations
@@ -630,6 +864,250 @@ export async function getPoliticsPageState({
       profitLabel: `-${leg.baseCargoValue.toLocaleString("en-US")} cargo value`,
     };
   };
+  const estimateQueuedFulfillmentAt = ({
+    fromFortressId,
+    toFortressId,
+    queuedRunCount,
+  }: {
+    fromFortressId: string;
+    toFortressId: string;
+    queuedRunCount: number;
+  }) => {
+    if (queuedRunCount <= 0) {
+      return null;
+    }
+
+    const fromFortress = fortressById.get(fromFortressId);
+    const toFortress = fortressById.get(toFortressId);
+
+    if (!fromFortress || !toFortress) {
+      return null;
+    }
+
+    const skillModifiers =
+      fromFortress.race && isFortressRace(fromFortress.race)
+        ? getSkillModifiers({
+            race: fromFortress.race,
+            purchases: fromFortress.skillPurchases ?? [],
+          })
+        : null;
+    const wagonLimit = getActiveTradeWagonLimit(
+      skillModifiers?.tradeWagonSlotBonus ?? 0
+    );
+    const routeDurationMs =
+      getConvoyArrivalAt({
+        acceptedAt: now,
+        from: fromFortress,
+        to: toFortress,
+      }).getTime() - now.getTime();
+    const slotTimes = [
+      ...(activeOutboundArrivalsByFortressId.get(fromFortressId) ?? []),
+    ].map((date) => (date > now ? date.getTime() : now.getTime()));
+
+    while (slotTimes.length < wagonLimit) {
+      slotTimes.push(now.getTime());
+    }
+
+    if (slotTimes.length === 0) {
+      return null;
+    }
+
+    slotTimes.sort((left, right) => left - right);
+    let latestArrival = now.getTime();
+
+    for (let index = 0; index < queuedRunCount; index += 1) {
+      const departAt = slotTimes.shift() ?? now.getTime();
+      const arrivesAt = departAt + routeDurationMs;
+      latestArrival = Math.max(latestArrival, arrivesAt);
+      slotTimes.push(arrivesAt);
+      slotTimes.sort((left, right) => left - right);
+    }
+
+    return new Date(latestArrival);
+  };
+  const normalizeActiveTradeOffer = (
+    offer: (typeof activeTradeOffers)[number]
+  ) => {
+    const directions = Array.from(
+      new Set(
+        offer.lineItems.map(
+          (lineItem) => `${lineItem.fromFortressId}:${lineItem.toFortressId}`
+        )
+      )
+    );
+    const normalizedDirections = directions
+      .map((direction) => {
+        const [fromFortressId, toFortressId] = direction.split(":");
+
+        if (!fromFortressId || !toFortressId) {
+          return null;
+        }
+
+        const fromFortress = fortressById.get(fromFortressId);
+        const lineItemsForDirection = offer.lineItems.filter(
+          (lineItem) =>
+            lineItem.fromFortressId === fromFortressId &&
+            lineItem.toFortressId === toFortressId
+        );
+        const totalCargo = cargoFromLineItems({
+          lineItems: lineItemsForDirection,
+          fromFortressId,
+        });
+        const totalDeedTileIds = lineItemsForDirection
+          .filter(
+            (lineItem) =>
+              lineItem.kind === TradeLineItemKind.TILE && lineItem.tileId
+          )
+          .map((lineItem) => lineItem.tileId!)
+          .sort();
+        let launchedCargo = emptyCargo();
+        let deliveredCargo = emptyCargo();
+        let inTransitCargo = emptyCargo();
+        let lostCargo = emptyCargo();
+        const directionLegs = offer.convoyLegs.filter(
+          (leg) =>
+            leg.fromFortressId === fromFortressId &&
+            leg.toFortressId === toFortressId
+        );
+
+        for (const leg of directionLegs) {
+          const cargo = convoyLegCargo(leg);
+          launchedCargo = addCargo(launchedCargo, cargo);
+
+          if (leg.status === ConvoyLegStatus.DELIVERED) {
+            deliveredCargo = addCargo(deliveredCargo, cargo);
+          } else if (leg.status === ConvoyLegStatus.IN_TRANSIT) {
+            inTransitCargo = addCargo(inTransitCargo, cargo);
+          } else if (
+            leg.status === ConvoyLegStatus.SEIZED ||
+            leg.status === ConvoyLegStatus.INTERCEPTED
+          ) {
+            lostCargo = addCargo(lostCargo, cargo);
+          }
+        }
+
+        const launchedDeedTileIds = directionLegs
+          .map((leg) => leg.deedTileId)
+          .filter((tileId): tileId is string => Boolean(tileId))
+          .sort();
+        const deliveredDeedTileIds = directionLegs
+          .filter((leg) => leg.status === ConvoyLegStatus.DELIVERED)
+          .map((leg) => leg.deedTileId)
+          .filter((tileId): tileId is string => Boolean(tileId))
+          .sort();
+        const lostDeedTileIds = directionLegs
+          .filter(
+            (leg) =>
+              leg.status === ConvoyLegStatus.SEIZED ||
+              leg.status === ConvoyLegStatus.INTERCEPTED
+          )
+          .map((leg) => leg.deedTileId)
+          .filter((tileId): tileId is string => Boolean(tileId))
+          .sort();
+        const queuedCargo = subtractCargo(totalCargo, launchedCargo);
+        const deedStillQueued = totalDeedTileIds.some(
+          (tileId) => !launchedDeedTileIds.includes(tileId)
+        );
+        const skillModifiers =
+          fromFortress?.race && isFortressRace(fromFortress.race)
+            ? getSkillModifiers({
+                race: fromFortress.race,
+                purchases: fromFortress.skillPurchases ?? [],
+              })
+            : null;
+        const tradeLevel = countCastleSpecializations(
+          fromFortress?.castleUpgradeSpecializations ?? []
+        )[CastleUpgradeSpecialization.TRADE];
+        const queuedRunCount =
+          splitTradeCargoIntoWagonRuns(
+            queuedCargo,
+            tradeLevel,
+            skillModifiers?.tradeWagonCapacityPercent ?? 0
+          ).length + (deedStillQueued && !hasCargo(queuedCargo) ? 1 : 0);
+        const activeLegs = directionLegs.filter(
+          (leg) => leg.status === ConvoyLegStatus.IN_TRANSIT
+        );
+        const latestActiveArrival = activeLegs.reduce<Date | null>(
+          (latest, leg) =>
+            latest === null || leg.arrivesAt > latest ? leg.arrivesAt : latest,
+          null
+        );
+        const queuedFulfillmentAt = estimateQueuedFulfillmentAt({
+          fromFortressId,
+          toFortressId,
+          queuedRunCount,
+        });
+        const estimatedFulfillmentAt =
+          latestActiveArrival && queuedFulfillmentAt
+            ? latestActiveArrival > queuedFulfillmentAt
+              ? latestActiveArrival
+              : queuedFulfillmentAt
+            : latestActiveArrival ?? queuedFulfillmentAt;
+
+        return {
+          fromFortressId,
+          toFortressId,
+          outgoing: fromFortressId === playerFortress.id,
+          counterpartName:
+            fortressNames.get(
+              fromFortressId === playerFortress.id
+                ? toFortressId
+                : fromFortressId
+            ) ?? "Unknown fortress",
+          total: serializeCargo(totalCargo),
+          delivered: serializeCargo(deliveredCargo),
+          inTransit: serializeCargo(inTransitCargo),
+          queued: serializeCargo(queuedCargo),
+          lost: serializeCargo(lostCargo),
+          totalDeedTileIds,
+          deliveredDeedTileIds,
+          lostDeedTileIds,
+          queuedDeedTileIds: totalDeedTileIds.filter(
+            (tileId) => !launchedDeedTileIds.includes(tileId)
+          ),
+          activeRunCount: activeLegs.length,
+          settledRunCount: directionLegs.filter(
+            (leg) => leg.status !== ConvoyLegStatus.IN_TRANSIT
+          ).length,
+          queuedRunCount,
+          totalRunCount: directionLegs.length + queuedRunCount,
+          nextArrivalAt:
+            activeLegs.reduce<Date | null>(
+              (earliest, leg) =>
+                earliest === null || leg.arrivesAt < earliest
+                  ? leg.arrivesAt
+                  : earliest,
+              null
+            ) ?? null,
+          estimatedFulfillmentAt,
+        };
+      })
+      .filter(
+        (direction): direction is NonNullable<typeof direction> =>
+          direction !== null
+      );
+    const estimatedFulfillmentAt = normalizedDirections.reduce<Date | null>(
+      (latest, direction) =>
+        direction.estimatedFulfillmentAt &&
+        (latest === null || direction.estimatedFulfillmentAt > latest)
+          ? direction.estimatedFulfillmentAt
+          : latest,
+      null
+    );
+
+    return {
+      id: offer.id,
+      counterpartName:
+        fortressNames.get(
+          offer.senderFortressId === playerFortress.id
+            ? offer.receiverFortressId
+            : offer.senderFortressId
+        ) ?? "Unknown fortress",
+      acceptedAt: offer.acceptedAt,
+      directions: normalizedDirections,
+      estimatedFulfillmentAt,
+    };
+  };
 
   return {
     canUsePolitics: true,
@@ -661,6 +1139,7 @@ export async function getPoliticsPageState({
     outgoingTradeOffers: tradeOffers
       .filter((offer) => offer.senderFortressId === playerFortress.id)
       .map(normalizeOffer),
+    activeTradeOffers: activeTradeOffers.map(normalizeActiveTradeOffer),
     activeConvoyLegs: convoyLegs
       .filter(
         (leg) =>
