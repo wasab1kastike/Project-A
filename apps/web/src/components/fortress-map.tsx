@@ -4,6 +4,7 @@ import {
   Fragment,
   memo,
   type CSSProperties,
+  type MutableRefObject,
   type PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
@@ -24,7 +25,11 @@ import {
 import { getAttackTravelMinutes } from "@/lib/game/attacks";
 import { getAttackPresentation } from "@/lib/game/attack-presentation";
 import { getCosmeticSpriteStyle } from "@/lib/game/cosmetic-sprites";
-import { findSimplePath, getHexNeighbors, type PathHexTile } from "@/lib/game/march-pathfinding";
+import {
+  findSimplePath,
+  getHexNeighbors,
+  type PathHexTile,
+} from "@/lib/game/march-pathfinding";
 import type { UnitSpriteVariant } from "@/lib/game/constants";
 import {
   getHomeOfABonus,
@@ -69,7 +74,11 @@ type MapFortress = {
 
 type AttackUnitMarker = {
   id: string;
-  kind?: "ATTACK" | "FORTIFY" | "BATTLEFIELD_REINFORCEMENT" | "BATTALION_REINFORCEMENT";
+  kind?:
+    | "ATTACK"
+    | "FORTIFY"
+    | "BATTLEFIELD_REINFORCEMENT"
+    | "BATTALION_REINFORCEMENT";
   armyAmount: number | null;
   launchedAt: Date;
   arrivesAt: Date;
@@ -133,7 +142,13 @@ type MapHexOwnershipMarker = {
   campaignDisabledReason?: string | null;
   campaignId?: string | null;
   campaignOrderId?: string | null;
-  campaignStatus?: "BUILDING" | "SIEGE_WARNING" | "ENGAGED" | "RESOLVED" | "CANCELED" | null;
+  campaignStatus?:
+    | "BUILDING"
+    | "SIEGE_WARNING"
+    | "ENGAGED"
+    | "RESOLVED"
+    | "CANCELED"
+    | null;
   campaignProgress?: number | null;
   campaignThreshold?: number | null;
   campaignResponseEndsAt?: Date | null;
@@ -459,7 +474,7 @@ type RoadEdge = {
 
 function computeRoadEdges(
   segments: Array<{ tileId: string; level: number; crossings?: number }>,
-  hexTiles: typeof HEX_TILES,
+  hexTiles: typeof HEX_TILES
 ): RoadEdge[] {
   if (segments.length === 0) return [];
 
@@ -476,8 +491,10 @@ function computeRoadEdges(
     // Odd columns:  neighbors at (col±1, row), (col, row±1), (col+1, row±1)
     const isEvenCol = tile.col % 2 === 0;
     const neighborOffsets: [number, number][] = [
-      [-1, 0], [1, 0], // horizontal
-      [0, -1], [0, 1], // vertical
+      [-1, 0],
+      [1, 0], // horizontal
+      [0, -1],
+      [0, 1], // vertical
     ];
     if (isEvenCol) {
       neighborOffsets.push([-1, -1], [-1, 1]);
@@ -489,7 +506,7 @@ function computeRoadEdges(
       const neighborCol = tile.col + dc;
       const neighborRow = tile.row + dr;
       const neighborTile = hexTiles.find(
-        (t) => t.col === neighborCol && t.row === neighborRow,
+        (t) => t.col === neighborCol && t.row === neighborRow
       );
       if (!neighborTile) continue;
 
@@ -559,10 +576,7 @@ function getRoadSpeedLabel(level: number) {
   return "1x";
 }
 
-function getLifeSeedStyle(
-  seed: string,
-  extra?: CSSProperties
-): CSSProperties {
+function getLifeSeedStyle(seed: string, extra?: CSSProperties): CSSProperties {
   const hash = hashString(seed);
   return {
     "--life-delay": `${-((hash % 4200) / 1000).toFixed(2)}s`,
@@ -591,12 +605,75 @@ const PATH_HEX_LOOKUP = new Map(
   HEX_TILES.map((tile) => [
     tile.id,
     { id: tile.id, col: tile.col, row: tile.row },
-  ]),
+  ])
 );
+const PATH_HEX_BY_COORD = new Map(
+  HEX_TILES.map((tile) => [
+    `${tile.col},${tile.row}`,
+    { id: tile.id, col: tile.col, row: tile.row },
+  ])
+);
+const HEX_TILE_POLYGON_POINTS = new Map(
+  HEX_TILES.map((tile) => [tile.id, getHexPolygonPoints(tile.x, tile.y)])
+);
+const HEX_TILE_INNER_POINTS = new Map(
+  HEX_TILES.map((tile) => [
+    tile.id,
+    getHexPolygonPoints(tile.x, tile.y, HEX_RADIUS * 0.72),
+  ])
+);
+const HEX_TILE_DOMAIN_POINTS = new Map(
+  HEX_TILES.map((tile) => [
+    tile.id,
+    getHexPolygonPoints(tile.x, tile.y, HEX_RADIUS * 0.96),
+  ])
+);
+const PRESSURE_MAX = 600;
+const RACE_PRESSURE_COLORS: Record<string, [number, number, number]> = {
+  DWARFS: [74, 123, 191],
+  ORKS: [90, 158, 75],
+  SPACE_MURINES: [212, 168, 67],
+  UNSTABLE_UNICORNS: [155, 89, 182],
+};
+const BIOME_BASE_COLORS: Record<string, [number, number, number]> = {
+  water: [31, 103, 128],
+  coast: [74, 144, 149],
+  plains: [111, 148, 67],
+  forest: [47, 116, 69],
+  hills: [138, 125, 75],
+  mountains: [109, 111, 104],
+  marsh: [79, 128, 97],
+  lake: [43, 122, 160],
+};
+const FULL_LIFE_DOMAIN_TILE_LIMIT = 48;
+const FULL_ROUTE_DETAIL_LIMIT = 24;
+const BATTALION_MODE_COLORS: Record<string, string> = {
+  RESERVE: "#888888",
+  GUARD: "#44cc88",
+  ATTACK: "#ffb040",
+  ALLIANCE: "#c080ff",
+};
+const BATTALION_RACE_TIER_LABELS: Record<string, string[]> = {
+  DWARFS: ["", "⛏", "⛏⛏", "⛏⛏⛏"],
+  ORKS: ["", "💀", "💀💀", "💀💀💀"],
+  SPACE_MURINES: ["", "★", "★★", "★★★"],
+  UNSTABLE_UNICORNS: ["", "🦄", "🦄🦄", "🦄🦄🦄"],
+};
+
+function blendRgb(
+  a: [number, number, number],
+  b: [number, number, number],
+  ratio: number
+): string {
+  const r = Math.round(a[0] + (b[0] - a[0]) * ratio);
+  const g = Math.round(a[1] + (b[1] - a[1]) * ratio);
+  const bl = Math.round(a[2] + (b[2] - a[2]) * ratio);
+  return `rgb(${r},${g},${bl})`;
+}
 
 // ── Hex Tile Map ─────────────────────────────────────────────────────────────
 
-function MapLifeLayer({
+const MapLifeLayer = memo(function MapLifeLayer({
   mapHexes,
   roadEdges,
   tradeRouteLines,
@@ -618,12 +695,19 @@ function MapLifeLayer({
     return new Map(
       mapHexes
         .filter((hex) => hex.hasActiveBattle && hex.activeBattlefieldId)
-        .map((hex) => [
-          hex.tileId,
-          byId.get(hex.activeBattlefieldId!) ?? null,
-        ])
+        .map((hex) => [hex.tileId, byId.get(hex.activeBattlefieldId!) ?? null])
     );
   }, [battlefields, mapHexes]);
+
+  const visibleDomainHexes = useMemo(
+    () =>
+      mapHexes.filter(
+        (hex) =>
+          hex.ownerFortressId &&
+          (!reducedVisualLoad || hex.isCurrentUser || hex.hasActiveBattle)
+      ),
+    [mapHexes, reducedVisualLoad]
+  );
 
   return (
     <div
@@ -635,9 +719,9 @@ function MapLifeLayer({
         className={styles.mapLifeSvg}
         viewBox={`0 0 ${MAP_WORLD_WIDTH} ${MAP_WORLD_HEIGHT}`}
       >
-        {mapHexes.map((hex) => {
-          const tile = HEX_TILES.find((candidate) => candidate.id === hex.tileId);
-          if (!tile || !hex.ownerFortressId) return null;
+        {visibleDomainHexes.map((hex) => {
+          const points = HEX_TILE_DOMAIN_POINTS.get(hex.tileId);
+          if (!points) return null;
 
           return (
             <polygon
@@ -646,7 +730,7 @@ function MapLifeLayer({
                 hex.isCurrentUser ? styles.lifeOwnDomain : ""
               }`}
               data-race={hex.ownerRace ?? undefined}
-              points={getHexPolygonPoints(tile.x, tile.y, HEX_RADIUS * 0.96)}
+              points={points}
               style={getLifeSeedStyle(hex.tileId)}
             />
           );
@@ -686,7 +770,7 @@ function MapLifeLayer({
           : null}
         {Array.from(activeBattleByTileId.entries()).map(
           ([tileId, battlefield]) => {
-            const tile = HEX_TILES.find((candidate) => candidate.id === tileId);
+            const tile = HEX_TILE_BY_ID.get(tileId);
             if (!tile) return null;
 
             const intensity = battlefield?.battleIntensityPercent ?? 30;
@@ -762,70 +846,48 @@ function MapLifeLayer({
         })}
     </div>
   );
-}
+});
 
-function HexTileMap({
+const HexTileMap = memo(function HexTileMap({
   mapHexes,
   selectedTileId,
   highlightedTileIds = [],
   onSelectMapHex,
   battlefieldById,
+  reducedVisualLoad,
 }: {
   mapHexes: MapHexOwnershipMarker[];
   selectedTileId?: string | null;
   highlightedTileIds?: string[];
   onSelectMapHex?: (tileId: string) => void;
   battlefieldById: Map<string, BattlefieldIndicatorData>;
+  reducedVisualLoad: boolean;
 }) {
-  const ownershipByTileId = new Map(
-    mapHexes.map((ownership) => [ownership.tileId, ownership])
+  const ownershipByTileId = useMemo(
+    () => new Map(mapHexes.map((ownership) => [ownership.tileId, ownership])),
+    [mapHexes]
   );
   const highlightedTileIdSet = useMemo(
     () => new Set(highlightedTileIds),
     [highlightedTileIds]
   );
 
-  // ── Pressure heatmap colors ──────────────────────────────────────────
-  const PRESSURE_MAX = 600;
-  const PRESSURE_WARN = 200;
-
-  // Race colors for pressure heatmap
-  const RACE_PRESSURE_COLORS: Record<string, [number, number, number]> = {
-    DWARFS: [74, 123, 191],          // blue
-    ORKS: [90, 158, 75],             // green
-    SPACE_MURINES: [212, 168, 67],   // gold
-    UNSTABLE_UNICORNS: [155, 89, 182], // purple
-  };
-
-  // Biome base colors (darkened slightly for blending)
-  const BIOME_BASE_COLORS: Record<string, [number, number, number]> = {
-    water: [31, 103, 128],
-    coast: [74, 144, 149],
-    plains: [111, 148, 67],
-    forest: [47, 116, 69],
-    hills: [138, 125, 75],
-    mountains: [109, 111, 104],
-    marsh: [79, 128, 97],
-    lake: [43, 122, 160],
-  };
-
-  // Blend two RGB colors with a given ratio (0 = pure a, 1 = pure b)
-  function blendRgb(
-    a: [number, number, number],
-    b: [number, number, number],
-    ratio: number
-  ): string {
-    const r = Math.round(a[0] + (b[0] - a[0]) * ratio);
-    const g = Math.round(a[1] + (b[1] - a[1]) * ratio);
-    const bl = Math.round(a[2] + (b[2] - a[2]) * ratio);
-    return `rgb(${r},${g},${bl})`;
-  }
-
   // Compute pressure heatmap fill color for a tile
   const pressureFillByTileId = useMemo(() => {
     const fills = new Map<string, string>();
+    const ownerRaceByFortressId = new Map<
+      string,
+      NonNullable<MapHexOwnershipMarker["ownerRace"]>
+    >();
     for (const hex of mapHexes) {
-      const biomeRgb = BIOME_BASE_COLORS[hex.biome ?? "plains"] ?? BIOME_BASE_COLORS.plains;
+      if (hex.ownerFortressId && hex.ownerRace) {
+        ownerRaceByFortressId.set(hex.ownerFortressId, hex.ownerRace);
+      }
+    }
+
+    for (const hex of mapHexes) {
+      const biomeRgb =
+        BIOME_BASE_COLORS[hex.biome ?? "plains"] ?? BIOME_BASE_COLORS.plains;
 
       if (hex.ownerFortressId && hex.ownershipPressure != null) {
         // Owned tile: blend biome → race color based on ownership pressure
@@ -833,19 +895,30 @@ function HexTileMap({
         if (raceRgb) {
           const ratio = Math.min(1, hex.ownershipPressure / PRESSURE_MAX);
           // Ease the blend: subtle at low pressure, dominant at high
-          const eased = ratio < 0.33
-            ? ratio * 0.3  // barely visible below warning
-            : ratio;
-          fills.set(hex.tileId, blendRgb(biomeRgb, raceRgb, Math.min(1, eased)));
+          const eased =
+            ratio < 0.33
+              ? ratio * 0.3 // barely visible below warning
+              : ratio;
+          fills.set(
+            hex.tileId,
+            blendRgb(biomeRgb, raceRgb, Math.min(1, eased))
+          );
         }
-      } else if (hex.pressureProgress != null && hex.pressureProgress > 0 && hex.pressureLeaderFortressId) {
+      } else if (
+        hex.pressureProgress != null &&
+        hex.pressureProgress > 0 &&
+        hex.pressureLeaderFortressId
+      ) {
         // Neutral/enemy tile under territorial pressure: subtle wash of leader's race color
-        const leaderRace = mapHexes.find(
-          (h) => h.ownerFortressId === hex.pressureLeaderFortressId
-        )?.ownerRace;
+        const leaderRace = ownerRaceByFortressId.get(
+          hex.pressureLeaderFortressId
+        );
         const raceRgb = RACE_PRESSURE_COLORS[leaderRace ?? ""] ?? null;
         if (raceRgb && hex.pressureThreshold) {
-          const ratio = Math.min(1, hex.pressureProgress / hex.pressureThreshold);
+          const ratio = Math.min(
+            1,
+            hex.pressureProgress / hex.pressureThreshold
+          );
           // Very subtle — max 20% race color at full pressure
           fills.set(hex.tileId, blendRgb(biomeRgb, raceRgb, ratio * 0.2));
         }
@@ -957,6 +1030,16 @@ function HexTileMap({
       />
       {HEX_TILES.map((tile) => {
         const ownership = ownershipByTileId.get(tile.id);
+        const activeBattlefield = ownership?.activeBattlefieldId
+          ? battlefieldById.get(ownership.activeBattlefieldId)
+          : null;
+        const battleIntensityClass = activeBattlefield
+          ? activeBattlefield.battleIntensityPercent >= 70
+            ? styles.battleIntensityHigh
+            : activeBattlefield.battleIntensityPercent >= 30
+              ? styles.battleIntensityMid
+              : styles.battleIntensityLow
+          : "";
         const isHomeTile = isHomeOfATile(tile.id);
         const isOwnedTile = Boolean(ownership?.ownerFortressId);
         const bonus =
@@ -975,9 +1058,15 @@ function HexTileMap({
             ? (OWNED_TILE_RACE_CLASS_BY_RACE[ownership.ownerRace] ?? "")
             : "",
           ownership?.pressurePriority ? styles.pressurePriorityTile : "",
-          ownership?.attackPriority === 3 ? styles.attackPriorityPrimaryTile : "",
-          ownership?.attackPriority === 2 ? styles.attackPrioritySecondaryTile : "",
-          ownership?.attackPriority === 1 ? styles.attackPriorityTertiaryTile : "",
+          ownership?.attackPriority === 3
+            ? styles.attackPriorityPrimaryTile
+            : "",
+          ownership?.attackPriority === 2
+            ? styles.attackPrioritySecondaryTile
+            : "",
+          ownership?.attackPriority === 1
+            ? styles.attackPriorityTertiaryTile
+            : "",
           ownership?.isHomeOfA ? styles.contestedTile : "",
           isOwnedTile && ownership?.isCurrentUser ? styles.ownTile : "",
           ownership?.canAttack ? styles.attackableTile : "",
@@ -996,12 +1085,12 @@ function HexTileMap({
                 ? `${ownership.isHomeOfA ? "Home of A" : BIOME_LABELS[tile.biome]}, owned by ${ownership.ownerName}, ${ownership.bonus.label}${
                     ownership.hasActiveBattle ? ", battle active" : ""
                   }`
-                  : `${isHomeTile ? "Home of A, neutral control point" : `${BIOME_LABELS[tile.biome]}, unclaimed`}${
-                      ownership?.pressureProgress != null &&
-                      ownership.pressureThreshold != null
-                        ? `, pressure ${ownership.pressureProgress}/${ownership.pressureThreshold}`
-                        : ""
-                    }, ${bonus.label}`
+                : `${isHomeTile ? "Home of A, neutral control point" : `${BIOME_LABELS[tile.biome]}, unclaimed`}${
+                    ownership?.pressureProgress != null &&
+                    ownership.pressureThreshold != null
+                      ? `, pressure ${ownership.pressureProgress}/${ownership.pressureThreshold}`
+                      : ""
+                  }, ${bonus.label}`
             }
             onPointerDown={(event) =>
               handleTilePointerDown(event, tile.id, tile.claimable)
@@ -1011,7 +1100,7 @@ function HexTileMap({
             onPointerCancel={(event) => clearTileTap(event, tile.id)}
           >
             <polygon
-              points={getHexPolygonPoints(tile.x, tile.y)}
+              points={HEX_TILE_POLYGON_POINTS.get(tile.id)}
               style={
                 pressureFillByTileId.has(tile.id)
                   ? { fill: pressureFillByTileId.get(tile.id) }
@@ -1019,7 +1108,7 @@ function HexTileMap({
               }
             />
             <polyline
-              points={getHexPolygonPoints(tile.x, tile.y, HEX_RADIUS * 0.72)}
+              points={HEX_TILE_INNER_POINTS.get(tile.id)}
               className={styles.hexInner}
             />
             {ownership?.pressurePriorityRank ? (
@@ -1030,7 +1119,7 @@ function HexTileMap({
                 </text>
               </g>
             ) : null}
-            {tile.biome === "forest" ? (
+            {!reducedVisualLoad && tile.biome === "forest" ? (
               <path
                 className={styles.hexFeature}
                 d={`M ${tile.x - 15} ${tile.y + 12} h 30 l -15 -28 z M ${tile.x - 4} ${
@@ -1038,7 +1127,8 @@ function HexTileMap({
                 } h 8 v 10 h -8 z`}
               />
             ) : null}
-            {tile.biome === "hills" || tile.biome === "mountains" ? (
+            {!reducedVisualLoad &&
+            (tile.biome === "hills" || tile.biome === "mountains") ? (
               <path
                 className={styles.hexFeature}
                 d={`M ${tile.x - 25} ${tile.y + 16} l 19 -32 l 20 32 z M ${tile.x - 3} ${
@@ -1046,7 +1136,7 @@ function HexTileMap({
                 } l 18 -25 l 20 25 z`}
               />
             ) : null}
-            {tile.biome === "marsh" ? (
+            {!reducedVisualLoad && tile.biome === "marsh" ? (
               <path
                 className={styles.hexFeature}
                 d={`M ${tile.x - 25} ${tile.y + 11} q 12 -10 24 0 t 24 0 M ${tile.x - 18} ${
@@ -1056,17 +1146,7 @@ function HexTileMap({
             ) : null}
             {ownership?.hasActiveBattle ? (
               <g
-                className={`${styles.battleIndicator} ${
-                  (() => {
-                    const bf = ownership.activeBattlefieldId
-                      ? battlefieldById.get(ownership.activeBattlefieldId)
-                      : null;
-                    if (!bf) return "";
-                    if (bf.battleIntensityPercent >= 70) return styles.battleIntensityHigh;
-                    if (bf.battleIntensityPercent >= 30) return styles.battleIntensityMid;
-                    return styles.battleIntensityLow;
-                  })()
-                }`}
+                className={`${styles.battleIndicator} ${battleIntensityClass}`}
               >
                 {/* Crossed swords icon */}
                 <image
@@ -1089,10 +1169,8 @@ function HexTileMap({
                 </text>
                 {/* Army counts and progress bar — only if we have detail data */}
                 {(() => {
-                  const bf = ownership.activeBattlefieldId
-                    ? battlefieldById.get(ownership.activeBattlefieldId)
-                    : null;
-                  if (!bf) return null;
+                  const bf = activeBattlefield;
+                  if (!bf || reducedVisualLoad) return null;
                   return (
                     <>
                       {/* Attacker count badge (left) */}
@@ -1144,15 +1222,20 @@ function HexTileMap({
                       <rect
                         x={tile.x - 22}
                         y={tile.y + 20}
-                        width={Math.max(2, Math.round(44 * Math.min(1, bf.progress / 100)))}
+                        width={Math.max(
+                          2,
+                          Math.round(44 * Math.min(1, bf.progress / 100))
+                        )}
                         height={4}
                         rx={2}
                         fill={
-                          bf.momentumTier === "ATTACKER_STRONG" || bf.momentumTier === "ATTACKER_EDGE"
+                          bf.momentumTier === "ATTACKER_STRONG" ||
+                          bf.momentumTier === "ATTACKER_EDGE"
                             ? "#ff6b35"
-                            : bf.momentumTier === "DEFENDER_STRONG" || bf.momentumTier === "DEFENDER_EDGE"
-                            ? "#4488ff"
-                            : "#ffd700"
+                            : bf.momentumTier === "DEFENDER_STRONG" ||
+                                bf.momentumTier === "DEFENDER_EDGE"
+                              ? "#4488ff"
+                              : "#ffd700"
                         }
                       />
                       {/* Incoming reinforcement arrows */}
@@ -1180,13 +1263,12 @@ function HexTileMap({
                 })()}
               </g>
             ) : null}
-
           </g>
         );
       })}
     </svg>
   );
-}
+});
 
 function formatSecondsRemaining(seconds: number) {
   if (seconds < 60) {
@@ -1200,7 +1282,7 @@ function formatSecondsRemaining(seconds: number) {
 
 function splitPathAtProgress(
   waypoints: Array<{ x: number; y: number }>,
-  progress: number,
+  progress: number
 ): {
   currentPoint: { x: number; y: number };
   completedPoints: Array<{ x: number; y: number }>;
@@ -1244,7 +1326,9 @@ function splitPathAtProgress(
 
     if (segmentEnd >= targetDistance) {
       const segmentProgress =
-        segment.length <= 0 ? 0 : (targetDistance - accumulated) / segment.length;
+        segment.length <= 0
+          ? 0
+          : (targetDistance - accumulated) / segment.length;
       const currentPoint = {
         x: segment.from.x + (segment.to.x - segment.from.x) * segmentProgress,
         y: segment.from.y + (segment.to.y - segment.from.y) * segmentProgress,
@@ -1252,7 +1336,10 @@ function splitPathAtProgress(
 
       return {
         currentPoint,
-        completedPoints: [...waypoints.slice(0, segmentIndex + 1), currentPoint],
+        completedPoints: [
+          ...waypoints.slice(0, segmentIndex + 1),
+          currentPoint,
+        ],
         remainingPoints: [currentPoint, ...waypoints.slice(segmentIndex + 1)],
       };
     }
@@ -1294,9 +1381,12 @@ function AttackUnitsLayer({
       return;
     }
 
-    const interval = window.setInterval(() => {
-      setNowMs(Date.now());
-    }, attackUnits.length > 10 ? 1000 : 750);
+    const interval = window.setInterval(
+      () => {
+        setNowMs(Date.now());
+      },
+      attackUnits.length > 10 ? 1000 : 750
+    );
 
     return () => window.clearInterval(interval);
   }, [attackUnits.length]);
@@ -1338,7 +1428,9 @@ function AttackUnitsLayer({
           !isReturning && unit.routeTileIds && unit.routeTileIds.length > 1
             ? unit.routeTileIds
                 .map((tileId) => HEX_TILE_BY_ID.get(tileId))
-                .filter((tile): tile is (typeof HEX_TILES)[number] => Boolean(tile))
+                .filter((tile): tile is (typeof HEX_TILES)[number] =>
+                  Boolean(tile)
+                )
             : [];
 
         if (routeTiles.length > 1) {
@@ -1582,6 +1674,798 @@ function AttackUnitsLayer({
   );
 }
 
+const RoadsLayer = memo(function RoadsLayer({
+  alliedRoads,
+  tradeRouteLines,
+  roadEdges,
+  showRoadLegend,
+  reducedVisualLoad,
+}: {
+  alliedRoads: NonNullable<FortressMapProps["alliedRoads"]>;
+  tradeRouteLines: NonNullable<FortressMapProps["tradeRouteLines"]>;
+  roadEdges: RoadEdge[];
+  showRoadLegend: boolean;
+  reducedVisualLoad: boolean;
+}) {
+  if (
+    alliedRoads.length === 0 &&
+    tradeRouteLines.length === 0 &&
+    roadEdges.length === 0 &&
+    !showRoadLegend
+  ) {
+    return null;
+  }
+
+  return (
+    <>
+      {alliedRoads.length > 0 ||
+      tradeRouteLines.length > 0 ||
+      roadEdges.length > 0 ? (
+        <svg
+          className={styles.roadsLayer}
+          viewBox={`0 0 ${MAP_WORLD_WIDTH} ${MAP_WORLD_HEIGHT}`}
+          aria-hidden="true"
+        >
+          {alliedRoads.map((road, i) => (
+            <g key={`ally-${i}`} className={styles.alliedRouteSegment}>
+              <line
+                x1={(road.x1 * MAP_WORLD_WIDTH) / 100}
+                y1={(road.y1 * MAP_WORLD_HEIGHT) / 100}
+                x2={(road.x2 * MAP_WORLD_WIDTH) / 100}
+                y2={(road.y2 * MAP_WORLD_HEIGHT) / 100}
+                className={styles.routeBed}
+                strokeWidth={5.2}
+              />
+              <line
+                x1={(road.x1 * MAP_WORLD_WIDTH) / 100}
+                y1={(road.y1 * MAP_WORLD_HEIGHT) / 100}
+                x2={(road.x2 * MAP_WORLD_WIDTH) / 100}
+                y2={(road.y2 * MAP_WORLD_HEIGHT) / 100}
+                className={styles.alliedRouteLine}
+                strokeWidth={2.8}
+              />
+              {!reducedVisualLoad ? (
+                <line
+                  x1={(road.x1 * MAP_WORLD_WIDTH) / 100}
+                  y1={(road.y1 * MAP_WORLD_HEIGHT) / 100}
+                  x2={(road.x2 * MAP_WORLD_WIDTH) / 100}
+                  y2={(road.y2 * MAP_WORLD_HEIGHT) / 100}
+                  className={styles.alliedRoutePulse}
+                  strokeWidth={0.9}
+                />
+              ) : null}
+            </g>
+          ))}
+          {tradeRouteLines.map((route, i) => {
+            const routeWidth = Math.min(
+              5.2,
+              2.3 + Math.log2(Math.max(1, route.deliveries)) * 0.42
+            );
+            return (
+              <g key={`trade-${i}`} className={styles.tradeRouteSegment}>
+                <line
+                  x1={(route.x1 * MAP_WORLD_WIDTH) / 100}
+                  y1={(route.y1 * MAP_WORLD_HEIGHT) / 100}
+                  x2={(route.x2 * MAP_WORLD_WIDTH) / 100}
+                  y2={(route.y2 * MAP_WORLD_HEIGHT) / 100}
+                  className={styles.tradeRouteBed}
+                  strokeWidth={routeWidth + 3.2}
+                />
+                <line
+                  x1={(route.x1 * MAP_WORLD_WIDTH) / 100}
+                  y1={(route.y1 * MAP_WORLD_HEIGHT) / 100}
+                  x2={(route.x2 * MAP_WORLD_WIDTH) / 100}
+                  y2={(route.y2 * MAP_WORLD_HEIGHT) / 100}
+                  className={styles.tradeRouteLine}
+                  strokeWidth={routeWidth}
+                />
+                {!reducedVisualLoad ? (
+                  <line
+                    x1={(route.x1 * MAP_WORLD_WIDTH) / 100}
+                    y1={(route.y1 * MAP_WORLD_HEIGHT) / 100}
+                    x2={(route.x2 * MAP_WORLD_WIDTH) / 100}
+                    y2={(route.y2 * MAP_WORLD_HEIGHT) / 100}
+                    className={styles.tradeRouteCargo}
+                    strokeWidth={Math.max(0.8, routeWidth * 0.32)}
+                  />
+                ) : null}
+              </g>
+            );
+          })}
+          {roadEdges.map((edge, i) => {
+            const x1 = (edge.x1 * MAP_WORLD_WIDTH) / 100;
+            const y1 = (edge.y1 * MAP_WORLD_HEIGHT) / 100;
+            const x2 = (edge.x2 * MAP_WORLD_WIDTH) / 100;
+            const y2 = (edge.y2 * MAP_WORLD_HEIGHT) / 100;
+            return (
+              <g
+                key={`road-${i}`}
+                className={styles.roadSegment}
+                data-level={getRoadLevelKey(edge.level)}
+              >
+                <title>
+                  {`${getRoadLabel(edge.level)} - ${edge.crossings} crossings - ${getRoadSpeedLabel(edge.level)} speed`}
+                </title>
+                <line
+                  x1={x1}
+                  y1={y1}
+                  x2={x2}
+                  y2={y2}
+                  className={styles.roadBed}
+                  strokeWidth={getRoadBedStrokeWidth(edge.level)}
+                />
+                <line
+                  x1={x1}
+                  y1={y1}
+                  x2={x2}
+                  y2={y2}
+                  className={styles.roadSurface}
+                  strokeWidth={getRoadStrokeWidth(edge.level)}
+                />
+                {!reducedVisualLoad ? (
+                  <>
+                    <line
+                      x1={x1}
+                      y1={y1}
+                      x2={x2}
+                      y2={y2}
+                      className={styles.roadTexture}
+                      strokeWidth={getRoadDetailStrokeWidth(edge.level)}
+                    />
+                    <line
+                      x1={x1}
+                      y1={y1}
+                      x2={x2}
+                      y2={y2}
+                      className={styles.roadCenter}
+                      strokeWidth={getRoadDetailStrokeWidth(edge.level)}
+                    />
+                  </>
+                ) : null}
+              </g>
+            );
+          })}
+        </svg>
+      ) : null}
+      {showRoadLegend ? (
+        <div className={styles.roadLegend} aria-label="Road speeds">
+          <span className={styles.roadLegendItem}>
+            <i className={styles.roadLegendSwatch} data-level="dirt" />
+            Dirt 1.15x
+          </span>
+          <span className={styles.roadLegendItem}>
+            <i className={styles.roadLegendSwatch} data-level="stone" />
+            Stone 1.3x
+          </span>
+          <span className={styles.roadLegendItem}>
+            <i className={styles.roadLegendSwatch} data-level="highway" />
+            Highway 1.5x
+          </span>
+        </div>
+      ) : null}
+    </>
+  );
+});
+
+type GuardMarkerView = {
+  tileId: string;
+  guardArmy: number;
+  unitSpriteVariant: string;
+  unitCosmeticVariant: string | null;
+};
+
+const GuardMarkersLayer = memo(function GuardMarkersLayer({
+  guardMarkers,
+}: {
+  guardMarkers: GuardMarkerView[];
+}) {
+  if (guardMarkers.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className={styles.guardsLayer} aria-label="Garrisoned units">
+      {guardMarkers.map((marker) => {
+        const tile = HEX_TILE_BY_ID.get(marker.tileId);
+        if (!tile) return null;
+
+        return (
+          <div
+            key={marker.tileId}
+            className={styles.guardMarker}
+            style={{
+              left: `${tile.xPercent}%`,
+              top: `${tile.yPercent}%`,
+            }}
+          >
+            <span
+              className={styles.guardSprite}
+              data-variant={marker.unitSpriteVariant}
+              data-skin={marker.unitCosmeticVariant ?? undefined}
+              style={
+                getCosmeticSpriteStyle("UNIT", marker.unitCosmeticVariant) ??
+                undefined
+              }
+              aria-hidden="true"
+            />
+            <span className={styles.guardCount}>{marker.guardArmy}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+});
+
+const BattalionMarkersLayer = memo(function BattalionMarkersLayer({
+  battalionMarkers,
+  mapHexes,
+  reducedVisualLoad,
+}: {
+  battalionMarkers: NonNullable<FortressMapProps["battalionMarkers"]>;
+  mapHexes: MapHexOwnershipMarker[];
+  reducedVisualLoad: boolean;
+}) {
+  const patrolByMarkerIndex = useMemo(() => {
+    const markerPatrols = new Map<
+      number,
+      {
+        path: Array<{ xPercent: number; yPercent: number }>;
+        legMs: number;
+      }
+    >();
+
+    if (reducedVisualLoad || battalionMarkers.length === 0) {
+      return markerPatrols;
+    }
+
+    const ownerByTileId = new Map(
+      mapHexes
+        .filter((hex) => hex.ownerFortressId != null)
+        .map((hex) => [hex.tileId, hex.ownerFortressId!])
+    );
+    const PATROL_LEG_MS = 12_000;
+
+    for (let i = 0; i < battalionMarkers.length; i++) {
+      const marker = battalionMarkers[i];
+      const garrisonTile = HEX_TILE_BY_ID.get(marker.tileId);
+      if (!garrisonTile) continue;
+
+      const garrisonHex: PathHexTile = {
+        id: garrisonTile.id,
+        col: garrisonTile.col,
+        row: garrisonTile.row,
+      };
+      const neighbors = getHexNeighbors(garrisonHex, PATH_HEX_BY_COORD);
+      const ownedNeighbors = neighbors.filter(
+        (neighbor) => ownerByTileId.get(neighbor.id) === marker.fortressId
+      );
+
+      if (ownedNeighbors.length === 0) continue;
+
+      const path: Array<{ xPercent: number; yPercent: number }> = [
+        { xPercent: garrisonTile.xPercent, yPercent: garrisonTile.yPercent },
+      ];
+
+      for (const neighbor of ownedNeighbors.slice(0, 3)) {
+        const neighborTile = HEX_TILE_BY_ID.get(neighbor.id);
+        if (neighborTile) {
+          path.push({
+            xPercent: neighborTile.xPercent,
+            yPercent: neighborTile.yPercent,
+          });
+        }
+      }
+
+      path.push({
+        xPercent: garrisonTile.xPercent,
+        yPercent: garrisonTile.yPercent,
+      });
+
+      markerPatrols.set(i, { path, legMs: PATROL_LEG_MS });
+    }
+
+    return markerPatrols;
+  }, [battalionMarkers, mapHexes, reducedVisualLoad]);
+
+  const [patrolNowMs, setPatrolNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (patrolByMarkerIndex.size === 0) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      setPatrolNowMs(Date.now());
+    }, 1500);
+
+    return () => window.clearInterval(interval);
+  }, [patrolByMarkerIndex.size]);
+
+  if (battalionMarkers.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className={styles.battalionLayer} aria-label="Battalion units">
+      {battalionMarkers.map((marker, markerIndex) => {
+        const tile = HEX_TILE_BY_ID.get(marker.tileId);
+        if (!tile) return null;
+
+        let patrolXPercent = tile.xPercent;
+        let patrolYPercent = tile.yPercent;
+        let isPatrolling = false;
+        const patrol = patrolByMarkerIndex.get(markerIndex);
+
+        if (patrol && patrol.path.length >= 2) {
+          isPatrolling = true;
+          const cycleMs = (patrol.path.length - 1) * patrol.legMs;
+          const elapsed = (patrolNowMs % (cycleMs || 1)) / (cycleMs || 1);
+          const totalLegs = patrol.path.length - 1;
+          const rawLeg = elapsed * totalLegs;
+          const legIndex = Math.min(Math.floor(rawLeg), totalLegs - 1);
+          const legProgress = rawLeg - legIndex;
+          const from = patrol.path[legIndex];
+          const to = patrol.path[legIndex + 1];
+
+          patrolXPercent =
+            from.xPercent + (to.xPercent - from.xPercent) * legProgress;
+          patrolYPercent =
+            from.yPercent + (to.yPercent - from.yPercent) * legProgress;
+        }
+
+        const tierLabel =
+          marker.race && BATTALION_RACE_TIER_LABELS[marker.race]
+            ? (BATTALION_RACE_TIER_LABELS[marker.race][marker.tier] ?? "?")
+            : (["", "I", "II", "III"][marker.tier] ?? "?");
+
+        return (
+          <div
+            key={`bn-${marker.tileId}-${marker.battalionName}`}
+            className={`${styles.battalionMarker}${
+              isPatrolling ? ` ${styles.battalionPatrol}` : ""
+            }`}
+            style={{
+              left: `${patrolXPercent}%`,
+              top: `${patrolYPercent}%`,
+            }}
+            title={`${marker.battalionName} - ${marker.mode} - Tier ${marker.tier} - ${marker.size}/${marker.maxSize}`}
+          >
+            <span
+              className={styles.battalionSprite}
+              data-variant={marker.unitSpriteVariant}
+              data-skin={marker.unitCosmeticVariant ?? undefined}
+              style={
+                getCosmeticSpriteStyle("UNIT", marker.unitCosmeticVariant) ??
+                undefined
+              }
+              aria-hidden="true"
+            />
+            <span
+              className={styles.battalionBadge}
+              style={{
+                backgroundColor:
+                  BATTALION_MODE_COLORS[marker.mode] ?? "#888888",
+              }}
+            >
+              {tierLabel}
+            </span>
+            <span className={styles.battalionCount}>{marker.size}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+});
+
+const ConvoyMarkersLayer = memo(function ConvoyMarkersLayer({
+  convoyMarkers,
+  fortresses,
+}: {
+  convoyMarkers: NonNullable<FortressMapProps["convoyMarkers"]>;
+  fortresses: MapFortress[];
+}) {
+  const [convoyNowMs, setConvoyNowMs] = useState(() => Date.now());
+  const fortressById = useMemo(
+    () => new Map(fortresses.map((fortress) => [fortress.id, fortress])),
+    [fortresses]
+  );
+
+  useEffect(() => {
+    if (convoyMarkers.length === 0) return;
+
+    const interval = window.setInterval(() => {
+      setConvoyNowMs(Date.now());
+    }, 5000);
+
+    return () => window.clearInterval(interval);
+  }, [convoyMarkers.length]);
+
+  if (convoyMarkers.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className={styles.convoyLayer} aria-label="Trade convoys">
+      {convoyMarkers.map((convoy) => {
+        const from = fortressById.get(convoy.fromFortressId);
+        const to = fortressById.get(convoy.toFortressId);
+        if (!from || !to) return null;
+
+        const totalCargo =
+          convoy.gold +
+          convoy.food +
+          convoy.army +
+          (convoy.points ?? 0) +
+          (convoy.nukeFuel ?? 0) +
+          (convoy.nukeRocket ?? 0) +
+          (convoy.nukeWrathOfA ?? 0) +
+          (convoy.deedTileId ? 1 : 0);
+        const cargoLabel =
+          convoy.cargoLabel ??
+          ([
+            convoy.deedTileId ? `tile ${convoy.deedTileId}` : null,
+            convoy.gold > 0 ? `${convoy.gold}g` : null,
+            convoy.food > 0 ? `${convoy.food}f` : null,
+            convoy.army > 0 ? `${convoy.army} army` : null,
+            convoy.points && convoy.points > 0 ? `${convoy.points} pts` : null,
+          ]
+            .filter(Boolean)
+            .join(", ") ||
+            "empty wagon");
+        const progress =
+          convoy.departedAt && convoy.arrivesAt
+            ? Math.min(
+                1,
+                Math.max(
+                  0,
+                  (convoyNowMs - convoy.departedAt) /
+                    (convoy.arrivesAt - convoy.departedAt)
+                )
+              )
+            : 0;
+        const x = from.mapX + (to.mapX - from.mapX) * progress;
+        const y = from.mapY + (to.mapY - from.mapY) * progress;
+        const angle =
+          Math.atan2(to.mapY - from.mapY, to.mapX - from.mapX) *
+          (180 / Math.PI);
+        const secondsUntilArrival = convoy.arrivesAt
+          ? Math.ceil((convoy.arrivesAt - convoyNowMs) / 1000)
+          : null;
+        const timingLabel =
+          convoy.arrivedAwaitingTick ||
+          (secondsUntilArrival !== null && secondsUntilArrival <= 0)
+            ? "arrived, awaiting next tick"
+            : secondsUntilArrival !== null
+              ? secondsUntilArrival >= 3600
+                ? `arrives in ${Math.ceil(secondsUntilArrival / 3600)}h`
+                : `arrives in ${Math.max(1, Math.ceil(secondsUntilArrival / 60))}m`
+              : "arrival pending";
+        const tradeLevel = convoy.tradeLevel ?? 0;
+        const senderRace = convoy.senderRace ?? from.race;
+        const routeLabel = `${convoy.fromName ?? from.name} to ${convoy.toName ?? to.name}`;
+
+        return (
+          <div
+            key={convoy.id}
+            className={styles.convoyMarker}
+            style={
+              {
+                left: `${x}%`,
+                top: `${y}%`,
+                "--convoy-angle": `${angle}deg`,
+              } as CSSProperties
+            }
+            title={`Trade wagon L${tradeLevel}: ${cargoLabel}; ${routeLabel}; ${timingLabel}`}
+          >
+            <span
+              className={styles.convoyWagon}
+              data-race={senderRace ?? undefined}
+              data-level={tradeLevel}
+              style={getTradeWagonSpriteStyle(senderRace, tradeLevel)}
+              aria-hidden="true"
+            />
+            <span
+              className={styles.convoyEscort}
+              data-variant={from.unitSpriteVariant}
+              data-skin={from.unitCosmeticVariant ?? undefined}
+              style={
+                getCosmeticSpriteStyle("UNIT", from.unitCosmeticVariant) ??
+                undefined
+              }
+              aria-hidden="true"
+            />
+            <span className={styles.convoyLabel}>
+              {convoy.arrivedAwaitingTick ? "Tick" : totalCargo}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+});
+
+const FortressMarkersLayer = memo(function FortressMarkersLayer({
+  fortresses,
+  snappedFortressPositions,
+  selectedFortressId,
+  selectedTargetId,
+  activeBattleFortressIdSet,
+  pendingTargetId,
+  ownFortress,
+  maxTargetSentArmy,
+  clampedTargetSentArmy,
+  canSelectFortress,
+  canConfirmAttackTarget,
+  reducedVisualLoad,
+  suppressClickRef,
+  onConfirmAttackTarget,
+  onTargetSentArmyChange,
+  onPendingTargetChange,
+  onMarkerPointerDown,
+  onMarkerPointerMove,
+  onMarkerPointerUp,
+  onMarkerPointerCancel,
+  onActivateFortress,
+}: {
+  fortresses: MapFortress[];
+  snappedFortressPositions: Map<string, Point>;
+  selectedFortressId?: string | null;
+  selectedTargetId?: string | null;
+  activeBattleFortressIdSet: Set<string>;
+  pendingTargetId: string | null;
+  ownFortress: MapFortress | null;
+  maxTargetSentArmy: number;
+  clampedTargetSentArmy: number;
+  canSelectFortress: boolean;
+  canConfirmAttackTarget: boolean;
+  reducedVisualLoad: boolean;
+  suppressClickRef: MutableRefObject<boolean>;
+  onConfirmAttackTarget?: (
+    fortress: MapFortress,
+    sentArmy: number
+  ) => void | Promise<void>;
+  onTargetSentArmyChange: (sentArmy: number) => void;
+  onPendingTargetChange: (fortressId: string | null) => void;
+  onMarkerPointerDown: (
+    event: ReactPointerEvent<HTMLButtonElement>,
+    fortress: MapFortress,
+    selectable: boolean
+  ) => void;
+  onMarkerPointerMove: (
+    event: ReactPointerEvent<HTMLButtonElement>,
+    fortressId: string
+  ) => void;
+  onMarkerPointerUp: (
+    event: ReactPointerEvent<HTMLButtonElement>,
+    fortressId: string
+  ) => void;
+  onMarkerPointerCancel: (
+    event: ReactPointerEvent<HTMLButtonElement>,
+    fortressId: string
+  ) => void;
+  onActivateFortress: (fortress: MapFortress) => void;
+}) {
+  if (fortresses.length === 0) {
+    return (
+      <div className={styles.emptyState}>
+        No fortresses on the battlefield yet.
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {fortresses.map((fortress) => {
+        const snappedPosition =
+          snappedFortressPositions.get(fortress.id) ??
+          snapMapPointToHex({
+            x: fortress.mapX,
+            y: fortress.mapY,
+          });
+        const selectable =
+          (canSelectFortress && fortress.isCurrentUser) ||
+          (canSelectFortress && fortress.fortressKind === "MEGA") ||
+          (canSelectFortress && activeBattleFortressIdSet.has(fortress.id)) ||
+          (canConfirmAttackTarget && fortress.isTargetable);
+        const variant = getSpriteVariant(fortress);
+        const isMega = fortress.fortressKind === "MEGA";
+        const isLootCamp = fortress.fortressKind === "LOOT_CAMP";
+        const isDwarfRune = fortress.fortressKind === "DWARF_RUNE";
+        const isUnicornDecoy = fortress.fortressKind === "UNICORN_DECOY";
+        const showsHealth = fortress.fortressKind !== "PLAYER";
+        const effectiveFortressSkin =
+          fortress.fortressCosmeticVariant ??
+          (fortress.race === "UNSTABLE_UNICORNS"
+            ? `unstable-unicorn-${(hashString(fortress.spriteSeedId) % 2) + 1}`
+            : null);
+        const markerClassName = [
+          styles.marker,
+          isMega ? styles.megaMarker : "",
+          isLootCamp ? styles.lootCampMarker : "",
+          isDwarfRune ? styles.dwarfRuneMarker : "",
+          isUnicornDecoy ? styles.unicornDecoyMarker : "",
+          fortress.isSlayerOfA ? styles.crownedMarker : "",
+          fortress.isCurrentUser ? styles.currentUser : "",
+          selectedFortressId === fortress.id ? styles.activeFortress : "",
+          selectedTargetId === fortress.id ? styles.selected : "",
+          selectable ? styles.selectable : "",
+          fortress.isTargetable ? styles.targetable : "",
+          fortress.diplomacyStatus === "WAR" ? styles.warMarker : "",
+          fortress.diplomacyStatus === "ALLIED" ? styles.alliedMarker : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
+
+        const showTargetPopover =
+          pendingTargetId === fortress.id && fortress.isTargetable;
+        const travelMinutes =
+          showTargetPopover && ownFortress
+            ? getAttackTravelMinutes(ownFortress, fortress)
+            : null;
+        const showSelectionPulse =
+          !reducedVisualLoad ||
+          selectable ||
+          fortress.isCurrentUser ||
+          selectedFortressId === fortress.id ||
+          selectedTargetId === fortress.id;
+        const showTooltip =
+          !reducedVisualLoad ||
+          fortress.isCurrentUser ||
+          selectedFortressId === fortress.id ||
+          selectedTargetId === fortress.id ||
+          showTargetPopover;
+
+        return (
+          <Fragment key={fortress.id}>
+            <button
+              type="button"
+              className={markerClassName}
+              style={{
+                left: `${snappedPosition.x}%`,
+                top: `${snappedPosition.y}%`,
+              }}
+              onPointerDown={(event) =>
+                onMarkerPointerDown(event, fortress, selectable)
+              }
+              onPointerMove={(event) => onMarkerPointerMove(event, fortress.id)}
+              onPointerUp={(event) => onMarkerPointerUp(event, fortress.id)}
+              onPointerCancel={(event) =>
+                onMarkerPointerCancel(event, fortress.id)
+              }
+              onClick={(event) => {
+                if (event.detail !== 0 || suppressClickRef.current) {
+                  event.preventDefault();
+                  return;
+                }
+
+                onActivateFortress(fortress);
+              }}
+              aria-pressed={
+                selectedTargetId === fortress.id ||
+                selectedFortressId === fortress.id
+              }
+              aria-label={
+                isMega
+                  ? `${fortress.name}, ${fortress.health} of ${fortress.maxHealth} health`
+                  : showsHealth
+                    ? `${fortress.name}, ${fortress.health} of ${fortress.maxHealth} health`
+                    : `${fortress.name}, ${fortress.points} points`
+              }
+            >
+              {showSelectionPulse ? (
+                <span className={styles.selectionPulse} />
+              ) : null}
+              {fortress.race && !fortress.isNpc ? (
+                <span
+                  className={styles.raceToken}
+                  style={{
+                    backgroundImage: `url("${RACE_TOKEN_PATHS[fortress.race]}")`,
+                  }}
+                />
+              ) : null}
+              <span className={styles.spriteFrame}>
+                {isMega ? (
+                  <MegaFortressSprite iconLabel={fortress.iconLabel ?? "A-"} />
+                ) : isLootCamp ? (
+                  <LootCampSprite variant={fortress.lootCampVariant} />
+                ) : isDwarfRune ? (
+                  <DwarfRuneSprite />
+                ) : (
+                  <FortressSprite
+                    variant={variant}
+                    skinVariant={effectiveFortressSkin}
+                  />
+                )}
+              </span>
+              {isMega ? (
+                <span className={styles.pointsBadge}>
+                  {fortress.health}/{fortress.maxHealth}
+                </span>
+              ) : showsHealth ? (
+                <span className={styles.pointsBadge}>
+                  {fortress.health}/{fortress.maxHealth}
+                </span>
+              ) : null}
+              <span className={styles.nameplate}>{fortress.name}</span>
+              {fortress.isSlayerOfA ? (
+                <span className={styles.crownBadge}>Slayer of A</span>
+              ) : null}
+              {showTooltip ? (
+                <span className={styles.tooltip}>
+                  <strong>{fortress.name}</strong>
+                  <span>
+                    {isMega
+                      ? `${fortress.health}/${fortress.maxHealth} HP`
+                      : showsHealth
+                        ? `${fortress.health}/${fortress.maxHealth} HP`
+                        : `${fortress.points} pts${
+                            fortress.isSlayerOfA ? " - Slayer of A" : ""
+                          }`}
+                  </span>
+                </span>
+              ) : null}
+            </button>
+
+            {showTargetPopover ? (
+              <div
+                className={styles.targetPopover}
+                data-target-popover
+                style={{
+                  left: `${snappedPosition.x}%`,
+                  top: `${snappedPosition.y}%`,
+                }}
+                onPointerDown={(event) => event.stopPropagation()}
+              >
+                <strong>{fortress.name}</strong>
+                <span>
+                  {showsHealth
+                    ? `${fortress.health}/${fortress.maxHealth} HP`
+                    : `${fortress.points} pts`}
+                </span>
+                {travelMinutes ? <em>{travelMinutes} min ETA</em> : null}
+                <label className={styles.targetArmyControl}>
+                  <span className={styles.targetArmyLabel}>
+                    Army to send: {clampedTargetSentArmy}/{maxTargetSentArmy}
+                  </span>
+                  <input
+                    type="range"
+                    min={1}
+                    max={Math.max(1, maxTargetSentArmy)}
+                    step={1}
+                    value={Math.max(1, clampedTargetSentArmy)}
+                    disabled={maxTargetSentArmy <= 0}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onChange={(event) => {
+                      const nextArmy = Number(event.currentTarget.value);
+                      onTargetSentArmyChange(
+                        Number.isFinite(nextArmy) ? Math.floor(nextArmy) : 1
+                      );
+                    }}
+                  />
+                </label>
+                <button
+                  type="button"
+                  disabled={maxTargetSentArmy <= 0}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={async () => {
+                    onPendingTargetChange(null);
+                    await onConfirmAttackTarget?.(
+                      fortress,
+                      clampedTargetSentArmy
+                    );
+                  }}
+                >
+                  Send {clampedTargetSentArmy || 0} army
+                </button>
+              </div>
+            ) : null}
+          </Fragment>
+        );
+      })}
+    </>
+  );
+});
+
 export const FortressMap = memo(function FortressMap({
   fortresses,
   mapHexes = [],
@@ -1626,30 +2510,6 @@ export const FortressMap = memo(function FortressMap({
   const [dragStart, setDragStart] = useState<DragStart | null>(null);
   const [pendingTargetId, setPendingTargetId] = useState<string | null>(null);
   const [targetSentArmy, setTargetSentArmy] = useState(1);
-  const [convoyNowMs, setConvoyNowMs] = useState(() => Date.now());
-
-  // Patrol animation state — updates every 500ms for smooth GUARD battalion movement
-  const [patrolNowMs, setPatrolNowMs] = useState(() => Date.now());
-
-  useEffect(() => {
-    if (convoyMarkers.length === 0) return;
-
-    const interval = window.setInterval(() => {
-      setConvoyNowMs(Date.now());
-    }, 5000);
-
-    return () => window.clearInterval(interval);
-  }, [convoyMarkers.length]);
-
-  useEffect(() => {
-    if (battalionMarkers.length === 0) return;
-
-    const interval = window.setInterval(() => {
-      setPatrolNowMs(Date.now());
-    }, 500);
-
-    return () => window.clearInterval(interval);
-  }, [battalionMarkers.length]);
 
   const ownFortress =
     fortresses.find((fortress) => fortress.isCurrentUser) ?? null;
@@ -1670,103 +2530,35 @@ export const FortressMap = memo(function FortressMap({
     return mapHexes
       .filter((hex) => hex.guardArmy != null && hex.guardArmy > 0)
       .map((hex) => {
-        const info = hex.ownerFortressId ? spriteByFortressId.get(hex.ownerFortressId) : null;
+        const info = hex.ownerFortressId
+          ? spriteByFortressId.get(hex.ownerFortressId)
+          : null;
         return {
           tileId: hex.tileId,
           guardArmy: hex.guardArmy!,
-          unitSpriteVariant: info?.sprite ?? 'unit-1',
+          unitSpriteVariant: info?.sprite ?? "unit-1",
           unitCosmeticVariant: info?.cosmetic ?? null,
         };
       });
   }, [mapHexes, fortresses]);
 
-  // ── Patrol paths for GUARD-mode battalions ──────────────────────────────
-  const patrolData = useMemo(() => {
-    if (battalionMarkers.length === 0) return null;
-
-    // Tile lookup for hex neighbor computation
-    const tileLookup = new Map<string, PathHexTile>();
-    for (const tile of HEX_TILES) {
-      tileLookup.set(`${tile.col},${tile.row}`, {
-        id: tile.id,
-        col: tile.col,
-        row: tile.row,
-      });
-    }
-
-    // Ownership lookup: tileId → ownerFortressId
-    const ownerByTileId = new Map(
-      mapHexes
-        .filter((h) => h.ownerFortressId != null)
-        .map((h) => [h.tileId, h.ownerFortressId!])
-    );
-
-    // Tile lookup by id: tileId → HexTile
-    const tileById = new Map(HEX_TILES.map((t) => [t.id, t]));
-
-    // Patrol cycle duration per leg (ms)
-    const PATROL_LEG_MS = 12_000;
-
-    const markerPatrols: Array<{
-      markerIndex: number;
-      path: Array<{ xPercent: number; yPercent: number }>;
-      legMs: number;
-    }> = [];
-
-    for (let i = 0; i < battalionMarkers.length; i++) {
-      const m = battalionMarkers[i];
-      const garrisonTile = tileById.get(m.tileId);
-      if (!garrisonTile) continue;
-
-      // Find adjacent tiles owned by the same fortress
-      const garrisonHex: PathHexTile = {
-        id: garrisonTile.id,
-        col: garrisonTile.col,
-        row: garrisonTile.row,
-      };
-
-      const neighbors = getHexNeighbors(garrisonHex, tileLookup);
-      const ownedNeighbors = neighbors.filter(
-        (n) => ownerByTileId.get(n.id) === m.fortressId
-      );
-
-      if (ownedNeighbors.length === 0) continue; // No patrol — stays at garrison
-
-      // Build patrol cycle: garrison → neighbor1 → neighbor2 → ... → garrison
-      const path: Array<{ xPercent: number; yPercent: number }> = [
-        { xPercent: garrisonTile.xPercent, yPercent: garrisonTile.yPercent },
-      ];
-
-      // Add up to 3 neighbors for a varied patrol
-      for (const n of ownedNeighbors.slice(0, 3)) {
-        const nt = tileById.get(n.id);
-        if (nt) {
-          path.push({ xPercent: nt.xPercent, yPercent: nt.yPercent });
-        }
-      }
-
-      // Close the loop back to garrison
-      path.push({ xPercent: garrisonTile.xPercent, yPercent: garrisonTile.yPercent });
-
-      markerPatrols.push({
-        markerIndex: i,
-        path,
-        legMs: PATROL_LEG_MS,
-      });
-    }
-
-    return { markerPatrols, tileById };
-  }, [battalionMarkers, mapHexes]);
-
   const roadEdges = useMemo(
     () => computeRoadEdges(roadSegments, HEX_TILES),
     [roadSegments]
   );
+  const ownedTileCount = useMemo(
+    () =>
+      mapHexes.reduce((count, hex) => count + (hex.ownerFortressId ? 1 : 0), 0),
+    [mapHexes]
+  );
   const reducedMapVisualLoad =
-    attackUnits.length > 8 ||
-    battlefields.length > 2 ||
-    roadEdges.length + tradeRouteLines.length > 30 ||
-    mapHexes.filter((hex) => hex.ownerFortressId).length > 90;
+    attackUnits.length > 6 ||
+    battlefields.length > 1 ||
+    roadEdges.length + tradeRouteLines.length + alliedRoads.length >
+      FULL_ROUTE_DETAIL_LIMIT ||
+    ownedTileCount > FULL_LIFE_DOMAIN_TILE_LIMIT ||
+    battalionMarkers.length > 10 ||
+    convoyMarkers.length > 6;
 
   const snappedFortressPositions = useMemo(
     () =>
@@ -1777,6 +2569,10 @@ export const FortressMap = memo(function FortressMap({
         ])
       ),
     [fortresses]
+  );
+  const activeBattleFortressIdSet = useMemo(
+    () => new Set(activeBattleFortressIds),
+    [activeBattleFortressIds]
   );
   const maxTargetSentArmy = ownFortress?.army ?? 0;
   const clampedTargetSentArmy =
@@ -1952,7 +2748,7 @@ export const FortressMap = memo(function FortressMap({
 
   const activateFortress = useCallback(
     (fortress: MapFortress) => {
-      const hasActiveBattle = activeBattleFortressIds.includes(fortress.id);
+      const hasActiveBattle = activeBattleFortressIdSet.has(fortress.id);
 
       if (
         fortress.isCurrentUser ||
@@ -1970,7 +2766,7 @@ export const FortressMap = memo(function FortressMap({
         );
       }
     },
-    [activeBattleFortressIds, onSelectFortress]
+    [activeBattleFortressIdSet, onSelectFortress]
   );
 
   const handleMarkerPointerDown = useCallback(
@@ -2280,271 +3076,45 @@ export const FortressMap = memo(function FortressMap({
           suppressClickRef.current = false;
         }}
       >
-        <div className={styles.viewportContent} style={viewTransform}>
+        <div
+          className={styles.viewportContent}
+          data-reduced-visual-load={reducedMapVisualLoad ? "true" : "false"}
+          style={viewTransform}
+        >
           <HexTileMap
             mapHexes={mapHexes}
             selectedTileId={selectedTileId}
             highlightedTileIds={highlightedTileIds}
             onSelectMapHex={onSelectMapHex}
             battlefieldById={battlefieldById}
+            reducedVisualLoad={reducedMapVisualLoad}
           />
-          {alliedRoads.length > 0 ||
-          tradeRouteLines.length > 0 ||
-          roadSegments.length > 0 ? (
-            <svg
-              className={styles.roadsLayer}
-              viewBox={`0 0 ${MAP_WORLD_WIDTH} ${MAP_WORLD_HEIGHT}`}
-              aria-hidden="true"
-            >
-              {alliedRoads.map((road, i) => (
-                <g key={`ally-${i}`} className={styles.alliedRouteSegment}>
-                  <line
-                    x1={(road.x1 * MAP_WORLD_WIDTH) / 100}
-                    y1={(road.y1 * MAP_WORLD_HEIGHT) / 100}
-                    x2={(road.x2 * MAP_WORLD_WIDTH) / 100}
-                    y2={(road.y2 * MAP_WORLD_HEIGHT) / 100}
-                    className={styles.routeBed}
-                    strokeWidth={5.2}
-                  />
-                  <line
-                    x1={(road.x1 * MAP_WORLD_WIDTH) / 100}
-                    y1={(road.y1 * MAP_WORLD_HEIGHT) / 100}
-                    x2={(road.x2 * MAP_WORLD_WIDTH) / 100}
-                    y2={(road.y2 * MAP_WORLD_HEIGHT) / 100}
-                    className={styles.alliedRouteLine}
-                    strokeWidth={2.8}
-                  />
-                  <line
-                    x1={(road.x1 * MAP_WORLD_WIDTH) / 100}
-                    y1={(road.y1 * MAP_WORLD_HEIGHT) / 100}
-                    x2={(road.x2 * MAP_WORLD_WIDTH) / 100}
-                    y2={(road.y2 * MAP_WORLD_HEIGHT) / 100}
-                    className={styles.alliedRoutePulse}
-                    strokeWidth={0.9}
-                  />
-                </g>
-              ))}
-              {tradeRouteLines.map((route, i) => {
-                const routeWidth = Math.min(
-                  5.2,
-                  2.3 + Math.log2(Math.max(1, route.deliveries)) * 0.42
-                );
-                return (
-                  <g key={`trade-${i}`} className={styles.tradeRouteSegment}>
-                    <line
-                      x1={(route.x1 * MAP_WORLD_WIDTH) / 100}
-                      y1={(route.y1 * MAP_WORLD_HEIGHT) / 100}
-                      x2={(route.x2 * MAP_WORLD_WIDTH) / 100}
-                      y2={(route.y2 * MAP_WORLD_HEIGHT) / 100}
-                      className={styles.tradeRouteBed}
-                      strokeWidth={routeWidth + 3.2}
-                    />
-                    <line
-                      x1={(route.x1 * MAP_WORLD_WIDTH) / 100}
-                      y1={(route.y1 * MAP_WORLD_HEIGHT) / 100}
-                      x2={(route.x2 * MAP_WORLD_WIDTH) / 100}
-                      y2={(route.y2 * MAP_WORLD_HEIGHT) / 100}
-                      className={styles.tradeRouteLine}
-                      strokeWidth={routeWidth}
-                    />
-                    <line
-                      x1={(route.x1 * MAP_WORLD_WIDTH) / 100}
-                      y1={(route.y1 * MAP_WORLD_HEIGHT) / 100}
-                      x2={(route.x2 * MAP_WORLD_WIDTH) / 100}
-                      y2={(route.y2 * MAP_WORLD_HEIGHT) / 100}
-                      className={styles.tradeRouteCargo}
-                      strokeWidth={Math.max(0.8, routeWidth * 0.32)}
-                    />
-                  </g>
-                );
-              })}
-              {roadEdges.map((edge, i) => {
-                const x1 = (edge.x1 * MAP_WORLD_WIDTH) / 100;
-                const y1 = (edge.y1 * MAP_WORLD_HEIGHT) / 100;
-                const x2 = (edge.x2 * MAP_WORLD_WIDTH) / 100;
-                const y2 = (edge.y2 * MAP_WORLD_HEIGHT) / 100;
-                return (
-                  <g
-                    key={`road-${i}`}
-                    className={styles.roadSegment}
-                    data-level={getRoadLevelKey(edge.level)}
-                  >
-                    <title>
-                      {`${getRoadLabel(edge.level)} - ${edge.crossings} crossings - ${getRoadSpeedLabel(edge.level)} speed`}
-                    </title>
-                    <line
-                      x1={x1}
-                      y1={y1}
-                      x2={x2}
-                      y2={y2}
-                      className={styles.roadBed}
-                      strokeWidth={getRoadBedStrokeWidth(edge.level)}
-                    />
-                    <line
-                      x1={x1}
-                      y1={y1}
-                      x2={x2}
-                      y2={y2}
-                      className={styles.roadSurface}
-                      strokeWidth={getRoadStrokeWidth(edge.level)}
-                    />
-                    <line
-                      x1={x1}
-                      y1={y1}
-                      x2={x2}
-                      y2={y2}
-                      className={styles.roadTexture}
-                      strokeWidth={getRoadDetailStrokeWidth(edge.level)}
-                    />
-                    <line
-                      x1={x1}
-                      y1={y1}
-                      x2={x2}
-                      y2={y2}
-                      className={styles.roadCenter}
-                      strokeWidth={getRoadDetailStrokeWidth(edge.level)}
-                    />
-                  </g>
-                );
-              })}
-            </svg>
-          ) : null}
-          {roadSegments.length > 0 ? (
-            <div className={styles.roadLegend} aria-label="Road speeds">
-              <span className={styles.roadLegendItem}>
-                <i className={styles.roadLegendSwatch} data-level="dirt" />
-                Dirt 1.15x
-              </span>
-              <span className={styles.roadLegendItem}>
-                <i className={styles.roadLegendSwatch} data-level="stone" />
-                Stone 1.3x
-              </span>
-              <span className={styles.roadLegendItem}>
-                <i className={styles.roadLegendSwatch} data-level="highway" />
-                Highway 1.5x
-              </span>
-            </div>
-          ) : null}
-      <MapLifeLayer
-        mapHexes={mapHexes}
-        roadEdges={roadEdges}
-        tradeRouteLines={tradeRouteLines}
-        battlefields={battlefields}
-        fortresses={fortresses}
-        reducedVisualLoad={reducedMapVisualLoad}
-      />
-      <AttackUnitsLayer
+          <RoadsLayer
+            alliedRoads={alliedRoads}
+            tradeRouteLines={tradeRouteLines}
+            roadEdges={roadEdges}
+            showRoadLegend={roadSegments.length > 0}
+            reducedVisualLoad={reducedMapVisualLoad}
+          />
+          <MapLifeLayer
+            mapHexes={mapHexes}
+            roadEdges={roadEdges}
+            tradeRouteLines={tradeRouteLines}
+            battlefields={battlefields}
+            fortresses={fortresses}
+            reducedVisualLoad={reducedMapVisualLoad}
+          />
+          <AttackUnitsLayer
             attackUnits={attackUnits}
             onRecallAttackUnit={onRecallAttackUnit}
             onInstantRecallAttackUnit={onInstantRecallAttackUnit}
           />
-          {guardMarkers.length > 0 ? (
-            <div className={styles.guardsLayer} aria-label="Garrisoned units">
-              {guardMarkers.map((marker) => {
-                const tile = HEX_TILES.find((t) => t.id === marker.tileId);
-                if (!tile) return null;
-
-                return (
-                  <div
-                    key={marker.tileId}
-                    className={styles.guardMarker}
-                    style={{
-                      left: tile.xPercent + '%',
-                      top: tile.yPercent + '%',
-                    }}
-                  >
-                    <span
-                      className={styles.guardSprite}
-                      data-variant={marker.unitSpriteVariant}
-                      data-skin={marker.unitCosmeticVariant ?? undefined}
-                      style={getCosmeticSpriteStyle("UNIT", marker.unitCosmeticVariant) ?? undefined}
-                      aria-hidden="true"
-                    />
-                    <span className={styles.guardCount}>
-                      {marker.guardArmy}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          ) : null}
-          {battalionMarkers.length > 0 ? (
-            <div className={styles.battalionLayer} aria-label="Battalion units">
-              {battalionMarkers.map((marker, markerIndex) => {
-                const tile = HEX_TILES.find((t) => t.id === marker.tileId);
-                if (!tile) return null;
-
-                // ── Patrol position interpolation ──────────────────────
-                let patrolXPercent = tile.xPercent;
-                let patrolYPercent = tile.yPercent;
-                let isPatrolling = false;
-
-                if (patrolData) {
-                  const patrol = patrolData.markerPatrols.find(
-                    (p) => p.markerIndex === markerIndex
-                  );
-                  if (patrol && patrol.path.length >= 2) {
-                    isPatrolling = true;
-                    const cycleMs = (patrol.path.length - 1) * patrol.legMs;
-                    const elapsed = (patrolNowMs % (cycleMs || 1)) / (cycleMs || 1);
-                    const totalLegs = patrol.path.length - 1;
-                    const rawLeg = elapsed * totalLegs;
-                    const legIndex = Math.min(Math.floor(rawLeg), totalLegs - 1);
-                    const legProgress = rawLeg - legIndex; // 0..1 within the leg
-
-                    const from = patrol.path[legIndex];
-                    const to = patrol.path[legIndex + 1];
-                    patrolXPercent = from.xPercent + (to.xPercent - from.xPercent) * legProgress;
-                    patrolYPercent = from.yPercent + (to.yPercent - from.yPercent) * legProgress;
-                  }
-                }
-
-                const modeColors: Record<string, string> = {
-                  RESERVE: "#888888",
-                  GUARD: "#44cc88",
-                  ATTACK: "#ffb040",
-                  ALLIANCE: "#c080ff",
-                };
-                const raceIcons: Record<string, string[]> = {
-                  DWARFS: ["", "⛏", "⛏⛏", "⛏⛏⛏"],
-                  ORKS: ["", "💀", "💀💀", "💀💀💀"],
-                  SPACE_MURINES: ["", "★", "★★", "★★★"],
-                  UNSTABLE_UNICORNS: ["", "🦄", "🦄🦄", "🦄🦄🦄"],
-                };
-                const tierLabel = (marker.race && raceIcons[marker.race])
-                  ? raceIcons[marker.race][marker.tier] ?? "?"
-                  : ["", "I", "II", "III"][marker.tier] ?? "?";
-                return (
-                  <div
-                    key={`bn-${marker.tileId}-${marker.battalionName}`}
-                    className={`${styles.battalionMarker}${isPatrolling ? ` ${styles.battalionPatrol}` : ""}`}
-                    style={{
-                      left: `${patrolXPercent}%`,
-                      top: `${patrolYPercent}%`,
-                    }}
-                    title={`${marker.battalionName} - ${marker.mode} - Tier ${marker.tier} - ${marker.size}/${marker.maxSize}`}
-                  >
-                    <span
-                      className={styles.battalionSprite}
-                      data-variant={marker.unitSpriteVariant}
-                      data-skin={marker.unitCosmeticVariant ?? undefined}
-                      style={getCosmeticSpriteStyle("UNIT", marker.unitCosmeticVariant) ?? undefined}
-                      aria-hidden="true"
-                    />
-                    <span
-                      className={styles.battalionBadge}
-                      style={{ backgroundColor: modeColors[marker.mode] ?? "#888" }}
-                    >
-                      {tierLabel}
-                    </span>
-                    <span className={styles.battalionCount}>
-                      {marker.size}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          ) : null}
+          <GuardMarkersLayer guardMarkers={guardMarkers} />
+          <BattalionMarkersLayer
+            battalionMarkers={battalionMarkers}
+            mapHexes={mapHexes}
+            reducedVisualLoad={reducedMapVisualLoad}
+          />
           {nukeBiddingMarker ? (
             <div className={styles.nukeBiddingLayer} aria-label="Nuke bidding">
               {(() => {
@@ -2571,299 +3141,48 @@ export const FortressMap = memo(function FortressMap({
                     }
                     onClick={() => onSelectMapHex?.(tile.id)}
                   >
-                    <img src="/assets/nukes/map-bid-icon.png" alt="" aria-hidden="true" />
-                    <span>{nukeBiddingMarker.canLaunch ? "Ready" : nukeBiddingMarker.status}</span>
+                    <img
+                      src="/assets/nukes/map-bid-icon.png"
+                      alt=""
+                      aria-hidden="true"
+                    />
+                    <span>
+                      {nukeBiddingMarker.canLaunch
+                        ? "Ready"
+                        : nukeBiddingMarker.status}
+                    </span>
                   </button>
                 );
               })()}
             </div>
           ) : null}
-          {convoyMarkers.length > 0 ? (
-            <div className={styles.convoyLayer} aria-label="Trade convoys">
-              {convoyMarkers.map((convoy) => {
-                const from = fortresses.find((f) => f.id === convoy.fromFortressId);
-                const to = fortresses.find((f) => f.id === convoy.toFortressId);
-                if (!from || !to) return null;
-                const totalCargo =
-                  convoy.gold +
-                  convoy.food +
-                  convoy.army +
-                  (convoy.points ?? 0) +
-                  (convoy.nukeFuel ?? 0) +
-                  (convoy.nukeRocket ?? 0) +
-                  (convoy.nukeWrathOfA ?? 0) +
-                  (convoy.deedTileId ? 1 : 0);
-                const cargoLabel =
-                  convoy.cargoLabel ??
-                  (
-                  [
-                    convoy.deedTileId ? `tile ${convoy.deedTileId}` : null,
-                    convoy.gold > 0 ? `${convoy.gold}g` : null,
-                    convoy.food > 0 ? `${convoy.food}f` : null,
-                    convoy.army > 0 ? `${convoy.army} army` : null,
-                    convoy.points && convoy.points > 0 ? `${convoy.points} pts` : null,
-                  ].filter(Boolean).join(", ") || "empty wagon"
-                  );
-                const progress = convoy.departedAt && convoy.arrivesAt
-                  ? Math.min(1, Math.max(0, (convoyNowMs - convoy.departedAt) / (convoy.arrivesAt - convoy.departedAt)))
-                  : 0;
-                const x = from.mapX + (to.mapX - from.mapX) * progress;
-                const y = from.mapY + (to.mapY - from.mapY) * progress;
-                const angle = Math.atan2(to.mapY - from.mapY, to.mapX - from.mapX) * (180 / Math.PI);
-                const secondsUntilArrival = convoy.arrivesAt
-                  ? Math.ceil((convoy.arrivesAt - convoyNowMs) / 1000)
-                  : null;
-                const timingLabel = convoy.arrivedAwaitingTick || (secondsUntilArrival !== null && secondsUntilArrival <= 0)
-                  ? "arrived, awaiting next tick"
-                  : secondsUntilArrival !== null
-                    ? secondsUntilArrival >= 3600
-                      ? `arrives in ${Math.ceil(secondsUntilArrival / 3600)}h`
-                      : `arrives in ${Math.max(1, Math.ceil(secondsUntilArrival / 60))}m`
-                    : "arrival pending";
-                const tradeLevel = convoy.tradeLevel ?? 0;
-                const senderRace = convoy.senderRace ?? from.race;
-                const routeLabel = `${convoy.fromName ?? from.name} to ${convoy.toName ?? to.name}`;
-                return (
-                  <div
-                    key={convoy.id}
-                    className={styles.convoyMarker}
-                    style={{
-                      left: `${x}%`,
-                      top: `${y}%`,
-                      "--convoy-angle": `${angle}deg`,
-                    } as CSSProperties}
-                    title={`Trade wagon L${tradeLevel}: ${cargoLabel}; ${routeLabel}; ${timingLabel}`}
-                  >
-                    <span
-                      className={styles.convoyWagon}
-                      data-race={senderRace ?? undefined}
-                      data-level={tradeLevel}
-                      style={getTradeWagonSpriteStyle(senderRace, tradeLevel)}
-                      aria-hidden="true"
-                    />
-                    <span
-                      className={styles.convoyEscort}
-                      data-variant={from.unitSpriteVariant}
-                      data-skin={from.unitCosmeticVariant ?? undefined}
-                      style={getCosmeticSpriteStyle("UNIT", from.unitCosmeticVariant) ?? undefined}
-                      aria-hidden="true"
-                    />
-                    <span className={styles.convoyLabel}>
-                      {convoy.arrivedAwaitingTick ? "Tick" : totalCargo}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          ) : null}
-          {fortresses.length === 0 ? (
-            <div className={styles.emptyState}>
-              No fortresses on the battlefield yet.
-            </div>
-          ) : (
-            fortresses.map((fortress) => {
-              const snappedPosition =
-                snappedFortressPositions.get(fortress.id) ??
-                snapMapPointToHex({
-                  x: fortress.mapX,
-                  y: fortress.mapY,
-                });
-              const selectable =
-                (Boolean(onSelectFortress) && fortress.isCurrentUser) ||
-                (Boolean(onSelectFortress) &&
-                  fortress.fortressKind === "MEGA") ||
-                (Boolean(onSelectFortress) &&
-                  activeBattleFortressIds.includes(fortress.id)) ||
-                (Boolean(onConfirmAttackTarget) && fortress.isTargetable);
-              const variant = getSpriteVariant(fortress);
-              const isMega = fortress.fortressKind === "MEGA";
-              const isLootCamp = fortress.fortressKind === "LOOT_CAMP";
-              const isDwarfRune = fortress.fortressKind === "DWARF_RUNE";
-              const isUnicornDecoy = fortress.fortressKind === "UNICORN_DECOY";
-              const showsHealth = fortress.fortressKind !== "PLAYER";
-              const effectiveFortressSkin =
-                fortress.fortressCosmeticVariant ??
-                (fortress.race === "UNSTABLE_UNICORNS"
-                  ? `unstable-unicorn-${(hashString(fortress.spriteSeedId) % 2) + 1}`
-                  : null);
-              const className = [
-                styles.marker,
-                isMega ? styles.megaMarker : "",
-                isLootCamp ? styles.lootCampMarker : "",
-                isDwarfRune ? styles.dwarfRuneMarker : "",
-                isUnicornDecoy ? styles.unicornDecoyMarker : "",
-                fortress.isSlayerOfA ? styles.crownedMarker : "",
-                fortress.isCurrentUser ? styles.currentUser : "",
-                selectedFortressId === fortress.id ? styles.activeFortress : "",
-                selectedTargetId === fortress.id ? styles.selected : "",
-                selectable ? styles.selectable : "",
-                fortress.isTargetable ? styles.targetable : "",
-                fortress.diplomacyStatus === "WAR" ? styles.warMarker : "",
-                fortress.diplomacyStatus === "ALLIED" ? styles.alliedMarker : "",
-              ]
-                .filter(Boolean)
-                .join(" ");
-
-              const showTargetPopover =
-                pendingTargetId === fortress.id && fortress.isTargetable;
-              const travelMinutes =
-                showTargetPopover && ownFortress
-                  ? getAttackTravelMinutes(ownFortress, fortress)
-                  : null;
-
-              return (
-                <Fragment key={fortress.id}>
-                  <button
-                    type="button"
-                    className={className}
-                    style={{
-                      left: `${snappedPosition.x}%`,
-                      top: `${snappedPosition.y}%`,
-                    }}
-                    onPointerDown={(event) =>
-                      handleMarkerPointerDown(event, fortress, selectable)
-                    }
-                    onPointerMove={(event) =>
-                      handleMarkerPointerMove(event, fortress.id)
-                    }
-                    onPointerUp={(event) =>
-                      handleMarkerPointerUp(event, fortress.id)
-                    }
-                    onPointerCancel={(event) =>
-                      clearMarkerTap(event, fortress.id)
-                    }
-                    onClick={(event) => {
-                      if (event.detail !== 0 || suppressClickRef.current) {
-                        event.preventDefault();
-                        return;
-                      }
-
-                      activateFortress(fortress);
-                    }}
-                    aria-pressed={
-                      selectedTargetId === fortress.id ||
-                      selectedFortressId === fortress.id
-                    }
-                    aria-label={
-                      isMega
-                        ? `${fortress.name}, ${fortress.health} of ${fortress.maxHealth} health`
-                        : showsHealth
-                          ? `${fortress.name}, ${fortress.health} of ${fortress.maxHealth} health`
-                          : `${fortress.name}, ${fortress.points} points`
-                    }
-                  >
-                    <span className={styles.selectionPulse} />
-                    {fortress.race && !fortress.isNpc ? (
-                      <span
-                        className={styles.raceToken}
-                        style={{
-                          backgroundImage: `url("${RACE_TOKEN_PATHS[fortress.race]}")`,
-                        }}
-                      />
-                    ) : null}
-                    <span className={styles.spriteFrame}>
-                      {isMega ? (
-                        <MegaFortressSprite
-                          iconLabel={fortress.iconLabel ?? "A-"}
-                        />
-                      ) : isLootCamp ? (
-                        <LootCampSprite variant={fortress.lootCampVariant} />
-                      ) : isDwarfRune ? (
-                        <DwarfRuneSprite />
-                      ) : (
-                        <FortressSprite
-                          variant={variant}
-                          skinVariant={effectiveFortressSkin}
-                        />
-                      )}
-                    </span>
-                    {isMega ? (
-                      <span className={styles.pointsBadge}>
-                        {fortress.health}/{fortress.maxHealth}
-                      </span>
-                    ) : showsHealth ? (
-                      <span className={styles.pointsBadge}>
-                        {fortress.health}/{fortress.maxHealth}
-                      </span>
-                    ) : null}
-                    <span className={styles.nameplate}>{fortress.name}</span>
-                    {fortress.isSlayerOfA ? (
-                      <span className={styles.crownBadge}>Slayer of A</span>
-                    ) : null}
-                    <span className={styles.tooltip}>
-                      <strong>{fortress.name}</strong>
-                      <span>
-                        {isMega
-                          ? `${fortress.health}/${fortress.maxHealth} HP`
-                          : showsHealth
-                            ? `${fortress.health}/${fortress.maxHealth} HP`
-                            : `${fortress.points} pts${
-                                fortress.isSlayerOfA ? " - Slayer of A" : ""
-                              }`}
-                      </span>
-                    </span>
-                  </button>
-
-                  {showTargetPopover ? (
-                    <div
-                      className={styles.targetPopover}
-                      data-target-popover
-                      style={{
-                        left: `${snappedPosition.x}%`,
-                        top: `${snappedPosition.y}%`,
-                      }}
-                      onPointerDown={(event) => event.stopPropagation()}
-                    >
-                      <strong>{fortress.name}</strong>
-                      <span>
-                        {showsHealth
-                          ? `${fortress.health}/${fortress.maxHealth} HP`
-                          : `${fortress.points} pts`}
-                      </span>
-                      {travelMinutes ? <em>{travelMinutes} min ETA</em> : null}
-                      <label className={styles.targetArmyControl}>
-                        <span className={styles.targetArmyLabel}>
-                          Army to send: {clampedTargetSentArmy}/
-                          {maxTargetSentArmy}
-                        </span>
-                        <input
-                          type="range"
-                          min={1}
-                          max={Math.max(1, maxTargetSentArmy)}
-                          step={1}
-                          value={Math.max(1, clampedTargetSentArmy)}
-                          disabled={maxTargetSentArmy <= 0}
-                          onPointerDown={(event) => event.stopPropagation()}
-                          onChange={(event) => {
-                            const nextArmy = Number(event.currentTarget.value);
-                            setTargetSentArmy(
-                              Number.isFinite(nextArmy)
-                                ? Math.floor(nextArmy)
-                                : 1
-                            );
-                          }}
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        disabled={maxTargetSentArmy <= 0}
-                        onPointerDown={(event) => event.stopPropagation()}
-                        onClick={async () => {
-                          setPendingTargetId(null);
-                          await onConfirmAttackTarget?.(
-                            fortress,
-                            clampedTargetSentArmy
-                          );
-                        }}
-                      >
-                        Send {clampedTargetSentArmy || 0} army
-                      </button>
-                    </div>
-                  ) : null}
-                </Fragment>
-              );
-            })
-          )}
+          <ConvoyMarkersLayer
+            convoyMarkers={convoyMarkers}
+            fortresses={fortresses}
+          />
+          <FortressMarkersLayer
+            fortresses={fortresses}
+            snappedFortressPositions={snappedFortressPositions}
+            selectedFortressId={selectedFortressId}
+            selectedTargetId={selectedTargetId}
+            activeBattleFortressIdSet={activeBattleFortressIdSet}
+            pendingTargetId={pendingTargetId}
+            ownFortress={ownFortress}
+            maxTargetSentArmy={maxTargetSentArmy}
+            clampedTargetSentArmy={clampedTargetSentArmy}
+            canSelectFortress={Boolean(onSelectFortress)}
+            canConfirmAttackTarget={Boolean(onConfirmAttackTarget)}
+            reducedVisualLoad={reducedMapVisualLoad}
+            suppressClickRef={suppressClickRef}
+            onConfirmAttackTarget={onConfirmAttackTarget}
+            onTargetSentArmyChange={setTargetSentArmy}
+            onPendingTargetChange={setPendingTargetId}
+            onMarkerPointerDown={handleMarkerPointerDown}
+            onMarkerPointerMove={handleMarkerPointerMove}
+            onMarkerPointerUp={handleMarkerPointerUp}
+            onMarkerPointerCancel={clearMarkerTap}
+            onActivateFortress={activateFortress}
+          />
         </div>
       </div>
     </div>
