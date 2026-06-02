@@ -28,6 +28,7 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
       "Battalion reinforcements now march visibly from the castle to remote battalions before those new troops become usable.",
       "Alliance-mode battalions now send visible battlefield reinforcement marches instead of silently adding defenders.",
       "Castle War Room now has alliance support controls for joining allied attacks and defending allies; ALLIANCE-mode battalions decide how much army is available.",
+      "War Room now shows committed and incoming army for allied battlefields, and ally-vs-ally wars pause support until commanders choose which alliance to keep.",
       "ALLIANCE-mode battalions can now auto-deploy to help allies on both attack and defense.",
       "Roads now shorten movement ETA for attacks, fortification marches, remote battalion reinforcements, War Front launches, allied support, and convoy map legs.",
       "The map now shows clearer road levels, route tooltips, and moving-unit ETA savings when roads helped the march.",

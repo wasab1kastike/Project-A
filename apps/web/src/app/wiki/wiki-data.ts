@@ -433,7 +433,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
           { title: "RESERVE", body: "Roams near your castle core but does not trigger automatically." },
           { title: "GUARD", body: "Patrols owned borders through War Room guard allocation." },
           { title: "ATTACK", image: "/assets/ui/crest-campaign.webp", body: "Can be assigned to war fronts and auto-dispatches against reachable enemy tiles." },
-          { title: "ALLIANCE", body: "Sends visible reinforcement marches to eligible allied defensive or attacking battlefields when the matching War Room side toggle is enabled." },
+          { title: "ALLIANCE", body: "Sends visible reinforcement marches to eligible allied defensive or attacking battlefields when the matching War Room side toggle is enabled. If two allies fight each other, support pauses until you choose which alliance to keep." },
         ],
       },
       {
@@ -615,6 +615,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
           "Sender escorts protect outbound scored cargo.",
           "Convoy raid orders are temporarily disabled.",
           "GUARD-mode battalions patrol owned borders through War Room guard allocation.",
+          "War Room allied battlefields show committed and incoming army by side, and ally-vs-ally conflicts can be resolved by keeping one alliance while the other becomes neutral without betrayal penalties.",
           "Manual guard orders remain disabled; use battalion modes instead.",
         ],
       },

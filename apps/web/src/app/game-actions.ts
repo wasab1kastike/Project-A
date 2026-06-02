@@ -53,6 +53,7 @@ import {
   clearTilePressurePriority,
   declareWar,
   betrayAlliance,
+  resolveAllianceWarChoice,
   fortifyMapHex,
   claimUnicornTeleport,
   activateUnicornShatteredReality,
@@ -596,6 +597,32 @@ export async function betrayAllianceAction(targetFortressId: string) {
   try {
     await betrayAlliance({ userId, targetFortressId });
     notifyAndRevalidate("politics-betray-alliance", ["/", "/castle", "/politics"]);
+    return { ok: true } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
+export async function resolveAllianceWarChoiceAction(input: {
+  keepFortressId: string;
+  breakFortressId: string;
+}): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await resolveAllianceWarChoice({ userId, ...input });
+    notifyAndRevalidate("alliance-war-choice", ["/", "/castle", "/politics"]);
     return { ok: true } satisfies InlineActionResult;
   } catch (error) {
     return {

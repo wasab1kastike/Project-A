@@ -114,4 +114,56 @@ describe("processAllianceReinforcements", () => {
     assert.equal(createdAttackUnits[0]?.data.reinforcementSide, "DEFENDER");
     assert.equal(createdAttackUnits[0]?.data.targetFortressId, "ally_a");
   });
+
+  it("holds alliance battalions when the reinforcer is allied with both hostile sides", async () => {
+    const { db, createdAttackUnits } = createMockDb();
+
+    await processAllianceReinforcements({
+      db: db as never,
+      cycleId: "cycle_1",
+      now: new Date("2026-06-01T12:00:00.000Z"),
+      diplomacyRelations: [
+        { status: "ALLIED", fortressAId: "ally_a", fortressBId: "supporter" },
+        { status: "ALLIED", fortressAId: "ally_b", fortressBId: "supporter" },
+        { status: "WAR", fortressAId: "ally_a", fortressBId: "ally_b" },
+      ],
+      activeBattlefields: [
+        {
+          id: "bf_ally_conflict",
+          attackerBannerFortressId: "ally_a",
+          defenderBannerFortressId: "ally_b",
+          status: "ACTIVE",
+        },
+      ],
+    });
+
+    assert.equal(createdAttackUnits.length, 0);
+  });
+
+  it("resumes alliance support after one side is no longer allied", async () => {
+    const { db, createdAttackUnits } = createMockDb();
+
+    await processAllianceReinforcements({
+      db: db as never,
+      cycleId: "cycle_1",
+      now: new Date("2026-06-01T12:00:00.000Z"),
+      diplomacyRelations: [
+        { status: "ALLIED", fortressAId: "ally_b", fortressBId: "supporter" },
+        { status: "NEUTRAL", fortressAId: "ally_a", fortressBId: "supporter" },
+        { status: "WAR", fortressAId: "ally_a", fortressBId: "ally_b" },
+      ],
+      activeBattlefields: [
+        {
+          id: "bf_ally_conflict_resolved",
+          attackerBannerFortressId: "ally_a",
+          defenderBannerFortressId: "ally_b",
+          status: "ACTIVE",
+        },
+      ],
+    });
+
+    assert.equal(createdAttackUnits.length, 1);
+    assert.equal(createdAttackUnits[0]?.data.reinforcementSide, "DEFENDER");
+    assert.equal(createdAttackUnits[0]?.data.targetFortressId, "ally_b");
+  });
 });

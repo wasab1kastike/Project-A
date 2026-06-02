@@ -175,6 +175,8 @@ Allies can upgrade trust (0→3). Higher tiers grant:
 - Existing tile pressure priorities double as preferred wartime targets when the prioritized tile is enemy-owned and reachable from your territory.
 - New troops assigned to battalions stationed away from the castle travel as visible reinforcement marches first; they count as pending capacity but do not become usable battalion size until arrival.
 - ALLIANCE-mode battalions automatically support eligible allied defensive and attacking battlefields by launching normal incoming reinforcement marches. War Room policy toggles choose whether those battalions join allied attacks, defend allies, or both; the battalions assigned to ALLIANCE mode determine the available army.
+- War Room shows allied battlefield troop breakdowns by side, including each fortress' committed/remaining army and incoming reinforcement army.
+- If two allies become hostile to each other, alliance support for that conflict pauses until the player chooses which alliance to keep. The abandoned alliance becomes NEUTRAL with no betrayal marker, collateral payment, collateral debt, or escrow payout.
 - Roads reduce movement ETA for manual attacks, remote battalion reinforcement, War Front launches, and allied battlefield support. Roads do not shorten the one-hour PvP preparation delay.
 
 ---

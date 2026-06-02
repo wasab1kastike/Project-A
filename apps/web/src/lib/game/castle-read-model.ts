@@ -5,6 +5,7 @@ import {
   CastleUpgradeSpecialization,
   CommunityWishStatus,
   CycleStatus,
+  DiplomacyRelationStatus,
   FortressKind,
   OrkBossOrderKind,
   OrkWaaaghInvestmentKind,
@@ -89,6 +90,7 @@ import {
   type NukeComponentCargo,
 } from "./nukes";
 import { getTradeWagonResourceLimit } from "./trading";
+import { getEffectiveDiplomacyStatus } from "./politics";
 
 const BUILDING_SPECIALIZATIONS = [
   CastleUpgradeSpecialization.DEFENSE,
@@ -554,7 +556,11 @@ export async function getCastlePageState({
         : relation.fortressAId,
     ),
   );
-  const [allianceBattlefields, outgoingAllianceReinforcements] = playerFortress
+  const [
+    allianceBattlefields,
+    outgoingAllianceReinforcements,
+    alliedConflictRelations,
+  ] = playerFortress
     ? await Promise.all([
         alliedFortressIds.size > 0
           ? db.battlefield.findMany({
@@ -576,6 +582,39 @@ export async function getCastlePageState({
                 defenderBannerFortressId: true,
                 attackerArmyRemaining: true,
                 defenderArmyRemaining: true,
+                participants: {
+                  select: {
+                    fortressId: true,
+                    side: true,
+                    armyCommitted: true,
+                    armyRemaining: true,
+                    fortress: {
+                      select: {
+                        name: true,
+                        commanderName: true,
+                      },
+                    },
+                  },
+                },
+                incomingReinforcements: {
+                  where: {
+                    resolvedAt: null,
+                    cancelledAt: null,
+                  },
+                  select: {
+                    id: true,
+                    attackerFortressId: true,
+                    armyAmount: true,
+                    arrivesAt: true,
+                    reinforcementSide: true,
+                    attackerFortress: {
+                      select: {
+                        name: true,
+                        commanderName: true,
+                      },
+                    },
+                  },
+                },
               },
             })
           : [],
@@ -604,8 +643,31 @@ export async function getCastlePageState({
             },
           },
         }),
+        alliedFortressIds.size > 1
+          ? db.diplomacyRelation.findMany({
+              where: {
+                cycleId: cycle.id,
+                status: {
+                  in: [
+                    DiplomacyRelationStatus.WAR_PENDING,
+                    DiplomacyRelationStatus.WAR,
+                    DiplomacyRelationStatus.ENEMY,
+                  ],
+                },
+                fortressAId: { in: [...alliedFortressIds] },
+                fortressBId: { in: [...alliedFortressIds] },
+              },
+              select: {
+                id: true,
+                fortressAId: true,
+                fortressBId: true,
+                status: true,
+                warStartsAt: true,
+              },
+            })
+          : [],
       ])
-    : [[], []];
+    : [[], [], []];
   const playerOwnedTileCount = getRaceTierTileCount({
     race: playerFortress?.race,
     ownedTileBiomes: playerOwnedTileBiomes,
@@ -1712,6 +1774,96 @@ export async function getCastlePageState({
               const defender = battlefield.defenderBannerFortressId
                 ? targetLookup.get(battlefield.defenderBannerFortressId)
                 : null;
+              const getSideForces = (side: "ATTACKER" | "DEFENDER") => {
+                const rows = new Map<
+                  string,
+                  {
+                    fortressId: string;
+                    name: string;
+                    commanderName: string;
+                    committedArmy: number;
+                    remainingArmy: number;
+                    incomingArmy: number;
+                    nextArrivalAt: Date | null;
+                    isAlly: boolean;
+                  }
+                >();
+                const ensureRow = ({
+                  fortressId,
+                  name,
+                  commanderName,
+                }: {
+                  fortressId: string;
+                  name: string;
+                  commanderName: string;
+                }) => {
+                  const existing = rows.get(fortressId);
+
+                  if (existing) {
+                    return existing;
+                  }
+
+                  const created = {
+                    fortressId,
+                    name,
+                    commanderName,
+                    committedArmy: 0,
+                    remainingArmy: 0,
+                    incomingArmy: 0,
+                    nextArrivalAt: null,
+                    isAlly: alliedFortressIds.has(fortressId),
+                  };
+                  rows.set(fortressId, created);
+                  return created;
+                };
+
+                for (const participant of battlefield.participants) {
+                  if (participant.side !== side) {
+                    continue;
+                  }
+
+                  const row = ensureRow({
+                    fortressId: participant.fortressId,
+                    name: participant.fortress?.name ?? "Unknown fortress",
+                    commanderName:
+                      participant.fortress?.commanderName ?? "Unknown commander",
+                  });
+                  row.committedArmy += participant.armyCommitted;
+                  row.remainingArmy += Math.max(0, participant.armyRemaining);
+                }
+
+                for (const unit of battlefield.incomingReinforcements) {
+                  const unitSide = unit.reinforcementSide ?? "ATTACKER";
+
+                  if (unitSide !== side) {
+                    continue;
+                  }
+
+                  const row = ensureRow({
+                    fortressId: unit.attackerFortressId,
+                    name: unit.attackerFortress.name,
+                    commanderName: unit.attackerFortress.commanderName,
+                  });
+                  row.incomingArmy += Math.max(0, unit.armyAmount ?? 0);
+                  row.nextArrivalAt =
+                    row.nextArrivalAt === null ||
+                    unit.arrivesAt < row.nextArrivalAt
+                      ? unit.arrivesAt
+                      : row.nextArrivalAt;
+                }
+
+                return [...rows.values()].sort((left, right) => {
+                  if (left.isAlly !== right.isAlly) {
+                    return left.isAlly ? -1 : 1;
+                  }
+
+                  return (
+                    right.remainingArmy +
+                    right.incomingArmy -
+                    (left.remainingArmy + left.incomingArmy)
+                  );
+                });
+              };
               const alliedSide: "ATTACKER" | "DEFENDER" | null = alliedFortressIds.has(battlefield.attackerBannerFortressId)
                 ? "ATTACKER"
                 : battlefield.defenderBannerFortressId &&
@@ -1737,8 +1889,71 @@ export async function getCastlePageState({
                     : attacker?.name ?? "Attacker",
                 attackerArmyRemaining: battlefield.attackerArmyRemaining,
                 defenderArmyRemaining: battlefield.defenderArmyRemaining,
+                attackerForces: getSideForces("ATTACKER"),
+                defenderForces: getSideForces("DEFENDER"),
               };
             }),
+            allianceConflicts: allianceBattlefields
+              .map((battlefield) => {
+                if (
+                  !battlefield.defenderBannerFortressId ||
+                  !alliedFortressIds.has(battlefield.attackerBannerFortressId) ||
+                  !alliedFortressIds.has(battlefield.defenderBannerFortressId)
+                ) {
+                  return null;
+                }
+
+                const relation = alliedConflictRelations.find(
+                  (candidate) =>
+                    (candidate.fortressAId ===
+                      battlefield.attackerBannerFortressId &&
+                      candidate.fortressBId ===
+                        battlefield.defenderBannerFortressId) ||
+                    (candidate.fortressAId ===
+                        battlefield.defenderBannerFortressId &&
+                      candidate.fortressBId ===
+                        battlefield.attackerBannerFortressId)
+                );
+                const effectiveStatus = getEffectiveDiplomacyStatus({
+                  relation,
+                  now,
+                });
+
+                if (
+                  effectiveStatus !== DiplomacyRelationStatus.WAR_PENDING &&
+                  effectiveStatus !== DiplomacyRelationStatus.WAR &&
+                  effectiveStatus !== DiplomacyRelationStatus.ENEMY
+                ) {
+                  return null;
+                }
+
+                const attacker = targetLookup.get(
+                  battlefield.attackerBannerFortressId
+                );
+                const defender = targetLookup.get(
+                  battlefield.defenderBannerFortressId
+                );
+
+                return {
+                  battlefieldId: battlefield.id,
+                  targetLabel: battlefield.targetTileId
+                    ? `Tile ${battlefield.targetTileId}`
+                    : battlefield.targetFortressId
+                      ? targetLookup.get(battlefield.targetFortressId)?.name ??
+                        "Castle"
+                      : "Battlefield",
+                  relationStatus: effectiveStatus,
+                  attackerFortressId: battlefield.attackerBannerFortressId,
+                  attackerName: attacker?.name ?? "Attacker ally",
+                  defenderFortressId: battlefield.defenderBannerFortressId,
+                  defenderName: defender?.name ?? "Defender ally",
+                  recommendation:
+                    "Choose one alliance; support is paused until resolved.",
+                };
+              })
+              .filter((conflict): conflict is NonNullable<typeof conflict> =>
+                Boolean(conflict)
+              ),
             outgoingReinforcements: outgoingAllianceReinforcements.map((unit) => {
               const battlefield = unit.reinforcementBattlefield;
               const alliedFortressId =
