@@ -119,12 +119,14 @@ import {
 import {
   applyUnsupportedPressureDecay,
   allocatePressureAcrossTargets,
+  calculateOwnershipMaintenanceWorkers,
   calculatePressureOutput,
   chooseAutoTilePressurePriorityCandidates,
   getDistanceAdjustedTilePressureClaimThreshold,
   getDistanceAdjustedTilePressureDecayPercent,
   getNeutralPressureClaimWinner,
   getPressureTargetBlockedReason,
+  getExpansionTileCapacity,
   getTilePressureClaimThreshold,
   getTilePressurePriorityLimit,
   getTilePressurePriorityWeightForSlot,
@@ -841,6 +843,11 @@ async function processTilePressureExpansion({
         pressureWorkersAssigned: fortress.pressureWorkersAssigned,
         race: fortress.race,
       });
+      const expansionTileCapacity = getExpansionTileCapacity({
+        pressureWorkersAssigned: fortress.pressureWorkersAssigned,
+        race: fortress.race,
+        skillPurchases: fortress.skillPurchases,
+      });
 
       const ownedTileIds = ownedTileIdsByFortressId.get(fortress.id) ?? [];
       const doctrineTier = isSeasonFour
@@ -921,12 +928,16 @@ async function processTilePressureExpansion({
         );
       }
 
-      await fillNeutralPressurePriorities({
-        fortress,
-        isLegalNeutralPressureTile,
-      });
+      if (ownedTileIds.length < expansionTileCapacity) {
+        await fillNeutralPressurePriorities({
+          fortress,
+          isLegalNeutralPressureTile,
+        });
+      } else {
+        await normalizePriorityWeights(fortress);
+      }
 
-      if (pressure <= 0) {
+      if (pressure <= 0 || ownedTileIds.length >= expansionTileCapacity) {
         continue;
       }
 
@@ -1015,6 +1026,20 @@ async function processTilePressureExpansion({
       if (!winnerFortressId) {
         continue;
       }
+      const winnerOwnedTileCount =
+        ownedTileIdsByFortressId.get(winnerFortressId)?.length ?? 0;
+      const winner = fortressById.get(winnerFortressId);
+      const winnerExpansionTileCapacity = winner
+        ? getExpansionTileCapacity({
+            pressureWorkersAssigned: winner.pressureWorkersAssigned,
+            race: winner.race,
+            skillPurchases: winner.skillPurchases,
+          })
+        : 0;
+
+      if (winnerOwnedTileCount >= winnerExpansionTileCapacity) {
+        continue;
+      }
 
       await tx.mapHexOwnership.create({
         data: {
@@ -1025,6 +1050,10 @@ async function processTilePressureExpansion({
         },
       });
       ownerByTileId.set(tileId, winnerFortressId);
+      ownedTileIdsByFortressId.set(winnerFortressId, [
+        ...(ownedTileIdsByFortressId.get(winnerFortressId) ?? []),
+        tileId,
+      ]);
 
       // Award points for claiming a neutral tile
       const TILE_CLAIM_POINTS = 5;
@@ -1083,10 +1112,20 @@ async function processTilePressureExpansion({
           isConnected,
         }) === null;
 
-      await fillNeutralPressurePriorities({
-        fortress,
-        isLegalNeutralPressureTile,
+      const expansionTileCapacity = getExpansionTileCapacity({
+        pressureWorkersAssigned: fortress.pressureWorkersAssigned,
+        race: fortress.race,
+        skillPurchases: fortress.skillPurchases,
       });
+
+      if (ownedTileIds.length < expansionTileCapacity) {
+        await fillNeutralPressurePriorities({
+          fortress,
+          isLegalNeutralPressureTile,
+        });
+      } else {
+        await normalizePriorityWeights(fortress);
+      }
     }
   }, TICK_TRANSACTION_OPTIONS);
 }
@@ -3484,7 +3523,17 @@ async function processCycleTick(
       }),
       db.fortress.findMany({
         where: { cycleId, isNpc: false },
-        select: { id: true, level: true, army: true, mapX: true, mapY: true, ownerId: true, pressureWorkersAssigned: true },
+        select: {
+          id: true,
+          level: true,
+          army: true,
+          mapX: true,
+          mapY: true,
+          ownerId: true,
+          pressureWorkersAssigned: true,
+          race: true,
+          skillPurchases: { select: { nodeKey: true } },
+        },
       }),
       db.mapHexOwnership.findMany({
         where: { cycleId },
@@ -3565,6 +3614,9 @@ async function processCycleTick(
       enemyPressureByTile.set(ep.tileId, existing + ep.pressure);
     }
     const pressureWorkersByFortress = new Map<string, number>();
+    const lightFortressById = new Map(
+      lightFortresses.map((fortress) => [fortress.id, fortress])
+    );
     for (const f of lightFortresses) {
       pressureWorkersByFortress.set(f.id, f.pressureWorkersAssigned ?? 0);
     }
@@ -3575,8 +3627,14 @@ async function processCycleTick(
     }
     const inputs = allOwnerships.map((o) => {
       const totalWorkers = pressureWorkersByFortress.get(o.ownerFortressId) ?? 0;
+      const ownerFortress = lightFortressById.get(o.ownerFortressId);
       const tileCount = ownedTileCount.get(o.ownerFortressId) ?? 1;
-      const workersPerTile = Math.floor(totalWorkers / tileCount);
+      const workersPerTile = calculateOwnershipMaintenanceWorkers({
+        pressureWorkersAssigned: totalWorkers,
+        ownedTileCount: tileCount,
+        race: ownerFortress?.race,
+        skillPurchases: ownerFortress?.skillPurchases,
+      });
       return {
         tileId: o.tileId,
         ownerFortressId: o.ownerFortressId,

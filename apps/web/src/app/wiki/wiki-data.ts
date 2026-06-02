@@ -164,7 +164,7 @@ const pressureFlow: readonly WikiDiagramStep[] = [
   { label: "Assign", detail: "Put workers into race-flavored pressure." },
   { label: "Prioritize", detail: "The queue auto-fills with connected neutral borders." },
   { label: "Claim", detail: `${TILE_PRESSURE_CLAIM_THRESHOLD}+ pressure wins if there is no tie.` },
-  { label: "Hold", detail: "Ownership pressure decays unless maintained." },
+  { label: "Hold", detail: "8 claimed normal tiles are free to maintain." },
 ];
 
 const convoyFlow: readonly WikiDiagramStep[] = [
@@ -362,7 +362,10 @@ export const WIKI_PAGES: readonly WikiPage[] = [
       "Season 4 territory is claimed with pressure, held with ownership pressure, and contested through war campaigns.",
     highlights: [
       `Nearby neutral tile claim threshold: ${TILE_PRESSURE_CLAIM_THRESHOLD}.`,
-      "Each fortress keeps its priority queue filled to the current slot limit, starting at three slots.",
+      "The first 8 normal tiles are free to maintain after you claim them.",
+      "Each assigned pressure worker lets the fortress hold two more normal tiles before skill and race bonuses.",
+      "Neutral tiles still need pressure to flip.",
+      "The priority queue refills while the fortress is below tile capacity, starting at three slots.",
       `Each farther ring adds ${TILE_PRESSURE_DISTANCE_THRESHOLD_STEP_PERCENT}% required pressure.`,
       `Unsupported neutral pressure decays ${TILE_PRESSURE_DECAY_PERCENT_PER_HOUR}% per completed hour plus ${TILE_PRESSURE_DISTANCE_DECAY_STEP_PERCENT}% per farther ring, capped at ${TILE_PRESSURE_MAX_DECAY_PERCENT_PER_HOUR}%.`,
       `Ownership pressure ranges from 0 to ${MAX_OWNERSHIP_PRESSURE}.`,
@@ -381,10 +384,12 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         title: "Ownership pressure",
         bullets: [
           "Queued priorities are ordered. The first legal neutral tile receives all current pressure output.",
-          "If a queue slot is claimed or becomes invalid, the system appends the nearest legal neutral replacement.",
+          "If a queue slot is claimed or becomes invalid, the system appends the nearest legal neutral replacement while you are below tile capacity.",
           "During war, queued enemy border tiles guide automated War Front targeting.",
           `Owned tiles decay by ${OWNERSHIP_PRESSURE_DECAY_PER_TICK} ownership pressure per tick.`,
           `Each maintenance worker restores ${OWNERSHIP_PRESSURE_MAINTENANCE_PER_WORKER} pressure per tick.`,
+          "Pressure skill bonuses and the Dwarf racial holding bonus increase worker-supported tile capacity.",
+          "If owned normal tiles exceed tile capacity, they decay toward neutral.",
           "GUARD-mode battalions use War Room guard allocation to patrol owned border tiles.",
           `Below ${OWNERSHIP_PRESSURE_WARNING} pressure, the tile is in the warning band.`,
           "At 0 pressure, the tile becomes neutral.",

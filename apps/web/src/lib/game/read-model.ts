@@ -103,6 +103,7 @@ import {
 import {
   getNeutralPressureClaimWinner,
   getDistanceAdjustedTilePressureClaimThreshold,
+  getExpansionTileCapacity,
   getPressureTargetBlockedReason,
   getTilePressureClaimThreshold,
   getTilePressurePriorityLimit,
@@ -3020,6 +3021,13 @@ export async function getHomePageState({
   const pressurePriorityLimit = playerFortress
     ? getTilePressurePriorityLimit(playerFortress)
     : 0;
+  const expansionTileCapacity = playerFortress
+    ? getExpansionTileCapacity({
+        pressureWorkersAssigned: playerFortress.pressureWorkersAssigned,
+        race: playerFortress.race,
+        skillPurchases: playerFortress.skillPurchases,
+      })
+    : 0;
   const playerSkillModifiers =
     playerFortress && isSeasonFour
       ? getSkillModifiers({
@@ -3735,6 +3743,8 @@ export async function getHomePageState({
           recruitersAssigned: playerFortress.recruitersAssigned,
           pressureWorkersAssigned: playerFortress.pressureWorkersAssigned,
           pressurePriorityLimit,
+          expansionTileCapacity,
+          ownedNormalTileCount: ownedNormalTileIds.length,
           race: playerFortress.race,
           currentAction: playerFortress.currentAction,
           mapX: playerFortress.mapX,

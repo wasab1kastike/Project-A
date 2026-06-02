@@ -15,6 +15,7 @@ export type RaceModifiers = {
   armyPerTenRecruiters: number;
   carryCapacityPerSurvivorBonus: number;
   travelSpeedMultiplier: number;
+  expansionTileCapacityMultiplier: number;
 };
 
 export type RaceDefinition = {
@@ -35,6 +36,7 @@ const NO_RACE_MODIFIERS: RaceModifiers = {
   armyPerTenRecruiters: 0,
   carryCapacityPerSurvivorBonus: 0,
   travelSpeedMultiplier: 1,
+  expansionTileCapacityMultiplier: 1,
 };
 
 export const RACE_DEFINITIONS = [
@@ -55,6 +57,7 @@ export const RACE_DEFINITIONS = [
       defenseBonus: 0.1,
       goldPerTenMiners: 1,
       travelSpeedMultiplier: 0.5,
+      expansionTileCapacityMultiplier: 1.25,
     },
   },
   {

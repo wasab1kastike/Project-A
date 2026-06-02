@@ -84,6 +84,8 @@ type PlayerSummary = {
   maxSimultaneousAttacks: number;
   seasonFourRulesEnabled?: boolean;
   pressurePriorityLimit?: number;
+  expansionTileCapacity?: number;
+  ownedNormalTileCount?: number;
 };
 
 type PlayerFortress = {
@@ -736,6 +738,8 @@ export function BattlefieldExperience({
           : SEASON_FOUR_CRESTS.CAMPAIGN
     : null;
   const pressurePriorityLimit = playerSummary?.pressurePriorityLimit ?? 3;
+  const expansionTileCapacity = playerSummary?.expansionTileCapacity ?? 0;
+  const ownedNormalTileCount = playerSummary?.ownedNormalTileCount ?? 0;
   const pressurePriorityQueue = useMemo(
     () =>
       mapHexes
@@ -1996,9 +2000,15 @@ export function BattlefieldExperience({
             <div className={styles.priorityQueueHeader}>
               <span>Expansion queue</span>
               <strong>
-                {pressurePriorityQueue.length} / {pressurePriorityLimit}
+                {ownedNormalTileCount} / {expansionTileCapacity} tiles
               </strong>
             </div>
+            <p className={styles.helper}>
+              {pressurePriorityQueue.length} / {pressurePriorityLimit} queued
+              {ownedNormalTileCount >= expansionTileCapacity
+                ? "; expansion pauses at tile capacity."
+                : "."}
+            </p>
             {pressurePriorityQueue.length > 0 ? (
               <div className={styles.priorityQueueList}>
                 {pressurePriorityQueue.map((priority, index) => (

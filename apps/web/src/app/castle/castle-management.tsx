@@ -319,6 +319,9 @@ type PlayerSummary = {
   };
   expansionSummary: {
     pressureOutput: number;
+    tileCapacity: number;
+    tilesHeld: number;
+    tilesOverCapacity: number;
     activePriorityCount: number;
     leadingPriority: {
       tileId: string;
@@ -1929,8 +1932,8 @@ export function CastleManagement({
                 <div className={styles.panelHeader}>
                   <span>Expansion</span>
                   <strong>
-                    {playerSummary.expansionSummary.activePriorityCount} /{" "}
-                    {playerSummary.expansionSummary.priorityLimit} queued
+                    {playerSummary.expansionSummary.tilesHeld} /{" "}
+                    {playerSummary.expansionSummary.tileCapacity} tiles held
                   </strong>
                 </div>
                 <div className={styles.operationTitle}>
@@ -1944,10 +1947,21 @@ export function CastleManagement({
                     <p className={styles.muted}>
                       {playerSummary.pressureWorkersAssigned} workers generate{" "}
                       {playerSummary.expansionSummary.pressureOutput} pressure
-                      per tick.
+                      per tick. Capacity includes 8 claimed tiles without
+                      workers, plus worker and bonus support, for{" "}
+                      {playerSummary.expansionSummary.tileCapacity} total.
                     </p>
                   </div>
                 </div>
+                {playerSummary.expansionSummary.tilesOverCapacity > 0 ? (
+                  <p className={styles.warning}>
+                    {playerSummary.expansionSummary.tilesOverCapacity}{" "}
+                    {playerSummary.expansionSummary.tilesOverCapacity === 1
+                      ? "tile is"
+                      : "tiles are"}{" "}
+                    above tile capacity and will decay toward neutral.
+                  </p>
+                ) : null}
                 {playerSummary.expansionSummary.leadingPriority ? (
                   <div className={styles.progressRow}>
                     <div className={styles.statusRow}>
@@ -1991,6 +2005,13 @@ export function CastleManagement({
                 )}
                 {playerSummary.expansionSummary.priorityQueue.length > 0 ? (
                   <div className={styles.statusList}>
+                    <div className={styles.statusRow}>
+                      <span>Queue</span>
+                      <strong>
+                        {playerSummary.expansionSummary.activePriorityCount} /{" "}
+                        {playerSummary.expansionSummary.priorityLimit}
+                      </strong>
+                    </div>
                     {playerSummary.expansionSummary.priorityQueue.map(
                       (priority) => (
                         <div className={styles.statusRow} key={priority.tileId}>
