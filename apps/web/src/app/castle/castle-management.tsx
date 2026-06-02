@@ -428,6 +428,14 @@ type PlayerSummary = {
   skillPointsEarned: number;
 };
 
+type BattalionSummary = PlayerSummary["battalions"][number];
+
+function omitRecordKey<T>(record: Record<string, T>, key: string) {
+  const next = { ...record };
+  delete next[key];
+  return next;
+}
+
 type CommandTarget = {
   id: string;
   name: string;
@@ -1395,6 +1403,15 @@ export function CastleManagement({
     playerSummary.warPolicy?.allianceSupportDefense ?? true
   );
   const [battalionPending, setBattalionPending] = useState(false);
+  const [battalionMaxSizeDrafts, setBattalionMaxSizeDrafts] = useState<
+    Record<string, string>
+  >({});
+  const [battalionMaxSizeErrors, setBattalionMaxSizeErrors] = useState<
+    Record<string, string>
+  >({});
+  const [battalionMaxSizePending, setBattalionMaxSizePending] = useState<
+    string | null
+  >(null);
   const [nukeBidAmounts, setNukeBidAmounts] = useState<
     Record<NukeComponentKind, number>
   >({
@@ -1417,6 +1434,83 @@ export function CastleManagement({
       await handleInlineResult(result);
     },
     [playerSummary.id]
+  );
+
+  const saveBattalionMaxSize = useCallback(
+    async (battalion: BattalionSummary) => {
+      const draft =
+        battalionMaxSizeDrafts[battalion.id] ?? String(battalion.maxSize);
+      const targetMaxSize = Number(draft);
+      const tierMax = [500, 5000, 15000, 50000][battalion.tier] ?? 500;
+
+      setBattalionMaxSizeErrors((current) => {
+        return omitRecordKey(current, battalion.id);
+      });
+
+      if (!Number.isInteger(targetMaxSize)) {
+        setBattalionMaxSizeErrors((current) => ({
+          ...current,
+          [battalion.id]: "Use a whole number for max size.",
+        }));
+        return;
+      }
+
+      if (targetMaxSize === battalion.maxSize) {
+        setBattalionMaxSizeDrafts((current) => {
+          return omitRecordKey(current, battalion.id);
+        });
+        return;
+      }
+
+      if (targetMaxSize < battalion.size) {
+        setBattalionMaxSizeErrors((current) => ({
+          ...current,
+          [battalion.id]: "Max size cannot be below the current army size.",
+        }));
+        return;
+      }
+
+      if (targetMaxSize <= battalion.maxSize) {
+        setBattalionMaxSizeErrors((current) => ({
+          ...current,
+          [battalion.id]: "Max size can only be increased.",
+        }));
+        return;
+      }
+
+      if (targetMaxSize > tierMax) {
+        setBattalionMaxSizeErrors((current) => ({
+          ...current,
+          [battalion.id]: `This tier caps at ${tierMax.toLocaleString()}.`,
+        }));
+        return;
+      }
+
+      setBattalionMaxSizePending(battalion.id);
+      try {
+        const { expandBattalionAction } = await import("@/app/game-actions");
+        const result = await expandBattalionAction({
+          battalionId: battalion.id,
+          targetMaxSize,
+        });
+
+        if (!result.ok) {
+          setBattalionMaxSizeErrors((current) => ({
+            ...current,
+            [battalion.id]: result.error,
+          }));
+          return;
+        }
+
+        setBattalionMaxSizeDrafts((current) => {
+          return omitRecordKey(current, battalion.id);
+        });
+        refreshView();
+      } finally {
+        setBattalionMaxSizePending(null);
+      }
+    },
+    [battalionMaxSizeDrafts, refreshView]
   );
 
   const saveAllianceSupportPolicy = useCallback(
@@ -2602,46 +2696,72 @@ export function CastleManagement({
                         >
                           Max:
                         </span>
-                        <input
-                          type="number"
-                          key={`${bn.id}-${bn.maxSize}`}
-                          min={bn.size}
-                          max={[500, 5000, 15000, 50000][bn.tier] ?? 500}
-                          step={bn.tier >= 2 ? 1000 : bn.tier >= 1 ? 500 : 50}
-                          defaultValue={bn.maxSize}
-                          onBlur={async (e) => {
-                            const v = Number(e.target.value);
-                            const tierMax =
-                              [500, 5000, 15000, 50000][bn.tier] ?? 500;
-                            if (
-                              Number.isFinite(v) &&
-                              v >= bn.size &&
-                              v <= tierMax &&
-                              v !== bn.maxSize
-                            ) {
-                              const { expandBattalionAction } =
-                                await import("@/app/game-actions");
-                              await expandBattalionAction({
-                                battalionId: bn.id,
-                                targetMaxSize: v,
-                              });
-                              refreshView();
+                          <input
+                            type="number"
+                            key={`${bn.id}-${bn.maxSize}`}
+                            min={bn.size}
+                            max={[500, 5000, 15000, 50000][bn.tier] ?? 500}
+                            step={bn.tier >= 2 ? 1000 : bn.tier >= 1 ? 500 : 50}
+                            value={
+                              battalionMaxSizeDrafts[bn.id] ?? String(bn.maxSize)
                             }
-                          }}
-                          style={{
-                            width: 50,
-                            padding: "1px 4px",
-                            fontSize: 11,
-                            background: "var(--bg-raised)",
-                            border: "1px solid var(--border)",
-                            borderRadius: 3,
-                            color: "var(--text)",
-                          }}
-                        />
-                        {bn.tier < 3 ? (
-                          (() => {
-                            const baseCost =
-                              [2000, 8000, 25000, 0][bn.tier] ?? 0;
+                            disabled={battalionMaxSizePending === bn.id}
+                            aria-label={`Maximum size for ${bn.name}`}
+                            onChange={(event) => {
+                              const nextValue = event.target.value;
+                              setBattalionMaxSizeDrafts((current) => ({
+                                ...current,
+                                [bn.id]: nextValue,
+                              }));
+                              setBattalionMaxSizeErrors((current) => {
+                                return omitRecordKey(current, bn.id);
+                              });
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                void saveBattalionMaxSize(bn);
+                              }
+                            }}
+                            style={{
+                              width: 50,
+                              padding: "1px 4px",
+                              fontSize: 11,
+                              background: "var(--bg-raised)",
+                              border: "1px solid var(--border)",
+                              borderRadius: 3,
+                              color: "var(--text)",
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void saveBattalionMaxSize(bn)}
+                            disabled={
+                              battalionMaxSizePending === bn.id ||
+                              (battalionMaxSizeDrafts[bn.id] ??
+                                String(bn.maxSize)) === String(bn.maxSize)
+                            }
+                            style={{
+                              fontSize: 11,
+                              padding: "2px 6px",
+                              background: "var(--bg-raised)",
+                              border: "1px solid var(--border)",
+                              borderRadius: 3,
+                              color: "var(--text)",
+                              cursor:
+                                battalionMaxSizePending === bn.id
+                                  ? "default"
+                                  : "pointer",
+                            }}
+                          >
+                            {battalionMaxSizePending === bn.id
+                              ? "Saving..."
+                              : "Save max"}
+                          </button>
+                          {bn.tier < 3 ? (
+                            (() => {
+                              const baseCost =
+                                [2000, 8000, 25000, 0][bn.tier] ?? 0;
                             const perUnit = bn.size * 8;
                             const totalCost = baseCost + perUnit;
                             return (
@@ -2680,9 +2800,9 @@ export function CastleManagement({
                             MAX TIER
                           </span>
                         )}
-                        <button
-                          type="button"
-                          onClick={async () => {
+                          <button
+                            type="button"
+                            onClick={async () => {
                             if (
                               !confirm(`Disband ${bn.name}? 50% gold refund.`)
                             )
@@ -2703,11 +2823,19 @@ export function CastleManagement({
                             color: "#f44336",
                             cursor: "pointer",
                           }}
-                        >
-                          Disband
-                        </button>
-                      </div>
-                    </li>
+                          >
+                            Disband
+                          </button>
+                          {battalionMaxSizeErrors[bn.id] ? (
+                            <span
+                              className={styles.error}
+                              style={{ flexBasis: "100%", fontSize: 11 }}
+                            >
+                              {battalionMaxSizeErrors[bn.id]}
+                            </span>
+                          ) : null}
+                        </div>
+                      </li>
                   ))}
                 </ul>
               ) : (
