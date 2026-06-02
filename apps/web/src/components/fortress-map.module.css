@@ -87,6 +87,34 @@
   background: #1f3329;
 }
 
+.viewportContent[data-reduced-visual-load="true"] .spriteFrame,
+.viewportContent[data-reduced-visual-load="true"] .guardMarker,
+.viewportContent[data-reduced-visual-load="true"] .guardMarker::after,
+.viewportContent[data-reduced-visual-load="true"] .battalionMarker,
+.viewportContent[data-reduced-visual-load="true"] .battalionPatrol,
+.viewportContent[data-reduced-visual-load="true"] .convoyWagon,
+.viewportContent[data-reduced-visual-load="true"] .battleIndicator,
+.viewportContent[data-reduced-visual-load="true"] .battleText,
+.viewportContent[data-reduced-visual-load="true"] .warMarker .fortressSprite,
+.viewportContent[data-reduced-visual-load="true"]
+  .nukeBiddingMarker[data-open="true"] {
+  animation: none;
+}
+
+.viewportContent[data-reduced-visual-load="true"] .spriteFrame {
+  filter: drop-shadow(0 10px 8px rgba(0, 0, 0, 0.2));
+}
+
+.viewportContent[data-reduced-visual-load="true"] .battleIndicator,
+.viewportContent[data-reduced-visual-load="true"] .battleIntensityHigh,
+.viewportContent[data-reduced-visual-load="true"] .battleIntensityMid,
+.viewportContent[data-reduced-visual-load="true"] .battleIntensityLow,
+.viewportContent[data-reduced-visual-load="true"] .routeBed,
+.viewportContent[data-reduced-visual-load="true"] .tradeRouteBed,
+.viewportContent[data-reduced-visual-load="true"] .marchRouteTrack {
+  filter: none;
+}
+
 .hexMap {
   position: absolute;
   inset: 0;
