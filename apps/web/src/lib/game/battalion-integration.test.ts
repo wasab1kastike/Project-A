@@ -190,7 +190,15 @@ describe("Recruitment Math", () => {
 describe("Battalion reinforcement travel", () => {
   it("sends new remote battalion recruits as pending map reinforcements", async () => {
     const battalionUpdates: Array<{ where: { id: string }; data: { size: number } }> = [];
-    const attackUnitCreates: Array<{ data: { reinforcementBattalionId?: string | null; armyAmount: number } }> = [];
+    const attackUnitCreates: Array<{
+      data: {
+        attackerFortressId: string;
+        targetFortressId: string;
+        fortifyTargetTileId?: string | null;
+        reinforcementBattalionId?: string | null;
+        armyAmount: number;
+      };
+    }> = [];
     const db = {
       battalion: {
         findMany: async () => [
@@ -216,7 +224,7 @@ describe("Battalion reinforcement travel", () => {
       },
       attackUnit: {
         findMany: async () => [],
-        create: async (args: { data: { reinforcementBattalionId?: string | null; armyAmount: number } }) => {
+        create: async (args: (typeof attackUnitCreates)[number]) => {
           attackUnitCreates.push(args);
           return args;
         },
@@ -239,6 +247,9 @@ describe("Battalion reinforcement travel", () => {
 
     assert.equal(battalionUpdates[0]?.data.size, 10);
     assert.equal(attackUnitCreates.length, 1);
+    assert.equal(attackUnitCreates[0]?.data.attackerFortressId, "fort_1");
+    assert.equal(attackUnitCreates[0]?.data.targetFortressId, "fort_1");
+    assert.equal(attackUnitCreates[0]?.data.fortifyTargetTileId, "20:15");
     assert.equal(attackUnitCreates[0]?.data.reinforcementBattalionId, "bn_1");
     assert.equal(attackUnitCreates[0]?.data.armyAmount, 3);
   });
