@@ -1170,7 +1170,7 @@ test("pressure tick auto-fills nearest neutral priority slots", async (context) 
     fortress,
     tiles: HEX_TILES.filter((tile) => tile.claimable),
     limit: priorityLimit,
-    isLegalNeutralPressureTile: (tileId) =>
+    isLegalPressureTarget: (tileId) =>
       isTileConnectedToFortressOrOwnedTiles({
         tileId,
         fortress,
@@ -1183,6 +1183,105 @@ test("pressure tick auto-fills nearest neutral priority slots", async (context) 
     priorities.map((priority) => priority.tileId),
     expected
   );
+});
+
+test("pressure tick auto-fills non-allied owned priority slots", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const attackerUser = await createUser(
+    prisma,
+    "auto-priority-enemy-attacker@example.com"
+  );
+  const defenderUser = await createUser(
+    prisma,
+    "auto-priority-enemy-defender@example.com"
+  );
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: attackerUser.id,
+      commanderName: "Auto Enemy Queue",
+      fortressName: "Enemy Queue Keep",
+      points: 100,
+    },
+    {
+      userId: defenderUser.id,
+      commanderName: "Auto Target",
+      fortressName: "Target Keep",
+      points: 100,
+    },
+  ]);
+  await markSeasonFourCycle(prisma, cycle.id);
+  const [attacker, defender] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: attackerUser.id,
+        },
+      },
+      include: {
+        skillPurchases: {
+          select: { nodeKey: true },
+        },
+      },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: defenderUser.id,
+        },
+      },
+    }),
+  ]);
+  await prisma.fortress.update({
+    where: { id: attacker.id },
+    data: { pressureWorkersAssigned: 3 },
+  });
+
+  const priorityLimit = getTilePressurePriorityLimit(attacker);
+  const [enemyTile] = chooseAutoTilePressurePriorityCandidates({
+    fortress: attacker,
+    tiles: HEX_TILES.filter((tile) => tile.claimable),
+    limit: priorityLimit,
+    isLegalPressureTarget: (tileId) =>
+      isTileConnectedToFortressOrOwnedTiles({
+        tileId,
+        fortress: attacker,
+        ownedTileIds: [],
+      }),
+  });
+
+  assert.ok(enemyTile);
+
+  await prisma.mapHexOwnership.create({
+    data: {
+      cycleId: cycle.id,
+      tileId: enemyTile.tileId,
+      ownerFortressId: defender.id,
+      claimedAt: new Date("2026-04-20T12:00:00.000Z"),
+    },
+  });
+
+  await runGameTick({
+    now: new Date("2026-04-20T12:02:00.000Z"),
+    db: prisma,
+  });
+
+  const priorities = await prisma.tilePressurePriority.findMany({
+    where: {
+      cycleId: cycle.id,
+      fortressId: attacker.id,
+    },
+    orderBy: [{ weight: "desc" }, { tileId: "asc" }],
+  });
+
+  assert.equal(priorities.length, priorityLimit);
+  assert.equal(priorities[0]?.tileId, enemyTile.tileId);
 });
 
 test("stale pressure priority remains clearable and reorderable", async (context) => {

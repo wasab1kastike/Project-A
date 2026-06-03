@@ -717,12 +717,12 @@ async function processTilePressureExpansion({
         }))
       );
     };
-    const fillNeutralPressurePriorities = async ({
+    const fillAutoPressurePriorities = async ({
       fortress,
-      isLegalNeutralPressureTile,
+      isLegalPressureTarget,
     }: {
       fortress: (typeof fortresses)[number];
-      isLegalNeutralPressureTile: (tileId: string) => boolean;
+      isLegalPressureTarget: (tileId: string) => boolean;
     }) => {
       const priorityLimit = getTilePressurePriorityLimit(fortress);
       const currentPriorities = sortTilePressureQueue(
@@ -735,7 +735,7 @@ async function processTilePressureExpansion({
           tiles: claimableTiles,
           limit: priorityLimit - currentPriorities.length,
           existingTileIds: currentPriorities.map((priority) => priority.tileId),
-          isLegalNeutralPressureTile,
+          isLegalPressureTarget,
         });
 
         for (const candidate of autoCandidates) {
@@ -923,17 +923,6 @@ async function processTilePressureExpansion({
           }) === null
         );
       };
-      const isLegalNeutralPressureTile = (tileId: string) =>
-        !ownerByTileId.has(tileId) &&
-        getPressureTargetBlockedReason({
-          tile: getTileById(tileId),
-          tileId,
-          ownerFortressId: null,
-          fortress,
-          ownedTileIds,
-          isHomeOfA: isHomeOfATile,
-          isConnected,
-        }) === null;
       const queuedPriorities = sortTilePressureQueue(
         prioritiesByFortressId.get(fortress.id) ?? []
       );
@@ -960,9 +949,9 @@ async function processTilePressureExpansion({
       }
 
       if (ownedTileIds.length < expansionTileCapacity) {
-        await fillNeutralPressurePriorities({
+        await fillAutoPressurePriorities({
           fortress,
-          isLegalNeutralPressureTile,
+          isLegalPressureTarget: isLegalPriorityTarget,
         });
       } else {
         await normalizePriorityWeights(fortress);
@@ -987,7 +976,7 @@ async function processTilePressureExpansion({
           ? legalPressureTargets.slice(0, 1)
           : ownedTileIds.length < expansionTileCapacity
             ? claimableTiles
-                .filter((tile) => isLegalNeutralPressureTile(tile.id))
+                .filter((tile) => isLegalPriorityTarget(tile.id))
                 .map((tile) => ({ tileId: tile.id, weight: 1 }))
             : [];
 
@@ -1157,17 +1146,29 @@ async function processTilePressureExpansion({
           fortress,
           ownedTileIds,
         });
-      const isLegalNeutralPressureTile = (tileId: string) =>
-        !ownerByTileId.has(tileId) &&
-        getPressureTargetBlockedReason({
-          tile: getTileById(tileId),
-          tileId,
-          ownerFortressId: null,
-          fortress,
-          ownedTileIds,
-          isHomeOfA: isHomeOfATile,
-          isConnected,
-        }) === null;
+      const isLegalPressureTarget = (tileId: string) => {
+        const ownerFortressId = ownerByTileId.get(tileId) ?? null;
+        const relation =
+          ownerFortressId && ownerFortressId !== fortress.id
+            ? getDiplomacyRelationForPair(fortress.id, ownerFortressId)
+            : null;
+
+        return (
+          getPressureTargetBlockedReason({
+            tile: getTileById(tileId),
+            tileId,
+            ownerFortressId,
+            diplomacyBlockedReason: getDiplomacyPressureBlockedReason({
+              relation,
+              now: tickAt,
+            }),
+            fortress,
+            ownedTileIds,
+            isHomeOfA: isHomeOfATile,
+            isConnected,
+          }) === null
+        );
+      };
 
       const expansionTileCapacity = getExpansionTileCapacity({
         pressureWorkersAssigned: fortress.pressureWorkersAssigned,
@@ -1176,9 +1177,9 @@ async function processTilePressureExpansion({
       });
 
       if (ownedTileIds.length < expansionTileCapacity) {
-        await fillNeutralPressurePriorities({
+        await fillAutoPressurePriorities({
           fortress,
-          isLegalNeutralPressureTile,
+          isLegalPressureTarget,
         });
       } else {
         await normalizePriorityWeights(fortress);
