@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useRefreshView } from "@/lib/refresh-helpers";
@@ -17,6 +24,7 @@ import {
   recallGarrisonArmyAction,
   recallArmyOrderAction,
   reorderTilePressurePrioritiesAction,
+  submitCommunityWishProposalAction,
   torchOccupiedMapHexAction,
   setTilePressurePriorityAction,
 } from "@/app/game-actions";
@@ -68,6 +76,22 @@ type ChatProps = {
   hasUnread: boolean;
   latestMessageAt: Date | null;
   persistsUnread: boolean;
+};
+
+type CommunityWishProps = {
+  cycleId: string;
+  isOpen: boolean;
+  canSubmit: boolean;
+  maxLength: number;
+  currentUserCommunityWish: string;
+  submissionHint: string;
+  proposals: Array<{
+    id: string;
+    requestText: string;
+    status: string;
+    createdAt: Date | string;
+    isCurrentUser: boolean;
+  }>;
 };
 
 type PlayerSummary = {
@@ -429,6 +453,7 @@ export function BattlefieldExperience({
   },
   nukeState = null,
   battleReports,
+  communityWish,
   chat,
   phaseStatus,
   immersive = false,
@@ -511,6 +536,7 @@ export function BattlefieldExperience({
     }>;
   } | null;
   battleReports: BattleReport[];
+  communityWish: CommunityWishProps;
   availableTargets: unknown[];
   chat: ChatProps;
   phaseStatus: string | null;
@@ -522,6 +548,15 @@ export function BattlefieldExperience({
   const refreshView = useRefreshView();
   const [chatOpen, setChatOpen] = useState(false);
   const [battleLogOpen, setBattleLogOpen] = useState(false);
+  const [seasonWishesOpen, setSeasonWishesOpen] = useState(false);
+  const [seasonWishText, setSeasonWishText] = useState(
+    communityWish.currentUserCommunityWish
+  );
+  const [seasonWishPending, setSeasonWishPending] = useState(false);
+  const [seasonWishFeedback, setSeasonWishFeedback] = useState<{
+    tone: "success" | "error";
+    message: string;
+  } | null>(null);
   const [unreadChatCount, setUnreadChatCount] = useState(chat.unreadCount);
   const [unreadBattleReportCount, setUnreadBattleReportCount] = useState(0);
   const [nukeLaunchNotice, setNukeLaunchNotice] = useState<{
@@ -609,6 +644,10 @@ export function BattlefieldExperience({
   useEffect(() => {
     homeTileIdRef.current = homeOfA?.tileId ?? null;
   }, [homeOfA?.tileId]);
+
+  useEffect(() => {
+    setSeasonWishText(communityWish.currentUserCommunityWish);
+  }, [communityWish.cycleId, communityWish.currentUserCommunityWish]);
 
   useEffect(() => {
     if (!topActionsContainerId) {
@@ -1332,6 +1371,55 @@ export function BattlefieldExperience({
     }
   }
 
+  async function handleSeasonWishSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (seasonWishPending) {
+      return;
+    }
+
+    const nextWish = seasonWishText.trim();
+
+    if (!communityWish.canSubmit) {
+      setSeasonWishFeedback({
+        tone: "error",
+        message: communityWish.submissionHint,
+      });
+      return;
+    }
+
+    if (!nextWish) {
+      setSeasonWishFeedback({
+        tone: "error",
+        message: "Write a short wish first.",
+      });
+      return;
+    }
+
+    setSeasonWishPending(true);
+    setSeasonWishFeedback(null);
+
+    try {
+      const result = await submitCommunityWishProposalAction(
+        communityWish.cycleId,
+        nextWish
+      );
+
+      if (!result.ok) {
+        setSeasonWishFeedback({ tone: "error", message: result.error });
+        return;
+      }
+
+      setSeasonWishFeedback({
+        tone: "success",
+        message: "Wish saved for next season.",
+      });
+      refreshView();
+    } finally {
+      setSeasonWishPending(false);
+    }
+  }
+
   async function handleClearTilePressurePriority(tileId: string) {
     if (mapActionPending || !gameplayOpen) {
       return;
@@ -1731,6 +1819,24 @@ export function BattlefieldExperience({
           ) : null}
         </button>
       ) : null}
+      {communityWish.cycleId ? (
+        <button
+          type="button"
+          className={styles.overlayButton}
+          aria-label={`Season wishes, ${communityWish.proposals.length} submitted`}
+          aria-expanded={seasonWishesOpen}
+          onClick={() => setSeasonWishesOpen((current) => !current)}
+        >
+          <span className={styles.overlayButtonLabel}>Wishes</span>
+          {communityWish.proposals.length > 0 ? (
+            <span className={styles.unreadBadge} aria-hidden="true">
+              {communityWish.proposals.length > 99
+                ? "99+"
+                : communityWish.proposals.length}
+            </span>
+          ) : null}
+        </button>
+      ) : null}
     </div>
   );
 
@@ -1804,6 +1910,77 @@ export function BattlefieldExperience({
               </article>
             );
           })}
+        </div>
+      </div>
+    </aside>
+  ) : null;
+  const seasonWishesDrawer = seasonWishesOpen ? (
+    <aside
+      className={`${styles.drawer} ${styles.wishDrawer} ${styles.drawerOpen}`}
+      aria-label="Season wishes"
+    >
+      <button
+        type="button"
+        className={styles.closeButton}
+        aria-label="Close season wishes"
+        onClick={() => setSeasonWishesOpen(false)}
+      >
+        Close
+      </button>
+      <div className={`${styles.drawerBody} ${styles.wishDrawerBody}`}>
+        <div className={styles.sectionHeading}>
+          <span className={styles.label}>Next season wishes</span>
+          <strong>{communityWish.proposals.length}</strong>
+        </div>
+        <form className={styles.wishForm} onSubmit={handleSeasonWishSubmit}>
+          <textarea
+            className={styles.wishTextarea}
+            value={seasonWishText}
+            maxLength={communityWish.maxLength}
+            disabled={!communityWish.canSubmit || seasonWishPending}
+            onChange={(event) => setSeasonWishText(event.target.value)}
+            placeholder="One short wish..."
+          />
+          <div className={styles.wishFormMeta}>
+            <span>{communityWish.submissionHint}</span>
+            <strong>
+              {seasonWishText.length}/{communityWish.maxLength}
+            </strong>
+          </div>
+          {seasonWishFeedback ? (
+            <p
+              className={styles.wishFeedback}
+              data-tone={seasonWishFeedback.tone}
+            >
+              {seasonWishFeedback.message}
+            </p>
+          ) : null}
+          <button
+            className={styles.commandButton}
+            type="submit"
+            disabled={
+              !communityWish.canSubmit ||
+              seasonWishPending ||
+              seasonWishText.trim().length === 0
+            }
+          >
+            {seasonWishPending ? "Saving" : "Make wish"}
+          </button>
+        </form>
+        <div className={styles.wishList}>
+          {communityWish.proposals.length > 0 ? (
+            communityWish.proposals.map((proposal, index) => (
+              <article key={proposal.id} className={styles.wishCard}>
+                <div className={styles.wishCardHeader}>
+                  <strong>Wish {index + 1}</strong>
+                  <span>Anonymous</span>
+                </div>
+                <p>{proposal.requestText}</p>
+              </article>
+            ))
+          ) : (
+            <p className={styles.wishEmpty}>No wishes yet.</p>
+          )}
         </div>
       </div>
     </aside>
@@ -1961,7 +2138,8 @@ export function BattlefieldExperience({
                 selectedOwnership.pressureLeaderProgress != null &&
                 selectedOwnership.pressureLeaderThreshold != null
                   ? ` · leader: ${selectedOwnership.pressureLeaderLabel} ${selectedOwnership.pressureLeaderProgress}/${selectedOwnership.pressureLeaderThreshold}${
-                      selectedOwnership.pressureLeaderEffectiveProgress != null &&
+                      selectedOwnership.pressureLeaderEffectiveProgress !=
+                        null &&
                       selectedOwnership.pressureLeaderProgress !==
                         selectedOwnership.pressureLeaderEffectiveProgress
                         ? ` effective ${selectedOwnership.pressureLeaderEffectiveProgress}`
@@ -2508,7 +2686,6 @@ export function BattlefieldExperience({
             )}
           </>
         ) : null}
-
       </div>
     </aside>
   ) : null;
@@ -2702,9 +2879,13 @@ export function BattlefieldExperience({
                           {battlefield.participantForces.length > 0 ? (
                             <ul className={styles.compactList}>
                               {battlefield.participantForces.map((force) => (
-                                <li key={`${battlefield.id}-${force.fortressId}`}>
-                                  {force.side === "ATTACKER" ? "Attack" : "Defense"}:{" "}
-                                  {force.commanderName} ({force.fortressName}){" "}
+                                <li
+                                  key={`${battlefield.id}-${force.fortressId}`}
+                                >
+                                  {force.side === "ATTACKER"
+                                    ? "Attack"
+                                    : "Defense"}
+                                  : {force.commanderName} ({force.fortressName}){" "}
                                   {force.armyRemaining}/{force.armyCommitted}
                                   {force.armyLost > 0
                                     ? `, ${force.armyLost} lost`
@@ -2944,6 +3125,7 @@ export function BattlefieldExperience({
             {topActionsRoot ? null : actionButtons}
             {chatDrawer}
             {battleLogDrawer}
+            {seasonWishesDrawer}
             {selectedTilePanel}
           </div>,
           overlayRoot
@@ -3049,6 +3231,7 @@ export function BattlefieldExperience({
         {!immersive ? selectedTilePanel : null}
         {!immersive ? chatDrawer : null}
         {!immersive ? battleLogDrawer : null}
+        {!immersive ? seasonWishesDrawer : null}
       </div>
       {immersiveOverlay}
       {topbarActionsPortal}

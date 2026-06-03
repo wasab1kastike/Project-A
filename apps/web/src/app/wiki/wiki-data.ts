@@ -202,6 +202,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
       "The season winner is the fortress with the most points when active play resolves.",
       "Home of A and loot camps are legacy-only in Season 4.",
       "Recruitment is paid up front, then recruiters process the queue.",
+      "The battlefield Wishes drawer accepts anonymous next-season suggestions during active play.",
     ],
     sections: [
       {

@@ -534,6 +534,7 @@ function HomeClientContent({
               );
           })()}
           battleReports={state.battleReports}
+          communityWish={state.communityWish}
           availableTargets={state.availableTargets}
           chat={state.chat}
           canEditRegistrationName={state.canEditRegistrationName}

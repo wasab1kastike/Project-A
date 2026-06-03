@@ -199,6 +199,13 @@
   max-height: min(68%, 560px);
 }
 
+.wishDrawer {
+  top: 16px;
+  right: 16px;
+  width: min(410px, calc(100% - 32px));
+  max-height: min(74%, 620px);
+}
+
 .drawerOpen {
   opacity: 1;
   pointer-events: auto;
@@ -216,6 +223,12 @@
 }
 
 .chatDrawerBody {
+  overflow: hidden;
+}
+
+.wishDrawerBody {
+  display: grid;
+  gap: 12px;
   overflow: hidden;
 }
 
@@ -241,6 +254,12 @@
 .immersiveOverlayUi .battleLogDrawer {
   top: max(92px, calc(env(safe-area-inset-top) + 76px));
   left: 16px;
+  max-height: calc(100dvh - max(108px, calc(env(safe-area-inset-top) + 92px)));
+}
+
+.immersiveOverlayUi .wishDrawer {
+  top: max(92px, calc(env(safe-area-inset-top) + 76px));
+  right: 16px;
   max-height: calc(100dvh - max(108px, calc(env(safe-area-inset-top) + 92px)));
 }
 
@@ -705,6 +724,97 @@
   gap: 8px;
 }
 
+.wishForm {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(247, 196, 95, 0.2);
+  border-radius: 8px;
+  background: rgba(3, 10, 16, 0.38);
+}
+
+.wishTextarea {
+  min-height: 82px;
+  resize: vertical;
+  border: 1px solid rgba(126, 214, 224, 0.22);
+  border-radius: 7px;
+  background: rgba(5, 13, 20, 0.82);
+  color: var(--foreground);
+  font: inherit;
+  line-height: 1.4;
+  padding: 10px;
+}
+
+.wishTextarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.wishFormMeta,
+.wishCardHeader {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.wishFormMeta {
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
+.wishFormMeta strong,
+.wishCardHeader span {
+  flex: 0 0 auto;
+  color: rgba(247, 196, 95, 0.9);
+  font-family: var(--font-ibm-plex-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+}
+
+.wishFeedback,
+.wishEmpty {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.wishFeedback[data-tone="success"] {
+  color: #8ee6b5;
+}
+
+.wishFeedback[data-tone="error"] {
+  color: #f7a8a8;
+}
+
+.wishList {
+  display: grid;
+  gap: 8px;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.wishCard {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid rgba(126, 214, 224, 0.24);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(27, 51, 67, 0.72), rgba(10, 25, 36, 0.64)),
+    rgba(8, 16, 25, 0.7);
+}
+
+.wishCard p {
+  margin: 0;
+  color: rgba(226, 232, 240, 0.9);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
 .battlefieldCard {
   padding: 10px;
   border: 1px solid rgba(126, 214, 224, 0.34);
@@ -1039,6 +1149,14 @@
   }
 
   .battleLogDrawer {
+    top: auto;
+    left: 0;
+    right: 0;
+    width: auto;
+    bottom: 0;
+  }
+
+  .wishDrawer {
     top: auto;
     left: 0;
     right: 0;
