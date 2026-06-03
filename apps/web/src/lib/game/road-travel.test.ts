@@ -73,26 +73,64 @@ describe("road-travel", () => {
     assert.equal(getIdleBattalionRoadCrossings(50_000), 25);
   });
 
-  it("records idle battalion road progress only on owned stationed tiles", () => {
+  it("records idle battalion road progress on mode patrol tiles", () => {
+    const homeTile = HEX_TILES.find((tile) => tile.id === "20:15");
+    const borderTile = HEX_TILES.find((tile) => tile.id === "21:15");
+    const enemyTile = HEX_TILES.find((tile) => tile.id === "30:15");
+    const allyTile = HEX_TILES.find((tile) => tile.id === "10:10");
+    assert.ok(homeTile);
+    assert.ok(borderTile);
+    assert.ok(enemyTile);
+    assert.ok(allyTile);
+
     const plan = getIdleBattalionRoadCrossingPlan({
       ownedTilesByFortress: new Map([
-        ["fort_1", new Set(["20:15", "21:15"])],
-        ["fort_2", new Set(["10:10"])],
+        ["fort_1", new Set([homeTile.id, borderTile.id])],
+        ["fort_2", new Set([allyTile.id])],
       ]),
+      fortressPositionsById: new Map([
+        ["fort_1", { mapX: homeTile.xPercent, mapY: homeTile.yPercent }],
+        ["fort_2", { mapX: allyTile.xPercent, mapY: allyTile.yPercent }],
+        ["enemy", { mapX: enemyTile.xPercent, mapY: enemyTile.yPercent }],
+      ]),
+      warFronts: [
+        {
+          attackerFortressId: "fort_1",
+          enemyFortressId: "enemy",
+          status: "ADVANCING",
+        },
+      ],
+      alliedFortressIdsByFortress: new Map([["fort_1", new Set(["fort_2"])]]),
       battalions: [
         {
-          id: "idle_owned",
+          id: "reserve_patrol",
           fortressId: "fort_1",
           size: 500,
-          garrisonedAt: "20:15",
+          mode: "RESERVE",
           assignmentCount: 0,
           pendingReinforcementCount: 0,
         },
         {
-          id: "second_idle_owned",
+          id: "guard_patrol",
           fortressId: "fort_1",
           size: 120,
-          garrisonedAt: "20:15",
+          mode: "GUARD",
+          assignmentCount: 0,
+          pendingReinforcementCount: 0,
+        },
+        {
+          id: "attack_patrol",
+          fortressId: "fort_1",
+          size: 500,
+          mode: "ATTACK",
+          assignmentCount: 0,
+          pendingReinforcementCount: 0,
+        },
+        {
+          id: "alliance_patrol",
+          fortressId: "fort_1",
+          size: 500,
+          mode: "ALLIANCE",
           assignmentCount: 0,
           pendingReinforcementCount: 0,
         },
@@ -100,7 +138,7 @@ describe("road-travel", () => {
           id: "front_assigned",
           fortressId: "fort_1",
           size: 500,
-          garrisonedAt: "21:15",
+          mode: "ATTACK",
           assignmentCount: 1,
           pendingReinforcementCount: 0,
         },
@@ -108,21 +146,30 @@ describe("road-travel", () => {
           id: "reinforcing",
           fortressId: "fort_2",
           size: 500,
-          garrisonedAt: "10:10",
+          mode: "ALLIANCE",
           assignmentCount: 0,
           pendingReinforcementCount: 1,
         },
         {
-          id: "not_owned",
+          id: "no_owned_tiles",
           fortressId: "fort_1",
-          size: 500,
-          garrisonedAt: "30:15",
+          size: 0,
+          mode: "GUARD",
           assignmentCount: 0,
           pendingReinforcementCount: 0,
         },
       ],
     });
 
-    assert.deepEqual(plan, [{ tileId: "20:15", crossings: 7 }]);
+    assert.equal(
+      plan.reduce((sum, crossing) => sum + crossing.crossings, 0),
+      17
+    );
+    assert.ok(
+      plan.every(
+        (crossing) =>
+          crossing.tileId === homeTile.id || crossing.tileId === borderTile.id
+      )
+    );
   });
 });
