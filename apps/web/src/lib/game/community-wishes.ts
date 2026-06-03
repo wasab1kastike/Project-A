@@ -12,7 +12,6 @@ import {
   normalizeFulfillmentProgress,
 } from "./winner-requests";
 import { getCommunityWishVotingEndsAt } from "./season-schedule";
-import { isSeasonFourRuleset } from "./rulesets";
 
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 export type CommunityWishRankedFortress = {
@@ -275,13 +274,6 @@ export async function getCommunityWishEligibility({
     return {
       canSubmit: false,
       reason: "Community wish proposals open only for a known cycle.",
-    };
-  }
-
-  if (isSeasonFourRuleset(cycle.ruleset)) {
-    return {
-      canSubmit: false,
-      reason: "Community wishes are not part of Season 4 gameplay.",
     };
   }
 

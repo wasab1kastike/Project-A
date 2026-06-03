@@ -37,7 +37,10 @@ import {
   getFortressPopulation,
 } from "./balance";
 import { getChatLimits } from "./chat";
-import { getCommunityWishVoteBudget } from "./community-wishes";
+import {
+  COMMUNITY_WISH_MAX_LENGTH,
+  getCommunityWishVoteBudget,
+} from "./community-wishes";
 import { getAttackTravelMinutes, normalizeUnitSpriteVariant } from "./attacks";
 import {
   formatApproximateForce,
@@ -1136,6 +1139,7 @@ export async function getHomePageState({
         voteBudget: 0,
         usedVotes: 0,
         remainingVotes: 0,
+        maxLength: COMMUNITY_WISH_MAX_LENGTH,
         currentUserCommunityWish: "",
         submissionHint: "Community wish voting is not open.",
         proposals: [],
@@ -2792,9 +2796,7 @@ export async function getHomePageState({
   const communityWishSourceCycleId = usingResolvedWishWindow
     ? latestResolvedSeason.cycleId
     : cycle.id;
-  const communityWishSourceProposals = isSeasonFour
-    ? []
-    : usingResolvedWishWindow
+  const communityWishSourceProposals = usingResolvedWishWindow
       ? latestResolvedSeason.cycle.communityWishProposals
       : cycle.communityWishProposals;
   const communityWishSourcePlayerFortress = usingResolvedWishWindow
@@ -2806,7 +2808,7 @@ export async function getHomePageState({
     ? latestResolvedSeason.communityWishStatus === CommunityWishStatus.OPEN ||
       latestResolvedSeason.communityWishStatus ===
         CommunityWishStatus.PROPOSALS_OPEN
-    : !isSeasonFour && activeOpen;
+    : activeOpen;
   const communityWishVotingOpen =
     usingResolvedWishWindow &&
     latestResolvedSeason.communityWishStatus === CommunityWishStatus.OPEN &&
@@ -4481,10 +4483,9 @@ export async function getHomePageState({
       voteBudget: communityWishVoteBudget.voteBudget,
       usedVotes: communityWishVoteBudget.usedVotes,
       remainingVotes: communityWishVoteBudget.remainingVotes,
+      maxLength: COMMUNITY_WISH_MAX_LENGTH,
       currentUserCommunityWish: currentUserCommunityWish?.requestText ?? "",
-      submissionHint: isSeasonFour
-        ? "Community wishes are archived and are not part of Season 4 gameplay."
-        : !userId
+      submissionHint: !userId
           ? "Sign in and join this cycle to suggest a community wish."
           : !communityWishSourcePlayerFortress
             ? usingResolvedWishWindow
@@ -4495,7 +4496,9 @@ export async function getHomePageState({
               : communityWishProposalOpen
                 ? usingResolvedWishWindow
                   ? "Winner wish is guaranteed. Community wish is vote-based. You can edit your short English wish until Monday 25 May at 12:00 and vote once voting opens."
-                  : "Winner wish is guaranteed. Community wish is vote-based. Submit one short English wish while the season is live."
+                  : isSeasonFour
+                    ? "Suggest one short anonymous wish for next season while Season 4 is live."
+                    : "Winner wish is guaranteed. Community wish is vote-based. Submit one short English wish while the season is live."
                 : "Community wishes are closed for this cycle.",
       proposals: mappedCommunityWishProposals,
     },

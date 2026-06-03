@@ -213,7 +213,7 @@ On Render, set `OPENCLAW_GOD_SHARED_SECRET` for `project-a-web`, deploy, then sm
 
 - Players sign in with Google
 - Season 4 registration and `TESTING`/pretesting accept new fortresses and race selection while the redesign is verified
-- The completed community wish vote is archived; it no longer blocks joining or appears in the live lobby
+- The completed community wish vote is archived; Season 4 uses a live map wish drawer for anonymous next-season suggestions instead of a lobby ballot
 - Season 4 activation remains held until redesign verification passes
 - Each cycle stores an explicit ruleset: prior resolved cycles remain `LEGACY`, while the unresolved Season 4 pretesting cycle uses `SEASON_4`
 - Joining is open during `REGISTRATION` and `TESTING`, and remains open in `ACTIVE` while player slots remain before the active deadline
@@ -251,6 +251,7 @@ The game is now a castle-economy and battlefield-control loop:
 - Battalions do not heal passively; refill commissioned battalions by assigning recruiters and training new members. Full battalions and the max army ceiling stop new recruits until more room is created.
 - Battalion tier promotions use flat per-tier gold costs; battalion size no longer increases the upgrade price.
 - Idle battalions roam owned tiles on the map until their job triggers: guards patrol borders, attackers launch from war fronts, allies reinforce battlefields, and reserves stay near the castle core.
+- The battlefield map includes a Wishes drawer where active players can submit one short anonymous next-season wish and read other players' wishes.
 - new troops assigned to a remote battalion travel from the castle as visible reinforcement marches before they become usable
 - ALLIANCE-mode battalions reinforce allied defensive and attacking battlefields through visible incoming reinforcement marches, controlled from the Castle War Room; if two allies fight each other, War Room pauses support until you choose which alliance to keep, and the abandoned alliance breaks to neutral without betrayal penalties
 - War Room allied battlefield cards show each side's committed and incoming troops, so commanders can see how much allied army is already involved

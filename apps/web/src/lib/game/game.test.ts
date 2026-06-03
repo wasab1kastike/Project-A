@@ -21044,7 +21044,7 @@ test("community wish proposals open to active players during the season", async 
   );
 });
 
-test("Season 4 does not accept new community wish proposals", async (context) => {
+test("Season 4 accepts active next-season wish proposals", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -21063,15 +21063,30 @@ test("Season 4 does not accept new community wish proposals", async (context) =>
 
   await markSeasonFourCycle(prisma, cycle.id);
 
-  await assert.rejects(
-    () =>
-      submitCommunityWishProposal({
-        db: prisma,
-        cycleId: cycle.id,
-        userId: player.id,
-        requestText: "Bring back ballot boxes.",
-      }),
-    /not part of Season 4 gameplay/
+  const proposal = await submitCommunityWishProposal({
+    db: prisma,
+    cycleId: cycle.id,
+    userId: player.id,
+    requestText: "Add map wish buttons.",
+  });
+
+  assert.equal(proposal.requestText, "Add map wish buttons.");
+  assert.equal(proposal.status, WinnerRequestStatus.SUBMITTED);
+
+  const state = await getHomePageState({
+    db: prisma,
+    userId: player.id,
+  });
+
+  assert.equal(state.communityWish.canSubmit, true);
+  assert.equal(
+    state.communityWish.currentUserCommunityWish,
+    proposal.requestText
+  );
+  assert.equal(state.communityWish.proposals.length, 1);
+  assert.equal(
+    state.communityWish.proposals[0]?.requestText,
+    proposal.requestText
   );
 });
 

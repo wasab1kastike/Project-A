@@ -17,6 +17,8 @@ Each season runs through four phases:
 
 Mid-season joining locks after `joiningLockedAt`. Race can be changed during Registration; locked after Testing starts.
 
+During active Season 4 play, the battlefield map includes a Wishes drawer. Active players can submit or edit one short next-season wish, and the drawer shows submitted wishes anonymously.
+
 ---
 
 ## Fortresses

@@ -88,6 +88,7 @@ function getDegradedHomePageState(): HomePageState {
       voteBudget: 0,
       usedVotes: 0,
       remainingVotes: 0,
+      maxLength: 50,
       currentUserCommunityWish: "",
       submissionHint:
         "Winner wish is guaranteed. Community wish is vote-based. Wishes and votes close Monday 25 May at 12:00.",

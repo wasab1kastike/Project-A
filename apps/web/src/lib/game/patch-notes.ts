@@ -10,6 +10,7 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
     date: "2026-06-03",
     title: "Closer castles push harder",
     newFeatures: [
+      "The battlefield map now has a Wishes drawer where active players can submit one anonymous next-season wish and read the other submitted wishes.",
       "Peace offers can now be rejected or answered with a counteroffer before either side accepts the treaty.",
       "Idle stationed battalions now slowly build roads on owned patrol tiles while they are not assigned to fronts or pending reinforcements.",
       "Season 4 pressure contests now use castle proximity: closer castles get stronger effective pressure on contested tiles, while farther castles can still win by investing more raw pressure.",
