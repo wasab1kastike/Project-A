@@ -161,6 +161,7 @@ import {
   editRegistrationFortressName,
   joinRegistrationCycle,
   purchaseFortressUpgrade,
+  purchaseTradeWagonSlot,
   recallAllUnits,
   registerCommanderName,
   renameActiveFortress,
@@ -4031,6 +4032,94 @@ test("season four full outbound trade wagons queue accepted offers", async (cont
       },
     }),
     1
+  );
+});
+
+test("season four trade wagon slots can be purchased with scaling costs", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const user = await createUser(prisma, "wagon-purchase@example.com");
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: user.id,
+      commanderName: "Wagon Buyer",
+      fortressName: "Cart Market",
+      points: 0,
+    },
+  ]);
+  await markSeasonFourCycle(prisma, cycle.id);
+  await prisma.fortress.update({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: user.id,
+      },
+    },
+    data: {
+      gold: 20_000,
+      race: "DWARFS",
+    },
+  });
+
+  await purchaseTradeWagonSlot({
+    userId: user.id,
+    now: new Date("2026-04-20T12:01:00.000Z"),
+    db: prisma,
+  });
+  await purchaseTradeWagonSlot({
+    userId: user.id,
+    now: new Date("2026-04-20T12:02:00.000Z"),
+    db: prisma,
+  });
+
+  const fortress = await prisma.fortress.findUniqueOrThrow({
+    where: {
+      cycleId_ownerId: {
+        cycleId: cycle.id,
+        ownerId: user.id,
+      },
+    },
+  });
+  const state = await getPoliticsPageState({
+    userId: user.id,
+    now: new Date("2026-04-20T12:03:00.000Z"),
+    db: prisma,
+  });
+
+  assert.equal(fortress.tradeWagonSlotPurchases, 2);
+  assert.equal(fortress.gold, 7_500);
+  assert.equal(state.playerFortress?.activeTradeWagonLimit, 5);
+  assert.equal(
+    await prisma.scoreEvent.count({
+      where: {
+        cycleId: cycle.id,
+        fortressId: fortress.id,
+        eventType: ScoreEventType.TRADE_WAGON_SLOT_PURCHASE,
+      },
+    }),
+    2
+  );
+
+  await prisma.fortress.update({
+    where: { id: fortress.id },
+    data: {
+      gold: 1_000_000,
+      tradeWagonSlotPurchases: 47,
+    },
+  });
+
+  await assert.rejects(
+    () =>
+      purchaseTradeWagonSlot({
+        userId: user.id,
+        now: new Date("2026-04-20T12:04:00.000Z"),
+        db: prisma,
+      }),
+    /50 wagon cap/
   );
 });
 

@@ -617,7 +617,8 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         bullets: [
           "Trade offers expire after 24 hours.",
           "Convoy legs take at least 6 hours plus map travel time.",
-          "Fortresses can run 3 active outbound wagons by default; skill nodes can unlock more.",
+          "Fortresses can run 3 active outbound wagons by default; skill nodes and bought wagon slots can raise the active limit up to 50.",
+          "Bought wagon slots start at 5,000 gold and increase by 2,500 gold after every purchase.",
           "Trade Wagon building upgrades raise each wagon run from 100 up to 20,000 total gold and food before skill capacity bonuses.",
           "Accepted trades can be larger than one wagon run; extra cargo queues into sequential runs that depart as outbound wagon slots free up.",
           "Delivered base cargo value awards shared points.",

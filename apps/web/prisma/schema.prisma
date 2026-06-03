@@ -122,6 +122,7 @@ enum ScoreEventType {
   FORTRESS_UPGRADE_PURCHASE
   FORTRESS_UPGRADE_SLAYER_BONUS
   FORTRESS_LOCATION_SHUFFLE_COST
+  TRADE_WAGON_SLOT_PURCHASE
   DWARF_DEEP_MINING_POINTS
   DWARF_RUNE_BOUNTY
   RENAME_COST
@@ -432,6 +433,7 @@ model Fortress {
   targetFortressId               String?
   unitSpriteVariant              String                              @default("unit-1")
   locationShuffleCount           Int                                 @default(0)
+  tradeWagonSlotPurchases        Int                                 @default(0)
   mapX                           Int
   mapY                           Int
   joinedAt                       DateTime                            @default(now())

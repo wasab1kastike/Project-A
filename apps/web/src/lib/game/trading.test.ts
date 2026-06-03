@@ -7,6 +7,7 @@ import {
   assertTradeCargoWithinWagonLimit,
   assertActiveTradeWagonLimit,
   calculateTradeCargoValue,
+  canPurchaseTradeWagonSlot,
   canTradeWithRelation,
   DEFAULT_ACTIVE_TRADE_WAGON_LIMIT,
   getActiveTradeWagonLimit,
@@ -14,11 +15,15 @@ import {
   getConvoyArrivalAt,
   getTradeBlockedReason,
   getTradeOfferExpiresAt,
+  getTradeWagonSlotPurchaseCost,
   getTradeWagonResourceLimit,
   hasTradeCargo,
+  MAX_ACTIVE_TRADE_WAGON_LIMIT,
   normalizeTradeCargo,
   splitTradeCargoIntoWagonRuns,
   splitTradeDeliveryPoints,
+  TRADE_WAGON_SLOT_BASE_COST,
+  TRADE_WAGON_SLOT_COST_STEP,
   TRADE_WAGON_RESOURCE_LIMIT,
   TRADE_WAGON_RESOURCE_LIMITS,
 } from "./trading";
@@ -170,10 +175,13 @@ test("trade cargo splits into sequential wagon runs", () => {
   );
 });
 
-test("active outbound wagon limit defaults to three and expands from skills", () => {
+test("active outbound wagon limit defaults to three and expands from skills and purchases", () => {
   assert.equal(DEFAULT_ACTIVE_TRADE_WAGON_LIMIT, 3);
+  assert.equal(MAX_ACTIVE_TRADE_WAGON_LIMIT, 50);
   assert.equal(getActiveTradeWagonLimit(), 3);
   assert.equal(getActiveTradeWagonLimit(2), 5);
+  assert.equal(getActiveTradeWagonLimit(2, 4), 9);
+  assert.equal(getActiveTradeWagonLimit(10, 100), 50);
   assert.doesNotThrow(() =>
     assertActiveTradeWagonLimit({
       activeOutboundWagons: 2,
@@ -187,6 +195,20 @@ test("active outbound wagon limit defaults to three and expands from skills", ()
         wagonLimit: 3,
       }),
     /3 active outbound wagons/
+  );
+});
+
+test("trade wagon slot purchases scale in price and stop at cap", () => {
+  assert.equal(TRADE_WAGON_SLOT_BASE_COST, 5_000);
+  assert.equal(TRADE_WAGON_SLOT_COST_STEP, 2_500);
+  assert.equal(getTradeWagonSlotPurchaseCost(0), 5_000);
+  assert.equal(getTradeWagonSlotPurchaseCost(1), 7_500);
+  assert.equal(getTradeWagonSlotPurchaseCost(10), 30_000);
+  assert.equal(canPurchaseTradeWagonSlot({ purchasedSlots: 46 }), true);
+  assert.equal(canPurchaseTradeWagonSlot({ purchasedSlots: 47 }), false);
+  assert.equal(
+    canPurchaseTradeWagonSlot({ purchasedSlots: 45, slotBonus: 2 }),
+    false
   );
 });
 

@@ -89,7 +89,13 @@ import {
   NUKE_LAUNCH_GOLD_COST,
   type NukeComponentCargo,
 } from "./nukes";
-import { getTradeWagonResourceLimit } from "./trading";
+import {
+  canPurchaseTradeWagonSlot,
+  getActiveTradeWagonLimit,
+  getTradeWagonSlotPurchaseCost,
+  getTradeWagonResourceLimit,
+  MAX_ACTIVE_TRADE_WAGON_LIMIT,
+} from "./trading";
 import { getEffectiveDiplomacyStatus } from "./politics";
 import { getBattalionSlots } from "./battalion-types";
 
@@ -178,6 +184,7 @@ export async function getCastlePageState({
           level: true,
           food: true,
           army: true,
+          tradeWagonSlotPurchases: true,
           recruitmentQueue: true,
           minersAssigned: true,
           farmersAssigned: true,
@@ -1494,6 +1501,30 @@ export async function getCastlePageState({
               0,
             playerSkillModifiers?.tradeWagonCapacityPercent ?? 0
           ),
+          tradeWagonSlotPurchases: playerFortress.tradeWagonSlotPurchases,
+          activeTradeWagonLimit: getActiveTradeWagonLimit(
+            playerSkillModifiers?.tradeWagonSlotBonus ?? 0,
+            playerFortress.tradeWagonSlotPurchases
+          ),
+          maxActiveTradeWagonLimit: MAX_ACTIVE_TRADE_WAGON_LIMIT,
+          nextTradeWagonSlotCost: canPurchaseTradeWagonSlot({
+            purchasedSlots: playerFortress.tradeWagonSlotPurchases,
+            slotBonus: playerSkillModifiers?.tradeWagonSlotBonus ?? 0,
+          })
+            ? getTradeWagonSlotPurchaseCost(
+                playerFortress.tradeWagonSlotPurchases
+              )
+            : null,
+          canPurchaseTradeWagonSlot:
+            gameplayOpen &&
+            canPurchaseTradeWagonSlot({
+              purchasedSlots: playerFortress.tradeWagonSlotPurchases,
+              slotBonus: playerSkillModifiers?.tradeWagonSlotBonus ?? 0,
+            }) &&
+            playerFortress.gold >=
+              getTradeWagonSlotPurchaseCost(
+                playerFortress.tradeWagonSlotPurchases
+              ),
           buildingUpgradeOptions,
           castleUpgradeChoices: playerFortress.castleUpgradeSpecializations,
           pendingUpgradeSpecializationLevel,

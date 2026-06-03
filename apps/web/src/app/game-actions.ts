@@ -60,6 +60,7 @@ import {
   joinBattlefield,
   joinRegistrationCycle,
   purchaseFortressUpgrade,
+  purchaseTradeWagonSlot,
   proposeAlliance,
   proposeAllianceTrustUpgrade,
   proposePeace,
@@ -1557,6 +1558,26 @@ export async function purchaseFortressUpgradeAction(
   try {
     await purchaseFortressUpgrade({ userId, specialization });
     notifyAndRevalidate("castle-upgrade", CASTLE_REVALIDATE_PATHS);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: getActionErrorMessage(error) };
+  }
+}
+
+export async function purchaseTradeWagonSlotAction(): Promise<InlineActionResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return { ok: false, error: "You need to sign in before buying wagons." };
+  }
+
+  try {
+    await purchaseTradeWagonSlot({ userId });
+    notifyAndRevalidate("trade-wagon-slot-purchase", [
+      ...CASTLE_REVALIDATE_PATHS,
+      "/politics",
+    ]);
     return { ok: true };
   } catch (error) {
     return { ok: false, error: getActionErrorMessage(error) };

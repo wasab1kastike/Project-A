@@ -1547,6 +1547,7 @@ async function getQueuedTradeWagonRuns({
       where: { id: fromFortressId },
       select: {
         race: true,
+        tradeWagonSlotPurchases: true,
         castleUpgradeSpecializations: true,
         skillPurchases: { select: { nodeKey: true } },
       },
@@ -1634,7 +1635,8 @@ async function getQueuedTradeWagonRuns({
     deedTileId:
       deedLineItem?.tileId && !deedAlreadyLaunched ? deedLineItem.tileId : null,
     wagonLimit: getActiveTradeWagonLimit(
-      skillModifiers?.tradeWagonSlotBonus ?? 0
+      skillModifiers?.tradeWagonSlotBonus ?? 0,
+      fromFortress.tradeWagonSlotPurchases
     ),
   };
 }

@@ -136,10 +136,12 @@ import { validateTileDeedAllowed } from "../tile-deeds";
 import { getCampaignStartBlockedReason } from "../campaigns";
 import {
   calculateTradeCargoValue,
+  canPurchaseTradeWagonSlot,
   getActiveTradeWagonLimit,
   getTradeBlockedReason,
   getTradeNukeComponents,
   getTradeOfferExpiresAt,
+  getTradeWagonSlotPurchaseCost,
   hasTradeCargo,
   normalizeTradeCargo,
   splitTradeCargoIntoWagonRuns,
@@ -1521,6 +1523,7 @@ async function getActivePlayerFortressForPolitics({
       food: true,
       army: true,
       points: true,
+      tradeWagonSlotPurchases: true,
       race: true,
       skillPurchases: {
         select: { nodeKey: true },
@@ -1565,6 +1568,7 @@ async function getTargetPlayerFortressForPolitics({
       food: true,
       army: true,
       points: true,
+      tradeWagonSlotPurchases: true,
       race: true,
       skillPurchases: {
         select: { nodeKey: true },
@@ -3825,7 +3829,8 @@ export async function acceptTradeOffer({
         },
       });
       const wagonLimit = getActiveTradeWagonLimit(
-        plan.skillModifiers?.tradeWagonSlotBonus ?? 0
+        plan.skillModifiers?.tradeWagonSlotBonus ?? 0,
+        plan.from.tradeWagonSlotPurchases
       );
       const freeWagons = Math.max(0, wagonLimit - activeOutboundWagons);
 
@@ -8604,6 +8609,102 @@ export async function buyPointsWithGold({
       pointsGained,
       fortress: updatedFortress,
     };
+  });
+}
+
+export async function purchaseTradeWagonSlot({
+  userId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return await db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("Trade wagon purchases are only available during gameplay.");
+    }
+
+    assertSeasonFourFeatureCycle(cycle);
+
+    const fortress = await tx.fortress.findUnique({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: userId,
+        },
+      },
+      select: {
+        id: true,
+        gold: true,
+        race: true,
+        tradeWagonSlotPurchases: true,
+        skillPurchases: {
+          select: { nodeKey: true },
+        },
+      },
+    });
+
+    if (!fortress) {
+      throw new GameError("You are not participating in the active cycle.");
+    }
+
+    const skillModifiers = getFortressSkillModifiers(fortress);
+    const slotBonus = skillModifiers?.tradeWagonSlotBonus ?? 0;
+
+    if (
+      !canPurchaseTradeWagonSlot({
+        purchasedSlots: fortress.tradeWagonSlotPurchases,
+        slotBonus,
+      })
+    ) {
+      throw new GameError("Your trade wagon network is already at the 50 wagon cap.");
+    }
+
+    const goldCost = getTradeWagonSlotPurchaseCost(
+      fortress.tradeWagonSlotPurchases
+    );
+
+    if (fortress.gold < goldCost) {
+      throw new GameError(
+        `You need ${goldCost.toLocaleString("en-US")} gold to buy the next trade wagon.`
+      );
+    }
+
+    const update = await tx.fortress.updateMany({
+      where: {
+        id: fortress.id,
+        gold: { gte: goldCost },
+        tradeWagonSlotPurchases: fortress.tradeWagonSlotPurchases,
+      },
+      data: {
+        gold: { decrement: goldCost },
+        tradeWagonSlotPurchases: { increment: 1 },
+      },
+    });
+
+    if (update.count !== 1) {
+      throw new GameError("Trade wagon purchase changed before it completed. Try again.");
+    }
+
+    await tx.scoreEvent.create({
+      data: {
+        cycleId: cycle.id,
+        fortressId: fortress.id,
+        eventType: ScoreEventType.TRADE_WAGON_SLOT_PURCHASE,
+        delta: -goldCost,
+        createdAt: now,
+      },
+    });
+
+    return tx.fortress.findUniqueOrThrow({
+      where: {
+        id: fortress.id,
+      },
+    });
   });
 }
 
