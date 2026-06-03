@@ -2841,14 +2841,20 @@ export async function proposePeace({
       throw new GameError("You are already at peace.");
     }
 
-    if (relation.status === DiplomacyRelationStatus.PEACE_PENDING) {
-      return relation;
-    }
-
     const effectiveStatus = getEffectiveDiplomacyStatus({ relation, now });
 
-    if (!canProposePeace(effectiveStatus)) {
+    if (
+      relation.status !== DiplomacyRelationStatus.PEACE_PENDING &&
+      !canProposePeace(effectiveStatus)
+    ) {
       throw new GameError("Peace can only be proposed from a hostile relation.");
+    }
+
+    if (
+      relation.status === DiplomacyRelationStatus.PEACE_PENDING &&
+      relation.peaceProposedById === actor.id
+    ) {
+      throw new GameError("Peace proposal is already waiting for the other fortress.");
     }
 
     const normalizedReparationGold = normalizeTreatyAmount(
@@ -2882,6 +2888,100 @@ export async function proposePeace({
         peaceReparationArmy: normalizedReparationArmy,
         peaceReparationTileId: reparationTileId ?? null,
         peaceReparationFromId: payerId,
+      },
+    });
+  }, SERVICE_TRANSACTION_OPTIONS);
+}
+
+function getStatusAfterRejectedPeace({
+  relation,
+  now,
+}: {
+  relation: {
+    warDeclaredById: string | null;
+    warStartsAt: Date | null;
+  };
+  now: Date;
+}) {
+  if (relation.warStartsAt) {
+    return relation.warStartsAt > now
+      ? DiplomacyRelationStatus.WAR_PENDING
+      : DiplomacyRelationStatus.WAR;
+  }
+
+  if (relation.warDeclaredById) {
+    return DiplomacyRelationStatus.WAR;
+  }
+
+  return DiplomacyRelationStatus.ENEMY;
+}
+
+export async function rejectPeace({
+  userId,
+  targetFortressId,
+  now = new Date(),
+  db = prisma,
+}: {
+  userId: string;
+  targetFortressId: string;
+  now?: Date;
+  db?: PrismaClient;
+}) {
+  return db.$transaction(async (tx) => {
+    const cycle = await getCurrentCycle(tx);
+
+    if (!cycle || !isGameplayWindowOpen(cycle, now)) {
+      throw new GameError("Politics can only change during gameplay.");
+    }
+
+    assertSeasonFourFeatureCycle(cycle);
+
+    const actor = await getActivePlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      userId,
+    });
+    const target = await getTargetPlayerFortressForPolitics({
+      tx,
+      cycleId: cycle.id,
+      targetFortressId,
+    });
+
+    if (actor.id === target.id) {
+      throw new GameError("You cannot reject peace with yourself.");
+    }
+
+    const pair = getCanonicalDiplomacyPair(actor.id, target.id);
+    const relation = await tx.diplomacyRelation.findUnique({
+      where: {
+        cycleId_fortressAId_fortressBId: {
+          cycleId: cycle.id,
+          ...pair,
+        },
+      },
+    });
+
+    if (!relation || relation.status !== DiplomacyRelationStatus.PEACE_PENDING) {
+      throw new GameError("There is no peace proposal to reject.");
+    }
+
+    if (relation.peaceProposedById === actor.id) {
+      throw new GameError("Only the receiving fortress can reject this peace proposal.");
+    }
+
+    return tx.diplomacyRelation.update({
+      where: {
+        id: relation.id,
+      },
+      data: {
+        status: getStatusAfterRejectedPeace({ relation, now }),
+        peaceProposedById: null,
+        peaceProposedAt: null,
+        peaceReparationGold: 0,
+        peaceReparationFood: 0,
+        peaceReparationArmy: 0,
+        peaceReparationTileId: null,
+        peaceReparationFromId: null,
       },
     });
   }, SERVICE_TRANSACTION_OPTIONS);

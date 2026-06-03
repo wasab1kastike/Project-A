@@ -78,7 +78,7 @@ export async function processBattalionRecruitment(args: {
   raceByFortress: Map<string, string | null>;
   /** Map of fortressId → fortress level */
   levelByFortress: Map<string, number>;
-  /** Map of fortressId → barracks level (simplified: 0 for now) */
+  /** Map of fortressId → Military building level */
   barracksLevelByFortress: Map<string, number>;
   /** Map of fortressId → current gold */
   goldByFortress: Map<string, number>;
@@ -94,7 +94,6 @@ export async function processBattalionRecruitment(args: {
     ctx,
     recruitersByFortress,
     raceByFortress,
-    levelByFortress,
     barracksLevelByFortress,
     goldByFortress,
     maxArmyByFortress,
@@ -207,7 +206,6 @@ export async function processBattalionRecruitment(args: {
     }
 
     const race = raceByFortress.get(fortressId) ?? null;
-    const level = levelByFortress.get(fortressId) ?? 1;
     const barracksLevel = barracksLevelByFortress.get(fortressId) ?? 0;
     const gold = goldByFortress.get(fortressId) ?? 0;
     const maxArmy = maxArmyByFortress.get(fortressId) ?? 500;
@@ -256,7 +254,7 @@ export async function processBattalionRecruitment(args: {
           ]
         : storedExisting;
     const totalSlots = getBattalionSlots(
-      level,
+      barracksLevel,
       0,
       skillModifiers?.battalionSlotBonus ?? 0
     );

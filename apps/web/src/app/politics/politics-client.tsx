@@ -19,6 +19,7 @@ import {
   proposePeaceAction,
   rejectAllianceProposalAction,
   rejectAllianceTrustUpgradeAction,
+  rejectPeaceAction,
   rejectTradeOfferAction,
   recallArmyOrderAction,
 } from "@/app/game-actions";
@@ -54,6 +55,8 @@ function getActionLabel(action: PoliticsAction) {
       return "Propose peace";
     case "ACCEPT_PEACE":
       return "Accept peace";
+    case "REJECT_PEACE":
+      return "Reject peace";
     case "PROPOSE_ALLIANCE":
       return "Propose alliance";
     case "ACCEPT_ALLIANCE":
@@ -379,6 +382,9 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
           break;
         case "ACCEPT_PEACE":
           result = await acceptPeaceAction(row.fortressId);
+          break;
+        case "REJECT_PEACE":
+          result = await rejectPeaceAction(row.fortressId);
           break;
       }
 
@@ -890,6 +896,11 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                       {row.availableActions.length > 0 ? (
                         row.availableActions.map((action) => {
                           const key = `${row.fortressId}:${action}`;
+                          const actionLabel =
+                            action === "PROPOSE_PEACE" &&
+                            row.effectiveStatus === "PEACE_PENDING"
+                              ? "Counter offer"
+                              : getActionLabel(action);
                           const isTermsAction =
                             action === "PROPOSE_ALLIANCE" ||
                             action === "PROPOSE_PEACE";
@@ -945,7 +956,7 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                               >
                                 {pendingId === key
                                   ? "Sending..."
-                                  : getActionLabel(action)}
+                                  : actionLabel}
                               </button>
                               {acceptanceCost ? (
                                 <small className={styles.actionCost}>
@@ -1093,7 +1104,9 @@ export function PoliticsClient({ state }: { state: PoliticsPageState }) {
                               ? "Sending..."
                               : termsPanel.action === "PROPOSE_ALLIANCE"
                                 ? "Propose alliance"
-                                : "Propose peace"}
+                                : row.effectiveStatus === "PEACE_PENDING"
+                                  ? "Send counter"
+                                  : "Propose peace"}
                           </button>
                           <button
                             type="button"

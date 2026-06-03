@@ -52,6 +52,7 @@ import "./rulesets.test";
 import "./tile-pressure.test";
 import "./trading.test";
 import "./convoy-conflict.test";
+import "./road-travel.test";
 import "./doctrines.test";
 import { calculateDetectionChance, calculateRaidSuccessChance, resolveSeededChance } from "./convoy-conflict";
 import {
@@ -193,6 +194,7 @@ import {
   proposeAllianceTrustUpgrade,
   rejectAllianceProposal,
   rejectAllianceTrustUpgrade,
+  rejectPeace,
   recordDetectedCovertRaid,
   reinforceDwarfRuneOfGrudges,
   torchOccupiedMapHex,
@@ -1824,6 +1826,11 @@ test("politics war and peace use one canonical relation", async (context) => {
 
   assert.equal(peaceBetaPolitics?.relationStatus, "PEACE_PENDING");
   assert.equal(peaceBetaPolitics?.availableAction, "ACCEPT_PEACE");
+  assert.deepEqual(peaceBetaPolitics?.availableActions, [
+    "ACCEPT_PEACE",
+    "REJECT_PEACE",
+    "PROPOSE_PEACE",
+  ]);
   assert.equal(peaceBetaPolitics?.peaceProposedByCurrentPlayer, false);
   await assert.rejects(
     () =>
@@ -1835,6 +1842,41 @@ test("politics war and peace use one canonical relation", async (context) => {
       }),
     /other fortress/
   );
+
+  const countered = await proposePeace({
+    userId: alpha.id,
+    targetFortressId: betaFortress.id,
+    reparationGold: 250,
+    reparationPayer: "TARGET",
+    now: new Date("2026-04-20T12:11:30.000Z"),
+    db: prisma,
+  });
+
+  assert.equal(countered.status, DiplomacyRelationStatus.PEACE_PENDING);
+  assert.equal(countered.peaceProposedById, alphaFortress.id);
+  assert.equal(countered.peaceReparationGold, 250);
+  assert.equal(countered.peaceReparationFromId, betaFortress.id);
+
+  const rejected = await rejectPeace({
+    userId: beta.id,
+    targetFortressId: alphaFortress.id,
+    now: new Date("2026-04-20T12:11:45.000Z"),
+    db: prisma,
+  });
+
+  assert.equal(rejected.status, DiplomacyRelationStatus.WAR_PENDING);
+  assert.equal(rejected.peaceProposedById, null);
+  assert.equal(rejected.peaceReparationGold, 0);
+
+  const proposedAgain = await proposePeace({
+    userId: beta.id,
+    targetFortressId: alphaFortress.id,
+    now: new Date("2026-04-20T12:11:50.000Z"),
+    db: prisma,
+  });
+
+  assert.equal(proposedAgain.status, DiplomacyRelationStatus.PEACE_PENDING);
+  assert.equal(proposedAgain.peaceProposedById, betaFortress.id);
 
   const accepted = await acceptPeace({
     userId: alpha.id,

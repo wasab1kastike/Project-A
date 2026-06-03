@@ -182,7 +182,10 @@ import {
 } from "./schema-guards";
 import { processAutoWarDispatch } from "./tick-auto-war-integration";
 import { processAllianceReinforcements } from "./tick-alliance-integration";
-import { recordUnitRoadCrossings } from "./tick-road-integration";
+import {
+  recordIdleBattalionRoadCrossings,
+  recordUnitRoadCrossings,
+} from "./tick-road-integration";
 import { getRoadAdjustedConvoyArrival } from "./road-travel";
 import {
   processBattalionRecruitment,
@@ -6520,10 +6523,16 @@ async function processCycleTick(
 
     for (const fortress of fortresses) {
       if (fortress.isNpc) continue;
+      const castleSpecializations = countCastleSpecializations(
+        fortress.castleUpgradeSpecializations
+      );
       recruitersByFortress.set(fortress.id, fortress.recruitersAssigned);
       raceByFortress.set(fortress.id, fortress.race);
       levelByFortress.set(fortress.id, fortress.level);
-      barracksByFortress.set(fortress.id, 0);
+      barracksByFortress.set(
+        fortress.id,
+        castleSpecializations[CastleUpgradeSpecialization.MILITARY],
+      );
       goldByFortress.set(fortress.id, currentGold.get(fortress.id) ?? fortress.gold);
       const policy = warPolicies.find((p) => p.fortressId === fortress.id);
       maxArmyByFortress.set(fortress.id, policy?.maxArmySize ?? 500);
@@ -6571,6 +6580,12 @@ async function processCycleTick(
       guardPercentByFortress,
       ownedTilesByFortress,
       fortressPositionsById,
+    });
+
+    await recordIdleBattalionRoadCrossings({
+      db,
+      cycleId,
+      now: tickAt,
     });
 
     for (const [fortressId, army] of recruitedArmyByFortress) {

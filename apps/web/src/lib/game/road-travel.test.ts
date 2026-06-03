@@ -6,6 +6,10 @@ import {
   calculateRoadAdjustedTravel,
   getRoadWeightsFromSegments,
 } from "./road-travel";
+import {
+  getIdleBattalionRoadCrossingPlan,
+  getIdleBattalionRoadCrossings,
+} from "./tick-road-integration";
 
 describe("road-travel", () => {
   it("keeps baseline travel when no road exists", () => {
@@ -60,5 +64,65 @@ describe("road-travel", () => {
 
     assert.equal(weights.has("1:1"), false);
     assert.equal(weights.get("1:2"), 1.3);
+  });
+
+  it("scales idle battalion road crossings by patrol footprint", () => {
+    assert.equal(getIdleBattalionRoadCrossings(0), 0);
+    assert.equal(getIdleBattalionRoadCrossings(1), 1);
+    assert.equal(getIdleBattalionRoadCrossings(500), 5);
+    assert.equal(getIdleBattalionRoadCrossings(50_000), 25);
+  });
+
+  it("records idle battalion road progress only on owned stationed tiles", () => {
+    const plan = getIdleBattalionRoadCrossingPlan({
+      ownedTilesByFortress: new Map([
+        ["fort_1", new Set(["20:15", "21:15"])],
+        ["fort_2", new Set(["10:10"])],
+      ]),
+      battalions: [
+        {
+          id: "idle_owned",
+          fortressId: "fort_1",
+          size: 500,
+          garrisonedAt: "20:15",
+          assignmentCount: 0,
+          pendingReinforcementCount: 0,
+        },
+        {
+          id: "second_idle_owned",
+          fortressId: "fort_1",
+          size: 120,
+          garrisonedAt: "20:15",
+          assignmentCount: 0,
+          pendingReinforcementCount: 0,
+        },
+        {
+          id: "front_assigned",
+          fortressId: "fort_1",
+          size: 500,
+          garrisonedAt: "21:15",
+          assignmentCount: 1,
+          pendingReinforcementCount: 0,
+        },
+        {
+          id: "reinforcing",
+          fortressId: "fort_2",
+          size: 500,
+          garrisonedAt: "10:10",
+          assignmentCount: 0,
+          pendingReinforcementCount: 1,
+        },
+        {
+          id: "not_owned",
+          fortressId: "fort_1",
+          size: 500,
+          garrisonedAt: "30:15",
+          assignmentCount: 0,
+          pendingReinforcementCount: 0,
+        },
+      ],
+    });
+
+    assert.deepEqual(plan, [{ tileId: "20:15", crossings: 7 }]);
   });
 });

@@ -168,7 +168,7 @@ Allies can upgrade trust (0→3). Higher tiers grant:
 
 - 24-hour warning after declaration (`WAR_PENDING`)
 - Casus belli system — justified wars bypass the 24h delay
-- Peace proposals require mutual acceptance and may include instant gold, food, army, or tile demands paid by either side on acceptance
+- Peace proposals require mutual acceptance and may include instant gold, food, army, or tile demands paid by either side on acceptance. The receiver can reject the offer or replace it with a counteroffer.
 - War Room battalions use four player-facing jobs: RESERVE, GUARD, ATTACK, and ALLIANCE. The older stance layer is hidden and normalized by the server.
 - Battalion slot capacity is based on the Military building level, plus skill and extra-slot bonuses. The Castle roster displays used slots as `active/limit` battalions.
 - Idle battalions roam owned tiles on the map until their job triggers: RESERVE stays near the castle core, GUARD patrols owned borders, ATTACK launches through war fronts, and ALLIANCE supports allied battlefields.
@@ -179,7 +179,7 @@ Allies can upgrade trust (0→3). Higher tiers grant:
 - ALLIANCE-mode battalions automatically support eligible allied defensive and attacking battlefields by launching normal incoming reinforcement marches. War Room policy toggles choose whether those battalions join allied attacks, defend allies, or both; the battalions assigned to ALLIANCE mode determine the available army.
 - War Room shows allied battlefield troop breakdowns by side, including each fortress' committed/remaining army and incoming reinforcement army.
 - If two allies become hostile to each other, alliance support for that conflict pauses until the player chooses which alliance to keep. The abandoned alliance becomes NEUTRAL with no betrayal marker, collateral payment, collateral debt, or escrow payout.
-- Roads reduce movement ETA for manual attacks, remote battalion reinforcement, War Front launches, and allied battlefield support. Roads do not shorten the one-hour PvP preparation delay.
+- Roads reduce movement ETA for manual attacks, remote battalion reinforcement, War Front launches, and allied battlefield support. Idle stationed battalions slowly improve roads on owned patrol tiles while they are not assigned to fronts or pending reinforcements. Roads do not shorten the one-hour PvP preparation delay.
 
 ---
 
