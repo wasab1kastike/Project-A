@@ -65,6 +65,7 @@ import {
   proposePeace,
   rejectAllianceProposal,
   rejectAllianceTrustUpgrade,
+  rejectPeace,
   reinforceDwarfRuneOfGrudges,
   recruitArmy,
   registerCommanderName,
@@ -689,6 +690,34 @@ export async function acceptPeaceAction(targetFortressId: string) {
       targetFortressId,
     });
     notifyAndRevalidate("politics-accept-peace", ["/", "/castle", "/politics"]);
+    return {
+      ok: true,
+    } satisfies InlineActionResult;
+  } catch (error) {
+    return {
+      ok: false,
+      error: getActionErrorMessage(error),
+    } satisfies InlineActionResult;
+  }
+}
+
+export async function rejectPeaceAction(targetFortressId: string) {
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      ok: false,
+      error: "You need to sign in before changing season state.",
+    } satisfies InlineActionResult;
+  }
+
+  try {
+    await rejectPeace({
+      userId,
+      targetFortressId,
+    });
+    notifyAndRevalidate("politics-reject-peace", ["/", "/castle", "/politics"]);
     return {
       ok: true,
     } satisfies InlineActionResult;

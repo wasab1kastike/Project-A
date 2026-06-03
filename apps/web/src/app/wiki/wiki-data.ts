@@ -403,7 +403,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         eyebrow: "Movement",
         title: "Roads",
         body:
-          `Marching armies, reinforcement routes, War Front launches, and delivered convoys build roads on their actual hex route. Roads reduce future movement ETA, but not the six-hour convoy minimum or one-hour PvP preparation delay. Roads decay ${Math.round(ROAD_DECAY_RATE_PER_HOUR * 100)}% per inactive hour.`,
+          `Marching armies, reinforcement routes, War Front launches, and delivered convoys build roads on their actual hex route. Idle stationed battalions also slowly improve roads on owned patrol tiles while they are not assigned to fronts or pending reinforcements. Roads reduce future movement ETA, but not the six-hour convoy minimum or one-hour PvP preparation delay. Roads decay ${Math.round(ROAD_DECAY_RATE_PER_HOUR * 100)}% per inactive hour.`,
         table: {
           headers: ["Road", "Crossings", "Speed multiplier"],
           rows: [
@@ -585,7 +585,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
           "Trust III raises each escrow to 30,000 gold and 30,000 food.",
           "Betrayal starts war immediately and gives escrow shares to the harmed ally.",
           "Optional alliance collateral is paid only if the alliance breaks; unpaid collateral becomes visible debt.",
-          "Peace can demand gold, food, army, or a tile from either side and creates a 24-hour unbreakable period.",
+          "Peace can demand gold, food, army, or a tile from either side; receivers can reject or counter before acceptance creates a 24-hour unbreakable period.",
         ],
       },
     ],

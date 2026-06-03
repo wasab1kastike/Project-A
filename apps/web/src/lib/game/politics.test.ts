@@ -277,7 +277,7 @@ test("politics relation presentation derives alliance and peace actions", () => 
       now,
       currentFortressId: "alpha",
     }).availableActions,
-    ["ACCEPT_PEACE"]
+    ["ACCEPT_PEACE", "REJECT_PEACE", "PROPOSE_PEACE"]
   );
 
   const ownPeace = getPoliticsRelationPresentation({

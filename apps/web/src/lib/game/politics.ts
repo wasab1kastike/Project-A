@@ -254,7 +254,8 @@ export type PoliticsRelationAction =
   | "REJECT_TRUST_UPGRADE"
   | "BETRAY_ALLIANCE"
   | "PROPOSE_PEACE"
-  | "ACCEPT_PEACE";
+  | "ACCEPT_PEACE"
+  | "REJECT_PEACE";
 
 export function getPoliticsRelationPresentation({
   relation,
@@ -293,7 +294,7 @@ export function getPoliticsRelationPresentation({
     if (relation?.peaceProposedById === currentFortressId) {
       disabledReason = "Peace proposal is waiting for the other fortress.";
     } else {
-      actions.push("ACCEPT_PEACE");
+      actions.push("ACCEPT_PEACE", "REJECT_PEACE", "PROPOSE_PEACE");
     }
   } else {
     if (effectiveStatus === DiplomacyRelationStatus.NEUTRAL) {
