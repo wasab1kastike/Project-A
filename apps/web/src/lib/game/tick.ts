@@ -739,8 +739,15 @@ async function processTilePressureExpansion({
         });
 
         for (const candidate of autoCandidates) {
-          const nextSlot =
-            (prioritiesByFortressId.get(fortress.id) ?? []).length + 1;
+          const existingQueue = prioritiesByFortressId.get(fortress.id) ?? [];
+
+          if (
+            existingQueue.some((priority) => priority.tileId === candidate.tileId)
+          ) {
+            continue;
+          }
+
+          const nextSlot = existingQueue.length + 1;
           const priority = {
             tileId: candidate.tileId,
             weight: getTilePressurePriorityWeightForSlot({
@@ -749,17 +756,27 @@ async function processTilePressureExpansion({
             }),
           };
 
-          await tx.tilePressurePriority.create({
-            data: {
+          await tx.tilePressurePriority.upsert({
+            where: {
+              cycleId_fortressId_tileId: {
+                cycleId,
+                fortressId: fortress.id,
+                tileId: priority.tileId,
+              },
+            },
+            create: {
               cycleId,
               fortressId: fortress.id,
               tileId: priority.tileId,
               weight: priority.weight,
             },
+            update: {
+              weight: priority.weight,
+            },
           });
 
           prioritiesByFortressId.set(fortress.id, [
-            ...(prioritiesByFortressId.get(fortress.id) ?? []),
+            ...existingQueue,
             priority,
           ]);
         }
