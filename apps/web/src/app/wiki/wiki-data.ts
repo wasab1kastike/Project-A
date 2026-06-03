@@ -163,7 +163,7 @@ const seasonLoop: readonly WikiDiagramStep[] = [
 const pressureFlow: readonly WikiDiagramStep[] = [
   { label: "Assign", detail: "Put workers into race-flavored pressure." },
   { label: "Prioritize", detail: "The queue auto-fills with connected neutral borders." },
-  { label: "Claim", detail: `${TILE_PRESSURE_CLAIM_THRESHOLD}+ pressure wins if there is no tie.` },
+  { label: "Claim", detail: "Effective pressure wins, with closer castles needing less raw pressure." },
   { label: "Hold", detail: "8 claimed normal tiles are free to maintain." },
 ];
 
@@ -367,6 +367,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
       "Neutral tiles still need pressure to flip.",
       "The priority queue refills while the fortress is below tile capacity, starting at three slots.",
       `Each farther ring adds ${TILE_PRESSURE_DISTANCE_THRESHOLD_STEP_PERCENT}% required pressure.`,
+      "If multiple fortresses pressure the same tile, the highest effective pressure wins. Effective pressure adjusts raw pressure by castle distance, so closer castles have the edge.",
       `Unsupported neutral pressure decays ${TILE_PRESSURE_DECAY_PERCENT_PER_HOUR}% per completed hour plus ${TILE_PRESSURE_DISTANCE_DECAY_STEP_PERCENT}% per farther ring, capped at ${TILE_PRESSURE_MAX_DECAY_PERCENT_PER_HOUR}%.`,
       `Ownership pressure ranges from 0 to ${MAX_OWNERSHIP_PRESSURE}.`,
     ],
@@ -385,7 +386,8 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         bullets: [
           "Queued priorities are ordered. The first legal neutral tile receives all current pressure output.",
           "If a queue slot is claimed or becomes invalid, the system appends the nearest legal neutral replacement while you are below tile capacity.",
-          "During war, queued enemy border tiles guide automated War Front targeting.",
+          "Queued non-allied border tiles can pressure player ownership; during war, those same enemy priorities guide automated War Front targeting.",
+          "Hostile pressure on owned tiles is distance-adjusted: closer attackers disrupt ownership faster, while farther attackers need more pressure.",
           `Owned tiles decay by ${OWNERSHIP_PRESSURE_DECAY_PER_TICK} ownership pressure per tick.`,
           `Each maintenance worker restores ${OWNERSHIP_PRESSURE_MAINTENANCE_PER_WORKER} pressure per tick.`,
           "Pressure skill bonuses and the Dwarf racial holding bonus increase worker-supported tile capacity.",

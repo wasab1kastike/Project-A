@@ -139,8 +139,12 @@ type MapHexOwnershipMarker = {
   pressurePriority?: boolean;
   pressurePriorityRank?: number | null;
   pressurePlayerProgress?: number | null;
+  pressurePlayerEffectiveProgress?: number | null;
   pressureProgress?: number | null;
   pressureThreshold?: number | null;
+  pressureLeaderProgress?: number | null;
+  pressureLeaderEffectiveProgress?: number | null;
+  pressureLeaderThreshold?: number | null;
   pressureLeaderFortressId?: string | null;
   pressureLeaderLabel?: string | null;
   canPrioritizePressure?: boolean;
@@ -249,6 +253,19 @@ type TileTapState = {
   startX: number;
   startY: number;
   cancelled: boolean;
+};
+
+type SvgPoint = {
+  x: number;
+  y: number;
+};
+
+type TerritoryBorderSegment = {
+  id: string;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
 };
 
 type TilePointerTarget = {
@@ -641,7 +658,24 @@ function findNearestHexTile(point: { x: number; y: number }) {
   return closest;
 }
 
+function parseSvgPointList(points: string): SvgPoint[] {
+  return points.split(" ").flatMap((point) => {
+    const [xRaw, yRaw] = point.split(",");
+    const x = Number(xRaw);
+    const y = Number(yRaw);
+
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      return [];
+    }
+
+    return [{ x, y }];
+  });
+}
+
 const HEX_TILE_BY_ID = new Map(HEX_TILES.map((tile) => [tile.id, tile]));
+const HEX_TILE_BY_COORD = new Map(
+  HEX_TILES.map((tile) => [`${tile.col}:${tile.row}`, tile])
+);
 const PATH_HEX_LOOKUP = new Map(
   HEX_TILES.map((tile) => [
     tile.id,
@@ -656,6 +690,12 @@ const PATH_HEX_BY_COORD = new Map(
 );
 const HEX_TILE_POLYGON_POINTS = new Map(
   HEX_TILES.map((tile) => [tile.id, getHexPolygonPoints(tile.x, tile.y)])
+);
+const HEX_TILE_POLYGON_POINT_PAIRS = new Map(
+  Array.from(HEX_TILE_POLYGON_POINTS, ([tileId, points]) => [
+    tileId,
+    parseSvgPointList(points),
+  ])
 );
 const HEX_TILE_INNER_POINTS = new Map(
   HEX_TILES.map((tile) => [
@@ -732,6 +772,24 @@ const BATTALION_MODE_COLORS: Record<string, string> = {
   ATTACK: "#ffb040",
   ALLIANCE: "#c080ff",
 };
+const HEX_NEIGHBOR_OFFSETS_BY_ROW_PARITY = {
+  even: [
+    [-1, -1],
+    [0, -1],
+    [-1, 0],
+    [1, 0],
+    [-1, 1],
+    [0, 1],
+  ],
+  odd: [
+    [0, -1],
+    [1, -1],
+    [-1, 0],
+    [1, 0],
+    [0, 1],
+    [1, 1],
+  ],
+} as const;
 const BATTALION_RACE_TIER_LABELS: Record<string, string[]> = {
   DWARFS: ["", "⛏", "⛏⛏", "⛏⛏⛏"],
   ORKS: ["", "💀", "💀💀", "💀💀💀"],
@@ -772,6 +830,99 @@ function blendRgb(
   const g = Math.round(a[1] + (b[1] - a[1]) * ratio);
   const bl = Math.round(a[2] + (b[2] - a[2]) * ratio);
   return `rgb(${r},${g},${bl})`;
+}
+
+function getFacingHexEdge(
+  points: SvgPoint[],
+  target: { x: number; y: number }
+): { from: SvgPoint; to: SvgPoint } | null {
+  if (points.length < 2) {
+    return null;
+  }
+
+  let closestEdge: { from: SvgPoint; to: SvgPoint } | null = null;
+  let closestDistance = Infinity;
+
+  for (let index = 0; index < points.length; index += 1) {
+    const from = points[index]!;
+    const to = points[(index + 1) % points.length]!;
+    const midpointX = (from.x + to.x) / 2;
+    const midpointY = (from.y + to.y) / 2;
+    const distance =
+      (midpointX - target.x) ** 2 + (midpointY - target.y) ** 2;
+
+    if (distance < closestDistance) {
+      closestDistance = distance;
+      closestEdge = { from, to };
+    }
+  }
+
+  return closestEdge;
+}
+
+function getTerritoryBorderSegments(
+  mapHexes: MapHexOwnershipMarker[]
+): TerritoryBorderSegment[] {
+  const ownerByTileId = new Map<string, string>();
+  for (const hex of mapHexes) {
+    if (hex.ownerFortressId) {
+      ownerByTileId.set(hex.tileId, hex.ownerFortressId);
+    }
+  }
+
+  const segments: TerritoryBorderSegment[] = [];
+  for (const tile of HEX_TILES) {
+    if (!tile.claimable) {
+      continue;
+    }
+
+    const ownerFortressId = ownerByTileId.get(tile.id);
+    if (!ownerFortressId) {
+      continue;
+    }
+
+    const neighborOffsets =
+      tile.row % 2 === 0
+        ? HEX_NEIGHBOR_OFFSETS_BY_ROW_PARITY.even
+        : HEX_NEIGHBOR_OFFSETS_BY_ROW_PARITY.odd;
+
+    for (const [colOffset, rowOffset] of neighborOffsets) {
+      const neighbor = HEX_TILE_BY_COORD.get(
+        `${tile.col + colOffset}:${tile.row + rowOffset}`
+      );
+
+      if (!neighbor || !neighbor.claimable || tile.id > neighbor.id) {
+        continue;
+      }
+
+      const neighborOwnerFortressId = ownerByTileId.get(neighbor.id);
+      if (
+        !neighborOwnerFortressId ||
+        neighborOwnerFortressId === ownerFortressId
+      ) {
+        continue;
+      }
+
+      const edge = getFacingHexEdge(
+        HEX_TILE_POLYGON_POINT_PAIRS.get(tile.id) ?? [],
+        neighbor
+      );
+
+      if (!edge) {
+        continue;
+      }
+
+      segments.push({
+        id: `${tile.id}-${neighbor.id}`,
+        x1: edge.from.x,
+        y1: edge.from.y,
+        x2: edge.to.x,
+        y2: edge.to.y,
+      });
+    }
+  }
+
+  return segments;
 }
 
 // ── Hex Tile Map ─────────────────────────────────────────────────────────────
@@ -974,6 +1125,10 @@ const HexTileMap = memo(function HexTileMap({
     () => new Set(highlightedTileIds),
     [highlightedTileIds]
   );
+  const territoryBorderSegments = useMemo(
+    () => getTerritoryBorderSegments(mapHexes),
+    [mapHexes]
+  );
 
   // Compute pressure heatmap fill color for a tile
   const pressureFillByTileId = useMemo(() => {
@@ -1017,10 +1172,15 @@ const HexTileMap = memo(function HexTileMap({
           hex.pressureLeaderFortressId
         );
         const raceRgb = RACE_PRESSURE_COLORS[leaderRace ?? ""] ?? null;
-        if (raceRgb && hex.pressureThreshold) {
+        const pressureFillThreshold =
+          hex.pressureLeaderThreshold ?? hex.pressureThreshold;
+        const pressureFillProgress =
+          hex.pressureLeaderProgress ?? hex.pressureProgress;
+
+        if (raceRgb && pressureFillThreshold && pressureFillProgress != null) {
           const ratio = Math.min(
             1,
-            hex.pressureProgress / hex.pressureThreshold
+            pressureFillProgress / pressureFillThreshold
           );
           // Very subtle — max 20% race color at full pressure
           fills.set(hex.tileId, blendRgb(biomeRgb, raceRgb, ratio * 0.2));
@@ -1201,8 +1361,12 @@ const HexTileMap = memo(function HexTileMap({
                   }`
                 : `${isHomeTile ? "Home of A, neutral control point" : `${BIOME_LABELS[tile.biome]}, unclaimed`}${
                     ownership?.pressureProgress != null &&
-                    ownership.pressureThreshold != null
-                      ? `, pressure ${ownership.pressureProgress}/${ownership.pressureThreshold}`
+                    (ownership.pressureLeaderThreshold ??
+                      ownership.pressureThreshold) != null
+                      ? `, pressure ${ownership.pressureProgress}/${
+                          ownership.pressureLeaderThreshold ??
+                          ownership.pressureThreshold
+                        }`
                       : ""
                   }, ${bonus.label}`
             }
@@ -1356,6 +1520,28 @@ const HexTileMap = memo(function HexTileMap({
           </g>
         );
       })}
+      {territoryBorderSegments.length > 0 ? (
+        <g className={styles.territoryBorders}>
+          {territoryBorderSegments.map((segment) => (
+            <Fragment key={segment.id}>
+              <line
+                className={styles.territoryBorderShadow}
+                x1={segment.x1}
+                y1={segment.y1}
+                x2={segment.x2}
+                y2={segment.y2}
+              />
+              <line
+                className={styles.territoryBorder}
+                x1={segment.x1}
+                y1={segment.y1}
+                x2={segment.x2}
+                y2={segment.y2}
+              />
+            </Fragment>
+          ))}
+        </g>
+      ) : null}
     </svg>
   );
 });

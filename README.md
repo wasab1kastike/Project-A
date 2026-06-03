@@ -239,6 +239,7 @@ The game is now a castle-economy and battlefield-control loop:
 - battalion max-size capacity changes are free within the battalion tier cap
 - active army, not queued army, consumes food upkeep at 0.01 food per unit per tick; if upkeep cannot be paid, food falls to zero and active army loses 2% that tick
 - neutral tiles are acquired automatically through an ordered pressure-priority queue until the fortress reaches its tile capacity; the first 8 normal tiles are free to maintain after claiming, each pressure worker supports 2 more before skill and race bonuses, and excess owned tiles decay back toward neutral when capacity drops
+- when multiple fortresses pressure the same tile in Season 4, the castle closer to that tile gets stronger effective pressure; against non-allied owned tiles, closer hostile pressure also disrupts enemy ownership faster
 - the Castle Diplomacy tab supports bilateral alliances with fixed trust escrow tiers plus optional break collateral; betrayal immediately begins war, pays what it can, and records unpaid collateral as debt
 - the Castle Diplomacy tab supports peace offers with visible demands from either side, while trade offers move accepted gold, food, army, score points, and allied tile deeds as six-hour-minimum convoy legs; Trade Wagon building upgrades raise each wagon run's gold+food capacity from 100 up to 20,000, and larger trades queue multiple runs
 - fortresses can run 3 active outbound trade wagons by default; skill nodes can raise active wagon count, wagon capacity, and trade profit

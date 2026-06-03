@@ -161,12 +161,18 @@ export default function CommandDock({
   const pathname = usePathname();
   const tickBadge = getTickBadge(tickHealth);
   const incomingOffersCount = state.incomingOfferCount ?? 0;
+  const pendingDiplomacyCount = state.pendingDiplomacyCount ?? 0;
+  const pendingDiplomacyActionCount =
+    incomingOffersCount + pendingDiplomacyCount;
   const incidentCount = state.incidentCount ?? 0;
   const showPlayerStatus = Boolean(state.cycle && state.playerSummary);
 
   function getLinkBadge(href: (typeof DOCK_LINKS)[number]["href"]) {
-    if (href === "/wiki") {
-      return { text: String(incomingOffersCount), severity: "info" } as const;
+    if (href === "/castle" && pendingDiplomacyActionCount > 0) {
+      return {
+        text: String(pendingDiplomacyActionCount),
+        severity: "warning",
+      } as const;
     }
 
     if (href === "/" && incidentCount > 0) {

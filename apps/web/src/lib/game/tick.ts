@@ -124,6 +124,8 @@ import {
   chooseAutoTilePressurePriorityCandidates,
   getDistanceAdjustedTilePressureClaimThreshold,
   getDistanceAdjustedTilePressureDecayPercent,
+  getEffectiveEnemyPressureOnOwnedTile,
+  getEffectiveTilePressure,
   getNeutralPressureClaimWinner,
   getPressureTargetBlockedReason,
   getExpansionTileCapacity,
@@ -141,6 +143,7 @@ import {
 import {
   getCanonicalDiplomacyPair,
   getCasusBelliExpiresAt,
+  getDiplomacyPressureBlockedReason,
   getEffectiveDiplomacyStatus,
 } from "./politics";
 import {
@@ -626,9 +629,6 @@ async function processTilePressureExpansion({
 
       return relationByPairKey.get(`${pair.fortressAId}:${pair.fortressBId}`);
     };
-    const ownedExpansionTileIds = ownerships
-      .map((ownership) => ownership.tileId)
-      .filter((tileId) => !isHomeOfATile(tileId));
     const ownedTileIdsByFortressId = new Map<string, string[]>();
     const ownedTileBiomesByFortressId = new Map<
       string,
@@ -765,17 +765,6 @@ async function processTilePressureExpansion({
       await normalizePriorityWeights(fortress);
     };
 
-    if (ownedExpansionTileIds.length > 0) {
-      await tx.tilePressureState.deleteMany({
-        where: {
-          cycleId,
-          tileId: {
-            in: ownedExpansionTileIds,
-          },
-        },
-      });
-    }
-
     const storedPressureStates = isSeasonFour
       ? await tx.tilePressureState.findMany({
           where: {
@@ -793,8 +782,48 @@ async function processTilePressureExpansion({
       : [];
 
     for (const state of storedPressureStates) {
-      if (ownerByTileId.has(state.tileId)) {
-        continue;
+      const ownerFortressId = ownerByTileId.get(state.tileId) ?? null;
+
+      if (ownerFortressId) {
+        const fortress = fortressById.get(state.fortressId);
+        const relation =
+          fortress && ownerFortressId !== state.fortressId
+            ? getDiplomacyRelationForPair(state.fortressId, ownerFortressId)
+            : null;
+        const ownedTileIds =
+          fortress && ownerFortressId !== state.fortressId
+            ? (ownedTileIdsByFortressId.get(state.fortressId) ?? [])
+            : [];
+        const isLegalOwnedPressure =
+          fortress !== undefined &&
+          ownerFortressId !== state.fortressId &&
+          getPressureTargetBlockedReason({
+            tile: getTileById(state.tileId),
+            tileId: state.tileId,
+            ownerFortressId,
+            diplomacyBlockedReason: getDiplomacyPressureBlockedReason({
+              relation,
+              now: tickAt,
+            }),
+            fortress,
+            ownedTileIds,
+            isHomeOfA: isHomeOfATile,
+            isConnected: ({ tileId, ownedTileIds }) =>
+              isTileConnectedToFortressOrOwnedTiles({
+                tileId,
+                fortress,
+                ownedTileIds,
+              }),
+          }) === null;
+
+        if (!isLegalOwnedPressure) {
+          await tx.tilePressureState.delete({
+            where: {
+              id: state.id,
+            },
+          });
+          continue;
+        }
       }
 
       const decayFrom = state.lastDecayedAt ?? state.lastPressuredAt;
@@ -874,21 +903,20 @@ async function processTilePressureExpansion({
           ownerFortressId && ownerFortressId !== fortress.id
             ? getDiplomacyRelationForPair(fortress.id, ownerFortressId)
             : null;
-        const effectiveStatus = getEffectiveDiplomacyStatus({
-          relation,
-          now: tickAt,
-        });
 
         return (
           getPressureTargetBlockedReason({
             tile: getTileById(tileId),
             tileId,
             ownerFortressId,
+            diplomacyBlockedReason: getDiplomacyPressureBlockedReason({
+              relation,
+              now: tickAt,
+            }),
             fortress,
             ownedTileIds,
             isHomeOfA: isHomeOfATile,
             isConnected,
-            allowEnemyOwned: effectiveStatus === DiplomacyRelationStatus.WAR,
           }) === null
         );
       };
@@ -937,19 +965,28 @@ async function processTilePressureExpansion({
         await normalizePriorityWeights(fortress);
       }
 
-      if (pressure <= 0 || ownedTileIds.length >= expansionTileCapacity) {
+      if (pressure <= 0) {
         continue;
       }
 
-      const legalNeutralPressurePriorities = sortTilePressureQueue(
+      const legalPressurePriorities = sortTilePressureQueue(
         prioritiesByFortressId.get(fortress.id) ?? []
-      ).filter((priority) => isLegalNeutralPressureTile(priority.tileId));
+      ).filter((priority) => isLegalPriorityTarget(priority.tileId));
+      const legalPressureTargets = legalPressurePriorities.filter((priority) => {
+        const ownerFortressId = ownerByTileId.get(priority.tileId) ?? null;
+
+        return ownerFortressId
+          ? ownerFortressId !== fortress.id
+          : ownedTileIds.length < expansionTileCapacity;
+      });
       const targets =
-        legalNeutralPressurePriorities.length > 0
-          ? legalNeutralPressurePriorities.slice(0, 1)
-          : claimableTiles
-              .filter((tile) => isLegalNeutralPressureTile(tile.id))
-              .map((tile) => ({ tileId: tile.id, weight: 1 }));
+        legalPressureTargets.length > 0
+          ? legalPressureTargets.slice(0, 1)
+          : ownedTileIds.length < expansionTileCapacity
+            ? claimableTiles
+                .filter((tile) => isLegalNeutralPressureTile(tile.id))
+                .map((tile) => ({ tileId: tile.id, weight: 1 }))
+            : [];
 
       for (const allocation of allocatePressureAcrossTargets({
         pressure,
@@ -1006,17 +1043,34 @@ async function processTilePressureExpansion({
           pressure: true,
         },
       });
-      const eligibleStates = states.filter((state) => {
+      const eligibleStates = states.flatMap((state) => {
         const fortress = fortressById.get(state.fortressId);
-        const threshold = fortress
-          ? getDistanceAdjustedTilePressureClaimThreshold({
+
+        if (!fortress) {
+          return state.pressure >= claimThreshold ? [state] : [];
+        }
+
+        const threshold = getDistanceAdjustedTilePressureClaimThreshold({
+          isSeasonFour,
+          fortress,
+          tileId,
+        });
+
+        if (state.pressure < threshold) {
+          return [];
+        }
+
+        return [
+          {
+            ...state,
+            effectivePressure: getEffectiveTilePressure({
               isSeasonFour,
               fortress,
               tileId,
-            })
-          : claimThreshold;
-
-        return state.pressure >= threshold;
+              pressure: state.pressure,
+            }),
+          },
+        ];
       });
       const winnerFortressId = getNeutralPressureClaimWinner({
         states: eligibleStates,
@@ -3659,15 +3713,38 @@ async function processCycleTick(
       where: { cycleId },
       select: { tileId: true, fortressId: true, pressure: true },
     });
-    const enemyPressureByTile = new Map<string, number>();
-    for (const ep of enemyPressures) {
-      const existing = enemyPressureByTile.get(ep.tileId) ?? 0;
-      enemyPressureByTile.set(ep.tileId, existing + ep.pressure);
-    }
     const pressureWorkersByFortress = new Map<string, number>();
     const lightFortressById = new Map(
       lightFortresses.map((fortress) => [fortress.id, fortress])
     );
+    const ownershipByTileId = new Map(
+      allOwnerships.map((ownership) => [ownership.tileId, ownership])
+    );
+    const enemyPressureByTile = new Map<string, number>();
+    for (const ep of enemyPressures) {
+      const ownership = ownershipByTileId.get(ep.tileId);
+
+      if (!ownership || ep.fortressId === ownership.ownerFortressId) {
+        continue;
+      }
+
+      const attackerFortress = lightFortressById.get(ep.fortressId);
+      const ownerFortress = lightFortressById.get(ownership.ownerFortressId);
+
+      if (!attackerFortress || !ownerFortress) {
+        continue;
+      }
+
+      const effectivePressure = getEffectiveEnemyPressureOnOwnedTile({
+        isSeasonFour,
+        tileId: ep.tileId,
+        pressure: ep.pressure,
+        attackerFortress,
+        ownerFortress,
+      });
+      const existing = enemyPressureByTile.get(ep.tileId) ?? 0;
+      enemyPressureByTile.set(ep.tileId, existing + effectivePressure);
+    }
     for (const f of lightFortresses) {
       pressureWorkersByFortress.set(f.id, f.pressureWorkersAssigned ?? 0);
     }

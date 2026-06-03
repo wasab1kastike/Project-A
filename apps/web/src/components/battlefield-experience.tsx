@@ -1952,10 +1952,21 @@ export function BattlefieldExperience({
                 {selectedOwnership.pressureThreshold != null
                   ? `You ${selectedOwnership.pressurePlayerProgress ?? 0}/${selectedOwnership.pressureThreshold}`
                   : "-"}
+                {selectedOwnership.pressurePlayerEffectiveProgress != null &&
+                selectedOwnership.pressurePlayerProgress !==
+                  selectedOwnership.pressurePlayerEffectiveProgress
+                  ? ` · effective ${selectedOwnership.pressurePlayerEffectiveProgress}`
+                  : ""}
                 {selectedOwnership.pressureLeaderLabel &&
-                selectedOwnership.pressureProgress != null &&
-                selectedOwnership.pressureThreshold != null
-                  ? ` · leader: ${selectedOwnership.pressureLeaderLabel} ${selectedOwnership.pressureProgress}/${selectedOwnership.pressureThreshold}`
+                selectedOwnership.pressureLeaderProgress != null &&
+                selectedOwnership.pressureLeaderThreshold != null
+                  ? ` · leader: ${selectedOwnership.pressureLeaderLabel} ${selectedOwnership.pressureLeaderProgress}/${selectedOwnership.pressureLeaderThreshold}${
+                      selectedOwnership.pressureLeaderEffectiveProgress != null &&
+                      selectedOwnership.pressureLeaderProgress !==
+                        selectedOwnership.pressureLeaderEffectiveProgress
+                        ? ` effective ${selectedOwnership.pressureLeaderEffectiveProgress}`
+                        : ""
+                    }`
                   : ""}
               </dd>
               {selectedOwnership.ownershipPressure != null ? (

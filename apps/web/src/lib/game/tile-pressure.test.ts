@@ -11,6 +11,8 @@ import {
   findCastleAnchorTile,
   getDistanceAdjustedTilePressureClaimThreshold,
   getDistanceAdjustedTilePressureDecayPercent,
+  getEffectiveEnemyPressureOnOwnedTile,
+  getEffectiveTilePressure,
   getExpansionTileCapacity,
   getHexRingDistance,
   getNeutralPressureClaimWinner,
@@ -378,24 +380,24 @@ test("pressure target legality rejects Home of A and own tiles", () => {
   );
 });
 
-test("pressure target legality rejects enemy-owned tiles", () => {
-  assert.match(
-    getPressureTargetBlockedReason({
-      ...baseTargetInput,
-      ownerFortressId: "fortress-b",
-    }) ?? "",
-    /Enemy-owned/
-  );
-});
-
-test("pressure target legality allows enemy-owned tiles only when explicitly enabled", () => {
+test("pressure target legality accepts non-allied owned tiles", () => {
   assert.equal(
     getPressureTargetBlockedReason({
       ...baseTargetInput,
       ownerFortressId: "fortress-b",
-      allowEnemyOwned: true,
     }),
     null
+  );
+});
+
+test("pressure target legality rejects diplomacy-blocked owned tiles", () => {
+  assert.match(
+    getPressureTargetBlockedReason({
+      ...baseTargetInput,
+      ownerFortressId: "fortress-b",
+      diplomacyBlockedReason: "Allies cannot pressure each other's territory.",
+    }) ?? "",
+    /Allies cannot pressure/
   );
 });
 
@@ -496,5 +498,179 @@ test("neutral pressure claim requires threshold and no tie", () => {
       ],
     }),
     "a"
+  );
+});
+
+test("effective pressure favors closer castles in neutral contests", () => {
+  const tiles = Array.from({ length: 8 }, (_, index) => ({
+    id: `${index}:0`,
+    col: index,
+    row: 0,
+    x: 0,
+    y: 0,
+    xPercent: index * 10,
+    yPercent: 0,
+    biome: "plains" as const,
+    spawnable: true,
+    claimable: true,
+  }));
+  const closeFortress = { mapX: 0, mapY: 0 };
+  const farFortress = { mapX: 70, mapY: 0 };
+  const tileId = "1:0";
+  const closePressure = getDistanceAdjustedTilePressureClaimThreshold({
+    isSeasonFour: true,
+    fortress: closeFortress,
+    tileId,
+    tiles,
+  });
+  const farPressure = getDistanceAdjustedTilePressureClaimThreshold({
+    isSeasonFour: true,
+    fortress: farFortress,
+    tileId,
+    tiles,
+  });
+
+  assert.equal(closePressure, 600);
+  assert.equal(farPressure, 900);
+  assert.equal(
+    getNeutralPressureClaimWinner({
+      states: [
+        {
+          fortressId: "close",
+          pressure: closePressure + 1,
+          effectivePressure: getEffectiveTilePressure({
+            isSeasonFour: true,
+            fortress: closeFortress,
+            tileId,
+            pressure: closePressure + 1,
+            tiles,
+          }),
+        },
+        {
+          fortressId: "far",
+          pressure: farPressure,
+          effectivePressure: getEffectiveTilePressure({
+            isSeasonFour: true,
+            fortress: farFortress,
+            tileId,
+            pressure: farPressure,
+            tiles,
+          }),
+        },
+      ],
+      threshold: 0,
+    }),
+    "close"
+  );
+  assert.equal(
+    getNeutralPressureClaimWinner({
+      states: [
+        {
+          fortressId: "close",
+          pressure: closePressure,
+          effectivePressure: getEffectiveTilePressure({
+            isSeasonFour: true,
+            fortress: closeFortress,
+            tileId,
+            pressure: closePressure,
+            tiles,
+          }),
+        },
+        {
+          fortressId: "far",
+          pressure: farPressure + 200,
+          effectivePressure: getEffectiveTilePressure({
+            isSeasonFour: true,
+            fortress: farFortress,
+            tileId,
+            pressure: farPressure + 200,
+            tiles,
+          }),
+        },
+      ],
+      threshold: 0,
+    }),
+    "far"
+  );
+  assert.equal(
+    getNeutralPressureClaimWinner({
+      states: [
+        {
+          fortressId: "close",
+          pressure: closePressure,
+          effectivePressure: getEffectiveTilePressure({
+            isSeasonFour: true,
+            fortress: closeFortress,
+            tileId,
+            pressure: closePressure,
+            tiles,
+          }),
+        },
+        {
+          fortressId: "far",
+          pressure: farPressure,
+          effectivePressure: getEffectiveTilePressure({
+            isSeasonFour: true,
+            fortress: farFortress,
+            tileId,
+            pressure: farPressure,
+            tiles,
+          }),
+        },
+      ],
+      threshold: 0,
+    }),
+    null
+  );
+});
+
+test("enemy-owned pressure scales by attacker and owner castle distance", () => {
+  const tiles = Array.from({ length: 8 }, (_, index) => ({
+    id: `${index}:0`,
+    col: index,
+    row: 0,
+    x: 0,
+    y: 0,
+    xPercent: index * 10,
+    yPercent: 0,
+    biome: "plains" as const,
+    spawnable: true,
+    claimable: true,
+  }));
+  const tileId = "1:0";
+  const closeFortress = { mapX: 0, mapY: 0 };
+  const equalFortress = { mapX: 20, mapY: 0 };
+  const farFortress = { mapX: 70, mapY: 0 };
+
+  assert.ok(
+    getEffectiveEnemyPressureOnOwnedTile({
+      isSeasonFour: true,
+      tileId,
+      pressure: 100,
+      attackerFortress: closeFortress,
+      ownerFortress: farFortress,
+      tiles,
+    }) > 100
+  );
+  assert.ok(
+    getEffectiveEnemyPressureOnOwnedTile({
+      isSeasonFour: true,
+      tileId,
+      pressure: 100,
+      attackerFortress: farFortress,
+      ownerFortress: closeFortress,
+      tiles,
+    }) < 100
+  );
+  assert.equal(
+    getEffectiveEnemyPressureOnOwnedTile({
+      isSeasonFour: true,
+      tileId,
+      pressure: 100,
+      attackerFortress: equalFortress,
+      ownerFortress: equalFortress,
+      tiles,
+    }),
+    100
   );
 });
