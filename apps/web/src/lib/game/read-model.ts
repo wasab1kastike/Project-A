@@ -103,6 +103,7 @@ import {
 import {
   getNeutralPressureClaimWinner,
   getDistanceAdjustedTilePressureClaimThreshold,
+  getEffectiveTilePressure,
   getExpansionTileCapacity,
   getPressureTargetBlockedReason,
   getTilePressureClaimThreshold,
@@ -3066,10 +3067,6 @@ export async function getHomePageState({
   >();
 
   for (const state of cycle.tilePressureStates) {
-    if (claimedTileIds.has(state.tileId)) {
-      continue;
-    }
-
     const states = pressureStatesByTileId.get(state.tileId) ?? [];
     states.push({
       fortressId: state.fortressId,
@@ -3090,20 +3087,53 @@ export async function getHomePageState({
   };
   const getTilePressureState = (tile: HexTile) => {
     const states = pressureStatesByTileId.get(tile.id) ?? [];
+    const scoredStates = states.map((state) => {
+      const fortress = targetLookup.get(state.fortressId);
+      const pressureThreshold = fortress
+        ? getDistanceAdjustedTilePressureClaimThreshold({
+            isSeasonFour,
+            fortress,
+            tileId: tile.id,
+          })
+        : pressureClaimThreshold;
+      const effectivePressure = fortress
+        ? getEffectiveTilePressure({
+            isSeasonFour,
+            fortress,
+            tileId: tile.id,
+            pressure: state.pressure,
+          })
+        : state.pressure;
+
+      return {
+        ...state,
+        pressureThreshold,
+        effectivePressure,
+      };
+    });
     const ownState = playerFortress
-      ? states.find((state) => state.fortressId === playerFortress.id)
+      ? scoredStates.find((state) => state.fortressId === playerFortress.id)
       : null;
-    const leader = states.reduce<(typeof states)[number] | null>(
+    const leader = scoredStates.reduce<(typeof scoredStates)[number] | null>(
       (currentLeader, state) =>
-        !currentLeader || state.pressure > currentLeader.pressure
+        !currentLeader ||
+        state.effectivePressure > currentLeader.effectivePressure ||
+        (state.effectivePressure === currentLeader.effectivePressure &&
+          state.pressure > currentLeader.pressure)
           ? state
           : currentLeader,
       null
     );
     const pressureLeaderFortressId =
       getNeutralPressureClaimWinner({
-        states,
-        threshold: pressureClaimThreshold,
+        states: scoredStates
+          .filter((state) => state.pressure >= state.pressureThreshold)
+          .map((state) => ({
+            fortressId: state.fortressId,
+            pressure: state.pressure,
+            effectivePressure: state.effectivePressure,
+          })),
+        threshold: 0,
       }) ??
       leader?.fortressId ??
       null;
@@ -3189,8 +3219,12 @@ export async function getHomePageState({
       pressurePriority: priority !== null,
       pressurePriorityRank: priority?.rank ?? null,
       pressurePlayerProgress: ownState?.pressure ?? null,
+      pressurePlayerEffectiveProgress: ownState?.effectivePressure ?? null,
       pressureProgress: ownState?.pressure ?? leader?.pressure ?? null,
       pressureThreshold,
+      pressureLeaderProgress: leader?.pressure ?? null,
+      pressureLeaderEffectiveProgress: leader?.effectivePressure ?? null,
+      pressureLeaderThreshold: leader?.pressureThreshold ?? null,
       pressureLeaderFortressId,
       pressureLeaderLabel,
       canPrioritizePressure: pressurePriorityDisabledReason === null,
@@ -3215,8 +3249,12 @@ export async function getHomePageState({
     pressurePriority: boolean;
     pressurePriorityRank: number | null;
     pressurePlayerProgress: number | null;
+    pressurePlayerEffectiveProgress: number | null;
     pressureProgress: number | null;
     pressureThreshold: number | null;
+    pressureLeaderProgress: number | null;
+    pressureLeaderEffectiveProgress: number | null;
+    pressureLeaderThreshold: number | null;
     pressureLeaderFortressId: string | null;
     pressureLeaderLabel: string | null;
     canPrioritizePressure: boolean;
@@ -3290,8 +3328,12 @@ export async function getHomePageState({
           pressurePriority: false,
           pressurePriorityRank: null,
           pressurePlayerProgress: null,
+          pressurePlayerEffectiveProgress: null,
           pressureProgress: null,
           pressureThreshold: null,
+          pressureLeaderProgress: null,
+          pressureLeaderEffectiveProgress: null,
+          pressureLeaderThreshold: null,
           pressureLeaderFortressId: null,
           pressureLeaderLabel: null,
           canPrioritizePressure: false,
@@ -3388,8 +3430,14 @@ export async function getHomePageState({
       pressurePriority: pressureState.pressurePriority,
       pressurePriorityRank: pressureState.pressurePriorityRank,
       pressurePlayerProgress: pressureState.pressurePlayerProgress,
+      pressurePlayerEffectiveProgress:
+        pressureState.pressurePlayerEffectiveProgress,
       pressureProgress: pressureState.pressureProgress,
       pressureThreshold: pressureState.pressureThreshold,
+      pressureLeaderProgress: pressureState.pressureLeaderProgress,
+      pressureLeaderEffectiveProgress:
+        pressureState.pressureLeaderEffectiveProgress,
+      pressureLeaderThreshold: pressureState.pressureLeaderThreshold,
       pressureLeaderFortressId: pressureState.pressureLeaderFortressId,
       pressureLeaderLabel: pressureState.pressureLeaderLabel,
       attackPriority: 0,
@@ -3505,8 +3553,12 @@ export async function getHomePageState({
       pressurePriority: false,
       pressurePriorityRank: null,
       pressurePlayerProgress: null,
+      pressurePlayerEffectiveProgress: null,
       pressureProgress: null,
       pressureThreshold: null,
+      pressureLeaderProgress: null,
+      pressureLeaderEffectiveProgress: null,
+      pressureLeaderThreshold: null,
       pressureLeaderFortressId: null,
       pressureLeaderLabel: null,
       attackPriority: 0,
@@ -3581,8 +3633,14 @@ export async function getHomePageState({
       pressurePriority: pressureState.pressurePriority,
       pressurePriorityRank: pressureState.pressurePriorityRank,
       pressurePlayerProgress: pressureState.pressurePlayerProgress,
+      pressurePlayerEffectiveProgress:
+        pressureState.pressurePlayerEffectiveProgress,
       pressureProgress: pressureState.pressureProgress,
       pressureThreshold: pressureState.pressureThreshold,
+      pressureLeaderProgress: pressureState.pressureLeaderProgress,
+      pressureLeaderEffectiveProgress:
+        pressureState.pressureLeaderEffectiveProgress,
+      pressureLeaderThreshold: pressureState.pressureLeaderThreshold,
       pressureLeaderFortressId: pressureState.pressureLeaderFortressId,
       pressureLeaderLabel: pressureState.pressureLeaderLabel,
       attackPriority: 0,

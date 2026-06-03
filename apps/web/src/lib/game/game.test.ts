@@ -1423,7 +1423,7 @@ test("pressure tick replaces claimed priorities and uses distance threshold", as
   assert.equal(replacedPriorityCount, getTilePressurePriorityLimit(fortress));
 });
 
-test("pressure tick clears stale enemy-owned priority and avoids enemy pressure", async (context) => {
+test("pressure tick clears non-war enemy-owned priority and pressure", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -1551,6 +1551,151 @@ test("pressure tick clears stale enemy-owned priority and avoids enemy pressure"
   assert.equal(stalePressureStateCount, 0);
   assert.equal(staleOwnership.ownerFortressId, defenderFortress.id);
   assert.ok(attackerOwnedTiles > 0);
+});
+
+test("active-war pressure persists, neutralizes, and claims enemy-owned tile", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const attacker = await createUser(
+    prisma,
+    "war-pressure-attacker@example.com"
+  );
+  const defender = await createUser(
+    prisma,
+    "war-pressure-defender@example.com"
+  );
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: attacker.id,
+      commanderName: "War Pressure",
+      fortressName: "Pressure Keep",
+      points: 100,
+    },
+    {
+      userId: defender.id,
+      commanderName: "War Holder",
+      fortressName: "Holder Keep",
+      points: 100,
+    },
+  ]);
+  await markSeasonFourCycle(prisma, cycle.id);
+  const [attackerFortress, defenderFortress] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: attacker.id,
+        },
+      },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: {
+        cycleId_ownerId: {
+          cycleId: cycle.id,
+          ownerId: defender.id,
+        },
+      },
+    }),
+  ]);
+  await prisma.fortress.update({
+    where: {
+      id: attackerFortress.id,
+    },
+    data: {
+      minersAssigned: 0,
+      farmersAssigned: 0,
+      recruitersAssigned: 0,
+      pressureWorkersAssigned: TILE_PRESSURE_CLAIM_THRESHOLD * 2,
+    },
+  });
+
+  const warTile = HEX_SPAWN_TILES.find(
+    (candidate) =>
+      candidate.spawnable &&
+      isTileConnectedToFortressOrOwnedTiles({
+        tileId: candidate.id,
+        fortress: attackerFortress,
+        ownedTileIds: [],
+      })
+  );
+
+  assert.ok(warTile);
+
+  const [fortressAId, fortressBId] = [
+    attackerFortress.id,
+    defenderFortress.id,
+  ].sort();
+  await prisma.diplomacyRelation.create({
+    data: {
+      cycleId: cycle.id,
+      fortressAId,
+      fortressBId,
+      status: DiplomacyRelationStatus.WAR,
+    },
+  });
+  await prisma.mapHexOwnership.create({
+    data: {
+      cycleId: cycle.id,
+      tileId: warTile.id,
+      ownerFortressId: defenderFortress.id,
+      ownershipPressure: 10,
+      claimedAt: new Date("2026-04-20T12:01:00.000Z"),
+    },
+  });
+  await setTilePressurePriority({
+    userId: attacker.id,
+    tileId: warTile.id,
+    now: new Date("2026-04-20T12:01:30.000Z"),
+    db: prisma,
+  });
+
+  await runGameTick({
+    now: new Date("2026-04-20T12:02:00.000Z"),
+    db: prisma,
+  });
+
+  const [warPressureState, neutralizedOwnership] = await Promise.all([
+    prisma.tilePressureState.findUnique({
+      where: {
+        cycleId_tileId_fortressId: {
+          cycleId: cycle.id,
+          fortressId: attackerFortress.id,
+          tileId: warTile.id,
+        },
+      },
+    }),
+    prisma.mapHexOwnership.findUnique({
+      where: {
+        cycleId_tileId: {
+          cycleId: cycle.id,
+          tileId: warTile.id,
+        },
+      },
+    }),
+  ]);
+
+  assert.ok(warPressureState);
+  assert.equal(neutralizedOwnership, null);
+
+  await runGameTick({
+    now: new Date("2026-04-20T12:03:00.000Z"),
+    db: prisma,
+  });
+
+  const claimed = await prisma.mapHexOwnership.findUnique({
+    where: {
+      cycleId_tileId: {
+        cycleId: cycle.id,
+        tileId: warTile.id,
+      },
+    },
+  });
+
+  assert.equal(claimed?.ownerFortressId, attackerFortress.id);
 });
 
 test("politics war and peace use one canonical relation", async (context) => {

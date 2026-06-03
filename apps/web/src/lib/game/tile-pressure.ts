@@ -227,6 +227,77 @@ export function getDistanceAdjustedTilePressureClaimThreshold({
   );
 }
 
+export function getEffectiveTilePressure({
+  isSeasonFour,
+  fortress,
+  tileId,
+  pressure,
+  tiles = HEX_TILES,
+}: {
+  isSeasonFour: boolean;
+  fortress: { mapX: number; mapY: number };
+  tileId: string;
+  pressure: number;
+  tiles?: readonly HexTile[];
+}) {
+  const rawPressure = Math.max(0, Math.floor(pressure));
+  const baseThreshold = getTilePressureClaimThreshold(isSeasonFour);
+  const adjustedThreshold = getDistanceAdjustedTilePressureClaimThreshold({
+    isSeasonFour,
+    fortress,
+    tileId,
+    tiles,
+  });
+
+  if (rawPressure <= 0 || adjustedThreshold <= 0) {
+    return 0;
+  }
+
+  return Math.floor((rawPressure * baseThreshold) / adjustedThreshold);
+}
+
+export function getEffectiveEnemyPressureOnOwnedTile({
+  isSeasonFour,
+  tileId,
+  pressure,
+  attackerFortress,
+  ownerFortress,
+  tiles = HEX_TILES,
+}: {
+  isSeasonFour: boolean;
+  tileId: string;
+  pressure: number;
+  attackerFortress: { mapX: number; mapY: number };
+  ownerFortress: { mapX: number; mapY: number };
+  tiles?: readonly HexTile[];
+}) {
+  const rawPressure = Math.max(0, Math.floor(pressure));
+
+  if (rawPressure <= 0 || !isSeasonFour) {
+    return rawPressure;
+  }
+
+  const attackerMultiplier = getTilePressureDistanceMultiplier(
+    getTilePressureDistanceRing({
+      fortress: attackerFortress,
+      tileId,
+      tiles,
+    })
+  );
+  const ownerMultiplier = getTilePressureDistanceMultiplier(
+    getTilePressureDistanceRing({
+      fortress: ownerFortress,
+      tileId,
+      tiles,
+    })
+  );
+  const effectivePressure = Math.floor(
+    rawPressure * (ownerMultiplier / attackerMultiplier)
+  );
+
+  return Math.max(1, effectivePressure);
+}
+
 export function getDistanceAdjustedTilePressureDecayPercent({
   fortress,
   tileId,
@@ -494,21 +565,27 @@ export function getNeutralPressureClaimWinner({
   states,
   threshold = TILE_PRESSURE_CLAIM_THRESHOLD,
 }: {
-  states: Array<{ fortressId: string; pressure: number }>;
+  states: Array<{ fortressId: string; pressure: number; effectivePressure?: number }>;
   threshold?: number;
 }) {
   const eligibleStates = states
     .filter((state) => state.pressure >= threshold)
-    .sort((a, b) => b.pressure - a.pressure);
+    .sort(
+      (a, b) =>
+        (b.effectivePressure ?? b.pressure) -
+        (a.effectivePressure ?? a.pressure)
+    );
 
   if (eligibleStates.length === 0) {
     return null;
   }
 
   const leader = eligibleStates[0];
+  const leaderScore = leader.effectivePressure ?? leader.pressure;
   const tied = eligibleStates.some(
     (state) =>
-      state.fortressId !== leader.fortressId && state.pressure === leader.pressure
+      state.fortressId !== leader.fortressId &&
+      (state.effectivePressure ?? state.pressure) === leaderScore
   );
 
   return tied ? null : leader.fortressId;

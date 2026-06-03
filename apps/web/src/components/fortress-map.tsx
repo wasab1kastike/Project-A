@@ -139,8 +139,12 @@ type MapHexOwnershipMarker = {
   pressurePriority?: boolean;
   pressurePriorityRank?: number | null;
   pressurePlayerProgress?: number | null;
+  pressurePlayerEffectiveProgress?: number | null;
   pressureProgress?: number | null;
   pressureThreshold?: number | null;
+  pressureLeaderProgress?: number | null;
+  pressureLeaderEffectiveProgress?: number | null;
+  pressureLeaderThreshold?: number | null;
   pressureLeaderFortressId?: string | null;
   pressureLeaderLabel?: string | null;
   canPrioritizePressure?: boolean;
@@ -1017,10 +1021,15 @@ const HexTileMap = memo(function HexTileMap({
           hex.pressureLeaderFortressId
         );
         const raceRgb = RACE_PRESSURE_COLORS[leaderRace ?? ""] ?? null;
-        if (raceRgb && hex.pressureThreshold) {
+        const pressureFillThreshold =
+          hex.pressureLeaderThreshold ?? hex.pressureThreshold;
+        const pressureFillProgress =
+          hex.pressureLeaderProgress ?? hex.pressureProgress;
+
+        if (raceRgb && pressureFillThreshold && pressureFillProgress != null) {
           const ratio = Math.min(
             1,
-            hex.pressureProgress / hex.pressureThreshold
+            pressureFillProgress / pressureFillThreshold
           );
           // Very subtle — max 20% race color at full pressure
           fills.set(hex.tileId, blendRgb(biomeRgb, raceRgb, ratio * 0.2));
@@ -1201,8 +1210,12 @@ const HexTileMap = memo(function HexTileMap({
                   }`
                 : `${isHomeTile ? "Home of A, neutral control point" : `${BIOME_LABELS[tile.biome]}, unclaimed`}${
                     ownership?.pressureProgress != null &&
-                    ownership.pressureThreshold != null
-                      ? `, pressure ${ownership.pressureProgress}/${ownership.pressureThreshold}`
+                    (ownership.pressureLeaderThreshold ??
+                      ownership.pressureThreshold) != null
+                      ? `, pressure ${ownership.pressureProgress}/${
+                          ownership.pressureLeaderThreshold ??
+                          ownership.pressureThreshold
+                        }`
                       : ""
                   }, ${bonus.label}`
             }
