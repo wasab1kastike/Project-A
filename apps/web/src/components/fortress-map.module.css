@@ -138,6 +138,29 @@
   vector-effect: non-scaling-stroke;
 }
 
+.territoryBorders {
+  pointer-events: none;
+}
+
+.territoryBorderShadow,
+.territoryBorder {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.territoryBorderShadow {
+  stroke: rgba(5, 9, 12, 0.88);
+  stroke-width: 7px;
+}
+
+.territoryBorder {
+  stroke: rgba(255, 249, 220, 0.92);
+  stroke-width: 3px;
+  filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.62));
+}
+
 .hexInner {
   fill: none;
   stroke: rgba(255, 255, 255, 0.08);

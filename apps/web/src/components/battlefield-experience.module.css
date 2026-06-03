@@ -413,6 +413,12 @@
   line-height: 1.35;
 }
 
+@media (min-width: 769px) {
+  .diplomacyMapNotice {
+    top: 60px;
+  }
+}
+
 .priorityQueuePanel {
   display: grid;
   gap: 8px;
