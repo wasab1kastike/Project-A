@@ -3181,10 +3181,6 @@ export async function getHomePageState({
               fortressTwoId: ownerFortressId,
             })
           : null;
-      const effectiveDiplomacyStatus = getEffectiveDiplomacyStatus({
-        relation: diplomacyRelation,
-        now,
-      });
       return (
         getPressureTargetBlockedReason({
           tile,
@@ -3194,10 +3190,6 @@ export async function getHomePageState({
             relation: diplomacyRelation,
             now,
           }),
-          allowEnemyOwned:
-            ownerFortressId !== null &&
-            ownerFortressId !== playerFortress.id &&
-            effectiveDiplomacyStatus === DiplomacyRelationStatus.WAR,
           fortress: playerFortress,
           ownedTileIds: ownedNormalTileIds,
           isHomeOfA: isHomeOfATile,

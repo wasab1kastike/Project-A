@@ -72,7 +72,7 @@ Instead of direct tile attacks, Season 4 uses a pressure system:
 8. If a fortress owns more normal tiles than its tile capacity allows, those owned tiles lose ownership pressure and eventually become neutral at 0.
 9. The priority queue automatically stays filled while the fortress is below its tile capacity, starting at three queue slots and expanding through skills. Pressure goes to the first legal neutral tile in queue order, then the next if the earlier tile is claimed or invalid.
 10. When multiple fortresses pressure the same tile, the winner is chosen by effective pressure: raw pressure adjusted by each castle's distance-based threshold. Closer castles need less raw pressure to win a contest, but farther castles can still win by investing more.
-11. During war, the same queued priorities can include reachable enemy-owned tiles and guide automated War Front target selection. Hostile pressure on owned tiles is also distance-adjusted, so closer attackers disrupt ownership faster and farther attackers disrupt it slower. Automatic refill only chooses neutral expansion targets.
+11. Queued priorities can include reachable non-allied owned tiles. During war, those same enemy-owned priorities also guide automated War Front target selection. Hostile pressure on owned tiles is distance-adjusted, so closer attackers disrupt ownership faster and farther attackers disrupt it slower. Automatic refill only chooses neutral expansion targets.
 
 ---
 

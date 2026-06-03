@@ -463,7 +463,6 @@ export function getPressureTargetBlockedReason({
   ownedTileIds,
   isHomeOfA,
   isConnected,
-  allowEnemyOwned = false,
 }: {
   tile: { claimable: boolean } | null | undefined;
   tileId: string;
@@ -473,7 +472,6 @@ export function getPressureTargetBlockedReason({
   ownedTileIds: Iterable<string>;
   isHomeOfA: (tileId: string) => boolean;
   isConnected: (input: { tileId: string; ownedTileIds: Iterable<string> }) => boolean;
-  allowEnemyOwned?: boolean;
 }) {
   if (!fortress) {
     return "Join the cycle to prioritize expansion.";
@@ -494,10 +492,6 @@ export function getPressureTargetBlockedReason({
   if (ownerFortressId) {
     if (diplomacyBlockedReason) {
       return diplomacyBlockedReason;
-    }
-
-    if (!allowEnemyOwned) {
-      return "Enemy-owned tiles require an active war before they can be queued.";
     }
   }
 

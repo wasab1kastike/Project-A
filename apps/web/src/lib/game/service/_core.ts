@@ -1213,11 +1213,6 @@ export async function setTilePressurePriority({
             },
           })
         : null;
-    const effectiveDiplomacyStatus = getEffectiveDiplomacyStatus({
-      relation: diplomacyRelation,
-      now,
-    });
-
     const ownedTileIds = await tx.mapHexOwnership.findMany({
       where: {
         cycleId: cycle.id,
@@ -1239,11 +1234,6 @@ export async function setTilePressurePriority({
         relation: diplomacyRelation,
         now,
       }),
-      allowEnemyOwned:
-        existing?.ownerFortressId !== undefined &&
-        existing.ownerFortressId !== null &&
-        existing.ownerFortressId !== fortress.id &&
-        effectiveDiplomacyStatus === DiplomacyRelationStatus.WAR,
       fortress,
       ownedTileIds: ownedNormalTileIds,
       isHomeOfA: isHomeOfATile,

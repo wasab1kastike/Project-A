@@ -11,11 +11,11 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
     title: "Closer castles push harder",
     newFeatures: [
       "Season 4 pressure contests now use castle proximity: closer castles get stronger effective pressure on contested tiles, while farther castles can still win by investing more raw pressure.",
-      "Active-war pressure on enemy-owned tiles now persists and disrupts ownership, with closer attackers weakening control faster than distant attackers.",
+      "Non-allied pressure on player-owned tiles now persists and disrupts ownership, with closer attackers weakening control faster than distant attackers.",
       "The map pressure readout now shows effective pressure context so proximity advantages are visible during contests.",
     ],
     bugFixes: [
-      "Enemy-owned pressure priorities during active war now apply pressure instead of being treated like stale neutral-expansion targets.",
+      "Enemy-owned pressure priorities no longer require active war; only allied territory blocks pressure targeting.",
     ],
   },
   {

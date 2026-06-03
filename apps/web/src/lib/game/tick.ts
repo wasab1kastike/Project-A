@@ -143,6 +143,7 @@ import {
 import {
   getCanonicalDiplomacyPair,
   getCasusBelliExpiresAt,
+  getDiplomacyPressureBlockedReason,
   getEffectiveDiplomacyStatus,
 } from "./politics";
 import {
@@ -789,10 +790,6 @@ async function processTilePressureExpansion({
           fortress && ownerFortressId !== state.fortressId
             ? getDiplomacyRelationForPair(state.fortressId, ownerFortressId)
             : null;
-        const effectiveStatus = getEffectiveDiplomacyStatus({
-          relation,
-          now: tickAt,
-        });
         const ownedTileIds =
           fortress && ownerFortressId !== state.fortressId
             ? (ownedTileIdsByFortressId.get(state.fortressId) ?? [])
@@ -804,6 +801,10 @@ async function processTilePressureExpansion({
             tile: getTileById(state.tileId),
             tileId: state.tileId,
             ownerFortressId,
+            diplomacyBlockedReason: getDiplomacyPressureBlockedReason({
+              relation,
+              now: tickAt,
+            }),
             fortress,
             ownedTileIds,
             isHomeOfA: isHomeOfATile,
@@ -813,7 +814,6 @@ async function processTilePressureExpansion({
                 fortress,
                 ownedTileIds,
               }),
-            allowEnemyOwned: effectiveStatus === DiplomacyRelationStatus.WAR,
           }) === null;
 
         if (!isLegalOwnedPressure) {
@@ -903,21 +903,20 @@ async function processTilePressureExpansion({
           ownerFortressId && ownerFortressId !== fortress.id
             ? getDiplomacyRelationForPair(fortress.id, ownerFortressId)
             : null;
-        const effectiveStatus = getEffectiveDiplomacyStatus({
-          relation,
-          now: tickAt,
-        });
 
         return (
           getPressureTargetBlockedReason({
             tile: getTileById(tileId),
             tileId,
             ownerFortressId,
+            diplomacyBlockedReason: getDiplomacyPressureBlockedReason({
+              relation,
+              now: tickAt,
+            }),
             fortress,
             ownedTileIds,
             isHomeOfA: isHomeOfATile,
             isConnected,
-            allowEnemyOwned: effectiveStatus === DiplomacyRelationStatus.WAR,
           }) === null
         );
       };

@@ -1423,7 +1423,7 @@ test("pressure tick replaces claimed priorities and uses distance threshold", as
   assert.equal(replacedPriorityCount, getTilePressurePriorityLimit(fortress));
 });
 
-test("pressure tick clears non-war enemy-owned priority and pressure", async (context) => {
+test("pressure tick clears allied-owned priority and pressure", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -1501,6 +1501,18 @@ test("pressure tick clears non-war enemy-owned priority and pressure", async (co
     now: new Date("2026-04-20T12:01:00.000Z"),
     db: prisma,
   });
+  const [fortressAId, fortressBId] = [
+    attackerFortress.id,
+    defenderFortress.id,
+  ].sort();
+  await prisma.diplomacyRelation.create({
+    data: {
+      cycleId: cycle.id,
+      fortressAId,
+      fortressBId,
+      status: DiplomacyRelationStatus.ALLIED,
+    },
+  });
   await prisma.mapHexOwnership.create({
     data: {
       cycleId: cycle.id,
@@ -1553,7 +1565,7 @@ test("pressure tick clears non-war enemy-owned priority and pressure", async (co
   assert.ok(attackerOwnedTiles > 0);
 });
 
-test("active-war pressure persists, neutralizes, and claims enemy-owned tile", async (context) => {
+test("non-allied pressure persists, neutralizes, and claims enemy-owned tile", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
   if (!prisma) {
@@ -1625,18 +1637,6 @@ test("active-war pressure persists, neutralizes, and claims enemy-owned tile", a
 
   assert.ok(warTile);
 
-  const [fortressAId, fortressBId] = [
-    attackerFortress.id,
-    defenderFortress.id,
-  ].sort();
-  await prisma.diplomacyRelation.create({
-    data: {
-      cycleId: cycle.id,
-      fortressAId,
-      fortressBId,
-      status: DiplomacyRelationStatus.WAR,
-    },
-  });
   await prisma.mapHexOwnership.create({
     data: {
       cycleId: cycle.id,

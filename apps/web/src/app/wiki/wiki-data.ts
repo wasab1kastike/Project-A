@@ -386,7 +386,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         bullets: [
           "Queued priorities are ordered. The first legal neutral tile receives all current pressure output.",
           "If a queue slot is claimed or becomes invalid, the system appends the nearest legal neutral replacement while you are below tile capacity.",
-          "During war, queued enemy border tiles guide automated War Front targeting and can pressure enemy ownership.",
+          "Queued non-allied border tiles can pressure player ownership; during war, those same enemy priorities guide automated War Front targeting.",
           "Hostile pressure on owned tiles is distance-adjusted: closer attackers disrupt ownership faster, while farther attackers need more pressure.",
           `Owned tiles decay by ${OWNERSHIP_PRESSURE_DECAY_PER_TICK} ownership pressure per tick.`,
           `Each maintenance worker restores ${OWNERSHIP_PRESSURE_MAINTENANCE_PER_WORKER} pressure per tick.`,

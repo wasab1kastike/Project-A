@@ -380,24 +380,24 @@ test("pressure target legality rejects Home of A and own tiles", () => {
   );
 });
 
-test("pressure target legality rejects enemy-owned tiles", () => {
-  assert.match(
-    getPressureTargetBlockedReason({
-      ...baseTargetInput,
-      ownerFortressId: "fortress-b",
-    }) ?? "",
-    /Enemy-owned/
-  );
-});
-
-test("pressure target legality allows enemy-owned tiles only when explicitly enabled", () => {
+test("pressure target legality accepts non-allied owned tiles", () => {
   assert.equal(
     getPressureTargetBlockedReason({
       ...baseTargetInput,
       ownerFortressId: "fortress-b",
-      allowEnemyOwned: true,
     }),
     null
+  );
+});
+
+test("pressure target legality rejects diplomacy-blocked owned tiles", () => {
+  assert.match(
+    getPressureTargetBlockedReason({
+      ...baseTargetInput,
+      ownerFortressId: "fortress-b",
+      diplomacyBlockedReason: "Allies cannot pressure each other's territory.",
+    }) ?? "",
+    /Allies cannot pressure/
   );
 });
 
