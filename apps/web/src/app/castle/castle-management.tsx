@@ -74,6 +74,7 @@ import {
   calculateTickProduction,
   validateWorkerAssignments,
 } from "@/lib/game/balance";
+import { FIELD_PROMOTION_BASE_COST } from "@/lib/game/army-xp";
 import {
   getPressureWorkerDescription,
   getPressureWorkerLabel,
@@ -2973,69 +2974,74 @@ export function CastleManagement({
                           </button>
                           {bn.tier < 3 ? (
                             (() => {
-                              const baseCost =
-                                [2000, 8000, 25000, 0][bn.tier] ?? 0;
-                            const perUnit = bn.size * 8;
-                            const totalCost = baseCost + perUnit;
-                            return (
-                              <button
-                                type="button"
-                                title={`Promote to tier ${bn.tier + 1}: ${totalCost.toLocaleString()} gold`}
-                                onClick={async () => {
-                                  const { promoteBattalionAction } =
-                                    await import("@/app/game-actions");
-                                  const result = await promoteBattalionAction({
-                                    battalionId: bn.id,
-                                  });
-                                  if (result.ok) refreshView();
-                                  else window.alert(result.error);
-                                }}
-                                disabled={bn.tier >= 3}
-                                style={{
-                                  fontSize: 11,
-                                  padding: "2px 6px",
-                                  background: "var(--bg-raised)",
-                                  border: "1px solid #ffd700",
-                                  borderRadius: 3,
-                                  color:
-                                    bn.tier >= 3
-                                      ? "var(--text-muted)"
-                                      : "#ffd700",
-                                  cursor: bn.tier >= 3 ? "default" : "pointer",
-                                }}
-                              >
-                                Promote ({totalCost.toLocaleString()}g)
-                              </button>
-                            );
-                          })()
-                        ) : (
-                          <span style={{ fontSize: 11, color: "#ffd700" }}>
-                            MAX TIER
-                          </span>
-                        )}
+                              const totalCost =
+                                FIELD_PROMOTION_BASE_COST[
+                                  bn.tier as keyof typeof FIELD_PROMOTION_BASE_COST
+                                ] ?? 0;
+
+                              return (
+                                <button
+                                  type="button"
+                                  title={`Promote to tier ${bn.tier + 1}: ${totalCost.toLocaleString()} gold`}
+                                  onClick={async () => {
+                                    const { promoteBattalionAction } =
+                                      await import("@/app/game-actions");
+                                    const result = await promoteBattalionAction({
+                                      battalionId: bn.id,
+                                    });
+                                    if (result.ok) refreshView();
+                                    else window.alert(result.error);
+                                  }}
+                                  disabled={bn.tier >= 3}
+                                  style={{
+                                    fontSize: 11,
+                                    padding: "2px 6px",
+                                    background: "var(--bg-raised)",
+                                    border: "1px solid #ffd700",
+                                    borderRadius: 3,
+                                    color:
+                                      bn.tier >= 3
+                                        ? "var(--text-muted)"
+                                        : "#ffd700",
+                                    cursor:
+                                      bn.tier >= 3 ? "default" : "pointer",
+                                  }}
+                                >
+                                  Promote ({totalCost.toLocaleString()}g)
+                                </button>
+                              );
+                            })()
+                          ) : (
+                            <span style={{ fontSize: 11, color: "#ffd700" }}>
+                              MAX TIER
+                            </span>
+                          )}
                           <button
                             type="button"
                             onClick={async () => {
-                            if (
-                              !confirm(`Disband ${bn.name}? 50% gold refund.`)
-                            )
-                              return;
-                            const { disbandBattalionAction } =
-                              await import("@/app/game-actions");
-                            await disbandBattalionAction({
-                              battalionId: bn.id,
-                            });
-                            refreshView();
-                          }}
-                          style={{
-                            fontSize: 11,
-                            padding: "2px 8px",
-                            background: "var(--bg-raised)",
-                            border: "1px solid #f44336",
-                            borderRadius: 3,
-                            color: "#f44336",
-                            cursor: "pointer",
-                          }}
+                              if (
+                                !confirm(
+                                  `Disband ${bn.name}? 50% gold refund.`,
+                                )
+                              )
+                                return;
+                              const { disbandBattalionAction } = await import(
+                                "@/app/game-actions"
+                              );
+                              await disbandBattalionAction({
+                                battalionId: bn.id,
+                              });
+                              refreshView();
+                            }}
+                            style={{
+                              fontSize: 11,
+                              padding: "2px 8px",
+                              background: "var(--bg-raised)",
+                              border: "1px solid #f44336",
+                              borderRadius: 3,
+                              color: "#f44336",
+                              cursor: "pointer",
+                            }}
                           >
                             Disband
                           </button>
