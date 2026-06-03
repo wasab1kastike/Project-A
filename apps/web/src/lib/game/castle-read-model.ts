@@ -91,6 +91,7 @@ import {
 } from "./nukes";
 import { getTradeWagonResourceLimit } from "./trading";
 import { getEffectiveDiplomacyStatus } from "./politics";
+import { getBattalionSlots } from "./battalion-types";
 
 const BUILDING_SPECIALIZATIONS = [
   CastleUpgradeSpecialization.DEFENSE,
@@ -945,6 +946,16 @@ export async function getCastlePageState({
     (playerSkillModifiers?.populationBonus ?? 0) +
     (playerSkillModifiers?.populationPerOwnedTile ?? 0) *
       ownedNormalTiles.length;
+  const playerBattalionSlotLimit =
+    playerFortress && playerCastleSpecializationCounts
+      ? getBattalionSlots(
+          playerCastleSpecializationCounts[
+            CastleUpgradeSpecialization.MILITARY
+          ],
+          0,
+          playerSkillModifiers?.battalionSlotBonus ?? 0
+        )
+      : 0;
   const seasonFourRecords =
     playerFortress && isSeasonFour
       ? await Promise.all([
@@ -1728,6 +1739,14 @@ export async function getCastlePageState({
           ownedTileSummary,
           expansionSummary,
           operationsSummary,
+          battalionSummary: {
+            activeCount: playerFortress.battalions.length,
+            slotLimit: playerBattalionSlotLimit,
+            slotsRemaining: Math.max(
+              0,
+              playerBattalionSlotLimit - playerFortress.battalions.length
+            ),
+          },
           battalions: (playerFortress?.battalions ?? []).map((b) => ({
             id: b.id,
             name: b.name,

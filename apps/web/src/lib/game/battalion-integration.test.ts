@@ -57,15 +57,15 @@ describe("Battalion Tier Multipliers", () => {
 });
 
 describe("Battalion Slots", () => {
-  it("Level 1 fortress has 3 base slots", () => {
+  it("Military building level 1 has 3 base slots", () => {
     assert.equal(getBattalionSlots(1, 0), 3);
   });
 
-  it("Level 5 fortress has 5 base slots", () => {
+  it("Military building level 5 has 5 base slots", () => {
     assert.equal(getBattalionSlots(5, 0), 5);
   });
 
-  it("Level 9 fortress has 7 base slots", () => {
+  it("Military building level 9 has 7 base slots", () => {
     assert.equal(getBattalionSlots(9, 0), 7);
   });
 
