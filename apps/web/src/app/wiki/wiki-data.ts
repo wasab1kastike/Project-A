@@ -163,7 +163,7 @@ const seasonLoop: readonly WikiDiagramStep[] = [
 
 const pressureFlow: readonly WikiDiagramStep[] = [
   { label: "Assign", detail: "Put workers into race-flavored pressure." },
-  { label: "Prioritize", detail: "The queue auto-fills with connected neutral borders." },
+  { label: "Prioritize", detail: "The queue auto-fills with connected non-allied borders." },
   { label: "Claim", detail: "Effective pressure wins, with closer castles needing less raw pressure." },
   { label: "Hold", detail: "8 claimed normal tiles are free to maintain." },
 ];
@@ -215,7 +215,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
           "Choose race carefully; it is locked for the season.",
           "Assign miners, farmers, recruiters, and pressure workers from Castle.",
           `Order army when you can pay ${RECRUITMENT_COST_PER_UNIT} gold per unit, then keep recruiters assigned.`,
-          "Prioritize connected neutral border tiles from the battlefield map.",
+          "Prioritize connected neutral or non-allied border tiles from the battlefield map.",
           "Use Politics and Trade before war so allies, convoys, and targets are clear.",
           `Keep gold for utility; rename alone costs ${ACTIVE_RENAME_COST} gold.`,
         ],
@@ -386,8 +386,8 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         eyebrow: "Holding",
         title: "Ownership pressure",
         bullets: [
-          "Queued priorities are ordered. The first legal neutral tile receives all current pressure output.",
-          "If a queue slot is claimed or becomes invalid, the system appends the nearest legal neutral replacement while you are below tile capacity.",
+          "Queued priorities are ordered. The first legal neutral or non-allied owned tile receives all current pressure output.",
+          "If a queue slot is claimed or becomes invalid, the system appends the nearest legal non-allied replacement while you are below tile capacity.",
           "Queued non-allied border tiles can pressure player ownership; during war, those same enemy priorities guide automated War Front targeting.",
           "Hostile pressure on owned tiles is distance-adjusted: closer attackers disrupt ownership faster, while farther attackers need more pressure.",
           `Owned tiles decay by ${OWNERSHIP_PRESSURE_DECAY_PER_TICK} ownership pressure per tick.`,

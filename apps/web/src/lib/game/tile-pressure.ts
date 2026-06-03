@@ -424,19 +424,19 @@ export function chooseAutoTilePressurePriorityCandidates({
   distanceTiles = HEX_TILES,
   limit,
   existingTileIds = [],
-  isLegalNeutralPressureTile,
+  isLegalPressureTarget,
 }: {
   fortress: { mapX: number; mapY: number };
   tiles: readonly HexTile[];
   distanceTiles?: readonly HexTile[];
   limit: number;
   existingTileIds?: Iterable<string>;
-  isLegalNeutralPressureTile: (tileId: string) => boolean;
+  isLegalPressureTarget: (tileId: string) => boolean;
 }) {
   const existing = new Set(existingTileIds);
 
   return tiles
-    .filter((tile) => !existing.has(tile.id) && isLegalNeutralPressureTile(tile.id))
+    .filter((tile) => !existing.has(tile.id) && isLegalPressureTarget(tile.id))
     .map((tile) => ({
       tileId: tile.id,
       distanceRing: getTilePressureDistanceRing({

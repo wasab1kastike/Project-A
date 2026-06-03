@@ -279,7 +279,7 @@ test("distance adjusted pressure thresholds and decay use gentle capped tiers", 
   );
 });
 
-test("auto pressure candidates prefer nearest legal neutral tiles", () => {
+test("auto pressure candidates prefer nearest legal pressure targets", () => {
   const tiles = [
     {
       id: "0:0",
@@ -338,9 +338,63 @@ test("auto pressure candidates prefer nearest legal neutral tiles", () => {
       distanceTiles: tiles,
       limit: 2,
       existingTileIds: ["1:0"],
-      isLegalNeutralPressureTile: (tileId) => tileId !== "0:0",
+      isLegalPressureTarget: (tileId) => tileId !== "0:0",
     }),
     [{ tileId: "2:0" }, { tileId: "3:0" }]
+  );
+});
+
+test("auto pressure candidates can include non-neutral legal targets", () => {
+  const tiles = [
+    {
+      id: "0:0",
+      col: 0,
+      row: 0,
+      x: 0,
+      y: 0,
+      xPercent: 0,
+      yPercent: 0,
+      biome: "plains" as const,
+      spawnable: true,
+      claimable: true,
+    },
+    {
+      id: "1:0",
+      col: 1,
+      row: 0,
+      x: 0,
+      y: 0,
+      xPercent: 10,
+      yPercent: 0,
+      biome: "plains" as const,
+      spawnable: true,
+      claimable: true,
+    },
+    {
+      id: "2:0",
+      col: 2,
+      row: 0,
+      x: 0,
+      y: 0,
+      xPercent: 20,
+      yPercent: 0,
+      biome: "plains" as const,
+      spawnable: true,
+      claimable: true,
+    },
+  ];
+  const ownedByEnemy = new Set(["1:0"]);
+
+  assert.deepEqual(
+    chooseAutoTilePressurePriorityCandidates({
+      fortress: { mapX: 0, mapY: 0 },
+      tiles,
+      distanceTiles: tiles,
+      limit: 2,
+      isLegalPressureTarget: (tileId) =>
+        tileId !== "0:0" && (ownedByEnemy.has(tileId) || tileId === "2:0"),
+    }),
+    [{ tileId: "1:0" }, { tileId: "2:0" }]
   );
 });
 
