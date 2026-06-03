@@ -6,7 +6,12 @@
 // =============================================================================
 
 import { prisma } from "@/lib/prisma";
-import { CycleStatus, Prisma, type FortressRace } from "@/lib/prisma-client";
+import {
+  CastleUpgradeSpecialization,
+  CycleStatus,
+  Prisma,
+  type FortressRace,
+} from "@/lib/prisma-client";
 import { GameError } from "./errors";
 import {
   DEFAULT_BATTALION_MAX_SIZE,
@@ -21,6 +26,7 @@ import {
 } from "./battalion-types";
 import { applyFieldPromotion } from "./army-xp";
 import { getSkillModifiers } from "./race-skill-effects";
+import { countCastleSpecializations } from "./specializations";
 
 type BattalionPrisma = typeof prisma;
 type BattalionTx = Prisma.TransactionClient;
@@ -34,6 +40,10 @@ type OwnedFortress = {
   gold: number;
   race: FortressRace | null;
   skillPurchases: Array<{ nodeKey: string }>;
+  castleUpgradeSpecializations: Array<{
+    level: number;
+    specialization: CastleUpgradeSpecialization;
+  }>;
 };
 
 const ACTIVE_BATTALION_CYCLE_STATUSES = [
@@ -63,6 +73,12 @@ async function getOwnedFortress(
       race: true,
       skillPurchases: {
         select: { nodeKey: true },
+      },
+      castleUpgradeSpecializations: {
+        select: {
+          level: true,
+          specialization: true,
+        },
       },
     },
   });
@@ -146,15 +162,18 @@ export async function createBattalion(args: {
     const existingBattalionCount = await tx.battalion.count({
       where: { cycleId: fortress.cycleId, fortressId: fortress.id },
     });
+    const buildingCounts = countCastleSpecializations(
+      fortress.castleUpgradeSpecializations,
+    );
     const slots = getBattalionSlots(
-      fortress.level,
+      buildingCounts[CastleUpgradeSpecialization.MILITARY],
       0,
       skillModifiers?.battalionSlotBonus ?? 0,
     );
 
     if (existingBattalionCount >= slots) {
       throw new GameError(
-        `Maximum battalions reached (${slots}). Upgrade your fortress to unlock more slots.`,
+        `Maximum battalions reached (${slots}). Upgrade your Military building to unlock more slots.`,
       );
     }
 

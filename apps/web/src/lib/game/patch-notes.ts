@@ -17,6 +17,7 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
     bugFixes: [
       "Enemy-owned pressure priorities no longer require active war; only allied territory blocks pressure targeting.",
       "Battalion tier promotion costs are now flat per tier instead of scaling with battalion size.",
+      "Battalion slot limits now use the Military building ladder consistently, and the Castle roster shows used/available battalion slots.",
     ],
   },
   {

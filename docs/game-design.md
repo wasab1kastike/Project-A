@@ -170,6 +170,7 @@ Allies can upgrade trust (0→3). Higher tiers grant:
 - Casus belli system — justified wars bypass the 24h delay
 - Peace proposals require mutual acceptance and may include instant gold, food, army, or tile demands paid by either side on acceptance
 - War Room battalions use four player-facing jobs: RESERVE, GUARD, ATTACK, and ALLIANCE. The older stance layer is hidden and normalized by the server.
+- Battalion slot capacity is based on the Military building level, plus skill and extra-slot bonuses. The Castle roster displays used slots as `active/limit` battalions.
 - Idle battalions roam owned tiles on the map until their job triggers: RESERVE stays near the castle core, GUARD patrols owned borders, ATTACK launches through war fronts, and ALLIANCE supports allied battlefields.
 - Battalions do not heal passively. Damaged battalions are refilled by assigning recruiters and training new members; new battalions are commissioned manually.
 - War fronts are automated from the Castle War Room: only ATTACK-mode battalions with troops can be assigned, and active wars evaluate both directions for automatic dispatch.
@@ -249,7 +250,7 @@ Each race has three 8-node skill paths: Economy, Territory, and Military. Player
 
 - Economy paths improve food/gold output, reduce army upkeep, add expansion priority slots, and improve trade wagon capacity, active wagon count, and trade profit.
 - Territory paths improve pressure, tile defense, and neutral claim thresholds.
-- Military paths improve recruitment, battalion slots, battalion size, and promotion costs. Battalion promotions use flat per-tier gold costs, and battalion max-size capacity changes are free within tier caps.
+- Military paths improve recruitment, Military-building battalion slot capacity, battalion size, and promotion costs. Battalion promotions use flat per-tier gold costs, and battalion max-size capacity changes are free within tier caps.
 - Nodes 4 and 8 are the main build-changing unlocks; the nodes between them are smaller ramp bonuses.
 - Players can respec one point from the highest unlocked node in a branch for 25,000 gold.
 

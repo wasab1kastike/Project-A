@@ -373,6 +373,11 @@ type PlayerSummary = {
     };
   } | null;
   growPerTick: number;
+  battalionSummary: {
+    activeCount: number;
+    slotLimit: number;
+    slotsRemaining: number;
+  };
   battalions: Array<{
     id: string;
     name: string;
@@ -2736,7 +2741,16 @@ export function CastleManagement({
             <section className={styles.panel}>
               <div className={styles.panelHeader}>
                 <span>Battalions</span>
-                <strong>{playerSummary.battalions?.length ?? 0} active</strong>
+                <strong>
+                  {playerSummary.battalionSummary?.activeCount ??
+                    playerSummary.battalions?.length ??
+                    0}
+                  /
+                  {playerSummary.battalionSummary?.slotLimit ??
+                    playerSummary.battalions?.length ??
+                    0}{" "}
+                  battalions
+                </strong>
               </div>
               <div
                 style={{

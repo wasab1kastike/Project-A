@@ -425,7 +425,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
     highlights: [
       `New battalions start at ${DEFAULT_BATTALION_MAX_SIZE} max size.`,
       `Commission cost: ${BATTALION_COMMISSION_COST} gold.`,
-      `Natural slots cap at ${MAX_NATURAL_SLOTS}; absolute cap is ${ABSOLUTE_MAX_BATTALIONS}.`,
+      `Military building slots cap naturally at ${MAX_NATURAL_SLOTS}; absolute cap is ${ABSOLUTE_MAX_BATTALIONS}.`,
     ],
     sections: [
       {
@@ -493,6 +493,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         bullets: [
           `Inspired morale starts at ${MORALE_THRESHOLDS.INSPIRED}.`,
           `Shaken morale starts below ${MORALE_THRESHOLDS.STEADY}; broken is below ${MORALE_THRESHOLDS.SHAKEN}.`,
+          "The Castle roster shows used battalion slots as active/limit.",
           `Extra battalion slots cost ${EXTRA_SLOT_COSTS.join(", ")} gold.`,
           "Battalion max-size changes are free within tier caps.",
         ],
