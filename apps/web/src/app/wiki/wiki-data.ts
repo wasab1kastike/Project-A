@@ -22,6 +22,7 @@ import {
   MORALE_THRESHOLDS,
   TIER_MAX_SIZES,
 } from "@/lib/game/battalion-types";
+import { FIELD_PROMOTION_BASE_COST } from "@/lib/game/army-xp";
 import {
   MAX_OWNERSHIP_PRESSURE,
   OWNERSHIP_PRESSURE_DECAY_PER_TICK,
@@ -469,6 +470,19 @@ export const WIKI_PAGES: readonly WikiPage[] = [
             ["Regular", `${TIER_MAX_SIZES[1]}`],
             ["Veteran", `${TIER_MAX_SIZES[2]}`],
             ["Elite", `${TIER_MAX_SIZES[3]}`],
+          ],
+        },
+      },
+      {
+        id: "promotion-costs",
+        eyebrow: "Promotion",
+        title: "Flat promotion costs",
+        table: {
+          headers: ["Upgrade", "Gold cost"],
+          rows: [
+            ["Recruit -> Regular", `${FIELD_PROMOTION_BASE_COST[0]}`],
+            ["Regular -> Veteran", `${FIELD_PROMOTION_BASE_COST[1]}`],
+            ["Veteran -> Elite", `${FIELD_PROMOTION_BASE_COST[2]}`],
           ],
         },
       },

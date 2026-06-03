@@ -19,7 +19,11 @@ import {
 import {
   calculateRecruitment,
 } from "./recruitment";
-import { applyFieldPromotion } from "./army-xp";
+import {
+  applyFieldPromotion,
+  calculateFieldPromotionCost,
+  FIELD_PROMOTION_BASE_COST,
+} from "./army-xp";
 import {
   processBattalionGuard,
   processBattalionRecruitment,
@@ -279,6 +283,41 @@ describe("Tier Max Sizes", () => {
     assert.equal(promotion.battalion.size, 400);
     assert.equal(promotion.battalion.maxSize, 500);
     assert.equal(TIER_MAX_SIZES[promotion.newTier], 5_000);
+  });
+
+  it("field promotion cost is flat per tier, regardless of battalion size", () => {
+    const baseRecruitBattalion = {
+      id: "bn_small",
+      name: "Small Company",
+      size: 50,
+      maxSize: 500,
+      tier: BattalionTier.RECRUIT,
+      xp: 0,
+      readyAt: null,
+      stance: "REST" as const,
+      mode: "RESERVE" as const,
+      garrisonedAt: null,
+      stanceLockedUntil: null,
+    };
+    const largeRecruitBattalion = {
+      ...baseRecruitBattalion,
+      id: "bn_large",
+      name: "Large Company",
+      size: 500,
+    };
+
+    assert.equal(
+      calculateFieldPromotionCost(baseRecruitBattalion),
+      FIELD_PROMOTION_BASE_COST[BattalionTier.RECRUIT],
+    );
+    assert.equal(
+      calculateFieldPromotionCost(largeRecruitBattalion),
+      FIELD_PROMOTION_BASE_COST[BattalionTier.RECRUIT],
+    );
+    assert.equal(
+      calculateFieldPromotionCost(largeRecruitBattalion, 25),
+      Math.ceil(FIELD_PROMOTION_BASE_COST[BattalionTier.RECRUIT] * 0.75),
+    );
   });
 });
 

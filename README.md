@@ -248,6 +248,7 @@ The game is now a castle-economy and battlefield-control loop:
 - daily nuke bidding runs 14:00-12:00 Europe/Helsinki for Fuel, Rocket, and Wrath of A; bids are private, losing bids are spent, components stockpile without a one-per-kind cap, components are tradable by convoy, and launches cost 250,000 gold plus one of each component
 - War Room battalions use one of four jobs: RESERVE, GUARD, ATTACK, or ALLIANCE. Stances are no longer player-facing controls.
 - Battalions do not heal passively; refill commissioned battalions by assigning recruiters and training new members. Full battalions and the max army ceiling stop new recruits until more room is created.
+- Battalion tier promotions use flat per-tier gold costs; battalion size no longer increases the upgrade price.
 - Idle battalions roam owned tiles on the map until their job triggers: guards patrol borders, attackers launch from war fronts, allies reinforce battlefields, and reserves stay near the castle core.
 - new troops assigned to a remote battalion travel from the castle as visible reinforcement marches before they become usable
 - ALLIANCE-mode battalions reinforce allied defensive and attacking battlefields through visible incoming reinforcement marches, controlled from the Castle War Room; if two allies fight each other, War Room pauses support until you choose which alliance to keep, and the abandoned alliance breaks to neutral without betrayal penalties
