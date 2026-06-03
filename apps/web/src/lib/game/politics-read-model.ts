@@ -320,6 +320,7 @@ export async function getPoliticsPageState({
           gold: true,
           food: true,
           army: true,
+          tradeWagonSlotPurchases: true,
           castleUpgradeSpecializations: {
             select: {
               specialization: true,
@@ -602,7 +603,8 @@ export async function getPoliticsPageState({
       const activeOutboundWagons =
         activeOutboundWagonsByFortressId.get(fortress.id) ?? 0;
       const activeTradeWagonLimit = getActiveTradeWagonLimit(
-        skillModifiers?.tradeWagonSlotBonus ?? 0
+        skillModifiers?.tradeWagonSlotBonus ?? 0,
+        fortress.tradeWagonSlotPurchases
       );
       const trustUpgradeTerms =
         relation?.trustUpgradeTier && isAllianceTrustTier(relation.trustUpgradeTier)
@@ -892,7 +894,8 @@ export async function getPoliticsPageState({
           })
         : null;
     const wagonLimit = getActiveTradeWagonLimit(
-      skillModifiers?.tradeWagonSlotBonus ?? 0
+      skillModifiers?.tradeWagonSlotBonus ?? 0,
+      fromFortress.tradeWagonSlotPurchases
     );
     const routeDurationMs =
       getConvoyArrivalAt({
@@ -1129,7 +1132,8 @@ export async function getPoliticsPageState({
       ),
       activeOutboundWagons: playerActiveOutboundWagons,
       activeTradeWagonLimit: getActiveTradeWagonLimit(
-        playerSkillModifiers?.tradeWagonSlotBonus ?? 0
+        playerSkillModifiers?.tradeWagonSlotBonus ?? 0,
+        playerFortress.tradeWagonSlotPurchases
       ),
     },
     rows,

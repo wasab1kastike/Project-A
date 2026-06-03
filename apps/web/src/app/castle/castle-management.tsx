@@ -59,6 +59,7 @@ import {
   choosePendingUpgradeSpecializationAction,
   claimUnicornTeleportAction,
   purchaseFortressUpgradeAction,
+  purchaseTradeWagonSlotAction,
   reinforceDwarfRuneOfGrudgesAction,
   registerCommanderNameFormAction,
   renameFortressAction,
@@ -186,6 +187,11 @@ type PlayerSummary = {
     }
   > | null;
   tradeWagonResourceLimit: number;
+  tradeWagonSlotPurchases: number;
+  activeTradeWagonLimit: number;
+  maxActiveTradeWagonLimit: number;
+  nextTradeWagonSlotCost: number | null;
+  canPurchaseTradeWagonSlot: boolean;
   pendingUpgradeSpecializationLevel: number | null;
   activeCastleUpgradeProject: {
     level: number;
@@ -1802,6 +1808,10 @@ export function CastleManagement({
     );
   }
 
+  async function purchaseTradeWagonSlotFormAction(): Promise<void> {
+    await handleInlineResult(await purchaseTradeWagonSlotAction());
+  }
+
   async function choosePendingUpgradeSpecializationFormAction(
     formData: FormData
   ): Promise<void> {
@@ -2258,6 +2268,35 @@ export function CastleManagement({
                     : `${playerSummary.level} upgrades`}
                 </strong>
               </div>
+              <form
+                action={purchaseTradeWagonSlotFormAction}
+                className={styles.form}
+              >
+                <div className={styles.statusRow}>
+                  <span>Outbound trade wagons</span>
+                  <strong>
+                    {playerSummary.activeTradeWagonLimit} /{" "}
+                    {playerSummary.maxActiveTradeWagonLimit}
+                  </strong>
+                </div>
+                <p className={styles.muted}>
+                  {playerSummary.tradeWagonSlotPurchases} bought; each wagon
+                  adds one active outbound convoy slot. Per-run capacity is{" "}
+                  {playerSummary.tradeWagonResourceLimit.toLocaleString()}{" "}
+                  gold+food.
+                </p>
+                <button
+                  type="submit"
+                  disabled={
+                    !playerSummary.canPurchaseTradeWagonSlot ||
+                    playerSummary.nextTradeWagonSlotCost === null
+                  }
+                >
+                  {playerSummary.nextTradeWagonSlotCost === null
+                    ? "Wagon cap reached"
+                    : `Buy wagon (${playerSummary.nextTradeWagonSlotCost.toLocaleString()}g)`}
+                </button>
+              </form>
               <div className={styles.buildingGrid}>
                 {buildings.map((building) => {
                   const buildingLevel =

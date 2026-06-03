@@ -27,6 +27,9 @@ export const TRADE_WAGON_RESOURCE_LIMITS = [
 export const TRADE_WAGON_RESOURCE_LIMIT = TRADE_WAGON_RESOURCE_LIMITS[0];
 export const TRADE_BASE_DELIVERY_BONUS_PERCENT = 5;
 export const DEFAULT_ACTIVE_TRADE_WAGON_LIMIT = 3;
+export const MAX_ACTIVE_TRADE_WAGON_LIMIT = 50;
+export const TRADE_WAGON_SLOT_BASE_COST = 5_000;
+export const TRADE_WAGON_SLOT_COST_STEP = 2_500;
 
 export type TradeCargo = {
   gold: number;
@@ -214,8 +217,33 @@ export function getTradeWagonRunCount(
   ).length;
 }
 
-export function getActiveTradeWagonLimit(slotBonus = 0) {
-  return DEFAULT_ACTIVE_TRADE_WAGON_LIMIT + Math.max(0, Math.floor(slotBonus));
+export function getActiveTradeWagonLimit(slotBonus = 0, purchasedSlots = 0) {
+  return Math.min(
+    MAX_ACTIVE_TRADE_WAGON_LIMIT,
+    DEFAULT_ACTIVE_TRADE_WAGON_LIMIT +
+      Math.max(0, Math.floor(slotBonus)) +
+      Math.max(0, Math.floor(purchasedSlots))
+  );
+}
+
+export function getTradeWagonSlotPurchaseCost(purchasedSlots = 0) {
+  return (
+    TRADE_WAGON_SLOT_BASE_COST +
+    Math.max(0, Math.floor(purchasedSlots)) * TRADE_WAGON_SLOT_COST_STEP
+  );
+}
+
+export function canPurchaseTradeWagonSlot({
+  purchasedSlots = 0,
+  slotBonus = 0,
+}: {
+  purchasedSlots?: number;
+  slotBonus?: number;
+}) {
+  return (
+    getActiveTradeWagonLimit(slotBonus, purchasedSlots) <
+    MAX_ACTIVE_TRADE_WAGON_LIMIT
+  );
 }
 
 export function assertActiveTradeWagonLimit({

@@ -16,6 +16,7 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
       "Season 4 pressure contests now use castle proximity: closer castles get stronger effective pressure on contested tiles, while farther castles can still win by investing more raw pressure.",
       "Non-allied pressure on player-owned tiles now persists and disrupts ownership, with closer attackers weakening control faster than distant attackers.",
       "The map pressure readout now shows effective pressure context so proximity advantages are visible during contests.",
+      "Castle Economy now lets commanders buy more active outbound trade wagons. Each purchase adds one wagon slot, prices climb after every purchase, and the active wagon cap is 50.",
     ],
     bugFixes: [
       "Enemy-owned pressure priorities no longer require active war; only allied territory blocks pressure targeting.",
