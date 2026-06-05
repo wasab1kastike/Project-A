@@ -49,3 +49,27 @@ https://project-a.artobest.com/api/auth/callback/google
 ```
 
 Render should attach `project-a.artobest.com` to `project-a-s5-web`; configure the DNS record requested by Render after the service is created.
+
+## Smoke Checks
+
+Run this after every Season 5 Render deploy:
+
+```bash
+npm run smoke:season-5
+```
+
+The smoke command checks `render.yaml`, `https://project-a.artobest.com/api/health`, the Season 5 root page, `/history`, and the Auth.js provider endpoint for Google login. It is read-only and does not write to the app or database.
+
+If `RENDER_API_KEY` is set, the same command also verifies the live Render resources:
+
+- `project-a-s5-web`
+- `project-a-s5-game-tick`
+- `project-a-s5-db`
+
+The Render API checks confirm the Season 5 services are in Frankfurt, deploy from `codex/season-5`, and use `project-a-s5-db` instead of the Season 4 database according to Blueprint config.
+
+Use a different target only when testing a temporary preview URL:
+
+```bash
+SEASON_5_SMOKE_BASE_URL=https://example-preview.onrender.com npm run smoke:season-5
+```

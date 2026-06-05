@@ -29,6 +29,7 @@
     "db:studio": "npm run db:studio --workspace web",
     "db:compose:up": "docker compose up -d postgres",
     "db:compose:down": "docker compose down",
+    "smoke:season-5": "node scripts/season-5-smoke.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
