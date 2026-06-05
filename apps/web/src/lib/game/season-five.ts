@@ -4,7 +4,6 @@ import {
   CycleStatus,
   SeasonFiveActionKind,
   SeasonFiveCharacterClass,
-  SeasonFiveFishRarity,
   SeasonFiveGearRarity,
   SeasonFiveGearSlot,
   SeasonFiveLocationKind,
@@ -25,6 +24,12 @@ import {
   rankSeasonFiveBiggestFish,
   rankSeasonFiveMostFish,
 } from "./season-five-leaderboards";
+import {
+  calculateSeasonFiveCatchIntervalMinutes,
+  calculateSeasonFiveInventoryCapacity,
+  createSeasonFiveCatch as createSeasonFiveCatchFromBalance,
+  deriveSeasonFiveBuildEffectValues,
+} from "./season-five-balance";
 import { addHours, floorToMinute } from "./time";
 
 type DatabaseClient = PrismaClient;
@@ -446,26 +451,6 @@ const STARTER_GEAR_BY_KEY: Map<string, (typeof STARTER_GEAR)[number]> = new Map(
   STARTER_GEAR.map((gear) => [gear.key, gear])
 );
 
-const FISH_SPECIES = [
-  { key: "mud-perch", name: "Mud Perch", rarity: SeasonFiveFishRarity.COMMON },
-  { key: "tin-fin", name: "Tin-Fin", rarity: SeasonFiveFishRarity.COMMON },
-  {
-    key: "silver-grouch",
-    name: "Silver Grouch",
-    rarity: SeasonFiveFishRarity.UNCOMMON,
-  },
-  {
-    key: "lantern-eel",
-    name: "Lantern Eel",
-    rarity: SeasonFiveFishRarity.RARE,
-  },
-  {
-    key: "old-king-cod",
-    name: "Old King Cod",
-    rarity: SeasonFiveFishRarity.LEGENDARY,
-  },
-] as const;
-
 export function isSeasonFivePreviewEnabled() {
   return process.env[SEASON_FIVE_PREVIEW_FLAG] === "true";
 }
@@ -625,37 +610,15 @@ export function getSeasonFiveBuildEffects(input: {
 
   return {
     stats,
-    catchBonus: Math.max(0, Math.floor((stats.smell - 5) / 2)),
-    inventoryBonus: Math.max(0, (stats.stronk - 5) * 2),
-    inventoryPressureReduction: Math.max(
-      0,
-      Math.floor((stats.stronk + stats.quietness - 12) / 4)
-    ),
-    rarityBonus: Math.max(
-      0,
-      (stats.luk - 5) * 3 + Math.max(0, stats.magik - 6) * 2
-    ),
-    sizeBonusPercent:
-      Math.max(0, stats.stronk - 5) * 5 + Math.max(0, stats.magik - 5) * 2,
-    travelPercent: -Math.max(0, stats.quietness - 5) * 5,
+    ...deriveSeasonFiveBuildEffectValues(stats),
   };
 }
 
 export { calculateSeasonFiveTravelMinutes } from "./season-five-actions";
-
-export function calculateSeasonFiveCatchIntervalMinutes(input: {
-  catchDifficulty: number;
-  catchBonus: number;
-}) {
-  return Math.max(1, 5 + input.catchDifficulty - input.catchBonus);
-}
-
-export function calculateSeasonFiveInventoryCapacity(input: {
-  baseCapacity: number;
-  inventoryBonus: number;
-}) {
-  return Math.max(1, input.baseCapacity + input.inventoryBonus);
-}
+export {
+  calculateSeasonFiveCatchIntervalMinutes,
+  calculateSeasonFiveInventoryCapacity,
+} from "./season-five-balance";
 
 export function createSeasonFiveCatch(input: {
   seed: string;
@@ -666,36 +629,10 @@ export function createSeasonFiveCatch(input: {
   rarityBonus?: number;
   inventoryPressure: number;
 }) {
-  const hash = hashString(input.seed);
-  const speciesRoll = clamp((hash % 100) + (input.rarityBonus ?? 0), 0, 99);
-  const species =
-    speciesRoll >= 98 && input.difficulty >= 4
-      ? FISH_SPECIES[4]
-      : speciesRoll >= 88 && input.difficulty >= 3
-        ? FISH_SPECIES[3]
-        : speciesRoll >= 65
-          ? FISH_SPECIES[2]
-          : speciesRoll >= 35
-            ? FISH_SPECIES[1]
-            : FISH_SPECIES[0];
-  const range = Math.max(1, input.maxFishCm - input.minFishCm);
-  const sizeRoll = (hash >>> 8) % (range + 1);
-  const sizeCm = Math.round(
-    (input.minFishCm + sizeRoll) * (1 + input.sizeBonusPercent / 100)
-  );
-
-  return {
-    speciesKey: species.key,
-    speciesName: species.name,
-    rarity: species.rarity,
-    sizeCm: clamp(sizeCm, input.minFishCm, Math.ceil(input.maxFishCm * 1.5)),
-    inventorySlots:
-      species.rarity === SeasonFiveFishRarity.LEGENDARY
-        ? input.inventoryPressure + 2
-        : species.rarity === SeasonFiveFishRarity.RARE
-          ? input.inventoryPressure + 1
-          : Math.max(1, input.inventoryPressure),
-  };
+  return createSeasonFiveCatchFromBalance({
+    ...input,
+    hash: hashString(input.seed),
+  });
 }
 
 async function ensureSeasonFiveLocations(cycleId: string, db: DatabaseClient) {

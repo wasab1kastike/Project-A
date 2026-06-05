@@ -34,6 +34,7 @@ import {
   SEASON_FIVE_DURATION_HOURS,
   SEASON_FIVE_LOCATIONS,
 } from "./season-five";
+import { SEASON_FIVE_BALANCE } from "./season-five-balance";
 
 test("Season 5 class selection accepts persisted enum values", () => {
   assert.equal(
@@ -78,6 +79,61 @@ test("Season 5 build effects combine class, gear, and skill stats", () => {
   assert.equal(effects.travelPercent, -25);
 });
 
+test("Season 5 build archetypes keep speed and trophy paths viable", () => {
+  const fastRareBuild = getSeasonFiveBuildEffects({
+    characterClass: SeasonFiveCharacterClass.BURNT_OUT_ROGUE,
+    gear: [
+      {
+        slot: SeasonFiveGearSlot.BAIT,
+        power: 2,
+        equipped: true,
+      },
+    ],
+    purchasedNodeKeys: [
+      "rogue_soft_boots",
+      "rogue_stolen_lure",
+      "rogue_backwater_gossip",
+    ],
+  });
+  const trophyBuild = getSeasonFiveBuildEffects({
+    characterClass: SeasonFiveCharacterClass.RETIRED_WARRIOR,
+    gear: [
+      {
+        slot: SeasonFiveGearSlot.ROD,
+        power: 2,
+        equipped: true,
+      },
+      {
+        slot: SeasonFiveGearSlot.PACK,
+        power: 2,
+        equipped: true,
+      },
+      {
+        slot: SeasonFiveGearSlot.TRINKET,
+        power: 2,
+        equipped: true,
+      },
+    ],
+    purchasedNodeKeys: ["warrior_trophy_drag", "warrior_final_campaign"],
+  });
+
+  assert.ok(fastRareBuild.catchBonus > trophyBuild.catchBonus);
+  assert.ok(fastRareBuild.rarityBonus > trophyBuild.rarityBonus);
+  assert.ok(trophyBuild.sizeBonusPercent > fastRareBuild.sizeBonusPercent);
+  assert.ok(trophyBuild.inventoryBonus > fastRareBuild.inventoryBonus);
+  assert.ok(fastRareBuild.travelPercent < trophyBuild.travelPercent);
+});
+
+test("Season 5 balance constants expose formula tuning knobs", () => {
+  assert.equal(SEASON_FIVE_BALANCE.catchBaseIntervalMinutes, 5);
+  assert.equal(SEASON_FIVE_BALANCE.smellPerCatchBonus, 2);
+  assert.equal(SEASON_FIVE_BALANCE.inventorySlotsPerStronk, 2);
+  assert.equal(SEASON_FIVE_BALANCE.rarityPerLuk, 3);
+  assert.equal(SEASON_FIVE_BALANCE.sizePercentPerStronk, 5);
+  assert.equal(SEASON_FIVE_BALANCE.travelPercentPerQuietness, -5);
+  assert.equal(SEASON_FIVE_BALANCE.maxSizeMultiplier, 1.5);
+});
+
 test("Season 5 travel, catch interval, and inventory calculations clamp safely", () => {
   assert.equal(
     calculateSeasonFiveTravelMinutes({ baseMinutes: 10, travelPercent: -15 }),
@@ -100,6 +156,13 @@ test("Season 5 travel, catch interval, and inventory calculations clamp safely",
       inventoryBonus: 8,
     }),
     20
+  );
+  assert.equal(
+    calculateSeasonFiveInventoryCapacity({
+      baseCapacity: -5,
+      inventoryBonus: 0,
+    }),
+    1
   );
 });
 
