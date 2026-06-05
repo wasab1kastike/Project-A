@@ -375,6 +375,7 @@ import {
   processAutoWarTick,
   type AutoWarPolicy,
 } from "./auto-war";
+import { processAutoWarDispatch } from "./tick-auto-war-integration";
 import { Battalion, BattalionTier } from "./battalion-types";
 import { TileAttackPriority, BattlefieldPriority } from "./war-front";
 
@@ -559,5 +560,157 @@ describe("auto-war", () => {
       policy = removePriorityTile(policy, "t1");
       assert.equal(policy.priorityTiles.length, 0);
     });
+  });
+});
+
+describe("auto-war tick integration", () => {
+  it("creates a territory campaign instead of a direct attack unit", async () => {
+    const createdArmyOrders: any[] = [];
+    const createdCampaigns: any[] = [];
+    const createdAttackUnits: any[] = [];
+
+    const db = {
+      warFront: {
+        findFirst: async ({ where }: any) =>
+          where.attackerFortressId === "attacker"
+            ? { id: "front1", aggression: "BALANCED" }
+            : null,
+        create: async () => ({ id: "front2", aggression: "BALANCED" }),
+      },
+      battalionAssignment: {
+        findMany: async ({ where }: any) =>
+          where.frontId === "front1" ? [{ battalionId: "bn1" }] : [],
+      },
+      battalion: {
+        findMany: async ({ where, select }: any) => {
+          if (select?.id && where.fortressId === "defender") return [];
+          if (where.id?.in?.includes("bn1")) return [{ id: "bn1", size: 100 }];
+          return [];
+        },
+      },
+      $transaction: async (callback: (tx: any) => Promise<void>) =>
+        callback({
+          battalion: {
+            update: async () => ({}),
+          },
+          fortress: {
+            update: async () => ({}),
+          },
+          armyOrder: {
+            create: async ({ data }: any) => {
+              createdArmyOrders.push(data);
+              return { id: "order1" };
+            },
+          },
+          territoryCampaign: {
+            create: async ({ data }: any) => {
+              createdCampaigns.push(data);
+              return { id: "campaign1" };
+            },
+          },
+          attackUnit: {
+            create: async ({ data }: any) => {
+              createdAttackUnits.push(data);
+              return { id: "attack1" };
+            },
+          },
+        }),
+    } as any;
+
+    await processAutoWarDispatch({
+      db,
+      cycleId: "cycle1",
+      now: new Date("2026-04-20T12:00:00.000Z"),
+      fortresses: [
+        { id: "attacker", level: 1, army: 100, mapX: 10, mapY: 10, ownerId: "u1" },
+        { id: "defender", level: 1, army: 20, mapX: 12, mapY: 10, ownerId: "u2" },
+      ],
+      diplomacyRelations: [
+        { status: "WAR", fortressAId: "attacker", fortressBId: "defender" },
+      ],
+      ownedTiles: [
+        { ownerFortressId: "attacker", tileId: "0:1" },
+        { ownerFortressId: "defender", tileId: "1:1" },
+      ],
+      activeCampaigns: [],
+      priorityTiles: [
+        {
+          fortressId: "attacker",
+          tileId: "1:1",
+          priority: TileAttackPriority.PRIMARY,
+          targetEnemyId: "defender",
+        },
+      ],
+    });
+
+    assert.equal(createdAttackUnits.length, 0);
+    assert.equal(createdArmyOrders.length, 1);
+    assert.equal(createdArmyOrders[0].type, "CAMPAIGN");
+    assert.equal(createdArmyOrders[0].targetTileId, "1:1");
+    assert.equal(createdCampaigns.length, 1);
+    assert.equal(createdCampaigns[0].targetTileId, "1:1");
+  });
+
+  it("does not dispatch onto a tile with an active campaign", async () => {
+    let transactionCount = 0;
+    const db = {
+      warFront: {
+        findFirst: async ({ where }: any) =>
+          where.attackerFortressId === "attacker"
+            ? { id: "front1", aggression: "BALANCED" }
+            : null,
+        create: async () => ({ id: "front2", aggression: "BALANCED" }),
+      },
+      battalionAssignment: {
+        findMany: async ({ where }: any) =>
+          where.frontId === "front1" ? [{ battalionId: "bn1" }] : [],
+      },
+      battalion: {
+        findMany: async ({ where, select }: any) => {
+          if (select?.id && where.fortressId === "defender") return [];
+          if (where.id?.in?.includes("bn1")) return [{ id: "bn1", size: 100 }];
+          return [];
+        },
+      },
+      $transaction: async () => {
+        transactionCount += 1;
+      },
+    } as any;
+
+    await processAutoWarDispatch({
+      db,
+      cycleId: "cycle1",
+      now: new Date("2026-04-20T12:00:00.000Z"),
+      fortresses: [
+        { id: "attacker", level: 1, army: 100, mapX: 10, mapY: 10, ownerId: "u1" },
+        { id: "defender", level: 1, army: 20, mapX: 12, mapY: 10, ownerId: "u2" },
+      ],
+      diplomacyRelations: [
+        { status: "WAR", fortressAId: "attacker", fortressBId: "defender" },
+      ],
+      ownedTiles: [
+        { ownerFortressId: "attacker", tileId: "0:1" },
+        { ownerFortressId: "defender", tileId: "1:1" },
+      ],
+      activeCampaigns: [
+        {
+          id: "campaign1",
+          attackerFortressId: "attacker",
+          defenderFortressId: "defender",
+          targetTileId: "1:1",
+          armyOrder: { committedArmy: 60, status: "ACTIVE" },
+        },
+      ],
+      priorityTiles: [
+        {
+          fortressId: "attacker",
+          tileId: "1:1",
+          priority: TileAttackPriority.PRIMARY,
+          targetEnemyId: "defender",
+        },
+      ],
+    });
+
+    assert.equal(transactionCount, 0);
   });
 });

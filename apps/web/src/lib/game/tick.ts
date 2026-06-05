@@ -3631,6 +3631,7 @@ async function processCycleTick(
       lightFortresses,
       ownerships,
       pressurePriorities,
+      activeBattlefields,
     ] = await Promise.all([
       db.diplomacyRelation.findMany({
         where: { cycleId, status: { in: ["WAR", "WAR_PENDING"] } },
@@ -3671,6 +3672,10 @@ async function processCycleTick(
         where: { cycleId },
         select: { fortressId: true, tileId: true, weight: true },
       }),
+      db.battlefield.findMany({
+        where: { cycleId, status: BattlefieldStatus.ACTIVE },
+        select: { targetTileId: true },
+      }),
     ]);
 
     const activeWars = warRelations.filter(
@@ -3707,6 +3712,7 @@ async function processCycleTick(
           ? { committedArmy: c.armyOrder.committedArmy, status: c.armyOrder.status }
           : null,
       })),
+      activeBattlefields,
       priorityTiles: pressurePriorities.map((priority) => {
         const targetOwner = ownerships.find(
           (ownership) => ownership.tileId === priority.tileId,

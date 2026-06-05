@@ -12,7 +12,6 @@ import {
   type ReachableTarget,
 } from "./war-front";
 import { HEX_TILES } from "./map-hex";
-import { getRoadAdjustedAttackArrival } from "./road-travel";
 
 type FortressSnapshot = {
   id: string;
@@ -42,6 +41,10 @@ type CampaignSnapshot = {
   armyOrder: { committedArmy: number; status: string } | null;
 };
 
+type ActiveBattlefieldSnapshot = {
+  targetTileId: string | null;
+};
+
 type AutoWarPriorityTile = PriorityTile & {
   fortressId?: string;
 };
@@ -54,6 +57,7 @@ export async function processAutoWarDispatch(args: {
   diplomacyRelations: DiplomacySnapshot[];
   ownedTiles: OwnedTileSnapshot[];
   activeCampaigns: CampaignSnapshot[];
+  activeBattlefields?: ActiveBattlefieldSnapshot[];
   priorityTiles: AutoWarPriorityTile[];
 }): Promise<void> {
   const {
@@ -64,6 +68,7 @@ export async function processAutoWarDispatch(args: {
     diplomacyRelations,
     ownedTiles,
     activeCampaigns,
+    activeBattlefields = [],
     priorityTiles,
   } = args;
 
@@ -79,9 +84,20 @@ export async function processAutoWarDispatch(args: {
   }
 
   const campaignCountByFortress = new Map<string, number>();
+  const blockedTargetTileIds = new Set<string>();
+  const availableArmyByFortress = new Map(
+    fortresses.map((fortress) => [fortress.id, Math.max(0, fortress.army)]),
+  );
   for (const campaign of activeCampaigns) {
     const count = campaignCountByFortress.get(campaign.attackerFortressId) ?? 0;
     campaignCountByFortress.set(campaign.attackerFortressId, count + 1);
+    blockedTargetTileIds.add(campaign.targetTileId);
+  }
+
+  for (const battlefield of activeBattlefields) {
+    if (battlefield.targetTileId) {
+      blockedTargetTileIds.add(battlefield.targetTileId);
+    }
   }
 
   for (const war of warPairs) {
@@ -104,6 +120,8 @@ export async function processAutoWarDispatch(args: {
       const reachableTargets: ReachableTarget[] = [];
 
       for (const tileId of defenderOwnedTiles) {
+        if (blockedTargetTileIds.has(tileId)) continue;
+
         const tile = HEX_TILES.find((candidate) => candidate.id === tileId);
         if (!tile) continue;
 
@@ -166,22 +184,17 @@ export async function processAutoWarDispatch(args: {
         where: { id: { in: activeIds }, size: { gt: 0 }, mode: "ATTACK" },
         select: { id: true, size: true },
       });
-      const totalAvailable = battalions.reduce((sum, battalion) => sum + battalion.size, 0);
+      const totalAvailable = Math.min(
+        battalions.reduce((sum, battalion) => sum + battalion.size, 0),
+        availableArmyByFortress.get(attacker.id) ?? 0,
+      );
       if (totalAvailable <= 0) continue;
 
       const aggression = (front.aggression as AggressionStance) ?? "BALANCED";
       const rate = AGGRESSION_STANCE_COMMITMENT[aggression];
       const commitAmount = Math.max(1, Math.floor(totalAvailable * rate));
       const cappedAmount = Math.min(commitAmount, Math.max(10, defender.army * 2));
-      const baseMinutes = Math.max(1, Math.floor(estimateDistance(attacker, defender) / 10));
-      const { arrivesAt } = await getRoadAdjustedAttackArrival({
-        db,
-        cycleId,
-        launchedAt: now,
-        origin: attacker,
-        target: defender,
-        baseMinutes,
-      });
+      if (cappedAmount <= 0) continue;
 
       try {
         await db.$transaction(async (tx) => {
@@ -196,18 +209,48 @@ export async function processAutoWarDispatch(args: {
             remainingDeduction -= take;
           }
 
-          await tx.attackUnit.create({
+          await tx.fortress.update({
+            where: { id: attacker.id },
+            data: {
+              army: {
+                decrement: cappedAmount,
+              },
+            },
+          });
+
+          const order = await tx.armyOrder.create({
+            data: {
+              cycleId,
+              fortressId: attacker.id,
+              type: "CAMPAIGN",
+              status: "ACTIVE",
+              targetTileId: target.tileId,
+              targetFortressId: defender.id,
+              committedArmy: cappedAmount,
+              startsAt: now,
+            },
+            select: { id: true },
+          });
+
+          await tx.territoryCampaign.create({
             data: {
               cycleId,
               attackerFortressId: attacker.id,
-              targetFortressId: defender.id,
-              armyAmount: cappedAmount,
-              launchedAt: now,
-              arrivesAt,
+              defenderFortressId: defender.id,
+              armyOrderId: order.id,
+              targetTileId: target.tileId,
             },
           });
         });
         campaignCountByFortress.set(attacker.id, activeCount + 1);
+        blockedTargetTileIds.add(target.tileId);
+        availableArmyByFortress.set(
+          attacker.id,
+          Math.max(
+            0,
+            (availableArmyByFortress.get(attacker.id) ?? 0) - cappedAmount,
+          ),
+        );
       } catch (_error) {
         // Target state can change mid-tick; the next tick can retry.
       }
