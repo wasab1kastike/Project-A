@@ -64,8 +64,85 @@ services:
       - key: SEASON_4_ACTIVATION_ENABLED
         value: "true"
 
+  - type: web
+    name: project-a-s5-web
+    runtime: node
+    plan: starter
+    branch: codex/season-5
+    autoDeployTrigger: commit
+    buildCommand: node scripts/render-build.mjs web
+    preDeployCommand: npm run db:deploy
+    startCommand: npm run start
+    healthCheckPath: /api/health
+    domains:
+      - project-a.artobest.com
+    buildFilter:
+      paths:
+        - .node-version
+        - package.json
+        - package-lock.json
+        - render.yaml
+        - scripts/**
+        - apps/web/**
+    envVars:
+      - key: NEXT_PUBLIC_APP_NAME
+        value: Project-A
+      - key: NEXT_PUBLIC_APP_URL
+        value: https://project-a.artobest.com
+      - key: AUTH_URL
+        value: https://project-a.artobest.com
+      - key: ALLOWED_ORIGINS
+        value: https://project-a.artobest.com
+      - key: DATABASE_URL
+        fromDatabase:
+          name: project-a-s5-db
+          property: connectionString
+      - key: AUTH_SECRET
+        generateValue: true
+      - key: AUTH_GOOGLE_ID
+        sync: false
+      - key: AUTH_GOOGLE_SECRET
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: OPENCLAW_GOD_SHARED_SECRET
+        sync: false
+      - key: SEASON_5_PREVIEW_ENABLED
+        value: "true"
+      - key: NEXT_PUBLIC_REALTIME_ENABLED
+        value: "true"
+
+  - type: cron
+    name: project-a-s5-game-tick
+    runtime: node
+    plan: starter
+    branch: codex/season-5
+    autoDeployTrigger: commit
+    buildCommand: node scripts/render-build.mjs cron
+    startCommand: npm run game:tick
+    schedule: "* * * * *"
+    buildFilter:
+      paths:
+        - .node-version
+        - package.json
+        - package-lock.json
+        - render.yaml
+        - scripts/**
+        - apps/web/**
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: project-a-s5-db
+          property: connectionString
+      - key: SEASON_5_PREVIEW_ENABLED
+        value: "true"
+
 databases:
   - name: project-a-db
     plan: basic-256mb
     databaseName: project_a
     user: project_a
+  - name: project-a-s5-db
+    plan: basic-256mb
+    databaseName: project_a_s5
+    user: project_a_s5

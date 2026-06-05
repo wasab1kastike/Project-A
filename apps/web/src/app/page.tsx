@@ -1,7 +1,9 @@
 import type { Session } from "next-auth";
 import { auth, isAuthConfigured } from "@/auth";
 import { getHomePageState, type HomePageState } from "@/lib/game/read-model";
+import { isSeasonFivePreviewEnabled } from "@/lib/game/season-five";
 import { HomeClient } from "./home-client";
+import { SeasonFivePage } from "./season-five-page";
 
 export const dynamic = "force-dynamic";
 
@@ -119,6 +121,12 @@ export default async function Home({
   const params = (await searchParams) ?? {};
   const error = getSearchValue(params.error);
   const notice = getSearchValue(params.notice);
+
+  if (isSeasonFivePreviewEnabled()) {
+    return (
+      <SeasonFivePage actionError={error ?? null} notice={notice ?? null} />
+    );
+  }
 
   let session: Session | null = null;
   let state: HomePageState = getDegradedHomePageState();

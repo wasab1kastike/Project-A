@@ -4,12 +4,13 @@
 
 ## Quick Links
 
-| Doc | What's In It |
-|-----|-------------|
-| [Game Design](game-design.md) | Core rules — economy, combat, diplomacy, map |
-| [Season 4](season-4.md) | Doctrines, pressure system, race abilities, trade redesign |
-| [Data Model](data-model.md) | Database schema — models, enums, relationships |
-| [Development Workflow](development-workflow.md) | How to contribute — commands, patterns, gotchas |
+| Doc                                             | What's In It                                                      |
+| ----------------------------------------------- | ----------------------------------------------------------------- |
+| [Game Design](game-design.md)                   | Core rules — economy, combat, diplomacy, map                      |
+| [Season 4](season-4.md)                         | Doctrines, pressure system, race abilities, trade redesign        |
+| [Season 5 Preview](season-5-preview.md)         | Fishing RPG preview deployment, gameplay loop, and history import |
+| [Data Model](data-model.md)                     | Database schema — models, enums, relationships                    |
+| [Development Workflow](development-workflow.md) | How to contribute — commands, patterns, gotchas                   |
 
 ## Project Status
 

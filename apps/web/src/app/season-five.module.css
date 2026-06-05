@@ -1,0 +1,394 @@
+.shell {
+  min-height: 100vh;
+  padding: 24px;
+  color: #102019;
+  background: linear-gradient(135deg, #e7f3df 0%, #c8e6e6 48%, #f4e7c6 100%);
+}
+
+.topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  max-width: 1480px;
+  margin: 0 auto 18px;
+}
+
+.topbar h1,
+.panel h2,
+.setup h2 {
+  margin: 0;
+  line-height: 1.05;
+}
+
+.topbar h1 {
+  font-size: 42px;
+}
+
+.topbarMeta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 14px;
+}
+
+.kicker {
+  margin: 0 0 5px;
+  color: #4b6b57;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.noticeBand,
+.setup,
+.panel {
+  border: 1px solid rgba(16, 32, 25, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 12px 28px rgba(28, 62, 52, 0.12);
+}
+
+.noticeBand,
+.setup {
+  max-width: 1480px;
+  margin: 0 auto 18px;
+  padding: 18px;
+}
+
+.noticeBand h2,
+.noticeBand p {
+  margin: 0;
+}
+
+.noticeBand p {
+  margin-top: 6px;
+  color: #587064;
+}
+
+.classGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.classChoice {
+  display: flex;
+  min-height: 270px;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(16, 32, 25, 0.14);
+  border-radius: 8px;
+  background: #fffaf0;
+}
+
+.classChoice h3,
+.classChoice p {
+  margin: 0;
+}
+
+.classChoice p {
+  min-height: 66px;
+  color: #587064;
+  font-size: 14px;
+}
+
+.classChoice dl,
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.classChoice dl {
+  margin: auto 0 0;
+}
+
+.classChoice dl div,
+.statGrid div {
+  padding: 9px;
+  border-radius: 6px;
+  background: rgba(16, 32, 25, 0.06);
+}
+
+.classChoice dt,
+.statGrid span {
+  display: block;
+  color: #587064;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.classChoice dd,
+.statGrid strong {
+  margin: 3px 0 0;
+  font-size: 19px;
+}
+
+.classChoice button,
+.secondaryButton,
+.locationPin button,
+.gearList button,
+.skillGrid button {
+  min-height: 42px;
+  border: 0;
+  border-radius: 6px;
+  background: #17382d;
+  color: #fffaf0;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.classChoice button:disabled,
+.secondaryButton:disabled,
+.locationPin button:disabled,
+.gearList button:disabled,
+.skillGrid button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 320px minmax(420px, 1fr) 360px;
+  gap: 14px;
+  max-width: 1480px;
+  margin: 0 auto;
+}
+
+.panel {
+  min-width: 0;
+  padding: 16px;
+}
+
+.mapPanel {
+  grid-row: span 2;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.badge,
+.warning {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: #d8efe3;
+  color: #17382d;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.warning {
+  background: #f7d9ad;
+}
+
+.statusLine {
+  margin: 14px 0 4px;
+  color: #243d33;
+  font-weight: 700;
+}
+
+.smallText {
+  margin: 0;
+  color: #587064;
+  font-size: 13px;
+}
+
+.secondaryButton {
+  width: 100%;
+  margin-top: 14px;
+  background: #32624f;
+}
+
+.fishingMap {
+  position: relative;
+  min-height: 520px;
+  overflow: hidden;
+  border: 1px solid rgba(16, 32, 25, 0.16);
+  border-radius: 8px;
+  background:
+    linear-gradient(120deg, rgba(72, 137, 91, 0.22), rgba(255, 255, 255, 0.08)),
+    linear-gradient(165deg, #b9d98c 0%, #91c6a3 45%, #3f7d96 46%, #275876 100%);
+}
+
+.fishingMap::before {
+  position: absolute;
+  inset: 18% 16% 12% 12%;
+  border: 28px solid rgba(39, 88, 118, 0.55);
+  border-radius: 44% 54% 43% 55%;
+  content: "";
+  transform: rotate(-8deg);
+}
+
+.locationPin {
+  position: absolute;
+  width: 154px;
+  transform: translate(-50%, -50%);
+}
+
+.locationPin button {
+  display: flex;
+  width: 100%;
+  min-height: 58px;
+  flex-direction: column;
+  justify-content: center;
+  padding: 9px;
+  border: 2px solid rgba(255, 250, 240, 0.92);
+  background: #17382d;
+  box-shadow: 0 10px 20px rgba(16, 32, 25, 0.2);
+}
+
+.locationPin small,
+.gearList small,
+.leaderboard small {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.78;
+}
+
+.homePin button {
+  background: #8f3f28;
+}
+
+.gearList,
+.inventoryList,
+.skillGrid {
+  display: grid;
+  gap: 8px;
+}
+
+.gearList button,
+.skillGrid button {
+  display: flex;
+  width: 100%;
+  min-height: 54px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 10px;
+  background: #eff7f1;
+  color: #17382d;
+  text-align: left;
+}
+
+.gearList .equipped {
+  background: #17382d;
+  color: #fffaf0;
+}
+
+.skillGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.skillGrid button {
+  min-height: 96px;
+}
+
+.skillGrid span {
+  display: block;
+  margin-top: 5px;
+  color: #587064;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.skillGrid button:disabled span {
+  color: inherit;
+}
+
+.inventoryList div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid rgba(16, 32, 25, 0.1);
+}
+
+.inventoryList span {
+  color: #587064;
+  font-size: 13px;
+}
+
+.leaderboardColumns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.leaderboard h3 {
+  margin: 0 0 8px;
+}
+
+.leaderboard ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.leaderboard li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px;
+  border-radius: 6px;
+  background: rgba(16, 32, 25, 0.06);
+}
+
+@media (max-width: 1100px) {
+  .classGrid,
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mapPanel {
+    grid-row: auto;
+  }
+}
+
+@media (max-width: 720px) {
+  .shell {
+    padding: 14px;
+  }
+
+  .topbar,
+  .topbarMeta {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .topbar h1 {
+    font-size: 32px;
+  }
+
+  .classGrid,
+  .grid,
+  .leaderboardColumns,
+  .skillGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .fishingMap {
+    min-height: 460px;
+  }
+
+  .locationPin {
+    width: 132px;
+  }
+}

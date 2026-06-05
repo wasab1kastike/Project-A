@@ -63,10 +63,7 @@ import {
   processRecruitmentQueue,
 } from "./army-recruitment";
 import { getFortressAttackDamage } from "./upgrades";
-import {
-  getRaceBuffTier,
-  isRaceAbilityActive,
-} from "./race-buffs";
+import { getRaceBuffTier, isRaceAbilityActive } from "./race-buffs";
 import { getRaceModifiers, isFortressRace } from "./races";
 import { getSkillModifiers } from "./race-skill-effects";
 import {
@@ -134,7 +131,8 @@ import {
   getTilePressurePriorityWeightForSlot,
   sortTilePressureQueue,
 } from "./tile-pressure";
-import { isSeasonFourRuleset } from "./rulesets";
+import { isSeasonFiveRuleset, isSeasonFourRuleset } from "./rulesets";
+import { processSeasonFiveTick } from "./season-five";
 import {
   CAMPAIGN_SIEGE_THRESHOLD,
   calculateCampaignProgressPerTick,
@@ -562,55 +560,56 @@ async function processTilePressureExpansion({
   const claimThreshold = getTilePressureClaimThreshold(isSeasonFour);
 
   await db.$transaction(async (tx) => {
-    const [fortresses, ownerships, priorities, diplomacyRelations] = await Promise.all([
-      tx.fortress.findMany({
-        where: {
-          cycleId,
-          fortressKind: FortressKind.PLAYER,
-          isNpc: false,
-        },
-        select: {
-          id: true,
-          race: true,
-          mapX: true,
-          mapY: true,
-          pressureWorkersAssigned: true,
-          doctrine: true,
-          skillPurchases: { select: { nodeKey: true } },
-        },
-      }),
-      tx.mapHexOwnership.findMany({
-        where: {
-          cycleId,
-        },
-        select: {
-          tileId: true,
-          ownerFortressId: true,
-        },
-      }),
-      tx.tilePressurePriority.findMany({
-        where: {
-          cycleId,
-        },
-        select: {
-          fortressId: true,
-          tileId: true,
-          weight: true,
-        },
-        orderBy: [{ createdAt: "asc" }, { tileId: "asc" }],
-      }),
-      tx.diplomacyRelation.findMany({
-        where: {
-          cycleId,
-        },
-        select: {
-          fortressAId: true,
-          fortressBId: true,
-          status: true,
-          warStartsAt: true,
-        },
-      }),
-    ]);
+    const [fortresses, ownerships, priorities, diplomacyRelations] =
+      await Promise.all([
+        tx.fortress.findMany({
+          where: {
+            cycleId,
+            fortressKind: FortressKind.PLAYER,
+            isNpc: false,
+          },
+          select: {
+            id: true,
+            race: true,
+            mapX: true,
+            mapY: true,
+            pressureWorkersAssigned: true,
+            doctrine: true,
+            skillPurchases: { select: { nodeKey: true } },
+          },
+        }),
+        tx.mapHexOwnership.findMany({
+          where: {
+            cycleId,
+          },
+          select: {
+            tileId: true,
+            ownerFortressId: true,
+          },
+        }),
+        tx.tilePressurePriority.findMany({
+          where: {
+            cycleId,
+          },
+          select: {
+            fortressId: true,
+            tileId: true,
+            weight: true,
+          },
+          orderBy: [{ createdAt: "asc" }, { tileId: "asc" }],
+        }),
+        tx.diplomacyRelation.findMany({
+          where: {
+            cycleId,
+          },
+          select: {
+            fortressAId: true,
+            fortressBId: true,
+            status: true,
+            warStartsAt: true,
+          },
+        }),
+      ]);
 
     const ownerByTileId = new Map(
       ownerships.map((ownership) => [
@@ -671,7 +670,9 @@ async function processTilePressureExpansion({
     }
 
     const claimableTiles = HEX_TILES.filter((tile) => tile.claimable);
-    const fortressById = new Map(fortresses.map((fortress) => [fortress.id, fortress]));
+    const fortressById = new Map(
+      fortresses.map((fortress) => [fortress.id, fortress])
+    );
     const pressuredTileIds = new Set<string>();
     const removePressurePriorityTileFromQueue = (tileId: string) => {
       for (const [fortressId, fortressPriorities] of prioritiesByFortressId) {
@@ -682,7 +683,9 @@ async function processTilePressureExpansion({
         prioritiesByFortressId.set(fortressId, remainingPriorities);
       }
     };
-    const normalizePriorityWeights = async (fortress: (typeof fortresses)[number]) => {
+    const normalizePriorityWeights = async (
+      fortress: (typeof fortresses)[number]
+    ) => {
       const priorityLimit = getTilePressurePriorityLimit(fortress);
       const normalizedPriorities = sortTilePressureQueue(
         prioritiesByFortressId.get(fortress.id) ?? []
@@ -742,7 +745,9 @@ async function processTilePressureExpansion({
           const existingQueue = prioritiesByFortressId.get(fortress.id) ?? [];
 
           if (
-            existingQueue.some((priority) => priority.tileId === candidate.tileId)
+            existingQueue.some(
+              (priority) => priority.tileId === candidate.tileId
+            )
           ) {
             continue;
           }
@@ -775,10 +780,7 @@ async function processTilePressureExpansion({
             },
           });
 
-          prioritiesByFortressId.set(fortress.id, [
-            ...existingQueue,
-            priority,
-          ]);
+          prioritiesByFortressId.set(fortress.id, [...existingQueue, priority]);
         }
       }
 
@@ -958,10 +960,14 @@ async function processTilePressureExpansion({
             },
           },
         });
-        const staleTileIds = new Set(stalePriorities.map((priority) => priority.tileId));
+        const staleTileIds = new Set(
+          stalePriorities.map((priority) => priority.tileId)
+        );
         prioritiesByFortressId.set(
           fortress.id,
-          queuedPriorities.filter((priority) => !staleTileIds.has(priority.tileId))
+          queuedPriorities.filter(
+            (priority) => !staleTileIds.has(priority.tileId)
+          )
         );
       }
 
@@ -981,13 +987,15 @@ async function processTilePressureExpansion({
       const legalPressurePriorities = sortTilePressureQueue(
         prioritiesByFortressId.get(fortress.id) ?? []
       ).filter((priority) => isLegalPriorityTarget(priority.tileId));
-      const legalPressureTargets = legalPressurePriorities.filter((priority) => {
-        const ownerFortressId = ownerByTileId.get(priority.tileId) ?? null;
+      const legalPressureTargets = legalPressurePriorities.filter(
+        (priority) => {
+          const ownerFortressId = ownerByTileId.get(priority.tileId) ?? null;
 
-        return ownerFortressId
-          ? ownerFortressId !== fortress.id
-          : ownedTileIds.length < expansionTileCapacity;
-      });
+          return ownerFortressId
+            ? ownerFortressId !== fortress.id
+            : ownedTileIds.length < expansionTileCapacity;
+        }
+      );
       const targets =
         legalPressureTargets.length > 0
           ? legalPressureTargets.slice(0, 1)
@@ -1308,7 +1316,9 @@ async function processSeasonFourCampaigns({
           race: campaign.attackerFortress.race,
           ownedTileBiomes: attackerOwnedTiles
             .map((ownership) => getTileById(ownership.tileId)?.biome ?? null)
-            .filter((biome): biome is NonNullable<typeof biome> => biome !== null),
+            .filter(
+              (biome): biome is NonNullable<typeof biome> => biome !== null
+            ),
         });
         const progressDelta = calculateCampaignProgressPerTick({
           pressureWorkersAssigned:
@@ -1736,8 +1746,9 @@ async function launchQueuedTradeWagonRuns({
       points: leg.cargo.points,
       nukeFuel: getTradeNukeComponents(leg.cargo)[NukeComponentKind.FUEL],
       nukeRocket: getTradeNukeComponents(leg.cargo)[NukeComponentKind.ROCKET],
-      nukeWrathOfA:
-        getTradeNukeComponents(leg.cargo)[NukeComponentKind.WRATH_OF_A],
+      nukeWrathOfA: getTradeNukeComponents(leg.cargo)[
+        NukeComponentKind.WRATH_OF_A
+      ],
       baseCargoValue: calculateTradeCargoValue(leg.cargo),
       deedTileId: leg.deedTileId,
       departedAt,
@@ -1802,11 +1813,7 @@ async function launchQueuedAcceptedTradeOfferRuns({
       status: TradeOfferStatus.ACCEPTED,
     },
     include: { lineItems: true },
-    orderBy: [
-      { acceptedAt: "asc" },
-      { createdAt: "asc" },
-      { id: "asc" },
-    ],
+    orderBy: [{ acceptedAt: "asc" }, { createdAt: "asc" }, { id: "asc" }],
   });
 
   for (const offer of acceptedOffers) {
@@ -1898,7 +1905,10 @@ async function processSeasonFourConvoys({
   return db.$transaction(async (tx) => {
     const doctrineContextByFortressId = new Map<
       string,
-      { doctrine: import("@/lib/prisma-client").FortressDoctrine | null; tier: number }
+      {
+        doctrine: import("@/lib/prisma-client").FortressDoctrine | null;
+        tier: number;
+      }
     >();
     const getDoctrineContext = async (fortressId: string) => {
       const existing = doctrineContextByFortressId.get(fortressId);
@@ -1922,7 +1932,9 @@ async function processSeasonFourConvoys({
           race: fortress.race,
           ownedTileBiomes: ownerships
             .map((ownership) => getTileById(ownership.tileId)?.biome ?? null)
-            .filter((biome): biome is NonNullable<typeof biome> => biome !== null),
+            .filter(
+              (biome): biome is NonNullable<typeof biome> => biome !== null
+            ),
         }),
       };
       doctrineContextByFortressId.set(fortressId, context);
@@ -1956,7 +1968,10 @@ async function processSeasonFourConvoys({
       orderBy: [{ arrivesAt: "asc" }, { id: "asc" }],
     });
     let scoreEventsCreated = 0;
-    const deliveredConvoyLegs: Array<{ fromFortressId: string; toFortressId: string }> = [];
+    const deliveredConvoyLegs: Array<{
+      fromFortressId: string;
+      toFortressId: string;
+    }> = [];
 
     // Count completed deliveries per fortress pair for trade hub bonus
     const completedDeliveries = await tx.convoyLeg.groupBy({
@@ -2018,7 +2033,10 @@ async function processSeasonFourConvoys({
         escortAlreadyReturned = true;
       };
 
-      if (!seized && isConvoyRaidEligible({ ...leg, hasDeed: Boolean(leg.deedTileId) })) {
+      if (
+        !seized &&
+        isConvoyRaidEligible({ ...leg, hasDeed: Boolean(leg.deedTileId) })
+      ) {
         const potentialRaidOrders = await tx.armyOrder.findMany({
           where: {
             cycleId,
@@ -2043,7 +2061,10 @@ async function processSeasonFourConvoys({
                 where: {
                   cycleId_fortressAId_fortressBId: {
                     cycleId,
-                    ...getCanonicalDiplomacyPair(candidate.fortressId, fortressId),
+                    ...getCanonicalDiplomacyPair(
+                      candidate.fortressId,
+                      fortressId
+                    ),
                   },
                 },
               });
@@ -2077,7 +2098,10 @@ async function processSeasonFourConvoys({
           const raidArmy = raidOrder.committedArmy;
           const raidPower =
             raidArmy *
-            getRaidPowerDoctrineMultiplier(raidDoctrine.doctrine, raidDoctrine.tier);
+            getRaidPowerDoctrineMultiplier(
+              raidDoctrine.doctrine,
+              raidDoctrine.tier
+            );
           const escortPower =
             escortArmy *
             getEscortDoctrineMultiplier(
@@ -2133,9 +2157,8 @@ async function processSeasonFourConvoys({
             leg.fromFortressId,
             leg.toFortressId,
           ]) {
-            const detectingDoctrine = await getDoctrineContext(
-              detectingFortressId
-            );
+            const detectingDoctrine =
+              await getDoctrineContext(detectingFortressId);
             const guards = await tx.armyOrder.aggregate({
               where: {
                 cycleId,
@@ -2236,20 +2259,23 @@ async function processSeasonFourConvoys({
           }
 
           if (raidResult.succeeded) {
-            const stolen = calculateStolenConvoyCargo({
-              gold: leg.gold,
-              food: leg.food,
-              army: leg.army,
-              points: leg.points,
-              nukeComponents: {
-                FUEL: leg.nukeFuel,
-                ROCKET: leg.nukeRocket,
-                WRATH_OF_A: leg.nukeWrathOfA,
+            const stolen = calculateStolenConvoyCargo(
+              {
+                gold: leg.gold,
+                food: leg.food,
+                army: leg.army,
+                points: leg.points,
+                nukeComponents: {
+                  FUEL: leg.nukeFuel,
+                  ROCKET: leg.nukeRocket,
+                  WRATH_OF_A: leg.nukeWrathOfA,
+                },
               },
-            }, getStolenCargoDoctrineMultiplier(
-              raidDoctrine.doctrine,
-              raidDoctrine.tier
-            ));
+              getStolenCargoDoctrineMultiplier(
+                raidDoctrine.doctrine,
+                raidDoctrine.tier
+              )
+            );
 
             await tx.fortress.update({
               where: { id: raidOrder.fortressId },
@@ -2261,12 +2287,11 @@ async function processSeasonFourConvoys({
                 interceptedCargoValue: { increment: stolen.baseValue },
               },
             });
-            const stolenNukeComponents =
-              stolen.nukeComponents ?? {
-                FUEL: 0,
-                ROCKET: 0,
-                WRATH_OF_A: 0,
-              };
+            const stolenNukeComponents = stolen.nukeComponents ?? {
+              FUEL: 0,
+              ROCKET: 0,
+              WRATH_OF_A: 0,
+            };
             for (const [componentKind, quantity] of Object.entries(
               stolenNukeComponents
             )) {
@@ -2462,21 +2487,42 @@ async function processSeasonFourConvoys({
       }
 
       if (!seized && leg.deedTileId) {
-        const [deedTile, activeBattles, activeCampaigns, objectives, fromFort, toFort] = await Promise.all([
+        const [
+          deedTile,
+          activeBattles,
+          activeCampaigns,
+          objectives,
+          fromFort,
+          toFort,
+        ] = await Promise.all([
           tx.mapHexOwnership.findUnique({
             where: { cycleId_tileId: { cycleId, tileId: leg.deedTileId } },
           }),
           tx.battlefield.findMany({
-            where: { cycleId, targetTileId: leg.deedTileId, status: BattlefieldStatus.ACTIVE },
+            where: {
+              cycleId,
+              targetTileId: leg.deedTileId,
+              status: BattlefieldStatus.ACTIVE,
+            },
             select: { id: true },
           }),
           tx.territoryCampaign.findMany({
-            where: { cycleId, targetTileId: leg.deedTileId, status: { in: ['BUILDING', 'SIEGE_WARNING', 'ENGAGED'] } },
+            where: {
+              cycleId,
+              targetTileId: leg.deedTileId,
+              status: { in: ["BUILDING", "SIEGE_WARNING", "ENGAGED"] },
+            },
             select: { id: true },
           }),
           Promise.resolve(null),
-          tx.fortress.findUnique({ where: { id: leg.fromFortressId }, select: { mapX: true, mapY: true } }),
-          tx.fortress.findUnique({ where: { id: leg.toFortressId }, select: { mapX: true, mapY: true } }),
+          tx.fortress.findUnique({
+            where: { id: leg.fromFortressId },
+            select: { mapX: true, mapY: true },
+          }),
+          tx.fortress.findUnique({
+            where: { id: leg.toFortressId },
+            select: { mapX: true, mapY: true },
+          }),
         ]);
 
         const hasActiveBattle = activeBattles.length > 0;
@@ -2507,13 +2553,18 @@ async function processSeasonFourConvoys({
             where: { id: leg.id },
             data: {
               deedFailureReason: deedTile
-                ? "Deed invalid at delivery: " + [
-                    effectiveStatus !== DiplomacyRelationStatus.ALLIED && "alliance broken",
-                    deedTile.ownerFortressId !== leg.fromFortressId && "tile no longer owned",
+                ? "Deed invalid at delivery: " +
+                  [
+                    effectiveStatus !== DiplomacyRelationStatus.ALLIED &&
+                      "alliance broken",
+                    deedTile.ownerFortressId !== leg.fromFortressId &&
+                      "tile no longer owned",
                     hasActiveBattle && "tile in active battle",
                     hasActiveCampaign && "tile in active campaign",
                     isObjective && "tile is an active objective",
-                  ].filter(Boolean).join(", ")
+                  ]
+                    .filter(Boolean)
+                    .join(", ")
                 : "Deed invalid at delivery: tile no longer exists in the cycle.",
             },
           });
@@ -2528,9 +2579,10 @@ async function processSeasonFourConvoys({
           bonusFood: seized ? 0 : bonus.food,
           pointsAwarded: points.total,
           deedSettledAt: !seized && leg.deedTileId ? tickAt : undefined,
-          deedFailureReason: seized && leg.deedTileId
-            ? "Deed cancelled: parties became hostile."
-            : undefined,
+          deedFailureReason:
+            seized && leg.deedTileId
+              ? "Deed cancelled: parties became hostile."
+              : undefined,
           settledAt: tickAt,
         },
       });
@@ -2657,6 +2709,7 @@ type TickRunnerStage =
   | "start-testing-cycle"
   | "complete-testing-cycle"
   | "load-last-processed-tick"
+  | "season-five-fishing"
   | "process-minute"
   | "resolve-active-cycle";
 
@@ -3619,7 +3672,10 @@ async function processCycleTick(
   });
 
   let convoyScoreEventsCreated = 0;
-  let deliveredConvoyLegs: Array<{ fromFortressId: string; toFortressId: string }> = [];
+  let deliveredConvoyLegs: Array<{
+    fromFortressId: string;
+    toFortressId: string;
+  }> = [];
 
   // Auto-war dispatch (always runs for debugging; requires WarPolicy + battalions)
   if (true) {
@@ -3635,7 +3691,12 @@ async function processCycleTick(
     ] = await Promise.all([
       db.diplomacyRelation.findMany({
         where: { cycleId, status: { in: ["WAR", "WAR_PENDING"] } },
-        select: { status: true, fortressAId: true, fortressBId: true, warStartsAt: true },
+        select: {
+          status: true,
+          fortressAId: true,
+          fortressBId: true,
+          warStartsAt: true,
+        },
       }),
       db.territoryCampaign.findMany({
         where: {
@@ -3679,7 +3740,9 @@ async function processCycleTick(
     ]);
 
     const activeWars = warRelations.filter(
-      (r) => r.status === "WAR" || (r.status === "WAR_PENDING" && r.warStartsAt && r.warStartsAt <= tickAt),
+      (r) =>
+        r.status === "WAR" ||
+        (r.status === "WAR_PENDING" && r.warStartsAt && r.warStartsAt <= tickAt)
     );
 
     await processAutoWarDispatch({
@@ -3709,13 +3772,16 @@ async function processCycleTick(
         defenderFortressId: c.defenderFortressId,
         targetTileId: c.targetTileId,
         armyOrder: c.armyOrder
-          ? { committedArmy: c.armyOrder.committedArmy, status: c.armyOrder.status }
+          ? {
+              committedArmy: c.armyOrder.committedArmy,
+              status: c.armyOrder.status,
+            }
           : null,
       })),
       activeBattlefields,
       priorityTiles: pressurePriorities.map((priority) => {
         const targetOwner = ownerships.find(
-          (ownership) => ownership.tileId === priority.tileId,
+          (ownership) => ownership.tileId === priority.tileId
         )?.ownerFortressId;
         return {
           fortressId: priority.fortressId,
@@ -3733,10 +3799,12 @@ async function processCycleTick(
       select: { tileId: true, ownerFortressId: true, ownershipPressure: true },
     });
     const guardTiles = new Set(
-      (await db.fortressGarrison.findMany({
-        where: { cycleId, army: { gt: 0 } },
-        select: { tileId: true },
-      })).map((g) => g.tileId),
+      (
+        await db.fortressGarrison.findMany({
+          where: { cycleId, army: { gt: 0 } },
+          select: { tileId: true },
+        })
+      ).map((g) => g.tileId)
     );
     const enemyPressures = await db.tilePressureState.findMany({
       where: { cycleId },
@@ -3783,7 +3851,8 @@ async function processCycleTick(
       ownedTileCount.set(o.ownerFortressId, count + 1);
     }
     const inputs = allOwnerships.map((o) => {
-      const totalWorkers = pressureWorkersByFortress.get(o.ownerFortressId) ?? 0;
+      const totalWorkers =
+        pressureWorkersByFortress.get(o.ownerFortressId) ?? 0;
       const ownerFortress = lightFortressById.get(o.ownerFortressId);
       const tileCount = ownedTileCount.get(o.ownerFortressId) ?? 1;
       const workersPerTile = calculateOwnershipMaintenanceWorkers({
@@ -3817,7 +3886,13 @@ async function processCycleTick(
     // Alliance reinforcements.
     const alliedBattlefields = await db.battlefield.findMany({
       where: { cycleId, status: "ACTIVE" },
-      select: { id: true, targetTileId: true, defenderBannerFortressId: true, attackerBannerFortressId: true, status: true },
+      select: {
+        id: true,
+        targetTileId: true,
+        defenderBannerFortressId: true,
+        attackerBannerFortressId: true,
+        status: true,
+      },
     });
     await processAllianceReinforcements({
       db,
@@ -4106,12 +4181,12 @@ async function processCycleTick(
     const activeRune = isSeasonFour
       ? null
       : fortress.raceAbilityActivations.find(
-      (activation) =>
-        activation.kind === RaceAbilityKind.DWARF_RUNE_GRUDGES &&
-        activation.activeFrom <= tickAt &&
-        activation.activeUntil > tickAt &&
-        activation.consumedAt === null
-      );
+          (activation) =>
+            activation.kind === RaceAbilityKind.DWARF_RUNE_GRUDGES &&
+            activation.activeFrom <= tickAt &&
+            activation.activeUntil > tickAt &&
+            activation.consumedAt === null
+        );
 
     if (!activeRune || !activeRune.targetFortressId) {
       continue;
@@ -4192,40 +4267,42 @@ async function processCycleTick(
   const dwarfEconomyHaltedThisTick = new Set<string>();
   const dwarfCombatSurgedThisTick = new Set<string>();
 
-  const pendingDeepMiningRolls = isSeasonFour ? [] : await db.dwarfDeepMiningRoll.findMany({
-    where: {
-      resolvedAt: null,
-      activeUntil: {
-        lte: tickAt,
-      },
-    },
-    include: {
-      fortress: {
-        select: {
-          id: true,
-          ownerId: true,
-          commanderName: true,
-          name: true,
-          gold: true,
-          army: true,
-          level: true,
-          minersAssigned: true,
-          farmersAssigned: true,
-          recruitmentQueue: true,
-          recruitersAssigned: true,
-          race: true,
-          mapX: true,
-          mapY: true,
-          castleUpgradeSpecializations: {
+  const pendingDeepMiningRolls = isSeasonFour
+    ? []
+    : await db.dwarfDeepMiningRoll.findMany({
+        where: {
+          resolvedAt: null,
+          activeUntil: {
+            lte: tickAt,
+          },
+        },
+        include: {
+          fortress: {
             select: {
+              id: true,
+              ownerId: true,
+              commanderName: true,
+              name: true,
+              gold: true,
+              army: true,
               level: true,
-              specialization: true,
+              minersAssigned: true,
+              farmersAssigned: true,
+              recruitmentQueue: true,
+              recruitersAssigned: true,
+              race: true,
+              mapX: true,
+              mapY: true,
+              castleUpgradeSpecializations: {
+                select: {
+                  level: true,
+                  specialization: true,
+                },
+              },
             },
           },
         },
-      },
-    },
-  });
+      });
 
   for (const roll of pendingDeepMiningRolls) {
     const source = fortressLookup.get(roll.fortressId) ?? roll.fortress;
@@ -4464,7 +4541,7 @@ async function processCycleTick(
       if (battalion) {
         acceptedArmy = Math.max(
           0,
-          Math.min(unit.armyAmount, battalion.maxSize - battalion.size),
+          Math.min(unit.armyAmount, battalion.maxSize - battalion.size)
         );
         returnedArmy = unit.armyAmount - acceptedArmy;
 
@@ -5564,7 +5641,10 @@ async function processCycleTick(
               targetUnit.armyAmount *
                 getFortressAttackDamage(targetAttacker.level) *
                 (!isSeasonFour &&
-                hasHomeOfABossBuff(targetAttacker.raceAbilityActivations, tickAt)
+                hasHomeOfABossBuff(
+                  targetAttacker.raceAbilityActivations,
+                  tickAt
+                )
                   ? HOME_OF_A_BOSS_BUFF_MULTIPLIER
                   : 1) *
                 getLeaderboardTitleAttackMultiplier(
@@ -6048,7 +6128,10 @@ async function processCycleTick(
           outcome.defenderLosses
       );
     }
-    const attackerLosses = Math.max(0, unit.armyAmount - outcome.attackerReturned);
+    const attackerLosses = Math.max(
+      0,
+      unit.armyAmount - outcome.attackerReturned
+    );
     if (attackerLosses > 0 && !target.isNpc) {
       currentUnitsKilled.set(
         target.id,
@@ -6149,11 +6232,11 @@ async function processCycleTick(
       );
 
       // Winner bonus: attacker gets bonus points for defeating enemy army
-      if (
-        outcome.outcome === "ATTACKER_WIN" &&
-        outcome.defenderLosses > 0
-      ) {
-        const winnerBonus = Math.max(1, Math.floor(outcome.defenderLosses / 50));
+      if (outcome.outcome === "ATTACKER_WIN" && outcome.defenderLosses > 0) {
+        const winnerBonus = Math.max(
+          1,
+          Math.floor(outcome.defenderLosses / 50)
+        );
         scoreEvents.push({
           cycleId,
           fortressId: attacker.id,
@@ -6359,9 +6442,7 @@ async function processCycleTick(
       );
     const economyMultiplier =
       (economySurged ? DWARF_DEEP_MINING_ECONOMY_MULTIPLIER : 1) *
-      (unicornEconomySurge
-        ? UNICORN_SHATTERED_REALITY_ECONOMY_MULTIPLIER
-        : 1) *
+      (unicornEconomySurge ? UNICORN_SHATTERED_REALITY_ECONOMY_MULTIPLIER : 1) *
       (homeBossEconomyBuff ? HOME_OF_A_BOSS_BUFF_MULTIPLIER : 1);
 
     // Apply race ability modifiers to production
@@ -6369,10 +6450,14 @@ async function processCycleTick(
     // DWARF_ECONOMY_SURGE: multiplies production by DWARF_DEEP_MINING_ECONOMY_MULTIPLIER
     const producedGold = economyHalted
       ? 0
-      : Math.floor((production.goldProduced + skillGoldBonus) * economyMultiplier);
+      : Math.floor(
+          (production.goldProduced + skillGoldBonus) * economyMultiplier
+        );
     const producedFood = economyHalted
       ? 0
-      : Math.floor((production.foodProduced + skillFoodBonus) * economyMultiplier);
+      : Math.floor(
+          (production.foodProduced + skillFoodBonus) * economyMultiplier
+        );
     const recruitmentResult = economyHalted
       ? {
           unitsCreated: 0,
@@ -6536,7 +6621,8 @@ async function processCycleTick(
   }
 
   // === BATTALION RECRUITMENT ===
-  if (true) { // Always run for Season 4 test season
+  if (true) {
+    // Always run for Season 4 test season
     // Build recruiters map from fortress data.
     const recruitersByFortress = new Map<string, number>();
     const raceByFortress = new Map<string, string | null>();
@@ -6557,9 +6643,12 @@ async function processCycleTick(
       levelByFortress.set(fortress.id, fortress.level);
       barracksByFortress.set(
         fortress.id,
-        castleSpecializations[CastleUpgradeSpecialization.MILITARY],
+        castleSpecializations[CastleUpgradeSpecialization.MILITARY]
       );
-      goldByFortress.set(fortress.id, currentGold.get(fortress.id) ?? fortress.gold);
+      goldByFortress.set(
+        fortress.id,
+        currentGold.get(fortress.id) ?? fortress.gold
+      );
       const policy = warPolicies.find((p) => p.fortressId === fortress.id);
       maxArmyByFortress.set(fortress.id, policy?.maxArmySize ?? 500);
       guardPercentByFortress.set(fortress.id, policy?.guardPercent ?? 30);
@@ -6567,7 +6656,7 @@ async function processCycleTick(
         fortress.id,
         mapHexOwnerships
           .filter((ownership) => ownership.ownerFortressId === fortress.id)
-          .map((ownership) => ownership.tileId),
+          .map((ownership) => ownership.tileId)
       );
     }
 
@@ -6575,7 +6664,7 @@ async function processCycleTick(
       fortresses.map((fortress) => [
         fortress.id,
         { mapX: fortress.mapX, mapY: fortress.mapY },
-      ]),
+      ])
     );
 
     const recruitedArmyByFortress = await processBattalionRecruitment({
@@ -6637,7 +6726,7 @@ async function processCycleTick(
     for (const fortress of fortresses) {
       if (fortress.isNpc) continue;
       const bnList = allBattalionsAfter.filter(
-        (b) => b.fortressId === fortress.id,
+        (b) => b.fortressId === fortress.id
       );
       if (bnList.length === 0) continue;
 
@@ -6773,7 +6862,6 @@ async function processCycleTick(
         previousArmyByFortress: preCombatArmy,
       });
     }
-
   }
 
   return {
@@ -6927,6 +7015,7 @@ export async function runGameTick({
     },
     select: {
       id: true,
+      ruleset: true,
       status: true,
       testingStartedAt: true,
       testingEndsAt: true,
@@ -6936,6 +7025,26 @@ export async function runGameTick({
   });
 
   for (const cycle of activeCycles) {
+    if (isSeasonFiveRuleset(cycle.ruleset)) {
+      try {
+        const seasonFiveSummary = await processSeasonFiveTick({
+          cycleId: cycle.id,
+          now,
+          db,
+        });
+        summary.resolvedAttackUnits += seasonFiveSummary.travelCompleted;
+        summary.scoreEventsCreated += seasonFiveSummary.catchesCreated;
+      } catch (error) {
+        throw new TickRunnerError({
+          stage: "season-five-fishing",
+          cycleId: cycle.id,
+          now,
+          cause: error,
+        });
+      }
+      continue;
+    }
+
     const gameplayStartedAt =
       cycle.status === CycleStatus.TESTING
         ? cycle.testingStartedAt
