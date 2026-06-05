@@ -3,9 +3,17 @@ import test from "node:test";
 import {
   CycleRuleset,
   CycleStatus,
+  SeasonFiveActionKind,
   SeasonFiveCharacterClass,
   SeasonFiveGearSlot,
+  SeasonFiveLocationKind,
 } from "@/lib/prisma-client";
+import {
+  createSeasonFiveHomeState,
+  createSeasonFiveTravelState,
+  getSeasonFiveActionSummary,
+  resolveSeasonFiveCompletedTravel,
+} from "./season-five-actions";
 import {
   calculateSeasonFiveCatchIntervalMinutes,
   calculateSeasonFiveInventoryCapacity,
@@ -108,6 +116,123 @@ test("Season 5 catch generation is deterministic and bounded", () => {
   assert.ok(first.sizeCm >= 50);
   assert.ok(first.sizeCm <= 480);
   assert.ok(first.inventorySlots >= 2);
+});
+
+test("Season 5 action helpers build deterministic travel state", () => {
+  const now = new Date("2026-06-05T12:00:00.000Z");
+  const destination = {
+    id: "lake-1",
+    key: "mist-lake",
+    name: "Mist Lake",
+    kind: SeasonFiveLocationKind.LAKE,
+    travelMinutes: 12,
+  };
+  const first = createSeasonFiveTravelState({
+    destination,
+    now,
+    travelPercent: -25,
+  });
+  const replacement = createSeasonFiveTravelState({
+    destination: {
+      ...destination,
+      id: "sea-1",
+      key: "brine-sea",
+      name: "Brine Sea",
+      kind: SeasonFiveLocationKind.SEA,
+      travelMinutes: 20,
+    },
+    now,
+    travelPercent: -25,
+  });
+
+  assert.deepEqual(first, {
+    actionKind: SeasonFiveActionKind.TRAVELING,
+    destinationLocationId: "lake-1",
+    actionStartedAt: now,
+    actionCompletesAt: new Date("2026-06-05T12:09:00.000Z"),
+    lastResolvedAt: now,
+  });
+  assert.equal(replacement.destinationLocationId, "sea-1");
+  assert.equal(
+    replacement.actionCompletesAt.getTime(),
+    new Date("2026-06-05T12:15:00.000Z").getTime()
+  );
+});
+
+test("Season 5 action helpers resolve travel completion and home return", () => {
+  const resolvedAt = new Date("2026-06-05T12:15:00.000Z");
+  const fishing = resolveSeasonFiveCompletedTravel({
+    destination: {
+      id: "sea-1",
+      key: "brine-sea",
+      name: "Brine Sea",
+      kind: SeasonFiveLocationKind.SEA,
+      travelMinutes: 20,
+    },
+    resolvedAt,
+  });
+  const home = resolveSeasonFiveCompletedTravel({
+    destination: {
+      id: "home",
+      key: "home",
+      name: "Home Base",
+      kind: SeasonFiveLocationKind.HOME,
+      travelMinutes: 0,
+    },
+    resolvedAt,
+  });
+  const manualHome = createSeasonFiveHomeState({
+    homeId: "home",
+    now: resolvedAt,
+  });
+
+  assert.deepEqual(fishing, {
+    actionKind: SeasonFiveActionKind.FISHING,
+    currentLocationId: "sea-1",
+    destinationLocationId: null,
+    actionStartedAt: resolvedAt,
+    actionCompletesAt: null,
+    lastResolvedAt: resolvedAt,
+  });
+  assert.deepEqual(home, {
+    actionKind: SeasonFiveActionKind.AT_HOME,
+    currentLocationId: "home",
+    destinationLocationId: null,
+    actionStartedAt: null,
+    actionCompletesAt: null,
+    lastResolvedAt: resolvedAt,
+  });
+  assert.deepEqual(manualHome, home);
+});
+
+test("Season 5 action summary exposes ETA and destination", () => {
+  const now = new Date("2026-06-05T12:00:00.000Z");
+  const etaAt = new Date("2026-06-05T12:07:30.000Z");
+  const summary = getSeasonFiveActionSummary({
+    actionKind: SeasonFiveActionKind.TRAVELING,
+    currentLocation: {
+      id: "home",
+      key: "home",
+      name: "Home Base",
+      kind: SeasonFiveLocationKind.HOME,
+      travelMinutes: 0,
+    },
+    destinationLocation: {
+      id: "lake-1",
+      key: "mist-lake",
+      name: "Mist Lake",
+      kind: SeasonFiveLocationKind.LAKE,
+      travelMinutes: 12,
+    },
+    actionStartedAt: now,
+    actionCompletesAt: etaAt,
+    now,
+  });
+
+  assert.equal(summary.kind, SeasonFiveActionKind.TRAVELING);
+  assert.equal(summary.destination?.key, "mist-lake");
+  assert.equal(summary.etaAt, etaAt);
+  assert.equal(summary.remainingSeconds, 450);
 });
 
 test("Season 5 preview cycle seed creates active cycle and baseline locations", async () => {

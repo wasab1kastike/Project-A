@@ -11,6 +11,12 @@ import {
   type PrismaClient,
 } from "@/lib/prisma-client";
 import { GameError } from "./errors";
+import {
+  createSeasonFiveHomeState,
+  createSeasonFiveTravelState,
+  getSeasonFiveActionSummary,
+  resolveSeasonFiveCompletedTravel,
+} from "./season-five-actions";
 import { addHours, addMinutes, floorToMinute } from "./time";
 
 type DatabaseClient = PrismaClient;
@@ -527,10 +533,13 @@ function findSeasonFiveSkillNode(nodeKey: string) {
 }
 
 function getSkillStatBonuses(purchasedNodeKeys: Iterable<string>) {
-  return Array.from(purchasedNodeKeys).reduce((stats, nodeKey) => {
-    const skill = findSeasonFiveSkillNode(nodeKey);
-    return addStats(stats, skill?.statBonuses);
-  }, { ...EMPTY_STATS });
+  return Array.from(purchasedNodeKeys).reduce(
+    (stats, nodeKey) => {
+      const skill = findSeasonFiveSkillNode(nodeKey);
+      return addStats(stats, skill?.statBonuses);
+    },
+    { ...EMPTY_STATS }
+  );
 }
 
 function getGearStatBonuses(
@@ -543,28 +552,31 @@ function getGearStatBonuses(
 ) {
   return gear
     .filter((item) => item.equipped)
-    .reduce((stats, item) => {
-      const catalogBonuses = item.key
-        ? STARTER_GEAR_BY_KEY.get(item.key)?.statBonuses
-        : null;
-      if (catalogBonuses) {
-        return addStats(stats, catalogBonuses);
-      }
+    .reduce(
+      (stats, item) => {
+        const catalogBonuses = item.key
+          ? STARTER_GEAR_BY_KEY.get(item.key)?.statBonuses
+          : null;
+        if (catalogBonuses) {
+          return addStats(stats, catalogBonuses);
+        }
 
-      if (item.slot === SeasonFiveGearSlot.ROD) {
-        return addStats(stats, { stronk: item.power, smell: item.power });
-      }
-      if (item.slot === SeasonFiveGearSlot.BAIT) {
-        return addStats(stats, { luk: item.power, smell: item.power });
-      }
-      if (item.slot === SeasonFiveGearSlot.PACK) {
-        return addStats(stats, { stronk: item.power * 2 });
-      }
-      if (item.slot === SeasonFiveGearSlot.TRINKET) {
-        return addStats(stats, { luk: item.power, magik: item.power });
-      }
-      return stats;
-    }, { ...EMPTY_STATS });
+        if (item.slot === SeasonFiveGearSlot.ROD) {
+          return addStats(stats, { stronk: item.power, smell: item.power });
+        }
+        if (item.slot === SeasonFiveGearSlot.BAIT) {
+          return addStats(stats, { luk: item.power, smell: item.power });
+        }
+        if (item.slot === SeasonFiveGearSlot.PACK) {
+          return addStats(stats, { stronk: item.power * 2 });
+        }
+        if (item.slot === SeasonFiveGearSlot.TRINKET) {
+          return addStats(stats, { luk: item.power, magik: item.power });
+        }
+        return stats;
+      },
+      { ...EMPTY_STATS }
+    );
 }
 
 export function getSeasonFiveCharacterStats(input: {
@@ -621,16 +633,7 @@ export function getSeasonFiveBuildEffects(input: {
   };
 }
 
-export function calculateSeasonFiveTravelMinutes(input: {
-  baseMinutes: number;
-  travelPercent: number;
-}) {
-  if (input.baseMinutes <= 0) return 0;
-  return Math.max(
-    1,
-    Math.ceil(input.baseMinutes * (1 + input.travelPercent / 100))
-  );
-}
+export { calculateSeasonFiveTravelMinutes } from "./season-five-actions";
 
 export function calculateSeasonFiveCatchIntervalMinutes(input: {
   catchDifficulty: number;
@@ -1007,20 +1010,13 @@ export async function startSeasonFiveFishingTrip({
       (purchase) => purchase.nodeKey
     ),
   });
-  const travelMinutes = calculateSeasonFiveTravelMinutes({
-    baseMinutes: destination.travelMinutes,
-    travelPercent: effects.travelPercent,
-  });
-
   await db.seasonFiveCharacter.update({
     where: { id: character.id },
-    data: {
-      actionKind: SeasonFiveActionKind.TRAVELING,
-      destinationLocationId: destination.id,
-      actionStartedAt: now,
-      actionCompletesAt: addMinutes(now, travelMinutes),
-      lastResolvedAt: now,
-    },
+    data: createSeasonFiveTravelState({
+      destination,
+      now,
+      travelPercent: effects.travelPercent,
+    }),
   });
 }
 
@@ -1056,13 +1052,7 @@ export async function returnSeasonFiveHome({
     await unloadSeasonFiveInventory({ characterId: character.id, db, now });
     await db.seasonFiveCharacter.update({
       where: { id: character.id },
-      data: {
-        actionKind: SeasonFiveActionKind.AT_HOME,
-        destinationLocationId: null,
-        actionStartedAt: null,
-        actionCompletesAt: null,
-        lastResolvedAt: now,
-      },
+      data: createSeasonFiveHomeState({ homeId: home.id, now }),
     });
     return;
   }
@@ -1074,20 +1064,14 @@ export async function returnSeasonFiveHome({
       (purchase) => purchase.nodeKey
     ),
   });
-  const travelMinutes = calculateSeasonFiveTravelMinutes({
-    baseMinutes: 10,
-    travelPercent: effects.travelPercent,
-  });
-
   await db.seasonFiveCharacter.update({
     where: { id: character.id },
-    data: {
-      actionKind: SeasonFiveActionKind.TRAVELING,
-      destinationLocationId: home.id,
-      actionStartedAt: now,
-      actionCompletesAt: addMinutes(now, travelMinutes),
-      lastResolvedAt: now,
-    },
+    data: createSeasonFiveTravelState({
+      destination: home,
+      now,
+      travelPercent: effects.travelPercent,
+      baseMinutes: 10,
+    }),
   });
 }
 
@@ -1249,7 +1233,11 @@ export async function getSeasonFiveHomeState({
     ) ?? []
   );
   const skillTree = character
-    ? (SEASON_FIVE_SKILL_TREES[character.class] as readonly SeasonFiveSkillNode[]).map((skill) => {
+    ? (
+        SEASON_FIVE_SKILL_TREES[
+          character.class
+        ] as readonly SeasonFiveSkillNode[]
+      ).map((skill) => {
         const purchased = purchasedSkillKeys.has(skill.key);
         const available =
           !purchased &&
@@ -1355,6 +1343,14 @@ export async function getSeasonFiveHomeState({
           skillPoints: character.skillPoints,
           totalFishCaught: character.totalFishCaught,
           biggestFishCm: character.biggestFishCm,
+          action: getSeasonFiveActionSummary({
+            actionKind: character.actionKind,
+            currentLocation: character.currentLocation,
+            destinationLocation: character.destinationLocation,
+            actionStartedAt: character.actionStartedAt,
+            actionCompletesAt: character.actionCompletesAt,
+            now,
+          }),
           actionKind: character.actionKind,
           actionCompletesAt: character.actionCompletesAt,
           currentLocationKey: character.currentLocation?.key ?? null,
@@ -1481,26 +1477,18 @@ export async function processSeasonFiveTick({
       });
       await db.seasonFiveCharacter.update({
         where: { id: character.id },
-        data: {
-          actionKind: SeasonFiveActionKind.AT_HOME,
-          currentLocationId: destination.id,
-          destinationLocationId: null,
-          actionStartedAt: null,
-          actionCompletesAt: null,
-          lastResolvedAt: resolvedAt,
-        },
+        data: resolveSeasonFiveCompletedTravel({
+          destination,
+          resolvedAt,
+        }),
       });
     } else {
       await db.seasonFiveCharacter.update({
         where: { id: character.id },
-        data: {
-          actionKind: SeasonFiveActionKind.FISHING,
-          currentLocationId: destination.id,
-          destinationLocationId: null,
-          actionStartedAt: resolvedAt,
-          actionCompletesAt: null,
-          lastResolvedAt: resolvedAt,
-        },
+        data: resolveSeasonFiveCompletedTravel({
+          destination,
+          resolvedAt,
+        }),
       });
     }
     travelCompleted += 1;
