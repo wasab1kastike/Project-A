@@ -20,6 +20,10 @@ import {
   planSeasonFivePassiveCatches,
 } from "./season-five-fishing";
 import {
+  rankSeasonFiveBiggestFish,
+  rankSeasonFiveMostFish,
+} from "./season-five-leaderboards";
+import {
   calculateSeasonFiveCatchIntervalMinutes,
   calculateSeasonFiveInventoryCapacity,
   calculateSeasonFiveTravelMinutes,
@@ -361,6 +365,104 @@ test("Season 5 inventory pressure labels empty, close, and full packs", () => {
       label: "Full",
     }
   );
+});
+
+test("Season 5 Most Fish leaderboard uses stable tie ordering", () => {
+  const ranked = rankSeasonFiveMostFish([
+    {
+      id: "slow-small",
+      name: "Berta",
+      class: SeasonFiveCharacterClass.RETIRED_WARRIOR,
+      totalFishCaught: 8,
+      biggestFishCm: 80,
+      createdAt: new Date("2026-06-05T12:02:00.000Z"),
+    },
+    {
+      id: "fast-big",
+      name: "Aino",
+      class: SeasonFiveCharacterClass.DRUNKEN_MONK,
+      totalFishCaught: 8,
+      biggestFishCm: 120,
+      createdAt: new Date("2026-06-05T12:03:00.000Z"),
+    },
+    {
+      id: "most",
+      name: "Ciro",
+      class: SeasonFiveCharacterClass.BURNT_OUT_ROGUE,
+      totalFishCaught: 9,
+      biggestFishCm: 40,
+      createdAt: new Date("2026-06-05T12:04:00.000Z"),
+    },
+    {
+      id: "earlier",
+      name: "Dina",
+      class: SeasonFiveCharacterClass.DEMENTED_WIZARD,
+      totalFishCaught: 8,
+      biggestFishCm: 120,
+      createdAt: new Date("2026-06-05T12:01:00.000Z"),
+    },
+  ]);
+
+  assert.deepEqual(
+    ranked.map((row) => row.id),
+    ["most", "earlier", "fast-big", "slow-small"]
+  );
+});
+
+test("Season 5 Biggest Fish leaderboard derives exact catches and stable ties", () => {
+  const character = {
+    id: "wizard",
+    name: "Wizard",
+    class: SeasonFiveCharacterClass.DEMENTED_WIZARD,
+    totalFishCaught: 4,
+    biggestFishCm: 180,
+    createdAt: new Date("2026-06-05T12:00:00.000Z"),
+  };
+  const ranked = rankSeasonFiveBiggestFish([
+    {
+      id: "later-equal",
+      speciesName: "Moon Carp",
+      rarity: SeasonFiveFishRarity.RARE,
+      sizeCm: 180,
+      caughtAt: new Date("2026-06-05T12:10:00.000Z"),
+      character,
+      location: { name: "Moon Depths" },
+    },
+    {
+      id: "exact-winner",
+      speciesName: "Lantern Eel",
+      rarity: SeasonFiveFishRarity.RARE,
+      sizeCm: 180,
+      caughtAt: new Date("2026-06-05T12:05:00.000Z"),
+      character,
+      location: { name: "Moon Depths" },
+    },
+    {
+      id: "runner",
+      speciesName: "Mud Perch",
+      rarity: SeasonFiveFishRarity.COMMON,
+      sizeCm: 150,
+      caughtAt: new Date("2026-06-05T12:04:00.000Z"),
+      character: {
+        id: "monk",
+        name: "Monk",
+        class: SeasonFiveCharacterClass.DRUNKEN_MONK,
+        totalFishCaught: 10,
+        biggestFishCm: 150,
+        createdAt: new Date("2026-06-05T12:00:00.000Z"),
+      },
+      location: { name: "Mossglass Lake" },
+    },
+  ]);
+
+  assert.deepEqual(
+    ranked.map((row) => row.id),
+    ["wizard", "monk"]
+  );
+  assert.equal(ranked[0].catchId, "exact-winner");
+  assert.equal(ranked[0].speciesName, "Lantern Eel");
+  assert.equal(ranked[0].biggestFishCm, 180);
+  assert.equal(ranked[0].locationName, "Moon Depths");
 });
 
 test("Season 5 preview cycle seed creates active cycle and baseline locations", async () => {

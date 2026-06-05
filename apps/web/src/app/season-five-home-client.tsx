@@ -450,16 +450,24 @@ function InventoryPreview({ state }: { state: SeasonFiveHomeState }) {
   );
 }
 
+type SeasonFiveLeaderboardRow =
+  | SeasonFiveHomeState["leaderboards"]["mostFish"][number]
+  | SeasonFiveHomeState["leaderboards"]["biggestFish"][number];
+
+function hasCatchDetails(
+  row: SeasonFiveLeaderboardRow
+): row is SeasonFiveHomeState["leaderboards"]["biggestFish"][number] {
+  return "catchId" in row;
+}
+
 function Leaderboard({
   title,
   rows,
   value,
 }: {
   title: string;
-  rows: SeasonFiveHomeState["leaderboards"]["mostFish"];
-  value: (
-    row: SeasonFiveHomeState["leaderboards"]["mostFish"][number]
-  ) => string;
+  rows: SeasonFiveLeaderboardRow[];
+  value: (row: SeasonFiveLeaderboardRow) => string;
 }) {
   return (
     <div className={styles.leaderboard}>
@@ -471,6 +479,11 @@ function Leaderboard({
               <span>
                 {row.name}
                 <small>{row.classLabel}</small>
+                {hasCatchDetails(row) ? (
+                  <small>
+                    {row.speciesName} | {row.rarity}
+                  </small>
+                ) : null}
               </span>
               <strong>{value(row)}</strong>
             </li>

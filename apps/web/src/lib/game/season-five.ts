@@ -21,6 +21,10 @@ import {
   getSeasonFiveInventoryPressure,
   planSeasonFivePassiveCatches,
 } from "./season-five-fishing";
+import {
+  rankSeasonFiveBiggestFish,
+  rankSeasonFiveMostFish,
+} from "./season-five-leaderboards";
 import { addHours, floorToMinute } from "./time";
 
 type DatabaseClient = PrismaClient;
@@ -1178,40 +1182,53 @@ export async function getSeasonFiveHomeState({
       },
     },
   });
-  const topByCount = await db.seasonFiveCharacter.findMany({
+  const mostFishCandidates = await db.seasonFiveCharacter.findMany({
     where: {
       cycleId: cycle.id,
       totalFishCaught: {
         gt: 0,
       },
     },
-    orderBy: [{ totalFishCaught: "desc" }, { biggestFishCm: "desc" }],
-    take: 10,
     select: {
       id: true,
       name: true,
       class: true,
       totalFishCaught: true,
       biggestFishCm: true,
+      createdAt: true,
     },
   });
-  const topBySize = await db.seasonFiveCharacter.findMany({
+  const biggestFishCandidates = await db.seasonFiveFishCatch.findMany({
     where: {
       cycleId: cycle.id,
-      biggestFishCm: {
-        gt: 0,
-      },
     },
-    orderBy: [{ biggestFishCm: "desc" }, { totalFishCaught: "desc" }],
-    take: 10,
+    orderBy: [{ sizeCm: "desc" }, { caughtAt: "asc" }, { id: "asc" }],
+    take: 100,
     select: {
       id: true,
-      name: true,
-      class: true,
-      totalFishCaught: true,
-      biggestFishCm: true,
+      speciesName: true,
+      rarity: true,
+      sizeCm: true,
+      caughtAt: true,
+      location: {
+        select: {
+          name: true,
+        },
+      },
+      character: {
+        select: {
+          id: true,
+          name: true,
+          class: true,
+          totalFishCaught: true,
+          biggestFishCm: true,
+          createdAt: true,
+        },
+      },
     },
   });
+  const topByCount = rankSeasonFiveMostFish(mostFishCandidates);
+  const topBySize = rankSeasonFiveBiggestFish(biggestFishCandidates);
 
   const effects = character
     ? getSeasonFiveBuildEffects({
