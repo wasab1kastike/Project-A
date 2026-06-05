@@ -21,6 +21,47 @@ enum CycleStatus {
 enum CycleRuleset {
   LEGACY
   SEASON_4
+  SEASON_5
+}
+
+enum SeasonFiveCharacterClass {
+  DRUNKEN_MONK
+  RETIRED_WARRIOR
+  DEMENTED_WIZARD
+  BURNT_OUT_ROGUE
+}
+
+enum SeasonFiveLocationKind {
+  HOME
+  LAKE
+  SEA
+}
+
+enum SeasonFiveActionKind {
+  AT_HOME
+  TRAVELING
+  FISHING
+}
+
+enum SeasonFiveGearSlot {
+  ROD
+  BAIT
+  PACK
+  TRINKET
+}
+
+enum SeasonFiveGearRarity {
+  COMMON
+  UNCOMMON
+  RARE
+  EPIC
+}
+
+enum SeasonFiveFishRarity {
+  COMMON
+  UNCOMMON
+  RARE
+  LEGENDARY
 }
 
 enum FortressAction {
@@ -261,6 +302,7 @@ model User {
   accounts                  Account[]
   sessions                  Session[]
   fortresses                Fortress[]
+  seasonFiveCharacters      SeasonFiveCharacter[]
   chatMessages              ChatMessage[]
   scoreEventsAsActor        ScoreEvent[]                   @relation("ScoreEventActor")
   winnerRequests            WinnerRequest[]                @relation("WinnerRequestAuthor")
@@ -378,6 +420,9 @@ model Cycle {
   buildArcadeRuns                BuildArcadeRun[]
   arcadeTransactions             ArcadeTransaction[]
   fortressGarrisons              FortressGarrison[]
+  seasonFiveCharacters           SeasonFiveCharacter[]
+  seasonFiveFishCatches          SeasonFiveFishCatch[]
+  seasonFiveFishingLocations     SeasonFiveFishingLocation[]
   battalions                     Battalion[]
   warFronts                      WarFront[]
   warPolicies                    WarPolicy[]
@@ -392,6 +437,129 @@ model Cycle {
   @@index([updatedAt], map: "Cycle_updatedAt_idx")
   @@index([winnerId])
   @@index([crownedFortressId])
+}
+
+model SeasonFiveCharacter {
+  id                    String                     @id @default(cuid())
+  userId                String
+  cycleId               String
+  name                  String
+  class                 SeasonFiveCharacterClass
+  level                 Int                        @default(1)
+  experience            Int                        @default(0)
+  skillPoints           Int                        @default(0)
+  totalFishCaught       Int                        @default(0)
+  biggestFishCm         Int                        @default(0)
+  inventoryCapacity     Int                        @default(12)
+  actionKind            SeasonFiveActionKind       @default(AT_HOME)
+  currentLocationId     String?
+  destinationLocationId String?
+  actionStartedAt       DateTime?
+  actionCompletesAt     DateTime?
+  lastResolvedAt        DateTime                   @default(now())
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
+  user                  User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cycle                 Cycle                      @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  currentLocation       SeasonFiveFishingLocation? @relation("SeasonFiveCurrentLocation", fields: [currentLocationId], references: [id], onDelete: SetNull)
+  destinationLocation   SeasonFiveFishingLocation? @relation("SeasonFiveDestinationLocation", fields: [destinationLocationId], references: [id], onDelete: SetNull)
+  gear                  SeasonFiveGear[]
+  inventoryItems        SeasonFiveInventoryItem[]
+  fishCatches           SeasonFiveFishCatch[]
+  skillPurchases        SeasonFiveSkillPurchase[]
+
+  @@unique([cycleId, userId])
+  @@index([userId])
+  @@index([cycleId, totalFishCaught])
+  @@index([cycleId, biggestFishCm])
+  @@index([actionKind, actionCompletesAt])
+}
+
+model SeasonFiveFishingLocation {
+  id                    String                 @id @default(cuid())
+  cycleId               String
+  key                   String
+  name                  String
+  kind                  SeasonFiveLocationKind
+  xPercent              Float
+  yPercent              Float
+  travelMinutes         Int
+  catchDifficulty       Int                    @default(1)
+  minFishCm             Int
+  maxFishCm             Int
+  inventoryPressure     Int                    @default(1)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  cycle                 Cycle                  @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  currentCharacters     SeasonFiveCharacter[]  @relation("SeasonFiveCurrentLocation")
+  destinationCharacters SeasonFiveCharacter[]  @relation("SeasonFiveDestinationLocation")
+  fishCatches           SeasonFiveFishCatch[]
+
+  @@unique([cycleId, key])
+  @@index([cycleId, kind])
+}
+
+model SeasonFiveGear {
+  id          String               @id @default(cuid())
+  characterId String
+  slot        SeasonFiveGearSlot
+  key         String
+  name        String
+  rarity      SeasonFiveGearRarity @default(COMMON)
+  power       Int                  @default(0)
+  equipped    Boolean              @default(false)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  character   SeasonFiveCharacter  @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@unique([characterId, key])
+  @@index([characterId, slot, equipped])
+}
+
+model SeasonFiveFishCatch {
+  id             String                    @id @default(cuid())
+  cycleId        String
+  characterId    String
+  locationId     String
+  speciesKey     String
+  speciesName    String
+  rarity         SeasonFiveFishRarity
+  sizeCm         Int
+  inventorySlots Int                       @default(1)
+  caughtAt       DateTime                  @default(now())
+  unloadedAt     DateTime?
+  cycle          Cycle                     @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  character      SeasonFiveCharacter       @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  location       SeasonFiveFishingLocation @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  inventoryItem  SeasonFiveInventoryItem?
+
+  @@index([cycleId, caughtAt])
+  @@index([cycleId, sizeCm])
+  @@index([characterId, unloadedAt])
+}
+
+model SeasonFiveInventoryItem {
+  id          String              @id @default(cuid())
+  characterId String
+  fishCatchId String              @unique
+  slots       Int                 @default(1)
+  unloadedAt  DateTime?
+  createdAt   DateTime            @default(now())
+  character   SeasonFiveCharacter @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  fishCatch   SeasonFiveFishCatch @relation(fields: [fishCatchId], references: [id], onDelete: Cascade)
+
+  @@index([characterId, unloadedAt])
+}
+
+model SeasonFiveSkillPurchase {
+  id          String              @id @default(cuid())
+  characterId String
+  nodeKey     String
+  purchasedAt DateTime            @default(now())
+  character   SeasonFiveCharacter @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@unique([characterId, nodeKey])
+  @@index([characterId])
 }
 
 model Fortress {

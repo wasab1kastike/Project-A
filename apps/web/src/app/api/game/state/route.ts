@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getHomePageState } from "@/lib/game/read-model";
+import {
+  getSeasonFiveHomeState,
+  isSeasonFivePreviewEnabled,
+} from "@/lib/game/season-five";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +19,9 @@ export async function GET() {
   }
 
   try {
-    const state = await getHomePageState({ userId });
+    const state = isSeasonFivePreviewEnabled()
+      ? await getSeasonFiveHomeState({ userId })
+      : await getHomePageState({ userId });
 
     return NextResponse.json(state, {
       headers: {

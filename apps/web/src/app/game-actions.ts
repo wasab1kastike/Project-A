@@ -22,6 +22,13 @@ import {
 import { submitBuildArcadeScore } from "@/lib/game/build-arcade";
 import { GameError } from "@/lib/game/errors";
 import {
+  createSeasonFiveCharacter,
+  equipSeasonFiveGear,
+  purchaseSeasonFiveSkill,
+  returnSeasonFiveHome,
+  startSeasonFiveFishingTrip,
+} from "@/lib/game/season-five";
+import {
   ArcadeCosmeticSlot,
   ArcadeGameType,
   ArcadeLootBoxType,
@@ -212,6 +219,106 @@ type InlineActionResult =
       error: string;
     };
 
+export async function createSeasonFiveCharacterAction(formData: FormData) {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) {
+    return redirectToHome(
+      "error",
+      "Sign in before creating a Season 5 character."
+    );
+  }
+
+  try {
+    await createSeasonFiveCharacter({
+      userId,
+      characterClass: getString(formData, "characterClass"),
+    });
+    notifyAndRevalidate("season-five-character-created");
+  } catch (error) {
+    return redirectToHome("error", getActionErrorMessage(error));
+  }
+
+  return finishAction("Season 5 character created.");
+}
+
+export async function equipSeasonFiveGearAction(formData: FormData) {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) {
+    return redirectToHome("error", "Sign in before changing Season 5 gear.");
+  }
+
+  try {
+    await equipSeasonFiveGear({
+      userId,
+      gearId: getString(formData, "gearId"),
+    });
+    notifyAndRevalidate("season-five-gear-equipped");
+  } catch (error) {
+    return redirectToHome("error", getActionErrorMessage(error));
+  }
+
+  return finishAction("Gear equipped.");
+}
+
+export async function purchaseSeasonFiveSkillAction(formData: FormData) {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) {
+    return redirectToHome("error", "Sign in before buying Season 5 skills.");
+  }
+
+  try {
+    await purchaseSeasonFiveSkill({
+      userId,
+      nodeKey: getString(formData, "nodeKey"),
+    });
+    notifyAndRevalidate("season-five-skill-purchased");
+  } catch (error) {
+    return redirectToHome("error", getActionErrorMessage(error));
+  }
+
+  return finishAction("Skill unlocked.");
+}
+
+export async function startSeasonFiveFishingTripAction(formData: FormData) {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) {
+    return redirectToHome("error", "Sign in before travelling.");
+  }
+
+  try {
+    await startSeasonFiveFishingTrip({
+      userId,
+      locationKey: getString(formData, "locationKey"),
+    });
+    notifyAndRevalidate("season-five-trip-started");
+  } catch (error) {
+    return redirectToHome("error", getActionErrorMessage(error));
+  }
+
+  return finishAction("Trip started.");
+}
+
+export async function returnSeasonFiveHomeAction() {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) {
+    return redirectToHome("error", "Sign in before returning home.");
+  }
+
+  try {
+    await returnSeasonFiveHome({ userId });
+    notifyAndRevalidate("season-five-return-home");
+  } catch (error) {
+    return redirectToHome("error", getActionErrorMessage(error));
+  }
+
+  return finishAction("Heading home.");
+}
+
 type MapHexAttackActionResult =
   | {
       ok: true;
@@ -380,7 +487,11 @@ export async function activateCasusBelliWarAction(targetFortressId: string) {
 
   try {
     await activateCasusBelliWar({ userId, targetFortressId });
-    notifyAndRevalidate("politics-activate-casus-belli-war", ["/", "/castle", "/politics"]);
+    notifyAndRevalidate("politics-activate-casus-belli-war", [
+      "/",
+      "/castle",
+      "/politics",
+    ]);
     return { ok: true } satisfies InlineActionResult;
   } catch (error) {
     return {
@@ -414,7 +525,11 @@ export async function proposeAllianceAction(input: {
       collateralFood: input.collateralFood,
       collateralArmy: input.collateralArmy,
     });
-    notifyAndRevalidate("politics-propose-alliance", ["/", "/castle", "/politics"]);
+    notifyAndRevalidate("politics-propose-alliance", [
+      "/",
+      "/castle",
+      "/politics",
+    ]);
     return { ok: true } satisfies InlineActionResult;
   } catch (error) {
     return {
@@ -437,7 +552,11 @@ export async function acceptAllianceAction(targetFortressId: string) {
 
   try {
     await acceptAlliance({ userId, targetFortressId });
-    notifyAndRevalidate("politics-accept-alliance", ["/", "/castle", "/politics"]);
+    notifyAndRevalidate("politics-accept-alliance", [
+      "/",
+      "/castle",
+      "/politics",
+    ]);
     return { ok: true } satisfies InlineActionResult;
   } catch (error) {
     return {
@@ -460,7 +579,11 @@ export async function cancelAllianceProposalAction(targetFortressId: string) {
 
   try {
     await cancelAllianceProposal({ userId, targetFortressId });
-    notifyAndRevalidate("politics-cancel-alliance", ["/", "/castle", "/politics"]);
+    notifyAndRevalidate("politics-cancel-alliance", [
+      "/",
+      "/castle",
+      "/politics",
+    ]);
     return { ok: true } satisfies InlineActionResult;
   } catch (error) {
     return {
@@ -483,7 +606,11 @@ export async function rejectAllianceProposalAction(targetFortressId: string) {
 
   try {
     await rejectAllianceProposal({ userId, targetFortressId });
-    notifyAndRevalidate("politics-reject-alliance", ["/", "/castle", "/politics"]);
+    notifyAndRevalidate("politics-reject-alliance", [
+      "/",
+      "/castle",
+      "/politics",
+    ]);
     return { ok: true } satisfies InlineActionResult;
   } catch (error) {
     return {
@@ -493,7 +620,9 @@ export async function rejectAllianceProposalAction(targetFortressId: string) {
   }
 }
 
-export async function proposeAllianceTrustUpgradeAction(targetFortressId: string) {
+export async function proposeAllianceTrustUpgradeAction(
+  targetFortressId: string
+) {
   const session = await auth();
   const userId = session?.user?.id;
 
@@ -506,7 +635,11 @@ export async function proposeAllianceTrustUpgradeAction(targetFortressId: string
 
   try {
     await proposeAllianceTrustUpgrade({ userId, targetFortressId });
-    notifyAndRevalidate("politics-propose-trust-upgrade", ["/", "/castle", "/politics"]);
+    notifyAndRevalidate("politics-propose-trust-upgrade", [
+      "/",
+      "/castle",
+      "/politics",
+    ]);
     return { ok: true } satisfies InlineActionResult;
   } catch (error) {
     return {
@@ -516,7 +649,9 @@ export async function proposeAllianceTrustUpgradeAction(targetFortressId: string
   }
 }
 
-export async function acceptAllianceTrustUpgradeAction(targetFortressId: string) {
+export async function acceptAllianceTrustUpgradeAction(
+  targetFortressId: string
+) {
   const session = await auth();
   const userId = session?.user?.id;
 
@@ -529,7 +664,11 @@ export async function acceptAllianceTrustUpgradeAction(targetFortressId: string)
 
   try {
     await acceptAllianceTrustUpgrade({ userId, targetFortressId });
-    notifyAndRevalidate("politics-accept-trust-upgrade", ["/", "/castle", "/politics"]);
+    notifyAndRevalidate("politics-accept-trust-upgrade", [
+      "/",
+      "/castle",
+      "/politics",
+    ]);
     return { ok: true } satisfies InlineActionResult;
   } catch (error) {
     return {
@@ -539,7 +678,9 @@ export async function acceptAllianceTrustUpgradeAction(targetFortressId: string)
   }
 }
 
-export async function cancelAllianceTrustUpgradeAction(targetFortressId: string) {
+export async function cancelAllianceTrustUpgradeAction(
+  targetFortressId: string
+) {
   const session = await auth();
   const userId = session?.user?.id;
 
@@ -552,7 +693,11 @@ export async function cancelAllianceTrustUpgradeAction(targetFortressId: string)
 
   try {
     await cancelAllianceTrustUpgrade({ userId, targetFortressId });
-    notifyAndRevalidate("politics-cancel-trust-upgrade", ["/", "/castle", "/politics"]);
+    notifyAndRevalidate("politics-cancel-trust-upgrade", [
+      "/",
+      "/castle",
+      "/politics",
+    ]);
     return { ok: true } satisfies InlineActionResult;
   } catch (error) {
     return {
@@ -562,7 +707,9 @@ export async function cancelAllianceTrustUpgradeAction(targetFortressId: string)
   }
 }
 
-export async function rejectAllianceTrustUpgradeAction(targetFortressId: string) {
+export async function rejectAllianceTrustUpgradeAction(
+  targetFortressId: string
+) {
   const session = await auth();
   const userId = session?.user?.id;
 
@@ -575,7 +722,11 @@ export async function rejectAllianceTrustUpgradeAction(targetFortressId: string)
 
   try {
     await rejectAllianceTrustUpgrade({ userId, targetFortressId });
-    notifyAndRevalidate("politics-reject-trust-upgrade", ["/", "/castle", "/politics"]);
+    notifyAndRevalidate("politics-reject-trust-upgrade", [
+      "/",
+      "/castle",
+      "/politics",
+    ]);
     return { ok: true } satisfies InlineActionResult;
   } catch (error) {
     return {
@@ -598,7 +749,11 @@ export async function betrayAllianceAction(targetFortressId: string) {
 
   try {
     await betrayAlliance({ userId, targetFortressId });
-    notifyAndRevalidate("politics-betray-alliance", ["/", "/castle", "/politics"]);
+    notifyAndRevalidate("politics-betray-alliance", [
+      "/",
+      "/castle",
+      "/politics",
+    ]);
     return { ok: true } satisfies InlineActionResult;
   } catch (error) {
     return {
@@ -662,7 +817,11 @@ export async function proposePeaceAction(input: {
       reparationTileId: input.reparationTileId,
       reparationPayer: input.reparationPayer,
     });
-    notifyAndRevalidate("politics-propose-peace", ["/", "/castle", "/politics"]);
+    notifyAndRevalidate("politics-propose-peace", [
+      "/",
+      "/castle",
+      "/politics",
+    ]);
     return {
       ok: true,
     } satisfies InlineActionResult;
@@ -988,7 +1147,11 @@ export async function startTerritoryCampaignAction(
 
   try {
     await startTerritoryCampaign({ userId, tileId, armyAmount });
-    notifyAndRevalidate("territory-campaign-start", ["/", "/castle", "/politics"]);
+    notifyAndRevalidate("territory-campaign-start", [
+      "/",
+      "/castle",
+      "/politics",
+    ]);
     return { ok: true } satisfies InlineActionResult;
   } catch (error) {
     return {
@@ -1097,7 +1260,10 @@ export async function joinBattlefieldAction(
   const userId = session?.user?.id;
 
   if (!userId) {
-    return { ok: false, error: "You need to sign in before joining a battlefield." };
+    return {
+      ok: false,
+      error: "You need to sign in before joining a battlefield.",
+    };
   }
 
   try {
@@ -1411,7 +1577,10 @@ export async function selectFortressDoctrineAction(
   const userId = session?.user?.id;
 
   if (!userId) {
-    return { ok: false, error: "You need to sign in before selecting a doctrine." };
+    return {
+      ok: false,
+      error: "You need to sign in before selecting a doctrine.",
+    };
   }
 
   try {
@@ -1490,7 +1659,9 @@ export async function editRegistrationFortressNameAction(
   }
 }
 
-export async function editRegistrationFortressNameFormAction(formData: FormData) {
+export async function editRegistrationFortressNameFormAction(
+  formData: FormData
+) {
   const result = await editRegistrationFortressNameAction(
     getString(formData, "commanderName"),
     getString(formData, "fortressName")
@@ -1591,7 +1762,10 @@ export async function choosePendingUpgradeSpecializationAction(
   const userId = session?.user?.id;
 
   if (!userId) {
-    return { ok: false, error: "You need to sign in before locking specialization." };
+    return {
+      ok: false,
+      error: "You need to sign in before locking specialization.",
+    };
   }
 
   try {
@@ -1613,7 +1787,10 @@ export async function chooseDwarfGrudgeAction(
   const userId = session?.user?.id;
 
   if (!userId) {
-    return { ok: false, error: "You need to sign in before choosing a grudge." };
+    return {
+      ok: false,
+      error: "You need to sign in before choosing a grudge.",
+    };
   }
 
   try {
@@ -1633,7 +1810,10 @@ export async function chooseDwarfTierThreeGrudgeAction(
   const userId = session?.user?.id;
 
   if (!userId) {
-    return { ok: false, error: "You need to sign in before choosing a tier-three grudge." };
+    return {
+      ok: false,
+      error: "You need to sign in before choosing a tier-three grudge.",
+    };
   }
 
   try {
@@ -1654,7 +1834,10 @@ export async function activateWaaaghAction(): Promise<InlineActionResult> {
   const userId = session?.user?.id;
 
   if (!userId) {
-    return { ok: false, error: "You need to sign in before activating WAAAGH." };
+    return {
+      ok: false,
+      error: "You need to sign in before activating WAAAGH.",
+    };
   }
 
   try {
@@ -1676,7 +1859,10 @@ export async function activateOrkBossOrderAction(
   const userId = session?.user?.id;
 
   if (!userId) {
-    return { ok: false, error: "You need to sign in before activating a boss order." };
+    return {
+      ok: false,
+      error: "You need to sign in before activating a boss order.",
+    };
   }
 
   try {
@@ -1737,7 +1923,10 @@ export async function activateDwarfDeepMiningAction(
   const userId = session?.user?.id;
 
   if (!userId) {
-    return { ok: false, error: "You need to sign in before starting Deep Mining." };
+    return {
+      ok: false,
+      error: "You need to sign in before starting Deep Mining.",
+    };
   }
 
   try {
@@ -1829,7 +2018,10 @@ export async function claimUnicornTeleportAction(): Promise<InlineActionResult> 
   const userId = session?.user?.id;
 
   if (!userId) {
-    return { ok: false, error: "You need to sign in before claiming Unicorn teleport." };
+    return {
+      ok: false,
+      error: "You need to sign in before claiming Unicorn teleport.",
+    };
   }
 
   try {
@@ -1852,7 +2044,10 @@ export async function activateUnicornShatteredRealityAction(): Promise<InlineAct
   const userId = session?.user?.id;
 
   if (!userId) {
-    return { ok: false, error: "You need to sign in before triggering Shattered Reality." };
+    return {
+      ok: false,
+      error: "You need to sign in before triggering Shattered Reality.",
+    };
   }
 
   try {
@@ -1876,7 +2071,10 @@ export async function useUnicornTeleportAction(): Promise<InlineActionResult> {
   const userId = session?.user?.id;
 
   if (!userId) {
-    return { ok: false, error: "You need to sign in before using Unicorn teleport." };
+    return {
+      ok: false,
+      error: "You need to sign in before using Unicorn teleport.",
+    };
   }
 
   try {
@@ -1934,12 +2132,17 @@ export async function setFortressActionAction(
   const userId = session?.user?.id;
 
   if (!userId) {
-    return { ok: false, error: "You need to sign in before setting an action." };
+    return {
+      ok: false,
+      error: "You need to sign in before setting an action.",
+    };
   }
 
   try {
     const fortressAction =
-      action === FortressAction.ATTACK ? FortressAction.ATTACK : FortressAction.GROW;
+      action === FortressAction.ATTACK
+        ? FortressAction.ATTACK
+        : FortressAction.GROW;
 
     await setFortressAction({
       userId,
@@ -1969,7 +2172,10 @@ export async function submitCommunityWishProposalAction(
   }
 
   if (!cycleId) {
-    return { ok: false, error: "Community wish is missing its cycle reference." };
+    return {
+      ok: false,
+      error: "Community wish is missing its cycle reference.",
+    };
   }
 
   try {
@@ -1985,7 +2191,9 @@ export async function submitCommunityWishProposalAction(
   }
 }
 
-export async function submitCommunityWishProposalFormAction(formData: FormData) {
+export async function submitCommunityWishProposalFormAction(
+  formData: FormData
+) {
   const result = await submitCommunityWishProposalAction(
     getString(formData, "cycleId"),
     getString(formData, "requestText")
@@ -2154,12 +2362,16 @@ export async function openArcadeLootBoxAction(formData: FormData) {
       userId,
     });
     emitProjectARefresh("arcade-loot-box-open");
-    finishArcadeAction("Loot box opened.", {
-      reveal: "loot-box",
-      slot: result.slot,
-      variant: result.variant,
-      duplicate: result.duplicatePayout > 0 ? "1" : "0",
-    }, returnPath);
+    finishArcadeAction(
+      "Loot box opened.",
+      {
+        reveal: "loot-box",
+        slot: result.slot,
+        variant: result.variant,
+        duplicate: result.duplicatePayout > 0 ? "1" : "0",
+      },
+      returnPath
+    );
   } catch (error) {
     redirectToArcade(
       "error",
@@ -2451,9 +2663,11 @@ export async function setAllianceSupportPolicyAction(args: {
 }): Promise<InlineActionResult> {
   const session = await auth();
   const userId = session?.user?.id;
-  if (!userId) return { ok: false, error: "Sign in to manage alliance support." };
+  if (!userId)
+    return { ok: false, error: "Sign in to manage alliance support." };
   try {
-    const { setAllianceSupportPolicy } = await import("@/lib/game/battalion-service");
+    const { setAllianceSupportPolicy } =
+      await import("@/lib/game/battalion-service");
     await setAllianceSupportPolicy({ userId, ...args });
     notifyAndRevalidate("alliance-support-policy", GAMEPLAY_REVALIDATE_PATHS);
     return { ok: true };
@@ -2538,7 +2752,8 @@ export async function assignBattalionToFrontAction(args: {
   const userId = session?.user?.id;
   if (!userId) return { ok: false, error: "Sign in to manage war fronts." };
   try {
-    const { assignBattalionToFront } = await import("@/lib/game/battalion-service");
+    const { assignBattalionToFront } =
+      await import("@/lib/game/battalion-service");
     await assignBattalionToFront({ userId, ...args });
     notifyAndRevalidate("battalion-assigned", GAMEPLAY_REVALIDATE_PATHS);
     return { ok: true };
@@ -2555,7 +2770,8 @@ export async function removeBattalionFromFrontAction(args: {
   const userId = session?.user?.id;
   if (!userId) return { ok: false, error: "Sign in to manage war fronts." };
   try {
-    const { removeBattalionFromFront } = await import("@/lib/game/battalion-service");
+    const { removeBattalionFromFront } =
+      await import("@/lib/game/battalion-service");
     await removeBattalionFromFront({ userId, ...args });
     notifyAndRevalidate("battalion-removed", GAMEPLAY_REVALIDATE_PATHS);
     return { ok: true };

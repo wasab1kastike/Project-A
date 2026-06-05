@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { after, before, beforeEach, test, type TestContext } from "node:test";
 import { dirname, resolve } from "node:path";
@@ -49,12 +55,17 @@ import "./race-skill-service.test";
 import "./season-announcement.test";
 import "./season-schedule.test";
 import "./rulesets.test";
+import "./season-five.test";
 import "./tile-pressure.test";
 import "./trading.test";
 import "./convoy-conflict.test";
 import "./road-travel.test";
 import "./doctrines.test";
-import { calculateDetectionChance, calculateRaidSuccessChance, resolveSeededChance } from "./convoy-conflict";
+import {
+  calculateDetectionChance,
+  calculateRaidSuccessChance,
+  resolveSeededChance,
+} from "./convoy-conflict";
 import {
   forceEndCurrentCycle,
   runManualCatchUpTick,
@@ -284,7 +295,6 @@ const defaultDatabaseUrl =
   process.env.DATABASE_URL ??
   "postgresql://postgres:postgres@localhost:5432/project_a?schema=public";
 const ACTIVE_EDGE_PADDING = 15;
-
 
 test("live game state date revival restores nested API timestamps", () => {
   const revived = reviveGameStateDates<{
@@ -802,16 +812,16 @@ test("territory bonuses are deterministic", () => {
   );
 
   assert.ok(tile);
-    assert.deepEqual(getTileBonus(tile), {
-      gold: 1,
-      points: 1,
-      food: 2,
-      army: 0,
-      population: 0,
-      defensePercent: 0,
-      label: "+1 gold, +2 food, +1 point / tick",
-    });
+  assert.deepEqual(getTileBonus(tile), {
+    gold: 1,
+    points: 1,
+    food: 2,
+    army: 0,
+    population: 0,
+    defensePercent: 0,
+    label: "+1 gold, +2 food, +1 point / tick",
   });
+});
 
 test("battlefield progress advances by one to five percent per tick", () => {
   const tickAt = new Date("2026-05-05T12:00:00.000Z");
@@ -2273,7 +2283,10 @@ test("war room exposes ally commitments and forced alliance choice has no betray
     return;
   }
 
-  const supporter = await createUser(prisma, "ally-choice-supporter@example.com");
+  const supporter = await createUser(
+    prisma,
+    "ally-choice-supporter@example.com"
+  );
   const attacker = await createUser(prisma, "ally-choice-attacker@example.com");
   const defender = await createUser(prisma, "ally-choice-defender@example.com");
   const cycle = await seedActiveCommunityWishCycle(prisma, [
@@ -3078,20 +3091,24 @@ test("politics gates delay campaigns until the warning finishes", async (context
 
   const attacker = await createUser(prisma, "war-gate-attacker@example.com");
   const defender = await createUser(prisma, "war-gate-defender@example.com");
-  const cycle = await seedActiveCommunityWishCycle(prisma, [
-    {
-      userId: attacker.id,
-      commanderName: "War Attacker",
-      fortressName: "War Attack Keep",
-      points: 100,
-    },
-    {
-      userId: defender.id,
-      commanderName: "War Defender",
-      fortressName: "War Defense Keep",
-      points: 100,
-    },
-  ], new Date("2026-04-23T12:10:00.000Z"));
+  const cycle = await seedActiveCommunityWishCycle(
+    prisma,
+    [
+      {
+        userId: attacker.id,
+        commanderName: "War Attacker",
+        fortressName: "War Attack Keep",
+        points: 100,
+      },
+      {
+        userId: defender.id,
+        commanderName: "War Defender",
+        fortressName: "War Defense Keep",
+        points: 100,
+      },
+    ],
+    new Date("2026-04-23T12:10:00.000Z")
+  );
   await markSeasonFourCycle(prisma, cycle.id);
   const [attackerFortress, defenderFortress] = await Promise.all([
     prisma.fortress.findUniqueOrThrow({
@@ -3292,9 +3309,18 @@ test("castle season four summaries report expansion and active operations", asyn
     now: new Date("2026-04-20T12:00:00.000Z"),
     db: prisma,
   });
-  assert.equal(emptyState.playerSummary?.operationsSummary?.activeOrderCount, 0);
-  assert.equal(emptyState.playerSummary?.expansionSummary?.activePriorityCount, 0);
-  assert.equal(emptyState.playerSummary?.expansionSummary?.estimatedMinutesRemaining, null);
+  assert.equal(
+    emptyState.playerSummary?.operationsSummary?.activeOrderCount,
+    0
+  );
+  assert.equal(
+    emptyState.playerSummary?.expansionSummary?.activePriorityCount,
+    0
+  );
+  assert.equal(
+    emptyState.playerSummary?.expansionSummary?.estimatedMinutesRemaining,
+    null
+  );
 
   await prisma.tilePressurePriority.createMany({
     data: [
@@ -3602,7 +3628,10 @@ test("season four bilateral trade accepts cargo and delivers allied convoy bonus
       (marker) => marker.arrivedAwaitingTick === true
     )
   );
-  assert.match(awaitingTickState.convoyMarkers[0]?.cargoLabel ?? "", /gold|food/);
+  assert.match(
+    awaitingTickState.convoyMarkers[0]?.cargoLabel ?? "",
+    /gold|food/
+  );
 
   await runGameTick({
     now: new Date("2026-04-20T12:02:00.000Z"),
@@ -3640,7 +3669,10 @@ test("season four bilateral trade accepts cargo and delivers allied convoy bonus
   assert.equal(delivered[0]?.bonusFood, 60);
   assert.equal(senderAfter.deliveredCargoValue, 1_360);
   assert.equal(senderAfter.points, 96);
-  assert.equal(tradeEvents.reduce((sum, event) => sum + event.delta, 0), 3);
+  assert.equal(
+    tradeEvents.reduce((sum, event) => sum + event.delta, 0),
+    3
+  );
   assert.equal(deliveredState.convoyMarkers.length, 0);
   assert.ok(
     deliveredState.recentActivity.some(
@@ -3652,8 +3684,7 @@ test("season four bilateral trade accepts cargo and delivers allied convoy bonus
   assert.ok(
     deliveredPoliticsState.tradeLog.some(
       (entry) =>
-        entry.title.includes("Delivered") &&
-        entry.profitLabel.includes("+")
+        entry.title.includes("Delivered") && entry.profitLabel.includes("+")
     )
   );
 });
@@ -3759,8 +3790,18 @@ test("season four large trade offers queue sequential wagon runs", async (contex
   const cycle = await seedActiveCommunityWishCycle(
     prisma,
     [
-      { userId: sender.id, commanderName: "Wagon Alpha", fortressName: "Small Cart", points: 0 },
-      { userId: receiver.id, commanderName: "Wagon Beta", fortressName: "Big Cart", points: 0 },
+      {
+        userId: sender.id,
+        commanderName: "Wagon Alpha",
+        fortressName: "Small Cart",
+        points: 0,
+      },
+      {
+        userId: receiver.id,
+        commanderName: "Wagon Beta",
+        fortressName: "Big Cart",
+        points: 0,
+      },
     ],
     new Date("2026-04-22T12:00:00.000Z")
   );
@@ -3866,14 +3907,19 @@ test("season four large trade offers queue sequential wagon runs", async (contex
   assert.ok(
     deliveredLegs.every((leg) => leg.status === ConvoyLegStatus.DELIVERED)
   );
-  assert.equal(deliveredLegs.reduce((sum, leg) => sum + leg.food, 0), 1_000);
+  assert.equal(
+    deliveredLegs.reduce((sum, leg) => sum + leg.food, 0),
+    1_000
+  );
   assert.equal(receiverAfter.food, 6_050);
   assert.equal(
-    (await getPoliticsPageState({
-      userId: sender.id,
-      now: new Date("2026-04-20T12:05:00.000Z"),
-      db: prisma,
-    })).activeTradeOffers.length,
+    (
+      await getPoliticsPageState({
+        userId: sender.id,
+        now: new Date("2026-04-20T12:05:00.000Z"),
+        db: prisma,
+      })
+    ).activeTradeOffers.length,
     0
   );
 });
@@ -3887,32 +3933,54 @@ test("season four full outbound trade wagons queue accepted offers", async (cont
 
   const sender = await createUser(prisma, "wagon-limit-sender@example.com");
   const receiver = await createUser(prisma, "wagon-limit-receiver@example.com");
-  const inboundSender = await createUser(prisma, "wagon-limit-inbound@example.com");
+  const inboundSender = await createUser(
+    prisma,
+    "wagon-limit-inbound@example.com"
+  );
   const cycle = await seedActiveCommunityWishCycle(
     prisma,
     [
-      { userId: sender.id, commanderName: "Limit Alpha", fortressName: "Three Carts", points: 0 },
-      { userId: receiver.id, commanderName: "Limit Beta", fortressName: "Cart Receiver", points: 0 },
-      { userId: inboundSender.id, commanderName: "Limit Gamma", fortressName: "Inbound Cart", points: 0 },
+      {
+        userId: sender.id,
+        commanderName: "Limit Alpha",
+        fortressName: "Three Carts",
+        points: 0,
+      },
+      {
+        userId: receiver.id,
+        commanderName: "Limit Beta",
+        fortressName: "Cart Receiver",
+        points: 0,
+      },
+      {
+        userId: inboundSender.id,
+        commanderName: "Limit Gamma",
+        fortressName: "Inbound Cart",
+        points: 0,
+      },
     ],
     new Date("2026-04-22T12:00:00.000Z")
   );
   await markSeasonFourCycle(prisma, cycle.id);
 
-  const [senderFortress, receiverFortress, inboundFortress] = await Promise.all([
-    prisma.fortress.update({
-      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: sender.id } },
-      data: { gold: 5_000, race: "DWARFS" },
-    }),
-    prisma.fortress.update({
-      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: receiver.id } },
-      data: { gold: 5_000 },
-    }),
-    prisma.fortress.update({
-      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: inboundSender.id } },
-      data: { gold: 5_000 },
-    }),
-  ]);
+  const [senderFortress, receiverFortress, inboundFortress] = await Promise.all(
+    [
+      prisma.fortress.update({
+        where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: sender.id } },
+        data: { gold: 5_000, race: "DWARFS" },
+      }),
+      prisma.fortress.update({
+        where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: receiver.id } },
+        data: { gold: 5_000 },
+      }),
+      prisma.fortress.update({
+        where: {
+          cycleId_ownerId: { cycleId: cycle.id, ownerId: inboundSender.id },
+        },
+        data: { gold: 5_000 },
+      }),
+    ]
+  );
 
   for (let index = 0; index < 3; index += 1) {
     const offer = await createTradeOffer({
@@ -4135,8 +4203,18 @@ test("season four trade offers can cancel or reject and hostile transit is seize
   const cycle = await seedActiveCommunityWishCycle(
     prisma,
     [
-      { userId: alpha.id, commanderName: "Alpha", fortressName: "Alpha Hall", points: 0 },
-      { userId: beta.id, commanderName: "Beta", fortressName: "Beta Hall", points: 0 },
+      {
+        userId: alpha.id,
+        commanderName: "Alpha",
+        fortressName: "Alpha Hall",
+        points: 0,
+      },
+      {
+        userId: beta.id,
+        commanderName: "Beta",
+        fortressName: "Beta Hall",
+        points: 0,
+      },
     ],
     new Date("2026-04-22T12:00:00.000Z")
   );
@@ -4171,12 +4249,14 @@ test("season four trade offers can cancel or reject and hostile transit is seize
     db: prisma,
   });
   assert.equal(
-    (await cancelTradeOffer({
-      userId: alpha.id,
-      tradeOfferId: first.id,
-      now: new Date("2026-04-20T12:00:10.000Z"),
-      db: prisma,
-    })).status,
+    (
+      await cancelTradeOffer({
+        userId: alpha.id,
+        tradeOfferId: first.id,
+        now: new Date("2026-04-20T12:00:10.000Z"),
+        db: prisma,
+      })
+    ).status,
     TradeOfferStatus.CANCELED
   );
   const second = await createTradeOffer({
@@ -4192,12 +4272,14 @@ test("season four trade offers can cancel or reject and hostile transit is seize
     db: prisma,
   });
   assert.equal(
-    (await rejectTradeOffer({
-      userId: beta.id,
-      tradeOfferId: second.id,
-      now: new Date("2026-04-20T12:00:30.000Z"),
-      db: prisma,
-    })).status,
+    (
+      await rejectTradeOffer({
+        userId: beta.id,
+        tradeOfferId: second.id,
+        now: new Date("2026-04-20T12:00:30.000Z"),
+        db: prisma,
+      })
+    ).status,
     TradeOfferStatus.REJECTED
   );
   const expiring = await createTradeOffer({
@@ -4324,8 +4406,18 @@ test("season four tile-only trade creates a deed convoy leg", async (context) =>
   const cycle = await seedActiveCommunityWishCycle(
     prisma,
     [
-      { userId: sender.id, commanderName: "Deed Alpha", fortressName: "Tile Hall", points: 0 },
-      { userId: receiver.id, commanderName: "Deed Beta", fortressName: "Deed Hall", points: 0 },
+      {
+        userId: sender.id,
+        commanderName: "Deed Alpha",
+        fortressName: "Tile Hall",
+        points: 0,
+      },
+      {
+        userId: receiver.id,
+        commanderName: "Deed Beta",
+        fortressName: "Deed Hall",
+        points: 0,
+      },
     ],
     new Date("2026-04-22T12:00:00.000Z")
   );
@@ -4408,9 +4500,24 @@ test("season four escort and raid orders intercept scored convoys and expose det
   const cycle = await seedActiveCommunityWishCycle(
     prisma,
     [
-      { userId: sender.id, commanderName: "Sender", fortressName: "Cargo Keep", points: 0 },
-      { userId: receiver.id, commanderName: "Receiver", fortressName: "Market Keep", points: 0 },
-      { userId: raider.id, commanderName: "Raider", fortressName: "Hidden Wake", points: 0 },
+      {
+        userId: sender.id,
+        commanderName: "Sender",
+        fortressName: "Cargo Keep",
+        points: 0,
+      },
+      {
+        userId: receiver.id,
+        commanderName: "Receiver",
+        fortressName: "Market Keep",
+        points: 0,
+      },
+      {
+        userId: raider.id,
+        commanderName: "Raider",
+        fortressName: "Hidden Wake",
+        points: 0,
+      },
     ],
     new Date("2026-04-22T12:00:00.000Z")
   );
@@ -4496,11 +4603,15 @@ test("season four escort and raid orders intercept scored convoys and expose det
     const candidate = addMinutes(new Date("2026-04-20T12:01:00.000Z"), minute);
     const raidResult = resolveSeededChance({
       seed: `${cycle.id}:${leg.id}:${raid.id}:${candidate.toISOString()}:raid`,
-      chancePercent: calculateRaidSuccessChance({ raidArmy: 1_000, escortArmy: 100 }),
+      chancePercent: calculateRaidSuccessChance({
+        raidArmy: 1_000,
+        escortArmy: 100,
+      }),
     });
     const detectionResult = resolveSeededChance({
       seed: `${cycle.id}:${leg.id}:${raid.id}:${senderFortress.id}:${candidate.toISOString()}:detect`,
-      chancePercent: calculateDetectionChance({ guardArmy: 100_000, raidArmy: 1_000 }) ?? 0,
+      chancePercent:
+        calculateDetectionChance({ guardArmy: 100_000, raidArmy: 1_000 }) ?? 0,
     });
 
     if (raidResult.succeeded && detectionResult.succeeded) {
@@ -4512,23 +4623,29 @@ test("season four escort and raid orders intercept scored convoys and expose det
   assert.ok(tickAt);
   await runGameTick({ now: tickAt, db: prisma });
 
-  const [settledLeg, returnedEscort, retainedRaid, raiderAfter, incident, relation] =
-    await Promise.all([
-      prisma.convoyLeg.findUniqueOrThrow({ where: { id: leg.id } }),
-      prisma.armyOrder.findUniqueOrThrow({ where: { id: escort.id } }),
-      prisma.armyOrder.findUniqueOrThrow({ where: { id: raid.id } }),
-      prisma.fortress.findUniqueOrThrow({ where: { id: raiderFortress.id } }),
-      prisma.covertIncident.findFirstOrThrow({ where: { convoyLegId: leg.id } }),
-      prisma.diplomacyRelation.findFirstOrThrow({
-        where: {
-          cycleId: cycle.id,
-          OR: [
-            { fortressAId: senderFortress.id, fortressBId: raiderFortress.id },
-            { fortressAId: raiderFortress.id, fortressBId: senderFortress.id },
-          ],
-        },
-      }),
-    ]);
+  const [
+    settledLeg,
+    returnedEscort,
+    retainedRaid,
+    raiderAfter,
+    incident,
+    relation,
+  ] = await Promise.all([
+    prisma.convoyLeg.findUniqueOrThrow({ where: { id: leg.id } }),
+    prisma.armyOrder.findUniqueOrThrow({ where: { id: escort.id } }),
+    prisma.armyOrder.findUniqueOrThrow({ where: { id: raid.id } }),
+    prisma.fortress.findUniqueOrThrow({ where: { id: raiderFortress.id } }),
+    prisma.covertIncident.findFirstOrThrow({ where: { convoyLegId: leg.id } }),
+    prisma.diplomacyRelation.findFirstOrThrow({
+      where: {
+        cycleId: cycle.id,
+        OR: [
+          { fortressAId: senderFortress.id, fortressBId: raiderFortress.id },
+          { fortressAId: raiderFortress.id, fortressBId: senderFortress.id },
+        ],
+      },
+    }),
+  ]);
 
   assert.equal(settledLeg.status, ConvoyLegStatus.INTERCEPTED);
   assert.equal(settledLeg.stolenGold, 1_000);
@@ -4547,8 +4664,14 @@ test("season four escort and raid orders intercept scored convoys and expose det
     now: tickAt,
     db: prisma,
   });
-  assert.equal(politicsState.recentConvoyLegs[0]?.status, ConvoyLegStatus.INTERCEPTED);
-  assert.equal(politicsState.recentCovertIncidents[0]?.raiderName, "Hidden Wake");
+  assert.equal(
+    politicsState.recentConvoyLegs[0]?.status,
+    ConvoyLegStatus.INTERCEPTED
+  );
+  assert.equal(
+    politicsState.recentCovertIncidents[0]?.raiderName,
+    "Hidden Wake"
+  );
   const raiderPoliticsState = await getPoliticsPageState({
     userId: raider.id,
     now: tickAt,
@@ -4909,7 +5032,8 @@ test("God runner ignores player-chat events and unsafe generated claims by defau
         key: "battle-event",
         kind: "battlefield",
         title: "Tile 7:11",
-        summary: "Tile 7:11: DEFENDER_STRONG with 120 attacker army vs 450 defender army. Casualty pace 100/tick.",
+        summary:
+          "Tile 7:11: DEFENDER_STRONG with 120 attacker army vs 450 defender army. Casualty pace 100/tick.",
         priority: 80,
         occurredAt: null,
       },
@@ -4931,7 +5055,8 @@ test("God runner prioritizes leaderboard changes over battlefield churn", () => 
         key: "battle-event",
         kind: "battlefield",
         title: "Tile 7:11",
-        summary: "Tile 7:11: DEFENDER_STRONG with 120 attacker army vs 450 defender army. Casualty pace 100/tick.",
+        summary:
+          "Tile 7:11: DEFENDER_STRONG with 120 attacker army vs 450 defender army. Casualty pace 100/tick.",
         priority: 100,
         occurredAt: null,
       },
@@ -4965,14 +5090,14 @@ test("God runner skips repeated event topics after one divine comment", () => {
         key: "battle-event",
         kind: "battlefield",
         title: "Tile 7:11",
-        summary: "Tile 7:11: DEFENDER_STRONG with 120 attacker army vs 450 defender army. Casualty pace 100/tick.",
+        summary:
+          "Tile 7:11: DEFENDER_STRONG with 120 attacker army vs 450 defender army. Casualty pace 100/tick.",
         priority: 100,
         occurredAt: null,
       },
     ],
     {
-      "cycle:test-cycle:leader:fortress-a:130115":
-        "2026-04-19T12:00:00.000Z",
+      "cycle:test-cycle:leader:fortress-a:130115": "2026-04-19T12:00:00.000Z",
     },
     {
       now: new Date("2026-04-19T12:20:00.000Z"),
@@ -5001,8 +5126,7 @@ test("God runner skips repeated event topics after one divine comment", () => {
         },
       ],
       {
-        "cycle:test-cycle:leader:fortress-a:130115":
-          "2026-04-19T12:00:00.000Z",
+        "cycle:test-cycle:leader:fortress-a:130115": "2026-04-19T12:00:00.000Z",
       },
       {
         now: new Date("2026-04-19T12:20:00.000Z"),
@@ -5017,7 +5141,8 @@ test("God runner skips repeated event topics after one divine comment", () => {
           key: "cycle:test-cycle:battlefield:battle-a:55:0:0:0:0:DEFENDER_EDGE",
           kind: "battlefield",
           title: "Tile 7:11",
-          summary: "Tile 7:11: DEFENDER_EDGE with 90 attacker army vs 120 defender army. Casualty pace 550/tick.",
+          summary:
+            "Tile 7:11: DEFENDER_EDGE with 90 attacker army vs 120 defender army. Casualty pace 550/tick.",
           priority: 100,
           occurredAt: null,
         },
@@ -5053,7 +5178,8 @@ test("God runner sparse cadence skips routine events and allows major omens", ()
       key: "cycle:test-cycle:battlefield:battle-a:50:10:10:0:0:ATTACKER_EDGE",
       kind: "battlefield",
       title: "Tile 7:11",
-      summary: "Tile 7:11: ATTACKER_EDGE with 140 attacker army vs 100 defender army. Casualty pace 550/tick.",
+      summary:
+        "Tile 7:11: ATTACKER_EDGE with 140 attacker army vs 100 defender army. Casualty pace 550/tick.",
       priority: 100,
       occurredAt: null,
     }) < cadence.minEventImportance
@@ -5098,8 +5224,7 @@ test("God runner sparse cadence skips routine events and allows major omens", ()
         },
       ],
       {
-        "cycle:test-cycle:leader:fortress-a:130115":
-          "2026-04-19T11:00:00.000Z",
+        "cycle:test-cycle:leader:fortress-a:130115": "2026-04-19T11:00:00.000Z",
       },
       {
         cadence,
@@ -5164,10 +5289,7 @@ test("God runner rejects generic narration for concrete events", () => {
     false
   );
   assert.equal(
-    isGenericGodMessage(
-      "Aarocorn leads with 164258 points.",
-      leaderboardEvent
-    ),
+    isGenericGodMessage("Aarocorn leads with 164258 points.", leaderboardEvent),
     true
   );
   assert.equal(
@@ -5182,7 +5304,10 @@ test("God runner rejects generic narration for concrete events", () => {
     /sees the scoreboard shift/i
   );
   assert.doesNotMatch(buildFallbackGodMessage(leaderboardEvent), /leads with/i);
-  assert.doesNotMatch(buildFallbackGodMessage(leaderboardEvent), /\d+\s+points/i);
+  assert.doesNotMatch(
+    buildFallbackGodMessage(leaderboardEvent),
+    /\d+\s+points/i
+  );
   assert.match(buildFallbackGodMessage(leaderboardEvent), /Crown omen/);
   assert.match(buildFallbackGodMessage(leaderboardEvent), /DA BOYZ/);
   assert.doesNotMatch(buildFallbackGodMessage(battlefieldEvent), /War omen/);
@@ -5771,7 +5896,8 @@ test("God runner exposes roleplay directive memory without mechanical power", ()
         favorScore: 2,
         mockScore: 1,
         disfavorScore: 4,
-        lastReason: "Aarocorn of UniBonk appeared to ignore a divine suggestion.",
+        lastReason:
+          "Aarocorn of UniBonk appeared to ignore a divine suggestion.",
         updatedAt: now.toISOString(),
         evidenceKeys: ["directive-one:ignored"],
       },
@@ -7308,18 +7434,17 @@ test("battlefield attrition splits defender losses between native and participan
       points: 100,
     },
   ]);
-  const [attackerFortress, defenderFortress, allyFortress] =
-    await Promise.all([
-      prisma.fortress.findUniqueOrThrow({
-        where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: attacker.id } },
-      }),
-      prisma.fortress.findUniqueOrThrow({
-        where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: defender.id } },
-      }),
-      prisma.fortress.findUniqueOrThrow({
-        where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: ally.id } },
-      }),
-    ]);
+  const [attackerFortress, defenderFortress, allyFortress] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: attacker.id } },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: defender.id } },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: ally.id } },
+    }),
+  ]);
   const battlefield = await prisma.battlefield.create({
     data: {
       cycleId: cycle.id,
@@ -8090,7 +8215,10 @@ test("Home of A battlefield stays active at high progress while HP remains", asy
     return;
   }
 
-  const attacker = await createUser(prisma, "home-progress-attacker@example.com");
+  const attacker = await createUser(
+    prisma,
+    "home-progress-attacker@example.com"
+  );
   const cycle = await seedActiveCommunityWishCycle(prisma, [
     {
       userId: attacker.id,
@@ -8281,36 +8409,38 @@ test("Home of A first capture creates ownership and holder shares", async (conte
     tickAt: new Date("2026-04-20T12:02:00.000Z"),
   });
 
-  const [ownership, holders, returnedAttackUnits, reloadedBanner, reloadedAlly] =
-    await Promise.all([
-      prisma.mapHexOwnership.findUniqueOrThrow({
-        where: {
-          cycleId_tileId: { cycleId: cycle.id, tileId: HOME_OF_A_TILE_ID },
-        },
-      }),
-      prisma.homeOfAHolder.findMany({
-        where: { cycleId: cycle.id },
-        orderBy: { contributionWeight: "asc" },
-      }),
-      prisma.attackUnit.findMany({
-        where: {
-          cycleId: cycle.id,
-          targetFortressId: home.id,
-        },
-        orderBy: { armyAmount: "asc" },
-      }),
-      prisma.fortress.findUniqueOrThrow({ where: { id: bannerFortress.id } }),
-      prisma.fortress.findUniqueOrThrow({ where: { id: allyFortress.id } }),
-    ]);
+  const [
+    ownership,
+    holders,
+    returnedAttackUnits,
+    reloadedBanner,
+    reloadedAlly,
+  ] = await Promise.all([
+    prisma.mapHexOwnership.findUniqueOrThrow({
+      where: {
+        cycleId_tileId: { cycleId: cycle.id, tileId: HOME_OF_A_TILE_ID },
+      },
+    }),
+    prisma.homeOfAHolder.findMany({
+      where: { cycleId: cycle.id },
+      orderBy: { contributionWeight: "asc" },
+    }),
+    prisma.attackUnit.findMany({
+      where: {
+        cycleId: cycle.id,
+        targetFortressId: home.id,
+      },
+      orderBy: { armyAmount: "asc" },
+    }),
+    prisma.fortress.findUniqueOrThrow({ where: { id: bannerFortress.id } }),
+    prisma.fortress.findUniqueOrThrow({ where: { id: allyFortress.id } }),
+  ]);
 
   assert.equal(ownership.ownerFortressId, bannerFortress.id);
   assert.equal(reloadedBanner.army, 40);
   assert.equal(reloadedAlly.army, 80);
   assert.deepEqual(
-    returnedAttackUnits.map((unit) => [
-      unit.armyAmount,
-      unit.attackerReturned,
-    ]),
+    returnedAttackUnits.map((unit) => [unit.armyAmount, unit.attackerReturned]),
     [
       [30, 30],
       [70, 70],
@@ -10530,7 +10660,9 @@ async function seedTierTwoUnicorn(
       },
     },
   });
-  const forestTiles = HEX_SPAWN_TILES.filter((tile) => tile.biome === "forest").slice(0, 6);
+  const forestTiles = HEX_SPAWN_TILES.filter(
+    (tile) => tile.biome === "forest"
+  ).slice(0, 6);
 
   assert.equal(forestTiles.length, 6);
 
@@ -10676,7 +10808,10 @@ test("Unicorn Shattered Reality timed outcomes persist history and activations",
     prismaticResult.outcome,
     UnicornShatteredRealityOutcome.PRISMATIC_SURGE
   );
-  assert.equal(gallopResult.outcome, UnicornShatteredRealityOutcome.LUCKY_GALLOP);
+  assert.equal(
+    gallopResult.outcome,
+    UnicornShatteredRealityOutcome.LUCKY_GALLOP
+  );
 
   const [combatActivation, economyActivation, prismaticRoll, gallopRoll] =
     await Promise.all([
@@ -10705,15 +10840,23 @@ test("Unicorn Shattered Reality timed outcomes persist history and activations",
     ]);
 
   assert.equal(
-    combatActivation.activeUntil.getTime() - combatActivation.activeFrom.getTime(),
+    combatActivation.activeUntil.getTime() -
+      combatActivation.activeFrom.getTime(),
     60 * 60 * 1000
   );
   assert.equal(
-    economyActivation.activeUntil.getTime() - economyActivation.activeFrom.getTime(),
+    economyActivation.activeUntil.getTime() -
+      economyActivation.activeFrom.getTime(),
     60 * 60 * 1000
   );
-  assert.equal(prismaticRoll.activeUntil?.getTime(), combatActivation.activeUntil.getTime());
-  assert.equal(gallopRoll.activeUntil?.getTime(), economyActivation.activeUntil.getTime());
+  assert.equal(
+    prismaticRoll.activeUntil?.getTime(),
+    combatActivation.activeUntil.getTime()
+  );
+  assert.equal(
+    gallopRoll.activeUntil?.getTime(),
+    economyActivation.activeUntil.getTime()
+  );
 });
 
 test("Unicorn Shattered Reality daily cooldown blocks repeat activation", async (context) => {
