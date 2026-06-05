@@ -68,6 +68,7 @@ services:
     name: project-a-s5-web
     runtime: node
     plan: starter
+    region: frankfurt
     branch: codex/season-5
     autoDeployTrigger: commit
     buildCommand: node scripts/render-build.mjs web
@@ -116,6 +117,7 @@ services:
     name: project-a-s5-game-tick
     runtime: node
     plan: starter
+    region: frankfurt
     branch: codex/season-5
     autoDeployTrigger: commit
     buildCommand: node scripts/render-build.mjs cron
@@ -144,5 +146,6 @@ databases:
     user: project_a
   - name: project-a-s5-db
     plan: basic-256mb
+    region: frankfurt
     databaseName: project_a_s5
     user: project_a_s5
