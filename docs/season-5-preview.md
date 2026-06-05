@@ -30,15 +30,43 @@ Use [Season 5 Visual QA](season-5-visual-qa.md) before closing map, character wi
 
 ## History Import
 
-Use the import script only against separate databases:
+Use the import script only against separate databases. Render external
+PostgreSQL URLs should use SSL, for example `?sslmode=require`.
 
 ```bash
 PRODUCTION_DATABASE_URL=postgresql://... \
 DATABASE_URL=postgresql://...project-a-s5-db... \
-npm run db:import-season-five-history --workspace web
+npm run db:import-season-five-history
 ```
 
-The script refuses to run if the source and target database URLs are identical. It copies users, OAuth accounts, resolved cycle history, winner requests, community wishes/votes, arcade wallets, loot-box purchases, cosmetic unlocks, and resolved-cycle arcade transactions. It does not copy active Season 4 gameplay state.
+The script refuses to run if the source and target database URLs identify the
+same database. It prints redacted source/target URLs before reading data. It
+copies users, OAuth accounts, resolved cycle history, winner requests,
+community wishes/votes, arcade wallets, loot-box purchases, cosmetic unlocks,
+and resolved-cycle arcade transactions. It does not copy active Season 4
+gameplay state.
+
+Use the read-only modes before the real import:
+
+```bash
+PRODUCTION_DATABASE_URL=postgresql://... \
+DATABASE_URL=postgresql://...project-a-s5-db... \
+npm run db:import-season-five-history -- --count-only
+
+PRODUCTION_DATABASE_URL=postgresql://... \
+DATABASE_URL=postgresql://...project-a-s5-db... \
+npm run db:import-season-five-history -- --dry-run
+```
+
+The import is idempotent for the copied data: users and arcade wallets are
+upserted, and copied history/prestige rows use duplicate-safe inserts. Failures
+are categorized as `database_unreachable`, `database_access_denied`,
+`database_constraint_error`, or `import_error` to make Render runbook debugging
+less ambiguous.
+
+After the import, remove temporary credentials from the shell and from any
+Render environment that received them. Do not leave `PRODUCTION_DATABASE_URL`
+configured on the Season 5 web service or cron service.
 
 ## Launch Notes
 

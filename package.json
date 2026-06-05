@@ -22,6 +22,7 @@
     "db:generate": "npm run db:generate --workspace web",
     "db:migrate": "npm run db:migrate --workspace web",
     "db:seed": "npm run db:seed --workspace web",
+    "db:import-season-five-history": "npm --workspace web run db:import-season-five-history --",
     "db:grant-may-18-combat-compensation": "npm run db:grant-may-18-combat-compensation --workspace web",
     "db:activate-season-four": "npm run db:activate-season-four --workspace web",
     "db:reset-season-one": "npm run db:reset-season-one --workspace web",
