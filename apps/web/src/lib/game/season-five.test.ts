@@ -21,7 +21,7 @@ test("Season 5 class selection accepts persisted enum values", () => {
   assert.throws(() => normalizeSeasonFiveClass("fisher king"), /valid/);
 });
 
-test("Season 5 build effects combine class, gear, and skills", () => {
+test("Season 5 build effects combine class, gear, and skill stats", () => {
   const effects = getSeasonFiveBuildEffects({
     characterClass: SeasonFiveCharacterClass.BURNT_OUT_ROGUE,
     gear: [
@@ -44,9 +44,16 @@ test("Season 5 build effects combine class, gear, and skills", () => {
     purchasedNodeKeys: ["steady_hands", "deep_pockets", "muddy_shortcuts"],
   });
 
-  assert.equal(effects.catchBonus, 3);
-  assert.equal(effects.inventoryBonus, 12);
-  assert.equal(effects.travelPercent, -20);
+  assert.deepEqual(effects.stats, {
+    stronk: 7,
+    luk: 10,
+    smell: 10,
+    magik: 4,
+    quietness: 10,
+  });
+  assert.equal(effects.catchBonus, 2);
+  assert.equal(effects.inventoryBonus, 4);
+  assert.equal(effects.travelPercent, -25);
 });
 
 test("Season 5 travel, catch interval, and inventory calculations clamp safely", () => {

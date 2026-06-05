@@ -18,80 +18,284 @@ type DatabaseClient = PrismaClient;
 export const SEASON_FIVE_PREVIEW_FLAG = "SEASON_5_PREVIEW_ENABLED";
 export const SEASON_FIVE_DURATION_HOURS = 24 * 14;
 
+export const SEASON_FIVE_STAT_KEYS = [
+  "stronk",
+  "luk",
+  "smell",
+  "magik",
+  "quietness",
+] as const;
+
+export type SeasonFiveStatKey = (typeof SEASON_FIVE_STAT_KEYS)[number];
+export type SeasonFiveStats = Record<SeasonFiveStatKey, number>;
+
+export const SEASON_FIVE_STAT_LABELS = {
+  stronk: "Stronk",
+  luk: "Luk",
+  smell: "Smell",
+  magik: "Magik",
+  quietness: "Quietness",
+} satisfies Record<SeasonFiveStatKey, string>;
+
+export const SEASON_FIVE_STAT_DESCRIPTIONS = {
+  stronk: "Handles trophy fish, heavy hauls, and pack pressure.",
+  luk: "Bends rarity rolls and surprise catches.",
+  smell: "Finds fish faster, especially in difficult waters.",
+  magik: "Invites weird fish and class-specific nonsense.",
+  quietness: "Travels cleanly and spooks fewer fish.",
+} satisfies Record<SeasonFiveStatKey, string>;
+
+const EMPTY_STATS = {
+  stronk: 0,
+  luk: 0,
+  smell: 0,
+  magik: 0,
+  quietness: 0,
+} satisfies SeasonFiveStats;
+
 export const SEASON_FIVE_CLASSES = {
   [SeasonFiveCharacterClass.DRUNKEN_MONK]: {
     label: "Drunken Monk",
     summary:
       "Finds rhythm in bad balance. Faster travel and reliable common catches.",
-    catchBonus: 1,
-    sizeBonusPercent: 0,
-    travelPercent: -15,
-    inventoryBonus: 0,
+    stats: {
+      stronk: 4,
+      luk: 5,
+      smell: 7,
+      magik: 3,
+      quietness: 8,
+    },
   },
   [SeasonFiveCharacterClass.RETIRED_WARRIOR]: {
     label: "Retired Warrior",
     summary:
       "Treats fishing like one last campaign. Better trophy size and steady packs.",
-    catchBonus: 0,
-    sizeBonusPercent: 12,
-    travelPercent: 0,
-    inventoryBonus: 2,
+    stats: {
+      stronk: 9,
+      luk: 4,
+      smell: 4,
+      magik: 2,
+      quietness: 5,
+    },
   },
   [SeasonFiveCharacterClass.DEMENTED_WIZARD]: {
     label: "Demented Wizard",
     summary: "Argues with the water until rare fish answer back.",
-    catchBonus: 0,
-    sizeBonusPercent: 8,
-    travelPercent: 10,
-    inventoryBonus: 0,
+    stats: {
+      stronk: 2,
+      luk: 6,
+      smell: 5,
+      magik: 10,
+      quietness: 3,
+    },
   },
   [SeasonFiveCharacterClass.BURNT_OUT_ROGUE]: {
     label: "Burnt-Out Rogue",
     summary:
       "Knows where the quiet docks are. Efficient inventory and strong rare-fish odds.",
-    catchBonus: 0,
-    sizeBonusPercent: 4,
-    travelPercent: -5,
-    inventoryBonus: 4,
+    stats: {
+      stronk: 4,
+      luk: 8,
+      smell: 7,
+      magik: 4,
+      quietness: 9,
+    },
   },
 } as const;
 
-export const SEASON_FIVE_SKILLS = [
+type SeasonFiveSkillNode = {
+  key: string;
+  name: string;
+  description: string;
+  cost: number;
+  requires?: string[];
+  statBonuses?: Partial<SeasonFiveStats>;
+};
+
+export const SEASON_FIVE_SKILL_TREES = {
+  [SeasonFiveCharacterClass.DRUNKEN_MONK]: [
+    {
+      key: "monk_wobble_cast",
+      name: "Wobble Cast",
+      description: "+1 Smell. The cast looks wrong until fish agree.",
+      cost: 1,
+      statBonuses: { smell: 1 },
+    },
+    {
+      key: "monk_breath_in_mug",
+      name: "Breath in Mug",
+      description: "+1 Quietness. Breathe through the tankard, not the panic.",
+      cost: 1,
+      statBonuses: { quietness: 1 },
+    },
+    {
+      key: "monk_barrel_stance",
+      name: "Barrel Stance",
+      description: "+1 Stronk. Become harder to tip than the boat.",
+      cost: 1,
+      requires: ["monk_wobble_cast"],
+      statBonuses: { stronk: 1 },
+    },
+    {
+      key: "monk_lucky_spill",
+      name: "Lucky Spill",
+      description: "+1 Luk. Some bait is spilled by destiny.",
+      cost: 1,
+      requires: ["monk_breath_in_mug"],
+      statBonuses: { luk: 1 },
+    },
+    {
+      key: "monk_perfect_stumble",
+      name: "Perfect Stumble",
+      description: "+1 Smell, +1 Quietness. Arrive accidentally on purpose.",
+      cost: 2,
+      requires: ["monk_barrel_stance", "monk_lucky_spill"],
+      statBonuses: { smell: 1, quietness: 1 },
+    },
+  ],
+  [SeasonFiveCharacterClass.RETIRED_WARRIOR]: [
+    {
+      key: "warrior_campaign_grip",
+      name: "Campaign Grip",
+      description: "+1 Stronk. Hold the rod like a banner.",
+      cost: 1,
+      statBonuses: { stronk: 1 },
+    },
+    {
+      key: "warrior_old_maps",
+      name: "Old Maps",
+      description: "+1 Smell. The campaign route had excellent trout.",
+      cost: 1,
+      statBonuses: { smell: 1 },
+    },
+    {
+      key: "warrior_siege_patience",
+      name: "Siege Patience",
+      description: "+1 Quietness. Wait them out.",
+      cost: 1,
+      requires: ["warrior_old_maps"],
+      statBonuses: { quietness: 1 },
+    },
+    {
+      key: "warrior_trophy_drag",
+      name: "Trophy Drag",
+      description: "+1 Stronk. Big fish do not get a vote.",
+      cost: 1,
+      requires: ["warrior_campaign_grip"],
+      statBonuses: { stronk: 1 },
+    },
+    {
+      key: "warrior_final_campaign",
+      name: "Final Campaign",
+      description: "+1 Stronk, +1 Luk. One last glorious overreaction.",
+      cost: 2,
+      requires: ["warrior_siege_patience", "warrior_trophy_drag"],
+      statBonuses: { stronk: 1, luk: 1 },
+    },
+  ],
+  [SeasonFiveCharacterClass.DEMENTED_WIZARD]: [
+    {
+      key: "wizard_muttered_bait",
+      name: "Muttered Bait",
+      description: "+1 Magik. The worm learns an unsettling phrase.",
+      cost: 1,
+      statBonuses: { magik: 1 },
+    },
+    {
+      key: "wizard_moon_ledger",
+      name: "Moon Ledger",
+      description: "+1 Luk. Keep accounts with the tide.",
+      cost: 1,
+      statBonuses: { luk: 1 },
+    },
+    {
+      key: "wizard_glass_gills",
+      name: "Glass Gills",
+      description: "+1 Smell. Hear fish gossip through water.",
+      cost: 1,
+      requires: ["wizard_muttered_bait"],
+      statBonuses: { smell: 1 },
+    },
+    {
+      key: "wizard_pocket_portal",
+      name: "Pocket Portal",
+      description: "+1 Quietness. Fold the road until it stops complaining.",
+      cost: 1,
+      requires: ["wizard_moon_ledger"],
+      statBonuses: { quietness: 1 },
+    },
+    {
+      key: "wizard_argument_with_sea",
+      name: "Argument with Sea",
+      description: "+2 Magik. Lose the debate. Win the fish.",
+      cost: 2,
+      requires: ["wizard_glass_gills", "wizard_pocket_portal"],
+      statBonuses: { magik: 2 },
+    },
+  ],
+  [SeasonFiveCharacterClass.BURNT_OUT_ROGUE]: [
+    {
+      key: "rogue_soft_boots",
+      name: "Soft Boots",
+      description: "+1 Quietness. The dock never hears you quit.",
+      cost: 1,
+      statBonuses: { quietness: 1 },
+    },
+    {
+      key: "rogue_stolen_lure",
+      name: "Stolen Lure",
+      description: "+1 Luk. Probably yours now.",
+      cost: 1,
+      statBonuses: { luk: 1 },
+    },
+    {
+      key: "rogue_backwater_gossip",
+      name: "Backwater Gossip",
+      description: "+1 Smell. Know which puddle is lying.",
+      cost: 1,
+      requires: ["rogue_soft_boots"],
+      statBonuses: { smell: 1 },
+    },
+    {
+      key: "rogue_false_bottom",
+      name: "False Bottom",
+      description: "+1 Stronk. The pack has opinions about physics.",
+      cost: 1,
+      requires: ["rogue_stolen_lure"],
+      statBonuses: { stronk: 1 },
+    },
+    {
+      key: "rogue_disappear_twice",
+      name: "Disappear Twice",
+      description: "+1 Quietness, +1 Luk. Even the splash looks away.",
+      cost: 2,
+      requires: ["rogue_backwater_gossip", "rogue_false_bottom"],
+      statBonuses: { quietness: 1, luk: 1 },
+    },
+  ],
+} as const satisfies Record<
+  SeasonFiveCharacterClass,
+  readonly SeasonFiveSkillNode[]
+>;
+
+export const SEASON_FIVE_SKILLS = Object.values(SEASON_FIVE_SKILL_TREES).flat();
+
+const LEGACY_SKILL_ALIASES = [
   {
     key: "steady_hands",
-    name: "Steady Hands",
-    description: "Improves passive catch tempo.",
-    catchBonus: 1,
-    inventoryBonus: 0,
-    sizeBonusPercent: 0,
-    travelPercent: 0,
+    target: "monk_wobble_cast",
   },
   {
     key: "deep_pockets",
-    name: "Deep Pockets",
-    description: "Adds four inventory slots.",
-    catchBonus: 0,
-    inventoryBonus: 4,
-    sizeBonusPercent: 0,
-    travelPercent: 0,
+    target: "rogue_false_bottom",
   },
   {
     key: "trophy_lies",
-    name: "Trophy Lies",
-    description: "Makes every large fish slightly more believable.",
-    catchBonus: 0,
-    inventoryBonus: 0,
-    sizeBonusPercent: 10,
-    travelPercent: 0,
+    target: "warrior_trophy_drag",
   },
   {
     key: "muddy_shortcuts",
-    name: "Muddy Shortcuts",
-    description: "Cuts travel time to fishing spots.",
-    catchBonus: 0,
-    inventoryBonus: 0,
-    sizeBonusPercent: 0,
-    travelPercent: -15,
+    target: "rogue_soft_boots",
   },
 ] as const;
 
@@ -166,6 +370,7 @@ const STARTER_GEAR = [
     rarity: SeasonFiveGearRarity.COMMON,
     power: 0,
     equipped: true,
+    statBonuses: { smell: 1 },
   },
   {
     slot: SeasonFiveGearSlot.ROD,
@@ -174,6 +379,7 @@ const STARTER_GEAR = [
     rarity: SeasonFiveGearRarity.UNCOMMON,
     power: 1,
     equipped: false,
+    statBonuses: { stronk: 1, smell: 1 },
   },
   {
     slot: SeasonFiveGearSlot.BAIT,
@@ -182,6 +388,7 @@ const STARTER_GEAR = [
     rarity: SeasonFiveGearRarity.COMMON,
     power: 0,
     equipped: true,
+    statBonuses: { smell: 1 },
   },
   {
     slot: SeasonFiveGearSlot.BAIT,
@@ -190,6 +397,7 @@ const STARTER_GEAR = [
     rarity: SeasonFiveGearRarity.UNCOMMON,
     power: 1,
     equipped: false,
+    statBonuses: { luk: 1, magik: 1 },
   },
   {
     slot: SeasonFiveGearSlot.PACK,
@@ -198,6 +406,7 @@ const STARTER_GEAR = [
     rarity: SeasonFiveGearRarity.COMMON,
     power: 0,
     equipped: true,
+    statBonuses: { stronk: 1 },
   },
   {
     slot: SeasonFiveGearSlot.PACK,
@@ -206,6 +415,7 @@ const STARTER_GEAR = [
     rarity: SeasonFiveGearRarity.RARE,
     power: 2,
     equipped: false,
+    statBonuses: { stronk: 2, quietness: -1 },
   },
   {
     slot: SeasonFiveGearSlot.TRINKET,
@@ -214,8 +424,13 @@ const STARTER_GEAR = [
     rarity: SeasonFiveGearRarity.COMMON,
     power: 0,
     equipped: true,
+    statBonuses: { luk: 1 },
   },
 ] as const;
+
+const STARTER_GEAR_BY_KEY: Map<string, (typeof STARTER_GEAR)[number]> = new Map(
+  STARTER_GEAR.map((gear) => [gear.key, gear])
+);
 
 const FISH_SPECIES = [
   { key: "mud-perch", name: "Mud Perch", rarity: SeasonFiveFishRarity.COMMON },
@@ -278,25 +493,49 @@ export function normalizeSeasonFiveClass(input: string) {
   throw new GameError("Choose a valid Season 5 class.");
 }
 
-function getSkillEffects(purchasedNodeKeys: Iterable<string>) {
-  const keys = new Set(purchasedNodeKeys);
-  return SEASON_FIVE_SKILLS.reduce(
-    (effects, skill) => {
-      if (!keys.has(skill.key)) return effects;
-      return {
-        catchBonus: effects.catchBonus + (skill.catchBonus ?? 0),
-        inventoryBonus: effects.inventoryBonus + (skill.inventoryBonus ?? 0),
-        sizeBonusPercent:
-          effects.sizeBonusPercent + (skill.sizeBonusPercent ?? 0),
-        travelPercent: effects.travelPercent + (skill.travelPercent ?? 0),
-      };
-    },
-    { catchBonus: 0, inventoryBonus: 0, sizeBonusPercent: 0, travelPercent: 0 }
+function addStats(base: SeasonFiveStats, bonuses?: Partial<SeasonFiveStats>) {
+  if (!bonuses) return { ...base };
+  return SEASON_FIVE_STAT_KEYS.reduce(
+    (stats, key) => ({
+      ...stats,
+      [key]: stats[key] + (bonuses[key] ?? 0),
+    }),
+    { ...base }
   );
 }
 
-function getGearEffects(
+function clampStats(stats: SeasonFiveStats) {
+  return SEASON_FIVE_STAT_KEYS.reduce(
+    (clamped, key) => ({
+      ...clamped,
+      [key]: clamp(stats[key], 1, 10),
+    }),
+    { ...EMPTY_STATS }
+  );
+}
+
+function resolveSkillKey(nodeKey: string) {
+  return (
+    LEGACY_SKILL_ALIASES.find((alias) => alias.key === nodeKey)?.target ??
+    nodeKey
+  );
+}
+
+function findSeasonFiveSkillNode(nodeKey: string) {
+  const resolved = resolveSkillKey(nodeKey);
+  return SEASON_FIVE_SKILLS.find((skill) => skill.key === resolved) ?? null;
+}
+
+function getSkillStatBonuses(purchasedNodeKeys: Iterable<string>) {
+  return Array.from(purchasedNodeKeys).reduce((stats, nodeKey) => {
+    const skill = findSeasonFiveSkillNode(nodeKey);
+    return addStats(stats, skill?.statBonuses);
+  }, { ...EMPTY_STATS });
+}
+
+function getGearStatBonuses(
   gear: Array<{
+    key?: string;
     slot: SeasonFiveGearSlot;
     power: number;
     equipped: boolean;
@@ -304,46 +543,81 @@ function getGearEffects(
 ) {
   return gear
     .filter((item) => item.equipped)
-    .reduce(
-      (effects, item) => {
-        if (item.slot === SeasonFiveGearSlot.ROD) {
-          effects.sizeBonusPercent += item.power * 6;
-        } else if (item.slot === SeasonFiveGearSlot.BAIT) {
-          effects.catchBonus += item.power;
-        } else if (item.slot === SeasonFiveGearSlot.PACK) {
-          effects.inventoryBonus += item.power * 4;
-        } else if (item.slot === SeasonFiveGearSlot.TRINKET) {
-          effects.sizeBonusPercent += item.power * 3;
-        }
-        return effects;
-      },
-      { catchBonus: 0, inventoryBonus: 0, sizeBonusPercent: 0 }
-    );
+    .reduce((stats, item) => {
+      const catalogBonuses = item.key
+        ? STARTER_GEAR_BY_KEY.get(item.key)?.statBonuses
+        : null;
+      if (catalogBonuses) {
+        return addStats(stats, catalogBonuses);
+      }
+
+      if (item.slot === SeasonFiveGearSlot.ROD) {
+        return addStats(stats, { stronk: item.power, smell: item.power });
+      }
+      if (item.slot === SeasonFiveGearSlot.BAIT) {
+        return addStats(stats, { luk: item.power, smell: item.power });
+      }
+      if (item.slot === SeasonFiveGearSlot.PACK) {
+        return addStats(stats, { stronk: item.power * 2 });
+      }
+      if (item.slot === SeasonFiveGearSlot.TRINKET) {
+        return addStats(stats, { luk: item.power, magik: item.power });
+      }
+      return stats;
+    }, { ...EMPTY_STATS });
+}
+
+export function getSeasonFiveCharacterStats(input: {
+  characterClass: SeasonFiveCharacterClass;
+  gear?: Array<{
+    key?: string;
+    slot: SeasonFiveGearSlot;
+    power: number;
+    equipped: boolean;
+  }>;
+  purchasedNodeKeys?: Iterable<string>;
+}) {
+  const classStats = SEASON_FIVE_CLASSES[input.characterClass].stats;
+  const gearStats = getGearStatBonuses(input.gear ?? []);
+  const skillStats = getSkillStatBonuses(input.purchasedNodeKeys ?? []);
+  const combined = SEASON_FIVE_STAT_KEYS.reduce(
+    (stats, key) => ({
+      ...stats,
+      [key]: classStats[key] + gearStats[key] + skillStats[key],
+    }),
+    { ...EMPTY_STATS }
+  );
+
+  return clampStats(combined);
 }
 
 export function getSeasonFiveBuildEffects(input: {
   characterClass: SeasonFiveCharacterClass;
-  gear?: Array<{ slot: SeasonFiveGearSlot; power: number; equipped: boolean }>;
+  gear?: Array<{
+    key?: string;
+    slot: SeasonFiveGearSlot;
+    power: number;
+    equipped: boolean;
+  }>;
   purchasedNodeKeys?: Iterable<string>;
 }) {
-  const classEffects = SEASON_FIVE_CLASSES[input.characterClass];
-  const gearEffects = getGearEffects(input.gear ?? []);
-  const skillEffects = getSkillEffects(input.purchasedNodeKeys ?? []);
+  const stats = getSeasonFiveCharacterStats(input);
 
   return {
-    catchBonus:
-      classEffects.catchBonus +
-      gearEffects.catchBonus +
-      skillEffects.catchBonus,
-    inventoryBonus:
-      classEffects.inventoryBonus +
-      gearEffects.inventoryBonus +
-      skillEffects.inventoryBonus,
+    stats,
+    catchBonus: Math.max(0, Math.floor((stats.smell - 5) / 2)),
+    inventoryBonus: Math.max(0, (stats.stronk - 5) * 2),
+    inventoryPressureReduction: Math.max(
+      0,
+      Math.floor((stats.stronk + stats.quietness - 12) / 4)
+    ),
+    rarityBonus: Math.max(
+      0,
+      (stats.luk - 5) * 3 + Math.max(0, stats.magik - 6) * 2
+    ),
     sizeBonusPercent:
-      classEffects.sizeBonusPercent +
-      gearEffects.sizeBonusPercent +
-      skillEffects.sizeBonusPercent,
-    travelPercent: classEffects.travelPercent + skillEffects.travelPercent,
+      Math.max(0, stats.stronk - 5) * 5 + Math.max(0, stats.magik - 5) * 2,
+    travelPercent: -Math.max(0, stats.quietness - 5) * 5,
   };
 }
 
@@ -378,10 +652,11 @@ export function createSeasonFiveCatch(input: {
   maxFishCm: number;
   difficulty: number;
   sizeBonusPercent: number;
+  rarityBonus?: number;
   inventoryPressure: number;
 }) {
   const hash = hashString(input.seed);
-  const speciesRoll = hash % 100;
+  const speciesRoll = clamp((hash % 100) + (input.rarityBonus ?? 0), 0, 99);
   const species =
     speciesRoll >= 98 && input.difficulty >= 4
       ? FISH_SPECIES[4]
@@ -560,10 +835,12 @@ export async function createSeasonFiveCharacter({
       skillPoints: 2,
       currentLocationId: home.id,
       lastResolvedAt: now,
-      inventoryCapacity: 12 + SEASON_FIVE_CLASSES[selectedClass].inventoryBonus,
+      inventoryCapacity: 12,
       gear: {
         createMany: {
-          data: STARTER_GEAR.map((gear) => ({ ...gear })),
+          data: STARTER_GEAR.map(({ statBonuses: _statBonuses, ...gear }) => ({
+            ...gear,
+          })),
         },
       },
     },
@@ -629,13 +906,6 @@ export async function purchaseSeasonFiveSkill({
   nodeKey: string;
   db?: DatabaseClient;
 }) {
-  const skill = SEASON_FIVE_SKILLS.find(
-    (candidate) => candidate.key === nodeKey
-  );
-  if (!skill) {
-    throw new GameError("That Season 5 skill does not exist.");
-  }
-
   const cycle = await ensureSeasonFivePreviewCycle({ db });
 
   await db.$transaction(async (tx) => {
@@ -648,13 +918,35 @@ export async function purchaseSeasonFiveSkill({
       throw new GameError("Create a Season 5 character before buying skills.");
     }
 
+    const classTree: readonly SeasonFiveSkillNode[] =
+      SEASON_FIVE_SKILL_TREES[character.class];
+    const skill = classTree.find((candidate) => candidate.key === nodeKey);
+    if (!skill) {
+      throw new GameError("That skill does not belong to your class tree.");
+    }
+
+    const purchasedKeys = new Set(
+      character.skillPurchases.map((purchase) =>
+        resolveSkillKey(purchase.nodeKey)
+      )
+    );
+
     if (
-      character.skillPurchases.some((purchase) => purchase.nodeKey === nodeKey)
+      character.skillPurchases.some(
+        (purchase) => resolveSkillKey(purchase.nodeKey) === nodeKey
+      )
     ) {
       throw new GameError("That skill is already unlocked.");
     }
 
-    if (character.skillPoints <= 0) {
+    const missingRequirement = skill.requires?.find(
+      (requiredKey) => !purchasedKeys.has(requiredKey)
+    );
+    if (missingRequirement) {
+      throw new GameError("Unlock the previous skill first.");
+    }
+
+    if (character.skillPoints < skill.cost) {
       throw new GameError("You need a skill point first.");
     }
 
@@ -667,11 +959,7 @@ export async function purchaseSeasonFiveSkill({
     await tx.seasonFiveCharacter.update({
       where: { id: character.id },
       data: {
-        skillPoints: { decrement: 1 },
-        inventoryCapacity:
-          nodeKey === "deep_pockets"
-            ? character.inventoryCapacity + 4
-            : character.inventoryCapacity,
+        skillPoints: { decrement: skill.cost },
       },
     });
   });
@@ -867,6 +1155,22 @@ export async function getSeasonFiveHomeState({
   const character = userId
     ? await getSeasonFiveCharacterForUser({ userId, cycleId: cycle.id, db })
     : null;
+  const mapCharacters = await db.seasonFiveCharacter.findMany({
+    where: {
+      cycleId: cycle.id,
+    },
+    orderBy: [{ totalFishCaught: "desc" }, { createdAt: "asc" }],
+    take: 80,
+    select: {
+      id: true,
+      name: true,
+      class: true,
+      actionKind: true,
+      currentLocationId: true,
+      destinationLocationId: true,
+      actionCompletesAt: true,
+    },
+  });
   const topByCount = await db.seasonFiveCharacter.findMany({
     where: {
       cycleId: cycle.id,
@@ -917,20 +1221,78 @@ export async function getSeasonFiveHomeState({
     character && effects
       ? calculateSeasonFiveInventoryCapacity({
           baseCapacity: character.inventoryCapacity,
-          inventoryBonus: 0,
+          inventoryBonus: effects.inventoryBonus,
         })
       : 0;
+  const purchasedSkillKeys = new Set(
+    character?.skillPurchases.map((purchase) =>
+      resolveSkillKey(purchase.nodeKey)
+    ) ?? []
+  );
+  const skillTree = character
+    ? (SEASON_FIVE_SKILL_TREES[character.class] as readonly SeasonFiveSkillNode[]).map((skill) => {
+        const purchased = purchasedSkillKeys.has(skill.key);
+        const available =
+          !purchased &&
+          character.skillPoints >= skill.cost &&
+          (skill.requires ?? []).every((requiredKey) =>
+            purchasedSkillKeys.has(requiredKey)
+          );
+        return {
+          ...skill,
+          purchased,
+          available,
+          locked: !purchased && !available,
+          missingRequirements: (skill.requires ?? []).filter(
+            (requiredKey) => !purchasedSkillKeys.has(requiredKey)
+          ),
+        };
+      })
+    : [];
+  const locationActivity = locations.map((location) => ({
+    locationKey: location.key,
+    characters: mapCharacters
+      .filter((entry) =>
+        entry.actionKind === SeasonFiveActionKind.TRAVELING
+          ? entry.destinationLocationId === location.id
+          : entry.currentLocationId === location.id
+      )
+      .slice(0, 18)
+      .map((entry) => ({
+        id: entry.id,
+        name: entry.name,
+        class: entry.class,
+        classLabel: getSeasonFiveClassLabel(entry.class),
+        actionKind: entry.actionKind,
+        actionCompletesAt: entry.actionCompletesAt,
+      })),
+  }));
+  const characterEffects =
+    character && effects
+      ? effects
+      : character
+        ? getSeasonFiveBuildEffects({
+            characterClass: character.class,
+            gear: character.gear,
+            purchasedNodeKeys: character.skillPurchases.map(
+              (purchase) => purchase.nodeKey
+            ),
+          })
+        : null;
 
   return {
     cycle: {
       id: cycle.id,
       activeEndsAt: cycle.activeEndsAt,
     },
+    statLabels: SEASON_FIVE_STAT_LABELS,
+    statDescriptions: SEASON_FIVE_STAT_DESCRIPTIONS,
     classes: Object.entries(SEASON_FIVE_CLASSES).map(([key, definition]) => ({
       key,
       ...definition,
     })),
-    skills: SEASON_FIVE_SKILLS,
+    skills: skillTree,
+    skillTrees: SEASON_FIVE_SKILL_TREES,
     locations: locations.map((location) => ({
       id: location.id,
       key: location.key,
@@ -943,6 +1305,7 @@ export async function getSeasonFiveHomeState({
       maxFishCm: location.maxFishCm,
       catchDifficulty: location.catchDifficulty,
     })),
+    locationActivity,
     character: character
       ? {
           id: character.id,
@@ -962,7 +1325,8 @@ export async function getSeasonFiveHomeState({
           inventoryUsed,
           inventoryCapacity,
           inventoryFull: inventoryUsed >= inventoryCapacity,
-          effects,
+          stats: characterEffects!.stats,
+          effects: characterEffects!,
           gear: character.gear.map((gear) => ({
             id: gear.id,
             slot: gear.slot,
@@ -971,9 +1335,11 @@ export async function getSeasonFiveHomeState({
             rarity: gear.rarity,
             power: gear.power,
             equipped: gear.equipped,
+            statBonuses:
+              STARTER_GEAR_BY_KEY.get(gear.key)?.statBonuses ?? EMPTY_STATS,
           })),
-          skillPurchases: character.skillPurchases.map(
-            (purchase) => purchase.nodeKey
+          skillPurchases: character.skillPurchases.map((purchase) =>
+            resolveSkillKey(purchase.nodeKey)
           ),
           inventory: character.inventoryItems.map((item) => ({
             id: item.id,
@@ -1008,11 +1374,14 @@ export function getDegradedSeasonFiveHomeState(): SeasonFiveHomeState {
       id: "",
       activeEndsAt: null,
     },
+    statLabels: SEASON_FIVE_STAT_LABELS,
+    statDescriptions: SEASON_FIVE_STAT_DESCRIPTIONS,
     classes: Object.entries(SEASON_FIVE_CLASSES).map(([key, definition]) => ({
       key,
       ...definition,
     })),
-    skills: SEASON_FIVE_SKILLS,
+    skills: [],
+    skillTrees: SEASON_FIVE_SKILL_TREES,
     locations: SEASON_FIVE_LOCATIONS.map((location) => ({
       id: location.key,
       key: location.key,
@@ -1024,6 +1393,10 @@ export function getDegradedSeasonFiveHomeState(): SeasonFiveHomeState {
       minFishCm: location.minFishCm,
       maxFishCm: location.maxFishCm,
       catchDifficulty: location.catchDifficulty,
+    })),
+    locationActivity: SEASON_FIVE_LOCATIONS.map((location) => ({
+      locationKey: location.key,
+      characters: [],
     })),
     character: null,
     leaderboards: {
@@ -1130,7 +1503,7 @@ export async function processSeasonFiveTick({
     });
     const capacity = calculateSeasonFiveInventoryCapacity({
       baseCapacity: character.inventoryCapacity,
-      inventoryBonus: 0,
+      inventoryBonus: effects.inventoryBonus,
     });
     let usedSlots = character.inventoryItems.reduce(
       (sum, item) => sum + item.slots,
@@ -1160,7 +1533,11 @@ export async function processSeasonFiveTick({
         maxFishCm: location.maxFishCm,
         difficulty: location.catchDifficulty,
         sizeBonusPercent: effects.sizeBonusPercent,
-        inventoryPressure: location.inventoryPressure,
+        rarityBonus: effects.rarityBonus,
+        inventoryPressure: Math.max(
+          1,
+          location.inventoryPressure - effects.inventoryPressureReduction
+        ),
       });
 
       if (usedSlots + fish.inventorySlots > capacity) {
