@@ -3,7 +3,11 @@
   padding: 20px;
   color: #f6edda;
   background:
-    radial-gradient(circle at 24% 12%, rgba(151, 101, 42, 0.34), transparent 30%),
+    radial-gradient(
+      circle at 24% 12%,
+      rgba(151, 101, 42, 0.34),
+      transparent 30%
+    ),
     linear-gradient(145deg, #17231e 0%, #24362d 43%, #10212b 100%);
 }
 
@@ -100,7 +104,11 @@
   padding: 14px;
   border: 1px solid rgba(255, 239, 203, 0.16);
   border-radius: 8px;
-  background: linear-gradient(180deg, rgba(54, 45, 34, 0.96), rgba(26, 39, 34, 0.96));
+  background: linear-gradient(
+    180deg,
+    rgba(54, 45, 34, 0.96),
+    rgba(26, 39, 34, 0.96)
+  );
 }
 
 .classChoice h3,
@@ -170,7 +178,10 @@
 
 .playfield {
   display: grid;
-  grid-template-columns: minmax(260px, 320px) minmax(520px, 1fr) minmax(280px, 360px);
+  grid-template-columns: minmax(260px, 320px) minmax(520px, 1fr) minmax(
+      280px,
+      360px
+    );
   gap: 14px;
   max-width: 1580px;
   margin: 0 auto;
@@ -205,7 +216,12 @@
   inset: 0;
   pointer-events: none;
   background:
-    linear-gradient(180deg, rgba(4, 11, 13, 0.18), transparent 22%, rgba(4, 11, 13, 0.24)),
+    linear-gradient(
+      180deg,
+      rgba(4, 11, 13, 0.18),
+      transparent 22%,
+      rgba(4, 11, 13, 0.24)
+    ),
     radial-gradient(circle at 50% 52%, transparent 42%, rgba(0, 0, 0, 0.18));
 }
 
@@ -398,6 +414,56 @@
   color: #d6c8a7;
 }
 
+.inventoryPressure {
+  display: grid;
+  gap: 7px;
+  margin: 12px 0;
+  padding: 10px;
+  border: 1px solid rgba(255, 248, 231, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 248, 231, 0.06);
+}
+
+.inventoryPressureHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.inventoryPressureHeader strong {
+  color: #fff8e7;
+}
+
+.inventoryPressureHeader span {
+  color: #d6c8a7;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.inventoryPressureTrack {
+  overflow: hidden;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 248, 231, 0.12);
+}
+
+.inventoryPressureTrack span {
+  display: block;
+  height: 100%;
+  max-width: 100%;
+  border-radius: inherit;
+  background: #4eb29e;
+}
+
+.inventoryPressure[data-pressure="tight"] .inventoryPressureTrack span {
+  background: #d8a75e;
+}
+
+.inventoryPressure[data-pressure="full"] .inventoryPressureTrack span {
+  background: #f06f4f;
+}
+
 .smallText {
   margin: 8px 0 0;
   font-size: 13px;
@@ -515,6 +581,10 @@
 .inventoryList span {
   color: #c9b994;
   font-size: 13px;
+}
+
+.inventoryMeta {
+  text-align: right;
 }
 
 .leaderboardColumns {

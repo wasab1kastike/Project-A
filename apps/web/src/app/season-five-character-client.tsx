@@ -15,6 +15,7 @@ import type {
 } from "@/lib/game/season-five";
 import {
   ClassPortrait,
+  InventoryPressureMeter,
   SeasonFiveRealtimeBridge,
   StatBars,
 } from "./season-five-home-client";
@@ -51,7 +52,9 @@ function formatStatBonuses(
   return parts.length > 0 ? parts.join(", ") : "No stat change";
 }
 
-function getActionText(character: NonNullable<SeasonFiveHomeState["character"]>) {
+function getActionText(
+  character: NonNullable<SeasonFiveHomeState["character"]>
+) {
   if (character.actionKind === "TRAVELING") {
     return `Traveling to ${character.destinationLocationName}`;
   }
@@ -165,8 +168,9 @@ function OverviewTab({ state }: { state: SeasonFiveHomeState }) {
         </div>
       </div>
       <p className={styles.smallText}>
-        {getActionText(character)}. Your current build gives +{character.effects.catchBonus}
-        {" "}catch tempo, +{character.effects.rarityBonus} rarity pressure, and{" "}
+        {getActionText(character)}. Your current build gives +
+        {character.effects.catchBonus} catch tempo, +
+        {character.effects.rarityBonus} rarity pressure, and{" "}
         {character.effects.travelPercent}% travel time.
       </p>
       <div className={styles.statGrid}>
@@ -202,15 +206,21 @@ function InventoryTab({ state }: { state: SeasonFiveHomeState }) {
           <p className={styles.kicker}>Inventory</p>
           <h2>Current haul</h2>
         </div>
-        {character.inventoryFull ? <span className={styles.warning}>Full</span> : null}
+        {character.inventoryFull || character.inventoryCloseToFull ? (
+          <span className={styles.warning}>
+            {character.inventoryPressureLabel}
+          </span>
+        ) : null}
       </div>
+      <InventoryPressureMeter character={character} />
       <div className={styles.inventoryList}>
         {character.inventory.length > 0 ? (
           character.inventory.map((item) => (
             <div key={item.id}>
               <strong>{item.speciesName}</strong>
-              <span>
+              <span className={styles.inventoryMeta}>
                 {item.sizeCm} cm | {item.rarity} | {item.slots} slot
+                {item.slots === 1 ? "" : "s"}
               </span>
             </div>
           ))
@@ -246,7 +256,8 @@ function GearTab({ state }: { state: SeasonFiveHomeState }) {
                 {gear.slot}: {gear.name}
               </span>
               <small>
-                {gear.rarity} | {formatStatBonuses(gear.statBonuses, state.statLabels)}
+                {gear.rarity} |{" "}
+                {formatStatBonuses(gear.statBonuses, state.statLabels)}
               </small>
             </button>
           </form>
@@ -315,14 +326,14 @@ function StatsTab({ state }: { state: SeasonFiveHomeState }) {
       </div>
       <StatBars stats={character.stats} labels={state.statLabels} />
       <div className={styles.inventoryList}>
-        {(Object.entries(state.statLabels) as Array<[SeasonFiveStatKey, string]>).map(
-          ([key, label]) => (
-            <div key={key}>
-              <strong>{label}</strong>
-              <span>{state.statDescriptions[key]}</span>
-            </div>
-          )
-        )}
+        {(
+          Object.entries(state.statLabels) as Array<[SeasonFiveStatKey, string]>
+        ).map(([key, label]) => (
+          <div key={key}>
+            <strong>{label}</strong>
+            <span>{state.statDescriptions[key]}</span>
+          </div>
+        ))}
       </div>
     </>
   );

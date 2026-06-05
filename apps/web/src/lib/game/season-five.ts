@@ -17,7 +17,10 @@ import {
   getSeasonFiveActionSummary,
   resolveSeasonFiveCompletedTravel,
 } from "./season-five-actions";
-import { planSeasonFivePassiveCatches } from "./season-five-fishing";
+import {
+  getSeasonFiveInventoryPressure,
+  planSeasonFivePassiveCatches,
+} from "./season-five-fishing";
 import { addHours, floorToMinute } from "./time";
 
 type DatabaseClient = PrismaClient;
@@ -1228,6 +1231,10 @@ export async function getSeasonFiveHomeState({
           inventoryBonus: effects.inventoryBonus,
         })
       : 0;
+  const inventoryPressure = getSeasonFiveInventoryPressure({
+    inventoryUsed,
+    inventoryCapacity,
+  });
   const purchasedSkillKeys = new Set(
     character?.skillPurchases.map((purchase) =>
       resolveSkillKey(purchase.nodeKey)
@@ -1282,6 +1289,10 @@ export async function getSeasonFiveHomeState({
           baseCapacity: entry.inventoryCapacity,
           inventoryBonus: entryEffects.inventoryBonus,
         });
+        const entryInventoryPressure = getSeasonFiveInventoryPressure({
+          inventoryUsed: entryInventoryUsed,
+          inventoryCapacity: entryInventoryCapacity,
+        });
 
         return {
           id: entry.id,
@@ -1290,7 +1301,8 @@ export async function getSeasonFiveHomeState({
           classLabel: getSeasonFiveClassLabel(entry.class),
           actionKind: entry.actionKind,
           actionCompletesAt: entry.actionCompletesAt,
-          inventoryFull: entryInventoryUsed >= entryInventoryCapacity,
+          inventoryFull: entryInventoryPressure.full,
+          inventoryCloseToFull: entryInventoryPressure.closeToFull,
         };
       }),
   }));
@@ -1359,7 +1371,11 @@ export async function getSeasonFiveHomeState({
           destinationLocationName: character.destinationLocation?.name ?? null,
           inventoryUsed,
           inventoryCapacity,
-          inventoryFull: inventoryUsed >= inventoryCapacity,
+          inventoryRemaining: inventoryPressure.remaining,
+          inventoryPercent: inventoryPressure.percent,
+          inventoryPressureLabel: inventoryPressure.label,
+          inventoryCloseToFull: inventoryPressure.closeToFull,
+          inventoryFull: inventoryPressure.full,
           stats: characterEffects!.stats,
           effects: characterEffects!,
           gear: character.gear.map((gear) => ({

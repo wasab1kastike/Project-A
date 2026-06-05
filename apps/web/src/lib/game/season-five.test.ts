@@ -15,7 +15,10 @@ import {
   getSeasonFiveActionSummary,
   resolveSeasonFiveCompletedTravel,
 } from "./season-five-actions";
-import { planSeasonFivePassiveCatches } from "./season-five-fishing";
+import {
+  getSeasonFiveInventoryPressure,
+  planSeasonFivePassiveCatches,
+} from "./season-five-fishing";
 import {
   calculateSeasonFiveCatchIntervalMinutes,
   calculateSeasonFiveInventoryCapacity,
@@ -310,6 +313,54 @@ test("Season 5 passive fishing is idempotent for already resolved minutes", () =
   assert.equal(plan.catches.length, 0);
   assert.equal(plan.inventoryUsed, 0);
   assert.equal(plan.inventoryFull, false);
+});
+
+test("Season 5 inventory pressure labels empty, close, and full packs", () => {
+  assert.deepEqual(
+    getSeasonFiveInventoryPressure({
+      inventoryUsed: 0,
+      inventoryCapacity: 12,
+    }),
+    {
+      used: 0,
+      capacity: 12,
+      remaining: 12,
+      percent: 0,
+      full: false,
+      closeToFull: false,
+      label: "Empty",
+    }
+  );
+  assert.deepEqual(
+    getSeasonFiveInventoryPressure({
+      inventoryUsed: 9,
+      inventoryCapacity: 12,
+    }),
+    {
+      used: 9,
+      capacity: 12,
+      remaining: 3,
+      percent: 75,
+      full: false,
+      closeToFull: true,
+      label: "Tight",
+    }
+  );
+  assert.deepEqual(
+    getSeasonFiveInventoryPressure({
+      inventoryUsed: 12,
+      inventoryCapacity: 12,
+    }),
+    {
+      used: 12,
+      capacity: 12,
+      remaining: 0,
+      percent: 100,
+      full: true,
+      closeToFull: false,
+      label: "Full",
+    }
+  );
 });
 
 test("Season 5 preview cycle seed creates active cycle and baseline locations", async () => {

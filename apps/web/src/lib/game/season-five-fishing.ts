@@ -9,6 +9,35 @@ export type SeasonFivePlannedCatch = {
   inventorySlots: number;
 };
 
+export function getSeasonFiveInventoryPressure(input: {
+  inventoryUsed: number;
+  inventoryCapacity: number;
+}) {
+  const capacity = Math.max(1, input.inventoryCapacity);
+  const used = Math.max(0, input.inventoryUsed);
+  const remaining = Math.max(0, capacity - used);
+  const percent = Math.min(100, Math.round((used / capacity) * 100));
+  const full = used >= capacity;
+  const closeToFull = !full && percent >= 75;
+  const label = full
+    ? "Full"
+    : closeToFull
+      ? "Tight"
+      : percent === 0
+        ? "Empty"
+        : "Roomy";
+
+  return {
+    used,
+    capacity,
+    remaining,
+    percent,
+    full,
+    closeToFull,
+    label,
+  };
+}
+
 export function planSeasonFivePassiveCatches<
   TCatch extends SeasonFivePlannedCatch,
 >(input: {

@@ -61,6 +61,45 @@ function getActionLabel(actionKind: string) {
   return "Home";
 }
 
+export function InventoryPressureMeter({
+  character,
+}: {
+  character: NonNullable<SeasonFiveHomeState["character"]>;
+}) {
+  return (
+    <div
+      className={styles.inventoryPressure}
+      data-pressure={
+        character.inventoryFull
+          ? "full"
+          : character.inventoryCloseToFull
+            ? "tight"
+            : "roomy"
+      }
+    >
+      <div className={styles.inventoryPressureHeader}>
+        <strong>{character.inventoryPressureLabel}</strong>
+        <span>
+          {character.inventoryUsed}/{character.inventoryCapacity} slots
+        </span>
+      </div>
+      <div
+        className={styles.inventoryPressureTrack}
+        aria-label={`Inventory ${character.inventoryPercent}% full`}
+      >
+        <span style={{ inlineSize: `${character.inventoryPercent}%` }} />
+      </div>
+      <p className={styles.smallText}>
+        {character.inventoryFull
+          ? "Fishing pauses until the haul is unloaded."
+          : `${character.inventoryRemaining} slot${
+              character.inventoryRemaining === 1 ? "" : "s"
+            } open before the pack fills.`}
+      </p>
+    </div>
+  );
+}
+
 export function ClassPortrait({
   classKey,
   label,
@@ -138,11 +177,7 @@ export function StatBars({
   );
 }
 
-function ClassSelection({
-  state,
-}: {
-  state: SeasonFiveHomeState;
-}) {
+function ClassSelection({ state }: { state: SeasonFiveHomeState }) {
   return (
     <section className={styles.setup}>
       <div className={styles.sectionHeader}>
@@ -169,10 +204,7 @@ function ClassSelection({
             />
             <h3>{formatClassKey(characterClass.key)}</h3>
             <p>{characterClass.summary}</p>
-            <StatBars
-              stats={characterClass.stats}
-              labels={state.statLabels}
-            />
+            <StatBars stats={characterClass.stats} labels={state.statLabels} />
             <button type="submit">Start fishing</button>
           </form>
         ))}
@@ -181,11 +213,7 @@ function ClassSelection({
   );
 }
 
-function CharacterCommandCard({
-  state,
-}: {
-  state: SeasonFiveHomeState;
-}) {
+function CharacterCommandCard({ state }: { state: SeasonFiveHomeState }) {
   const character = state.character;
   if (!character) return null;
 
@@ -217,7 +245,8 @@ function CharacterCommandCard({
 
       {character.actionCompletesAt ? (
         <p className={styles.smallText}>
-          Arrival {dateTimeFormatter.format(new Date(character.actionCompletesAt))}
+          Arrival{" "}
+          {dateTimeFormatter.format(new Date(character.actionCompletesAt))}
         </p>
       ) : null}
 
@@ -242,6 +271,8 @@ function CharacterCommandCard({
         </div>
       </div>
 
+      <InventoryPressureMeter character={character} />
+
       <StatBars stats={character.stats} labels={state.statLabels} />
 
       <div className={styles.commandActions}>
@@ -258,11 +289,7 @@ function CharacterCommandCard({
   );
 }
 
-function WorldMap({
-  state,
-}: {
-  state: SeasonFiveHomeState;
-}) {
+function WorldMap({ state }: { state: SeasonFiveHomeState }) {
   const character = state.character;
   const markerOffsets = [
     [0, -46],
@@ -332,7 +359,10 @@ function WorldMap({
                 </small>
               </button>
             </form>
-            <div className={styles.activityRing} aria-label={`${location.name} activity`}>
+            <div
+              className={styles.activityRing}
+              aria-label={`${location.name} activity`}
+            >
               {(activity?.characters ?? []).map((actor, index) => (
                 <span
                   key={actor.id}
@@ -372,11 +402,7 @@ function WorldMap({
   );
 }
 
-function InventoryPreview({
-  state,
-}: {
-  state: SeasonFiveHomeState;
-}) {
+function InventoryPreview({ state }: { state: SeasonFiveHomeState }) {
   const character = state.character;
   if (!character) return null;
   const latest = character.inventory.slice(-4).reverse();
@@ -388,17 +414,21 @@ function InventoryPreview({
           <p className={styles.kicker}>Current haul</p>
           <h2>Inventory</h2>
         </div>
-        {character.inventoryFull ? (
-          <span className={styles.warning}>Full</span>
+        {character.inventoryFull || character.inventoryCloseToFull ? (
+          <span className={styles.warning}>
+            {character.inventoryPressureLabel}
+          </span>
         ) : null}
       </div>
+      <InventoryPressureMeter character={character} />
       <div className={styles.inventoryList}>
         {latest.length > 0 ? (
           latest.map((item) => (
             <div key={item.id}>
               <strong>{item.speciesName}</strong>
-              <span>
-                {item.sizeCm} cm | {item.rarity}
+              <span className={styles.inventoryMeta}>
+                {item.rarity} | {item.sizeCm} cm | {item.slots} slot
+                {item.slots === 1 ? "" : "s"}
               </span>
             </div>
           ))
@@ -406,9 +436,16 @@ function InventoryPreview({
           <p className={styles.smallText}>No fish in the pack yet.</p>
         )}
       </div>
-      <Link className={styles.linkButton} href="/character?tab=inventory">
-        Open inventory
-      </Link>
+      <div className={styles.commandActions}>
+        <form action={returnSeasonFiveHomeAction}>
+          <button type="submit" className={styles.secondaryButton}>
+            Return / unload
+          </button>
+        </form>
+        <Link className={styles.linkButton} href="/character?tab=inventory">
+          Open inventory
+        </Link>
+      </div>
     </section>
   );
 }
