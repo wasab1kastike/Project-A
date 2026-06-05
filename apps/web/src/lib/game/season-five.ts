@@ -17,7 +17,8 @@ import {
   getSeasonFiveActionSummary,
   resolveSeasonFiveCompletedTravel,
 } from "./season-five-actions";
-import { addHours, addMinutes, floorToMinute } from "./time";
+import { planSeasonFivePassiveCatches } from "./season-five-fishing";
+import { addHours, floorToMinute } from "./time";
 
 type DatabaseClient = PrismaClient;
 
@@ -1531,7 +1532,7 @@ export async function processSeasonFiveTick({
       baseCapacity: character.inventoryCapacity,
       inventoryBonus: effects.inventoryBonus,
     });
-    let usedSlots = character.inventoryItems.reduce(
+    const usedSlots = character.inventoryItems.reduce(
       (sum, item) => sum + item.slots,
       0
     );
@@ -1539,46 +1540,32 @@ export async function processSeasonFiveTick({
       catchDifficulty: location.catchDifficulty,
       catchBonus: effects.catchBonus,
     });
-    const start = floorToMinute(character.lastResolvedAt);
-    const minutesDue = Math.min(
-      180,
-      Math.max(0, Math.floor((resolvedAt.getTime() - start.getTime()) / 60_000))
-    );
-    const newCatches: ReturnType<typeof createSeasonFiveCatch>[] = [];
+    const plan = planSeasonFivePassiveCatches({
+      lastResolvedAt: character.lastResolvedAt,
+      resolvedAt,
+      catchIntervalMinutes: interval,
+      inventoryUsed: usedSlots,
+      inventoryCapacity: capacity,
+      createCatch: (tickAt) =>
+        createSeasonFiveCatch({
+          seed: `${character.id}:${location.key}:${tickAt.toISOString()}`,
+          minFishCm: location.minFishCm,
+          maxFishCm: location.maxFishCm,
+          difficulty: location.catchDifficulty,
+          sizeBonusPercent: effects.sizeBonusPercent,
+          rarityBonus: effects.rarityBonus,
+          inventoryPressure: Math.max(
+            1,
+            location.inventoryPressure - effects.inventoryPressureReduction
+          ),
+        }),
+    });
 
-    for (let offset = 1; offset <= minutesDue; offset += 1) {
-      const tickAt = addMinutes(start, offset);
-      const minuteIndex = Math.floor(tickAt.getTime() / 60_000);
-      if (minuteIndex % interval !== 0) {
-        continue;
-      }
-
-      const fish = createSeasonFiveCatch({
-        seed: `${character.id}:${location.key}:${tickAt.toISOString()}`,
-        minFishCm: location.minFishCm,
-        maxFishCm: location.maxFishCm,
-        difficulty: location.catchDifficulty,
-        sizeBonusPercent: effects.sizeBonusPercent,
-        rarityBonus: effects.rarityBonus,
-        inventoryPressure: Math.max(
-          1,
-          location.inventoryPressure - effects.inventoryPressureReduction
-        ),
-      });
-
-      if (usedSlots + fish.inventorySlots > capacity) {
-        break;
-      }
-
-      usedSlots += fish.inventorySlots;
-      newCatches.push(fish);
-    }
-
-    if (newCatches.length === 0) {
+    if (plan.catches.length === 0) {
       await db.seasonFiveCharacter.update({
         where: { id: character.id },
         data: {
-          lastResolvedAt: resolvedAt,
+          lastResolvedAt: plan.nextResolvedAt,
         },
       });
       continue;
@@ -1586,12 +1573,14 @@ export async function processSeasonFiveTick({
 
     await db.$transaction(async (tx) => {
       let biggest = character.biggestFishCm;
-      for (const fish of newCatches) {
+      for (const plannedCatch of plan.catches) {
+        const fish = plannedCatch.fish;
         const created = await tx.seasonFiveFishCatch.create({
           data: {
             cycleId,
             characterId: character.id,
             locationId: location.id,
+            caughtAt: plannedCatch.tickAt,
             ...fish,
           },
         });
@@ -1609,17 +1598,17 @@ export async function processSeasonFiveTick({
         where: { id: character.id },
         data: {
           totalFishCaught: {
-            increment: newCatches.length,
+            increment: plan.catches.length,
           },
           experience: {
-            increment: newCatches.length * 5,
+            increment: plan.catches.length * 5,
           },
           biggestFishCm: biggest,
-          lastResolvedAt: resolvedAt,
+          lastResolvedAt: plan.nextResolvedAt,
         },
       });
     });
-    catchesCreated += newCatches.length;
+    catchesCreated += plan.catches.length;
   }
 
   return {

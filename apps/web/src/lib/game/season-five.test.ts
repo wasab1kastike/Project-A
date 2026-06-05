@@ -5,6 +5,7 @@ import {
   CycleStatus,
   SeasonFiveActionKind,
   SeasonFiveCharacterClass,
+  SeasonFiveFishRarity,
   SeasonFiveGearSlot,
   SeasonFiveLocationKind,
 } from "@/lib/prisma-client";
@@ -14,6 +15,7 @@ import {
   getSeasonFiveActionSummary,
   resolveSeasonFiveCompletedTravel,
 } from "./season-five-actions";
+import { planSeasonFivePassiveCatches } from "./season-five-fishing";
 import {
   calculateSeasonFiveCatchIntervalMinutes,
   calculateSeasonFiveInventoryCapacity,
@@ -233,6 +235,81 @@ test("Season 5 action summary exposes ETA and destination", () => {
   assert.equal(summary.destination?.key, "mist-lake");
   assert.equal(summary.etaAt, etaAt);
   assert.equal(summary.remainingSeconds, 450);
+});
+
+test("Season 5 passive fishing fills empty inventory deterministically", () => {
+  const plan = planSeasonFivePassiveCatches({
+    lastResolvedAt: new Date("2026-06-05T12:00:00.000Z"),
+    resolvedAt: new Date("2026-06-05T12:05:00.000Z"),
+    catchIntervalMinutes: 1,
+    inventoryUsed: 0,
+    inventoryCapacity: 3,
+    createCatch: () => ({
+      speciesKey: "pond-minnow",
+      speciesName: "Pond Minnow",
+      rarity: SeasonFiveFishRarity.COMMON,
+      sizeCm: 12,
+      inventorySlots: 1,
+    }),
+  });
+
+  assert.equal(plan.catches.length, 3);
+  assert.equal(plan.inventoryUsed, 3);
+  assert.equal(plan.inventoryFull, true);
+  assert.equal(
+    plan.nextResolvedAt.getTime(),
+    new Date("2026-06-05T12:05:00.000Z").getTime()
+  );
+});
+
+test("Season 5 passive fishing respects partial and full inventory", () => {
+  const createCatch = () => ({
+    speciesKey: "pond-minnow",
+    speciesName: "Pond Minnow",
+    rarity: SeasonFiveFishRarity.COMMON,
+    sizeCm: 12,
+    inventorySlots: 1,
+  });
+  const partial = planSeasonFivePassiveCatches({
+    lastResolvedAt: new Date("2026-06-05T12:00:00.000Z"),
+    resolvedAt: new Date("2026-06-05T12:05:00.000Z"),
+    catchIntervalMinutes: 1,
+    inventoryUsed: 2,
+    inventoryCapacity: 3,
+    createCatch,
+  });
+  const full = planSeasonFivePassiveCatches({
+    lastResolvedAt: new Date("2026-06-05T12:00:00.000Z"),
+    resolvedAt: new Date("2026-06-05T12:05:00.000Z"),
+    catchIntervalMinutes: 1,
+    inventoryUsed: 3,
+    inventoryCapacity: 3,
+    createCatch,
+  });
+
+  assert.equal(partial.catches.length, 1);
+  assert.equal(partial.inventoryUsed, 3);
+  assert.equal(partial.inventoryFull, true);
+  assert.equal(full.catches.length, 0);
+  assert.equal(full.inventoryUsed, 3);
+  assert.equal(full.inventoryFull, true);
+});
+
+test("Season 5 passive fishing is idempotent for already resolved minutes", () => {
+  const plan = planSeasonFivePassiveCatches({
+    lastResolvedAt: new Date("2026-06-05T12:05:00.000Z"),
+    resolvedAt: new Date("2026-06-05T12:05:00.000Z"),
+    catchIntervalMinutes: 1,
+    inventoryUsed: 0,
+    inventoryCapacity: 3,
+    createCatch: () => {
+      throw new Error("already resolved minutes should not roll catches");
+    },
+  });
+
+  assert.equal(plan.catches.length, 0);
+  assert.equal(plan.inventoryUsed, 0);
+  assert.equal(plan.inventoryFull, false);
 });
 
 test("Season 5 preview cycle seed creates active cycle and baseline locations", async () => {
