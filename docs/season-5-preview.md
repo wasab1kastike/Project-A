@@ -24,6 +24,10 @@ When the preview flag is enabled, `/` renders the Season 5 fishing interface ins
 - Main rankings are Most Fish and Biggest Fish.
 - Previous Project-A history and cosmetics are prestige-only.
 
+## Visual QA
+
+Use [Season 5 Visual QA](season-5-visual-qa.md) before closing map, character window, inventory, marker, or responsive layout work.
+
 ## History Import
 
 Use the import script only against separate databases:

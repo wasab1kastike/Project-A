@@ -9,6 +9,7 @@
 | [Game Design](game-design.md)                   | Core rules — economy, combat, diplomacy, map                      |
 | [Season 4](season-4.md)                         | Doctrines, pressure system, race abilities, trade redesign        |
 | [Season 5 Preview](season-5-preview.md)         | Fishing RPG preview deployment, gameplay loop, and history import |
+| [Season 5 Visual QA](season-5-visual-qa.md)     | Responsive map, character, inventory, and marker QA checklist     |
 | [Data Model](data-model.md)                     | Database schema — models, enums, relationships                    |
 | [Development Workflow](development-workflow.md) | How to contribute — commands, patterns, gotchas                   |
 
