@@ -1,13 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, type CSSProperties } from "react";
-import { useRouter } from "next/navigation";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import type { Session } from "next-auth";
 import { io } from "socket.io-client";
 import { SessionActions } from "@/components/session-actions";
 import { NoticeToast } from "@/components/notice-toast";
 import { PROJECT_A_REFRESH_EVENT } from "@/lib/realtime";
+import { reviveGameStateDates } from "@/lib/live-state-serialization";
 import type {
   SeasonFiveHomeState,
   SeasonFiveStatKey,
@@ -59,6 +65,28 @@ function getActionLabel(actionKind: string) {
   if (actionKind === "TRAVELING") return "Traveling";
   if (actionKind === "FISHING") return "Fishing";
   return "Home";
+}
+
+async function fetchSeasonFiveState(reason?: string) {
+  const searchParams = new URLSearchParams();
+  if (reason) {
+    searchParams.set("reason", reason);
+  }
+
+  const response = await fetch(`/api/game/state?${searchParams.toString()}`, {
+    method: "GET",
+    credentials: "same-origin",
+    headers: {
+      Accept: "application/json",
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Season 5 state fetch failed with ${response.status}.`);
+  }
+
+  return reviveGameStateDates((await response.json()) as SeasonFiveHomeState);
 }
 
 export function InventoryPressureMeter({
@@ -126,9 +154,13 @@ export function ClassPortrait({
   );
 }
 
-export function SeasonFiveRealtimeBridge({ enabled }: { enabled: boolean }) {
-  const router = useRouter();
-
+export function SeasonFiveRealtimeBridge({
+  enabled,
+  onRefresh,
+}: {
+  enabled: boolean;
+  onRefresh: (reason?: string) => void;
+}) {
   useEffect(() => {
     if (!enabled) return;
 
@@ -143,14 +175,14 @@ export function SeasonFiveRealtimeBridge({ enabled }: { enabled: boolean }) {
 
     socket.on(PROJECT_A_REFRESH_EVENT, (payload?: { reason?: string }) => {
       if (payload?.reason !== "connected") {
-        router.refresh();
+        onRefresh(payload?.reason ?? "socket-event");
       }
     });
 
     return () => {
       socket.disconnect();
     };
-  }, [enabled, router]);
+  }, [enabled, onRefresh]);
 
   return null;
 }
@@ -291,113 +323,256 @@ function CharacterCommandCard({ state }: { state: SeasonFiveHomeState }) {
 
 function WorldMap({ state }: { state: SeasonFiveHomeState }) {
   const character = state.character;
-  const markerOffsets = [
-    [0, -46],
-    [42, -22],
-    [46, 22],
-    [0, 46],
-    [-42, 22],
-    [-46, -22],
-    [26, -48],
-    [54, 0],
-    [26, 48],
-    [-26, 48],
-    [-54, 0],
-    [-26, -48],
-  ];
+  const [selectedLocationKey, setSelectedLocationKey] = useState<string | null>(
+    null
+  );
+  const [nowMs, setNowMs] = useState(Date.now());
+  const selectedLocation =
+    state.locations.find((location) => location.key === selectedLocationKey) ??
+    null;
+  const tileByKey = new Map(state.map.tiles.map((tile) => [tile.key, tile]));
+  const locationByTileKey = new Map(
+    state.locations
+      .filter((location) => location.tileKey)
+      .map((location) => [location.tileKey, location])
+  );
+  const currentTile = character?.currentTileKey
+    ? (tileByKey.get(character.currentTileKey) ?? null)
+    : null;
+  const destinationTile = character?.destinationTileKey
+    ? (tileByKey.get(character.destinationTileKey) ?? null)
+    : null;
+  const selectedTile = selectedLocation?.tileKey
+    ? (tileByKey.get(selectedLocation.tileKey) ?? null)
+    : null;
+  const previewFromTile = currentTile;
+  const previewToTile = selectedTile;
+  const activeRouteFromTile =
+    character?.actionKind === "TRAVELING" ? currentTile : null;
+  const activeRouteToTile =
+    character?.actionKind === "TRAVELING" ? destinationTile : null;
+
+  useEffect(() => {
+    if (character?.actionKind !== "TRAVELING") return;
+
+    const interval = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [character?.actionKind]);
+
+  const travelProgress =
+    character?.actionKind === "TRAVELING" &&
+    character.actionStartedAt &&
+    character.actionCompletesAt
+      ? Math.min(
+          1,
+          Math.max(
+            0,
+            (nowMs - new Date(character.actionStartedAt).getTime()) /
+              Math.max(
+                1,
+                new Date(character.actionCompletesAt).getTime() -
+                  new Date(character.actionStartedAt).getTime()
+              )
+          )
+        )
+      : 0;
+  const characterMapPosition =
+    activeRouteFromTile && activeRouteToTile
+      ? {
+          x:
+            activeRouteFromTile.xPercent +
+            (activeRouteToTile.xPercent - activeRouteFromTile.xPercent) *
+              travelProgress,
+          y:
+            activeRouteFromTile.yPercent +
+            (activeRouteToTile.yPercent - activeRouteFromTile.yPercent) *
+              travelProgress,
+        }
+      : currentTile
+        ? {
+            x: currentTile.xPercent,
+            y: currentTile.yPercent,
+          }
+        : null;
 
   return (
     <section className={styles.worldPanel} aria-label="Season 5 fishing map">
-      <img
-        className={styles.worldMapImage}
-        src="/assets/season-5/world-map.png"
-        alt="A 2.5D fantasy fishing world with lakes, marshes, hills, and a sea coast."
-      />
-      <div className={styles.mapShade} />
-      {state.locations.map((location) => {
-        const activity = state.locationActivity.find(
-          (entry) => entry.locationKey === location.key
-        );
-        const isCurrent =
-          character?.currentLocationKey === location.key &&
-          character.actionKind !== "TRAVELING";
-        const isDestination =
-          character?.destinationLocationName === location.name &&
-          character.actionKind === "TRAVELING";
+      <div
+        className={styles.tileMap}
+        style={
+          {
+            "--map-columns": state.map.columns,
+            "--map-rows": state.map.rows,
+          } as CSSProperties
+        }
+      >
+        {state.map.tiles.map((tile) => {
+          const location = locationByTileKey.get(tile.key);
+          const activity = location
+            ? state.locationActivity.find(
+                (entry) => entry.locationKey === location.key
+              )
+            : null;
+          const roleClass =
+            tile.role === "HOME"
+              ? styles.homeTile
+              : tile.role === "FISHING_SPOT"
+                ? styles.fishingTile
+                : tile.role === "SHOP"
+                  ? styles.shopTile
+                  : tile.role === "EVENT"
+                    ? styles.eventTile
+                    : tile.role === "SECRET_LAKE"
+                      ? styles.secretTile
+                      : "";
+          const isSelected = selectedLocation?.tileKey === tile.key;
+          const isCurrent = character?.currentTileKey === tile.key;
+          const isDestination = character?.destinationTileKey === tile.key;
 
-        return (
-          <div
-            key={location.key}
-            className={`${styles.mapNode} ${
-              location.kind === "HOME" ? styles.homeNode : ""
-            } ${isCurrent ? styles.currentNode : ""} ${
-              isDestination ? styles.destinationNode : ""
-            }`}
-            style={
-              {
-                "--x": `${location.xPercent}%`,
-                "--y": `${location.yPercent}%`,
-              } as CSSProperties
-            }
-          >
-            <form action={startSeasonFiveFishingTripAction}>
-              <input type="hidden" name="locationKey" value={location.key} />
-              <button
-                type="submit"
-                disabled={
-                  !character ||
-                  location.kind === "HOME" ||
-                  character.actionKind === "TRAVELING"
-                }
-                title={location.name}
-              >
-                <span>{location.name}</span>
-                <small>
-                  {location.kind === "HOME"
-                    ? "Home base"
-                    : `${location.travelMinutes}m | ${location.minFishCm}-${location.maxFishCm} cm`}
-                </small>
-              </button>
-            </form>
+          return (
             <div
-              className={styles.activityRing}
-              aria-label={`${location.name} activity`}
+              key={tile.key}
+              className={`${styles.mapTile} ${styles[`terrain${tile.terrain}`]} ${roleClass} ${
+                isSelected ? styles.selectedTile : ""
+              } ${isCurrent ? styles.currentTile : ""} ${
+                isDestination ? styles.destinationTile : ""
+              } ${tile.locked ? styles.lockedTile : ""}`}
+              data-variant={tile.visualVariant}
             >
-              {(activity?.characters ?? []).map((actor, index) => (
-                <span
-                  key={actor.id}
-                  className={`${styles.playerMarker} ${
-                    actor.actionKind === "TRAVELING"
-                      ? styles.travellingMarker
-                      : actor.actionKind === "FISHING"
-                        ? styles.fishingMarker
-                        : styles.homeMarker
-                  } ${actor.inventoryFull ? styles.fullInventoryMarker : ""}`}
-                  aria-label={`${actor.name}: ${getActionLabel(actor.actionKind)} (${actor.classLabel})${
-                    actor.inventoryFull ? ", inventory full" : ""
-                  }`}
-                  title={`${actor.name}: ${getActionLabel(actor.actionKind)} (${actor.classLabel})${
-                    actor.inventoryFull ? " - inventory full" : ""
-                  }`}
-                  style={
-                    {
-                      "--marker-x": `${markerOffsets[index % markerOffsets.length][0]}px`,
-                      "--marker-y": `${markerOffsets[index % markerOffsets.length][1]}px`,
-                    } as CSSProperties
-                  }
-                >
-                  <ClassPortrait
-                    classKey={actor.class}
-                    label={actor.classLabel}
-                    compact
-                  />
-                  <i aria-hidden="true" />
+              <span className={styles.tileTexture} />
+              {tile.role !== "NONE" ? (
+                <span className={styles.tileRoleBadge}>
+                  {tile.role === "HOME"
+                    ? "H"
+                    : tile.role === "FISHING_SPOT"
+                      ? "F"
+                      : tile.role === "SHOP"
+                        ? "$"
+                        : tile.role === "EVENT"
+                          ? "!"
+                          : "?"}
                 </span>
-              ))}
+              ) : null}
+              {location ? (
+                <button
+                  type="button"
+                  className={styles.locationTileButton}
+                  disabled={!character || character.actionKind === "TRAVELING"}
+                  onClick={() => {
+                    if (!character || location.kind === "HOME") return;
+                    setSelectedLocationKey(location.key);
+                  }}
+                  title={location.name}
+                >
+                  <span>{location.name}</span>
+                </button>
+              ) : tile.role !== "NONE" && tile.roleLabel ? (
+                <span className={styles.specialTileLabel}>
+                  {tile.roleLabel}
+                </span>
+              ) : null}
+              {activity && activity.totalCount > 0 ? (
+                <span className={styles.tilePopulation}>
+                  {activity.totalCount}
+                </span>
+              ) : null}
+              {activity && activity.characters.length > 0 ? (
+                <span className={styles.tileActivityMarkers}>
+                  {activity.characters.slice(0, 4).map((actor) => (
+                    <i
+                      key={actor.id}
+                      className={
+                        actor.actionKind === "TRAVELING"
+                          ? styles.travellingDot
+                          : actor.actionKind === "FISHING"
+                            ? styles.fishingDot
+                            : styles.homeDot
+                      }
+                      title={`${actor.name}: ${getActionLabel(
+                        actor.actionKind
+                      )} (${actor.classLabel})`}
+                    >
+                      {actor.classLabel.charAt(0)}
+                    </i>
+                  ))}
+                </span>
+              ) : null}
             </div>
+          );
+        })}
+      </div>
+      <svg
+        className={styles.routeLayer}
+        viewBox="0 0 100 100"
+        aria-hidden="true"
+      >
+        {previewFromTile && previewToTile ? (
+          <line
+            x1={previewFromTile.xPercent}
+            y1={previewFromTile.yPercent}
+            x2={previewToTile.xPercent}
+            y2={previewToTile.yPercent}
+            className={styles.previewRoute}
+          />
+        ) : null}
+        {activeRouteFromTile && activeRouteToTile ? (
+          <line
+            x1={activeRouteFromTile.xPercent}
+            y1={activeRouteFromTile.yPercent}
+            x2={activeRouteToTile.xPercent}
+            y2={activeRouteToTile.yPercent}
+            className={styles.activeRoute}
+          />
+        ) : null}
+      </svg>
+      {character && characterMapPosition ? (
+        <span
+          className={styles.characterMapMarker}
+          style={
+            {
+              "--x": `${characterMapPosition.x}%`,
+              "--y": `${characterMapPosition.y}%`,
+            } as CSSProperties
+          }
+          title={`${character.name}: ${getActionLabel(character.actionKind)}`}
+        >
+          <ClassPortrait
+            classKey={character.class}
+            label={character.classLabel}
+            compact
+          />
+        </span>
+      ) : null}
+      {selectedLocation && selectedTile ? (
+        <aside className={styles.routePreview}>
+          <div>
+            <p className={styles.kicker}>Route</p>
+            <h3>{selectedLocation.name}</h3>
           </div>
-        );
-      })}
+          <p>
+            {selectedLocation.travelMinutes}m travel |{" "}
+            {selectedLocation.minFishCm}-{selectedLocation.maxFishCm} cm fish
+          </p>
+          <p>
+            Difficulty {selectedLocation.catchDifficulty} | Tile{" "}
+            {selectedTile.row + 1}:{selectedTile.col + 1}
+          </p>
+          <form action={startSeasonFiveFishingTripAction}>
+            <input
+              type="hidden"
+              name="locationKey"
+              value={selectedLocation.key}
+            />
+            <button type="submit">Travel</button>
+            <button type="button" onClick={() => setSelectedLocationKey(null)}>
+              Cancel
+            </button>
+          </form>
+        </aside>
+      ) : null}
     </section>
   );
 }
@@ -511,14 +686,51 @@ export function SeasonFiveHomeClient({
   authConfigured: boolean;
   realtimeEnabled: boolean;
 }) {
-  const character = state.character;
-  const activeUntil = state.cycle.activeEndsAt
-    ? dateTimeFormatter.format(new Date(state.cycle.activeEndsAt))
+  const [liveState, setLiveState] = useState(state);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const refreshPromiseRef = useRef<Promise<void> | null>(null);
+  const character = liveState.character;
+  const activeUntil = liveState.cycle.activeEndsAt
+    ? dateTimeFormatter.format(new Date(liveState.cycle.activeEndsAt))
     : "TBD";
+  const refreshSeasonFiveState = useCallback(async (reason?: string) => {
+    if (refreshPromiseRef.current) {
+      return;
+    }
+
+    const refreshPromise = (async () => {
+      setIsRefreshing(true);
+      try {
+        const nextState = await fetchSeasonFiveState(reason);
+        setLiveState(nextState);
+        setSyncError(null);
+      } catch (error) {
+        setSyncError(
+          error instanceof Error
+            ? error.message
+            : "Season 5 state refresh failed."
+        );
+      } finally {
+        setIsRefreshing(false);
+        refreshPromiseRef.current = null;
+      }
+    })();
+
+    refreshPromiseRef.current = refreshPromise;
+    await refreshPromise;
+  }, []);
+
+  useEffect(() => {
+    setLiveState(state);
+  }, [state]);
 
   return (
     <main className={styles.shell}>
-      <SeasonFiveRealtimeBridge enabled={realtimeEnabled} />
+      <SeasonFiveRealtimeBridge
+        enabled={realtimeEnabled}
+        onRefresh={refreshSeasonFiveState}
+      />
       {notice ? <NoticeToast message={notice} /> : null}
       {actionError ? <NoticeToast message={actionError} /> : null}
 
@@ -529,6 +741,10 @@ export function SeasonFiveHomeClient({
         </div>
         <div className={styles.topbarMeta}>
           <span>Season ends {activeUntil}</span>
+          {isRefreshing ? <span>Syncing...</span> : null}
+          {syncError ? (
+            <span className={styles.syncWarning}>Sync stale</span>
+          ) : null}
           <SessionActions
             authConfigured={authConfigured}
             isAuthenticated={Boolean(session?.user)}
@@ -545,14 +761,14 @@ export function SeasonFiveHomeClient({
         </section>
       ) : null}
 
-      {!character && session ? <ClassSelection state={state} /> : null}
+      {!character && session ? <ClassSelection state={liveState} /> : null}
 
       <div className={styles.playfield}>
-        {character ? <CharacterCommandCard state={state} /> : null}
-        <WorldMap state={state} />
+        {character ? <CharacterCommandCard state={liveState} /> : null}
+        <WorldMap state={liveState} />
         {character ? (
           <div className={styles.rightRail}>
-            <InventoryPreview state={state} />
+            <InventoryPreview state={liveState} />
             <section className={styles.sidePanel}>
               <div className={styles.sectionHeader}>
                 <div>
@@ -563,12 +779,12 @@ export function SeasonFiveHomeClient({
               <div className={styles.leaderboardColumns}>
                 <Leaderboard
                   title="Most Fish"
-                  rows={state.leaderboards.mostFish}
+                  rows={liveState.leaderboards.mostFish}
                   value={(row) => `${row.totalFishCaught} fish`}
                 />
                 <Leaderboard
                   title="Biggest Fish"
-                  rows={state.leaderboards.biggestFish}
+                  rows={liveState.leaderboards.biggestFish}
                   value={(row) => `${row.biggestFishCm} cm`}
                 />
               </div>

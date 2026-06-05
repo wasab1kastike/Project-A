@@ -202,6 +202,301 @@
   grid-column: 1 / -1;
 }
 
+.tileMap {
+  position: absolute;
+  inset: 14px;
+  display: grid;
+  grid-template-columns: repeat(var(--map-columns), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--map-rows), minmax(0, 1fr));
+  gap: 3px;
+  padding: 10px;
+  border: 2px solid rgba(255, 248, 231, 0.24);
+  border-radius: 10px;
+  background: #1c2b24;
+}
+
+.mapTile {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid rgba(31, 35, 25, 0.72);
+  border-radius: 7px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -8px 14px rgba(0, 0, 0, 0.12);
+}
+
+.tileTexture {
+  position: absolute;
+  inset: 0;
+  opacity: 0.22;
+  background:
+    radial-gradient(
+      circle at 20% 25%,
+      rgba(255, 255, 255, 0.7),
+      transparent 8%
+    ),
+    radial-gradient(circle at 70% 65%, rgba(0, 0, 0, 0.5), transparent 10%);
+}
+
+.terrainGRASS {
+  background: #5f9b4f;
+}
+
+.terrainFOREST {
+  background: #2f754a;
+}
+
+.terrainWATER {
+  background: #257ba1;
+}
+
+.terrainCOAST {
+  background: #4f9aa0;
+}
+
+.terrainSWAMP {
+  background: #587548;
+}
+
+.terrainHILL {
+  background: #907548;
+}
+
+.terrainMOUNTAIN {
+  background: #777a76;
+}
+
+.terrainROAD {
+  background: #b48755;
+}
+
+.homeTile {
+  outline: 2px solid #f0cf75;
+}
+
+.fishingTile {
+  outline: 2px solid #8ad6e0;
+}
+
+.shopTile {
+  outline: 2px solid #f0b35d;
+}
+
+.eventTile {
+  outline: 2px solid #ff8d5c;
+}
+
+.secretTile {
+  outline: 2px solid #9ae6b4;
+}
+
+.selectedTile {
+  box-shadow:
+    0 0 0 3px rgba(255, 248, 231, 0.82),
+    inset 0 -8px 14px rgba(0, 0, 0, 0.12);
+}
+
+.currentTile {
+  outline: 3px solid #fff8e7;
+}
+
+.destinationTile {
+  outline: 3px dashed #fff8e7;
+}
+
+.lockedTile {
+  filter: saturate(0.72);
+}
+
+.tileRoleBadge,
+.tilePopulation {
+  position: absolute;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 248, 231, 0.78);
+  border-radius: 999px;
+  background: rgba(20, 31, 27, 0.9);
+  color: #fff8e7;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.tileRoleBadge {
+  top: 5px;
+  left: 5px;
+  width: 22px;
+  height: 22px;
+}
+
+.tilePopulation {
+  right: 5px;
+  bottom: 5px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  background: rgba(36, 113, 115, 0.92);
+}
+
+.locationTileButton {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: transparent;
+  cursor: pointer;
+}
+
+.locationTileButton:disabled {
+  cursor: not-allowed;
+}
+
+.locationTileButton:focus-visible {
+  outline: 3px solid #fff8e7;
+  outline-offset: -3px;
+}
+
+.specialTileLabel {
+  position: absolute;
+  inset: auto 5px 6px;
+  z-index: 2;
+  overflow: hidden;
+  color: #fff8e7;
+  font-size: 10px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+  white-space: nowrap;
+}
+
+.tileActivityMarkers {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  z-index: 4;
+  display: flex;
+  max-width: calc(100% - 32px);
+  gap: 2px;
+}
+
+.tileActivityMarkers i {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  border: 1px solid #fff8e7;
+  border-radius: 50%;
+  color: #fff8e7;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.fishingDot {
+  background: #247173;
+}
+
+.travellingDot {
+  background: #91612e;
+}
+
+.homeDot {
+  background: #7b4932;
+}
+
+.routeLayer {
+  position: absolute;
+  inset: 24px;
+  z-index: 5;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.previewRoute,
+.activeRoute {
+  fill: none;
+  stroke-linecap: round;
+  stroke-width: 0.7;
+  vector-effect: non-scaling-stroke;
+}
+
+.previewRoute {
+  stroke: rgba(255, 248, 231, 0.72);
+  stroke-dasharray: 2 2;
+}
+
+.activeRoute {
+  stroke: #f0b35d;
+  stroke-dasharray: 3 2;
+}
+
+.characterMapMarker {
+  position: absolute;
+  left: calc(14px + (100% - 28px) * var(--x) / 100);
+  top: calc(14px + (100% - 28px) * var(--y) / 100);
+  z-index: 8;
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 2px solid #fff8e7;
+  border-radius: 50%;
+  background: rgba(20, 31, 27, 0.94);
+  transform: translate(-50%, -50%);
+  box-shadow: 0 10px 22px rgba(2, 10, 12, 0.4);
+}
+
+.routePreview {
+  position: absolute;
+  right: 26px;
+  bottom: 26px;
+  z-index: 9;
+  width: min(300px, calc(100% - 52px));
+  padding: 14px;
+  border: 1px solid rgba(255, 239, 203, 0.2);
+  border-radius: 8px;
+  background: rgba(20, 31, 27, 0.94);
+  box-shadow: 0 18px 42px rgba(2, 10, 12, 0.34);
+}
+
+.routePreview h3,
+.routePreview p {
+  margin: 0;
+}
+
+.routePreview p {
+  margin-top: 8px;
+  color: #d6c8a7;
+  font-size: 13px;
+}
+
+.routePreview form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.routePreview button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 6px;
+  background: #d8a75e;
+  color: #1d261e;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.routePreview button[type="button"] {
+  background: rgba(255, 248, 231, 0.1);
+  color: #f5d38e;
+}
+
 .worldMapImage {
   position: absolute;
   inset: 0;
@@ -368,6 +663,25 @@
   background: #f06f4f;
 }
 
+.markerOverflow {
+  position: absolute;
+  left: calc(50% + 66px);
+  top: calc(50% - 66px);
+  display: grid;
+  min-width: 30px;
+  height: 24px;
+  place-items: center;
+  padding: 0 7px;
+  border: 2px solid rgba(255, 248, 231, 0.86);
+  border-radius: 999px;
+  background: rgba(20, 31, 27, 0.95);
+  color: #f5d38e;
+  font-size: 11px;
+  font-weight: 900;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.34);
+}
+
 .commandCard,
 .sidePanel {
   padding: 16px;
@@ -396,6 +710,11 @@
 .warning {
   background: rgba(180, 76, 48, 0.26);
   color: #ffc49b;
+}
+
+.syncWarning {
+  color: #ffc49b;
+  font-weight: 900;
 }
 
 .commandStatus {

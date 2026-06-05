@@ -35,6 +35,8 @@ export {
   SeasonFiveGearRarity,
   SeasonFiveGearSlot,
   SeasonFiveLocationKind,
+  SeasonFiveMapRole,
+  SeasonFiveMapTerrain,
   TradeLineItemKind,
   TradeOfferStatus,
   TerritoryCampaignStatus,

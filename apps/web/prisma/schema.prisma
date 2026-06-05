@@ -64,6 +64,26 @@ enum SeasonFiveFishRarity {
   LEGENDARY
 }
 
+enum SeasonFiveMapTerrain {
+  GRASS
+  FOREST
+  WATER
+  COAST
+  SWAMP
+  HILL
+  MOUNTAIN
+  ROAD
+}
+
+enum SeasonFiveMapRole {
+  NONE
+  HOME
+  FISHING_SPOT
+  SHOP
+  EVENT
+  SECRET_LAKE
+}
+
 enum FortressAction {
   GROW
   ATTACK
@@ -423,6 +443,7 @@ model Cycle {
   seasonFiveCharacters           SeasonFiveCharacter[]
   seasonFiveFishCatches          SeasonFiveFishCatch[]
   seasonFiveFishingLocations     SeasonFiveFishingLocation[]
+  seasonFiveMapTiles             SeasonFiveMapTile[]
   battalions                     Battalion[]
   warFronts                      WarFront[]
   warPolicies                    WarPolicy[]
@@ -467,6 +488,7 @@ model SeasonFiveCharacter {
   inventoryItems        SeasonFiveInventoryItem[]
   fishCatches           SeasonFiveFishCatch[]
   skillPurchases        SeasonFiveSkillPurchase[]
+  keyItems              SeasonFiveKeyItem[]
 
   @@unique([cycleId, userId])
   @@index([userId])
@@ -488,15 +510,47 @@ model SeasonFiveFishingLocation {
   minFishCm             Int
   maxFishCm             Int
   inventoryPressure     Int                    @default(1)
+  tileId                String?
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
   cycle                 Cycle                  @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  tile                  SeasonFiveMapTile?     @relation(fields: [tileId], references: [id], onDelete: SetNull)
   currentCharacters     SeasonFiveCharacter[]  @relation("SeasonFiveCurrentLocation")
   destinationCharacters SeasonFiveCharacter[]  @relation("SeasonFiveDestinationLocation")
   fishCatches           SeasonFiveFishCatch[]
 
   @@unique([cycleId, key])
   @@index([cycleId, kind])
+  @@index([tileId])
+}
+
+model SeasonFiveMapTile {
+  id               String                      @id @default(cuid())
+  cycleId          String
+  key              String
+  row              Int
+  col              Int
+  xPercent         Float
+  yPercent         Float
+  terrain          SeasonFiveMapTerrain
+  visualVariant    Int                         @default(0)
+  role             SeasonFiveMapRole           @default(NONE)
+  roleLabel        String?
+  hidden           Boolean                     @default(false)
+  discoveredAt     DateTime?
+  expiresAt        DateTime?
+  requiredKey      String?
+  roleSeedKey      String?
+  createdAt        DateTime                    @default(now())
+  updatedAt        DateTime                    @updatedAt
+  cycle            Cycle                       @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fishingLocations SeasonFiveFishingLocation[]
+
+  @@unique([cycleId, key])
+  @@unique([cycleId, row, col])
+  @@index([cycleId, role])
+  @@index([cycleId, hidden])
+  @@index([cycleId, expiresAt])
 }
 
 model SeasonFiveGear {
@@ -559,6 +613,18 @@ model SeasonFiveSkillPurchase {
   character   SeasonFiveCharacter @relation(fields: [characterId], references: [id], onDelete: Cascade)
 
   @@unique([characterId, nodeKey])
+  @@index([characterId])
+}
+
+model SeasonFiveKeyItem {
+  id          String              @id @default(cuid())
+  characterId String
+  key         String
+  name        String
+  createdAt   DateTime            @default(now())
+  character   SeasonFiveCharacter @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@unique([characterId, key])
   @@index([characterId])
 }
 
@@ -920,32 +986,32 @@ enum TradeLineItemKind {
 }
 
 model NukeComponentRound {
-  id          String                   @id @default(cuid())
-  cycleId     String
-  startsAt    DateTime
-  endsAt      DateTime
-  status      NukeComponentRoundStatus @default(OPEN)
-  resolvedAt  DateTime?
-  createdAt   DateTime                 @default(now())
-  updatedAt   DateTime                 @updatedAt
-  cycle       Cycle                    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  bids        NukeComponentBid[]
+  id         String                   @id @default(cuid())
+  cycleId    String
+  startsAt   DateTime
+  endsAt     DateTime
+  status     NukeComponentRoundStatus @default(OPEN)
+  resolvedAt DateTime?
+  createdAt  DateTime                 @default(now())
+  updatedAt  DateTime                 @updatedAt
+  cycle      Cycle                    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  bids       NukeComponentBid[]
 
   @@unique([cycleId, startsAt])
   @@index([cycleId, status, endsAt])
 }
 
 model NukeComponentBid {
-  id            String            @id @default(cuid())
+  id            String             @id @default(cuid())
   cycleId       String
   roundId       String
   fortressId    String
   componentKind NukeComponentKind
   amount        Int
-  createdAt     DateTime          @default(now())
-  cycle         Cycle             @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  createdAt     DateTime           @default(now())
+  cycle         Cycle              @relation(fields: [cycleId], references: [id], onDelete: Cascade)
   round         NukeComponentRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
-  fortress      Fortress          @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+  fortress      Fortress           @relation(fields: [fortressId], references: [id], onDelete: Cascade)
 
   @@index([cycleId, roundId, componentKind, amount])
   @@index([fortressId, createdAt])
@@ -1025,16 +1091,16 @@ model TradeOffer {
 }
 
 model TradeLineItem {
-  id             String            @id @default(cuid())
-  tradeOfferId   String
-  fromFortressId String
-  toFortressId   String
-  kind           TradeLineItemKind
-  amount         Int?
-  tileId         String?
+  id                String             @id @default(cuid())
+  tradeOfferId      String
+  fromFortressId    String
+  toFortressId      String
+  kind              TradeLineItemKind
+  amount            Int?
+  tileId            String?
   nukeComponentKind NukeComponentKind?
-  createdAt      DateTime          @default(now())
-  tradeOffer     TradeOffer        @relation(fields: [tradeOfferId], references: [id], onDelete: Cascade)
+  createdAt         DateTime           @default(now())
+  tradeOffer        TradeOffer         @relation(fields: [tradeOfferId], references: [id], onDelete: Cascade)
 
   @@index([tradeOfferId])
 }
@@ -1742,18 +1808,18 @@ model BattalionAssignment {
 }
 
 model WarPolicy {
-  id                String   @id @default(cuid())
-  cycleId           String
-  fortressId        String
-  maxArmySize       Int      @default(500)
-  guardPercent      Int      @default(30)
-  defaultAggression String   @default("BALANCED")
+  id                     String   @id @default(cuid())
+  cycleId                String
+  fortressId             String
+  maxArmySize            Int      @default(500)
+  guardPercent           Int      @default(30)
+  defaultAggression      String   @default("BALANCED")
   allianceSupportAttack  Boolean  @default(true)
   allianceSupportDefense Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  cycle             Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  fortress          Fortress @relation(fields: [fortressId], references: [id], onDelete: Cascade)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  cycle                  Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  fortress               Fortress @relation(fields: [fortressId], references: [id], onDelete: Cascade)
 
   @@unique([cycleId, fortressId])
   @@index([cycleId])

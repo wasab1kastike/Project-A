@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { Session } from "next-auth";
 import { SessionActions } from "@/components/session-actions";
 import {
@@ -352,9 +353,14 @@ export function SeasonFiveCharacterClient({
   authConfigured: boolean;
   realtimeEnabled: boolean;
 }) {
+  const router = useRouter();
+
   return (
     <main className={styles.shell}>
-      <SeasonFiveRealtimeBridge enabled={realtimeEnabled} />
+      <SeasonFiveRealtimeBridge
+        enabled={realtimeEnabled}
+        onRefresh={() => router.refresh()}
+      />
       <header className={styles.topbar}>
         <div>
           <p className={styles.kicker}>Season 5</p>

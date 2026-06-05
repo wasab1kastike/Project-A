@@ -7,6 +7,7 @@ import {
   SeasonFiveGearRarity,
   SeasonFiveGearSlot,
   SeasonFiveLocationKind,
+  SeasonFiveMapRole,
   type PrismaClient,
 } from "@/lib/prisma-client";
 import { GameError } from "./errors";
@@ -24,6 +25,14 @@ import {
   rankSeasonFiveBiggestFish,
   rankSeasonFiveMostFish,
 } from "./season-five-leaderboards";
+import {
+  createSeasonFiveMapTiles,
+  getSeasonFiveDailyRotationKey,
+  getSeasonFiveLocationTileKey,
+  planSeasonFiveDailySpecialTiles,
+  rollSeasonFiveGlobalDiscovery,
+} from "./season-five-map";
+import { buildSeasonFiveLocationActivity } from "./season-five-presence";
 import {
   calculateSeasonFiveCatchIntervalMinutes,
   calculateSeasonFiveInventoryCapacity,
@@ -635,8 +644,53 @@ export function createSeasonFiveCatch(input: {
   });
 }
 
+async function ensureSeasonFiveMapTiles(cycleId: string, db: DatabaseClient) {
+  for (const tile of createSeasonFiveMapTiles()) {
+    await db.seasonFiveMapTile.upsert({
+      where: {
+        cycleId_key: {
+          cycleId,
+          key: tile.key,
+        },
+      },
+      create: {
+        cycleId,
+        ...tile,
+      },
+      update: {
+        row: tile.row,
+        col: tile.col,
+        xPercent: tile.xPercent,
+        yPercent: tile.yPercent,
+        terrain: tile.terrain,
+        visualVariant: tile.visualVariant,
+        role:
+          tile.role === SeasonFiveMapRole.HOME ||
+          tile.role === SeasonFiveMapRole.FISHING_SPOT
+            ? tile.role
+            : undefined,
+        roleLabel:
+          tile.role === SeasonFiveMapRole.HOME ||
+          tile.role === SeasonFiveMapRole.FISHING_SPOT
+            ? tile.roleLabel
+            : undefined,
+      },
+    });
+  }
+}
+
 async function ensureSeasonFiveLocations(cycleId: string, db: DatabaseClient) {
+  const tiles = await db.seasonFiveMapTile.findMany({
+    where: {
+      cycleId,
+    },
+  });
+  const tileByKey = new Map(tiles.map((tile) => [tile.key, tile]));
+
   for (const location of SEASON_FIVE_LOCATIONS) {
+    const tile =
+      tileByKey.get(getSeasonFiveLocationTileKey(location.key) ?? "") ?? null;
+
     await db.seasonFiveFishingLocation.upsert({
       where: {
         cycleId_key: {
@@ -647,17 +701,21 @@ async function ensureSeasonFiveLocations(cycleId: string, db: DatabaseClient) {
       create: {
         cycleId,
         ...location,
+        xPercent: tile?.xPercent ?? location.xPercent,
+        yPercent: tile?.yPercent ?? location.yPercent,
+        tileId: tile?.id ?? null,
       },
       update: {
         name: location.name,
         kind: location.kind,
-        xPercent: location.xPercent,
-        yPercent: location.yPercent,
+        xPercent: tile?.xPercent ?? location.xPercent,
+        yPercent: tile?.yPercent ?? location.yPercent,
         travelMinutes: location.travelMinutes,
         catchDifficulty: location.catchDifficulty,
         minFishCm: location.minFishCm,
         maxFishCm: location.maxFishCm,
         inventoryPressure: location.inventoryPressure,
+        tileId: tile?.id ?? null,
       },
     });
   }
@@ -695,8 +753,113 @@ export async function ensureSeasonFivePreviewCycle({
       },
     }));
 
+  await ensureSeasonFiveMapTiles(cycle.id, db);
   await ensureSeasonFiveLocations(cycle.id, db);
   return cycle;
+}
+
+async function rotateSeasonFiveMapSpecials({
+  cycleId,
+  db,
+  now,
+}: {
+  cycleId: string;
+  db: DatabaseClient;
+  now: Date;
+}) {
+  const specialRoles = [
+    SeasonFiveMapRole.SHOP,
+    SeasonFiveMapRole.EVENT,
+    SeasonFiveMapRole.SECRET_LAKE,
+  ];
+
+  await db.seasonFiveMapTile.updateMany({
+    where: {
+      cycleId,
+      role: {
+        in: specialRoles,
+      },
+      expiresAt: {
+        lte: now,
+      },
+    },
+    data: {
+      role: SeasonFiveMapRole.NONE,
+      roleLabel: null,
+      hidden: false,
+      discoveredAt: null,
+      expiresAt: null,
+      requiredKey: null,
+      roleSeedKey: null,
+    },
+  });
+
+  const rotationKey = getSeasonFiveDailyRotationKey(now);
+  const existing = await db.seasonFiveMapTile.findFirst({
+    where: {
+      cycleId,
+      roleSeedKey: rotationKey,
+      role: {
+        in: specialRoles,
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (existing) {
+    return;
+  }
+
+  await db.seasonFiveMapTile.updateMany({
+    where: {
+      cycleId,
+      role: {
+        in: specialRoles,
+      },
+    },
+    data: {
+      role: SeasonFiveMapRole.NONE,
+      roleLabel: null,
+      hidden: false,
+      discoveredAt: null,
+      expiresAt: null,
+      requiredKey: null,
+      roleSeedKey: null,
+    },
+  });
+
+  const tiles = await db.seasonFiveMapTile.findMany({
+    where: {
+      cycleId,
+    },
+  });
+  const specials = planSeasonFiveDailySpecialTiles({
+    tiles,
+    now,
+    rotationKey,
+  });
+
+  for (const special of specials) {
+    await db.seasonFiveMapTile.update({
+      where: {
+        cycleId_key: {
+          cycleId,
+          key: special.tileKey,
+        },
+      },
+      data: {
+        role: special.role,
+        roleLabel: special.roleLabel,
+        hidden: special.hidden,
+        discoveredAt: special.hidden ? null : now,
+        expiresAt: special.expiresAt,
+        requiredKey: special.requiredKey,
+        roleSeedKey: special.roleSeedKey,
+      },
+    });
+  }
 }
 
 async function getSeasonFiveCharacterForUser(args: {
@@ -716,8 +879,17 @@ async function getSeasonFiveCharacterForUser(args: {
         orderBy: [{ slot: "asc" }, { createdAt: "asc" }],
       },
       skillPurchases: true,
-      currentLocation: true,
-      destinationLocation: true,
+      keyItems: true,
+      currentLocation: {
+        include: {
+          tile: true,
+        },
+      },
+      destinationLocation: {
+        include: {
+          tile: true,
+        },
+      },
       inventoryItems: {
         where: {
           unloadedAt: null,
@@ -1075,11 +1247,18 @@ export async function getSeasonFiveHomeState({
   now?: Date;
 }) {
   const cycle = await ensureSeasonFivePreviewCycle({ db, now });
+  await rotateSeasonFiveMapSpecials({ cycleId: cycle.id, db, now });
   const locations = await db.seasonFiveFishingLocation.findMany({
     where: {
       cycleId: cycle.id,
     },
     orderBy: [{ kind: "asc" }, { travelMinutes: "asc" }, { name: "asc" }],
+  });
+  const mapTiles = await db.seasonFiveMapTile.findMany({
+    where: {
+      cycleId: cycle.id,
+    },
+    orderBy: [{ row: "asc" }, { col: "asc" }],
   });
   const character = userId
     ? await getSeasonFiveCharacterForUser({ userId, cycleId: cycle.id, db })
@@ -1097,7 +1276,6 @@ export async function getSeasonFiveHomeState({
       actionKind: true,
       currentLocationId: true,
       destinationLocationId: true,
-      actionCompletesAt: true,
       inventoryCapacity: true,
       inventoryItems: {
         select: {
@@ -1218,48 +1396,38 @@ export async function getSeasonFiveHomeState({
         };
       })
     : [];
-  const locationActivity = locations.map((location) => ({
-    locationKey: location.key,
-    characters: mapCharacters
-      .filter((entry) =>
-        entry.actionKind === SeasonFiveActionKind.TRAVELING
-          ? entry.destinationLocationId === location.id
-          : entry.currentLocationId === location.id
-      )
-      .slice(0, 18)
-      .map((entry) => {
-        const entryEffects = getSeasonFiveBuildEffects({
-          characterClass: entry.class,
-          gear: entry.gear,
-          purchasedNodeKeys: entry.skillPurchases.map(
-            (purchase) => purchase.nodeKey
-          ),
-        });
-        const entryInventoryUsed = entry.inventoryItems.reduce(
-          (sum, item) => sum + item.slots,
-          0
-        );
-        const entryInventoryCapacity = calculateSeasonFiveInventoryCapacity({
-          baseCapacity: entry.inventoryCapacity,
-          inventoryBonus: entryEffects.inventoryBonus,
-        });
-        const entryInventoryPressure = getSeasonFiveInventoryPressure({
-          inventoryUsed: entryInventoryUsed,
-          inventoryCapacity: entryInventoryCapacity,
-        });
+  const locationActivity = buildSeasonFiveLocationActivity({
+    locations,
+    characters: mapCharacters.map((entry) => {
+      const entryEffects = getSeasonFiveBuildEffects({
+        characterClass: entry.class,
+        gear: entry.gear,
+        purchasedNodeKeys: entry.skillPurchases.map(
+          (purchase) => purchase.nodeKey
+        ),
+      });
+      const entryInventoryUsed = entry.inventoryItems.reduce(
+        (sum, item) => sum + item.slots,
+        0
+      );
+      const entryInventoryCapacity = calculateSeasonFiveInventoryCapacity({
+        baseCapacity: entry.inventoryCapacity,
+        inventoryBonus: entryEffects.inventoryBonus,
+      });
 
-        return {
-          id: entry.id,
-          name: entry.name,
-          class: entry.class,
-          classLabel: getSeasonFiveClassLabel(entry.class),
-          actionKind: entry.actionKind,
-          actionCompletesAt: entry.actionCompletesAt,
-          inventoryFull: entryInventoryPressure.full,
-          inventoryCloseToFull: entryInventoryPressure.closeToFull,
-        };
-      }),
-  }));
+      return {
+        id: entry.id,
+        name: entry.name,
+        class: entry.class,
+        classLabel: getSeasonFiveClassLabel(entry.class),
+        actionKind: entry.actionKind,
+        currentLocationId: entry.currentLocationId,
+        destinationLocationId: entry.destinationLocationId,
+        inventoryUsed: entryInventoryUsed,
+        inventoryCapacity: entryInventoryCapacity,
+      };
+    }),
+  });
   const characterEffects =
     character && effects
       ? effects
@@ -1286,11 +1454,43 @@ export async function getSeasonFiveHomeState({
     })),
     skills: skillTree,
     skillTrees: SEASON_FIVE_SKILL_TREES,
+    map: {
+      columns: 16,
+      rows: 10,
+      tiles: mapTiles.map((tile) => {
+        const hasRequiredKey =
+          !tile.requiredKey ||
+          Boolean(
+            character?.keyItems.some((item) => item.key === tile.requiredKey)
+          );
+        const visibleRole = tile.hidden ? SeasonFiveMapRole.NONE : tile.role;
+
+        return {
+          id: tile.id,
+          key: tile.key,
+          row: tile.row,
+          col: tile.col,
+          xPercent: tile.xPercent,
+          yPercent: tile.yPercent,
+          terrain: tile.terrain,
+          visualVariant: tile.visualVariant,
+          role: visibleRole,
+          roleLabel: tile.hidden ? null : tile.roleLabel,
+          hidden: tile.hidden,
+          locked: Boolean(tile.requiredKey && !hasRequiredKey),
+          requiredKey: tile.hidden ? null : tile.requiredKey,
+          expiresAt: tile.hidden ? null : tile.expiresAt,
+        };
+      }),
+    },
     locations: locations.map((location) => ({
       id: location.id,
       key: location.key,
       name: location.name,
       kind: location.kind,
+      tileKey:
+        mapTiles.find((tile) => tile.id === location.tileId)?.key ??
+        getSeasonFiveLocationTileKey(location.key),
       xPercent: location.xPercent,
       yPercent: location.yPercent,
       travelMinutes: location.travelMinutes,
@@ -1319,9 +1519,13 @@ export async function getSeasonFiveHomeState({
             now,
           }),
           actionKind: character.actionKind,
+          actionStartedAt: character.actionStartedAt,
           actionCompletesAt: character.actionCompletesAt,
           currentLocationKey: character.currentLocation?.key ?? null,
+          currentTileKey: character.currentLocation?.tile?.key ?? null,
           currentLocationName: character.currentLocation?.name ?? "Unknown",
+          destinationLocationKey: character.destinationLocation?.key ?? null,
+          destinationTileKey: character.destinationLocation?.tile?.key ?? null,
           destinationLocationName: character.destinationLocation?.name ?? null,
           inventoryUsed,
           inventoryCapacity,
@@ -1387,11 +1591,32 @@ export function getDegradedSeasonFiveHomeState(): SeasonFiveHomeState {
     })),
     skills: [],
     skillTrees: SEASON_FIVE_SKILL_TREES,
+    map: {
+      columns: 16,
+      rows: 10,
+      tiles: createSeasonFiveMapTiles().map((tile) => ({
+        id: tile.key,
+        key: tile.key,
+        row: tile.row,
+        col: tile.col,
+        xPercent: tile.xPercent,
+        yPercent: tile.yPercent,
+        terrain: tile.terrain,
+        visualVariant: tile.visualVariant,
+        role: tile.role,
+        roleLabel: tile.roleLabel,
+        hidden: tile.hidden,
+        locked: false,
+        requiredKey: tile.requiredKey,
+        expiresAt: tile.expiresAt,
+      })),
+    },
     locations: SEASON_FIVE_LOCATIONS.map((location) => ({
       id: location.key,
       key: location.key,
       name: location.name,
       kind: location.kind,
+      tileKey: getSeasonFiveLocationTileKey(location.key),
       xPercent: location.xPercent,
       yPercent: location.yPercent,
       travelMinutes: location.travelMinutes,
@@ -1401,6 +1626,8 @@ export function getDegradedSeasonFiveHomeState(): SeasonFiveHomeState {
     })),
     locationActivity: SEASON_FIVE_LOCATIONS.map((location) => ({
       locationKey: location.key,
+      totalCount: 0,
+      overflowCount: 0,
       characters: [],
     })),
     character: null,
@@ -1421,6 +1648,7 @@ export async function processSeasonFiveTick({
   db?: DatabaseClient;
 }) {
   const resolvedAt = floorToMinute(now);
+  await rotateSeasonFiveMapSpecials({ cycleId, db, now: resolvedAt });
   const dueTravellers = await db.seasonFiveCharacter.findMany({
     where: {
       cycleId,
@@ -1435,6 +1663,7 @@ export async function processSeasonFiveTick({
   });
   let travelCompleted = 0;
   let catchesCreated = 0;
+  let mapDiscoveries = 0;
 
   for (const character of dueTravellers) {
     const destination = character.destinationLocation;
@@ -1484,6 +1713,16 @@ export async function processSeasonFiveTick({
       },
     },
   });
+  let hiddenSecretTiles = await db.seasonFiveMapTile.findMany({
+    where: {
+      cycleId,
+      role: SeasonFiveMapRole.SECRET_LAKE,
+      hidden: true,
+    },
+    select: {
+      key: true,
+    },
+  });
 
   for (const character of fishers) {
     const location = character.currentLocation;
@@ -1498,6 +1737,29 @@ export async function processSeasonFiveTick({
         (purchase) => purchase.nodeKey
       ),
     });
+    const discoveredTileKey = rollSeasonFiveGlobalDiscovery({
+      seed: `${character.id}:${resolvedAt.toISOString()}:secret-lake`,
+      luk: effects.stats.luk,
+      hiddenTiles: hiddenSecretTiles,
+    });
+    if (discoveredTileKey) {
+      await db.seasonFiveMapTile.update({
+        where: {
+          cycleId_key: {
+            cycleId,
+            key: discoveredTileKey,
+          },
+        },
+        data: {
+          hidden: false,
+          discoveredAt: resolvedAt,
+        },
+      });
+      hiddenSecretTiles = hiddenSecretTiles.filter(
+        (tile) => tile.key !== discoveredTileKey
+      );
+      mapDiscoveries += 1;
+    }
     const capacity = calculateSeasonFiveInventoryCapacity({
       baseCapacity: character.inventoryCapacity,
       inventoryBonus: effects.inventoryBonus,
@@ -1584,5 +1846,6 @@ export async function processSeasonFiveTick({
   return {
     travelCompleted,
     catchesCreated,
+    mapDiscoveries,
   };
 }

@@ -306,13 +306,54 @@ async function getRealtimeSnapshot() {
         createdAt: true,
       },
     }),
+    prisma.seasonFiveCharacter.findFirst({
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+      select: {
+        id: true,
+        updatedAt: true,
+        actionKind: true,
+        currentLocationId: true,
+        destinationLocationId: true,
+        totalFishCaught: true,
+        biggestFishCm: true,
+      },
+    }),
+    prisma.seasonFiveFishCatch.findFirst({
+      orderBy: [{ caughtAt: "desc" }, { id: "desc" }],
+      select: {
+        id: true,
+        caughtAt: true,
+        characterId: true,
+        locationId: true,
+        sizeCm: true,
+      },
+    }),
+    prisma.seasonFiveMapTile.findFirst({
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+      select: {
+        id: true,
+        updatedAt: true,
+        role: true,
+        hidden: true,
+        discoveredAt: true,
+        expiresAt: true,
+      },
+    }),
   ]);
-  const [cycle, fortress, attackUnit, battlefield, chatMessage] =
-    await withTimeout(
-      snapshot,
-      REALTIME_WATCHER_QUERY_TIMEOUT_MS,
-      "Project-A realtime snapshot"
-    );
+  const [
+    cycle,
+    fortress,
+    attackUnit,
+    battlefield,
+    chatMessage,
+    seasonFiveCharacter,
+    seasonFiveFishCatch,
+    seasonFiveMapTile,
+  ] = await withTimeout(
+    snapshot,
+    REALTIME_WATCHER_QUERY_TIMEOUT_MS,
+    "Project-A realtime snapshot"
+  );
 
   return JSON.stringify({
     cycleId: cycle?.id ?? null,
@@ -341,6 +382,33 @@ async function getRealtimeSnapshot() {
     battlefieldTargetTileId: battlefield?.targetTileId ?? null,
     chatId: chatMessage?.id ?? null,
     chatCreatedAt: chatMessage?.createdAt.toISOString() ?? null,
+    seasonFiveCharacterId: seasonFiveCharacter?.id ?? null,
+    seasonFiveCharacterUpdatedAt:
+      seasonFiveCharacter?.updatedAt.toISOString() ?? null,
+    seasonFiveCharacterAction: seasonFiveCharacter?.actionKind ?? null,
+    seasonFiveCharacterCurrentLocationId:
+      seasonFiveCharacter?.currentLocationId ?? null,
+    seasonFiveCharacterDestinationLocationId:
+      seasonFiveCharacter?.destinationLocationId ?? null,
+    seasonFiveCharacterTotalFishCaught:
+      seasonFiveCharacter?.totalFishCaught ?? null,
+    seasonFiveCharacterBiggestFishCm:
+      seasonFiveCharacter?.biggestFishCm ?? null,
+    seasonFiveCatchId: seasonFiveFishCatch?.id ?? null,
+    seasonFiveCatchCaughtAt:
+      seasonFiveFishCatch?.caughtAt.toISOString() ?? null,
+    seasonFiveCatchCharacterId: seasonFiveFishCatch?.characterId ?? null,
+    seasonFiveCatchLocationId: seasonFiveFishCatch?.locationId ?? null,
+    seasonFiveCatchSizeCm: seasonFiveFishCatch?.sizeCm ?? null,
+    seasonFiveMapTileId: seasonFiveMapTile?.id ?? null,
+    seasonFiveMapTileUpdatedAt:
+      seasonFiveMapTile?.updatedAt.toISOString() ?? null,
+    seasonFiveMapTileRole: seasonFiveMapTile?.role ?? null,
+    seasonFiveMapTileHidden: seasonFiveMapTile?.hidden ?? null,
+    seasonFiveMapTileDiscoveredAt:
+      seasonFiveMapTile?.discoveredAt?.toISOString() ?? null,
+    seasonFiveMapTileExpiresAt:
+      seasonFiveMapTile?.expiresAt?.toISOString() ?? null,
   });
 }
 
