@@ -27,14 +27,29 @@ Check these viewport sizes before closing visual work:
 ## Acceptance Checks
 
 - The Season 5 map image loads from `/assets/season-5/world-map.png`.
+- Class portraits load from `/assets/season-5/classes/` and are not reduced to text initials.
 - Before character creation, the map spans the full playfield width on desktop instead of collapsing into a sidebar column.
 - The page has no horizontal overflow at desktop, tablet, or mobile sizes.
 - Destination pins remain readable and clickable when enabled.
 - Player markers stay bounded near their destination and do not cover pin labels.
+- Player marker status dots distinguish home, traveling, and fishing states.
 - Class cards show all five stats without text overflow.
 - The character link and inventory link remain reachable on desktop and mobile.
 - The inventory panel makes full-inventory state visible.
 - The two ranking panels remain readable: Most Fish and Biggest Fish.
+
+## Class Visual Language
+
+Season 5 class tokens are bundled SVG assets:
+
+| Class | Asset |
+| --- | --- |
+| Drunken Monk | `/assets/season-5/classes/drunken-monk.svg` |
+| Retired Warrior | `/assets/season-5/classes/retired-warrior.svg` |
+| Demented Wizard | `/assets/season-5/classes/demented-wizard.svg` |
+| Burnt-Out Rogue | `/assets/season-5/classes/burnt-out-rogue.svg` |
+
+The same class token appears in class cards, character badges, and map player markers. Marker state is shown by the marker shell and small status dot: brown for home, amber for traveling, teal for fishing, and a red warning ring/dot when inventory is full.
 
 ## June 5, 2026 Smoke Result
 

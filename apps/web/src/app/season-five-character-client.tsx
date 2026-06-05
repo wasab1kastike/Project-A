@@ -13,7 +13,11 @@ import type {
   SeasonFiveStatKey,
   SeasonFiveStats,
 } from "@/lib/game/season-five";
-import { SeasonFiveRealtimeBridge, StatBars } from "./season-five-home-client";
+import {
+  ClassPortrait,
+  SeasonFiveRealtimeBridge,
+  StatBars,
+} from "./season-five-home-client";
 import styles from "./season-five.module.css";
 
 const tabs = [
@@ -98,7 +102,14 @@ function CharacterShell({
               <p className={styles.kicker}>Character</p>
               <h2>{character.name}</h2>
             </div>
-            <span className={styles.badge}>{character.classLabel}</span>
+            <span className={styles.classBadge}>
+              <ClassPortrait
+                classKey={character.class}
+                label={character.classLabel}
+                compact
+              />
+              {character.classLabel}
+            </span>
           </div>
           <p className={styles.smallText}>{getActionText(character)}</p>
           <div className={styles.statGrid}>

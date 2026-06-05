@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Demented Wizard</title>
+  <desc id="desc">A wild wizard fishing token with glowing eyes and a crooked hat.</desc>
+  <defs>
+    <linearGradient id="bg" x1="18" y1="16" x2="112" y2="116" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#59649a"/>
+      <stop offset="1" stop-color="#24362d"/>
+    </linearGradient>
+  </defs>
+  <circle cx="64" cy="64" r="59" fill="url(#bg)"/>
+  <circle cx="64" cy="64" r="53" fill="none" stroke="#f4ddad" stroke-width="6"/>
+  <path d="M42 50l20-36 25 38c-14-5-29-5-45-2z" fill="#353052" stroke="#f4ddad" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M38 61c2-17 14-27 28-27s25 11 26 28c2 23-10 42-27 42-16 0-30-19-27-43z" fill="#c9936f"/>
+  <path d="M38 58c17-8 35-8 54 0" fill="none" stroke="#2b2342" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="55" cy="70" r="6" fill="#9ff0d0"/>
+  <circle cx="77" cy="70" r="6" fill="#9ff0d0"/>
+  <path d="M59 86c7 4 13 4 20 0" fill="none" stroke="#30211c" stroke-width="5" stroke-linecap="round"/>
+  <path d="M32 91c12-6 24-3 36 7 10 7 20 8 31 2" fill="none" stroke="#9ff0d0" stroke-width="5" stroke-linecap="round"/>
+  <path d="M104 25c-4 11 7 15 0 27" fill="none" stroke="#f4ddad" stroke-width="5" stroke-linecap="round"/>
+</svg>

@@ -121,10 +121,51 @@
   place-items: center;
   border: 2px solid rgba(255, 239, 203, 0.3);
   border-radius: 50%;
+  background: #24362d;
+  box-shadow: inset 0 -10px 22px rgba(0, 0, 0, 0.24);
+  overflow: hidden;
+}
+
+.classPortrait img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.classPortraitFallback {
+  display: grid;
+  width: 64px;
+  height: 64px;
+  place-items: center;
+  border: 2px solid rgba(255, 239, 203, 0.3);
+  border-radius: 50%;
   background: #9d5a33;
   color: #fff8e7;
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 900;
+}
+
+.compactPortrait {
+  width: 30px;
+  height: 30px;
+  border-width: 1px;
+}
+
+.monk {
+  background: #5a3827;
+}
+
+.warrior {
+  background: #2f3f43;
+}
+
+.wizard {
+  background: #303652;
+}
+
+.rogue {
+  background: #26373a;
 }
 
 .playfield {
@@ -249,29 +290,66 @@
   left: calc(50% + var(--marker-x));
   top: calc(50% + var(--marker-y));
   display: grid;
-  width: 28px;
-  height: 28px;
+  width: 34px;
+  height: 34px;
   place-items: center;
   border: 2px solid rgba(255, 248, 231, 0.86);
   border-radius: 50%;
   background: #604f38;
-  color: #fff8e7;
-  font-size: 10px;
-  font-weight: 900;
   transform: translate(-50%, -50%);
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.34);
+}
+
+.playerMarker .compactPortrait {
+  width: 28px;
+  height: 28px;
+  border: 0;
+}
+
+.playerMarker i {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid #fff8e7;
+  border-radius: 50%;
+  background: #7b4932;
 }
 
 .fishingMarker {
   background: #247173;
 }
 
+.fishingMarker i {
+  background: #42c4b9;
+}
+
 .travellingMarker {
   background: #91612e;
 }
 
+.travellingMarker i {
+  background: #f0b35d;
+}
+
 .homeMarker {
   background: #7b4932;
+}
+
+.homeMarker i {
+  background: #b56a48;
+}
+
+.fullInventoryMarker {
+  border-color: #ffd6bd;
+  box-shadow:
+    0 0 0 3px rgba(180, 76, 48, 0.42),
+    0 6px 14px rgba(0, 0, 0, 0.34);
+}
+
+.fullInventoryMarker i {
+  background: #f06f4f;
 }
 
 .commandCard,
@@ -285,9 +363,11 @@
 }
 
 .badge,
+.classBadge,
 .warning {
   display: inline-flex;
   align-items: center;
+  gap: 7px;
   min-height: 28px;
   padding: 0 9px;
   border-radius: 999px;

@@ -1169,6 +1169,25 @@ export async function getSeasonFiveHomeState({
       currentLocationId: true,
       destinationLocationId: true,
       actionCompletesAt: true,
+      inventoryCapacity: true,
+      inventoryItems: {
+        select: {
+          slots: true,
+        },
+      },
+      gear: {
+        select: {
+          key: true,
+          slot: true,
+          power: true,
+          equipped: true,
+        },
+      },
+      skillPurchases: {
+        select: {
+          nodeKey: true,
+        },
+      },
     },
   });
   const topByCount = await db.seasonFiveCharacter.findMany({
@@ -1258,14 +1277,33 @@ export async function getSeasonFiveHomeState({
           : entry.currentLocationId === location.id
       )
       .slice(0, 18)
-      .map((entry) => ({
-        id: entry.id,
-        name: entry.name,
-        class: entry.class,
-        classLabel: getSeasonFiveClassLabel(entry.class),
-        actionKind: entry.actionKind,
-        actionCompletesAt: entry.actionCompletesAt,
-      })),
+      .map((entry) => {
+        const entryEffects = getSeasonFiveBuildEffects({
+          characterClass: entry.class,
+          gear: entry.gear,
+          purchasedNodeKeys: entry.skillPurchases.map(
+            (purchase) => purchase.nodeKey
+          ),
+        });
+        const entryInventoryUsed = entry.inventoryItems.reduce(
+          (sum, item) => sum + item.slots,
+          0
+        );
+        const entryInventoryCapacity = calculateSeasonFiveInventoryCapacity({
+          baseCapacity: entry.inventoryCapacity,
+          inventoryBonus: entryEffects.inventoryBonus,
+        });
+
+        return {
+          id: entry.id,
+          name: entry.name,
+          class: entry.class,
+          classLabel: getSeasonFiveClassLabel(entry.class),
+          actionKind: entry.actionKind,
+          actionCompletesAt: entry.actionCompletesAt,
+          inventoryFull: entryInventoryUsed >= entryInventoryCapacity,
+        };
+      }),
   }));
   const characterEffects =
     character && effects

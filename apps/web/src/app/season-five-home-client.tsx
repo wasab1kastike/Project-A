@@ -32,18 +32,59 @@ function formatClassKey(key: string) {
     .join(" ");
 }
 
-function getClassInitials(label: string) {
-  return label
-    .split(" ")
-    .map((part) => part.charAt(0))
-    .join("")
-    .slice(0, 2);
+const CLASS_VISUALS = {
+  DRUNKEN_MONK: {
+    asset: "/assets/season-5/classes/drunken-monk.svg",
+    tone: "monk",
+  },
+  RETIRED_WARRIOR: {
+    asset: "/assets/season-5/classes/retired-warrior.svg",
+    tone: "warrior",
+  },
+  DEMENTED_WIZARD: {
+    asset: "/assets/season-5/classes/demented-wizard.svg",
+    tone: "wizard",
+  },
+  BURNT_OUT_ROGUE: {
+    asset: "/assets/season-5/classes/burnt-out-rogue.svg",
+    tone: "rogue",
+  },
+} as const;
+
+function getClassVisual(classKey: string) {
+  return CLASS_VISUALS[classKey as keyof typeof CLASS_VISUALS] ?? null;
 }
 
 function getActionLabel(actionKind: string) {
   if (actionKind === "TRAVELING") return "Traveling";
   if (actionKind === "FISHING") return "Fishing";
   return "Home";
+}
+
+export function ClassPortrait({
+  classKey,
+  label,
+  compact = false,
+}: {
+  classKey: string;
+  label: string;
+  compact?: boolean;
+}) {
+  const visual = getClassVisual(classKey);
+
+  if (!visual) {
+    return <span className={styles.classPortraitFallback}>{label}</span>;
+  }
+
+  return (
+    <span
+      className={`${styles.classPortrait} ${styles[visual.tone]} ${
+        compact ? styles.compactPortrait : ""
+      }`}
+    >
+      <img src={visual.asset} alt={label} />
+    </span>
+  );
 }
 
 export function SeasonFiveRealtimeBridge({ enabled }: { enabled: boolean }) {
@@ -122,9 +163,10 @@ function ClassSelection({
               name="characterClass"
               value={characterClass.key}
             />
-            <div className={styles.classPortrait}>
-              {getClassInitials(formatClassKey(characterClass.key))}
-            </div>
+            <ClassPortrait
+              classKey={characterClass.key}
+              label={formatClassKey(characterClass.key)}
+            />
             <h3>{formatClassKey(characterClass.key)}</h3>
             <p>{characterClass.summary}</p>
             <StatBars
@@ -154,7 +196,14 @@ function CharacterCommandCard({
           <p className={styles.kicker}>Character</p>
           <h2>{character.name}</h2>
         </div>
-        <span className={styles.badge}>{character.classLabel}</span>
+        <span className={styles.classBadge}>
+          <ClassPortrait
+            classKey={character.class}
+            label={character.classLabel}
+            compact
+          />
+          {character.classLabel}
+        </span>
       </div>
 
       <div className={styles.commandStatus}>
@@ -293,8 +342,13 @@ function WorldMap({
                       : actor.actionKind === "FISHING"
                         ? styles.fishingMarker
                         : styles.homeMarker
+                  } ${actor.inventoryFull ? styles.fullInventoryMarker : ""}`}
+                  aria-label={`${actor.name}: ${getActionLabel(actor.actionKind)} (${actor.classLabel})${
+                    actor.inventoryFull ? ", inventory full" : ""
                   }`}
-                  title={`${actor.name}: ${getActionLabel(actor.actionKind)} (${actor.classLabel})`}
+                  title={`${actor.name}: ${getActionLabel(actor.actionKind)} (${actor.classLabel})${
+                    actor.inventoryFull ? " - inventory full" : ""
+                  }`}
                   style={
                     {
                       "--marker-x": `${markerOffsets[index % markerOffsets.length][0]}px`,
@@ -302,7 +356,12 @@ function WorldMap({
                     } as CSSProperties
                   }
                 >
-                  {getClassInitials(actor.classLabel)}
+                  <ClassPortrait
+                    classKey={actor.class}
+                    label={actor.classLabel}
+                    compact
+                  />
+                  <i aria-hidden="true" />
                 </span>
               ))}
             </div>
