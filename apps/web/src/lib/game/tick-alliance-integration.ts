@@ -6,7 +6,9 @@
 // =============================================================================
 
 import type { PrismaClient } from "@prisma/client";
+import { getHomeOfAMapPosition } from "./mega-fortress";
 import { getRoadAdjustedAttackArrival } from "./road-travel";
+import { getTileById, isHomeOfATile } from "./territory";
 
 type DiplomacySnapshot = {
   status: string;
@@ -164,6 +166,7 @@ export async function processAllianceReinforcements(args: {
           cycleId,
           now,
           battlefieldId: bf.id,
+          targetTileId: bf.targetTileId ?? null,
           ...opportunity,
         });
         if (created) reinforcesCreated++;
@@ -177,6 +180,7 @@ async function createAllianceReinforcement(args: {
   cycleId: string;
   now: Date;
   battlefieldId: string;
+  targetTileId: string | null;
   alliedFortressId: string | null;
   reinforcerId: string;
   targetFortressId: string;
@@ -211,7 +215,6 @@ async function createAllianceReinforcement(args: {
       reinforcementSide: side,
       resolvedAt: null,
       cancelledAt: null,
-      arrivesAt: { gt: now },
     },
   });
   if (existingReinforce) return false;
@@ -228,17 +231,6 @@ async function createAllianceReinforcement(args: {
   const commitAmount = totalAvailable;
   if (commitAmount <= 0) return false;
 
-  let remaining = commitAmount;
-  for (const battalion of allianceBattalions) {
-    if (remaining <= 0) break;
-    const take = Math.min(battalion.size, remaining);
-    await db.battalion.update({
-      where: { id: battalion.id },
-      data: { size: { decrement: take } },
-    });
-    remaining -= take;
-  }
-
   const [reinforcer, target] = await Promise.all([
     db.fortress.findUnique({
       where: { id: reinforcerId },
@@ -249,31 +241,64 @@ async function createAllianceReinforcement(args: {
       select: { mapX: true, mapY: true },
     }),
   ]);
-  const dx = (reinforcer?.mapX ?? 0) - (target?.mapX ?? 0);
-  const dy = (reinforcer?.mapY ?? 0) - (target?.mapY ?? 0);
+  const targetTile = args.targetTileId
+    ? isHomeOfATile(args.targetTileId)
+      ? null
+      : getTileById(args.targetTileId)
+    : null;
+  const targetPosition = args.targetTileId
+    ? isHomeOfATile(args.targetTileId)
+      ? getHomeOfAMapPosition()
+      : targetTile
+        ? {
+            mapX: Math.round(targetTile.xPercent),
+            mapY: Math.round(targetTile.yPercent),
+          }
+        : { mapX: target?.mapX ?? 0, mapY: target?.mapY ?? 0 }
+    : { mapX: target?.mapX ?? 0, mapY: target?.mapY ?? 0 };
+  const dx = (reinforcer?.mapX ?? 0) - targetPosition.mapX;
+  const dy = (reinforcer?.mapY ?? 0) - targetPosition.mapY;
   const baseMinutes = Math.max(1, Math.ceil(Math.sqrt(dx * dx + dy * dy) / 10));
   const { arrivesAt } = await getRoadAdjustedAttackArrival({
     db,
     cycleId,
     launchedAt: now,
     origin: { mapX: reinforcer?.mapX ?? 0, mapY: reinforcer?.mapY ?? 0 },
-    target: { mapX: target?.mapX ?? 0, mapY: target?.mapY ?? 0 },
+    target: targetPosition,
     baseMinutes,
   });
 
-  await db.attackUnit.create({
-    data: {
-      cycleId,
-      attackerFortressId: reinforcerId,
-      targetFortressId,
-      reinforcementBattlefieldId: battlefieldId,
-      reinforcementSide: side,
-      armyAmount: commitAmount,
-      launchedAt: now,
-      arrivesAt,
-      returnOriginMapX: reinforcer?.mapX,
-      returnOriginMapY: reinforcer?.mapY,
-    },
+  await db.$transaction(async (tx) => {
+    let remaining = commitAmount;
+    for (const battalion of allianceBattalions) {
+      if (remaining <= 0) break;
+      const take = Math.min(battalion.size, remaining);
+      await tx.battalion.update({
+        where: { id: battalion.id },
+        data: { size: { decrement: take } },
+      });
+      remaining -= take;
+    }
+
+    await tx.fortress.update({
+      where: { id: reinforcerId },
+      data: { army: { decrement: commitAmount } },
+    });
+
+    await tx.attackUnit.create({
+      data: {
+        cycleId,
+        attackerFortressId: reinforcerId,
+        targetFortressId,
+        reinforcementBattlefieldId: battlefieldId,
+        reinforcementSide: side,
+        armyAmount: commitAmount,
+        launchedAt: now,
+        arrivesAt,
+        returnOriginMapX: reinforcer?.mapX,
+        returnOriginMapY: reinforcer?.mapY,
+      },
+    });
   });
 
   return true;

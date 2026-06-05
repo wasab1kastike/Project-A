@@ -28,6 +28,7 @@ import {
   processBattalionGuard,
   processBattalionRecruitment,
 } from "./tick-battalion-integration";
+import { processUpkeepTick } from "./upkeep";
 import { processOwnershipPressure } from "./tile-pressure";
 import { processGuardTick } from "./guard-system";
 
@@ -79,6 +80,33 @@ describe("Battalion Slots", () => {
 
   it("Slot count never exceeds max", () => {
     assert.ok(getBattalionSlots(15, 10, 5) <= 13);
+  });
+});
+
+describe("Battalion Upkeep", () => {
+  it("starvation removes 2 percent total army, not 2 percent per missing food", () => {
+    const result = processUpkeepTick({
+      battalions: [
+        {
+          id: "bn_recruits",
+          name: "Hungry Recruits",
+          size: 1_000,
+          maxSize: 1_000,
+          tier: BattalionTier.RECRUIT,
+          xp: 0,
+          readyAt: null,
+          stance: "REST",
+          mode: "RESERVE",
+          garrisonedAt: null,
+          stanceLockedUntil: null,
+        },
+      ],
+      food: 0,
+      gold: 0,
+    });
+
+    assert.equal(result.unitsDeserted, 20);
+    assert.equal(result.battalions[0]?.size, 980);
   });
 });
 

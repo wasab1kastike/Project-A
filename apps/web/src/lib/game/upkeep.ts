@@ -12,6 +12,7 @@ import {
   BATTALION_TIER_NAMES,
   MORALE_EVENTS,
 } from "./battalion-types";
+import { getStarvationArmyLoss } from "./army-recruitment";
 
 // ── Upkeep Costs ─────────────────────────────────────────────────────────────
 
@@ -141,9 +142,11 @@ export function processUpkeepTick(args: {
 
   // ── Food Shortfall → Desertion ───────────────────────────────────────
   if (foodShortfall > 0) {
-    // Desertion rate: 2% of army per missing food unit, doubled if food=0 (starvation).
+    // Starvation attrition is a flat 2% of active army per unpaid tick.
     const isStarving = args.food <= 0;
-    const baseDesertionRate = isStarving ? 0.04 : 0.02;
+    let remainingDesertions = getStarvationArmyLoss(
+      battalions.reduce((sum, b) => sum + Math.max(0, b.size), 0),
+    );
 
     // Desertion targets lowest-tier battalions first.
     const sortedByTier = [...battalions]
@@ -151,14 +154,14 @@ export function processUpkeepTick(args: {
       .sort((a, b) => a.b.tier - b.b.tier);
 
     for (const { b, idx } of sortedByTier) {
-      if (foodShortfall <= 0) break;
+      if (remainingDesertions <= 0) break;
       if (b.size <= 0) continue;
 
-      const deserting = Math.ceil(b.size * baseDesertionRate * foodShortfall);
-      const actual = Math.min(deserting, b.size);
+      const actual = Math.min(remainingDesertions, b.size);
 
       battalions[idx].size -= actual;
       unitsDeserted += actual;
+      remainingDesertions -= actual;
     }
 
     moraleDelta += isStarving
