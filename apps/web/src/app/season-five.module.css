@@ -194,116 +194,211 @@
   overflow: hidden;
   border: 1px solid rgba(255, 239, 203, 0.18);
   border-radius: 8px;
-  background: #0d1b1f;
-  box-shadow: 0 24px 60px rgba(2, 10, 12, 0.42);
+  background:
+    linear-gradient(180deg, rgba(255, 248, 231, 0.04), transparent 17%),
+    radial-gradient(circle at 50% 54%, rgba(83, 122, 92, 0.34), transparent 58%),
+    #071018;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 24px 60px rgba(2, 10, 12, 0.42);
 }
 
 .worldPanel:only-child {
   grid-column: 1 / -1;
 }
 
+.mapFrame {
+  position: absolute;
+  inset: 14px;
+  border: 2px solid rgba(255, 248, 231, 0.24);
+  border-radius: 10px;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 0 1px rgba(6, 13, 14, 0.72),
+    inset 0 0 54px rgba(2, 7, 8, 0.34);
+}
+
+.mapFrame::before,
+.mapFrame::after {
+  position: absolute;
+  content: "";
+  pointer-events: none;
+}
+
+.mapFrame::before {
+  inset: 0;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(214, 169, 91, 0.18), transparent 18%),
+    radial-gradient(circle at 82% 72%, rgba(36, 113, 115, 0.16), transparent 22%),
+    linear-gradient(rgba(255, 248, 231, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 248, 231, 0.03) 1px, transparent 1px);
+  background-size: auto, auto, 8.75% 10%, 6.25% 10%;
+  opacity: 0.72;
+}
+
+.mapFrame::after {
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(2, 7, 8, 0.14), transparent 24%, rgba(2, 7, 8, 0.34)),
+    radial-gradient(circle at 50% 52%, transparent 45%, rgba(0, 0, 0, 0.28));
+}
+
 .tileMap {
   position: absolute;
   inset: 14px;
-  display: grid;
-  grid-template-columns: repeat(var(--map-columns), minmax(0, 1fr));
-  grid-template-rows: repeat(var(--map-rows), minmax(0, 1fr));
-  gap: 3px;
-  padding: 10px;
-  border: 2px solid rgba(255, 248, 231, 0.24);
   border-radius: 10px;
-  background: #1c2b24;
 }
 
 .mapTile {
-  position: relative;
-  min-width: 0;
-  min-height: 0;
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: min(7.35%, 66px);
+  min-width: 36px;
+  aspect-ratio: 1.02;
   overflow: hidden;
-  border: 1px solid rgba(31, 35, 25, 0.72);
-  border-radius: 7px;
+  clip-path: polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0 50%);
+  border: 0;
+  background: #5f9b4f;
+  transform: translate(-50%, -50%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    inset 0 -8px 14px rgba(0, 0, 0, 0.12);
+    0 0 0 1px rgba(8, 18, 20, 0.86),
+    0 0 0 3px rgba(255, 248, 231, 0.035),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -10px 16px rgba(0, 0, 0, 0.2);
+}
+
+.mapTile::before,
+.mapTile::after {
+  position: absolute;
+  content: "";
+  pointer-events: none;
+}
+
+.mapTile::before {
+  inset: 4px;
+  clip-path: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.mapTile::after {
+  inset: 0;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.1), transparent 38%),
+    linear-gradient(315deg, rgba(0, 0, 0, 0.2), transparent 42%);
+  opacity: 0.8;
 }
 
 .tileTexture {
   position: absolute;
   inset: 0;
-  opacity: 0.22;
+  opacity: 0.3;
   background:
     radial-gradient(
       circle at 20% 25%,
-      rgba(255, 255, 255, 0.7),
-      transparent 8%
+      rgba(255, 255, 255, 0.58),
+      transparent 7%
     ),
-    radial-gradient(circle at 70% 65%, rgba(0, 0, 0, 0.5), transparent 10%);
+    radial-gradient(circle at 70% 65%, rgba(0, 0, 0, 0.46), transparent 10%),
+    linear-gradient(60deg, transparent 45%, rgba(255, 255, 255, 0.13) 46%, transparent 49%);
 }
 
 .terrainGRASS {
-  background: #5f9b4f;
+  background: linear-gradient(145deg, #76a94c, #4e8139);
 }
 
 .terrainFOREST {
-  background: #2f754a;
+  background:
+    radial-gradient(circle at 30% 35%, rgba(17, 64, 34, 0.65), transparent 23%),
+    radial-gradient(circle at 66% 55%, rgba(16, 74, 40, 0.72), transparent 26%),
+    linear-gradient(145deg, #3f8a4f, #255f3d);
 }
 
 .terrainWATER {
-  background: #257ba1;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0 10%, transparent 10% 22%, rgba(255, 255, 255, 0.08) 22% 30%, transparent 30%),
+    linear-gradient(145deg, #2e8cad, #195f88);
 }
 
 .terrainCOAST {
-  background: #4f9aa0;
+  background: linear-gradient(145deg, #68a8a0, #3f8c8f 55%, #b1955d);
 }
 
 .terrainSWAMP {
-  background: #587548;
+  background:
+    radial-gradient(circle at 65% 28%, rgba(70, 113, 73, 0.78), transparent 19%),
+    linear-gradient(145deg, #667f45, #3f6245);
 }
 
 .terrainHILL {
-  background: #907548;
+  background:
+    radial-gradient(ellipse at 42% 38%, rgba(255, 231, 156, 0.18), transparent 36%),
+    linear-gradient(145deg, #9c854f, #6f633f);
 }
 
 .terrainMOUNTAIN {
-  background: #777a76;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.18) 0 18%, transparent 18%),
+    linear-gradient(145deg, #8b8f85, #5e625e);
 }
 
 .terrainROAD {
-  background: #b48755;
+  background:
+    linear-gradient(90deg, transparent 0 34%, rgba(70, 42, 20, 0.42) 34% 64%, transparent 64%),
+    linear-gradient(145deg, #c49a5c, #91683a);
 }
 
 .homeTile {
-  outline: 2px solid #f0cf75;
+  box-shadow:
+    0 0 0 2px rgba(240, 207, 117, 0.96),
+    0 0 18px rgba(240, 207, 117, 0.38),
+    inset 0 -10px 16px rgba(0, 0, 0, 0.2);
 }
 
 .fishingTile {
-  outline: 2px solid #8ad6e0;
+  box-shadow:
+    0 0 0 2px rgba(138, 214, 224, 0.9),
+    0 0 16px rgba(72, 193, 212, 0.3),
+    inset 0 -10px 16px rgba(0, 0, 0, 0.2);
 }
 
 .shopTile {
-  outline: 2px solid #f0b35d;
+  box-shadow:
+    0 0 0 2px rgba(240, 179, 93, 0.92),
+    0 0 16px rgba(240, 179, 93, 0.32),
+    inset 0 -10px 16px rgba(0, 0, 0, 0.2);
 }
 
 .eventTile {
-  outline: 2px solid #ff8d5c;
+  box-shadow:
+    0 0 0 2px rgba(255, 141, 92, 0.94),
+    0 0 16px rgba(255, 112, 72, 0.34),
+    inset 0 -10px 16px rgba(0, 0, 0, 0.2);
 }
 
 .secretTile {
-  outline: 2px solid #9ae6b4;
+  box-shadow:
+    0 0 0 2px rgba(154, 230, 180, 0.94),
+    0 0 16px rgba(154, 230, 180, 0.34),
+    inset 0 -10px 16px rgba(0, 0, 0, 0.2);
 }
 
 .selectedTile {
   box-shadow:
-    0 0 0 3px rgba(255, 248, 231, 0.82),
-    inset 0 -8px 14px rgba(0, 0, 0, 0.12);
+    0 0 0 3px rgba(255, 248, 231, 0.92),
+    0 0 22px rgba(255, 248, 231, 0.44),
+    inset 0 -10px 16px rgba(0, 0, 0, 0.2);
 }
 
 .currentTile {
-  outline: 3px solid #fff8e7;
+  box-shadow:
+    0 0 0 3px rgba(255, 248, 231, 0.98),
+    0 0 18px rgba(255, 248, 231, 0.5),
+    inset 0 -10px 16px rgba(0, 0, 0, 0.2);
 }
 
 .destinationTile {
-  outline: 3px dashed #fff8e7;
+  filter: saturate(1.12) brightness(1.06);
 }
 
 .lockedTile {
@@ -325,15 +420,17 @@
 }
 
 .tileRoleBadge {
-  top: 5px;
-  left: 5px;
-  width: 22px;
-  height: 22px;
+  top: 50%;
+  left: 50%;
+  width: 24px;
+  height: 24px;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 4px 10px rgba(2, 10, 12, 0.34);
 }
 
 .tilePopulation {
-  right: 5px;
-  bottom: 5px;
+  right: 2px;
+  bottom: 6px;
   min-width: 20px;
   height: 20px;
   padding: 0 5px;
@@ -356,8 +453,8 @@
 }
 
 .locationTileButton:focus-visible {
-  outline: 3px solid #fff8e7;
-  outline-offset: -3px;
+  outline: 0;
+  box-shadow: inset 0 0 0 3px rgba(255, 248, 231, 0.9);
 }
 
 .specialTileLabel {
@@ -375,8 +472,8 @@
 
 .tileActivityMarkers {
   position: absolute;
-  right: 4px;
-  top: 4px;
+  right: 0;
+  top: 5px;
   z-index: 4;
   display: flex;
   max-width: calc(100% - 32px);
@@ -410,7 +507,7 @@
 
 .routeLayer {
   position: absolute;
-  inset: 24px;
+  inset: 14px;
   z-index: 5;
   overflow: visible;
   pointer-events: none;
@@ -420,18 +517,22 @@
 .activeRoute {
   fill: none;
   stroke-linecap: round;
-  stroke-width: 0.7;
+  stroke-width: 1.05;
   vector-effect: non-scaling-stroke;
 }
 
 .previewRoute {
-  stroke: rgba(255, 248, 231, 0.72);
-  stroke-dasharray: 2 2;
+  stroke: rgba(255, 248, 231, 0.82);
+  stroke-dasharray: 3 2;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.45));
 }
 
 .activeRoute {
   stroke: #f0b35d;
-  stroke-dasharray: 3 2;
+  stroke-dasharray: 4 2;
+  filter:
+    drop-shadow(0 0 3px rgba(240, 179, 93, 0.68))
+    drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5));
 }
 
 .characterMapMarker {
@@ -447,7 +548,9 @@
   border-radius: 50%;
   background: rgba(20, 31, 27, 0.94);
   transform: translate(-50%, -50%);
-  box-shadow: 0 10px 22px rgba(2, 10, 12, 0.4);
+  box-shadow:
+    0 0 0 4px rgba(12, 29, 33, 0.62),
+    0 10px 22px rgba(2, 10, 12, 0.4);
 }
 
 .routePreview {

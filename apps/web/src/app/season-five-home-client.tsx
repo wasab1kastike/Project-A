@@ -67,6 +67,19 @@ function getActionLabel(actionKind: string) {
   return "Home";
 }
 
+function getTileMapPosition(tile: {
+  row: number;
+  xPercent: number;
+  yPercent: number;
+}) {
+  const rowOffset = tile.row % 2 === 1 ? 2.9 : 0;
+
+  return {
+    x: Math.min(97, Math.max(3, tile.xPercent + rowOffset)),
+    y: tile.yPercent,
+  };
+}
+
 async function fetchSeasonFiveState(reason?: string) {
   const searchParams = new URLSearchParams();
   if (reason) {
@@ -383,23 +396,23 @@ function WorldMap({ state }: { state: SeasonFiveHomeState }) {
     activeRouteFromTile && activeRouteToTile
       ? {
           x:
-            activeRouteFromTile.xPercent +
-            (activeRouteToTile.xPercent - activeRouteFromTile.xPercent) *
+            getTileMapPosition(activeRouteFromTile).x +
+            (getTileMapPosition(activeRouteToTile).x -
+              getTileMapPosition(activeRouteFromTile).x) *
               travelProgress,
           y:
-            activeRouteFromTile.yPercent +
-            (activeRouteToTile.yPercent - activeRouteFromTile.yPercent) *
+            getTileMapPosition(activeRouteFromTile).y +
+            (getTileMapPosition(activeRouteToTile).y -
+              getTileMapPosition(activeRouteFromTile).y) *
               travelProgress,
         }
       : currentTile
-        ? {
-            x: currentTile.xPercent,
-            y: currentTile.yPercent,
-          }
+        ? getTileMapPosition(currentTile)
         : null;
 
   return (
     <section className={styles.worldPanel} aria-label="Season 5 fishing map">
+      <div className={styles.mapFrame} aria-hidden="true" />
       <div
         className={styles.tileMap}
         style={
@@ -410,6 +423,7 @@ function WorldMap({ state }: { state: SeasonFiveHomeState }) {
         }
       >
         {state.map.tiles.map((tile) => {
+          const tilePosition = getTileMapPosition(tile);
           const location = locationByTileKey.get(tile.key);
           const activity = location
             ? state.locationActivity.find(
@@ -441,6 +455,12 @@ function WorldMap({ state }: { state: SeasonFiveHomeState }) {
                 isDestination ? styles.destinationTile : ""
               } ${tile.locked ? styles.lockedTile : ""}`}
               data-variant={tile.visualVariant}
+              style={
+                {
+                  "--x": `${tilePosition.x}%`,
+                  "--y": `${tilePosition.y}%`,
+                } as CSSProperties
+              }
             >
               <span className={styles.tileTexture} />
               {tile.role !== "NONE" ? (
@@ -511,19 +531,19 @@ function WorldMap({ state }: { state: SeasonFiveHomeState }) {
       >
         {previewFromTile && previewToTile ? (
           <line
-            x1={previewFromTile.xPercent}
-            y1={previewFromTile.yPercent}
-            x2={previewToTile.xPercent}
-            y2={previewToTile.yPercent}
+            x1={getTileMapPosition(previewFromTile).x}
+            y1={getTileMapPosition(previewFromTile).y}
+            x2={getTileMapPosition(previewToTile).x}
+            y2={getTileMapPosition(previewToTile).y}
             className={styles.previewRoute}
           />
         ) : null}
         {activeRouteFromTile && activeRouteToTile ? (
           <line
-            x1={activeRouteFromTile.xPercent}
-            y1={activeRouteFromTile.yPercent}
-            x2={activeRouteToTile.xPercent}
-            y2={activeRouteToTile.yPercent}
+            x1={getTileMapPosition(activeRouteFromTile).x}
+            y1={getTileMapPosition(activeRouteFromTile).y}
+            x2={getTileMapPosition(activeRouteToTile).x}
+            y2={getTileMapPosition(activeRouteToTile).y}
             className={styles.activeRoute}
           />
         ) : null}
