@@ -15,6 +15,7 @@ import type {
   SeasonFiveStatKey,
   SeasonFiveStats,
 } from "@/lib/game/season-five";
+import { formatSeasonFiveFishWeight } from "@/lib/game/season-five-fishing";
 import {
   BuildEffectChips,
   ClassPortrait,
@@ -61,7 +62,7 @@ type SeasonFiveSkill = SeasonFiveHomeState["skills"][number];
 const skillEffectFormatters = {
   catchBonus: (value) => `+${value} catch tempo`,
   rarityBonus: (value) => `+${value} rarity`,
-  sizeBonusPercent: (value) => `+${value}% trophy size`,
+  sizeBonusPercent: (value) => `+${value}% trophy weight`,
   inventoryBonus: (value) => `+${value} pack slots`,
   inventoryPressureReduction: (value) => `-${value} pack pressure`,
   travelPercent: (value) => `${value > 0 ? "+" : ""}${value}% travel time`,
@@ -268,7 +269,9 @@ function BuildTab({ state }: { state: SeasonFiveHomeState }) {
             </div>
             <div>
               <span>Biggest</span>
-              <strong>{character.biggestFishCm} cm</strong>
+              <strong>
+                {formatSeasonFiveFishWeight(character.biggestFishGrams)}
+              </strong>
             </div>
           </div>
         </section>
@@ -344,7 +347,8 @@ function InventoryTab({ state }: { state: SeasonFiveHomeState }) {
             <div key={item.id}>
               <strong>{item.speciesName}</strong>
               <span className={styles.inventoryMeta}>
-                {item.sizeCm} cm | {item.rarity} | {item.slots} slot
+                {formatSeasonFiveFishWeight(item.weightGrams)} | {item.rarity} |{" "}
+                {item.slots} slot
                 {item.slots === 1 ? "" : "s"}
               </span>
             </div>

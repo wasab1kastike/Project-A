@@ -207,8 +207,8 @@ export function calculateSeasonFiveInventoryCapacity(input: {
 export function createSeasonFiveCatch(input: {
   seed: string;
   hash: number;
-  minFishCm: number;
-  maxFishCm: number;
+  minWeightGrams: number;
+  maxWeightGrams: number;
   difficulty: number;
   sizeBonusPercent: number;
   rarityBonus?: number;
@@ -236,26 +236,26 @@ export function createSeasonFiveCatch(input: {
           : speciesRoll >= SEASON_FIVE_BALANCE.commonAltRollThreshold
             ? speciesPool[1]
             : speciesPool[0];
-  const range = Math.max(1, input.maxFishCm - input.minFishCm);
-  const sizeRoll = (input.hash >>> 8) % (range + 1);
-  const sizeCm = Math.round(
-    (input.minFishCm + sizeRoll) * (1 + input.sizeBonusPercent / 100)
+  const range = Math.max(1, input.maxWeightGrams - input.minWeightGrams);
+  const weightRoll = (input.hash >>> 8) % (range + 1);
+  const weightGrams = Math.round(
+    (input.minWeightGrams + weightRoll) * (1 + input.sizeBonusPercent / 100)
   );
 
   return {
     speciesKey: species.key,
     speciesName: species.name,
     rarity: species.rarity,
-    sizeCm: clamp(
-      sizeCm,
-      input.minFishCm,
-      Math.ceil(input.maxFishCm * SEASON_FIVE_BALANCE.maxSizeMultiplier)
+    weightGrams: clamp(
+      weightGrams,
+      input.minWeightGrams,
+      Math.ceil(input.maxWeightGrams * SEASON_FIVE_BALANCE.maxSizeMultiplier)
     ),
     inventorySlots:
       species.rarity === SeasonFiveFishRarity.LEGENDARY
         ? input.inventoryPressure + 2
         : species.rarity === SeasonFiveFishRarity.RARE
           ? input.inventoryPressure + 1
-          : Math.max(1, input.inventoryPressure),
+      : Math.max(1, input.inventoryPressure),
   };
 }

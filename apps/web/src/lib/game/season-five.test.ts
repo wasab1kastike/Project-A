@@ -18,6 +18,7 @@ import {
   resolveSeasonFiveCompletedTravel,
 } from "./season-five-actions";
 import {
+  formatSeasonFiveFishWeight,
   getSeasonFiveInventoryPressure,
   planSeasonFivePassiveCatches,
 } from "./season-five-fishing";
@@ -404,7 +405,7 @@ test("Season 5 Drunken Monk wins long-session tempo", () => {
   );
 });
 
-test("Season 5 Retired Warrior wins trophy size and raw pack capacity", () => {
+test("Season 5 Retired Warrior wins trophy weight and raw pack capacity", () => {
   const trophyWarrior = getSeasonFiveBuildEffects({
     characterClass: SeasonFiveCharacterClass.RETIRED_WARRIOR,
     purchasedNodeKeys: skillKeysForPath(
@@ -759,25 +760,32 @@ test("Season 5 travel, catch interval, and inventory calculations clamp safely",
 test("Season 5 catch generation is deterministic and bounded", () => {
   const first = createSeasonFiveCatch({
     seed: "character:moon-depths:2026-06-05T12:00:00.000Z",
-    minFishCm: 50,
-    maxFishCm: 320,
+    minWeightGrams: 5000,
+    maxWeightGrams: 32000,
     difficulty: 4,
     sizeBonusPercent: 25,
     inventoryPressure: 2,
   });
   const second = createSeasonFiveCatch({
     seed: "character:moon-depths:2026-06-05T12:00:00.000Z",
-    minFishCm: 50,
-    maxFishCm: 320,
+    minWeightGrams: 5000,
+    maxWeightGrams: 32000,
     difficulty: 4,
     sizeBonusPercent: 25,
     inventoryPressure: 2,
   });
 
   assert.deepEqual(first, second);
-  assert.ok(first.sizeCm >= 50);
-  assert.ok(first.sizeCm <= 480);
+  assert.ok(first.weightGrams >= 5000);
+  assert.ok(first.weightGrams <= 48000);
   assert.ok(first.inventorySlots >= 2);
+});
+
+test("Season 5 fish weight formatter displays kilograms", () => {
+  assert.equal(formatSeasonFiveFishWeight(0), "0 kg");
+  assert.equal(formatSeasonFiveFishWeight(1200), "1.2 kg");
+  assert.equal(formatSeasonFiveFishWeight(19500), "19.5 kg");
+  assert.equal(formatSeasonFiveFishWeight(55100), "55 kg");
 });
 
 test("Season 5 action helpers build deterministic travel state", () => {
@@ -1079,7 +1087,7 @@ test("Season 5 passive fishing fills empty inventory deterministically", () => {
       speciesKey: "pond-minnow",
       speciesName: "Pond Minnow",
       rarity: SeasonFiveFishRarity.COMMON,
-      sizeCm: 12,
+      weightGrams: 1200,
       inventorySlots: 1,
     }),
   });
@@ -1098,7 +1106,7 @@ test("Season 5 passive fishing respects partial and full inventory", () => {
     speciesKey: "pond-minnow",
     speciesName: "Pond Minnow",
     rarity: SeasonFiveFishRarity.COMMON,
-    sizeCm: 12,
+    weightGrams: 1200,
     inventorySlots: 1,
   });
   const partial = planSeasonFivePassiveCatches({
@@ -1138,7 +1146,7 @@ test("Season 5 passive fishing stops when a water-body pool is depleted", () => 
       speciesKey: "pond-minnow",
       speciesName: "Pond Minnow",
       rarity: SeasonFiveFishRarity.COMMON,
-      sizeCm: 12,
+      weightGrams: 1200,
       inventorySlots: 1,
     }),
   });
@@ -1247,7 +1255,7 @@ test("Season 5 Most Fish leaderboard uses stable tie ordering", () => {
       name: "Berta",
       class: SeasonFiveCharacterClass.RETIRED_WARRIOR,
       totalFishCaught: 8,
-      biggestFishCm: 80,
+      biggestFishGrams: 8000,
       createdAt: new Date("2026-06-05T12:02:00.000Z"),
     },
     {
@@ -1255,7 +1263,7 @@ test("Season 5 Most Fish leaderboard uses stable tie ordering", () => {
       name: "Aino",
       class: SeasonFiveCharacterClass.DRUNKEN_MONK,
       totalFishCaught: 8,
-      biggestFishCm: 120,
+      biggestFishGrams: 12000,
       createdAt: new Date("2026-06-05T12:03:00.000Z"),
     },
     {
@@ -1263,7 +1271,7 @@ test("Season 5 Most Fish leaderboard uses stable tie ordering", () => {
       name: "Ciro",
       class: SeasonFiveCharacterClass.BURNT_OUT_ROGUE,
       totalFishCaught: 9,
-      biggestFishCm: 40,
+      biggestFishGrams: 4000,
       createdAt: new Date("2026-06-05T12:04:00.000Z"),
     },
     {
@@ -1271,7 +1279,7 @@ test("Season 5 Most Fish leaderboard uses stable tie ordering", () => {
       name: "Dina",
       class: SeasonFiveCharacterClass.DEMENTED_WIZARD,
       totalFishCaught: 8,
-      biggestFishCm: 120,
+      biggestFishGrams: 12000,
       createdAt: new Date("2026-06-05T12:01:00.000Z"),
     },
   ]);
@@ -1288,7 +1296,7 @@ test("Season 5 Biggest Fish leaderboard derives exact catches and stable ties", 
     name: "Wizard",
     class: SeasonFiveCharacterClass.DEMENTED_WIZARD,
     totalFishCaught: 4,
-    biggestFishCm: 180,
+    biggestFishGrams: 18000,
     createdAt: new Date("2026-06-05T12:00:00.000Z"),
   };
   const ranked = rankSeasonFiveBiggestFish([
@@ -1296,7 +1304,7 @@ test("Season 5 Biggest Fish leaderboard derives exact catches and stable ties", 
       id: "later-equal",
       speciesName: "Moon Carp",
       rarity: SeasonFiveFishRarity.RARE,
-      sizeCm: 180,
+      weightGrams: 18000,
       caughtAt: new Date("2026-06-05T12:10:00.000Z"),
       character,
       location: { name: "Moon Depths" },
@@ -1305,7 +1313,7 @@ test("Season 5 Biggest Fish leaderboard derives exact catches and stable ties", 
       id: "exact-winner",
       speciesName: "Lantern Eel",
       rarity: SeasonFiveFishRarity.RARE,
-      sizeCm: 180,
+      weightGrams: 18000,
       caughtAt: new Date("2026-06-05T12:05:00.000Z"),
       character,
       location: { name: "Moon Depths" },
@@ -1314,14 +1322,14 @@ test("Season 5 Biggest Fish leaderboard derives exact catches and stable ties", 
       id: "runner",
       speciesName: "Mud Perch",
       rarity: SeasonFiveFishRarity.COMMON,
-      sizeCm: 150,
+      weightGrams: 15000,
       caughtAt: new Date("2026-06-05T12:04:00.000Z"),
       character: {
         id: "monk",
         name: "Monk",
         class: SeasonFiveCharacterClass.DRUNKEN_MONK,
         totalFishCaught: 10,
-        biggestFishCm: 150,
+        biggestFishGrams: 15000,
         createdAt: new Date("2026-06-05T12:00:00.000Z"),
       },
       location: { name: "Mossglass Lake" },
@@ -1334,7 +1342,7 @@ test("Season 5 Biggest Fish leaderboard derives exact catches and stable ties", 
   );
   assert.equal(ranked[0].catchId, "exact-winner");
   assert.equal(ranked[0].speciesName, "Lantern Eel");
-  assert.equal(ranked[0].biggestFishCm, 180);
+  assert.equal(ranked[0].biggestFishGrams, 18000);
   assert.equal(ranked[0].locationName, "Moon Depths");
 });
 

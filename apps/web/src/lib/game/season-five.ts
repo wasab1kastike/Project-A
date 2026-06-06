@@ -311,7 +311,7 @@ export const SEASON_FIVE_SKILL_TREES = {
       {
         key: "warrior_campaign_grip",
         name: "Campaign Grip",
-        description: "+1 Stronk and +8% trophy size.",
+        description: "+1 Stronk and +8% trophy weight.",
         cost: 1,
         statBonuses: { stronk: 1 },
         effectBonuses: { sizeBonusPercent: 8 },
@@ -319,21 +319,21 @@ export const SEASON_FIVE_SKILL_TREES = {
       {
         key: "warrior_trophy_drag",
         name: "Trophy Drag",
-        description: "+12% trophy size.",
+        description: "+12% trophy weight.",
         cost: 1,
         effectBonuses: { sizeBonusPercent: 12 },
       },
       {
         key: "warrior_old_hooks",
         name: "Old Hooks",
-        description: "+8% trophy size from trusted old hardware.",
+        description: "+8% trophy weight from trusted old hardware.",
         cost: 1,
         effectBonuses: { sizeBonusPercent: 8 },
       },
       {
         key: "warrior_final_campaign",
         name: "Final Campaign",
-        description: "Capstone trophy plan: +18% trophy size and +2 rarity.",
+        description: "Capstone trophy plan: +18% trophy weight and +2 rarity.",
         cost: 2,
         effectBonuses: { sizeBonusPercent: 18, rarityBonus: 2 },
       },
@@ -387,14 +387,14 @@ export const SEASON_FIVE_SKILL_TREES = {
       {
         key: "warrior_deep_campaign",
         name: "Deep Campaign",
-        description: "+1 catch tempo and +4% trophy size.",
+        description: "+1 catch tempo and +4% trophy weight.",
         cost: 1,
         effectBonuses: { catchBonus: 1, sizeBonusPercent: 4 },
       },
       {
         key: "warrior_no_retreat",
         name: "No Retreat",
-        description: "Capstone patience: +1 catch tempo and +6% trophy size.",
+        description: "Capstone patience: +1 catch tempo and +6% trophy weight.",
         cost: 2,
         effectBonuses: { catchBonus: 1, sizeBonusPercent: 6 },
       },
@@ -427,7 +427,7 @@ export const SEASON_FIVE_SKILL_TREES = {
       {
         key: "wizard_argument_with_sea",
         name: "Argument with Sea",
-        description: "Capstone rarity plan: +14 rarity and +4% trophy size.",
+        description: "Capstone rarity plan: +14 rarity and +4% trophy weight.",
         cost: 2,
         effectBonuses: { rarityBonus: 14, sizeBonusPercent: 4 },
       },
@@ -481,7 +481,7 @@ export const SEASON_FIVE_SKILL_TREES = {
       {
         key: "wizard_salt_runes",
         name: "Salt Runes",
-        description: "+8% trophy size and +5 rarity in deep water.",
+        description: "+8% trophy weight and +5 rarity in deep water.",
         cost: 1,
         effectBonuses: { sizeBonusPercent: 8, rarityBonus: 5 },
       },
@@ -622,8 +622,8 @@ export const SEASON_FIVE_LOCATIONS = [
     yPercent: 50,
     travelMinutes: 0,
     catchDifficulty: 0,
-    minFishCm: 0,
-    maxFishCm: 0,
+    minWeightGrams: 0,
+    maxWeightGrams: 0,
     inventoryPressure: 0,
   },
   {
@@ -634,8 +634,8 @@ export const SEASON_FIVE_LOCATIONS = [
     yPercent: 35,
     travelMinutes: 8,
     catchDifficulty: 1,
-    minFishCm: 12,
-    maxFishCm: 85,
+    minWeightGrams: 300,
+    maxWeightGrams: 9000,
     inventoryPressure: 1,
   },
   {
@@ -646,8 +646,8 @@ export const SEASON_FIVE_LOCATIONS = [
     yPercent: 41,
     travelMinutes: 12,
     catchDifficulty: 2,
-    minFishCm: 18,
-    maxFishCm: 120,
+    minWeightGrams: 500,
+    maxWeightGrams: 12000,
     inventoryPressure: 1,
   },
   {
@@ -658,8 +658,8 @@ export const SEASON_FIVE_LOCATIONS = [
     yPercent: 69,
     travelMinutes: 22,
     catchDifficulty: 3,
-    minFishCm: 35,
-    maxFishCm: 220,
+    minWeightGrams: 2000,
+    maxWeightGrams: 35000,
     inventoryPressure: 2,
   },
   {
@@ -670,8 +670,8 @@ export const SEASON_FIVE_LOCATIONS = [
     yPercent: 73,
     travelMinutes: 30,
     catchDifficulty: 4,
-    minFishCm: 50,
-    maxFishCm: 320,
+    minWeightGrams: 3500,
+    maxWeightGrams: 55000,
     inventoryPressure: 2,
   },
 ] as const;
@@ -1039,8 +1039,8 @@ export {
 
 export function createSeasonFiveCatch(input: {
   seed: string;
-  minFishCm: number;
-  maxFishCm: number;
+  minWeightGrams: number;
+  maxWeightGrams: number;
   difficulty: number;
   sizeBonusPercent: number;
   rarityBonus?: number;
@@ -1264,8 +1264,8 @@ async function ensureSeasonFiveLocations(
         requiredGearKey: body.profile.requiredGearKey,
         hidden: body.hidden,
         catchDifficulty: body.profile.catchDifficulty,
-        minFishCm: body.profile.minFishCm,
-        maxFishCm: body.profile.maxFishCm,
+        minWeightGrams: body.profile.minWeightGrams,
+        maxWeightGrams: body.profile.maxWeightGrams,
         inventoryPressure: body.profile.inventoryPressure,
       },
       update: {
@@ -1277,8 +1277,8 @@ async function ensureSeasonFiveLocations(
         requiredGearKey: body.profile.requiredGearKey,
         hidden: body.hidden,
         catchDifficulty: body.profile.catchDifficulty,
-        minFishCm: body.profile.minFishCm,
-        maxFishCm: body.profile.maxFishCm,
+        minWeightGrams: body.profile.minWeightGrams,
+        maxWeightGrams: body.profile.maxWeightGrams,
         inventoryPressure: body.profile.inventoryPressure,
         ...(existing && existing.currentStock > body.profile.maxStock
           ? { currentStock: body.profile.maxStock }
@@ -1314,8 +1314,8 @@ async function ensureSeasonFiveLocations(
       yPercent: homeTile?.yPercent ?? home.yPercent,
       travelMinutes: home.travelMinutes,
       catchDifficulty: home.catchDifficulty,
-      minFishCm: home.minFishCm,
-      maxFishCm: home.maxFishCm,
+      minWeightGrams: home.minWeightGrams,
+      maxWeightGrams: home.maxWeightGrams,
       inventoryPressure: home.inventoryPressure,
       tileId: homeTile?.id ?? null,
       waterBodyId: null,
@@ -1352,8 +1352,8 @@ async function ensureSeasonFiveLocations(
         yPercent: tile?.yPercent ?? 0,
         travelMinutes: location.travelMinutes,
         catchDifficulty: location.catchDifficulty,
-        minFishCm: location.minFishCm,
-        maxFishCm: location.maxFishCm,
+        minWeightGrams: location.minWeightGrams,
+        maxWeightGrams: location.maxWeightGrams,
         inventoryPressure: location.inventoryPressure,
         tileId: tile?.id ?? null,
         waterBodyId: waterBody?.id ?? null,
@@ -1972,7 +1972,7 @@ export async function getSeasonFiveHomeState({
       name: true,
       class: true,
       totalFishCaught: true,
-      biggestFishCm: true,
+      biggestFishGrams: true,
       createdAt: true,
     },
   });
@@ -1980,13 +1980,13 @@ export async function getSeasonFiveHomeState({
     where: {
       cycleId: cycle.id,
     },
-    orderBy: [{ sizeCm: "desc" }, { caughtAt: "asc" }, { id: "asc" }],
+    orderBy: [{ weightGrams: "desc" }, { caughtAt: "asc" }, { id: "asc" }],
     take: 100,
     select: {
       id: true,
       speciesName: true,
       rarity: true,
-      sizeCm: true,
+      weightGrams: true,
       caughtAt: true,
       location: {
         select: {
@@ -1999,7 +1999,7 @@ export async function getSeasonFiveHomeState({
           name: true,
           class: true,
           totalFishCaught: true,
-          biggestFishCm: true,
+          biggestFishGrams: true,
           createdAt: true,
         },
       },
@@ -2194,8 +2194,8 @@ export async function getSeasonFiveHomeState({
         xPercent: location.xPercent,
         yPercent: location.yPercent,
         travelMinutes: location.travelMinutes,
-        minFishCm: location.minFishCm,
-        maxFishCm: location.maxFishCm,
+        minWeightGrams: location.minWeightGrams,
+        maxWeightGrams: location.maxWeightGrams,
         catchDifficulty: location.catchDifficulty,
         locked: character ? !access.allowed : false,
         lockReason: character ? access.reason : null,
@@ -2241,7 +2241,7 @@ export async function getSeasonFiveHomeState({
           experience: character.experience,
           skillPoints: character.skillPoints,
           totalFishCaught: character.totalFishCaught,
-          biggestFishCm: character.biggestFishCm,
+          biggestFishGrams: character.biggestFishGrams,
           action: getSeasonFiveActionSummary({
             actionKind: character.actionKind,
             currentLocation: character.currentLocation,
@@ -2287,7 +2287,7 @@ export async function getSeasonFiveHomeState({
             slots: item.slots,
             speciesName: item.fishCatch.speciesName,
             rarity: item.fishCatch.rarity,
-            sizeCm: item.fishCatch.sizeCm,
+            weightGrams: item.fishCatch.weightGrams,
             caughtAt: item.fishCatch.caughtAt,
           })),
         }
@@ -2395,8 +2395,8 @@ export function getDegradedSeasonFiveHomeState(): SeasonFiveHomeState {
       xPercent: location.xPercent,
       yPercent: location.yPercent,
       travelMinutes: location.travelMinutes,
-      minFishCm: location.minFishCm,
-      maxFishCm: location.maxFishCm,
+      minWeightGrams: location.minWeightGrams,
+      maxWeightGrams: location.maxWeightGrams,
       catchDifficulty: location.catchDifficulty,
       locked: false,
       lockReason: null,
@@ -2633,8 +2633,8 @@ export async function processSeasonFiveTick({
       createCatch: (tickAt) =>
         createSeasonFiveCatch({
           seed: `${character.id}:${location.key}:${tickAt.toISOString()}`,
-          minFishCm: location.minFishCm,
-          maxFishCm: location.maxFishCm,
+          minWeightGrams: location.minWeightGrams,
+          maxWeightGrams: location.maxWeightGrams,
           difficulty: location.catchDifficulty,
           sizeBonusPercent: effects.sizeBonusPercent,
           rarityBonus: effects.rarityBonus,
@@ -2659,7 +2659,7 @@ export async function processSeasonFiveTick({
     }
 
     await db.$transaction(async (tx) => {
-      let biggest = character.biggestFishCm;
+      let biggest = character.biggestFishGrams;
       for (const plannedCatch of plan.catches) {
         const fish = plannedCatch.fish;
         const created = await tx.seasonFiveFishCatch.create({
@@ -2678,7 +2678,7 @@ export async function processSeasonFiveTick({
             slots: fish.inventorySlots,
           },
         });
-        biggest = Math.max(biggest, fish.sizeCm);
+        biggest = Math.max(biggest, fish.weightGrams);
       }
 
       const experienceGain = plan.catches.length * 5;
@@ -2712,7 +2712,7 @@ export async function processSeasonFiveTick({
           },
           level: progression.level,
           skillPoints: progression.skillPoints,
-          biggestFishCm: biggest,
+          biggestFishGrams: biggest,
           lastResolvedAt: plan.nextResolvedAt,
         },
       });

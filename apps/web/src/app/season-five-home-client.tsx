@@ -22,6 +22,7 @@ import type {
   SeasonFiveHomeState,
   SeasonFiveStatKey,
 } from "@/lib/game/season-five";
+import { formatSeasonFiveFishWeight } from "@/lib/game/season-five-fishing";
 import {
   HEX_RADIUS,
   HEX_TILES,
@@ -95,7 +96,7 @@ export function getSeasonFiveBuildEffectChips(
       ? { label: "Rarity", value: signedNumber(effects.rarityBonus) }
       : null,
     effects.sizeBonusPercent
-      ? { label: "Trophy size", value: `${signedNumber(effects.sizeBonusPercent)}%` }
+      ? { label: "Trophy weight", value: `${signedNumber(effects.sizeBonusPercent)}%` }
       : null,
     effects.inventoryBonus
       ? { label: "Pack", value: signedNumber(effects.inventoryBonus) }
@@ -1248,7 +1249,8 @@ function WorldMap({
           </div>
           <p>
             {selectedLocation.travelMinutes}m travel |{" "}
-            {selectedLocation.minFishCm}-{selectedLocation.maxFishCm} cm fish
+            {formatSeasonFiveFishWeight(selectedLocation.minWeightGrams)}-
+            {formatSeasonFiveFishWeight(selectedLocation.maxWeightGrams)} fish
           </p>
           <p>
             Difficulty {selectedLocation.catchDifficulty} | Tile{" "}
@@ -1322,7 +1324,8 @@ function InventoryPreview({
             <div key={item.id}>
               <strong>{item.speciesName}</strong>
               <span className={styles.inventoryMeta}>
-                {item.rarity} | {item.sizeCm} cm | {item.slots} slot
+                {item.rarity} | {formatSeasonFiveFishWeight(item.weightGrams)} |{" "}
+                {item.slots} slot
                 {item.slots === 1 ? "" : "s"}
               </span>
             </div>
@@ -1368,7 +1371,7 @@ function LeaguePanel({
         <Leaderboard
           title="Biggest Fish"
           rows={state.leaderboards.biggestFish}
-          value={(row) => `${row.biggestFishCm} cm`}
+          value={(row) => formatSeasonFiveFishWeight(row.biggestFishGrams)}
         />
       </div>
     </MapOverlay>

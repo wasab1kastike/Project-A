@@ -19,12 +19,13 @@ When the preview flag is enabled, `/` renders the Season 5 fishing interface ins
 - Players create one Season 5 character per cycle.
 - Classes: Drunken Monk, Retired Warrior, Demented Wizard, Burnt-Out Rogue.
 - Players start at Home Base, pick gear, unlock class passives, and travel to lake or sea locations.
-- Each class has three passive skill paths with formula effects for catch speed, rarity, trophy size, inventory, pressure, and travel.
-- Class passive trees are hard specializations: Drunken Monk owns long-session rhythm tempo, Retired Warrior owns trophy size and raw pack capacity, Demented Wizard owns rarity and deep-water weirdness, and Burnt-Out Rogue owns travel speed and quiet pack pressure.
+- Each class has three passive skill paths with formula effects for catch speed, rarity, trophy weight, inventory, pressure, and travel.
+- Class passive trees are hard specializations: Drunken Monk owns long-session rhythm tempo, Retired Warrior owns trophy weight and raw pack capacity, Demented Wizard owns rarity and deep-water weirdness, and Burnt-Out Rogue owns travel speed and quiet pack pressure.
 - Drunken Monk has a rhythm identity: bought Flow and Stillness passives improve long passive fishing sessions at the same location.
 - Characters start with two skill points. Passive fishing grants XP; every 50 XP raises the character level, up to level 11, and grants one more skill point.
 - Travel takes time. On arrival, the character fishes passively until a new action is submitted.
 - Inventory capacity limits fishing output. Returning home unloads the current haul.
+- Fish weight is shown to players in kilograms and stored internally as grams for sorting.
 - Any water or coast tile can be chosen as a fishing destination. Old named spots still exist, but the map is no longer limited to only those pins.
 - Connected water bodies have hidden fish pools with stock and hourly regeneration. Passive catches consume stock; depleted pools recover over time.
 - Pool details can be revealed temporarily by character stats, gear, and passives. Reveals show water-body name, profile, stock state, regen, and notable fish.

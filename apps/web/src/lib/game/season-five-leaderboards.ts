@@ -8,7 +8,7 @@ export type SeasonFiveMostFishCandidate = {
   name: string;
   class: SeasonFiveCharacterClass;
   totalFishCaught: number;
-  biggestFishCm: number;
+  biggestFishGrams: number;
   createdAt?: Date;
 };
 
@@ -16,7 +16,7 @@ export type SeasonFiveBiggestCatchCandidate = {
   id: string;
   speciesName: string;
   rarity: SeasonFiveFishRarity;
-  sizeCm: number;
+  weightGrams: number;
   caughtAt: Date;
   character: SeasonFiveMostFishCandidate;
   location?: {
@@ -33,8 +33,8 @@ export function rankSeasonFiveMostFish(
       const fishDelta = right.totalFishCaught - left.totalFishCaught;
       if (fishDelta !== 0) return fishDelta;
 
-      const sizeDelta = right.biggestFishCm - left.biggestFishCm;
-      if (sizeDelta !== 0) return sizeDelta;
+      const weightDelta = right.biggestFishGrams - left.biggestFishGrams;
+      if (weightDelta !== 0) return weightDelta;
 
       const joinedDelta =
         (left.createdAt?.getTime() ?? 0) - (right.createdAt?.getTime() ?? 0);
@@ -53,8 +53,8 @@ export function rankSeasonFiveBiggestFish(
   limit = 10
 ) {
   const rankedCatches = catches.toSorted((left, right) => {
-    const sizeDelta = right.sizeCm - left.sizeCm;
-    if (sizeDelta !== 0) return sizeDelta;
+    const weightDelta = right.weightGrams - left.weightGrams;
+    if (weightDelta !== 0) return weightDelta;
 
     const caughtDelta = left.caughtAt.getTime() - right.caughtAt.getTime();
     if (caughtDelta !== 0) return caughtDelta;
@@ -89,7 +89,7 @@ export function rankSeasonFiveBiggestFish(
     name: fishCatch.character.name,
     class: fishCatch.character.class,
     totalFishCaught: fishCatch.character.totalFishCaught,
-    biggestFishCm: fishCatch.sizeCm,
+    biggestFishGrams: fishCatch.weightGrams,
     catchId: fishCatch.id,
     speciesName: fishCatch.speciesName,
     rarity: fishCatch.rarity,

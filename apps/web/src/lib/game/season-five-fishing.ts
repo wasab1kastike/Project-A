@@ -5,9 +5,18 @@ export type SeasonFivePlannedCatch = {
   speciesKey: string;
   speciesName: string;
   rarity: SeasonFiveFishRarity;
-  sizeCm: number;
+  weightGrams: number;
   inventorySlots: number;
 };
+
+export function formatSeasonFiveFishWeight(weightGrams: number) {
+  const grams = Math.max(0, Math.round(weightGrams));
+  const kilograms = grams / 1000;
+
+  if (grams === 0) return "0 kg";
+  if (kilograms < 20) return `${kilograms.toFixed(1)} kg`;
+  return `${Math.round(kilograms)} kg`;
+}
 
 export function getSeasonFiveInventoryPressure(input: {
   inventoryUsed: number;

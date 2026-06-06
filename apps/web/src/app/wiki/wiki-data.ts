@@ -255,6 +255,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
     highlights: [
       "Any water or coast tile can be selected as a fishing destination.",
       "Connected water-body pools have hidden stock and hourly regeneration.",
+      "Fish catches are measured in kilograms instead of centimeters.",
       "Deep water and lava lakes require higher level plus gear or matching passives.",
     ],
     sections: [
@@ -279,6 +280,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         bullets: [
           "Temporary reveals can show the pool name, profile, stock state, regen, and notable fish.",
           "Luk, Magik, discovery gear, and map-reading passives improve reveal chances.",
+          "Fish weights are stored internally as grams and displayed as kilograms.",
           "Deep and lava pools use rarer fish profiles and heavier inventory pressure.",
         ],
       },
@@ -287,7 +289,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         eyebrow: "Builds",
         title: "Levels, gear, and passives",
         body:
-          "Fishing grants XP and skill points. Build choices can improve catch speed, rarity, trophy size, inventory, travel, discovery, or access to risky waters.",
+          "Fishing grants XP and skill points. Build choices can improve catch speed, rarity, trophy weight, inventory, travel, discovery, or access to risky waters.",
       },
     ],
   },

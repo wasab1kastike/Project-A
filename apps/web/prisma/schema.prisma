@@ -471,7 +471,7 @@ model SeasonFiveCharacter {
   experience            Int                            @default(0)
   skillPoints           Int                            @default(0)
   totalFishCaught       Int                            @default(0)
-  biggestFishCm         Int                            @default(0)
+  biggestFishGrams      Int                            @default(0)
   inventoryCapacity     Int                            @default(12)
   actionKind            SeasonFiveActionKind           @default(AT_HOME)
   currentLocationId     String?
@@ -495,7 +495,7 @@ model SeasonFiveCharacter {
   @@unique([cycleId, userId])
   @@index([userId])
   @@index([cycleId, totalFishCaught])
-  @@index([cycleId, biggestFishCm])
+  @@index([cycleId, biggestFishGrams])
   @@index([actionKind, actionCompletesAt])
 }
 
@@ -509,8 +509,8 @@ model SeasonFiveFishingLocation {
   yPercent              Float
   travelMinutes         Int
   catchDifficulty       Int                         @default(1)
-  minFishCm             Int
-  maxFishCm             Int
+  minWeightGrams        Int
+  maxWeightGrams        Int
   inventoryPressure     Int                         @default(1)
   tileId                String?
   waterBodyId           String?
@@ -543,8 +543,8 @@ model SeasonFiveFishingWaterBody {
   requiredGearKey   String?
   hidden            Boolean                        @default(false)
   catchDifficulty   Int                            @default(1)
-  minFishCm         Int
-  maxFishCm         Int
+  minWeightGrams    Int
+  maxWeightGrams    Int
   inventoryPressure Int                            @default(1)
   createdAt         DateTime                       @default(now())
   updatedAt         DateTime                       @updatedAt
@@ -612,7 +612,7 @@ model SeasonFiveFishCatch {
   speciesKey     String
   speciesName    String
   rarity         SeasonFiveFishRarity
-  sizeCm         Int
+  weightGrams    Int
   inventorySlots Int                       @default(1)
   caughtAt       DateTime                  @default(now())
   unloadedAt     DateTime?
@@ -622,7 +622,7 @@ model SeasonFiveFishCatch {
   inventoryItem  SeasonFiveInventoryItem?
 
   @@index([cycleId, caughtAt])
-  @@index([cycleId, sizeCm])
+  @@index([cycleId, weightGrams])
   @@index([characterId, unloadedAt])
 }
 

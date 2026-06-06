@@ -48,8 +48,8 @@ export type SeasonFiveWaterBodyProfile = {
   levelRequired: number;
   requiredGearKey: string | null;
   catchDifficulty: number;
-  minFishCm: number;
-  maxFishCm: number;
+  minWeightGrams: number;
+  maxWeightGrams: number;
   inventoryPressure: number;
   stockLabels: {
     rich: string;
@@ -77,8 +77,8 @@ export type SeasonFiveFishingLocationPlan = {
   waterBodyKey: string;
   travelMinutes: number;
   catchDifficulty: number;
-  minFishCm: number;
-  maxFishCm: number;
+  minWeightGrams: number;
+  maxWeightGrams: number;
   inventoryPressure: number;
 };
 
@@ -141,8 +141,8 @@ export const SEASON_FIVE_WATER_BODY_PROFILES = {
     levelRequired: 1,
     requiredGearKey: null,
     catchDifficulty: 1,
-    minFishCm: 8,
-    maxFishCm: 95,
+    minWeightGrams: 200,
+    maxWeightGrams: 4500,
     inventoryPressure: 1,
     stockLabels: {
       rich: "Surf is crowded",
@@ -162,8 +162,8 @@ export const SEASON_FIVE_WATER_BODY_PROFILES = {
     levelRequired: 1,
     requiredGearKey: null,
     catchDifficulty: 2,
-    minFishCm: 12,
-    maxFishCm: 145,
+    minWeightGrams: 300,
+    maxWeightGrams: 12000,
     inventoryPressure: 1,
     stockLabels: {
       rich: "Lake is lively",
@@ -183,8 +183,8 @@ export const SEASON_FIVE_WATER_BODY_PROFILES = {
     levelRequired: 5,
     requiredGearKey: "glowing-worms",
     catchDifficulty: 4,
-    minFishCm: 45,
-    maxFishCm: 320,
+    minWeightGrams: 2500,
+    maxWeightGrams: 55000,
     inventoryPressure: 2,
     stockLabels: {
       rich: "Depths are stirring",
@@ -204,8 +204,8 @@ export const SEASON_FIVE_WATER_BODY_PROFILES = {
     levelRequired: 8,
     requiredGearKey: "glowing-worms",
     catchDifficulty: 5,
-    minFishCm: 60,
-    maxFishCm: 420,
+    minWeightGrams: 5000,
+    maxWeightGrams: 85000,
     inventoryPressure: 3,
     stockLabels: {
       rich: "Lava is boiling",
@@ -537,8 +537,8 @@ export function planSeasonFiveFishingLocations({
         waterBodyKey: body.key,
         travelMinutes: travel,
         catchDifficulty: body.profile.catchDifficulty,
-        minFishCm: body.profile.minFishCm,
-        maxFishCm: body.profile.maxFishCm,
+        minWeightGrams: body.profile.minWeightGrams,
+        maxWeightGrams: body.profile.maxWeightGrams,
         inventoryPressure: body.profile.inventoryPressure,
       });
     }
