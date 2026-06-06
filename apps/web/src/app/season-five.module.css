@@ -1,23 +1,25 @@
 .shell {
-  min-height: 100vh;
-  padding: 20px;
+  position: relative;
+  height: 100vh;
+  min-height: 680px;
+  overflow: hidden;
   color: #f6edda;
   background:
-    radial-gradient(
-      circle at 24% 12%,
-      rgba(151, 101, 42, 0.34),
-      transparent 30%
-    ),
-    linear-gradient(145deg, #17231e 0%, #24362d 43%, #10212b 100%);
+    linear-gradient(180deg, rgba(2, 8, 10, 0.12), rgba(2, 8, 10, 0.46)),
+    #071018;
 }
 
 .topbar {
+  position: absolute;
+  z-index: 20;
+  top: 16px;
+  left: 18px;
+  right: 18px;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
-  max-width: 1580px;
-  margin: 0 auto 16px;
+  pointer-events: none;
 }
 
 .topbar h1,
@@ -31,15 +33,29 @@
 
 .topbar h1 {
   color: #fff8e7;
-  font-size: 40px;
+  font-size: clamp(26px, 3vw, 38px);
+  text-shadow: 0 3px 18px rgba(0, 0, 0, 0.52);
 }
 
 .topbarMeta {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 14px;
+  max-width: min(760px, 58vw);
+  padding: 9px 10px;
+  border: 1px solid rgba(255, 239, 203, 0.14);
+  border-radius: 8px;
+  background: rgba(14, 23, 24, 0.78);
   color: #d6c8a7;
   font-size: 14px;
+  box-shadow: 0 12px 32px rgba(2, 10, 12, 0.28);
+  pointer-events: auto;
+}
+
+.topbar > div:first-child {
+  pointer-events: auto;
 }
 
 .kicker {
@@ -57,14 +73,28 @@
 .sidePanel {
   border: 1px solid rgba(255, 239, 203, 0.16);
   border-radius: 8px;
-  background: rgba(20, 31, 27, 0.86);
+  background: rgba(20, 31, 27, 0.9);
   box-shadow: 0 18px 42px rgba(2, 10, 12, 0.34);
+  backdrop-filter: blur(12px);
 }
 
-.noticeBand,
+.noticeBand {
+  position: absolute;
+  z-index: 15;
+  left: 20px;
+  bottom: 92px;
+  width: min(420px, calc(100% - 40px));
+  padding: 18px;
+}
+
 .setup {
-  max-width: 1580px;
-  margin: 0 auto 16px;
+  position: absolute;
+  z-index: 16;
+  left: 20px;
+  right: 20px;
+  bottom: 92px;
+  max-height: min(640px, calc(100vh - 180px));
+  overflow: auto;
   padding: 18px;
 }
 
@@ -98,7 +128,7 @@
 
 .classChoice {
   display: flex;
-  min-height: 360px;
+  min-height: 318px;
   flex-direction: column;
   gap: 12px;
   padding: 14px;
@@ -177,23 +207,21 @@
 }
 
 .playfield {
-  display: grid;
-  grid-template-columns: minmax(260px, 320px) minmax(520px, 1fr) minmax(
-      280px,
-      360px
-    );
-  gap: 14px;
-  max-width: 1580px;
-  margin: 0 auto;
-  align-items: start;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
 }
 
 .worldPanel {
-  position: relative;
-  min-height: 690px;
+  --map-inset-x: 18px;
+  --map-inset-top: 86px;
+  --map-inset-bottom: 82px;
+  position: absolute;
+  inset: 0;
+  min-height: 0;
   overflow: hidden;
-  border: 1px solid rgba(255, 239, 203, 0.18);
-  border-radius: 8px;
+  border: 0;
+  border-radius: 0;
   background:
     linear-gradient(180deg, rgba(255, 248, 231, 0.04), transparent 17%),
     radial-gradient(circle at 50% 54%, rgba(83, 122, 92, 0.34), transparent 58%),
@@ -209,7 +237,10 @@
 
 .mapFrame {
   position: absolute;
-  inset: 14px;
+  left: var(--map-inset-x);
+  right: var(--map-inset-x);
+  top: var(--map-inset-top);
+  bottom: var(--map-inset-bottom);
   border: 2px solid rgba(255, 248, 231, 0.24);
   border-radius: 10px;
   pointer-events: none;
@@ -245,7 +276,10 @@
 
 .tileMap {
   position: absolute;
-  inset: 14px;
+  left: var(--map-inset-x);
+  right: var(--map-inset-x);
+  top: var(--map-inset-top);
+  bottom: var(--map-inset-bottom);
   border-radius: 10px;
 }
 
@@ -507,7 +541,10 @@
 
 .routeLayer {
   position: absolute;
-  inset: 14px;
+  left: var(--map-inset-x);
+  right: var(--map-inset-x);
+  top: var(--map-inset-top);
+  bottom: var(--map-inset-bottom);
   z-index: 5;
   overflow: visible;
   pointer-events: none;
@@ -537,8 +574,13 @@
 
 .characterMapMarker {
   position: absolute;
-  left: calc(14px + (100% - 28px) * var(--x) / 100);
-  top: calc(14px + (100% - 28px) * var(--y) / 100);
+  left: calc(
+    var(--map-inset-x) + (100% - (var(--map-inset-x) * 2)) * var(--x) / 100
+  );
+  top: calc(
+    var(--map-inset-top) +
+      (100% - var(--map-inset-top) - var(--map-inset-bottom)) * var(--y) / 100
+  );
   z-index: 8;
   display: grid;
   width: 42px;
@@ -556,7 +598,7 @@
 .routePreview {
   position: absolute;
   right: 26px;
-  bottom: 26px;
+  bottom: 96px;
   z-index: 9;
   width: min(300px, calc(100% - 52px));
   padding: 14px;
@@ -787,12 +829,85 @@
 
 .commandCard,
 .sidePanel {
+  position: absolute;
+  z-index: 16;
+  top: 96px;
+  width: min(360px, calc(100% - 40px));
+  max-height: calc(100vh - 188px);
+  overflow: auto;
   padding: 16px;
+}
+
+.commandCard {
+  left: 20px;
+}
+
+.sidePanel {
+  right: 20px;
 }
 
 .rightRail {
   display: grid;
   gap: 14px;
+}
+
+.mapHud {
+  position: absolute;
+  z-index: 17;
+  left: 50%;
+  bottom: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  width: min(720px, calc(100% - 40px));
+  transform: translateX(-50%);
+  pointer-events: auto;
+}
+
+.hudButton,
+.closePanelButton {
+  border: 1px solid rgba(255, 239, 203, 0.18);
+  border-radius: 6px;
+  background: rgba(14, 23, 24, 0.82);
+  color: #f6edda;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 10px 22px rgba(2, 10, 12, 0.28);
+}
+
+.hudButton {
+  min-height: 42px;
+  padding: 0 14px;
+}
+
+.hudButton:hover,
+.hudButton:focus-visible,
+.hudButton[aria-pressed="true"] {
+  border-color: rgba(216, 167, 94, 0.72);
+  background: rgba(79, 62, 37, 0.92);
+  color: #fff8e7;
+  outline: none;
+}
+
+.closePanelButton {
+  display: grid;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  padding: 0;
+  color: #f5d38e;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.closePanelButton:hover,
+.closePanelButton:focus-visible {
+  border-color: rgba(245, 211, 142, 0.72);
+  background: rgba(255, 248, 231, 0.12);
+  outline: none;
 }
 
 .badge,
@@ -1151,15 +1266,6 @@
 }
 
 @media (max-width: 1260px) {
-  .playfield {
-    grid-template-columns: minmax(260px, 330px) minmax(520px, 1fr);
-  }
-
-  .rightRail {
-    grid-column: 1 / -1;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .classGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1167,29 +1273,67 @@
 
 @media (max-width: 900px) {
   .shell {
-    padding: 14px;
+    min-height: 100dvh;
+    height: 100dvh;
   }
 
-  .topbar,
-  .topbarMeta,
-  .playfield,
-  .managementGrid,
-  .rightRail {
-    grid-template-columns: 1fr;
-  }
-
-  .topbar,
-  .topbarMeta {
+  .topbar {
+    top: 12px;
+    left: 12px;
+    right: 12px;
     flex-direction: column;
     align-items: stretch;
+    gap: 8px;
   }
 
   .topbar h1 {
-    font-size: 32px;
+    font-size: 28px;
+  }
+
+  .topbarMeta {
+    max-width: none;
+    justify-content: flex-start;
   }
 
   .worldPanel {
-    min-height: 560px;
+    --map-inset-x: 12px;
+    --map-inset-top: 124px;
+    --map-inset-bottom: 92px;
+  }
+
+  .commandCard,
+  .sidePanel,
+  .setup,
+  .noticeBand {
+    left: 12px;
+    right: 12px;
+    width: auto;
+  }
+
+  .commandCard,
+  .sidePanel {
+    top: auto;
+    bottom: 82px;
+    max-height: min(62dvh, 560px);
+  }
+
+  .setup {
+    bottom: 82px;
+    max-height: min(70dvh, 640px);
+  }
+
+  .noticeBand {
+    bottom: 82px;
+  }
+
+  .mapHud {
+    bottom: 12px;
+    width: calc(100% - 24px);
+  }
+
+  .hudButton {
+    flex: 1 1 120px;
+    padding: 0 10px;
   }
 
   .mapNode button {
@@ -1207,6 +1351,12 @@
   .skillTree {
     grid-template-columns: 1fr;
   }
+
+  .routePreview {
+    right: 12px;
+    bottom: 82px;
+    width: calc(100% - 24px);
+  }
 }
 
 @media (max-width: 620px) {
@@ -1215,8 +1365,21 @@
     grid-template-columns: 1fr;
   }
 
+  .topbar h1 {
+    font-size: 24px;
+  }
+
+  .topbarMeta {
+    gap: 8px;
+    font-size: 12px;
+  }
+
   .worldPanel {
-    min-height: 500px;
+    --map-inset-top: 132px;
+  }
+
+  .classChoice {
+    min-height: 0;
   }
 
   .mapNode {

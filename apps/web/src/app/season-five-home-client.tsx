@@ -80,6 +80,8 @@ function getTileMapPosition(tile: {
   };
 }
 
+type OpenPanel = "character" | "inventory" | "rankings" | "classes";
+
 async function fetchSeasonFiveState(reason?: string) {
   const searchParams = new URLSearchParams();
   if (reason) {
@@ -222,7 +224,28 @@ export function StatBars({
   );
 }
 
-function ClassSelection({ state }: { state: SeasonFiveHomeState }) {
+function ClosePanelButton({ onClose }: { onClose?: () => void }) {
+  if (!onClose) return null;
+
+  return (
+    <button
+      type="button"
+      className={styles.closePanelButton}
+      onClick={onClose}
+      aria-label="Close panel"
+    >
+      ×
+    </button>
+  );
+}
+
+function ClassSelection({
+  state,
+  onClose,
+}: {
+  state: SeasonFiveHomeState;
+  onClose?: () => void;
+}) {
   return (
     <section className={styles.setup}>
       <div className={styles.sectionHeader}>
@@ -230,6 +253,7 @@ function ClassSelection({ state }: { state: SeasonFiveHomeState }) {
           <p className={styles.kicker}>Character</p>
           <h2>Choose your washed-up hero</h2>
         </div>
+        <ClosePanelButton onClose={onClose} />
       </div>
       <div className={styles.classGrid}>
         {state.classes.map((characterClass) => (
@@ -258,7 +282,13 @@ function ClassSelection({ state }: { state: SeasonFiveHomeState }) {
   );
 }
 
-function CharacterCommandCard({ state }: { state: SeasonFiveHomeState }) {
+function CharacterCommandCard({
+  state,
+  onClose,
+}: {
+  state: SeasonFiveHomeState;
+  onClose?: () => void;
+}) {
   const character = state.character;
   if (!character) return null;
 
@@ -277,6 +307,7 @@ function CharacterCommandCard({ state }: { state: SeasonFiveHomeState }) {
           />
           {character.classLabel}
         </span>
+        <ClosePanelButton onClose={onClose} />
       </div>
 
       <div className={styles.commandStatus}>
@@ -597,7 +628,13 @@ function WorldMap({ state }: { state: SeasonFiveHomeState }) {
   );
 }
 
-function InventoryPreview({ state }: { state: SeasonFiveHomeState }) {
+function InventoryPreview({
+  state,
+  onClose,
+}: {
+  state: SeasonFiveHomeState;
+  onClose?: () => void;
+}) {
   const character = state.character;
   if (!character) return null;
   const latest = character.inventory.slice(-4).reverse();
@@ -614,6 +651,7 @@ function InventoryPreview({ state }: { state: SeasonFiveHomeState }) {
             {character.inventoryPressureLabel}
           </span>
         ) : null}
+        <ClosePanelButton onClose={onClose} />
       </div>
       <InventoryPressureMeter character={character} />
       <div className={styles.inventoryList}>
@@ -640,6 +678,38 @@ function InventoryPreview({ state }: { state: SeasonFiveHomeState }) {
         <Link className={styles.linkButton} href="/character?tab=inventory">
           Open inventory
         </Link>
+      </div>
+    </section>
+  );
+}
+
+function LeaguePanel({
+  state,
+  onClose,
+}: {
+  state: SeasonFiveHomeState;
+  onClose?: () => void;
+}) {
+  return (
+    <section className={styles.sidePanel}>
+      <div className={styles.sectionHeader}>
+        <div>
+          <p className={styles.kicker}>League</p>
+          <h2>Rankings</h2>
+        </div>
+        <ClosePanelButton onClose={onClose} />
+      </div>
+      <div className={styles.leaderboardColumns}>
+        <Leaderboard
+          title="Most Fish"
+          rows={state.leaderboards.mostFish}
+          value={(row) => `${row.totalFishCaught} fish`}
+        />
+        <Leaderboard
+          title="Biggest Fish"
+          rows={state.leaderboards.biggestFish}
+          value={(row) => `${row.biggestFishCm} cm`}
+        />
       </div>
     </section>
   );
@@ -709,6 +779,10 @@ export function SeasonFiveHomeClient({
   const [liveState, setLiveState] = useState(state);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [openPanel, setOpenPanel] = useState<OpenPanel | null>(() => {
+    if (!session) return null;
+    return state.character ? "character" : "classes";
+  });
   const refreshPromiseRef = useRef<Promise<void> | null>(null);
   const character = liveState.character;
   const activeUntil = liveState.cycle.activeEndsAt
@@ -745,6 +819,23 @@ export function SeasonFiveHomeClient({
     setLiveState(state);
   }, [state]);
 
+  useEffect(() => {
+    setOpenPanel((currentPanel) => {
+      if (!session) return null;
+      if (!liveState.character && currentPanel === "character") {
+        return "classes";
+      }
+      if (liveState.character && currentPanel === "classes") {
+        return "character";
+      }
+      return currentPanel;
+    });
+  }, [session, liveState.character]);
+
+  const closePanel = useCallback(() => {
+    setOpenPanel(null);
+  }, []);
+
   return (
     <main className={styles.shell}>
       <SeasonFiveRealtimeBridge
@@ -774,42 +865,89 @@ export function SeasonFiveHomeClient({
         </div>
       </header>
 
-      {!session ? (
-        <section className={styles.noticeBand}>
-          <h2>Sign in to join the open test.</h2>
-          <p>Everyone can watch the waters. Signed-in players can fish.</p>
-        </section>
-      ) : null}
-
-      {!character && session ? <ClassSelection state={liveState} /> : null}
-
       <div className={styles.playfield}>
-        {character ? <CharacterCommandCard state={liveState} /> : null}
         <WorldMap state={liveState} />
+
+        <nav className={styles.mapHud} aria-label="Map panels">
+          {character ? (
+            <>
+              <button
+                type="button"
+                className={styles.hudButton}
+                aria-pressed={openPanel === "character"}
+                onClick={() =>
+                  setOpenPanel((panel) =>
+                    panel === "character" ? null : "character"
+                  )
+                }
+              >
+                Character
+              </button>
+              <button
+                type="button"
+                className={styles.hudButton}
+                aria-pressed={openPanel === "inventory"}
+                onClick={() =>
+                  setOpenPanel((panel) =>
+                    panel === "inventory" ? null : "inventory"
+                  )
+                }
+              >
+                Inventory
+              </button>
+            </>
+          ) : session ? (
+            <button
+              type="button"
+              className={styles.hudButton}
+              aria-pressed={openPanel === "classes"}
+              onClick={() =>
+                setOpenPanel((panel) =>
+                  panel === "classes" ? null : "classes"
+                )
+              }
+            >
+              Classes
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className={styles.hudButton}
+            aria-pressed={openPanel === "rankings"}
+            onClick={() =>
+              setOpenPanel((panel) =>
+                panel === "rankings" ? null : "rankings"
+              )
+            }
+          >
+            League
+          </button>
+        </nav>
+
+        {!session ? (
+          <section className={styles.noticeBand}>
+            <h2>Sign in to join the open test.</h2>
+            <p>Everyone can watch the waters. Signed-in players can fish.</p>
+          </section>
+        ) : null}
+
+        {!character && session && openPanel === "classes" ? (
+          <ClassSelection state={liveState} onClose={closePanel} />
+        ) : null}
+
         {character ? (
-          <div className={styles.rightRail}>
-            <InventoryPreview state={liveState} />
-            <section className={styles.sidePanel}>
-              <div className={styles.sectionHeader}>
-                <div>
-                  <p className={styles.kicker}>League</p>
-                  <h2>Rankings</h2>
-                </div>
-              </div>
-              <div className={styles.leaderboardColumns}>
-                <Leaderboard
-                  title="Most Fish"
-                  rows={liveState.leaderboards.mostFish}
-                  value={(row) => `${row.totalFishCaught} fish`}
-                />
-                <Leaderboard
-                  title="Biggest Fish"
-                  rows={liveState.leaderboards.biggestFish}
-                  value={(row) => `${row.biggestFishCm} cm`}
-                />
-              </div>
-            </section>
-          </div>
+          <>
+            {openPanel === "character" ? (
+              <CharacterCommandCard state={liveState} onClose={closePanel} />
+            ) : null}
+            {openPanel === "inventory" ? (
+              <InventoryPreview state={liveState} onClose={closePanel} />
+            ) : null}
+          </>
+        ) : null}
+
+        {openPanel === "rankings" ? (
+          <LeaguePanel state={liveState} onClose={closePanel} />
         ) : null}
       </div>
     </main>
