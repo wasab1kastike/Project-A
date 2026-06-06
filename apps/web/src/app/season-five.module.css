@@ -235,12 +235,21 @@
   grid-column: 1 / -1;
 }
 
-.mapFrame {
+.mapBoard {
   position: absolute;
-  left: var(--map-inset-x);
-  right: var(--map-inset-x);
+  left: 50%;
   top: var(--map-inset-top);
   bottom: var(--map-inset-bottom);
+  width: auto;
+  max-width: calc(100% - (var(--map-inset-x) * 2));
+  aspect-ratio: 1.65;
+  margin: auto;
+  transform: translateX(-50%);
+}
+
+.mapFrame {
+  position: absolute;
+  inset: 0;
   border: 2px solid rgba(255, 248, 231, 0.24);
   border-radius: 10px;
   pointer-events: none;
@@ -276,10 +285,7 @@
 
 .tileMap {
   position: absolute;
-  left: var(--map-inset-x);
-  right: var(--map-inset-x);
-  top: var(--map-inset-top);
-  bottom: var(--map-inset-bottom);
+  inset: 0;
   border-radius: 10px;
 }
 
@@ -287,19 +293,19 @@
   position: absolute;
   left: var(--x);
   top: var(--y);
-  width: min(7.35%, 66px);
-  min-width: 36px;
+  width: 7.15%;
   aspect-ratio: 1.02;
   overflow: hidden;
   clip-path: polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0 50%);
   border: 0;
   background: #5f9b4f;
   transform: translate(-50%, -50%);
+  filter: drop-shadow(0 8px 4px rgba(1, 8, 8, 0.36));
   box-shadow:
     0 0 0 1px rgba(8, 18, 20, 0.86),
     0 0 0 3px rgba(255, 248, 231, 0.035),
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    inset 0 -10px 16px rgba(0, 0, 0, 0.2);
+    inset 0 8px 10px rgba(255, 255, 255, 0.14),
+    inset 0 -15px 18px rgba(0, 0, 0, 0.34);
 }
 
 .mapTile::before,
@@ -310,17 +316,21 @@
 }
 
 .mapTile::before {
-  inset: 4px;
+  inset: 5px;
   clip-path: inherit;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent 34%),
+    linear-gradient(0deg, rgba(0, 0, 0, 0.22), transparent 42%);
 }
 
 .mapTile::after {
   inset: 0;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.1), transparent 38%),
-    linear-gradient(315deg, rgba(0, 0, 0, 0.2), transparent 42%);
-  opacity: 0.8;
+    linear-gradient(135deg, rgba(255, 255, 255, 0.16), transparent 32%),
+    linear-gradient(315deg, rgba(0, 0, 0, 0.34), transparent 46%),
+    linear-gradient(180deg, transparent 56%, rgba(0, 0, 0, 0.24));
+  opacity: 0.92;
 }
 
 .tileTexture {
@@ -338,48 +348,119 @@
 }
 
 .terrainGRASS {
-  background: linear-gradient(145deg, #76a94c, #4e8139);
+  background:
+    radial-gradient(circle at 28% 32%, rgba(187, 222, 111, 0.34), transparent 20%),
+    radial-gradient(circle at 64% 66%, rgba(49, 111, 48, 0.42), transparent 28%),
+    linear-gradient(145deg, #7daf50, #4f893d 56%, #356e3b);
+}
+
+.terrainGRASS .tileTexture {
+  opacity: 0.28;
+  background:
+    linear-gradient(112deg, transparent 0 44%, rgba(255, 255, 255, 0.18) 45% 47%, transparent 48%),
+    radial-gradient(circle at 22% 68%, rgba(18, 72, 38, 0.42), transparent 14%),
+    radial-gradient(circle at 76% 28%, rgba(238, 230, 122, 0.32), transparent 12%);
 }
 
 .terrainFOREST {
   background:
-    radial-gradient(circle at 30% 35%, rgba(17, 64, 34, 0.65), transparent 23%),
-    radial-gradient(circle at 66% 55%, rgba(16, 74, 40, 0.72), transparent 26%),
-    linear-gradient(145deg, #3f8a4f, #255f3d);
+    radial-gradient(circle at 30% 35%, rgba(8, 45, 27, 0.78), transparent 23%),
+    radial-gradient(circle at 66% 55%, rgba(11, 68, 36, 0.76), transparent 28%),
+    radial-gradient(circle at 48% 72%, rgba(18, 86, 41, 0.66), transparent 19%),
+    linear-gradient(145deg, #3f8a4f, #255f3d 62%, #183c2d);
+}
+
+.terrainFOREST .tileTexture {
+  opacity: 0.46;
+  background:
+    radial-gradient(circle at 25% 35%, rgba(9, 38, 22, 0.92), transparent 16%),
+    radial-gradient(circle at 48% 25%, rgba(19, 85, 38, 0.86), transparent 14%),
+    radial-gradient(circle at 69% 55%, rgba(10, 45, 28, 0.82), transparent 17%),
+    radial-gradient(circle at 39% 68%, rgba(30, 111, 47, 0.72), transparent 13%);
 }
 
 .terrainWATER {
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0 10%, transparent 10% 22%, rgba(255, 255, 255, 0.08) 22% 30%, transparent 30%),
-    linear-gradient(145deg, #2e8cad, #195f88);
+    linear-gradient(135deg, rgba(255, 255, 255, 0.16) 0 10%, transparent 10% 22%, rgba(255, 255, 255, 0.1) 22% 30%, transparent 30%),
+    radial-gradient(circle at 70% 34%, rgba(95, 209, 220, 0.24), transparent 22%),
+    linear-gradient(145deg, #2e97b5, #17628d 58%, #0f405f);
+}
+
+.terrainWATER .tileTexture {
+  opacity: 0.42;
+  background:
+    repeating-linear-gradient(155deg, rgba(206, 248, 255, 0.22) 0 2px, transparent 2px 9px),
+    radial-gradient(circle at 30% 68%, rgba(2, 40, 65, 0.34), transparent 24%);
 }
 
 .terrainCOAST {
-  background: linear-gradient(145deg, #68a8a0, #3f8c8f 55%, #b1955d);
+  background:
+    linear-gradient(145deg, #68a8a0 0 36%, #3f8c8f 36% 62%, #b1955d 62%),
+    radial-gradient(circle at 75% 68%, rgba(244, 219, 141, 0.28), transparent 20%);
+}
+
+.terrainCOAST .tileTexture {
+  opacity: 0.36;
+  background:
+    repeating-linear-gradient(150deg, rgba(255, 255, 255, 0.18) 0 2px, transparent 2px 10px),
+    radial-gradient(circle at 68% 70%, rgba(81, 54, 25, 0.28), transparent 18%);
 }
 
 .terrainSWAMP {
   background:
     radial-gradient(circle at 65% 28%, rgba(70, 113, 73, 0.78), transparent 19%),
-    linear-gradient(145deg, #667f45, #3f6245);
+    radial-gradient(circle at 28% 66%, rgba(35, 83, 62, 0.68), transparent 22%),
+    linear-gradient(145deg, #6c8144, #3f6245 56%, #2e4f3f);
+}
+
+.terrainSWAMP .tileTexture {
+  opacity: 0.42;
+  background:
+    radial-gradient(ellipse at 38% 48%, rgba(18, 57, 48, 0.72), transparent 22%),
+    radial-gradient(ellipse at 72% 68%, rgba(122, 138, 64, 0.42), transparent 18%),
+    linear-gradient(25deg, transparent 0 46%, rgba(0, 0, 0, 0.18) 47% 49%, transparent 50%);
 }
 
 .terrainHILL {
   background:
-    radial-gradient(ellipse at 42% 38%, rgba(255, 231, 156, 0.18), transparent 36%),
-    linear-gradient(145deg, #9c854f, #6f633f);
+    radial-gradient(ellipse at 42% 38%, rgba(255, 231, 156, 0.24), transparent 34%),
+    radial-gradient(ellipse at 67% 66%, rgba(74, 49, 28, 0.28), transparent 25%),
+    linear-gradient(145deg, #a48b52, #766844 58%, #574a35);
+}
+
+.terrainHILL .tileTexture {
+  opacity: 0.38;
+  background:
+    repeating-linear-gradient(140deg, rgba(62, 43, 27, 0.26) 0 2px, transparent 2px 11px),
+    radial-gradient(ellipse at 46% 46%, rgba(248, 214, 126, 0.22), transparent 26%);
 }
 
 .terrainMOUNTAIN {
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.18) 0 18%, transparent 18%),
-    linear-gradient(145deg, #8b8f85, #5e625e);
+    linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0 18%, transparent 18%),
+    linear-gradient(315deg, rgba(0, 0, 0, 0.28) 0 24%, transparent 24%),
+    linear-gradient(145deg, #96998e, #636861 58%, #4b514f);
+}
+
+.terrainMOUNTAIN .tileTexture {
+  opacity: 0.46;
+  background:
+    linear-gradient(120deg, transparent 0 34%, rgba(255, 255, 255, 0.28) 35% 37%, transparent 38%),
+    linear-gradient(58deg, transparent 0 48%, rgba(28, 31, 30, 0.36) 49% 52%, transparent 53%),
+    radial-gradient(circle at 62% 28%, rgba(235, 235, 218, 0.18), transparent 12%);
 }
 
 .terrainROAD {
   background:
-    linear-gradient(90deg, transparent 0 34%, rgba(70, 42, 20, 0.42) 34% 64%, transparent 64%),
-    linear-gradient(145deg, #c49a5c, #91683a);
+    linear-gradient(90deg, transparent 0 30%, rgba(70, 42, 20, 0.48) 30% 68%, transparent 68%),
+    linear-gradient(145deg, #cfa465, #93683a 62%, #6b4a2d);
+}
+
+.terrainROAD .tileTexture {
+  opacity: 0.44;
+  background:
+    repeating-linear-gradient(90deg, rgba(62, 38, 20, 0.3) 0 4px, transparent 4px 13px),
+    linear-gradient(0deg, transparent 0 42%, rgba(243, 205, 132, 0.18) 43% 46%, transparent 47%);
 }
 
 .homeTile {
@@ -541,10 +622,7 @@
 
 .routeLayer {
   position: absolute;
-  left: var(--map-inset-x);
-  right: var(--map-inset-x);
-  top: var(--map-inset-top);
-  bottom: var(--map-inset-bottom);
+  inset: 0;
   z-index: 5;
   overflow: visible;
   pointer-events: none;
@@ -574,13 +652,8 @@
 
 .characterMapMarker {
   position: absolute;
-  left: calc(
-    var(--map-inset-x) + (100% - (var(--map-inset-x) * 2)) * var(--x) / 100
-  );
-  top: calc(
-    var(--map-inset-top) +
-      (100% - var(--map-inset-top) - var(--map-inset-bottom)) * var(--y) / 100
-  );
+  left: var(--x);
+  top: var(--y);
   z-index: 8;
   display: grid;
   width: 42px;
@@ -1301,6 +1374,14 @@
     --map-inset-bottom: 92px;
   }
 
+  .mapBoard {
+    top: 50%;
+    bottom: auto;
+    width: calc(100% - (var(--map-inset-x) * 2));
+    height: auto;
+    transform: translate(-50%, -50%);
+  }
+
   .commandCard,
   .sidePanel,
   .setup,
@@ -1376,6 +1457,23 @@
 
   .worldPanel {
     --map-inset-top: 132px;
+  }
+
+  .tileRoleBadge {
+    width: 20px;
+    height: 20px;
+    font-size: 10px;
+  }
+
+  .tileActivityMarkers i {
+    width: 14px;
+    height: 14px;
+    font-size: 8px;
+  }
+
+  .characterMapMarker {
+    width: 34px;
+    height: 34px;
   }
 
   .classChoice {

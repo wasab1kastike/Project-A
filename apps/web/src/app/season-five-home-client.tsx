@@ -443,160 +443,164 @@ function WorldMap({ state }: { state: SeasonFiveHomeState }) {
 
   return (
     <section className={styles.worldPanel} aria-label="Season 5 fishing map">
-      <div className={styles.mapFrame} aria-hidden="true" />
-      <div
-        className={styles.tileMap}
-        style={
-          {
-            "--map-columns": state.map.columns,
-            "--map-rows": state.map.rows,
-          } as CSSProperties
-        }
-      >
-        {state.map.tiles.map((tile) => {
-          const tilePosition = getTileMapPosition(tile);
-          const location = locationByTileKey.get(tile.key);
-          const activity = location
-            ? state.locationActivity.find(
-                (entry) => entry.locationKey === location.key
-              )
-            : null;
-          const roleClass =
-            tile.role === "HOME"
-              ? styles.homeTile
-              : tile.role === "FISHING_SPOT"
-                ? styles.fishingTile
-                : tile.role === "SHOP"
-                  ? styles.shopTile
-                  : tile.role === "EVENT"
-                    ? styles.eventTile
-                    : tile.role === "SECRET_LAKE"
-                      ? styles.secretTile
-                      : "";
-          const isSelected = selectedLocation?.tileKey === tile.key;
-          const isCurrent = character?.currentTileKey === tile.key;
-          const isDestination = character?.destinationTileKey === tile.key;
-
-          return (
-            <div
-              key={tile.key}
-              className={`${styles.mapTile} ${styles[`terrain${tile.terrain}`]} ${roleClass} ${
-                isSelected ? styles.selectedTile : ""
-              } ${isCurrent ? styles.currentTile : ""} ${
-                isDestination ? styles.destinationTile : ""
-              } ${tile.locked ? styles.lockedTile : ""}`}
-              data-variant={tile.visualVariant}
-              style={
-                {
-                  "--x": `${tilePosition.x}%`,
-                  "--y": `${tilePosition.y}%`,
-                } as CSSProperties
-              }
-            >
-              <span className={styles.tileTexture} />
-              {tile.role !== "NONE" ? (
-                <span className={styles.tileRoleBadge}>
-                  {tile.role === "HOME"
-                    ? "H"
-                    : tile.role === "FISHING_SPOT"
-                      ? "F"
-                      : tile.role === "SHOP"
-                        ? "$"
-                        : tile.role === "EVENT"
-                          ? "!"
-                          : "?"}
-                </span>
-              ) : null}
-              {location ? (
-                <button
-                  type="button"
-                  className={styles.locationTileButton}
-                  disabled={!character || character.actionKind === "TRAVELING"}
-                  onClick={() => {
-                    if (!character || location.kind === "HOME") return;
-                    setSelectedLocationKey(location.key);
-                  }}
-                  title={location.name}
-                >
-                  <span>{location.name}</span>
-                </button>
-              ) : tile.role !== "NONE" && tile.roleLabel ? (
-                <span className={styles.specialTileLabel}>
-                  {tile.roleLabel}
-                </span>
-              ) : null}
-              {activity && activity.totalCount > 0 ? (
-                <span className={styles.tilePopulation}>
-                  {activity.totalCount}
-                </span>
-              ) : null}
-              {activity && activity.characters.length > 0 ? (
-                <span className={styles.tileActivityMarkers}>
-                  {activity.characters.slice(0, 4).map((actor) => (
-                    <i
-                      key={actor.id}
-                      className={
-                        actor.actionKind === "TRAVELING"
-                          ? styles.travellingDot
-                          : actor.actionKind === "FISHING"
-                            ? styles.fishingDot
-                            : styles.homeDot
-                      }
-                      title={`${actor.name}: ${getActionLabel(
-                        actor.actionKind
-                      )} (${actor.classLabel})`}
-                    >
-                      {actor.classLabel.charAt(0)}
-                    </i>
-                  ))}
-                </span>
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
-      <svg
-        className={styles.routeLayer}
-        viewBox="0 0 100 100"
-        aria-hidden="true"
-      >
-        {previewFromTile && previewToTile ? (
-          <line
-            x1={getTileMapPosition(previewFromTile).x}
-            y1={getTileMapPosition(previewFromTile).y}
-            x2={getTileMapPosition(previewToTile).x}
-            y2={getTileMapPosition(previewToTile).y}
-            className={styles.previewRoute}
-          />
-        ) : null}
-        {activeRouteFromTile && activeRouteToTile ? (
-          <line
-            x1={getTileMapPosition(activeRouteFromTile).x}
-            y1={getTileMapPosition(activeRouteFromTile).y}
-            x2={getTileMapPosition(activeRouteToTile).x}
-            y2={getTileMapPosition(activeRouteToTile).y}
-            className={styles.activeRoute}
-          />
-        ) : null}
-      </svg>
-      {character && characterMapPosition ? (
-        <span
-          className={styles.characterMapMarker}
+      <div className={styles.mapBoard}>
+        <div className={styles.mapFrame} aria-hidden="true" />
+        <div
+          className={styles.tileMap}
           style={
             {
-              "--x": `${characterMapPosition.x}%`,
-              "--y": `${characterMapPosition.y}%`,
+              "--map-columns": state.map.columns,
+              "--map-rows": state.map.rows,
             } as CSSProperties
           }
-          title={`${character.name}: ${getActionLabel(character.actionKind)}`}
         >
-          <ClassPortrait
-            classKey={character.class}
-            label={character.classLabel}
-            compact
-          />
-        </span>
-      ) : null}
+          {state.map.tiles.map((tile) => {
+            const tilePosition = getTileMapPosition(tile);
+            const location = locationByTileKey.get(tile.key);
+            const activity = location
+              ? state.locationActivity.find(
+                  (entry) => entry.locationKey === location.key
+                )
+              : null;
+            const roleClass =
+              tile.role === "HOME"
+                ? styles.homeTile
+                : tile.role === "FISHING_SPOT"
+                  ? styles.fishingTile
+                  : tile.role === "SHOP"
+                    ? styles.shopTile
+                    : tile.role === "EVENT"
+                      ? styles.eventTile
+                      : tile.role === "SECRET_LAKE"
+                        ? styles.secretTile
+                        : "";
+            const isSelected = selectedLocation?.tileKey === tile.key;
+            const isCurrent = character?.currentTileKey === tile.key;
+            const isDestination = character?.destinationTileKey === tile.key;
+
+            return (
+              <div
+                key={tile.key}
+                className={`${styles.mapTile} ${styles[`terrain${tile.terrain}`]} ${roleClass} ${
+                  isSelected ? styles.selectedTile : ""
+                } ${isCurrent ? styles.currentTile : ""} ${
+                  isDestination ? styles.destinationTile : ""
+                } ${tile.locked ? styles.lockedTile : ""}`}
+                data-variant={tile.visualVariant}
+                style={
+                  {
+                    "--x": `${tilePosition.x}%`,
+                    "--y": `${tilePosition.y}%`,
+                  } as CSSProperties
+                }
+              >
+                <span className={styles.tileTexture} />
+                {tile.role !== "NONE" ? (
+                  <span className={styles.tileRoleBadge}>
+                    {tile.role === "HOME"
+                      ? "H"
+                      : tile.role === "FISHING_SPOT"
+                        ? "F"
+                        : tile.role === "SHOP"
+                          ? "$"
+                          : tile.role === "EVENT"
+                            ? "!"
+                            : "?"}
+                  </span>
+                ) : null}
+                {location ? (
+                  <button
+                    type="button"
+                    className={styles.locationTileButton}
+                    disabled={
+                      !character || character.actionKind === "TRAVELING"
+                    }
+                    onClick={() => {
+                      if (!character || location.kind === "HOME") return;
+                      setSelectedLocationKey(location.key);
+                    }}
+                    title={location.name}
+                  >
+                    <span>{location.name}</span>
+                  </button>
+                ) : tile.role !== "NONE" && tile.roleLabel ? (
+                  <span className={styles.specialTileLabel}>
+                    {tile.roleLabel}
+                  </span>
+                ) : null}
+                {activity && activity.totalCount > 0 ? (
+                  <span className={styles.tilePopulation}>
+                    {activity.totalCount}
+                  </span>
+                ) : null}
+                {activity && activity.characters.length > 0 ? (
+                  <span className={styles.tileActivityMarkers}>
+                    {activity.characters.slice(0, 4).map((actor) => (
+                      <i
+                        key={actor.id}
+                        className={
+                          actor.actionKind === "TRAVELING"
+                            ? styles.travellingDot
+                            : actor.actionKind === "FISHING"
+                              ? styles.fishingDot
+                              : styles.homeDot
+                        }
+                        title={`${actor.name}: ${getActionLabel(
+                          actor.actionKind
+                        )} (${actor.classLabel})`}
+                      >
+                        {actor.classLabel.charAt(0)}
+                      </i>
+                    ))}
+                  </span>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+        <svg
+          className={styles.routeLayer}
+          viewBox="0 0 100 100"
+          aria-hidden="true"
+        >
+          {previewFromTile && previewToTile ? (
+            <line
+              x1={getTileMapPosition(previewFromTile).x}
+              y1={getTileMapPosition(previewFromTile).y}
+              x2={getTileMapPosition(previewToTile).x}
+              y2={getTileMapPosition(previewToTile).y}
+              className={styles.previewRoute}
+            />
+          ) : null}
+          {activeRouteFromTile && activeRouteToTile ? (
+            <line
+              x1={getTileMapPosition(activeRouteFromTile).x}
+              y1={getTileMapPosition(activeRouteFromTile).y}
+              x2={getTileMapPosition(activeRouteToTile).x}
+              y2={getTileMapPosition(activeRouteToTile).y}
+              className={styles.activeRoute}
+            />
+          ) : null}
+        </svg>
+        {character && characterMapPosition ? (
+          <span
+            className={styles.characterMapMarker}
+            style={
+              {
+                "--x": `${characterMapPosition.x}%`,
+                "--y": `${characterMapPosition.y}%`,
+              } as CSSProperties
+            }
+            title={`${character.name}: ${getActionLabel(character.actionKind)}`}
+          >
+            <ClassPortrait
+              classKey={character.class}
+              label={character.classLabel}
+              compact
+            />
+          </span>
+        ) : null}
+      </div>
       {selectedLocation && selectedTile ? (
         <aside className={styles.routePreview}>
           <div>
@@ -781,7 +785,7 @@ export function SeasonFiveHomeClient({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [openPanel, setOpenPanel] = useState<OpenPanel | null>(() => {
     if (!session) return null;
-    return state.character ? "character" : "classes";
+    return state.character ? null : "classes";
   });
   const refreshPromiseRef = useRef<Promise<void> | null>(null);
   const character = liveState.character;
@@ -825,8 +829,11 @@ export function SeasonFiveHomeClient({
       if (!liveState.character && currentPanel === "character") {
         return "classes";
       }
+      if (!liveState.character && currentPanel === "inventory") {
+        return "classes";
+      }
       if (liveState.character && currentPanel === "classes") {
-        return "character";
+        return null;
       }
       return currentPanel;
     });
