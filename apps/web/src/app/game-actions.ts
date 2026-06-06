@@ -233,6 +233,7 @@ export async function createSeasonFiveCharacterAction(formData: FormData) {
     await createSeasonFiveCharacter({
       userId,
       characterClass: getString(formData, "characterClass"),
+      characterName: getString(formData, "characterName"),
     });
     notifyAndRevalidate("season-five-character-created");
   } catch (error) {

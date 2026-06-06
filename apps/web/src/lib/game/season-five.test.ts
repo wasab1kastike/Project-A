@@ -43,6 +43,7 @@ import {
   calculateSeasonFiveInventoryCapacity,
   calculateSeasonFiveTravelMinutes,
   createSeasonFiveCatch,
+  createSeasonFiveCharacter,
   ensureSeasonFivePreviewCycle,
   getSeasonFiveBuildEffects,
   getSeasonFiveProgressionAfterExperience,
@@ -61,6 +62,88 @@ test("Season 5 class selection accepts persisted enum values", () => {
     SeasonFiveCharacterClass.DRUNKEN_MONK
   );
   assert.throws(() => normalizeSeasonFiveClass("fisher king"), /valid/);
+});
+
+function createCharacterCreationDb() {
+  const cycle = {
+    id: "s5-cycle",
+    ruleset: CycleRuleset.SEASON_5,
+    resolvedAt: null,
+  };
+  const home = { id: "home-location" };
+  const createdCharacters: unknown[] = [];
+  const mapTiles = createSeasonFiveMapTiles().map((tile) => ({
+    id: `tile-${tile.key}`,
+    ...tile,
+  }));
+
+  return {
+    createdCharacters,
+    db: {
+      cycle: {
+        findFirst: async () => cycle,
+        create: async () => {
+          throw new Error("cycle create should not be called");
+        },
+      },
+      seasonFiveMapTile: {
+        upsert: async (args: unknown) => args,
+        findMany: async () => mapTiles,
+      },
+      seasonFiveFishingLocation: {
+        upsert: async (args: unknown) => args,
+        findUniqueOrThrow: async () => home,
+      },
+      seasonFiveCharacter: {
+        findUnique: async () => null,
+        create: async (args: unknown) => {
+          createdCharacters.push(args);
+          return args;
+        },
+      },
+    },
+  };
+}
+
+test("Season 5 character creation uses submitted character name", async () => {
+  const setup = createCharacterCreationDb();
+
+  await createSeasonFiveCharacter({
+    userId: "user",
+    characterClass: SeasonFiveCharacterClass.DRUNKEN_MONK,
+    characterName: "  Mai the Fisher  ",
+    db: setup.db as never,
+  });
+
+  assert.equal(
+    (
+      setup.createdCharacters[0] as {
+        data: { name: string; currentLocationId: string };
+      }
+    ).data.name,
+    "Mai the Fisher"
+  );
+});
+
+test("Season 5 character creation rejects missing or long names", async () => {
+  await assert.rejects(
+    createSeasonFiveCharacter({
+      userId: "user",
+      characterClass: SeasonFiveCharacterClass.DRUNKEN_MONK,
+      characterName: " ",
+      db: createCharacterCreationDb().db as never,
+    }),
+    /Name your/
+  );
+  await assert.rejects(
+    createSeasonFiveCharacter({
+      userId: "user",
+      characterClass: SeasonFiveCharacterClass.DRUNKEN_MONK,
+      characterName: "x".repeat(41),
+      db: createCharacterCreationDb().db as never,
+    }),
+    /40 characters/
+  );
 });
 
 test("Season 5 class skill trees expose three valid passive paths", () => {

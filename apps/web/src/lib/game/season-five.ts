@@ -1248,15 +1248,25 @@ async function getSeasonFiveCharacterForUser(args: {
 export async function createSeasonFiveCharacter({
   userId,
   characterClass,
+  characterName,
   db = prisma,
   now = new Date(),
 }: {
   userId: string;
   characterClass: string;
+  characterName: string;
   db?: DatabaseClient;
   now?: Date;
 }) {
   const selectedClass = normalizeSeasonFiveClass(characterClass);
+  const normalizedCharacterName = characterName.trim();
+  if (!normalizedCharacterName) {
+    throw new GameError("Name your Season 5 character first.");
+  }
+  if (normalizedCharacterName.length > 40) {
+    throw new GameError("Character name must be 40 characters or fewer.");
+  }
+
   const cycle = await ensureSeasonFivePreviewCycle({ db, now });
   const home = await db.seasonFiveFishingLocation.findUniqueOrThrow({
     where: {
@@ -1265,10 +1275,6 @@ export async function createSeasonFiveCharacter({
         key: "home",
       },
     },
-  });
-  const user = await db.user.findUnique({
-    where: { id: userId },
-    select: { name: true, email: true },
   });
   const existing = await db.seasonFiveCharacter.findUnique({
     where: {
@@ -1283,14 +1289,11 @@ export async function createSeasonFiveCharacter({
     throw new GameError("You already have a Season 5 character.");
   }
 
-  const characterName =
-    user?.name?.trim() || user?.email?.split("@")[0]?.trim() || "Local Legend";
-
   return db.seasonFiveCharacter.create({
     data: {
       userId,
       cycleId: cycle.id,
-      name: characterName.slice(0, 40),
+      name: normalizedCharacterName,
       class: selectedClass,
       skillPoints: SEASON_FIVE_STARTER_SKILL_POINTS,
       currentLocationId: home.id,

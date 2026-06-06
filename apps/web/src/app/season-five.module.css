@@ -178,6 +178,37 @@
   font-size: 14px;
 }
 
+.characterNameField {
+  display: grid;
+  gap: 6px;
+  margin-top: auto;
+}
+
+.characterNameField span {
+  color: #d8a75e;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.characterNameField input {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 239, 203, 0.18);
+  border-radius: 6px;
+  background: rgba(8, 16, 18, 0.72);
+  color: #fff8e7;
+  font: inherit;
+  font-weight: 800;
+}
+
+.characterNameField input:focus-visible {
+  border-color: rgba(216, 167, 94, 0.72);
+  outline: none;
+}
+
 .classPortrait {
   display: grid;
   width: 64px;

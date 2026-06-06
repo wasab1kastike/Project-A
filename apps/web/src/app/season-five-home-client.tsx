@@ -423,6 +423,17 @@ function ClassSelection({
             <h3>{formatClassKey(characterClass.key)}</h3>
             <p>{characterClass.summary}</p>
             <StatBars stats={characterClass.stats} labels={state.statLabels} />
+            <label className={styles.characterNameField}>
+              <span>Name</span>
+              <input
+                type="text"
+                name="characterName"
+                maxLength={40}
+                minLength={1}
+                required
+                autoComplete="off"
+              />
+            </label>
             <button type="submit">Start fishing</button>
           </form>
         ))}
