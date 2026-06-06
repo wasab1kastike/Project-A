@@ -41,6 +41,7 @@ import {
 import {
   calculateSeasonFiveCatchIntervalMinutes,
   calculateSeasonFiveInventoryCapacity,
+  calculateSeasonFiveRhythm,
   calculateSeasonFiveTravelMinutes,
   createSeasonFiveCatch,
   createSeasonFiveCharacter,
@@ -207,6 +208,94 @@ test("Season 5 build effects combine class, gear, and passive skills", () => {
   assert.equal(effects.inventoryBonus, 4);
   assert.equal(effects.rarityBonus, 20);
   assert.equal(effects.travelPercent, -20);
+});
+
+test("Season 5 Drunken Monk passives unlock rhythm bonuses", () => {
+  const monk = getSeasonFiveBuildEffects({
+    characterClass: SeasonFiveCharacterClass.DRUNKEN_MONK,
+    purchasedNodeKeys: [
+      "monk_wobble_cast",
+      "monk_river_breath",
+      "monk_dock_nap",
+      "monk_empty_cup",
+    ],
+  });
+  const warrior = getSeasonFiveBuildEffects({
+    characterClass: SeasonFiveCharacterClass.RETIRED_WARRIOR,
+    purchasedNodeKeys: ["warrior_campaign_grip", "warrior_trophy_drag"],
+  });
+
+  assert.equal(monk.rhythmCatchBonus, 2);
+  assert.equal(monk.rhythmPressureReduction, 2);
+  assert.equal(warrior.rhythmCatchBonus, 0);
+  assert.equal(warrior.rhythmPressureReduction, 0);
+});
+
+test("Season 5 Drunken Monk rhythm applies only while fishing", () => {
+  const startedAt = new Date("2026-06-05T12:00:00.000Z");
+  const now = new Date("2026-06-05T13:31:00.000Z");
+  const fishingRhythm = calculateSeasonFiveRhythm({
+    actionKind: SeasonFiveActionKind.FISHING,
+    actionStartedAt: startedAt,
+    now,
+    rhythmCatchBonus: 2,
+    rhythmPressureReduction: 1,
+  });
+  const travellingRhythm = calculateSeasonFiveRhythm({
+    actionKind: SeasonFiveActionKind.TRAVELING,
+    actionStartedAt: startedAt,
+    now,
+    rhythmCatchBonus: 2,
+    rhythmPressureReduction: 1,
+  });
+  const homeRhythm = calculateSeasonFiveRhythm({
+    actionKind: SeasonFiveActionKind.AT_HOME,
+    actionStartedAt: null,
+    now,
+    rhythmCatchBonus: 2,
+    rhythmPressureReduction: 1,
+  });
+
+  assert.deepEqual(fishingRhythm, {
+    stage: 3,
+    catchBonus: 6,
+    inventoryPressureReduction: 3,
+  });
+  assert.deepEqual(travellingRhythm, {
+    stage: 0,
+    catchBonus: 0,
+    inventoryPressureReduction: 0,
+  });
+  assert.deepEqual(homeRhythm, {
+    stage: 0,
+    catchBonus: 0,
+    inventoryPressureReduction: 0,
+  });
+});
+
+test("Season 5 Drunken Monk rhythm improves catch interval", () => {
+  const effects = getSeasonFiveBuildEffects({
+    characterClass: SeasonFiveCharacterClass.DRUNKEN_MONK,
+    purchasedNodeKeys: ["monk_wobble_cast", "monk_river_breath"],
+  });
+  const rhythm = calculateSeasonFiveRhythm({
+    actionKind: SeasonFiveActionKind.FISHING,
+    actionStartedAt: new Date("2026-06-05T12:00:00.000Z"),
+    now: new Date("2026-06-05T13:00:00.000Z"),
+    rhythmCatchBonus: effects.rhythmCatchBonus,
+    rhythmPressureReduction: effects.rhythmPressureReduction,
+  });
+  const baselineInterval = calculateSeasonFiveCatchIntervalMinutes({
+    catchDifficulty: 3,
+    catchBonus: effects.catchBonus,
+  });
+  const rhythmInterval = calculateSeasonFiveCatchIntervalMinutes({
+    catchDifficulty: 3,
+    catchBonus: effects.catchBonus + rhythm.catchBonus,
+  });
+
+  assert.equal(rhythm.stage, 2);
+  assert.ok(rhythmInterval < baselineInterval);
 });
 
 test("Season 5 build archetypes keep speed and trophy paths viable", () => {

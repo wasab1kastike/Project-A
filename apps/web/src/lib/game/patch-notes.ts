@@ -11,6 +11,7 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
     title: "Season 5 passive trees",
     newFeatures: [
       "Season 5 classes now have three passive skill paths each, with effects for catch speed, rarity, trophy size, inventory, pack pressure, and travel.",
+      "Drunken Monk now has rhythm passives: staying at the same fishing spot can build extra catch tempo and pack-pressure relief.",
       "Season 5 fishing XP now raises character levels and grants skill points up to a twelve-point progression budget.",
       "The Season 5 character Skills tab now groups class passives by path instead of showing one flat list.",
     ],

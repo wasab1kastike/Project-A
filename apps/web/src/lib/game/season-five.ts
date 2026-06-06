@@ -64,6 +64,8 @@ export type SeasonFiveEffectBonuses = Partial<{
   inventoryBonus: number;
   inventoryPressureReduction: number;
   travelPercent: number;
+  rhythmCatchBonus: number;
+  rhythmPressureReduction: number;
 }>;
 
 export const SEASON_FIVE_STAT_LABELS = {
@@ -97,6 +99,8 @@ const EMPTY_EFFECT_BONUSES = {
   inventoryBonus: 0,
   inventoryPressureReduction: 0,
   travelPercent: 0,
+  rhythmCatchBonus: 0,
+  rhythmPressureReduction: 0,
 } satisfies Required<SeasonFiveEffectBonuses>;
 
 export const SEASON_FIVE_STARTER_SKILL_POINTS = 2;
@@ -104,6 +108,8 @@ export const SEASON_FIVE_LEVEL_XP = 50;
 export const SEASON_FIVE_MAX_LEVEL = 11;
 export const SEASON_FIVE_MAX_SKILL_POINTS =
   SEASON_FIVE_STARTER_SKILL_POINTS + SEASON_FIVE_MAX_LEVEL - 1;
+export const SEASON_FIVE_RHYTHM_STEP_MINUTES = 30;
+export const SEASON_FIVE_MAX_RHYTHM_STAGE = 3;
 
 export const SEASON_FIVE_CLASSES = {
   [SeasonFiveCharacterClass.DRUNKEN_MONK]: {
@@ -193,17 +199,17 @@ export const SEASON_FIVE_SKILL_TREES = {
       {
         key: "monk_wobble_cast",
         name: "Wobble Cast",
-        description: "Faster passive catches from the wrong-looking cast.",
+        description: "Unlock rhythm: long fishing sessions build catch tempo.",
         cost: 1,
-        effectBonuses: { catchBonus: 1 },
+        effectBonuses: { catchBonus: 1, rhythmCatchBonus: 1 },
       },
       {
         key: "monk_river_breath",
         name: "River Breath",
-        description: "Better rhythm when the water gets stubborn.",
+        description: "Rhythm builds faster into stubborn waters.",
         cost: 1,
         statBonuses: { smell: 1 },
-        effectBonuses: { catchBonus: 1 },
+        effectBonuses: { catchBonus: 1, rhythmCatchBonus: 1 },
       },
       {
         key: "monk_foam_timing",
@@ -215,9 +221,13 @@ export const SEASON_FIVE_SKILL_TREES = {
       {
         key: "monk_perfect_stumble",
         name: "Perfect Stumble",
-        description: "A capstone burst of catch rhythm and route confidence.",
+        description: "Capstone rhythm: better tempo and cleaner routes.",
         cost: 2,
-        effectBonuses: { catchBonus: 1, travelPercent: -5 },
+        effectBonuses: {
+          catchBonus: 1,
+          travelPercent: -5,
+          rhythmCatchBonus: 1,
+        },
       },
     ]),
     ...createSeasonFiveSkillPath("monk_stillness", "Stillness", [
@@ -231,10 +241,13 @@ export const SEASON_FIVE_SKILL_TREES = {
       {
         key: "monk_dock_nap",
         name: "Dock Nap",
-        description: "Quiet travel and lighter pack pressure.",
+        description: "Rhythm lowers pack pressure while staying put.",
         cost: 1,
         statBonuses: { quietness: 1 },
-        effectBonuses: { inventoryPressureReduction: 1 },
+        effectBonuses: {
+          inventoryPressureReduction: 1,
+          rhythmPressureReduction: 1,
+        },
       },
       {
         key: "monk_sober_second",
@@ -246,9 +259,13 @@ export const SEASON_FIVE_SKILL_TREES = {
       {
         key: "monk_empty_cup",
         name: "Empty Cup",
-        description: "Arrive light, quiet, and ready to keep fishing.",
+        description: "Capstone stillness: long sessions stay light.",
         cost: 2,
-        effectBonuses: { travelPercent: -5, inventoryBonus: 2 },
+        effectBonuses: {
+          travelPercent: -5,
+          inventoryBonus: 2,
+          rhythmPressureReduction: 1,
+        },
       },
     ]),
     ...createSeasonFiveSkillPath("monk_lucky_mess", "Lucky Mess", [
@@ -790,6 +807,11 @@ function addEffectBonuses(
       base.inventoryPressureReduction +
       (bonuses.inventoryPressureReduction ?? 0),
     travelPercent: base.travelPercent + (bonuses.travelPercent ?? 0),
+    rhythmCatchBonus:
+      base.rhythmCatchBonus + (bonuses.rhythmCatchBonus ?? 0),
+    rhythmPressureReduction:
+      base.rhythmPressureReduction +
+      (bonuses.rhythmPressureReduction ?? 0),
   };
 }
 
@@ -838,6 +860,44 @@ export function getSeasonFiveProgressionAfterExperience(input: {
       input.skillPoints + pointDelta
     ),
     pointDelta,
+  };
+}
+
+export function calculateSeasonFiveRhythm(input: {
+  actionKind: SeasonFiveActionKind;
+  actionStartedAt: Date | null;
+  now: Date;
+  rhythmCatchBonus: number;
+  rhythmPressureReduction: number;
+}) {
+  if (
+    input.actionKind !== SeasonFiveActionKind.FISHING ||
+    !input.actionStartedAt
+  ) {
+    return {
+      stage: 0,
+      catchBonus: 0,
+      inventoryPressureReduction: 0,
+    };
+  }
+
+  const elapsedMinutes = Math.max(
+    0,
+    Math.floor(
+      (input.now.getTime() - input.actionStartedAt.getTime()) / 60_000
+    )
+  );
+  const stage = clamp(
+    Math.floor(elapsedMinutes / SEASON_FIVE_RHYTHM_STEP_MINUTES),
+    0,
+    SEASON_FIVE_MAX_RHYTHM_STAGE
+  );
+
+  return {
+    stage,
+    catchBonus: stage * Math.max(0, input.rhythmCatchBonus),
+    inventoryPressureReduction:
+      stage * Math.max(0, input.rhythmPressureReduction),
   };
 }
 
@@ -960,6 +1020,8 @@ export function getSeasonFiveBuildEffects(input: {
     sizeBonusPercent:
       formulaEffects.sizeBonusPercent + skillEffects.sizeBonusPercent,
     travelPercent: formulaEffects.travelPercent + skillEffects.travelPercent,
+    rhythmCatchBonus: skillEffects.rhythmCatchBonus,
+    rhythmPressureReduction: skillEffects.rhythmPressureReduction,
   };
 }
 
@@ -2111,9 +2173,16 @@ export async function processSeasonFiveTick({
       (sum, item) => sum + item.slots,
       0
     );
+    const rhythm = calculateSeasonFiveRhythm({
+      actionKind: character.actionKind,
+      actionStartedAt: character.actionStartedAt,
+      now: resolvedAt,
+      rhythmCatchBonus: effects.rhythmCatchBonus,
+      rhythmPressureReduction: effects.rhythmPressureReduction,
+    });
     const interval = calculateSeasonFiveCatchIntervalMinutes({
       catchDifficulty: location.catchDifficulty,
-      catchBonus: effects.catchBonus,
+      catchBonus: effects.catchBonus + rhythm.catchBonus,
     });
     const plan = planSeasonFivePassiveCatches({
       lastResolvedAt: character.lastResolvedAt,
@@ -2131,7 +2200,9 @@ export async function processSeasonFiveTick({
           rarityBonus: effects.rarityBonus,
           inventoryPressure: Math.max(
             1,
-            location.inventoryPressure - effects.inventoryPressureReduction
+            location.inventoryPressure -
+              effects.inventoryPressureReduction -
+              rhythm.inventoryPressureReduction
           ),
         }),
     });
