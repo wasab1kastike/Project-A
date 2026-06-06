@@ -16,6 +16,7 @@ import type {
   SeasonFiveStats,
 } from "@/lib/game/season-five";
 import {
+  BuildEffectChips,
   ClassPortrait,
   InventoryPressureMeter,
   SeasonFiveRealtimeBridge,
@@ -24,19 +25,19 @@ import {
 import styles from "./season-five.module.css";
 
 const tabs = [
-  { key: "overview", label: "Overview" },
+  { key: "build", label: "Build" },
   { key: "inventory", label: "Inventory" },
   { key: "gear", label: "Gear" },
   { key: "skills", label: "Skills" },
-  { key: "stats", label: "Stats" },
 ] as const;
 
 type CharacterTab = (typeof tabs)[number]["key"];
 
 function normalizeTab(tab: string | null): CharacterTab {
+  if (tab === "overview" || tab === "stats") return "build";
   return tabs.some((candidate) => candidate.key === tab)
     ? (tab as CharacterTab)
-    : "overview";
+    : "build";
 }
 
 function formatStatBonuses(
@@ -128,6 +129,45 @@ function CharacterShell({
 
   return (
     <div className={styles.characterPage}>
+      <section className={styles.characterHero}>
+        <div className={styles.characterHeroIdentity}>
+          <ClassPortrait
+            classKey={character.class}
+            label={character.classLabel}
+          />
+          <div>
+            <p className={styles.kicker}>Command dashboard</p>
+            <h2>{character.name}</h2>
+            <div className={styles.characterHeroMeta}>
+              <span className={styles.badge}>{character.classLabel}</span>
+              <span className={styles.badge}>Level {character.level}</span>
+              <span className={styles.badge}>
+                {character.skillPoints} skill pts
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className={styles.characterHeroStatus}>
+          <div className={styles.commandStatus}>
+            <strong>{getActionText(character)}</strong>
+            <span>
+              Pack {character.inventoryUsed}/{character.inventoryCapacity} |{" "}
+              {character.inventoryPressureLabel}
+            </span>
+          </div>
+          <div className={styles.commandActions}>
+            <form action={returnSeasonFiveHomeAction}>
+              <button type="submit" className={styles.secondaryButton}>
+                Return / unload
+              </button>
+            </form>
+            <Link className={styles.linkButton} href="/">
+              Open map
+            </Link>
+          </div>
+        </div>
+      </section>
+
       <nav className={styles.tabs} aria-label="Character tabs">
         {tabs.map((tab) => (
           <Link
@@ -144,8 +184,8 @@ function CharacterShell({
         <aside className={styles.commandCard}>
           <div className={styles.sectionHeader}>
             <div>
-              <p className={styles.kicker}>Character</p>
-              <h2>{character.name}</h2>
+              <p className={styles.kicker}>Mini build sheet</p>
+              <h2>{character.classLabel}</h2>
             </div>
             <span className={styles.classBadge}>
               <ClassPortrait
@@ -156,15 +196,14 @@ function CharacterShell({
               {character.classLabel}
             </span>
           </div>
-          <p className={styles.smallText}>{getActionText(character)}</p>
           <div className={styles.statGrid}>
             <div>
-              <span>Fish</span>
-              <strong>{character.totalFishCaught}</strong>
+              <span>Level</span>
+              <strong>{character.level}</strong>
             </div>
             <div>
-              <span>Biggest</span>
-              <strong>{character.biggestFishCm} cm</strong>
+              <span>XP</span>
+              <strong>{character.experience}</strong>
             </div>
             <div>
               <span>Pack</span>
@@ -177,27 +216,22 @@ function CharacterShell({
               <strong>{character.skillPoints}</strong>
             </div>
           </div>
-          <StatBars stats={character.stats} labels={state.statLabels} />
-          <form action={returnSeasonFiveHomeAction}>
-            <button type="submit" className={styles.secondaryButton}>
-              Return / unload
-            </button>
-          </form>
+          <InventoryPressureMeter character={character} />
+          <BuildEffectChips effects={character.effects} compact />
         </aside>
 
         <section className={styles.widePanel}>
-          {activeTab === "overview" ? <OverviewTab state={state} /> : null}
+          {activeTab === "build" ? <BuildTab state={state} /> : null}
           {activeTab === "inventory" ? <InventoryTab state={state} /> : null}
           {activeTab === "gear" ? <GearTab state={state} /> : null}
           {activeTab === "skills" ? <SkillsTab state={state} /> : null}
-          {activeTab === "stats" ? <StatsTab state={state} /> : null}
         </section>
       </div>
     </div>
   );
 }
 
-function OverviewTab({ state }: { state: SeasonFiveHomeState }) {
+function BuildTab({ state }: { state: SeasonFiveHomeState }) {
   const character = state.character;
   if (!character) return null;
 
@@ -205,33 +239,82 @@ function OverviewTab({ state }: { state: SeasonFiveHomeState }) {
     <>
       <div className={styles.sectionHeader}>
         <div>
-          <p className={styles.kicker}>Overview</p>
-          <h2>{character.classLabel}</h2>
+          <p className={styles.kicker}>Build</p>
+          <h2>Current command sheet</h2>
         </div>
+        <span className={styles.badge}>{getActionText(character)}</span>
       </div>
-      <p className={styles.smallText}>
-        {getActionText(character)}. Your current build gives +
-        {character.effects.catchBonus} catch tempo, +
-        {character.effects.rarityBonus} rarity pressure, and{" "}
-        {character.effects.travelPercent}% travel time.
-      </p>
-      <div className={styles.statGrid}>
-        <div>
-          <span>Level</span>
-          <strong>{character.level}</strong>
-        </div>
-        <div>
-          <span>XP</span>
-          <strong>{character.experience}</strong>
-        </div>
-        <div>
-          <span>Size</span>
-          <strong>+{character.effects.sizeBonusPercent}%</strong>
-        </div>
-        <div>
-          <span>Pack bonus</span>
-          <strong>+{character.effects.inventoryBonus}</strong>
-        </div>
+
+      <div className={styles.buildDashboard}>
+        <section className={styles.buildBand}>
+          <div className={styles.buildBandHeader}>
+            <div>
+              <p className={styles.kicker}>Progress</p>
+              <h3>Fishing record</h3>
+            </div>
+          </div>
+          <div className={styles.statGrid}>
+            <div>
+              <span>Level</span>
+              <strong>{character.level}</strong>
+            </div>
+            <div>
+              <span>XP</span>
+              <strong>{character.experience}</strong>
+            </div>
+            <div>
+              <span>Fish</span>
+              <strong>{character.totalFishCaught}</strong>
+            </div>
+            <div>
+              <span>Biggest</span>
+              <strong>{character.biggestFishCm} cm</strong>
+            </div>
+          </div>
+        </section>
+
+        <section className={styles.buildBand}>
+          <div className={styles.buildBandHeader}>
+            <div>
+              <p className={styles.kicker}>Passives</p>
+              <h3>Build effects</h3>
+            </div>
+            <span className={styles.badge}>{character.skillPoints} pts</span>
+          </div>
+          <BuildEffectChips effects={character.effects} />
+        </section>
+
+        <section className={styles.buildBand}>
+          <div className={styles.buildBandHeader}>
+            <div>
+              <p className={styles.kicker}>Capacity</p>
+              <h3>Pack pressure</h3>
+            </div>
+          </div>
+          <InventoryPressureMeter character={character} />
+        </section>
+
+        <section className={styles.buildBand}>
+          <div className={styles.buildBandHeader}>
+            <div>
+              <p className={styles.kicker}>Stats</p>
+              <h3>Class math</h3>
+            </div>
+          </div>
+          <StatBars stats={character.stats} labels={state.statLabels} />
+          <div className={styles.statDescriptionList}>
+            {(
+              Object.entries(state.statLabels) as Array<
+                [SeasonFiveStatKey, string]
+              >
+            ).map(([key, label]) => (
+              <div key={key}>
+                <strong>{label}</strong>
+                <span>{state.statDescriptions[key]}</span>
+              </div>
+            ))}
+          </div>
+        </section>
       </div>
     </>
   );
@@ -382,33 +465,6 @@ function SkillsTab({ state }: { state: SeasonFiveHomeState }) {
   );
 }
 
-function StatsTab({ state }: { state: SeasonFiveHomeState }) {
-  const character = state.character;
-  if (!character) return null;
-
-  return (
-    <>
-      <div className={styles.sectionHeader}>
-        <div>
-          <p className={styles.kicker}>Stats</p>
-          <h2>Build math</h2>
-        </div>
-      </div>
-      <StatBars stats={character.stats} labels={state.statLabels} />
-      <div className={styles.inventoryList}>
-        {(
-          Object.entries(state.statLabels) as Array<[SeasonFiveStatKey, string]>
-        ).map(([key, label]) => (
-          <div key={key}>
-            <strong>{label}</strong>
-            <span>{state.statDescriptions[key]}</span>
-          </div>
-        ))}
-      </div>
-    </>
-  );
-}
-
 export function SeasonFiveCharacterClient({
   state,
   session,
@@ -433,7 +489,7 @@ export function SeasonFiveCharacterClient({
       <header className={styles.topbar}>
         <div>
           <p className={styles.kicker}>Season 5</p>
-          <h1>Character Management</h1>
+          <h1>Command Dashboard</h1>
         </div>
         <div className={styles.topbarMeta}>
           <Link className={styles.linkButton} href="/">

@@ -1384,6 +1384,42 @@
   font-size: 20px;
 }
 
+.effectGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(116px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.compactEffectGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.effectChip {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 9px;
+  border-radius: 6px;
+  background: rgba(78, 178, 158, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(78, 178, 158, 0.18);
+}
+
+.effectChip strong {
+  color: #d8fff4;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.effectChip span {
+  overflow-wrap: anywhere;
+  color: #b9d8cf;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.15;
+  text-transform: uppercase;
+}
+
 .statBars {
   display: grid;
   gap: 7px;
@@ -1514,18 +1550,78 @@
   max-width: 1320px;
   margin: 0 auto;
   padding: 0 0 20px;
+  scrollbar-gutter: stable;
+}
+
+.characterHero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 440px);
+  gap: 14px;
+  align-items: stretch;
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid rgba(255, 239, 203, 0.16);
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, rgba(78, 178, 158, 0.13), transparent 52%),
+    rgba(20, 31, 27, 0.88);
+  box-shadow: 0 18px 42px rgba(2, 10, 12, 0.32);
+  backdrop-filter: blur(12px);
+}
+
+.characterHeroIdentity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 14px;
+}
+
+.characterHeroIdentity h2 {
+  margin: 0;
+  color: #fff8e7;
+  font-size: clamp(24px, 3vw, 38px);
+  line-height: 1;
+}
+
+.characterHeroMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.characterHeroStatus {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(128px, 160px);
+  gap: 10px;
+  align-items: stretch;
+}
+
+.characterHeroStatus .commandActions {
+  margin: 0;
 }
 
 .tabs {
+  position: sticky;
+  z-index: 3;
+  top: 0;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 14px;
+  padding: 8px 0;
+  background: linear-gradient(
+    180deg,
+    rgba(7, 16, 24, 0.96),
+    rgba(7, 16, 24, 0.72)
+  );
+  backdrop-filter: blur(10px);
 }
 
 .tabs a {
   display: inline-flex;
   min-height: 38px;
+  flex: 0 0 auto;
   align-items: center;
   padding: 0 12px;
   border-radius: 6px;
@@ -1544,6 +1640,7 @@
   display: grid;
   grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
   gap: 14px;
+  align-items: start;
 }
 
 .widePanel {
@@ -1553,6 +1650,56 @@
   border-radius: 8px;
   background: rgba(20, 31, 27, 0.86);
   box-shadow: 0 18px 42px rgba(2, 10, 12, 0.34);
+}
+
+.buildDashboard {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.buildBand {
+  min-width: 0;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 248, 231, 0.12);
+}
+
+.buildBandHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.buildBand h3 {
+  margin: 0;
+  color: #fff8e7;
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+.statDescriptionList {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.statDescriptionList div {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 248, 231, 0.1);
+}
+
+.statDescriptionList strong {
+  color: #f5d38e;
+}
+
+.statDescriptionList span {
+  color: #c9b994;
+  font-size: 13px;
 }
 
 .gearList button {
@@ -1645,6 +1792,11 @@
   .classGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .characterHero,
+  .buildDashboard {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 900px) {
@@ -1704,6 +1856,54 @@
 
   .characterPage {
     inset: 86px 12px 12px;
+    padding: 10px 10px 16px;
+    border: 1px solid rgba(255, 239, 203, 0.14);
+    border-radius: 14px 14px 0 0;
+    background: rgba(7, 16, 24, 0.58);
+    box-shadow: 0 -18px 42px rgba(2, 10, 12, 0.34);
+  }
+
+  .characterHero {
+    grid-template-columns: 1fr;
+    padding: 12px;
+  }
+
+  .characterHeroIdentity {
+    align-items: flex-start;
+  }
+
+  .characterHeroIdentity .classPortrait {
+    width: 54px;
+    height: 54px;
+  }
+
+  .characterHeroStatus {
+    grid-template-columns: 1fr;
+  }
+
+  .characterHeroStatus .commandActions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin-right: -10px;
+    margin-left: -10px;
+    padding: 8px 10px;
+  }
+
+  .managementGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .widePanel,
+  .commandCard {
+    padding: 12px;
+  }
+
+  .buildDashboard {
+    grid-template-columns: 1fr;
   }
 
   .mapHud {
@@ -1739,14 +1939,35 @@
 }
 
 @media (max-width: 620px) {
-  .classGrid,
-  .statGrid {
+  .classGrid {
     grid-template-columns: 1fr;
+  }
+
+  .sectionHeader {
+    align-items: stretch;
+  }
+
+  .sectionHeader .badge,
+  .sectionHeader .warning {
+    justify-content: center;
   }
 
   .topbarMeta {
     gap: 8px;
     font-size: 12px;
+  }
+
+  .characterHeroIdentity h2 {
+    font-size: 24px;
+  }
+
+  .characterHeroStatus .commandActions {
+    grid-template-columns: 1fr;
+  }
+
+  .statDescriptionList div {
+    grid-template-columns: 1fr;
+    gap: 3px;
   }
 
   .tileRoleBadge {

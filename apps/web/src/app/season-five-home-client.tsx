@@ -18,6 +18,7 @@ import { NoticeToast } from "@/components/notice-toast";
 import { PROJECT_A_REFRESH_EVENT } from "@/lib/realtime";
 import { reviveGameStateDates } from "@/lib/live-state-serialization";
 import type {
+  SeasonFiveEffectBonuses,
   SeasonFiveHomeState,
   SeasonFiveStatKey,
 } from "@/lib/game/season-five";
@@ -77,6 +78,68 @@ function getActionLabel(actionKind: string) {
   if (actionKind === "TRAVELING") return "Traveling";
   if (actionKind === "FISHING") return "Fishing";
   return "Home";
+}
+
+function signedNumber(value: number) {
+  return `${value > 0 ? "+" : ""}${value}`;
+}
+
+export function getSeasonFiveBuildEffectChips(
+  effects: Required<SeasonFiveEffectBonuses>
+) {
+  const chips = [
+    effects.catchBonus
+      ? { label: "Tempo", value: signedNumber(effects.catchBonus) }
+      : null,
+    effects.rarityBonus
+      ? { label: "Rarity", value: signedNumber(effects.rarityBonus) }
+      : null,
+    effects.sizeBonusPercent
+      ? { label: "Trophy size", value: `${signedNumber(effects.sizeBonusPercent)}%` }
+      : null,
+    effects.inventoryBonus
+      ? { label: "Pack", value: signedNumber(effects.inventoryBonus) }
+      : null,
+    effects.inventoryPressureReduction
+      ? { label: "Pressure", value: `-${effects.inventoryPressureReduction}` }
+      : null,
+    effects.travelPercent
+      ? { label: "Travel", value: `${signedNumber(effects.travelPercent)}%` }
+      : null,
+    effects.rhythmCatchBonus
+      ? { label: "Rhythm tempo", value: `+${effects.rhythmCatchBonus}/stage` }
+      : null,
+    effects.rhythmPressureReduction
+      ? { label: "Rhythm pressure", value: `-${effects.rhythmPressureReduction}/stage` }
+      : null,
+  ].filter(
+    (chip): chip is { label: string; value: string } => chip !== null
+  );
+
+  return chips.length > 0 ? chips : [{ label: "Passives", value: "Base" }];
+}
+
+export function BuildEffectChips({
+  effects,
+  compact = false,
+}: {
+  effects: Required<SeasonFiveEffectBonuses>;
+  compact?: boolean;
+}) {
+  return (
+    <div
+      className={`${styles.effectGrid} ${
+        compact ? styles.compactEffectGrid : ""
+      }`}
+    >
+      {getSeasonFiveBuildEffectChips(effects).map((chip) => (
+        <span key={`${chip.label}-${chip.value}`} className={styles.effectChip}>
+          <strong>{chip.value}</strong>
+          <span>{chip.label}</span>
+        </span>
+      ))}
+    </div>
+  );
 }
 
 const SEASON_FIVE_MIN_SCALE = 0.1;
@@ -485,7 +548,7 @@ function CharacterCommandCard({
 
   return (
     <MapOverlay
-      kicker="Character"
+      kicker="Mini build sheet"
       title={character.name}
       onClose={onClose}
       variant="left"
@@ -500,7 +563,6 @@ function CharacterCommandCard({
         </span>
       }
     >
-
       <div className={styles.commandStatus}>
         <strong>{getActionLabel(character.actionKind)}</strong>
         <span>
@@ -519,18 +581,16 @@ function CharacterCommandCard({
 
       <div className={styles.statGrid}>
         <div>
+          <span>Level</span>
+          <strong>{character.level}</strong>
+        </div>
+        <div>
+          <span>XP</span>
+          <strong>{character.experience}</strong>
+        </div>
+        <div>
           <span>Fish</span>
           <strong>{character.totalFishCaught}</strong>
-        </div>
-        <div>
-          <span>Biggest</span>
-          <strong>{character.biggestFishCm} cm</strong>
-        </div>
-        <div>
-          <span>Pack</span>
-          <strong>
-            {character.inventoryUsed}/{character.inventoryCapacity}
-          </strong>
         </div>
         <div>
           <span>Points</span>
@@ -540,7 +600,7 @@ function CharacterCommandCard({
 
       <InventoryPressureMeter character={character} />
 
-      <StatBars stats={character.stats} labels={state.statLabels} />
+      <BuildEffectChips effects={character.effects} compact />
 
       <div className={styles.commandActions}>
         <form action={returnSeasonFiveHomeAction}>
