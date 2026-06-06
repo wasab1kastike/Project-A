@@ -4,9 +4,11 @@ import Link from "next/link";
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
 } from "react";
 import type { Session } from "next-auth";
 import { io } from "socket.io-client";
@@ -18,6 +20,15 @@ import type {
   SeasonFiveHomeState,
   SeasonFiveStatKey,
 } from "@/lib/game/season-five";
+import {
+  HEX_RADIUS,
+  HEX_TILES,
+  MAP_WORLD_HEIGHT,
+  MAP_WORLD_WIDTH,
+  getHexPolygonPoints,
+  type HexBiome,
+  type HexTile,
+} from "@/lib/game/map-hex";
 import {
   createSeasonFiveCharacterAction,
   returnSeasonFiveHomeAction,
@@ -67,69 +78,108 @@ function getActionLabel(actionKind: string) {
   return "Home";
 }
 
-function getTileMapPosition(tile: {
-  row: number;
-  xPercent: number;
-  yPercent: number;
-}) {
-  const rowOffset = tile.row % 2 === 1 ? 2.9 : 0;
+const SEASON_FIVE_MIN_SCALE = 0.32;
+const SEASON_FIVE_MAX_SCALE = 1.72;
+const SEASON_FIVE_ZOOM_STEP = 0.14;
+const CLICK_DRAG_THRESHOLD = 6;
 
-  return {
-    x: Math.min(97, Math.max(3, tile.xPercent + rowOffset)),
-    y: tile.yPercent,
-  };
-}
-
-const SEASON_FIVE_HEX_RADIUS_X = 3.62;
-const SEASON_FIVE_HEX_RADIUS_Y = 4.72;
-
-function getSeasonFiveHexPoints(
-  point: { x: number; y: number },
-  scale = 1
-) {
-  const radiusX = SEASON_FIVE_HEX_RADIUS_X * scale;
-  const radiusY = SEASON_FIVE_HEX_RADIUS_Y * scale;
-
-  return [
-    `${point.x - radiusX / 2},${point.y - radiusY}`,
-    `${point.x + radiusX / 2},${point.y - radiusY}`,
-    `${point.x + radiusX},${point.y}`,
-    `${point.x + radiusX / 2},${point.y + radiusY}`,
-    `${point.x - radiusX / 2},${point.y + radiusY}`,
-    `${point.x - radiusX},${point.y}`,
-  ].join(" ");
-}
-
-function getSeasonFiveFeaturePath({
-  terrain,
-  x,
-  y,
-}: {
-  terrain: string;
+type Point = {
   x: number;
   y: number;
-}) {
-  if (terrain === "FOREST") {
-    return `M ${x - 1.5} ${y + 1.8} h 3 l -1.5 -4.2 z M ${x - 0.4} ${y + 2.4} h 0.8 v 1.1 h -0.8 z`;
+};
+
+type DragStart = Point & {
+  translateX: number;
+  translateY: number;
+};
+
+const HEX_TILE_POLYGON_POINTS = new Map(
+  HEX_TILES.map((tile) => [tile.id, getHexPolygonPoints(tile.x, tile.y)])
+);
+const HEX_TILE_INNER_POINTS = new Map(
+  HEX_TILES.map((tile) => [
+    tile.id,
+    getHexPolygonPoints(tile.x, tile.y, HEX_RADIUS * 0.72),
+  ])
+);
+const HEX_TILE_FEATURE_PATHS = new Map<string, string>(
+  HEX_TILES.flatMap((tile): Array<[string, string]> => {
+    if (tile.biome === "forest") {
+      return [
+        [
+          tile.id,
+          `M ${tile.x - 15} ${tile.y + 12} h 30 l -15 -28 z M ${
+            tile.x - 4
+          } ${tile.y + 16} h 8 v 10 h -8 z`,
+        ],
+      ];
+    }
+
+    if (tile.biome === "hills" || tile.biome === "mountains") {
+      return [
+        [
+          tile.id,
+          `M ${tile.x - 25} ${tile.y + 16} l 19 -32 l 20 32 z M ${
+            tile.x - 3
+          } ${tile.y + 16} l 18 -25 l 20 25 z`,
+        ],
+      ];
+    }
+
+    if (tile.biome === "marsh") {
+      return [
+        [
+          tile.id,
+          `M ${tile.x - 25} ${tile.y + 11} q 12 -10 24 0 t 24 0 M ${
+            tile.x - 15
+          } ${tile.y - 8} v 28 M ${tile.x + 16} ${tile.y - 10} v 27`,
+        ],
+      ];
+    }
+
+    if (tile.biome === "water" || tile.biome === "lake" || tile.biome === "coast") {
+      return [
+        [
+          tile.id,
+          `M ${tile.x - 28} ${tile.y - 10} q 14 9 28 0 t 28 0 M ${
+            tile.x - 28
+          } ${tile.y + 12} q 14 9 28 0 t 28 0`,
+        ],
+      ];
+    }
+
+    return [];
+  })
+);
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function getNearestSeasonFourHex(point: { xPercent: number; yPercent: number }) {
+  let closest = HEX_TILES[0];
+  let closestDistance = Number.POSITIVE_INFINITY;
+
+  for (const tile of HEX_TILES) {
+    const distance =
+      (tile.xPercent - point.xPercent) ** 2 +
+      (tile.yPercent - point.yPercent) ** 2;
+    if (distance < closestDistance) {
+      closest = tile;
+      closestDistance = distance;
+    }
   }
 
-  if (terrain === "HILL" || terrain === "MOUNTAIN") {
-    return `M ${x - 2.8} ${y + 2.3} l 2.2 -4.4 l 2.4 4.4 z M ${x - 0.2} ${y + 2.3} l 1.7 -3.3 l 2.2 3.3 z`;
-  }
+  return closest;
+}
 
-  if (terrain === "WATER" || terrain === "COAST") {
-    return `M ${x - 3} ${y - 1.1} q 1.5 1 3 0 t 3 0 M ${x - 3} ${y + 1.2} q 1.5 1 3 0 t 3 0`;
-  }
-
-  if (terrain === "SWAMP") {
-    return `M ${x - 2.8} ${y + 1.6} q 1.2 -1.5 2.4 0 t 2.4 0 M ${x - 1.8} ${y - 1.4} v 3.4 M ${x + 1.7} ${y - 1.2} v 3.1`;
-  }
-
-  if (terrain === "ROAD") {
-    return `M ${x - 3.2} ${y - 2.8} c 1.7 1.4 1.7 4.1 0 5.6 M ${x + 3.2} ${y - 2.8} c -1.7 1.4 -1.7 4.1 0 5.6`;
-  }
-
-  return null;
+function getRoleMarker(role: string) {
+  if (role === "HOME") return "H";
+  if (role === "FISHING_SPOT") return "F";
+  if (role === "SHOP") return "$";
+  if (role === "EVENT") return "!";
+  if (role === "SECRET_LAKE") return "?";
+  return "";
 }
 
 type OpenPanel = "character" | "inventory" | "rankings" | "classes";
@@ -419,10 +469,17 @@ function CharacterCommandCard({
 
 function WorldMap({ state }: { state: SeasonFiveHomeState }) {
   const character = state.character;
+  const shellRef = useRef<HTMLElement | null>(null);
+  const userAdjustedViewRef = useRef(false);
   const [selectedLocationKey, setSelectedLocationKey] = useState<string | null>(
     null
   );
   const [nowMs, setNowMs] = useState(Date.now());
+  const [scale, setScale] = useState(0.62);
+  const [translateX, setTranslateX] = useState(0);
+  const [translateY, setTranslateY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState<DragStart | null>(null);
   const selectedLocation =
     state.locations.find((location) => location.key === selectedLocationKey) ??
     null;
@@ -441,12 +498,142 @@ function WorldMap({ state }: { state: SeasonFiveHomeState }) {
   const selectedTile = selectedLocation?.tileKey
     ? (tileByKey.get(selectedLocation.tileKey) ?? null)
     : null;
-  const previewFromTile = currentTile;
-  const previewToTile = selectedTile;
-  const activeRouteFromTile =
-    character?.actionKind === "TRAVELING" ? currentTile : null;
-  const activeRouteToTile =
-    character?.actionKind === "TRAVELING" ? destinationTile : null;
+  const projectedTileByKey = useMemo(
+    () =>
+      new Map(
+        state.map.tiles.map((tile) => [
+          tile.key,
+          {
+            source: tile,
+            hex: getNearestSeasonFourHex(tile),
+          },
+        ])
+      ),
+    [state.map.tiles]
+  );
+  const projectedLocationByKey = useMemo(
+    () =>
+      new Map(
+        state.locations.map((location) => {
+          const tile = location.tileKey
+            ? projectedTileByKey.get(location.tileKey)?.hex
+            : null;
+          return [
+            location.key,
+            tile ?? getNearestSeasonFourHex(location),
+          ] as const;
+        })
+      ),
+    [projectedTileByKey, state.locations]
+  );
+  const currentProjectedHex = currentTile
+    ? (projectedTileByKey.get(currentTile.key)?.hex ?? null)
+    : null;
+  const destinationProjectedHex = destinationTile
+    ? (projectedTileByKey.get(destinationTile.key)?.hex ?? null)
+    : null;
+  const selectedProjectedHex = selectedLocation
+    ? (projectedLocationByKey.get(selectedLocation.key) ?? null)
+    : null;
+  const previewFromHex = currentProjectedHex;
+  const previewToHex = selectedProjectedHex;
+  const activeRouteFromHex =
+    character?.actionKind === "TRAVELING" ? currentProjectedHex : null;
+  const activeRouteToHex =
+    character?.actionKind === "TRAVELING" ? destinationProjectedHex : null;
+
+  const clampTranslation = useCallback(
+    (nextX: number, nextY: number, nextScale: number) => {
+      const shellBounds = shellRef.current?.getBoundingClientRect();
+      if (!shellBounds) return { x: nextX, y: nextY };
+
+      const visiblePaddingX = Math.min(shellBounds.width * 0.34, 220);
+      const visiblePaddingY = Math.min(shellBounds.height * 0.34, 180);
+      const maxX = Math.max(
+        0,
+        (MAP_WORLD_WIDTH * nextScale - shellBounds.width) / 2 + visiblePaddingX
+      );
+      const maxY = Math.max(
+        0,
+        (MAP_WORLD_HEIGHT * nextScale - shellBounds.height) / 2 +
+          visiblePaddingY
+      );
+
+      return {
+        x: clamp(nextX, -maxX, maxX),
+        y: clamp(nextY, -maxY, maxY),
+      };
+    },
+    []
+  );
+
+  const applyView = useCallback(
+    (nextScale: number, nextX: number, nextY: number) => {
+      const clampedScale = clamp(
+        nextScale,
+        SEASON_FIVE_MIN_SCALE,
+        SEASON_FIVE_MAX_SCALE
+      );
+      const clampedTranslate = clampTranslation(nextX, nextY, clampedScale);
+      setScale(clampedScale);
+      setTranslateX(clampedTranslate.x);
+      setTranslateY(clampedTranslate.y);
+    },
+    [clampTranslation]
+  );
+
+  const focusHex = useCallback(
+    (hex: HexTile, focusScale = 0.92) => {
+      const nextScale = clamp(
+        focusScale,
+        SEASON_FIVE_MIN_SCALE,
+        SEASON_FIVE_MAX_SCALE
+      );
+      const nextTranslateX = -(hex.x - MAP_WORLD_WIDTH / 2) * nextScale;
+      const nextTranslateY = -(hex.y - MAP_WORLD_HEIGHT / 2) * nextScale;
+      applyView(nextScale, nextTranslateX, nextTranslateY);
+    },
+    [applyView]
+  );
+
+  const zoomFromViewportPoint = useCallback(
+    (nextScale: number, pointInShell?: Point) => {
+      const shellBounds = shellRef.current?.getBoundingClientRect();
+      if (!shellBounds) {
+        applyView(nextScale, translateX, translateY);
+        return;
+      }
+
+      const anchor = pointInShell ?? {
+        x: shellBounds.width / 2,
+        y: shellBounds.height / 2,
+      };
+      const anchorCenteredX = anchor.x - shellBounds.width / 2;
+      const anchorCenteredY = anchor.y - shellBounds.height / 2;
+      const clampedNextScale = clamp(
+        nextScale,
+        SEASON_FIVE_MIN_SCALE,
+        SEASON_FIVE_MAX_SCALE
+      );
+      const ratio = clampedNextScale / scale;
+
+      applyView(
+        clampedNextScale,
+        anchorCenteredX - (anchorCenteredX - translateX) * ratio,
+        anchorCenteredY - (anchorCenteredY - translateY) * ratio
+      );
+    },
+    [applyView, scale, translateX, translateY]
+  );
+
+  const resetView = useCallback(() => {
+    userAdjustedViewRef.current = false;
+    if (currentProjectedHex) {
+      focusHex(currentProjectedHex, 0.92);
+      return;
+    }
+    applyView(0.62, 0, 0);
+  }, [applyView, currentProjectedHex, focusHex]);
 
   useEffect(() => {
     if (character?.actionKind !== "TRAVELING") return;
@@ -457,6 +644,17 @@ function WorldMap({ state }: { state: SeasonFiveHomeState }) {
 
     return () => window.clearInterval(interval);
   }, [character?.actionKind]);
+
+  useEffect(() => {
+    if (userAdjustedViewRef.current) return;
+
+    if (currentProjectedHex) {
+      focusHex(currentProjectedHex, 0.92);
+      return;
+    }
+
+    applyView(0.62, 0, 0);
+  }, [applyView, currentProjectedHex, focusHex]);
 
   const travelProgress =
     character?.actionKind === "TRAVELING" &&
@@ -476,110 +674,219 @@ function WorldMap({ state }: { state: SeasonFiveHomeState }) {
         )
       : 0;
   const characterMapPosition =
-    activeRouteFromTile && activeRouteToTile
+    activeRouteFromHex && activeRouteToHex
       ? {
           x:
-            getTileMapPosition(activeRouteFromTile).x +
-            (getTileMapPosition(activeRouteToTile).x -
-              getTileMapPosition(activeRouteFromTile).x) *
-              travelProgress,
+            activeRouteFromHex.x +
+            (activeRouteToHex.x - activeRouteFromHex.x) * travelProgress,
           y:
-            getTileMapPosition(activeRouteFromTile).y +
-            (getTileMapPosition(activeRouteToTile).y -
-              getTileMapPosition(activeRouteFromTile).y) *
-              travelProgress,
+            activeRouteFromHex.y +
+            (activeRouteToHex.y - activeRouteFromHex.y) * travelProgress,
         }
-      : currentTile
-        ? getTileMapPosition(currentTile)
+      : currentProjectedHex
+        ? { x: currentProjectedHex.x, y: currentProjectedHex.y }
         : null;
+  const viewTransform = useMemo(
+    () => ({
+      transform: `translate(-50%, -50%) translate(${translateX}px, ${translateY}px) scale(${scale})`,
+      width: `${MAP_WORLD_WIDTH}px`,
+      height: `${MAP_WORLD_HEIGHT}px`,
+    }),
+    [scale, translateX, translateY]
+  );
+  const biomeClassByBiome = useMemo<Record<HexBiome, string>>(
+    () => ({
+      coast: styles.seasonFiveCoastTile,
+      forest: styles.seasonFiveForestTile,
+      hills: styles.seasonFiveHillsTile,
+      lake: styles.seasonFiveLakeTile,
+      marsh: styles.seasonFiveMarshTile,
+      mountains: styles.seasonFiveMountainsTile,
+      plains: styles.seasonFivePlainsTile,
+      water: styles.seasonFiveWaterTile,
+    }),
+    []
+  );
 
   return (
-    <section className={styles.worldPanel} aria-label="Season 5 fishing map">
-      <div className={styles.mapBoard}>
-        <div className={styles.mapFrame} aria-hidden="true" />
-        <div
-          className={styles.seasonFiveHexMap}
-          style={
-            {
-              "--map-columns": state.map.columns,
-              "--map-rows": state.map.rows,
-            } as CSSProperties
+    <section
+      ref={shellRef}
+      className={styles.worldPanel}
+      aria-label="Season 5 fishing map"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (
+          event.key === "+" ||
+          event.key === "=" ||
+          event.key === "NumpadAdd"
+        ) {
+          event.preventDefault();
+          userAdjustedViewRef.current = true;
+          zoomFromViewportPoint(scale + SEASON_FIVE_ZOOM_STEP);
+        }
+        if (event.key === "-" || event.key === "NumpadSubtract") {
+          event.preventDefault();
+          userAdjustedViewRef.current = true;
+          zoomFromViewportPoint(scale - SEASON_FIVE_ZOOM_STEP);
+        }
+        if (event.key === "0") {
+          event.preventDefault();
+          resetView();
+        }
+      }}
+    >
+      <div className={styles.mapControls}>
+        <button
+          type="button"
+          aria-label="Zoom in"
+          onClick={() => {
+            userAdjustedViewRef.current = true;
+            zoomFromViewportPoint(scale + SEASON_FIVE_ZOOM_STEP);
+          }}
+        >
+          +
+        </button>
+        <button
+          type="button"
+          aria-label="Zoom out"
+          onClick={() => {
+            userAdjustedViewRef.current = true;
+            zoomFromViewportPoint(scale - SEASON_FIVE_ZOOM_STEP);
+          }}
+        >
+          -
+        </button>
+        <button type="button" aria-label="Reset map view" onClick={resetView}>
+          0
+        </button>
+      </div>
+      <div
+        className={`${styles.mapViewport} ${isDragging ? styles.dragging : ""}`}
+        onWheel={(event) => {
+          event.preventDefault();
+          userAdjustedViewRef.current = true;
+          const shellBounds = shellRef.current?.getBoundingClientRect();
+          const zoomDirection = event.deltaY < 0 ? 1 : -1;
+          zoomFromViewportPoint(
+            scale + zoomDirection * SEASON_FIVE_ZOOM_STEP,
+            shellBounds
+              ? {
+                  x: event.clientX - shellBounds.left,
+                  y: event.clientY - shellBounds.top,
+                }
+              : undefined
+          );
+        }}
+        onPointerDown={(event: ReactPointerEvent<HTMLDivElement>) => {
+          if (event.pointerType === "mouse" && event.button !== 0) return;
+          const target = event.target as HTMLElement;
+          if (target.closest("button, a, [role='button']")) return;
+
+          setIsDragging(true);
+          setDragStart({
+            x: event.clientX,
+            y: event.clientY,
+            translateX,
+            translateY,
+          });
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }}
+        onPointerMove={(event: ReactPointerEvent<HTMLDivElement>) => {
+          if (!dragStart) return;
+          const deltaX = event.clientX - dragStart.x;
+          const deltaY = event.clientY - dragStart.y;
+          if (Math.hypot(deltaX, deltaY) > CLICK_DRAG_THRESHOLD) {
+            userAdjustedViewRef.current = true;
           }
+          const nextTranslate = clampTranslation(
+            dragStart.translateX + deltaX,
+            dragStart.translateY + deltaY,
+            scale
+          );
+          setTranslateX(nextTranslate.x);
+          setTranslateY(nextTranslate.y);
+        }}
+        onPointerUp={(event: ReactPointerEvent<HTMLDivElement>) => {
+          setIsDragging(false);
+          setDragStart(null);
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }}
+        onPointerCancel={() => {
+          setIsDragging(false);
+          setDragStart(null);
+        }}
+      >
+        <div
+          className={styles.mapViewportContent}
+          style={viewTransform}
         >
           <svg
-            className={styles.seasonFiveHexMapSvg}
-            viewBox="0 0 100 100"
+            className={styles.seasonFiveWorldMap}
+            viewBox={`0 0 ${MAP_WORLD_WIDTH} ${MAP_WORLD_HEIGHT}`}
             role="img"
             aria-label="Season 5 fishing world map"
           >
             <defs>
-              <linearGradient id="seasonFiveGrass" x1="18%" y1="6%" x2="82%" y2="94%">
-                <stop offset="0%" stopColor="#a7c767" />
-                <stop offset="54%" stopColor="#5d9a4b" />
-                <stop offset="100%" stopColor="#2f6d3d" />
-              </linearGradient>
-              <linearGradient id="seasonFiveForest" x1="16%" y1="4%" x2="84%" y2="96%">
-                <stop offset="0%" stopColor="#75ad61" />
-                <stop offset="46%" stopColor="#2d7142" />
-                <stop offset="100%" stopColor="#163a2b" />
-              </linearGradient>
-              <linearGradient id="seasonFiveWater" x1="14%" y1="8%" x2="86%" y2="92%">
-                <stop offset="0%" stopColor="#6ed0d4" />
-                <stop offset="56%" stopColor="#258bad" />
-                <stop offset="100%" stopColor="#113d63" />
-              </linearGradient>
-              <linearGradient id="seasonFiveCoast" x1="12%" y1="6%" x2="88%" y2="94%">
-                <stop offset="0%" stopColor="#82c6bf" />
-                <stop offset="52%" stopColor="#3d9293" />
-                <stop offset="100%" stopColor="#bd9c5d" />
-              </linearGradient>
-              <linearGradient id="seasonFiveSwamp" x1="14%" y1="6%" x2="86%" y2="94%">
-                <stop offset="0%" stopColor="#8b9f58" />
-                <stop offset="48%" stopColor="#4f704b" />
-                <stop offset="100%" stopColor="#27463d" />
-              </linearGradient>
-              <linearGradient id="seasonFiveHill" x1="14%" y1="5%" x2="86%" y2="95%">
-                <stop offset="0%" stopColor="#d4b66f" />
-                <stop offset="58%" stopColor="#8e7546" />
-                <stop offset="100%" stopColor="#574332" />
-              </linearGradient>
-              <linearGradient id="seasonFiveMountain" x1="14%" y1="5%" x2="86%" y2="95%">
-                <stop offset="0%" stopColor="#c9c7b5" />
-                <stop offset="54%" stopColor="#7b7f74" />
-                <stop offset="100%" stopColor="#414946" />
-              </linearGradient>
-              <linearGradient id="seasonFiveRoad" x1="14%" y1="5%" x2="86%" y2="95%">
-                <stop offset="0%" stopColor="#d8b06b" />
-                <stop offset="58%" stopColor="#9b6c3a" />
-                <stop offset="100%" stopColor="#614129" />
-              </linearGradient>
-              <radialGradient id="seasonFiveHexLight" cx="32%" cy="20%" r="64%">
+              <radialGradient id="seasonFiveWorldLight" cx="32%" cy="20%" r="70%">
                 <stop offset="0%" stopColor="rgba(255, 255, 255, 0.34)" />
                 <stop offset="48%" stopColor="rgba(255, 255, 255, 0.08)" />
                 <stop offset="100%" stopColor="rgba(0, 0, 0, 0.32)" />
               </radialGradient>
             </defs>
-            <rect className={styles.seasonFiveMapBase} width="100" height="100" />
-            {previewFromTile && previewToTile ? (
+            <rect
+              className={styles.seasonFiveWorldBase}
+              width={MAP_WORLD_WIDTH}
+              height={MAP_WORLD_HEIGHT}
+            />
+            {HEX_TILES.map((hex) => {
+              const featurePath = HEX_TILE_FEATURE_PATHS.get(hex.id);
+              return (
+                <g
+                  key={hex.id}
+                  className={`${styles.seasonFiveWorldTile} ${
+                    biomeClassByBiome[hex.biome]
+                  }`}
+                >
+                  <polygon points={HEX_TILE_POLYGON_POINTS.get(hex.id)} />
+                  <polygon
+                    className={styles.seasonFiveWorldLight}
+                    points={getHexPolygonPoints(hex.x, hex.y, HEX_RADIUS * 0.96)}
+                  />
+                  <polyline
+                    className={styles.seasonFiveWorldInner}
+                    points={HEX_TILE_INNER_POINTS.get(hex.id)}
+                  />
+                  {featurePath ? (
+                    <path
+                      className={styles.seasonFiveWorldFeature}
+                      d={featurePath}
+                    />
+                  ) : null}
+                </g>
+              );
+            })}
+            {previewFromHex && previewToHex ? (
               <line
-                x1={getTileMapPosition(previewFromTile).x}
-                y1={getTileMapPosition(previewFromTile).y}
-                x2={getTileMapPosition(previewToTile).x}
-                y2={getTileMapPosition(previewToTile).y}
+                x1={previewFromHex.x}
+                y1={previewFromHex.y}
+                x2={previewToHex.x}
+                y2={previewToHex.y}
                 className={styles.previewRoute}
               />
             ) : null}
-            {activeRouteFromTile && activeRouteToTile ? (
+            {activeRouteFromHex && activeRouteToHex ? (
               <line
-                x1={getTileMapPosition(activeRouteFromTile).x}
-                y1={getTileMapPosition(activeRouteFromTile).y}
-                x2={getTileMapPosition(activeRouteToTile).x}
-                y2={getTileMapPosition(activeRouteToTile).y}
+                x1={activeRouteFromHex.x}
+                y1={activeRouteFromHex.y}
+                x2={activeRouteToHex.x}
+                y2={activeRouteToHex.y}
                 className={styles.activeRoute}
               />
             ) : null}
             {state.map.tiles.map((tile) => {
-            const tilePosition = getTileMapPosition(tile);
+            const projectedTile = projectedTileByKey.get(tile.key);
+            if (!projectedTile) return null;
+            const hex = projectedTile.hex;
             const location = locationByTileKey.get(tile.key);
             const activity = location
               ? state.locationActivity.find(
@@ -589,9 +896,9 @@ function WorldMap({ state }: { state: SeasonFiveHomeState }) {
             const roleClass =
               tile.role === "HOME"
                 ? styles.homeTile
-                : tile.role === "FISHING_SPOT"
-                  ? styles.fishingTile
-                  : tile.role === "SHOP"
+                  : tile.role === "FISHING_SPOT"
+                    ? styles.fishingTile
+                    : tile.role === "SHOP"
                     ? styles.shopTile
                     : tile.role === "EVENT"
                       ? styles.eventTile
@@ -606,16 +913,12 @@ function WorldMap({ state }: { state: SeasonFiveHomeState }) {
               character?.actionKind !== "TRAVELING" &&
               Boolean(location) &&
               location?.kind !== "HOME";
-            const featurePath = getSeasonFiveFeaturePath({
-              terrain: tile.terrain,
-              x: tilePosition.x,
-              y: tilePosition.y,
-            });
+            const marker = getRoleMarker(tile.role);
 
             return (
               <g
                 key={tile.key}
-                className={`${styles.seasonFiveHexTile} ${styles[`terrain${tile.terrain}`]} ${roleClass} ${
+                className={`${styles.seasonFiveWorldHotspot} ${roleClass} ${
                   isSelected ? styles.selectedTile : ""
                 } ${isCurrent ? styles.currentTile : ""} ${
                   isDestination ? styles.destinationTile : ""
@@ -635,47 +938,28 @@ function WorldMap({ state }: { state: SeasonFiveHomeState }) {
                 }}
               >
                 <title>{location?.name ?? tile.roleLabel ?? tile.terrain}</title>
-                <polygon points={getSeasonFiveHexPoints(tilePosition)} />
                 <polygon
-                  className={styles.seasonFiveHexLight}
-                  points={getSeasonFiveHexPoints(tilePosition, 0.96)}
+                  className={styles.seasonFiveWorldHotspotArea}
+                  points={HEX_TILE_POLYGON_POINTS.get(hex.id)}
                 />
-                <polyline
-                  className={styles.seasonFiveHexInner}
-                  points={getSeasonFiveHexPoints(tilePosition, 0.72)}
-                />
-                {featurePath ? (
-                  <path
-                    className={styles.seasonFiveHexFeature}
-                    d={featurePath}
-                  />
-                ) : null}
                 {tile.role !== "NONE" ? (
-                  <g className={styles.seasonFiveHexMarker}>
-                    <circle cx={tilePosition.x} cy={tilePosition.y} r="1.9" />
-                    <text x={tilePosition.x} y={tilePosition.y + 0.68}>
-                    {tile.role === "HOME"
-                      ? "H"
-                      : tile.role === "FISHING_SPOT"
-                        ? "F"
-                        : tile.role === "SHOP"
-                          ? "$"
-                          : tile.role === "EVENT"
-                            ? "!"
-                            : "?"}
+                  <g className={styles.seasonFiveWorldMarker}>
+                    <circle cx={hex.x} cy={hex.y} r="18" />
+                    <text x={hex.x} y={hex.y + 7}>
+                      {marker}
                     </text>
                   </g>
                 ) : null}
                 {activity && activity.totalCount > 0 ? (
-                  <g className={styles.seasonFiveHexPopulation}>
-                    <circle cx={tilePosition.x + 2.42} cy={tilePosition.y + 2.56} r="1.7" />
-                    <text x={tilePosition.x + 2.42} y={tilePosition.y + 3.08}>
+                  <g className={styles.seasonFiveWorldPopulation}>
+                    <circle cx={hex.x + 28} cy={hex.y + 28} r="16" />
+                    <text x={hex.x + 28} y={hex.y + 34}>
                       {activity.totalCount}
                     </text>
                   </g>
                 ) : null}
                 {activity && activity.characters.length > 0 ? (
-                  <g className={styles.seasonFiveHexActors}>
+                  <g className={styles.seasonFiveWorldActors}>
                     {activity.characters.slice(0, 4).map((actor, actorIndex) => (
                       <g
                         key={actor.id}
@@ -687,14 +971,14 @@ function WorldMap({ state }: { state: SeasonFiveHomeState }) {
                               : styles.homeDot
                         }
                         transform={`translate(${
-                          tilePosition.x + 1.85 + actorIndex * 1.08
-                        } ${tilePosition.y - 2.72})`}
+                          hex.x + 22 + actorIndex * 12
+                        } ${hex.y - 31})`}
                       >
                         <title>{`${actor.name}: ${getActionLabel(
                           actor.actionKind
                         )} (${actor.classLabel})`}</title>
-                        <circle r="0.8" />
-                        <text y="0.3">{actor.classLabel.charAt(0)}</text>
+                        <circle r="8" />
+                        <text y="3">{actor.classLabel.charAt(0)}</text>
                       </g>
                     ))}
                   </g>
@@ -703,14 +987,13 @@ function WorldMap({ state }: { state: SeasonFiveHomeState }) {
             );
           })}
           </svg>
-        </div>
         {character && characterMapPosition ? (
           <span
             className={styles.characterMapMarker}
             style={
               {
-                "--x": `${characterMapPosition.x}%`,
-                "--y": `${characterMapPosition.y}%`,
+                "--x": `${characterMapPosition.x}px`,
+                "--y": `${characterMapPosition.y}px`,
               } as CSSProperties
             }
             title={`${character.name}: ${getActionLabel(character.actionKind)}`}
@@ -722,6 +1005,7 @@ function WorldMap({ state }: { state: SeasonFiveHomeState }) {
             />
           </span>
         ) : null}
+        </div>
       </div>
       {selectedLocation && selectedTile ? (
         <aside className={styles.routePreview}>

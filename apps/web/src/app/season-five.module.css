@@ -12,13 +12,13 @@
 .topbar {
   position: absolute;
   z-index: 20;
-  top: 16px;
-  left: 18px;
-  right: 18px;
+  top: 14px;
+  left: 14px;
+  right: 14px;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: 12px;
   pointer-events: none;
 }
 
@@ -33,7 +33,7 @@
 
 .topbar h1 {
   color: #fff8e7;
-  font-size: clamp(26px, 3vw, 38px);
+  font-size: clamp(18px, 1.8vw, 25px);
   text-shadow: 0 3px 18px rgba(0, 0, 0, 0.52);
 }
 
@@ -42,14 +42,14 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 14px;
-  max-width: min(760px, 58vw);
-  padding: 9px 10px;
-  border: 1px solid rgba(255, 239, 203, 0.14);
+  gap: 10px;
+  max-width: min(620px, 58vw);
+  padding: 7px 8px;
+  border: 1px solid rgba(255, 239, 203, 0.18);
   border-radius: 8px;
-  background: rgba(14, 23, 24, 0.78);
+  background: rgba(8, 16, 18, 0.82);
   color: #d6c8a7;
-  font-size: 14px;
+  font-size: 13px;
   box-shadow: 0 12px 32px rgba(2, 10, 12, 0.28);
   pointer-events: auto;
 }
@@ -213,9 +213,6 @@
 }
 
 .worldPanel {
-  --map-inset-x: 18px;
-  --map-inset-top: 86px;
-  --map-inset-bottom: 82px;
   position: absolute;
   inset: 0;
   min-height: 0;
@@ -231,56 +228,295 @@
     0 24px 60px rgba(2, 10, 12, 0.42);
 }
 
+.worldPanel:focus-visible {
+  outline: 2px solid rgba(138, 214, 224, 0.42);
+  outline-offset: -2px;
+}
+
 .worldPanel:only-child {
   grid-column: 1 / -1;
 }
 
-.mapBoard {
-  position: absolute;
-  left: 50%;
-  top: var(--map-inset-top);
-  bottom: var(--map-inset-bottom);
-  width: auto;
-  max-width: calc(100% - (var(--map-inset-x) * 2));
-  aspect-ratio: 1.65;
-  margin: auto;
-  transform: translateX(-50%);
-}
-
-.mapFrame {
+.mapViewport {
   position: absolute;
   inset: 0;
-  border: 2px solid rgba(255, 248, 231, 0.24);
-  border-radius: 10px;
-  pointer-events: none;
-  box-shadow:
-    inset 0 0 0 1px rgba(6, 13, 14, 0.72),
-    inset 0 0 54px rgba(2, 7, 8, 0.34);
+  z-index: 1;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
 }
 
-.mapFrame::before,
-.mapFrame::after {
+.dragging {
+  cursor: grabbing;
+}
+
+.mapViewport::before,
+.mapViewport::after {
   position: absolute;
+  z-index: 4;
+  inset: 0;
   content: "";
-  pointer-events: none;
 }
 
-.mapFrame::before {
-  inset: 0;
+.mapViewport::before {
   background:
-    radial-gradient(circle at 18% 12%, rgba(214, 169, 91, 0.18), transparent 18%),
-    radial-gradient(circle at 82% 72%, rgba(36, 113, 115, 0.16), transparent 22%),
+    radial-gradient(circle at 23% 14%, rgba(216, 167, 94, 0.12), transparent 17%),
+    radial-gradient(circle at 75% 67%, rgba(36, 113, 115, 0.15), transparent 24%),
     linear-gradient(rgba(255, 248, 231, 0.035) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 248, 231, 0.03) 1px, transparent 1px);
-  background-size: auto, auto, 8.75% 10%, 6.25% 10%;
+  background-size: auto, auto, 90px 78px, 90px 78px;
+  opacity: 0.56;
+  pointer-events: none;
+}
+
+.mapViewport::after {
+  background:
+    linear-gradient(180deg, rgba(2, 7, 8, 0.36), transparent 18%, transparent 76%, rgba(2, 7, 8, 0.58)),
+    radial-gradient(circle at 50% 50%, transparent 48%, rgba(0, 0, 0, 0.34));
+  pointer-events: none;
+}
+
+.mapViewportContent {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  transform-origin: center;
+  will-change: transform;
+}
+
+.mapControls {
+  position: absolute;
+  z-index: 18;
+  top: 74px;
+  right: 14px;
+  display: flex;
+  gap: 7px;
+  pointer-events: auto;
+}
+
+.mapControls button {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid rgba(255, 239, 203, 0.18);
+  border-radius: 6px;
+  background: rgba(8, 16, 18, 0.84);
+  color: #f6edda;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 10px 22px rgba(2, 10, 12, 0.28);
+}
+
+.mapControls button:hover,
+.mapControls button:focus-visible {
+  border-color: rgba(216, 167, 94, 0.72);
+  background: rgba(79, 62, 37, 0.92);
+  outline: none;
+}
+
+.seasonFiveWorldMap {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  shape-rendering: crispEdges;
+}
+
+.seasonFiveWorldBase {
+  fill: #102a34;
+}
+
+.seasonFiveWorldTile {
+  cursor: default;
+  filter:
+    drop-shadow(0 3px 0 rgba(255, 255, 255, 0.06))
+    drop-shadow(0 8px 5px rgba(0, 0, 0, 0.32));
+}
+
+.seasonFiveWorldTile > polygon:first-of-type {
+  stroke: rgba(8, 18, 20, 0.72);
+  stroke-linejoin: round;
+  stroke-width: 3px;
+  vector-effect: non-scaling-stroke;
+}
+
+.seasonFiveWorldLight {
+  fill: url("#seasonFiveWorldLight");
+  opacity: 0.68;
+  pointer-events: none;
+}
+
+.seasonFiveWorldInner {
+  fill: none;
+  opacity: 0.35;
+  pointer-events: none;
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-linejoin: round;
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+}
+
+.seasonFiveWorldFeature {
+  fill: none;
+  opacity: 0.58;
+  pointer-events: none;
+  stroke: rgba(13, 24, 20, 0.5);
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  stroke-width: 5px;
+  vector-effect: non-scaling-stroke;
+}
+
+.seasonFivePlainsTile > polygon:first-of-type {
+  fill: #739a46;
+}
+
+.seasonFiveForestTile > polygon:first-of-type {
+  fill: #317947;
+}
+
+.seasonFiveWaterTile > polygon:first-of-type {
+  fill: #216d88;
+}
+
+.seasonFiveCoastTile > polygon:first-of-type {
+  fill: #4d989d;
+}
+
+.seasonFiveLakeTile > polygon:first-of-type {
+  fill: #2a82aa;
+}
+
+.seasonFiveMarshTile > polygon:first-of-type {
+  fill: #557f5d;
+}
+
+.seasonFiveHillsTile > polygon:first-of-type {
+  fill: #968451;
+}
+
+.seasonFiveMountainsTile > polygon:first-of-type {
+  fill: #74766e;
+}
+
+.seasonFiveWorldHotspot {
+  pointer-events: none;
+}
+
+.seasonFiveWorldHotspot[role="button"] {
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.seasonFiveWorldHotspotArea {
+  fill: transparent;
+  stroke: transparent;
+  stroke-width: 0;
+}
+
+.seasonFiveWorldHotspot[role="button"]:hover .seasonFiveWorldHotspotArea,
+.seasonFiveWorldHotspot[role="button"]:focus-visible .seasonFiveWorldHotspotArea {
+  stroke: rgba(255, 248, 231, 0.72);
+  stroke-width: 7px;
+  outline: 0;
+  vector-effect: non-scaling-stroke;
+}
+
+.seasonFiveWorldMarker,
+.seasonFiveWorldPopulation,
+.seasonFiveWorldActors {
+  pointer-events: none;
+}
+
+.seasonFiveWorldMarker circle {
+  fill: rgba(15, 27, 27, 0.94);
+  stroke: rgba(255, 248, 231, 0.9);
+  stroke-width: 4px;
+  filter: drop-shadow(0 0 12px rgba(0, 0, 0, 0.72));
+}
+
+.seasonFiveWorldMarker text,
+.seasonFiveWorldPopulation text,
+.seasonFiveWorldActors text {
+  fill: #fff8e7;
+  font-family: var(--font-geist-sans);
+  font-size: 22px;
+  font-weight: 900;
+  text-anchor: middle;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.75);
+}
+
+.seasonFiveWorldPopulation circle {
+  fill: rgba(36, 113, 115, 0.95);
+  stroke: rgba(255, 248, 231, 0.86);
+  stroke-width: 3px;
+}
+
+.seasonFiveWorldPopulation text {
+  font-size: 18px;
+}
+
+.seasonFiveWorldActors circle {
+  stroke: #fff8e7;
+  stroke-width: 2px;
+}
+
+.seasonFiveWorldActors text {
+  font-size: 9px;
+}
+
+.seasonFiveWorldHotspot.homeTile .seasonFiveWorldMarker circle {
+  stroke: rgba(240, 207, 117, 0.98);
+}
+
+.seasonFiveWorldHotspot.fishingTile .seasonFiveWorldMarker circle {
+  stroke: rgba(138, 214, 224, 0.96);
+}
+
+.seasonFiveWorldHotspot.shopTile .seasonFiveWorldMarker circle {
+  stroke: rgba(240, 179, 93, 0.96);
+}
+
+.seasonFiveWorldHotspot.eventTile .seasonFiveWorldMarker circle {
+  stroke: rgba(255, 141, 92, 0.96);
+}
+
+.seasonFiveWorldHotspot.secretTile .seasonFiveWorldMarker circle {
+  stroke: rgba(154, 230, 180, 0.96);
+}
+
+.seasonFiveWorldHotspot.selectedTile .seasonFiveWorldHotspotArea,
+.seasonFiveWorldHotspot.currentTile .seasonFiveWorldHotspotArea {
+  stroke: rgba(255, 248, 231, 0.98);
+  stroke-width: 9px;
+  filter: drop-shadow(0 0 10px rgba(247, 196, 95, 0.74));
+  vector-effect: non-scaling-stroke;
+}
+
+.seasonFiveWorldHotspot.destinationTile .seasonFiveWorldHotspotArea {
+  stroke: rgba(240, 179, 93, 0.82);
+  stroke-dasharray: 14 8;
+  stroke-width: 6px;
+  vector-effect: non-scaling-stroke;
+}
+
+.seasonFiveWorldHotspot.lockedTile {
   opacity: 0.72;
 }
 
-.mapFrame::after {
-  inset: 0;
-  background:
-    linear-gradient(180deg, rgba(2, 7, 8, 0.14), transparent 24%, rgba(2, 7, 8, 0.34)),
-    radial-gradient(circle at 50% 52%, transparent 45%, rgba(0, 0, 0, 0.28));
+.fishingDot circle {
+  fill: #247173;
+}
+
+.travellingDot circle {
+  fill: #91612e;
+}
+
+.homeDot circle {
+  fill: #7b4932;
 }
 
 .tileMap {
@@ -305,223 +541,6 @@
 
 .seasonFiveMapBase {
   fill: transparent;
-}
-
-.seasonFiveHexTile {
-  cursor: default;
-  filter:
-    drop-shadow(0 0.72px 0 rgba(255, 255, 255, 0.18))
-    drop-shadow(0 1.35px 1.15px rgba(0, 0, 0, 0.42));
-  transition:
-    filter 160ms ease,
-    opacity 160ms ease,
-    transform 160ms ease;
-}
-
-.seasonFiveHexTile[role="button"] {
-  cursor: pointer;
-}
-
-.seasonFiveHexTile[role="button"]:hover {
-  filter:
-    drop-shadow(0 0 2px rgba(255, 248, 231, 0.38))
-    drop-shadow(0 1.8px 1.4px rgba(0, 0, 0, 0.48));
-}
-
-.seasonFiveHexTile[role="button"]:focus-visible {
-  outline: 0;
-}
-
-.seasonFiveHexTile[role="button"]:focus-visible > polygon:first-of-type {
-  stroke: rgba(255, 248, 231, 0.95);
-  stroke-width: 0.58;
-}
-
-.seasonFiveHexTile > polygon:first-of-type {
-  stroke: rgba(8, 18, 20, 0.82);
-  stroke-linejoin: round;
-  stroke-width: 0.18;
-  vector-effect: non-scaling-stroke;
-}
-
-.seasonFiveHexLight {
-  fill: url("#seasonFiveHexLight");
-  opacity: 0.72;
-  pointer-events: none;
-}
-
-.seasonFiveHexInner {
-  fill: none;
-  opacity: 0.36;
-  pointer-events: none;
-  stroke: rgba(255, 248, 231, 0.48);
-  stroke-linejoin: round;
-  stroke-width: 0.12;
-  vector-effect: non-scaling-stroke;
-}
-
-.seasonFiveHexFeature {
-  fill: none;
-  opacity: 0.5;
-  pointer-events: none;
-  stroke: rgba(255, 248, 231, 0.58);
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 0.34;
-  vector-effect: non-scaling-stroke;
-}
-
-.seasonFiveHexTile.terrainGRASS > polygon:first-of-type {
-  fill: url("#seasonFiveGrass");
-}
-
-.seasonFiveHexTile.terrainFOREST > polygon:first-of-type {
-  fill: url("#seasonFiveForest");
-}
-
-.seasonFiveHexTile.terrainWATER > polygon:first-of-type {
-  fill: url("#seasonFiveWater");
-}
-
-.seasonFiveHexTile.terrainCOAST > polygon:first-of-type {
-  fill: url("#seasonFiveCoast");
-}
-
-.seasonFiveHexTile.terrainSWAMP > polygon:first-of-type {
-  fill: url("#seasonFiveSwamp");
-}
-
-.seasonFiveHexTile.terrainHILL > polygon:first-of-type {
-  fill: url("#seasonFiveHill");
-}
-
-.seasonFiveHexTile.terrainMOUNTAIN > polygon:first-of-type {
-  fill: url("#seasonFiveMountain");
-}
-
-.seasonFiveHexTile.terrainROAD > polygon:first-of-type {
-  fill: url("#seasonFiveRoad");
-}
-
-.seasonFiveHexTile.terrainWATER .seasonFiveHexFeature,
-.seasonFiveHexTile.terrainCOAST .seasonFiveHexFeature {
-  stroke: rgba(219, 252, 255, 0.66);
-}
-
-.seasonFiveHexTile.terrainFOREST .seasonFiveHexFeature {
-  fill: rgba(13, 54, 31, 0.58);
-  stroke: rgba(181, 220, 131, 0.48);
-}
-
-.seasonFiveHexTile.terrainHILL .seasonFiveHexFeature,
-.seasonFiveHexTile.terrainMOUNTAIN .seasonFiveHexFeature {
-  fill: rgba(255, 248, 231, 0.14);
-  stroke: rgba(49, 38, 28, 0.48);
-}
-
-.seasonFiveHexTile.terrainROAD .seasonFiveHexFeature {
-  stroke: rgba(96, 56, 27, 0.56);
-  stroke-width: 0.5;
-}
-
-.seasonFiveHexTile.homeTile > polygon:first-of-type {
-  stroke: rgba(240, 207, 117, 0.96);
-  stroke-width: 0.48;
-}
-
-.seasonFiveHexTile.fishingTile > polygon:first-of-type {
-  stroke: rgba(138, 214, 224, 0.9);
-  stroke-width: 0.42;
-}
-
-.seasonFiveHexTile.shopTile > polygon:first-of-type {
-  stroke: rgba(240, 179, 93, 0.92);
-  stroke-width: 0.42;
-}
-
-.seasonFiveHexTile.eventTile > polygon:first-of-type {
-  stroke: rgba(255, 141, 92, 0.94);
-  stroke-width: 0.42;
-}
-
-.seasonFiveHexTile.secretTile > polygon:first-of-type {
-  stroke: rgba(154, 230, 180, 0.94);
-  stroke-width: 0.42;
-}
-
-.seasonFiveHexTile.selectedTile > polygon:first-of-type,
-.seasonFiveHexTile.currentTile > polygon:first-of-type {
-  stroke: rgba(255, 248, 231, 0.98);
-  stroke-width: 0.62;
-}
-
-.seasonFiveHexTile.currentTile {
-  filter:
-    drop-shadow(0 0 2.2px rgba(255, 248, 231, 0.62))
-    drop-shadow(0 1.5px 1.2px rgba(0, 0, 0, 0.5));
-}
-
-.seasonFiveHexTile.selectedTile {
-  filter:
-    drop-shadow(0 0 2.8px rgba(255, 248, 231, 0.7))
-    drop-shadow(0 1.6px 1.2px rgba(0, 0, 0, 0.52));
-}
-
-.seasonFiveHexTile.destinationTile {
-  filter:
-    saturate(1.08)
-    brightness(1.04)
-    drop-shadow(0 0 2px rgba(240, 179, 93, 0.44))
-    drop-shadow(0 1.35px 1.15px rgba(0, 0, 0, 0.42));
-}
-
-.seasonFiveHexTile.lockedTile {
-  opacity: 0.72;
-  filter:
-    saturate(0.78)
-    drop-shadow(0 1.2px 1px rgba(0, 0, 0, 0.38));
-}
-
-.seasonFiveHexMarker,
-.seasonFiveHexPopulation,
-.seasonFiveHexActors {
-  pointer-events: none;
-}
-
-.seasonFiveHexMarker circle {
-  fill: rgba(20, 31, 27, 0.92);
-  stroke: rgba(255, 248, 231, 0.82);
-  stroke-width: 0.18;
-}
-
-.seasonFiveHexMarker text,
-.seasonFiveHexPopulation text,
-.seasonFiveHexActors text {
-  fill: #fff8e7;
-  font-family: var(--font-geist-sans);
-  font-size: 2.05px;
-  font-weight: 900;
-  text-anchor: middle;
-  text-shadow: 0 0.2px 0.4px rgba(0, 0, 0, 0.7);
-}
-
-.seasonFiveHexPopulation circle {
-  fill: rgba(36, 113, 115, 0.94);
-  stroke: rgba(255, 248, 231, 0.78);
-  stroke-width: 0.16;
-}
-
-.seasonFiveHexPopulation text {
-  font-size: 1.72px;
-}
-
-.seasonFiveHexActors circle {
-  stroke: #fff8e7;
-  stroke-width: 0.13;
-}
-
-.seasonFiveHexActors text {
-  font-size: 0.86px;
 }
 
 .mapTile {
@@ -867,22 +886,22 @@
 .activeRoute {
   fill: none;
   stroke-linecap: round;
-  stroke-width: 1.05;
+  stroke-width: 13px;
   vector-effect: non-scaling-stroke;
 }
 
 .previewRoute {
   stroke: rgba(255, 248, 231, 0.82);
-  stroke-dasharray: 3 2;
-  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.45));
+  stroke-dasharray: 34 20;
+  filter: drop-shadow(0 6px 5px rgba(0, 0, 0, 0.45));
 }
 
 .activeRoute {
   stroke: #f0b35d;
-  stroke-dasharray: 4 2;
+  stroke-dasharray: 42 19;
   filter:
-    drop-shadow(0 0 3px rgba(240, 179, 93, 0.68))
-    drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5));
+    drop-shadow(0 0 10px rgba(240, 179, 93, 0.68))
+    drop-shadow(0 6px 5px rgba(0, 0, 0, 0.5));
 }
 
 .characterMapMarker {
@@ -906,8 +925,8 @@
 .routePreview {
   position: absolute;
   right: 26px;
-  bottom: 96px;
-  z-index: 9;
+  bottom: 84px;
+  z-index: 19;
   width: min(300px, calc(100% - 52px));
   padding: 14px;
   border: 1px solid rgba(255, 239, 203, 0.2);
@@ -1161,7 +1180,7 @@
 
 .mapHud {
   position: absolute;
-  z-index: 17;
+  z-index: 21;
   left: 50%;
   bottom: 20px;
   display: flex;
@@ -1188,6 +1207,7 @@
 .hudButton {
   min-height: 42px;
   padding: 0 14px;
+  backdrop-filter: blur(10px);
 }
 
 .hudButton:hover,
@@ -1586,35 +1606,31 @@
   }
 
   .topbar {
-    top: 12px;
+    top: 10px;
     left: 12px;
     right: 12px;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
+    align-items: flex-start;
+    gap: 10px;
   }
 
   .topbar h1 {
-    font-size: 28px;
+    display: none;
+  }
+
+  .topbar .kicker {
+    margin: 0;
+    padding: 8px 9px;
+    border: 1px solid rgba(255, 239, 203, 0.18);
+    border-radius: 8px;
+    background: rgba(8, 16, 18, 0.78);
+    box-shadow: 0 10px 24px rgba(2, 10, 12, 0.28);
   }
 
   .topbarMeta {
-    max-width: none;
-    justify-content: flex-start;
-  }
-
-  .worldPanel {
-    --map-inset-x: 12px;
-    --map-inset-top: 124px;
-    --map-inset-bottom: 92px;
-  }
-
-  .mapBoard {
-    top: 50%;
-    bottom: auto;
-    width: calc(100% - (var(--map-inset-x) * 2));
-    height: auto;
-    transform: translate(-50%, -50%);
+    max-width: calc(100% - 126px);
+    justify-content: flex-end;
+    margin-left: auto;
+    font-size: 12px;
   }
 
   .commandCard,
@@ -1628,9 +1644,9 @@
 
   .commandCard,
   .sidePanel {
-    top: auto;
+    top: 72px;
     bottom: 82px;
-    max-height: min(62dvh, 560px);
+    max-height: none;
   }
 
   .setup {
@@ -1650,6 +1666,11 @@
   .hudButton {
     flex: 1 1 120px;
     padding: 0 10px;
+  }
+
+  .mapControls {
+    top: 96px;
+    right: 12px;
   }
 
   .mapNode button {
@@ -1681,17 +1702,9 @@
     grid-template-columns: 1fr;
   }
 
-  .topbar h1 {
-    font-size: 24px;
-  }
-
   .topbarMeta {
     gap: 8px;
     font-size: 12px;
-  }
-
-  .worldPanel {
-    --map-inset-top: 132px;
   }
 
   .tileRoleBadge {
@@ -1713,9 +1726,5 @@
 
   .classChoice {
     min-height: 0;
-  }
-
-  .mapNode {
-    transform: translate(-50%, -50%) scale(0.88);
   }
 }
