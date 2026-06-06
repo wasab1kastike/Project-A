@@ -336,6 +336,17 @@
     drop-shadow(0 8px 5px rgba(0, 0, 0, 0.32));
 }
 
+.mapViewportContent[data-map-detail="low"] .seasonFiveWorldTile,
+.mapViewportContent[data-map-detail="low"] .seasonFiveWorldMarker circle,
+.mapViewportContent[data-map-detail="low"] .previewRoute,
+.mapViewportContent[data-map-detail="low"] .activeRoute {
+  filter: none;
+}
+
+.mapViewportContent[data-map-detail="low"] .seasonFiveWorldTile > polygon:first-of-type {
+  stroke-width: 2px;
+}
+
 .seasonFiveWorldTile > polygon:first-of-type {
   stroke: rgba(8, 18, 20, 0.72);
   stroke-linejoin: round;

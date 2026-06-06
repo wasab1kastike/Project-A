@@ -78,7 +78,7 @@ function getActionLabel(actionKind: string) {
   return "Home";
 }
 
-const SEASON_FIVE_MIN_SCALE = 0.32;
+const SEASON_FIVE_MIN_SCALE = 0.1;
 const SEASON_FIVE_MAX_SCALE = 1.72;
 const SEASON_FIVE_ZOOM_STEP = 0.14;
 const CLICK_DRAG_THRESHOLD = 6;
@@ -154,6 +154,17 @@ const HEX_TILE_FEATURE_PATHS = new Map<string, string>(
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function getViewportMinScale(bounds: DOMRect | undefined) {
+  if (!bounds) return 0.18;
+
+  const fitScale = Math.min(
+    bounds.width / MAP_WORLD_WIDTH,
+    bounds.height / MAP_WORLD_HEIGHT
+  );
+
+  return clamp(fitScale * 0.94, SEASON_FIVE_MIN_SCALE, 0.32);
 }
 
 function getNearestSeasonFourHex(point: { xPercent: number; yPercent: number }) {
@@ -549,15 +560,10 @@ function WorldMap({ state }: { state: SeasonFiveHomeState }) {
 
       const visiblePaddingX = Math.min(shellBounds.width * 0.34, 220);
       const visiblePaddingY = Math.min(shellBounds.height * 0.34, 180);
-      const maxX = Math.max(
-        0,
-        (MAP_WORLD_WIDTH * nextScale - shellBounds.width) / 2 + visiblePaddingX
-      );
-      const maxY = Math.max(
-        0,
-        (MAP_WORLD_HEIGHT * nextScale - shellBounds.height) / 2 +
-          visiblePaddingY
-      );
+      const overflowX = (MAP_WORLD_WIDTH * nextScale - shellBounds.width) / 2;
+      const overflowY = (MAP_WORLD_HEIGHT * nextScale - shellBounds.height) / 2;
+      const maxX = overflowX > 0 ? overflowX + visiblePaddingX : 0;
+      const maxY = overflowY > 0 ? overflowY + visiblePaddingY : 0;
 
       return {
         x: clamp(nextX, -maxX, maxX),
@@ -569,9 +575,11 @@ function WorldMap({ state }: { state: SeasonFiveHomeState }) {
 
   const applyView = useCallback(
     (nextScale: number, nextX: number, nextY: number) => {
+      const shellBounds = shellRef.current?.getBoundingClientRect();
+      const viewportMinScale = getViewportMinScale(shellBounds);
       const clampedScale = clamp(
         nextScale,
-        SEASON_FIVE_MIN_SCALE,
+        viewportMinScale,
         SEASON_FIVE_MAX_SCALE
       );
       const clampedTranslate = clampTranslation(nextX, nextY, clampedScale);
@@ -584,9 +592,10 @@ function WorldMap({ state }: { state: SeasonFiveHomeState }) {
 
   const focusHex = useCallback(
     (hex: HexTile, focusScale = 0.92) => {
+      const shellBounds = shellRef.current?.getBoundingClientRect();
       const nextScale = clamp(
         focusScale,
-        SEASON_FIVE_MIN_SCALE,
+        getViewportMinScale(shellBounds),
         SEASON_FIVE_MAX_SCALE
       );
       const nextTranslateX = -(hex.x - MAP_WORLD_WIDTH / 2) * nextScale;
@@ -612,7 +621,7 @@ function WorldMap({ state }: { state: SeasonFiveHomeState }) {
       const anchorCenteredY = anchor.y - shellBounds.height / 2;
       const clampedNextScale = clamp(
         nextScale,
-        SEASON_FIVE_MIN_SCALE,
+        getViewportMinScale(shellBounds),
         SEASON_FIVE_MAX_SCALE
       );
       const ratio = clampedNextScale / scale;
@@ -694,6 +703,8 @@ function WorldMap({ state }: { state: SeasonFiveHomeState }) {
     }),
     [scale, translateX, translateY]
   );
+  const showMapDepth = scale >= 0.34;
+  const showMapDetail = scale >= 0.38;
   const biomeClassByBiome = useMemo<Record<HexBiome, string>>(
     () => ({
       coast: styles.seasonFiveCoastTile,
@@ -818,6 +829,7 @@ function WorldMap({ state }: { state: SeasonFiveHomeState }) {
       >
         <div
           className={styles.mapViewportContent}
+          data-map-detail={showMapDetail ? "full" : "low"}
           style={viewTransform}
         >
           <svg
@@ -848,15 +860,23 @@ function WorldMap({ state }: { state: SeasonFiveHomeState }) {
                   }`}
                 >
                   <polygon points={HEX_TILE_POLYGON_POINTS.get(hex.id)} />
-                  <polygon
-                    className={styles.seasonFiveWorldLight}
-                    points={getHexPolygonPoints(hex.x, hex.y, HEX_RADIUS * 0.96)}
-                  />
-                  <polyline
-                    className={styles.seasonFiveWorldInner}
-                    points={HEX_TILE_INNER_POINTS.get(hex.id)}
-                  />
-                  {featurePath ? (
+                  {showMapDepth ? (
+                    <polygon
+                      className={styles.seasonFiveWorldLight}
+                      points={getHexPolygonPoints(
+                        hex.x,
+                        hex.y,
+                        HEX_RADIUS * 0.96
+                      )}
+                    />
+                  ) : null}
+                  {showMapDetail ? (
+                    <polyline
+                      className={styles.seasonFiveWorldInner}
+                      points={HEX_TILE_INNER_POINTS.get(hex.id)}
+                    />
+                  ) : null}
+                  {showMapDetail && featurePath ? (
                     <path
                       className={styles.seasonFiveWorldFeature}
                       d={featurePath}
