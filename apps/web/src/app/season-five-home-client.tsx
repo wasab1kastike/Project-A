@@ -9,6 +9,7 @@ import {
   useState,
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
 } from "react";
 import type { Session } from "next-auth";
 import { io } from "socket.io-client";
@@ -352,6 +353,43 @@ function ClosePanelButton({ onClose }: { onClose?: () => void }) {
   );
 }
 
+function MapOverlay({
+  kicker,
+  title,
+  onClose,
+  children,
+  meta,
+  variant = "left",
+}: {
+  kicker: string;
+  title: string;
+  onClose?: () => void;
+  children: ReactNode;
+  meta?: ReactNode;
+  variant?: "left" | "right" | "wide";
+}) {
+  const variantClass =
+    variant === "right"
+      ? styles.mapOverlayRight
+      : variant === "wide"
+        ? styles.mapOverlayWide
+        : styles.mapOverlayLeft;
+
+  return (
+    <section className={`${styles.mapOverlay} ${variantClass}`}>
+      <div className={styles.sectionHeader}>
+        <div>
+          <p className={styles.kicker}>{kicker}</p>
+          <h2>{title}</h2>
+        </div>
+        {meta}
+        <ClosePanelButton onClose={onClose} />
+      </div>
+      {children}
+    </section>
+  );
+}
+
 function ClassSelection({
   state,
   onClose,
@@ -360,14 +398,12 @@ function ClassSelection({
   onClose?: () => void;
 }) {
   return (
-    <section className={styles.setup}>
-      <div className={styles.sectionHeader}>
-        <div>
-          <p className={styles.kicker}>Character</p>
-          <h2>Choose your washed-up hero</h2>
-        </div>
-        <ClosePanelButton onClose={onClose} />
-      </div>
+    <MapOverlay
+      kicker="Character"
+      title="Choose your washed-up hero"
+      onClose={onClose}
+      variant="wide"
+    >
       <div className={styles.classGrid}>
         {state.classes.map((characterClass) => (
           <form
@@ -391,7 +427,7 @@ function ClassSelection({
           </form>
         ))}
       </div>
-    </section>
+    </MapOverlay>
   );
 }
 
@@ -406,12 +442,12 @@ function CharacterCommandCard({
   if (!character) return null;
 
   return (
-    <aside className={styles.commandCard}>
-      <div className={styles.sectionHeader}>
-        <div>
-          <p className={styles.kicker}>Character</p>
-          <h2>{character.name}</h2>
-        </div>
+    <MapOverlay
+      kicker="Character"
+      title={character.name}
+      onClose={onClose}
+      variant="left"
+      meta={
         <span className={styles.classBadge}>
           <ClassPortrait
             classKey={character.class}
@@ -420,8 +456,8 @@ function CharacterCommandCard({
           />
           {character.classLabel}
         </span>
-        <ClosePanelButton onClose={onClose} />
-      </div>
+      }
+    >
 
       <div className={styles.commandStatus}>
         <strong>{getActionLabel(character.actionKind)}</strong>
@@ -474,11 +510,17 @@ function CharacterCommandCard({
           Manage character
         </Link>
       </div>
-    </aside>
+    </MapOverlay>
   );
 }
 
-function WorldMap({ state }: { state: SeasonFiveHomeState }) {
+function WorldMap({
+  state,
+  onRouteSelected,
+}: {
+  state: SeasonFiveHomeState;
+  onRouteSelected?: () => void;
+}) {
   const character = state.character;
   const shellRef = useRef<HTMLElement | null>(null);
   const userAdjustedViewRef = useRef(false);
@@ -949,12 +991,14 @@ function WorldMap({ state }: { state: SeasonFiveHomeState }) {
                 onClick={() => {
                   if (!isInteractive || !location) return;
                   setSelectedLocationKey(location.key);
+                  onRouteSelected?.();
                 }}
                 onKeyDown={(event) => {
                   if (!isInteractive || !location) return;
                   if (event.key !== "Enter" && event.key !== " ") return;
                   event.preventDefault();
                   setSelectedLocationKey(location.key);
+                  onRouteSelected?.();
                 }}
               >
                 <title>{location?.name ?? tile.roleLabel ?? tile.terrain}</title>
@@ -1070,19 +1114,19 @@ function InventoryPreview({
   const latest = character.inventory.slice(-4).reverse();
 
   return (
-    <section className={styles.sidePanel}>
-      <div className={styles.sectionHeader}>
-        <div>
-          <p className={styles.kicker}>Current haul</p>
-          <h2>Inventory</h2>
-        </div>
-        {character.inventoryFull || character.inventoryCloseToFull ? (
+    <MapOverlay
+      kicker="Current haul"
+      title="Inventory"
+      onClose={onClose}
+      variant="right"
+      meta={
+        character.inventoryFull || character.inventoryCloseToFull ? (
           <span className={styles.warning}>
             {character.inventoryPressureLabel}
           </span>
-        ) : null}
-        <ClosePanelButton onClose={onClose} />
-      </div>
+        ) : null
+      }
+    >
       <InventoryPressureMeter character={character} />
       <div className={styles.inventoryList}>
         {latest.length > 0 ? (
@@ -1109,7 +1153,7 @@ function InventoryPreview({
           Open inventory
         </Link>
       </div>
-    </section>
+    </MapOverlay>
   );
 }
 
@@ -1121,14 +1165,12 @@ function LeaguePanel({
   onClose?: () => void;
 }) {
   return (
-    <section className={styles.sidePanel}>
-      <div className={styles.sectionHeader}>
-        <div>
-          <p className={styles.kicker}>League</p>
-          <h2>Rankings</h2>
-        </div>
-        <ClosePanelButton onClose={onClose} />
-      </div>
+    <MapOverlay
+      kicker="League"
+      title="Rankings"
+      onClose={onClose}
+      variant="right"
+    >
       <div className={styles.leaderboardColumns}>
         <Leaderboard
           title="Most Fish"
@@ -1141,7 +1183,7 @@ function LeaguePanel({
           value={(row) => `${row.biggestFishCm} cm`}
         />
       </div>
-    </section>
+    </MapOverlay>
   );
 }
 
@@ -1299,7 +1341,7 @@ export function SeasonFiveHomeClient({
       </header>
 
       <div className={styles.playfield}>
-        <WorldMap state={liveState} />
+        <WorldMap state={liveState} onRouteSelected={closePanel} />
 
         <nav className={styles.mapHud} aria-label="Map panels">
           {character ? (

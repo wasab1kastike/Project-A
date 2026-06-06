@@ -1,7 +1,7 @@
 .shell {
   position: relative;
   height: 100vh;
-  min-height: 680px;
+  min-height: 100dvh;
   overflow: hidden;
   color: #f6edda;
   background:
@@ -23,10 +23,11 @@
 }
 
 .topbar h1,
-.setup h2,
+.mapOverlay h2,
 .sectionHeader h2,
 .commandCard h2,
-.sidePanel h2 {
+.sidePanel h2,
+.widePanel h2 {
   margin: 0;
   line-height: 1.05;
 }
@@ -55,6 +56,12 @@
 }
 
 .topbar > div:first-child {
+  max-width: min(420px, 44vw);
+  padding: 9px 10px;
+  border: 1px solid rgba(255, 239, 203, 0.16);
+  border-radius: 8px;
+  background: rgba(8, 16, 18, 0.78);
+  box-shadow: 0 12px 32px rgba(2, 10, 12, 0.28);
   pointer-events: auto;
 }
 
@@ -68,9 +75,10 @@
 }
 
 .noticeBand,
-.setup,
+.mapOverlay,
 .commandCard,
-.sidePanel {
+.sidePanel,
+.widePanel {
   border: 1px solid rgba(255, 239, 203, 0.16);
   border-radius: 8px;
   background: rgba(20, 31, 27, 0.9);
@@ -87,14 +95,32 @@
   padding: 18px;
 }
 
-.setup {
+.mapOverlay {
   position: absolute;
   z-index: 16;
+  top: 86px;
+  width: min(372px, calc(100% - 40px));
+  max-height: calc(100dvh - 184px);
+  overflow: auto;
+  padding: 16px;
+  pointer-events: auto;
+}
+
+.mapOverlayLeft {
+  left: 20px;
+}
+
+.mapOverlayRight {
+  right: 20px;
+}
+
+.mapOverlayWide {
   left: 20px;
   right: 20px;
+  top: auto;
   bottom: 92px;
-  max-height: min(640px, calc(100vh - 180px));
-  overflow: auto;
+  width: auto;
+  max-height: min(640px, calc(100dvh - 180px));
   padding: 18px;
 }
 
@@ -935,15 +961,16 @@
 
 .routePreview {
   position: absolute;
-  right: 26px;
+  left: 50%;
   bottom: 84px;
   z-index: 19;
-  width: min(300px, calc(100% - 52px));
-  padding: 14px;
+  width: min(420px, calc(100% - 52px));
+  padding: 12px;
   border: 1px solid rgba(255, 239, 203, 0.2);
   border-radius: 8px;
   background: rgba(20, 31, 27, 0.94);
   box-shadow: 0 18px 42px rgba(2, 10, 12, 0.34);
+  transform: translateX(-50%);
 }
 
 .routePreview h3,
@@ -1165,23 +1192,8 @@
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.34);
 }
 
-.commandCard,
-.sidePanel {
-  position: absolute;
-  z-index: 16;
-  top: 96px;
-  width: min(360px, calc(100% - 40px));
-  max-height: calc(100vh - 188px);
-  overflow: auto;
-  padding: 16px;
-}
-
 .commandCard {
-  left: 20px;
-}
-
-.sidePanel {
-  right: 20px;
+  padding: 16px;
 }
 
 .rightRail {
@@ -1497,8 +1509,12 @@
 }
 
 .characterPage {
+  position: absolute;
+  inset: 96px 20px 20px;
+  overflow: auto;
   max-width: 1320px;
   margin: 0 auto;
+  padding: 0 0 20px;
 }
 
 .tabs {
@@ -1630,11 +1646,6 @@
 
   .topbar .kicker {
     margin: 0;
-    padding: 8px 9px;
-    border: 1px solid rgba(255, 239, 203, 0.18);
-    border-radius: 8px;
-    background: rgba(8, 16, 18, 0.78);
-    box-shadow: 0 10px 24px rgba(2, 10, 12, 0.28);
   }
 
   .topbarMeta {
@@ -1644,29 +1655,34 @@
     font-size: 12px;
   }
 
-  .commandCard,
-  .sidePanel,
-  .setup,
+  .topbar > div:first-child {
+    max-width: 116px;
+    padding: 8px 9px;
+  }
+
+  .mapOverlay,
   .noticeBand {
     left: 12px;
     right: 12px;
     width: auto;
   }
 
-  .commandCard,
-  .sidePanel {
-    top: 72px;
-    bottom: 82px;
-    max-height: none;
-  }
-
-  .setup {
-    bottom: 82px;
-    max-height: min(70dvh, 640px);
+  .mapOverlay,
+  .mapOverlayLeft,
+  .mapOverlayRight,
+  .mapOverlayWide {
+    top: auto;
+    bottom: 78px;
+    max-height: min(68dvh, 640px);
+    padding: 14px;
   }
 
   .noticeBand {
-    bottom: 82px;
+    bottom: 78px;
+  }
+
+  .characterPage {
+    inset: 86px 12px 12px;
   }
 
   .mapHud {
@@ -1680,7 +1696,7 @@
   }
 
   .mapControls {
-    top: 96px;
+    top: 78px;
     right: 12px;
   }
 
@@ -1701,8 +1717,7 @@
   }
 
   .routePreview {
-    right: 12px;
-    bottom: 82px;
+    bottom: 78px;
     width: calc(100% - 24px);
   }
 }
