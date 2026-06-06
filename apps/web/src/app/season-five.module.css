@@ -342,38 +342,6 @@
   will-change: transform;
 }
 
-.mapControls {
-  position: absolute;
-  z-index: 18;
-  top: 74px;
-  right: 14px;
-  display: flex;
-  gap: 7px;
-  pointer-events: auto;
-}
-
-.mapControls button {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  border: 1px solid rgba(255, 239, 203, 0.18);
-  border-radius: 6px;
-  background: rgba(8, 16, 18, 0.84);
-  color: #f6edda;
-  font: inherit;
-  font-weight: 900;
-  cursor: pointer;
-  box-shadow: 0 10px 22px rgba(2, 10, 12, 0.28);
-}
-
-.mapControls button:hover,
-.mapControls button:focus-visible {
-  border-color: rgba(216, 167, 94, 0.72);
-  background: rgba(79, 62, 37, 0.92);
-  outline: none;
-}
-
 .seasonFiveWorldMap {
   display: block;
   width: 100%;
@@ -1746,11 +1714,6 @@
   .hudButton {
     flex: 1 1 120px;
     padding: 0 10px;
-  }
-
-  .mapControls {
-    top: 78px;
-    right: 12px;
   }
 
   .mapNode button {

@@ -94,6 +94,14 @@ type DragStart = Point & {
   translateY: number;
 };
 
+type PinchStart = {
+  distance: number;
+  midpoint: Point;
+  scale: number;
+  translateX: number;
+  translateY: number;
+};
+
 const HEX_TILE_POLYGON_POINTS = new Map(
   HEX_TILES.map((tile) => [tile.id, getHexPolygonPoints(tile.x, tile.y)])
 );
@@ -166,6 +174,29 @@ function getViewportMinScale(bounds: DOMRect | undefined) {
   );
 
   return clamp(fitScale * 0.94, SEASON_FIVE_MIN_SCALE, 0.32);
+}
+
+function getTouchPointInShell(
+  event: ReactPointerEvent<HTMLElement>,
+  bounds: DOMRect
+): Point {
+  return {
+    x: event.clientX - bounds.left,
+    y: event.clientY - bounds.top,
+  };
+}
+
+function getPinchSnapshot(points: Point[]) {
+  const [first, second] = points;
+  if (!first || !second) return null;
+
+  return {
+    distance: Math.hypot(second.x - first.x, second.y - first.y),
+    midpoint: {
+      x: (first.x + second.x) / 2,
+      y: (first.y + second.y) / 2,
+    },
+  };
 }
 
 function getNearestSeasonFourHex(point: { xPercent: number; yPercent: number }) {
@@ -535,6 +566,8 @@ function WorldMap({
   const character = state.character;
   const shellRef = useRef<HTMLElement | null>(null);
   const userAdjustedViewRef = useRef(false);
+  const activePointersRef = useRef(new Map<number, Point>());
+  const pinchStartRef = useRef<PinchStart | null>(null);
   const [selectedLocationKey, setSelectedLocationKey] = useState<string | null>(
     null
   );
@@ -799,40 +832,16 @@ function WorldMap({
         }
       }}
     >
-      <div className={styles.mapControls}>
-        <button
-          type="button"
-          aria-label="Zoom in"
-          onClick={() => {
-            userAdjustedViewRef.current = true;
-            zoomFromViewportPoint(scale + SEASON_FIVE_ZOOM_STEP);
-          }}
-        >
-          +
-        </button>
-        <button
-          type="button"
-          aria-label="Zoom out"
-          onClick={() => {
-            userAdjustedViewRef.current = true;
-            zoomFromViewportPoint(scale - SEASON_FIVE_ZOOM_STEP);
-          }}
-        >
-          -
-        </button>
-        <button type="button" aria-label="Reset map view" onClick={resetView}>
-          0
-        </button>
-      </div>
       <div
         className={`${styles.mapViewport} ${isDragging ? styles.dragging : ""}`}
         onWheel={(event) => {
           event.preventDefault();
           userAdjustedViewRef.current = true;
+          shellRef.current?.focus({ preventScroll: true });
           const shellBounds = shellRef.current?.getBoundingClientRect();
-          const zoomDirection = event.deltaY < 0 ? 1 : -1;
+          const zoomAmount = clamp(-event.deltaY / 600, -0.28, 0.28);
           zoomFromViewportPoint(
-            scale + zoomDirection * SEASON_FIVE_ZOOM_STEP,
+            scale * (1 + zoomAmount),
             shellBounds
               ? {
                   x: event.clientX - shellBounds.left,
@@ -845,7 +854,35 @@ function WorldMap({
           if (event.pointerType === "mouse" && event.button !== 0) return;
           const target = event.target as HTMLElement;
           if (target.closest("button, a, [role='button']")) return;
+          const shellBounds = shellRef.current?.getBoundingClientRect();
+          if (!shellBounds) return;
 
+          shellRef.current?.focus({ preventScroll: true });
+          activePointersRef.current.set(
+            event.pointerId,
+            getTouchPointInShell(event, shellBounds)
+          );
+          event.currentTarget.setPointerCapture(event.pointerId);
+
+          if (activePointersRef.current.size >= 2) {
+            const pinchSnapshot = getPinchSnapshot(
+              Array.from(activePointersRef.current.values())
+            );
+            if (pinchSnapshot && pinchSnapshot.distance > 0) {
+              userAdjustedViewRef.current = true;
+              pinchStartRef.current = {
+                ...pinchSnapshot,
+                scale,
+                translateX,
+                translateY,
+              };
+              setIsDragging(false);
+              setDragStart(null);
+            }
+            return;
+          }
+
+          pinchStartRef.current = null;
           setIsDragging(true);
           setDragStart({
             x: event.clientX,
@@ -853,9 +890,57 @@ function WorldMap({
             translateX,
             translateY,
           });
-          event.currentTarget.setPointerCapture(event.pointerId);
         }}
         onPointerMove={(event: ReactPointerEvent<HTMLDivElement>) => {
+          const shellBounds = shellRef.current?.getBoundingClientRect();
+          if (
+            shellBounds &&
+            activePointersRef.current.has(event.pointerId)
+          ) {
+            activePointersRef.current.set(
+              event.pointerId,
+              getTouchPointInShell(event, shellBounds)
+            );
+          }
+
+          if (
+            shellBounds &&
+            activePointersRef.current.size >= 2 &&
+            pinchStartRef.current
+          ) {
+            const pinchSnapshot = getPinchSnapshot(
+              Array.from(activePointersRef.current.values())
+            );
+            if (!pinchSnapshot || pinchSnapshot.distance === 0) return;
+
+            userAdjustedViewRef.current = true;
+            const pinchStart = pinchStartRef.current;
+            const nextScale = clamp(
+              pinchStart.scale *
+                (pinchSnapshot.distance / pinchStart.distance),
+              getViewportMinScale(shellBounds),
+              SEASON_FIVE_MAX_SCALE
+            );
+            const scaleRatio = nextScale / pinchStart.scale;
+            const startAnchorCenteredX =
+              pinchStart.midpoint.x - shellBounds.width / 2;
+            const startAnchorCenteredY =
+              pinchStart.midpoint.y - shellBounds.height / 2;
+            const currentAnchorCenteredX =
+              pinchSnapshot.midpoint.x - shellBounds.width / 2;
+            const currentAnchorCenteredY =
+              pinchSnapshot.midpoint.y - shellBounds.height / 2;
+
+            applyView(
+              nextScale,
+              currentAnchorCenteredX -
+                (startAnchorCenteredX - pinchStart.translateX) * scaleRatio,
+              currentAnchorCenteredY -
+                (startAnchorCenteredY - pinchStart.translateY) * scaleRatio
+            );
+            return;
+          }
+
           if (!dragStart) return;
           const deltaX = event.clientX - dragStart.x;
           const deltaY = event.clientY - dragStart.y;
@@ -871,11 +956,17 @@ function WorldMap({
           setTranslateY(nextTranslate.y);
         }}
         onPointerUp={(event: ReactPointerEvent<HTMLDivElement>) => {
+          activePointersRef.current.delete(event.pointerId);
+          pinchStartRef.current = null;
           setIsDragging(false);
           setDragStart(null);
-          event.currentTarget.releasePointerCapture(event.pointerId);
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+          }
         }}
-        onPointerCancel={() => {
+        onPointerCancel={(event: ReactPointerEvent<HTMLDivElement>) => {
+          activePointersRef.current.delete(event.pointerId);
+          pinchStartRef.current = null;
           setIsDragging(false);
           setDragStart(null);
         }}
