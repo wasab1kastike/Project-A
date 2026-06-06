@@ -57,6 +57,15 @@ export const SEASON_FIVE_STAT_KEYS = [
 export type SeasonFiveStatKey = (typeof SEASON_FIVE_STAT_KEYS)[number];
 export type SeasonFiveStats = Record<SeasonFiveStatKey, number>;
 
+export type SeasonFiveEffectBonuses = Partial<{
+  catchBonus: number;
+  rarityBonus: number;
+  sizeBonusPercent: number;
+  inventoryBonus: number;
+  inventoryPressureReduction: number;
+  travelPercent: number;
+}>;
+
 export const SEASON_FIVE_STAT_LABELS = {
   stronk: "Stronk",
   luk: "Luk",
@@ -80,6 +89,21 @@ const EMPTY_STATS = {
   magik: 0,
   quietness: 0,
 } satisfies SeasonFiveStats;
+
+const EMPTY_EFFECT_BONUSES = {
+  catchBonus: 0,
+  rarityBonus: 0,
+  sizeBonusPercent: 0,
+  inventoryBonus: 0,
+  inventoryPressureReduction: 0,
+  travelPercent: 0,
+} satisfies Required<SeasonFiveEffectBonuses>;
+
+export const SEASON_FIVE_STARTER_SKILL_POINTS = 2;
+export const SEASON_FIVE_LEVEL_XP = 50;
+export const SEASON_FIVE_MAX_LEVEL = 11;
+export const SEASON_FIVE_MAX_SKILL_POINTS =
+  SEASON_FIVE_STARTER_SKILL_POINTS + SEASON_FIVE_MAX_LEVEL - 1;
 
 export const SEASON_FIVE_CLASSES = {
   [SeasonFiveCharacterClass.DRUNKEN_MONK]: {
@@ -135,171 +159,410 @@ type SeasonFiveSkillNode = {
   key: string;
   name: string;
   description: string;
+  pathKey: string;
+  pathName: string;
+  tier: number;
   cost: number;
   requires?: string[];
   statBonuses?: Partial<SeasonFiveStats>;
+  effectBonuses?: SeasonFiveEffectBonuses;
 };
+
+function createSeasonFiveSkillPath(
+  pathKey: string,
+  pathName: string,
+  nodes: Array<
+    Omit<SeasonFiveSkillNode, "pathKey" | "pathName" | "tier" | "requires"> & {
+      requires?: string[];
+    }
+  >
+) {
+  return nodes.map((node, index) => ({
+    ...node,
+    pathKey,
+    pathName,
+    tier: index + 1,
+    requires:
+      node.requires ?? (index > 0 ? [nodes[index - 1]!.key] : undefined),
+  }));
+}
 
 export const SEASON_FIVE_SKILL_TREES = {
   [SeasonFiveCharacterClass.DRUNKEN_MONK]: [
-    {
-      key: "monk_wobble_cast",
-      name: "Wobble Cast",
-      description: "+1 Smell. The cast looks wrong until fish agree.",
-      cost: 1,
-      statBonuses: { smell: 1 },
-    },
-    {
-      key: "monk_breath_in_mug",
-      name: "Breath in Mug",
-      description: "+1 Quietness. Breathe through the tankard, not the panic.",
-      cost: 1,
-      statBonuses: { quietness: 1 },
-    },
-    {
-      key: "monk_barrel_stance",
-      name: "Barrel Stance",
-      description: "+1 Stronk. Become harder to tip than the boat.",
-      cost: 1,
-      requires: ["monk_wobble_cast"],
-      statBonuses: { stronk: 1 },
-    },
-    {
-      key: "monk_lucky_spill",
-      name: "Lucky Spill",
-      description: "+1 Luk. Some bait is spilled by destiny.",
-      cost: 1,
-      requires: ["monk_breath_in_mug"],
-      statBonuses: { luk: 1 },
-    },
-    {
-      key: "monk_perfect_stumble",
-      name: "Perfect Stumble",
-      description: "+1 Smell, +1 Quietness. Arrive accidentally on purpose.",
-      cost: 2,
-      requires: ["monk_barrel_stance", "monk_lucky_spill"],
-      statBonuses: { smell: 1, quietness: 1 },
-    },
+    ...createSeasonFiveSkillPath("monk_flow", "Flow", [
+      {
+        key: "monk_wobble_cast",
+        name: "Wobble Cast",
+        description: "Faster passive catches from the wrong-looking cast.",
+        cost: 1,
+        effectBonuses: { catchBonus: 1 },
+      },
+      {
+        key: "monk_river_breath",
+        name: "River Breath",
+        description: "Better rhythm when the water gets stubborn.",
+        cost: 1,
+        statBonuses: { smell: 1 },
+        effectBonuses: { catchBonus: 1 },
+      },
+      {
+        key: "monk_foam_timing",
+        name: "Foam Timing",
+        description: "Small rarity lift without losing catch tempo.",
+        cost: 1,
+        effectBonuses: { rarityBonus: 4 },
+      },
+      {
+        key: "monk_perfect_stumble",
+        name: "Perfect Stumble",
+        description: "A capstone burst of catch rhythm and route confidence.",
+        cost: 2,
+        effectBonuses: { catchBonus: 1, travelPercent: -5 },
+      },
+    ]),
+    ...createSeasonFiveSkillPath("monk_stillness", "Stillness", [
+      {
+        key: "monk_breath_in_mug",
+        name: "Breath in Mug",
+        description: "Move quicker by refusing to hurry.",
+        cost: 1,
+        effectBonuses: { travelPercent: -5 },
+      },
+      {
+        key: "monk_dock_nap",
+        name: "Dock Nap",
+        description: "Quiet travel and lighter pack pressure.",
+        cost: 1,
+        statBonuses: { quietness: 1 },
+        effectBonuses: { inventoryPressureReduction: 1 },
+      },
+      {
+        key: "monk_sober_second",
+        name: "Sober Second",
+        description: "A rare clear moment shaves more travel time.",
+        cost: 1,
+        effectBonuses: { travelPercent: -10 },
+      },
+      {
+        key: "monk_empty_cup",
+        name: "Empty Cup",
+        description: "Arrive light, quiet, and ready to keep fishing.",
+        cost: 2,
+        effectBonuses: { travelPercent: -5, inventoryBonus: 2 },
+      },
+    ]),
+    ...createSeasonFiveSkillPath("monk_lucky_mess", "Lucky Mess", [
+      {
+        key: "monk_lucky_spill",
+        name: "Lucky Spill",
+        description: "A little luck leaks into every cast.",
+        cost: 1,
+        effectBonuses: { rarityBonus: 3 },
+      },
+      {
+        key: "monk_barrel_stance",
+        name: "Barrel Stance",
+        description: "The pack handles rough hauls better.",
+        cost: 1,
+        statBonuses: { stronk: 1 },
+        effectBonuses: { inventoryBonus: 2 },
+      },
+      {
+        key: "monk_accidental_bait",
+        name: "Accidental Bait",
+        description: "Odd bait improves rarity and pack pressure.",
+        cost: 1,
+        effectBonuses: { rarityBonus: 3, inventoryPressureReduction: 1 },
+      },
+      {
+        key: "monk_happy_blackout",
+        name: "Happy Blackout",
+        description: "Wake up with better fish and suspiciously tidy gear.",
+        cost: 2,
+        effectBonuses: { rarityBonus: 5, inventoryBonus: 2 },
+      },
+    ]),
   ],
   [SeasonFiveCharacterClass.RETIRED_WARRIOR]: [
-    {
-      key: "warrior_campaign_grip",
-      name: "Campaign Grip",
-      description: "+1 Stronk. Hold the rod like a banner.",
-      cost: 1,
-      statBonuses: { stronk: 1 },
-    },
-    {
-      key: "warrior_old_maps",
-      name: "Old Maps",
-      description: "+1 Smell. The campaign route had excellent trout.",
-      cost: 1,
-      statBonuses: { smell: 1 },
-    },
-    {
-      key: "warrior_siege_patience",
-      name: "Siege Patience",
-      description: "+1 Quietness. Wait them out.",
-      cost: 1,
-      requires: ["warrior_old_maps"],
-      statBonuses: { quietness: 1 },
-    },
-    {
-      key: "warrior_trophy_drag",
-      name: "Trophy Drag",
-      description: "+1 Stronk. Big fish do not get a vote.",
-      cost: 1,
-      requires: ["warrior_campaign_grip"],
-      statBonuses: { stronk: 1 },
-    },
-    {
-      key: "warrior_final_campaign",
-      name: "Final Campaign",
-      description: "+1 Stronk, +1 Luk. One last glorious overreaction.",
-      cost: 2,
-      requires: ["warrior_siege_patience", "warrior_trophy_drag"],
-      statBonuses: { stronk: 1, luk: 1 },
-    },
+    ...createSeasonFiveSkillPath("warrior_trophy_hunter", "Trophy Hunter", [
+      {
+        key: "warrior_campaign_grip",
+        name: "Campaign Grip",
+        description: "Big fish meet military posture.",
+        cost: 1,
+        statBonuses: { stronk: 1 },
+        effectBonuses: { sizeBonusPercent: 5 },
+      },
+      {
+        key: "warrior_trophy_drag",
+        name: "Trophy Drag",
+        description: "Trophy catches scale harder.",
+        cost: 1,
+        effectBonuses: { sizeBonusPercent: 8 },
+      },
+      {
+        key: "warrior_old_hooks",
+        name: "Old Hooks",
+        description: "Better odds of noteworthy fish.",
+        cost: 1,
+        effectBonuses: { rarityBonus: 4 },
+      },
+      {
+        key: "warrior_final_campaign",
+        name: "Final Campaign",
+        description: "One last glorious overreaction for trophy waters.",
+        cost: 2,
+        effectBonuses: { sizeBonusPercent: 12, rarityBonus: 3 },
+      },
+    ]),
+    ...createSeasonFiveSkillPath("warrior_campaign_pack", "Campaign Pack", [
+      {
+        key: "warrior_field_creel",
+        name: "Field Creel",
+        description: "Carry more before returning home.",
+        cost: 1,
+        effectBonuses: { inventoryBonus: 2 },
+      },
+      {
+        key: "warrior_supply_lines",
+        name: "Supply Lines",
+        description: "Pack pressure drops under campaign discipline.",
+        cost: 1,
+        effectBonuses: { inventoryPressureReduction: 1 },
+      },
+      {
+        key: "warrior_ration_space",
+        name: "Ration Space",
+        description: "More room, fewer excuses.",
+        cost: 1,
+        statBonuses: { stronk: 1 },
+        effectBonuses: { inventoryBonus: 2 },
+      },
+      {
+        key: "warrior_baggage_train",
+        name: "Baggage Train",
+        description: "A heavy pack built for long hauls.",
+        cost: 2,
+        effectBonuses: { inventoryBonus: 4, inventoryPressureReduction: 1 },
+      },
+    ]),
+    ...createSeasonFiveSkillPath("warrior_siege_patience", "Siege Patience", [
+      {
+        key: "warrior_old_maps",
+        name: "Old Maps",
+        description: "Know which waters are worth the march.",
+        cost: 1,
+        effectBonuses: { travelPercent: -5 },
+      },
+      {
+        key: "warrior_siege_patience",
+        name: "Siege Patience",
+        description: "Wait them out and catch cleaner.",
+        cost: 1,
+        effectBonuses: { catchBonus: 1 },
+      },
+      {
+        key: "warrior_deep_campaign",
+        name: "Deep Campaign",
+        description: "A patient push into harder waters.",
+        cost: 1,
+        effectBonuses: { catchBonus: 1, sizeBonusPercent: 5 },
+      },
+      {
+        key: "warrior_no_retreat",
+        name: "No Retreat",
+        description: "Slow resolve turns deep water into trophy water.",
+        cost: 2,
+        effectBonuses: { catchBonus: 1, sizeBonusPercent: 8 },
+      },
+    ]),
   ],
   [SeasonFiveCharacterClass.DEMENTED_WIZARD]: [
-    {
-      key: "wizard_muttered_bait",
-      name: "Muttered Bait",
-      description: "+1 Magik. The worm learns an unsettling phrase.",
-      cost: 1,
-      statBonuses: { magik: 1 },
-    },
-    {
-      key: "wizard_moon_ledger",
-      name: "Moon Ledger",
-      description: "+1 Luk. Keep accounts with the tide.",
-      cost: 1,
-      statBonuses: { luk: 1 },
-    },
-    {
-      key: "wizard_glass_gills",
-      name: "Glass Gills",
-      description: "+1 Smell. Hear fish gossip through water.",
-      cost: 1,
-      requires: ["wizard_muttered_bait"],
-      statBonuses: { smell: 1 },
-    },
-    {
-      key: "wizard_pocket_portal",
-      name: "Pocket Portal",
-      description: "+1 Quietness. Fold the road until it stops complaining.",
-      cost: 1,
-      requires: ["wizard_moon_ledger"],
-      statBonuses: { quietness: 1 },
-    },
-    {
-      key: "wizard_argument_with_sea",
-      name: "Argument with Sea",
-      description: "+2 Magik. Lose the debate. Win the fish.",
-      cost: 2,
-      requires: ["wizard_glass_gills", "wizard_pocket_portal"],
-      statBonuses: { magik: 2 },
-    },
+    ...createSeasonFiveSkillPath("wizard_moon_logic", "Moon Logic", [
+      {
+        key: "wizard_moon_ledger",
+        name: "Moon Ledger",
+        description: "Rarity improves when the tide signs the receipt.",
+        cost: 1,
+        effectBonuses: { rarityBonus: 5 },
+      },
+      {
+        key: "wizard_star_bait",
+        name: "Star Bait",
+        description: "Magik and luck nudge stranger fish closer.",
+        cost: 1,
+        statBonuses: { magik: 1 },
+        effectBonuses: { rarityBonus: 4 },
+      },
+      {
+        key: "wizard_probability_hook",
+        name: "Probability Hook",
+        description: "Hook the version of the fish that is rarer.",
+        cost: 1,
+        effectBonuses: { rarityBonus: 6 },
+      },
+      {
+        key: "wizard_argument_with_sea",
+        name: "Argument with Sea",
+        description: "Lose the debate. Win the impossible fish.",
+        cost: 2,
+        effectBonuses: { rarityBonus: 8, sizeBonusPercent: 5 },
+      },
+    ]),
+    ...createSeasonFiveSkillPath("wizard_bent_distance", "Bent Distance", [
+      {
+        key: "wizard_pocket_portal",
+        name: "Pocket Portal",
+        description: "Fold the road until it stops complaining.",
+        cost: 1,
+        effectBonuses: { travelPercent: -10 },
+      },
+      {
+        key: "wizard_wet_shortcut",
+        name: "Wet Shortcut",
+        description: "Arrive through an argument with geography.",
+        cost: 1,
+        effectBonuses: { travelPercent: -5, catchBonus: 1 },
+      },
+      {
+        key: "wizard_unhelpful_map",
+        name: "Unhelpful Map",
+        description: "A wrong map finds right fish faster.",
+        cost: 1,
+        effectBonuses: { travelPercent: -5, rarityBonus: 3 },
+      },
+      {
+        key: "wizard_elsewhere_now",
+        name: "Elsewhere Now",
+        description: "Travel less, fish sooner.",
+        cost: 2,
+        effectBonuses: { travelPercent: -10, catchBonus: 1 },
+      },
+    ]),
+    ...createSeasonFiveSkillPath("wizard_deep_muttering", "Deep Muttering", [
+      {
+        key: "wizard_muttered_bait",
+        name: "Muttered Bait",
+        description: "The bait learns an unsettling phrase.",
+        cost: 1,
+        statBonuses: { magik: 1 },
+        effectBonuses: { catchBonus: 1 },
+      },
+      {
+        key: "wizard_glass_gills",
+        name: "Glass Gills",
+        description: "Hear fish gossip through water.",
+        cost: 1,
+        effectBonuses: { catchBonus: 1 },
+      },
+      {
+        key: "wizard_salt_runes",
+        name: "Salt Runes",
+        description: "Deep catches become larger and weirder.",
+        cost: 1,
+        effectBonuses: { sizeBonusPercent: 6, rarityBonus: 3 },
+      },
+      {
+        key: "wizard_abyssal_chorus",
+        name: "Abyssal Chorus",
+        description: "The deep starts singing back.",
+        cost: 2,
+        effectBonuses: { catchBonus: 1, rarityBonus: 5, sizeBonusPercent: 5 },
+      },
+    ]),
   ],
   [SeasonFiveCharacterClass.BURNT_OUT_ROGUE]: [
-    {
-      key: "rogue_soft_boots",
-      name: "Soft Boots",
-      description: "+1 Quietness. The dock never hears you quit.",
-      cost: 1,
-      statBonuses: { quietness: 1 },
-    },
-    {
-      key: "rogue_stolen_lure",
-      name: "Stolen Lure",
-      description: "+1 Luk. Probably yours now.",
-      cost: 1,
-      statBonuses: { luk: 1 },
-    },
-    {
-      key: "rogue_backwater_gossip",
-      name: "Backwater Gossip",
-      description: "+1 Smell. Know which puddle is lying.",
-      cost: 1,
-      requires: ["rogue_soft_boots"],
-      statBonuses: { smell: 1 },
-    },
-    {
-      key: "rogue_false_bottom",
-      name: "False Bottom",
-      description: "+1 Stronk. The pack has opinions about physics.",
-      cost: 1,
-      requires: ["rogue_stolen_lure"],
-      statBonuses: { stronk: 1 },
-    },
-    {
-      key: "rogue_disappear_twice",
-      name: "Disappear Twice",
-      description: "+1 Quietness, +1 Luk. Even the splash looks away.",
-      cost: 2,
-      requires: ["rogue_backwater_gossip", "rogue_false_bottom"],
-      statBonuses: { quietness: 1, luk: 1 },
-    },
+    ...createSeasonFiveSkillPath("rogue_soft_steps", "Soft Steps", [
+      {
+        key: "rogue_soft_boots",
+        name: "Soft Boots",
+        description: "The dock never hears you quit.",
+        cost: 1,
+        effectBonuses: { travelPercent: -10 },
+      },
+      {
+        key: "rogue_muddy_shortcuts",
+        name: "Muddy Shortcuts",
+        description: "Bad roads become good routes.",
+        cost: 1,
+        statBonuses: { quietness: 1 },
+        effectBonuses: { travelPercent: -5 },
+      },
+      {
+        key: "rogue_no_splash",
+        name: "No Splash",
+        description: "Quiet movement keeps pressure down.",
+        cost: 1,
+        effectBonuses: { inventoryPressureReduction: 1 },
+      },
+      {
+        key: "rogue_disappear_twice",
+        name: "Disappear Twice",
+        description: "Even the splash looks away.",
+        cost: 2,
+        effectBonuses: { travelPercent: -10, inventoryPressureReduction: 1 },
+      },
+    ]),
+    ...createSeasonFiveSkillPath("rogue_dirty_luck", "Dirty Luck", [
+      {
+        key: "rogue_stolen_lure",
+        name: "Stolen Lure",
+        description: "Probably yours now. Rare fish disagree.",
+        cost: 1,
+        effectBonuses: { rarityBonus: 5 },
+      },
+      {
+        key: "rogue_backwater_gossip",
+        name: "Backwater Gossip",
+        description: "Know which puddle is lying.",
+        cost: 1,
+        effectBonuses: { catchBonus: 1 },
+      },
+      {
+        key: "rogue_shady_barter",
+        name: "Shady Barter",
+        description: "Better bait from worse conversations.",
+        cost: 1,
+        effectBonuses: { rarityBonus: 4, catchBonus: 1 },
+      },
+      {
+        key: "rogue_luck_was_work",
+        name: "Luck Was Work",
+        description: "All that luck was scouting after all.",
+        cost: 2,
+        effectBonuses: { rarityBonus: 6, catchBonus: 1 },
+      },
+    ]),
+    ...createSeasonFiveSkillPath("rogue_false_bottoms", "False Bottoms", [
+      {
+        key: "rogue_false_bottom",
+        name: "False Bottom",
+        description: "The pack has opinions about physics.",
+        cost: 1,
+        effectBonuses: { inventoryBonus: 2 },
+      },
+      {
+        key: "rogue_second_pocket",
+        name: "Second Pocket",
+        description: "An extra pocket appears when nobody checks.",
+        cost: 1,
+        effectBonuses: { inventoryBonus: 2 },
+      },
+      {
+        key: "rogue_quiet_pack",
+        name: "Quiet Pack",
+        description: "A full pack complains less.",
+        cost: 1,
+        effectBonuses: { inventoryPressureReduction: 1 },
+      },
+      {
+        key: "rogue_smuggler_creel",
+        name: "Smuggler Creel",
+        description: "Carry more, look innocent.",
+        cost: 2,
+        effectBonuses: { inventoryBonus: 4, inventoryPressureReduction: 1 },
+      },
+    ]),
   ],
 } as const satisfies Record<
   SeasonFiveCharacterClass,
@@ -512,6 +775,24 @@ function addStats(base: SeasonFiveStats, bonuses?: Partial<SeasonFiveStats>) {
   );
 }
 
+function addEffectBonuses(
+  base: Required<SeasonFiveEffectBonuses>,
+  bonuses?: SeasonFiveEffectBonuses
+) {
+  if (!bonuses) return { ...base };
+  return {
+    catchBonus: base.catchBonus + (bonuses.catchBonus ?? 0),
+    rarityBonus: base.rarityBonus + (bonuses.rarityBonus ?? 0),
+    sizeBonusPercent:
+      base.sizeBonusPercent + (bonuses.sizeBonusPercent ?? 0),
+    inventoryBonus: base.inventoryBonus + (bonuses.inventoryBonus ?? 0),
+    inventoryPressureReduction:
+      base.inventoryPressureReduction +
+      (bonuses.inventoryPressureReduction ?? 0),
+    travelPercent: base.travelPercent + (bonuses.travelPercent ?? 0),
+  };
+}
+
 function clampStats(stats: SeasonFiveStats) {
   return SEASON_FIVE_STAT_KEYS.reduce(
     (clamped, key) => ({
@@ -520,6 +801,44 @@ function clampStats(stats: SeasonFiveStats) {
     }),
     { ...EMPTY_STATS }
   );
+}
+
+export function getSeasonFiveLevelForExperience(experience: number) {
+  return clamp(
+    1 + Math.floor(Math.max(0, experience) / SEASON_FIVE_LEVEL_XP),
+    1,
+    SEASON_FIVE_MAX_LEVEL
+  );
+}
+
+export function getSeasonFiveEarnedSkillPointsForLevel(level: number) {
+  return clamp(
+    SEASON_FIVE_STARTER_SKILL_POINTS + Math.max(0, level - 1),
+    SEASON_FIVE_STARTER_SKILL_POINTS,
+    SEASON_FIVE_MAX_SKILL_POINTS
+  );
+}
+
+export function getSeasonFiveProgressionAfterExperience(input: {
+  level: number;
+  skillPoints: number;
+  experience: number;
+}) {
+  const level = getSeasonFiveLevelForExperience(input.experience);
+  const previousEarnedPoints = getSeasonFiveEarnedSkillPointsForLevel(
+    input.level
+  );
+  const nextEarnedPoints = getSeasonFiveEarnedSkillPointsForLevel(level);
+  const pointDelta = Math.max(0, nextEarnedPoints - previousEarnedPoints);
+
+  return {
+    level,
+    skillPoints: Math.min(
+      SEASON_FIVE_MAX_SKILL_POINTS,
+      input.skillPoints + pointDelta
+    ),
+    pointDelta,
+  };
 }
 
 function resolveSkillKey(nodeKey: string) {
@@ -541,6 +860,16 @@ function getSkillStatBonuses(purchasedNodeKeys: Iterable<string>) {
       return addStats(stats, skill?.statBonuses);
     },
     { ...EMPTY_STATS }
+  );
+}
+
+function getSkillEffectBonuses(purchasedNodeKeys: Iterable<string>) {
+  return Array.from(purchasedNodeKeys).reduce(
+    (effects, nodeKey) => {
+      const skill = findSeasonFiveSkillNode(nodeKey);
+      return addEffectBonuses(effects, skill?.effectBonuses);
+    },
+    { ...EMPTY_EFFECT_BONUSES }
   );
 }
 
@@ -616,10 +945,21 @@ export function getSeasonFiveBuildEffects(input: {
   purchasedNodeKeys?: Iterable<string>;
 }) {
   const stats = getSeasonFiveCharacterStats(input);
+  const formulaEffects = deriveSeasonFiveBuildEffectValues(stats);
+  const skillEffects = getSkillEffectBonuses(input.purchasedNodeKeys ?? []);
 
   return {
     stats,
-    ...deriveSeasonFiveBuildEffectValues(stats),
+    catchBonus: formulaEffects.catchBonus + skillEffects.catchBonus,
+    inventoryBonus:
+      formulaEffects.inventoryBonus + skillEffects.inventoryBonus,
+    inventoryPressureReduction:
+      formulaEffects.inventoryPressureReduction +
+      skillEffects.inventoryPressureReduction,
+    rarityBonus: formulaEffects.rarityBonus + skillEffects.rarityBonus,
+    sizeBonusPercent:
+      formulaEffects.sizeBonusPercent + skillEffects.sizeBonusPercent,
+    travelPercent: formulaEffects.travelPercent + skillEffects.travelPercent,
   };
 }
 
@@ -952,7 +1292,7 @@ export async function createSeasonFiveCharacter({
       cycleId: cycle.id,
       name: characterName.slice(0, 40),
       class: selectedClass,
-      skillPoints: 2,
+      skillPoints: SEASON_FIVE_STARTER_SKILL_POINTS,
       currentLocationId: home.id,
       lastResolvedAt: now,
       inventoryCapacity: 12,
@@ -1826,6 +2166,13 @@ export async function processSeasonFiveTick({
         biggest = Math.max(biggest, fish.sizeCm);
       }
 
+      const experienceGain = plan.catches.length * 5;
+      const progression = getSeasonFiveProgressionAfterExperience({
+        level: character.level,
+        skillPoints: character.skillPoints,
+        experience: character.experience + experienceGain,
+      });
+
       await tx.seasonFiveCharacter.update({
         where: { id: character.id },
         data: {
@@ -1833,8 +2180,10 @@ export async function processSeasonFiveTick({
             increment: plan.catches.length,
           },
           experience: {
-            increment: plan.catches.length * 5,
+            increment: experienceGain,
           },
+          level: progression.level,
+          skillPoints: progression.skillPoints,
           biggestFishCm: biggest,
           lastResolvedAt: plan.nextResolvedAt,
         },

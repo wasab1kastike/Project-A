@@ -45,9 +45,13 @@ import {
   createSeasonFiveCatch,
   ensureSeasonFivePreviewCycle,
   getSeasonFiveBuildEffects,
+  getSeasonFiveProgressionAfterExperience,
   normalizeSeasonFiveClass,
+  purchaseSeasonFiveSkill,
   SEASON_FIVE_DURATION_HOURS,
   SEASON_FIVE_LOCATIONS,
+  SEASON_FIVE_MAX_SKILL_POINTS,
+  SEASON_FIVE_SKILL_TREES,
 } from "./season-five";
 import { SEASON_FIVE_BALANCE } from "./season-five-balance";
 
@@ -59,7 +63,30 @@ test("Season 5 class selection accepts persisted enum values", () => {
   assert.throws(() => normalizeSeasonFiveClass("fisher king"), /valid/);
 });
 
-test("Season 5 build effects combine class, gear, and skill stats", () => {
+test("Season 5 class skill trees expose three valid passive paths", () => {
+  for (const [characterClass, tree] of Object.entries(
+    SEASON_FIVE_SKILL_TREES
+  )) {
+    const pathKeys = new Set(tree.map((skill) => skill.pathKey));
+    assert.equal(tree.length, 12, `${characterClass} should have 12 nodes`);
+    assert.equal(pathKeys.size, 3, `${characterClass} should have 3 paths`);
+
+    for (const pathKey of pathKeys) {
+      const path = tree.filter((skill) => skill.pathKey === pathKey);
+      assert.deepEqual(
+        path.map((skill) => skill.tier),
+        [1, 2, 3, 4]
+      );
+      assert.equal(path[0]?.requires, undefined);
+      assert.deepEqual(path[1]?.requires, [path[0]?.key]);
+      assert.deepEqual(path[2]?.requires, [path[1]?.key]);
+      assert.deepEqual(path[3]?.requires, [path[2]?.key]);
+      assert.equal(path[3]?.cost, 2);
+    }
+  }
+});
+
+test("Season 5 build effects combine class, gear, and passive skills", () => {
   const effects = getSeasonFiveBuildEffects({
     characterClass: SeasonFiveCharacterClass.BURNT_OUT_ROGUE,
     gear: [
@@ -79,19 +106,24 @@ test("Season 5 build effects combine class, gear, and skill stats", () => {
         equipped: false,
       },
     ],
-    purchasedNodeKeys: ["steady_hands", "deep_pockets", "muddy_shortcuts"],
+    purchasedNodeKeys: [
+      "rogue_stolen_lure",
+      "rogue_backwater_gossip",
+      "rogue_false_bottom",
+    ],
   });
 
   assert.deepEqual(effects.stats, {
-    stronk: 7,
+    stronk: 6,
     luk: 10,
-    smell: 10,
+    smell: 9,
     magik: 4,
-    quietness: 10,
+    quietness: 9,
   });
-  assert.equal(effects.catchBonus, 2);
+  assert.equal(effects.catchBonus, 3);
   assert.equal(effects.inventoryBonus, 4);
-  assert.equal(effects.travelPercent, -25);
+  assert.equal(effects.rarityBonus, 20);
+  assert.equal(effects.travelPercent, -20);
 });
 
 test("Season 5 build archetypes keep speed and trophy paths viable", () => {
@@ -137,6 +169,154 @@ test("Season 5 build archetypes keep speed and trophy paths viable", () => {
   assert.ok(trophyBuild.sizeBonusPercent > fastRareBuild.sizeBonusPercent);
   assert.ok(trophyBuild.inventoryBonus > fastRareBuild.inventoryBonus);
   assert.ok(fastRareBuild.travelPercent < trophyBuild.travelPercent);
+});
+
+test("Season 5 experience levels grant capped skill points", () => {
+  const oneLevel = getSeasonFiveProgressionAfterExperience({
+    level: 1,
+    skillPoints: 0,
+    experience: 50,
+  });
+  const capped = getSeasonFiveProgressionAfterExperience({
+    level: 10,
+    skillPoints: 11,
+    experience: 9999,
+  });
+
+  assert.deepEqual(oneLevel, {
+    level: 2,
+    skillPoints: 1,
+    pointDelta: 1,
+  });
+  assert.equal(capped.level, 11);
+  assert.equal(capped.skillPoints, SEASON_FIVE_MAX_SKILL_POINTS);
+  assert.equal(capped.pointDelta, 1);
+});
+
+function createSkillPurchaseDb(character: {
+  class: SeasonFiveCharacterClass;
+  skillPoints: number;
+  purchases?: string[];
+}) {
+  const cycle = {
+    id: "s5-cycle",
+    ruleset: CycleRuleset.SEASON_5,
+    resolvedAt: null,
+  };
+  const mapTiles = createSeasonFiveMapTiles().map((tile) => ({
+    id: `tile-${tile.key}`,
+    ...tile,
+  }));
+  const createdPurchases: string[] = [];
+  const updates: unknown[] = [];
+  const tx = {
+    seasonFiveCharacter: {
+      findUnique: async () => ({
+        id: "character",
+        class: character.class,
+        skillPoints: character.skillPoints,
+        skillPurchases: (character.purchases ?? []).map((nodeKey) => ({
+          nodeKey,
+        })),
+      }),
+      update: async (args: unknown) => {
+        updates.push(args);
+        return args;
+      },
+    },
+    seasonFiveSkillPurchase: {
+      create: async ({ data }: { data: { nodeKey: string } }) => {
+        createdPurchases.push(data.nodeKey);
+        return data;
+      },
+    },
+  };
+
+  return {
+    createdPurchases,
+    updates,
+    db: {
+      cycle: {
+        findFirst: async () => cycle,
+        create: async () => {
+          throw new Error("cycle create should not be called");
+        },
+      },
+      seasonFiveMapTile: {
+        upsert: async (args: unknown) => args,
+        findMany: async () => mapTiles,
+      },
+      seasonFiveFishingLocation: {
+        upsert: async (args: unknown) => args,
+      },
+      $transaction: async (callback: (transaction: typeof tx) => unknown) =>
+        callback(tx),
+    },
+  };
+}
+
+test("Season 5 skill purchases enforce class, requirements, duplicates, and points", async () => {
+  await assert.rejects(
+    purchaseSeasonFiveSkill({
+      userId: "user",
+      nodeKey: "monk_wobble_cast",
+      db: createSkillPurchaseDb({
+        class: SeasonFiveCharacterClass.RETIRED_WARRIOR,
+        skillPoints: 2,
+      }).db as never,
+    }),
+    /does not belong/
+  );
+
+  await assert.rejects(
+    purchaseSeasonFiveSkill({
+      userId: "user",
+      nodeKey: "monk_river_breath",
+      db: createSkillPurchaseDb({
+        class: SeasonFiveCharacterClass.DRUNKEN_MONK,
+        skillPoints: 2,
+      }).db as never,
+    }),
+    /previous skill/
+  );
+
+  await assert.rejects(
+    purchaseSeasonFiveSkill({
+      userId: "user",
+      nodeKey: "monk_wobble_cast",
+      db: createSkillPurchaseDb({
+        class: SeasonFiveCharacterClass.DRUNKEN_MONK,
+        skillPoints: 2,
+        purchases: ["monk_wobble_cast"],
+      }).db as never,
+    }),
+    /already unlocked/
+  );
+
+  await assert.rejects(
+    purchaseSeasonFiveSkill({
+      userId: "user",
+      nodeKey: "monk_wobble_cast",
+      db: createSkillPurchaseDb({
+        class: SeasonFiveCharacterClass.DRUNKEN_MONK,
+        skillPoints: 0,
+      }).db as never,
+    }),
+    /skill point/
+  );
+
+  const success = createSkillPurchaseDb({
+    class: SeasonFiveCharacterClass.DRUNKEN_MONK,
+    skillPoints: 2,
+  });
+  await purchaseSeasonFiveSkill({
+    userId: "user",
+    nodeKey: "monk_wobble_cast",
+    db: success.db as never,
+  });
+
+  assert.deepEqual(success.createdPurchases, ["monk_wobble_cast"]);
+  assert.equal(success.updates.length, 1);
 });
 
 test("Season 5 balance constants expose formula tuning knobs", () => {

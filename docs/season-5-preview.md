@@ -18,7 +18,9 @@ When the preview flag is enabled, `/` renders the Season 5 fishing interface ins
 
 - Players create one Season 5 character per cycle.
 - Classes: Drunken Monk, Retired Warrior, Demented Wizard, Burnt-Out Rogue.
-- Players start at Home Base, pick gear, unlock starter skills, and travel to lake or sea locations.
+- Players start at Home Base, pick gear, unlock class passives, and travel to lake or sea locations.
+- Each class has three passive skill paths with formula effects for catch speed, rarity, trophy size, inventory, pressure, and travel.
+- Characters start with two skill points. Passive fishing grants XP; every 50 XP raises the character level, up to level 11, and grants one more skill point.
 - Travel takes time. On arrival, the character fishes passively until a new action is submitted.
 - Inventory capacity limits fishing output. Returning home unloads the current haul.
 - Main rankings are Most Fish and Biggest Fish.

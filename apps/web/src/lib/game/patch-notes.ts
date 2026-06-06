@@ -7,6 +7,18 @@ export type PatchNotesRelease = {
 
 export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
   {
+    date: "2026-06-06",
+    title: "Season 5 passive trees",
+    newFeatures: [
+      "Season 5 classes now have three passive skill paths each, with effects for catch speed, rarity, trophy size, inventory, pack pressure, and travel.",
+      "Season 5 fishing XP now raises character levels and grants skill points up to a twelve-point progression budget.",
+      "The Season 5 character Skills tab now groups class passives by path instead of showing one flat list.",
+    ],
+    bugFixes: [
+      "Season 5 skill purchases now have focused regression coverage for wrong-class, locked, duplicate, and unaffordable nodes.",
+    ],
+  },
+  {
     date: "2026-06-03",
     title: "Closer castles push harder",
     newFeatures: [

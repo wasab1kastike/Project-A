@@ -271,6 +271,21 @@ function GearTab({ state }: { state: SeasonFiveHomeState }) {
 function SkillsTab({ state }: { state: SeasonFiveHomeState }) {
   const character = state.character;
   if (!character) return null;
+  const paths = state.skills.reduce<
+    Array<{ key: string; name: string; skills: typeof state.skills }>
+  >((groups, skill) => {
+    const existing = groups.find((group) => group.key === skill.pathKey);
+    if (existing) {
+      existing.skills.push(skill);
+      return groups;
+    }
+    groups.push({
+      key: skill.pathKey,
+      name: skill.pathName,
+      skills: [skill],
+    });
+    return groups;
+  }, []);
 
   return (
     <>
@@ -281,32 +296,42 @@ function SkillsTab({ state }: { state: SeasonFiveHomeState }) {
         </div>
         <span className={styles.badge}>{character.skillPoints} points</span>
       </div>
-      <div className={styles.skillTree}>
-        {state.skills.map((skill) => (
-          <form key={skill.key} action={purchaseSeasonFiveSkillAction}>
-            <input type="hidden" name="nodeKey" value={skill.key} />
-            <button
-              type="submit"
-              disabled={!skill.available}
-              className={`${styles.skillTreeNode} ${
-                skill.purchased
-                  ? styles.skillPurchased
-                  : skill.available
-                    ? styles.skillAvailable
-                    : styles.skillLocked
-              }`}
-            >
-              <strong>{skill.name}</strong>
-              <small>
-                {skill.purchased
-                  ? "Purchased"
-                  : skill.available
-                    ? `${skill.cost} point${skill.cost === 1 ? "" : "s"}`
-                    : "Locked"}
-              </small>
-              <span>{skill.description}</span>
-            </button>
-          </form>
+      <div className={styles.skillPathGrid}>
+        {paths.map((path) => (
+          <section key={path.key} className={styles.skillPath}>
+            <h3>{path.name}</h3>
+            <div className={styles.skillTree}>
+              {path.skills.map((skill) => (
+                <form key={skill.key} action={purchaseSeasonFiveSkillAction}>
+                  <input type="hidden" name="nodeKey" value={skill.key} />
+                  <button
+                    type="submit"
+                    disabled={!skill.available}
+                    className={`${styles.skillTreeNode} ${
+                      skill.purchased
+                        ? styles.skillPurchased
+                        : skill.available
+                          ? styles.skillAvailable
+                          : styles.skillLocked
+                    }`}
+                  >
+                    <strong>{skill.name}</strong>
+                    <small>
+                      Tier {skill.tier} |{" "}
+                      {skill.purchased
+                        ? "Purchased"
+                        : skill.available
+                          ? `${skill.cost} point${
+                              skill.cost === 1 ? "" : "s"
+                            }`
+                          : "Locked"}
+                    </small>
+                    <span>{skill.description}</span>
+                  </button>
+                </form>
+              ))}
+            </div>
+          </section>
         ))}
       </div>
     </>

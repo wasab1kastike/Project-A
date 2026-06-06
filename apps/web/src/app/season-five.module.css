@@ -1581,16 +1581,33 @@
   font-size: 12px;
 }
 
+.skillPathGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.skillPath {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  min-width: 0;
+}
+
+.skillPath h3 {
+  margin: 0;
+  color: #f5d38e;
+}
+
 .skillTree {
   display: grid;
-  grid-template-columns: repeat(5, minmax(150px, 1fr));
-  gap: 10px;
+  gap: 8px;
   align-items: stretch;
 }
 
 .skillTreeNode {
   display: flex;
-  min-height: 148px;
+  min-height: 126px;
   flex-direction: column;
   align-items: flex-start;
   justify-content: flex-start;
@@ -1712,7 +1729,7 @@
     font-size: 9px;
   }
 
-  .skillTree {
+  .skillPathGrid {
     grid-template-columns: 1fr;
   }
 
