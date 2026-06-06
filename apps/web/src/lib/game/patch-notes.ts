@@ -14,6 +14,8 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
       "Season 5 class passives are now hard-specialized: Monk owns rhythm tempo, Warrior owns trophies and heavy packs, Wizard owns rarity, and Rogue owns travel speed plus quiet packs.",
       "Drunken Monk now has rhythm passives: staying at the same fishing spot can build extra catch tempo and pack-pressure relief.",
       "Season 5 fishing XP now raises character levels and grants skill points up to a twelve-point progression budget.",
+      "Season 5 map fishing now works on water and coast tiles, with connected water-body pools that can run low, regenerate, and reveal temporary stock details.",
+      "Deep water and lava lakes now support higher-risk fishing profiles with level and gear or passive gates.",
       "The Season 5 character Skills tab now groups class passives by path and shows the actual passive math on each node.",
     ],
     bugFixes: [

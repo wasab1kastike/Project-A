@@ -46,6 +46,7 @@ export function planSeasonFivePassiveCatches<
   catchIntervalMinutes: number;
   inventoryUsed: number;
   inventoryCapacity: number;
+  stockAvailable?: number;
   createCatch: (tickAt: Date) => TCatch;
 }) {
   const start = floorToMinute(input.lastResolvedAt);
@@ -58,6 +59,11 @@ export function planSeasonFivePassiveCatches<
     Math.max(0, Math.floor((resolvedAt.getTime() - start.getTime()) / 60_000))
   );
   const catches: Array<{ tickAt: Date; fish: TCatch }> = [];
+  const stockAvailable =
+    input.stockAvailable === undefined
+      ? Number.POSITIVE_INFINITY
+      : Math.max(0, input.stockAvailable);
+  let stockUsed = 0;
 
   for (let offset = 1; offset <= minutesDue; offset += 1) {
     const tickAt = addMinutes(start, offset);
@@ -70,8 +76,12 @@ export function planSeasonFivePassiveCatches<
     if (inventoryUsed + fish.inventorySlots > inventoryCapacity) {
       break;
     }
+    if (stockUsed + fish.inventorySlots > stockAvailable) {
+      break;
+    }
 
     inventoryUsed += fish.inventorySlots;
+    stockUsed += fish.inventorySlots;
     catches.push({ tickAt, fish });
   }
 
@@ -80,6 +90,9 @@ export function planSeasonFivePassiveCatches<
     inventoryUsed,
     inventoryCapacity,
     inventoryFull: inventoryUsed >= inventoryCapacity,
+    stockUsed,
+    stockAvailable,
+    stockDepleted: stockUsed >= stockAvailable,
     nextResolvedAt: resolvedAt,
   };
 }

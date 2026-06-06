@@ -30,7 +30,7 @@ export const SEASON_FIVE_BALANCE = {
   maxSizeMultiplier: 1.5,
 } as const;
 
-const FISH_SPECIES = [
+const DEFAULT_FISH_SPECIES = [
   { key: "mud-perch", name: "Mud Perch", rarity: SeasonFiveFishRarity.COMMON },
   { key: "tin-fin", name: "Tin-Fin", rarity: SeasonFiveFishRarity.COMMON },
   {
@@ -49,6 +49,91 @@ const FISH_SPECIES = [
     rarity: SeasonFiveFishRarity.LEGENDARY,
   },
 ] as const;
+
+const FISH_SPECIES_BY_PROFILE = {
+  coast: [
+    {
+      key: "brine-sardine",
+      name: "Brine Sardine",
+      rarity: SeasonFiveFishRarity.COMMON,
+    },
+    {
+      key: "tin-fin",
+      name: "Tin-Fin",
+      rarity: SeasonFiveFishRarity.COMMON,
+    },
+    {
+      key: "dock-grouch",
+      name: "Dock Grouch",
+      rarity: SeasonFiveFishRarity.UNCOMMON,
+    },
+    {
+      key: "stormglass-eel",
+      name: "Stormglass Eel",
+      rarity: SeasonFiveFishRarity.RARE,
+    },
+    {
+      key: "old-king-cod",
+      name: "Old King Cod",
+      rarity: SeasonFiveFishRarity.LEGENDARY,
+    },
+  ],
+  lake: DEFAULT_FISH_SPECIES,
+  deep: [
+    {
+      key: "blind-minnow",
+      name: "Blind Minnow",
+      rarity: SeasonFiveFishRarity.COMMON,
+    },
+    {
+      key: "pressure-cod",
+      name: "Pressure Cod",
+      rarity: SeasonFiveFishRarity.COMMON,
+    },
+    {
+      key: "moonjaw",
+      name: "Moonjaw",
+      rarity: SeasonFiveFishRarity.UNCOMMON,
+    },
+    {
+      key: "abyss-lantern-eel",
+      name: "Abyss Lantern Eel",
+      rarity: SeasonFiveFishRarity.RARE,
+    },
+    {
+      key: "thing-below-the-boat",
+      name: "Thing Below the Boat",
+      rarity: SeasonFiveFishRarity.LEGENDARY,
+    },
+  ],
+  lava_lake: [
+    {
+      key: "ash-carp",
+      name: "Ash Carp",
+      rarity: SeasonFiveFishRarity.COMMON,
+    },
+    {
+      key: "cinder-koi",
+      name: "Cinder Koi",
+      rarity: SeasonFiveFishRarity.COMMON,
+    },
+    {
+      key: "glassfin-scorcher",
+      name: "Glassfin Scorcher",
+      rarity: SeasonFiveFishRarity.UNCOMMON,
+    },
+    {
+      key: "magma-eel",
+      name: "Magma Eel",
+      rarity: SeasonFiveFishRarity.RARE,
+    },
+    {
+      key: "the-boiling-one",
+      name: "The Boiling One",
+      rarity: SeasonFiveFishRarity.LEGENDARY,
+    },
+  ],
+} as const;
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -128,7 +213,12 @@ export function createSeasonFiveCatch(input: {
   sizeBonusPercent: number;
   rarityBonus?: number;
   inventoryPressure: number;
+  profileKey?: string | null;
 }) {
+  const speciesPool =
+    FISH_SPECIES_BY_PROFILE[
+      input.profileKey as keyof typeof FISH_SPECIES_BY_PROFILE
+    ] ?? DEFAULT_FISH_SPECIES;
   const speciesRoll = clamp(
     (input.hash % 100) + (input.rarityBonus ?? 0),
     0,
@@ -137,15 +227,15 @@ export function createSeasonFiveCatch(input: {
   const species =
     speciesRoll >= SEASON_FIVE_BALANCE.legendaryRollThreshold &&
     input.difficulty >= 4
-      ? FISH_SPECIES[4]
+      ? speciesPool[4]
       : speciesRoll >= SEASON_FIVE_BALANCE.rareRollThreshold &&
           input.difficulty >= 3
-        ? FISH_SPECIES[3]
+        ? speciesPool[3]
         : speciesRoll >= SEASON_FIVE_BALANCE.uncommonRollThreshold
-          ? FISH_SPECIES[2]
+          ? speciesPool[2]
           : speciesRoll >= SEASON_FIVE_BALANCE.commonAltRollThreshold
-            ? FISH_SPECIES[1]
-            : FISH_SPECIES[0];
+            ? speciesPool[1]
+            : speciesPool[0];
   const range = Math.max(1, input.maxFishCm - input.minFishCm);
   const sizeRoll = (input.hash >>> 8) % (range + 1);
   const sizeCm = Math.round(

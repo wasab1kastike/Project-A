@@ -9,6 +9,7 @@ import {
   SeasonFiveGearSlot,
   SeasonFiveLocationKind,
   SeasonFiveMapRole,
+  SeasonFiveMapTerrain,
 } from "@/lib/prisma-client";
 import {
   createSeasonFiveHomeState,
@@ -33,7 +34,11 @@ import {
   createSeasonFiveMapTiles,
   getSeasonFiveLocationTileKey,
   planSeasonFiveDailySpecialTiles,
+  planSeasonFiveFishingLocations,
+  planSeasonFiveWaterBodies,
+  regenerateSeasonFiveWaterBodyStock,
   rollSeasonFiveGlobalDiscovery,
+  rollSeasonFiveWaterBodyDiscovery,
   SEASON_FIVE_MAP_COLUMNS,
   SEASON_FIVE_MAP_ROWS,
   SEASON_FIVE_SECRET_LAKE_KEY,
@@ -51,11 +56,50 @@ import {
   normalizeSeasonFiveClass,
   purchaseSeasonFiveSkill,
   SEASON_FIVE_DURATION_HOURS,
-  SEASON_FIVE_LOCATIONS,
   SEASON_FIVE_MAX_SKILL_POINTS,
   SEASON_FIVE_SKILL_TREES,
 } from "./season-five";
 import { SEASON_FIVE_BALANCE } from "./season-five-balance";
+
+function createSeasonFiveMapTileRecords() {
+  return createSeasonFiveMapTiles().map((tile) => ({
+    id: `tile-${tile.key}`,
+    ...tile,
+  }));
+}
+
+function createSeasonFiveFishingWaterBodyDelegate({
+  upserts = [],
+}: {
+  upserts?: unknown[];
+} = {}) {
+  const bodies = new Map<string, Record<string, unknown>>();
+
+  return {
+    findMany: async () => Array.from(bodies.values()),
+    upsert: async (args: {
+      where: { cycleId_key: { key: string } };
+      create: Record<string, unknown> & { key: string };
+      update: Record<string, unknown>;
+    }) => {
+      upserts.push(args);
+      const key = args.where.cycleId_key.key;
+      const existing = bodies.get(key);
+      const next = existing
+        ? {
+            ...existing,
+            ...args.update,
+          }
+        : {
+            id: `water-body-${bodies.size + 1}`,
+            ...args.create,
+          };
+
+      bodies.set(key, next);
+      return next;
+    },
+  };
+}
 
 test("Season 5 class selection accepts persisted enum values", () => {
   assert.equal(
@@ -73,10 +117,7 @@ function createCharacterCreationDb() {
   };
   const home = { id: "home-location" };
   const createdCharacters: unknown[] = [];
-  const mapTiles = createSeasonFiveMapTiles().map((tile) => ({
-    id: `tile-${tile.key}`,
-    ...tile,
-  }));
+  const mapTiles = createSeasonFiveMapTileRecords();
 
   return {
     createdCharacters,
@@ -95,6 +136,7 @@ function createCharacterCreationDb() {
         upsert: async (args: unknown) => args,
         findUniqueOrThrow: async () => home,
       },
+      seasonFiveFishingWaterBody: createSeasonFiveFishingWaterBodyDelegate(),
       seasonFiveCharacter: {
         findUnique: async () => null,
         create: async (args: unknown) => {
@@ -558,10 +600,7 @@ function createSkillPurchaseDb(character: {
     ruleset: CycleRuleset.SEASON_5,
     resolvedAt: null,
   };
-  const mapTiles = createSeasonFiveMapTiles().map((tile) => ({
-    id: `tile-${tile.key}`,
-    ...tile,
-  }));
+  const mapTiles = createSeasonFiveMapTileRecords();
   const createdPurchases: string[] = [];
   const updates: unknown[] = [];
   const tx = {
@@ -604,6 +643,7 @@ function createSkillPurchaseDb(character: {
       seasonFiveFishingLocation: {
         upsert: async (args: unknown) => args,
       },
+      seasonFiveFishingWaterBody: createSeasonFiveFishingWaterBodyDelegate(),
       $transaction: async (callback: (transaction: typeof tx) => unknown) =>
         callback(tx),
     },
@@ -872,6 +912,44 @@ test("Season 5 map template creates stable tile roles for core locations", () =>
   );
 });
 
+test("Season 5 water body planner turns water, coast, and named spots into fishing locations", () => {
+  const tiles = createSeasonFiveMapTiles();
+  const waterBodies = planSeasonFiveWaterBodies(tiles);
+  const fishingLocations = planSeasonFiveFishingLocations({
+    tiles,
+    waterBodies,
+  });
+  const fishableTileKeys = tiles
+    .filter(
+      (tile) =>
+        tile.terrain === SeasonFiveMapTerrain.WATER ||
+        tile.terrain === SeasonFiveMapTerrain.COAST ||
+        tile.role === SeasonFiveMapRole.FISHING_SPOT ||
+        tile.role === SeasonFiveMapRole.SECRET_LAKE
+    )
+    .map((tile) => tile.key)
+    .sort();
+  const locationTileKeys = fishingLocations
+    .map((location) => location.tileKey)
+    .sort();
+  const moonDepthsTileKey = getSeasonFiveLocationTileKey("moon-depths");
+  const moonDepthsBody = waterBodies.find((body) =>
+    body.tileKeys.includes(moonDepthsTileKey ?? "")
+  );
+
+  assert.deepEqual(locationTileKeys, fishableTileKeys);
+  assert.ok(
+    fishingLocations.some((location) => location.key.startsWith("tile:"))
+  );
+  assert.equal(
+    fishingLocations.find((location) => location.key === "mossglass-lake")
+      ?.tileKey,
+    getSeasonFiveLocationTileKey("mossglass-lake")
+  );
+  assert.equal(moonDepthsBody?.profileKey, "deep");
+  assert.ok(waterBodies.some((body) => body.profileKey === "coast"));
+});
+
 test("Season 5 daily specials rotate deterministic shops, events, and secret lakes", () => {
   const tiles = createSeasonFiveMapTiles();
   const now = new Date("2026-06-05T12:00:00.000Z");
@@ -911,6 +989,36 @@ test("Season 5 Luk can reveal hidden global special tiles", () => {
 
   assert.equal(noHiddenTiles, null);
   assert.ok(highLuk === "t-1-1" || highLuk === "t-2-2");
+});
+
+test("Season 5 discoveries can temporarily reveal water-body pool details", () => {
+  const hiddenWaterBodies = [
+    { id: "body-deep", key: "water:deep:t-8-2" },
+    { id: "body-lava", key: "water:lava_lake:t-4-4" },
+  ];
+  const noCandidates = rollSeasonFiveWaterBodyDiscovery({
+    seed: "pool-seed",
+    luk: 10,
+    magik: 10,
+    gearKeys: ["lucky-bottlecap"],
+    purchasedNodeKeys: ["wizard_salt_runes"],
+    hiddenWaterBodies: [],
+  });
+  const revealed = Array.from({ length: 100 }, (_, index) =>
+    rollSeasonFiveWaterBodyDiscovery({
+      seed: `pool-seed-${index}`,
+      luk: 10,
+      magik: 10,
+      gearKeys: ["lucky-bottlecap"],
+      purchasedNodeKeys: ["wizard_salt_runes"],
+      hiddenWaterBodies,
+    })
+  ).find(Boolean);
+
+  assert.equal(noCandidates, null);
+  assert.ok(
+    revealed?.id === "body-deep" || revealed?.id === "body-lava"
+  );
 });
 
 test("Season 5 route preview adds tile distance and travel modifiers", () => {
@@ -1016,6 +1124,55 @@ test("Season 5 passive fishing respects partial and full inventory", () => {
   assert.equal(full.catches.length, 0);
   assert.equal(full.inventoryUsed, 3);
   assert.equal(full.inventoryFull, true);
+});
+
+test("Season 5 passive fishing stops when a water-body pool is depleted", () => {
+  const plan = planSeasonFivePassiveCatches({
+    lastResolvedAt: new Date("2026-06-05T12:00:00.000Z"),
+    resolvedAt: new Date("2026-06-05T12:05:00.000Z"),
+    catchIntervalMinutes: 1,
+    inventoryUsed: 0,
+    inventoryCapacity: 10,
+    stockAvailable: 2,
+    createCatch: () => ({
+      speciesKey: "pond-minnow",
+      speciesName: "Pond Minnow",
+      rarity: SeasonFiveFishRarity.COMMON,
+      sizeCm: 12,
+      inventorySlots: 1,
+    }),
+  });
+
+  assert.equal(plan.catches.length, 2);
+  assert.equal(plan.stockUsed, 2);
+  assert.equal(plan.stockDepleted, true);
+  assert.equal(plan.inventoryFull, false);
+});
+
+test("Season 5 water-body stock regenerates by elapsed whole catches", () => {
+  const lastRegeneratedAt = new Date("2026-06-05T12:00:00.000Z");
+  const now = new Date("2026-06-05T14:00:00.000Z");
+  const partial = regenerateSeasonFiveWaterBodyStock({
+    currentStock: 10,
+    maxStock: 68,
+    regenPerHour: 14,
+    lastRegeneratedAt,
+    now,
+  });
+  const full = regenerateSeasonFiveWaterBodyStock({
+    currentStock: 68,
+    maxStock: 68,
+    regenPerHour: 14,
+    lastRegeneratedAt,
+    now,
+  });
+
+  assert.equal(partial.currentStock, 38);
+  assert.equal(partial.regenerated, 28);
+  assert.equal(partial.lastRegeneratedAt.getTime(), now.getTime());
+  assert.equal(full.currentStock, 68);
+  assert.equal(full.regenerated, 0);
+  assert.equal(full.lastRegeneratedAt.getTime(), lastRegeneratedAt.getTime());
 });
 
 test("Season 5 passive fishing is idempotent for already resolved minutes", () => {
@@ -1184,12 +1341,19 @@ test("Season 5 Biggest Fish leaderboard derives exact catches and stable ties", 
 test("Season 5 preview cycle seed creates active cycle and baseline locations", async () => {
   const now = new Date("2026-06-05T12:00:00.000Z");
   const upserts: unknown[] = [];
+  const waterBodyUpserts: unknown[] = [];
   const mapUpserts: unknown[] = [];
   let createdCycleData: Record<string, unknown> | null = null;
-  const mapTiles = createSeasonFiveMapTiles().map((tile) => ({
-    id: `tile-${tile.key}`,
-    ...tile,
-  }));
+  const mapTiles = createSeasonFiveMapTileRecords();
+  const waterBodies = planSeasonFiveWaterBodies(mapTiles);
+  const generatedLocations = planSeasonFiveFishingLocations({
+    tiles: mapTiles,
+    waterBodies,
+  });
+  const expectedLocationKeys = [
+    "home",
+    ...generatedLocations.map((location) => location.key),
+  ].sort();
   const db = {
     cycle: {
       findFirst: async () => null,
@@ -1208,6 +1372,9 @@ test("Season 5 preview cycle seed creates active cycle and baseline locations", 
       },
       findMany: async () => mapTiles,
     },
+    seasonFiveFishingWaterBody: createSeasonFiveFishingWaterBodyDelegate({
+      upserts: waterBodyUpserts,
+    }),
     seasonFiveFishingLocation: {
       upsert: async (args: unknown) => {
         upserts.push(args);
@@ -1233,12 +1400,13 @@ test("Season 5 preview cycle seed creates active cycle and baseline locations", 
     mapUpserts.length,
     SEASON_FIVE_MAP_COLUMNS * SEASON_FIVE_MAP_ROWS
   );
-  assert.equal(upserts.length, SEASON_FIVE_LOCATIONS.length);
+  assert.equal(waterBodyUpserts.length, waterBodies.length);
+  assert.equal(upserts.length, expectedLocationKeys.length);
   assert.deepEqual(
     upserts
       .map((entry) => (entry as { create: { key: string } }).create.key)
       .sort(),
-    SEASON_FIVE_LOCATIONS.map((location) => location.key).sort()
+    expectedLocationKeys
   );
   assert.ok(
     upserts.every((entry) => {
@@ -1260,11 +1428,14 @@ test("Season 5 preview cycle seed reuses existing cycle and upserts locations", 
     create: { cycleId: string; key: string; tileId: string | null };
     update: { name: string; tileId: string | null };
   }> = [];
+  const waterBodyUpserts: unknown[] = [];
   const mapUpserts: unknown[] = [];
-  const mapTiles = createSeasonFiveMapTiles().map((tile) => ({
-    id: `tile-${tile.key}`,
-    ...tile,
-  }));
+  const mapTiles = createSeasonFiveMapTileRecords();
+  const waterBodies = planSeasonFiveWaterBodies(mapTiles);
+  const generatedLocations = planSeasonFiveFishingLocations({
+    tiles: mapTiles,
+    waterBodies,
+  });
   const db = {
     cycle: {
       findFirst: async () => existingCycle,
@@ -1279,6 +1450,9 @@ test("Season 5 preview cycle seed reuses existing cycle and upserts locations", 
       },
       findMany: async () => mapTiles,
     },
+    seasonFiveFishingWaterBody: createSeasonFiveFishingWaterBodyDelegate({
+      upserts: waterBodyUpserts,
+    }),
     seasonFiveFishingLocation: {
       upsert: async (args: (typeof upserts)[number]) => {
         upserts.push(args);
@@ -1296,7 +1470,8 @@ test("Season 5 preview cycle seed reuses existing cycle and upserts locations", 
     mapUpserts.length,
     SEASON_FIVE_MAP_COLUMNS * SEASON_FIVE_MAP_ROWS
   );
-  assert.equal(upserts.length, SEASON_FIVE_LOCATIONS.length);
+  assert.equal(waterBodyUpserts.length, waterBodies.length);
+  assert.equal(upserts.length, generatedLocations.length + 1);
   assert.ok(
     upserts.every(
       (entry) =>

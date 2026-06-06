@@ -246,6 +246,52 @@ export const WIKI_PAGES: readonly WikiPage[] = [
     ],
   },
   {
+    slug: "season-five-preview",
+    navLabel: "Season 5",
+    navIcon: "S5",
+    title: "Season 5 Preview",
+    subtitle:
+      "A separate roguelite fishing preview where the map is the fishing surface and character builds decide what waters you can handle.",
+    highlights: [
+      "Any water or coast tile can be selected as a fishing destination.",
+      "Connected water-body pools have hidden stock and hourly regeneration.",
+      "Deep water and lava lakes require higher level plus gear or matching passives.",
+    ],
+    sections: [
+      {
+        id: "map-fishing",
+        eyebrow: "Map",
+        title: "Fishing from the water",
+        body:
+          "Season 5 keeps the map as the main play surface. Named fishing pins still exist, but water and coast tiles also become valid destinations.",
+        bullets: [
+          "Normal lake and coastal water are open from level 1.",
+          "Each destination belongs to a connected water-body pool.",
+          "Route cards show lock reasons when a selected tile needs more level, gear, or passive access.",
+        ],
+      },
+      {
+        id: "water-pools",
+        eyebrow: "Pools",
+        title: "Hidden stock and regen",
+        body:
+          "Water bodies track fish stock behind the scenes. Passive catches spend both inventory space and pool stock; low pools recover over time.",
+        bullets: [
+          "Temporary reveals can show the pool name, profile, stock state, regen, and notable fish.",
+          "Luk, Magik, discovery gear, and map-reading passives improve reveal chances.",
+          "Deep and lava pools use rarer fish profiles and heavier inventory pressure.",
+        ],
+      },
+      {
+        id: "progression",
+        eyebrow: "Builds",
+        title: "Levels, gear, and passives",
+        body:
+          "Fishing grants XP and skill points. Build choices can improve catch speed, rarity, trophy size, inventory, travel, discovery, or access to risky waters.",
+      },
+    ],
+  },
+  {
     slug: "races",
     navLabel: "Races",
     navIcon: "02",

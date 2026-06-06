@@ -21,6 +21,19 @@ During active Season 4 play, the battlefield map includes a Wishes drawer. Activ
 
 ---
 
+## Season 5 Preview
+
+Season 5 preview is a separate roguelite fishing ruleset behind the preview flag. It does not replace the Season 4 fortress rules on services where the flag is disabled.
+
+- Players create one fishing character with a class, starter gear, passive skill tree, level, XP, and inventory.
+- The map is the main action surface. Any water or coast tile can be selected as a fishing destination, while named spots remain as recognizable landmarks.
+- Connected water and coast tiles form water-body pools. Pools track stock and hourly regeneration; passive catches consume pool stock as well as inventory space.
+- Pool details are normally hidden. Gear, stats, and passives can reveal water-body name, profile, stock state, regen, and notable fish temporarily.
+- Normal lake and coastal water are open early. Deep water and lava lakes require higher character level plus deep-water gear or matching passive access.
+- Passive fishing grants catches and XP until inventory, pool stock, or player action stops the session. Returning home unloads the current haul.
+
+---
+
 ## Fortresses
 
 Every player controls one fortress per season. Your fortress is your identity — name, race, location, and all resources.

@@ -1,10 +1,15 @@
-import { SeasonFiveMapRole, SeasonFiveMapTerrain } from "@/lib/prisma-client";
-import { addHours } from "./time";
+import {
+  SeasonFiveLocationKind,
+  SeasonFiveMapRole,
+  SeasonFiveMapTerrain,
+} from "@/lib/prisma-client";
+import { addHours, addMinutes } from "./time";
 
 export const SEASON_FIVE_MAP_COLUMNS = 16;
 export const SEASON_FIVE_MAP_ROWS = 10;
 export const SEASON_FIVE_DAILY_SPECIAL_COUNT = 3;
 export const SEASON_FIVE_SECRET_LAKE_KEY = "moon-rusted-key";
+export const SEASON_FIVE_WATER_BODY_REVEAL_HOURS = 6;
 
 export type SeasonFiveTileTemplate = {
   key: string;
@@ -25,6 +30,56 @@ export type SeasonFiveTileTemplate = {
 export type SeasonFiveMapTileSnapshot = SeasonFiveTileTemplate & {
   id?: string;
   discoveredAt?: Date | null;
+};
+
+export type SeasonFiveWaterBodyProfileKey =
+  | "coast"
+  | "lake"
+  | "deep"
+  | "lava_lake";
+
+export type SeasonFiveWaterBodyProfile = {
+  key: SeasonFiveWaterBodyProfileKey;
+  label: string;
+  kind: SeasonFiveLocationKind;
+  baseTravelMinutes: number;
+  maxStock: number;
+  regenPerHour: number;
+  levelRequired: number;
+  requiredGearKey: string | null;
+  catchDifficulty: number;
+  minFishCm: number;
+  maxFishCm: number;
+  inventoryPressure: number;
+  stockLabels: {
+    rich: string;
+    steady: string;
+    low: string;
+    empty: string;
+  };
+  notableFish: string;
+};
+
+export type SeasonFiveWaterBodyPlan = {
+  key: string;
+  name: string;
+  profileKey: SeasonFiveWaterBodyProfileKey;
+  profile: SeasonFiveWaterBodyProfile;
+  tileKeys: string[];
+  hidden: boolean;
+};
+
+export type SeasonFiveFishingLocationPlan = {
+  key: string;
+  name: string;
+  kind: SeasonFiveLocationKind;
+  tileKey: string;
+  waterBodyKey: string;
+  travelMinutes: number;
+  catchDifficulty: number;
+  minFishCm: number;
+  maxFishCm: number;
+  inventoryPressure: number;
 };
 
 const TERRAIN_GRID = [
@@ -59,6 +114,111 @@ const LOCATION_TILE_KEYS = {
   "blackwake-sea": "t-7-13",
   "moon-depths": "t-8-2",
 } as const;
+
+const LOCATION_KEY_BY_TILE_KEY = Object.fromEntries(
+  Object.entries(LOCATION_TILE_KEYS).map(([locationKey, tileKey]) => [
+    tileKey,
+    locationKey,
+  ])
+) as Record<string, string | undefined>;
+
+const STATIC_LOCATION_NAMES: Record<string, string> = {
+  home: "Home Base",
+  "mossglass-lake": "Mossglass Lake",
+  "old-pier": "Old Pier",
+  "blackwake-sea": "Blackwake Sea",
+  "moon-depths": "Moon Depths",
+};
+
+export const SEASON_FIVE_WATER_BODY_PROFILES = {
+  coast: {
+    key: "coast",
+    label: "Coastal Water",
+    kind: SeasonFiveLocationKind.SEA,
+    baseTravelMinutes: 6,
+    maxStock: 90,
+    regenPerHour: 22,
+    levelRequired: 1,
+    requiredGearKey: null,
+    catchDifficulty: 1,
+    minFishCm: 8,
+    maxFishCm: 95,
+    inventoryPressure: 1,
+    stockLabels: {
+      rich: "Surf is crowded",
+      steady: "Surf is moving",
+      low: "Surf is thinning",
+      empty: "Surf is exhausted",
+    },
+    notableFish: "coastal commons and fast XP",
+  },
+  lake: {
+    key: "lake",
+    label: "Lake",
+    kind: SeasonFiveLocationKind.LAKE,
+    baseTravelMinutes: 8,
+    maxStock: 68,
+    regenPerHour: 14,
+    levelRequired: 1,
+    requiredGearKey: null,
+    catchDifficulty: 2,
+    minFishCm: 12,
+    maxFishCm: 145,
+    inventoryPressure: 1,
+    stockLabels: {
+      rich: "Lake is lively",
+      steady: "Lake is steady",
+      low: "Lake is picked over",
+      empty: "Lake is exhausted",
+    },
+    notableFish: "lake fish with better trophy rolls",
+  },
+  deep: {
+    key: "deep",
+    label: "Deep Water",
+    kind: SeasonFiveLocationKind.SEA,
+    baseTravelMinutes: 14,
+    maxStock: 46,
+    regenPerHour: 8,
+    levelRequired: 5,
+    requiredGearKey: "glowing-worms",
+    catchDifficulty: 4,
+    minFishCm: 45,
+    maxFishCm: 320,
+    inventoryPressure: 2,
+    stockLabels: {
+      rich: "Depths are stirring",
+      steady: "Depths are patient",
+      low: "Depths are quiet",
+      empty: "Depths are exhausted",
+    },
+    notableFish: "rare deep-water weirdness",
+  },
+  lava_lake: {
+    key: "lava_lake",
+    label: "Lava Lake",
+    kind: SeasonFiveLocationKind.LAKE,
+    baseTravelMinutes: 18,
+    maxStock: 24,
+    regenPerHour: 4,
+    levelRequired: 8,
+    requiredGearKey: "glowing-worms",
+    catchDifficulty: 5,
+    minFishCm: 60,
+    maxFishCm: 420,
+    inventoryPressure: 3,
+    stockLabels: {
+      rich: "Lava is boiling",
+      steady: "Lava is simmering",
+      low: "Lava is cooling",
+      empty: "Lava is exhausted",
+    },
+    notableFish: "burning rare fish and heavy hauls",
+  },
+} as const satisfies Record<
+  SeasonFiveWaterBodyProfileKey,
+  SeasonFiveWaterBodyProfile
+>;
 
 const STATIC_ROLES: Record<
   string,
@@ -174,6 +334,285 @@ export function createSeasonFiveMapTiles() {
   return tiles;
 }
 
+export function isSeasonFiveFishableTile(tile: {
+  terrain: SeasonFiveMapTerrain;
+  role: SeasonFiveMapRole;
+}) {
+  return (
+    tile.terrain === SeasonFiveMapTerrain.WATER ||
+    tile.terrain === SeasonFiveMapTerrain.COAST ||
+    tile.role === SeasonFiveMapRole.FISHING_SPOT ||
+    tile.role === SeasonFiveMapRole.SECRET_LAKE
+  );
+}
+
+function getAdjacentSeasonFiveTileKeys(
+  tile: Pick<SeasonFiveTileTemplate, "row" | "col">,
+  tileByCoordinate: Map<string, SeasonFiveMapTileSnapshot>
+) {
+  const neighborOffsets =
+    tile.row % 2 === 0
+      ? [
+          [-1, -1],
+          [0, -1],
+          [-1, 0],
+          [1, 0],
+          [-1, 1],
+          [0, 1],
+        ]
+      : [
+          [0, -1],
+          [1, -1],
+          [-1, 0],
+          [1, 0],
+          [0, 1],
+          [1, 1],
+        ];
+
+  return neighborOffsets
+    .map(([colOffset, rowOffset]) =>
+      tileByCoordinate.get(`${tile.col + colOffset}:${tile.row + rowOffset}`)
+    )
+    .filter((neighbor): neighbor is SeasonFiveMapTileSnapshot =>
+      Boolean(neighbor)
+    )
+    .map((neighbor) => neighbor.key);
+}
+
+function getWaterBodyProfileKey(
+  bodyTiles: SeasonFiveMapTileSnapshot[]
+): SeasonFiveWaterBodyProfileKey {
+  if (bodyTiles.some((tile) => tile.role === SeasonFiveMapRole.SECRET_LAKE)) {
+    return "lava_lake";
+  }
+  if (
+    bodyTiles.some(
+      (tile) => tile.key === LOCATION_TILE_KEYS["moon-depths"]
+    )
+  ) {
+    return "deep";
+  }
+  if (
+    bodyTiles.some((tile) => tile.terrain === SeasonFiveMapTerrain.COAST)
+  ) {
+    return "coast";
+  }
+  return "lake";
+}
+
+function getWaterBodyName(
+  bodyTiles: SeasonFiveMapTileSnapshot[],
+  profile: SeasonFiveWaterBodyProfile,
+  index: number
+) {
+  const secret = bodyTiles.find(
+    (tile) => tile.role === SeasonFiveMapRole.SECRET_LAKE
+  );
+  if (secret?.roleLabel) return secret.roleLabel;
+
+  const namedTile = bodyTiles.find((tile) => {
+    const locationKey = LOCATION_KEY_BY_TILE_KEY[tile.key];
+    return locationKey && locationKey !== "home";
+  });
+  const namedLocationKey = namedTile
+    ? LOCATION_KEY_BY_TILE_KEY[namedTile.key]
+    : null;
+  if (namedLocationKey && STATIC_LOCATION_NAMES[namedLocationKey]) {
+    return STATIC_LOCATION_NAMES[namedLocationKey];
+  }
+
+  return `${profile.label} ${index + 1}`;
+}
+
+export function planSeasonFiveWaterBodies(
+  tiles: SeasonFiveMapTileSnapshot[]
+) {
+  const tileByKey = new Map(tiles.map((tile) => [tile.key, tile]));
+  const tileByCoordinate = new Map(
+    tiles.map((tile) => [`${tile.col}:${tile.row}`, tile] as const)
+  );
+  const fishableKeys = new Set(
+    tiles.filter(isSeasonFiveFishableTile).map((tile) => tile.key)
+  );
+  const visited = new Set<string>();
+  const bodies: SeasonFiveWaterBodyPlan[] = [];
+
+  for (const tile of tiles) {
+    if (!fishableKeys.has(tile.key) || visited.has(tile.key)) continue;
+
+    const queue = [tile.key];
+    const bodyKeys: string[] = [];
+    visited.add(tile.key);
+
+    while (queue.length > 0) {
+      const currentKey = queue.shift();
+      const current = currentKey ? tileByKey.get(currentKey) : null;
+      if (!current) continue;
+
+      bodyKeys.push(current.key);
+
+      if (current.role === SeasonFiveMapRole.SECRET_LAKE) {
+        continue;
+      }
+
+      for (const neighborKey of getAdjacentSeasonFiveTileKeys(
+        current,
+        tileByCoordinate
+      )) {
+        const neighbor = tileByKey.get(neighborKey);
+        if (
+          !neighbor ||
+          visited.has(neighbor.key) ||
+          !fishableKeys.has(neighbor.key) ||
+          neighbor.role === SeasonFiveMapRole.SECRET_LAKE
+        ) {
+          continue;
+        }
+        visited.add(neighbor.key);
+        queue.push(neighbor.key);
+      }
+    }
+
+    const bodyTiles = bodyKeys
+      .map((key) => tileByKey.get(key))
+      .filter((entry): entry is SeasonFiveMapTileSnapshot => Boolean(entry))
+      .sort((left, right) => left.row - right.row || left.col - right.col);
+    const firstTile = bodyTiles[0];
+    if (!firstTile) continue;
+
+    const profileKey = getWaterBodyProfileKey(bodyTiles);
+    const profile = SEASON_FIVE_WATER_BODY_PROFILES[profileKey];
+    bodies.push({
+      key: `water:${profileKey}:${firstTile.key}`,
+      name: getWaterBodyName(bodyTiles, profile, bodies.length),
+      profileKey,
+      profile,
+      tileKeys: bodyTiles.map((entry) => entry.key),
+      hidden: profileKey === "lava_lake",
+    });
+  }
+
+  return bodies;
+}
+
+export function planSeasonFiveFishingLocations({
+  tiles,
+  waterBodies,
+}: {
+  tiles: SeasonFiveMapTileSnapshot[];
+  waterBodies: SeasonFiveWaterBodyPlan[];
+}) {
+  const tileByKey = new Map(tiles.map((tile) => [tile.key, tile]));
+  const homeTile = tileByKey.get(LOCATION_TILE_KEYS.home);
+  const plans: SeasonFiveFishingLocationPlan[] = [];
+
+  for (const body of waterBodies) {
+    for (const tileKey of body.tileKeys) {
+      const tile = tileByKey.get(tileKey);
+      if (!tile) continue;
+
+      const staticLocationKey = LOCATION_KEY_BY_TILE_KEY[tile.key];
+      const key =
+        staticLocationKey && staticLocationKey !== "home"
+          ? staticLocationKey
+          : `tile:${tile.key}`;
+      const name =
+        staticLocationKey && STATIC_LOCATION_NAMES[staticLocationKey]
+          ? STATIC_LOCATION_NAMES[staticLocationKey]
+          : `${body.name} ${tile.row + 1}:${tile.col + 1}`;
+      const travel = homeTile
+        ? calculateSeasonFiveRoutePreview({
+            from: homeTile,
+            to: tile,
+            baseMinutes: body.profile.baseTravelMinutes,
+            travelPercent: 0,
+          }).travelMinutes
+        : body.profile.baseTravelMinutes;
+
+      plans.push({
+        key,
+        name,
+        kind: body.profile.kind,
+        tileKey: tile.key,
+        waterBodyKey: body.key,
+        travelMinutes: travel,
+        catchDifficulty: body.profile.catchDifficulty,
+        minFishCm: body.profile.minFishCm,
+        maxFishCm: body.profile.maxFishCm,
+        inventoryPressure: body.profile.inventoryPressure,
+      });
+    }
+  }
+
+  return plans.sort((left, right) => left.key.localeCompare(right.key));
+}
+
+export function getSeasonFiveWaterBodyStockLabel(input: {
+  currentStock: number;
+  maxStock: number;
+  profileKey: string;
+}) {
+  const profile =
+    SEASON_FIVE_WATER_BODY_PROFILES[
+      input.profileKey as SeasonFiveWaterBodyProfileKey
+    ] ?? SEASON_FIVE_WATER_BODY_PROFILES.lake;
+  const maxStock = Math.max(1, input.maxStock);
+  const ratio = Math.max(0, input.currentStock) / maxStock;
+
+  if (ratio <= 0) return profile.stockLabels.empty;
+  if (ratio < 0.25) return profile.stockLabels.low;
+  if (ratio < 0.7) return profile.stockLabels.steady;
+  return profile.stockLabels.rich;
+}
+
+export function regenerateSeasonFiveWaterBodyStock(input: {
+  currentStock: number;
+  maxStock: number;
+  regenPerHour: number;
+  lastRegeneratedAt: Date;
+  now: Date;
+}) {
+  const maxStock = Math.max(0, input.maxStock);
+  const currentStock = Math.min(maxStock, Math.max(0, input.currentStock));
+  const regenPerHour = Math.max(0, input.regenPerHour);
+  const elapsedMinutes = Math.max(
+    0,
+    Math.floor(
+      (input.now.getTime() - input.lastRegeneratedAt.getTime()) / 60_000
+    )
+  );
+
+  if (regenPerHour === 0 || elapsedMinutes === 0 || currentStock >= maxStock) {
+    return {
+      currentStock,
+      lastRegeneratedAt: input.lastRegeneratedAt,
+      regenerated: 0,
+    };
+  }
+
+  const regenerated = Math.min(
+    maxStock - currentStock,
+    Math.floor((elapsedMinutes * regenPerHour) / 60)
+  );
+
+  if (regenerated <= 0) {
+    return {
+      currentStock,
+      lastRegeneratedAt: input.lastRegeneratedAt,
+      regenerated: 0,
+    };
+  }
+
+  return {
+    currentStock: currentStock + regenerated,
+    lastRegeneratedAt: addMinutes(
+      input.lastRegeneratedAt,
+      Math.floor((regenerated * 60) / regenPerHour)
+    ),
+    regenerated,
+  };
+}
+
 function isSpecialEligible(tile: SeasonFiveMapTileSnapshot) {
   return (
     tile.role === SeasonFiveMapRole.NONE &&
@@ -258,6 +697,50 @@ export function rollSeasonFiveGlobalDiscovery({
 
   const tileIndex = seededIndex(`${seed}:tile`, hiddenTiles.length);
   return hiddenTiles[tileIndex]?.key ?? null;
+}
+
+export function rollSeasonFiveWaterBodyDiscovery({
+  seed,
+  luk,
+  magik,
+  gearKeys,
+  purchasedNodeKeys,
+  hiddenWaterBodies,
+}: {
+  seed: string;
+  luk: number;
+  magik: number;
+  gearKeys: Iterable<string>;
+  purchasedNodeKeys: Iterable<string>;
+  hiddenWaterBodies: Array<{ id: string; key: string }>;
+}) {
+  if (hiddenWaterBodies.length === 0) return null;
+
+  const gear = new Set(gearKeys);
+  const skills = new Set(purchasedNodeKeys);
+  const gearBonus =
+    (gear.has("lucky-bottlecap") ? 8 : 0) +
+    (gear.has("glowing-worms") ? 8 : 0);
+  const wizardDeepKeys = new Set([
+    "wizard_muttered_bait",
+    "wizard_glass_gills",
+    "wizard_salt_runes",
+    "wizard_abyssal_chorus",
+  ]);
+  const skillBonus =
+    (skills.has("warrior_old_maps") ? 7 : 0) +
+    (skills.has("wizard_unhelpful_map") ? 7 : 0) +
+    (Array.from(skills).some((key) => wizardDeepKeys.has(key)) ? 6 : 0) +
+    (skills.has("rogue_backwater_gossip") ? 7 : 0);
+  const chancePercent = Math.min(
+    70,
+    Math.max(0, 4 + luk * 3 + magik * 2 + gearBonus + skillBonus)
+  );
+  const roll = hashString(seed) % 100;
+  if (roll >= chancePercent) return null;
+
+  const bodyIndex = seededIndex(`${seed}:water-body`, hiddenWaterBodies.length);
+  return hiddenWaterBodies[bodyIndex] ?? null;
 }
 
 export function calculateSeasonFiveRoutePreview(input: {

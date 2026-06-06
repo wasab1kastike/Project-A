@@ -1128,10 +1128,13 @@ function WorldMap({
                       ? styles.eventTile
                       : tile.role === "SECRET_LAKE"
                         ? styles.secretTile
-                        : "";
+                        : location && location.kind !== "HOME"
+                          ? styles.fishableWaterTile
+                          : "";
             const isSelected = selectedLocation?.tileKey === tile.key;
             const isCurrent = character?.currentTileKey === tile.key;
             const isDestination = character?.destinationTileKey === tile.key;
+            const isLocked = Boolean(tile.locked || location?.locked);
             const isInteractive =
               Boolean(character) &&
               character?.actionKind !== "TRAVELING" &&
@@ -1146,7 +1149,7 @@ function WorldMap({
                   isSelected ? styles.selectedTile : ""
                 } ${isCurrent ? styles.currentTile : ""} ${
                   isDestination ? styles.destinationTile : ""
-                } ${tile.locked ? styles.lockedTile : ""}`}
+                } ${isLocked ? styles.lockedTile : ""}`}
                 data-variant={tile.visualVariant}
                 role={isInteractive ? "button" : undefined}
                 tabIndex={isInteractive ? 0 : undefined}
@@ -1163,7 +1166,11 @@ function WorldMap({
                   onRouteSelected?.();
                 }}
               >
-                <title>{location?.name ?? tile.roleLabel ?? tile.terrain}</title>
+                <title>
+                  {location?.locked && location.lockReason
+                    ? `${location.name}: ${location.lockReason}`
+                    : (location?.name ?? tile.roleLabel ?? tile.terrain)}
+                </title>
                 <polygon
                   className={styles.seasonFiveWorldHotspotArea}
                   points={HEX_TILE_POLYGON_POINTS.get(hex.id)}
@@ -1247,13 +1254,32 @@ function WorldMap({
             Difficulty {selectedLocation.catchDifficulty} | Tile{" "}
             {selectedTile.row + 1}:{selectedTile.col + 1}
           </p>
+          <div className={styles.routePreviewStatus}>
+            <strong>
+              {selectedLocation.waterBodyProfile ??
+                selectedLocation.waterBodyName ??
+                "Unknown water"}
+            </strong>
+            <span>
+              {selectedLocation.locked
+                ? (selectedLocation.lockReason ?? "Locked")
+                : selectedLocation.waterBodyRevealed
+                  ? `${selectedLocation.waterBodyStockLabel} | ${selectedLocation.waterBodyRegenLabel}`
+                  : "Pool details unrevealed"}
+            </span>
+            {selectedLocation.notableFish ? (
+              <small>{selectedLocation.notableFish}</small>
+            ) : null}
+          </div>
           <form action={startSeasonFiveFishingTripAction}>
             <input
               type="hidden"
               name="locationKey"
               value={selectedLocation.key}
             />
-            <button type="submit">Travel</button>
+            <button type="submit" disabled={selectedLocation.locked}>
+              {selectedLocation.locked ? "Locked" : "Travel"}
+            </button>
             <button type="button" onClick={() => setSelectedLocationKey(null)}>
               Cancel
             </button>

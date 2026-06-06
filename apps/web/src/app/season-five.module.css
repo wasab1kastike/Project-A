@@ -512,6 +512,17 @@
   stroke: rgba(138, 214, 224, 0.96);
 }
 
+.seasonFiveWorldHotspot.fishableWaterTile[role="button"] .seasonFiveWorldHotspotArea {
+  stroke: rgba(138, 214, 224, 0.2);
+  stroke-width: 4px;
+  vector-effect: non-scaling-stroke;
+}
+
+.seasonFiveWorldHotspot.fishableWaterTile[role="button"]:hover .seasonFiveWorldHotspotArea,
+.seasonFiveWorldHotspot.fishableWaterTile[role="button"]:focus-visible .seasonFiveWorldHotspotArea {
+  stroke: rgba(138, 214, 224, 0.88);
+}
+
 .seasonFiveWorldHotspot.shopTile .seasonFiveWorldMarker circle {
   stroke: rgba(240, 179, 93, 0.96);
 }
@@ -983,6 +994,26 @@
   font-size: 13px;
 }
 
+.routePreviewStatus {
+  display: grid;
+  gap: 3px;
+  margin-top: 10px;
+  padding: 9px;
+  border-radius: 6px;
+  background: rgba(255, 248, 231, 0.08);
+}
+
+.routePreviewStatus strong {
+  color: #d8fff4;
+  font-size: 13px;
+}
+
+.routePreviewStatus span,
+.routePreviewStatus small {
+  color: #c9b994;
+  font-size: 12px;
+}
+
 .routePreview form {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -999,6 +1030,11 @@
   font: inherit;
   font-weight: 900;
   cursor: pointer;
+}
+
+.routePreview button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
 }
 
 .routePreview button[type="button"] {

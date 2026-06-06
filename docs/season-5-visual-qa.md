@@ -31,6 +31,9 @@ Check these viewport sizes before closing visual work:
 - Before character creation, the map spans the full playfield width on desktop instead of collapsing into a sidebar column.
 - The page has no horizontal overflow at desktop, tablet, or mobile sizes.
 - Destination pins remain readable and clickable when enabled.
+- Water and coast tiles show a subtle fishable highlight and can be selected without covering the playfield.
+- Locked deep or lava fishing routes show a compact lock reason instead of an enabled travel action.
+- Revealed water-body details fit inside the route preview at desktop, tablet, and mobile widths.
 - Player markers stay bounded near their destination and do not cover pin labels.
 - Player marker status dots distinguish home, traveling, and fishing states.
 - Class cards show all five stats without text overflow.
