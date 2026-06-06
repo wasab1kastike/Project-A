@@ -10,6 +10,7 @@ import {
   returnSeasonFiveHomeAction,
 } from "@/app/game-actions";
 import type {
+  SeasonFiveEffectBonuses,
   SeasonFiveHomeState,
   SeasonFiveStatKey,
   SeasonFiveStats,
@@ -51,6 +52,46 @@ function formatStatBonuses(
     .filter(Boolean);
 
   return parts.length > 0 ? parts.join(", ") : "No stat change";
+}
+
+type SeasonFiveEffectKey = keyof Required<SeasonFiveEffectBonuses>;
+type SeasonFiveSkill = SeasonFiveHomeState["skills"][number];
+
+const skillEffectFormatters = {
+  catchBonus: (value) => `+${value} catch tempo`,
+  rarityBonus: (value) => `+${value} rarity`,
+  sizeBonusPercent: (value) => `+${value}% trophy size`,
+  inventoryBonus: (value) => `+${value} pack slots`,
+  inventoryPressureReduction: (value) => `-${value} pack pressure`,
+  travelPercent: (value) => `${value > 0 ? "+" : ""}${value}% travel time`,
+  rhythmCatchBonus: (value) => `+${value}/stage rhythm tempo`,
+  rhythmPressureReduction: (value) => `-${value}/stage rhythm pressure`,
+} satisfies Record<SeasonFiveEffectKey, (value: number) => string>;
+
+function formatEffectBonuses(effects?: SeasonFiveEffectBonuses) {
+  return (
+    Object.entries(skillEffectFormatters) as Array<
+      [SeasonFiveEffectKey, (value: number) => string]
+    >
+  )
+    .map(([key, formatter]) => {
+      const value = effects?.[key] ?? 0;
+      return value === 0 ? null : formatter(value);
+    })
+    .filter(Boolean);
+}
+
+function formatSkillBonuses(
+  skill: SeasonFiveSkill,
+  labels: Record<SeasonFiveStatKey, string>
+) {
+  const statBonuses = formatStatBonuses(skill.statBonuses ?? {}, labels);
+  const parts = [
+    ...(statBonuses === "No stat change" ? [] : [statBonuses]),
+    ...formatEffectBonuses(skill.effectBonuses),
+  ];
+
+  return parts.length > 0 ? parts.join(", ") : "No passive math";
 }
 
 function getActionText(
@@ -327,6 +368,9 @@ function SkillsTab({ state }: { state: SeasonFiveHomeState }) {
                           : "Locked"}
                     </small>
                     <span>{skill.description}</span>
+                    <span className={styles.skillMath}>
+                      {formatSkillBonuses(skill, state.statLabels)}
+                    </span>
                   </button>
                 </form>
               ))}

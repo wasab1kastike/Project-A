@@ -1656,6 +1656,11 @@
   font-weight: 600;
 }
 
+.skillTreeNode .skillMath {
+  color: #f5d38e;
+  font-size: 12px;
+}
+
 .skillPurchased {
   background: #356b63;
 }

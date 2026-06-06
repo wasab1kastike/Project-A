@@ -20,6 +20,7 @@ When the preview flag is enabled, `/` renders the Season 5 fishing interface ins
 - Classes: Drunken Monk, Retired Warrior, Demented Wizard, Burnt-Out Rogue.
 - Players start at Home Base, pick gear, unlock class passives, and travel to lake or sea locations.
 - Each class has three passive skill paths with formula effects for catch speed, rarity, trophy size, inventory, pressure, and travel.
+- Class passive trees are hard specializations: Drunken Monk owns long-session rhythm tempo, Retired Warrior owns trophy size and raw pack capacity, Demented Wizard owns rarity and deep-water weirdness, and Burnt-Out Rogue owns travel speed and quiet pack pressure.
 - Drunken Monk has a rhythm identity: bought Flow and Stillness passives improve long passive fishing sessions at the same location.
 - Characters start with two skill points. Passive fishing grants XP; every 50 XP raises the character level, up to level 11, and grants one more skill point.
 - Travel takes time. On arrival, the character fishes passively until a new action is submitted.

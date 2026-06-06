@@ -166,9 +166,23 @@ test("Season 5 class skill trees expose three valid passive paths", () => {
       assert.deepEqual(path[2]?.requires, [path[1]?.key]);
       assert.deepEqual(path[3]?.requires, [path[2]?.key]);
       assert.equal(path[3]?.cost, 2);
+      assert.equal(
+        path.reduce((sum, skill) => sum + skill.cost, 0),
+        5,
+        `${characterClass} ${pathKey} should cost 5 points`
+      );
     }
   }
 });
+
+function skillKeysForPath(
+  characterClass: SeasonFiveCharacterClass,
+  pathKey: string
+) {
+  return SEASON_FIVE_SKILL_TREES[characterClass]
+    .filter((skill) => skill.pathKey === pathKey)
+    .map((skill) => skill.key);
+}
 
 test("Season 5 build effects combine class, gear, and passive skills", () => {
   const effects = getSeasonFiveBuildEffects({
@@ -206,7 +220,7 @@ test("Season 5 build effects combine class, gear, and passive skills", () => {
   });
   assert.equal(effects.catchBonus, 3);
   assert.equal(effects.inventoryBonus, 4);
-  assert.equal(effects.rarityBonus, 20);
+  assert.equal(effects.rarityBonus, 19);
   assert.equal(effects.travelPercent, -20);
 });
 
@@ -226,7 +240,7 @@ test("Season 5 Drunken Monk passives unlock rhythm bonuses", () => {
   });
 
   assert.equal(monk.rhythmCatchBonus, 2);
-  assert.equal(monk.rhythmPressureReduction, 2);
+  assert.equal(monk.rhythmPressureReduction, 3);
   assert.equal(warrior.rhythmCatchBonus, 0);
   assert.equal(warrior.rhythmPressureReduction, 0);
 });
@@ -296,6 +310,175 @@ test("Season 5 Drunken Monk rhythm improves catch interval", () => {
 
   assert.equal(rhythm.stage, 2);
   assert.ok(rhythmInterval < baselineInterval);
+});
+
+test("Season 5 Drunken Monk wins long-session tempo", () => {
+  const monk = getSeasonFiveBuildEffects({
+    characterClass: SeasonFiveCharacterClass.DRUNKEN_MONK,
+    purchasedNodeKeys: [
+      ...skillKeysForPath(SeasonFiveCharacterClass.DRUNKEN_MONK, "monk_flow"),
+      ...skillKeysForPath(
+        SeasonFiveCharacterClass.DRUNKEN_MONK,
+        "monk_stillness"
+      ),
+    ],
+  });
+  const rhythm = calculateSeasonFiveRhythm({
+    actionKind: SeasonFiveActionKind.FISHING,
+    actionStartedAt: new Date("2026-06-05T12:00:00.000Z"),
+    now: new Date("2026-06-05T13:31:00.000Z"),
+    rhythmCatchBonus: monk.rhythmCatchBonus,
+    rhythmPressureReduction: monk.rhythmPressureReduction,
+  });
+  const rivalCatchBonuses = [
+    getSeasonFiveBuildEffects({
+      characterClass: SeasonFiveCharacterClass.RETIRED_WARRIOR,
+      purchasedNodeKeys: skillKeysForPath(
+        SeasonFiveCharacterClass.RETIRED_WARRIOR,
+        "warrior_siege_patience"
+      ),
+    }).catchBonus,
+    getSeasonFiveBuildEffects({
+      characterClass: SeasonFiveCharacterClass.DEMENTED_WIZARD,
+      purchasedNodeKeys: skillKeysForPath(
+        SeasonFiveCharacterClass.DEMENTED_WIZARD,
+        "wizard_deep_muttering"
+      ),
+    }).catchBonus,
+    getSeasonFiveBuildEffects({
+      characterClass: SeasonFiveCharacterClass.BURNT_OUT_ROGUE,
+      purchasedNodeKeys: skillKeysForPath(
+        SeasonFiveCharacterClass.BURNT_OUT_ROGUE,
+        "rogue_dirty_luck"
+      ),
+    }).catchBonus,
+  ];
+
+  assert.equal(monk.rhythmCatchBonus, 5);
+  assert.equal(monk.rhythmPressureReduction, 5);
+  assert.equal(rhythm.stage, 3);
+  assert.ok(
+    monk.catchBonus + rhythm.catchBonus > Math.max(...rivalCatchBonuses)
+  );
+});
+
+test("Season 5 Retired Warrior wins trophy size and raw pack capacity", () => {
+  const trophyWarrior = getSeasonFiveBuildEffects({
+    characterClass: SeasonFiveCharacterClass.RETIRED_WARRIOR,
+    purchasedNodeKeys: skillKeysForPath(
+      SeasonFiveCharacterClass.RETIRED_WARRIOR,
+      "warrior_trophy_hunter"
+    ),
+  });
+  const packWarrior = getSeasonFiveBuildEffects({
+    characterClass: SeasonFiveCharacterClass.RETIRED_WARRIOR,
+    purchasedNodeKeys: skillKeysForPath(
+      SeasonFiveCharacterClass.RETIRED_WARRIOR,
+      "warrior_campaign_pack"
+    ),
+  });
+  const wizardDeep = getSeasonFiveBuildEffects({
+    characterClass: SeasonFiveCharacterClass.DEMENTED_WIZARD,
+    purchasedNodeKeys: skillKeysForPath(
+      SeasonFiveCharacterClass.DEMENTED_WIZARD,
+      "wizard_deep_muttering"
+    ),
+  });
+  const roguePack = getSeasonFiveBuildEffects({
+    characterClass: SeasonFiveCharacterClass.BURNT_OUT_ROGUE,
+    purchasedNodeKeys: skillKeysForPath(
+      SeasonFiveCharacterClass.BURNT_OUT_ROGUE,
+      "rogue_false_bottoms"
+    ),
+  });
+
+  assert.ok(trophyWarrior.sizeBonusPercent > wizardDeep.sizeBonusPercent);
+  assert.ok(trophyWarrior.sizeBonusPercent > roguePack.sizeBonusPercent);
+  assert.ok(packWarrior.inventoryBonus > roguePack.inventoryBonus);
+});
+
+test("Season 5 Demented Wizard wins rarity", () => {
+  const wizard = getSeasonFiveBuildEffects({
+    characterClass: SeasonFiveCharacterClass.DEMENTED_WIZARD,
+    purchasedNodeKeys: skillKeysForPath(
+      SeasonFiveCharacterClass.DEMENTED_WIZARD,
+      "wizard_moon_logic"
+    ),
+  });
+  const rogue = getSeasonFiveBuildEffects({
+    characterClass: SeasonFiveCharacterClass.BURNT_OUT_ROGUE,
+    purchasedNodeKeys: skillKeysForPath(
+      SeasonFiveCharacterClass.BURNT_OUT_ROGUE,
+      "rogue_dirty_luck"
+    ),
+  });
+  const monk = getSeasonFiveBuildEffects({
+    characterClass: SeasonFiveCharacterClass.DRUNKEN_MONK,
+    purchasedNodeKeys: skillKeysForPath(
+      SeasonFiveCharacterClass.DRUNKEN_MONK,
+      "monk_lucky_mess"
+    ),
+  });
+  const warrior = getSeasonFiveBuildEffects({
+    characterClass: SeasonFiveCharacterClass.RETIRED_WARRIOR,
+    purchasedNodeKeys: skillKeysForPath(
+      SeasonFiveCharacterClass.RETIRED_WARRIOR,
+      "warrior_trophy_hunter"
+    ),
+  });
+
+  assert.ok(wizard.rarityBonus > rogue.rarityBonus);
+  assert.ok(wizard.rarityBonus > monk.rarityBonus);
+  assert.ok(wizard.rarityBonus > warrior.rarityBonus);
+});
+
+test("Season 5 Burnt-Out Rogue wins travel speed and flat pack pressure", () => {
+  const rogueSpeed = getSeasonFiveBuildEffects({
+    characterClass: SeasonFiveCharacterClass.BURNT_OUT_ROGUE,
+    purchasedNodeKeys: skillKeysForPath(
+      SeasonFiveCharacterClass.BURNT_OUT_ROGUE,
+      "rogue_soft_steps"
+    ),
+  });
+  const roguePack = getSeasonFiveBuildEffects({
+    characterClass: SeasonFiveCharacterClass.BURNT_OUT_ROGUE,
+    purchasedNodeKeys: skillKeysForPath(
+      SeasonFiveCharacterClass.BURNT_OUT_ROGUE,
+      "rogue_false_bottoms"
+    ),
+  });
+  const monkStillness = getSeasonFiveBuildEffects({
+    characterClass: SeasonFiveCharacterClass.DRUNKEN_MONK,
+    purchasedNodeKeys: skillKeysForPath(
+      SeasonFiveCharacterClass.DRUNKEN_MONK,
+      "monk_stillness"
+    ),
+  });
+  const wizardDistance = getSeasonFiveBuildEffects({
+    characterClass: SeasonFiveCharacterClass.DEMENTED_WIZARD,
+    purchasedNodeKeys: skillKeysForPath(
+      SeasonFiveCharacterClass.DEMENTED_WIZARD,
+      "wizard_bent_distance"
+    ),
+  });
+  const warriorPack = getSeasonFiveBuildEffects({
+    characterClass: SeasonFiveCharacterClass.RETIRED_WARRIOR,
+    purchasedNodeKeys: skillKeysForPath(
+      SeasonFiveCharacterClass.RETIRED_WARRIOR,
+      "warrior_campaign_pack"
+    ),
+  });
+
+  assert.ok(rogueSpeed.travelPercent < monkStillness.travelPercent);
+  assert.ok(rogueSpeed.travelPercent < wizardDistance.travelPercent);
+  assert.ok(
+    roguePack.inventoryPressureReduction >
+      warriorPack.inventoryPressureReduction
+  );
+  assert.ok(
+    roguePack.inventoryPressureReduction >
+      monkStillness.inventoryPressureReduction
+  );
 });
 
 test("Season 5 build archetypes keep speed and trophy paths viable", () => {
