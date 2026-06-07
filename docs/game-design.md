@@ -25,12 +25,15 @@ During active Season 4 play, the battlefield map includes a Wishes drawer. Activ
 
 Season 5 preview is a separate roguelite fishing ruleset behind the preview flag. It does not replace the Season 4 fortress rules on services where the flag is disabled.
 
-- Players create one fishing character with a class, starter gear, passive skill tree, level, XP, and inventory.
+- Players create one fishing character with a class, visible starter equipment, passive skill tree, level, XP, fish coins, bait stacks, and inventory.
 - The map is the main action surface. Any water or coast tile can be selected as a fishing destination, while named spots remain as recognizable landmarks.
 - Connected water and coast tiles form water-body pools. Pools track stock and hourly regeneration; passive catches consume pool stock as well as inventory space.
-- Pool details are normally hidden. Gear, stats, and passives can reveal water-body name, profile, stock state, regen, and notable fish temporarily.
-- Normal lake and coastal water are open early. Deep water and lava lakes require higher character level plus deep-water gear or matching passive access.
-- Passive fishing grants catches and XP until inventory, pool stock, or player action stops the session. Returning home unloads the current haul.
+- Pool details are normally hidden. Equipment, stats, and passives can reveal water-body name, profile, stock state, regen, and notable fish temporarily.
+- Normal lake and coastal water are open early. Deep water requires higher character level plus a veteran cane or matching passive access; lava lakes require higher level plus an obsidian rod or deeper wizard passives.
+- Passive fishing grants catches and XP until inventory, pool stock, or player action stops the session. Returning home unloads the current haul and sells fish for fish coins.
+- Equipment slots are Body, Outfit, Hat, and Rod. Starter characters begin with their class body, threadbare pants, and a splintered rod; hats and stronger rods/outfits come from the static shop or very rare item hooks.
+- Bait is a consumable stack, not an equipment slot. Bare Hook is the free baseline, while paid bait sets last one hour and cannot be replaced until their timer ends.
+- Very rare item hooks replace a fish catch with an instant equipment unlock. Duplicate item hooks convert immediately into fish coins.
 
 ---
 

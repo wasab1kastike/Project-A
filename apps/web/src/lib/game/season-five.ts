@@ -3,7 +3,9 @@ import {
   CycleRuleset,
   CycleStatus,
   SeasonFiveActionKind,
+  SeasonFiveCatchKind,
   SeasonFiveCharacterClass,
+  SeasonFiveFishRarity,
   SeasonFiveGearRarity,
   SeasonFiveGearSlot,
   SeasonFiveLocationKind,
@@ -46,7 +48,7 @@ import {
   createSeasonFiveCatch as createSeasonFiveCatchFromBalance,
   deriveSeasonFiveBuildEffectValues,
 } from "./season-five-balance";
-import { addHours, floorToMinute } from "./time";
+import { addHours, addMinutes, floorToMinute } from "./time";
 
 type DatabaseClient = PrismaClient;
 
@@ -676,75 +678,322 @@ export const SEASON_FIVE_LOCATIONS = [
   },
 ] as const;
 
-const STARTER_GEAR = [
+type SeasonFiveEquipmentCatalogItem = {
+  slot: SeasonFiveGearSlot;
+  key: string;
+  name: string;
+  description: string;
+  rarity: SeasonFiveGearRarity;
+  power: number;
+  price: number;
+  statBonuses: Partial<SeasonFiveStats>;
+  classRestriction?: SeasonFiveCharacterClass;
+  catchable?: boolean;
+  visualKey: string;
+};
+
+type SeasonFiveBaitCatalogItem = {
+  key: string;
+  name: string;
+  description: string;
+  rarity: SeasonFiveGearRarity;
+  price: number;
+  quantity: number;
+  durationMinutes: number;
+  effects: SeasonFiveEffectBonuses;
+};
+
+export const SEASON_FIVE_GEAR_SLOT_LABELS = {
+  [SeasonFiveGearSlot.BODY]: "Body",
+  [SeasonFiveGearSlot.OUTFIT]: "Outfit",
+  [SeasonFiveGearSlot.HAT]: "Hat",
+  [SeasonFiveGearSlot.ROD]: "Rod",
+} satisfies Record<SeasonFiveGearSlot, string>;
+
+const SEASON_FIVE_EQUIPMENT_CATALOG: readonly SeasonFiveEquipmentCatalogItem[] = [
+  {
+    slot: SeasonFiveGearSlot.BODY,
+    key: "body-drunken-monk",
+    name: "Pickled Monk Frame",
+    description: "Round shoulders, perfect balance, and questionable pores.",
+    rarity: SeasonFiveGearRarity.COMMON,
+    power: 0,
+    price: 0,
+    statBonuses: { smell: 1 },
+    classRestriction: SeasonFiveCharacterClass.DRUNKEN_MONK,
+    visualKey: "monk",
+  },
+  {
+    slot: SeasonFiveGearSlot.BODY,
+    key: "body-retired-warrior",
+    name: "Retired Bruiser Frame",
+    description: "Old campaign posture with knees that audibly negotiate.",
+    rarity: SeasonFiveGearRarity.COMMON,
+    power: 0,
+    price: 0,
+    statBonuses: { stronk: 1 },
+    classRestriction: SeasonFiveCharacterClass.RETIRED_WARRIOR,
+    visualKey: "warrior",
+  },
+  {
+    slot: SeasonFiveGearSlot.BODY,
+    key: "body-demented-wizard",
+    name: "Scrawny Wizard Body",
+    description: "Default twig wizard build. Pants included for diplomacy.",
+    rarity: SeasonFiveGearRarity.COMMON,
+    power: 0,
+    price: 0,
+    statBonuses: { magik: 1 },
+    classRestriction: SeasonFiveCharacterClass.DEMENTED_WIZARD,
+    visualKey: "wizard",
+  },
+  {
+    slot: SeasonFiveGearSlot.BODY,
+    key: "body-burnt-out-rogue",
+    name: "Twitchy Rogue Frame",
+    description: "Lean, evasive, and deeply familiar with unpaid tabs.",
+    rarity: SeasonFiveGearRarity.COMMON,
+    power: 0,
+    price: 0,
+    statBonuses: { quietness: 1 },
+    classRestriction: SeasonFiveCharacterClass.BURNT_OUT_ROGUE,
+    visualKey: "rogue",
+  },
+  {
+    slot: SeasonFiveGearSlot.OUTFIT,
+    key: "threadbare-pants",
+    name: "Threadbare Pants",
+    description: "The default lower-body policy. Barely enforceable.",
+    rarity: SeasonFiveGearRarity.COMMON,
+    power: 0,
+    price: 0,
+    statBonuses: { quietness: 1 },
+    visualKey: "pants",
+  },
   {
     slot: SeasonFiveGearSlot.ROD,
     key: "splintered-rod",
     name: "Splintered Rod",
+    description: "Catches fish, skin, and sometimes both.",
     rarity: SeasonFiveGearRarity.COMMON,
     power: 0,
-    equipped: true,
+    price: 0,
     statBonuses: { smell: 1 },
+    visualKey: "splintered",
+  },
+  {
+    slot: SeasonFiveGearSlot.HAT,
+    key: "bait-stained-cap",
+    name: "Bait-Stained Cap",
+    description: "No one asks what the stain is. This is its power.",
+    rarity: SeasonFiveGearRarity.COMMON,
+    power: 1,
+    price: 25,
+    statBonuses: { luk: 1 },
+    catchable: true,
+    visualKey: "cap",
+  },
+  {
+    slot: SeasonFiveGearSlot.HAT,
+    key: "bucket-hat-of-regret",
+    name: "Bucket Hat of Regret",
+    description: "A waterproof apology with chin straps.",
+    rarity: SeasonFiveGearRarity.UNCOMMON,
+    power: 1,
+    price: 45,
+    statBonuses: { stronk: 1, smell: 1 },
+    catchable: true,
+    visualKey: "bucket",
+  },
+  {
+    slot: SeasonFiveGearSlot.HAT,
+    key: "pointy-fishing-hat",
+    name: "Pointy Fishing Hat",
+    description: "Wizard-approved headwear for poking clouds into behaving.",
+    rarity: SeasonFiveGearRarity.RARE,
+    power: 2,
+    price: 70,
+    statBonuses: { magik: 1, luk: 1 },
+    catchable: true,
+    visualKey: "pointy",
+  },
+  {
+    slot: SeasonFiveGearSlot.OUTFIT,
+    key: "suspicious-waders",
+    name: "Suspicious Waders",
+    description: "They squelch before touching water.",
+    rarity: SeasonFiveGearRarity.UNCOMMON,
+    power: 1,
+    price: 40,
+    statBonuses: { smell: 1, quietness: 1 },
+    catchable: true,
+    visualKey: "waders",
+  },
+  {
+    slot: SeasonFiveGearSlot.OUTFIT,
+    key: "oilskin-raincoat",
+    name: "Oilskin Raincoat",
+    description: "Makes the rain slide off and the fish feel judged.",
+    rarity: SeasonFiveGearRarity.RARE,
+    power: 2,
+    price: 75,
+    statBonuses: { quietness: 2 },
+    catchable: true,
+    visualKey: "raincoat",
   },
   {
     slot: SeasonFiveGearSlot.ROD,
     key: "war-veteran-cane",
     name: "War Veteran Cane",
+    description: "Deep-water capable and still angry about hills.",
     rarity: SeasonFiveGearRarity.UNCOMMON,
     power: 1,
-    equipped: false,
+    price: 50,
     statBonuses: { stronk: 1, smell: 1 },
+    catchable: true,
+    visualKey: "cane",
   },
   {
-    slot: SeasonFiveGearSlot.BAIT,
-    key: "pocket-breadcrumbs",
-    name: "Pocket Breadcrumbs",
-    rarity: SeasonFiveGearRarity.COMMON,
-    power: 0,
-    equipped: true,
-    statBonuses: { smell: 1 },
-  },
-  {
-    slot: SeasonFiveGearSlot.BAIT,
-    key: "glowing-worms",
-    name: "Glowing Worms",
-    rarity: SeasonFiveGearRarity.UNCOMMON,
-    power: 1,
-    equipped: false,
-    statBonuses: { luk: 1, magik: 1 },
-  },
-  {
-    slot: SeasonFiveGearSlot.PACK,
-    key: "canvas-creel",
-    name: "Canvas Creel",
-    rarity: SeasonFiveGearRarity.COMMON,
-    power: 0,
-    equipped: true,
-    statBonuses: { stronk: 1 },
-  },
-  {
-    slot: SeasonFiveGearSlot.PACK,
-    key: "bottomless-ish-bucket",
-    name: "Bottomless-ish Bucket",
+    slot: SeasonFiveGearSlot.ROD,
+    key: "screaming-bamboo-pole",
+    name: "Screaming Bamboo Pole",
+    description: "Alerts the fish, then negotiates badly with them.",
     rarity: SeasonFiveGearRarity.RARE,
     power: 2,
-    equipped: false,
-    statBonuses: { stronk: 2, quietness: -1 },
+    price: 90,
+    statBonuses: { magik: 1, smell: 1 },
+    catchable: true,
+    visualKey: "bamboo",
   },
   {
-    slot: SeasonFiveGearSlot.TRINKET,
-    key: "lucky-bottlecap",
-    name: "Lucky Bottlecap",
-    rarity: SeasonFiveGearRarity.COMMON,
-    power: 0,
-    equipped: true,
-    statBonuses: { luk: 1 },
+    slot: SeasonFiveGearSlot.ROD,
+    key: "obsidian-roaster-rod",
+    name: "Obsidian Roaster Rod",
+    description: "Lava-safe enough for legal purposes.",
+    rarity: SeasonFiveGearRarity.EPIC,
+    power: 3,
+    price: 140,
+    statBonuses: { stronk: 1, magik: 2 },
+    catchable: true,
+    visualKey: "obsidian",
+  },
+  {
+    slot: SeasonFiveGearSlot.BODY,
+    key: "body-drunken-monk-barrel",
+    name: "Barrel-Chested Monk Body",
+    description: "Stores rhythm, breath, and at least one lunch.",
+    rarity: SeasonFiveGearRarity.RARE,
+    power: 2,
+    price: 95,
+    statBonuses: { smell: 2 },
+    classRestriction: SeasonFiveCharacterClass.DRUNKEN_MONK,
+    catchable: true,
+    visualKey: "monk-barrel",
+  },
+  {
+    slot: SeasonFiveGearSlot.BODY,
+    key: "body-retired-warrior-ironback",
+    name: "Ironback Pensioner Body",
+    description: "The spine is retired; the shoulders did not get the memo.",
+    rarity: SeasonFiveGearRarity.RARE,
+    power: 2,
+    price: 95,
+    statBonuses: { stronk: 2 },
+    classRestriction: SeasonFiveCharacterClass.RETIRED_WARRIOR,
+    catchable: true,
+    visualKey: "warrior-ironback",
+  },
+  {
+    slot: SeasonFiveGearSlot.BODY,
+    key: "body-demented-wizard-noodle",
+    name: "Arcane Noodle Body",
+    description: "Mostly elbows, prophecies, and lint.",
+    rarity: SeasonFiveGearRarity.RARE,
+    power: 2,
+    price: 95,
+    statBonuses: { magik: 2 },
+    classRestriction: SeasonFiveCharacterClass.DEMENTED_WIZARD,
+    catchable: true,
+    visualKey: "wizard-noodle",
+  },
+  {
+    slot: SeasonFiveGearSlot.BODY,
+    key: "body-burnt-out-rogue-shadowy",
+    name: "Shadowy Debt-Dodger Body",
+    description: "Technically visible, socially unavailable.",
+    rarity: SeasonFiveGearRarity.RARE,
+    power: 2,
+    price: 95,
+    statBonuses: { quietness: 2 },
+    classRestriction: SeasonFiveCharacterClass.BURNT_OUT_ROGUE,
+    catchable: true,
+    visualKey: "rogue-shadow",
   },
 ] as const;
 
-const STARTER_GEAR_BY_KEY: Map<string, (typeof STARTER_GEAR)[number]> = new Map(
-  STARTER_GEAR.map((gear) => [gear.key, gear])
+export const SEASON_FIVE_BAIT_CATALOG: readonly SeasonFiveBaitCatalogItem[] = [
+  {
+    key: "bare-hook",
+    name: "Bare Hook",
+    description: "Free baseline bait. It has confidence and nothing else.",
+    rarity: SeasonFiveGearRarity.COMMON,
+    price: 0,
+    quantity: 0,
+    durationMinutes: 0,
+    effects: {},
+  },
+  {
+    key: "pocket-breadcrumb-hour",
+    name: "Pocket Breadcrumbs",
+    description: "One hour of questionable crumbs and slightly faster bites.",
+    rarity: SeasonFiveGearRarity.COMMON,
+    price: 15,
+    quantity: 1,
+    durationMinutes: 60,
+    effects: { catchBonus: 1 },
+  },
+  {
+    key: "glowing-worm-hour",
+    name: "Glowing Worms",
+    description: "One hour of luminous bait that attracts rarer mistakes.",
+    rarity: SeasonFiveGearRarity.UNCOMMON,
+    price: 35,
+    quantity: 1,
+    durationMinutes: 60,
+    effects: { rarityBonus: 5 },
+  },
+  {
+    key: "screaming-grub-hour",
+    name: "Screaming Grub",
+    description: "One loud hour. Bigger fish investigate the complaint.",
+    rarity: SeasonFiveGearRarity.RARE,
+    price: 55,
+    quantity: 1,
+    durationMinutes: 60,
+    effects: { catchBonus: 1, sizeBonusPercent: 10 },
+  },
+] as const;
+
+const EQUIPMENT_BY_KEY: Map<string, SeasonFiveEquipmentCatalogItem> = new Map(
+  SEASON_FIVE_EQUIPMENT_CATALOG.map((gear) => [gear.key, gear])
 );
+
+const BAIT_BY_KEY: Map<string, SeasonFiveBaitCatalogItem> = new Map(
+  SEASON_FIVE_BAIT_CATALOG.map((bait) => [bait.key, bait])
+);
+
+const STARTER_BODY_BY_CLASS = {
+  [SeasonFiveCharacterClass.DRUNKEN_MONK]: "body-drunken-monk",
+  [SeasonFiveCharacterClass.RETIRED_WARRIOR]: "body-retired-warrior",
+  [SeasonFiveCharacterClass.DEMENTED_WIZARD]: "body-demented-wizard",
+  [SeasonFiveCharacterClass.BURNT_OUT_ROGUE]: "body-burnt-out-rogue",
+} satisfies Record<SeasonFiveCharacterClass, string>;
+
+const STARTER_EQUIPMENT_KEYS = ["threadbare-pants", "splintered-rod"] as const;
+
+function getStarterEquipmentKeys(characterClass: SeasonFiveCharacterClass) {
+  return [STARTER_BODY_BY_CLASS[characterClass], ...STARTER_EQUIPMENT_KEYS];
+}
 
 export function isSeasonFivePreviewEnabled() {
   return process.env[SEASON_FIVE_PREVIEW_FLAG] === "true";
@@ -952,28 +1201,107 @@ function getGearStatBonuses(
     .reduce(
       (stats, item) => {
         const catalogBonuses = item.key
-          ? STARTER_GEAR_BY_KEY.get(item.key)?.statBonuses
+          ? EQUIPMENT_BY_KEY.get(item.key)?.statBonuses
           : null;
         if (catalogBonuses) {
           return addStats(stats, catalogBonuses);
         }
 
+        if (item.slot === SeasonFiveGearSlot.BODY) {
+          return addStats(stats, { stronk: item.power });
+        }
+        if (item.slot === SeasonFiveGearSlot.OUTFIT) {
+          return addStats(stats, { quietness: item.power });
+        }
+        if (item.slot === SeasonFiveGearSlot.HAT) {
+          return addStats(stats, { luk: item.power, magik: item.power });
+        }
         if (item.slot === SeasonFiveGearSlot.ROD) {
           return addStats(stats, { stronk: item.power, smell: item.power });
-        }
-        if (item.slot === SeasonFiveGearSlot.BAIT) {
-          return addStats(stats, { luk: item.power, smell: item.power });
-        }
-        if (item.slot === SeasonFiveGearSlot.PACK) {
-          return addStats(stats, { stronk: item.power * 2 });
-        }
-        if (item.slot === SeasonFiveGearSlot.TRINKET) {
-          return addStats(stats, { luk: item.power, magik: item.power });
         }
         return stats;
       },
       { ...EMPTY_STATS }
     );
+}
+
+function getEquipmentForCharacterClass(
+  characterClass: SeasonFiveCharacterClass
+) {
+  return SEASON_FIVE_EQUIPMENT_CATALOG.filter(
+    (item) => !item.classRestriction || item.classRestriction === characterClass
+  );
+}
+
+function getShopEquipmentForCharacterClass(
+  characterClass: SeasonFiveCharacterClass
+) {
+  return getEquipmentForCharacterClass(characterClass).filter(
+    (item) => item.price > 0
+  );
+}
+
+function getVisibleEquipmentPayload(
+  item: SeasonFiveEquipmentCatalogItem,
+  ownedKeys: Set<string>
+) {
+  return {
+    key: item.key,
+    slot: item.slot,
+    slotLabel: SEASON_FIVE_GEAR_SLOT_LABELS[item.slot],
+    name: item.name,
+    description: item.description,
+    rarity: item.rarity,
+    power: item.power,
+    price: item.price,
+    statBonuses: item.statBonuses,
+    classRestriction: item.classRestriction ?? null,
+    catchable: Boolean(item.catchable),
+    owned: ownedKeys.has(item.key),
+    visualKey: item.visualKey,
+  };
+}
+
+function getBaitPayload(
+  bait: SeasonFiveBaitCatalogItem,
+  quantity: number,
+  activeBaitKey: string | null,
+  activeBaitExpiresAt: Date | null,
+  now: Date
+) {
+  const active =
+    activeBaitKey === bait.key &&
+    Boolean(activeBaitExpiresAt && activeBaitExpiresAt > now);
+  return {
+    key: bait.key,
+    name: bait.name,
+    description: bait.description,
+    rarity: bait.rarity,
+    price: bait.price,
+    quantity,
+    purchaseQuantity: bait.quantity,
+    durationMinutes: bait.durationMinutes,
+    effects: bait.effects,
+    active,
+    activeUntil: active ? activeBaitExpiresAt : null,
+  };
+}
+
+export function getSeasonFiveActiveBait(input: {
+  baitKey?: string | null;
+  expiresAt?: Date | null;
+  now: Date;
+}) {
+  if (
+    input.baitKey &&
+    input.expiresAt &&
+    input.expiresAt > input.now &&
+    BAIT_BY_KEY.has(input.baitKey)
+  ) {
+    return BAIT_BY_KEY.get(input.baitKey)!;
+  }
+
+  return BAIT_BY_KEY.get("bare-hook")!;
 }
 
 export function getSeasonFiveCharacterStats(input: {
@@ -1031,6 +1359,71 @@ export function getSeasonFiveBuildEffects(input: {
   };
 }
 
+export function getSeasonFiveEffectiveBuildEffects(input: {
+  characterClass: SeasonFiveCharacterClass;
+  gear?: Array<{
+    key?: string;
+    slot: SeasonFiveGearSlot;
+    power: number;
+    equipped: boolean;
+  }>;
+  purchasedNodeKeys?: Iterable<string>;
+  activeBaitKey?: string | null;
+  activeBaitExpiresAt?: Date | null;
+  now: Date;
+}) {
+  const buildEffects = getSeasonFiveBuildEffects(input);
+  const bait = getSeasonFiveActiveBait({
+    baitKey: input.activeBaitKey,
+    expiresAt: input.activeBaitExpiresAt,
+    now: input.now,
+  });
+  const effects = addEffectBonuses(buildEffects, bait.effects);
+
+  return {
+    ...buildEffects,
+    ...effects,
+    stats: buildEffects.stats,
+  };
+}
+
+export function getSeasonFiveAvatarLoadout(input: {
+  characterClass: SeasonFiveCharacterClass;
+  gear?: Array<{
+    key: string;
+    slot: SeasonFiveGearSlot;
+    equipped: boolean;
+  }>;
+}) {
+  const equippedBySlot = new Map(
+    (input.gear ?? [])
+      .filter((gear) => gear.equipped)
+      .map((gear) => [gear.slot, gear.key])
+  );
+  const defaultBodyKey = STARTER_BODY_BY_CLASS[input.characterClass];
+  const body =
+    EQUIPMENT_BY_KEY.get(
+      equippedBySlot.get(SeasonFiveGearSlot.BODY) ?? defaultBodyKey
+    ) ?? EQUIPMENT_BY_KEY.get(defaultBodyKey)!;
+  const outfit =
+    EQUIPMENT_BY_KEY.get(
+      equippedBySlot.get(SeasonFiveGearSlot.OUTFIT) ?? "threadbare-pants"
+    ) ?? EQUIPMENT_BY_KEY.get("threadbare-pants")!;
+  const rod =
+    EQUIPMENT_BY_KEY.get(
+      equippedBySlot.get(SeasonFiveGearSlot.ROD) ?? "splintered-rod"
+    ) ?? EQUIPMENT_BY_KEY.get("splintered-rod")!;
+  const hatKey = equippedBySlot.get(SeasonFiveGearSlot.HAT);
+  const hat = hatKey ? EQUIPMENT_BY_KEY.get(hatKey) : null;
+
+  return {
+    body: body.visualKey,
+    outfit: outfit.visualKey,
+    hat: hat?.visualKey ?? null,
+    rod: rod.visualKey,
+  };
+}
+
 export { calculateSeasonFiveTravelMinutes } from "./season-five-actions";
 export {
   calculateSeasonFiveCatchIntervalMinutes,
@@ -1051,6 +1444,93 @@ export function createSeasonFiveCatch(input: {
     ...input,
     hash: hashString(input.seed),
   });
+}
+
+const FISH_COIN_VALUE_BY_RARITY = {
+  [SeasonFiveFishRarity.COMMON]: { base: 1, perKg: 1 },
+  [SeasonFiveFishRarity.UNCOMMON]: { base: 4, perKg: 1.4 },
+  [SeasonFiveFishRarity.RARE]: { base: 14, perKg: 2.2 },
+  [SeasonFiveFishRarity.LEGENDARY]: { base: 60, perKg: 4 },
+} satisfies Record<
+  SeasonFiveFishRarity,
+  { base: number; perKg: number }
+>;
+
+export function getSeasonFiveFishCoinValue(input: {
+  rarity: SeasonFiveFishRarity;
+  weightGrams: number;
+}) {
+  const value = FISH_COIN_VALUE_BY_RARITY[input.rarity];
+  return Math.max(
+    1,
+    Math.floor(value.base + (Math.max(0, input.weightGrams) / 1000) * value.perKg)
+  );
+}
+
+export function getSeasonFiveDuplicateItemCoinValue(itemKey: string) {
+  const item = EQUIPMENT_BY_KEY.get(itemKey);
+  return Math.max(5, Math.floor((item?.price ?? 20) * 0.35));
+}
+
+function getSeasonFiveFishRarityForEquipment(
+  rarity: SeasonFiveGearRarity
+): SeasonFiveFishRarity {
+  if (rarity === SeasonFiveGearRarity.EPIC) return SeasonFiveFishRarity.LEGENDARY;
+  if (rarity === SeasonFiveGearRarity.RARE) return SeasonFiveFishRarity.RARE;
+  if (rarity === SeasonFiveGearRarity.UNCOMMON) {
+    return SeasonFiveFishRarity.UNCOMMON;
+  }
+  return SeasonFiveFishRarity.COMMON;
+}
+
+export function rollSeasonFiveItemCatch(input: {
+  seed: string;
+  characterClass: SeasonFiveCharacterClass;
+  luk: number;
+  magik: number;
+  gearKeys: string[];
+  ownedItemKeys: string[];
+}) {
+  const gearBonus =
+    (input.gearKeys.includes("pointy-fishing-hat") ? 0.005 : 0) +
+    (input.gearKeys.includes("obsidian-roaster-rod") ? 0.005 : 0);
+  const chance = clamp(
+    0.02 +
+      gearBonus +
+      Math.max(0, input.luk - 5) * 0.003 +
+      Math.max(0, input.magik - 5) * 0.002,
+    0.02,
+    0.07
+  );
+  const roll = hashString(`${input.seed}:item-roll`) / 0xffffffff;
+
+  if (roll > chance) {
+    return null;
+  }
+
+  const candidates = SEASON_FIVE_EQUIPMENT_CATALOG.filter(
+    (item) =>
+      item.catchable &&
+      (!item.classRestriction || item.classRestriction === input.characterClass)
+  );
+
+  if (candidates.length === 0) return null;
+
+  const ownedKeys = new Set(input.ownedItemKeys);
+  const hash = hashString(`${input.seed}:item-pick`);
+  const item = candidates[hash % candidates.length];
+  const duplicate = ownedKeys.has(item.key);
+
+  return {
+    key: item.key,
+    name: item.name,
+    slot: item.slot,
+    rarity: item.rarity,
+    power: item.power,
+    statBonuses: item.statBonuses,
+    duplicate,
+    coinValue: duplicate ? getSeasonFiveDuplicateItemCoinValue(item.key) : 0,
+  };
 }
 
 type SeasonFiveAccessCharacter = {
@@ -1172,7 +1652,7 @@ function getSeasonFiveFishingAccess({
         revealed,
         reason:
           waterBody.profileKey === "lava_lake"
-            ? "Requires lava-safe bait or a deeper wizard skill."
+            ? "Requires a lava-safe rod or a deeper wizard skill."
             : "Requires deep-water gear or a deep-water skill.",
       };
     }
@@ -1519,6 +1999,9 @@ async function getSeasonFiveCharacterForUser(args: {
       gear: {
         orderBy: [{ slot: "asc" }, { createdAt: "asc" }],
       },
+      baitStacks: {
+        orderBy: [{ key: "asc" }],
+      },
       skillPurchases: true,
       keyItems: true,
       currentLocation: {
@@ -1605,9 +2088,20 @@ export async function createSeasonFiveCharacter({
       inventoryCapacity: 12,
       gear: {
         createMany: {
-          data: STARTER_GEAR.map(({ statBonuses: _statBonuses, ...gear }) => ({
-            ...gear,
-          })),
+          data: getStarterEquipmentKeys(selectedClass).map((gearKey) => {
+            const gear = EQUIPMENT_BY_KEY.get(gearKey);
+            if (!gear) {
+              throw new GameError("Starter gear catalog is missing an item.");
+            }
+            return {
+              slot: gear.slot,
+              key: gear.key,
+              name: gear.name,
+              rarity: gear.rarity,
+              power: gear.power,
+              equipped: true,
+            };
+          }),
         },
       },
     },
@@ -1643,6 +2137,20 @@ export async function equipSeasonFiveGear({
     throw new GameError("That gear is not in your tackle pile.");
   }
 
+  const catalogItem = EQUIPMENT_BY_KEY.get(gear.key);
+  if (!catalogItem) {
+    throw new GameError("That gear is no longer supported.");
+  }
+  if (
+    catalogItem.classRestriction &&
+    catalogItem.classRestriction !== character.class
+  ) {
+    throw new GameError("That body does not fit your class.");
+  }
+  if (catalogItem.slot !== gear.slot) {
+    throw new GameError("That gear needs refitted before equipping.");
+  }
+
   await db.$transaction([
     db.seasonFiveGear.updateMany({
       where: {
@@ -1662,6 +2170,187 @@ export async function equipSeasonFiveGear({
       },
     }),
   ]);
+}
+
+export async function purchaseSeasonFiveShopItem({
+  userId,
+  itemKey,
+  db = prisma,
+}: {
+  userId: string;
+  itemKey: string;
+  db?: DatabaseClient;
+}) {
+  const cycle = await ensureSeasonFivePreviewCycle({ db });
+  const normalizedItemKey = itemKey.trim();
+
+  await db.$transaction(async (tx) => {
+    const character = await tx.seasonFiveCharacter.findUnique({
+      where: { cycleId_userId: { cycleId: cycle.id, userId } },
+      include: {
+        gear: true,
+        baitStacks: true,
+      },
+    });
+
+    if (!character) {
+      throw new GameError("Create a Season 5 character before shopping.");
+    }
+
+    const equipment = EQUIPMENT_BY_KEY.get(normalizedItemKey);
+    if (equipment) {
+      if (equipment.price <= 0) {
+        throw new GameError("That item is already part of the starter pile.");
+      }
+      if (
+        equipment.classRestriction &&
+        equipment.classRestriction !== character.class
+      ) {
+        throw new GameError("That body does not fit your class.");
+      }
+      if (character.gear.some((gear) => gear.key === equipment.key)) {
+        throw new GameError("You already own that item.");
+      }
+      if (character.fishCoins < equipment.price) {
+        throw new GameError("You need more fish coins.");
+      }
+
+      await tx.seasonFiveCharacter.update({
+        where: { id: character.id },
+        data: {
+          fishCoins: {
+            decrement: equipment.price,
+          },
+        },
+      });
+      await tx.seasonFiveGear.create({
+        data: {
+          characterId: character.id,
+          slot: equipment.slot,
+          key: equipment.key,
+          name: equipment.name,
+          rarity: equipment.rarity,
+          power: equipment.power,
+          equipped: false,
+        },
+      });
+      return;
+    }
+
+    const bait = BAIT_BY_KEY.get(normalizedItemKey);
+    if (!bait || bait.key === "bare-hook") {
+      throw new GameError("Choose a real shop item.");
+    }
+    if (character.fishCoins < bait.price) {
+      throw new GameError("You need more fish coins.");
+    }
+
+    await tx.seasonFiveCharacter.update({
+      where: { id: character.id },
+      data: {
+        fishCoins: {
+          decrement: bait.price,
+        },
+      },
+    });
+    await tx.seasonFiveBaitStack.upsert({
+      where: {
+        characterId_key: {
+          characterId: character.id,
+          key: bait.key,
+        },
+      },
+      create: {
+        characterId: character.id,
+        key: bait.key,
+        quantity: bait.quantity,
+      },
+      update: {
+        quantity: {
+          increment: bait.quantity,
+        },
+      },
+    });
+  });
+}
+
+export async function activateSeasonFiveBait({
+  userId,
+  baitKey,
+  db = prisma,
+  now = new Date(),
+}: {
+  userId: string;
+  baitKey: string;
+  db?: DatabaseClient;
+  now?: Date;
+}) {
+  const cycle = await ensureSeasonFivePreviewCycle({ db, now });
+  const normalizedBaitKey = baitKey.trim();
+  const bait = BAIT_BY_KEY.get(normalizedBaitKey);
+
+  if (!bait) {
+    throw new GameError("Choose a valid bait.");
+  }
+
+  await db.$transaction(async (tx) => {
+    const character = await tx.seasonFiveCharacter.findUnique({
+      where: { cycleId_userId: { cycleId: cycle.id, userId } },
+      include: {
+        baitStacks: true,
+      },
+    });
+
+    if (!character) {
+      throw new GameError("Create a Season 5 character before baiting hooks.");
+    }
+
+    const paidBaitActive =
+      character.activeBaitKey &&
+      character.activeBaitKey !== "bare-hook" &&
+      character.activeBaitExpiresAt &&
+      character.activeBaitExpiresAt > now;
+    if (paidBaitActive) {
+      throw new GameError("Finish the active bait hour before replacing it.");
+    }
+
+    if (bait.key === "bare-hook") {
+      await tx.seasonFiveCharacter.update({
+        where: { id: character.id },
+        data: {
+          activeBaitKey: null,
+          activeBaitExpiresAt: null,
+        },
+      });
+      return;
+    }
+
+    const stack = character.baitStacks.find((entry) => entry.key === bait.key);
+    if (!stack || stack.quantity <= 0) {
+      throw new GameError("Buy that bait before activating it.");
+    }
+
+    await tx.seasonFiveBaitStack.update({
+      where: {
+        characterId_key: {
+          characterId: character.id,
+          key: bait.key,
+        },
+      },
+      data: {
+        quantity: {
+          decrement: 1,
+        },
+      },
+    });
+    await tx.seasonFiveCharacter.update({
+      where: { id: character.id },
+      data: {
+        activeBaitKey: bait.key,
+        activeBaitExpiresAt: addMinutes(now, bait.durationMinutes),
+      },
+    });
+  });
 }
 
 export async function purchaseSeasonFiveSkill({
@@ -1867,14 +2556,25 @@ async function unloadSeasonFiveInventory({
     },
     select: {
       fishCatchId: true,
+      fishCatch: {
+        select: {
+          kind: true,
+          rarity: true,
+          weightGrams: true,
+        },
+      },
     },
   });
 
   if (items.length === 0) return;
 
   const fishCatchIds = items.map((item) => item.fishCatchId);
-  await db.$transaction([
-    db.seasonFiveInventoryItem.updateMany({
+  const coinGain = items.reduce((sum, item) => {
+    if (item.fishCatch.kind !== SeasonFiveCatchKind.FISH) return sum;
+    return sum + getSeasonFiveFishCoinValue(item.fishCatch);
+  }, 0);
+  await db.$transaction(async (tx) => {
+    await tx.seasonFiveInventoryItem.updateMany({
       where: {
         characterId,
         unloadedAt: null,
@@ -1882,8 +2582,8 @@ async function unloadSeasonFiveInventory({
       data: {
         unloadedAt: now,
       },
-    }),
-    db.seasonFiveFishCatch.updateMany({
+    });
+    await tx.seasonFiveFishCatch.updateMany({
       where: {
         id: {
           in: fishCatchIds,
@@ -1892,8 +2592,18 @@ async function unloadSeasonFiveInventory({
       data: {
         unloadedAt: now,
       },
-    }),
-  ]);
+    });
+    if (coinGain > 0) {
+      await tx.seasonFiveCharacter.update({
+        where: { id: characterId },
+        data: {
+          fishCoins: {
+            increment: coinGain,
+          },
+        },
+      });
+    }
+  });
 }
 
 export async function getSeasonFiveHomeState({
@@ -1979,6 +2689,7 @@ export async function getSeasonFiveHomeState({
   const biggestFishCandidates = await db.seasonFiveFishCatch.findMany({
     where: {
       cycleId: cycle.id,
+      kind: SeasonFiveCatchKind.FISH,
     },
     orderBy: [{ weightGrams: "desc" }, { caughtAt: "asc" }, { id: "asc" }],
     take: 100,
@@ -2009,12 +2720,15 @@ export async function getSeasonFiveHomeState({
   const topBySize = rankSeasonFiveBiggestFish(biggestFishCandidates);
 
   const effects = character
-    ? getSeasonFiveBuildEffects({
+    ? getSeasonFiveEffectiveBuildEffects({
         characterClass: character.class,
         gear: character.gear,
         purchasedNodeKeys: character.skillPurchases.map(
           (purchase) => purchase.nodeKey
         ),
+        activeBaitKey: character.activeBaitKey,
+        activeBaitExpiresAt: character.activeBaitExpiresAt,
+        now,
       })
     : null;
   const inventoryUsed =
@@ -2094,6 +2808,10 @@ export async function getSeasonFiveHomeState({
         name: entry.name,
         class: entry.class,
         classLabel: getSeasonFiveClassLabel(entry.class),
+        avatar: getSeasonFiveAvatarLoadout({
+          characterClass: entry.class,
+          gear: entry.gear,
+        }),
         actionKind: entry.actionKind,
         currentLocationId: entry.currentLocationId,
         destinationLocationId: entry.destinationLocationId,
@@ -2106,14 +2824,28 @@ export async function getSeasonFiveHomeState({
     character && effects
       ? effects
       : character
-        ? getSeasonFiveBuildEffects({
+        ? getSeasonFiveEffectiveBuildEffects({
             characterClass: character.class,
             gear: character.gear,
             purchasedNodeKeys: character.skillPurchases.map(
               (purchase) => purchase.nodeKey
             ),
+            activeBaitKey: character.activeBaitKey,
+            activeBaitExpiresAt: character.activeBaitExpiresAt,
+            now,
           })
         : null;
+  const ownedEquipmentKeys = new Set(character?.gear.map((gear) => gear.key) ?? []);
+  const baitQuantityByKey = new Map(
+    character?.baitStacks.map((stack) => [stack.key, stack.quantity]) ?? []
+  );
+  const activeBait = character
+    ? getSeasonFiveActiveBait({
+        baitKey: character.activeBaitKey,
+        expiresAt: character.activeBaitExpiresAt,
+        now,
+      })
+    : BAIT_BY_KEY.get("bare-hook")!;
 
   return {
     cycle: {
@@ -2242,6 +2974,34 @@ export async function getSeasonFiveHomeState({
           skillPoints: character.skillPoints,
           totalFishCaught: character.totalFishCaught,
           biggestFishGrams: character.biggestFishGrams,
+          fishCoins: character.fishCoins,
+          avatar: getSeasonFiveAvatarLoadout({
+            characterClass: character.class,
+            gear: character.gear,
+          }),
+          activeBait: {
+            key: activeBait.key,
+            name: activeBait.name,
+            description: activeBait.description,
+            rarity: activeBait.rarity,
+            effects: activeBait.effects,
+            expiresAt:
+              character.activeBaitKey === activeBait.key &&
+              activeBait.key !== "bare-hook" &&
+              character.activeBaitExpiresAt &&
+              character.activeBaitExpiresAt > now
+                ? character.activeBaitExpiresAt
+                : null,
+          },
+          bait: SEASON_FIVE_BAIT_CATALOG.map((bait) =>
+            getBaitPayload(
+              bait,
+              baitQuantityByKey.get(bait.key) ?? 0,
+              character.activeBaitKey,
+              character.activeBaitExpiresAt,
+              now
+            )
+          ),
           action: getSeasonFiveActionSummary({
             actionKind: character.actionKind,
             currentLocation: character.currentLocation,
@@ -2271,13 +3031,16 @@ export async function getSeasonFiveHomeState({
           gear: character.gear.map((gear) => ({
             id: gear.id,
             slot: gear.slot,
+            slotLabel: SEASON_FIVE_GEAR_SLOT_LABELS[gear.slot],
             key: gear.key,
             name: gear.name,
             rarity: gear.rarity,
             power: gear.power,
             equipped: gear.equipped,
+            description: EQUIPMENT_BY_KEY.get(gear.key)?.description ?? "",
+            visualKey: EQUIPMENT_BY_KEY.get(gear.key)?.visualKey ?? gear.key,
             statBonuses:
-              STARTER_GEAR_BY_KEY.get(gear.key)?.statBonuses ?? EMPTY_STATS,
+              EQUIPMENT_BY_KEY.get(gear.key)?.statBonuses ?? EMPTY_STATS,
           })),
           skillPurchases: character.skillPurchases.map((purchase) =>
             resolveSkillKey(purchase.nodeKey)
@@ -2292,6 +3055,27 @@ export async function getSeasonFiveHomeState({
           })),
         }
       : null,
+    shop: character
+      ? {
+          equipment: getShopEquipmentForCharacterClass(character.class).map(
+            (item) => getVisibleEquipmentPayload(item, ownedEquipmentKeys)
+          ),
+          bait: SEASON_FIVE_BAIT_CATALOG.filter(
+            (bait) => bait.price > 0
+          ).map((bait) =>
+            getBaitPayload(
+              bait,
+              baitQuantityByKey.get(bait.key) ?? 0,
+              character.activeBaitKey,
+              character.activeBaitExpiresAt,
+              now
+            )
+          ),
+        }
+      : {
+          equipment: [],
+          bait: [],
+        },
     leaderboards: {
       mostFish: topByCount.map((entry) => ({
         ...entry,
@@ -2463,6 +3247,10 @@ export function getDegradedSeasonFiveHomeState(): SeasonFiveHomeState {
       characters: [],
     })),
     character: null,
+    shop: {
+      equipment: [],
+      bait: [],
+    },
     leaderboards: {
       mostFish: [],
       biggestFish: [],
@@ -2568,12 +3356,15 @@ export async function processSeasonFiveTick({
       continue;
     }
 
-    const effects = getSeasonFiveBuildEffects({
+    const effects = getSeasonFiveEffectiveBuildEffects({
       characterClass: character.class,
       gear: character.gear,
       purchasedNodeKeys: character.skillPurchases.map(
         (purchase) => purchase.nodeKey
       ),
+      activeBaitKey: character.activeBaitKey,
+      activeBaitExpiresAt: character.activeBaitExpiresAt,
+      now: resolvedAt,
     });
     const activeDiscoveryIds = new Set(
       character.waterBodyDiscoveries
@@ -2705,15 +3496,74 @@ export async function processSeasonFiveTick({
       continue;
     }
 
+    let fishCatchesCreated = 0;
+    let itemCatchesCreated = 0;
+
     await db.$transaction(async (tx) => {
       let biggest = character.biggestFishGrams;
+      let duplicateItemCoinGain = 0;
+      let experienceGain = 0;
+      const ownedGearKeys = new Set(character.gear.map((gear) => gear.key));
+      const equippedGearKeys = character.gear
+        .filter((gear) => gear.equipped)
+        .map((gear) => gear.key);
+
       for (const plannedCatch of plan.catches) {
         const fish = plannedCatch.fish;
+        const itemCatch = rollSeasonFiveItemCatch({
+          seed: `${character.id}:${location.key}:${plannedCatch.tickAt.toISOString()}`,
+          characterClass: character.class,
+          luk: effects.stats.luk,
+          magik: effects.stats.magik,
+          gearKeys: equippedGearKeys,
+          ownedItemKeys: Array.from(ownedGearKeys),
+        });
+
+        if (itemCatch) {
+          await tx.seasonFiveFishCatch.create({
+            data: {
+              cycleId,
+              characterId: character.id,
+              locationId: location.id,
+              caughtAt: plannedCatch.tickAt,
+              kind: SeasonFiveCatchKind.ITEM,
+              speciesKey: itemCatch.key,
+              speciesName: itemCatch.name,
+              rarity: getSeasonFiveFishRarityForEquipment(itemCatch.rarity),
+              weightGrams: 0,
+              inventorySlots: 0,
+              itemKey: itemCatch.key,
+              itemName: itemCatch.name,
+            },
+          });
+
+          if (itemCatch.duplicate) {
+            duplicateItemCoinGain += itemCatch.coinValue;
+          } else {
+            await tx.seasonFiveGear.create({
+              data: {
+                characterId: character.id,
+                slot: itemCatch.slot,
+                key: itemCatch.key,
+                name: itemCatch.name,
+                rarity: itemCatch.rarity,
+                power: itemCatch.power,
+                equipped: false,
+              },
+            });
+            ownedGearKeys.add(itemCatch.key);
+          }
+          itemCatchesCreated += 1;
+          experienceGain += 2;
+          continue;
+        }
+
         const created = await tx.seasonFiveFishCatch.create({
           data: {
             cycleId,
             characterId: character.id,
             locationId: location.id,
+            kind: SeasonFiveCatchKind.FISH,
             caughtAt: plannedCatch.tickAt,
             ...fish,
           },
@@ -2726,9 +3576,10 @@ export async function processSeasonFiveTick({
           },
         });
         biggest = Math.max(biggest, fish.weightGrams);
+        fishCatchesCreated += 1;
+        experienceGain += 5;
       }
 
-      const experienceGain = plan.catches.length * 5;
       const progression = getSeasonFiveProgressionAfterExperience({
         level: character.level,
         skillPoints: character.skillPoints,
@@ -2752,11 +3603,18 @@ export async function processSeasonFiveTick({
         where: { id: character.id },
         data: {
           totalFishCaught: {
-            increment: plan.catches.length,
+            increment: fishCatchesCreated,
           },
           experience: {
             increment: experienceGain,
           },
+          ...(duplicateItemCoinGain > 0
+            ? {
+                fishCoins: {
+                  increment: duplicateItemCoinGain,
+                },
+              }
+            : {}),
           level: progression.level,
           skillPoints: progression.skillPoints,
           biggestFishGrams: biggest,
@@ -2764,7 +3622,7 @@ export async function processSeasonFiveTick({
         },
       });
     });
-    catchesCreated += plan.catches.length;
+    catchesCreated += fishCatchesCreated + itemCatchesCreated;
   }
 
   return {

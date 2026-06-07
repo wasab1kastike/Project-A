@@ -18,6 +18,10 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
       "Season 5 fish are now measured in kilograms instead of centimeters.",
       "Season 5 fishing pools now have fantasy comedy species with stranger coastal, lake, deep-water, and lava catches.",
       "Deep water and lava lakes now support higher-risk fishing profiles with level and gear or passive gates.",
+      "Season 5 characters now have visible Body, Outfit, Hat, and Rod equipment that changes their map and character-page avatar.",
+      "Fish unloads now pay fish coins, which can buy static shop equipment and one-hour bait sets.",
+      "Bait is now a consumable system: Bare Hook is the free baseline, paid bait lasts one hour, and active paid bait cannot be replaced early.",
+      "Very rare item hooks can replace a fish catch with an instant equipment unlock; duplicate item hooks convert straight into fish coins.",
       "The Season 5 character Skills tab now groups class passives by path and shows the actual passive math on each node.",
     ],
     bugFixes: [

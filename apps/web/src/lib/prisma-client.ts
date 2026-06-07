@@ -30,6 +30,7 @@ export {
   RaceAbilityKind,
   ScoreEventType,
   SeasonFiveActionKind,
+  SeasonFiveCatchKind,
   SeasonFiveCharacterClass,
   SeasonFiveFishRarity,
   SeasonFiveGearRarity,

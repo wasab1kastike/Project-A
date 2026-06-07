@@ -22,8 +22,10 @@ import {
 import { submitBuildArcadeScore } from "@/lib/game/build-arcade";
 import { GameError } from "@/lib/game/errors";
 import {
+  activateSeasonFiveBait,
   createSeasonFiveCharacter,
   equipSeasonFiveGear,
+  purchaseSeasonFiveShopItem,
   purchaseSeasonFiveSkill,
   returnSeasonFiveHome,
   startSeasonFiveFishingTrip,
@@ -261,6 +263,46 @@ export async function equipSeasonFiveGearAction(formData: FormData) {
   }
 
   return finishAction("Gear equipped.");
+}
+
+export async function purchaseSeasonFiveShopItemAction(formData: FormData) {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) {
+    return redirectToHome("error", "Sign in before using the Season 5 shop.");
+  }
+
+  try {
+    await purchaseSeasonFiveShopItem({
+      userId,
+      itemKey: getString(formData, "itemKey"),
+    });
+    notifyAndRevalidate("season-five-shop-purchased");
+  } catch (error) {
+    return redirectToHome("error", getActionErrorMessage(error));
+  }
+
+  return finishAction("Shop item purchased.");
+}
+
+export async function activateSeasonFiveBaitAction(formData: FormData) {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) {
+    return redirectToHome("error", "Sign in before baiting hooks.");
+  }
+
+  try {
+    await activateSeasonFiveBait({
+      userId,
+      baitKey: getString(formData, "baitKey"),
+    });
+    notifyAndRevalidate("season-five-bait-activated");
+  } catch (error) {
+    return redirectToHome("error", getActionErrorMessage(error));
+  }
+
+  return finishAction("Bait activated.");
 }
 
 export async function purchaseSeasonFiveSkillAction(formData: FormData) {

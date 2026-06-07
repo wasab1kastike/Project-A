@@ -256,6 +256,8 @@ export const WIKI_PAGES: readonly WikiPage[] = [
       "Any water or coast tile can be selected as a fishing destination.",
       "Connected water-body pools have hidden stock and hourly regeneration.",
       "Fish catches are measured in kilograms instead of centimeters.",
+      "Characters wear visible body, outfit, hat, and rod equipment.",
+      "Fish unloads pay fish coins for static shop gear and one-hour bait sets.",
       "Deep water and lava lakes require higher level plus gear or matching passives.",
     ],
     sections: [
@@ -279,7 +281,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
           "Water bodies track fish stock behind the scenes. Passive catches spend both inventory space and pool stock; low pools recover over time.",
         bullets: [
           "Temporary reveals can show the pool name, profile, stock state, regen, and notable fish.",
-          "Luk, Magik, discovery gear, and map-reading passives improve reveal chances.",
+          "Luk, Magik, discovery hats, and map-reading passives improve reveal chances.",
           "Fish weights are stored internally as grams and displayed as kilograms.",
           "Each water profile has its own fantasy fish ladder, including silly, cursed, and grotesque trophies.",
           "Deep and lava pools use rarer fish profiles and heavier inventory pressure.",
@@ -290,7 +292,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         eyebrow: "Builds",
         title: "Levels, gear, and passives",
         body:
-          "Fishing grants XP and skill points. Build choices can improve catch speed, rarity, trophy weight, inventory, travel, discovery, or access to risky waters.",
+          "Fishing grants XP and skill points. Build choices can improve catch speed, rarity, trophy weight, inventory, travel, discovery, or access to risky waters. Fish unloads pay fish coins for the static shop, paid bait lasts one hour, and very rare item hooks unlock equipment instantly.",
       },
     ],
   },

@@ -52,11 +52,16 @@ import {
   createSeasonFiveCatch,
   createSeasonFiveCharacter,
   ensureSeasonFivePreviewCycle,
+  getSeasonFiveAvatarLoadout,
   getDegradedSeasonFiveHomeState,
   getSeasonFiveBuildEffects,
+  getSeasonFiveDuplicateItemCoinValue,
+  getSeasonFiveEffectiveBuildEffects,
+  getSeasonFiveFishCoinValue,
   getSeasonFiveProgressionAfterExperience,
   normalizeSeasonFiveClass,
   purchaseSeasonFiveSkill,
+  rollSeasonFiveItemCatch,
   SEASON_FIVE_DURATION_HOURS,
   SEASON_FIVE_MAX_SKILL_POINTS,
   SEASON_FIVE_SKILL_TREES,
@@ -237,12 +242,12 @@ test("Season 5 build effects combine class, gear, and passive skills", () => {
     characterClass: SeasonFiveCharacterClass.BURNT_OUT_ROGUE,
     gear: [
       {
-        slot: SeasonFiveGearSlot.BAIT,
+        slot: SeasonFiveGearSlot.HAT,
         power: 2,
         equipped: true,
       },
       {
-        slot: SeasonFiveGearSlot.PACK,
+        slot: SeasonFiveGearSlot.OUTFIT,
         power: 1,
         equipped: true,
       },
@@ -260,16 +265,96 @@ test("Season 5 build effects combine class, gear, and passive skills", () => {
   });
 
   assert.deepEqual(effects.stats, {
-    stronk: 6,
+    stronk: 4,
     luk: 10,
-    smell: 9,
-    magik: 4,
-    quietness: 9,
+    smell: 7,
+    magik: 6,
+    quietness: 10,
   });
-  assert.equal(effects.catchBonus, 3);
-  assert.equal(effects.inventoryBonus, 4);
+  assert.equal(effects.catchBonus, 2);
+  assert.equal(effects.inventoryBonus, 2);
   assert.equal(effects.rarityBonus, 19);
-  assert.equal(effects.travelPercent, -20);
+  assert.equal(effects.travelPercent, -25);
+});
+
+test("Season 5 active bait temporarily layers onto build effects", () => {
+  const now = new Date("2026-06-07T10:00:00.000Z");
+  const base = getSeasonFiveEffectiveBuildEffects({
+    characterClass: SeasonFiveCharacterClass.DEMENTED_WIZARD,
+    now,
+  });
+  const baited = getSeasonFiveEffectiveBuildEffects({
+    characterClass: SeasonFiveCharacterClass.DEMENTED_WIZARD,
+    activeBaitKey: "pocket-breadcrumb-hour",
+    activeBaitExpiresAt: new Date("2026-06-07T11:00:00.000Z"),
+    now,
+  });
+  const expired = getSeasonFiveEffectiveBuildEffects({
+    characterClass: SeasonFiveCharacterClass.DEMENTED_WIZARD,
+    activeBaitKey: "pocket-breadcrumb-hour",
+    activeBaitExpiresAt: new Date("2026-06-07T09:59:00.000Z"),
+    now,
+  });
+
+  assert.equal(baited.catchBonus, base.catchBonus + 1);
+  assert.equal(expired.catchBonus, base.catchBonus);
+});
+
+test("Season 5 avatar loadouts default to class body, pants, and rod", () => {
+  const avatar = getSeasonFiveAvatarLoadout({
+    characterClass: SeasonFiveCharacterClass.DEMENTED_WIZARD,
+    gear: [],
+  });
+
+  assert.deepEqual(avatar, {
+    body: "wizard",
+    outfit: "pants",
+    hat: null,
+    rod: "splintered",
+  });
+});
+
+test("Season 5 fish coins and rare item catches are deterministic", () => {
+  assert.equal(
+    getSeasonFiveFishCoinValue({
+      rarity: SeasonFiveFishRarity.RARE,
+      weightGrams: 10_000,
+    }),
+    36
+  );
+
+  const foundSeed = Array.from({ length: 1000 }, (_, index) => `seed-${index}`)
+    .map((seed) => ({
+      seed,
+      catch: rollSeasonFiveItemCatch({
+        seed,
+        characterClass: SeasonFiveCharacterClass.DEMENTED_WIZARD,
+        luk: 10,
+        magik: 10,
+        gearKeys: ["pointy-fishing-hat"],
+        ownedItemKeys: [],
+      }),
+    }))
+    .find((entry) => entry.catch);
+
+  assert.ok(foundSeed);
+
+  const itemCatch = foundSeed.catch;
+  assert.ok(itemCatch);
+  const duplicateSeed = rollSeasonFiveItemCatch({
+    seed: foundSeed.seed,
+    characterClass: SeasonFiveCharacterClass.DEMENTED_WIZARD,
+    luk: 10,
+    magik: 10,
+    gearKeys: ["pointy-fishing-hat"],
+    ownedItemKeys: [itemCatch.key],
+  });
+
+  assert.ok(duplicateSeed?.duplicate);
+  assert.equal(
+    duplicateSeed.coinValue,
+    getSeasonFiveDuplicateItemCoinValue(itemCatch.key)
+  );
 });
 
 test("Season 5 Drunken Monk passives unlock rhythm bonuses", () => {
@@ -534,7 +619,7 @@ test("Season 5 build archetypes keep speed and trophy paths viable", () => {
     characterClass: SeasonFiveCharacterClass.BURNT_OUT_ROGUE,
     gear: [
       {
-        slot: SeasonFiveGearSlot.BAIT,
+        slot: SeasonFiveGearSlot.HAT,
         power: 2,
         equipped: true,
       },
@@ -554,12 +639,12 @@ test("Season 5 build archetypes keep speed and trophy paths viable", () => {
         equipped: true,
       },
       {
-        slot: SeasonFiveGearSlot.PACK,
+        slot: SeasonFiveGearSlot.BODY,
         power: 2,
         equipped: true,
       },
       {
-        slot: SeasonFiveGearSlot.TRINKET,
+        slot: SeasonFiveGearSlot.HAT,
         power: 2,
         equipped: true,
       },
@@ -1090,7 +1175,7 @@ test("Season 5 discoveries can temporarily reveal water-body pool details", () =
     seed: "pool-seed",
     luk: 10,
     magik: 10,
-    gearKeys: ["lucky-bottlecap"],
+    gearKeys: ["pointy-fishing-hat"],
     purchasedNodeKeys: ["wizard_salt_runes"],
     hiddenWaterBodies: [],
   });
@@ -1099,7 +1184,7 @@ test("Season 5 discoveries can temporarily reveal water-body pool details", () =
       seed: `pool-seed-${index}`,
       luk: 10,
       magik: 10,
-      gearKeys: ["lucky-bottlecap"],
+      gearKeys: ["pointy-fishing-hat"],
       purchasedNodeKeys: ["wizard_salt_runes"],
       hiddenWaterBodies,
     })

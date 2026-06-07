@@ -181,7 +181,7 @@ export const SEASON_FIVE_WATER_BODY_PROFILES = {
     maxStock: 46,
     regenPerHour: 8,
     levelRequired: 5,
-    requiredGearKey: "glowing-worms",
+    requiredGearKey: "war-veteran-cane",
     catchDifficulty: 4,
     minWeightGrams: 2500,
     maxWeightGrams: 55000,
@@ -202,7 +202,7 @@ export const SEASON_FIVE_WATER_BODY_PROFILES = {
     maxStock: 24,
     regenPerHour: 4,
     levelRequired: 8,
-    requiredGearKey: "glowing-worms",
+    requiredGearKey: "obsidian-roaster-rod",
     catchDifficulty: 5,
     minWeightGrams: 5000,
     maxWeightGrams: 85000,
@@ -719,8 +719,8 @@ export function rollSeasonFiveWaterBodyDiscovery({
   const gear = new Set(gearKeys);
   const skills = new Set(purchasedNodeKeys);
   const gearBonus =
-    (gear.has("lucky-bottlecap") ? 8 : 0) +
-    (gear.has("glowing-worms") ? 8 : 0);
+    (gear.has("bait-stained-cap") ? 5 : 0) +
+    (gear.has("pointy-fishing-hat") ? 8 : 0);
   const wizardDeepKeys = new Set([
     "wizard_muttered_bait",
     "wizard_glass_gills",

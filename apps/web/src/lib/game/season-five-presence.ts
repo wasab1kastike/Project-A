@@ -16,6 +16,12 @@ export type SeasonFivePresenceCharacter = {
   name: string;
   class: SeasonFiveCharacterClass;
   classLabel: string;
+  avatar?: {
+    body: string;
+    outfit: string;
+    hat: string | null;
+    rod: string;
+  };
   actionKind: SeasonFiveActionKind;
   currentLocationId: string | null;
   destinationLocationId: string | null;
@@ -58,6 +64,7 @@ export function buildSeasonFiveLocationActivity({
             name: entry.name,
             class: entry.class,
             classLabel: entry.classLabel,
+            avatar: entry.avatar ?? null,
             actionKind: entry.actionKind,
             inventoryFull: inventoryPressure.full,
             inventoryCloseToFull: inventoryPressure.closeToFull,

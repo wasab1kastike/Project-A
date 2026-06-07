@@ -408,6 +408,170 @@ export function ClassPortrait({
   );
 }
 
+type SeasonFiveAvatarLoadout = {
+  body: string;
+  outfit: string;
+  hat: string | null;
+  rod: string;
+};
+
+type AvatarLayerSlot = "body" | "outfit" | "hat" | "rod";
+
+const AVATAR_ASSET_ROOT = "/assets/season-5/avatar";
+const AVATAR_LAYER_KEYS = {
+  body: new Set([
+    "monk",
+    "warrior",
+    "wizard",
+    "rogue",
+    "monk-barrel",
+    "warrior-ironback",
+    "wizard-noodle",
+    "rogue-shadow",
+  ]),
+  outfit: new Set(["pants", "waders", "raincoat"]),
+  hat: new Set(["cap", "bucket", "pointy"]),
+  rod: new Set(["splintered", "cane", "bamboo", "obsidian"]),
+} satisfies Record<AvatarLayerSlot, Set<string>>;
+
+const GEAR_SLOT_TO_AVATAR_LAYER: Record<string, AvatarLayerSlot> = {
+  BODY: "body",
+  OUTFIT: "outfit",
+  HAT: "hat",
+  ROD: "rod",
+};
+
+function getAvatarLayerStyle(
+  slot: AvatarLayerSlot,
+  visualKey: string | null | undefined
+): CSSProperties | undefined {
+  if (!visualKey || !AVATAR_LAYER_KEYS[slot].has(visualKey)) return undefined;
+  return {
+    backgroundImage: `url("${AVATAR_ASSET_ROOT}/${slot}/${visualKey}.png")`,
+  };
+}
+
+export function SeasonFiveGearVisual({
+  slot,
+  visualKey,
+  label,
+}: {
+  slot: string;
+  visualKey: string | null | undefined;
+  label: string;
+}) {
+  const avatarSlot = GEAR_SLOT_TO_AVATAR_LAYER[slot];
+  const layerStyle = avatarSlot
+    ? getAvatarLayerStyle(avatarSlot, visualKey)
+    : undefined;
+
+  return (
+    <span
+      className={styles.gearVisual}
+      data-slot={avatarSlot ?? "unknown"}
+      role="img"
+      aria-label={label}
+      title={label}
+    >
+      {layerStyle ? (
+        <span className={styles.gearVisualBitmap} style={layerStyle} />
+      ) : (
+        <span className={styles.gearVisualFallback}>
+          {label.charAt(0).toUpperCase()}
+        </span>
+      )}
+    </span>
+  );
+}
+
+export function CharacterAvatar({
+  avatar,
+  label,
+  compact = false,
+  tiny = false,
+}: {
+  avatar?: SeasonFiveAvatarLoadout | null;
+  label: string;
+  compact?: boolean;
+  tiny?: boolean;
+}) {
+  const loadout = avatar ?? {
+    body: "wizard",
+    outfit: "pants",
+    hat: null,
+    rod: "splintered",
+  };
+  const bodyStyle = getAvatarLayerStyle("body", loadout.body);
+  const outfitStyle = getAvatarLayerStyle("outfit", loadout.outfit);
+  const hatStyle = getAvatarLayerStyle("hat", loadout.hat);
+  const rodStyle = getAvatarLayerStyle("rod", loadout.rod);
+
+  return (
+    <span
+      className={`${styles.characterAvatar} ${
+        compact ? styles.compactCharacterAvatar : ""
+      } ${tiny ? styles.tinyCharacterAvatar : ""}`}
+      data-body={loadout.body}
+      data-outfit={loadout.outfit}
+      data-hat={loadout.hat ?? "none"}
+      data-rod={loadout.rod}
+      role="img"
+      aria-label={label}
+      title={label}
+    >
+      <span
+        className={`${styles.avatarRod} ${
+          rodStyle ? styles.avatarFallbackHidden : ""
+        }`}
+      />
+      <span
+        className={`${styles.avatarBody} ${
+          bodyStyle ? styles.avatarFallbackHidden : ""
+        }`}
+      />
+      <span
+        className={`${styles.avatarOutfit} ${
+          outfitStyle ? styles.avatarFallbackHidden : ""
+        }`}
+      />
+      <span
+        className={`${styles.avatarHead} ${
+          bodyStyle ? styles.avatarFallbackHidden : ""
+        }`}
+      />
+      <span
+        className={`${styles.avatarHat} ${
+          hatStyle ? styles.avatarFallbackHidden : ""
+        }`}
+      />
+      {rodStyle ? (
+        <span
+          className={`${styles.avatarBitmapLayer} ${styles.avatarBitmapRod}`}
+          style={rodStyle}
+        />
+      ) : null}
+      {bodyStyle ? (
+        <span
+          className={`${styles.avatarBitmapLayer} ${styles.avatarBitmapBody}`}
+          style={bodyStyle}
+        />
+      ) : null}
+      {outfitStyle ? (
+        <span
+          className={`${styles.avatarBitmapLayer} ${styles.avatarBitmapOutfit}`}
+          style={outfitStyle}
+        />
+      ) : null}
+      {hatStyle ? (
+        <span
+          className={`${styles.avatarBitmapLayer} ${styles.avatarBitmapHat}`}
+          style={hatStyle}
+        />
+      ) : null}
+    </span>
+  );
+}
+
 export function SeasonFiveRealtimeBridge({
   enabled,
   onRefresh,
@@ -585,8 +749,8 @@ function CharacterCommandCard({
       variant="left"
       meta={
         <span className={styles.classBadge}>
-          <ClassPortrait
-            classKey={character.class}
+          <CharacterAvatar
+            avatar={character.avatar}
             label={character.classLabel}
             compact
           />
@@ -626,6 +790,10 @@ function CharacterCommandCard({
         <div>
           <span>Points</span>
           <strong>{character.skillPoints}</strong>
+        </div>
+        <div>
+          <span>Coins</span>
+          <strong>{character.fishCoins}</strong>
         </div>
       </div>
 
@@ -1460,8 +1628,15 @@ function WorldMap({
                         <title>{`${actor.name}: ${getActionLabel(
                           actor.actionKind
                         )} (${actor.classLabel})`}</title>
-                        <circle r="8" />
-                        <text y="3">{actor.classLabel.charAt(0)}</text>
+                        <foreignObject x="-10" y="-10" width="20" height="20">
+                          <div className={styles.actorAvatarWrap}>
+                            <CharacterAvatar
+                              avatar={actor.avatar}
+                              label={actor.name}
+                              tiny
+                            />
+                          </div>
+                        </foreignObject>
                       </g>
                     ))}
                   </g>
@@ -1481,11 +1656,7 @@ function WorldMap({
             }
             title={`${character.name}: ${getActionLabel(character.actionKind)}`}
           >
-            <ClassPortrait
-              classKey={character.class}
-              label={character.classLabel}
-              compact
-            />
+            <CharacterAvatar avatar={character.avatar} label={character.name} />
           </span>
         ) : null}
         </div>

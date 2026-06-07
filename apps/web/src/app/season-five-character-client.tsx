@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import type { Session } from "next-auth";
 import { SessionActions } from "@/components/session-actions";
 import {
+  activateSeasonFiveBaitAction,
   equipSeasonFiveGearAction,
+  purchaseSeasonFiveShopItemAction,
   purchaseSeasonFiveSkillAction,
   returnSeasonFiveHomeAction,
 } from "@/app/game-actions";
@@ -18,8 +20,9 @@ import type {
 import { formatSeasonFiveFishWeight } from "@/lib/game/season-five-fishing";
 import {
   BuildEffectChips,
-  ClassPortrait,
+  CharacterAvatar,
   InventoryPressureMeter,
+  SeasonFiveGearVisual,
   SeasonFiveRealtimeBridge,
   StatBars,
 } from "./season-five-home-client";
@@ -28,7 +31,8 @@ import styles from "./season-five.module.css";
 const tabs = [
   { key: "build", label: "Build" },
   { key: "inventory", label: "Inventory" },
-  { key: "gear", label: "Gear" },
+  { key: "gear", label: "Equipment" },
+  { key: "shop", label: "Shop" },
   { key: "skills", label: "Skills" },
 ] as const;
 
@@ -132,10 +136,7 @@ function CharacterShell({
     <div className={styles.characterPage}>
       <section className={styles.characterHero}>
         <div className={styles.characterHeroIdentity}>
-          <ClassPortrait
-            classKey={character.class}
-            label={character.classLabel}
-          />
+          <CharacterAvatar avatar={character.avatar} label={character.name} />
           <div>
             <p className={styles.kicker}>Command dashboard</p>
             <h2>{character.name}</h2>
@@ -145,6 +146,7 @@ function CharacterShell({
               <span className={styles.badge}>
                 {character.skillPoints} skill pts
               </span>
+              <span className={styles.badge}>{character.fishCoins} coins</span>
             </div>
           </div>
         </div>
@@ -189,9 +191,9 @@ function CharacterShell({
               <h2>{character.classLabel}</h2>
             </div>
             <span className={styles.classBadge}>
-              <ClassPortrait
-                classKey={character.class}
-                label={character.classLabel}
+              <CharacterAvatar
+                avatar={character.avatar}
+                label={character.name}
                 compact
               />
               {character.classLabel}
@@ -216,6 +218,10 @@ function CharacterShell({
               <span>Skill pts</span>
               <strong>{character.skillPoints}</strong>
             </div>
+            <div>
+              <span>Coins</span>
+              <strong>{character.fishCoins}</strong>
+            </div>
           </div>
           <InventoryPressureMeter character={character} />
           <BuildEffectChips effects={character.effects} compact />
@@ -225,6 +231,7 @@ function CharacterShell({
           {activeTab === "build" ? <BuildTab state={state} /> : null}
           {activeTab === "inventory" ? <InventoryTab state={state} /> : null}
           {activeTab === "gear" ? <GearTab state={state} /> : null}
+          {activeTab === "shop" ? <ShopTab state={state} /> : null}
           {activeTab === "skills" ? <SkillsTab state={state} /> : null}
         </section>
       </div>
@@ -266,6 +273,10 @@ function BuildTab({ state }: { state: SeasonFiveHomeState }) {
             <div>
               <span>Fish</span>
               <strong>{character.totalFishCaught}</strong>
+            </div>
+            <div>
+              <span>Coins</span>
+              <strong>{character.fishCoins}</strong>
             </div>
             <div>
               <span>Biggest</span>
@@ -364,33 +375,194 @@ function InventoryTab({ state }: { state: SeasonFiveHomeState }) {
 function GearTab({ state }: { state: SeasonFiveHomeState }) {
   const character = state.character;
   if (!character) return null;
+  const slotOrder = ["BODY", "OUTFIT", "HAT", "ROD"] as const;
 
   return (
     <>
       <div className={styles.sectionHeader}>
         <div>
-          <p className={styles.kicker}>Gear</p>
-          <h2>Tackle</h2>
+          <p className={styles.kicker}>Equipment</p>
+          <h2>Visible loadout</h2>
         </div>
+        <CharacterAvatar avatar={character.avatar} label={character.name} compact />
       </div>
-      <div className={styles.gearList}>
-        {character.gear.map((gear) => (
-          <form key={gear.id} action={equipSeasonFiveGearAction}>
-            <input type="hidden" name="gearId" value={gear.id} />
-            <button
-              type="submit"
-              className={gear.equipped ? styles.equipped : ""}
-            >
-              <span>
-                {gear.slot}: {gear.name}
-              </span>
-              <small>
-                {gear.rarity} |{" "}
-                {formatStatBonuses(gear.statBonuses, state.statLabels)}
-              </small>
-            </button>
-          </form>
-        ))}
+      <div className={styles.gearSlotGrid}>
+        {slotOrder.map((slot) => {
+          const slotGear = character.gear.filter((gear) => gear.slot === slot);
+          const slotLabel = slotGear[0]?.slotLabel ?? slot.toLowerCase();
+
+          return (
+            <section key={slot} className={styles.gearSlotPanel}>
+              <div className={styles.buildBandHeader}>
+                <div>
+                  <p className={styles.kicker}>{slotLabel}</p>
+                  <h3>
+                    {slotGear.find((gear) => gear.equipped)?.name ??
+                      "Nothing equipped"}
+                  </h3>
+                </div>
+              </div>
+              <div className={styles.gearList}>
+                {slotGear.length > 0 ? (
+                  slotGear.map((gear) => (
+                    <form key={gear.id} action={equipSeasonFiveGearAction}>
+                      <input type="hidden" name="gearId" value={gear.id} />
+                      <button
+                        type="submit"
+                        className={gear.equipped ? styles.equipped : ""}
+                        disabled={gear.equipped}
+                      >
+                        <span className={styles.gearItemSummary}>
+                          <SeasonFiveGearVisual
+                            slot={gear.slot}
+                            visualKey={gear.visualKey}
+                            label={gear.name}
+                          />
+                          <span className={styles.gearItemCopy}>
+                            <span>{gear.name}</span>
+                            <small>
+                              {gear.rarity} |{" "}
+                              {formatStatBonuses(
+                                gear.statBonuses,
+                                state.statLabels
+                              )}
+                            </small>
+                          </span>
+                        </span>
+                      </button>
+                    </form>
+                  ))
+                ) : (
+                  <p className={styles.smallText}>Empty slot.</p>
+                )}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+function formatShopEffects(effects: SeasonFiveEffectBonuses) {
+  const formatted = formatEffectBonuses(effects);
+  return formatted.length > 0 ? formatted.join(", ") : "No passive boost";
+}
+
+function ShopTab({ state }: { state: SeasonFiveHomeState }) {
+  const character = state.character;
+  if (!character) return null;
+  const paidBaitActive = Boolean(character.activeBait.expiresAt);
+
+  return (
+    <>
+      <div className={styles.sectionHeader}>
+        <div>
+          <p className={styles.kicker}>Static shop</p>
+          <h2>Equipment and bait</h2>
+        </div>
+        <span className={styles.badge}>{character.fishCoins} coins</span>
+      </div>
+
+      <section className={styles.buildBand}>
+        <div className={styles.buildBandHeader}>
+          <div>
+            <p className={styles.kicker}>Active bait</p>
+            <h3>{character.activeBait.name}</h3>
+          </div>
+          <span className={styles.badge}>
+            {character.activeBait.expiresAt
+              ? new Date(character.activeBait.expiresAt).toLocaleTimeString(
+                  [],
+                  {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  }
+                )
+              : "Baseline"}
+          </span>
+        </div>
+        <p className={styles.smallText}>
+          {formatShopEffects(character.activeBait.effects)}
+        </p>
+      </section>
+
+      <div className={styles.shopSectionGrid}>
+        <section className={styles.shopSection}>
+          <div className={styles.buildBandHeader}>
+            <div>
+              <p className={styles.kicker}>Equipment</p>
+              <h3>Visible items</h3>
+            </div>
+          </div>
+          <div className={styles.shopItemGrid}>
+            {state.shop.equipment.map((item) => (
+              <form key={item.key} action={purchaseSeasonFiveShopItemAction}>
+                <input type="hidden" name="itemKey" value={item.key} />
+                <button
+                  type="submit"
+                  disabled={item.owned || character.fishCoins < item.price}
+                  className={item.owned ? styles.equipped : ""}
+                >
+                  <span className={styles.gearItemSummary}>
+                    <SeasonFiveGearVisual
+                      slot={item.slot}
+                      visualKey={item.visualKey}
+                      label={item.name}
+                    />
+                    <span className={styles.gearItemCopy}>
+                      <span>
+                        {item.slotLabel}: {item.name}
+                      </span>
+                      <small>
+                        {item.owned ? "Owned" : `${item.price} coins`} |{" "}
+                        {formatStatBonuses(item.statBonuses, state.statLabels)}
+                      </small>
+                    </span>
+                  </span>
+                </button>
+              </form>
+            ))}
+          </div>
+        </section>
+
+        <section className={styles.shopSection}>
+          <div className={styles.buildBandHeader}>
+            <div>
+              <p className={styles.kicker}>Bait</p>
+              <h3>One-hour sets</h3>
+            </div>
+          </div>
+          <div className={styles.shopItemGrid}>
+            {state.shop.bait.map((bait) => (
+              <div key={bait.key} className={styles.baitShopItem}>
+                <form action={purchaseSeasonFiveShopItemAction}>
+                  <input type="hidden" name="itemKey" value={bait.key} />
+                  <button
+                    type="submit"
+                    disabled={character.fishCoins < bait.price}
+                  >
+                    <span>{bait.name}</span>
+                    <small>
+                      {bait.price} coins | {formatShopEffects(bait.effects)}
+                    </small>
+                  </button>
+                </form>
+                <form action={activateSeasonFiveBaitAction}>
+                  <input type="hidden" name="baitKey" value={bait.key} />
+                  <button
+                    type="submit"
+                    className={bait.active ? styles.equipped : styles.secondaryButton}
+                    disabled={bait.quantity <= 0 || paidBaitActive}
+                  >
+                    <span>{bait.active ? "Active" : "Activate"}</span>
+                    <small>{bait.quantity} owned</small>
+                  </button>
+                </form>
+              </div>
+            ))}
+          </div>
+        </section>
       </div>
     </>
   );

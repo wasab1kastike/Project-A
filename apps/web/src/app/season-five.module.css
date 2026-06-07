@@ -247,6 +247,219 @@
   border-width: 1px;
 }
 
+.characterAvatar {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 52px;
+  overflow: visible;
+  border-radius: 999px;
+  filter: drop-shadow(0 5px 8px rgba(0, 0, 0, 0.34));
+}
+
+.compactCharacterAvatar {
+  width: 32px;
+  height: 38px;
+}
+
+.tinyCharacterAvatar {
+  width: 20px;
+  height: 23px;
+}
+
+.avatarRod,
+.avatarBody,
+.avatarOutfit,
+.avatarHead,
+.avatarHat {
+  position: absolute;
+  display: block;
+  pointer-events: none;
+}
+
+.avatarRod {
+  right: 10%;
+  top: 10%;
+  width: 8%;
+  height: 84%;
+  border-radius: 999px;
+  background: #806045;
+  transform: rotate(14deg);
+  transform-origin: 50% 85%;
+}
+
+.avatarBody {
+  left: 27%;
+  top: 34%;
+  width: 46%;
+  height: 47%;
+  border: 1px solid rgba(255, 248, 231, 0.2);
+  border-radius: 44% 44% 26% 26%;
+  background: #8d6a4e;
+  box-shadow: inset 0 -8px 10px rgba(0, 0, 0, 0.2);
+}
+
+.avatarOutfit {
+  left: 29%;
+  top: 58%;
+  width: 42%;
+  height: 28%;
+  border-radius: 20% 20% 34% 34%;
+  background: #5f4a36;
+}
+
+.avatarHead {
+  left: 34%;
+  top: 11%;
+  width: 32%;
+  height: 28%;
+  border: 1px solid rgba(255, 248, 231, 0.18);
+  border-radius: 50%;
+  background: #c69263;
+  box-shadow: inset -4px -5px 7px rgba(0, 0, 0, 0.16);
+}
+
+.avatarHat {
+  left: 25%;
+  top: 4%;
+  width: 50%;
+  height: 18%;
+  border-radius: 45% 45% 20% 20%;
+  background: #365c52;
+  opacity: 1;
+}
+
+.avatarFallbackHidden {
+  opacity: 0;
+}
+
+.avatarBitmapLayer,
+.gearVisualBitmap {
+  position: absolute;
+  inset: 0;
+  display: block;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  pointer-events: none;
+}
+
+.avatarBitmapRod {
+  z-index: 1;
+}
+
+.avatarBitmapBody {
+  z-index: 2;
+}
+
+.avatarBitmapOutfit {
+  z-index: 3;
+}
+
+.avatarBitmapHat {
+  z-index: 4;
+}
+
+.characterAvatar[data-hat="none"] .avatarHat {
+  opacity: 0;
+}
+
+.characterAvatar[data-body^="monk"] .avatarBody {
+  background: #9c6b42;
+}
+
+.characterAvatar[data-body="monk-barrel"] .avatarBody {
+  left: 22%;
+  width: 56%;
+  border-radius: 48% 48% 24% 24%;
+}
+
+.characterAvatar[data-body^="warrior"] .avatarBody {
+  background: #56686f;
+}
+
+.characterAvatar[data-body="warrior-ironback"] .avatarBody {
+  background: #66737a;
+  box-shadow:
+    inset 0 -8px 10px rgba(0, 0, 0, 0.24),
+    inset 0 0 0 3px rgba(190, 202, 204, 0.22);
+}
+
+.characterAvatar[data-body^="wizard"] .avatarBody {
+  left: 33%;
+  width: 34%;
+  background: #767293;
+}
+
+.characterAvatar[data-body="wizard-noodle"] .avatarBody {
+  left: 36%;
+  width: 28%;
+}
+
+.characterAvatar[data-body^="rogue"] .avatarBody {
+  background: #465b5a;
+}
+
+.characterAvatar[data-body="rogue-shadow"] .avatarBody {
+  background: #26373a;
+}
+
+.characterAvatar[data-outfit="pants"] .avatarOutfit {
+  background: #5b4633;
+}
+
+.characterAvatar[data-outfit="waders"] .avatarOutfit {
+  top: 49%;
+  height: 39%;
+  background: #315d5a;
+}
+
+.characterAvatar[data-outfit="raincoat"] .avatarOutfit {
+  top: 42%;
+  height: 48%;
+  border-radius: 18% 18% 28% 28%;
+  background: #c28b38;
+}
+
+.characterAvatar[data-hat="cap"] .avatarHat {
+  top: 7%;
+  height: 14%;
+  background: #6a5b34;
+}
+
+.characterAvatar[data-hat="bucket"] .avatarHat {
+  left: 22%;
+  top: 4%;
+  width: 56%;
+  height: 22%;
+  border-radius: 28% 28% 32% 32%;
+  background: #51656a;
+}
+
+.characterAvatar[data-hat="pointy"] .avatarHat {
+  left: 35%;
+  top: -7%;
+  width: 30%;
+  height: 30%;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  border-radius: 0;
+  background: #775ba4;
+}
+
+.characterAvatar[data-rod="cane"] .avatarRod {
+  background: #6d5f50;
+}
+
+.characterAvatar[data-rod="bamboo"] .avatarRod {
+  background: #b38b48;
+}
+
+.characterAvatar[data-rod="obsidian"] .avatarRod {
+  background: #2b2630;
+  box-shadow: 0 0 8px rgba(255, 99, 54, 0.65);
+}
+
 .monk {
   background: #5a3827;
 }
@@ -535,6 +748,29 @@
 
 .seasonFiveWorldActors text {
   font-size: 9px;
+}
+
+.actorAvatarWrap {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 1px solid rgba(255, 248, 231, 0.92);
+  border-radius: 50%;
+  background: rgba(20, 31, 27, 0.96);
+  overflow: hidden;
+}
+
+.travellingDot .actorAvatarWrap {
+  background: #91612e;
+}
+
+.fishingDot .actorAvatarWrap {
+  background: #247173;
+}
+
+.homeDot .actorAvatarWrap {
+  background: #7b4932;
 }
 
 .seasonFiveWorldHotspot.homeTile .seasonFiveWorldMarker circle {
@@ -1004,6 +1240,11 @@
     0 10px 22px rgba(2, 10, 12, 0.4);
 }
 
+.characterMapMarker .characterAvatar {
+  width: 36px;
+  height: 42px;
+}
+
 .routePreview {
   position: absolute;
   left: 50%;
@@ -1117,6 +1358,7 @@
 .secondaryButton,
 .linkButton,
 .gearList button,
+.shopItemGrid button,
 .skillTreeNode {
   min-height: 42px;
   border: 0;
@@ -1157,6 +1399,7 @@
 .classChoice button:disabled,
 .secondaryButton:disabled,
 .gearList button:disabled,
+.shopItemGrid button:disabled,
 .skillTreeNode:disabled {
   cursor: not-allowed;
   opacity: 0.52;
@@ -1349,6 +1592,10 @@
 .warning {
   background: rgba(180, 76, 48, 0.26);
   color: #ffc49b;
+}
+
+.classBadge .characterAvatar {
+  margin-left: -5px;
 }
 
 .syncWarning {
@@ -1790,6 +2037,115 @@
   background: #356b63;
 }
 
+.gearSlotGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.gearSlotPanel,
+.shopSection {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(255, 248, 231, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 248, 231, 0.055);
+}
+
+.shopSectionGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.shopItemGrid {
+  display: grid;
+  gap: 8px;
+}
+
+.shopItemGrid button {
+  display: flex;
+  width: 100%;
+  min-height: 62px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 10px;
+  background: rgba(255, 248, 231, 0.08);
+  color: #fff8e7;
+  text-align: left;
+}
+
+.shopItemGrid .equipped {
+  background: #356b63;
+}
+
+.shopItemGrid small {
+  display: block;
+  margin-top: 4px;
+  color: #c9b994;
+  font-size: 12px;
+}
+
+.gearItemSummary {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 46px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.gearItemCopy {
+  min-width: 0;
+}
+
+.gearItemCopy > span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.gearVisual {
+  position: relative;
+  display: block;
+  width: 42px;
+  height: 52px;
+  overflow: visible;
+  border: 1px solid rgba(255, 248, 231, 0.16);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 50% 82%, rgba(245, 211, 142, 0.22), transparent 42%),
+    rgba(20, 31, 27, 0.68);
+  box-shadow: inset 0 0 0 1px rgba(2, 10, 12, 0.18);
+}
+
+.gearVisual[data-slot="hat"] .gearVisualBitmap {
+  transform: scale(1.18);
+}
+
+.gearVisual[data-slot="rod"] .gearVisualBitmap {
+  transform: scale(1.1);
+}
+
+.gearVisualFallback {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  color: #f5d38e;
+  font-weight: 900;
+}
+
+.baitShopItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 116px;
+  gap: 8px;
+}
+
+.baitShopItem form {
+  min-width: 0;
+}
+
 .gearList small,
 .skillTreeNode small {
   display: block;
@@ -1943,9 +2299,9 @@
     align-items: flex-start;
   }
 
-  .characterHeroIdentity .classPortrait {
-    width: 54px;
-    height: 54px;
+  .characterHeroIdentity .characterAvatar {
+    width: 40px;
+    height: 48px;
   }
 
   .characterHeroStatus {
@@ -2000,6 +2356,11 @@
   }
 
   .skillPathGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .gearSlotGrid,
+  .shopSectionGrid {
     grid-template-columns: 1fr;
   }
 
@@ -2060,5 +2421,9 @@
 
   .classChoice {
     min-height: 0;
+  }
+
+  .baitShopItem {
+    grid-template-columns: 1fr;
   }
 }
