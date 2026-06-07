@@ -280,6 +280,36 @@ function getNearestSeasonFourHex(point: { xPercent: number; yPercent: number }) 
   return closest;
 }
 
+function getHexVertices(tile: HexTile, radius = HEX_RADIUS) {
+  return Array.from({ length: 6 }, (_, index) => {
+    const angle = ((60 * index - 90) * Math.PI) / 180;
+    return {
+      x: tile.x + radius * Math.cos(angle),
+      y: tile.y + radius * Math.sin(angle),
+    };
+  });
+}
+
+function getSeasonFiveWaterBodyBoundaryDirections(row: number) {
+  return row % 2 === 0
+    ? [
+        { colOffset: -1, rowOffset: -1, edge: [5, 0] as const },
+        { colOffset: 0, rowOffset: -1, edge: [0, 1] as const },
+        { colOffset: -1, rowOffset: 0, edge: [4, 5] as const },
+        { colOffset: 1, rowOffset: 0, edge: [1, 2] as const },
+        { colOffset: -1, rowOffset: 1, edge: [3, 4] as const },
+        { colOffset: 0, rowOffset: 1, edge: [2, 3] as const },
+      ]
+    : [
+        { colOffset: 0, rowOffset: -1, edge: [5, 0] as const },
+        { colOffset: 1, rowOffset: -1, edge: [0, 1] as const },
+        { colOffset: -1, rowOffset: 0, edge: [4, 5] as const },
+        { colOffset: 1, rowOffset: 0, edge: [1, 2] as const },
+        { colOffset: 0, rowOffset: 1, edge: [3, 4] as const },
+        { colOffset: 1, rowOffset: 1, edge: [2, 3] as const },
+      ];
+}
+
 function getRoleMarker(role: string) {
   if (role === "HOME") return "H";
   if (role === "FISHING_SPOT") return "F";
@@ -626,9 +656,13 @@ function WorldMap({
 }) {
   const character = state.character;
   const shellRef = useRef<HTMLElement | null>(null);
+  const mapContentRef = useRef<HTMLDivElement | null>(null);
   const userAdjustedViewRef = useRef(false);
   const activePointersRef = useRef(new Map<number, Point>());
   const pinchStartRef = useRef<PinchStart | null>(null);
+  const tileTapStartRef = useRef<
+    (Point & { locationKey: string; pointerId: number }) | null
+  >(null);
   const [selectedLocationKey, setSelectedLocationKey] = useState<string | null>(
     null
   );
@@ -641,11 +675,27 @@ function WorldMap({
   const selectedLocation =
     state.locations.find((location) => location.key === selectedLocationKey) ??
     null;
-  const tileByKey = new Map(state.map.tiles.map((tile) => [tile.key, tile]));
-  const locationByTileKey = new Map(
-    state.locations
-      .filter((location) => location.tileKey)
-      .map((location) => [location.tileKey, location])
+  const tileByKey = useMemo(
+    () => new Map(state.map.tiles.map((tile) => [tile.key, tile])),
+    [state.map.tiles]
+  );
+  const locationByTileKey = useMemo(
+    () =>
+      new Map(
+        state.locations
+          .filter((location) => location.tileKey)
+          .map((location) => [location.tileKey, location])
+      ),
+    [state.locations]
+  );
+  const waterBodyKeyByTileKey = useMemo(
+    () =>
+      new Map(
+        state.locations
+          .filter((location) => location.tileKey && location.waterBodyKey)
+          .map((location) => [location.tileKey, location.waterBodyKey])
+      ),
+    [state.locations]
   );
   const currentTile = character?.currentTileKey
     ? (tileByKey.get(character.currentTileKey) ?? null)
@@ -684,6 +734,54 @@ function WorldMap({
       ),
     [projectedTileByKey, state.locations]
   );
+  const waterBodyBoundarySegments = useMemo(() => {
+    const tileByCoordinate = new Map(
+      state.map.tiles.map((tile) => [`${tile.col}:${tile.row}`, tile] as const)
+    );
+
+    return state.map.tiles.flatMap((tile) => {
+      const waterBodyKey = waterBodyKeyByTileKey.get(tile.key);
+      const projectedTile = projectedTileByKey.get(tile.key);
+      if (!waterBodyKey || !projectedTile) return [];
+
+      const vertices = getHexVertices(projectedTile.hex, HEX_RADIUS * 0.98);
+
+      return getSeasonFiveWaterBodyBoundaryDirections(tile.row).flatMap(
+        (direction) => {
+          const neighbor = tileByCoordinate.get(
+            `${tile.col + direction.colOffset}:${
+              tile.row + direction.rowOffset
+            }`
+          );
+          const neighborWaterBodyKey = neighbor
+            ? waterBodyKeyByTileKey.get(neighbor.key)
+            : null;
+          if (neighborWaterBodyKey === waterBodyKey) return [];
+          if (
+            neighborWaterBodyKey &&
+            neighborWaterBodyKey !== waterBodyKey &&
+            tile.key > neighbor!.key
+          ) {
+            return [];
+          }
+
+          const [startIndex, endIndex] = direction.edge;
+          const start = vertices[startIndex];
+          const end = vertices[endIndex];
+
+          return [
+            {
+              key: `${tile.key}:${direction.colOffset}:${direction.rowOffset}`,
+              x1: start.x,
+              y1: start.y,
+              x2: end.x,
+              y2: end.y,
+            },
+          ];
+        }
+      );
+    });
+  }, [projectedTileByKey, state.map.tiles, waterBodyKeyByTileKey]);
   const currentProjectedHex = currentTile
     ? (projectedTileByKey.get(currentTile.key)?.hex ?? null)
     : null;
@@ -865,6 +963,69 @@ function WorldMap({
     }),
     []
   );
+  const selectLocationKey = useCallback(
+    (locationKey: string) => {
+      setSelectedLocationKey(locationKey);
+      onRouteSelected?.();
+    },
+    [onRouteSelected]
+  );
+  const selectLocationAtClientPoint = useCallback(
+    (clientX: number, clientY: number) => {
+      if (!character || character.actionKind === "TRAVELING") return false;
+
+      const contentBounds = mapContentRef.current?.getBoundingClientRect();
+      if (
+        !contentBounds ||
+        contentBounds.width <= 0 ||
+        contentBounds.height <= 0
+      ) {
+        return false;
+      }
+
+      const worldPoint = {
+        x:
+          ((clientX - contentBounds.left) / contentBounds.width) *
+          MAP_WORLD_WIDTH,
+        y:
+          ((clientY - contentBounds.top) / contentBounds.height) *
+          MAP_WORLD_HEIGHT,
+      };
+      let closestLocationKey: string | null = null;
+      let closestDistance = Number.POSITIVE_INFINITY;
+
+      for (const tile of state.map.tiles) {
+        const location = locationByTileKey.get(tile.key);
+        if (!location || location.kind === "HOME") continue;
+
+        const projectedTile = projectedTileByKey.get(tile.key);
+        if (!projectedTile) continue;
+
+        const distance = Math.hypot(
+          projectedTile.hex.x - worldPoint.x,
+          projectedTile.hex.y - worldPoint.y
+        );
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestLocationKey = location.key;
+        }
+      }
+
+      if (!closestLocationKey || closestDistance > HEX_RADIUS * 1.18) {
+        return false;
+      }
+
+      selectLocationKey(closestLocationKey);
+      return true;
+    },
+    [
+      character,
+      locationByTileKey,
+      projectedTileByKey,
+      selectLocationKey,
+      state.map.tiles,
+    ]
+  );
 
   return (
     <section
@@ -1017,12 +1178,27 @@ function WorldMap({
           setTranslateY(nextTranslate.y);
         }}
         onPointerUp={(event: ReactPointerEvent<HTMLDivElement>) => {
+          const activePointerCount = activePointersRef.current.size;
+          const tapDistance = dragStart
+            ? Math.hypot(event.clientX - dragStart.x, event.clientY - dragStart.y)
+            : Number.POSITIVE_INFINITY;
+          const shouldResolveTap =
+            activePointerCount === 1 &&
+            Boolean(dragStart) &&
+            !pinchStartRef.current &&
+            tapDistance <= CLICK_DRAG_THRESHOLD;
+
           activePointersRef.current.delete(event.pointerId);
           pinchStartRef.current = null;
           setIsDragging(false);
           setDragStart(null);
           if (event.currentTarget.hasPointerCapture(event.pointerId)) {
             event.currentTarget.releasePointerCapture(event.pointerId);
+          }
+          if (shouldResolveTap && dragStart) {
+            setTranslateX(dragStart.translateX);
+            setTranslateY(dragStart.translateY);
+            selectLocationAtClientPoint(event.clientX, event.clientY);
           }
         }}
         onPointerCancel={(event: ReactPointerEvent<HTMLDivElement>) => {
@@ -1033,6 +1209,7 @@ function WorldMap({
         }}
       >
         <div
+          ref={mapContentRef}
           className={styles.mapViewportContent}
           data-map-detail={showMapDetail ? "full" : "low"}
           style={viewTransform}
@@ -1090,6 +1267,23 @@ function WorldMap({
                 </g>
               );
             })}
+            {waterBodyBoundarySegments.length > 0 ? (
+              <g
+                className={styles.seasonFiveWorldWaterBodyBorders}
+                aria-hidden="true"
+              >
+                {waterBodyBoundarySegments.map((segment) => (
+                  <line
+                    key={segment.key}
+                    x1={segment.x1}
+                    y1={segment.y1}
+                    x2={segment.x2}
+                    y2={segment.y2}
+                    className={styles.seasonFiveWorldWaterBodyBorder}
+                  />
+                ))}
+              </g>
+            ) : null}
             {previewFromHex && previewToHex ? (
               <line
                 x1={previewFromHex.x}
@@ -1160,15 +1354,58 @@ function WorldMap({
                 tabIndex={isInteractive ? 0 : undefined}
                 onClick={() => {
                   if (!isInteractive || !location) return;
-                  setSelectedLocationKey(location.key);
-                  onRouteSelected?.();
+                  selectLocationKey(location.key);
+                }}
+                onPointerDown={(event) => {
+                  if (
+                    event.pointerType === "mouse" ||
+                    !isInteractive ||
+                    !location
+                  ) {
+                    return;
+                  }
+                  tileTapStartRef.current = {
+                    x: event.clientX,
+                    y: event.clientY,
+                    locationKey: location.key,
+                    pointerId: event.pointerId,
+                  };
+                }}
+                onPointerUp={(event) => {
+                  if (
+                    event.pointerType === "mouse" ||
+                    !isInteractive ||
+                    !location
+                  ) {
+                    return;
+                  }
+                  const tileTapStart = tileTapStartRef.current;
+                  tileTapStartRef.current = null;
+                  if (
+                    tileTapStart?.pointerId !== event.pointerId ||
+                    tileTapStart.locationKey !== location.key ||
+                    Math.hypot(
+                      event.clientX - tileTapStart.x,
+                      event.clientY - tileTapStart.y
+                    ) > CLICK_DRAG_THRESHOLD
+                  ) {
+                    return;
+                  }
+
+                  event.preventDefault();
+                  event.stopPropagation();
+                  selectLocationKey(location.key);
+                }}
+                onPointerCancel={() => {
+                  if (tileTapStartRef.current?.locationKey === location?.key) {
+                    tileTapStartRef.current = null;
+                  }
                 }}
                 onKeyDown={(event) => {
                   if (!isInteractive || !location) return;
                   if (event.key !== "Enter" && event.key !== " ") return;
                   event.preventDefault();
-                  setSelectedLocationKey(location.key);
-                  onRouteSelected?.();
+                  selectLocationKey(location.key);
                 }}
               >
                 <title>
