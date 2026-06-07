@@ -22,6 +22,14 @@ import type {
   SeasonFiveHomeState,
   SeasonFiveStatKey,
 } from "@/lib/game/season-five";
+import {
+  SEASON_FIVE_GEAR_SLOT_TO_AVATAR_LAYER,
+  getSeasonFiveAvatarLayerFit,
+  getSeasonFiveAvatarLayers,
+  type SeasonFiveAvatarLayerFit,
+  type SeasonFiveAvatarLayerSlot,
+  type SeasonFiveAvatarLoadout,
+} from "@/lib/game/season-five-avatar-art";
 import { formatSeasonFiveFishWeight } from "@/lib/game/season-five-fishing";
 import {
   HEX_RADIUS,
@@ -54,19 +62,19 @@ function formatClassKey(key: string) {
 
 const CLASS_VISUALS = {
   DRUNKEN_MONK: {
-    asset: "/assets/season-5/classes/drunken-monk.svg",
+    asset: "/assets/season-5/classes/drunken-monk.png",
     tone: "monk",
   },
   RETIRED_WARRIOR: {
-    asset: "/assets/season-5/classes/retired-warrior.svg",
+    asset: "/assets/season-5/classes/retired-warrior.png",
     tone: "warrior",
   },
   DEMENTED_WIZARD: {
-    asset: "/assets/season-5/classes/demented-wizard.svg",
+    asset: "/assets/season-5/classes/demented-wizard.png",
     tone: "wizard",
   },
   BURNT_OUT_ROGUE: {
-    asset: "/assets/season-5/classes/burnt-out-rogue.svg",
+    asset: "/assets/season-5/classes/burnt-out-rogue.png",
     tone: "rogue",
   },
 } as const;
@@ -408,46 +416,17 @@ export function ClassPortrait({
   );
 }
 
-type SeasonFiveAvatarLoadout = {
-  body: string;
-  outfit: string;
-  hat: string | null;
-  rod: string;
-};
-
-type AvatarLayerSlot = "body" | "outfit" | "hat" | "rod";
-
-const AVATAR_ASSET_ROOT = "/assets/season-5/avatar";
-const AVATAR_LAYER_KEYS = {
-  body: new Set([
-    "monk",
-    "warrior",
-    "wizard",
-    "rogue",
-    "monk-barrel",
-    "warrior-ironback",
-    "wizard-noodle",
-    "rogue-shadow",
-  ]),
-  outfit: new Set(["pants", "waders", "raincoat"]),
-  hat: new Set(["cap", "bucket", "pointy"]),
-  rod: new Set(["splintered", "cane", "bamboo", "obsidian"]),
-} satisfies Record<AvatarLayerSlot, Set<string>>;
-
-const GEAR_SLOT_TO_AVATAR_LAYER: Record<string, AvatarLayerSlot> = {
-  BODY: "body",
-  OUTFIT: "outfit",
-  HAT: "hat",
-  ROD: "rod",
-};
-
 function getAvatarLayerStyle(
-  slot: AvatarLayerSlot,
-  visualKey: string | null | undefined
+  fit: SeasonFiveAvatarLayerFit | undefined
 ): CSSProperties | undefined {
-  if (!visualKey || !AVATAR_LAYER_KEYS[slot].has(visualKey)) return undefined;
+  if (!fit) return undefined;
   return {
-    backgroundImage: `url("${AVATAR_ASSET_ROOT}/${slot}/${visualKey}.png")`,
+    backgroundImage: `url("${fit.assetPath}")`,
+    ...(fit.xPercent !== 0 || fit.yPercent !== 0 || fit.scale !== 1
+      ? {
+          transform: `translate(${fit.xPercent}%, ${fit.yPercent}%) scale(${fit.scale})`,
+        }
+      : null),
   };
 }
 
@@ -460,9 +439,17 @@ export function SeasonFiveGearVisual({
   visualKey: string | null | undefined;
   label: string;
 }) {
-  const avatarSlot = GEAR_SLOT_TO_AVATAR_LAYER[slot];
+  const avatarSlot =
+    SEASON_FIVE_GEAR_SLOT_TO_AVATAR_LAYER[
+      slot as keyof typeof SEASON_FIVE_GEAR_SLOT_TO_AVATAR_LAYER
+    ];
   const layerStyle = avatarSlot
-    ? getAvatarLayerStyle(avatarSlot, visualKey)
+    ? getAvatarLayerStyle(
+        getSeasonFiveAvatarLayerFit({
+          slot: avatarSlot as SeasonFiveAvatarLayerSlot,
+          visualKey,
+        })
+      )
     : undefined;
 
   return (
@@ -501,10 +488,11 @@ export function CharacterAvatar({
     hat: null,
     rod: "splintered",
   };
-  const bodyStyle = getAvatarLayerStyle("body", loadout.body);
-  const outfitStyle = getAvatarLayerStyle("outfit", loadout.outfit);
-  const hatStyle = getAvatarLayerStyle("hat", loadout.hat);
-  const rodStyle = getAvatarLayerStyle("rod", loadout.rod);
+  const avatarLayers = getSeasonFiveAvatarLayers(loadout);
+  const bodyStyle = getAvatarLayerStyle(avatarLayers.body);
+  const outfitStyle = getAvatarLayerStyle(avatarLayers.outfit);
+  const hatStyle = getAvatarLayerStyle(avatarLayers.hat);
+  const rodStyle = getAvatarLayerStyle(avatarLayers.rod);
 
   return (
     <span
