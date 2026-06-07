@@ -52,6 +52,7 @@ import {
   createSeasonFiveCatch,
   createSeasonFiveCharacter,
   ensureSeasonFivePreviewCycle,
+  getDegradedSeasonFiveHomeState,
   getSeasonFiveBuildEffects,
   getSeasonFiveProgressionAfterExperience,
   normalizeSeasonFiveClass,
@@ -992,6 +993,11 @@ test("Season 5 water body planner turns water, coast, and named spots into fishi
   const locationTileKeys = fishingLocations
     .map((location) => location.tileKey)
     .sort();
+  const unnamedFishableTile = tiles.find(
+    (tile) =>
+      fishableTileKeys.includes(tile.key) &&
+      tile.role === SeasonFiveMapRole.NONE
+  );
   const moonDepthsTileKey = getSeasonFiveLocationTileKey("moon-depths");
   const moonDepthsBody = waterBodies.find((body) =>
     body.tileKeys.includes(moonDepthsTileKey ?? "")
@@ -1001,6 +1007,13 @@ test("Season 5 water body planner turns water, coast, and named spots into fishi
   assert.ok(
     fishingLocations.some((location) => location.key.startsWith("tile:"))
   );
+  assert.ok(unnamedFishableTile);
+  assert.equal(
+    fishingLocations.find(
+      (location) => location.tileKey === unnamedFishableTile.key
+    )?.key,
+    `tile:${unnamedFishableTile.key}`
+  );
   assert.equal(
     fishingLocations.find((location) => location.key === "mossglass-lake")
       ?.tileKey,
@@ -1008,6 +1021,23 @@ test("Season 5 water body planner turns water, coast, and named spots into fishi
   );
   assert.equal(moonDepthsBody?.profileKey, "deep");
   assert.ok(waterBodies.some((body) => body.profileKey === "coast"));
+});
+
+test("Season 5 degraded map state still exposes fishable water tiles", () => {
+  const state = getDegradedSeasonFiveHomeState();
+  const fishableWaterTile = state.map.tiles.find(
+    (tile) =>
+      tile.role === SeasonFiveMapRole.NONE &&
+      (tile.terrain === SeasonFiveMapTerrain.WATER ||
+        tile.terrain === SeasonFiveMapTerrain.COAST)
+  );
+
+  assert.ok(fishableWaterTile);
+  assert.equal(
+    state.locations.find((location) => location.tileKey === fishableWaterTile.key)
+      ?.key,
+    `tile:${fishableWaterTile.key}`
+  );
 });
 
 test("Season 5 daily specials rotate deterministic shops, events, and secret lakes", () => {

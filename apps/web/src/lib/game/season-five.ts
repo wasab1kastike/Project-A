@@ -2353,6 +2353,75 @@ async function regenerateSeasonFiveWaterBodies({
 }
 
 export function getDegradedSeasonFiveHomeState(): SeasonFiveHomeState {
+  const mapTiles = createSeasonFiveMapTiles();
+  const waterBodies = planSeasonFiveWaterBodies(mapTiles);
+  const waterBodyByKey = new Map(
+    waterBodies.map((body) => [body.key, body])
+  );
+  const tileByKey = new Map(mapTiles.map((tile) => [tile.key, tile]));
+  const home = SEASON_FIVE_LOCATIONS[0];
+  const homeTileKey = getSeasonFiveLocationTileKey(home.key);
+  const homeTile = homeTileKey ? tileByKey.get(homeTileKey) : null;
+  const locations = [
+    {
+      id: home.key,
+      key: home.key,
+      name: home.name,
+      kind: home.kind,
+      tileKey: homeTileKey,
+      xPercent: homeTile?.xPercent ?? home.xPercent,
+      yPercent: homeTile?.yPercent ?? home.yPercent,
+      travelMinutes: home.travelMinutes,
+      minWeightGrams: home.minWeightGrams,
+      maxWeightGrams: home.maxWeightGrams,
+      catchDifficulty: home.catchDifficulty,
+      locked: false,
+      lockReason: null,
+      waterBodyKey: null,
+      waterBodyName: null,
+      waterBodyProfile: null,
+      waterBodyStockLabel: null,
+      waterBodyStockPercent: null,
+      waterBodyRegenLabel: null,
+      notableFish: null,
+      waterBodyRevealed: false,
+    },
+    ...planSeasonFiveFishingLocations({
+      tiles: mapTiles,
+      waterBodies,
+    }).map((location) => {
+      const tile = tileByKey.get(location.tileKey);
+      const body = waterBodyByKey.get(location.waterBodyKey);
+      const profile = body
+        ? SEASON_FIVE_WATER_BODY_PROFILES[body.profileKey]
+        : null;
+
+      return {
+        id: location.key,
+        key: location.key,
+        name: location.name,
+        kind: location.kind,
+        tileKey: location.tileKey,
+        xPercent: tile?.xPercent ?? 0,
+        yPercent: tile?.yPercent ?? 0,
+        travelMinutes: location.travelMinutes,
+        minWeightGrams: location.minWeightGrams,
+        maxWeightGrams: location.maxWeightGrams,
+        catchDifficulty: location.catchDifficulty,
+        locked: false,
+        lockReason: null,
+        waterBodyKey: body?.key ?? location.waterBodyKey,
+        waterBodyName: body?.name ?? null,
+        waterBodyProfile: profile?.label ?? null,
+        waterBodyStockLabel: null,
+        waterBodyStockPercent: null,
+        waterBodyRegenLabel: null,
+        notableFish: profile?.notableFish ?? null,
+        waterBodyRevealed: Boolean(body),
+      };
+    }),
+  ];
+
   return {
     cycle: {
       id: "",
@@ -2369,7 +2438,7 @@ export function getDegradedSeasonFiveHomeState(): SeasonFiveHomeState {
     map: {
       columns: 16,
       rows: 10,
-      tiles: createSeasonFiveMapTiles().map((tile) => ({
+      tiles: mapTiles.map((tile) => ({
         id: tile.key,
         key: tile.key,
         row: tile.row,
@@ -2386,30 +2455,8 @@ export function getDegradedSeasonFiveHomeState(): SeasonFiveHomeState {
         expiresAt: tile.expiresAt,
       })),
     },
-    locations: SEASON_FIVE_LOCATIONS.map((location) => ({
-      id: location.key,
-      key: location.key,
-      name: location.name,
-      kind: location.kind,
-      tileKey: getSeasonFiveLocationTileKey(location.key),
-      xPercent: location.xPercent,
-      yPercent: location.yPercent,
-      travelMinutes: location.travelMinutes,
-      minWeightGrams: location.minWeightGrams,
-      maxWeightGrams: location.maxWeightGrams,
-      catchDifficulty: location.catchDifficulty,
-      locked: false,
-      lockReason: null,
-      waterBodyKey: null,
-      waterBodyName: null,
-      waterBodyProfile: null,
-      waterBodyStockLabel: null,
-      waterBodyStockPercent: null,
-      waterBodyRegenLabel: null,
-      notableFish: null,
-      waterBodyRevealed: false,
-    })),
-    locationActivity: SEASON_FIVE_LOCATIONS.map((location) => ({
+    locations,
+    locationActivity: locations.map((location) => ({
       locationKey: location.key,
       totalCount: 0,
       overflowCount: 0,

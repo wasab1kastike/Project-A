@@ -1136,6 +1136,10 @@ function WorldMap({
             const isCurrent = character?.currentTileKey === tile.key;
             const isDestination = character?.destinationTileKey === tile.key;
             const isLocked = Boolean(tile.locked || location?.locked);
+            const isFishableWater =
+              Boolean(location) &&
+              location?.kind !== "HOME" &&
+              tile.role === "NONE";
             const isInteractive =
               Boolean(character) &&
               character?.actionKind !== "TRAVELING" &&
@@ -1181,6 +1185,14 @@ function WorldMap({
                     <circle cx={hex.x} cy={hex.y} r="18" />
                     <text x={hex.x} y={hex.y + 7}>
                       {marker}
+                    </text>
+                  </g>
+                ) : null}
+                {isFishableWater ? (
+                  <g className={styles.seasonFiveWorldWaterMarker}>
+                    <circle cx={hex.x} cy={hex.y} r="12" />
+                    <text x={hex.x} y={hex.y + 5}>
+                      F
                     </text>
                   </g>
                 ) : null}
