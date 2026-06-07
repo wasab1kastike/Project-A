@@ -489,25 +489,10 @@ export function CharacterAvatar({
     rod: "splintered",
   };
   const avatarLayers = getSeasonFiveAvatarLayers(loadout);
-  const bodyPartStyles = avatarLayers.bodyParts.flatMap((layer) => {
-    const style = getAvatarLayerStyle(layer);
-    return style ? [{ part: layer.part, style }] : [];
-  });
-  const usesModularParts = bodyPartStyles.length > 0;
-  const bodyStyle =
-    usesModularParts
-      ? undefined
-      : getAvatarLayerStyle(avatarLayers.body);
-  const outfitStyle = usesModularParts
-    ? undefined
-    : getAvatarLayerStyle(avatarLayers.outfit);
-  const hatStyle = usesModularParts
-    ? undefined
-    : getAvatarLayerStyle(avatarLayers.hat);
-  const rodStyle = usesModularParts
-    ? undefined
-    : getAvatarLayerStyle(avatarLayers.rod);
-  const hasBodyBitmap = Boolean(bodyStyle) || bodyPartStyles.length > 0;
+  const bodyStyle = getAvatarLayerStyle(avatarLayers.body);
+  const outfitStyle = getAvatarLayerStyle(avatarLayers.outfit);
+  const hatStyle = getAvatarLayerStyle(avatarLayers.hat);
+  const rodStyle = getAvatarLayerStyle(avatarLayers.rod);
 
   return (
     <span
@@ -524,27 +509,27 @@ export function CharacterAvatar({
     >
       <span
         className={`${styles.avatarRod} ${
-          usesModularParts || rodStyle ? styles.avatarFallbackHidden : ""
+          rodStyle ? styles.avatarFallbackHidden : ""
         }`}
       />
       <span
         className={`${styles.avatarBody} ${
-          hasBodyBitmap ? styles.avatarFallbackHidden : ""
+          bodyStyle ? styles.avatarFallbackHidden : ""
         }`}
       />
       <span
         className={`${styles.avatarOutfit} ${
-          usesModularParts || outfitStyle ? styles.avatarFallbackHidden : ""
+          outfitStyle ? styles.avatarFallbackHidden : ""
         }`}
       />
       <span
         className={`${styles.avatarHead} ${
-          hasBodyBitmap ? styles.avatarFallbackHidden : ""
+          bodyStyle ? styles.avatarFallbackHidden : ""
         }`}
       />
       <span
         className={`${styles.avatarHat} ${
-          usesModularParts || hatStyle ? styles.avatarFallbackHidden : ""
+          hatStyle ? styles.avatarFallbackHidden : ""
         }`}
       />
       {rodStyle ? (
@@ -553,14 +538,6 @@ export function CharacterAvatar({
           style={rodStyle}
         />
       ) : null}
-      {bodyPartStyles.map((layer) => (
-        <span
-          key={layer.part}
-          className={`${styles.avatarBitmapLayer} ${styles.avatarBitmapBodyPart}`}
-          data-part={layer.part}
-          style={layer.style}
-        />
-      ))}
       {bodyStyle ? (
         <span
           className={`${styles.avatarBitmapLayer} ${styles.avatarBitmapBody}`}

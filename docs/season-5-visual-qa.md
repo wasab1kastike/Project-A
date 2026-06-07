@@ -40,7 +40,6 @@ Check these viewport sizes before closing visual work:
 - The character link and inventory link remain reachable on desktop and mobile.
 - The inventory panel makes full-inventory state visible.
 - The two ranking panels remain readable: Most Fish and Biggest Fish.
-- Class avatars compose from the five shared-canvas body parts in this order: legs, torso, head, left hand, right hand.
 
 ## Class Visual Language
 
@@ -54,14 +53,6 @@ Season 5 class tokens are bundled SVG assets:
 | Burnt-Out Rogue | `/assets/season-5/classes/burnt-out-rogue.svg` |
 
 The same class token appears in class cards, character badges, and map player markers. Marker state is shown by the marker shell and small status dot: brown for home, amber for traveling, teal for fishing, and a red warning ring/dot when inventory is full.
-
-## Avatar Body Parts
-
-Base Season 5 class avatars use replaceable body-part PNGs under `/assets/season-5/avatar/characters/{rig}/idle/front/0/`. Each rig has `legs.png`, `torso.png`, `head.png`, `left-hand.png`, and `right-hand.png` on the shared `256 x 320` avatar canvas.
-
-Equipped items use full-canvas replacement parts under `/assets/season-5/avatar/items/{slot}/{visualKey}/{rig}/idle/front/0/`. Body items replace all five parts, outfits replace their covered parts, hats replace `head`, and rods replace `right-hand`.
-
-Use [season-5-avatar-body-parts.png](season-5-avatar-body-parts.png) for base part boundaries and [season-5-avatar-item-combinations.png](season-5-avatar-item-combinations.png) for current equipment combinations.
 
 ## June 5, 2026 Smoke Result
 
