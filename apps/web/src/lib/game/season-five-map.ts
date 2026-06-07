@@ -150,7 +150,7 @@ export const SEASON_FIVE_WATER_BODY_PROFILES = {
       low: "Surf is thinning",
       empty: "Surf is exhausted",
     },
-    notableFish: "coastal commons and fast XP",
+    notableFish: "snoutlets, crabfish, and smug slime-whiskered royalty",
   },
   lake: {
     key: "lake",
@@ -171,7 +171,7 @@ export const SEASON_FIVE_WATER_BODY_PROFILES = {
       low: "Lake is picked over",
       empty: "Lake is exhausted",
     },
-    notableFish: "lake fish with better trophy rolls",
+    notableFish: "gobblers, grumblegills, and suspicious wizard leftovers",
   },
   deep: {
     key: "deep",
@@ -192,7 +192,7 @@ export const SEASON_FIVE_WATER_BODY_PROFILES = {
       low: "Depths are quiet",
       empty: "Depths are exhausted",
     },
-    notableFish: "rare deep-water weirdness",
+    notableFish: "eyeless soupfish and things with too many opinions",
   },
   lava_lake: {
     key: "lava_lake",
@@ -213,7 +213,7 @@ export const SEASON_FIVE_WATER_BODY_PROFILES = {
       low: "Lava is cooling",
       empty: "Lava is exhausted",
     },
-    notableFish: "burning rare fish and heavy hauls",
+    notableFish: "snot koi, magma mouths, and noble scalded trophies",
   },
 } as const satisfies Record<
   SeasonFiveWaterBodyProfileKey,

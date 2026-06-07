@@ -60,7 +60,11 @@ import {
   SEASON_FIVE_MAX_SKILL_POINTS,
   SEASON_FIVE_SKILL_TREES,
 } from "./season-five";
-import { SEASON_FIVE_BALANCE } from "./season-five-balance";
+import {
+  createSeasonFiveCatch as createSeasonFiveCatchFromBalance,
+  SEASON_FIVE_BALANCE,
+  SEASON_FIVE_FISH_SPECIES_BY_PROFILE,
+} from "./season-five-balance";
 
 function createSeasonFiveMapTileRecords() {
   return createSeasonFiveMapTiles().map((tile) => ({
@@ -725,6 +729,54 @@ test("Season 5 balance constants expose formula tuning knobs", () => {
   assert.equal(SEASON_FIVE_BALANCE.maxSizeMultiplier, 1.5);
 });
 
+test("Season 5 fish species pools keep fantasy rarity ladders", () => {
+  const rarityLadder = [
+    SeasonFiveFishRarity.COMMON,
+    SeasonFiveFishRarity.COMMON,
+    SeasonFiveFishRarity.UNCOMMON,
+    SeasonFiveFishRarity.RARE,
+    SeasonFiveFishRarity.LEGENDARY,
+  ];
+
+  for (const [profileKey, species] of Object.entries(
+    SEASON_FIVE_FISH_SPECIES_BY_PROFILE
+  )) {
+    assert.equal(species.length, 5, profileKey);
+    assert.deepEqual(
+      species.map((fish) => fish.rarity),
+      rarityLadder,
+      profileKey
+    );
+    assert.equal(new Set(species.map((fish) => fish.key)).size, 5, profileKey);
+    assert.ok(
+      species.every((fish) => /^[a-z0-9-]+$/.test(fish.key)),
+      profileKey
+    );
+  }
+
+  assert.equal(
+    SEASON_FIVE_FISH_SPECIES_BY_PROFILE.deep[4].name,
+    "The Regrettable Mouth"
+  );
+  assert.equal(
+    SEASON_FIVE_FISH_SPECIES_BY_PROFILE.lava_lake[1].name,
+    "Cinder Snot Koi"
+  );
+  assert.equal(
+    createSeasonFiveCatchFromBalance({
+      seed: "profile-test",
+      hash: 99,
+      minWeightGrams: 5000,
+      maxWeightGrams: 85000,
+      difficulty: 5,
+      sizeBonusPercent: 0,
+      inventoryPressure: 3,
+      profileKey: "lava_lake",
+    }).speciesName,
+    "Lord Scaldington"
+  );
+});
+
 test("Season 5 travel, catch interval, and inventory calculations clamp safely", () => {
   assert.equal(
     calculateSeasonFiveTravelMinutes({ baseMinutes: 10, travelPercent: -15 }),
@@ -1084,8 +1136,8 @@ test("Season 5 passive fishing fills empty inventory deterministically", () => {
     inventoryUsed: 0,
     inventoryCapacity: 3,
     createCatch: () => ({
-      speciesKey: "pond-minnow",
-      speciesName: "Pond Minnow",
+      speciesKey: "puddle-gobbler",
+      speciesName: "Puddle Gobbler",
       rarity: SeasonFiveFishRarity.COMMON,
       weightGrams: 1200,
       inventorySlots: 1,
@@ -1103,8 +1155,8 @@ test("Season 5 passive fishing fills empty inventory deterministically", () => {
 
 test("Season 5 passive fishing respects partial and full inventory", () => {
   const createCatch = () => ({
-    speciesKey: "pond-minnow",
-    speciesName: "Pond Minnow",
+    speciesKey: "puddle-gobbler",
+    speciesName: "Puddle Gobbler",
     rarity: SeasonFiveFishRarity.COMMON,
     weightGrams: 1200,
     inventorySlots: 1,
@@ -1143,8 +1195,8 @@ test("Season 5 passive fishing stops when a water-body pool is depleted", () => 
     inventoryCapacity: 10,
     stockAvailable: 2,
     createCatch: () => ({
-      speciesKey: "pond-minnow",
-      speciesName: "Pond Minnow",
+      speciesKey: "puddle-gobbler",
+      speciesName: "Puddle Gobbler",
       rarity: SeasonFiveFishRarity.COMMON,
       weightGrams: 1200,
       inventorySlots: 1,
@@ -1302,7 +1354,7 @@ test("Season 5 Biggest Fish leaderboard derives exact catches and stable ties", 
   const ranked = rankSeasonFiveBiggestFish([
     {
       id: "later-equal",
-      speciesName: "Moon Carp",
+      speciesName: "Abyssal Belch Eel",
       rarity: SeasonFiveFishRarity.RARE,
       weightGrams: 18000,
       caughtAt: new Date("2026-06-05T12:10:00.000Z"),
@@ -1311,7 +1363,7 @@ test("Season 5 Biggest Fish leaderboard derives exact catches and stable ties", 
     },
     {
       id: "exact-winner",
-      speciesName: "Lantern Eel",
+      speciesName: "Wizard's Lost-Toe Trout",
       rarity: SeasonFiveFishRarity.RARE,
       weightGrams: 18000,
       caughtAt: new Date("2026-06-05T12:05:00.000Z"),
@@ -1320,7 +1372,7 @@ test("Season 5 Biggest Fish leaderboard derives exact catches and stable ties", 
     },
     {
       id: "runner",
-      speciesName: "Mud Perch",
+      speciesName: "Puddle Gobbler",
       rarity: SeasonFiveFishRarity.COMMON,
       weightGrams: 15000,
       caughtAt: new Date("2026-06-05T12:04:00.000Z"),
@@ -1341,7 +1393,7 @@ test("Season 5 Biggest Fish leaderboard derives exact catches and stable ties", 
     ["wizard", "monk"]
   );
   assert.equal(ranked[0].catchId, "exact-winner");
-  assert.equal(ranked[0].speciesName, "Lantern Eel");
+  assert.equal(ranked[0].speciesName, "Wizard's Lost-Toe Trout");
   assert.equal(ranked[0].biggestFishGrams, 18000);
   assert.equal(ranked[0].locationName, "Moon Depths");
 });

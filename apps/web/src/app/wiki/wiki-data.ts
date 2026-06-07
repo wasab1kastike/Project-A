@@ -281,6 +281,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
           "Temporary reveals can show the pool name, profile, stock state, regen, and notable fish.",
           "Luk, Magik, discovery gear, and map-reading passives improve reveal chances.",
           "Fish weights are stored internally as grams and displayed as kilograms.",
+          "Each water profile has its own fantasy fish ladder, including silly, cursed, and grotesque trophies.",
           "Deep and lava pools use rarer fish profiles and heavier inventory pressure.",
         ],
       },

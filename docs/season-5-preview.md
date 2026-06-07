@@ -29,6 +29,7 @@ When the preview flag is enabled, `/` renders the Season 5 fishing interface ins
 - Any water or coast tile can be chosen as a fishing destination. Old named spots still exist, but the map is no longer limited to only those pins.
 - Connected water bodies have hidden fish pools with stock and hourly regeneration. Passive catches consume stock; depleted pools recover over time.
 - Pool details can be revealed temporarily by character stats, gear, and passives. Reveals show water-body name, profile, stock state, regen, and notable fish.
+- Fish species are fantasy-themed by water profile, from soggy comedy fish to deep-water grotesques and lava trophies.
 - Deep water and lava lakes are gated by character level plus deep-water gear or matching passives. Normal lake and coastal water are open from level 1.
 - Main rankings are Most Fish and Biggest Fish.
 - Previous Project-A history and cosmetics are prestige-only.

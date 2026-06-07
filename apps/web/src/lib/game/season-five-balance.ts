@@ -30,110 +30,118 @@ export const SEASON_FIVE_BALANCE = {
   maxSizeMultiplier: 1.5,
 } as const;
 
-const DEFAULT_FISH_SPECIES = [
-  { key: "mud-perch", name: "Mud Perch", rarity: SeasonFiveFishRarity.COMMON },
-  { key: "tin-fin", name: "Tin-Fin", rarity: SeasonFiveFishRarity.COMMON },
-  {
-    key: "silver-grouch",
-    name: "Silver Grouch",
-    rarity: SeasonFiveFishRarity.UNCOMMON,
-  },
-  {
-    key: "lantern-eel",
-    name: "Lantern Eel",
-    rarity: SeasonFiveFishRarity.RARE,
-  },
-  {
-    key: "old-king-cod",
-    name: "Old King Cod",
-    rarity: SeasonFiveFishRarity.LEGENDARY,
-  },
-] as const;
-
-const FISH_SPECIES_BY_PROFILE = {
+export const SEASON_FIVE_FISH_SPECIES_BY_PROFILE = {
   coast: [
     {
-      key: "brine-sardine",
-      name: "Brine Sardine",
+      key: "barnacle-snoutlet",
+      name: "Barnacle Snoutlet",
       rarity: SeasonFiveFishRarity.COMMON,
     },
     {
-      key: "tin-fin",
-      name: "Tin-Fin",
+      key: "soggy-crown-herring",
+      name: "Soggy Crown Herring",
       rarity: SeasonFiveFishRarity.COMMON,
     },
     {
-      key: "dock-grouch",
-      name: "Dock Grouch",
+      key: "tax-evading-crabfish",
+      name: "Tax-Evading Crabfish",
       rarity: SeasonFiveFishRarity.UNCOMMON,
     },
     {
-      key: "stormglass-eel",
-      name: "Stormglass Eel",
+      key: "screaming-pearl-eel",
+      name: "Screaming Pearl Eel",
       rarity: SeasonFiveFishRarity.RARE,
     },
     {
-      key: "old-king-cod",
-      name: "Old King Cod",
+      key: "duke-slimewhisker",
+      name: "Duke Slimewhisker",
       rarity: SeasonFiveFishRarity.LEGENDARY,
     },
   ],
-  lake: DEFAULT_FISH_SPECIES,
-  deep: [
+  lake: [
     {
-      key: "blind-minnow",
-      name: "Blind Minnow",
+      key: "puddle-gobbler",
+      name: "Puddle Gobbler",
       rarity: SeasonFiveFishRarity.COMMON,
     },
     {
-      key: "pressure-cod",
-      name: "Pressure Cod",
+      key: "mucus-pike",
+      name: "Mucus Pike",
       rarity: SeasonFiveFishRarity.COMMON,
     },
     {
-      key: "moonjaw",
-      name: "Moonjaw",
+      key: "grumblegill",
+      name: "Grumblegill",
       rarity: SeasonFiveFishRarity.UNCOMMON,
     },
     {
-      key: "abyss-lantern-eel",
-      name: "Abyss Lantern Eel",
+      key: "wizards-lost-toe-trout",
+      name: "Wizard's Lost-Toe Trout",
       rarity: SeasonFiveFishRarity.RARE,
     },
     {
-      key: "thing-below-the-boat",
-      name: "Thing Below the Boat",
+      key: "sir-gulp-a-lot",
+      name: "Sir Gulp-a-Lot",
+      rarity: SeasonFiveFishRarity.LEGENDARY,
+    },
+  ],
+  deep: [
+    {
+      key: "eyeless-soupfish",
+      name: "Eyeless Soupfish",
+      rarity: SeasonFiveFishRarity.COMMON,
+    },
+    {
+      key: "gloom-blubber",
+      name: "Gloom Blubber",
+      rarity: SeasonFiveFishRarity.COMMON,
+    },
+    {
+      key: "teeth-with-fins",
+      name: "Teeth-With-Fins",
+      rarity: SeasonFiveFishRarity.UNCOMMON,
+    },
+    {
+      key: "abyssal-belch-eel",
+      name: "Abyssal Belch Eel",
+      rarity: SeasonFiveFishRarity.RARE,
+    },
+    {
+      key: "the-regrettable-mouth",
+      name: "The Regrettable Mouth",
       rarity: SeasonFiveFishRarity.LEGENDARY,
     },
   ],
   lava_lake: [
     {
-      key: "ash-carp",
-      name: "Ash Carp",
+      key: "ashbelly-guppy",
+      name: "Ashbelly Guppy",
       rarity: SeasonFiveFishRarity.COMMON,
     },
     {
-      key: "cinder-koi",
-      name: "Cinder Koi",
+      key: "cinder-snot-koi",
+      name: "Cinder Snot Koi",
       rarity: SeasonFiveFishRarity.COMMON,
     },
     {
-      key: "glassfin-scorcher",
-      name: "Glassfin Scorcher",
+      key: "blisterfin-dumpling",
+      name: "Blisterfin Dumpling",
       rarity: SeasonFiveFishRarity.UNCOMMON,
     },
     {
-      key: "magma-eel",
-      name: "Magma Eel",
+      key: "magma-maw-eel",
+      name: "Magma Maw Eel",
       rarity: SeasonFiveFishRarity.RARE,
     },
     {
-      key: "the-boiling-one",
-      name: "The Boiling One",
+      key: "lord-scaldington",
+      name: "Lord Scaldington",
       rarity: SeasonFiveFishRarity.LEGENDARY,
     },
   ],
 } as const;
+
+const DEFAULT_FISH_SPECIES = SEASON_FIVE_FISH_SPECIES_BY_PROFILE.lake;
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -216,8 +224,8 @@ export function createSeasonFiveCatch(input: {
   profileKey?: string | null;
 }) {
   const speciesPool =
-    FISH_SPECIES_BY_PROFILE[
-      input.profileKey as keyof typeof FISH_SPECIES_BY_PROFILE
+    SEASON_FIVE_FISH_SPECIES_BY_PROFILE[
+      input.profileKey as keyof typeof SEASON_FIVE_FISH_SPECIES_BY_PROFILE
     ] ?? DEFAULT_FISH_SPECIES;
   const speciesRoll = clamp(
     (input.hash % 100) + (input.rarityBonus ?? 0),

@@ -16,6 +16,7 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
       "Season 5 fishing XP now raises character levels and grants skill points up to a twelve-point progression budget.",
       "Season 5 map fishing now works on water and coast tiles, with connected water-body pools that can run low, regenerate, and reveal temporary stock details.",
       "Season 5 fish are now measured in kilograms instead of centimeters.",
+      "Season 5 fishing pools now have fantasy comedy species with stranger coastal, lake, deep-water, and lava catches.",
       "Deep water and lava lakes now support higher-risk fishing profiles with level and gear or passive gates.",
       "The Season 5 character Skills tab now groups class passives by path and shows the actual passive math on each node.",
     ],
