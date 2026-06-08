@@ -34,6 +34,8 @@ import {
   calculateSeasonFiveRoutePreview,
   createSeasonFiveMapTiles,
   getSeasonFiveDailyRotationKey,
+  getSeasonFiveFishingTileStats,
+  getSeasonFiveFishingTileTrait,
   getSeasonFiveLocationTileKey,
   planSeasonFiveDailySpecialTiles,
   planSeasonFiveFishingLocations,
@@ -1299,6 +1301,85 @@ test("Season 5 water body planner turns water, coast, and named spots into fishi
   );
   assert.equal(moonDepthsBody?.profileKey, "deep");
   assert.ok(waterBodies.some((body) => body.profileKey === "coast"));
+  assert.ok(
+    waterBodies.some((body) => {
+      if (body.tileKeys.length < 2) return false;
+      const bodyLocations = fishingLocations.filter(
+        (location) => location.waterBodyKey === body.key
+      );
+      return bodyLocations.length === body.tileKeys.length;
+    })
+  );
+});
+
+test("Season 5 fishing tile traits are deterministic and modify route stats", () => {
+  const tiles = createSeasonFiveMapTiles();
+  const tileByKey = new Map(tiles.map((tile) => [tile.key, tile]));
+  const homeTile = tileByKey.get(getSeasonFiveLocationTileKey("home") ?? "");
+  const waterBodies = planSeasonFiveWaterBodies(tiles);
+  const fishingLocations = planSeasonFiveFishingLocations({
+    tiles,
+    waterBodies,
+  });
+  const traitedBody = waterBodies.find((body) =>
+    body.tileKeys.some((tileKey) => {
+      const tile = tileByKey.get(tileKey);
+      return (
+        tile &&
+        getSeasonFiveFishingTileTrait({
+          tile,
+          profileKey: body.profileKey,
+        })
+      );
+    })
+  );
+  const traitedTileKey = traitedBody?.tileKeys.find((tileKey) => {
+    const tile = tileByKey.get(tileKey);
+    return (
+      tile &&
+      getSeasonFiveFishingTileTrait({
+        tile,
+        profileKey: traitedBody.profileKey,
+      })
+    );
+  });
+  const tile = traitedTileKey ? tileByKey.get(traitedTileKey) : null;
+
+  assert.ok(homeTile);
+  assert.ok(traitedBody);
+  assert.ok(tile);
+
+  const firstTrait = getSeasonFiveFishingTileTrait({
+    tile,
+    profileKey: traitedBody.profileKey,
+  });
+  const secondTrait = getSeasonFiveFishingTileTrait({
+    tile,
+    profileKey: traitedBody.profileKey,
+  });
+  const baseTravel = calculateSeasonFiveRoutePreview({
+    from: homeTile,
+    to: tile,
+    baseMinutes: traitedBody.profile.baseTravelMinutes,
+    travelPercent: 0,
+  }).travelMinutes;
+  const stats = getSeasonFiveFishingTileStats({
+    tile,
+    profile: traitedBody.profile,
+    travelMinutes: baseTravel,
+  });
+  const location = fishingLocations.find(
+    (entry) => entry.tileKey === traitedTileKey
+  );
+
+  assert.deepEqual(firstTrait, secondTrait);
+  assert.ok(firstTrait);
+  assert.equal(stats.trait?.key, firstTrait.key);
+  assert.equal(location?.travelMinutes, stats.travelMinutes);
+  assert.equal(location?.catchDifficulty, stats.catchDifficulty);
+  assert.equal(location?.minWeightGrams, stats.minWeightGrams);
+  assert.equal(location?.maxWeightGrams, stats.maxWeightGrams);
+  assert.equal(location?.inventoryPressure, stats.inventoryPressure);
 });
 
 test("Season 5 degraded map state still exposes fishable water tiles", () => {
@@ -1316,6 +1397,15 @@ test("Season 5 degraded map state still exposes fishable water tiles", () => {
       (location) => location.tileKey === fishableWaterTile.key
     )?.key,
     `tile:${fishableWaterTile.key}`
+  );
+  assert.ok(
+    state.locations.some(
+      (location) =>
+        location.tileTraitKey &&
+        location.tileTraitName &&
+        location.tileTraitDescription &&
+        location.tileTraitTone
+    )
   );
 });
 
@@ -1370,8 +1460,20 @@ test("Season 5 lava and void specials become visible locked water bodies", () =>
       : tile;
   });
   const waterBodies = planSeasonFiveWaterBodies(tilesWithSpecials);
+  const fishingLocations = planSeasonFiveFishingLocations({
+    tiles: tilesWithSpecials,
+    waterBodies,
+  });
   const lava = waterBodies.find((body) => body.profileKey === "lava_lake");
   const voidLake = waterBodies.find((body) => body.profileKey === "void_lake");
+  const lavaLocation = lava
+    ? fishingLocations.find((location) => location.waterBodyKey === lava.key)
+    : null;
+  const voidLocation = voidLake
+    ? fishingLocations.find(
+        (location) => location.waterBodyKey === voidLake.key
+      )
+    : null;
 
   assert.equal(lava?.hidden, false);
   assert.equal(voidLake?.hidden, false);
@@ -1379,6 +1481,10 @@ test("Season 5 lava and void specials become visible locked water bodies", () =>
   assert.equal(voidLake?.profile.requiredGearKey, "screaming-bamboo-pole");
   assert.equal(lava?.tileKeys.length, 1);
   assert.equal(voidLake?.tileKeys.length, 1);
+  assert.equal(lavaLocation?.catchDifficulty, 6);
+  assert.equal(voidLocation?.catchDifficulty, 7);
+  assert.equal(lavaLocation?.inventoryPressure, 4);
+  assert.equal(voidLocation?.inventoryPressure, 5);
 });
 
 test("Season 5 Luk can reveal hidden global special tiles", () => {

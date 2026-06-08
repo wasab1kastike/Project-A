@@ -33,6 +33,7 @@ import {
   SEASON_FIVE_DAILY_SPECIAL_COUNT,
   createSeasonFiveMapTiles,
   getSeasonFiveDailyRotationKey,
+  getSeasonFiveFishingTileTrait,
   getSeasonFiveLocationTileKey,
   getSeasonFiveWaterBodyStockLabel,
   planSeasonFiveDailySpecialTiles,
@@ -2969,6 +2970,7 @@ export async function getSeasonFiveHomeState({
     },
     orderBy: [{ row: "asc" }, { col: "asc" }],
   });
+  const mapTileById = new Map(mapTiles.map((tile) => [tile.id, tile]));
   const plannedLocationKeys = getSeasonFivePlannedLocationKeys(mapTiles);
   const character = userId
     ? await getSeasonFiveCharacterForUser({ userId, cycleId: cycle.id, db })
@@ -3291,6 +3293,9 @@ export async function getSeasonFiveHomeState({
       }),
     },
     locations: visibleLocations.map((location) => {
+      const locationTile = location.tileId
+        ? (mapTileById.get(location.tileId) ?? null)
+        : null;
       const access =
         character && location.waterBody
           ? getSeasonFiveFishingAccess({
@@ -3315,6 +3320,13 @@ export async function getSeasonFiveHomeState({
             location.waterBody.profileKey as SeasonFiveWaterBodyProfileKey
           ] ?? SEASON_FIVE_WATER_BODY_PROFILES.lake)
         : null;
+      const tileTrait =
+        locationTile && profile
+          ? getSeasonFiveFishingTileTrait({
+              tile: locationTile,
+              profileKey: profile.key,
+            })
+          : null;
       const routeLoopPreview =
         character && effects
           ? getSeasonFiveRouteLoopPreview({
@@ -3330,20 +3342,24 @@ export async function getSeasonFiveHomeState({
         name: location.name,
         kind: location.kind,
         tileKey:
-          mapTiles.find((tile) => tile.id === location.tileId)?.key ??
-          getSeasonFiveLocationTileKey(location.key),
+          locationTile?.key ?? getSeasonFiveLocationTileKey(location.key),
         xPercent: location.xPercent,
         yPercent: location.yPercent,
         travelMinutes: location.travelMinutes,
         minWeightGrams: location.minWeightGrams,
         maxWeightGrams: location.maxWeightGrams,
         catchDifficulty: location.catchDifficulty,
+        inventoryPressure: location.inventoryPressure,
         locked: character ? !access.allowed : false,
         lockReason: character ? access.reason : null,
         waterBodyKey: location.waterBody?.key ?? null,
         waterBodyName: location.waterBody?.name ?? null,
         waterBodyProfile: profile?.label ?? null,
         waterBodyProfileKey: location.waterBody?.profileKey ?? null,
+        tileTraitKey: tileTrait?.key ?? null,
+        tileTraitName: tileTrait?.name ?? null,
+        tileTraitDescription: tileTrait?.description ?? null,
+        tileTraitTone: tileTrait?.tone ?? null,
         waterBodyStockLabel:
           waterBodyInfoRevealed && location.waterBody
             ? getSeasonFiveWaterBodyStockLabel({
@@ -3609,12 +3625,17 @@ export function getDegradedSeasonFiveHomeState(): SeasonFiveHomeState {
       minWeightGrams: home.minWeightGrams,
       maxWeightGrams: home.maxWeightGrams,
       catchDifficulty: home.catchDifficulty,
+      inventoryPressure: home.inventoryPressure,
       locked: false,
       lockReason: null,
       waterBodyKey: null,
       waterBodyName: null,
       waterBodyProfile: null,
       waterBodyProfileKey: null,
+      tileTraitKey: null,
+      tileTraitName: null,
+      tileTraitDescription: null,
+      tileTraitTone: null,
       waterBodyStockLabel: null,
       waterBodyStockPercent: null,
       waterBodyRegenLabel: null,
@@ -3632,6 +3653,13 @@ export function getDegradedSeasonFiveHomeState(): SeasonFiveHomeState {
       const profile = body
         ? SEASON_FIVE_WATER_BODY_PROFILES[body.profileKey]
         : null;
+      const tileTrait =
+        tile && profile
+          ? getSeasonFiveFishingTileTrait({
+              tile,
+              profileKey: profile.key,
+            })
+          : null;
 
       return {
         id: location.key,
@@ -3645,12 +3673,17 @@ export function getDegradedSeasonFiveHomeState(): SeasonFiveHomeState {
         minWeightGrams: location.minWeightGrams,
         maxWeightGrams: location.maxWeightGrams,
         catchDifficulty: location.catchDifficulty,
+        inventoryPressure: location.inventoryPressure,
         locked: false,
         lockReason: null,
         waterBodyKey: body?.key ?? location.waterBodyKey,
         waterBodyName: body?.name ?? null,
         waterBodyProfile: profile?.label ?? null,
         waterBodyProfileKey: body?.profileKey ?? null,
+        tileTraitKey: tileTrait?.key ?? null,
+        tileTraitName: tileTrait?.name ?? null,
+        tileTraitDescription: tileTrait?.description ?? null,
+        tileTraitTone: tileTrait?.tone ?? null,
         waterBodyStockLabel: null,
         waterBodyStockPercent: null,
         waterBodyRegenLabel: null,

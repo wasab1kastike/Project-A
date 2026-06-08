@@ -86,6 +86,35 @@ export type SeasonFiveFishingLocationPlan = {
   inventoryPressure: number;
 };
 
+export type SeasonFiveFishingTileTraitTone =
+  | "reeds"
+  | "planks"
+  | "pocket"
+  | "scum"
+  | "vent"
+  | "void";
+
+export type SeasonFiveFishingTileTrait = {
+  key: string;
+  name: string;
+  description: string;
+  tone: SeasonFiveFishingTileTraitTone;
+  catchDifficultyDelta: number;
+  minWeightPercent: number;
+  maxWeightPercent: number;
+  inventoryPressureDelta: number;
+  travelMinutesDelta: number;
+};
+
+export type SeasonFiveFishingTileStats = {
+  trait: SeasonFiveFishingTileTrait | null;
+  travelMinutes: number;
+  catchDifficulty: number;
+  minWeightGrams: number;
+  maxWeightGrams: number;
+  inventoryPressure: number;
+};
+
 const TERRAIN_BY_BIOME: Record<HexBiome, SeasonFiveMapTerrain> = {
   coast: SeasonFiveMapTerrain.COAST,
   forest: SeasonFiveMapTerrain.FOREST,
@@ -265,6 +294,76 @@ const SPECIAL_TILE_PLANS = [
   },
 ] as const;
 
+export const SEASON_FIVE_FISHING_TILE_TRAITS = {
+  rotten_reeds: {
+    key: "rotten_reeds",
+    name: "Rotten Reeds",
+    description: "Mud-friendly bites come faster, but the trophies are sadder.",
+    tone: "reeds",
+    catchDifficultyDelta: -1,
+    minWeightPercent: -10,
+    maxWeightPercent: -15,
+    inventoryPressureDelta: -1,
+    travelMinutesDelta: 0,
+  },
+  old_planks: {
+    key: "old_planks",
+    name: "Old Planks",
+    description:
+      "A crooked shortcut over the water trims the walk and the fuss.",
+    tone: "planks",
+    catchDifficultyDelta: -1,
+    minWeightPercent: 0,
+    maxWeightPercent: -5,
+    inventoryPressureDelta: 0,
+    travelMinutesDelta: -2,
+  },
+  deep_pocket: {
+    key: "deep_pocket",
+    name: "Deep Pocket",
+    description: "The bottom drops away into bigger, meaner fish.",
+    tone: "pocket",
+    catchDifficultyDelta: 1,
+    minWeightPercent: 20,
+    maxWeightPercent: 30,
+    inventoryPressureDelta: 1,
+    travelMinutesDelta: 0,
+  },
+  bubbling_scum: {
+    key: "bubbling_scum",
+    name: "Bubbling Scum",
+    description: "Something below is breathing through the soup.",
+    tone: "scum",
+    catchDifficultyDelta: 0,
+    minWeightPercent: 5,
+    maxWeightPercent: 12,
+    inventoryPressureDelta: 1,
+    travelMinutesDelta: 1,
+  },
+  warm_vent: {
+    key: "warm_vent",
+    name: "Warm Vent",
+    description: "Heat-sick currents fatten the catch and punish the pack.",
+    tone: "vent",
+    catchDifficultyDelta: 1,
+    minWeightPercent: 25,
+    maxWeightPercent: 35,
+    inventoryPressureDelta: 1,
+    travelMinutesDelta: 1,
+  },
+  void_ripple: {
+    key: "void_ripple",
+    name: "Void Ripple",
+    description: "The wave arrives before the splash and leaves with a grudge.",
+    tone: "void",
+    catchDifficultyDelta: 1,
+    minWeightPercent: -15,
+    maxWeightPercent: 45,
+    inventoryPressureDelta: 1,
+    travelMinutesDelta: 2,
+  },
+} as const satisfies Record<string, SeasonFiveFishingTileTrait>;
+
 function hashString(input: string) {
   let hash = 2166136261;
   for (let index = 0; index < input.length; index += 1) {
@@ -347,6 +446,96 @@ export function isSeasonFiveFishableTile(tile: {
     tile.terrain === SeasonFiveMapTerrain.COAST ||
     tile.role === SeasonFiveMapRole.SECRET_LAKE
   );
+}
+
+export function getSeasonFiveFishingTileTrait({
+  tile,
+  profileKey,
+}: {
+  tile: Pick<SeasonFiveMapTileSnapshot, "key">;
+  profileKey: SeasonFiveWaterBodyProfileKey;
+}): SeasonFiveFishingTileTrait | null {
+  if (profileKey === "lava_lake") {
+    return SEASON_FIVE_FISHING_TILE_TRAITS.warm_vent;
+  }
+  if (profileKey === "void_lake") {
+    return SEASON_FIVE_FISHING_TILE_TRAITS.void_ripple;
+  }
+
+  const roll = hashString(`${profileKey}:${tile.key}:fishing-trait`) % 100;
+
+  if (profileKey === "deep") {
+    if (roll < 45) return SEASON_FIVE_FISHING_TILE_TRAITS.deep_pocket;
+    if (roll < 65) return SEASON_FIVE_FISHING_TILE_TRAITS.bubbling_scum;
+    return null;
+  }
+
+  if (profileKey === "coast") {
+    if (roll < 18) return SEASON_FIVE_FISHING_TILE_TRAITS.old_planks;
+    if (roll < 32) return SEASON_FIVE_FISHING_TILE_TRAITS.bubbling_scum;
+    if (roll < 42) return SEASON_FIVE_FISHING_TILE_TRAITS.rotten_reeds;
+    return null;
+  }
+
+  if (roll < 15) return SEASON_FIVE_FISHING_TILE_TRAITS.rotten_reeds;
+  if (roll < 28) return SEASON_FIVE_FISHING_TILE_TRAITS.old_planks;
+  if (roll < 38) return SEASON_FIVE_FISHING_TILE_TRAITS.deep_pocket;
+
+  return null;
+}
+
+function applyPercent(value: number, percent: number) {
+  return Math.max(1, Math.round(value * ((100 + percent) / 100)));
+}
+
+export function getSeasonFiveFishingTileStats({
+  tile,
+  profile,
+  travelMinutes,
+}: {
+  tile: SeasonFiveMapTileSnapshot;
+  profile: SeasonFiveWaterBodyProfile;
+  travelMinutes: number;
+}): SeasonFiveFishingTileStats {
+  const trait = getSeasonFiveFishingTileTrait({
+    tile,
+    profileKey: profile.key,
+  });
+
+  if (!trait) {
+    return {
+      trait,
+      travelMinutes,
+      catchDifficulty: profile.catchDifficulty,
+      minWeightGrams: profile.minWeightGrams,
+      maxWeightGrams: profile.maxWeightGrams,
+      inventoryPressure: profile.inventoryPressure,
+    };
+  }
+
+  const minWeightGrams = applyPercent(
+    profile.minWeightGrams,
+    trait.minWeightPercent
+  );
+  const maxWeightGrams = Math.max(
+    minWeightGrams + 100,
+    applyPercent(profile.maxWeightGrams, trait.maxWeightPercent)
+  );
+
+  return {
+    trait,
+    travelMinutes: Math.max(1, travelMinutes + trait.travelMinutesDelta),
+    catchDifficulty: Math.max(
+      1,
+      profile.catchDifficulty + trait.catchDifficultyDelta
+    ),
+    minWeightGrams,
+    maxWeightGrams,
+    inventoryPressure: Math.max(
+      1,
+      profile.inventoryPressure + trait.inventoryPressureDelta
+    ),
+  };
 }
 
 function getAdjacentSeasonFiveTileKeys(
@@ -540,6 +729,11 @@ export function planSeasonFiveFishingLocations({
             travelPercent: 0,
           }).travelMinutes
         : body.profile.baseTravelMinutes;
+      const stats = getSeasonFiveFishingTileStats({
+        tile,
+        profile: body.profile,
+        travelMinutes: travel,
+      });
 
       plans.push({
         key,
@@ -547,11 +741,11 @@ export function planSeasonFiveFishingLocations({
         kind: body.profile.kind,
         tileKey: tile.key,
         waterBodyKey: body.key,
-        travelMinutes: travel,
-        catchDifficulty: body.profile.catchDifficulty,
-        minWeightGrams: body.profile.minWeightGrams,
-        maxWeightGrams: body.profile.maxWeightGrams,
-        inventoryPressure: body.profile.inventoryPressure,
+        travelMinutes: stats.travelMinutes,
+        catchDifficulty: stats.catchDifficulty,
+        minWeightGrams: stats.minWeightGrams,
+        maxWeightGrams: stats.maxWeightGrams,
+        inventoryPressure: stats.inventoryPressure,
       });
     }
   }

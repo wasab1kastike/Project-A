@@ -291,6 +291,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
     highlights: [
       "Every visible lake, river, coast, and sea tile can be selected as a fishing destination.",
       "Connected water-body pools have hidden stock and hourly regeneration.",
+      "Some water tiles have traits that tweak route stats while sharing the same body stock.",
       "Fish catches are measured in kilograms instead of centimeters.",
       "Characters wear visible body, outfit, hat, and rod equipment.",
       "Fish unloads pay fish coins for static shop gear and one-hour bait sets.",
@@ -306,6 +307,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
           "Normal lake and coastal water are open from level 1.",
           "Lava pools and void lakes are visible on the map before they are usable.",
           "Each destination belongs to a connected water-body pool.",
+          "Trait tiles can change travel, difficulty, fish size, or pack pressure without creating separate stock.",
           "Route cards show lock reasons when a selected tile needs more level, gear, or passive access.",
         ],
       },

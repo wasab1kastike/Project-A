@@ -29,6 +29,7 @@ When the preview flag is enabled, `/` renders the Season 5 fishing interface ins
 - Fish weight is shown to players in kilograms and stored internally as grams for sorting.
 - Every visible lake, river, coast, and sea tile can be chosen as a fishing destination. Old named spots still exist, but the map is no longer limited to only those pins.
 - Connected water bodies have hidden fish pools with stock and hourly regeneration. Passive catches consume stock; depleted pools recover over time.
+- Some individual water tiles have deterministic traits such as rotten reeds, old planks, deep pockets, warm vents, or void ripples. These adjust route difficulty, fish size, travel, or pack pressure, but they still draw from the connected water body's shared stock.
 - Route cards show the water type and lock requirements. Pool stock, regen, and notable fish can be revealed temporarily by character stats, gear, and passives.
 - Fish species are fantasy-themed by water profile, from soggy comedy fish to deep-water grotesques, lava trophies, and void mistakes.
 - Deep water, lava pools, and void lakes are gated by character level plus fitting gear or matching passives. Normal lake and coastal water are open from level 1.

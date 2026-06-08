@@ -215,7 +215,7 @@ On Render, set `OPENCLAW_GOD_SHARED_SECRET` for `project-a-web`, deploy, then sm
 - Players sign in with Google
 - Season 4 registration and `TESTING`/pretesting accept new fortresses and race selection while the redesign is verified
 - The completed community wish vote is archived; Season 4 uses a live map wish drawer for anonymous next-season suggestions instead of a lobby ballot
-- Season 5 preview is a separate fishing ruleset where every visible lake, river, coast, and sea tile becomes a destination with hidden stock, kilogram fish weights, regeneration, visible character equipment, fish coins, bait sets, rare item hooks, and gated deep, lava, and void profiles
+- Season 5 preview is a separate fishing ruleset where every visible lake, river, coast, and sea tile becomes a destination with hidden shared stock, deterministic tile traits, kilogram fish weights, regeneration, visible character equipment, fish coins, bait sets, rare item hooks, and gated deep, lava, and void profiles
 - Season 4 activation remains held until redesign verification passes
 - Each cycle stores an explicit ruleset: prior resolved cycles remain `LEGACY`, while the unresolved Season 4 pretesting cycle uses `SEASON_4`
 - Joining is open during `REGISTRATION` and `TESTING`, and remains open in `ACTIVE` while player slots remain before the active deadline

@@ -17,6 +17,7 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
       "Season 5 fishing XP now raises character levels and grants skill points up to a twelve-point progression budget.",
       "Season 5 map fishing now works on water and coast tiles, with connected water-body pools that can run low, regenerate, and reveal temporary stock details.",
       "Season 5 map fishing now uses the visible hex water as the destination grid: lake, river, coast, and sea tiles are selectable without random F markers, while lava pools and void lakes appear as visible locked targets.",
+      "Season 5 water tiles now have deterministic fishing traits like rotten reeds, old planks, deep pockets, warm vents, and void ripples, while connected body stock stays shared.",
       "Season 5 fish are now measured in kilograms instead of centimeters.",
       "Season 5 fishing pools now have fantasy comedy species with stranger coastal, lake, deep-water, and lava catches.",
       "Deep water, lava pools, and void lakes now support higher-risk fishing profiles with level and gear or passive gates.",

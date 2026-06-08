@@ -669,6 +669,13 @@
   vector-effect: non-scaling-stroke;
 }
 
+.selectedWaterBodyBorder {
+  stroke: rgba(255, 248, 231, 0.92);
+  stroke-dasharray: 1 0;
+  stroke-width: 5px;
+  filter: drop-shadow(0 0 8px rgba(247, 196, 95, 0.62));
+}
+
 .seasonFivePlainsTile > polygon:first-of-type {
   fill: #739a46;
 }
@@ -731,6 +738,7 @@
 
 .seasonFiveWorldMarker,
 .seasonFiveWorldSpecialWaterGlyph,
+.seasonFiveWorldTraitGlyph,
 .seasonFiveWorldPopulation,
 .seasonFiveWorldActors {
   pointer-events: none;
@@ -800,6 +808,58 @@
   stroke: rgba(206, 190, 255, 0.92);
 }
 
+.seasonFiveWorldTraitGlyph {
+  opacity: 0.86;
+}
+
+.seasonFiveWorldTraitGlyph path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-width: 4px;
+  vector-effect: non-scaling-stroke;
+}
+
+.seasonFiveWorldTraitGlyph circle {
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+}
+
+.seasonFiveWorldTraitGlyph[data-trait-tone="reeds"] path,
+.seasonFiveWorldTraitGlyph[data-trait-tone="reeds"] circle {
+  stroke: rgba(187, 214, 118, 0.92);
+}
+
+.seasonFiveWorldTraitGlyph[data-trait-tone="reeds"] circle {
+  fill: rgba(68, 93, 45, 0.9);
+}
+
+.seasonFiveWorldTraitGlyph[data-trait-tone="planks"] path,
+.seasonFiveWorldTraitGlyph[data-trait-tone="planks"] circle {
+  stroke: rgba(222, 178, 114, 0.92);
+}
+
+.seasonFiveWorldTraitGlyph[data-trait-tone="planks"] circle {
+  fill: rgba(96, 61, 36, 0.92);
+}
+
+.seasonFiveWorldTraitGlyph[data-trait-tone="pocket"] path,
+.seasonFiveWorldTraitGlyph[data-trait-tone="pocket"] circle {
+  stroke: rgba(164, 221, 242, 0.92);
+}
+
+.seasonFiveWorldTraitGlyph[data-trait-tone="pocket"] circle {
+  fill: rgba(21, 67, 89, 0.9);
+}
+
+.seasonFiveWorldTraitGlyph[data-trait-tone="scum"] path,
+.seasonFiveWorldTraitGlyph[data-trait-tone="scum"] circle {
+  stroke: rgba(191, 221, 136, 0.9);
+}
+
+.seasonFiveWorldTraitGlyph[data-trait-tone="scum"] circle {
+  fill: rgba(82, 88, 34, 0.92);
+}
+
 .seasonFiveWorldActors circle {
   stroke: #fff8e7;
   stroke-width: 2px;
@@ -855,6 +915,28 @@
   .seasonFiveWorldHotspotArea {
   fill: rgba(138, 214, 224, 0.2);
   stroke: rgba(138, 214, 224, 0.88);
+}
+
+.seasonFiveWorldHotspot.selectedWaterBodyTile .seasonFiveWorldHotspotArea {
+  fill: rgba(255, 248, 231, 0.08);
+  stroke: rgba(255, 248, 231, 0.5);
+  stroke-width: 4px;
+  vector-effect: non-scaling-stroke;
+}
+
+.seasonFiveWorldHotspot.deepWaterTile .seasonFiveWorldHotspotArea {
+  fill: rgba(35, 78, 111, 0.34);
+  stroke: rgba(126, 203, 241, 0.66);
+  stroke-width: 5px;
+  vector-effect: non-scaling-stroke;
+}
+
+.seasonFiveWorldHotspot.deepWaterTile[role="button"]:hover
+  .seasonFiveWorldHotspotArea,
+.seasonFiveWorldHotspot.deepWaterTile[role="button"]:focus-visible
+  .seasonFiveWorldHotspotArea {
+  fill: rgba(48, 96, 135, 0.48);
+  stroke: rgba(191, 235, 255, 0.96);
 }
 
 .seasonFiveWorldHotspot.lavaWaterTile .seasonFiveWorldHotspotArea {
@@ -1429,7 +1511,7 @@
   left: 50%;
   bottom: 84px;
   z-index: 19;
-  width: min(420px, calc(100% - 52px));
+  width: min(450px, calc(100% - 52px));
   padding: 12px;
   border: 1px solid rgba(255, 239, 203, 0.2);
   border-radius: 8px;
@@ -1438,15 +1520,109 @@
   transform: translateX(-50%);
 }
 
+.routePreview[data-water-profile="deep"] {
+  border-color: rgba(126, 203, 241, 0.32);
+}
+
+.routePreview[data-water-profile="lava_lake"] {
+  border-color: rgba(255, 166, 63, 0.38);
+}
+
+.routePreview[data-water-profile="void_lake"] {
+  border-color: rgba(157, 137, 232, 0.38);
+}
+
 .routePreview h3,
 .routePreview p {
   margin: 0;
 }
 
-.routePreview p {
+.routePreviewHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.routePreviewHeader h3 {
+  font-size: 20px;
+  line-height: 1.05;
+}
+
+.routeTraitBadge {
+  max-width: 148px;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 248, 231, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 248, 231, 0.08);
+  color: #f2dcaa;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.routeTraitBadge[data-trait-tone="reeds"],
+.routeTraitBadge[data-trait-tone="scum"] {
+  border-color: rgba(191, 221, 136, 0.34);
+  color: #d9e8ad;
+}
+
+.routeTraitBadge[data-trait-tone="planks"] {
+  border-color: rgba(222, 178, 114, 0.36);
+  color: #f0c88b;
+}
+
+.routeTraitBadge[data-trait-tone="pocket"] {
+  border-color: rgba(164, 221, 242, 0.34);
+  color: #bde9f6;
+}
+
+.routeTraitBadge[data-trait-tone="vent"] {
+  border-color: rgba(255, 166, 63, 0.38);
+  color: #ffd08c;
+}
+
+.routeTraitBadge[data-trait-tone="void"] {
+  border-color: rgba(157, 137, 232, 0.38);
+  color: #d6caff;
+}
+
+.routePreviewStats,
+.routePreviewMeta {
+  display: grid;
+  gap: 8px;
+}
+
+.routePreviewStats {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 10px;
+}
+
+.routePreviewStats span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px;
+  border-radius: 6px;
+  background: rgba(255, 248, 231, 0.07);
+  color: #c9b994;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.routePreviewStats strong {
+  color: #fff8e7;
+  font-size: 16px;
+  line-height: 1;
+  text-transform: none;
+}
+
+.routePreviewMeta {
+  grid-template-columns: 1fr 1fr;
   margin-top: 8px;
   color: #d6c8a7;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .routePreviewStatus {
@@ -2654,6 +2830,20 @@
 
   .characterHeroIdentity h2 {
     font-size: 24px;
+  }
+
+  .routePreviewHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .routeTraitBadge {
+    max-width: none;
+    text-align: left;
+  }
+
+  .routePreviewMeta {
+    grid-template-columns: 1fr;
   }
 
   .characterHeroStatus .commandActions {

@@ -412,6 +412,30 @@ function getHexVertices(tile: HexTile, radius = HEX_RADIUS) {
   });
 }
 
+function isPointInPolygon(point: Point, polygon: Point[]) {
+  let inside = false;
+
+  for (
+    let index = 0, previousIndex = polygon.length - 1;
+    index < polygon.length;
+    previousIndex = index, index += 1
+  ) {
+    const current = polygon[index];
+    const previous = polygon[previousIndex];
+    if (!current || !previous) continue;
+
+    const crosses =
+      current.y > point.y !== previous.y > point.y &&
+      point.x <
+        ((previous.x - current.x) * (point.y - current.y)) /
+          Math.max(0.0001, previous.y - current.y) +
+          current.x;
+    if (crosses) inside = !inside;
+  }
+
+  return inside;
+}
+
 function getSeasonFiveWaterBodyBoundaryDirections(row: number) {
   return row % 2 === 0
     ? [
@@ -1098,6 +1122,7 @@ function WorldMap({
           return [
             {
               key: `${tile.key}:${direction.colOffset}:${direction.rowOffset}`,
+              waterBodyKey,
               x1: start.x,
               y1: start.y,
               x2: end.x,
@@ -1117,6 +1142,7 @@ function WorldMap({
   const selectedProjectedHex = selectedLocation
     ? (projectedLocationByKey.get(selectedLocation.key) ?? null)
     : null;
+  const selectedWaterBodyKey = selectedLocation?.waterBodyKey ?? null;
   const previewFromHex = currentProjectedHex;
   const previewToHex = selectedProjectedHex;
   const activeRouteFromHex =
@@ -1317,9 +1343,6 @@ function WorldMap({
           ((clientY - contentBounds.top) / contentBounds.height) *
           MAP_WORLD_HEIGHT,
       };
-      let closestLocationKey: string | null = null;
-      let closestDistance = Number.POSITIVE_INFINITY;
-
       for (const tile of state.map.tiles) {
         const location = locationByTileKey.get(tile.key);
         if (!location || location.kind === "HOME") continue;
@@ -1327,22 +1350,18 @@ function WorldMap({
         const projectedTile = projectedTileByKey.get(tile.key);
         if (!projectedTile) continue;
 
-        const distance = Math.hypot(
-          projectedTile.hex.x - worldPoint.x,
-          projectedTile.hex.y - worldPoint.y
-        );
-        if (distance < closestDistance) {
-          closestDistance = distance;
-          closestLocationKey = location.key;
+        if (
+          isPointInPolygon(
+            worldPoint,
+            getHexVertices(projectedTile.hex, HEX_RADIUS * 1.02)
+          )
+        ) {
+          selectLocationKey(location.key);
+          return true;
         }
       }
 
-      if (!closestLocationKey || closestDistance > HEX_RADIUS * 1.18) {
-        return false;
-      }
-
-      selectLocationKey(closestLocationKey);
-      return true;
+      return false;
     },
     [
       character,
@@ -1609,7 +1628,12 @@ function WorldMap({
                     y1={segment.y1}
                     x2={segment.x2}
                     y2={segment.y2}
-                    className={styles.seasonFiveWorldWaterBodyBorder}
+                    className={`${styles.seasonFiveWorldWaterBodyBorder} ${
+                      selectedWaterBodyKey &&
+                      segment.waterBodyKey === selectedWaterBodyKey
+                        ? styles.selectedWaterBodyBorder
+                        : ""
+                    }`}
                   />
                 ))}
               </g>
@@ -1651,7 +1675,9 @@ function WorldMap({
                   ? styles.lavaWaterTile
                   : waterBodyProfileKey === "void_lake"
                     ? styles.voidWaterTile
-                    : "";
+                    : waterBodyProfileKey === "deep"
+                      ? styles.deepWaterTile
+                      : "";
               const roleClass =
                 tile.role === "HOME"
                   ? styles.homeTile
@@ -1663,6 +1689,9 @@ function WorldMap({
                         ? `${styles.fishableWaterTile} ${waterProfileClass}`
                         : "";
               const isSelected = selectedLocation?.tileKey === tile.key;
+              const isSelectedWaterBody =
+                Boolean(selectedWaterBodyKey) &&
+                location?.waterBodyKey === selectedWaterBodyKey;
               const isCurrent = character?.currentTileKey === tile.key;
               const isDestination = character?.destinationTileKey === tile.key;
               const isLocked = Boolean(tile.locked || location?.locked);
@@ -1678,6 +1707,8 @@ function WorldMap({
                   key={tile.key}
                   className={`${styles.seasonFiveWorldHotspot} ${roleClass} ${
                     isSelected ? styles.selectedTile : ""
+                  } ${
+                    isSelectedWaterBody ? styles.selectedWaterBodyTile : ""
                   } ${isCurrent ? styles.currentTile : ""} ${
                     isDestination ? styles.destinationTile : ""
                   } ${isLocked ? styles.lockedTile : ""}`}
@@ -1764,6 +1795,17 @@ function WorldMap({
                       <circle cx={hex.x} cy={hex.y} r="5" />
                     </g>
                   ) : null}
+                  {location?.tileTraitTone && !isSpecialWater ? (
+                    <g
+                      className={styles.seasonFiveWorldTraitGlyph}
+                      data-trait-tone={location.tileTraitTone}
+                    >
+                      <path
+                        d={`M ${hex.x - 17} ${hex.y + 9} q 9 -13 17 0 t 17 0`}
+                      />
+                      <circle cx={hex.x} cy={hex.y - 1} r="4" />
+                    </g>
+                  ) : null}
                   {marker ? (
                     <g className={styles.seasonFiveWorldMarker}>
                       <circle cx={hex.x} cy={hex.y} r="18" />
@@ -1845,31 +1887,59 @@ function WorldMap({
         </div>
       </div>
       {selectedLocation && selectedTile ? (
-        <aside className={styles.routePreview}>
-          <div>
-            <p className={styles.kicker}>Route</p>
-            <h3>{selectedLocation.name}</h3>
+        <aside
+          className={styles.routePreview}
+          data-water-profile={selectedLocation.waterBodyProfileKey ?? "none"}
+        >
+          <div className={styles.routePreviewHeader}>
+            <div>
+              <p className={styles.kicker}>Route</p>
+              <h3>{selectedLocation.name}</h3>
+            </div>
+            {selectedLocation.tileTraitName ? (
+              <span
+                className={styles.routeTraitBadge}
+                data-trait-tone={selectedLocation.tileTraitTone}
+              >
+                {selectedLocation.tileTraitName}
+              </span>
+            ) : null}
           </div>
-          <p>
-            {selectedLocation.travelMinutes}m travel |{" "}
-            {formatSeasonFiveFishWeight(selectedLocation.minWeightGrams)}-
-            {formatSeasonFiveFishWeight(selectedLocation.maxWeightGrams)} fish
-          </p>
-          <p>
-            Difficulty {selectedLocation.catchDifficulty} | Tile{" "}
-            {selectedTile.row + 1}:{selectedTile.col + 1}
-          </p>
-          {selectedLocation.effectiveCatchIntervalMinutes &&
-          selectedLocation.effectiveInventoryPressure ? (
-            <p>
-              Est. every {selectedLocation.effectiveCatchIntervalMinutes}m |
-              pack pressure {selectedLocation.effectiveInventoryPressure}
-            </p>
-          ) : null}
+          <div className={styles.routePreviewStats}>
+            <span>
+              <strong>{selectedLocation.travelMinutes}m</strong>
+              Travel
+            </span>
+            <span>
+              <strong>
+                {selectedLocation.effectiveCatchIntervalMinutes
+                  ? `${selectedLocation.effectiveCatchIntervalMinutes}m`
+                  : `D${selectedLocation.catchDifficulty}`}
+              </strong>
+              Catch
+            </span>
+            <span>
+              <strong>
+                {selectedLocation.effectiveInventoryPressure ??
+                  selectedLocation.inventoryPressure}
+              </strong>
+              Pack
+            </span>
+          </div>
+          <div className={styles.routePreviewMeta}>
+            <span>
+              {formatSeasonFiveFishWeight(selectedLocation.minWeightGrams)}-
+              {formatSeasonFiveFishWeight(selectedLocation.maxWeightGrams)}
+            </span>
+            <span>
+              Difficulty {selectedLocation.catchDifficulty} | Tile{" "}
+              {selectedTile.row + 1}:{selectedTile.col + 1}
+            </span>
+          </div>
           <div className={styles.routePreviewStatus}>
             <strong>
-              {selectedLocation.waterBodyProfile ??
-                selectedLocation.waterBodyName ??
+              {selectedLocation.waterBodyName ??
+                selectedLocation.waterBodyProfile ??
                 "Unknown water"}
             </strong>
             <span>
@@ -1879,7 +1949,9 @@ function WorldMap({
                   ? `${selectedLocation.waterBodyStockLabel} | ${selectedLocation.waterBodyRegenLabel}`
                   : "Pool details unrevealed"}
             </span>
-            {selectedLocation.notableFish ? (
+            {selectedLocation.tileTraitDescription ? (
+              <small>{selectedLocation.tileTraitDescription}</small>
+            ) : selectedLocation.notableFish ? (
               <small>{selectedLocation.notableFish}</small>
             ) : null}
           </div>

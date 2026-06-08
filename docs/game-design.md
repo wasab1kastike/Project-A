@@ -28,6 +28,7 @@ Season 5 preview is a separate roguelite fishing ruleset behind the preview flag
 - Players create one fishing character with a class, visible starter equipment, passive skill tree, level, XP, fish coins, bait stacks, and inventory.
 - The map is the main action surface. Every visible lake, river, coast, and sea tile can be selected as a fishing destination, while named spots remain as recognizable landmarks.
 - Connected water and coast tiles form water-body pools. Pools track stock and hourly regeneration; passive catches consume pool stock as well as inventory space.
+- Individual water tiles can have deterministic fishing traits. Traits alter that tile's route stats, but stock remains global to the connected water body.
 - Water type and lock requirements are visible on route cards. Stock state, regen, and notable fish are normally hidden until equipment, stats, or passives reveal pool details temporarily.
 - Normal lake and coastal water are open early. Deep water requires higher character level plus a veteran cane or matching passive access; lava pools require higher level plus an obsidian rod or deeper wizard passives; void lakes require level 10 plus a screaming bamboo pole or the deepest wizard passive.
 - Passive fishing grants catches and XP until inventory, pool stock, or player action stops the session. Returning home unloads the current haul and sells fish for fish coins.
