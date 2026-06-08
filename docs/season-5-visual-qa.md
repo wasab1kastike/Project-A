@@ -18,11 +18,11 @@ Open `http://127.0.0.1:3000/`.
 
 Check these viewport sizes before closing visual work:
 
-| Viewport | Purpose |
-| --- | --- |
-| 1440 x 900 | Desktop map-first layout |
+| Viewport   | Purpose                       |
+| ---------- | ----------------------------- |
+| 1440 x 900 | Desktop map-first layout      |
 | 1024 x 768 | Tablet/compact desktop layout |
-| 390 x 844 | Mobile portrait layout |
+| 390 x 844  | Mobile portrait layout        |
 
 ## Acceptance Checks
 
@@ -38,19 +38,37 @@ Check these viewport sizes before closing visual work:
 - Player marker status dots distinguish home, traveling, and fishing states.
 - Class cards show all five stats without text overflow.
 - The character link and inventory link remain reachable on desktop and mobile.
+- Character avatars use one default body per class; retired warrior, monk, wizard, and rogue body variants are not active equipment bodies.
+- Retired Warrior avatars can render from modular full-canvas body parts for the first-pass outfit, hat, and rod set.
 - The inventory panel makes full-inventory state visible.
 - The two ranking panels remain readable: Most Fish and Biggest Fish.
 
+## Character Avatar Pipeline
+
+Season 5 avatars keep a shared 256 x 320 transparent canvas for every bitmap layer. The first modular character pass is Retired Warrior only:
+
+- Base parts live under `/assets/season-5/avatar/characters/warrior/idle/front/0/`.
+- Item-worn parts live under `/assets/season-5/avatar/items/{slot}/{visualKey}/warrior/idle/front/0/`.
+- Neutral item references live under `/assets/season-5/avatar/reference/{slot}/{visualKey}.png`.
+- Supported warrior item-part set: outfits `pants`, `waders`, `raincoat`; hats `cap`, `bucket`, `pointy`; rods `splintered`, `cane`, `obsidian`.
+- Bamboo rod and non-warrior classes intentionally use the existing fitted full-layer renderer until they get matching part art.
+
+Review sheets:
+
+- `docs/season-5-warrior-body-parts.png`
+- `docs/season-5-warrior-item-references.png`
+- `docs/season-5-warrior-item-combinations.png`
+
 ## Class Visual Language
 
-Season 5 class tokens are bundled SVG assets:
+Season 5 class tokens are bundled PNG assets:
 
-| Class | Asset |
-| --- | --- |
-| Drunken Monk | `/assets/season-5/classes/drunken-monk.svg` |
-| Retired Warrior | `/assets/season-5/classes/retired-warrior.svg` |
-| Demented Wizard | `/assets/season-5/classes/demented-wizard.svg` |
-| Burnt-Out Rogue | `/assets/season-5/classes/burnt-out-rogue.svg` |
+| Class           | Asset                                          |
+| --------------- | ---------------------------------------------- |
+| Drunken Monk    | `/assets/season-5/classes/drunken-monk.png`    |
+| Retired Warrior | `/assets/season-5/classes/retired-warrior.png` |
+| Demented Wizard | `/assets/season-5/classes/demented-wizard.png` |
+| Burnt-Out Rogue | `/assets/season-5/classes/burnt-out-rogue.png` |
 
 The same class token appears in class cards, character badges, and map player markers. Marker state is shown by the marker shell and small status dot: brown for home, amber for traveling, teal for fishing, and a red warning ring/dot when inventory is full.
 
@@ -58,9 +76,9 @@ The same class token appears in class cards, character badges, and map player ma
 
 Checked against `codex/season-5` with the Season 5 preview flag enabled.
 
-| Viewport | Result |
-| --- | --- |
-| 1440 x 900 | Passed: map asset loaded, pre-character map span was full width, no horizontal overflow. |
-| 390 x 844 | Passed: class cards and map stacked without horizontal overflow; map rendered at mobile width. |
+| Viewport   | Result                                                                                         |
+| ---------- | ---------------------------------------------------------------------------------------------- |
+| 1440 x 900 | Passed: map asset loaded, pre-character map span was full width, no horizontal overflow.       |
+| 390 x 844  | Passed: class cards and map stacked without horizontal overflow; map rendered at mobile width. |
 
 DB-backed character actions were not exercised in this visual pass because local PostgreSQL was not reachable.

@@ -314,6 +314,41 @@ test("Season 5 avatar loadouts default to class body, pants, and rod", () => {
   });
 });
 
+test("Season 5 avatar loadouts ignore legacy body variant gear", () => {
+  const avatar = getSeasonFiveAvatarLoadout({
+    characterClass: SeasonFiveCharacterClass.RETIRED_WARRIOR,
+    gear: [
+      {
+        key: "body-retired-warrior-ironback",
+        slot: SeasonFiveGearSlot.BODY,
+        equipped: true,
+      },
+      {
+        key: "oilskin-raincoat",
+        slot: SeasonFiveGearSlot.OUTFIT,
+        equipped: true,
+      },
+      {
+        key: "bucket-hat-of-regret",
+        slot: SeasonFiveGearSlot.HAT,
+        equipped: true,
+      },
+      {
+        key: "obsidian-roaster-rod",
+        slot: SeasonFiveGearSlot.ROD,
+        equipped: true,
+      },
+    ],
+  });
+
+  assert.deepEqual(avatar, {
+    body: "warrior",
+    outfit: "raincoat",
+    hat: "bucket",
+    rod: "obsidian",
+  });
+});
+
 test("Season 5 fish coins and rare item catches are deterministic", () => {
   assert.equal(
     getSeasonFiveFishCoinValue({
@@ -635,11 +670,6 @@ test("Season 5 build archetypes keep speed and trophy paths viable", () => {
     gear: [
       {
         slot: SeasonFiveGearSlot.ROD,
-        power: 2,
-        equipped: true,
-      },
-      {
-        slot: SeasonFiveGearSlot.BODY,
         power: 2,
         equipped: true,
       },
@@ -1119,8 +1149,9 @@ test("Season 5 degraded map state still exposes fishable water tiles", () => {
 
   assert.ok(fishableWaterTile);
   assert.equal(
-    state.locations.find((location) => location.tileKey === fishableWaterTile.key)
-      ?.key,
+    state.locations.find(
+      (location) => location.tileKey === fishableWaterTile.key
+    )?.key,
     `tile:${fishableWaterTile.key}`
   );
 });
@@ -1191,9 +1222,7 @@ test("Season 5 discoveries can temporarily reveal water-body pool details", () =
   ).find(Boolean);
 
   assert.equal(noCandidates, null);
-  assert.ok(
-    revealed?.id === "body-deep" || revealed?.id === "body-lava"
-  );
+  assert.ok(revealed?.id === "body-deep" || revealed?.id === "body-lava");
 });
 
 test("Season 5 route preview adds tile distance and travel modifiers", () => {

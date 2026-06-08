@@ -8,12 +8,12 @@
 
 Each season runs through four phases:
 
-| Phase | Duration | What Happens |
-|-------|----------|-------------|
-| **Registration** | ~48h | Players join, pick names, choose race |
-| **Testing** | ~24h | Verify mechanics, finalize strategy |
-| **Active** | ~2 weeks | Full gameplay — economy, combat, diplomacy |
-| **Resolution** | ~24h | Winner crowned, history archived |
+| Phase            | Duration | What Happens                               |
+| ---------------- | -------- | ------------------------------------------ |
+| **Registration** | ~48h     | Players join, pick names, choose race      |
+| **Testing**      | ~24h     | Verify mechanics, finalize strategy        |
+| **Active**       | ~2 weeks | Full gameplay — economy, combat, diplomacy |
+| **Resolution**   | ~24h     | Winner crowned, history archived           |
 
 Mid-season joining locks after `joiningLockedAt`. Race can be changed during Registration; locked after Testing starts.
 
@@ -31,7 +31,7 @@ Season 5 preview is a separate roguelite fishing ruleset behind the preview flag
 - Pool details are normally hidden. Equipment, stats, and passives can reveal water-body name, profile, stock state, regen, and notable fish temporarily.
 - Normal lake and coastal water are open early. Deep water requires higher character level plus a veteran cane or matching passive access; lava lakes require higher level plus an obsidian rod or deeper wizard passives.
 - Passive fishing grants catches and XP until inventory, pool stock, or player action stops the session. Returning home unloads the current haul and sells fish for fish coins.
-- Equipment slots are Body, Outfit, Hat, and Rod. Starter characters begin with their class body, threadbare pants, and a splintered rod; hats and stronger rods/outfits come from the static shop or very rare item hooks.
+- Characters have one fixed default Body per class plus swappable Outfit, Hat, and Rod equipment. Starter characters begin with their class body, threadbare pants, and a splintered rod; hats and stronger rods/outfits come from the static shop or very rare item hooks.
 - Bait is a consumable stack, not an equipment slot. Bare Hook is the free baseline, while paid bait sets last one hour and cannot be replaced until their timer ends.
 - Very rare item hooks replace a fish catch with an instant equipment unlock. Duplicate item hooks convert immediately into fish coins.
 
@@ -43,12 +43,12 @@ Every player controls one fortress per season. Your fortress is your identity �
 
 ### Resources
 
-| Resource | How It's Earned | What It's For |
-|----------|-----------------|---------------|
-| **Gold** | Miners, attacks, trade | Upgrades, abilities, trade |
-| **Food** | Farmers, map tiles | Feeds army, trade |
-| **Army** | Recruiters, race bonuses | Attacks, defense, standing orders |
-| **Points** | Everything above | Leaderboard ranking — win condition |
+| Resource   | How It's Earned          | What It's For                       |
+| ---------- | ------------------------ | ----------------------------------- |
+| **Gold**   | Miners, attacks, trade   | Upgrades, abilities, trade          |
+| **Food**   | Farmers, map tiles       | Feeds army, trade                   |
+| **Army**   | Recruiters, race bonuses | Attacks, defense, standing orders   |
+| **Points** | Everything above         | Leaderboard ranking — win condition |
 
 All resources floor at zero. Starvation (food=0) costs 2% army per tick.
 
@@ -56,11 +56,11 @@ All resources floor at zero. Starvation (food=0) costs 2% army per tick.
 
 You assign workers across four roles:
 
-| Role | Produces | Notes |
-|------|----------|-------|
-| Miners | Gold | Dwarfs produce more on owned tiles |
-| Farmers | Food | — |
-| Recruiters | Army | Recruitment queue processes per tick |
+| Role             | Produces      | Notes                                                                                                                                     |
+| ---------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Miners           | Gold          | Dwarfs produce more on owned tiles                                                                                                        |
+| Farmers          | Food          | —                                                                                                                                         |
+| Recruiters       | Army          | Recruitment queue processes per tick                                                                                                      |
 | Pressure Workers | Tile pressure | Claims and holds nearby neutral tiles; 8 normal tiles are free, then each assigned worker supports two more before skill and race bonuses |
 
 Worker count scales with fortress level. Reassignment is instant but only once per tick.
@@ -108,12 +108,12 @@ Army  = recruiters process the recruitment queue
 
 Castle upgrades improve production, defense, or military strength. Four specialization paths:
 
-| Path | Focus |
-|------|-------|
-| Points | Score multiplier |
-| Food | Food production |
+| Path     | Focus                             |
+| -------- | --------------------------------- |
+| Points   | Score multiplier                  |
+| Food     | Food production                   |
 | Military | Army production + attack strength |
-| Defense | Fortress HP + defense |
+| Defense  | Fortress HP + defense             |
 
 Upgrades cost gold and take time. One upgrade project active at a time.
 
@@ -177,6 +177,7 @@ NEUTRAL ──declare_war──→ WAR_PENDING (24h) ──→ WAR
 ### Alliance Trust Tiers
 
 Allies can upgrade trust (0→3). Higher tiers grant:
+
 - Bonus cargo value on trade convoys
 - Escrow gold/food pools for mutual defense
 - Shared battlefield participation through visible incoming reinforcement marches
@@ -242,9 +243,9 @@ Season 4 includes a daily nuke-component race:
 
 ## Standing Orders
 
-| Order | Purpose |
-|-------|---------|
-| **ESCORT** | Protect a specific outbound convoy leg |
+| Order        | Purpose                                         |
+| ------------ | ----------------------------------------------- |
+| **ESCORT**   | Protect a specific outbound convoy leg          |
 | **CAMPAIGN** | Siege a tile to trigger a territory battlefield |
 
 Manual GUARD orders and RAID orders remain in historical data but are disabled for new play. Battalion GUARD mode is active for owned border patrols. Active legacy GUARD and RAID orders are returned by the tick runner.
@@ -253,12 +254,12 @@ Manual GUARD orders and RAID orders remain in historical data but are disabled f
 
 ## Races
 
-| Race | Style | Unique Mechanic |
-|------|-------|----------------|
-| **Dwarfs** | Defensive, grudge-driven | Grudge economy + Deep Mining expeditions |
-| **Orks** | Aggressive, snowball | Scrap economy + Boss Orders + Waaagh tiers |
-| **Space Murines** | Trade, logistics | Rapid Response + Convoy Network bonuses |
-| **Unstable Unicorns** | Chaos, unpredictability | Reality Flux passive + Shattered Reality choice |
+| Race                  | Style                    | Unique Mechanic                                 |
+| --------------------- | ------------------------ | ----------------------------------------------- |
+| **Dwarfs**            | Defensive, grudge-driven | Grudge economy + Deep Mining expeditions        |
+| **Orks**              | Aggressive, snowball     | Scrap economy + Boss Orders + Waaagh tiers      |
+| **Space Murines**     | Trade, logistics         | Rapid Response + Convoy Network bonuses         |
+| **Unstable Unicorns** | Chaos, unpredictability  | Reality Flux passive + Shattered Reality choice |
 
 See [Season 4](season-4.md) for full race ability details.
 

@@ -26,6 +26,7 @@ import {
   SEASON_FIVE_GEAR_SLOT_TO_AVATAR_LAYER,
   getSeasonFiveAvatarLayerFit,
   getSeasonFiveAvatarLayers,
+  type SeasonFiveAvatarBodyPart,
   type SeasonFiveAvatarLayerFit,
   type SeasonFiveAvatarLayerSlot,
   type SeasonFiveAvatarLoadout,
@@ -104,7 +105,10 @@ export function getSeasonFiveBuildEffectChips(
       ? { label: "Rarity", value: signedNumber(effects.rarityBonus) }
       : null,
     effects.sizeBonusPercent
-      ? { label: "Trophy weight", value: `${signedNumber(effects.sizeBonusPercent)}%` }
+      ? {
+          label: "Trophy weight",
+          value: `${signedNumber(effects.sizeBonusPercent)}%`,
+        }
       : null,
     effects.inventoryBonus
       ? { label: "Pack", value: signedNumber(effects.inventoryBonus) }
@@ -119,11 +123,12 @@ export function getSeasonFiveBuildEffectChips(
       ? { label: "Rhythm tempo", value: `+${effects.rhythmCatchBonus}/stage` }
       : null,
     effects.rhythmPressureReduction
-      ? { label: "Rhythm pressure", value: `-${effects.rhythmPressureReduction}/stage` }
+      ? {
+          label: "Rhythm pressure",
+          value: `-${effects.rhythmPressureReduction}/stage`,
+        }
       : null,
-  ].filter(
-    (chip): chip is { label: string; value: string } => chip !== null
-  );
+  ].filter((chip): chip is { label: string; value: string } => chip !== null);
 
   return chips.length > 0 ? chips : [{ label: "Passives", value: "Base" }];
 }
@@ -218,7 +223,11 @@ const HEX_TILE_FEATURE_PATHS = new Map<string, string>(
       ];
     }
 
-    if (tile.biome === "water" || tile.biome === "lake" || tile.biome === "coast") {
+    if (
+      tile.biome === "water" ||
+      tile.biome === "lake" ||
+      tile.biome === "coast"
+    ) {
       return [
         [
           tile.id,
@@ -271,7 +280,10 @@ function getPinchSnapshot(points: Point[]) {
   };
 }
 
-function getNearestSeasonFourHex(point: { xPercent: number; yPercent: number }) {
+function getNearestSeasonFourHex(point: {
+  xPercent: number;
+  yPercent: number;
+}) {
   let closest = HEX_TILES[0];
   let closestDistance = Number.POSITIVE_INFINITY;
 
@@ -430,6 +442,14 @@ function getAvatarLayerStyle(
   };
 }
 
+const AVATAR_BODY_PART_CLASS_BY_PART = {
+  legs: styles.avatarBitmapPartLegs,
+  torso: styles.avatarBitmapPartTorso,
+  head: styles.avatarBitmapPartHead,
+  leftHand: styles.avatarBitmapPartLeftHand,
+  rightHand: styles.avatarBitmapPartRightHand,
+} as const satisfies Record<SeasonFiveAvatarBodyPart, string>;
+
 export function SeasonFiveGearVisual({
   slot,
   visualKey,
@@ -493,6 +513,7 @@ export function CharacterAvatar({
   const outfitStyle = getAvatarLayerStyle(avatarLayers.outfit);
   const hatStyle = getAvatarLayerStyle(avatarLayers.hat);
   const rodStyle = getAvatarLayerStyle(avatarLayers.rod);
+  const usesBodyParts = avatarLayers.bodyParts.length > 0;
 
   return (
     <span
@@ -509,48 +530,60 @@ export function CharacterAvatar({
     >
       <span
         className={`${styles.avatarRod} ${
-          rodStyle ? styles.avatarFallbackHidden : ""
+          rodStyle || usesBodyParts ? styles.avatarFallbackHidden : ""
         }`}
       />
       <span
         className={`${styles.avatarBody} ${
-          bodyStyle ? styles.avatarFallbackHidden : ""
+          bodyStyle || usesBodyParts ? styles.avatarFallbackHidden : ""
         }`}
       />
       <span
         className={`${styles.avatarOutfit} ${
-          outfitStyle ? styles.avatarFallbackHidden : ""
+          outfitStyle || usesBodyParts ? styles.avatarFallbackHidden : ""
         }`}
       />
       <span
         className={`${styles.avatarHead} ${
-          bodyStyle ? styles.avatarFallbackHidden : ""
+          bodyStyle || usesBodyParts ? styles.avatarFallbackHidden : ""
         }`}
       />
       <span
         className={`${styles.avatarHat} ${
-          hatStyle ? styles.avatarFallbackHidden : ""
+          hatStyle || usesBodyParts ? styles.avatarFallbackHidden : ""
         }`}
       />
-      {rodStyle ? (
+      {usesBodyParts
+        ? avatarLayers.bodyParts.map((partFit) => (
+            <span
+              key={partFit.part}
+              className={`${styles.avatarBitmapLayer} ${
+                styles.avatarBitmapPart
+              } ${AVATAR_BODY_PART_CLASS_BY_PART[partFit.part]}`}
+              data-part={partFit.part}
+              style={getAvatarLayerStyle(partFit)}
+            />
+          ))
+        : null}
+      {!usesBodyParts && rodStyle ? (
         <span
           className={`${styles.avatarBitmapLayer} ${styles.avatarBitmapRod}`}
           style={rodStyle}
         />
       ) : null}
-      {bodyStyle ? (
+      {!usesBodyParts && bodyStyle ? (
         <span
           className={`${styles.avatarBitmapLayer} ${styles.avatarBitmapBody}`}
           style={bodyStyle}
         />
       ) : null}
-      {outfitStyle ? (
+      {!usesBodyParts && outfitStyle ? (
         <span
           className={`${styles.avatarBitmapLayer} ${styles.avatarBitmapOutfit}`}
           style={outfitStyle}
         />
       ) : null}
-      {hatStyle ? (
+      {!usesBodyParts && hatStyle ? (
         <span
           className={`${styles.avatarBitmapLayer} ${styles.avatarBitmapHat}`}
           style={hatStyle}
@@ -1271,10 +1304,7 @@ function WorldMap({
         }}
         onPointerMove={(event: ReactPointerEvent<HTMLDivElement>) => {
           const shellBounds = shellRef.current?.getBoundingClientRect();
-          if (
-            shellBounds &&
-            activePointersRef.current.has(event.pointerId)
-          ) {
+          if (shellBounds && activePointersRef.current.has(event.pointerId)) {
             activePointersRef.current.set(
               event.pointerId,
               getTouchPointInShell(event, shellBounds)
@@ -1294,8 +1324,7 @@ function WorldMap({
             userAdjustedViewRef.current = true;
             const pinchStart = pinchStartRef.current;
             const nextScale = clamp(
-              pinchStart.scale *
-                (pinchSnapshot.distance / pinchStart.distance),
+              pinchStart.scale * (pinchSnapshot.distance / pinchStart.distance),
               getViewportMinScale(shellBounds),
               SEASON_FIVE_MAX_SCALE
             );
@@ -1336,7 +1365,10 @@ function WorldMap({
         onPointerUp={(event: ReactPointerEvent<HTMLDivElement>) => {
           const activePointerCount = activePointersRef.current.size;
           const tapDistance = dragStart
-            ? Math.hypot(event.clientX - dragStart.x, event.clientY - dragStart.y)
+            ? Math.hypot(
+                event.clientX - dragStart.x,
+                event.clientY - dragStart.y
+              )
             : Number.POSITIVE_INFINITY;
           const shouldResolveTap =
             activePointerCount === 1 &&
@@ -1377,7 +1409,12 @@ function WorldMap({
             aria-label="Season 5 fishing world map"
           >
             <defs>
-              <radialGradient id="seasonFiveWorldLight" cx="32%" cy="20%" r="70%">
+              <radialGradient
+                id="seasonFiveWorldLight"
+                cx="32%"
+                cy="20%"
+                r="70%"
+              >
                 <stop offset="0%" stopColor="rgba(255, 255, 255, 0.34)" />
                 <stop offset="48%" stopColor="rgba(255, 255, 255, 0.08)" />
                 <stop offset="100%" stopColor="rgba(0, 0, 0, 0.32)" />
@@ -1459,194 +1496,206 @@ function WorldMap({
               />
             ) : null}
             {state.map.tiles.map((tile) => {
-            const projectedTile = projectedTileByKey.get(tile.key);
-            if (!projectedTile) return null;
-            const hex = projectedTile.hex;
-            const location = locationByTileKey.get(tile.key);
-            const activity = location
-              ? state.locationActivity.find(
-                  (entry) => entry.locationKey === location.key
-                )
-              : null;
-            const roleClass =
-              tile.role === "HOME"
-                ? styles.homeTile
+              const projectedTile = projectedTileByKey.get(tile.key);
+              if (!projectedTile) return null;
+              const hex = projectedTile.hex;
+              const location = locationByTileKey.get(tile.key);
+              const activity = location
+                ? state.locationActivity.find(
+                    (entry) => entry.locationKey === location.key
+                  )
+                : null;
+              const roleClass =
+                tile.role === "HOME"
+                  ? styles.homeTile
                   : tile.role === "FISHING_SPOT"
                     ? styles.fishingTile
                     : tile.role === "SHOP"
-                    ? styles.shopTile
-                    : tile.role === "EVENT"
-                      ? styles.eventTile
-                      : tile.role === "SECRET_LAKE"
-                        ? styles.secretTile
-                        : location && location.kind !== "HOME"
-                          ? styles.fishableWaterTile
-                          : "";
-            const isSelected = selectedLocation?.tileKey === tile.key;
-            const isCurrent = character?.currentTileKey === tile.key;
-            const isDestination = character?.destinationTileKey === tile.key;
-            const isLocked = Boolean(tile.locked || location?.locked);
-            const isFishableWater =
-              Boolean(location) &&
-              location?.kind !== "HOME" &&
-              tile.role === "NONE";
-            const isInteractive =
-              Boolean(character) &&
-              character?.actionKind !== "TRAVELING" &&
-              Boolean(location) &&
-              location?.kind !== "HOME";
-            const marker = getRoleMarker(tile.role);
+                      ? styles.shopTile
+                      : tile.role === "EVENT"
+                        ? styles.eventTile
+                        : tile.role === "SECRET_LAKE"
+                          ? styles.secretTile
+                          : location && location.kind !== "HOME"
+                            ? styles.fishableWaterTile
+                            : "";
+              const isSelected = selectedLocation?.tileKey === tile.key;
+              const isCurrent = character?.currentTileKey === tile.key;
+              const isDestination = character?.destinationTileKey === tile.key;
+              const isLocked = Boolean(tile.locked || location?.locked);
+              const isFishableWater =
+                Boolean(location) &&
+                location?.kind !== "HOME" &&
+                tile.role === "NONE";
+              const isInteractive =
+                Boolean(character) &&
+                character?.actionKind !== "TRAVELING" &&
+                Boolean(location) &&
+                location?.kind !== "HOME";
+              const marker = getRoleMarker(tile.role);
 
-            return (
-              <g
-                key={tile.key}
-                className={`${styles.seasonFiveWorldHotspot} ${roleClass} ${
-                  isSelected ? styles.selectedTile : ""
-                } ${isCurrent ? styles.currentTile : ""} ${
-                  isDestination ? styles.destinationTile : ""
-                } ${isLocked ? styles.lockedTile : ""}`}
-                data-variant={tile.visualVariant}
-                role={isInteractive ? "button" : undefined}
-                tabIndex={isInteractive ? 0 : undefined}
-                onClick={() => {
-                  if (!isInteractive || !location) return;
-                  selectLocationKey(location.key);
-                }}
-                onPointerDown={(event) => {
-                  if (
-                    event.pointerType === "mouse" ||
-                    !isInteractive ||
-                    !location
-                  ) {
-                    return;
-                  }
-                  tileTapStartRef.current = {
-                    x: event.clientX,
-                    y: event.clientY,
-                    locationKey: location.key,
-                    pointerId: event.pointerId,
-                  };
-                }}
-                onPointerUp={(event) => {
-                  if (
-                    event.pointerType === "mouse" ||
-                    !isInteractive ||
-                    !location
-                  ) {
-                    return;
-                  }
-                  const tileTapStart = tileTapStartRef.current;
-                  tileTapStartRef.current = null;
-                  if (
-                    tileTapStart?.pointerId !== event.pointerId ||
-                    tileTapStart.locationKey !== location.key ||
-                    Math.hypot(
-                      event.clientX - tileTapStart.x,
-                      event.clientY - tileTapStart.y
-                    ) > CLICK_DRAG_THRESHOLD
-                  ) {
-                    return;
-                  }
-
-                  event.preventDefault();
-                  event.stopPropagation();
-                  selectLocationKey(location.key);
-                }}
-                onPointerCancel={() => {
-                  if (tileTapStartRef.current?.locationKey === location?.key) {
+              return (
+                <g
+                  key={tile.key}
+                  className={`${styles.seasonFiveWorldHotspot} ${roleClass} ${
+                    isSelected ? styles.selectedTile : ""
+                  } ${isCurrent ? styles.currentTile : ""} ${
+                    isDestination ? styles.destinationTile : ""
+                  } ${isLocked ? styles.lockedTile : ""}`}
+                  data-variant={tile.visualVariant}
+                  role={isInteractive ? "button" : undefined}
+                  tabIndex={isInteractive ? 0 : undefined}
+                  onClick={() => {
+                    if (!isInteractive || !location) return;
+                    selectLocationKey(location.key);
+                  }}
+                  onPointerDown={(event) => {
+                    if (
+                      event.pointerType === "mouse" ||
+                      !isInteractive ||
+                      !location
+                    ) {
+                      return;
+                    }
+                    tileTapStartRef.current = {
+                      x: event.clientX,
+                      y: event.clientY,
+                      locationKey: location.key,
+                      pointerId: event.pointerId,
+                    };
+                  }}
+                  onPointerUp={(event) => {
+                    if (
+                      event.pointerType === "mouse" ||
+                      !isInteractive ||
+                      !location
+                    ) {
+                      return;
+                    }
+                    const tileTapStart = tileTapStartRef.current;
                     tileTapStartRef.current = null;
-                  }
-                }}
-                onKeyDown={(event) => {
-                  if (!isInteractive || !location) return;
-                  if (event.key !== "Enter" && event.key !== " ") return;
-                  event.preventDefault();
-                  selectLocationKey(location.key);
-                }}
-              >
-                <title>
-                  {location?.locked && location.lockReason
-                    ? `${location.name}: ${location.lockReason}`
-                    : (location?.name ?? tile.roleLabel ?? tile.terrain)}
-                </title>
-                <polygon
-                  className={styles.seasonFiveWorldHotspotArea}
-                  points={HEX_TILE_POLYGON_POINTS.get(hex.id)}
-                />
-                {tile.role !== "NONE" ? (
-                  <g className={styles.seasonFiveWorldMarker}>
-                    <circle cx={hex.x} cy={hex.y} r="18" />
-                    <text x={hex.x} y={hex.y + 7}>
-                      {marker}
-                    </text>
-                  </g>
-                ) : null}
-                {isFishableWater ? (
-                  <g className={styles.seasonFiveWorldWaterMarker}>
-                    <circle cx={hex.x} cy={hex.y} r="12" />
-                    <text x={hex.x} y={hex.y + 5}>
-                      F
-                    </text>
-                  </g>
-                ) : null}
-                {activity && activity.totalCount > 0 ? (
-                  <g className={styles.seasonFiveWorldPopulation}>
-                    <circle cx={hex.x + 28} cy={hex.y + 28} r="16" />
-                    <text x={hex.x + 28} y={hex.y + 34}>
-                      {activity.totalCount}
-                    </text>
-                  </g>
-                ) : null}
-                {activity && activity.characters.length > 0 ? (
-                  <g className={styles.seasonFiveWorldActors}>
-                    {activity.characters.slice(0, 4).map((actor, actorIndex) => (
-                      <g
-                        key={actor.id}
-                        className={
-                          actor.actionKind === "TRAVELING"
-                            ? styles.travellingDot
-                            : actor.actionKind === "FISHING"
-                              ? styles.fishingDot
-                              : styles.homeDot
-                        }
-                        transform={`translate(${
-                          hex.x + 22 + actorIndex * 12
-                        } ${hex.y - 31})`}
-                      >
-                        <title>{`${actor.name}: ${getActionLabel(
-                          actor.actionKind
-                        )} (${actor.classLabel})`}</title>
-                        <foreignObject x="-10" y="-10" width="20" height="20">
-                          <div className={styles.actorAvatarWrap}>
-                            <CharacterAvatar
-                              avatar={actor.avatar}
-                              label={actor.name}
-                              tiny
-                            />
-                          </div>
-                        </foreignObject>
-                      </g>
-                    ))}
-                  </g>
-                ) : null}
-              </g>
-            );
-          })}
+                    if (
+                      tileTapStart?.pointerId !== event.pointerId ||
+                      tileTapStart.locationKey !== location.key ||
+                      Math.hypot(
+                        event.clientX - tileTapStart.x,
+                        event.clientY - tileTapStart.y
+                      ) > CLICK_DRAG_THRESHOLD
+                    ) {
+                      return;
+                    }
+
+                    event.preventDefault();
+                    event.stopPropagation();
+                    selectLocationKey(location.key);
+                  }}
+                  onPointerCancel={() => {
+                    if (
+                      tileTapStartRef.current?.locationKey === location?.key
+                    ) {
+                      tileTapStartRef.current = null;
+                    }
+                  }}
+                  onKeyDown={(event) => {
+                    if (!isInteractive || !location) return;
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    event.preventDefault();
+                    selectLocationKey(location.key);
+                  }}
+                >
+                  <title>
+                    {location?.locked && location.lockReason
+                      ? `${location.name}: ${location.lockReason}`
+                      : (location?.name ?? tile.roleLabel ?? tile.terrain)}
+                  </title>
+                  <polygon
+                    className={styles.seasonFiveWorldHotspotArea}
+                    points={HEX_TILE_POLYGON_POINTS.get(hex.id)}
+                  />
+                  {tile.role !== "NONE" ? (
+                    <g className={styles.seasonFiveWorldMarker}>
+                      <circle cx={hex.x} cy={hex.y} r="18" />
+                      <text x={hex.x} y={hex.y + 7}>
+                        {marker}
+                      </text>
+                    </g>
+                  ) : null}
+                  {isFishableWater ? (
+                    <g className={styles.seasonFiveWorldWaterMarker}>
+                      <circle cx={hex.x} cy={hex.y} r="12" />
+                      <text x={hex.x} y={hex.y + 5}>
+                        F
+                      </text>
+                    </g>
+                  ) : null}
+                  {activity && activity.totalCount > 0 ? (
+                    <g className={styles.seasonFiveWorldPopulation}>
+                      <circle cx={hex.x + 28} cy={hex.y + 28} r="16" />
+                      <text x={hex.x + 28} y={hex.y + 34}>
+                        {activity.totalCount}
+                      </text>
+                    </g>
+                  ) : null}
+                  {activity && activity.characters.length > 0 ? (
+                    <g className={styles.seasonFiveWorldActors}>
+                      {activity.characters
+                        .slice(0, 4)
+                        .map((actor, actorIndex) => (
+                          <g
+                            key={actor.id}
+                            className={
+                              actor.actionKind === "TRAVELING"
+                                ? styles.travellingDot
+                                : actor.actionKind === "FISHING"
+                                  ? styles.fishingDot
+                                  : styles.homeDot
+                            }
+                            transform={`translate(${
+                              hex.x + 22 + actorIndex * 12
+                            } ${hex.y - 31})`}
+                          >
+                            <title>{`${actor.name}: ${getActionLabel(
+                              actor.actionKind
+                            )} (${actor.classLabel})`}</title>
+                            <foreignObject
+                              x="-10"
+                              y="-10"
+                              width="20"
+                              height="20"
+                            >
+                              <div className={styles.actorAvatarWrap}>
+                                <CharacterAvatar
+                                  avatar={actor.avatar}
+                                  label={actor.name}
+                                  tiny
+                                />
+                              </div>
+                            </foreignObject>
+                          </g>
+                        ))}
+                    </g>
+                  ) : null}
+                </g>
+              );
+            })}
           </svg>
-        {character && characterMapPosition ? (
-          <span
-            className={styles.characterMapMarker}
-            style={
-              {
-                "--x": `${characterMapPosition.x}px`,
-                "--y": `${characterMapPosition.y}px`,
-              } as CSSProperties
-            }
-            title={`${character.name}: ${getActionLabel(character.actionKind)}`}
-          >
-            <CharacterAvatar avatar={character.avatar} label={character.name} />
-          </span>
-        ) : null}
+          {character && characterMapPosition ? (
+            <span
+              className={styles.characterMapMarker}
+              style={
+                {
+                  "--x": `${characterMapPosition.x}px`,
+                  "--y": `${characterMapPosition.y}px`,
+                } as CSSProperties
+              }
+              title={`${character.name}: ${getActionLabel(character.actionKind)}`}
+            >
+              <CharacterAvatar
+                avatar={character.avatar}
+                label={character.name}
+              />
+            </span>
+          ) : null}
         </div>
       </div>
       {selectedLocation && selectedTile ? (

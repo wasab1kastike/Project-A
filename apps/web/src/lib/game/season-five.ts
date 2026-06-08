@@ -123,8 +123,7 @@ export const SEASON_FIVE_MAX_RHYTHM_STAGE = 3;
 export const SEASON_FIVE_CLASSES = {
   [SeasonFiveCharacterClass.DRUNKEN_MONK]: {
     label: "Drunken Monk",
-    summary:
-      "Finds rhythm in bad balance. The best long-session tempo class.",
+    summary: "Finds rhythm in bad balance. The best long-session tempo class.",
     stats: {
       stronk: 4,
       luk: 5,
@@ -208,7 +207,8 @@ export const SEASON_FIVE_SKILL_TREES = {
       {
         key: "monk_wobble_cast",
         name: "Wobble Cast",
-        description: "Unlock rhythm: +1 catch tempo and +1 rhythm tempo per stage.",
+        description:
+          "Unlock rhythm: +1 catch tempo and +1 rhythm tempo per stage.",
         cost: 1,
         effectBonuses: { catchBonus: 1, rhythmCatchBonus: 1 },
       },
@@ -230,7 +230,8 @@ export const SEASON_FIVE_SKILL_TREES = {
       {
         key: "monk_perfect_stumble",
         name: "Perfect Stumble",
-        description: "Capstone rhythm: +3 catch tempo and +2 rhythm tempo per stage.",
+        description:
+          "Capstone rhythm: +3 catch tempo and +2 rhythm tempo per stage.",
         cost: 2,
         effectBonuses: {
           catchBonus: 3,
@@ -249,7 +250,8 @@ export const SEASON_FIVE_SKILL_TREES = {
       {
         key: "monk_dock_nap",
         name: "Dock Nap",
-        description: "+1 Quietness, -1 pack pressure, and -1 rhythm pressure per stage.",
+        description:
+          "+1 Quietness, -1 pack pressure, and -1 rhythm pressure per stage.",
         cost: 1,
         statBonuses: { quietness: 1 },
         effectBonuses: {
@@ -267,7 +269,8 @@ export const SEASON_FIVE_SKILL_TREES = {
       {
         key: "monk_empty_cup",
         name: "Empty Cup",
-        description: "Capstone stillness: +2 pack slots, -1 pressure, and -2 rhythm pressure per stage.",
+        description:
+          "Capstone stillness: +2 pack slots, -1 pressure, and -2 rhythm pressure per stage.",
         cost: 2,
         effectBonuses: {
           inventoryBonus: 2,
@@ -375,7 +378,8 @@ export const SEASON_FIVE_SKILL_TREES = {
       {
         key: "warrior_old_maps",
         name: "Old Maps",
-        description: "+1 catch tempo from knowing which waters are worth the march.",
+        description:
+          "+1 catch tempo from knowing which waters are worth the march.",
         cost: 1,
         effectBonuses: { catchBonus: 1 },
       },
@@ -452,14 +456,16 @@ export const SEASON_FIVE_SKILL_TREES = {
       {
         key: "wizard_unhelpful_map",
         name: "Unhelpful Map",
-        description: "-5% travel time and +2 rarity from being confidently wrong.",
+        description:
+          "-5% travel time and +2 rarity from being confidently wrong.",
         cost: 1,
         effectBonuses: { travelPercent: -5, rarityBonus: 2 },
       },
       {
         key: "wizard_elsewhere_now",
         name: "Elsewhere Now",
-        description: "Capstone distance trick: -5% travel time and +1 catch tempo.",
+        description:
+          "Capstone distance trick: -5% travel time and +1 catch tempo.",
         cost: 2,
         effectBonuses: { travelPercent: -5, catchBonus: 1 },
       },
@@ -490,7 +496,8 @@ export const SEASON_FIVE_SKILL_TREES = {
       {
         key: "wizard_abyssal_chorus",
         name: "Abyssal Chorus",
-        description: "Capstone deep plan: +2 catch tempo, +8 rarity, and +6% size.",
+        description:
+          "Capstone deep plan: +2 catch tempo, +8 rarity, and +6% size.",
         cost: 2,
         effectBonuses: { catchBonus: 2, rarityBonus: 8, sizeBonusPercent: 6 },
       },
@@ -523,7 +530,8 @@ export const SEASON_FIVE_SKILL_TREES = {
       {
         key: "rogue_disappear_twice",
         name: "Disappear Twice",
-        description: "Capstone speed plan: -12% travel time and -1 pack pressure.",
+        description:
+          "Capstone speed plan: -12% travel time and -1 pack pressure.",
         cost: 2,
         effectBonuses: { travelPercent: -12, inventoryPressureReduction: 1 },
       },
@@ -583,7 +591,8 @@ export const SEASON_FIVE_SKILL_TREES = {
       {
         key: "rogue_smuggler_creel",
         name: "Smuggler Creel",
-        description: "Capstone pressure plan: +4 pack slots and -2 pack pressure.",
+        description:
+          "Capstone pressure plan: +4 pack slots and -2 pack pressure.",
         cost: 2,
         effectBonuses: { inventoryBonus: 4, inventoryPressureReduction: 2 },
       },
@@ -710,226 +719,175 @@ export const SEASON_FIVE_GEAR_SLOT_LABELS = {
   [SeasonFiveGearSlot.ROD]: "Rod",
 } satisfies Record<SeasonFiveGearSlot, string>;
 
-const SEASON_FIVE_EQUIPMENT_CATALOG: readonly SeasonFiveEquipmentCatalogItem[] = [
-  {
-    slot: SeasonFiveGearSlot.BODY,
-    key: "body-drunken-monk",
-    name: "Pickled Monk Frame",
-    description: "Round shoulders, perfect balance, and questionable pores.",
-    rarity: SeasonFiveGearRarity.COMMON,
-    power: 0,
-    price: 0,
-    statBonuses: { smell: 1 },
-    classRestriction: SeasonFiveCharacterClass.DRUNKEN_MONK,
-    visualKey: "monk",
-  },
-  {
-    slot: SeasonFiveGearSlot.BODY,
-    key: "body-retired-warrior",
-    name: "Retired Bruiser Frame",
-    description: "Old campaign posture with knees that audibly negotiate.",
-    rarity: SeasonFiveGearRarity.COMMON,
-    power: 0,
-    price: 0,
-    statBonuses: { stronk: 1 },
-    classRestriction: SeasonFiveCharacterClass.RETIRED_WARRIOR,
-    visualKey: "warrior",
-  },
-  {
-    slot: SeasonFiveGearSlot.BODY,
-    key: "body-demented-wizard",
-    name: "Scrawny Wizard Body",
-    description: "Default twig wizard build. Pants included for diplomacy.",
-    rarity: SeasonFiveGearRarity.COMMON,
-    power: 0,
-    price: 0,
-    statBonuses: { magik: 1 },
-    classRestriction: SeasonFiveCharacterClass.DEMENTED_WIZARD,
-    visualKey: "wizard",
-  },
-  {
-    slot: SeasonFiveGearSlot.BODY,
-    key: "body-burnt-out-rogue",
-    name: "Twitchy Rogue Frame",
-    description: "Lean, evasive, and deeply familiar with unpaid tabs.",
-    rarity: SeasonFiveGearRarity.COMMON,
-    power: 0,
-    price: 0,
-    statBonuses: { quietness: 1 },
-    classRestriction: SeasonFiveCharacterClass.BURNT_OUT_ROGUE,
-    visualKey: "rogue",
-  },
-  {
-    slot: SeasonFiveGearSlot.OUTFIT,
-    key: "threadbare-pants",
-    name: "Threadbare Pants",
-    description: "The default lower-body policy. Barely enforceable.",
-    rarity: SeasonFiveGearRarity.COMMON,
-    power: 0,
-    price: 0,
-    statBonuses: { quietness: 1 },
-    visualKey: "pants",
-  },
-  {
-    slot: SeasonFiveGearSlot.ROD,
-    key: "splintered-rod",
-    name: "Splintered Rod",
-    description: "Catches fish, skin, and sometimes both.",
-    rarity: SeasonFiveGearRarity.COMMON,
-    power: 0,
-    price: 0,
-    statBonuses: { smell: 1 },
-    visualKey: "splintered",
-  },
-  {
-    slot: SeasonFiveGearSlot.HAT,
-    key: "bait-stained-cap",
-    name: "Bait-Stained Cap",
-    description: "No one asks what the stain is. This is its power.",
-    rarity: SeasonFiveGearRarity.COMMON,
-    power: 1,
-    price: 25,
-    statBonuses: { luk: 1 },
-    catchable: true,
-    visualKey: "cap",
-  },
-  {
-    slot: SeasonFiveGearSlot.HAT,
-    key: "bucket-hat-of-regret",
-    name: "Bucket Hat of Regret",
-    description: "A waterproof apology with chin straps.",
-    rarity: SeasonFiveGearRarity.UNCOMMON,
-    power: 1,
-    price: 45,
-    statBonuses: { stronk: 1, smell: 1 },
-    catchable: true,
-    visualKey: "bucket",
-  },
-  {
-    slot: SeasonFiveGearSlot.HAT,
-    key: "pointy-fishing-hat",
-    name: "Pointy Fishing Hat",
-    description: "Wizard-approved headwear for poking clouds into behaving.",
-    rarity: SeasonFiveGearRarity.RARE,
-    power: 2,
-    price: 70,
-    statBonuses: { magik: 1, luk: 1 },
-    catchable: true,
-    visualKey: "pointy",
-  },
-  {
-    slot: SeasonFiveGearSlot.OUTFIT,
-    key: "suspicious-waders",
-    name: "Suspicious Waders",
-    description: "They squelch before touching water.",
-    rarity: SeasonFiveGearRarity.UNCOMMON,
-    power: 1,
-    price: 40,
-    statBonuses: { smell: 1, quietness: 1 },
-    catchable: true,
-    visualKey: "waders",
-  },
-  {
-    slot: SeasonFiveGearSlot.OUTFIT,
-    key: "oilskin-raincoat",
-    name: "Oilskin Raincoat",
-    description: "Makes the rain slide off and the fish feel judged.",
-    rarity: SeasonFiveGearRarity.RARE,
-    power: 2,
-    price: 75,
-    statBonuses: { quietness: 2 },
-    catchable: true,
-    visualKey: "raincoat",
-  },
-  {
-    slot: SeasonFiveGearSlot.ROD,
-    key: "war-veteran-cane",
-    name: "War Veteran Cane",
-    description: "Deep-water capable and still angry about hills.",
-    rarity: SeasonFiveGearRarity.UNCOMMON,
-    power: 1,
-    price: 50,
-    statBonuses: { stronk: 1, smell: 1 },
-    catchable: true,
-    visualKey: "cane",
-  },
-  {
-    slot: SeasonFiveGearSlot.ROD,
-    key: "screaming-bamboo-pole",
-    name: "Screaming Bamboo Pole",
-    description: "Alerts the fish, then negotiates badly with them.",
-    rarity: SeasonFiveGearRarity.RARE,
-    power: 2,
-    price: 90,
-    statBonuses: { magik: 1, smell: 1 },
-    catchable: true,
-    visualKey: "bamboo",
-  },
-  {
-    slot: SeasonFiveGearSlot.ROD,
-    key: "obsidian-roaster-rod",
-    name: "Obsidian Roaster Rod",
-    description: "Lava-safe enough for legal purposes.",
-    rarity: SeasonFiveGearRarity.EPIC,
-    power: 3,
-    price: 140,
-    statBonuses: { stronk: 1, magik: 2 },
-    catchable: true,
-    visualKey: "obsidian",
-  },
-  {
-    slot: SeasonFiveGearSlot.BODY,
-    key: "body-drunken-monk-barrel",
-    name: "Barrel-Chested Monk Body",
-    description: "Stores rhythm, breath, and at least one lunch.",
-    rarity: SeasonFiveGearRarity.RARE,
-    power: 2,
-    price: 95,
-    statBonuses: { smell: 2 },
-    classRestriction: SeasonFiveCharacterClass.DRUNKEN_MONK,
-    catchable: true,
-    visualKey: "monk-barrel",
-  },
-  {
-    slot: SeasonFiveGearSlot.BODY,
-    key: "body-retired-warrior-ironback",
-    name: "Ironback Pensioner Body",
-    description: "The spine is retired; the shoulders did not get the memo.",
-    rarity: SeasonFiveGearRarity.RARE,
-    power: 2,
-    price: 95,
-    statBonuses: { stronk: 2 },
-    classRestriction: SeasonFiveCharacterClass.RETIRED_WARRIOR,
-    catchable: true,
-    visualKey: "warrior-ironback",
-  },
-  {
-    slot: SeasonFiveGearSlot.BODY,
-    key: "body-demented-wizard-noodle",
-    name: "Arcane Noodle Body",
-    description: "Mostly elbows, prophecies, and lint.",
-    rarity: SeasonFiveGearRarity.RARE,
-    power: 2,
-    price: 95,
-    statBonuses: { magik: 2 },
-    classRestriction: SeasonFiveCharacterClass.DEMENTED_WIZARD,
-    catchable: true,
-    visualKey: "wizard-noodle",
-  },
-  {
-    slot: SeasonFiveGearSlot.BODY,
-    key: "body-burnt-out-rogue-shadowy",
-    name: "Shadowy Debt-Dodger Body",
-    description: "Technically visible, socially unavailable.",
-    rarity: SeasonFiveGearRarity.RARE,
-    power: 2,
-    price: 95,
-    statBonuses: { quietness: 2 },
-    classRestriction: SeasonFiveCharacterClass.BURNT_OUT_ROGUE,
-    catchable: true,
-    visualKey: "rogue-shadow",
-  },
-] as const;
+const SEASON_FIVE_EQUIPMENT_CATALOG: readonly SeasonFiveEquipmentCatalogItem[] =
+  [
+    {
+      slot: SeasonFiveGearSlot.BODY,
+      key: "body-drunken-monk",
+      name: "Pickled Monk Frame",
+      description: "Round shoulders, perfect balance, and questionable pores.",
+      rarity: SeasonFiveGearRarity.COMMON,
+      power: 0,
+      price: 0,
+      statBonuses: { smell: 1 },
+      classRestriction: SeasonFiveCharacterClass.DRUNKEN_MONK,
+      visualKey: "monk",
+    },
+    {
+      slot: SeasonFiveGearSlot.BODY,
+      key: "body-retired-warrior",
+      name: "Retired Bruiser Frame",
+      description: "Old campaign posture with knees that audibly negotiate.",
+      rarity: SeasonFiveGearRarity.COMMON,
+      power: 0,
+      price: 0,
+      statBonuses: { stronk: 1 },
+      classRestriction: SeasonFiveCharacterClass.RETIRED_WARRIOR,
+      visualKey: "warrior",
+    },
+    {
+      slot: SeasonFiveGearSlot.BODY,
+      key: "body-demented-wizard",
+      name: "Scrawny Wizard Body",
+      description: "Default twig wizard build. Pants included for diplomacy.",
+      rarity: SeasonFiveGearRarity.COMMON,
+      power: 0,
+      price: 0,
+      statBonuses: { magik: 1 },
+      classRestriction: SeasonFiveCharacterClass.DEMENTED_WIZARD,
+      visualKey: "wizard",
+    },
+    {
+      slot: SeasonFiveGearSlot.BODY,
+      key: "body-burnt-out-rogue",
+      name: "Twitchy Rogue Frame",
+      description: "Lean, evasive, and deeply familiar with unpaid tabs.",
+      rarity: SeasonFiveGearRarity.COMMON,
+      power: 0,
+      price: 0,
+      statBonuses: { quietness: 1 },
+      classRestriction: SeasonFiveCharacterClass.BURNT_OUT_ROGUE,
+      visualKey: "rogue",
+    },
+    {
+      slot: SeasonFiveGearSlot.OUTFIT,
+      key: "threadbare-pants",
+      name: "Threadbare Pants",
+      description: "The default lower-body policy. Barely enforceable.",
+      rarity: SeasonFiveGearRarity.COMMON,
+      power: 0,
+      price: 0,
+      statBonuses: { quietness: 1 },
+      visualKey: "pants",
+    },
+    {
+      slot: SeasonFiveGearSlot.ROD,
+      key: "splintered-rod",
+      name: "Splintered Rod",
+      description: "Catches fish, skin, and sometimes both.",
+      rarity: SeasonFiveGearRarity.COMMON,
+      power: 0,
+      price: 0,
+      statBonuses: { smell: 1 },
+      visualKey: "splintered",
+    },
+    {
+      slot: SeasonFiveGearSlot.HAT,
+      key: "bait-stained-cap",
+      name: "Bait-Stained Cap",
+      description: "No one asks what the stain is. This is its power.",
+      rarity: SeasonFiveGearRarity.COMMON,
+      power: 1,
+      price: 25,
+      statBonuses: { luk: 1 },
+      catchable: true,
+      visualKey: "cap",
+    },
+    {
+      slot: SeasonFiveGearSlot.HAT,
+      key: "bucket-hat-of-regret",
+      name: "Bucket Hat of Regret",
+      description: "A waterproof apology with chin straps.",
+      rarity: SeasonFiveGearRarity.UNCOMMON,
+      power: 1,
+      price: 45,
+      statBonuses: { stronk: 1, smell: 1 },
+      catchable: true,
+      visualKey: "bucket",
+    },
+    {
+      slot: SeasonFiveGearSlot.HAT,
+      key: "pointy-fishing-hat",
+      name: "Pointy Fishing Hat",
+      description: "Wizard-approved headwear for poking clouds into behaving.",
+      rarity: SeasonFiveGearRarity.RARE,
+      power: 2,
+      price: 70,
+      statBonuses: { magik: 1, luk: 1 },
+      catchable: true,
+      visualKey: "pointy",
+    },
+    {
+      slot: SeasonFiveGearSlot.OUTFIT,
+      key: "suspicious-waders",
+      name: "Suspicious Waders",
+      description: "They squelch before touching water.",
+      rarity: SeasonFiveGearRarity.UNCOMMON,
+      power: 1,
+      price: 40,
+      statBonuses: { smell: 1, quietness: 1 },
+      catchable: true,
+      visualKey: "waders",
+    },
+    {
+      slot: SeasonFiveGearSlot.OUTFIT,
+      key: "oilskin-raincoat",
+      name: "Oilskin Raincoat",
+      description: "Makes the rain slide off and the fish feel judged.",
+      rarity: SeasonFiveGearRarity.RARE,
+      power: 2,
+      price: 75,
+      statBonuses: { quietness: 2 },
+      catchable: true,
+      visualKey: "raincoat",
+    },
+    {
+      slot: SeasonFiveGearSlot.ROD,
+      key: "war-veteran-cane",
+      name: "War Veteran Cane",
+      description: "Deep-water capable and still angry about hills.",
+      rarity: SeasonFiveGearRarity.UNCOMMON,
+      power: 1,
+      price: 50,
+      statBonuses: { stronk: 1, smell: 1 },
+      catchable: true,
+      visualKey: "cane",
+    },
+    {
+      slot: SeasonFiveGearSlot.ROD,
+      key: "screaming-bamboo-pole",
+      name: "Screaming Bamboo Pole",
+      description: "Alerts the fish, then negotiates badly with them.",
+      rarity: SeasonFiveGearRarity.RARE,
+      power: 2,
+      price: 90,
+      statBonuses: { magik: 1, smell: 1 },
+      catchable: true,
+      visualKey: "bamboo",
+    },
+    {
+      slot: SeasonFiveGearSlot.ROD,
+      key: "obsidian-roaster-rod",
+      name: "Obsidian Roaster Rod",
+      description: "Lava-safe enough for legal purposes.",
+      rarity: SeasonFiveGearRarity.EPIC,
+      power: 3,
+      price: 140,
+      statBonuses: { stronk: 1, magik: 2 },
+      catchable: true,
+      visualKey: "obsidian",
+    },
+  ] as const;
 
 export const SEASON_FIVE_BAIT_CATALOG: readonly SeasonFiveBaitCatalogItem[] = [
   {
@@ -1055,18 +1013,15 @@ function addEffectBonuses(
   return {
     catchBonus: base.catchBonus + (bonuses.catchBonus ?? 0),
     rarityBonus: base.rarityBonus + (bonuses.rarityBonus ?? 0),
-    sizeBonusPercent:
-      base.sizeBonusPercent + (bonuses.sizeBonusPercent ?? 0),
+    sizeBonusPercent: base.sizeBonusPercent + (bonuses.sizeBonusPercent ?? 0),
     inventoryBonus: base.inventoryBonus + (bonuses.inventoryBonus ?? 0),
     inventoryPressureReduction:
       base.inventoryPressureReduction +
       (bonuses.inventoryPressureReduction ?? 0),
     travelPercent: base.travelPercent + (bonuses.travelPercent ?? 0),
-    rhythmCatchBonus:
-      base.rhythmCatchBonus + (bonuses.rhythmCatchBonus ?? 0),
+    rhythmCatchBonus: base.rhythmCatchBonus + (bonuses.rhythmCatchBonus ?? 0),
     rhythmPressureReduction:
-      base.rhythmPressureReduction +
-      (bonuses.rhythmPressureReduction ?? 0),
+      base.rhythmPressureReduction + (bonuses.rhythmPressureReduction ?? 0),
   };
 }
 
@@ -1138,9 +1093,7 @@ export function calculateSeasonFiveRhythm(input: {
 
   const elapsedMinutes = Math.max(
     0,
-    Math.floor(
-      (input.now.getTime() - input.actionStartedAt.getTime()) / 60_000
-    )
+    Math.floor((input.now.getTime() - input.actionStartedAt.getTime()) / 60_000)
   );
   const stage = clamp(
     Math.floor(elapsedMinutes / SEASON_FIVE_RHYTHM_STEP_MINUTES),
@@ -1208,7 +1161,7 @@ function getGearStatBonuses(
         }
 
         if (item.slot === SeasonFiveGearSlot.BODY) {
-          return addStats(stats, { stronk: item.power });
+          return stats;
         }
         if (item.slot === SeasonFiveGearSlot.OUTFIT) {
           return addStats(stats, { quietness: item.power });
@@ -1345,8 +1298,7 @@ export function getSeasonFiveBuildEffects(input: {
   return {
     stats,
     catchBonus: formulaEffects.catchBonus + skillEffects.catchBonus,
-    inventoryBonus:
-      formulaEffects.inventoryBonus + skillEffects.inventoryBonus,
+    inventoryBonus: formulaEffects.inventoryBonus + skillEffects.inventoryBonus,
     inventoryPressureReduction:
       formulaEffects.inventoryPressureReduction +
       skillEffects.inventoryPressureReduction,
@@ -1401,10 +1353,7 @@ export function getSeasonFiveAvatarLoadout(input: {
       .map((gear) => [gear.slot, gear.key])
   );
   const defaultBodyKey = STARTER_BODY_BY_CLASS[input.characterClass];
-  const body =
-    EQUIPMENT_BY_KEY.get(
-      equippedBySlot.get(SeasonFiveGearSlot.BODY) ?? defaultBodyKey
-    ) ?? EQUIPMENT_BY_KEY.get(defaultBodyKey)!;
+  const body = EQUIPMENT_BY_KEY.get(defaultBodyKey)!;
   const outfit =
     EQUIPMENT_BY_KEY.get(
       equippedBySlot.get(SeasonFiveGearSlot.OUTFIT) ?? "threadbare-pants"
@@ -1451,10 +1400,7 @@ const FISH_COIN_VALUE_BY_RARITY = {
   [SeasonFiveFishRarity.UNCOMMON]: { base: 4, perKg: 1.4 },
   [SeasonFiveFishRarity.RARE]: { base: 14, perKg: 2.2 },
   [SeasonFiveFishRarity.LEGENDARY]: { base: 60, perKg: 4 },
-} satisfies Record<
-  SeasonFiveFishRarity,
-  { base: number; perKg: number }
->;
+} satisfies Record<SeasonFiveFishRarity, { base: number; perKg: number }>;
 
 export function getSeasonFiveFishCoinValue(input: {
   rarity: SeasonFiveFishRarity;
@@ -1463,7 +1409,9 @@ export function getSeasonFiveFishCoinValue(input: {
   const value = FISH_COIN_VALUE_BY_RARITY[input.rarity];
   return Math.max(
     1,
-    Math.floor(value.base + (Math.max(0, input.weightGrams) / 1000) * value.perKg)
+    Math.floor(
+      value.base + (Math.max(0, input.weightGrams) / 1000) * value.perKg
+    )
   );
 }
 
@@ -1475,7 +1423,8 @@ export function getSeasonFiveDuplicateItemCoinValue(itemKey: string) {
 function getSeasonFiveFishRarityForEquipment(
   rarity: SeasonFiveGearRarity
 ): SeasonFiveFishRarity {
-  if (rarity === SeasonFiveGearRarity.EPIC) return SeasonFiveFishRarity.LEGENDARY;
+  if (rarity === SeasonFiveGearRarity.EPIC)
+    return SeasonFiveFishRarity.LEGENDARY;
   if (rarity === SeasonFiveGearRarity.RARE) return SeasonFiveFishRarity.RARE;
   if (rarity === SeasonFiveGearRarity.UNCOMMON) {
     return SeasonFiveFishRarity.UNCOMMON;
@@ -1551,7 +1500,9 @@ type SeasonFiveAccessWaterBody = {
 
 function getResolvedPurchasedSkillSet(character: SeasonFiveAccessCharacter) {
   return new Set(
-    character.skillPurchases.map((purchase) => resolveSkillKey(purchase.nodeKey))
+    character.skillPurchases.map((purchase) =>
+      resolveSkillKey(purchase.nodeKey)
+    )
   );
 }
 
@@ -1633,9 +1584,7 @@ function getSeasonFiveFishingAccess({
 
   if (waterBody.requiredGearKey) {
     const equippedGearKeys = new Set(
-      character.gear
-        .filter((gear) => gear.equipped)
-        .map((gear) => gear.key)
+      character.gear.filter((gear) => gear.equipped).map((gear) => gear.key)
     );
     const purchasedSkillKeys = getResolvedPurchasedSkillSet(character);
     const hasGear =
@@ -2835,7 +2784,9 @@ export async function getSeasonFiveHomeState({
             now,
           })
         : null;
-  const ownedEquipmentKeys = new Set(character?.gear.map((gear) => gear.key) ?? []);
+  const ownedEquipmentKeys = new Set(
+    character?.gear.map((gear) => gear.key) ?? []
+  );
   const baitQuantityByKey = new Map(
     character?.baitStacks.map((stack) => [stack.key, stack.quantity]) ?? []
   );
@@ -3060,16 +3011,15 @@ export async function getSeasonFiveHomeState({
           equipment: getShopEquipmentForCharacterClass(character.class).map(
             (item) => getVisibleEquipmentPayload(item, ownedEquipmentKeys)
           ),
-          bait: SEASON_FIVE_BAIT_CATALOG.filter(
-            (bait) => bait.price > 0
-          ).map((bait) =>
-            getBaitPayload(
-              bait,
-              baitQuantityByKey.get(bait.key) ?? 0,
-              character.activeBaitKey,
-              character.activeBaitExpiresAt,
-              now
-            )
+          bait: SEASON_FIVE_BAIT_CATALOG.filter((bait) => bait.price > 0).map(
+            (bait) =>
+              getBaitPayload(
+                bait,
+                baitQuantityByKey.get(bait.key) ?? 0,
+                character.activeBaitKey,
+                character.activeBaitExpiresAt,
+                now
+              )
           ),
         }
       : {
@@ -3139,9 +3089,7 @@ async function regenerateSeasonFiveWaterBodies({
 export function getDegradedSeasonFiveHomeState(): SeasonFiveHomeState {
   const mapTiles = createSeasonFiveMapTiles();
   const waterBodies = planSeasonFiveWaterBodies(mapTiles);
-  const waterBodyByKey = new Map(
-    waterBodies.map((body) => [body.key, body])
-  );
+  const waterBodyByKey = new Map(waterBodies.map((body) => [body.key, body]));
   const tileByKey = new Map(mapTiles.map((tile) => [tile.key, tile]));
   const home = SEASON_FIVE_LOCATIONS[0];
   const homeTileKey = getSeasonFiveLocationTileKey(home.key);
