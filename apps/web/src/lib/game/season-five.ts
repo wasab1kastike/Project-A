@@ -1656,6 +1656,265 @@ function getSeasonFiveFishingAccess({
   };
 }
 
+type SeasonFiveHaulCatch = {
+  speciesName: string;
+  rarity: SeasonFiveFishRarity;
+  weightGrams: number;
+  slots?: number;
+  caughtAt?: Date;
+};
+
+export function summarizeSeasonFiveFishHaul(
+  items: readonly SeasonFiveHaulCatch[]
+) {
+  const fishCount = items.length;
+  const totalWeightGrams = items.reduce(
+    (sum, item) => sum + item.weightGrams,
+    0
+  );
+  const estimatedCoinValue = items.reduce(
+    (sum, item) => sum + getSeasonFiveFishCoinValue(item),
+    0
+  );
+  const slotsUsed = items.reduce((sum, item) => sum + (item.slots ?? 0), 0);
+  const heaviestFish =
+    items.toSorted((left, right) => {
+      const weightDelta = right.weightGrams - left.weightGrams;
+      if (weightDelta !== 0) return weightDelta;
+      return (left.caughtAt?.getTime() ?? 0) - (right.caughtAt?.getTime() ?? 0);
+    })[0] ?? null;
+
+  return {
+    fishCount,
+    totalWeightGrams,
+    estimatedCoinValue,
+    slotsUsed,
+    heaviestFish: heaviestFish
+      ? {
+          speciesName: heaviestFish.speciesName,
+          rarity: heaviestFish.rarity,
+          weightGrams: heaviestFish.weightGrams,
+        }
+      : null,
+  };
+}
+
+function getNextSeasonFiveCatchAt(input: {
+  lastResolvedAt: Date;
+  catchIntervalMinutes: number;
+}) {
+  const start = floorToMinute(input.lastResolvedAt);
+  const interval = Math.max(1, input.catchIntervalMinutes);
+
+  for (let offset = 1; offset <= interval + 1; offset += 1) {
+    const candidate = addMinutes(start, offset);
+    const minuteIndex = Math.floor(candidate.getTime() / 60_000);
+    if (minuteIndex % interval === 0) {
+      return candidate;
+    }
+  }
+
+  return addMinutes(start, interval);
+}
+
+export function getSeasonFiveRouteLoopPreview(input: {
+  catchDifficulty: number;
+  inventoryPressure: number;
+  effects: Required<SeasonFiveEffectBonuses>;
+}) {
+  const catchIntervalMinutes = calculateSeasonFiveCatchIntervalMinutes({
+    catchDifficulty: input.catchDifficulty,
+    catchBonus: input.effects.catchBonus,
+  });
+
+  return {
+    catchIntervalMinutes,
+    inventoryPressure: Math.max(
+      1,
+      input.inventoryPressure - input.effects.inventoryPressureReduction
+    ),
+  };
+}
+
+export function getSeasonFiveFishingSessionSummary(input: {
+  actionKind: SeasonFiveActionKind;
+  currentLocation: {
+    name: string;
+    catchDifficulty: number;
+    inventoryPressure: number;
+  } | null;
+  currentWaterBody:
+    | (SeasonFiveAccessWaterBody & { currentStock?: number })
+    | null;
+  character: SeasonFiveAccessCharacter;
+  actionStartedAt: Date | null;
+  lastResolvedAt: Date;
+  now: Date;
+  effects: Required<SeasonFiveEffectBonuses>;
+  inventoryFull: boolean;
+}) {
+  if (input.actionKind === SeasonFiveActionKind.TRAVELING) {
+    return {
+      status: "traveling" as const,
+      label: "Traveling",
+      catchIntervalMinutes: null,
+      nextCatchAt: null,
+      nextCatchRemainingSeconds: 0,
+      stopReason: null,
+    };
+  }
+
+  if (
+    input.actionKind !== SeasonFiveActionKind.FISHING ||
+    !input.currentLocation
+  ) {
+    return {
+      status: "at_home" as const,
+      label: "At home",
+      catchIntervalMinutes: null,
+      nextCatchAt: null,
+      nextCatchRemainingSeconds: 0,
+      stopReason: null,
+    };
+  }
+
+  const access = getSeasonFiveFishingAccess({
+    character: input.character,
+    waterBody: input.currentWaterBody,
+    now: input.now,
+  });
+  if (!access.allowed) {
+    return {
+      status: "blocked" as const,
+      label: "Fishing paused",
+      catchIntervalMinutes: null,
+      nextCatchAt: null,
+      nextCatchRemainingSeconds: 0,
+      stopReason: access.reason ?? "This water is locked.",
+    };
+  }
+
+  if (input.inventoryFull) {
+    return {
+      status: "full" as const,
+      label: "Pack full",
+      catchIntervalMinutes: null,
+      nextCatchAt: null,
+      nextCatchRemainingSeconds: 0,
+      stopReason: "Fishing pauses until the haul is unloaded.",
+    };
+  }
+
+  if (
+    input.currentWaterBody?.currentStock !== undefined &&
+    input.currentWaterBody.currentStock <= 0
+  ) {
+    return {
+      status: "depleted" as const,
+      label: "Pool resting",
+      catchIntervalMinutes: null,
+      nextCatchAt: null,
+      nextCatchRemainingSeconds: 0,
+      stopReason: "This water body is out of fish stock for now.",
+    };
+  }
+
+  const rhythm = calculateSeasonFiveRhythm({
+    actionKind: input.actionKind,
+    actionStartedAt: input.actionStartedAt,
+    now: input.now,
+    rhythmCatchBonus: input.effects.rhythmCatchBonus,
+    rhythmPressureReduction: input.effects.rhythmPressureReduction,
+  });
+  const catchIntervalMinutes = calculateSeasonFiveCatchIntervalMinutes({
+    catchDifficulty: input.currentLocation.catchDifficulty,
+    catchBonus: input.effects.catchBonus + rhythm.catchBonus,
+  });
+  const nextCatchAt = getNextSeasonFiveCatchAt({
+    lastResolvedAt: input.lastResolvedAt,
+    catchIntervalMinutes,
+  });
+
+  return {
+    status: "fishing" as const,
+    label: `Fishing ${input.currentLocation.name}`,
+    catchIntervalMinutes,
+    nextCatchAt,
+    nextCatchRemainingSeconds: Math.max(
+      0,
+      Math.ceil((nextCatchAt.getTime() - input.now.getTime()) / 1000)
+    ),
+    stopReason: null,
+  };
+}
+
+export function getSeasonFivePlayerLeagueStanding(input: {
+  characterId: string;
+  totalFishCaught: number;
+  biggestFishGrams: number;
+  mostFishRows: ReturnType<typeof rankSeasonFiveMostFish>;
+  biggestFishRows: ReturnType<typeof rankSeasonFiveBiggestFish>;
+}) {
+  const mostFishIndex = input.mostFishRows.findIndex(
+    (row) => row.id === input.characterId
+  );
+  const biggestFishIndex = input.biggestFishRows.findIndex(
+    (row) => row.id === input.characterId
+  );
+  const nextMostFish =
+    mostFishIndex > 0
+      ? input.mostFishRows[mostFishIndex - 1]
+      : mostFishIndex === -1
+        ? input.mostFishRows.at(-1)
+        : null;
+  const nextBiggestFish =
+    biggestFishIndex > 0
+      ? input.biggestFishRows[biggestFishIndex - 1]
+      : biggestFishIndex === -1
+        ? input.biggestFishRows.at(-1)
+        : null;
+
+  return {
+    mostFish: {
+      rank: mostFishIndex >= 0 ? mostFishIndex + 1 : null,
+      value: input.totalFishCaught,
+      nextRank:
+        mostFishIndex > 0
+          ? mostFishIndex
+          : mostFishIndex === -1 && nextMostFish
+            ? input.mostFishRows.length
+            : null,
+      nextName: nextMostFish?.name ?? null,
+      gapFish: nextMostFish
+        ? Math.max(1, nextMostFish.totalFishCaught - input.totalFishCaught + 1)
+        : null,
+      targetFish: nextMostFish
+        ? Math.max(1, nextMostFish.totalFishCaught + 1)
+        : null,
+    },
+    biggestFish: {
+      rank: biggestFishIndex >= 0 ? biggestFishIndex + 1 : null,
+      valueGrams: input.biggestFishGrams,
+      nextRank:
+        biggestFishIndex > 0
+          ? biggestFishIndex
+          : biggestFishIndex === -1 && nextBiggestFish
+            ? input.biggestFishRows.length
+            : null,
+      nextName: nextBiggestFish?.name ?? null,
+      gapGrams: nextBiggestFish
+        ? Math.max(
+            1,
+            nextBiggestFish.biggestFishGrams - input.biggestFishGrams + 1
+          )
+        : null,
+      targetWeightGrams: nextBiggestFish
+        ? Math.max(1, nextBiggestFish.biggestFishGrams + 1)
+        : null,
+    },
+  };
+}
+
 async function ensureSeasonFiveMapTiles(cycleId: string, db: DatabaseClient) {
   for (const tile of createSeasonFiveMapTiles()) {
     await db.seasonFiveMapTile.upsert({
@@ -2627,6 +2886,35 @@ export async function getSeasonFiveHomeState({
   const character = userId
     ? await getSeasonFiveCharacterForUser({ userId, cycleId: cycle.id, db })
     : null;
+  const latestUnloadedInventoryItem = character
+    ? await db.seasonFiveInventoryItem.findFirst({
+        where: {
+          characterId: character.id,
+          unloadedAt: {
+            not: null,
+          },
+        },
+        orderBy: [{ unloadedAt: "desc" }, { createdAt: "desc" }],
+        select: {
+          unloadedAt: true,
+        },
+      })
+    : null;
+  const lastUnloadedInventoryItems =
+    character && latestUnloadedInventoryItem?.unloadedAt
+      ? await db.seasonFiveInventoryItem.findMany({
+          where: {
+            characterId: character.id,
+            unloadedAt: latestUnloadedInventoryItem.unloadedAt,
+          },
+          include: {
+            fishCatch: true,
+          },
+          orderBy: {
+            createdAt: "asc",
+          },
+        })
+      : [];
   const mapCharacters = await db.seasonFiveCharacter.findMany({
     where: {
       cycleId: cycle.id,
@@ -2683,7 +2971,6 @@ export async function getSeasonFiveHomeState({
       kind: SeasonFiveCatchKind.FISH,
     },
     orderBy: [{ weightGrams: "desc" }, { caughtAt: "asc" }, { id: "asc" }],
-    take: 100,
     select: {
       id: true,
       speciesName: true,
@@ -2709,6 +2996,14 @@ export async function getSeasonFiveHomeState({
   });
   const topByCount = rankSeasonFiveMostFish(mostFishCandidates);
   const topBySize = rankSeasonFiveBiggestFish(biggestFishCandidates);
+  const fullByCount = rankSeasonFiveMostFish(
+    mostFishCandidates,
+    mostFishCandidates.length
+  );
+  const fullBySize = rankSeasonFiveBiggestFish(
+    biggestFishCandidates,
+    biggestFishCandidates.length
+  );
 
   const effects = character
     ? getSeasonFiveEffectiveBuildEffects({
@@ -2735,6 +3030,31 @@ export async function getSeasonFiveHomeState({
     inventoryUsed,
     inventoryCapacity,
   });
+  const currentHaul = summarizeSeasonFiveFishHaul(
+    character?.inventoryItems.map((item) => ({
+      speciesName: item.fishCatch.speciesName,
+      rarity: item.fishCatch.rarity,
+      weightGrams: item.fishCatch.weightGrams,
+      slots: item.slots,
+      caughtAt: item.fishCatch.caughtAt,
+    })) ?? []
+  );
+  const lastUnloadSummary =
+    latestUnloadedInventoryItem?.unloadedAt &&
+    lastUnloadedInventoryItems.length > 0
+      ? {
+          unloadedAt: latestUnloadedInventoryItem.unloadedAt,
+          ...summarizeSeasonFiveFishHaul(
+            lastUnloadedInventoryItems.map((item) => ({
+              speciesName: item.fishCatch.speciesName,
+              rarity: item.fishCatch.rarity,
+              weightGrams: item.fishCatch.weightGrams,
+              slots: item.slots,
+              caughtAt: item.fishCatch.caughtAt,
+            }))
+          ),
+        }
+      : null;
   const purchasedSkillKeys = new Set(
     character?.skillPurchases.map((purchase) =>
       resolveSkillKey(purchase.nodeKey)
@@ -2907,6 +3227,14 @@ export async function getSeasonFiveHomeState({
             location.waterBody.profileKey as SeasonFiveWaterBodyProfileKey
           ] ?? SEASON_FIVE_WATER_BODY_PROFILES.lake)
         : null;
+      const routeLoopPreview =
+        character && effects
+          ? getSeasonFiveRouteLoopPreview({
+              catchDifficulty: location.catchDifficulty,
+              inventoryPressure: location.inventoryPressure,
+              effects,
+            })
+          : null;
 
       return {
         id: location.id,
@@ -2953,6 +3281,9 @@ export async function getSeasonFiveHomeState({
             : null,
         notableFish: waterBodyInfoRevealed ? profile?.notableFish : null,
         waterBodyRevealed: waterBodyInfoRevealed,
+        effectiveCatchIntervalMinutes:
+          routeLoopPreview?.catchIntervalMinutes ?? null,
+        effectiveInventoryPressure: routeLoopPreview?.inventoryPressure ?? null,
       };
     }),
     locationActivity,
@@ -3019,6 +3350,41 @@ export async function getSeasonFiveHomeState({
           inventoryPressureLabel: inventoryPressure.label,
           inventoryCloseToFull: inventoryPressure.closeToFull,
           inventoryFull: inventoryPressure.full,
+          session: {
+            ...getSeasonFiveFishingSessionSummary({
+              actionKind: character.actionKind,
+              currentLocation: character.currentLocation
+                ? {
+                    name: character.currentLocation.name,
+                    catchDifficulty: character.currentLocation.catchDifficulty,
+                    inventoryPressure:
+                      character.currentLocation.inventoryPressure,
+                  }
+                : null,
+              currentWaterBody: character.currentLocation?.waterBody
+                ? {
+                    id: character.currentLocation.waterBody.id,
+                    name: character.currentLocation.waterBody.name,
+                    profileKey: character.currentLocation.waterBody.profileKey,
+                    hidden: character.currentLocation.waterBody.hidden,
+                    levelRequired:
+                      character.currentLocation.waterBody.levelRequired,
+                    requiredGearKey:
+                      character.currentLocation.waterBody.requiredGearKey,
+                    currentStock:
+                      character.currentLocation.waterBody.currentStock,
+                  }
+                : null,
+              character,
+              actionStartedAt: character.actionStartedAt,
+              lastResolvedAt: character.lastResolvedAt,
+              now,
+              effects: characterEffects!,
+              inventoryFull: inventoryPressure.full,
+            }),
+            haul: currentHaul,
+          },
+          lastUnload: lastUnloadSummary,
           stats: characterEffects!.stats,
           effects: characterEffects!,
           gear: character.gear.map((gear) => ({
@@ -3077,6 +3443,15 @@ export async function getSeasonFiveHomeState({
         ...entry,
         classLabel: getSeasonFiveClassLabel(entry.class),
       })),
+      player: character
+        ? getSeasonFivePlayerLeagueStanding({
+            characterId: character.id,
+            totalFishCaught: character.totalFishCaught,
+            biggestFishGrams: character.biggestFishGrams,
+            mostFishRows: fullByCount,
+            biggestFishRows: fullBySize,
+          })
+        : null,
     },
   };
 }
@@ -3159,6 +3534,8 @@ export function getDegradedSeasonFiveHomeState(): SeasonFiveHomeState {
       waterBodyRegenLabel: null,
       notableFish: null,
       waterBodyRevealed: false,
+      effectiveCatchIntervalMinutes: null,
+      effectiveInventoryPressure: null,
     },
     ...planSeasonFiveFishingLocations({
       tiles: mapTiles,
@@ -3192,6 +3569,8 @@ export function getDegradedSeasonFiveHomeState(): SeasonFiveHomeState {
         waterBodyRegenLabel: null,
         notableFish: profile?.notableFish ?? null,
         waterBodyRevealed: Boolean(body),
+        effectiveCatchIntervalMinutes: null,
+        effectiveInventoryPressure: null,
       };
     }),
   ];
@@ -3244,6 +3623,7 @@ export function getDegradedSeasonFiveHomeState(): SeasonFiveHomeState {
     leaderboards: {
       mostFish: [],
       biggestFish: [],
+      player: null,
     },
   };
 }

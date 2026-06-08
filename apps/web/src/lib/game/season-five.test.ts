@@ -59,13 +59,17 @@ import {
   getSeasonFiveDuplicateItemCoinValue,
   getSeasonFiveEffectiveBuildEffects,
   getSeasonFiveFishCoinValue,
+  getSeasonFiveFishingSessionSummary,
   getSeasonFiveProgressionAfterExperience,
+  getSeasonFivePlayerLeagueStanding,
+  getSeasonFiveRouteLoopPreview,
   normalizeSeasonFiveClass,
   purchaseSeasonFiveSkill,
   rollSeasonFiveItemCatch,
   SEASON_FIVE_DURATION_HOURS,
   SEASON_FIVE_MAX_SKILL_POINTS,
   SEASON_FIVE_SKILL_TREES,
+  summarizeSeasonFiveFishHaul,
 } from "./season-five";
 import {
   createSeasonFiveCatch as createSeasonFiveCatchFromBalance,
@@ -1340,6 +1344,28 @@ test("Season 5 route preview adds tile distance and travel modifiers", () => {
   assert.equal(preview.travelMinutes, 14);
 });
 
+test("Season 5 route loop preview exposes effective catch tempo and pack pressure", () => {
+  const effects = getSeasonFiveBuildEffects({
+    characterClass: SeasonFiveCharacterClass.BURNT_OUT_ROGUE,
+    gear: [],
+    purchasedNodeKeys: ["rogue_no_splash"],
+  });
+  const preview = getSeasonFiveRouteLoopPreview({
+    catchDifficulty: 4,
+    inventoryPressure: 3,
+    effects,
+  });
+
+  assert.equal(
+    preview.catchIntervalMinutes,
+    calculateSeasonFiveCatchIntervalMinutes({
+      catchDifficulty: 4,
+      catchBonus: effects.catchBonus,
+    })
+  );
+  assert.equal(preview.inventoryPressure, 2);
+});
+
 test("Season 5 map presence groups by destination and stays bounded", () => {
   const locations = [
     { id: "home", key: "home" },
@@ -1373,6 +1399,103 @@ test("Season 5 map presence groups by destination and stays bounded", () => {
   assert.equal(lake?.overflowCount, 3);
   assert.equal(lake?.characters[0]?.actionKind, SeasonFiveActionKind.TRAVELING);
   assert.equal(lake?.characters[1]?.inventoryFull, true);
+});
+
+test("Season 5 fish haul summaries expose weight, value, slots, and heaviest catch", () => {
+  const items = [
+    {
+      speciesName: "Puddle Gobbler",
+      rarity: SeasonFiveFishRarity.COMMON,
+      weightGrams: 1200,
+      slots: 1,
+      caughtAt: new Date("2026-06-05T12:01:00.000Z"),
+    },
+    {
+      speciesName: "Elegant Gut Snapper",
+      rarity: SeasonFiveFishRarity.RARE,
+      weightGrams: 4900,
+      slots: 2,
+      caughtAt: new Date("2026-06-05T12:02:00.000Z"),
+    },
+  ];
+  const summary = summarizeSeasonFiveFishHaul(items);
+
+  assert.equal(summary.fishCount, 2);
+  assert.equal(summary.totalWeightGrams, 6100);
+  assert.equal(summary.slotsUsed, 3);
+  assert.equal(summary.heaviestFish?.speciesName, "Elegant Gut Snapper");
+  assert.equal(
+    summary.estimatedCoinValue,
+    items.reduce((sum, item) => sum + getSeasonFiveFishCoinValue(item), 0)
+  );
+});
+
+test("Season 5 fishing session summary reports next catch and pause reasons", () => {
+  const now = new Date("2026-06-05T12:03:15.000Z");
+  const effects = getSeasonFiveBuildEffects({
+    characterClass: SeasonFiveCharacterClass.DEMENTED_WIZARD,
+    gear: [],
+    purchasedNodeKeys: ["wizard_wet_shortcut"],
+  });
+  const character = {
+    level: 3,
+    gear: [],
+    skillPurchases: [{ nodeKey: "wizard_wet_shortcut" }],
+  };
+  const location = {
+    name: "Mossglass Lake",
+    catchDifficulty: 3,
+    inventoryPressure: 1,
+  };
+  const waterBody = {
+    id: "body-1",
+    name: "Mossglass Lake",
+    profileKey: "lake",
+    hidden: false,
+    levelRequired: 1,
+    requiredGearKey: null,
+    currentStock: 8,
+  };
+  const fishing = getSeasonFiveFishingSessionSummary({
+    actionKind: SeasonFiveActionKind.FISHING,
+    currentLocation: location,
+    currentWaterBody: waterBody,
+    character,
+    actionStartedAt: new Date("2026-06-05T12:00:00.000Z"),
+    lastResolvedAt: new Date("2026-06-05T12:00:00.000Z"),
+    now,
+    effects,
+    inventoryFull: false,
+  });
+  const full = getSeasonFiveFishingSessionSummary({
+    actionKind: SeasonFiveActionKind.FISHING,
+    currentLocation: location,
+    currentWaterBody: waterBody,
+    character,
+    actionStartedAt: new Date("2026-06-05T12:00:00.000Z"),
+    lastResolvedAt: new Date("2026-06-05T12:00:00.000Z"),
+    now,
+    effects,
+    inventoryFull: true,
+  });
+  const depleted = getSeasonFiveFishingSessionSummary({
+    actionKind: SeasonFiveActionKind.FISHING,
+    currentLocation: location,
+    currentWaterBody: { ...waterBody, currentStock: 0 },
+    character,
+    actionStartedAt: new Date("2026-06-05T12:00:00.000Z"),
+    lastResolvedAt: new Date("2026-06-05T12:00:00.000Z"),
+    now,
+    effects,
+    inventoryFull: false,
+  });
+
+  assert.equal(fishing.status, "fishing");
+  assert.equal(fishing.catchIntervalMinutes !== null, true);
+  assert.equal(fishing.nextCatchRemainingSeconds >= 0, true);
+  assert.equal(full.status, "full");
+  assert.match(full.stopReason ?? "", /unloaded/);
+  assert.equal(depleted.status, "depleted");
 });
 
 test("Season 5 passive fishing fills empty inventory deterministically", () => {
@@ -1643,6 +1766,82 @@ test("Season 5 Biggest Fish leaderboard derives exact catches and stable ties", 
   assert.equal(ranked[0].speciesName, "Wizard's Lost-Toe Trout");
   assert.equal(ranked[0].biggestFishGrams, 18000);
   assert.equal(ranked[0].locationName, "Moon Depths");
+});
+
+test("Season 5 player league standing reports current rank and next targets", () => {
+  const characters = [
+    {
+      id: "top",
+      name: "Topper",
+      class: SeasonFiveCharacterClass.RETIRED_WARRIOR,
+      totalFishCaught: 9,
+      biggestFishGrams: 8000,
+      createdAt: new Date("2026-06-05T12:00:00.000Z"),
+    },
+    {
+      id: "player",
+      name: "Player",
+      class: SeasonFiveCharacterClass.DRUNKEN_MONK,
+      totalFishCaught: 6,
+      biggestFishGrams: 5000,
+      createdAt: new Date("2026-06-05T12:01:00.000Z"),
+    },
+    {
+      id: "third",
+      name: "Third",
+      class: SeasonFiveCharacterClass.BURNT_OUT_ROGUE,
+      totalFishCaught: 2,
+      biggestFishGrams: 2000,
+      createdAt: new Date("2026-06-05T12:02:00.000Z"),
+    },
+  ];
+  const biggestFishRows = rankSeasonFiveBiggestFish(
+    [
+      {
+        id: "top-catch",
+        speciesName: "Big Lumpy Baron",
+        rarity: SeasonFiveFishRarity.RARE,
+        weightGrams: 8000,
+        caughtAt: new Date("2026-06-05T12:05:00.000Z"),
+        character: characters[0]!,
+      },
+      {
+        id: "player-catch",
+        speciesName: "Helpful Shame Carp",
+        rarity: SeasonFiveFishRarity.UNCOMMON,
+        weightGrams: 5000,
+        caughtAt: new Date("2026-06-05T12:06:00.000Z"),
+        character: characters[1]!,
+      },
+      {
+        id: "third-catch",
+        speciesName: "Puddle Gobbler",
+        rarity: SeasonFiveFishRarity.COMMON,
+        weightGrams: 2000,
+        caughtAt: new Date("2026-06-05T12:07:00.000Z"),
+        character: characters[2]!,
+      },
+    ],
+    3
+  );
+  const standing = getSeasonFivePlayerLeagueStanding({
+    characterId: "player",
+    totalFishCaught: 6,
+    biggestFishGrams: 5000,
+    mostFishRows: rankSeasonFiveMostFish(characters, 3),
+    biggestFishRows,
+  });
+
+  assert.equal(standing.mostFish.rank, 2);
+  assert.equal(standing.mostFish.nextRank, 1);
+  assert.equal(standing.mostFish.nextName, "Topper");
+  assert.equal(standing.mostFish.gapFish, 4);
+  assert.equal(standing.mostFish.targetFish, 10);
+  assert.equal(standing.biggestFish.rank, 2);
+  assert.equal(standing.biggestFish.nextRank, 1);
+  assert.equal(standing.biggestFish.nextName, "Topper");
+  assert.equal(standing.biggestFish.gapGrams, 3001);
+  assert.equal(standing.biggestFish.targetWeightGrams, 8001);
 });
 
 test("Season 5 preview cycle seed creates active cycle and baseline locations", async () => {

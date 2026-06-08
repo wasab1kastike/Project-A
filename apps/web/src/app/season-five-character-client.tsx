@@ -21,10 +21,13 @@ import { formatSeasonFiveFishWeight } from "@/lib/game/season-five-fishing";
 import {
   BuildEffectChips,
   CharacterAvatar,
+  HaulSummary,
   InventoryPressureMeter,
+  LastUnloadSummary,
   SeasonFiveGearVisual,
   SeasonFiveRealtimeBridge,
   StatBars,
+  getReturnUnloadLabel,
 } from "./season-five-home-client";
 import styles from "./season-five.module.css";
 
@@ -163,7 +166,7 @@ function CharacterShell({
           <div className={styles.commandActions}>
             <form action={returnSeasonFiveHomeAction}>
               <button type="submit" className={styles.secondaryButton}>
-                Return / unload
+                {getReturnUnloadLabel(character)}
               </button>
             </form>
             <Link className={styles.linkButton} href="/">
@@ -233,6 +236,8 @@ function CharacterShell({
             </div>
           </div>
           <InventoryPressureMeter character={character} />
+          <HaulSummary character={character} />
+          <LastUnloadSummary character={character} />
           <BuildEffectChips effects={character.effects} compact />
         </aside>
 
@@ -361,6 +366,8 @@ function InventoryTab({ state }: { state: SeasonFiveHomeState }) {
         ) : null}
       </div>
       <InventoryPressureMeter character={character} />
+      <HaulSummary character={character} />
+      <LastUnloadSummary character={character} />
       <div className={styles.inventoryList}>
         {character.inventory.length > 0 ? (
           character.inventory.map((item) => (
@@ -393,7 +400,11 @@ function GearTab({ state }: { state: SeasonFiveHomeState }) {
           <p className={styles.kicker}>Equipment</p>
           <h2>Visible loadout</h2>
         </div>
-        <CharacterAvatar avatar={character.avatar} label={character.name} compact />
+        <CharacterAvatar
+          avatar={character.avatar}
+          label={character.name}
+          compact
+        />
       </div>
       <div className={styles.gearSlotGrid}>
         {slotOrder.map((slot) => {
@@ -561,7 +572,9 @@ function ShopTab({ state }: { state: SeasonFiveHomeState }) {
                   <input type="hidden" name="baitKey" value={bait.key} />
                   <button
                     type="submit"
-                    className={bait.active ? styles.equipped : styles.secondaryButton}
+                    className={
+                      bait.active ? styles.equipped : styles.secondaryButton
+                    }
                     disabled={bait.quantity <= 0 || paidBaitActive}
                   >
                     <span>{bait.active ? "Active" : "Activate"}</span>
@@ -630,9 +643,7 @@ function SkillsTab({ state }: { state: SeasonFiveHomeState }) {
                       {skill.purchased
                         ? "Purchased"
                         : skill.available
-                          ? `${skill.cost} point${
-                              skill.cost === 1 ? "" : "s"
-                            }`
+                          ? `${skill.cost} point${skill.cost === 1 ? "" : "s"}`
                           : "Locked"}
                     </small>
                     <span>{skill.description}</span>

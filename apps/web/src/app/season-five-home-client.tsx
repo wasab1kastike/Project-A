@@ -96,6 +96,37 @@ function signedNumber(value: number) {
   return `${value > 0 ? "+" : ""}${value}`;
 }
 
+function pluralize(value: number, singular: string, plural = `${singular}s`) {
+  return `${value} ${value === 1 ? singular : plural}`;
+}
+
+function formatFishCoins(value: number) {
+  return pluralize(value, "coin");
+}
+
+function formatDuration(seconds: number) {
+  const safeSeconds = Math.max(0, Math.ceil(seconds));
+  if (safeSeconds <= 0) return "due now";
+  if (safeSeconds < 60) return `${safeSeconds}s`;
+  return `${Math.ceil(safeSeconds / 60)}m`;
+}
+
+function formatRank(rank: number | null) {
+  return rank ? `#${rank}` : "Unranked";
+}
+
+function formatNextCatch(
+  session: NonNullable<SeasonFiveHomeState["character"]>["session"]
+) {
+  if (session.stopReason) return session.stopReason;
+  if (session.status !== "fishing" || !session.catchIntervalMinutes) {
+    return session.label;
+  }
+  return `${formatDuration(session.nextCatchRemainingSeconds)} | every ${
+    session.catchIntervalMinutes
+  }m`;
+}
+
 export function getSeasonFiveBuildEffectChips(
   effects: Required<SeasonFiveEffectBonuses>
 ) {
@@ -156,6 +187,75 @@ export function BuildEffectChips({
       ))}
     </div>
   );
+}
+
+function LoopSummaryGrid({
+  items,
+}: {
+  items: Array<{ label: string; value: string }>;
+}) {
+  return (
+    <div className={styles.loopSummaryGrid}>
+      {items.map((item) => (
+        <div key={item.label}>
+          <span>{item.label}</span>
+          <strong>{item.value}</strong>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function HaulSummary({
+  character,
+}: {
+  character: NonNullable<SeasonFiveHomeState["character"]>;
+}) {
+  const haul = character.session.haul;
+  return (
+    <LoopSummaryGrid
+      items={[
+        {
+          label: "Haul",
+          value: `${pluralize(haul.fishCount, "fish", "fish")} / ${formatSeasonFiveFishWeight(
+            haul.totalWeightGrams
+          )}`,
+        },
+        { label: "Value", value: formatFishCoins(haul.estimatedCoinValue) },
+        {
+          label: "Heaviest",
+          value: haul.heaviestFish
+            ? formatSeasonFiveFishWeight(haul.heaviestFish.weightGrams)
+            : "None",
+        },
+      ]}
+    />
+  );
+}
+
+export function LastUnloadSummary({
+  character,
+}: {
+  character: NonNullable<SeasonFiveHomeState["character"]>;
+}) {
+  const lastUnload = character.lastUnload;
+  if (!lastUnload) return null;
+
+  return (
+    <p className={styles.sessionNote}>
+      Last unload: {formatFishCoins(lastUnload.estimatedCoinValue)} from{" "}
+      {pluralize(lastUnload.fishCount, "fish", "fish")}.
+    </p>
+  );
+}
+
+export function getReturnUnloadLabel(
+  character: NonNullable<SeasonFiveHomeState["character"]>
+) {
+  const coinValue = character.session.haul.estimatedCoinValue;
+  return coinValue > 0
+    ? `Return / unload (${formatFishCoins(coinValue)})`
+    : "Return / unload";
 }
 
 const SEASON_FIVE_MIN_SCALE = 0.1;
@@ -803,6 +903,20 @@ function CharacterCommandCard({
         </span>
       </div>
 
+      <LoopSummaryGrid
+        items={[
+          {
+            label:
+              character.session.status === "fishing" ? "Next catch" : "Status",
+            value: formatNextCatch(character.session),
+          },
+          {
+            label: "Haul value",
+            value: formatFishCoins(character.session.haul.estimatedCoinValue),
+          },
+        ]}
+      />
+
       <div className={styles.mapCharacterPreview}>
         <CharacterAvatar
           avatar={character.avatar}
@@ -842,13 +956,15 @@ function CharacterCommandCard({
       </div>
 
       <InventoryPressureMeter character={character} />
+      <HaulSummary character={character} />
+      <LastUnloadSummary character={character} />
 
       <BuildEffectChips effects={character.effects} compact />
 
       <div className={styles.commandActions}>
         <form action={returnSeasonFiveHomeAction}>
           <button type="submit" className={styles.secondaryButton}>
-            Return / unload
+            {getReturnUnloadLabel(character)}
           </button>
         </form>
         <Link className={styles.linkButton} href="/character">
@@ -1738,6 +1854,13 @@ function WorldMap({
             Difficulty {selectedLocation.catchDifficulty} | Tile{" "}
             {selectedTile.row + 1}:{selectedTile.col + 1}
           </p>
+          {selectedLocation.effectiveCatchIntervalMinutes &&
+          selectedLocation.effectiveInventoryPressure ? (
+            <p>
+              Est. every {selectedLocation.effectiveCatchIntervalMinutes}m |
+              pack pressure {selectedLocation.effectiveInventoryPressure}
+            </p>
+          ) : null}
           <div className={styles.routePreviewStatus}>
             <strong>
               {selectedLocation.waterBodyProfile ??
@@ -1800,6 +1923,8 @@ function InventoryPreview({
       }
     >
       <InventoryPressureMeter character={character} />
+      <HaulSummary character={character} />
+      <LastUnloadSummary character={character} />
       <div className={styles.inventoryList}>
         {latest.length > 0 ? (
           latest.map((item) => (
@@ -1819,7 +1944,7 @@ function InventoryPreview({
       <div className={styles.commandActions}>
         <form action={returnSeasonFiveHomeAction}>
           <button type="submit" className={styles.secondaryButton}>
-            Return / unload
+            {getReturnUnloadLabel(character)}
           </button>
         </form>
         <Link className={styles.linkButton} href="/character?tab=inventory">
@@ -1837,6 +1962,9 @@ function LeaguePanel({
   state: SeasonFiveHomeState;
   onClose?: () => void;
 }) {
+  const character = state.character;
+  const player = state.leaderboards.player;
+
   return (
     <MapOverlay
       kicker="League"
@@ -1844,15 +1972,48 @@ function LeaguePanel({
       onClose={onClose}
       variant="right"
     >
+      {character && player ? (
+        <div className={styles.leaguePlayerSummary}>
+          <LoopSummaryGrid
+            items={[
+              {
+                label: "Most Fish",
+                value: `${formatRank(player.mostFish.rank)} | ${
+                  player.mostFish.gapFish && player.mostFish.nextName
+                    ? `${pluralize(
+                        player.mostFish.gapFish,
+                        "fish",
+                        "fish"
+                      )} to ${player.mostFish.nextName}`
+                    : "Top target"
+                }`,
+              },
+              {
+                label: "Biggest Fish",
+                value: `${formatRank(player.biggestFish.rank)} | ${
+                  player.biggestFish.targetWeightGrams &&
+                  player.biggestFish.nextName
+                    ? `beat ${formatSeasonFiveFishWeight(
+                        player.biggestFish.targetWeightGrams
+                      )}`
+                    : "Top target"
+                }`,
+              },
+            ]}
+          />
+        </div>
+      ) : null}
       <div className={styles.leaderboardColumns}>
         <Leaderboard
           title="Most Fish"
           rows={state.leaderboards.mostFish}
+          currentCharacterId={character?.id ?? null}
           value={(row) => `${row.totalFishCaught} fish`}
         />
         <Leaderboard
           title="Biggest Fish"
           rows={state.leaderboards.biggestFish}
+          currentCharacterId={character?.id ?? null}
           value={(row) => formatSeasonFiveFishWeight(row.biggestFishGrams)}
         />
       </div>
@@ -1873,10 +2034,12 @@ function hasCatchDetails(
 function Leaderboard({
   title,
   rows,
+  currentCharacterId,
   value,
 }: {
   title: string;
   rows: SeasonFiveLeaderboardRow[];
+  currentCharacterId: string | null;
   value: (row: SeasonFiveLeaderboardRow) => string;
 }) {
   return (
@@ -1885,7 +2048,12 @@ function Leaderboard({
       {rows.length > 0 ? (
         <ol>
           {rows.map((row) => (
-            <li key={row.id}>
+            <li
+              key={row.id}
+              data-current-player={
+                row.id === currentCharacterId ? "true" : undefined
+              }
+            >
               <span>
                 {row.name}
                 <small>{row.classLabel}</small>
