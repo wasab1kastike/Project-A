@@ -82,6 +82,15 @@ const CLASS_VISUALS = {
   },
 } as const;
 
+const MAP_TRAIT_DECAL_ASSETS: Record<string, string> = {
+  rotten_reeds: "/assets/season-5/map-traits/rotten-reeds.png",
+  old_planks: "/assets/season-5/map-traits/old-planks.png",
+  deep_pocket: "/assets/season-5/map-traits/deep-pocket.png",
+  bubbling_scum: "/assets/season-5/map-traits/bubbling-scum.png",
+  warm_vent: "/assets/season-5/map-traits/warm-vent.png",
+  void_ripple: "/assets/season-5/map-traits/void-ripple.png",
+};
+
 function getClassVisual(classKey: string) {
   return CLASS_VISUALS[classKey as keyof typeof CLASS_VISUALS] ?? null;
 }
@@ -1670,6 +1679,9 @@ function WorldMap({
               const isSpecialWater =
                 waterBodyProfileKey === "lava_lake" ||
                 waterBodyProfileKey === "void_lake";
+              const traitDecalAsset = location?.tileTraitKey
+                ? (MAP_TRAIT_DECAL_ASSETS[location.tileTraitKey] ?? null)
+                : null;
               const waterProfileClass =
                 waterBodyProfileKey === "lava_lake"
                   ? styles.lavaWaterTile
@@ -1795,16 +1807,16 @@ function WorldMap({
                       <circle cx={hex.x} cy={hex.y} r="5" />
                     </g>
                   ) : null}
-                  {location?.tileTraitTone && !isSpecialWater ? (
-                    <g
-                      className={styles.seasonFiveWorldTraitGlyph}
-                      data-trait-tone={location.tileTraitTone}
-                    >
-                      <path
-                        d={`M ${hex.x - 17} ${hex.y + 9} q 9 -13 17 0 t 17 0`}
-                      />
-                      <circle cx={hex.x} cy={hex.y - 1} r="4" />
-                    </g>
+                  {traitDecalAsset && !isSpecialWater ? (
+                    <image
+                      className={styles.seasonFiveWorldTraitDecal}
+                      href={traitDecalAsset}
+                      x={hex.x - 30}
+                      y={hex.y - 30}
+                      width="60"
+                      height="60"
+                      preserveAspectRatio="xMidYMid meet"
+                    />
                   ) : null}
                   {marker ? (
                     <g className={styles.seasonFiveWorldMarker}>

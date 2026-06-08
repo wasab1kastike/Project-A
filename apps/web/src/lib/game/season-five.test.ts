@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import test from "node:test";
 import {
   CycleRuleset,
@@ -43,6 +45,7 @@ import {
   regenerateSeasonFiveWaterBodyStock,
   rollSeasonFiveGlobalDiscovery,
   rollSeasonFiveWaterBodyDiscovery,
+  SEASON_FIVE_FISHING_TILE_TRAITS,
   SEASON_FIVE_MAP_COLUMNS,
   SEASON_FIVE_MAP_ROWS,
 } from "./season-five-map";
@@ -1380,6 +1383,39 @@ test("Season 5 fishing tile traits are deterministic and modify route stats", ()
   assert.equal(location?.minWeightGrams, stats.minWeightGrams);
   assert.equal(location?.maxWeightGrams, stats.maxWeightGrams);
   assert.equal(location?.inventoryPressure, stats.inventoryPressure);
+});
+
+test("Season 5 fishing tile traits have map decal assets", () => {
+  const assetFileByTraitKey: Record<string, string> = {
+    rotten_reeds: "rotten-reeds.png",
+    old_planks: "old-planks.png",
+    deep_pocket: "deep-pocket.png",
+    bubbling_scum: "bubbling-scum.png",
+    warm_vent: "warm-vent.png",
+    void_ripple: "void-ripple.png",
+  };
+
+  assert.deepEqual(
+    Object.keys(assetFileByTraitKey).sort(),
+    Object.keys(SEASON_FIVE_FISHING_TILE_TRAITS).sort()
+  );
+
+  for (const fileName of Object.values(assetFileByTraitKey)) {
+    assert.equal(
+      existsSync(
+        join(
+          process.cwd(),
+          "public",
+          "assets",
+          "season-5",
+          "map-traits",
+          fileName
+        )
+      ),
+      true,
+      `${fileName} should exist`
+    );
+  }
 });
 
 test("Season 5 degraded map state still exposes fishable water tiles", () => {

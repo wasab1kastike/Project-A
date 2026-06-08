@@ -738,7 +738,7 @@
 
 .seasonFiveWorldMarker,
 .seasonFiveWorldSpecialWaterGlyph,
-.seasonFiveWorldTraitGlyph,
+.seasonFiveWorldTraitDecal,
 .seasonFiveWorldPopulation,
 .seasonFiveWorldActors {
   pointer-events: none;
@@ -808,56 +808,10 @@
   stroke: rgba(206, 190, 255, 0.92);
 }
 
-.seasonFiveWorldTraitGlyph {
-  opacity: 0.86;
-}
-
-.seasonFiveWorldTraitGlyph path {
-  fill: none;
-  stroke-linecap: round;
-  stroke-width: 4px;
-  vector-effect: non-scaling-stroke;
-}
-
-.seasonFiveWorldTraitGlyph circle {
-  stroke-width: 2px;
-  vector-effect: non-scaling-stroke;
-}
-
-.seasonFiveWorldTraitGlyph[data-trait-tone="reeds"] path,
-.seasonFiveWorldTraitGlyph[data-trait-tone="reeds"] circle {
-  stroke: rgba(187, 214, 118, 0.92);
-}
-
-.seasonFiveWorldTraitGlyph[data-trait-tone="reeds"] circle {
-  fill: rgba(68, 93, 45, 0.9);
-}
-
-.seasonFiveWorldTraitGlyph[data-trait-tone="planks"] path,
-.seasonFiveWorldTraitGlyph[data-trait-tone="planks"] circle {
-  stroke: rgba(222, 178, 114, 0.92);
-}
-
-.seasonFiveWorldTraitGlyph[data-trait-tone="planks"] circle {
-  fill: rgba(96, 61, 36, 0.92);
-}
-
-.seasonFiveWorldTraitGlyph[data-trait-tone="pocket"] path,
-.seasonFiveWorldTraitGlyph[data-trait-tone="pocket"] circle {
-  stroke: rgba(164, 221, 242, 0.92);
-}
-
-.seasonFiveWorldTraitGlyph[data-trait-tone="pocket"] circle {
-  fill: rgba(21, 67, 89, 0.9);
-}
-
-.seasonFiveWorldTraitGlyph[data-trait-tone="scum"] path,
-.seasonFiveWorldTraitGlyph[data-trait-tone="scum"] circle {
-  stroke: rgba(191, 221, 136, 0.9);
-}
-
-.seasonFiveWorldTraitGlyph[data-trait-tone="scum"] circle {
-  fill: rgba(82, 88, 34, 0.92);
+.seasonFiveWorldTraitDecal {
+  opacity: 0.92;
+  filter: drop-shadow(0 3px 3px rgba(1, 8, 8, 0.42));
+  image-rendering: auto;
 }
 
 .seasonFiveWorldActors circle {
