@@ -27,7 +27,6 @@ import {
   SEASON_FIVE_GEAR_SLOT_TO_AVATAR_LAYER,
   getSeasonFiveAvatarLayerFit,
   getSeasonFiveAvatarLayers,
-  type SeasonFiveAvatarBodyPart,
   type SeasonFiveAvatarFrame,
   type SeasonFiveAvatarLayerFit,
   type SeasonFiveAvatarLayerSlot,
@@ -575,14 +574,6 @@ function getAvatarLayerStyle(
   };
 }
 
-const AVATAR_BODY_PART_CLASS_BY_PART = {
-  legs: styles.avatarBitmapPartLegs,
-  torso: styles.avatarBitmapPartTorso,
-  head: styles.avatarBitmapPartHead,
-  leftHand: styles.avatarBitmapPartLeftHand,
-  rightHand: styles.avatarBitmapPartRightHand,
-} as const satisfies Record<SeasonFiveAvatarBodyPart, string>;
-
 export function SeasonFiveGearVisual({
   slot,
   visualKey,
@@ -644,11 +635,9 @@ export function CharacterAvatar({
     rod: "splintered",
   };
   const avatarLayers = getSeasonFiveAvatarLayers(loadout);
-  const bodyStyle = getAvatarLayerStyle(avatarLayers.body);
-  const outfitStyle = getAvatarLayerStyle(avatarLayers.outfit);
+  const baseStyle = getAvatarLayerStyle(avatarLayers.base);
   const hatStyle = getAvatarLayerStyle(avatarLayers.hat);
   const rodStyle = getAvatarLayerStyle(avatarLayers.rod);
-  const usesBodyParts = avatarLayers.bodyParts.length > 0;
   const frameScale = SEASON_FIVE_AVATAR_FRAME_SCALES[frame];
   const frameStyle =
     frameScale === 1
@@ -675,60 +664,42 @@ export function CharacterAvatar({
       <span className={styles.avatarLayerStack} aria-hidden="true">
         <span
           className={`${styles.avatarRod} ${
-            rodStyle || usesBodyParts ? styles.avatarFallbackHidden : ""
+            rodStyle ? styles.avatarFallbackHidden : ""
           }`}
         />
         <span
           className={`${styles.avatarBody} ${
-            bodyStyle || usesBodyParts ? styles.avatarFallbackHidden : ""
+            baseStyle ? styles.avatarFallbackHidden : ""
           }`}
         />
         <span
           className={`${styles.avatarOutfit} ${
-            outfitStyle || usesBodyParts ? styles.avatarFallbackHidden : ""
+            baseStyle ? styles.avatarFallbackHidden : ""
           }`}
         />
         <span
           className={`${styles.avatarHead} ${
-            bodyStyle || usesBodyParts ? styles.avatarFallbackHidden : ""
+            baseStyle ? styles.avatarFallbackHidden : ""
           }`}
         />
         <span
           className={`${styles.avatarHat} ${
-            hatStyle || usesBodyParts ? styles.avatarFallbackHidden : ""
+            hatStyle ? styles.avatarFallbackHidden : ""
           }`}
         />
-        {usesBodyParts
-          ? avatarLayers.bodyParts.map((partFit) => (
-              <span
-                key={partFit.part}
-                className={`${styles.avatarBitmapLayer} ${
-                  styles.avatarBitmapPart
-                } ${AVATAR_BODY_PART_CLASS_BY_PART[partFit.part]}`}
-                data-part={partFit.part}
-                style={getAvatarLayerStyle(partFit)}
-              />
-            ))
-          : null}
-        {!usesBodyParts && rodStyle ? (
+        {baseStyle ? (
+          <span
+            className={`${styles.avatarBitmapLayer} ${styles.avatarBitmapBase}`}
+            style={baseStyle}
+          />
+        ) : null}
+        {rodStyle ? (
           <span
             className={`${styles.avatarBitmapLayer} ${styles.avatarBitmapRod}`}
             style={rodStyle}
           />
         ) : null}
-        {!usesBodyParts && bodyStyle ? (
-          <span
-            className={`${styles.avatarBitmapLayer} ${styles.avatarBitmapBody}`}
-            style={bodyStyle}
-          />
-        ) : null}
-        {!usesBodyParts && outfitStyle ? (
-          <span
-            className={`${styles.avatarBitmapLayer} ${styles.avatarBitmapOutfit}`}
-            style={outfitStyle}
-          />
-        ) : null}
-        {!usesBodyParts && hatStyle ? (
+        {hatStyle ? (
           <span
             className={`${styles.avatarBitmapLayer} ${styles.avatarBitmapHat}`}
             style={hatStyle}

@@ -355,43 +355,15 @@
 }
 
 .avatarBitmapRod {
+  z-index: 2;
+}
+
+.avatarBitmapBase {
   z-index: 1;
 }
 
-.avatarBitmapBody {
-  z-index: 2;
-}
-
-.avatarBitmapOutfit {
-  z-index: 3;
-}
-
 .avatarBitmapHat {
-  z-index: 4;
-}
-
-.avatarBitmapPart {
-  z-index: 2;
-}
-
-.avatarBitmapPartLegs {
-  z-index: 2;
-}
-
-.avatarBitmapPartTorso {
   z-index: 3;
-}
-
-.avatarBitmapPartLeftHand {
-  z-index: 4;
-}
-
-.avatarBitmapPartRightHand {
-  z-index: 5;
-}
-
-.avatarBitmapPartHead {
-  z-index: 6;
 }
 
 .characterAvatar[data-hat="none"] .avatarHat {

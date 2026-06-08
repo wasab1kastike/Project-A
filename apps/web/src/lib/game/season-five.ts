@@ -866,6 +866,19 @@ const SEASON_FIVE_EQUIPMENT_CATALOG: readonly SeasonFiveEquipmentCatalogItem[] =
       visualKey: "raincoat",
     },
     {
+      slot: SeasonFiveGearSlot.OUTFIT,
+      key: "mildew-greatcoat",
+      name: "Mildew Greatcoat",
+      description:
+        "A damp heroic curtain. Smells like old caves and worse decisions.",
+      rarity: SeasonFiveGearRarity.RARE,
+      power: 2,
+      price: 95,
+      statBonuses: { stronk: 1, magik: 1, quietness: 1 },
+      catchable: true,
+      visualKey: "greatcoat",
+    },
+    {
       slot: SeasonFiveGearSlot.ROD,
       key: "war-veteran-cane",
       name: "War Veteran Cane",

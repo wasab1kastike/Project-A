@@ -22,7 +22,7 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
       "Season 5 fishing pools now have fantasy comedy species with stranger coastal, lake, deep-water, and lava catches.",
       "Deep water, lava pools, and void lakes now support higher-risk fishing profiles with level and gear or passive gates.",
       "Season 5 characters now have visible Body, Outfit, Hat, and Rod equipment that changes their map and character-page avatar.",
-      "Season 5 Retired Warrior avatars now use regenerated base body-part art, with one default body active per class before item-worn variants are rebuilt.",
+      "Season 5 character art now uses hybrid fitted bases: each class has a regenerated no-coat body plus waders, raincoat, and mildew greatcoat outfit bases, while hats and rods layer on top.",
       "Fish unloads now pay fish coins, which can buy static shop equipment and one-hour bait sets.",
       "Bait is now a consumable system: Bare Hook is the free baseline, paid bait lasts one hour, and active paid bait cannot be replaced early.",
       "Very rare item hooks can replace a fish catch with an instant equipment unlock; duplicate item hooks convert straight into fish coins.",

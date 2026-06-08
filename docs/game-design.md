@@ -32,7 +32,7 @@ Season 5 preview is a separate roguelite fishing ruleset behind the preview flag
 - Water type and lock requirements are visible on route cards. Stock state, regen, and notable fish are normally hidden until equipment, stats, or passives reveal pool details temporarily.
 - Normal lake and coastal water are open early. Deep water requires higher character level plus a veteran cane or matching passive access; lava pools require higher level plus an obsidian rod or deeper wizard passives; void lakes require level 10 plus a screaming bamboo pole or the deepest wizard passive.
 - Passive fishing grants catches and XP until inventory, pool stock, or player action stops the session. Returning home unloads the current haul and sells fish for fish coins.
-- Characters have one fixed default Body per class plus swappable Outfit, Hat, and Rod equipment. Starter characters begin with their class body, threadbare pants, and a splintered rod; hats and stronger rods/outfits come from the static shop or very rare item hooks.
+- Characters have one regenerated no-coat Body per class plus fitted Outfit base variants for waders, raincoats, and mildew greatcoats. Hats and Rods layer over that base; starter characters begin with their class body, threadbare pants, and a splintered rod.
 - Bait is a consumable stack, not an equipment slot. Bare Hook is the free baseline, while paid bait sets last one hour and cannot be replaced until their timer ends.
 - Very rare item hooks replace a fish catch with an instant equipment unlock. Duplicate item hooks convert immediately into fish coins.
 

@@ -1,20 +1,19 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, test } from "node:test";
 import sharp from "sharp";
 import {
-  SEASON_FIVE_AVATAR_FRAME_SCALES,
   SEASON_FIVE_AVATAR_BODY_FAMILIES,
-  SEASON_FIVE_AVATAR_BODY_PARTS,
+  SEASON_FIVE_AVATAR_FRAME_SCALES,
   SEASON_FIVE_AVATAR_LAYER_KEYS,
+  getSeasonFiveAvatarBaseFit,
   getSeasonFiveAvatarBodyFamily,
-  getSeasonFiveAvatarBodyPartFit,
   getSeasonFiveAvatarLayerFit,
   getSeasonFiveAvatarLayers,
-  type SeasonFiveAvatarLoadout,
+  type SeasonFiveAvatarLayerFit,
   type SeasonFiveAvatarLayerSlot,
+  type SeasonFiveAvatarLoadout,
 } from "./season-five-avatar-art";
 
 const AVATAR_CANVAS_WIDTH = 256;
@@ -47,9 +46,13 @@ function getPublicPngSize(assetPath: string) {
   };
 }
 
-async function composeWarriorBodyPartLoadout(loadout: SeasonFiveAvatarLoadout) {
-  const bodyParts = getSeasonFiveAvatarLayers(loadout).bodyParts;
-  assert.equal(bodyParts.length, SEASON_FIVE_AVATAR_BODY_PARTS.length);
+async function composeAvatarLoadout(loadout: SeasonFiveAvatarLoadout) {
+  const layers = getSeasonFiveAvatarLayers(loadout);
+  const orderedLayers: Array<SeasonFiveAvatarLayerFit | undefined> = [
+    layers.base,
+    layers.rod,
+    layers.hat,
+  ];
 
   return sharp({
     create: {
@@ -60,9 +63,11 @@ async function composeWarriorBodyPartLoadout(loadout: SeasonFiveAvatarLoadout) {
     },
   })
     .composite(
-      bodyParts.map((partFit) => ({
-        input: getPublicAssetLocalPath(partFit.assetPath),
-      }))
+      orderedLayers
+        .filter((layer): layer is SeasonFiveAvatarLayerFit => Boolean(layer))
+        .map((layer) => ({
+          input: getPublicAssetLocalPath(layer.assetPath),
+        }))
     )
     .png()
     .toBuffer();
@@ -118,7 +123,7 @@ function formatMargin(value: number) {
 }
 
 describe("Season 5 avatar art manifest", () => {
-  test("all neutral layer assets exist", () => {
+  test("all neutral gear visual assets exist", () => {
     for (const [slot, visualKeys] of Object.entries(
       SEASON_FIVE_AVATAR_LAYER_KEYS
     ) as Array<[SeasonFiveAvatarLayerSlot, readonly string[]]>) {
@@ -147,8 +152,39 @@ describe("Season 5 avatar art manifest", () => {
     }
   });
 
-  test("all non-body items have fitted family variants", () => {
-    for (const slot of ["outfit", "hat", "rod"] as const) {
+  test("all class body and coat base assets exist", () => {
+    for (const family of SEASON_FIVE_AVATAR_BODY_FAMILIES) {
+      for (const outfit of SEASON_FIVE_AVATAR_LAYER_KEYS.outfit) {
+        const fit = getSeasonFiveAvatarBaseFit({
+          body: family,
+          outfit,
+          hat: null,
+          rod: "splintered",
+        });
+
+        assert.ok(fit, `${family}/${outfit} base should resolve`);
+        assert.equal(fit.bodyFamily, family);
+        assert.equal(fit.outfitKey, outfit);
+        assert.equal(fit.sourceSlot, outfit === "pants" ? "body" : "outfit");
+        assert.equal(
+          fit.assetKey,
+          outfit === "pants" ? family : `${family}.${outfit}`
+        );
+        assert.ok(
+          publicAssetExists(fit.assetPath),
+          `${fit.assetPath} should exist`
+        );
+        assert.deepEqual(
+          getPublicPngSize(fit.assetPath),
+          { width: 256, height: 320 },
+          `${fit.assetPath} should use the shared avatar canvas`
+        );
+      }
+    }
+  });
+
+  test("hat and rod overlays have fitted family variants", () => {
+    for (const slot of ["hat", "rod"] as const) {
       for (const visualKey of SEASON_FIVE_AVATAR_LAYER_KEYS[slot]) {
         for (const family of SEASON_FIVE_AVATAR_BODY_FAMILIES) {
           const fit = getSeasonFiveAvatarLayerFit({
@@ -172,7 +208,7 @@ describe("Season 5 avatar art manifest", () => {
     }
   });
 
-  test("mixed loadouts resolve fitted item layers", () => {
+  test("mixed loadouts resolve hybrid base and overlay layers", () => {
     const layers = getSeasonFiveAvatarLayers({
       body: "warrior",
       outfit: "raincoat",
@@ -180,144 +216,79 @@ describe("Season 5 avatar art manifest", () => {
       rod: "obsidian",
     });
 
-    assert.equal(layers.body?.assetKey, "warrior");
-    assert.equal(layers.outfit?.assetKey, "raincoat.warrior");
+    assert.equal(layers.base?.assetKey, "warrior.raincoat");
+    assert.equal(layers.base?.sourceSlot, "outfit");
     assert.equal(layers.hat?.assetKey, "bucket.warrior");
     assert.equal(layers.rod?.assetKey, "obsidian.warrior");
+    assert.equal("bodyParts" in layers, false);
   });
 
-  test("warrior loadouts resolve modular body-part replacements", () => {
-    const layers = getSeasonFiveAvatarLayers({
-      body: "warrior",
-      outfit: "raincoat",
-      hat: "bucket",
-      rod: "obsidian",
-    });
-    const partsByKey = new Map(
-      layers.bodyParts.map((partFit) => [partFit.part, partFit])
-    );
-
-    assert.equal(layers.bodyParts.length, SEASON_FIVE_AVATAR_BODY_PARTS.length);
-    assert.equal(partsByKey.get("legs")?.sourceSlot, "outfit");
-    assert.equal(partsByKey.get("legs")?.visualKey, "raincoat");
-    assert.equal(partsByKey.get("torso")?.sourceSlot, "outfit");
-    assert.equal(partsByKey.get("torso")?.visualKey, "raincoat");
-    assert.equal(partsByKey.get("leftHand")?.sourceSlot, "outfit");
-    assert.equal(partsByKey.get("leftHand")?.visualKey, "raincoat");
-    assert.equal(partsByKey.get("rightHand")?.sourceSlot, "rod");
-    assert.equal(partsByKey.get("rightHand")?.visualKey, "obsidian");
-    assert.equal(partsByKey.get("head")?.sourceSlot, "hat");
-    assert.equal(partsByKey.get("head")?.visualKey, "bucket");
-
-    for (const partFit of layers.bodyParts) {
-      assert.ok(
-        publicAssetExists(partFit.assetPath),
-        `${partFit.assetPath} should exist`
-      );
-      assert.deepEqual(
-        getPublicPngSize(partFit.assetPath),
-        { width: 256, height: 320 },
-        `${partFit.assetPath} should use the shared avatar canvas`
-      );
-    }
-  });
-
-  test("warrior modular body parts fall back to base parts when a slot is empty", () => {
-    const layers = getSeasonFiveAvatarLayers({
-      body: "warrior",
-      outfit: "pants",
-      hat: null,
-      rod: "splintered",
-    });
-    const partsByKey = new Map(
-      layers.bodyParts.map((partFit) => [partFit.part, partFit])
-    );
-
-    assert.equal(partsByKey.get("head")?.sourceSlot, "body");
-    assert.equal(partsByKey.get("head")?.visualKey, "warrior");
-  });
-
-  test("non-warrior and deferred rod loadouts keep the full-layer renderer", () => {
-    assert.equal(
-      getSeasonFiveAvatarLayers({
-        body: "wizard",
+  test("pants resolve to the no-coat class body", () => {
+    for (const family of SEASON_FIVE_AVATAR_BODY_FAMILIES) {
+      const base = getSeasonFiveAvatarBaseFit({
+        body: family,
         outfit: "pants",
-        hat: "pointy",
-        rod: "obsidian",
-      }).bodyParts.length,
-      0
-    );
-    assert.equal(
-      getSeasonFiveAvatarLayers({
-        body: "warrior",
-        outfit: "pants",
-        hat: "cap",
-        rod: "bamboo",
-      }).bodyParts.length,
-      0
-    );
-  });
-
-  test("warrior base body part assets resolve from the class body", () => {
-    for (const part of SEASON_FIVE_AVATAR_BODY_PARTS) {
-      const fit = getSeasonFiveAvatarBodyPartFit({
-        bodyKey: "warrior",
-        part,
+        hat: null,
+        rod: "splintered",
       });
 
-      assert.ok(fit, `${part} should resolve`);
-      assert.equal(fit.sourceSlot, "body");
-      assert.equal(fit.visualKey, "warrior");
-      assert.ok(publicAssetExists(fit.assetPath), `${fit.assetPath} exists`);
+      assert.equal(base?.sourceSlot, "body");
+      assert.equal(base?.assetKey, family);
+      assert.equal(
+        base?.assetPath,
+        `/assets/season-5/avatar/body/${family}.png`
+      );
     }
   });
 
-  test("warrior map-framed loadouts keep safe visual margins", async () => {
-    const outfits = ["pants", "waders", "raincoat"] as const;
-    const hats = [null, "cap", "bucket", "pointy"] as const;
-    const rods = ["splintered", "cane", "obsidian"] as const;
+  test("hybrid avatar compositions keep safe map-frame margins", async () => {
+    const outfits = SEASON_FIVE_AVATAR_LAYER_KEYS.outfit;
+    const hats = [null, ...SEASON_FIVE_AVATAR_LAYER_KEYS.hat] as const;
+    const rods = SEASON_FIVE_AVATAR_LAYER_KEYS.rod;
 
-    for (const outfit of outfits) {
-      for (const hat of hats) {
-        for (const rod of rods) {
-          const label = `${outfit}/${hat ?? "none"}/${rod}`;
-          const rawMargins = await getVisualAlphaMargins(
-            await composeWarriorBodyPartLoadout({
-              body: "warrior",
-              outfit,
-              hat,
-              rod,
-            })
-          );
-          const framedMargins = getCenteredFrameMargins(
-            rawMargins,
-            SEASON_FIVE_AVATAR_FRAME_SCALES.map
-          );
+    for (const family of SEASON_FIVE_AVATAR_BODY_FAMILIES) {
+      for (const outfit of outfits) {
+        for (const hat of hats) {
+          for (const rod of rods) {
+            const label = `${family}/${outfit}/${hat ?? "none"}/${rod}`;
+            const rawMargins = await getVisualAlphaMargins(
+              await composeAvatarLoadout({
+                body: family,
+                outfit,
+                hat,
+                rod,
+              })
+            );
+            const framedMargins = getCenteredFrameMargins(
+              rawMargins,
+              SEASON_FIVE_AVATAR_FRAME_SCALES.map
+            );
 
-          assert.ok(
-            framedMargins.left >= MIN_FRAMED_SIDE_MARGIN_PX,
-            `${label} framed left margin ${formatMargin(
-              framedMargins.left
-            )} should stay clear`
-          );
-          assert.ok(
-            framedMargins.right >= MIN_FRAMED_SIDE_MARGIN_PX,
-            `${label} framed right margin ${formatMargin(
-              framedMargins.right
-            )} should stay clear`
-          );
-          assert.ok(
-            framedMargins.bottom >= MIN_FRAMED_SIDE_MARGIN_PX,
-            `${label} framed bottom margin ${formatMargin(
-              framedMargins.bottom
-            )} should stay clear`
-          );
-          assert.ok(
-            framedMargins.top >= MIN_FRAMED_TOP_MARGIN_PX,
-            `${label} framed top margin ${formatMargin(
-              framedMargins.top
-            )} should stay clear`
-          );
+            assert.ok(
+              framedMargins.left >= MIN_FRAMED_SIDE_MARGIN_PX,
+              `${label} framed left margin ${formatMargin(
+                framedMargins.left
+              )} should stay clear`
+            );
+            assert.ok(
+              framedMargins.right >= MIN_FRAMED_SIDE_MARGIN_PX,
+              `${label} framed right margin ${formatMargin(
+                framedMargins.right
+              )} should stay clear`
+            );
+            assert.ok(
+              framedMargins.bottom >= MIN_FRAMED_SIDE_MARGIN_PX,
+              `${label} framed bottom margin ${formatMargin(
+                framedMargins.bottom
+              )} should stay clear`
+            );
+            assert.ok(
+              framedMargins.top >= MIN_FRAMED_TOP_MARGIN_PX,
+              `${label} framed top margin ${formatMargin(
+                framedMargins.top
+              )} should stay clear`
+            );
+          }
         }
       }
     }
