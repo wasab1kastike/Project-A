@@ -38,27 +38,41 @@ Check these viewport sizes before closing visual work:
 - Player marker status dots distinguish home, traveling, and fishing states.
 - Class cards show all five stats without text overflow.
 - The character link and inventory link remain reachable on desktop and mobile.
-- Character avatars use one default body per class; retired warrior, monk, wizard, and rogue body variants are not active equipment bodies.
-- Retired Warrior base body parts are generated as separate full-canvas assets before item-worn variants are added.
+- Character avatars use one no-coat body per class plus fitted outfit base variants for waders, raincoat, and greatcoat.
+- Pants do not visually swap the body; they map to the no-coat body until pants-specific visuals are intentionally added.
+- Hats and rods layer over the selected base without map-frame clipping or class-specific drift.
+- Gear icons use neutral reference assets and do not fall back to initials or missing-image boxes.
 - The inventory panel makes full-inventory state visible.
 - The two ranking panels remain readable: Most Fish and Biggest Fish.
 
 ## Character Avatar Pipeline
 
-Season 5 avatars keep a shared 256 x 320 transparent canvas for every bitmap layer. The first modular character pass is Retired Warrior only:
+Season 5 avatars use a hybrid fitted-base model on a shared 256 x 320 transparent canvas:
 
-- Base parts live under `/assets/season-5/avatar/characters/warrior/idle/front/0/`.
-- Item-worn parts live under `/assets/season-5/avatar/items/{slot}/{visualKey}/warrior/idle/front/0/`; the current item-worn set is deferred until the base body is approved.
+- No-coat class bodies live under `/assets/season-5/avatar/body/{family}.png`.
+- Outfit bases live under `/assets/season-5/avatar/base/{family}/{outfit}.png`.
+- Hats and rods use fitted family overlays under `/assets/season-5/avatar/{hat|rod}/{visualKey}.{family}.png`.
 - Neutral item references live under `/assets/season-5/avatar/reference/{slot}/{visualKey}.png`.
-- Supported warrior base-body set: `head`, `torso`, `legs`, `leftHand`, and `rightHand`.
-- Planned warrior item-part set: outfits `pants`, `waders`, `raincoat`; hats `cap`, `bucket`, `pointy`; rods `splintered`, `cane`, `obsidian`.
-- Bamboo rod and non-warrior classes intentionally use the existing fitted full-layer renderer until they get matching part art.
+- Active body families: `monk`, `warrior`, `wizard`, and `rogue`.
+- Active outfit bases: `pants`, `waders`, `raincoat`, and `greatcoat`; `pants` resolves to the no-coat class body.
+- Active hat overlays: `cap`, `bucket`, and `pointy`.
+- Active rod overlays: `splintered`, `cane`, `bamboo`, and `obsidian`.
+
+Do not reintroduce body-part rendering for the active Season 5 avatar path. If a fitted base image has clipping, magenta fringe, wrong class identity, or bad coat fit, regenerate or renormalize that base asset. If a hat or rod is consistently shifted for one family, fix it with `SEASON_FIVE_AVATAR_LAYER_FITS` offsets and scales.
+
+The old Retired Warrior modular body-part scripts and sheets are legacy-only experiments. Keep them out of active QA unless the body-part system is explicitly restarted.
+
+Regenerate current review sheets with:
+
+```powershell
+node scripts/render-season-5-avatar-qa.mjs
+```
 
 Review sheets:
 
-- `docs/season-5-warrior-body-parts.png`
-- `docs/season-5-warrior-item-references.png` (previous item reference sheet)
-- `docs/season-5-warrior-item-combinations.png` (previous item combination sheet; regenerate after item-specific parts are rebuilt)
+- `docs/season-5-avatar-hybrid-bases.png`
+- `docs/season-5-avatar-hybrid-samples.png`
+- `docs/season-5-avatar-hybrid-matrix.png`
 
 ## Class Visual Language
 
@@ -72,6 +86,19 @@ Season 5 class tokens are bundled PNG assets:
 | Burnt-Out Rogue | `/assets/season-5/classes/burnt-out-rogue.png` |
 
 The same class token appears in class cards, character badges, and map player markers. Marker state is shown by the marker shell and small status dot: brown for home, amber for traveling, teal for fishing, and a red warning ring/dot when inventory is full.
+
+## June 8, 2026 Avatar QA Result
+
+Checked against `codex/season-5` with the hybrid avatar path active.
+
+| Check                   | Result                                                                                                       |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Base review sheet       | Passed: all four classes render no-coat, waders, raincoat, and greatcoat bases on the shared 256 x 320 grid. |
+| Sample combination grid | Passed: representative hat and rod overlays render over all class/outfit bases without missing assets.       |
+| Exhaustive matrix       | Passed: all active class, outfit, hat, and rod visual combinations render into the compact QA sheet.         |
+
+Browser viewport verification should still be repeated after UI changes to the map marker, character management page, or inventory panels.
+The in-app browser connector was unavailable for this June 8 artifact-only QA pass, so desktop/mobile viewport screenshots were not repeated.
 
 ## June 5, 2026 Smoke Result
 
