@@ -788,6 +788,10 @@ function CharacterCommandCard({
         </span>
       </div>
 
+      <div className={styles.mapCharacterPreview}>
+        <CharacterAvatar avatar={character.avatar} label={character.name} />
+      </div>
+
       {character.actionCompletesAt ? (
         <p className={styles.smallText}>
           Arrival{" "}
@@ -1651,17 +1655,17 @@ function WorldMap({
                                   : styles.homeDot
                             }
                             transform={`translate(${
-                              hex.x + 22 + actorIndex * 12
-                            } ${hex.y - 31})`}
+                              hex.x + 28 + actorIndex * 18
+                            } ${hex.y - 36})`}
                           >
                             <title>{`${actor.name}: ${getActionLabel(
                               actor.actionKind
                             )} (${actor.classLabel})`}</title>
                             <foreignObject
-                              x="-10"
-                              y="-10"
-                              width="20"
-                              height="20"
+                              x="-15"
+                              y="-15"
+                              width="30"
+                              height="30"
                             >
                               <div className={styles.actorAvatarWrap}>
                                 <CharacterAvatar

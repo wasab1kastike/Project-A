@@ -201,6 +201,9 @@ function CharacterShell({
               {character.classLabel}
             </span>
           </div>
+          <div className={styles.characterManagementPreview}>
+            <CharacterAvatar avatar={character.avatar} label={character.name} />
+          </div>
           <div className={styles.statGrid}>
             <div>
               <span>Level</span>

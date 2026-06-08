@@ -53,9 +53,16 @@ const PARTS = {
   rightHand: {
     source: "right-hand.png",
     output: "right-hand.png",
-    target: { x: 158, y: 78, width: 90, height: 230 },
+    target: { x: 148, y: 78, width: 90, height: 230 },
   },
 };
+
+const requestedParts = new Set(
+  (process.env.SEASON_5_IMPORT_WARRIOR_PARTS ?? "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+);
 
 function outputPath(fileName) {
   return path.join(
@@ -390,6 +397,10 @@ await mkdir(DEBUG_DIR, { recursive: true });
 await mkdir(path.dirname(outputPath("head.png")), { recursive: true });
 
 for (const [part, config] of Object.entries(PARTS)) {
+  if (requestedParts.size > 0 && !requestedParts.has(part)) {
+    continue;
+  }
+
   const sourcePath = path.join(SOURCE_DIR, config.source);
   const alphaImage = await removeChromaKey(sourcePath);
   await sharp(alphaImage).png().toFile(path.join(DEBUG_DIR, config.source));

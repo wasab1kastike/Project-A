@@ -778,13 +778,18 @@
 
 .actorAvatarWrap {
   display: grid;
-  width: 20px;
-  height: 20px;
+  width: 30px;
+  height: 30px;
   place-items: center;
   border: 1px solid rgba(255, 248, 231, 0.92);
   border-radius: 50%;
   background: rgba(20, 31, 27, 0.96);
   overflow: hidden;
+}
+
+.actorAvatarWrap .tinyCharacterAvatar {
+  width: 30px;
+  height: 35px;
 }
 
 .travellingDot .actorAvatarWrap {
@@ -1361,8 +1366,8 @@
   top: var(--y);
   z-index: 8;
   display: grid;
-  width: 42px;
-  height: 42px;
+  width: 63px;
+  height: 63px;
   place-items: center;
   border: 2px solid #fff8e7;
   border-radius: 50%;
@@ -1374,8 +1379,8 @@
 }
 
 .characterMapMarker .characterAvatar {
-  width: 36px;
-  height: 42px;
+  width: 54px;
+  height: 63px;
 }
 
 .routePreview {
@@ -1640,6 +1645,40 @@
 
 .commandCard {
   padding: 16px;
+}
+
+.characterManagementPreview,
+.mapCharacterPreview {
+  display: grid;
+  place-items: center;
+  min-height: 148px;
+  margin: 10px 0 12px;
+  background:
+    radial-gradient(
+      ellipse at 50% 82%,
+      rgba(216, 167, 94, 0.28),
+      transparent 54%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(255, 248, 231, 0.05),
+      rgba(255, 248, 231, 0.015)
+    );
+}
+
+.characterManagementPreview .characterAvatar {
+  width: 112px;
+  height: 134px;
+}
+
+.mapCharacterPreview {
+  min-height: 106px;
+  margin: 8px 0 10px;
+}
+
+.mapCharacterPreview .characterAvatar {
+  width: 76px;
+  height: 91px;
 }
 
 .rightRail {
@@ -2552,8 +2591,13 @@
   }
 
   .characterMapMarker {
-    width: 34px;
-    height: 34px;
+    width: 51px;
+    height: 51px;
+  }
+
+  .characterMapMarker .characterAvatar {
+    width: 44px;
+    height: 51px;
   }
 
   .classChoice {
