@@ -48,6 +48,7 @@ import {
   calculateSeasonFiveCatchIntervalMinutes,
   calculateSeasonFiveInventoryCapacity,
   calculateSeasonFiveRhythm,
+  calculateSeasonFiveTrophyFocus,
   calculateSeasonFiveTravelMinutes,
   createSeasonFiveCatch,
   createSeasonFiveCharacter,
@@ -480,6 +481,106 @@ test("Season 5 Drunken Monk rhythm improves catch interval", () => {
   assert.ok(rhythmInterval < baselineInterval);
 });
 
+test("Season 5 Retired Warrior passives unlock trophy focus", () => {
+  const warrior = getSeasonFiveBuildEffects({
+    characterClass: SeasonFiveCharacterClass.RETIRED_WARRIOR,
+    purchasedNodeKeys: [
+      "warrior_campaign_grip",
+      "warrior_trophy_drag",
+      "warrior_old_hooks",
+      "warrior_final_campaign",
+    ],
+  });
+  const rogue = getSeasonFiveBuildEffects({
+    characterClass: SeasonFiveCharacterClass.BURNT_OUT_ROGUE,
+    purchasedNodeKeys: [
+      "rogue_stolen_lure",
+      "rogue_backwater_gossip",
+      "rogue_false_bottom",
+      "rogue_second_pocket",
+    ],
+  });
+  const monk = getSeasonFiveBuildEffects({
+    characterClass: SeasonFiveCharacterClass.DRUNKEN_MONK,
+    purchasedNodeKeys: [
+      "monk_wobble_cast",
+      "monk_river_breath",
+      "monk_dock_nap",
+      "monk_empty_cup",
+    ],
+  });
+
+  assert.equal(warrior.trophySizeBonusPercent, 12);
+  assert.equal(warrior.trophyRarityBonus, 4);
+  assert.equal(rogue.trophySizeBonusPercent, 0);
+  assert.equal(rogue.trophyRarityBonus, 0);
+  assert.equal(monk.trophySizeBonusPercent, 0);
+  assert.equal(monk.trophyRarityBonus, 0);
+});
+
+test("Season 5 Retired Warrior trophy focus favors hard waters", () => {
+  const shallow = calculateSeasonFiveTrophyFocus({
+    catchDifficulty: 2,
+    trophySizeBonusPercent: 12,
+    trophyRarityBonus: 4,
+  });
+  const hard = calculateSeasonFiveTrophyFocus({
+    catchDifficulty: 3,
+    trophySizeBonusPercent: 12,
+    trophyRarityBonus: 4,
+  });
+  const deep = calculateSeasonFiveTrophyFocus({
+    catchDifficulty: 4,
+    trophySizeBonusPercent: 12,
+    trophyRarityBonus: 4,
+  });
+
+  assert.deepEqual(shallow, {
+    sizeBonusPercent: 0,
+    rarityBonus: 0,
+  });
+  assert.deepEqual(hard, {
+    sizeBonusPercent: 12,
+    rarityBonus: 4,
+  });
+  assert.deepEqual(deep, {
+    sizeBonusPercent: 24,
+    rarityBonus: 8,
+  });
+});
+
+test("Season 5 Retired Warrior trophy focus improves hard-water catch outcomes", () => {
+  const baseline = createSeasonFiveCatch({
+    seed: "warrior-deep-campaign",
+    minWeightGrams: 5000,
+    maxWeightGrams: 32000,
+    difficulty: 4,
+    sizeBonusPercent: 0,
+    rarityBonus: 0,
+    inventoryPressure: 1,
+    profileKey: "deep",
+  });
+  const trophyFocus = calculateSeasonFiveTrophyFocus({
+    catchDifficulty: 4,
+    trophySizeBonusPercent: 12,
+    trophyRarityBonus: 8,
+  });
+  const trophyCatch = createSeasonFiveCatch({
+    seed: "warrior-deep-campaign",
+    minWeightGrams: 5000,
+    maxWeightGrams: 32000,
+    difficulty: 4,
+    sizeBonusPercent: trophyFocus.sizeBonusPercent,
+    rarityBonus: trophyFocus.rarityBonus,
+    inventoryPressure: 1,
+    profileKey: "deep",
+  });
+
+  assert.equal(baseline.rarity, SeasonFiveFishRarity.COMMON);
+  assert.ok(trophyCatch.weightGrams > baseline.weightGrams);
+  assert.equal(trophyCatch.rarity, SeasonFiveFishRarity.UNCOMMON);
+});
+
 test("Season 5 Drunken Monk wins long-session tempo", () => {
   const monk = getSeasonFiveBuildEffects({
     characterClass: SeasonFiveCharacterClass.DRUNKEN_MONK,
@@ -685,6 +786,8 @@ test("Season 5 build archetypes keep speed and trophy paths viable", () => {
   assert.ok(fastRareBuild.catchBonus > trophyBuild.catchBonus);
   assert.ok(fastRareBuild.rarityBonus > trophyBuild.rarityBonus);
   assert.ok(trophyBuild.sizeBonusPercent > fastRareBuild.sizeBonusPercent);
+  assert.ok(trophyBuild.trophySizeBonusPercent > 0);
+  assert.equal(fastRareBuild.trophySizeBonusPercent, 0);
   assert.ok(trophyBuild.inventoryBonus > fastRareBuild.inventoryBonus);
   assert.ok(fastRareBuild.travelPercent < trophyBuild.travelPercent);
 });

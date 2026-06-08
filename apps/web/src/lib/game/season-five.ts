@@ -75,6 +75,8 @@ export type SeasonFiveEffectBonuses = Partial<{
   travelPercent: number;
   rhythmCatchBonus: number;
   rhythmPressureReduction: number;
+  trophySizeBonusPercent: number;
+  trophyRarityBonus: number;
 }>;
 
 export const SEASON_FIVE_STAT_LABELS = {
@@ -110,6 +112,8 @@ const EMPTY_EFFECT_BONUSES = {
   travelPercent: 0,
   rhythmCatchBonus: 0,
   rhythmPressureReduction: 0,
+  trophySizeBonusPercent: 0,
+  trophyRarityBonus: 0,
 } satisfies Required<SeasonFiveEffectBonuses>;
 
 export const SEASON_FIVE_STARTER_SKILL_POINTS = 2;
@@ -119,6 +123,7 @@ export const SEASON_FIVE_MAX_SKILL_POINTS =
   SEASON_FIVE_STARTER_SKILL_POINTS + SEASON_FIVE_MAX_LEVEL - 1;
 export const SEASON_FIVE_RHYTHM_STEP_MINUTES = 30;
 export const SEASON_FIVE_MAX_RHYTHM_STAGE = 3;
+export const SEASON_FIVE_TROPHY_FOCUS_MIN_DIFFICULTY = 3;
 
 export const SEASON_FIVE_CLASSES = {
   [SeasonFiveCharacterClass.DRUNKEN_MONK]: {
@@ -316,31 +321,40 @@ export const SEASON_FIVE_SKILL_TREES = {
       {
         key: "warrior_campaign_grip",
         name: "Campaign Grip",
-        description: "+1 Stronk and +8% trophy weight.",
+        description:
+          "+1 Stronk, +8% trophy weight, and trophy focus in hard waters.",
         cost: 1,
         statBonuses: { stronk: 1 },
-        effectBonuses: { sizeBonusPercent: 8 },
+        effectBonuses: { sizeBonusPercent: 8, trophySizeBonusPercent: 3 },
       },
       {
         key: "warrior_trophy_drag",
         name: "Trophy Drag",
-        description: "+12% trophy weight.",
+        description:
+          "+12% trophy weight and stronger deep-water trophy focus.",
         cost: 1,
-        effectBonuses: { sizeBonusPercent: 12 },
+        effectBonuses: { sizeBonusPercent: 12, trophySizeBonusPercent: 4 },
       },
       {
         key: "warrior_old_hooks",
         name: "Old Hooks",
-        description: "+8% trophy weight from trusted old hardware.",
+        description:
+          "+8% trophy weight and better hard-water trophy rarity.",
         cost: 1,
-        effectBonuses: { sizeBonusPercent: 8 },
+        effectBonuses: { sizeBonusPercent: 8, trophyRarityBonus: 2 },
       },
       {
         key: "warrior_final_campaign",
         name: "Final Campaign",
-        description: "Capstone trophy plan: +18% trophy weight and +2 rarity.",
+        description:
+          "Capstone trophy plan: +18% weight, +2 rarity, and deeper trophy focus.",
         cost: 2,
-        effectBonuses: { sizeBonusPercent: 18, rarityBonus: 2 },
+        effectBonuses: {
+          sizeBonusPercent: 18,
+          rarityBonus: 2,
+          trophySizeBonusPercent: 5,
+          trophyRarityBonus: 2,
+        },
       },
     ]),
     ...createSeasonFiveSkillPath("warrior_campaign_pack", "Campaign Pack", [
@@ -1022,6 +1036,10 @@ function addEffectBonuses(
     rhythmCatchBonus: base.rhythmCatchBonus + (bonuses.rhythmCatchBonus ?? 0),
     rhythmPressureReduction:
       base.rhythmPressureReduction + (bonuses.rhythmPressureReduction ?? 0),
+    trophySizeBonusPercent:
+      base.trophySizeBonusPercent + (bonuses.trophySizeBonusPercent ?? 0),
+    trophyRarityBonus:
+      base.trophyRarityBonus + (bonuses.trophyRarityBonus ?? 0),
   };
 }
 
@@ -1106,6 +1124,28 @@ export function calculateSeasonFiveRhythm(input: {
     catchBonus: stage * Math.max(0, input.rhythmCatchBonus),
     inventoryPressureReduction:
       stage * Math.max(0, input.rhythmPressureReduction),
+  };
+}
+
+export function calculateSeasonFiveTrophyFocus(input: {
+  catchDifficulty: number;
+  trophySizeBonusPercent: number;
+  trophyRarityBonus: number;
+}) {
+  if (input.catchDifficulty < SEASON_FIVE_TROPHY_FOCUS_MIN_DIFFICULTY) {
+    return {
+      sizeBonusPercent: 0,
+      rarityBonus: 0,
+    };
+  }
+
+  const difficultyStage =
+    input.catchDifficulty - SEASON_FIVE_TROPHY_FOCUS_MIN_DIFFICULTY + 1;
+
+  return {
+    sizeBonusPercent:
+      Math.max(0, input.trophySizeBonusPercent) * difficultyStage,
+    rarityBonus: Math.max(0, input.trophyRarityBonus) * difficultyStage,
   };
 }
 
@@ -1308,6 +1348,8 @@ export function getSeasonFiveBuildEffects(input: {
     travelPercent: formulaEffects.travelPercent + skillEffects.travelPercent,
     rhythmCatchBonus: skillEffects.rhythmCatchBonus,
     rhythmPressureReduction: skillEffects.rhythmPressureReduction,
+    trophySizeBonusPercent: skillEffects.trophySizeBonusPercent,
+    trophyRarityBonus: skillEffects.trophyRarityBonus,
   };
 }
 
@@ -3409,6 +3451,11 @@ export async function processSeasonFiveTick({
       catchDifficulty: location.catchDifficulty,
       catchBonus: effects.catchBonus + rhythm.catchBonus,
     });
+    const trophyFocus = calculateSeasonFiveTrophyFocus({
+      catchDifficulty: location.catchDifficulty,
+      trophySizeBonusPercent: effects.trophySizeBonusPercent,
+      trophyRarityBonus: effects.trophyRarityBonus,
+    });
     const plan = planSeasonFivePassiveCatches({
       lastResolvedAt: character.lastResolvedAt,
       resolvedAt,
@@ -3422,8 +3469,9 @@ export async function processSeasonFiveTick({
           minWeightGrams: location.minWeightGrams,
           maxWeightGrams: location.maxWeightGrams,
           difficulty: location.catchDifficulty,
-          sizeBonusPercent: effects.sizeBonusPercent,
-          rarityBonus: effects.rarityBonus,
+          sizeBonusPercent:
+            effects.sizeBonusPercent + trophyFocus.sizeBonusPercent,
+          rarityBonus: effects.rarityBonus + trophyFocus.rarityBonus,
           profileKey: waterBody?.profileKey ?? null,
           inventoryPressure: Math.max(
             1,

@@ -72,6 +72,8 @@ const skillEffectFormatters = {
   travelPercent: (value) => `${value > 0 ? "+" : ""}${value}% travel time`,
   rhythmCatchBonus: (value) => `+${value}/stage rhythm tempo`,
   rhythmPressureReduction: (value) => `-${value}/stage rhythm pressure`,
+  trophySizeBonusPercent: (value) => `+${value}% hard-water trophy weight`,
+  trophyRarityBonus: (value) => `+${value} hard-water rarity`,
 } satisfies Record<SeasonFiveEffectKey, (value: number) => string>;
 
 function formatEffectBonuses(effects?: SeasonFiveEffectBonuses) {
