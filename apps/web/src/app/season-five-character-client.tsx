@@ -202,7 +202,11 @@ function CharacterShell({
             </span>
           </div>
           <div className={styles.characterManagementPreview}>
-            <CharacterAvatar avatar={character.avatar} label={character.name} />
+            <CharacterAvatar
+              avatar={character.avatar}
+              label={character.name}
+              frame="preview"
+            />
           </div>
           <div className={styles.statGrid}>
             <div>

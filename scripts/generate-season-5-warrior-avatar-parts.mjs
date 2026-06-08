@@ -5,6 +5,7 @@ import sharp from "sharp";
 const ROOT = process.cwd();
 const CANVAS_WIDTH = 256;
 const CANVAS_HEIGHT = 320;
+const WARRIOR_PREVIEW_FRAME_SCALE = 0.86;
 const AVATAR_ROOT = path.join(
   ROOT,
   "apps",
@@ -186,6 +187,26 @@ function referencePath(slot, key) {
 async function composeLayers(layers) {
   return transparentCanvas()
     .composite(layers.map((input) => ({ input })))
+    .png()
+    .toBuffer();
+}
+
+async function frameAvatar(input, scale) {
+  const width = Math.round(CANVAS_WIDTH * scale);
+  const height = Math.round(CANVAS_HEIGHT * scale);
+  const framed = await sharp(input)
+    .resize({ width, height, fit: "fill" })
+    .png()
+    .toBuffer();
+
+  return transparentCanvas()
+    .composite([
+      {
+        input: framed,
+        left: Math.round((CANVAS_WIDTH - width) / 2),
+        top: Math.round((CANVAS_HEIGHT - height) / 2),
+      },
+    ])
     .png()
     .toBuffer();
 }
@@ -376,7 +397,10 @@ async function writeItemSheets() {
       for (const rod of Object.keys(ITEM_PARTS.rod)) {
         combinations.push({
           label: `${outfit} ${hat} ${rod === "splintered" ? "split" : rod}`,
-          input: await renderLoadout({ outfit, hat, rod }),
+          input: await frameAvatar(
+            await renderLoadout({ outfit, hat, rod }),
+            WARRIOR_PREVIEW_FRAME_SCALE
+          ),
         });
       }
     }

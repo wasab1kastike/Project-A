@@ -23,10 +23,12 @@ import type {
   SeasonFiveStatKey,
 } from "@/lib/game/season-five";
 import {
+  SEASON_FIVE_AVATAR_FRAME_SCALES,
   SEASON_FIVE_GEAR_SLOT_TO_AVATAR_LAYER,
   getSeasonFiveAvatarLayerFit,
   getSeasonFiveAvatarLayers,
   type SeasonFiveAvatarBodyPart,
+  type SeasonFiveAvatarFrame,
   type SeasonFiveAvatarLayerFit,
   type SeasonFiveAvatarLayerSlot,
   type SeasonFiveAvatarLoadout,
@@ -496,11 +498,13 @@ export function CharacterAvatar({
   label,
   compact = false,
   tiny = false,
+  frame = "default",
 }: {
   avatar?: SeasonFiveAvatarLoadout | null;
   label: string;
   compact?: boolean;
   tiny?: boolean;
+  frame?: SeasonFiveAvatarFrame;
 }) {
   const loadout = avatar ?? {
     body: "wizard",
@@ -514,6 +518,13 @@ export function CharacterAvatar({
   const hatStyle = getAvatarLayerStyle(avatarLayers.hat);
   const rodStyle = getAvatarLayerStyle(avatarLayers.rod);
   const usesBodyParts = avatarLayers.bodyParts.length > 0;
+  const frameScale = SEASON_FIVE_AVATAR_FRAME_SCALES[frame];
+  const frameStyle =
+    frameScale === 1
+      ? undefined
+      : ({
+          "--avatar-frame-scale": frameScale,
+        } as CSSProperties);
 
   return (
     <span
@@ -524,71 +535,75 @@ export function CharacterAvatar({
       data-outfit={loadout.outfit}
       data-hat={loadout.hat ?? "none"}
       data-rod={loadout.rod}
+      data-frame={frame}
+      style={frameStyle}
       role="img"
       aria-label={label}
       title={label}
     >
-      <span
-        className={`${styles.avatarRod} ${
-          rodStyle || usesBodyParts ? styles.avatarFallbackHidden : ""
-        }`}
-      />
-      <span
-        className={`${styles.avatarBody} ${
-          bodyStyle || usesBodyParts ? styles.avatarFallbackHidden : ""
-        }`}
-      />
-      <span
-        className={`${styles.avatarOutfit} ${
-          outfitStyle || usesBodyParts ? styles.avatarFallbackHidden : ""
-        }`}
-      />
-      <span
-        className={`${styles.avatarHead} ${
-          bodyStyle || usesBodyParts ? styles.avatarFallbackHidden : ""
-        }`}
-      />
-      <span
-        className={`${styles.avatarHat} ${
-          hatStyle || usesBodyParts ? styles.avatarFallbackHidden : ""
-        }`}
-      />
-      {usesBodyParts
-        ? avatarLayers.bodyParts.map((partFit) => (
-            <span
-              key={partFit.part}
-              className={`${styles.avatarBitmapLayer} ${
-                styles.avatarBitmapPart
-              } ${AVATAR_BODY_PART_CLASS_BY_PART[partFit.part]}`}
-              data-part={partFit.part}
-              style={getAvatarLayerStyle(partFit)}
-            />
-          ))
-        : null}
-      {!usesBodyParts && rodStyle ? (
+      <span className={styles.avatarLayerStack} aria-hidden="true">
         <span
-          className={`${styles.avatarBitmapLayer} ${styles.avatarBitmapRod}`}
-          style={rodStyle}
+          className={`${styles.avatarRod} ${
+            rodStyle || usesBodyParts ? styles.avatarFallbackHidden : ""
+          }`}
         />
-      ) : null}
-      {!usesBodyParts && bodyStyle ? (
         <span
-          className={`${styles.avatarBitmapLayer} ${styles.avatarBitmapBody}`}
-          style={bodyStyle}
+          className={`${styles.avatarBody} ${
+            bodyStyle || usesBodyParts ? styles.avatarFallbackHidden : ""
+          }`}
         />
-      ) : null}
-      {!usesBodyParts && outfitStyle ? (
         <span
-          className={`${styles.avatarBitmapLayer} ${styles.avatarBitmapOutfit}`}
-          style={outfitStyle}
+          className={`${styles.avatarOutfit} ${
+            outfitStyle || usesBodyParts ? styles.avatarFallbackHidden : ""
+          }`}
         />
-      ) : null}
-      {!usesBodyParts && hatStyle ? (
         <span
-          className={`${styles.avatarBitmapLayer} ${styles.avatarBitmapHat}`}
-          style={hatStyle}
+          className={`${styles.avatarHead} ${
+            bodyStyle || usesBodyParts ? styles.avatarFallbackHidden : ""
+          }`}
         />
-      ) : null}
+        <span
+          className={`${styles.avatarHat} ${
+            hatStyle || usesBodyParts ? styles.avatarFallbackHidden : ""
+          }`}
+        />
+        {usesBodyParts
+          ? avatarLayers.bodyParts.map((partFit) => (
+              <span
+                key={partFit.part}
+                className={`${styles.avatarBitmapLayer} ${
+                  styles.avatarBitmapPart
+                } ${AVATAR_BODY_PART_CLASS_BY_PART[partFit.part]}`}
+                data-part={partFit.part}
+                style={getAvatarLayerStyle(partFit)}
+              />
+            ))
+          : null}
+        {!usesBodyParts && rodStyle ? (
+          <span
+            className={`${styles.avatarBitmapLayer} ${styles.avatarBitmapRod}`}
+            style={rodStyle}
+          />
+        ) : null}
+        {!usesBodyParts && bodyStyle ? (
+          <span
+            className={`${styles.avatarBitmapLayer} ${styles.avatarBitmapBody}`}
+            style={bodyStyle}
+          />
+        ) : null}
+        {!usesBodyParts && outfitStyle ? (
+          <span
+            className={`${styles.avatarBitmapLayer} ${styles.avatarBitmapOutfit}`}
+            style={outfitStyle}
+          />
+        ) : null}
+        {!usesBodyParts && hatStyle ? (
+          <span
+            className={`${styles.avatarBitmapLayer} ${styles.avatarBitmapHat}`}
+            style={hatStyle}
+          />
+        ) : null}
+      </span>
     </span>
   );
 }
@@ -789,7 +804,11 @@ function CharacterCommandCard({
       </div>
 
       <div className={styles.mapCharacterPreview}>
-        <CharacterAvatar avatar={character.avatar} label={character.name} />
+        <CharacterAvatar
+          avatar={character.avatar}
+          label={character.name}
+          frame="preview"
+        />
       </div>
 
       {character.actionCompletesAt ? (
@@ -1655,22 +1674,23 @@ function WorldMap({
                                   : styles.homeDot
                             }
                             transform={`translate(${
-                              hex.x + 28 + actorIndex * 18
-                            } ${hex.y - 36})`}
+                              hex.x + 30 + actorIndex * 20
+                            } ${hex.y - 38})`}
                           >
                             <title>{`${actor.name}: ${getActionLabel(
                               actor.actionKind
                             )} (${actor.classLabel})`}</title>
                             <foreignObject
-                              x="-15"
-                              y="-15"
-                              width="30"
-                              height="30"
+                              x="-17"
+                              y="-17"
+                              width="34"
+                              height="34"
                             >
                               <div className={styles.actorAvatarWrap}>
                                 <CharacterAvatar
                                   avatar={actor.avatar}
                                   label={actor.name}
+                                  frame="map"
                                   tiny
                                 />
                               </div>
@@ -1697,6 +1717,7 @@ function WorldMap({
               <CharacterAvatar
                 avatar={character.avatar}
                 label={character.name}
+                frame="map"
               />
             </span>
           ) : null}

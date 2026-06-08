@@ -22,6 +22,15 @@ export type SeasonFiveAvatarLoadout = {
   rod: string;
 };
 
+export const SEASON_FIVE_AVATAR_FRAME_SCALES = {
+  default: 1,
+  map: 0.86,
+  preview: 0.9,
+} as const;
+
+export type SeasonFiveAvatarFrame =
+  keyof typeof SEASON_FIVE_AVATAR_FRAME_SCALES;
+
 export type SeasonFiveAvatarLayerFit = {
   assetKey: string;
   assetPath: string;

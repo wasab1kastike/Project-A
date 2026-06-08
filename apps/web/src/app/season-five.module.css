@@ -257,6 +257,15 @@
   filter: drop-shadow(0 5px 8px rgba(0, 0, 0, 0.34));
 }
 
+.avatarLayerStack {
+  position: absolute;
+  inset: 0;
+  display: block;
+  pointer-events: none;
+  transform: scale(var(--avatar-frame-scale, 1));
+  transform-origin: center center;
+}
+
 .compactCharacterAvatar {
   width: 32px;
   height: 38px;
@@ -778,8 +787,8 @@
 
 .actorAvatarWrap {
   display: grid;
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
   place-items: center;
   border: 1px solid rgba(255, 248, 231, 0.92);
   border-radius: 50%;
@@ -788,8 +797,8 @@
 }
 
 .actorAvatarWrap .tinyCharacterAvatar {
-  width: 30px;
-  height: 35px;
+  width: 34px;
+  height: 40px;
 }
 
 .travellingDot .actorAvatarWrap {
@@ -1366,8 +1375,8 @@
   top: var(--y);
   z-index: 8;
   display: grid;
-  width: 63px;
-  height: 63px;
+  width: 68px;
+  height: 68px;
   place-items: center;
   border: 2px solid #fff8e7;
   border-radius: 50%;
@@ -1379,8 +1388,8 @@
 }
 
 .characterMapMarker .characterAvatar {
-  width: 54px;
-  height: 63px;
+  width: 66px;
+  height: 78px;
 }
 
 .routePreview {
@@ -1651,7 +1660,7 @@
 .mapCharacterPreview {
   display: grid;
   place-items: center;
-  min-height: 148px;
+  min-height: 160px;
   margin: 10px 0 12px;
   background:
     radial-gradient(
@@ -1667,18 +1676,18 @@
 }
 
 .characterManagementPreview .characterAvatar {
-  width: 112px;
-  height: 134px;
+  width: 124px;
+  height: 149px;
 }
 
 .mapCharacterPreview {
-  min-height: 106px;
+  min-height: 116px;
   margin: 8px 0 10px;
 }
 
 .mapCharacterPreview .characterAvatar {
-  width: 76px;
-  height: 91px;
+  width: 86px;
+  height: 103px;
 }
 
 .rightRail {
@@ -2591,13 +2600,13 @@
   }
 
   .characterMapMarker {
-    width: 51px;
-    height: 51px;
+    width: 56px;
+    height: 56px;
   }
 
   .characterMapMarker .characterAvatar {
-    width: 44px;
-    height: 51px;
+    width: 56px;
+    height: 66px;
   }
 
   .classChoice {

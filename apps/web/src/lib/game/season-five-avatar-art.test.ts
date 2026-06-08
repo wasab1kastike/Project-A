@@ -3,7 +3,9 @@ import { existsSync } from "node:fs";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, test } from "node:test";
+import sharp from "sharp";
 import {
+  SEASON_FIVE_AVATAR_FRAME_SCALES,
   SEASON_FIVE_AVATAR_BODY_FAMILIES,
   SEASON_FIVE_AVATAR_BODY_PARTS,
   SEASON_FIVE_AVATAR_LAYER_KEYS,
@@ -11,29 +13,108 @@ import {
   getSeasonFiveAvatarBodyPartFit,
   getSeasonFiveAvatarLayerFit,
   getSeasonFiveAvatarLayers,
+  type SeasonFiveAvatarLoadout,
   type SeasonFiveAvatarLayerSlot,
 } from "./season-five-avatar-art";
 
+const AVATAR_CANVAS_WIDTH = 256;
+const AVATAR_CANVAS_HEIGHT = 320;
+const VISUAL_ALPHA_THRESHOLD = 64;
+const MIN_FRAMED_SIDE_MARGIN_PX = 22;
+const MIN_FRAMED_TOP_MARGIN_PX = 16;
+
+type AlphaMargins = {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+};
+
+function getPublicAssetLocalPath(assetPath: string) {
+  return path.join(process.cwd(), "public", assetPath.replace(/^\//, ""));
+}
+
 function publicAssetExists(assetPath: string) {
-  const localPath = path.join(
-    process.cwd(),
-    "public",
-    assetPath.replace(/^\//, "")
-  );
-  return existsSync(localPath);
+  return existsSync(getPublicAssetLocalPath(assetPath));
 }
 
 function getPublicPngSize(assetPath: string) {
-  const localPath = path.join(
-    process.cwd(),
-    "public",
-    assetPath.replace(/^\//, "")
-  );
+  const localPath = getPublicAssetLocalPath(assetPath);
   const file = readFileSync(localPath);
   return {
     width: file.readUInt32BE(16),
     height: file.readUInt32BE(20),
   };
+}
+
+async function composeWarriorBodyPartLoadout(loadout: SeasonFiveAvatarLoadout) {
+  const bodyParts = getSeasonFiveAvatarLayers(loadout).bodyParts;
+  assert.equal(bodyParts.length, SEASON_FIVE_AVATAR_BODY_PARTS.length);
+
+  return sharp({
+    create: {
+      width: AVATAR_CANVAS_WIDTH,
+      height: AVATAR_CANVAS_HEIGHT,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    },
+  })
+    .composite(
+      bodyParts.map((partFit) => ({
+        input: getPublicAssetLocalPath(partFit.assetPath),
+      }))
+    )
+    .png()
+    .toBuffer();
+}
+
+async function getVisualAlphaMargins(input: Buffer): Promise<AlphaMargins> {
+  const { data, info } = await sharp(input)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  let minX = info.width;
+  let minY = info.height;
+  let maxX = -1;
+  let maxY = -1;
+
+  for (let y = 0; y < info.height; y += 1) {
+    for (let x = 0; x < info.width; x += 1) {
+      const alpha = data[(y * info.width + x) * info.channels + 3];
+      if (alpha > VISUAL_ALPHA_THRESHOLD) {
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+    }
+  }
+
+  assert.notEqual(maxX, -1, "avatar composition should contain visible pixels");
+  return {
+    left: minX,
+    top: minY,
+    right: info.width - 1 - maxX,
+    bottom: info.height - 1 - maxY,
+  };
+}
+
+function getCenteredFrameMargins(
+  margins: AlphaMargins,
+  scale: number
+): AlphaMargins {
+  const xInset = (AVATAR_CANVAS_WIDTH * (1 - scale)) / 2;
+  const yInset = (AVATAR_CANVAS_HEIGHT * (1 - scale)) / 2;
+  return {
+    left: xInset + margins.left * scale,
+    top: yInset + margins.top * scale,
+    right: xInset + margins.right * scale,
+    bottom: yInset + margins.bottom * scale,
+  };
+}
+
+function formatMargin(value: number) {
+  return `${value.toFixed(1)}px`;
 }
 
 describe("Season 5 avatar art manifest", () => {
@@ -188,6 +269,57 @@ describe("Season 5 avatar art manifest", () => {
       assert.equal(fit.sourceSlot, "body");
       assert.equal(fit.visualKey, "warrior");
       assert.ok(publicAssetExists(fit.assetPath), `${fit.assetPath} exists`);
+    }
+  });
+
+  test("warrior map-framed loadouts keep safe visual margins", async () => {
+    const outfits = ["pants", "waders", "raincoat"] as const;
+    const hats = [null, "cap", "bucket", "pointy"] as const;
+    const rods = ["splintered", "cane", "obsidian"] as const;
+
+    for (const outfit of outfits) {
+      for (const hat of hats) {
+        for (const rod of rods) {
+          const label = `${outfit}/${hat ?? "none"}/${rod}`;
+          const rawMargins = await getVisualAlphaMargins(
+            await composeWarriorBodyPartLoadout({
+              body: "warrior",
+              outfit,
+              hat,
+              rod,
+            })
+          );
+          const framedMargins = getCenteredFrameMargins(
+            rawMargins,
+            SEASON_FIVE_AVATAR_FRAME_SCALES.map
+          );
+
+          assert.ok(
+            framedMargins.left >= MIN_FRAMED_SIDE_MARGIN_PX,
+            `${label} framed left margin ${formatMargin(
+              framedMargins.left
+            )} should stay clear`
+          );
+          assert.ok(
+            framedMargins.right >= MIN_FRAMED_SIDE_MARGIN_PX,
+            `${label} framed right margin ${formatMargin(
+              framedMargins.right
+            )} should stay clear`
+          );
+          assert.ok(
+            framedMargins.bottom >= MIN_FRAMED_SIDE_MARGIN_PX,
+            `${label} framed bottom margin ${formatMargin(
+              framedMargins.bottom
+            )} should stay clear`
+          );
+          assert.ok(
+            framedMargins.top >= MIN_FRAMED_TOP_MARGIN_PX,
+            `${label} framed top margin ${formatMargin(
+              framedMargins.top
+            )} should stay clear`
+          );
+        }
+      }
     }
   });
 
