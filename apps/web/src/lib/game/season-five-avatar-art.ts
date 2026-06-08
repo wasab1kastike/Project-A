@@ -121,21 +121,30 @@ export function getSeasonFiveAvatarLayerFit({
   slot,
   visualKey,
   bodyKey,
+  outfitKey,
 }: {
   slot: SeasonFiveAvatarLayerSlot;
   visualKey: string | null | undefined;
   bodyKey?: string | null;
+  outfitKey?: string | null;
 }): SeasonFiveAvatarLayerFit | undefined {
   if (!isSeasonFiveAvatarLayerKey(slot, visualKey) || !visualKey) {
     return undefined;
   }
 
   const bodyFamily = getSeasonFiveAvatarBodyFamily(bodyKey);
+  const usesOutfitVariant =
+    slot === "hat" &&
+    outfitKey === "greatcoat" &&
+    (bodyFamily === "warrior" || bodyFamily === "rogue");
   const override = bodyFamily
     ? SEASON_FIVE_AVATAR_LAYER_FITS[slot]?.[visualKey]?.[bodyFamily]
     : undefined;
   const assetKey =
     override?.assetKey ??
+    (bodyFamily && usesOutfitVariant
+      ? `${visualKey}.${bodyFamily}.${outfitKey}`
+      : undefined) ??
     (bodyFamily && usesFamilyVariant(slot, visualKey)
       ? `${visualKey}.${bodyFamily}`
       : visualKey);
@@ -153,6 +162,7 @@ export function getSeasonFiveAvatarLayerPath(args: {
   slot: SeasonFiveAvatarLayerSlot;
   visualKey: string | null | undefined;
   bodyKey?: string | null;
+  outfitKey?: string | null;
 }) {
   return getSeasonFiveAvatarLayerFit(args)?.assetPath;
 }
@@ -183,8 +193,10 @@ export function getSeasonFiveAvatarBaseFit(
 }
 
 export function getSeasonFiveAvatarLayers(loadout: SeasonFiveAvatarLoadout) {
+  const base = getSeasonFiveAvatarBaseFit(loadout);
+
   return {
-    base: getSeasonFiveAvatarBaseFit(loadout),
+    base,
     rod: getSeasonFiveAvatarLayerFit({
       slot: "rod",
       visualKey: loadout.rod,
@@ -194,6 +206,7 @@ export function getSeasonFiveAvatarLayers(loadout: SeasonFiveAvatarLoadout) {
       slot: "hat",
       visualKey: loadout.hat,
       bodyKey: loadout.body,
+      outfitKey: base?.outfitKey,
     }),
   };
 }

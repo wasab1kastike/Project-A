@@ -208,6 +208,50 @@ describe("Season 5 avatar art manifest", () => {
     }
   });
 
+  test("greatcoat hats resolve outfit-specific variants for regenerated bodies", () => {
+    for (const family of ["warrior", "rogue"] as const) {
+      for (const hat of SEASON_FIVE_AVATAR_LAYER_KEYS.hat) {
+        const greatcoatLayers = getSeasonFiveAvatarLayers({
+          body: family,
+          outfit: "greatcoat",
+          hat,
+          rod: "splintered",
+        });
+
+        assert.equal(
+          greatcoatLayers.hat?.assetKey,
+          `${hat}.${family}.greatcoat`
+        );
+        assert.ok(
+          publicAssetExists(greatcoatLayers.hat?.assetPath ?? ""),
+          `${greatcoatLayers.hat?.assetPath} should exist`
+        );
+
+        const pantsLayers = getSeasonFiveAvatarLayers({
+          body: family,
+          outfit: "pants",
+          hat,
+          rod: "splintered",
+        });
+
+        assert.equal(pantsLayers.hat?.assetKey, `${hat}.${family}`);
+      }
+    }
+
+    for (const family of ["monk", "wizard"] as const) {
+      for (const hat of SEASON_FIVE_AVATAR_LAYER_KEYS.hat) {
+        const layers = getSeasonFiveAvatarLayers({
+          body: family,
+          outfit: "greatcoat",
+          hat,
+          rod: "splintered",
+        });
+
+        assert.equal(layers.hat?.assetKey, `${hat}.${family}`);
+      }
+    }
+  });
+
   test("mixed loadouts resolve hybrid base and overlay layers", () => {
     const layers = getSeasonFiveAvatarLayers({
       body: "warrior",

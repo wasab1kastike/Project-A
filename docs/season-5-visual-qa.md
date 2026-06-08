@@ -52,6 +52,7 @@ Season 5 avatars use a hybrid fitted-base model on a shared 256 x 320 transparen
 - No-coat class bodies live under `/assets/season-5/avatar/body/{family}.png`.
 - Outfit bases live under `/assets/season-5/avatar/base/{family}/{outfit}.png`.
 - Hats and rods use fitted family overlays under `/assets/season-5/avatar/{hat|rod}/{visualKey}.{family}.png`.
+- Regenerated outfit bases that move the head can use outfit-specific hat overlays such as `/assets/season-5/avatar/hat/{visualKey}.{family}.greatcoat.png`.
 - Neutral item references live under `/assets/season-5/avatar/reference/{slot}/{visualKey}.png`.
 - Active body families: `monk`, `warrior`, `wizard`, and `rogue`.
 - Active outfit bases: `pants`, `waders`, `raincoat`, and `greatcoat`; `pants` resolves to the no-coat class body.

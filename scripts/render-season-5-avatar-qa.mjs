@@ -93,7 +93,15 @@ function assetPathForBase(family, outfit) {
     : path.join(AVATAR_ROOT, "base", family, `${outfit}.png`);
 }
 
-function assetPathForFittedLayer(slot, visualKey, family) {
+function assetPathForFittedLayer(slot, visualKey, family, outfit) {
+  if (
+    slot === "hat" &&
+    outfit === "greatcoat" &&
+    (family === "warrior" || family === "rogue")
+  ) {
+    return path.join(AVATAR_ROOT, slot, `${visualKey}.${family}.${outfit}.png`);
+  }
+
   return path.join(AVATAR_ROOT, slot, `${visualKey}.${family}.png`);
 }
 
@@ -114,8 +122,10 @@ async function composeAvatar({
   height = CANVAS_HEIGHT,
 }) {
   const basePath = assetPathForBase(family, outfit);
-  const rodPath = assetPathForFittedLayer("rod", rod, family);
-  const hatPath = hat ? assetPathForFittedLayer("hat", hat, family) : null;
+  const rodPath = assetPathForFittedLayer("rod", rod, family, outfit);
+  const hatPath = hat
+    ? assetPathForFittedLayer("hat", hat, family, outfit)
+    : null;
 
   await assertFileExists(basePath);
   await assertFileExists(rodPath);
