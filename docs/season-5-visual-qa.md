@@ -39,7 +39,7 @@ Check these viewport sizes before closing visual work:
 - Class cards show all five stats without text overflow.
 - The character link and inventory link remain reachable on desktop and mobile.
 - Character avatars use one default body per class; retired warrior, monk, wizard, and rogue body variants are not active equipment bodies.
-- Retired Warrior avatars can render from modular full-canvas body parts for the first-pass outfit, hat, and rod set.
+- Retired Warrior base body parts are generated as separate full-canvas assets before item-worn variants are added.
 - The inventory panel makes full-inventory state visible.
 - The two ranking panels remain readable: Most Fish and Biggest Fish.
 
@@ -48,16 +48,17 @@ Check these viewport sizes before closing visual work:
 Season 5 avatars keep a shared 256 x 320 transparent canvas for every bitmap layer. The first modular character pass is Retired Warrior only:
 
 - Base parts live under `/assets/season-5/avatar/characters/warrior/idle/front/0/`.
-- Item-worn parts live under `/assets/season-5/avatar/items/{slot}/{visualKey}/warrior/idle/front/0/`.
+- Item-worn parts live under `/assets/season-5/avatar/items/{slot}/{visualKey}/warrior/idle/front/0/`; the current item-worn set is deferred until the base body is approved.
 - Neutral item references live under `/assets/season-5/avatar/reference/{slot}/{visualKey}.png`.
-- Supported warrior item-part set: outfits `pants`, `waders`, `raincoat`; hats `cap`, `bucket`, `pointy`; rods `splintered`, `cane`, `obsidian`.
+- Supported warrior base-body set: `head`, `torso`, `legs`, `leftHand`, and `rightHand`.
+- Planned warrior item-part set: outfits `pants`, `waders`, `raincoat`; hats `cap`, `bucket`, `pointy`; rods `splintered`, `cane`, `obsidian`.
 - Bamboo rod and non-warrior classes intentionally use the existing fitted full-layer renderer until they get matching part art.
 
 Review sheets:
 
 - `docs/season-5-warrior-body-parts.png`
-- `docs/season-5-warrior-item-references.png`
-- `docs/season-5-warrior-item-combinations.png`
+- `docs/season-5-warrior-item-references.png` (previous item reference sheet)
+- `docs/season-5-warrior-item-combinations.png` (previous item combination sheet; regenerate after item-specific parts are rebuilt)
 
 ## Class Visual Language
 

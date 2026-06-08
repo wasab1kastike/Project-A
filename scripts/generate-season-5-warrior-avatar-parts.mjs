@@ -1,4 +1,4 @@
-import { mkdir, copyFile } from "node:fs/promises";
+import { access, mkdir, copyFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 
@@ -192,10 +192,7 @@ async function composeLayers(layers) {
 
 async function writeBaseParts() {
   for (const part of BODY_PARTS) {
-    await writePng(
-      characterPartPath(part),
-      await maskedSource(WARRIOR_BODY, part)
-    );
+    await access(characterPartPath(part));
   }
 }
 
@@ -313,24 +310,53 @@ async function renderLoadout(loadout) {
   return composeLayers(layers);
 }
 
-async function writeSheets() {
+async function withOpacity(input, opacity) {
+  const { data, info } = await sharp(input)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const output = Buffer.from(data);
+
+  for (let index = 3; index < output.length; index += 4) {
+    output[index] = Math.round(output[index] * opacity);
+  }
+
+  return sharp(output, {
+    raw: {
+      width: info.width,
+      height: info.height,
+      channels: 4,
+    },
+  })
+    .png()
+    .toBuffer();
+}
+
+async function writeBodyPartSheet() {
   const recomposedWarrior = await composeLayers(
     BODY_PARTS.map((part) => characterPartPath(part))
   );
+  const overlayComparison = await composeLayers([
+    await withOpacity(WARRIOR_BODY, 0.35),
+    recomposedWarrior,
+  ]);
   await renderSheet({
     entries: [
       { label: "recomposed", input: recomposedWarrior },
+      { label: "overlay", input: overlayComparison },
       ...BODY_PARTS.map((part) => ({
         label: part,
         input: characterPartPath(part),
       })),
     ],
-    columns: 6,
+    columns: 7,
     cellWidth: 150,
     cellHeight: 205,
     output: path.join(DOCS_ROOT, "season-5-warrior-body-parts.png"),
   });
+}
 
+async function writeItemSheets() {
   await renderSheet({
     entries: Object.entries(ITEM_PARTS).flatMap(([slot, items]) =>
       Object.keys(items).map((key) => ({
@@ -365,9 +391,14 @@ async function writeSheets() {
 }
 
 await writeBaseParts();
-await writeItemParts();
-await writeSheets();
+if (process.env.SEASON_5_REBUILD_WARRIOR_ITEM_PARTS === "1") {
+  await writeItemParts();
+}
+await writeBodyPartSheet();
+if (process.env.SEASON_5_RENDER_WARRIOR_ITEM_SHEETS === "1") {
+  await writeItemSheets();
+}
 
 console.log(
-  "Generated Season 5 warrior modular avatar parts and review sheets."
+  "Generated Season 5 warrior modular avatar base-body review sheet."
 );
