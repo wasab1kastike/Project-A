@@ -3,11 +3,14 @@ import {
   SeasonFiveMapRole,
   SeasonFiveMapTerrain,
 } from "@/lib/prisma-client";
+import { HEX_TILES, type HexBiome } from "./map-hex";
 import { addHours, addMinutes } from "./time";
 
-export const SEASON_FIVE_MAP_COLUMNS = 16;
-export const SEASON_FIVE_MAP_ROWS = 10;
-export const SEASON_FIVE_DAILY_SPECIAL_COUNT = 3;
+export const SEASON_FIVE_MAP_COLUMNS =
+  Math.max(...HEX_TILES.map((tile) => tile.col)) + 1;
+export const SEASON_FIVE_MAP_ROWS =
+  Math.max(...HEX_TILES.map((tile) => tile.row)) + 1;
+export const SEASON_FIVE_DAILY_SPECIAL_COUNT = 4;
 export const SEASON_FIVE_SECRET_LAKE_KEY = "moon-rusted-key";
 export const SEASON_FIVE_WATER_BODY_REVEAL_HOURS = 6;
 
@@ -36,7 +39,8 @@ export type SeasonFiveWaterBodyProfileKey =
   | "coast"
   | "lake"
   | "deep"
-  | "lava_lake";
+  | "lava_lake"
+  | "void_lake";
 
 export type SeasonFiveWaterBodyProfile = {
   key: SeasonFiveWaterBodyProfileKey;
@@ -82,37 +86,23 @@ export type SeasonFiveFishingLocationPlan = {
   inventoryPressure: number;
 };
 
-const TERRAIN_GRID = [
-  "MMFFFFFFSSHHHCCC",
-  "MFFFFFFFSSSHHCCC",
-  "FFWWFFRRSSSLLCCC",
-  "FFWWFFRRGGLLLLCC",
-  "FFFFFRRRGGGGLLCC",
-  "FFHHHRRRGGGGSSCC",
-  "FHHHGGGRRRSSSSCC",
-  "WWHHGGGGRRSSCCCC",
-  "WWWGGGGGFRRCCCCC",
-  "WWWWGGGFFFFCCCCC",
-] as const;
-
-const TERRAIN_BY_CODE: Record<string, SeasonFiveMapTerrain> = {
-  C: SeasonFiveMapTerrain.COAST,
-  F: SeasonFiveMapTerrain.FOREST,
-  G: SeasonFiveMapTerrain.GRASS,
-  H: SeasonFiveMapTerrain.HILL,
-  L: SeasonFiveMapTerrain.WATER,
-  M: SeasonFiveMapTerrain.MOUNTAIN,
-  R: SeasonFiveMapTerrain.ROAD,
-  S: SeasonFiveMapTerrain.SWAMP,
-  W: SeasonFiveMapTerrain.WATER,
+const TERRAIN_BY_BIOME: Record<HexBiome, SeasonFiveMapTerrain> = {
+  coast: SeasonFiveMapTerrain.COAST,
+  forest: SeasonFiveMapTerrain.FOREST,
+  hills: SeasonFiveMapTerrain.HILL,
+  lake: SeasonFiveMapTerrain.WATER,
+  marsh: SeasonFiveMapTerrain.SWAMP,
+  mountains: SeasonFiveMapTerrain.MOUNTAIN,
+  plains: SeasonFiveMapTerrain.GRASS,
+  water: SeasonFiveMapTerrain.WATER,
 };
 
 const LOCATION_TILE_KEYS = {
-  home: "t-5-7",
-  "mossglass-lake": "t-3-3",
-  "old-pier": "t-4-11",
-  "blackwake-sea": "t-7-13",
-  "moon-depths": "t-8-2",
+  home: "t-16-20",
+  "mossglass-lake": "t-4-6",
+  "old-pier": "t-13-23",
+  "blackwake-sea": "t-20-38",
+  "moon-depths": "t-25-8",
 } as const;
 
 const LOCATION_KEY_BY_TILE_KEY = Object.fromEntries(
@@ -215,6 +205,28 @@ export const SEASON_FIVE_WATER_BODY_PROFILES = {
     },
     notableFish: "snot koi, magma mouths, and noble scalded trophies",
   },
+  void_lake: {
+    key: "void_lake",
+    label: "Void Lake",
+    kind: SeasonFiveLocationKind.LAKE,
+    baseTravelMinutes: 20,
+    maxStock: 18,
+    regenPerHour: 3,
+    levelRequired: 10,
+    requiredGearKey: "screaming-bamboo-pole",
+    catchDifficulty: 6,
+    minWeightGrams: 1000,
+    maxWeightGrams: 120000,
+    inventoryPressure: 4,
+    stockLabels: {
+      rich: "Void is staring back",
+      steady: "Void is muttering",
+      low: "Void is sulking",
+      empty: "Void is emotionally unavailable",
+    },
+    notableFish:
+      "nibblers, blinking holefish, and barons of absolutely nothing",
+  },
 } as const satisfies Record<
   SeasonFiveWaterBodyProfileKey,
   SeasonFiveWaterBodyProfile
@@ -228,28 +240,29 @@ const STATIC_ROLES: Record<
     role: SeasonFiveMapRole.HOME,
     roleLabel: "Home Base",
   },
-  [LOCATION_TILE_KEYS["mossglass-lake"]]: {
-    role: SeasonFiveMapRole.FISHING_SPOT,
-    roleLabel: "Mossglass Lake",
-  },
-  [LOCATION_TILE_KEYS["old-pier"]]: {
-    role: SeasonFiveMapRole.FISHING_SPOT,
-    roleLabel: "Old Pier",
-  },
-  [LOCATION_TILE_KEYS["blackwake-sea"]]: {
-    role: SeasonFiveMapRole.FISHING_SPOT,
-    roleLabel: "Blackwake Sea",
-  },
-  [LOCATION_TILE_KEYS["moon-depths"]]: {
-    role: SeasonFiveMapRole.FISHING_SPOT,
-    roleLabel: "Moon Depths",
-  },
 };
 
-const SPECIAL_ROLE_SEQUENCE = [
-  SeasonFiveMapRole.SHOP,
-  SeasonFiveMapRole.EVENT,
-  SeasonFiveMapRole.SECRET_LAKE,
+const SPECIAL_TILE_PLANS = [
+  {
+    key: "shop",
+    role: SeasonFiveMapRole.SHOP,
+    roleLabel: "Travelling Shop",
+  },
+  {
+    key: "event",
+    role: SeasonFiveMapRole.EVENT,
+    roleLabel: "Campfire Event",
+  },
+  {
+    key: "lava",
+    role: SeasonFiveMapRole.SECRET_LAKE,
+    roleLabel: "Lava Pool",
+  },
+  {
+    key: "void",
+    role: SeasonFiveMapRole.SECRET_LAKE,
+    roleLabel: "Void Lake",
+  },
 ] as const;
 
 function hashString(input: string) {
@@ -302,36 +315,27 @@ export function getSeasonFiveLocationTileKey(locationKey: string) {
 }
 
 export function createSeasonFiveMapTiles() {
-  const tiles: SeasonFiveTileTemplate[] = [];
+  return HEX_TILES.map((hex) => {
+    const key = `t-${hex.row}-${hex.col}`;
+    const staticRole = STATIC_ROLES[key];
+    const terrain = TERRAIN_BY_BIOME[hex.biome];
 
-  for (let row = 0; row < SEASON_FIVE_MAP_ROWS; row += 1) {
-    const terrainRow = TERRAIN_GRID[row] ?? "";
-    for (let col = 0; col < SEASON_FIVE_MAP_COLUMNS; col += 1) {
-      const key = `t-${row}-${col}`;
-      const staticRole = STATIC_ROLES[key];
-      const terrain =
-        TERRAIN_BY_CODE[terrainRow[col] ?? "G"] ?? SeasonFiveMapTerrain.GRASS;
-
-      tiles.push({
-        key,
-        row,
-        col,
-        xPercent:
-          Math.round(((col + 0.5) / SEASON_FIVE_MAP_COLUMNS) * 1000) / 10,
-        yPercent: Math.round(((row + 0.5) / SEASON_FIVE_MAP_ROWS) * 1000) / 10,
-        terrain,
-        visualVariant: hashString(`${row}:${col}:${terrain}`) % 4,
-        role: staticRole?.role ?? SeasonFiveMapRole.NONE,
-        roleLabel: staticRole?.roleLabel ?? null,
-        hidden: false,
-        requiredKey: null,
-        roleSeedKey: null,
-        expiresAt: null,
-      });
-    }
-  }
-
-  return tiles;
+    return {
+      key,
+      row: hex.row,
+      col: hex.col,
+      xPercent: hex.xPercent,
+      yPercent: hex.yPercent,
+      terrain,
+      visualVariant: hashString(`${hex.row}:${hex.col}:${terrain}`) % 4,
+      role: staticRole?.role ?? SeasonFiveMapRole.NONE,
+      roleLabel: staticRole?.roleLabel ?? null,
+      hidden: false,
+      requiredKey: null,
+      roleSeedKey: null,
+      expiresAt: null,
+    };
+  });
 }
 
 export function isSeasonFiveFishableTile(tile: {
@@ -341,7 +345,6 @@ export function isSeasonFiveFishableTile(tile: {
   return (
     tile.terrain === SeasonFiveMapTerrain.WATER ||
     tile.terrain === SeasonFiveMapTerrain.COAST ||
-    tile.role === SeasonFiveMapRole.FISHING_SPOT ||
     tile.role === SeasonFiveMapRole.SECRET_LAKE
   );
 }
@@ -382,19 +385,30 @@ function getAdjacentSeasonFiveTileKeys(
 function getWaterBodyProfileKey(
   bodyTiles: SeasonFiveMapTileSnapshot[]
 ): SeasonFiveWaterBodyProfileKey {
-  if (bodyTiles.some((tile) => tile.role === SeasonFiveMapRole.SECRET_LAKE)) {
-    return "lava_lake";
+  if (
+    bodyTiles.some(
+      (tile) =>
+        tile.role === SeasonFiveMapRole.SECRET_LAKE &&
+        tile.roleLabel === "Void Lake"
+    )
+  ) {
+    return "void_lake";
   }
   if (
     bodyTiles.some(
-      (tile) => tile.key === LOCATION_TILE_KEYS["moon-depths"]
+      (tile) =>
+        tile.role === SeasonFiveMapRole.SECRET_LAKE &&
+        tile.roleLabel === "Lava Pool"
     )
+  ) {
+    return "lava_lake";
+  }
+  if (
+    bodyTiles.some((tile) => tile.key === LOCATION_TILE_KEYS["moon-depths"])
   ) {
     return "deep";
   }
-  if (
-    bodyTiles.some((tile) => tile.terrain === SeasonFiveMapTerrain.COAST)
-  ) {
+  if (bodyTiles.some((tile) => tile.terrain === SeasonFiveMapTerrain.COAST)) {
     return "coast";
   }
   return "lake";
@@ -424,9 +438,7 @@ function getWaterBodyName(
   return `${profile.label} ${index + 1}`;
 }
 
-export function planSeasonFiveWaterBodies(
-  tiles: SeasonFiveMapTileSnapshot[]
-) {
+export function planSeasonFiveWaterBodies(tiles: SeasonFiveMapTileSnapshot[]) {
   const tileByKey = new Map(tiles.map((tile) => [tile.key, tile]));
   const tileByCoordinate = new Map(
     tiles.map((tile) => [`${tile.col}:${tile.row}`, tile] as const)
@@ -488,7 +500,7 @@ export function planSeasonFiveWaterBodies(
       profileKey,
       profile,
       tileKeys: bodyTiles.map((entry) => entry.key),
-      hidden: profileKey === "lava_lake",
+      hidden: false,
     });
   }
 
@@ -617,15 +629,9 @@ function isSpecialEligible(tile: SeasonFiveMapTileSnapshot) {
   return (
     tile.role === SeasonFiveMapRole.NONE &&
     tile.terrain !== SeasonFiveMapTerrain.MOUNTAIN &&
-    tile.terrain !== SeasonFiveMapTerrain.WATER
+    tile.terrain !== SeasonFiveMapTerrain.WATER &&
+    tile.terrain !== SeasonFiveMapTerrain.COAST
   );
-}
-
-function getSpecialLabel(role: SeasonFiveMapRole) {
-  if (role === SeasonFiveMapRole.SHOP) return "Travelling Shop";
-  if (role === SeasonFiveMapRole.EVENT) return "Campfire Event";
-  if (role === SeasonFiveMapRole.SECRET_LAKE) return "Secret Lake";
-  return null;
 }
 
 export function planSeasonFiveDailySpecialTiles({
@@ -650,12 +656,13 @@ export function planSeasonFiveDailySpecialTiles({
 
   for (
     let index = 0;
-    index < SPECIAL_ROLE_SEQUENCE.length && candidates.length > 0;
+    index < SPECIAL_TILE_PLANS.length && candidates.length > 0;
     index += 1
   ) {
-    const role = SPECIAL_ROLE_SEQUENCE[index];
+    const plan = SPECIAL_TILE_PLANS[index];
+    if (!plan) continue;
     const candidateIndex = seededIndex(
-      `${rotationKey}:${role}`,
+      `${rotationKey}:${plan.key}`,
       candidates.length
     );
     const [tile] = candidates.splice(candidateIndex, 1);
@@ -663,14 +670,11 @@ export function planSeasonFiveDailySpecialTiles({
 
     planned.push({
       tileKey: tile.key,
-      role,
-      roleLabel: getSpecialLabel(role) ?? "Map Event",
-      hidden: role === SeasonFiveMapRole.SECRET_LAKE,
-      requiredKey:
-        role === SeasonFiveMapRole.SECRET_LAKE
-          ? SEASON_FIVE_SECRET_LAKE_KEY
-          : null,
-      roleSeedKey: rotationKey,
+      role: plan.role,
+      roleLabel: plan.roleLabel,
+      hidden: false,
+      requiredKey: null,
+      roleSeedKey: `${rotationKey}:${plan.key}`,
       expiresAt: getSeasonFiveDailyRotationExpiresAt(now),
     });
   }

@@ -27,11 +27,11 @@ When the preview flag is enabled, `/` renders the Season 5 fishing interface ins
 - Travel takes time. On arrival, the character fishes passively until a new action is submitted.
 - Inventory capacity limits fishing output. Returning home unloads the current haul.
 - Fish weight is shown to players in kilograms and stored internally as grams for sorting.
-- Any water or coast tile can be chosen as a fishing destination. Old named spots still exist, but the map is no longer limited to only those pins.
+- Every visible lake, river, coast, and sea tile can be chosen as a fishing destination. Old named spots still exist, but the map is no longer limited to only those pins.
 - Connected water bodies have hidden fish pools with stock and hourly regeneration. Passive catches consume stock; depleted pools recover over time.
-- Pool details can be revealed temporarily by character stats, gear, and passives. Reveals show water-body name, profile, stock state, regen, and notable fish.
-- Fish species are fantasy-themed by water profile, from soggy comedy fish to deep-water grotesques and lava trophies.
-- Deep water and lava lakes are gated by character level plus deep-water gear or matching passives. Normal lake and coastal water are open from level 1.
+- Route cards show the water type and lock requirements. Pool stock, regen, and notable fish can be revealed temporarily by character stats, gear, and passives.
+- Fish species are fantasy-themed by water profile, from soggy comedy fish to deep-water grotesques, lava trophies, and void mistakes.
+- Deep water, lava pools, and void lakes are gated by character level plus fitting gear or matching passives. Normal lake and coastal water are open from level 1.
 - Main rankings are Most Fish and Biggest Fish.
 - Previous Project-A history and cosmetics are prestige-only.
 

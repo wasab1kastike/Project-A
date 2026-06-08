@@ -434,10 +434,8 @@ function getSeasonFiveWaterBodyBoundaryDirections(row: number) {
 
 function getRoleMarker(role: string) {
   if (role === "HOME") return "H";
-  if (role === "FISHING_SPOT") return "F";
   if (role === "SHOP") return "$";
   if (role === "EVENT") return "!";
-  if (role === "SECRET_LAKE") return "?";
   return "";
 }
 
@@ -1644,28 +1642,30 @@ function WorldMap({
                     (entry) => entry.locationKey === location.key
                   )
                 : null;
+              const waterBodyProfileKey = location?.waterBodyProfileKey;
+              const isSpecialWater =
+                waterBodyProfileKey === "lava_lake" ||
+                waterBodyProfileKey === "void_lake";
+              const waterProfileClass =
+                waterBodyProfileKey === "lava_lake"
+                  ? styles.lavaWaterTile
+                  : waterBodyProfileKey === "void_lake"
+                    ? styles.voidWaterTile
+                    : "";
               const roleClass =
                 tile.role === "HOME"
                   ? styles.homeTile
-                  : tile.role === "FISHING_SPOT"
-                    ? styles.fishingTile
-                    : tile.role === "SHOP"
-                      ? styles.shopTile
-                      : tile.role === "EVENT"
-                        ? styles.eventTile
-                        : tile.role === "SECRET_LAKE"
-                          ? styles.secretTile
-                          : location && location.kind !== "HOME"
-                            ? styles.fishableWaterTile
-                            : "";
+                  : tile.role === "SHOP"
+                    ? styles.shopTile
+                    : tile.role === "EVENT"
+                      ? styles.eventTile
+                      : location && location.kind !== "HOME"
+                        ? `${styles.fishableWaterTile} ${waterProfileClass}`
+                        : "";
               const isSelected = selectedLocation?.tileKey === tile.key;
               const isCurrent = character?.currentTileKey === tile.key;
               const isDestination = character?.destinationTileKey === tile.key;
               const isLocked = Boolean(tile.locked || location?.locked);
-              const isFishableWater =
-                Boolean(location) &&
-                location?.kind !== "HOME" &&
-                tile.role === "NONE";
               const isInteractive =
                 Boolean(character) &&
                 character?.actionKind !== "TRAVELING" &&
@@ -1751,19 +1751,24 @@ function WorldMap({
                     className={styles.seasonFiveWorldHotspotArea}
                     points={HEX_TILE_POLYGON_POINTS.get(hex.id)}
                   />
-                  {tile.role !== "NONE" ? (
+                  {isSpecialWater ? (
+                    <g
+                      className={styles.seasonFiveWorldSpecialWaterGlyph}
+                      data-water-profile={waterBodyProfileKey}
+                    >
+                      <path
+                        d={`M ${hex.x - 29} ${hex.y - 10} q 14 10 29 0 t 29 0 M ${
+                          hex.x - 24
+                        } ${hex.y + 10} q 12 9 24 0 t 24 0`}
+                      />
+                      <circle cx={hex.x} cy={hex.y} r="5" />
+                    </g>
+                  ) : null}
+                  {marker ? (
                     <g className={styles.seasonFiveWorldMarker}>
                       <circle cx={hex.x} cy={hex.y} r="18" />
                       <text x={hex.x} y={hex.y + 7}>
                         {marker}
-                      </text>
-                    </g>
-                  ) : null}
-                  {isFishableWater ? (
-                    <g className={styles.seasonFiveWorldWaterMarker}>
-                      <circle cx={hex.x} cy={hex.y} r="12" />
-                      <text x={hex.x} y={hex.y + 5}>
-                        F
                       </text>
                     </g>
                   ) : null}

@@ -30,6 +30,7 @@ import {
 import {
   SEASON_FIVE_WATER_BODY_PROFILES,
   SEASON_FIVE_WATER_BODY_REVEAL_HOURS,
+  SEASON_FIVE_DAILY_SPECIAL_COUNT,
   createSeasonFiveMapTiles,
   getSeasonFiveDailyRotationKey,
   getSeasonFiveLocationTileKey,
@@ -330,16 +331,14 @@ export const SEASON_FIVE_SKILL_TREES = {
       {
         key: "warrior_trophy_drag",
         name: "Trophy Drag",
-        description:
-          "+12% trophy weight and stronger deep-water trophy focus.",
+        description: "+12% trophy weight and stronger deep-water trophy focus.",
         cost: 1,
         effectBonuses: { sizeBonusPercent: 12, trophySizeBonusPercent: 4 },
       },
       {
         key: "warrior_old_hooks",
         name: "Old Hooks",
-        description:
-          "+8% trophy weight and better hard-water trophy rarity.",
+        description: "+8% trophy weight and better hard-water trophy rarity.",
         cost: 1,
         effectBonuses: { sizeBonusPercent: 8, trophyRarityBonus: 2 },
       },
@@ -1561,6 +1560,9 @@ function hasSeasonFiveDeepAccessSkill(
   if (profileKey === "lava_lake") {
     return wizardDeepKeys.slice(1).some((key) => purchasedSkillKeys.has(key));
   }
+  if (profileKey === "void_lake") {
+    return purchasedSkillKeys.has("wizard_abyssal_chorus");
+  }
   return (
     wizardDeepKeys.some((key) => purchasedSkillKeys.has(key)) ||
     purchasedSkillKeys.has("warrior_deep_campaign")
@@ -1644,7 +1646,9 @@ function getSeasonFiveFishingAccess({
         reason:
           waterBody.profileKey === "lava_lake"
             ? "Requires a lava-safe rod or a deeper wizard skill."
-            : "Requires deep-water gear or a deep-water skill.",
+            : waterBody.profileKey === "void_lake"
+              ? "Requires a void-safe rod or the deepest wizard skill."
+              : "Requires deep-water gear or a deep-water skill.",
       };
     }
   }
@@ -1916,7 +1920,48 @@ export function getSeasonFivePlayerLeagueStanding(input: {
 }
 
 async function ensureSeasonFiveMapTiles(cycleId: string, db: DatabaseClient) {
-  for (const tile of createSeasonFiveMapTiles()) {
+  const plannedTiles = createSeasonFiveMapTiles();
+  const existingTiles = await db.seasonFiveMapTile.findMany({
+    where: {
+      cycleId,
+    },
+  });
+  const existingByKey = new Map(existingTiles.map((tile) => [tile.key, tile]));
+
+  for (const tile of plannedTiles) {
+    const existing = existingByKey.get(tile.key);
+    const baseData = {
+      row: tile.row,
+      col: tile.col,
+      xPercent: tile.xPercent,
+      yPercent: tile.yPercent,
+      terrain: tile.terrain,
+      visualVariant: tile.visualVariant,
+      ...(tile.role === SeasonFiveMapRole.HOME
+        ? {
+            role: tile.role,
+            roleLabel: tile.roleLabel,
+            hidden: false,
+            requiredKey: null,
+          }
+        : {}),
+    };
+
+    if (
+      existing &&
+      existing.row === tile.row &&
+      existing.col === tile.col &&
+      existing.xPercent === tile.xPercent &&
+      existing.yPercent === tile.yPercent &&
+      existing.terrain === tile.terrain &&
+      existing.visualVariant === tile.visualVariant &&
+      (tile.role !== SeasonFiveMapRole.HOME ||
+        (existing.role === SeasonFiveMapRole.HOME &&
+          existing.roleLabel === tile.roleLabel))
+    ) {
+      continue;
+    }
+
     await db.seasonFiveMapTile.upsert({
       where: {
         cycleId_key: {
@@ -1928,23 +1973,38 @@ async function ensureSeasonFiveMapTiles(cycleId: string, db: DatabaseClient) {
         cycleId,
         ...tile,
       },
-      update: {
-        row: tile.row,
-        col: tile.col,
-        xPercent: tile.xPercent,
-        yPercent: tile.yPercent,
-        terrain: tile.terrain,
-        visualVariant: tile.visualVariant,
-        role:
-          tile.role === SeasonFiveMapRole.HOME ||
-          tile.role === SeasonFiveMapRole.FISHING_SPOT
-            ? tile.role
-            : undefined,
-        roleLabel:
-          tile.role === SeasonFiveMapRole.HOME ||
-          tile.role === SeasonFiveMapRole.FISHING_SPOT
-            ? tile.roleLabel
-            : undefined,
+      update: baseData,
+    });
+  }
+
+  await db.seasonFiveMapTile.updateMany({
+    where: {
+      cycleId,
+      role: SeasonFiveMapRole.FISHING_SPOT,
+    },
+    data: {
+      role: SeasonFiveMapRole.NONE,
+      roleLabel: null,
+      hidden: false,
+      requiredKey: null,
+    },
+  });
+
+  const homeTileKey = getSeasonFiveLocationTileKey("home");
+  if (homeTileKey) {
+    await db.seasonFiveMapTile.updateMany({
+      where: {
+        cycleId,
+        role: SeasonFiveMapRole.HOME,
+        key: {
+          not: homeTileKey,
+        },
+      },
+      data: {
+        role: SeasonFiveMapRole.NONE,
+        roleLabel: null,
+        hidden: false,
+        requiredKey: null,
       },
     });
   }
@@ -1970,6 +2030,10 @@ async function ensureSeasonFiveLocations(
     existingBodies.map((body) => [body.key, body])
   );
   const bodyPlans = planSeasonFiveWaterBodies(tiles);
+  const fishingLocationPlans = planSeasonFiveFishingLocations({
+    tiles,
+    waterBodies: bodyPlans,
+  });
   const waterBodyByKey = new Map<string, { id: string; key: string }>();
 
   for (const body of bodyPlans) {
@@ -2052,10 +2116,7 @@ async function ensureSeasonFiveLocations(
     },
   });
 
-  for (const location of planSeasonFiveFishingLocations({
-    tiles,
-    waterBodies: bodyPlans,
-  })) {
+  for (const location of fishingLocationPlans) {
     const { tileKey, waterBodyKey, ...locationData } = location;
     const tile = tileByKey.get(tileKey) ?? null;
     const waterBody = waterBodyByKey.get(waterBodyKey) ?? null;
@@ -2090,6 +2151,19 @@ async function ensureSeasonFiveLocations(
       },
     });
   }
+}
+
+function getSeasonFivePlannedLocationKeys(
+  tiles: Parameters<typeof planSeasonFiveWaterBodies>[0]
+) {
+  const waterBodies = planSeasonFiveWaterBodies(tiles);
+  return new Set([
+    "home",
+    ...planSeasonFiveFishingLocations({
+      tiles,
+      waterBodies,
+    }).map((location) => location.key),
+  ]);
 }
 
 export async function ensureSeasonFivePreviewCycle({
@@ -2166,20 +2240,23 @@ async function rotateSeasonFiveMapSpecials({
   });
 
   const rotationKey = getSeasonFiveDailyRotationKey(now);
-  const existing = await db.seasonFiveMapTile.findFirst({
+  const existing = await db.seasonFiveMapTile.findMany({
     where: {
       cycleId,
-      roleSeedKey: rotationKey,
+      roleSeedKey: {
+        startsWith: `${rotationKey}:`,
+      },
       role: {
         in: specialRoles,
       },
     },
     select: {
       id: true,
+      roleSeedKey: true,
     },
   });
 
-  if (existing) {
+  if (existing.length >= SEASON_FIVE_DAILY_SPECIAL_COUNT) {
     return;
   }
 
@@ -2699,6 +2776,15 @@ export async function startSeasonFiveFishingTrip({
     throw new GameError("Choose a lake or sea fishing spot.");
   }
 
+  const mapTiles = await db.seasonFiveMapTile.findMany({
+    where: {
+      cycleId: cycle.id,
+    },
+  });
+  if (!getSeasonFivePlannedLocationKeys(mapTiles).has(destination.key)) {
+    throw new GameError("Choose a current lake or sea fishing spot.");
+  }
+
   const character = await getSeasonFiveCharacterForUser({
     userId,
     cycleId: cycle.id,
@@ -2883,6 +2969,7 @@ export async function getSeasonFiveHomeState({
     },
     orderBy: [{ row: "asc" }, { col: "asc" }],
   });
+  const plannedLocationKeys = getSeasonFivePlannedLocationKeys(mapTiles);
   const character = userId
     ? await getSeasonFiveCharacterForUser({ userId, cycleId: cycle.id, db })
     : null;
@@ -3085,6 +3172,7 @@ export async function getSeasonFiveHomeState({
       })
     : [];
   const visibleLocations = locations.filter((location) => {
+    if (!plannedLocationKeys.has(location.key)) return false;
     if (location.kind === SeasonFiveLocationKind.HOME) return true;
     if (!location.waterBody?.hidden) return true;
     return character
@@ -3253,12 +3341,9 @@ export async function getSeasonFiveHomeState({
         locked: character ? !access.allowed : false,
         lockReason: character ? access.reason : null,
         waterBodyKey: location.waterBody?.key ?? null,
-        waterBodyName: waterBodyInfoRevealed
-          ? (location.waterBody?.name ?? null)
-          : location.waterBody
-            ? "Unknown water"
-            : null,
-        waterBodyProfile: waterBodyInfoRevealed ? profile?.label : null,
+        waterBodyName: location.waterBody?.name ?? null,
+        waterBodyProfile: profile?.label ?? null,
+        waterBodyProfileKey: location.waterBody?.profileKey ?? null,
         waterBodyStockLabel:
           waterBodyInfoRevealed && location.waterBody
             ? getSeasonFiveWaterBodyStockLabel({
@@ -3529,6 +3614,7 @@ export function getDegradedSeasonFiveHomeState(): SeasonFiveHomeState {
       waterBodyKey: null,
       waterBodyName: null,
       waterBodyProfile: null,
+      waterBodyProfileKey: null,
       waterBodyStockLabel: null,
       waterBodyStockPercent: null,
       waterBodyRegenLabel: null,
@@ -3564,6 +3650,7 @@ export function getDegradedSeasonFiveHomeState(): SeasonFiveHomeState {
         waterBodyKey: body?.key ?? location.waterBodyKey,
         waterBodyName: body?.name ?? null,
         waterBodyProfile: profile?.label ?? null,
+        waterBodyProfileKey: body?.profileKey ?? null,
         waterBodyStockLabel: null,
         waterBodyStockPercent: null,
         waterBodyRegenLabel: null,

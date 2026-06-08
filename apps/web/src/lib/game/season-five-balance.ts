@@ -139,6 +139,33 @@ export const SEASON_FIVE_FISH_SPECIES_BY_PROFILE = {
       rarity: SeasonFiveFishRarity.LEGENDARY,
     },
   ],
+  void_lake: [
+    {
+      key: "void-nibbler",
+      name: "Void Nibbler",
+      rarity: SeasonFiveFishRarity.COMMON,
+    },
+    {
+      key: "blinking-holefish",
+      name: "Blinking Holefish",
+      rarity: SeasonFiveFishRarity.COMMON,
+    },
+    {
+      key: "existential-gulp-eel",
+      name: "Existential Gulp Eel",
+      rarity: SeasonFiveFishRarity.UNCOMMON,
+    },
+    {
+      key: "negative-bone-catfish",
+      name: "Negative-Bone Catfish",
+      rarity: SeasonFiveFishRarity.RARE,
+    },
+    {
+      key: "baron-nothing-to-see",
+      name: "Baron Nothing-To-See",
+      rarity: SeasonFiveFishRarity.LEGENDARY,
+    },
+  ],
 } as const;
 
 const DEFAULT_FISH_SPECIES = SEASON_FIVE_FISH_SPECIES_BY_PROFILE.lake;
@@ -264,6 +291,6 @@ export function createSeasonFiveCatch(input: {
         ? input.inventoryPressure + 2
         : species.rarity === SeasonFiveFishRarity.RARE
           ? input.inventoryPressure + 1
-      : Math.max(1, input.inventoryPressure),
+          : Math.max(1, input.inventoryPressure),
   };
 }

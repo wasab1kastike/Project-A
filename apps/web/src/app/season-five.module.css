@@ -730,7 +730,7 @@
 }
 
 .seasonFiveWorldMarker,
-.seasonFiveWorldWaterMarker,
+.seasonFiveWorldSpecialWaterGlyph,
 .seasonFiveWorldPopulation,
 .seasonFiveWorldActors {
   pointer-events: none;
@@ -745,8 +745,7 @@
 
 .seasonFiveWorldMarker text,
 .seasonFiveWorldPopulation text,
-.seasonFiveWorldActors text,
-.seasonFiveWorldWaterMarker text {
+.seasonFiveWorldActors text {
   fill: #fff8e7;
   font-family: var(--font-geist-sans);
   font-size: 22px;
@@ -765,15 +764,40 @@
   font-size: 18px;
 }
 
-.seasonFiveWorldWaterMarker circle {
-  fill: rgba(20, 70, 78, 0.86);
-  stroke: rgba(182, 236, 226, 0.88);
-  stroke-width: 3px;
-  filter: drop-shadow(0 0 9px rgba(0, 0, 0, 0.56));
+.seasonFiveWorldSpecialWaterGlyph {
+  opacity: 0.92;
 }
 
-.seasonFiveWorldWaterMarker text {
-  font-size: 14px;
+.seasonFiveWorldSpecialWaterGlyph path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-width: 5px;
+  vector-effect: non-scaling-stroke;
+}
+
+.seasonFiveWorldSpecialWaterGlyph circle {
+  stroke-width: 3px;
+  vector-effect: non-scaling-stroke;
+}
+
+.seasonFiveWorldSpecialWaterGlyph[data-water-profile="lava_lake"] path {
+  stroke: rgba(255, 201, 96, 0.9);
+  filter: drop-shadow(0 0 7px rgba(209, 62, 28, 0.72));
+}
+
+.seasonFiveWorldSpecialWaterGlyph[data-water-profile="lava_lake"] circle {
+  fill: rgba(255, 116, 58, 0.94);
+  stroke: rgba(255, 225, 137, 0.96);
+}
+
+.seasonFiveWorldSpecialWaterGlyph[data-water-profile="void_lake"] path {
+  stroke: rgba(187, 169, 255, 0.82);
+  filter: drop-shadow(0 0 8px rgba(71, 49, 132, 0.74));
+}
+
+.seasonFiveWorldSpecialWaterGlyph[data-water-profile="void_lake"] circle {
+  fill: rgba(35, 20, 65, 0.96);
+  stroke: rgba(206, 190, 255, 0.92);
 }
 
 .seasonFiveWorldActors circle {
@@ -817,10 +841,6 @@
   stroke: rgba(240, 207, 117, 0.98);
 }
 
-.seasonFiveWorldHotspot.fishingTile .seasonFiveWorldMarker circle {
-  stroke: rgba(138, 214, 224, 0.96);
-}
-
 .seasonFiveWorldHotspot.fishableWaterTile[role="button"]
   .seasonFiveWorldHotspotArea {
   fill: rgba(138, 214, 224, 0.1);
@@ -837,16 +857,42 @@
   stroke: rgba(138, 214, 224, 0.88);
 }
 
+.seasonFiveWorldHotspot.lavaWaterTile .seasonFiveWorldHotspotArea {
+  fill: rgba(137, 49, 30, 0.42);
+  stroke: rgba(255, 166, 63, 0.72);
+  stroke-width: 5px;
+  vector-effect: non-scaling-stroke;
+}
+
+.seasonFiveWorldHotspot.lavaWaterTile[role="button"]:hover
+  .seasonFiveWorldHotspotArea,
+.seasonFiveWorldHotspot.lavaWaterTile[role="button"]:focus-visible
+  .seasonFiveWorldHotspotArea {
+  fill: rgba(185, 65, 35, 0.54);
+  stroke: rgba(255, 221, 130, 0.95);
+}
+
+.seasonFiveWorldHotspot.voidWaterTile .seasonFiveWorldHotspotArea {
+  fill: rgba(27, 20, 55, 0.54);
+  stroke: rgba(157, 137, 232, 0.72);
+  stroke-width: 5px;
+  vector-effect: non-scaling-stroke;
+}
+
+.seasonFiveWorldHotspot.voidWaterTile[role="button"]:hover
+  .seasonFiveWorldHotspotArea,
+.seasonFiveWorldHotspot.voidWaterTile[role="button"]:focus-visible
+  .seasonFiveWorldHotspotArea {
+  fill: rgba(47, 32, 89, 0.64);
+  stroke: rgba(214, 202, 255, 0.95);
+}
+
 .seasonFiveWorldHotspot.shopTile .seasonFiveWorldMarker circle {
   stroke: rgba(240, 179, 93, 0.96);
 }
 
 .seasonFiveWorldHotspot.eventTile .seasonFiveWorldMarker circle {
   stroke: rgba(255, 141, 92, 0.96);
-}
-
-.seasonFiveWorldHotspot.secretTile .seasonFiveWorldMarker circle {
-  stroke: rgba(154, 230, 180, 0.96);
 }
 
 .seasonFiveWorldHotspot.selectedTile .seasonFiveWorldHotspotArea,
@@ -1190,13 +1236,6 @@
     inset 0 -10px 16px rgba(0, 0, 0, 0.2);
 }
 
-.fishingTile {
-  box-shadow:
-    0 0 0 2px rgba(138, 214, 224, 0.9),
-    0 0 16px rgba(72, 193, 212, 0.3),
-    inset 0 -10px 16px rgba(0, 0, 0, 0.2);
-}
-
 .shopTile {
   box-shadow:
     0 0 0 2px rgba(240, 179, 93, 0.92),
@@ -1208,13 +1247,6 @@
   box-shadow:
     0 0 0 2px rgba(255, 141, 92, 0.94),
     0 0 16px rgba(255, 112, 72, 0.34),
-    inset 0 -10px 16px rgba(0, 0, 0, 0.2);
-}
-
-.secretTile {
-  box-shadow:
-    0 0 0 2px rgba(154, 230, 180, 0.94),
-    0 0 16px rgba(154, 230, 180, 0.34),
     inset 0 -10px 16px rgba(0, 0, 0, 0.2);
 }
 

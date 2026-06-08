@@ -157,14 +157,27 @@ const raceCards: readonly WikiCard[] = [
 const seasonLoop: readonly WikiDiagramStep[] = [
   { label: "Register", detail: "Join the cycle, choose race, name fortress." },
   { label: "Test", detail: "Try systems before reset-sensitive active play." },
-  { label: "Play", detail: `${ACTIVE_DURATION_HOURS / 24} active days decide the season.` },
-  { label: "Resolve", detail: "Highest points win; tie goes to earliest final score." },
+  {
+    label: "Play",
+    detail: `${ACTIVE_DURATION_HOURS / 24} active days decide the season.`,
+  },
+  {
+    label: "Resolve",
+    detail: "Highest points win; tie goes to earliest final score.",
+  },
 ];
 
 const pressureFlow: readonly WikiDiagramStep[] = [
   { label: "Assign", detail: "Put workers into race-flavored pressure." },
-  { label: "Prioritize", detail: "The queue auto-fills with connected non-allied borders." },
-  { label: "Claim", detail: "Effective pressure wins, with closer castles needing less raw pressure." },
+  {
+    label: "Prioritize",
+    detail: "The queue auto-fills with connected non-allied borders.",
+  },
+  {
+    label: "Claim",
+    detail:
+      "Effective pressure wins, with closer castles needing less raw pressure.",
+  },
   { label: "Hold", detail: "8 claimed normal tiles are free to maintain." },
 ];
 
@@ -176,15 +189,33 @@ const convoyFlow: readonly WikiDiagramStep[] = [
 ];
 
 const nukeFlow: readonly WikiDiagramStep[] = [
-  { label: "Bid", detail: "Commit resources in Castle > Nukes during the daily component window." },
-  { label: "Resolve", detail: "The highest bid for each component wins one part; tied bids go to the earlier bid." },
-  { label: "Stockpile", detail: "Hold or trade Fuel, Rocket, and Wrath of A until you have one of each." },
-  { label: "Launch", detail: `Pick another real player fortress and pay ${NUKE_LAUNCH_GOLD_COST.toLocaleString("en-US")} gold.` },
+  {
+    label: "Bid",
+    detail:
+      "Commit resources in Castle > Nukes during the daily component window.",
+  },
+  {
+    label: "Resolve",
+    detail:
+      "The highest bid for each component wins one part; tied bids go to the earlier bid.",
+  },
+  {
+    label: "Stockpile",
+    detail:
+      "Hold or trade Fuel, Rocket, and Wrath of A until you have one of each.",
+  },
+  {
+    label: "Launch",
+    detail: `Pick another real player fortress and pay ${NUKE_LAUNCH_GOLD_COST.toLocaleString("en-US")} gold.`,
+  },
 ];
 
 const campaignFlow: readonly WikiDiagramStep[] = [
   { label: "War", detail: "Hostile border and active war are required." },
-  { label: "Campaign", detail: "Army builds pressure on a connected enemy tile." },
+  {
+    label: "Campaign",
+    detail: "Army builds pressure on a connected enemy tile.",
+  },
   { label: "Warning", detail: "A visible 12-hour siege warning opens." },
   { label: "Engage", detail: "Casualties tick until one side runs out." },
 ];
@@ -209,8 +240,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         id: "first-minutes",
         eyebrow: "Opening",
         title: "First 15 minutes",
-        body:
-          "Your early goal is to stop wasting tempo: lock race identity, get workers assigned, start expansion pressure, and avoid spending every resource on one shiny mistake.",
+        body: "Your early goal is to stop wasting tempo: lock race identity, get workers assigned, start expansion pressure, and avoid spending every resource on one shiny mistake.",
         bullets: [
           "Choose race carefully; it is locked for the season.",
           "Assign miners, farmers, recruiters, and pressure workers from Castle.",
@@ -235,10 +265,16 @@ export const WIKI_PAGES: readonly WikiPage[] = [
           rows: [
             ["Tile income", "Owned biomes produce points each tick."],
             ["Road network", "Road-connected owned tiles add point income."],
-            ["Neutral claims", "Claiming a neutral tile grants 5 bonus points."],
+            [
+              "Neutral claims",
+              "Claiming a neutral tile grants 5 bonus points.",
+            ],
             ["Convoys", "Delivered cargo value creates shared trade points."],
             ["Interceptions", "Convoy raids are temporarily disabled."],
-            ["Castle PvP", "Castle wins can transfer a small score slice when points exist."],
+            [
+              "Castle PvP",
+              "Castle wins can transfer a small score slice when points exist.",
+            ],
             ["Gold conversion", "Castle utility can convert gold into points."],
           ],
         },
@@ -253,22 +289,22 @@ export const WIKI_PAGES: readonly WikiPage[] = [
     subtitle:
       "A separate roguelite fishing preview where the map is the fishing surface and character builds decide what waters you can handle.",
     highlights: [
-      "Any water or coast tile can be selected as a fishing destination.",
+      "Every visible lake, river, coast, and sea tile can be selected as a fishing destination.",
       "Connected water-body pools have hidden stock and hourly regeneration.",
       "Fish catches are measured in kilograms instead of centimeters.",
       "Characters wear visible body, outfit, hat, and rod equipment.",
       "Fish unloads pay fish coins for static shop gear and one-hour bait sets.",
-      "Deep water and lava lakes require higher level plus gear or matching passives.",
+      "Deep water, lava pools, and void lakes require higher level plus gear or matching passives.",
     ],
     sections: [
       {
         id: "map-fishing",
         eyebrow: "Map",
         title: "Fishing from the water",
-        body:
-          "Season 5 keeps the map as the main play surface. Named fishing pins still exist, but water and coast tiles also become valid destinations.",
+        body: "Season 5 keeps the map as the main play surface. Named landmarks still exist, but the water art itself is the fishing surface.",
         bullets: [
           "Normal lake and coastal water are open from level 1.",
+          "Lava pools and void lakes are visible on the map before they are usable.",
           "Each destination belongs to a connected water-body pool.",
           "Route cards show lock reasons when a selected tile needs more level, gear, or passive access.",
         ],
@@ -277,22 +313,20 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         id: "water-pools",
         eyebrow: "Pools",
         title: "Hidden stock and regen",
-        body:
-          "Water bodies track fish stock behind the scenes. Passive catches spend both inventory space and pool stock; low pools recover over time.",
+        body: "Water bodies track fish stock behind the scenes. Passive catches spend both inventory space and pool stock; low pools recover over time.",
         bullets: [
-          "Temporary reveals can show the pool name, profile, stock state, regen, and notable fish.",
+          "Temporary reveals can show stock state, regen, and notable fish.",
           "Luk, Magik, discovery hats, and map-reading passives improve reveal chances.",
           "Fish weights are stored internally as grams and displayed as kilograms.",
           "Each water profile has its own fantasy fish ladder, including silly, cursed, and grotesque trophies.",
-          "Deep and lava pools use rarer fish profiles and heavier inventory pressure.",
+          "Deep, lava, and void pools use rarer fish profiles and heavier inventory pressure.",
         ],
       },
       {
         id: "progression",
         eyebrow: "Builds",
         title: "Levels, gear, and passives",
-        body:
-          "Fishing grants XP and skill points. Build choices can improve catch speed, rarity, trophy weight, inventory, travel, discovery, or access to risky waters. Fish unloads pay fish coins for the static shop, paid bait lasts one hour, and very rare item hooks unlock equipment instantly.",
+        body: "Fishing grants XP and skill points. Build choices can improve catch speed, rarity, trophy weight, inventory, travel, discovery, or access to risky waters. Fish unloads pay fish coins for the static shop, paid bait lasts one hour, and very rare item hooks unlock equipment instantly.",
       },
     ],
   },
@@ -324,10 +358,22 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         table: {
           headers: ["Race", "Pressure label", "Read"],
           rows: [
-            ["Dwarfs", "Beer Culture", "Stubborn customs spread border control."],
+            [
+              "Dwarfs",
+              "Beer Culture",
+              "Stubborn customs spread border control.",
+            ],
             ["Orks", "Scavenge Mob", "Noise, scrap, and momentum claim space."],
-            ["Space Murines", "Imperial Faith", "Doctrine projects frontier control."],
-            ["Unstable Unicorns", "Glitter Distribution", "Wild magic bends nearby claims."],
+            [
+              "Space Murines",
+              "Imperial Faith",
+              "Doctrine projects frontier control.",
+            ],
+            [
+              "Unstable Unicorns",
+              "Glitter Distribution",
+              "Wild magic bends nearby claims.",
+            ],
           ],
         },
       },
@@ -369,8 +415,16 @@ export const WIKI_PAGES: readonly WikiPage[] = [
           rows: [
             ["Miners", "Gold income", "Recruitment, upgrades, utility, trade."],
             ["Farmers", "Food income", "Army upkeep and trade."],
-            ["Recruiters", `${RECRUITMENT_RATE_PER_RECRUITER} queued unit per recruiter per tick`, "Turns paid queue into active army."],
-            ["Pressure workers", "Border pressure", "Claim and maintain territory."],
+            [
+              "Recruiters",
+              `${RECRUITMENT_RATE_PER_RECRUITER} queued unit per recruiter per tick`,
+              "Turns paid queue into active army.",
+            ],
+            [
+              "Pressure workers",
+              "Border pressure",
+              "Claim and maintain territory.",
+            ],
           ],
         },
       },
@@ -379,10 +433,19 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         eyebrow: "Army queue",
         title: "Buying and training army",
         diagram: [
-          { label: "Order", detail: `${RECRUITMENT_COST_PER_UNIT} gold per unit is paid immediately.` },
-          { label: "Queue", detail: "Queued units are not active and have no upkeep." },
+          {
+            label: "Order",
+            detail: `${RECRUITMENT_COST_PER_UNIT} gold per unit is paid immediately.`,
+          },
+          {
+            label: "Queue",
+            detail: "Queued units are not active and have no upkeep.",
+          },
           { label: "Train", detail: "Recruiters process the queue each tick." },
-          { label: "Active", detail: "Finished units join army and begin food upkeep." },
+          {
+            label: "Active",
+            detail: "Finished units join army and begin food upkeep.",
+          },
         ],
       },
       {
@@ -401,8 +464,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         id: "arcade",
         eyebrow: "After season",
         title: "Arcade coin payout",
-        body:
-          `A completed season grants ${ARCADE_SEASON_BASE_COINS} base coins, plus 1 per ${ARCADE_SEASON_POINTS_BONUS_DIVISOR} points up to ${ARCADE_SEASON_POINTS_BONUS_CAP}. Top ranks add ${getArcadeSeasonRankBonus(1)}, ${getArcadeSeasonRankBonus(2)}, and ${getArcadeSeasonRankBonus(3)} coins.`,
+        body: `A completed season grants ${ARCADE_SEASON_BASE_COINS} base coins, plus 1 per ${ARCADE_SEASON_POINTS_BONUS_DIVISOR} points up to ${ARCADE_SEASON_POINTS_BONUS_CAP}. Top ranks add ${getArcadeSeasonRankBonus(1)}, ${getArcadeSeasonRankBonus(2)}, and ${getArcadeSeasonRankBonus(3)} coins.`,
       },
     ],
   },
@@ -454,14 +516,25 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         id: "roads",
         eyebrow: "Movement",
         title: "Roads",
-        body:
-          `Marching armies, reinforcement routes, War Front launches, and delivered convoys build roads on their actual hex route. Idle stationed battalions also slowly improve roads on owned patrol tiles while they are not assigned to fronts or pending reinforcements. Roads reduce future movement ETA, but not the six-hour convoy minimum or one-hour PvP preparation delay. Roads decay ${Math.round(ROAD_DECAY_RATE_PER_HOUR * 100)}% per inactive hour.`,
+        body: `Marching armies, reinforcement routes, War Front launches, and delivered convoys build roads on their actual hex route. Idle stationed battalions also slowly improve roads on owned patrol tiles while they are not assigned to fronts or pending reinforcements. Roads reduce future movement ETA, but not the six-hour convoy minimum or one-hour PvP preparation delay. Roads decay ${Math.round(ROAD_DECAY_RATE_PER_HOUR * 100)}% per inactive hour.`,
         table: {
           headers: ["Road", "Crossings", "Speed multiplier"],
           rows: [
-            [ROAD_LEVEL_NAMES[RoadLevel.DIRT], `${ROAD_THRESHOLDS[RoadLevel.DIRT]}`, `${ROAD_SPEED_BONUS[RoadLevel.DIRT]}x`],
-            [ROAD_LEVEL_NAMES[RoadLevel.STONE], `${ROAD_THRESHOLDS[RoadLevel.STONE]}`, `${ROAD_SPEED_BONUS[RoadLevel.STONE]}x`],
-            [ROAD_LEVEL_NAMES[RoadLevel.HIGHWAY], `${ROAD_THRESHOLDS[RoadLevel.HIGHWAY]}`, `${ROAD_SPEED_BONUS[RoadLevel.HIGHWAY]}x`],
+            [
+              ROAD_LEVEL_NAMES[RoadLevel.DIRT],
+              `${ROAD_THRESHOLDS[RoadLevel.DIRT]}`,
+              `${ROAD_SPEED_BONUS[RoadLevel.DIRT]}x`,
+            ],
+            [
+              ROAD_LEVEL_NAMES[RoadLevel.STONE],
+              `${ROAD_THRESHOLDS[RoadLevel.STONE]}`,
+              `${ROAD_SPEED_BONUS[RoadLevel.STONE]}x`,
+            ],
+            [
+              ROAD_LEVEL_NAMES[RoadLevel.HIGHWAY],
+              `${ROAD_THRESHOLDS[RoadLevel.HIGHWAY]}`,
+              `${ROAD_SPEED_BONUS[RoadLevel.HIGHWAY]}x`,
+            ],
           ],
         },
       },
@@ -485,10 +558,23 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         eyebrow: "Automation",
         title: "Battalion jobs",
         cards: [
-          { title: "RESERVE", body: "Roams near your castle core but does not trigger automatically." },
-          { title: "GUARD", body: "Patrols owned borders through War Room guard allocation." },
-          { title: "ATTACK", image: "/assets/ui/crest-campaign.webp", body: "Can be assigned to war fronts and auto-dispatches against reachable enemy tiles." },
-          { title: "ALLIANCE", body: "Sends visible reinforcement marches to eligible allied defensive or attacking battlefields when the matching War Room side toggle is enabled. If two allies fight each other, support pauses until you choose which alliance to keep." },
+          {
+            title: "RESERVE",
+            body: "Roams near your castle core but does not trigger automatically.",
+          },
+          {
+            title: "GUARD",
+            body: "Patrols owned borders through War Room guard allocation.",
+          },
+          {
+            title: "ATTACK",
+            image: "/assets/ui/crest-campaign.webp",
+            body: "Can be assigned to war fronts and auto-dispatches against reachable enemy tiles.",
+          },
+          {
+            title: "ALLIANCE",
+            body: "Sends visible reinforcement marches to eligible allied defensive or attacking battlefields when the matching War Room side toggle is enabled. If two allies fight each other, support pauses until you choose which alliance to keep.",
+          },
         ],
       },
       {
@@ -617,12 +703,27 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         table: {
           headers: ["State", "Meaning"],
           rows: [
-            ["NEUTRAL", "Default relation; trade, alliance proposals, or war setup are available."],
-            ["ALLIANCE_PENDING", "A proposal, possibly with break collateral, is waiting for acceptance."],
-            ["ALLIED", "Escrow is locked and allied trade can receive bonuses."],
-            ["WAR_PENDING", "A war warning is active before normal hostilities."],
+            [
+              "NEUTRAL",
+              "Default relation; trade, alliance proposals, or war setup are available.",
+            ],
+            [
+              "ALLIANCE_PENDING",
+              "A proposal, possibly with break collateral, is waiting for acceptance.",
+            ],
+            [
+              "ALLIED",
+              "Escrow is locked and allied trade can receive bonuses.",
+            ],
+            [
+              "WAR_PENDING",
+              "A war warning is active before normal hostilities.",
+            ],
             ["WAR", "Campaigns and hostile orders are live."],
-            ["PEACE_PENDING", "A peace offer, possibly with instant demands, is waiting for acceptance."],
+            [
+              "PEACE_PENDING",
+              "A peace offer, possibly with instant demands, is waiting for acceptance.",
+            ],
             ["ENEMY", "Casus belli exists; immediate war can be invoked."],
           ],
         },
@@ -720,8 +821,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         id: "what-it-is",
         eyebrow: "Purpose",
         title: "What a nuke is",
-        body:
-          "A nuke is a late-season strategic strike against another real player fortress. It does not capture land, create a battlefield, or target Home of A; it directly damages the chosen fortress when launched.",
+        body: "A nuke is a late-season strategic strike against another real player fortress. It does not capture land, create a battlefield, or target Home of A; it directly damages the chosen fortress when launched.",
         cards: [
           {
             title: "Fuel",
@@ -836,8 +936,18 @@ export const WIKI_PAGES: readonly WikiPage[] = [
           rows: [
             ["Dwarfs", "Grudge Economy", "Seismic Claim", "Runebound Host"],
             ["Orks", "Loot Economy", "Green Tide Claim", "WAAAGH Host"],
-            ["Space Murines", "Convoy Economy", "Orbital Claim", "Rapid Response Host"],
-            ["Unstable Unicorns", "Glitter Economy", "Prismatic Claim", "Mirror Host"],
+            [
+              "Space Murines",
+              "Convoy Economy",
+              "Orbital Claim",
+              "Rapid Response Host",
+            ],
+            [
+              "Unstable Unicorns",
+              "Glitter Economy",
+              "Prismatic Claim",
+              "Mirror Host",
+            ],
           ],
         },
       },
