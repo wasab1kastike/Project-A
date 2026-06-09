@@ -81,6 +81,11 @@ import {
   SEASON_FIVE_BALANCE,
   SEASON_FIVE_FISH_SPECIES_BY_PROFILE,
 } from "./season-five-balance";
+import {
+  getSeasonFiveBaitCastReelTags,
+  getSeasonFiveCastReelPreview,
+  resolveSeasonFiveCastReelRound,
+} from "./season-five-cast-reel";
 
 function createSeasonFiveMapTileRecords() {
   return createSeasonFiveMapTiles().map((tile) => ({
@@ -348,6 +353,145 @@ test("Season 5 active bait temporarily layers onto build effects", () => {
 
   assert.equal(baited.catchBonus, base.catchBonus + 1);
   assert.equal(expired.catchBonus, base.catchBonus);
+});
+
+test("Season 5 Cast Reel previews expose class, phase, and bait hooks", () => {
+  const preview = getSeasonFiveCastReelPreview({
+    characterClass: SeasonFiveCharacterClass.DEMENTED_WIZARD,
+    stats: {
+      stronk: 3,
+      luk: 7,
+      smell: 5,
+      magik: 10,
+      quietness: 3,
+    },
+    effects: {
+      catchBonus: 1,
+      rarityBonus: 7,
+      sizeBonusPercent: 0,
+      inventoryPressureReduction: 0,
+    },
+    activeBaitKey: "glowing-worm-hour",
+    activeBaitName: "Glowing Worms",
+    rhythmStage: 0,
+    minWeightGrams: 1000,
+    maxWeightGrams: 20000,
+    difficulty: 4,
+    inventoryPressure: 3,
+    profileKey: "void_lake",
+  });
+
+  assert.equal(preview.title, "Cast Reel");
+  assert.equal(preview.phases.length, 3);
+  assert.equal(preview.classTwist.label, "Weird Fight");
+  assert.deepEqual(
+    getSeasonFiveBaitCastReelTags({
+      key: "glowing-worm-hour",
+      effects: {
+        catchBonus: 0,
+        rarityBonus: 5,
+        sizeBonusPercent: 0,
+        inventoryPressureReduction: 0,
+      },
+    }),
+    ["Fight+", "Weird"]
+  );
+  assert.ok(preview.baitTags.includes("Fight+"));
+  assert.ok(preview.phases.some((phase) => phase.score > 70));
+});
+
+test("Season 5 Cast Reel rounds are deterministic and can bonus catch", () => {
+  const input = {
+    characterClass: SeasonFiveCharacterClass.DRUNKEN_MONK,
+    stats: {
+      stronk: 5,
+      luk: 6,
+      smell: 10,
+      magik: 4,
+      quietness: 8,
+    },
+    effects: {
+      catchBonus: 4,
+      rarityBonus: 2,
+      sizeBonusPercent: 6,
+      inventoryPressureReduction: 1,
+    },
+    activeBaitKey: "pocket-breadcrumb-hour",
+    activeBaitName: "Pocket Breadcrumbs",
+    rhythmStage: 3,
+    minWeightGrams: 1000,
+    maxWeightGrams: 16000,
+    difficulty: 2,
+    inventoryPressure: 2,
+    profileKey: "lake",
+  };
+  const seed = Array.from({ length: 250 }, (_, index) => `bonus-${index}`).find(
+    (candidate) =>
+      resolveSeasonFiveCastReelRound({ ...input, seed: candidate }).catches
+        .length > 1
+  );
+
+  assert.ok(seed, "expected at least one deterministic bonus seed");
+  const first = resolveSeasonFiveCastReelRound({ ...input, seed: seed! });
+  const second = resolveSeasonFiveCastReelRound({ ...input, seed: seed! });
+
+  assert.deepEqual(second, first);
+  assert.equal(first.missed, false);
+  assert.equal(first.catches.length, 2);
+  assert.equal(first.catches[1]?.castReel.outcome, "bonus");
+});
+
+test("Season 5 Cast Reel safe misses do not spend stock or inventory", () => {
+  const weakInput = {
+    characterClass: SeasonFiveCharacterClass.DEMENTED_WIZARD,
+    stats: {
+      stronk: 1,
+      luk: 1,
+      smell: 1,
+      magik: 2,
+      quietness: 1,
+    },
+    effects: {
+      catchBonus: 0,
+      rarityBonus: 0,
+      sizeBonusPercent: 0,
+      inventoryPressureReduction: 0,
+    },
+    activeBaitKey: "bare-hook",
+    activeBaitName: "Bare Hook",
+    rhythmStage: 0,
+    minWeightGrams: 1000,
+    maxWeightGrams: 20000,
+    difficulty: 5,
+    inventoryPressure: 5,
+    profileKey: "void_lake",
+  };
+  const missSeed = Array.from(
+    { length: 200 },
+    (_, index) => `miss-${index}`
+  ).find((candidate) =>
+    resolveSeasonFiveCastReelRound({ ...weakInput, seed: candidate }).missed
+  );
+
+  assert.ok(missSeed, "expected at least one deterministic miss seed");
+  const plan = planSeasonFivePassiveCatches({
+    lastResolvedAt: new Date("2026-05-01T12:00:00.000Z"),
+    resolvedAt: new Date("2026-05-01T12:05:00.000Z"),
+    catchIntervalMinutes: 5,
+    inventoryUsed: 0,
+    inventoryCapacity: 4,
+    stockAvailable: 4,
+    createCatch: () =>
+      resolveSeasonFiveCastReelRound({
+        ...weakInput,
+        seed: missSeed!,
+      }).catches,
+  });
+
+  assert.equal(plan.catches.length, 0);
+  assert.equal(plan.inventoryUsed, 0);
+  assert.equal(plan.stockUsed, 0);
+  assert.equal(plan.inventoryFull, false);
 });
 
 test("Season 5 avatar loadouts default to class body, pants, and rod", () => {

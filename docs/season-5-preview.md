@@ -25,6 +25,7 @@ When the preview flag is enabled, `/` renders the Season 5 fishing interface ins
 - Retired Warrior has a trophy focus identity: bought Trophy Hunter passives improve weight and rarity in harder waters.
 - Characters start with two skill points. Passive fishing grants XP; every 50 XP raises the character level, up to level 11, and grants one more skill point.
 - Travel takes time. On arrival, the character fishes passively until a new action is submitted.
+- Each due catch resolves as a Cast Reel round with Hook, Fight, and Haul phases. Bait and time are the stake; weak rounds can miss safely, while strong rounds improve rarity, weight, jackpot sparks, or rare bonus bites.
 - Inventory capacity limits fishing output. Returning home unloads the current haul.
 - Fish weight is shown to players in kilograms and stored internally as grams for sorting.
 - Every visible lake, river, coast, and sea tile can be chosen as a fishing destination. Old named spots still exist, but the map is no longer limited to only those pins.
@@ -32,6 +33,7 @@ When the preview flag is enabled, `/` renders the Season 5 fishing interface ins
 - Some individual water tiles have deterministic traits such as rotten reeds, old planks, deep pockets, warm vents, or void ripples. These adjust route difficulty, fish size, travel, or pack pressure, but they still draw from the connected water body's shared stock.
 - Route cards show the water type and lock requirements. Pool stock, regen, and notable fish can be revealed temporarily by character stats, gear, and passives.
 - Fish species are fantasy-themed by water profile, from soggy comedy fish to deep-water grotesques, lava trophies, and void mistakes.
+- Cast Reel previews on route and character panels show the active bait tags, class twist, and phase heat without turning fishing into a manual minigame.
 - Deep water, lava pools, and void lakes are gated by character level plus fitting gear or matching passives. Normal lake and coastal water are open from level 1.
 - Main rankings are Most Fish and Biggest Fish.
 - Previous Project-A history and cosmetics are prestige-only.

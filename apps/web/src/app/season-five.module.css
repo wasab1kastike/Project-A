@@ -2014,6 +2014,105 @@
   line-height: 1.18;
 }
 
+.castReelPanel {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 10px;
+  border: 1px solid rgba(245, 211, 142, 0.18);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(78, 178, 158, 0.12), transparent 44%),
+    rgba(255, 248, 231, 0.06);
+}
+
+.castReelPanel[data-compact="true"] {
+  gap: 8px;
+  padding: 9px;
+}
+
+.castReelHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.castReelHeader h3 {
+  margin: 0;
+  color: #fff8e7;
+  font-size: 16px;
+  line-height: 1.12;
+}
+
+.castReelPhases {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.castReelPhases div {
+  display: grid;
+  min-width: 0;
+  min-height: 50px;
+  align-content: center;
+  gap: 2px;
+  padding: 8px;
+  border: 1px solid rgba(255, 248, 231, 0.1);
+  border-radius: 7px;
+  background: rgba(12, 22, 19, 0.46);
+}
+
+.castReelPhases div[data-grade="cold"] {
+  border-color: rgba(149, 165, 166, 0.3);
+}
+
+.castReelPhases div[data-grade="thin"] {
+  border-color: rgba(216, 167, 94, 0.3);
+}
+
+.castReelPhases div[data-grade="live"],
+.castReelPhases div[data-grade="hot"] {
+  border-color: rgba(78, 178, 158, 0.48);
+}
+
+.castReelPhases div[data-grade="jackpot"] {
+  border-color: rgba(255, 196, 104, 0.72);
+  box-shadow: inset 0 0 18px rgba(255, 196, 104, 0.1);
+}
+
+.castReelPhases span {
+  color: #bba983;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.castReelPhases strong {
+  color: #fff8e7;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.castReelTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.castReelTags span {
+  display: inline-flex;
+  min-height: 22px;
+  align-items: center;
+  padding: 0 7px;
+  border: 1px solid rgba(255, 248, 231, 0.12);
+  border-radius: 999px;
+  background: rgba(12, 22, 19, 0.36);
+  color: #f5d38e;
+  font-size: 11px;
+  font-weight: 900;
+}
+
 .sessionNote {
   margin: 8px 0 0;
   color: #c9b994;

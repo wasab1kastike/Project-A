@@ -56,7 +56,7 @@ export function planSeasonFivePassiveCatches<
   inventoryUsed: number;
   inventoryCapacity: number;
   stockAvailable?: number;
-  createCatch: (tickAt: Date) => TCatch;
+  createCatch: (tickAt: Date) => TCatch | readonly TCatch[] | null;
 }) {
   const start = floorToMinute(input.lastResolvedAt);
   const resolvedAt = floorToMinute(input.resolvedAt);
@@ -81,17 +81,32 @@ export function planSeasonFivePassiveCatches<
       continue;
     }
 
-    const fish = input.createCatch(tickAt);
-    if (inventoryUsed + fish.inventorySlots > inventoryCapacity) {
+    const created = input.createCatch(tickAt);
+    const fishForTick = Array.isArray(created)
+      ? created
+      : created
+        ? [created]
+        : [];
+    if (fishForTick.length === 0) {
+      continue;
+    }
+
+    const tickSlots = fishForTick.reduce(
+      (sum, fish) => sum + fish.inventorySlots,
+      0
+    );
+    if (inventoryUsed + tickSlots > inventoryCapacity) {
       break;
     }
-    if (stockUsed + fish.inventorySlots > stockAvailable) {
+    if (stockUsed + tickSlots > stockAvailable) {
       break;
     }
 
-    inventoryUsed += fish.inventorySlots;
-    stockUsed += fish.inventorySlots;
-    catches.push({ tickAt, fish });
+    inventoryUsed += tickSlots;
+    stockUsed += tickSlots;
+    for (const fish of fishForTick) {
+      catches.push({ tickAt, fish });
+    }
   }
 
   return {

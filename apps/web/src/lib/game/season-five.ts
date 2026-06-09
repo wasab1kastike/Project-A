@@ -50,6 +50,11 @@ import {
   createSeasonFiveCatch as createSeasonFiveCatchFromBalance,
   deriveSeasonFiveBuildEffectValues,
 } from "./season-five-balance";
+import {
+  getSeasonFiveBaitCastReelTags,
+  getSeasonFiveCastReelPreview,
+  resolveSeasonFiveCastReelRound,
+} from "./season-five-cast-reel";
 import { addHours, addMinutes, floorToMinute } from "./time";
 
 type DatabaseClient = PrismaClient;
@@ -1288,6 +1293,16 @@ function getBaitPayload(
     purchaseQuantity: bait.quantity,
     durationMinutes: bait.durationMinutes,
     effects: bait.effects,
+    castReelTags: getSeasonFiveBaitCastReelTags({
+      key: bait.key,
+      effects: {
+        catchBonus: bait.effects.catchBonus ?? 0,
+        rarityBonus: bait.effects.rarityBonus ?? 0,
+        sizeBonusPercent: bait.effects.sizeBonusPercent ?? 0,
+        inventoryPressureReduction:
+          bait.effects.inventoryPressureReduction ?? 0,
+      },
+    }),
     active,
     activeUntil: active ? activeBaitExpiresAt : null,
   };
@@ -3348,6 +3363,28 @@ export async function getSeasonFiveHomeState({
               effects,
             })
           : null;
+      const castReelPreview =
+        character && effects
+          ? getSeasonFiveCastReelPreview({
+              characterClass: character.class,
+              stats: effects.stats,
+              effects: {
+                catchBonus: effects.catchBonus,
+                rarityBonus: effects.rarityBonus,
+                sizeBonusPercent: effects.sizeBonusPercent,
+                inventoryPressureReduction:
+                  effects.inventoryPressureReduction,
+              },
+              activeBaitKey: activeBait.key,
+              activeBaitName: activeBait.name,
+              rhythmStage: 0,
+              minWeightGrams: location.minWeightGrams,
+              maxWeightGrams: location.maxWeightGrams,
+              difficulty: location.catchDifficulty,
+              inventoryPressure: location.inventoryPressure,
+              profileKey: location.waterBody?.profileKey ?? null,
+            })
+          : null;
 
       return {
         id: location.id,
@@ -3398,6 +3435,7 @@ export async function getSeasonFiveHomeState({
         effectiveCatchIntervalMinutes:
           routeLoopPreview?.catchIntervalMinutes ?? null,
         effectiveInventoryPressure: routeLoopPreview?.inventoryPressure ?? null,
+        castReelPreview,
       };
     }),
     locationActivity,
@@ -3423,6 +3461,16 @@ export async function getSeasonFiveHomeState({
             description: activeBait.description,
             rarity: activeBait.rarity,
             effects: activeBait.effects,
+            castReelTags: getSeasonFiveBaitCastReelTags({
+              key: activeBait.key,
+              effects: {
+                catchBonus: activeBait.effects.catchBonus ?? 0,
+                rarityBonus: activeBait.effects.rarityBonus ?? 0,
+                sizeBonusPercent: activeBait.effects.sizeBonusPercent ?? 0,
+                inventoryPressureReduction:
+                  activeBait.effects.inventoryPressureReduction ?? 0,
+              },
+            }),
             expiresAt:
               character.activeBaitKey === activeBait.key &&
               activeBait.key !== "bare-hook" &&
@@ -3496,6 +3544,38 @@ export async function getSeasonFiveHomeState({
               effects: characterEffects!,
               inventoryFull: inventoryPressure.full,
             }),
+            castReel:
+              character.actionKind === SeasonFiveActionKind.FISHING &&
+              character.currentLocation
+                ? getSeasonFiveCastReelPreview({
+                    characterClass: character.class,
+                    stats: characterEffects!.stats,
+                    effects: {
+                      catchBonus: characterEffects!.catchBonus,
+                      rarityBonus: characterEffects!.rarityBonus,
+                      sizeBonusPercent: characterEffects!.sizeBonusPercent,
+                      inventoryPressureReduction:
+                        characterEffects!.inventoryPressureReduction,
+                    },
+                    activeBaitKey: activeBait.key,
+                    activeBaitName: activeBait.name,
+                    rhythmStage: calculateSeasonFiveRhythm({
+                      actionKind: character.actionKind,
+                      actionStartedAt: character.actionStartedAt,
+                      now,
+                      rhythmCatchBonus: characterEffects!.rhythmCatchBonus,
+                      rhythmPressureReduction:
+                        characterEffects!.rhythmPressureReduction,
+                    }).stage,
+                    minWeightGrams: character.currentLocation.minWeightGrams,
+                    maxWeightGrams: character.currentLocation.maxWeightGrams,
+                    difficulty: character.currentLocation.catchDifficulty,
+                    inventoryPressure:
+                      character.currentLocation.inventoryPressure,
+                    profileKey:
+                      character.currentLocation.waterBody?.profileKey ?? null,
+                  })
+                : null,
             haul: currentHaul,
           },
           lastUnload: lastUnloadSummary,
@@ -3656,6 +3736,7 @@ export function getDegradedSeasonFiveHomeState(): SeasonFiveHomeState {
       waterBodyRevealed: false,
       effectiveCatchIntervalMinutes: null,
       effectiveInventoryPressure: null,
+      castReelPreview: null,
     },
     ...planSeasonFiveFishingLocations({
       tiles: mapTiles,
@@ -3704,6 +3785,7 @@ export function getDegradedSeasonFiveHomeState(): SeasonFiveHomeState {
         waterBodyRevealed: Boolean(body),
         effectiveCatchIntervalMinutes: null,
         effectiveInventoryPressure: null,
+        castReelPreview: null,
       };
     }),
   ];
@@ -3869,6 +3951,11 @@ export async function processSeasonFiveTick({
       activeBaitExpiresAt: character.activeBaitExpiresAt,
       now: resolvedAt,
     });
+    const activeBait = getSeasonFiveActiveBait({
+      baitKey: character.activeBaitKey,
+      expiresAt: character.activeBaitExpiresAt,
+      now: resolvedAt,
+    });
     const activeDiscoveryIds = new Set(
       character.waterBodyDiscoveries
         .filter((discovery) => discovery.expiresAt > resolvedAt)
@@ -3977,22 +4064,28 @@ export async function processSeasonFiveTick({
       inventoryCapacity: capacity,
       stockAvailable: waterBody?.currentStock,
       createCatch: (tickAt) =>
-        createSeasonFiveCatch({
+        resolveSeasonFiveCastReelRound({
           seed: `${character.id}:${location.key}:${tickAt.toISOString()}`,
+          characterClass: character.class,
+          stats: effects.stats,
+          effects: {
+            catchBonus: effects.catchBonus + rhythm.catchBonus,
+            rarityBonus: effects.rarityBonus + trophyFocus.rarityBonus,
+            sizeBonusPercent:
+              effects.sizeBonusPercent + trophyFocus.sizeBonusPercent,
+            inventoryPressureReduction:
+              effects.inventoryPressureReduction +
+              rhythm.inventoryPressureReduction,
+          },
+          activeBaitKey: character.activeBaitKey,
+          activeBaitName: activeBait.name,
+          rhythmStage: rhythm.stage,
           minWeightGrams: location.minWeightGrams,
           maxWeightGrams: location.maxWeightGrams,
           difficulty: location.catchDifficulty,
-          sizeBonusPercent:
-            effects.sizeBonusPercent + trophyFocus.sizeBonusPercent,
-          rarityBonus: effects.rarityBonus + trophyFocus.rarityBonus,
+          inventoryPressure: location.inventoryPressure,
           profileKey: waterBody?.profileKey ?? null,
-          inventoryPressure: Math.max(
-            1,
-            location.inventoryPressure -
-              effects.inventoryPressureReduction -
-              rhythm.inventoryPressureReduction
-          ),
-        }),
+        }).catches,
     });
 
     if (plan.catches.length === 0) {
@@ -4019,8 +4112,17 @@ export async function processSeasonFiveTick({
 
       for (const plannedCatch of plan.catches) {
         const fish = plannedCatch.fish;
+        const baseCatchSeed = `${character.id}:${location.key}:${plannedCatch.tickAt.toISOString()}`;
+        const castOutcome =
+          "castReel" in fish &&
+          fish.castReel &&
+          typeof fish.castReel === "object" &&
+          "outcome" in fish.castReel
+            ? fish.castReel.outcome
+            : null;
         const itemCatch = rollSeasonFiveItemCatch({
-          seed: `${character.id}:${location.key}:${plannedCatch.tickAt.toISOString()}`,
+          seed:
+            castOutcome === "bonus" ? `${baseCatchSeed}:bonus` : baseCatchSeed,
           characterClass: character.class,
           luk: effects.stats.luk,
           magik: effects.stats.magik,

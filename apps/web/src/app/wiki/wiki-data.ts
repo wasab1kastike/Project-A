@@ -293,6 +293,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
       "Connected water-body pools have hidden stock and hourly regeneration.",
       "Some water tiles have traits that tweak route stats while sharing the same body stock.",
       "Fish catches are measured in kilograms instead of centimeters.",
+      "Passive catches now resolve through Cast Reel rounds with Hook, Fight, and Haul phase heat.",
       "Characters use fitted body/outfit base art with visible hat and rod equipment.",
       "Fish unloads pay fish coins for static shop gear and one-hour bait sets.",
       "Deep water, lava pools, and void lakes require higher level plus gear or matching passives.",
@@ -322,6 +323,17 @@ export const WIKI_PAGES: readonly WikiPage[] = [
           "Fish weights are stored internally as grams and displayed as kilograms.",
           "Each water profile has its own fantasy fish ladder, including silly, cursed, and grotesque trophies.",
           "Deep, lava, and void pools use rarer fish profiles and heavier inventory pressure.",
+        ],
+      },
+      {
+        id: "cast-reel",
+        eyebrow: "Fishing",
+        title: "Cast Reel rounds",
+        body: "Fishing remains passive, but every due catch now runs a Cast Reel round. Hook decides whether anything bites, Fight pushes rarity and weirdness, and Haul decides trophy weight and pack pressure.",
+        bullets: [
+          "Bait and time are the stake; weak casts can miss safely without risking coins or gear.",
+          "Bait tags such as Hook+, Fight+, Haul+, Jackpot, Safe, and Weird preview how a bait changes the reel.",
+          "Class twists shape the phases: Monk gets rhythm nibbles, Warrior hauls trophies, Wizard bends weird water, and Rogue skims safely.",
         ],
       },
       {

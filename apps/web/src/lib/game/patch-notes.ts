@@ -7,6 +7,17 @@ export type PatchNotesRelease = {
 
 export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
   {
+    date: "2026-06-08",
+    title: "Season 5 Cast Reel fishing",
+    newFeatures: [
+      "Season 5 passive catches now resolve through Cast Reel rounds with Hook, Fight, and Haul phase heat.",
+      "Bait now exposes Cast Reel tags like Hook+, Fight+, Haul+, Jackpot, Safe, and Weird, so the bait gamble is visible before travelling.",
+      "Class identity now affects Cast Reel previews and outcomes: Monk gets rhythm nibbles, Warrior hauls trophies, Wizard bends weird water, and Rogue skims some bad casts safely.",
+      "Route cards and character panels now show compact Cast Reel previews without turning fishing into a manual minigame.",
+    ],
+    bugFixes: [],
+  },
+  {
     date: "2026-06-06",
     title: "Season 5 passive trees",
     newFeatures: [

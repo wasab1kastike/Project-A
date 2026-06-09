@@ -241,6 +241,53 @@ export function HaulSummary({
   );
 }
 
+export function CastReelPreview({
+  preview,
+  compact = false,
+}: {
+  preview:
+    | NonNullable<
+        NonNullable<SeasonFiveHomeState["character"]>["session"]["castReel"]
+      >
+    | NonNullable<SeasonFiveHomeState["locations"][number]["castReelPreview"]>
+    | null;
+  compact?: boolean;
+}) {
+  if (!preview) return null;
+
+  return (
+    <section
+      className={styles.castReelPanel}
+      data-compact={compact ? "true" : "false"}
+    >
+      <div className={styles.castReelHeader}>
+        <div>
+          <p className={styles.kicker}>{preview.title}</p>
+          <h3>{preview.classTwist.label}</h3>
+        </div>
+        <span className={styles.badge}>{preview.jackpotLabel}</span>
+      </div>
+      <div className={styles.castReelPhases}>
+        {preview.phases.map((phase) => (
+          <div key={phase.key} data-grade={phase.grade}>
+            <span>{phase.label}</span>
+            <strong>{phase.score}</strong>
+          </div>
+        ))}
+      </div>
+      <div className={styles.castReelTags}>
+        {preview.baitTags.map((tag) => (
+          <span key={tag}>{tag}</span>
+        ))}
+        <span>{preview.riskLabel}</span>
+      </div>
+      {!compact ? (
+        <p className={styles.smallText}>{preview.classTwist.description}</p>
+      ) : null}
+    </section>
+  );
+}
+
 export function LastUnloadSummary({
   character,
 }: {
@@ -918,6 +965,7 @@ function CharacterCommandCard({
           },
         ]}
       />
+      <CastReelPreview preview={character.session.castReel} compact />
 
       <div className={styles.mapCharacterPreview}>
         <CharacterAvatar
@@ -1909,6 +1957,10 @@ function WorldMap({
               Pack
             </span>
           </div>
+          <CastReelPreview
+            preview={selectedLocation.castReelPreview}
+            compact
+          />
           <div className={styles.routePreviewMeta}>
             <span>
               {formatSeasonFiveFishWeight(selectedLocation.minWeightGrams)}-

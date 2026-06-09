@@ -20,6 +20,7 @@ import type {
 import { formatSeasonFiveFishWeight } from "@/lib/game/season-five-fishing";
 import {
   BuildEffectChips,
+  CastReelPreview,
   CharacterAvatar,
   HaulSummary,
   InventoryPressureMeter,
@@ -304,6 +305,21 @@ function BuildTab({ state }: { state: SeasonFiveHomeState }) {
         <section className={styles.buildBand}>
           <div className={styles.buildBandHeader}>
             <div>
+              <p className={styles.kicker}>Cast Reel</p>
+              <h3>Bait gamble</h3>
+            </div>
+            <span className={styles.badge}>{character.activeBait.name}</span>
+          </div>
+          {character.session.castReel ? (
+            <CastReelPreview preview={character.session.castReel} />
+          ) : (
+            <p className={styles.smallText}>No active cast.</p>
+          )}
+        </section>
+
+        <section className={styles.buildBand}>
+          <div className={styles.buildBandHeader}>
+            <div>
               <p className={styles.kicker}>Passives</p>
               <h3>Build effects</h3>
             </div>
@@ -505,6 +521,11 @@ function ShopTab({ state }: { state: SeasonFiveHomeState }) {
         <p className={styles.smallText}>
           {formatShopEffects(character.activeBait.effects)}
         </p>
+        <div className={styles.castReelTags}>
+          {character.activeBait.castReelTags.map((tag) => (
+            <span key={tag}>{tag}</span>
+          ))}
+        </div>
       </section>
 
       <div className={styles.shopSectionGrid}>
@@ -566,6 +587,7 @@ function ShopTab({ state }: { state: SeasonFiveHomeState }) {
                     <small>
                       {bait.price} coins | {formatShopEffects(bait.effects)}
                     </small>
+                    <small>{bait.castReelTags.join(" | ")}</small>
                   </button>
                 </form>
                 <form action={activateSeasonFiveBaitAction}>
