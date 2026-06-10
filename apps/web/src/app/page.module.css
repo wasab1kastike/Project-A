@@ -240,6 +240,36 @@
     border-color 160ms ease;
 }
 
+.ambientButton {
+  gap: 6px;
+  cursor: pointer;
+}
+
+.ambientButton::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: rgba(166, 213, 188, 0.52);
+  box-shadow: 0 0 0 rgba(166, 213, 188, 0);
+}
+
+.ambientButton[data-audio-enabled="true"] {
+  border-color: rgba(166, 213, 188, 0.52);
+  color: #d8f4dd;
+}
+
+.ambientButton[data-audio-enabled="true"]::before {
+  background: #a6d5bc;
+  box-shadow: 0 0 10px rgba(166, 213, 188, 0.56);
+}
+
+.ambientButton:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
 .battlefieldTopActions {
   display: inline-flex;
 }

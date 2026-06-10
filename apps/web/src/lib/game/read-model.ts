@@ -111,6 +111,7 @@ import {
 } from "./tile-pressure";
 import { isSeasonFourRuleset } from "./rulesets";
 import { calculateRoadAdjustedTravel } from "./road-travel";
+import { getSkillModifiers } from "./race-skill-effects";
 import { getTradeWagonResourceLimit } from "./trading";
 import {
   EMPTY_NUKE_COMPONENT_CARGO,
@@ -3019,6 +3020,13 @@ export async function getHomePageState({
   const pressurePriorityLimit = playerFortress
     ? getTilePressurePriorityLimit(playerFortress)
     : 0;
+  const playerSkillModifiers =
+    playerFortress && isSeasonFour
+      ? getSkillModifiers({
+          race: playerFortress.race,
+          purchases: playerFortress.skillPurchases,
+        })
+      : null;
   const pressurePriorityQueue = playerFortress
     ? sortTilePressureQueue(
         cycle.tilePressurePriorities.filter(
@@ -3824,7 +3832,8 @@ export async function getHomePageState({
           castleSpecializationCounts: playerCastleSpecializationCounts,
           tradeWagonResourceLimit: getTradeWagonResourceLimit(
             playerCastleSpecializationCounts?.[CastleUpgradeSpecialization.TRADE] ??
-              0
+              0,
+            playerSkillModifiers?.tradeWagonCapacityPercent ?? 0
           ),
           buildingUpgradeOptions,
           castleUpgradeChoices: playerFortress.castleUpgradeSpecializations,

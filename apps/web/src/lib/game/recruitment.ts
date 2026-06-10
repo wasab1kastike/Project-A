@@ -1,15 +1,14 @@
 // =============================================================================
 // Passive Recruitment System — Season 4 Army
 // =============================================================================
-// No queue button. Recruiters produce army every tick. Auto-fills battalions.
+// No queue button. Recruiters produce army every tick. Existing battalions fill
+// automatically, but new battalions are commissioned manually.
 // Pure functions only. No DB / Prisma imports.
 // =============================================================================
 
 import {
   Battalion,
-  BattalionTier,
   BATTALION_COMMISSION_COST,
-  DEFAULT_BATTALION_MAX_SIZE,
 } from "./battalion-types";
 
 // ── Production Formula ───────────────────────────────────────────────────────
@@ -85,62 +84,6 @@ export function distributeRecruits(
   return { battalions: updated, wasted: remaining };
 }
 
-// ── Battalion Creation ───────────────────────────────────────────────────────
-
-/**
- * Check if a new battalion should be auto-created.
- * Returns true when all existing battalions are ≥ fillThreshold AND there's
- * a free slot AND new units would otherwise be wasted.
- */
-export function shouldAutoCreateBattalion(args: {
-  battalions: Battalion[];
-  totalSlots: number;
-  wastedUnits: number;
-  fillThreshold: number;
-}): boolean {
-  if (args.battalions.length >= args.totalSlots) return false;
-  if (args.wastedUnits <= 0) return false;
-
-  const allFull = args.battalions.every(
-    (b) => b.size / b.maxSize >= args.fillThreshold,
-  );
-  return allFull;
-}
-
-/**
- * Create a new battalion. Returns the battalion and the gold cost.
- */
-export function createBattalion(args: {
-  id: string;
-  name: string;
-  gold: number;
-  maxSize?: number;
-}): { battalion: Battalion; goldCost: number } | { error: string } {
-  if (args.gold < BATTALION_COMMISSION_COST) {
-    return {
-      error: `Commissioning a new battalion costs ${BATTALION_COMMISSION_COST} gold.`,
-    };
-  }
-
-  const battalion: Battalion = {
-    id: args.id,
-    name: args.name,
-    size: 0,
-    maxSize: Math.max(
-      DEFAULT_BATTALION_MAX_SIZE,
-      Math.floor(args.maxSize ?? DEFAULT_BATTALION_MAX_SIZE),
-    ),
-    tier: BattalionTier.RECRUIT,
-    xp: 0,
-    readyAt: null,
-    stance: "REST" as Battalion["stance"],
-    garrisonedAt: null,
-    stanceLockedUntil: null,
-  };
-
-  return { battalion, goldCost: BATTALION_COMMISSION_COST };
-}
-
 // ── Battalion Expansion ──────────────────────────────────────────────────────
 
 /**
@@ -196,9 +139,9 @@ export type RecruitmentTickResult = {
   unitsProduced: number;
   /** Units wasted (all battalions full). */
   unitsWasted: number;
-  /** Whether a new battalion was auto-created. */
+  /** Always false. New battalions are commissioned manually. */
   battalionCreated: boolean;
-  /** Gold spent on auto-creation. */
+  /** Always 0. New battalions are commissioned manually. */
   goldSpent: number;
 };
 
@@ -210,7 +153,7 @@ export type RecruitmentTickResult = {
  * @param barracksLevel — barracks upgrade level (0-based)
  * @param raceBonus — race-specific recruitment multiplier (1.0 baseline)
  * @param totalSlots — total available battalion slots
- * @param gold — current gold (for auto-creation)
+ * @param gold — current gold, retained for API compatibility
  * @param preferredBattalionId — optional preferred battalion for new recruits
  * @returns the tick result with updated battalions
  */
@@ -222,20 +165,29 @@ export function processRecruitmentTick(args: {
   totalSlots: number;
   gold: number;
   preferredBattalionId?: string;
-  /** Race-specific name for auto-created battalions. Falls back to generic if omitted. */
+  /** Deprecated: battalions are manually commissioned. */
   newBattalionName?: string;
+  /** Deprecated: battalions are manually commissioned. */
   defaultBattalionMaxSize?: number;
+  maxArmySize?: number;
 }): RecruitmentTickResult {
   let { battalions } = args;
-  let goldSpent = 0;
-  let battalionCreated = false;
 
   // 1. Produce units.
-  const produced = calculateRecruitment(
+  const uncappedProduced = calculateRecruitment(
     args.recruiters,
     args.barracksLevel,
     args.raceBonus,
   );
+  const currentTotal = battalions.reduce(
+    (sum, battalion) => sum + battalion.size,
+    0,
+  );
+  const capRoom =
+    args.maxArmySize === undefined
+      ? Number.POSITIVE_INFINITY
+      : Math.max(0, args.maxArmySize - currentTotal);
+  const produced = Math.min(uncappedProduced, capRoom);
 
   // 2. Distribute to existing battalions.
   const distResult = distributeRecruits(
@@ -244,40 +196,12 @@ export function processRecruitmentTick(args: {
     args.preferredBattalionId,
   );
   battalions = distResult.battalions;
-  let wasted = distResult.wasted;
-
-  // 3. If units are wasted and battalions are full, auto-create a new one.
-  if (
-    wasted > 0 &&
-    battalions.length < args.totalSlots &&
-    args.gold >= BATTALION_COMMISSION_COST
-  ) {
-    const existingCount = battalions.length;
-    const name = args.newBattalionName ?? `Battalion ${existingCount + 1}`;
-    const result = createBattalion({
-      id: `bn_${Date.now()}_${existingCount}`,
-      name,
-      gold: args.gold,
-      maxSize: args.defaultBattalionMaxSize,
-    });
-
-    if ("battalion" in result) {
-      battalions = [...battalions, result.battalion];
-      goldSpent = result.goldCost;
-      battalionCreated = true;
-
-      // Try to fill the new battalion with wasted units.
-      const refill = distributeRecruits(battalions, wasted);
-      battalions = refill.battalions;
-      wasted = refill.wasted;
-    }
-  }
 
   return {
     battalions,
     unitsProduced: produced,
-    unitsWasted: wasted,
-    battalionCreated,
-    goldSpent,
+    unitsWasted: distResult.wasted,
+    battalionCreated: false,
+    goldSpent: 0,
   };
 }

@@ -159,6 +159,40 @@ export async function getActiveAttackUnit(
   });
 }
 
+export async function reserveIdleArmy({
+  db,
+  fortressId,
+  armyAmount,
+  errorMessage = "You do not have enough idle army.",
+}: {
+  db: DatabaseClient;
+  fortressId: string;
+  armyAmount: number;
+  errorMessage?: string;
+}) {
+  if (!Number.isInteger(armyAmount) || armyAmount <= 0) {
+    throw new GameError("Commit at least 1 army.");
+  }
+
+  const result = await db.fortress.updateMany({
+    where: {
+      id: fortressId,
+      army: {
+        gte: armyAmount,
+      },
+    },
+    data: {
+      army: {
+        decrement: armyAmount,
+      },
+    },
+  });
+
+  if (result.count !== 1) {
+    throw new GameError(errorMessage);
+  }
+}
+
 function clampProgress(value: number) {
   return Math.min(1, Math.max(0, value));
 }
@@ -280,6 +314,38 @@ export async function recallAttackUnit({
     ) {
       const lostArmy = Math.max(1, Math.ceil(attackUnit.armyAmount * 0.05));
       const returnedArmy = Math.max(0, attackUnit.armyAmount - lostArmy);
+      const claimedRecall = await db.attackUnit.updateMany({
+        where: {
+          id: attackUnit.id,
+          resolvedAt: null,
+          cancelledAt: null,
+          recalledAt: null,
+          arrivesAt: {
+            gt: now,
+          },
+        },
+        data: {
+          recalledAt: now,
+          returnOriginMapX: returnOrigin.mapX,
+          returnOriginMapY: returnOrigin.mapY,
+          arrivesAt: now,
+          resolvedAt: now,
+          defenderArmyAtBattleStart: null,
+          resolvedAttackPower: 0,
+          resolvedDefensePower: 0,
+          attackerSurvivors: returnedArmy,
+          attackerRetired: 0,
+          attackerReturned: returnedArmy,
+          defenderLosses: 0,
+          pointsLooted: 0,
+          foodLooted: 0,
+          armyLooted: 0,
+        },
+      });
+
+      if (claimedRecall.count !== 1) {
+        throw new GameError("That army is no longer on the way.");
+      }
 
       await db.raceAbilityActivation.create({
         data: {
@@ -304,26 +370,9 @@ export async function recallAttackUnit({
         });
       }
 
-      return db.attackUnit.update({
+      return db.attackUnit.findUniqueOrThrow({
         where: {
           id: attackUnit.id,
-        },
-        data: {
-          recalledAt: now,
-          returnOriginMapX: returnOrigin.mapX,
-          returnOriginMapY: returnOrigin.mapY,
-          arrivesAt: now,
-          resolvedAt: now,
-          defenderArmyAtBattleStart: null,
-          resolvedAttackPower: 0,
-          resolvedDefensePower: 0,
-          attackerSurvivors: returnedArmy,
-          attackerRetired: 0, // Retirement removed
-          attackerReturned: returnedArmy,
-          defenderLosses: 0,
-          pointsLooted: 0,
-          foodLooted: 0,
-          armyLooted: 0,
         },
       });
     }
@@ -444,13 +493,11 @@ export async function launchAttackUnit({
     return null;
   }
 
-  await db.fortress.update({
-    where: {
-      id: attacker.id,
-    },
-    data: {
-      army: attacker.army - armyAmount,
-    },
+  await reserveIdleArmy({
+    db,
+    fortressId: attacker.id,
+    armyAmount,
+    errorMessage: "You do not have enough army to send that many units.",
   });
 
   return db.attackUnit.create({

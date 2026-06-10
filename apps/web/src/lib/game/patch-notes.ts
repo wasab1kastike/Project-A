@@ -7,6 +7,16 @@ export type PatchNotesRelease = {
 
 export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
   {
+    date: "2026-06-09",
+    title: "Ambient map audio",
+    newFeatures: [
+      "The battlefield HUD now has an opt-in Sound toggle with generated water, wind, soft pad, and small nature blips for calmer map sessions.",
+    ],
+    bugFixes: [
+      "The map overlay no longer shows dedicated zoom buttons; zoom uses wheel, trackpad pinch, mobile pinch, or focused-map keyboard keys while reset and fortress focus stay compact.",
+    ],
+  },
+  {
     date: "2026-06-01",
     title: "Treaty desk cleanup",
     newFeatures: [
@@ -20,6 +30,7 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
       "Castle War Room is now simplified around battlefronts, battalions, army recruitment, and optional alliance support.",
       "Battalion controls now use four jobs only: RESERVE, GUARD, ATTACK, and ALLIANCE. Stances are handled behind the curtain.",
       "Battalions no longer heal passively; recruiters are the way to refill battered units.",
+      "Recruiters now refill commissioned battalions only; full battalions and max army size stop new recruits until commanders make more room.",
       "Idle battalions now roam owned tiles on the map until their job has something to do.",
       "GUARD battalion mode is back for owned-border patrols; manual guard orders and convoy raid patrols stay disabled, and active legacy guard or raid orders return their committed army on the next tick.",
       "War Front battalions now dispatch from ATTACK mode in both war directions, using reachable tile priorities as target preference.",
@@ -33,8 +44,11 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
       "Expansion queues now auto-fill to the fortress's current priority-slot limit, replacing claimed or invalid neutral targets with the nearest legal border tiles.",
       "Farther neutral expansion now needs more pressure and unsupported distant pressure decays faster, so the frontier has to earn its dramatic little march.",
       "Race skill trees are now role-focused: Economy, Territory, and Military paths use smaller ramp nodes with major unlocks at nodes 4 and 8.",
-      "Economy skills can add expansion priority slots and reduce army upkeep; Military skills can add battalion slots, larger battalions, faster recruitment, XP, and cheaper promotions.",
-      "Castle Economy now has Trade Wagons: wagon gold+food capacity starts at 100 and upgrades through the building ladder up to 20,000.",
+      "Skill points now arrive later and slower: castle points start at level 3, then every 2 castle levels, and territory points require 5 owned normal tiles.",
+      "Economy skills can add expansion priority slots, reduce army upkeep, increase wagon capacity, improve trade profit, and unlock more active wagons.",
+      "Military skills can add battalion slots, larger battalions, faster recruitment, and cheaper promotions.",
+      "Castle Economy now has Trade Wagons: wagon gold+food capacity starts at 100 and upgrades through the building ladder up to 20,000. Fortresses can run 3 active outbound wagons by default.",
+      "Politics now shows alliance collateral, escrow, trust upgrade escrow, and peace reparations beside the relevant proposal and accept controls.",
     ],
     bugFixes: [
       "Overdue convoy wagons no longer keep animating on the map after their scheduled arrival; every successful delivery adds a small gold/food bonus with bigger allied Trust bonuses.",
@@ -43,6 +57,7 @@ export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
       "Automatic wartime convoy raid dispatch is disabled during the War Room simplification pass.",
       "Battalion and War Front controls now validate live ownership, costs, mode, and promotion state on the server before applying changes.",
       "Pending battalion reinforcements now count against battalion capacity, preventing overfill while troops are still on the road.",
+      "Battalions are no longer auto-commissioned by overflow recruitment.",
       "Road growth now follows the actual tile or battlefield destination instead of assuming every arrived unit marched castle-to-castle.",
       "Existing race skill purchases were reset so commanders can rebuild around the new specializations.",
     ],

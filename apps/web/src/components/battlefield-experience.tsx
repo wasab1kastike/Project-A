@@ -38,6 +38,7 @@ import {
   getTileBonus,
   isHomeOfATile,
 } from "@/lib/game/territory";
+import { getMapTilePresentation } from "@/lib/game/map-presentation";
 import { NoticeToast } from "./notice-toast";
 import styles from "./battlefield-experience.module.css";
 
@@ -764,6 +765,34 @@ export function BattlefieldExperience({
     ? (battlefields.find(
         (battlefield) => battlefield.id === selectedActiveBattlefieldId
       ) ?? null)
+    : null;
+  const selectedTilePresentation = selectedTile
+    ? getMapTilePresentation({
+        tileId: selectedTile.id,
+        biomeLabel: selectedTileIsHomeOfA
+          ? "Home of A"
+          : BIOME_LABELS[selectedTile.biome],
+        bonusLabel: selectedTileBonus.label,
+        isSelected: true,
+        isHomeOfA: selectedTileIsHomeOfA,
+        isOwned: Boolean(selectedOwnership?.ownerFortressId),
+        ownerName: selectedOwnership?.ownerName,
+        isCurrentUser: selectedOwnership?.isCurrentUser,
+        hasActiveBattle: Boolean(selectedActiveBattlefieldId),
+        canAttack:
+          selectedOwnership?.canAttack ??
+          (selectedTileIsHomeOfA ? homeOfA?.canAttack : false),
+        pressurePriority: selectedOwnership?.pressurePriority,
+        pressurePriorityRank: selectedOwnership?.pressurePriorityRank,
+        pressurePlayerProgress: selectedOwnership?.pressurePlayerProgress,
+        pressureProgress: selectedOwnership?.pressureProgress,
+        pressureThreshold: selectedOwnership?.pressureThreshold,
+        pressureLeaderLabel: selectedOwnership?.pressureLeaderLabel,
+        canPrioritizePressure: selectedOwnership?.canPrioritizePressure,
+        ownershipPressure: selectedOwnership?.ownershipPressure,
+        occupyingGarrisonName:
+          selectedOwnership?.occupyingGarrison?.fortressName,
+      })
     : null;
   const selectedBattlefields = useMemo(() => {
     if (selectedBattlefieldId) {
@@ -1654,6 +1683,20 @@ export function BattlefieldExperience({
           Close
         </button>
       </div>
+
+      {selectedTilePresentation ? (
+        <div
+          className={styles.tileStatusRow}
+          data-tone={selectedTilePresentation.tone}
+        >
+          <span>{selectedTilePresentation.ownerLabel}</span>
+          <span>{selectedTilePresentation.stateLabel}</span>
+          {selectedTilePresentation.pressureLabel ? (
+            <span>{selectedTilePresentation.pressureLabel}</span>
+          ) : null}
+          <span>{selectedTilePresentation.actionLabel}</span>
+        </div>
+      ) : null}
 
       {selectedTileIsHomeOfA && homeOfA && !selectedTileIsSeasonFourMonument ? (
         <section

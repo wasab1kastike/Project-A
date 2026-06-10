@@ -162,6 +162,7 @@ Always update in the same commit:
 | Change Type | Doc to Update |
 |-------------|--------------|
 | Gameplay rules | `README.md` (gameplay section), `docs/game-design.md`, wiki page |
+| System fit, player verbs, map/control contract | `docs/game-systems-plan.md` |
 | New action/UI | `AGENTS.md` if it adds a new pattern |
 | Balance change | `docs/game-design.md` formulas section |
 | Schema change | `docs/data-model.md` |
@@ -291,4 +292,5 @@ Server Action
 | `apps/web/server.mjs` | Custom Node server (Next.js + Socket.IO) |
 | `render.yaml` | Render Blueprint deployment |
 | `docs/game-design.md` | Detailed game rules |
+| `docs/game-systems-plan.md` | Product loop, player verbs, map/control contract, and system boundaries |
 | `docs/next-season-redesign.md` | Pressure, Politics & Trade redesign plan |

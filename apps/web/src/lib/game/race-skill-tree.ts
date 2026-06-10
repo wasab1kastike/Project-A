@@ -2,6 +2,9 @@ import type { FortressRace } from "./races";
 
 export const MAX_SKILL_POINTS = 12;
 export const SKILL_NODES_PER_PATH = 8;
+export const SKILL_POINT_FIRST_CASTLE_LEVEL = 3;
+export const SKILL_POINT_CASTLE_LEVEL_INTERVAL = 2;
+export const SKILL_POINT_TILE_INTERVAL = 5;
 
 export type RaceSkillPath = {
   key: string;
@@ -74,8 +77,6 @@ const claimThreshold = (value: number) =>
 // ── New Season 4 effects ────────────────────────────────────────────────────
 const battalionSize = (value: number) =>
   reward(`+${value}% battalion max size`, "battalionMaxSize", value, value >= 20);
-const battalionXp = (value: number) =>
-  reward(`+${value}% battalion XP`, "battalionXpRate", value, value >= 15);
 const upkeepDisc = (value: number) =>
   reward(`-${value}% army upkeep`, "upkeepDiscount", value, value >= 10);
 const promoDisc = (value: number) =>
@@ -86,6 +87,12 @@ const recruitRate = (value: number) =>
   reward(`+${value}% recruitment rate`, "recruitmentRate", value, value >= 40);
 const battalionSlots = (value: number) =>
   reward(`+${value} battalion slot${value === 1 ? "" : "s"}`, "battalionSlots", value, true);
+const tradeWagonCapacity = (value: number) =>
+  reward(`+${value}% wagon capacity`, "tradeWagonCapacity", value, value >= 25);
+const tradeProfit = (value: number) =>
+  reward(`+${value}% trade profit`, "tradeProfit", value, value >= 15);
+const tradeWagonSlots = (value: number) =>
+  reward(`+${value} active wagon${value === 1 ? "" : "s"}`, "tradeWagonSlots", value, true);
 
 export const RACE_SKILL_TREES: Record<FortressRace, RaceSkillTree> = {
   DWARFS: {
@@ -95,11 +102,11 @@ export const RACE_SKILL_TREES: Record<FortressRace, RaceSkillTree> = {
         { level: 1, name: "Red Ink Rations", description: "+3 food per 10 farmers", rewards: [food(3)] },
         { level: 2, name: "Debt Mine", description: "+3 gold per 10 miners", rewards: [gold(3)] },
         { level: 3, name: "Stone Pantry", description: "-10% army upkeep", rewards: [upkeepDisc(10)] },
-        { level: 4, name: "Claim Ledgers", description: "+1 expansion priority slot", rewards: [prioritySlots(1)] },
+        { level: 4, name: "Claim Ledgers", description: "+1 expansion priority slot, +25% wagon capacity", rewards: [prioritySlots(1), tradeWagonCapacity(25)] },
         { level: 5, name: "Vengeful Harvest", description: "+5 food per 10 farmers", rewards: [food(5)] },
-        { level: 6, name: "Audited Veins", description: "+5 gold per 10 miners", rewards: [gold(5)] },
+        { level: 6, name: "Audited Veins", description: "+5 gold per 10 miners, +10% trade profit", rewards: [gold(5), tradeProfit(10)] },
         { level: 7, name: "Oathbound Stores", description: "-20% army upkeep", rewards: [upkeepDisc(20)] },
-        { level: 8, name: "The Grudge Pays", description: "+2 expansion slots, -30% upkeep", rewards: [prioritySlots(2), upkeepDisc(30)] },
+        { level: 8, name: "The Grudge Pays", description: "+2 expansion slots, +1 active wagon, -30% upkeep", rewards: [prioritySlots(2), tradeWagonSlots(1), upkeepDisc(30)] },
       ]),
       path("territory", "Seismic Claim", "Make borders move before armies do.", [
         { level: 1, name: "Stone Listening", description: "+10% pressure", rewards: [pressure(10)] },
@@ -113,7 +120,7 @@ export const RACE_SKILL_TREES: Record<FortressRace, RaceSkillTree> = {
       ]),
       path("military", "Runebound Host", "Compact companies, stubborn veterans, heavy muster.", [
         { level: 1, name: "Drilled Muster", description: "+20% recruitment rate", rewards: [recruitRate(20)] },
-        { level: 2, name: "Clan Veterans", description: "+15% battalion XP", rewards: [battalionXp(15)] },
+        { level: 2, name: "Clan Veterans", description: "+10% battalion max size", rewards: [battalionSize(10)] },
         { level: 3, name: "Deep Barracks", description: "+20% battalion max size", rewards: [battalionSize(20)] },
         { level: 4, name: "Ancestor Companies", description: "+1 battalion slot", rewards: [battalionSlots(1)] },
         { level: 5, name: "Rune Drill", description: "+40% recruitment rate", rewards: [recruitRate(40)] },
@@ -130,11 +137,11 @@ export const RACE_SKILL_TREES: Record<FortressRace, RaceSkillTree> = {
         { level: 1, name: "Snack Finderz", description: "+3 food per 10 farmers", rewards: [food(3)] },
         { level: 2, name: "Shiny Mine", description: "+3 gold per 10 miners", rewards: [gold(3)] },
         { level: 3, name: "Cheap Grub", description: "-10% army upkeep", rewards: [upkeepDisc(10)] },
-        { level: 4, name: "More Places Ta Grab", description: "+1 expansion priority slot", rewards: [prioritySlots(1)] },
+        { level: 4, name: "More Places Ta Grab", description: "+1 expansion priority slot, +25% wagon capacity", rewards: [prioritySlots(1), tradeWagonCapacity(25)] },
         { level: 5, name: "Bigger Snack Pile", description: "+5 food per 10 farmers", rewards: [food(5)] },
-        { level: 6, name: "Da Tax Is Punchin'", description: "+5 gold per 10 miners", rewards: [gold(5)] },
+        { level: 6, name: "Da Tax Is Punchin'", description: "+5 gold per 10 miners, +10% trade profit", rewards: [gold(5), tradeProfit(10)] },
         { level: 7, name: "Feed Da Ladz", description: "-20% army upkeep", rewards: [upkeepDisc(20)] },
-        { level: 8, name: "Da Biggest Pile", description: "+2 expansion slots, -30% upkeep", rewards: [prioritySlots(2), upkeepDisc(30)] },
+        { level: 8, name: "Da Biggest Pile", description: "+2 expansion slots, +1 active wagon, -30% upkeep", rewards: [prioritySlots(2), tradeWagonSlots(1), upkeepDisc(30)] },
       ]),
       path("territory", "Green Tide Claim", "Push borders by being louder than walls.", [
         { level: 1, name: "Rock Lobbas", description: "+10% pressure", rewards: [pressure(10)] },
@@ -148,7 +155,7 @@ export const RACE_SKILL_TREES: Record<FortressRace, RaceSkillTree> = {
       ]),
       path("military", "WAAAGH Host", "Recruitment momentum that refuses to stop.", [
         { level: 1, name: "Louda Drums", description: "+20% recruitment rate", rewards: [recruitRate(20)] },
-        { level: 2, name: "Fight Learnin'", description: "+15% battalion XP", rewards: [battalionXp(15)] },
+        { level: 2, name: "Fight Learnin'", description: "+10% battalion max size", rewards: [battalionSize(10)] },
         { level: 3, name: "Bigger Mobs", description: "+20% battalion max size", rewards: [battalionSize(20)] },
         { level: 4, name: "More Mobs", description: "+1 battalion slot", rewards: [battalionSlots(1)] },
         { level: 5, name: "Redline Muster", description: "+40% recruitment rate", rewards: [recruitRate(40)] },
@@ -165,11 +172,11 @@ export const RACE_SKILL_TREES: Record<FortressRace, RaceSkillTree> = {
         { level: 1, name: "Ration Ledgers", description: "+3 food per 10 farmers", rewards: [food(3)] },
         { level: 2, name: "Supply Drill", description: "+3 gold per 10 miners", rewards: [gold(3)] },
         { level: 3, name: "Lean Convoys", description: "-10% army upkeep", rewards: [upkeepDisc(10)] },
-        { level: 4, name: "Expansion Dispatch", description: "+1 expansion priority slot", rewards: [prioritySlots(1)] },
+        { level: 4, name: "Expansion Dispatch", description: "+1 expansion priority slot, +35% wagon capacity", rewards: [prioritySlots(1), tradeWagonCapacity(35)] },
         { level: 5, name: "Secured Depots", description: "+5 food per 10 farmers", rewards: [food(5)] },
-        { level: 6, name: "Fleet Protocol", description: "+5 gold per 10 miners", rewards: [gold(5)] },
+        { level: 6, name: "Fleet Protocol", description: "+5 gold per 10 miners, +15% trade profit", rewards: [gold(5), tradeProfit(15)] },
         { level: 7, name: "Imperial Supply Lines", description: "-20% army upkeep", rewards: [upkeepDisc(20)] },
-        { level: 8, name: "Imperial Supply Web", description: "+2 expansion slots, -30% upkeep", rewards: [prioritySlots(2), upkeepDisc(30)] },
+        { level: 8, name: "Imperial Supply Web", description: "+2 expansion slots, +2 active wagons, -30% upkeep", rewards: [prioritySlots(2), tradeWagonSlots(2), upkeepDisc(30)] },
       ]),
       path("territory", "Orbital Claim", "Precision claims from above.", [
         { level: 1, name: "Surveyor Satellites", description: "+10% pressure", rewards: [pressure(10)] },
@@ -183,7 +190,7 @@ export const RACE_SKILL_TREES: Record<FortressRace, RaceSkillTree> = {
       ]),
       path("military", "Rapid Response Host", "Fast deployment and fortress readiness.", [
         { level: 1, name: "Quick March", description: "+20% recruitment rate", rewards: [recruitRate(20)] },
-        { level: 2, name: "Combat Recorders", description: "+15% battalion XP", rewards: [battalionXp(15)] },
+        { level: 2, name: "Combat Recorders", description: "+10% battalion max size", rewards: [battalionSize(10)] },
         { level: 3, name: "Drop Pod Berths", description: "+20% battalion max size", rewards: [battalionSize(20)] },
         { level: 4, name: "Ready Companies", description: "+1 battalion slot", rewards: [battalionSlots(1)] },
         { level: 5, name: "Orbital Insertion", description: "+40% recruitment rate", rewards: [recruitRate(40)] },
@@ -200,11 +207,11 @@ export const RACE_SKILL_TREES: Record<FortressRace, RaceSkillTree> = {
         { level: 1, name: "Phantom Kitchens", description: "+3 food per 10 farmers", rewards: [food(3)] },
         { level: 2, name: "Reality Pennies", description: "+3 gold per 10 miners", rewards: [gold(3)] },
         { level: 3, name: "Sugar Discipline", description: "-10% army upkeep", rewards: [upkeepDisc(10)] },
-        { level: 4, name: "Extra Horizons", description: "+1 expansion priority slot", rewards: [prioritySlots(1)] },
+        { level: 4, name: "Extra Horizons", description: "+1 expansion priority slot, +25% wagon capacity", rewards: [prioritySlots(1), tradeWagonCapacity(25)] },
         { level: 5, name: "Lucky Gallop", description: "+5 food per 10 farmers", rewards: [food(5)] },
-        { level: 6, name: "Prismatic Surge", description: "+5 gold per 10 miners", rewards: [gold(5)] },
+        { level: 6, name: "Prismatic Surge", description: "+5 gold per 10 miners, +10% trade profit", rewards: [gold(5), tradeProfit(10)] },
         { level: 7, name: "Stable Reality", description: "-20% army upkeep", rewards: [upkeepDisc(20)] },
-        { level: 8, name: "Shattered Ledger", description: "+2 expansion slots, -30% upkeep", rewards: [prioritySlots(2), upkeepDisc(30)] },
+        { level: 8, name: "Shattered Ledger", description: "+2 expansion slots, +1 active wagon, -30% upkeep", rewards: [prioritySlots(2), tradeWagonSlots(1), upkeepDisc(30)] },
       ]),
       path("territory", "Prismatic Claim", "Expansion with unreliable borders and very reliable glitter.", [
         { level: 1, name: "Sparkle Dust", description: "+10% pressure", rewards: [pressure(10)] },
@@ -218,7 +225,7 @@ export const RACE_SKILL_TREES: Record<FortressRace, RaceSkillTree> = {
       ]),
       path("military", "Mirror Host", "Decoy companies, impossible veterans, sudden reinforcements.", [
         { level: 1, name: "Lucky Muster", description: "+20% recruitment rate", rewards: [recruitRate(20)] },
-        { level: 2, name: "Shimmer Masks", description: "+15% battalion XP", rewards: [battalionXp(15)] },
+        { level: 2, name: "Shimmer Masks", description: "+10% battalion max size", rewards: [battalionSize(10)] },
         { level: 3, name: "Hidden Quarters", description: "+20% battalion max size", rewards: [battalionSize(20)] },
         { level: 4, name: "Mirror Companies", description: "+1 battalion slot", rewards: [battalionSlots(1)] },
         { level: 5, name: "Helpful Paradox", description: "+40% recruitment rate", rewards: [recruitRate(40)] },

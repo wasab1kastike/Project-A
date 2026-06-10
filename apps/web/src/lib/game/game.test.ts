@@ -115,6 +115,7 @@ import {
   UNIT_SPRITE_VARIANTS,
 } from "./constants";
 import { getAttackArrivalAt, getAttackTravelMinutes } from "./attacks";
+import { reserveIdleArmy } from "./attack-units";
 import { getAttackPresentation } from "./attack-presentation";
 import {
   getCosmeticSpriteStyle,
@@ -2141,6 +2142,104 @@ test("owned tile attack creates a targetTileId battlefield", async (context) => 
   );
 });
 
+test("concurrent army launches cannot reserve more idle army than exists", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const attacker = await createUser(prisma, "dupe-launch-attacker@example.com");
+  const defender = await createUser(prisma, "dupe-launch-defender@example.com");
+  const cycle = await seedActiveCommunityWishCycle(prisma, [
+    {
+      userId: attacker.id,
+      commanderName: "Dupe Attacker",
+      fortressName: "Race Keep",
+      points: 100,
+    },
+    {
+      userId: defender.id,
+      commanderName: "Dupe Defender",
+      fortressName: "Target Keep",
+      points: 100,
+    },
+  ]);
+  const [attackerFortress, defenderFortress] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: attacker.id } },
+    }),
+    prisma.fortress.findUniqueOrThrow({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: defender.id } },
+    }),
+  ]);
+  const tile = HEX_SPAWN_TILES.find(
+    (candidate) =>
+      candidate.spawnable &&
+      !isHomeOfATile(candidate.id) &&
+      isTileConnectedToFortressOrOwnedTiles({
+        tileId: candidate.id,
+        fortress: attackerFortress,
+        ownedTileIds: [],
+      })
+  );
+
+  assert.ok(tile);
+  await prisma.fortress.update({
+    where: { id: attackerFortress.id },
+    data: { race: FortressRace.ORKS, army: 5 },
+  });
+  await prisma.fortress.update({
+    where: { id: defenderFortress.id },
+    data: { race: FortressRace.DWARFS, army: 10 },
+  });
+  await prisma.mapHexOwnership.create({
+    data: {
+      cycleId: cycle.id,
+      tileId: tile.id,
+      ownerFortressId: defenderFortress.id,
+    },
+  });
+
+  await Promise.allSettled([
+    attackMapHex({
+      userId: attacker.id,
+      tileId: tile.id,
+      sentArmy: 4,
+      now: new Date("2026-04-20T12:01:00.000Z"),
+      db: prisma,
+    }),
+    attackMapHex({
+      userId: attacker.id,
+      tileId: tile.id,
+      sentArmy: 4,
+      now: new Date("2026-04-20T12:01:00.000Z"),
+      db: prisma,
+    }),
+  ]);
+
+  const reloadedAttacker = await prisma.fortress.findUniqueOrThrow({
+    where: { id: attackerFortress.id },
+    select: { army: true },
+  });
+  const activeAttackUnits = await prisma.attackUnit.findMany({
+    where: {
+      cycleId: cycle.id,
+      attackerFortressId: attackerFortress.id,
+      cancelledAt: null,
+      resolvedAt: null,
+    },
+    select: { armyAmount: true },
+  });
+  const committedArmy = activeAttackUnits.reduce(
+    (sum, unit) => sum + unit.armyAmount,
+    0
+  );
+
+  assert.ok(committedArmy <= 5);
+  assert.equal(reloadedAttacker.army + committedArmy, 5);
+});
+
 test("owned tile attack rejects when targeting your own tile", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
@@ -2967,6 +3066,95 @@ test("season four bilateral trade accepts cargo and delivers allied convoy bonus
   );
 });
 
+test("concurrent trade accepts cannot duplicate army convoy cargo", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const sender = await createUser(prisma, "trade-dupe-sender@example.com");
+  const receiver = await createUser(prisma, "trade-dupe-receiver@example.com");
+  const cycle = await seedActiveCommunityWishCycle(
+    prisma,
+    [
+      {
+        userId: sender.id,
+        commanderName: "Convoy Sender",
+        fortressName: "Single Wagon",
+        points: 100,
+      },
+      {
+        userId: receiver.id,
+        commanderName: "Convoy Receiver",
+        fortressName: "Single Market",
+        points: 100,
+      },
+    ],
+    new Date("2026-04-22T12:00:00.000Z")
+  );
+  await markSeasonFourCycle(prisma, cycle.id);
+  const [senderFortress, receiverFortress] = await Promise.all([
+    prisma.fortress.update({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: sender.id } },
+      data: { gold: 5_000, food: 5_000, army: 5 },
+    }),
+    prisma.fortress.update({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: receiver.id } },
+      data: { gold: 5_000, food: 5_000, army: 5 },
+    }),
+  ]);
+
+  const offer = await createTradeOffer({
+    userId: sender.id,
+    targetFortressId: receiverFortress.id,
+    offeredGold: 0,
+    offeredFood: 0,
+    offeredArmy: 4,
+    requestedGold: 0,
+    requestedFood: 0,
+    requestedArmy: 0,
+    now: new Date("2026-04-20T12:00:00.000Z"),
+    db: prisma,
+  });
+
+  await Promise.allSettled([
+    acceptTradeOffer({
+      userId: receiver.id,
+      tradeOfferId: offer.id,
+      now: new Date("2026-04-20T12:00:10.000Z"),
+      db: prisma,
+    }),
+    acceptTradeOffer({
+      userId: receiver.id,
+      tradeOfferId: offer.id,
+      now: new Date("2026-04-20T12:00:10.000Z"),
+      db: prisma,
+    }),
+  ]);
+
+  const [reloadedSender, legs, acceptedOffer] = await Promise.all([
+    prisma.fortress.findUniqueOrThrow({
+      where: { id: senderFortress.id },
+      select: { army: true },
+    }),
+    prisma.convoyLeg.findMany({
+      where: { tradeOfferId: offer.id },
+      select: { army: true },
+    }),
+    prisma.tradeOffer.findUniqueOrThrow({
+      where: { id: offer.id },
+      select: { status: true },
+    }),
+  ]);
+  const convoyArmy = legs.reduce((sum, leg) => sum + leg.army, 0);
+
+  assert.equal(acceptedOffer.status, TradeOfferStatus.ACCEPTED);
+  assert.equal(legs.length, 1);
+  assert.equal(convoyArmy, 4);
+  assert.equal(reloadedSender.army + convoyArmy, 5);
+});
+
 test("season four trade wagon capacity follows the trade building level", async (context) => {
   const prisma = getPrismaOrSkip(context);
 
@@ -3050,6 +3238,141 @@ test("season four trade wagon capacity follows the trade building level", async 
   });
 
   assert.equal(accepted.convoyLegs.length, 2);
+});
+
+test("season four active outbound trade wagons are capped and skill-expandable", async (context) => {
+  const prisma = getPrismaOrSkip(context);
+
+  if (!prisma) {
+    return;
+  }
+
+  const sender = await createUser(prisma, "wagon-limit-sender@example.com");
+  const receiver = await createUser(prisma, "wagon-limit-receiver@example.com");
+  const inboundSender = await createUser(prisma, "wagon-limit-inbound@example.com");
+  const cycle = await seedActiveCommunityWishCycle(
+    prisma,
+    [
+      { userId: sender.id, commanderName: "Limit Alpha", fortressName: "Three Carts", points: 0 },
+      { userId: receiver.id, commanderName: "Limit Beta", fortressName: "Cart Receiver", points: 0 },
+      { userId: inboundSender.id, commanderName: "Limit Gamma", fortressName: "Inbound Cart", points: 0 },
+    ],
+    new Date("2026-04-22T12:00:00.000Z")
+  );
+  await markSeasonFourCycle(prisma, cycle.id);
+
+  const [senderFortress, receiverFortress, inboundFortress] = await Promise.all([
+    prisma.fortress.update({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: sender.id } },
+      data: { gold: 5_000, race: "DWARFS" },
+    }),
+    prisma.fortress.update({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: receiver.id } },
+      data: { gold: 5_000 },
+    }),
+    prisma.fortress.update({
+      where: { cycleId_ownerId: { cycleId: cycle.id, ownerId: inboundSender.id } },
+      data: { gold: 5_000 },
+    }),
+  ]);
+
+  for (let index = 0; index < 3; index += 1) {
+    const offer = await createTradeOffer({
+      userId: sender.id,
+      targetFortressId: receiverFortress.id,
+      offeredGold: 100,
+      offeredFood: 0,
+      offeredArmy: 0,
+      requestedGold: 0,
+      requestedFood: 0,
+      requestedArmy: 0,
+      now: new Date(`2026-04-20T12:0${index}:00.000Z`),
+      db: prisma,
+    });
+    await acceptTradeOffer({
+      userId: receiver.id,
+      tradeOfferId: offer.id,
+      now: new Date(`2026-04-20T12:0${index}:10.000Z`),
+      db: prisma,
+    });
+  }
+
+  const inboundOffer = await createTradeOffer({
+    userId: inboundSender.id,
+    targetFortressId: senderFortress.id,
+    offeredGold: 100,
+    offeredFood: 0,
+    offeredArmy: 0,
+    requestedGold: 0,
+    requestedFood: 0,
+    requestedArmy: 0,
+    now: new Date("2026-04-20T12:03:00.000Z"),
+    db: prisma,
+  });
+  await acceptTradeOffer({
+    userId: sender.id,
+    tradeOfferId: inboundOffer.id,
+    now: new Date("2026-04-20T12:03:10.000Z"),
+    db: prisma,
+  });
+
+  const fourthOffer = await createTradeOffer({
+    userId: sender.id,
+    targetFortressId: receiverFortress.id,
+    offeredGold: 100,
+    offeredFood: 0,
+    offeredArmy: 0,
+    requestedGold: 0,
+    requestedFood: 0,
+    requestedArmy: 0,
+    now: new Date("2026-04-20T12:04:00.000Z"),
+    db: prisma,
+  });
+  await assert.rejects(
+    () =>
+      acceptTradeOffer({
+        userId: receiver.id,
+        tradeOfferId: fourthOffer.id,
+        now: new Date("2026-04-20T12:04:10.000Z"),
+        db: prisma,
+      }),
+    /3 active outbound wagons/
+  );
+
+  await prisma.raceSkillPurchase.create({
+    data: {
+      fortressId: senderFortress.id,
+      nodeKey: "economy-8",
+    },
+  });
+  const accepted = await acceptTradeOffer({
+    userId: receiver.id,
+    tradeOfferId: fourthOffer.id,
+    now: new Date("2026-04-20T12:04:20.000Z"),
+    db: prisma,
+  });
+
+  assert.equal(accepted.convoyLegs.length, 1);
+  assert.equal(
+    await prisma.convoyLeg.count({
+      where: {
+        cycleId: cycle.id,
+        fromFortressId: senderFortress.id,
+        status: ConvoyLegStatus.IN_TRANSIT,
+      },
+    }),
+    4
+  );
+  assert.equal(
+    await prisma.convoyLeg.count({
+      where: {
+        cycleId: cycle.id,
+        fromFortressId: inboundFortress.id,
+        status: ConvoyLegStatus.IN_TRANSIT,
+      },
+    }),
+    1
+  );
 });
 
 test("season four trade offers can cancel or reject and hostile transit is seized", async (context) => {
@@ -12879,6 +13202,46 @@ test("activation creates one mega fortress without consuming player slots", asyn
     ),
     true
   );
+});
+
+test("idle army reservation is an atomic conditional decrement", async () => {
+  let army = 5;
+  const fakeDb = {
+    fortress: {
+      updateMany: async ({
+        where,
+        data,
+      }: {
+        where: { army: { gte: number } };
+        data: { army: { decrement: number } };
+      }) => {
+        if (army < where.army.gte) {
+          return { count: 0 };
+        }
+
+        army -= data.army.decrement;
+        return { count: 1 };
+      },
+    },
+  };
+
+  await reserveIdleArmy({
+    db: fakeDb as never,
+    fortressId: "fortress-1",
+    armyAmount: 4,
+  });
+
+  assert.equal(army, 1);
+  await assert.rejects(
+    () =>
+      reserveIdleArmy({
+        db: fakeDb as never,
+        fortressId: "fortress-1",
+        armyAmount: 4,
+      }),
+    /not have enough idle army/
+  );
+  assert.equal(army, 1);
 });
 
 test("old active map layouts reshuffle once on the next tick", async (context) => {

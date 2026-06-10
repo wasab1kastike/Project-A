@@ -24,7 +24,16 @@ import {
 import { getAttackTravelMinutes } from "@/lib/game/attacks";
 import { getAttackPresentation } from "@/lib/game/attack-presentation";
 import { getCosmeticSpriteStyle } from "@/lib/game/cosmetic-sprites";
-import { findSimplePath, getHexNeighbors, type PathHexTile } from "@/lib/game/march-pathfinding";
+import {
+  findSimplePath,
+  getHexNeighbors,
+  type PathHexTile,
+} from "@/lib/game/march-pathfinding";
+import {
+  getMapViewKeyboardAction,
+  MAP_VIEW_CONTROL_LABELS,
+} from "@/lib/game/map-controls";
+import { getMapTilePresentation } from "@/lib/game/map-presentation";
 import type { UnitSpriteVariant } from "@/lib/game/constants";
 import {
   getHomeOfABonus,
@@ -885,6 +894,27 @@ function HexTileMap({
         const bonus =
           ownership?.bonus ??
           (isHomeTile ? getHomeOfABonus() : getTileBonus(tile));
+        const presentation = getMapTilePresentation({
+          tileId: tile.id,
+          biomeLabel: isHomeTile ? "Home of A" : BIOME_LABELS[tile.biome],
+          bonusLabel: bonus.label,
+          isSelected: selectedTileId === tile.id,
+          isHomeOfA: ownership?.isHomeOfA ?? isHomeTile,
+          isOwned: isOwnedTile,
+          ownerName: ownership?.ownerName,
+          isCurrentUser: ownership?.isCurrentUser,
+          hasActiveBattle: ownership?.hasActiveBattle,
+          canAttack: ownership?.canAttack,
+          pressurePriority: ownership?.pressurePriority,
+          pressurePriorityRank: ownership?.pressurePriorityRank,
+          pressurePlayerProgress: ownership?.pressurePlayerProgress,
+          pressureProgress: ownership?.pressureProgress,
+          pressureThreshold: ownership?.pressureThreshold,
+          pressureLeaderLabel: ownership?.pressureLeaderLabel,
+          canPrioritizePressure: ownership?.canPrioritizePressure,
+          ownershipPressure: ownership?.ownershipPressure,
+          occupyingGarrisonName: ownership?.occupyingGarrison?.fortressName,
+        });
         const tileClassName = [
           styles.hexTile,
           styles[`${tile.biome}Tile`],
@@ -897,15 +927,14 @@ function HexTileMap({
           isOwnedTile && ownership?.ownerRace
             ? (OWNED_TILE_RACE_CLASS_BY_RACE[ownership.ownerRace] ?? "")
             : "",
-          ownership?.pressurePriority ? styles.pressurePriorityTile : "",
+          presentation.tone === "priority" ? styles.pressurePriorityTile : "",
           ownership?.attackPriority === 3 ? styles.attackPriorityPrimaryTile : "",
           ownership?.attackPriority === 2 ? styles.attackPrioritySecondaryTile : "",
           ownership?.attackPriority === 1 ? styles.attackPriorityTertiaryTile : "",
-          ownership?.isHomeOfA ? styles.contestedTile : "",
-          isOwnedTile && ownership?.isCurrentUser ? styles.ownTile : "",
-          ownership?.canAttack ? styles.attackableTile : "",
-          ownership?.hasActiveBattle ? styles.contestedTile : "",
-          selectedTileId === tile.id ? styles.selectedTile : "",
+          presentation.tone === "battle" ? styles.contestedTile : "",
+          presentation.tone === "own" ? styles.ownTile : "",
+          presentation.tone === "attackable" ? styles.attackableTile : "",
+          presentation.tone === "selected" ? styles.selectedTile : "",
         ]
           .filter(Boolean)
           .join(" ");
@@ -914,18 +943,8 @@ function HexTileMap({
           <g
             key={tile.id}
             className={tileClassName}
-            aria-label={
-              isOwnedTile && ownership
-                ? `${ownership.isHomeOfA ? "Home of A" : BIOME_LABELS[tile.biome]}, owned by ${ownership.ownerName}, ${ownership.bonus.label}${
-                    ownership.hasActiveBattle ? ", battle active" : ""
-                  }`
-                  : `${isHomeTile ? "Home of A, neutral control point" : `${BIOME_LABELS[tile.biome]}, unclaimed`}${
-                      ownership?.pressureProgress != null &&
-                      ownership.pressureThreshold != null
-                        ? `, pressure ${ownership.pressureProgress}/${ownership.pressureThreshold}`
-                        : ""
-                    }, ${bonus.label}`
-            }
+            data-tile-tone={presentation.tone}
+            aria-label={presentation.accessibleLabel}
             onPointerDown={(event) =>
               handleTilePointerDown(event, tile.id, tile.claimable)
             }
@@ -1958,57 +1977,41 @@ export const FortressMap = memo(function FortressMap({
       role="application"
       aria-label="Battlefield map"
       onKeyDown={(event) => {
-        if (
-          event.key === "+" ||
-          event.key === "=" ||
-          event.key === "NumpadAdd"
-        ) {
+        const keyboardAction = getMapViewKeyboardAction({
+          key: event.key,
+          code: event.code,
+        });
+
+        if (keyboardAction === "zoom-in") {
           event.preventDefault();
           userAdjustedViewRef.current = true;
           zoomFromViewportPoint(scale + ZOOM_STEP);
         }
 
-        if (event.key === "-" || event.key === "NumpadSubtract") {
+        if (keyboardAction === "zoom-out") {
           event.preventDefault();
           userAdjustedViewRef.current = true;
           zoomFromViewportPoint(scale - ZOOM_STEP);
         }
 
-        if (event.key === "0") {
+        if (keyboardAction === "reset-view") {
           event.preventDefault();
           resetView();
         }
       }}
       tabIndex={0}
     >
-      <div className={styles.controls}>
-        <button
-          type="button"
-          className={styles.controlButton}
-          aria-label="Zoom in"
-          onClick={() => {
-            userAdjustedViewRef.current = true;
-            zoomFromViewportPoint(scale + ZOOM_STEP);
-          }}
-        >
-          +
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          aria-label="Zoom out"
-          onClick={() => {
-            userAdjustedViewRef.current = true;
-            zoomFromViewportPoint(scale - ZOOM_STEP);
-          }}
-        >
-          -
-        </button>
+      <div
+        className={styles.controls}
+        role="group"
+        aria-label={MAP_VIEW_CONTROL_LABELS.group}
+      >
         <button
           type="button"
           className={`${styles.controlButton} ${styles.resetButton}`}
-          aria-label="Reset view"
+          aria-label={MAP_VIEW_CONTROL_LABELS.reset}
           onClick={resetView}
+          title={MAP_VIEW_CONTROL_LABELS.resetTitle}
         >
           0
         </button>
@@ -2016,11 +2019,12 @@ export const FortressMap = memo(function FortressMap({
           <button
             type="button"
             className={`${styles.controlButton} ${styles.focusButton}`}
-            aria-label="Focus my fortress"
+            aria-label={MAP_VIEW_CONTROL_LABELS.focusOwnFortress}
             onClick={() => {
               userAdjustedViewRef.current = false;
               focusFortress(ownFortress);
             }}
+            title={MAP_VIEW_CONTROL_LABELS.focusOwnFortressTitle}
           >
             Me
           </button>

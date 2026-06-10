@@ -6,10 +6,11 @@
 
 | Doc | What's In It |
 |-----|-------------|
-| [Game Design](game-design.md) | Core rules — economy, combat, diplomacy, map |
+| [Game Systems Plan](game-systems-plan.md) | Product loop, player verbs, map/control contract, system boundaries |
+| [Game Design](game-design.md) | Core rules: economy, combat, diplomacy, map |
 | [Season 4](season-4.md) | Doctrines, pressure system, race abilities, trade redesign |
-| [Data Model](data-model.md) | Database schema — models, enums, relationships |
-| [Development Workflow](development-workflow.md) | How to contribute — commands, patterns, gotchas |
+| [Data Model](data-model.md) | Database schema: models, enums, relationships |
+| [Development Workflow](development-workflow.md) | How to contribute: commands, patterns, gotchas |
 
 ## Project Status
 
@@ -17,7 +18,7 @@ Season 4 is the current active ruleset (`CycleRuleset.SEASON_4`). The legacy rul
 
 ## Stack
 
-Next.js 16 · React 19 · TypeScript 5 · Prisma 7 · PostgreSQL · Auth.js v5 · Socket.IO
+Next.js 16, React 19, TypeScript 5, Prisma 7, PostgreSQL, Auth.js v5, Socket.IO.
 
 ## Getting Started
 

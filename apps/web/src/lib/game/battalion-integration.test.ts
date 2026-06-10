@@ -300,6 +300,147 @@ describe("Battalion reinforcement travel", () => {
     assert.equal(battalionUpdates[0]?.data.size, 10);
     assert.equal(attackUnitCreates.length, 0);
   });
+
+  it("does not auto-create battalions when recruitment overflows capacity", async () => {
+    const battalionUpdates: Array<{ where: { id: string }; data: { size: number } }> = [];
+    const battalionCreateMany: Array<{ data: unknown[] }> = [];
+    const db = {
+      battalion: {
+        findMany: async () => [
+          {
+            id: "bn_1",
+            fortressId: "fort_1",
+            name: "Iron Hammers",
+            size: 500,
+            maxSize: 500,
+            tier: 0,
+            xp: 0,
+            readyAt: null,
+            stance: "REST",
+            garrisonedAt: null,
+            stanceLockedUntil: null,
+          },
+        ],
+        update: async (args: { where: { id: string }; data: { size: number } }) => {
+          battalionUpdates.push(args);
+          return args;
+        },
+        createMany: async (args: { data: unknown[] }) => {
+          battalionCreateMany.push(args);
+          return { count: args.data.length };
+        },
+      },
+      attackUnit: {
+        findMany: async () => [],
+        create: async (args: unknown) => args,
+      },
+      mapHexRoad: {
+        findMany: async () => [],
+      },
+    };
+
+    const recruitedArmyByFortress = await processBattalionRecruitment({
+      ctx: { db: db as any, cycleId: "cycle_1", now: new Date("2026-06-01T12:00:00.000Z") },
+      recruitersByFortress: new Map([["fort_1", 100]]),
+      raceByFortress: new Map([["fort_1", "DWARFS"]]),
+      levelByFortress: new Map([["fort_1", 5]]),
+      barracksLevelByFortress: new Map([["fort_1", 0]]),
+      goldByFortress: new Map([["fort_1", 10_000]]),
+      maxArmyByFortress: new Map([["fort_1", 1_000]]),
+      fortressPositionsById: new Map([["fort_1", { mapX: 50, mapY: 50 }]]),
+    });
+
+    assert.equal(battalionUpdates[0]?.data.size, 500);
+    assert.equal(battalionCreateMany.length, 0);
+    assert.equal(recruitedArmyByFortress.get("fort_1"), 500);
+  });
+
+  it("caps new recruitment at max army size without trimming oversized battalions", async () => {
+    const battalionUpdates: Array<{ where: { id: string }; data: { size: number } }> = [];
+    const db = {
+      battalion: {
+        findMany: async () => [
+          {
+            id: "bn_1",
+            fortressId: "fort_1",
+            name: "Iron Hammers",
+            size: 495,
+            maxSize: 600,
+            tier: 0,
+            xp: 0,
+            readyAt: null,
+            stance: "REST",
+            garrisonedAt: null,
+            stanceLockedUntil: null,
+          },
+          {
+            id: "bn_2",
+            fortressId: "fort_2",
+            name: "Stone Shields",
+            size: 550,
+            maxSize: 600,
+            tier: 0,
+            xp: 0,
+            readyAt: null,
+            stance: "REST",
+            garrisonedAt: null,
+            stanceLockedUntil: null,
+          },
+        ],
+        update: async (args: { where: { id: string }; data: { size: number } }) => {
+          battalionUpdates.push(args);
+          return args;
+        },
+        createMany: async () => ({ count: 0 }),
+      },
+      attackUnit: {
+        findMany: async () => [],
+        create: async (args: unknown) => args,
+      },
+      mapHexRoad: {
+        findMany: async () => [],
+      },
+    };
+
+    const recruitedArmyByFortress = await processBattalionRecruitment({
+      ctx: { db: db as any, cycleId: "cycle_1", now: new Date("2026-06-01T12:00:00.000Z") },
+      recruitersByFortress: new Map([
+        ["fort_1", 10],
+        ["fort_2", 10],
+      ]),
+      raceByFortress: new Map([
+        ["fort_1", "DWARFS"],
+        ["fort_2", "DWARFS"],
+      ]),
+      levelByFortress: new Map([
+        ["fort_1", 1],
+        ["fort_2", 1],
+      ]),
+      barracksLevelByFortress: new Map([
+        ["fort_1", 0],
+        ["fort_2", 0],
+      ]),
+      goldByFortress: new Map([
+        ["fort_1", 1_000],
+        ["fort_2", 1_000],
+      ]),
+      maxArmyByFortress: new Map([
+        ["fort_1", 500],
+        ["fort_2", 500],
+      ]),
+      fortressPositionsById: new Map([
+        ["fort_1", { mapX: 50, mapY: 50 }],
+        ["fort_2", { mapX: 55, mapY: 55 }],
+      ]),
+    });
+
+    const fort1Update = battalionUpdates.find((update) => update.where.id === "bn_1");
+    const fort2Update = battalionUpdates.find((update) => update.where.id === "bn_2");
+    assert.equal(fort1Update?.data.size, 500);
+    assert.equal(fort2Update?.data.size, 550);
+    assert.equal(recruitedArmyByFortress.get("fort_1"), 500);
+    assert.equal(recruitedArmyByFortress.get("fort_2"), 550);
+  });
 });
 
 // ═════════════════════════════════════════════════════════════════════════════

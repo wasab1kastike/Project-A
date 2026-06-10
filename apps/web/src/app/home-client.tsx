@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Session } from "next-auth";
 import styles from "./page.module.css";
 import { SessionActions } from "@/components/session-actions";
@@ -25,6 +25,10 @@ import {
 import type { HomePageState } from "@/lib/game/read-model";
 import type { LeaderboardCategory } from "@/lib/game/leaderboard-titles";
 import { RACE_DEFINITIONS, type FortressRace } from "@/lib/game/races";
+import {
+  startAmbientGameAudio,
+  type AmbientAudioHandle,
+} from "@/lib/game/ambient-audio";
 import {
   PATCH_NOTES_PAGE_HREF,
   PRIMARY_GAME_NAV_LINKS,
@@ -125,6 +129,60 @@ function getOwnedRoamTile(args: {
   }
 
   return nearestToPoint(ownFortress ?? null);
+}
+
+function AmbientAudioButton() {
+  const audioRef = useRef<AmbientAudioHandle | null>(null);
+  const [enabled, setEnabled] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      audioRef.current?.stop();
+      audioRef.current = null;
+    };
+  }, []);
+
+  const toggleAudio = useCallback(async () => {
+    if (pending) return;
+
+    if (audioRef.current) {
+      audioRef.current.stop();
+      audioRef.current = null;
+      setEnabled(false);
+      setError(null);
+      return;
+    }
+
+    setPending(true);
+    setError(null);
+
+    try {
+      audioRef.current = await startAmbientGameAudio();
+      setEnabled(true);
+    } catch {
+      setEnabled(false);
+      setError("Audio unavailable");
+    } finally {
+      setPending(false);
+    }
+  }, [pending]);
+
+  return (
+    <button
+      aria-label={enabled ? "Turn ambient audio off" : "Turn ambient audio on"}
+      aria-pressed={enabled}
+      className={`${styles.hudButton} ${styles.ambientButton}`}
+      data-audio-enabled={enabled ? "true" : undefined}
+      disabled={pending}
+      onClick={toggleAudio}
+      title={error ?? (enabled ? "Ambient audio on" : "Ambient audio off")}
+      type="button"
+    >
+      {pending ? "Sound..." : enabled ? "Sound on" : "Sound"}
+    </button>
+  );
 }
 
 const JOIN_RACE_COPY: Record<
@@ -544,6 +602,7 @@ function HomeClientContent({
             <span className={styles.accountChip}>
               {session?.user ? userLabel : "Guest"}
             </span>
+            <AmbientAudioButton />
             <Link className={styles.hudButton} href="/history">
               Leaderboard
             </Link>

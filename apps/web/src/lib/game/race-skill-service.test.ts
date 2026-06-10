@@ -13,6 +13,17 @@ import {
 import { getSkillModifiers } from "./race-skill-effects";
 import { RACE_SKILL_TREES, SKILL_NODES_PER_PATH } from "./race-skill-tree";
 
+test("race skill earned points start later and use slower milestones", () => {
+  assert.equal(getEarnedSkillPoints({ level: 1, ownedTileCount: 0 }), 0);
+  assert.equal(getEarnedSkillPoints({ level: 2, ownedTileCount: 0 }), 0);
+  assert.equal(getEarnedSkillPoints({ level: 3, ownedTileCount: 0 }), 1);
+  assert.equal(getEarnedSkillPoints({ level: 4, ownedTileCount: 0 }), 1);
+  assert.equal(getEarnedSkillPoints({ level: 5, ownedTileCount: 0 }), 2);
+  assert.equal(getEarnedSkillPoints({ level: 3, ownedTileCount: 4 }), 1);
+  assert.equal(getEarnedSkillPoints({ level: 3, ownedTileCount: 5 }), 2);
+  assert.equal(getEarnedSkillPoints({ level: 7, ownedTileCount: 10 }), 5);
+});
+
 test("race skill earned points are capped at twelve", () => {
   assert.equal(getMaxSkillPoints(), 12);
   assert.equal(
@@ -92,7 +103,7 @@ test("race skill rewards aggregate from purchased nodes", () => {
 
   assert.deepEqual(
     rewards.map((reward) => reward.effect),
-    ["recruitmentRate", "battalionXpRate"]
+    ["recruitmentRate", "battalionMaxSize"]
   );
 });
 
@@ -113,8 +124,8 @@ test("race skill modifiers add rewards from every purchased node", () => {
 
   assert.equal(modifiers.recruitmentRateMultiplier, 2.2);
   assert.equal(modifiers.battalionSlotBonus, 3);
-  assert.equal(modifiers.battalionMaxSizePercent, 45);
-  assert.equal(modifiers.battalionXpMultiplier, 1.15);
+  assert.equal(modifiers.battalionMaxSizePercent, 55);
+  assert.equal(modifiers.battalionXpMultiplier, 1);
   assert.equal(modifiers.promotionDiscountPercent, 25);
 });
 
@@ -131,11 +142,40 @@ test("every declared race skill reward effect is handled by modifiers", () => {
   assert.equal(modifiers.goldPerTenMinersBonus, 8);
   assert.equal(modifiers.upkeepDiscountPercent, 30);
   assert.equal(modifiers.pressurePriorityLimitBonus, 4);
+  assert.equal(modifiers.tradeWagonCapacityPercent, 25);
+  assert.equal(modifiers.tradeProfitPercent, 10);
+  assert.equal(modifiers.tradeWagonSlotBonus, 1);
   assert.ok(modifiers.pressureMultiplier > 1);
   assert.equal(modifiers.tileDefensePercent, 30);
   assert.equal(modifiers.claimThreshold, 500);
   assert.equal(modifiers.recruitmentRateMultiplier, 2.2);
   assert.equal(modifiers.battalionSlotBonus, 3);
+});
+
+test("race skill trees do not declare battalion XP rewards", () => {
+  for (const tree of Object.values(RACE_SKILL_TREES)) {
+    for (const path of tree.paths) {
+      for (const node of path.nodes) {
+        assert.equal(
+          node.rewards.some((reward) => reward.effect === "battalionXpRate"),
+          false
+        );
+      }
+    }
+  }
+});
+
+test("space murines get stronger logistics from the economy path", () => {
+  const modifiers = getSkillModifiers({
+    race: "SPACE_MURINES",
+    purchases: RACE_SKILL_TREES.SPACE_MURINES.paths[0].nodes.map((node) => ({
+      nodeKey: node.key,
+    })),
+  });
+
+  assert.equal(modifiers.tradeWagonCapacityPercent, 35);
+  assert.equal(modifiers.tradeProfitPercent, 15);
+  assert.equal(modifiers.tradeWagonSlotBonus, 2);
 });
 
 test("race skill reset migration moves purchases to node keys only", () => {
