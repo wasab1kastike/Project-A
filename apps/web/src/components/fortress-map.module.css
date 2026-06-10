@@ -81,8 +81,11 @@
   position: absolute;
   top: 50%;
   left: 50%;
+  transform: translate(-50%, -50%) translate(0, 0) scale(1);
   transform-origin: center;
   will-change: transform;
+  contain: layout paint style;
+  backface-visibility: hidden;
   background: #1f3329;
 }
 
@@ -348,6 +351,7 @@
   inset: 0;
   z-index: 3;
   pointer-events: none;
+  contain: layout paint style;
 }
 
 .attackUnit {
@@ -1299,6 +1303,7 @@
   height: 100%;
   pointer-events: none;
   z-index: 1;
+  contain: layout paint style;
 }
 
 .roadLine {
@@ -1383,6 +1388,7 @@
   z-index: 2;
   overflow: visible;
   pointer-events: none;
+  contain: layout paint style;
 }
 
 .mapLifeSvg {
@@ -1628,6 +1634,7 @@
   inset: 0;
   pointer-events: none;
   z-index: 2;
+  contain: layout paint style;
 }
 
 .guardMarker {
@@ -1730,6 +1737,7 @@
   inset: 0;
   pointer-events: none;
   z-index: 5;
+  contain: layout paint style;
 }
 
 .battalionMarker {
@@ -1886,6 +1894,7 @@
   inset: 0;
   pointer-events: none;
   z-index: 4;
+  contain: layout paint style;
 }
 
 .nukeBiddingLayer {
@@ -1893,6 +1902,7 @@
   inset: 0;
   pointer-events: none;
   z-index: 5;
+  contain: layout paint style;
 }
 
 .nukeBiddingMarker {
@@ -2075,6 +2085,47 @@
 @keyframes warPulse {
   0%, 100% { filter: drop-shadow(0 0 6px rgba(255,60,40,0.4)) drop-shadow(0 0 2px rgba(255,60,40,0.6)); }
   50% { filter: drop-shadow(0 0 12px rgba(255,60,40,0.8)) drop-shadow(0 0 4px rgba(255,60,40,1)); }
+}
+
+@media (max-width: 760px), (pointer: coarse) {
+  .lifeDomain,
+  .lifeFortressAura,
+  .lifeRoadShimmer,
+  .lifeTradeTicks,
+  .lifeBattlePuff,
+  .attackPriorityPrimaryTile polygon,
+  .contestedTile polygon,
+  .battleIndicator,
+  .battleText,
+  .guardMarker,
+  .guardMarker::after,
+  .battalionMarker,
+  .convoyWagon {
+    animation: none;
+  }
+
+  .highlightedTeleportTile polygon,
+  .pressurePriorityTile polygon,
+  .attackPriorityPrimaryTile polygon,
+  .attackPrioritySecondaryTile polygon,
+  .attackableTile polygon,
+  .contestedTile polygon,
+  .selectedTile polygon,
+  .battleIndicator,
+  .battleIntensityHigh,
+  .battleIntensityMid,
+  .battleIntensityLow,
+  .lifeDomain,
+  .lifeFortressAura,
+  .lifeRoadShimmer,
+  .lifeTradeTicks,
+  .lifeBattlePuff {
+    filter: none;
+  }
+
+  .mapLifeLayer {
+    opacity: 0.68;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

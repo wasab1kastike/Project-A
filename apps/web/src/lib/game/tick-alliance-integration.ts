@@ -7,6 +7,7 @@
 
 import type { PrismaClient } from "@prisma/client";
 import { getRoadAdjustedAttackArrival } from "./road-travel";
+import { areBattalionsEnabled } from "./season-five-features";
 
 type DiplomacySnapshot = {
   status: string;
@@ -31,6 +32,8 @@ export async function processAllianceReinforcements(args: {
   diplomacyRelations: DiplomacySnapshot[];
   activeBattlefields: BattlefieldSnapshot[];
 }): Promise<void> {
+  if (!areBattalionsEnabled()) return;
+
   const { db, cycleId, now, diplomacyRelations, activeBattlefields } = args;
 
   const allies = diplomacyRelations.filter((r) => r.status === "ALLIED");
@@ -117,7 +120,15 @@ async function createAllianceReinforcement(args: {
   targetFortressId: string;
   side: SupportSide;
 }) {
-  const { db, cycleId, now, battlefieldId, reinforcerId, targetFortressId, side } = args;
+  const {
+    db,
+    cycleId,
+    now,
+    battlefieldId,
+    reinforcerId,
+    targetFortressId,
+    side,
+  } = args;
   if (reinforcerId === args.alliedFortressId) return false;
 
   const policy = await db.warPolicy.findUnique({
@@ -160,10 +171,19 @@ async function createAllianceReinforcement(args: {
   });
   if (allianceBattalions.length === 0) return false;
 
-  const totalAvailable = allianceBattalions.reduce((sum, battalion) => sum + battalion.size, 0);
-  const supportPercent = Math.max(0, Math.min(100, policy?.allianceSupportPercent ?? 50));
+  const totalAvailable = allianceBattalions.reduce(
+    (sum, battalion) => sum + battalion.size,
+    0
+  );
+  const supportPercent = Math.max(
+    0,
+    Math.min(100, policy?.allianceSupportPercent ?? 50)
+  );
   if (supportPercent <= 0) return false;
-  const commitAmount = Math.max(1, Math.floor((totalAvailable * supportPercent) / 100));
+  const commitAmount = Math.max(
+    1,
+    Math.floor((totalAvailable * supportPercent) / 100)
+  );
   if (commitAmount <= 0) return false;
 
   let remaining = commitAmount;

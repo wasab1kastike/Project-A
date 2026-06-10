@@ -9,12 +9,12 @@
 
 Each season runs through four phases:
 
-| Phase | Duration | What Happens |
-|-------|----------|-------------|
-| **Registration** | ~48h | Players join, pick names, choose race |
-| **Testing** | ~24h | Verify mechanics, finalize strategy |
-| **Active** | ~2 weeks | Full gameplay — economy, combat, diplomacy |
-| **Resolution** | ~24h | Winner crowned, history archived |
+| Phase            | Duration | What Happens                               |
+| ---------------- | -------- | ------------------------------------------ |
+| **Registration** | ~48h     | Players join, pick names, choose race      |
+| **Testing**      | ~24h     | Verify mechanics, finalize strategy        |
+| **Active**       | ~2 weeks | Full gameplay — economy, combat, diplomacy |
+| **Resolution**   | ~24h     | Winner crowned, history archived           |
 
 Mid-season joining locks after `joiningLockedAt`. Race can be changed during Registration; locked after Testing starts.
 
@@ -26,12 +26,12 @@ Every player controls one fortress per season. Your fortress is your identity �
 
 ### Resources
 
-| Resource | How It's Earned | What It's For |
-|----------|-----------------|---------------|
-| **Gold** | Miners, attacks, trade | Upgrades, abilities, trade |
-| **Food** | Farmers, map tiles | Feeds army, trade |
-| **Army** | Recruiters, race bonuses | Attacks, defense, standing orders |
-| **Points** | Everything above | Leaderboard ranking — win condition |
+| Resource   | How It's Earned          | What It's For                       |
+| ---------- | ------------------------ | ----------------------------------- |
+| **Gold**   | Miners, attacks, trade   | Upgrades, abilities, trade          |
+| **Food**   | Farmers, map tiles       | Feeds army, trade                   |
+| **Army**   | Recruiters, race bonuses | Attacks, defense, standing orders   |
+| **Points** | Everything above         | Leaderboard ranking — win condition |
 
 All resources floor at zero. Starvation (food=0) costs 2% army per tick.
 
@@ -39,11 +39,11 @@ All resources floor at zero. Starvation (food=0) costs 2% army per tick.
 
 You assign workers across four roles:
 
-| Role | Produces | Notes |
-|------|----------|-------|
-| Miners | Gold | Dwarfs produce more on owned tiles |
-| Farmers | Food | — |
-| Recruiters | Army | Recruitment queue processes per tick |
+| Role             | Produces      | Notes                                                                   |
+| ---------------- | ------------- | ----------------------------------------------------------------------- |
+| Miners           | Gold          | Dwarfs produce more on owned tiles                                      |
+| Farmers          | Food          | —                                                                       |
+| Recruiters       | Army          | Recruitment queue processes per tick                                    |
 | Pressure Workers | Tile pressure | Claims nearby neutral tiles at 600 pressure; farther tiles require more |
 
 Worker count scales with fortress level. Reassignment is instant but only once per tick.
@@ -96,18 +96,18 @@ Army  = recruiters process the recruitment queue
 
 Castle upgrades improve production, defense, or military strength. Four specialization paths:
 
-| Path | Focus |
-|------|-------|
-| Points | Score multiplier |
-| Food | Food production |
+| Path     | Focus                             |
+| -------- | --------------------------------- |
+| Points   | Score multiplier                  |
+| Food     | Food production                   |
 | Military | Army production + attack strength |
-| Defense | Fortress HP + defense |
+| Defense  | Fortress HP + defense             |
 
 Upgrades cost gold and take time. One upgrade project active at a time.
 
 ### Recruitment
 
-Recruiters refill commissioned battalions each tick based on recruiter count and race bonuses. Full battalions and the max army ceiling stop new recruits until the player expands or commissions more battalion room. Existing oversized battalions are not trimmed by the ceiling. Orks produce army faster during Waaagh; Space Murines trade for army efficiently.
+Recruiters process the paid recruitment queue into the fortress's active army pool each tick based on recruiter count and race bonuses. Season 5 does not use battalions: there is no commissioning, job assignment, War Front assignment, or battalion upkeep. The max army ceiling stops future recruiter output without trimming existing oversized army. Orks produce army faster during Waaagh; Space Murines trade for army efficiently.
 
 ---
 
@@ -165,6 +165,7 @@ NEUTRAL ──declare_war──→ WAR_PENDING (24h) ──→ WAR
 ### Alliance Trust Tiers
 
 Allies can upgrade trust (0→3). Higher tiers grant:
+
 - Bonus cargo value on trade convoys
 - Escrow gold/food pools for mutual defense
 - Shared battlefield participation through visible incoming reinforcement marches
@@ -175,14 +176,10 @@ Allies can upgrade trust (0→3). Higher tiers grant:
 - 24-hour warning after declaration (`WAR_PENDING`)
 - Casus belli system — justified wars bypass the 24h delay
 - Peace proposals require mutual acceptance and may include instant gold, food, army, or tile demands paid by either side on acceptance
-- War Room battalions use four player-facing jobs: RESERVE, GUARD, ATTACK, and ALLIANCE. The older stance layer is hidden and normalized by the server.
-- Idle battalions roam owned tiles on the map until their job triggers: RESERVE stays near the castle core, GUARD patrols owned borders, ATTACK launches through war fronts, and ALLIANCE supports allied battlefields.
-- Battalions do not heal passively. Damaged battalions are refilled by assigning recruiters and training new members; new battalions are commissioned manually.
-- War fronts are automated from the Castle War Room: only ATTACK-mode battalions with troops can be assigned, and active wars evaluate both directions for automatic dispatch.
+- Season 5 disables battalions and automated War Fronts. Army remains a simple castle pool while fishing becomes the main map activity.
+- Battalion jobs, commissioning, alliance-battalion support, guard patrol automation, and War Front assignment are not active Season 5 systems.
 - Existing tile pressure priorities double as preferred wartime targets when the prioritized tile is enemy-owned and reachable from your territory.
-- New troops assigned to battalions stationed away from the castle travel as visible reinforcement marches first; they count as pending capacity but do not become usable battalion size until arrival.
-- ALLIANCE-mode battalions automatically support eligible allied defensive and attacking battlefields by launching normal incoming reinforcement marches. War Room policy toggles can allow attack support, defense support, and choose what percent of ALLIANCE troops each support march commits.
-- Roads reduce movement ETA for manual attacks, remote battalion reinforcement, War Front launches, and allied battlefield support. Roads do not shorten the one-hour PvP preparation delay.
+- Roads reduce movement ETA for manual attacks, battlefield support, and convoy legs. Roads do not shorten the one-hour PvP preparation delay.
 
 ---
 
@@ -193,7 +190,7 @@ Allies can upgrade trust (0→3). Higher tiers grant:
 3. Convoys travel between fortresses with a fixed six-hour minimum plus road-adjusted map travel
 4. On arrival, cargo is delivered and points awarded
 5. **ESCORT** orders protect outbound convoys; alliance trust tiers add cargo bonuses
-6. Convoy raid orders are temporarily disabled while War Room focuses on battlefronts, battalions, and recruitment
+6. Convoy raid orders are disabled during the Season 5 fishing preview
 
 Each convoy leg is one trade wagon. A fortress can run **3 active outbound wagons** by default, with skill nodes able to raise that limit. A wagon's total **gold plus food** capacity comes from the sender's Trade Wagon building: **100 / 500 / 1,000 / 2,000 / 3,500 / 5,000 / 7,500 / 10,000 / 15,000 / 20,000** from levels 0-9, before skill capacity bonuses. Army, score points, nuke components, and one eligible allied tile deed use the same convoy leg but do not count against that resource cap.
 
@@ -227,23 +224,23 @@ Season 4 includes a daily nuke-component race:
 
 ## Standing Orders
 
-| Order | Purpose |
-|-------|---------|
-| **ESCORT** | Protect a specific outbound convoy leg |
+| Order        | Purpose                                         |
+| ------------ | ----------------------------------------------- |
+| **ESCORT**   | Protect a specific outbound convoy leg          |
 | **CAMPAIGN** | Siege a tile to trigger a territory battlefield |
 
-Manual GUARD orders and RAID orders remain in historical data but are disabled for new play. Battalion GUARD mode is active for owned border patrols. Active legacy GUARD and RAID orders are returned by the tick runner.
+Manual GUARD orders and RAID orders remain in historical data but are disabled for new play. Season 5 does not replace them with battalion guard mode. Active legacy GUARD and RAID orders are returned by the tick runner.
 
 ---
 
 ## Races
 
-| Race | Style | Unique Mechanic |
-|------|-------|----------------|
-| **Dwarfs** | Defensive, grudge-driven | Grudge economy + Deep Mining expeditions |
-| **Orks** | Aggressive, snowball | Scrap economy + Boss Orders + Waaagh tiers |
-| **Space Murines** | Trade, logistics | Rapid Response + Convoy Network bonuses |
-| **Unstable Unicorns** | Chaos, unpredictability | Reality Flux passive + Shattered Reality choice |
+| Race                  | Style                    | Unique Mechanic                                 |
+| --------------------- | ------------------------ | ----------------------------------------------- |
+| **Dwarfs**            | Defensive, grudge-driven | Grudge economy + Deep Mining expeditions        |
+| **Orks**              | Aggressive, snowball     | Scrap economy + Boss Orders + Waaagh tiers      |
+| **Space Murines**     | Trade, logistics         | Rapid Response + Convoy Network bonuses         |
+| **Unstable Unicorns** | Chaos, unpredictability  | Reality Flux passive + Shattered Reality choice |
 
 See [Season 4](season-4.md) for full race ability details.
 
@@ -253,7 +250,7 @@ Each race has three 8-node skill paths: Economy, Territory, and Military. Player
 
 - Economy paths improve food/gold output, reduce army upkeep, add expansion priority slots, and improve trade wagon capacity, active wagon count, and trade profit.
 - Territory paths improve pressure, tile defense, and neutral claim thresholds.
-- Military paths improve recruitment, battalion slots, battalion size, and promotion costs.
+- Military paths improve recruitment and legacy combat strength; battalion slot, size, and promotion effects are inactive while Season 5 battalions are disabled.
 - Nodes 4 and 8 are the main build-changing unlocks; the nodes between them are smaller ramp bonuses.
 
 ---

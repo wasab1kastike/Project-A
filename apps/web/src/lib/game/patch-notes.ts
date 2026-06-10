@@ -7,6 +7,16 @@ export type PatchNotesRelease = {
 
 export const PATCH_NOTES_RELEASES: PatchNotesRelease[] = [
   {
+    date: "2026-06-10",
+    title: "Season 5 fishing cleanup",
+    newFeatures: [
+      "Season 5 is now treated as the fishing game direction: army remains a simple castle pool while battalion jobs, commissioning, War Front assignment, and alliance-battalion support are disabled.",
+    ],
+    bugFixes: [
+      "Old battalion records no longer appear as map markers or active Castle page controls, and tick processing no longer refills, patrols, dispatches, upkeeps, or reconciles battalions.",
+    ],
+  },
+  {
     date: "2026-06-09",
     title: "Ambient map audio",
     newFeatures: [

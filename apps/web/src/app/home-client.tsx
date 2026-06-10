@@ -34,7 +34,6 @@ import {
   PRIMARY_GAME_NAV_LINKS,
   WIKI_PAGE_HREF,
 } from "@/lib/game/site-navigation";
-import { HEX_TILES } from "@/lib/game/map-hex";
 
 const dateTimeFormatter = new Intl.DateTimeFormat("en-US", {
   dateStyle: "medium",
@@ -46,90 +45,6 @@ const RACE_TOKEN_PATHS: Record<FortressRace, string> = {
   SPACE_MURINES: "/assets/token-space-murines.png",
   UNSTABLE_UNICORNS: "/assets/token-unstable-unicorns.png",
 };
-
-type BattalionJob = "RESERVE" | "GUARD" | "ATTACK" | "ALLIANCE";
-
-function getBattalionJob(mode: string | null | undefined): BattalionJob {
-  return mode === "ATTACK" ||
-    mode === "RESERVE" ||
-    mode === "ALLIANCE" ||
-    mode === "GUARD"
-    ? mode
-    : "GUARD";
-}
-
-function getOwnedRoamTile(args: {
-  job: BattalionJob;
-  fortressId: string;
-  mapHexes: HomePageState["mapHexes"];
-  mapFortresses: HomePageState["mapFortresses"];
-  warFronts: HomePageState["warFronts"];
-  fallbackTileId: string | null | undefined;
-}): string | null {
-  if (args.fallbackTileId) return args.fallbackTileId;
-
-  const ownedTileIds = new Set(
-    (args.mapHexes ?? [])
-      .filter((hex) => hex.ownerFortressId === args.fortressId)
-      .map((hex) => hex.tileId),
-  );
-  if (ownedTileIds.size === 0) return null;
-
-  const ownFortress = (args.mapFortresses ?? []).find(
-    (fortress) => fortress.id === args.fortressId,
-  );
-  const tileById = new Map(HEX_TILES.map((tile) => [tile.id, tile]));
-  const ownedTiles = [...ownedTileIds]
-    .map((tileId) => tileById.get(tileId))
-    .filter((tile): tile is NonNullable<typeof tile> => Boolean(tile));
-
-  const nearestToPoint = (point: { mapX: number; mapY: number } | null) => {
-    if (!point || ownedTiles.length === 0) return ownedTiles[0]?.id ?? null;
-    return (
-      [...ownedTiles].sort((a, b) => {
-        const da = Math.hypot(a.xPercent - point.mapX, a.yPercent - point.mapY);
-        const db = Math.hypot(b.xPercent - point.mapX, b.yPercent - point.mapY);
-        return da - db;
-      })[0]?.id ?? null
-    );
-  };
-
-  if (args.job === "GUARD") {
-    const borderTile = ownedTiles.find((tile) =>
-      HEX_TILES.some(
-        (candidate) =>
-          candidate.id !== tile.id &&
-          Math.abs(candidate.col - tile.col) <= 1 &&
-          Math.abs(candidate.row - tile.row) <= 1 &&
-          !ownedTileIds.has(candidate.id),
-      ),
-    );
-    return borderTile?.id ?? nearestToPoint(ownFortress ?? null);
-  }
-
-  if (args.job === "ATTACK") {
-    const front = (args.warFronts ?? []).find(
-      (candidate) =>
-        candidate.attackerFortressId === args.fortressId &&
-        (candidate.status === "ADVANCING" || candidate.status === "STALLED"),
-    );
-    const enemy = front
-      ? (args.mapFortresses ?? []).find(
-          (fortress) => fortress.id === front.enemyFortressId,
-        )
-      : null;
-    return nearestToPoint(enemy ?? ownFortress ?? null);
-  }
-
-  if (args.job === "ALLIANCE") {
-    const ally = (args.mapFortresses ?? []).find(
-      (fortress) => fortress.diplomacyStatus === "ALLIED",
-    );
-    return nearestToPoint(ally ?? ownFortress ?? null);
-  }
-
-  return nearestToPoint(ownFortress ?? null);
-}
 
 function AmbientAudioButton() {
   const audioRef = useRef<AmbientAudioHandle | null>(null);
@@ -477,37 +392,7 @@ function HomeClientContent({
             incomingTradeOfferCount: state.incomingOfferCount ?? 0,
           }}
           nukeState={(state as any).nukeState ?? null}
-          battalionMarkers={(state.battalions ?? [])
-            .filter((bn: any) => bn.size > 0)
-            .map((bn: any) => {
-              const fortress = state.mapFortresses?.find(
-                (f: any) => f.id === bn.fortressId
-              );
-              const mode = getBattalionJob(bn.mode);
-              const tileId = getOwnedRoamTile({
-                job: mode,
-                fortressId: bn.fortressId,
-                mapHexes: state.mapHexes,
-                mapFortresses: state.mapFortresses,
-                warFronts: state.warFronts,
-                fallbackTileId: bn.garrisonedAt,
-              });
-              if (!tileId) return null;
-              return {
-                tileId,
-                battalionName: bn.name,
-                size: bn.size,
-                maxSize: bn.maxSize,
-                tier: bn.tier,
-                stance: bn.stance,
-                mode,
-                fortressId: bn.fortressId,
-                unitSpriteVariant: fortress?.unitSpriteVariant ?? "unit-1",
-                unitCosmeticVariant: fortress?.unitCosmeticVariant ?? null,
-                race: (fortress as any)?.race ?? null,
-              };
-            })
-            .filter((marker): marker is NonNullable<typeof marker> => Boolean(marker))}
+          battalionMarkers={[]}
           battleReports={state.battleReports}
           availableTargets={state.availableTargets}
           chat={state.chat}

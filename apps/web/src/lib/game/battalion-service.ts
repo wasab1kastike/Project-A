@@ -22,6 +22,10 @@ import {
 } from "./battalion-types";
 import { applyFieldPromotion } from "./army-xp";
 import { getSkillModifiers } from "./race-skill-effects";
+import {
+  areBattalionsEnabled,
+  BATTALIONS_DISABLED_REASON,
+} from "./season-five-features";
 
 type BattalionPrisma = typeof prisma;
 type BattalionTx = Prisma.TransactionClient;
@@ -43,9 +47,15 @@ const ACTIVE_BATTALION_CYCLE_STATUSES = [
   CycleStatus.ACTIVE,
 ];
 
+function assertBattalionsEnabled() {
+  if (!areBattalionsEnabled()) {
+    throw new GameError(BATTALIONS_DISABLED_REASON);
+  }
+}
+
 async function getOwnedFortress(
   db: BattalionDb,
-  args: { userId: string; fortressId?: string },
+  args: { userId: string; fortressId?: string }
 ): Promise<OwnedFortress> {
   const fortress = await db.fortress.findFirst({
     where: {
@@ -77,7 +87,7 @@ async function getOwnedFortress(
 
 async function getOwnedBattalion(
   db: BattalionDb,
-  args: { userId: string; battalionId: string },
+  args: { userId: string; battalionId: string }
 ) {
   const battalion = await db.battalion.findFirst({
     where: {
@@ -112,7 +122,9 @@ async function getOwnedBattalion(
   return battalion;
 }
 
-function toArmyXpBattalion(battalion: Awaited<ReturnType<typeof getOwnedBattalion>>) {
+function toArmyXpBattalion(
+  battalion: Awaited<ReturnType<typeof getOwnedBattalion>>
+) {
   return {
     id: battalion.id,
     name: battalion.name,
@@ -136,6 +148,8 @@ export async function createBattalion(args: {
   name?: string;
   fortressId?: string;
 }): Promise<{ id: string; name: string }> {
+  assertBattalionsEnabled();
+
   return prisma.$transaction(async (tx) => {
     const fortress = await getOwnedFortress(tx, args);
     const skillModifiers = fortress.race
@@ -150,27 +164,24 @@ export async function createBattalion(args: {
     const slots = getBattalionSlots(
       fortress.level,
       0,
-      skillModifiers?.battalionSlotBonus ?? 0,
+      skillModifiers?.battalionSlotBonus ?? 0
     );
 
     if (existingBattalionCount >= slots) {
       throw new GameError(
-        `Maximum battalions reached (${slots}). Upgrade your fortress to unlock more slots.`,
+        `Maximum battalions reached (${slots}). Upgrade your fortress to unlock more slots.`
       );
     }
 
     if (fortress.gold < BATTALION_COMMISSION_COST) {
       throw new GameError(
-        `Commissioning a battalion costs ${BATTALION_COMMISSION_COST} gold.`,
+        `Commissioning a battalion costs ${BATTALION_COMMISSION_COST} gold.`
       );
     }
 
     const name =
       args.name ??
-      generateBattalionName(
-        fortress.race ?? "DWARFS",
-        existingBattalionCount,
-      );
+      generateBattalionName(fortress.race ?? "DWARFS", existingBattalionCount);
 
     const battalion = await tx.battalion.create({
       data: {
@@ -180,7 +191,7 @@ export async function createBattalion(args: {
         size: 0,
         maxSize: Math.floor(
           DEFAULT_BATTALION_MAX_SIZE *
-            (1 + (skillModifiers?.battalionMaxSizePercent ?? 0) / 100),
+            (1 + (skillModifiers?.battalionMaxSizePercent ?? 0) / 100)
         ),
         tier: 0,
         xp: 0,
@@ -204,6 +215,8 @@ export async function expandBattalion(args: {
   battalionId: string;
   targetMaxSize: number;
 }): Promise<void> {
+  assertBattalionsEnabled();
+
   await prisma.$transaction(async (tx) => {
     const battalion = await getOwnedBattalion(tx, args);
     const skillModifiers = battalion.fortress.race
@@ -215,11 +228,11 @@ export async function expandBattalion(args: {
     const tierMax =
       TIER_MAX_SIZES[battalion.tier as BattalionTier] ?? MAX_BATTALION_SIZE;
     const skilledTierMax = Math.floor(
-      tierMax * (1 + (skillModifiers?.battalionMaxSizePercent ?? 0) / 100),
+      tierMax * (1 + (skillModifiers?.battalionMaxSizePercent ?? 0) / 100)
     );
     const targetSize = Math.max(
       battalion.maxSize,
-      Math.min(args.targetMaxSize, skilledTierMax),
+      Math.min(args.targetMaxSize, skilledTierMax)
     );
 
     if (targetSize <= battalion.maxSize) {
@@ -231,7 +244,7 @@ export async function expandBattalion(args: {
 
     if (battalion.fortress.gold < cost) {
       throw new GameError(
-        `Expanding to ${targetSize} costs ${cost} gold (you have ${battalion.fortress.gold}).`,
+        `Expanding to ${targetSize} costs ${cost} gold (you have ${battalion.fortress.gold}).`
       );
     }
 
@@ -251,6 +264,8 @@ export async function disbandBattalion(args: {
   userId: string;
   battalionId: string;
 }): Promise<{ goldRefund: number }> {
+  assertBattalionsEnabled();
+
   const battalion = await getOwnedBattalion(prisma, args);
 
   // Check if battalion is assigned to a front.
@@ -260,7 +275,7 @@ export async function disbandBattalion(args: {
 
   if (assignment) {
     throw new GameError(
-      "Cannot disband a battalion assigned to a war front. Remove it from the front first.",
+      "Cannot disband a battalion assigned to a war front. Remove it from the front first."
     );
   }
 
@@ -282,6 +297,8 @@ export async function setBattalionStance(args: {
   battalionId: string;
   stance: string;
 }): Promise<void> {
+  assertBattalionsEnabled();
+
   const battalion = await getOwnedBattalion(prisma, args);
   const update = getBattalionModeUpdate(battalion.mode ?? "GUARD");
 
@@ -295,6 +312,8 @@ export async function promoteBattalion(args: {
   userId: string;
   battalionId: string;
 }): Promise<void> {
+  assertBattalionsEnabled();
+
   await prisma.$transaction(async (tx) => {
     const battalion = await getOwnedBattalion(tx, args);
     const skillModifiers = battalion.fortress.race
@@ -305,7 +324,7 @@ export async function promoteBattalion(args: {
       : null;
     const result = applyFieldPromotion(
       toArmyXpBattalion(battalion),
-      skillModifiers?.promotionDiscountPercent ?? 0,
+      skillModifiers?.promotionDiscountPercent ?? 0
     );
 
     if (!result) {
@@ -314,7 +333,7 @@ export async function promoteBattalion(args: {
 
     if (battalion.fortress.gold < result.goldCost) {
       throw new GameError(
-        `Promoting this battalion costs ${result.goldCost} gold (you have ${battalion.fortress.gold}).`,
+        `Promoting this battalion costs ${result.goldCost} gold (you have ${battalion.fortress.gold}).`
       );
     }
 
@@ -338,6 +357,8 @@ export async function setGuardPercent(args: {
   fortressId?: string;
   guardPercent: number;
 }): Promise<void> {
+  assertBattalionsEnabled();
+
   if (args.guardPercent < 0 || args.guardPercent > 100) {
     throw new GameError("Guard percentage must be between 0 and 100.");
   }
@@ -345,7 +366,12 @@ export async function setGuardPercent(args: {
   const fortress = await getOwnedFortress(prisma, args);
 
   await prisma.warPolicy.upsert({
-    where: { cycleId_fortressId: { cycleId: fortress.cycleId, fortressId: fortress.id } },
+    where: {
+      cycleId_fortressId: {
+        cycleId: fortress.cycleId,
+        fortressId: fortress.id,
+      },
+    },
     create: {
       cycleId: fortress.cycleId,
       fortressId: fortress.id,
@@ -369,7 +395,12 @@ export async function setMaxArmySize(args: {
   const fortress = await getOwnedFortress(prisma, args);
 
   await prisma.warPolicy.upsert({
-    where: { cycleId_fortressId: { cycleId: fortress.cycleId, fortressId: fortress.id } },
+    where: {
+      cycleId_fortressId: {
+        cycleId: fortress.cycleId,
+        fortressId: fortress.id,
+      },
+    },
     create: {
       cycleId: fortress.cycleId,
       fortressId: fortress.id,
@@ -386,6 +417,8 @@ export async function setDefaultAggression(args: {
   fortressId?: string;
   aggression: string;
 }): Promise<void> {
+  assertBattalionsEnabled();
+
   const valid = ["CAUTIOUS", "BALANCED", "AGGRESSIVE"];
   if (!valid.includes(args.aggression)) {
     throw new GameError(`Invalid aggression: ${args.aggression}`);
@@ -394,7 +427,12 @@ export async function setDefaultAggression(args: {
   const fortress = await getOwnedFortress(prisma, args);
 
   await prisma.warPolicy.upsert({
-    where: { cycleId_fortressId: { cycleId: fortress.cycleId, fortressId: fortress.id } },
+    where: {
+      cycleId_fortressId: {
+        cycleId: fortress.cycleId,
+        fortressId: fortress.id,
+      },
+    },
     create: {
       cycleId: fortress.cycleId,
       fortressId: fortress.id,
@@ -417,11 +455,21 @@ export async function setAllianceSupportPolicy(args: {
   supportDefense: boolean;
   supportPercent: number;
 }): Promise<void> {
-  const supportPercent = Math.max(0, Math.min(100, Math.floor(args.supportPercent)));
+  assertBattalionsEnabled();
+
+  const supportPercent = Math.max(
+    0,
+    Math.min(100, Math.floor(args.supportPercent))
+  );
   const fortress = await getOwnedFortress(prisma, args);
 
   await prisma.warPolicy.upsert({
-    where: { cycleId_fortressId: { cycleId: fortress.cycleId, fortressId: fortress.id } },
+    where: {
+      cycleId_fortressId: {
+        cycleId: fortress.cycleId,
+        fortressId: fortress.id,
+      },
+    },
     create: {
       cycleId: fortress.cycleId,
       fortressId: fortress.id,
@@ -445,6 +493,8 @@ export async function createWarFront(args: {
   attackerFortressId?: string;
   enemyFortressId: string;
 }): Promise<{ id: string }> {
+  assertBattalionsEnabled();
+
   const attacker = await getOwnedFortress(prisma, {
     userId: args.userId,
     fortressId: args.attackerFortressId,
@@ -463,9 +513,7 @@ export async function createWarFront(args: {
   });
 
   if (!relation) {
-    throw new GameError(
-      "You must be at war with a fortress to open a front.",
-    );
+    throw new GameError("You must be at war with a fortress to open a front.");
   }
 
   // Check for existing front.
@@ -502,10 +550,14 @@ export async function assignBattalionToFront(args: {
   battalionId: string;
   frontId: string;
 }): Promise<void> {
+  assertBattalionsEnabled();
+
   // Verify battalion belongs to this fortress.
   const battalion = await getOwnedBattalion(prisma, args);
   if ((battalion.mode ?? "GUARD") !== "ATTACK" || battalion.size <= 0) {
-    throw new GameError("Only attack-ready battalions with troops can join a war front.");
+    throw new GameError(
+      "Only attack-ready battalions with troops can join a war front."
+    );
   }
 
   // Verify front exists and belongs to this fortress.
@@ -535,6 +587,8 @@ export async function removeBattalionFromFront(args: {
   battalionId: string;
   frontId: string;
 }): Promise<void> {
+  assertBattalionsEnabled();
+
   const battalion = await getOwnedBattalion(prisma, args);
   const assignment = await prisma.battalionAssignment.findFirst({
     where: {
@@ -543,7 +597,8 @@ export async function removeBattalionFromFront(args: {
       front: { attackerFortressId: battalion.fortressId },
     },
   });
-  if (!assignment) throw new GameError("Battalion is not assigned to this front.");
+  if (!assignment)
+    throw new GameError("Battalion is not assigned to this front.");
 
   await prisma.battalionAssignment.delete({
     where: { id: assignment.id },
@@ -556,6 +611,8 @@ export async function setFrontAggression(args: {
   fortressId?: string;
   aggression: string;
 }): Promise<void> {
+  assertBattalionsEnabled();
+
   const valid = ["CAUTIOUS", "BALANCED", "AGGRESSIVE"];
   if (!valid.includes(args.aggression)) {
     throw new GameError(`Invalid aggression: ${args.aggression}`);
@@ -578,6 +635,8 @@ export async function retreatFront(args: {
   frontId: string;
   fortressId?: string;
 }): Promise<void> {
+  assertBattalionsEnabled();
+
   const fortress = await getOwnedFortress(prisma, args);
   const front = await prisma.warFront.findFirst({
     where: { id: args.frontId, attackerFortressId: fortress.id },
@@ -608,9 +667,13 @@ export async function setBattalionMode({
   battalionId: string;
   mode: string;
 }): Promise<void> {
+  assertBattalionsEnabled();
+
   const normalizedMode = normalizeBattalionMode(mode);
   if (normalizedMode !== mode) {
-    throw new GameError("Invalid mode. Use ATTACK, GUARD, RESERVE, or ALLIANCE.");
+    throw new GameError(
+      "Invalid mode. Use ATTACK, GUARD, RESERVE, or ALLIANCE."
+    );
   }
 
   const battalion = await getOwnedBattalion(prisma, { userId, battalionId });

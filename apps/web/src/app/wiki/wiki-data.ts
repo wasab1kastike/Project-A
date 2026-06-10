@@ -14,16 +14,6 @@ import {
   STARVATION_ATTRITION_RATE,
 } from "@/lib/game/army-recruitment";
 import {
-  ABSOLUTE_MAX_BATTALIONS,
-  BATTALION_COMMISSION_COST,
-  BATTALION_EXPAND_COST_PER_50,
-  DEFAULT_BATTALION_MAX_SIZE,
-  EXTRA_SLOT_COSTS,
-  MAX_NATURAL_SLOTS,
-  MORALE_THRESHOLDS,
-  TIER_MAX_SIZES,
-} from "@/lib/game/battalion-types";
-import {
   MAX_OWNERSHIP_PRESSURE,
   OWNERSHIP_PRESSURE_DECAY_PER_TICK,
   OWNERSHIP_PRESSURE_MAINTENANCE_PER_WORKER,
@@ -146,14 +136,26 @@ const raceCards: readonly WikiCard[] = [
 const seasonLoop: readonly WikiDiagramStep[] = [
   { label: "Register", detail: "Join the cycle, choose race, name fortress." },
   { label: "Test", detail: "Try systems before reset-sensitive active play." },
-  { label: "Play", detail: `${ACTIVE_DURATION_HOURS / 24} active days decide the season.` },
-  { label: "Resolve", detail: "Highest points win; tie goes to earliest final score." },
+  {
+    label: "Play",
+    detail: `${ACTIVE_DURATION_HOURS / 24} active days decide the season.`,
+  },
+  {
+    label: "Resolve",
+    detail: "Highest points win; tie goes to earliest final score.",
+  },
 ];
 
 const pressureFlow: readonly WikiDiagramStep[] = [
   { label: "Assign", detail: "Put workers into race-flavored pressure." },
-  { label: "Prioritize", detail: "The queue auto-fills with connected neutral borders." },
-  { label: "Claim", detail: `${TILE_PRESSURE_CLAIM_THRESHOLD}+ pressure wins if there is no tie.` },
+  {
+    label: "Prioritize",
+    detail: "The queue auto-fills with connected neutral borders.",
+  },
+  {
+    label: "Claim",
+    detail: `${TILE_PRESSURE_CLAIM_THRESHOLD}+ pressure wins if there is no tie.`,
+  },
   { label: "Hold", detail: "Ownership pressure decays unless maintained." },
 ];
 
@@ -166,7 +168,10 @@ const convoyFlow: readonly WikiDiagramStep[] = [
 
 const campaignFlow: readonly WikiDiagramStep[] = [
   { label: "War", detail: "Hostile border and active war are required." },
-  { label: "Campaign", detail: "Army builds pressure on a connected enemy tile." },
+  {
+    label: "Campaign",
+    detail: "Army builds pressure on a connected enemy tile.",
+  },
   { label: "Warning", detail: "A visible 12-hour siege warning opens." },
   { label: "Engage", detail: "Casualties tick until one side runs out." },
 ];
@@ -191,8 +196,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         id: "first-minutes",
         eyebrow: "Opening",
         title: "First 15 minutes",
-        body:
-          "Your early goal is to stop wasting tempo: lock race identity, get workers assigned, start expansion pressure, and avoid spending every resource on one shiny mistake.",
+        body: "Your early goal is to stop wasting tempo: lock race identity, get workers assigned, start expansion pressure, and avoid spending every resource on one shiny mistake.",
         bullets: [
           "Choose race carefully; it is locked for the season.",
           "Assign miners, farmers, recruiters, and pressure workers from Castle.",
@@ -218,10 +222,16 @@ export const WIKI_PAGES: readonly WikiPage[] = [
           rows: [
             ["Tile income", "Owned biomes produce points each tick."],
             ["Road network", "Road-connected owned tiles add point income."],
-            ["Neutral claims", "Claiming a neutral tile grants 5 bonus points."],
+            [
+              "Neutral claims",
+              "Claiming a neutral tile grants 5 bonus points.",
+            ],
             ["Convoys", "Delivered cargo value creates shared trade points."],
             ["Interceptions", "Convoy raids are temporarily disabled."],
-            ["Castle PvP", "Castle wins can transfer a small score slice when points exist."],
+            [
+              "Castle PvP",
+              "Castle wins can transfer a small score slice when points exist.",
+            ],
             ["Gold conversion", "Castle utility can convert gold into points."],
           ],
         },
@@ -256,10 +266,22 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         table: {
           headers: ["Race", "Pressure label", "Read"],
           rows: [
-            ["Dwarfs", "Beer Culture", "Stubborn customs spread border control."],
+            [
+              "Dwarfs",
+              "Beer Culture",
+              "Stubborn customs spread border control.",
+            ],
             ["Orks", "Scavenge Mob", "Noise, scrap, and momentum claim space."],
-            ["Space Murines", "Imperial Faith", "Doctrine projects frontier control."],
-            ["Unstable Unicorns", "Glitter Distribution", "Wild magic bends nearby claims."],
+            [
+              "Space Murines",
+              "Imperial Faith",
+              "Doctrine projects frontier control.",
+            ],
+            [
+              "Unstable Unicorns",
+              "Glitter Distribution",
+              "Wild magic bends nearby claims.",
+            ],
           ],
         },
       },
@@ -301,8 +323,16 @@ export const WIKI_PAGES: readonly WikiPage[] = [
           rows: [
             ["Miners", "Gold income", "Recruitment, upgrades, utility, trade."],
             ["Farmers", "Food income", "Army upkeep and trade."],
-            ["Recruiters", `${RECRUITMENT_RATE_PER_RECRUITER} queued unit per recruiter per tick`, "Turns paid queue into active army."],
-            ["Pressure workers", "Border pressure", "Claim and maintain territory."],
+            [
+              "Recruiters",
+              `${RECRUITMENT_RATE_PER_RECRUITER} queued unit per recruiter per tick`,
+              "Turns paid queue into active army.",
+            ],
+            [
+              "Pressure workers",
+              "Border pressure",
+              "Claim and maintain territory.",
+            ],
           ],
         },
       },
@@ -311,10 +341,19 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         eyebrow: "Army queue",
         title: "Buying and training army",
         diagram: [
-          { label: "Order", detail: `${RECRUITMENT_COST_PER_UNIT} gold per unit is paid immediately.` },
-          { label: "Queue", detail: "Queued units are not active and have no upkeep." },
+          {
+            label: "Order",
+            detail: `${RECRUITMENT_COST_PER_UNIT} gold per unit is paid immediately.`,
+          },
+          {
+            label: "Queue",
+            detail: "Queued units are not active and have no upkeep.",
+          },
           { label: "Train", detail: "Recruiters process the queue each tick." },
-          { label: "Active", detail: "Finished units join army and begin food upkeep." },
+          {
+            label: "Active",
+            detail: "Finished units join army and begin food upkeep.",
+          },
         ],
       },
       {
@@ -333,8 +372,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         id: "arcade",
         eyebrow: "After season",
         title: "Arcade coin payout",
-        body:
-          `A completed season grants ${ARCADE_SEASON_BASE_COINS} base coins, plus 1 per ${ARCADE_SEASON_POINTS_BONUS_DIVISOR} points up to ${ARCADE_SEASON_POINTS_BONUS_CAP}. Top ranks add ${getArcadeSeasonRankBonus(1)}, ${getArcadeSeasonRankBonus(2)}, and ${getArcadeSeasonRankBonus(3)} coins.`,
+        body: `A completed season grants ${ARCADE_SEASON_BASE_COINS} base coins, plus 1 per ${ARCADE_SEASON_POINTS_BONUS_DIVISOR} points up to ${ARCADE_SEASON_POINTS_BONUS_CAP}. Top ranks add ${getArcadeSeasonRankBonus(1)}, ${getArcadeSeasonRankBonus(2)}, and ${getArcadeSeasonRankBonus(3)} coins.`,
       },
     ],
   },
@@ -367,10 +405,8 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         bullets: [
           "Queued priorities are ordered. The first legal neutral tile receives all current pressure output.",
           "If a queue slot is claimed or becomes invalid, the system appends the nearest legal neutral replacement.",
-          "During war, queued enemy border tiles guide automated War Front targeting.",
           `Owned tiles decay by ${OWNERSHIP_PRESSURE_DECAY_PER_TICK} ownership pressure per tick.`,
           `Each maintenance worker restores ${OWNERSHIP_PRESSURE_MAINTENANCE_PER_WORKER} pressure per tick.`,
-          "GUARD-mode battalions use War Room guard allocation to patrol owned border tiles.",
           `Below ${OWNERSHIP_PRESSURE_WARNING} pressure, the tile is in the warning band.`,
           "At 0 pressure, the tile becomes neutral.",
         ],
@@ -379,14 +415,25 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         id: "roads",
         eyebrow: "Movement",
         title: "Roads",
-        body:
-          `Marching armies, reinforcement routes, War Front launches, and delivered convoys build roads on their actual hex route. Roads reduce future movement ETA, but not the six-hour convoy minimum or one-hour PvP preparation delay. Roads decay ${Math.round(ROAD_DECAY_RATE_PER_HOUR * 100)}% per inactive hour.`,
+        body: `Marching armies, reinforcement routes, and delivered convoys build roads on their actual hex route. Roads reduce future movement ETA, but not the six-hour convoy minimum or one-hour PvP preparation delay. Roads decay ${Math.round(ROAD_DECAY_RATE_PER_HOUR * 100)}% per inactive hour.`,
         table: {
           headers: ["Road", "Crossings", "Speed multiplier"],
           rows: [
-            [ROAD_LEVEL_NAMES[RoadLevel.DIRT], `${ROAD_THRESHOLDS[RoadLevel.DIRT]}`, `${ROAD_SPEED_BONUS[RoadLevel.DIRT]}x`],
-            [ROAD_LEVEL_NAMES[RoadLevel.STONE], `${ROAD_THRESHOLDS[RoadLevel.STONE]}`, `${ROAD_SPEED_BONUS[RoadLevel.STONE]}x`],
-            [ROAD_LEVEL_NAMES[RoadLevel.HIGHWAY], `${ROAD_THRESHOLDS[RoadLevel.HIGHWAY]}`, `${ROAD_SPEED_BONUS[RoadLevel.HIGHWAY]}x`],
+            [
+              ROAD_LEVEL_NAMES[RoadLevel.DIRT],
+              `${ROAD_THRESHOLDS[RoadLevel.DIRT]}`,
+              `${ROAD_SPEED_BONUS[RoadLevel.DIRT]}x`,
+            ],
+            [
+              ROAD_LEVEL_NAMES[RoadLevel.STONE],
+              `${ROAD_THRESHOLDS[RoadLevel.STONE]}`,
+              `${ROAD_SPEED_BONUS[RoadLevel.STONE]}x`,
+            ],
+            [
+              ROAD_LEVEL_NAMES[RoadLevel.HIGHWAY],
+              `${ROAD_THRESHOLDS[RoadLevel.HIGHWAY]}`,
+              `${ROAD_SPEED_BONUS[RoadLevel.HIGHWAY]}x`,
+            ],
           ],
         },
       },
@@ -398,67 +445,51 @@ export const WIKI_PAGES: readonly WikiPage[] = [
     navIcon: "05",
     title: "Army And War",
     subtitle:
-      "Battalions give your army identity through four clear jobs: Reserve, Guard, Attack, and Alliance.",
+      "Season 5 keeps army as a simple castle pool while fishing becomes the main map activity.",
     highlights: [
-      `New battalions start at ${DEFAULT_BATTALION_MAX_SIZE} max size.`,
-      `Commission cost: ${BATTALION_COMMISSION_COST} gold.`,
-      `Natural slots cap at ${MAX_NATURAL_SLOTS}; absolute cap is ${ABSOLUTE_MAX_BATTALIONS}.`,
+      `Recruitment costs ${RECRUITMENT_COST_PER_UNIT} gold per unit.`,
+      `Each recruiter processes ${RECRUITMENT_RATE_PER_RECRUITER} queued army per tick before modifiers.`,
+      `Active army eats ${ARMY_UPKEEP_PER_UNIT} food per unit per tick.`,
     ],
     sections: [
       {
-        id: "modes",
-        eyebrow: "Automation",
-        title: "Battalion jobs",
+        id: "army-pool",
+        eyebrow: "Season 5",
+        title: "Army pool",
         cards: [
-          { title: "RESERVE", body: "Roams near your castle core but does not trigger automatically." },
-          { title: "GUARD", body: "Patrols owned borders through War Room guard allocation." },
-          { title: "ATTACK", image: "/assets/ui/crest-campaign.webp", body: "Can be assigned to war fronts and auto-dispatches against reachable enemy tiles." },
-          { title: "ALLIANCE", body: "Sends visible reinforcement marches to eligible allied defensive or attacking battlefields, using the War Room support policy." },
+          {
+            title: "Simple pool",
+            body: "New recruits join the castle army pool directly.",
+          },
+          {
+            title: "No battalions",
+            body: "Commissioning, jobs, War Front assignment, and battalion upkeep are disabled for Season 5.",
+          },
+          {
+            title: "Legacy combat",
+            image: "/assets/ui/crest-campaign.webp",
+            body: "Existing attack and battlefield systems can still use the army pool where legacy combat remains active.",
+          },
         ],
       },
       {
-        id: "refilling",
-        eyebrow: "Recovery",
-        title: "Refilling battalions",
+        id: "recruitment",
+        eyebrow: "Queue",
+        title: "Recruitment",
         bullets: [
-          "Battalions do not heal passively.",
-          "Assign recruiters to train new members and refill damaged battalions.",
-          "The older stance layer is handled internally and is no longer a player-facing control.",
+          "Queue army by paying gold up front.",
+          "Assign recruiters in Castle Economy to process the paid queue into active army.",
+          "The maximum army size setting caps future recruiter output without trimming existing army.",
         ],
       },
       {
-        id: "reinforcements",
-        eyebrow: "Movement",
-        title: "Reinforcements",
+        id: "upkeep",
+        eyebrow: "Food",
+        title: "Upkeep",
         bullets: [
-          "New troops for a remote battalion march from the castle before they become usable.",
-          "Pending battalion reinforcements reserve capacity so battalions do not overfill while troops travel.",
-          "Battlefield reinforcements appear on the map with routes and ETA before they join the fight.",
-        ],
-      },
-      {
-        id: "tiers",
-        eyebrow: "Progression",
-        title: "Tier caps",
-        table: {
-          headers: ["Tier", "Max size"],
-          rows: [
-            ["Recruit", `${TIER_MAX_SIZES[0]}`],
-            ["Regular", `${TIER_MAX_SIZES[1]}`],
-            ["Veteran", `${TIER_MAX_SIZES[2]}`],
-            ["Elite", `${TIER_MAX_SIZES[3]}`],
-          ],
-        },
-      },
-      {
-        id: "morale",
-        eyebrow: "Condition",
-        title: "Morale and extra slots",
-        bullets: [
-          `Inspired morale starts at ${MORALE_THRESHOLDS.INSPIRED}.`,
-          `Shaken morale starts below ${MORALE_THRESHOLDS.STEADY}; broken is below ${MORALE_THRESHOLDS.SHAKEN}.`,
-          `Extra battalion slots cost ${EXTRA_SLOT_COSTS.join(", ")} gold.`,
-          `Capacity expansion uses ${BATTALION_EXPAND_COST_PER_50} gold steps.`,
+          "Active army consumes food every tick.",
+          `If food cannot cover upkeep, active army loses ${Math.round(STARVATION_ATTRITION_RATE * 100)}% that tick.`,
+          "Fishing systems are the Season 5 progression focus; army is no longer split into units with separate jobs.",
         ],
       },
     ],
@@ -528,12 +559,27 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         table: {
           headers: ["State", "Meaning"],
           rows: [
-            ["NEUTRAL", "Default relation; trade, alliance proposals, or war setup are available."],
-            ["ALLIANCE_PENDING", "A proposal, possibly with break collateral, is waiting for acceptance."],
-            ["ALLIED", "Escrow is locked and allied trade can receive bonuses."],
-            ["WAR_PENDING", "A war warning is active before normal hostilities."],
+            [
+              "NEUTRAL",
+              "Default relation; trade, alliance proposals, or war setup are available.",
+            ],
+            [
+              "ALLIANCE_PENDING",
+              "A proposal, possibly with break collateral, is waiting for acceptance.",
+            ],
+            [
+              "ALLIED",
+              "Escrow is locked and allied trade can receive bonuses.",
+            ],
+            [
+              "WAR_PENDING",
+              "A war warning is active before normal hostilities.",
+            ],
             ["WAR", "Campaigns and hostile orders are live."],
-            ["PEACE_PENDING", "A peace offer, possibly with instant demands, is waiting for acceptance."],
+            [
+              "PEACE_PENDING",
+              "A peace offer, possibly with instant demands, is waiting for acceptance.",
+            ],
             ["ENEMY", "Casus belli exists; immediate war can be invoked."],
           ],
         },
@@ -593,8 +639,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         bullets: [
           "Sender escorts protect outbound scored cargo.",
           "Convoy raid orders are temporarily disabled.",
-          "GUARD-mode battalions patrol owned borders through War Room guard allocation.",
-          "Manual guard orders remain disabled; use battalion modes instead.",
+          "Manual guard orders remain disabled in the Season 5 fishing game.",
         ],
       },
       {
@@ -630,7 +675,7 @@ export const WIKI_PAGES: readonly WikiPage[] = [
         bullets: [
           `Earn +1 skill point at castle level ${SKILL_POINT_FIRST_CASTLE_LEVEL}, then every ${SKILL_POINT_CASTLE_LEVEL_INTERVAL} castle levels.`,
           `Earn +1 skill point per ${SKILL_POINT_TILE_INTERVAL} owned normal tiles.`,
-          "Economy improves income, upkeep, expansion slots, and trade logistics; Territory improves pressure and tile control; Military improves battalions and recruitment.",
+          "Economy improves income, upkeep, expansion slots, and trade logistics; Territory improves pressure and tile control; Military improves recruitment and legacy combat strength.",
           "Race-specific behavior should be intentional: read the path before spending.",
         ],
       },
@@ -643,8 +688,18 @@ export const WIKI_PAGES: readonly WikiPage[] = [
           rows: [
             ["Dwarfs", "Grudge Economy", "Seismic Claim", "Runebound Host"],
             ["Orks", "Loot Economy", "Green Tide Claim", "WAAAGH Host"],
-            ["Space Murines", "Convoy Economy", "Orbital Claim", "Rapid Response Host"],
-            ["Unstable Unicorns", "Glitter Economy", "Prismatic Claim", "Mirror Host"],
+            [
+              "Space Murines",
+              "Convoy Economy",
+              "Orbital Claim",
+              "Rapid Response Host",
+            ],
+            [
+              "Unstable Unicorns",
+              "Glitter Economy",
+              "Prismatic Claim",
+              "Mirror Host",
+            ],
           ],
         },
       },

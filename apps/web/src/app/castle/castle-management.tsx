@@ -15,7 +15,6 @@ import { PoliticsClient } from "@/app/politics/politics-client";
 
 import {
   purchaseSkillNodeAction,
-  setAllianceSupportPolicyAction,
   setMaxArmySizeAction,
   createBattalionAction,
   commitNukeComponentBidAction,
@@ -96,7 +95,12 @@ import {
 import { getTradeWagonResourceLimit } from "@/lib/game/trading";
 import styles from "./page.module.css";
 
-type BuildingSpecialization = "POINTS" | "FOOD" | "MILITARY" | "DEFENSE" | "TRADE";
+type BuildingSpecialization =
+  | "POINTS"
+  | "FOOD"
+  | "MILITARY"
+  | "DEFENSE"
+  | "TRADE";
 
 type PlayerSummary = {
   id: string;
@@ -168,10 +172,7 @@ type PlayerSummary = {
   nextUpgradeCost: number | null;
   nextUpgradeDurationMinutes: number | null;
   canPurchaseUpgrade: boolean;
-  castleSpecializationCounts: Record<
-    BuildingSpecialization,
-    number
-  > | null;
+  castleSpecializationCounts: Record<BuildingSpecialization, number> | null;
   buildingUpgradeOptions: Record<
     BuildingSpecialization,
     {
@@ -715,7 +716,7 @@ const NUKE_COMPONENTS = [
 const CASTLE_TABS = [
   { key: "OVERVIEW", label: "Overview" },
   { key: "ECONOMY", label: "Economy" },
-  { key: "WAR_ROOM", label: "War Room" },
+  { key: "WAR_ROOM", label: "Army" },
   { key: "NUKES", label: "Nukes" },
   { key: "DIPLOMACY", label: "Diplomacy" },
   { key: "SKILLS", label: "Skills" },
@@ -962,7 +963,8 @@ function ShopEquippedPreview({
   const meta = variant
     ? getShopSkinMeta(slot, variant)
     : {
-        name: slot === ArcadeCosmeticSlot.UNIT ? "Default unit" : "Default keep",
+        name:
+          slot === ArcadeCosmeticSlot.UNIT ? "Default unit" : "Default keep",
         rarity: "Standard",
       };
 
@@ -1159,8 +1161,8 @@ function CastleShopPanel({ shopState }: { shopState: ArcadeHubState | null }) {
                       : "Fortress crate"}
                   </strong>
                   <span>
-                    Bought {formatTime(purchase.createdAt)} for{" "}
-                    {purchase.price} coins
+                    Bought {formatTime(purchase.createdAt)} for {purchase.price}{" "}
+                    coins
                   </span>
                 </div>
                 {shopState.canOpen ? <button type="submit">Open</button> : null}
@@ -1225,7 +1227,11 @@ function CastleShopPanel({ shopState }: { shopState: ArcadeHubState | null }) {
                       </div>
                       {!skin.equipped ? (
                         <form action={equipCosmeticUnlockAction}>
-                          <input type="hidden" name="returnTo" value="/castle" />
+                          <input
+                            type="hidden"
+                            name="returnTo"
+                            value="/castle"
+                          />
                           <input
                             type="hidden"
                             name="unlockId"
@@ -1291,7 +1297,11 @@ function CastleShopPanel({ shopState }: { shopState: ArcadeHubState | null }) {
                       </div>
                       {!skin.equipped ? (
                         <form action={equipCosmeticUnlockAction}>
-                          <input type="hidden" name="returnTo" value="/castle" />
+                          <input
+                            type="hidden"
+                            name="returnTo"
+                            value="/castle"
+                          />
                           <input
                             type="hidden"
                             name="unlockId"
@@ -1355,15 +1365,6 @@ export function CastleManagement({
   const [maxArmySize, setMaxArmySize] = useState(
     playerSummary.warPolicy?.maxArmySize ?? 500
   );
-  const [allianceSupportAttack, setAllianceSupportAttack] = useState(
-    playerSummary.warPolicy?.allianceSupportAttack ?? true
-  );
-  const [allianceSupportDefense, setAllianceSupportDefense] = useState(
-    playerSummary.warPolicy?.allianceSupportDefense ?? true
-  );
-  const [allianceSupportPercent, setAllianceSupportPercent] = useState(
-    playerSummary.warPolicy?.allianceSupportPercent ?? 50
-  );
   const [battalionPending, setBattalionPending] = useState(false);
   const [nukeBidAmounts, setNukeBidAmounts] = useState<
     Record<NukeComponentKind, number>
@@ -1387,22 +1388,6 @@ export function CastleManagement({
       await handleInlineResult(result);
     },
     [playerSummary.id]
-  );
-
-  const saveAllianceSupportPolicy = useCallback(
-    async (next?: {
-      supportAttack?: boolean;
-      supportDefense?: boolean;
-      supportPercent?: number;
-    }) => {
-      const result = await setAllianceSupportPolicyAction({
-        supportAttack: next?.supportAttack ?? allianceSupportAttack,
-        supportDefense: next?.supportDefense ?? allianceSupportDefense,
-        supportPercent: next?.supportPercent ?? allianceSupportPercent,
-      });
-      await handleInlineResult(result);
-    },
-    [allianceSupportAttack, allianceSupportDefense, allianceSupportPercent]
   );
 
   const handleCreateBattalion = useCallback(async () => {
@@ -2264,677 +2249,585 @@ export function CastleManagement({
           <>
             <section className={styles.panel}>
               <div className={styles.panelHeader}>
-                <span>Alliance Support</span>
-                <strong>
-                  {playerSummary.allianceWarRoom.allianceBattalionArmy.toLocaleString()}{" "}
-                  ready
-                </strong>
+                <span>Season 5 Army</span>
+                <strong>Fishing preview</strong>
               </div>
-              <div style={{ display: "grid", gap: 10 }}>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 10,
-                    flexWrap: "wrap",
-                    fontSize: 13,
-                  }}
-                >
-                  <label
-                    style={{
-                      display: "inline-flex",
-                      gap: 6,
-                      alignItems: "center",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={allianceSupportDefense}
-                      onChange={(event) => {
-                        const checked = event.currentTarget.checked;
-                        setAllianceSupportDefense(checked);
-                        void saveAllianceSupportPolicy({
-                          supportDefense: checked,
-                        });
-                      }}
-                    />
-                    Defend allies
-                  </label>
-                  <label
-                    style={{
-                      display: "inline-flex",
-                      gap: 6,
-                      alignItems: "center",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={allianceSupportAttack}
-                      onChange={(event) => {
-                        const checked = event.currentTarget.checked;
-                        setAllianceSupportAttack(checked);
-                        void saveAllianceSupportPolicy({
-                          supportAttack: checked,
-                        });
-                      }}
-                    />
-                    Join allied attacks
-                  </label>
-                </div>
-                <label style={{ display: "grid", gap: 4, fontSize: 13 }}>
-                  <span
-                    style={{ display: "flex", justifyContent: "space-between" }}
-                  >
-                    <span>Commit from ALLIANCE battalions</span>
-                    <strong>{allianceSupportPercent}%</strong>
-                  </span>
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    step={5}
-                    value={allianceSupportPercent}
-                    onChange={(event) => {
-                      const value = Number(event.currentTarget.value);
-                      setAllianceSupportPercent(value);
-                    }}
-                    onMouseUp={(event) =>
-                      void saveAllianceSupportPolicy({
-                        supportPercent: Number(event.currentTarget.value),
-                      })
-                    }
-                    onTouchEnd={(event) =>
-                      void saveAllianceSupportPolicy({
-                        supportPercent: Number(event.currentTarget.value),
-                      })
-                    }
-                    onBlur={(event) =>
-                      void saveAllianceSupportPolicy({
-                        supportPercent: Number(event.currentTarget.value),
-                      })
-                    }
-                  />
-                </label>
-                <p className={styles.muted} style={{ fontSize: 12, margin: 0 }}>
-                  Battalions set to ALLIANCE automatically march to allied
-                  active battlefields on the enabled sides.
-                </p>
-              </div>
-
-              <div className={styles.operationGroup} style={{ marginTop: 10 }}>
-                <div className={styles.operationTitle}>
-                  <strong>Allies</strong>
-                </div>
-                {playerSummary.allianceWarRoom.allies.length > 0 ? (
-                  playerSummary.allianceWarRoom.allies.map((ally) => (
-                    <div key={ally.fortressId} className={styles.statusRow}>
-                      <span>{ally.name}</span>
-                      <strong>Trust {ally.trustTier}</strong>
-                    </div>
-                  ))
-                ) : (
-                  <p className={styles.muted}>No active alliances.</p>
-                )}
-              </div>
-
-              {playerSummary.allianceWarRoom.battlefields.length > 0 ? (
-                <div className={styles.operationGroup}>
-                  <div className={styles.operationTitle}>
-                    <strong>Allied battlefields</strong>
-                  </div>
-                  {playerSummary.allianceWarRoom.battlefields.map(
-                    (battlefield) => (
-                      <div key={battlefield.id} className={styles.statusRow}>
-                        <span>
-                          {battlefield.allyName}{" "}
-                          {battlefield.alliedSide === "ATTACKER"
-                            ? "attacking"
-                            : "defending"}{" "}
-                          {battlefield.targetLabel}
-                        </span>
-                        <strong>
-                          {battlefield.attackerArmyRemaining.toLocaleString()} /{" "}
-                          {battlefield.defenderArmyRemaining.toLocaleString()}
-                        </strong>
-                      </div>
-                    )
-                  )}
-                </div>
-              ) : null}
-
-              {playerSummary.allianceWarRoom.outgoingReinforcements.length >
-              0 ? (
-                <div className={styles.operationGroup}>
-                  <div className={styles.operationTitle}>
-                    <strong>Support en route</strong>
-                  </div>
-                  {playerSummary.allianceWarRoom.outgoingReinforcements.map(
-                    (unit) => (
-                      <div key={unit.id} className={styles.statusRow}>
-                        <span>
-                          {unit.armyAmount.toLocaleString()} to {unit.allyName}{" "}
-                          ({unit.side?.toLowerCase() ?? "support"})
-                        </span>
-                        <strong>
-                          {new Date(unit.arrivesAt).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </strong>
-                      </div>
-                    )
-                  )}
-                </div>
-              ) : null}
+              <p className={styles.muted}>
+                Season 5 is the fishing game. Army remains a simple castle pool
+                for legacy combat and upkeep while battalion automation is
+                disabled.
+              </p>
             </section>
 
-            {/* Battalion Roster */}
-            <section className={styles.panel}>
-              <div className={styles.panelHeader}>
-                <span>Battalions</span>
-                <strong>{playerSummary.battalions?.length ?? 0} active</strong>
-              </div>
-              <div
-                style={{
-                  fontSize: 12,
-                  color: "var(--text-muted)",
-                  margin: "4px 0 8px",
-                  lineHeight: 1.5,
-                }}
-              >
-                <strong>Reserves:</strong>{" "}
-                {(() => {
-                  const totalBn = (playerSummary.battalions ?? []).reduce(
-                    (s, b) => s + b.size,
-                    0
-                  );
-                  const reserves = Math.max(
-                    0,
-                    (playerSummary.army ?? 0) - totalBn
-                  );
-                  return `${reserves.toLocaleString()} unassigned`;
-                })()}
-                {" · "}
-                Refill battalions with recruiters; they do not heal passively.
-                {" · "}
-                <strong>Tiers:</strong>{" "}
-                <span title="1.0× dmg/def, max 500">Recruit</span> →{" "}
-                <span title="1.15× dmg, 1.10× def, max 5k">Regular (1.5k)</span>{" "}
-                →{" "}
-                <span title="1.35× dmg, 1.25× def, max 15k">Veteran (5k)</span>{" "}
-                → <span title="1.60× dmg, 1.45× def, max 50k">Elite (15k)</span>
-              </div>
-              {playerSummary.battalions &&
-              playerSummary.battalions.length > 0 ? (
-                <ul
-                  style={{ listStyle: "none", padding: 0, margin: "8px 0 0" }}
-                >
-                  {playerSummary.battalions.map((bn) => (
-                    <li
-                      key={bn.id}
+            {false ? (
+              <>
+                {/* Battalion Roster */}
+                <section className={styles.panel}>
+                  <div className={styles.panelHeader}>
+                    <span>Battalions</span>
+                    <strong>
+                      {playerSummary.battalions?.length ?? 0} active
+                    </strong>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: "var(--text-muted)",
+                      margin: "4px 0 8px",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    <strong>Reserves:</strong>{" "}
+                    {(() => {
+                      const totalBn = (playerSummary.battalions ?? []).reduce(
+                        (s, b) => s + b.size,
+                        0
+                      );
+                      const reserves = Math.max(
+                        0,
+                        (playerSummary.army ?? 0) - totalBn
+                      );
+                      return `${reserves.toLocaleString()} unassigned`;
+                    })()}
+                    {" · "}
+                    Refill battalions with recruiters; they do not heal
+                    passively.
+                    {" · "}
+                    <strong>Tiers:</strong>{" "}
+                    <span title="1.0× dmg/def, max 500">Recruit</span> →{" "}
+                    <span title="1.15× dmg, 1.10× def, max 5k">
+                      Regular (1.5k)
+                    </span>{" "}
+                    →{" "}
+                    <span title="1.35× dmg, 1.25× def, max 15k">
+                      Veteran (5k)
+                    </span>{" "}
+                    →{" "}
+                    <span title="1.60× dmg, 1.45× def, max 50k">
+                      Elite (15k)
+                    </span>
+                  </div>
+                  {playerSummary.battalions &&
+                  playerSummary.battalions.length > 0 ? (
+                    <ul
                       style={{
-                        padding: "8px 10px",
-                        background: "var(--bg-raised)",
-                        borderRadius: 6,
-                        marginBottom: 6,
-                        fontSize: 13,
+                        listStyle: "none",
+                        padding: 0,
+                        margin: "8px 0 0",
                       }}
                     >
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          marginBottom: 4,
-                        }}
-                      >
-                        <strong>{bn.name}</strong>
-                        <span
-                          style={{ color: "var(--text-muted)", fontSize: 12 }}
-                        >
-                          {bn.size}/{bn.maxSize} · Tier {bn.tier}
-                        </span>
-                      </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: 6,
-                          alignItems: "center",
-                          fontSize: 12,
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        <select
-                          defaultValue={getVisibleBattalionMode(
-                            (bn as any).mode
-                          )}
-                          onChange={async (e) => {
-                            const selectEl = e.target as HTMLSelectElement;
-                            const newMode = selectEl.value;
-                            selectEl.disabled = true;
-                            try {
-                              const { setBattalionModeAction } =
-                                await import("@/app/game-actions");
-                              const result = await setBattalionModeAction({
-                                battalionId: bn.id,
-                                mode: newMode,
-                              });
-                              if (!result?.ok) {
-                                selectEl.value = getVisibleBattalionMode(
-                                  (bn as any).mode
-                                );
-                                console.error("Failed:", result?.error);
-                              }
-                            } catch (err) {
-                              selectEl.value = getVisibleBattalionMode(
-                                (bn as any).mode
-                              );
-                              console.error("Error:", err);
-                            } finally {
-                              selectEl.disabled = false;
-                              refreshView();
-                            }
-                          }}
+                      {playerSummary.battalions.map((bn) => (
+                        <li
+                          key={bn.id}
                           style={{
-                            fontSize: 11,
-                            padding: "1px 4px",
-                            background:
-                              getVisibleBattalionMode((bn as any).mode) === "ATTACK"
-                                ? "#3a2a0a"
-                                : getVisibleBattalionMode((bn as any).mode) ===
-                                    "GUARD"
-                                  ? "#123326"
-                                  : getVisibleBattalionMode((bn as any).mode) ===
-                                    "RESERVE"
-                                    ? "#2a2a2a"
-                                    : "#2a1a3a",
-                            color:
-                              getVisibleBattalionMode((bn as any).mode) === "ATTACK"
-                                ? "#ffb040"
-                                : getVisibleBattalionMode((bn as any).mode) ===
-                                    "GUARD"
-                                  ? "#62d39a"
-                                  : getVisibleBattalionMode((bn as any).mode) ===
-                                    "RESERVE"
-                                    ? "#888"
-                                    : "#c080ff",
-                            border: "1px solid var(--border)",
-                            borderRadius: 3,
-                            cursor: "pointer",
-                            fontWeight: 600,
-                          }}
-                        >
-                          <option value="RESERVE">Reserve</option>
-                          <option value="GUARD">Guard</option>
-                          <option value="ATTACK">Attack</option>
-                          <option value="ALLIANCE">Alliance</option>
-                        </select>
-                        <span style={{ color: "var(--text-muted)" }}>
-                          {bn.size}/{bn.maxSize}
-                        </span>
-                        {bn.xp > 0 ? (
-                          <span style={{ color: "#ffd700", fontSize: 11 }}>
-                            {bn.xp} XP
-                          </span>
-                        ) : null}
-                      </div>
-                      <div
-                        style={{
-                          marginTop: 4,
-                          display: "flex",
-                          gap: 4,
-                          alignItems: "center",
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        <span
-                          style={{ fontSize: 11, color: "var(--text-muted)" }}
-                        >
-                          Max:
-                        </span>
-                        <input
-                          type="number"
-                          key={`${bn.id}-${bn.maxSize}`}
-                          min={bn.size}
-                          max={[500, 5000, 15000, 50000][bn.tier] ?? 500}
-                          step={bn.tier >= 2 ? 1000 : bn.tier >= 1 ? 500 : 50}
-                          defaultValue={bn.maxSize}
-                          onBlur={async (e) => {
-                            const v = Number(e.target.value);
-                            const tierMax =
-                              [500, 5000, 15000, 50000][bn.tier] ?? 500;
-                            if (
-                              Number.isFinite(v) &&
-                              v >= bn.size &&
-                              v <= tierMax &&
-                              v !== bn.maxSize
-                            ) {
-                              const { expandBattalionAction } =
-                                await import("@/app/game-actions");
-                              await expandBattalionAction({
-                                battalionId: bn.id,
-                                targetMaxSize: v,
-                              });
-                              refreshView();
-                            }
-                          }}
-                          style={{
-                            width: 50,
-                            padding: "1px 4px",
-                            fontSize: 11,
+                            padding: "8px 10px",
                             background: "var(--bg-raised)",
-                            border: "1px solid var(--border)",
-                            borderRadius: 3,
-                            color: "var(--text)",
+                            borderRadius: 6,
+                            marginBottom: 6,
+                            fontSize: 13,
                           }}
-                        />
-                        {bn.tier < 3 ? (
-                          (() => {
-                            const baseCost =
-                              [2000, 8000, 25000, 0][bn.tier] ?? 0;
-                            const perUnit = bn.size * 8;
-                            const totalCost = baseCost + perUnit;
-                            return (
-                              <button
-                                type="button"
-                                title={`Promote to tier ${bn.tier + 1}: ${totalCost.toLocaleString()} gold`}
-                                onClick={async () => {
-                                  const { promoteBattalionAction } =
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              marginBottom: 4,
+                            }}
+                          >
+                            <strong>{bn.name}</strong>
+                            <span
+                              style={{
+                                color: "var(--text-muted)",
+                                fontSize: 12,
+                              }}
+                            >
+                              {bn.size}/{bn.maxSize} · Tier {bn.tier}
+                            </span>
+                          </div>
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: 6,
+                              alignItems: "center",
+                              fontSize: 12,
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <select
+                              defaultValue={getVisibleBattalionMode(
+                                (bn as any).mode
+                              )}
+                              onChange={async (e) => {
+                                const selectEl = e.target as HTMLSelectElement;
+                                const newMode = selectEl.value;
+                                selectEl.disabled = true;
+                                try {
+                                  const { setBattalionModeAction } =
                                     await import("@/app/game-actions");
-                                  const result = await promoteBattalionAction({
+                                  const result = await setBattalionModeAction({
                                     battalionId: bn.id,
+                                    mode: newMode,
                                   });
-                                  if (result.ok) refreshView();
-                                  else window.alert(result.error);
+                                  if (!result?.ok) {
+                                    selectEl.value = getVisibleBattalionMode(
+                                      (bn as any).mode
+                                    );
+                                    console.error("Failed:", result?.error);
+                                  }
+                                } catch (err) {
+                                  selectEl.value = getVisibleBattalionMode(
+                                    (bn as any).mode
+                                  );
+                                  console.error("Error:", err);
+                                } finally {
+                                  selectEl.disabled = false;
+                                  refreshView();
+                                }
+                              }}
+                              style={{
+                                fontSize: 11,
+                                padding: "1px 4px",
+                                background:
+                                  getVisibleBattalionMode((bn as any).mode) ===
+                                  "ATTACK"
+                                    ? "#3a2a0a"
+                                    : getVisibleBattalionMode(
+                                          (bn as any).mode
+                                        ) === "GUARD"
+                                      ? "#123326"
+                                      : getVisibleBattalionMode(
+                                            (bn as any).mode
+                                          ) === "RESERVE"
+                                        ? "#2a2a2a"
+                                        : "#2a1a3a",
+                                color:
+                                  getVisibleBattalionMode((bn as any).mode) ===
+                                  "ATTACK"
+                                    ? "#ffb040"
+                                    : getVisibleBattalionMode(
+                                          (bn as any).mode
+                                        ) === "GUARD"
+                                      ? "#62d39a"
+                                      : getVisibleBattalionMode(
+                                            (bn as any).mode
+                                          ) === "RESERVE"
+                                        ? "#888"
+                                        : "#c080ff",
+                                border: "1px solid var(--border)",
+                                borderRadius: 3,
+                                cursor: "pointer",
+                                fontWeight: 600,
+                              }}
+                            >
+                              <option value="RESERVE">Reserve</option>
+                              <option value="GUARD">Guard</option>
+                              <option value="ATTACK">Attack</option>
+                              <option value="ALLIANCE">Alliance</option>
+                            </select>
+                            <span style={{ color: "var(--text-muted)" }}>
+                              {bn.size}/{bn.maxSize}
+                            </span>
+                            {bn.xp > 0 ? (
+                              <span style={{ color: "#ffd700", fontSize: 11 }}>
+                                {bn.xp} XP
+                              </span>
+                            ) : null}
+                          </div>
+                          <div
+                            style={{
+                              marginTop: 4,
+                              display: "flex",
+                              gap: 4,
+                              alignItems: "center",
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: 11,
+                                color: "var(--text-muted)",
+                              }}
+                            >
+                              Max:
+                            </span>
+                            <input
+                              type="number"
+                              key={`${bn.id}-${bn.maxSize}`}
+                              min={bn.size}
+                              max={[500, 5000, 15000, 50000][bn.tier] ?? 500}
+                              step={
+                                bn.tier >= 2 ? 1000 : bn.tier >= 1 ? 500 : 50
+                              }
+                              defaultValue={bn.maxSize}
+                              onBlur={async (e) => {
+                                const v = Number(e.target.value);
+                                const tierMax =
+                                  [500, 5000, 15000, 50000][bn.tier] ?? 500;
+                                if (
+                                  Number.isFinite(v) &&
+                                  v >= bn.size &&
+                                  v <= tierMax &&
+                                  v !== bn.maxSize
+                                ) {
+                                  const { expandBattalionAction } =
+                                    await import("@/app/game-actions");
+                                  await expandBattalionAction({
+                                    battalionId: bn.id,
+                                    targetMaxSize: v,
+                                  });
+                                  refreshView();
+                                }
+                              }}
+                              style={{
+                                width: 50,
+                                padding: "1px 4px",
+                                fontSize: 11,
+                                background: "var(--bg-raised)",
+                                border: "1px solid var(--border)",
+                                borderRadius: 3,
+                                color: "var(--text)",
+                              }}
+                            />
+                            {bn.tier < 3 ? (
+                              (() => {
+                                const baseCost =
+                                  [2000, 8000, 25000, 0][bn.tier] ?? 0;
+                                const perUnit = bn.size * 8;
+                                const totalCost = baseCost + perUnit;
+                                return (
+                                  <button
+                                    type="button"
+                                    title={`Promote to tier ${bn.tier + 1}: ${totalCost.toLocaleString()} gold`}
+                                    onClick={async () => {
+                                      const { promoteBattalionAction } =
+                                        await import("@/app/game-actions");
+                                      const result =
+                                        await promoteBattalionAction({
+                                          battalionId: bn.id,
+                                        });
+                                      if (result.ok) refreshView();
+                                      else window.alert(result.error);
+                                    }}
+                                    disabled={bn.tier >= 3}
+                                    style={{
+                                      fontSize: 11,
+                                      padding: "2px 6px",
+                                      background: "var(--bg-raised)",
+                                      border: "1px solid #ffd700",
+                                      borderRadius: 3,
+                                      color:
+                                        bn.tier >= 3
+                                          ? "var(--text-muted)"
+                                          : "#ffd700",
+                                      cursor:
+                                        bn.tier >= 3 ? "default" : "pointer",
+                                    }}
+                                  >
+                                    Promote ({totalCost.toLocaleString()}g)
+                                  </button>
+                                );
+                              })()
+                            ) : (
+                              <span style={{ fontSize: 11, color: "#ffd700" }}>
+                                MAX TIER
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (
+                                  !confirm(
+                                    `Disband ${bn.name}? 50% gold refund.`
+                                  )
+                                )
+                                  return;
+                                const { disbandBattalionAction } =
+                                  await import("@/app/game-actions");
+                                await disbandBattalionAction({
+                                  battalionId: bn.id,
+                                });
+                                refreshView();
+                              }}
+                              style={{
+                                fontSize: 11,
+                                padding: "2px 8px",
+                                background: "var(--bg-raised)",
+                                border: "1px solid #f44336",
+                                borderRadius: 3,
+                                color: "#f44336",
+                                cursor: "pointer",
+                              }}
+                            >
+                              Disband
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                      No battalions. Commission one to get started.
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleCreateBattalion}
+                    disabled={battalionPending}
+                    style={{
+                      marginTop: 8,
+                      padding: "6px 12px",
+                      fontSize: 13,
+                      background: "var(--color-accent, #48f)",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: 4,
+                      cursor: "pointer",
+                      width: "100%",
+                    }}
+                  >
+                    {battalionPending
+                      ? "Commissioning..."
+                      : "Commission Battalion"}
+                  </button>
+                </section>
+
+                {/* War Fronts */}
+                <section className={styles.panel}>
+                  <div className={styles.panelHeader}>
+                    <span>War Fronts</span>
+                    <strong>
+                      {playerSummary.warFronts?.filter(
+                        (f) =>
+                          f.status === "ADVANCING" || f.status === "STALLED"
+                      ).length ?? 0}{" "}
+                      active
+                    </strong>
+                  </div>
+
+                  {playerSummary.warFronts &&
+                  playerSummary.warFronts.length > 0 ? (
+                    <ul
+                      style={{
+                        listStyle: "none",
+                        padding: 0,
+                        margin: "8px 0 0",
+                      }}
+                    >
+                      {playerSummary.warFronts.map((front) => {
+                        const frontBattalions =
+                          playerSummary.battalions?.filter(
+                            (b) => b.frontId === front.id
+                          ) ?? [];
+                        return (
+                          <li
+                            key={front.id}
+                            style={{
+                              padding: "8px 10px",
+                              background: "var(--bg-raised)",
+                              borderRadius: 6,
+                              marginBottom: 6,
+                              fontSize: 13,
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                marginBottom: 4,
+                              }}
+                            >
+                              <strong
+                                style={{
+                                  color:
+                                    front.status === "ADVANCING"
+                                      ? "#4caf50"
+                                      : front.status === "STALLED"
+                                        ? "#ff9800"
+                                        : "#888",
                                 }}
-                                disabled={bn.tier >= 3}
+                              >
+                                vs.{" "}
+                                {(targets as any[]).find(
+                                  (t: any) => t.id === front.enemyFortressId
+                                )?.name ?? front.enemyFortressId}
+                              </strong>
+                              <span
                                 style={{
                                   fontSize: 11,
-                                  padding: "2px 6px",
-                                  background: "var(--bg-raised)",
-                                  border: "1px solid #ffd700",
-                                  borderRadius: 3,
-                                  color:
-                                    bn.tier >= 3
-                                      ? "var(--text-muted)"
-                                      : "#ffd700",
-                                  cursor: bn.tier >= 3 ? "default" : "pointer",
+                                  color: "var(--text-muted)",
                                 }}
                               >
-                                Promote ({totalCost.toLocaleString()}g)
-                              </button>
-                            );
-                          })()
-                        ) : (
-                          <span style={{ fontSize: 11, color: "#ffd700" }}>
-                            MAX TIER
-                          </span>
-                        )}
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            if (
-                              !confirm(`Disband ${bn.name}? 50% gold refund.`)
-                            )
-                              return;
-                            const { disbandBattalionAction } =
-                              await import("@/app/game-actions");
-                            await disbandBattalionAction({
-                              battalionId: bn.id,
-                            });
-                            refreshView();
-                          }}
-                          style={{
-                            fontSize: 11,
-                            padding: "2px 8px",
-                            background: "var(--bg-raised)",
-                            border: "1px solid #f44336",
-                            borderRadius: 3,
-                            color: "#f44336",
-                            cursor: "pointer",
-                          }}
-                        >
-                          Disband
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
-                  No battalions. Commission one to get started.
-                </p>
-              )}
-              <button
-                type="button"
-                onClick={handleCreateBattalion}
-                disabled={battalionPending}
-                style={{
-                  marginTop: 8,
-                  padding: "6px 12px",
-                  fontSize: 13,
-                  background: "var(--color-accent, #48f)",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 4,
-                  cursor: "pointer",
-                  width: "100%",
-                }}
-              >
-                {battalionPending ? "Commissioning..." : "Commission Battalion"}
-              </button>
-            </section>
-
-            {/* War Fronts */}
-            <section className={styles.panel}>
-              <div className={styles.panelHeader}>
-                <span>War Fronts</span>
-                <strong>
-                  {playerSummary.warFronts?.filter(
-                    (f) => f.status === "ADVANCING" || f.status === "STALLED"
-                  ).length ?? 0}{" "}
-                  active
-                </strong>
-              </div>
-
-              {playerSummary.warFronts && playerSummary.warFronts.length > 0 ? (
-                <ul
-                  style={{ listStyle: "none", padding: 0, margin: "8px 0 0" }}
-                >
-                  {playerSummary.warFronts.map((front) => {
-                    const frontBattalions =
-                      playerSummary.battalions?.filter(
-                        (b) => b.frontId === front.id
-                      ) ?? [];
-                    return (
-                      <li
-                        key={front.id}
-                        style={{
-                          padding: "8px 10px",
-                          background: "var(--bg-raised)",
-                          borderRadius: 6,
-                          marginBottom: 6,
-                          fontSize: 13,
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            marginBottom: 4,
-                          }}
-                        >
-                          <strong
-                            style={{
-                              color:
-                                front.status === "ADVANCING"
-                                  ? "#4caf50"
-                                  : front.status === "STALLED"
-                                    ? "#ff9800"
-                                    : "#888",
-                            }}
-                          >
-                            vs.{" "}
-                            {(targets as any[]).find(
-                              (t: any) => t.id === front.enemyFortressId
-                            )?.name ?? front.enemyFortressId}
-                          </strong>
-                          <span
-                            style={{ fontSize: 11, color: "var(--text-muted)" }}
-                          >
-                            {front.status}
-                          </span>
-                        </div>
-                        {/* Aggression selector */}
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: 4,
-                            alignItems: "center",
-                            marginBottom: 4,
-                          }}
-                        >
-                          <span
-                            style={{ fontSize: 11, color: "var(--text-muted)" }}
-                          >
-                            Aggression:
-                          </span>
-                          <select
-                            defaultValue={front.aggression}
-                            onChange={async (e) => {
-                              const newAggression = e.target.value;
-                              try {
-                                const { setFrontAggressionAction } =
-                                  await import("@/app/game-actions");
-                                const result = await setFrontAggressionAction({
-                                  frontId: front.id,
-                                  fortressId: playerSummary.id,
-                                  aggression: newAggression,
-                                });
-                                if (!result.ok) alert(result.error);
-                                refreshView();
-                              } catch (err) {
-                                alert("Failed to change aggression.");
-                              }
-                            }}
-                            style={{
-                              fontSize: 11,
-                              padding: "1px 4px",
-                              background: "var(--bg-raised)",
-                              border: "1px solid var(--border)",
-                              borderRadius: 3,
-                              color: "var(--text)",
-                            }}
-                          >
-                            <option value="CAUTIOUS">🟢 Cautious (30%)</option>
-                            <option value="BALANCED">🟡 Balanced (60%)</option>
-                            <option value="AGGRESSIVE">
-                              🔴 Aggressive (100%)
-                            </option>
-                          </select>
-                        </div>
-                        {frontBattalions.length > 0 ? (
-                          <div
-                            style={{ fontSize: 12, color: "var(--text-muted)" }}
-                          >
-                            {frontBattalions.map((b) => (
-                              <div
-                                key={b.id}
+                                {front.status}
+                              </span>
+                            </div>
+                            {/* Aggression selector */}
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: 4,
+                                alignItems: "center",
+                                marginBottom: 4,
+                              }}
+                            >
+                              <span
                                 style={{
-                                  display: "flex",
-                                  justifyContent: "space-between",
+                                  fontSize: 11,
+                                  color: "var(--text-muted)",
                                 }}
                               >
-                                <span>
-                                  {b.name} ({b.size})
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={async () => {
-                                    const { removeBattalionFromFrontAction } =
+                                Aggression:
+                              </span>
+                              <select
+                                defaultValue={front.aggression}
+                                onChange={async (e) => {
+                                  const newAggression = e.target.value;
+                                  try {
+                                    const { setFrontAggressionAction } =
                                       await import("@/app/game-actions");
-                                    await removeBattalionFromFrontAction({
-                                      battalionId: b.id,
+                                    const result =
+                                      await setFrontAggressionAction({
+                                        frontId: front.id,
+                                        fortressId: playerSummary.id,
+                                        aggression: newAggression,
+                                      });
+                                    if (!result.ok) alert(result.error);
+                                    refreshView();
+                                  } catch (err) {
+                                    alert("Failed to change aggression.");
+                                  }
+                                }}
+                                style={{
+                                  fontSize: 11,
+                                  padding: "1px 4px",
+                                  background: "var(--bg-raised)",
+                                  border: "1px solid var(--border)",
+                                  borderRadius: 3,
+                                  color: "var(--text)",
+                                }}
+                              >
+                                <option value="CAUTIOUS">
+                                  🟢 Cautious (30%)
+                                </option>
+                                <option value="BALANCED">
+                                  🟡 Balanced (60%)
+                                </option>
+                                <option value="AGGRESSIVE">
+                                  🔴 Aggressive (100%)
+                                </option>
+                              </select>
+                            </div>
+                            {frontBattalions.length > 0 ? (
+                              <div
+                                style={{
+                                  fontSize: 12,
+                                  color: "var(--text-muted)",
+                                }}
+                              >
+                                {frontBattalions.map((b) => (
+                                  <div
+                                    key={b.id}
+                                    style={{
+                                      display: "flex",
+                                      justifyContent: "space-between",
+                                    }}
+                                  >
+                                    <span>
+                                      {b.name} ({b.size})
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        const {
+                                          removeBattalionFromFrontAction,
+                                        } = await import("@/app/game-actions");
+                                        await removeBattalionFromFrontAction({
+                                          battalionId: b.id,
+                                          frontId: front.id,
+                                        });
+                                        refreshView();
+                                      }}
+                                      style={{
+                                        fontSize: 11,
+                                        padding: "0 4px",
+                                        background: "none",
+                                        border: "none",
+                                        color: "#f44336",
+                                        cursor: "pointer",
+                                      }}
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div
+                                style={{
+                                  fontSize: 12,
+                                  color: "var(--text-muted)",
+                                }}
+                              >
+                                No battalions assigned.
+                              </div>
+                            )}
+                            <select
+                              defaultValue=""
+                              onChange={async (e) => {
+                                if (!e.target.value) return;
+                                try {
+                                  const { assignBattalionToFrontAction } =
+                                    await import("@/app/game-actions");
+                                  const result =
+                                    await assignBattalionToFrontAction({
+                                      battalionId: e.target.value,
                                       frontId: front.id,
                                     });
-                                    refreshView();
-                                  }}
-                                  style={{
-                                    fontSize: 11,
-                                    padding: "0 4px",
-                                    background: "none",
-                                    border: "none",
-                                    color: "#f44336",
-                                    cursor: "pointer",
-                                  }}
-                                >
-                                  ✕
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div
-                            style={{ fontSize: 12, color: "var(--text-muted)" }}
-                          >
-                            No battalions assigned.
-                          </div>
-                        )}
-                        <select
-                          defaultValue=""
-                          onChange={async (e) => {
-                            if (!e.target.value) return;
-                            try {
-                              const { assignBattalionToFrontAction } =
-                                await import("@/app/game-actions");
-                              const result = await assignBattalionToFrontAction(
-                                {
-                                  battalionId: e.target.value,
-                                  frontId: front.id,
+                                  if (!result.ok) alert(result.error);
+                                  refreshView();
+                                } catch (err) {
+                                  alert("Failed to assign battalion.");
                                 }
-                              );
-                              if (!result.ok) alert(result.error);
-                              refreshView();
-                            } catch (err) {
-                              alert("Failed to assign battalion.");
-                            }
-                          }}
-                          style={{
-                            marginTop: 4,
-                            width: "100%",
-                            fontSize: 12,
-                            padding: "2px 4px",
-                            background: "var(--bg-raised)",
-                            border: "1px solid var(--border)",
-                            borderRadius: 3,
-                            color: "var(--text)",
-                          }}
-                        >
-                          <option value="">Assign battalion…</option>
-                          {(playerSummary.battalions ?? [])
-                            .filter(
-                              (b) =>
-                                !b.frontId &&
-                                getVisibleBattalionMode((b as any).mode) ===
-                                  "ATTACK" &&
-                                b.size > 0
-                            )
-                            .map((b) => (
-                              <option key={b.id} value={b.id}>
-                                {b.name} ({b.size})
-                              </option>
-                            ))}
-                        </select>
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : (
-                <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
-                  No active war fronts. Go to <strong>Diplomacy</strong> tab →
-                  declare war on a player. Battalions will auto-attack on the
-                  next tick.
-                </p>
-              )}
-            </section>
+                              }}
+                              style={{
+                                marginTop: 4,
+                                width: "100%",
+                                fontSize: 12,
+                                padding: "2px 4px",
+                                background: "var(--bg-raised)",
+                                border: "1px solid var(--border)",
+                                borderRadius: 3,
+                                color: "var(--text)",
+                              }}
+                            >
+                              <option value="">Assign battalion…</option>
+                              {(playerSummary.battalions ?? [])
+                                .filter(
+                                  (b) =>
+                                    !b.frontId &&
+                                    getVisibleBattalionMode((b as any).mode) ===
+                                      "ATTACK" &&
+                                    b.size > 0
+                                )
+                                .map((b) => (
+                                  <option key={b.id} value={b.id}>
+                                    {b.name} ({b.size})
+                                  </option>
+                                ))}
+                            </select>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                      No active war fronts. Go to <strong>Diplomacy</strong> tab
+                      → declare war on a player. Battalions will auto-attack on
+                      the next tick.
+                    </p>
+                  )}
+                </section>
+              </>
+            ) : null}
 
             {/* Army Settings */}
             <section className={styles.panel}>
@@ -2998,8 +2891,8 @@ export function CastleManagement({
                     margin: 0,
                   }}
                 >
-                  Set the army ceiling here. Use battalion modes and war front
-                  aggression to decide how those troops are committed.
+                  Set the army ceiling for recruiter output and food upkeep
+                  planning.
                 </p>
               </div>
             </section>
@@ -3017,10 +2910,45 @@ export function CastleManagement({
                   margin: "4px 0",
                 }}
               >
-                Assign recruiters in the Economy tab to refill commissioned
-                battalions. Full battalions and the max army ceiling stop new
-                recruits until you expand or commission more room.
+                Queue paid army here, then assign recruiters in the Economy tab
+                to turn the queue into active castle army. Season 5 does not use
+                battalions.
               </p>
+              <form className={styles.form} onSubmit={recruitArmy}>
+                <label>
+                  Units to queue
+                  <input
+                    type="number"
+                    min={1}
+                    value={recruitAmount}
+                    onChange={(event) =>
+                      setRecruitAmount(
+                        Number.isFinite(event.currentTarget.valueAsNumber)
+                          ? Math.max(
+                              1,
+                              Math.floor(event.currentTarget.valueAsNumber)
+                            )
+                          : 1
+                      )
+                    }
+                  />
+                </label>
+                <p className={styles.muted}>
+                  Cost: {recruitmentDisplay.recruitCost} gold. Current queue
+                  clears in {recruitmentDisplay.queueCompletionText}.
+                </p>
+                {recruitError ? (
+                  <p className={styles.error}>{recruitError}</p>
+                ) : null}
+                <button
+                  type="submit"
+                  disabled={
+                    recruitPending || !recruitmentDisplay.canSubmitRecruitment
+                  }
+                >
+                  {recruitPending ? "Queueing..." : "Queue army"}
+                </button>
+              </form>
               <dl className={styles.readinessGrid}>
                 <div>
                   <dt>Available army</dt>
@@ -3331,7 +3259,9 @@ export function CastleManagement({
           </section>
         ) : null}
 
-        {activeTab === "SHOP" ? <CastleShopPanel shopState={shopState} /> : null}
+        {activeTab === "SHOP" ? (
+          <CastleShopPanel shopState={shopState} />
+        ) : null}
       </div>
     </div>
   );

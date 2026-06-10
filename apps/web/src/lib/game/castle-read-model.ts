@@ -88,6 +88,7 @@ import {
   type NukeComponentCargo,
 } from "./nukes";
 import { getTradeWagonResourceLimit } from "./trading";
+import { areBattalionsEnabled } from "./season-five-features";
 
 const BUILDING_SPECIALIZATIONS = [
   CastleUpgradeSpecialization.DEFENSE,
@@ -457,6 +458,7 @@ export async function getCastlePageState({
   }
 
   const isSeasonFour = isSeasonFourRuleset(cycle.ruleset);
+  const battalionsEnabled = areBattalionsEnabled();
 
   const playerFortresses = cycle.fortresses.filter(
     (fortress) => !fortress.isNpc
@@ -507,7 +509,7 @@ export async function getCastlePageState({
       ? latestHistory.communityWishVotingEndsAt !== null &&
         latestHistory.communityWishVotingEndsAt > now
       : latestHistory?.communityWishStatus ===
-            CommunityWishStatus.PROPOSALS_OPEN &&
+          CommunityWishStatus.PROPOSALS_OPEN &&
         latestHistory.communityWishProposalEndsAt !== null &&
         latestHistory.communityWishProposalEndsAt > now;
   const canSelectRace =
@@ -551,8 +553,8 @@ export async function getCastlePageState({
     allianceRelations.map((relation) =>
       relation.fortressAId === playerFortress?.id
         ? relation.fortressBId
-        : relation.fortressAId,
-    ),
+        : relation.fortressAId
+    )
   );
   const [allianceBattlefields, outgoingAllianceReinforcements] = playerFortress
     ? await Promise.all([
@@ -814,12 +816,12 @@ export async function getCastlePageState({
       )
     : null;
   const latestDwarfRuneOfGrudges = playerFortress
-    ? playerFortress.raceAbilityActivations.find(
+    ? (playerFortress.raceAbilityActivations.find(
         (activation) =>
           activation.kind === RaceAbilityKind.DWARF_RUNE_GRUDGES &&
           activation.consumedAt === null &&
           activation.activeUntil > now
-      ) ?? null
+      ) ?? null)
     : null;
   const latestDwarfDeepMiningRoll = playerFortress?.deepMiningRolls[0] ?? null;
   const latestUnicornShatteredRealityRoll =
@@ -895,7 +897,11 @@ export async function getCastlePageState({
               tileId: true,
               weight: true,
             },
-            orderBy: [{ weight: "desc" }, { createdAt: "asc" }, { tileId: "asc" }],
+            orderBy: [
+              { weight: "desc" },
+              { createdAt: "asc" },
+              { tileId: "asc" },
+            ],
           }),
           db.tilePressureState.findMany({
             where: {
@@ -1048,38 +1054,37 @@ export async function getCastlePageState({
       targets: activeNeutralPriorities,
     }).map((allocation) => [allocation.tileId, allocation.pressure])
   );
-  const leadingPriority =
-    activeNeutralPriorities.reduce<{
-      tileId: string;
-      progress: number;
-      outputPerTick: number;
-      rank: number;
-      pressureThreshold: number;
-    } | null>((leader, priority) => {
-      const candidate = {
-        tileId: priority.tileId,
-        progress: progressByTileId.get(priority.tileId) ?? 0,
-        outputPerTick: allocationsByTileId.get(priority.tileId) ?? 0,
-        rank: getTilePressurePrioritySlot({
-          weight: priority.weight,
-          limit: priorityLimit,
-        }),
-        pressureThreshold: playerFortress
-          ? getDistanceAdjustedTilePressureClaimThreshold({
-              isSeasonFour,
-              fortress: playerFortress,
-              tileId: priority.tileId,
-            })
-          : TILE_PRESSURE_CLAIM_THRESHOLD,
-      };
+  const leadingPriority = activeNeutralPriorities.reduce<{
+    tileId: string;
+    progress: number;
+    outputPerTick: number;
+    rank: number;
+    pressureThreshold: number;
+  } | null>((leader, priority) => {
+    const candidate = {
+      tileId: priority.tileId,
+      progress: progressByTileId.get(priority.tileId) ?? 0,
+      outputPerTick: allocationsByTileId.get(priority.tileId) ?? 0,
+      rank: getTilePressurePrioritySlot({
+        weight: priority.weight,
+        limit: priorityLimit,
+      }),
+      pressureThreshold: playerFortress
+        ? getDistanceAdjustedTilePressureClaimThreshold({
+            isSeasonFour,
+            fortress: playerFortress,
+            tileId: priority.tileId,
+          })
+        : TILE_PRESSURE_CLAIM_THRESHOLD,
+    };
 
-      return !leader ||
-        candidate.progress > leader.progress ||
-        (candidate.progress === leader.progress &&
-          candidate.tileId.localeCompare(leader.tileId) < 0)
-        ? candidate
-        : leader;
-    }, null);
+    return !leader ||
+      candidate.progress > leader.progress ||
+      (candidate.progress === leader.progress &&
+        candidate.tileId.localeCompare(leader.tileId) < 0)
+      ? candidate
+      : leader;
+  }, null);
   const estimatedMinutesRemaining =
     leadingPriority &&
     leadingPriority.outputPerTick > 0 &&
@@ -1229,7 +1234,9 @@ export async function getCastlePageState({
                 select: { componentKind: true, quantity: true },
               })
             : [];
-          const inventory: NukeComponentCargo = { ...EMPTY_NUKE_COMPONENT_CARGO };
+          const inventory: NukeComponentCargo = {
+            ...EMPTY_NUKE_COMPONENT_CARGO,
+          };
 
           for (const row of inventoryRows) {
             inventory[row.componentKind] = row.quantity;
@@ -1313,10 +1320,13 @@ export async function getCastlePageState({
           gold: playerFortress.gold,
           level: playerFortress.level,
           displayedCastleLevel: getDisplayedCastleLevel(playerFortress.level),
-          population: getFortressPopulation(
-            playerFortress.level,
-            getEffectiveRace(playerFortress)
-          ) + ownedTileSummary.workerPoolBonus + skillPopulationBonus,
+          population:
+            getFortressPopulation(
+              playerFortress.level,
+              getEffectiveRace(playerFortress)
+            ) +
+            ownedTileSummary.workerPoolBonus +
+            skillPopulationBonus,
           defenseMultiplier: getFortressDefenseMultiplier(
             playerFortress.level,
             getEffectiveRace(playerFortress),
@@ -1403,8 +1413,9 @@ export async function getCastlePageState({
             activeCastleUpgradeProject === null,
           castleSpecializationCounts: playerCastleSpecializationCounts,
           tradeWagonResourceLimit: getTradeWagonResourceLimit(
-            playerCastleSpecializationCounts?.[CastleUpgradeSpecialization.TRADE] ??
-              0,
+            playerCastleSpecializationCounts?.[
+              CastleUpgradeSpecialization.TRADE
+            ] ?? 0,
             playerSkillModifiers?.tradeWagonCapacityPercent ?? 0
           ),
           buildingUpgradeOptions,
@@ -1652,107 +1663,129 @@ export async function getCastlePageState({
           ownedTileSummary,
           expansionSummary,
           operationsSummary,
-          battalions: (playerFortress?.battalions ?? []).map((b) => ({
-            id: b.id,
-            name: b.name,
-            size: b.size,
-            maxSize: b.maxSize,
-            tier: b.tier,
-            xp: b.xp,
-            readyAt: b.readyAt?.getTime() ?? null,
-            stance: b.stance,
-            mode: b.mode ?? "GUARD",
-            garrisonedAt: b.garrisonedAt,
-            frontId: b.assignments?.[0]?.frontId ?? null,
-          })),
+          battalions: battalionsEnabled
+            ? (playerFortress?.battalions ?? []).map((b) => ({
+                id: b.id,
+                name: b.name,
+                size: b.size,
+                maxSize: b.maxSize,
+                tier: b.tier,
+                xp: b.xp,
+                readyAt: b.readyAt?.getTime() ?? null,
+                stance: b.stance,
+                mode: b.mode ?? "GUARD",
+                garrisonedAt: b.garrisonedAt,
+                frontId: b.assignments?.[0]?.frontId ?? null,
+              }))
+            : [],
           warPolicy: playerFortress?.warPolicies?.[0]
             ? {
                 maxArmySize: playerFortress.warPolicies[0].maxArmySize,
                 guardPercent: playerFortress.warPolicies[0].guardPercent,
-                defaultAggression: playerFortress.warPolicies[0].defaultAggression,
-                allianceSupportAttack: playerFortress.warPolicies[0].allianceSupportAttack,
-                allianceSupportDefense: playerFortress.warPolicies[0].allianceSupportDefense,
-                allianceSupportPercent: playerFortress.warPolicies[0].allianceSupportPercent,
+                defaultAggression:
+                  playerFortress.warPolicies[0].defaultAggression,
+                allianceSupportAttack:
+                  playerFortress.warPolicies[0].allianceSupportAttack,
+                allianceSupportDefense:
+                  playerFortress.warPolicies[0].allianceSupportDefense,
+                allianceSupportPercent:
+                  playerFortress.warPolicies[0].allianceSupportPercent,
               }
             : null,
           allianceWarRoom: {
-            allianceBattalionArmy: (playerFortress?.battalions ?? [])
-              .filter(
-                (b) => (b.mode ?? "GUARD") === "ALLIANCE"
-              )
-              .reduce((sum, battalion) => sum + battalion.size, 0),
-            allies: allianceRelations.map((relation) => {
-              const allyId =
-                relation.fortressAId === playerFortress?.id
-                  ? relation.fortressBId
-                  : relation.fortressAId;
-              const ally = targetLookup.get(allyId);
-              return {
-                fortressId: allyId,
-                name: ally?.name ?? "Unknown ally",
-                commanderName: ally?.commanderName ?? "Unknown commander",
-                trustTier: relation.allianceTrustTier,
-              };
-            }),
-            battlefields: allianceBattlefields.map((battlefield) => {
-              const attacker = targetLookup.get(battlefield.attackerBannerFortressId);
-              const defender = battlefield.defenderBannerFortressId
-                ? targetLookup.get(battlefield.defenderBannerFortressId)
-                : null;
-              const alliedSide: "ATTACKER" | "DEFENDER" | null = alliedFortressIds.has(battlefield.attackerBannerFortressId)
-                ? "ATTACKER"
-                : battlefield.defenderBannerFortressId &&
-                    alliedFortressIds.has(battlefield.defenderBannerFortressId)
-                  ? "DEFENDER"
-                  : null;
+            allianceBattalionArmy: battalionsEnabled
+              ? (playerFortress?.battalions ?? [])
+                  .filter((b) => (b.mode ?? "GUARD") === "ALLIANCE")
+                  .reduce((sum, battalion) => sum + battalion.size, 0)
+              : 0,
+            allies: battalionsEnabled
+              ? allianceRelations.map((relation) => {
+                  const allyId =
+                    relation.fortressAId === playerFortress?.id
+                      ? relation.fortressBId
+                      : relation.fortressAId;
+                  const ally = targetLookup.get(allyId);
+                  return {
+                    fortressId: allyId,
+                    name: ally?.name ?? "Unknown ally",
+                    commanderName: ally?.commanderName ?? "Unknown commander",
+                    trustTier: relation.allianceTrustTier,
+                  };
+                })
+              : [],
+            battlefields: battalionsEnabled
+              ? allianceBattlefields.map((battlefield) => {
+                  const attacker = targetLookup.get(
+                    battlefield.attackerBannerFortressId
+                  );
+                  const defender = battlefield.defenderBannerFortressId
+                    ? targetLookup.get(battlefield.defenderBannerFortressId)
+                    : null;
+                  const alliedSide: "ATTACKER" | "DEFENDER" | null =
+                    alliedFortressIds.has(battlefield.attackerBannerFortressId)
+                      ? "ATTACKER"
+                      : battlefield.defenderBannerFortressId &&
+                          alliedFortressIds.has(
+                            battlefield.defenderBannerFortressId
+                          )
+                        ? "DEFENDER"
+                        : null;
 
-              return {
-                id: battlefield.id,
-                targetLabel: battlefield.targetTileId
-                  ? `Tile ${battlefield.targetTileId}`
-                  : battlefield.targetFortressId
-                    ? targetLookup.get(battlefield.targetFortressId)?.name ?? "Castle"
-                    : "Battlefield",
-                alliedSide,
-                allyName:
-                  alliedSide === "ATTACKER"
-                    ? attacker?.name ?? "Ally"
-                    : defender?.name ?? "Ally",
-                opponentName:
-                  alliedSide === "ATTACKER"
-                    ? defender?.name ?? "Defender"
-                    : attacker?.name ?? "Attacker",
-                attackerArmyRemaining: battlefield.attackerArmyRemaining,
-                defenderArmyRemaining: battlefield.defenderArmyRemaining,
-              };
-            }),
-            outgoingReinforcements: outgoingAllianceReinforcements.map((unit) => {
-              const battlefield = unit.reinforcementBattlefield;
-              const alliedFortressId =
-                unit.reinforcementSide === "ATTACKER"
-                  ? battlefield?.attackerBannerFortressId
-                  : battlefield?.defenderBannerFortressId;
-              const ally = alliedFortressId ? targetLookup.get(alliedFortressId) : null;
+                  return {
+                    id: battlefield.id,
+                    targetLabel: battlefield.targetTileId
+                      ? `Tile ${battlefield.targetTileId}`
+                      : battlefield.targetFortressId
+                        ? (targetLookup.get(battlefield.targetFortressId)
+                            ?.name ?? "Castle")
+                        : "Battlefield",
+                    alliedSide,
+                    allyName:
+                      alliedSide === "ATTACKER"
+                        ? (attacker?.name ?? "Ally")
+                        : (defender?.name ?? "Ally"),
+                    opponentName:
+                      alliedSide === "ATTACKER"
+                        ? (defender?.name ?? "Defender")
+                        : (attacker?.name ?? "Attacker"),
+                    attackerArmyRemaining: battlefield.attackerArmyRemaining,
+                    defenderArmyRemaining: battlefield.defenderArmyRemaining,
+                  };
+                })
+              : [],
+            outgoingReinforcements: battalionsEnabled
+              ? outgoingAllianceReinforcements.map((unit) => {
+                  const battlefield = unit.reinforcementBattlefield;
+                  const alliedFortressId =
+                    unit.reinforcementSide === "ATTACKER"
+                      ? battlefield?.attackerBannerFortressId
+                      : battlefield?.defenderBannerFortressId;
+                  const ally = alliedFortressId
+                    ? targetLookup.get(alliedFortressId)
+                    : null;
 
-              return {
-                id: unit.id,
-                armyAmount: unit.armyAmount,
-                arrivesAt: unit.arrivesAt,
-                side: unit.reinforcementSide,
-                allyName: ally?.name ?? "Ally",
-                targetLabel: battlefield?.targetTileId
-                  ? `Tile ${battlefield.targetTileId}`
-                  : "Battlefield",
-              };
-            }),
+                  return {
+                    id: unit.id,
+                    armyAmount: unit.armyAmount,
+                    arrivesAt: unit.arrivesAt,
+                    side: unit.reinforcementSide,
+                    allyName: ally?.name ?? "Ally",
+                    targetLabel: battlefield?.targetTileId
+                      ? `Tile ${battlefield.targetTileId}`
+                      : "Battlefield",
+                  };
+                })
+              : [],
           },
-          warFronts: (playerFortress?.warFronts ?? []).map((f) => ({
-            id: f.id,
-            attackerFortressId: f.attackerFortressId,
-            enemyFortressId: f.enemyFortressId,
-            status: f.status,
-            aggression: f.aggression,
-          })),
+          warFronts: battalionsEnabled
+            ? (playerFortress?.warFronts ?? []).map((f) => ({
+                id: f.id,
+                attackerFortressId: f.attackerFortressId,
+                enemyFortressId: f.enemyFortressId,
+                status: f.status,
+                aggression: f.aggression,
+              }))
+            : [],
           skillPurchases: playerFortress?.skillPurchases ?? [],
           skillPointsEarned: getEarnedSkillPoints({
             level: playerFortress?.level ?? 1,

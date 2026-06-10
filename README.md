@@ -234,7 +234,7 @@ The game is now a castle-economy and battlefield-control loop:
 - players pick one race per cycle, then assign workers to miners, farmers, and recruiters on the Castle page
 - Legacy race abilities remain readable in prior-season history, but are unavailable in the Season 4 ruleset; each race instead selects one passive standing doctrine with a 12-hour change cooldown
 - Season 4 race skills are role-focused Economy, Territory, and Military paths with 8 nodes per path, 12 total points, and major specialization unlocks at nodes 4 and 8; points arrive at castle level 3, then every 2 castle levels, and every 5 owned normal tiles
-- the skill-tree role revamp resets existing race skill purchases so players can rebuild around the new economy, pressure, trade logistics, and battalion bonuses
+- the skill-tree role revamp resets existing race skill purchases so players can rebuild around the new economy, pressure, trade logistics, and fishing-season army pacing
 - miners produce gold, farmers produce food, and recruiters process queued army orders instead of passively creating army
 - recruiting army costs 1 gold per unit up front; queued units complete over ticks based on assigned recruiters and race bonuses
 - active army, not queued army, consumes food upkeep at 0.01 food per unit per tick; if upkeep cannot be paid, food falls to zero and active army loses 2% that tick
@@ -243,17 +243,13 @@ The game is now a castle-economy and battlefield-control loop:
 - the Castle Diplomacy tab supports peace offers with visible demands from either side, while trade offers move accepted gold, food, army, score points, and allied tile deeds as six-hour-minimum convoy legs; Trade Wagon building upgrades raise each wagon's gold+food capacity from 100 up to 20,000
 - fortresses can run 3 active outbound trade wagons by default; skill nodes can raise active wagon count, wagon capacity, and trade profit
 - Delivered convoy cargo awards points from base cargo value; all non-hostile deliveries add a small gold/food bonus, allied Trust and trade skills raise that bonus, and hostile relations seize in-transit cargo without trade points or delivered score points
-- scored trade convoys can receive an outbound escort; convoy raid patrols are temporarily disabled while War Room focuses on battlefronts, battalions, and recruitment
+- scored trade convoys can receive an outbound escort; convoy raid patrols are disabled in the Season 5 fishing game
 - daily nuke bidding runs 14:00-12:00 Europe/Helsinki for Fuel, Rocket, and Wrath of A; bids are private, losing bids are spent, components stockpile without a one-per-kind cap, components are tradable by convoy, and launches cost 250,000 gold plus one of each component
-- War Room battalions use one of four jobs: RESERVE, GUARD, ATTACK, or ALLIANCE. Stances are no longer player-facing controls.
-- Battalions do not heal passively; refill commissioned battalions by assigning recruiters and training new members. Full battalions and the max army ceiling stop new recruits until more room is created.
-- Idle battalions roam owned tiles on the map until their job triggers: guards patrol borders, attackers launch from war fronts, allies reinforce battlefields, and reserves stay near the castle core.
-- new troops assigned to a remote battalion travel from the castle as visible reinforcement marches before they become usable
-- ALLIANCE-mode battalions reinforce allied defensive and attacking battlefields through visible incoming reinforcement marches, controlled from the Castle War Room
-- marching armies, remote battalion reinforcements, War Front launches, allied support, and convoy map legs now use existing roads to reduce movement ETA; the convoy six-hour minimum and PvP preparation delay still stay fixed
-- roads grow from the actual route units travel, including remote battalion reinforcement, battlefield support, returning recalls, and delivered convoys
+- Season 5 does not use battalions: army stays in a simple castle pool, recruitment queues feed that pool, and battalion jobs, commissioning, War Front assignment, and alliance-battalion support are disabled
+- marching armies, battlefield support, returning recalls, and convoy map legs now use existing roads to reduce movement ETA; the convoy six-hour minimum and PvP preparation delay still stay fixed
+- roads grow from the actual route units travel, including battlefield support, returning recalls, and delivered convoys
 - Season 4 territorial war uses standing campaign orders: pressure workers and committed army build a border siege, then a 12-hour warning opens before automatic combat
-- manual Season 4 tile guard orders are disabled; use GUARD-mode battalions for owned border patrols
+- manual Season 4 tile guard orders remain disabled during the Season 5 fishing preview
 - direct attacks and battlefield reinforcements both count against the player's simultaneous outbound attack cap
 - player castle and owned-tile battlefields become visible immediately, but combat casualties start one hour after the first attacking army arrives so defenders have time to respond
 - active battlefield casualties are applied every tick, ramping from 100 total units per tick to 1000 after one hour; fights resolve only when one side runs out

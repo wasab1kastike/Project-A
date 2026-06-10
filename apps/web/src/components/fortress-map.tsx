@@ -197,6 +197,12 @@ type DragStart = {
   translateY: number;
 };
 
+type MapViewState = {
+  scale: number;
+  translateX: number;
+  translateY: number;
+};
+
 type TileTapState = {
   tileId: string;
   pointerId: number;
@@ -316,6 +322,11 @@ const MIN_SCALE = 0.42;
 const MAX_SCALE = 2.1;
 const ZOOM_STEP = 0.14;
 const CLICK_DRAG_THRESHOLD = 6;
+const INITIAL_MAP_VIEW: MapViewState = {
+  scale: 1,
+  translateX: 0,
+  translateY: 0,
+};
 const BIOME_LABELS: Record<HexBiome, string> = {
   water: "Sea",
   coast: "Coast",
@@ -349,6 +360,45 @@ const RACE_TOKEN_PATHS: Record<string, string> = {
 // Falls back to emoji if image asset is not available
 const CROSSED_SWORDS_PATH = `/assets/crossed-swords.png`;
 
+const HEX_TILE_BY_ID = new Map(HEX_TILES.map((tile) => [tile.id, tile]));
+const PATH_HEX_LOOKUP = new Map<string, PathHexTile>();
+for (const tile of HEX_TILES) {
+  const pathTile = { id: tile.id, col: tile.col, row: tile.row };
+  PATH_HEX_LOOKUP.set(tile.id, pathTile);
+  PATH_HEX_LOOKUP.set(`${tile.col}:${tile.row}`, pathTile);
+  PATH_HEX_LOOKUP.set(`${tile.col},${tile.row}`, pathTile);
+}
+const HEX_POLYGON_POINTS_BY_ID = new Map(
+  HEX_TILES.map((tile) => [tile.id, getHexPolygonPoints(tile.x, tile.y)])
+);
+const HEX_INNER_POINTS_BY_ID = new Map(
+  HEX_TILES.map((tile) => [
+    tile.id,
+    getHexPolygonPoints(tile.x, tile.y, HEX_RADIUS * 0.72),
+  ])
+);
+const HEX_LIFE_POINTS_BY_ID = new Map(
+  HEX_TILES.map((tile) => [
+    tile.id,
+    getHexPolygonPoints(tile.x, tile.y, HEX_RADIUS * 0.96),
+  ])
+);
+const EMPTY_MAP_HEXES: MapHexOwnershipMarker[] = [];
+const EMPTY_ATTACK_UNITS: AttackUnitMarker[] = [];
+const EMPTY_BATTLEFIELDS: BattlefieldIndicatorData[] = [];
+const EMPTY_STRING_LIST: string[] = [];
+const EMPTY_ALLIED_ROADS: NonNullable<FortressMapProps["alliedRoads"]> = [];
+const EMPTY_TRADE_ROUTES: NonNullable<FortressMapProps["tradeRouteLines"]> = [];
+const EMPTY_ROAD_SEGMENTS: NonNullable<FortressMapProps["roadSegments"]> = [];
+const EMPTY_BATTALION_MARKERS: NonNullable<
+  FortressMapProps["battalionMarkers"]
+> = [];
+const EMPTY_CONVOY_MARKERS: NonNullable<FortressMapProps["convoyMarkers"]> = [];
+const MAP_VIEW_CONTENT_SIZE_STYLE: CSSProperties = {
+  width: `${MAP_WORLD_WIDTH}px`,
+  height: `${MAP_WORLD_HEIGHT}px`,
+};
+
 const OWNED_TILE_RACE_CLASS_BY_RACE: Record<string, string> = {
   DWARFS: styles.dwarfOwnedTile,
   UNSTABLE_UNICORNS: styles.unicornOwnedTile,
@@ -368,6 +418,10 @@ function hashString(value: string) {
 
 function clampValue(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function getMapViewTransform(view: MapViewState) {
+  return `translate(-50%, -50%) translate(${view.translateX}px, ${view.translateY}px) scale(${view.scale})`;
 }
 
 function getSpriteVariant(fortress: MapFortress): SpriteVariant {
@@ -550,7 +604,7 @@ function findNearestHexTile(point: { x: number; y: number }) {
 
 // ── Hex Tile Map ─────────────────────────────────────────────────────────────
 
-function MapLifeLayer({
+const MapLifeLayer = memo(function MapLifeLayer({
   mapHexes,
   roadEdges,
   tradeRouteLines,
@@ -577,6 +631,19 @@ function MapLifeLayer({
     );
   }, [battlefields, mapHexes]);
 
+  const ownerRaceByHexKey = useMemo(
+    () =>
+      new Map(
+        mapHexes
+          .filter((hex) => hex.ownerFortressId)
+          .map((hex) => [
+            `${hex.tileId}:${hex.ownerFortressId}`,
+            hex.ownerRace,
+          ])
+      ),
+    [mapHexes]
+  );
+
   return (
     <div className={styles.mapLifeLayer} aria-hidden="true">
       <svg
@@ -584,7 +651,7 @@ function MapLifeLayer({
         viewBox={`0 0 ${MAP_WORLD_WIDTH} ${MAP_WORLD_HEIGHT}`}
       >
         {mapHexes.map((hex) => {
-          const tile = HEX_TILES.find((candidate) => candidate.id === hex.tileId);
+          const tile = HEX_TILE_BY_ID.get(hex.tileId);
           if (!tile || !hex.ownerFortressId) return null;
 
           return (
@@ -594,7 +661,7 @@ function MapLifeLayer({
                 hex.isCurrentUser ? styles.lifeOwnDomain : ""
               }`}
               data-race={hex.ownerRace ?? undefined}
-              points={getHexPolygonPoints(tile.x, tile.y, HEX_RADIUS * 0.96)}
+              points={HEX_LIFE_POINTS_BY_ID.get(tile.id) ?? ""}
               style={getLifeSeedStyle(hex.tileId)}
             />
           );
@@ -630,7 +697,7 @@ function MapLifeLayer({
         ))}
         {Array.from(activeBattleByTileId.entries()).map(
           ([tileId, battlefield]) => {
-            const tile = HEX_TILES.find((candidate) => candidate.id === tileId);
+            const tile = HEX_TILE_BY_ID.get(tileId);
             if (!tile) return null;
 
             const intensity = battlefield?.battleIntensityPercent ?? 30;
@@ -670,12 +737,8 @@ function MapLifeLayer({
             x: fortress.mapX,
             y: fortress.mapY,
           });
-          const ownerHex = ownerTile
-            ? mapHexes.find(
-                (hex) =>
-                  hex.tileId === ownerTile.id &&
-                  hex.ownerFortressId === fortress.id
-              )
+          const ownerRace = ownerTile
+            ? ownerRaceByHexKey.get(`${ownerTile.id}:${fortress.id}`)
             : null;
 
           return (
@@ -684,7 +747,7 @@ function MapLifeLayer({
               className={`${styles.lifeFortressAura} ${
                 fortress.isCurrentUser ? styles.lifeOwnFortressAura : ""
               }`}
-              data-race={fortress.race ?? ownerHex?.ownerRace ?? undefined}
+              data-race={fortress.race ?? ownerRace ?? undefined}
               style={getLifeSeedStyle(fortress.id, {
                 left: `${fortress.mapX}%`,
                 top: `${fortress.mapY}%`,
@@ -694,9 +757,9 @@ function MapLifeLayer({
         })}
     </div>
   );
-}
+});
 
-function HexTileMap({
+const HexTileMap = memo(function HexTileMap({
   mapHexes,
   selectedTileId,
   highlightedTileIds = [],
@@ -709,8 +772,9 @@ function HexTileMap({
   onSelectMapHex?: (tileId: string) => void;
   battlefieldById: Map<string, BattlefieldIndicatorData>;
 }) {
-  const ownershipByTileId = new Map(
-    mapHexes.map((ownership) => [ownership.tileId, ownership])
+  const ownershipByTileId = useMemo(
+    () => new Map(mapHexes.map((ownership) => [ownership.tileId, ownership])),
+    [mapHexes]
   );
   const highlightedTileIdSet = useMemo(
     () => new Set(highlightedTileIds),
@@ -756,6 +820,12 @@ function HexTileMap({
   // Compute pressure heatmap fill color for a tile
   const pressureFillByTileId = useMemo(() => {
     const fills = new Map<string, string>();
+    const ownerRaceByFortressId = new Map(
+      mapHexes
+        .filter((hex) => hex.ownerFortressId && hex.ownerRace)
+        .map((hex) => [hex.ownerFortressId!, hex.ownerRace!])
+    );
+
     for (const hex of mapHexes) {
       const biomeRgb = BIOME_BASE_COLORS[hex.biome ?? "plains"] ?? BIOME_BASE_COLORS.plains;
 
@@ -772,9 +842,9 @@ function HexTileMap({
         }
       } else if (hex.pressureProgress != null && hex.pressureProgress > 0 && hex.pressureLeaderFortressId) {
         // Neutral/enemy tile under territorial pressure: subtle wash of leader's race color
-        const leaderRace = mapHexes.find(
-          (h) => h.ownerFortressId === hex.pressureLeaderFortressId
-        )?.ownerRace;
+        const leaderRace = ownerRaceByFortressId.get(
+          hex.pressureLeaderFortressId
+        );
         const raceRgb = RACE_PRESSURE_COLORS[leaderRace ?? ""] ?? null;
         if (raceRgb && hex.pressureThreshold) {
           const ratio = Math.min(1, hex.pressureProgress / hex.pressureThreshold);
@@ -938,6 +1008,16 @@ function HexTileMap({
         ]
           .filter(Boolean)
           .join(" ");
+        const activeBattlefield = ownership?.activeBattlefieldId
+          ? (battlefieldById.get(ownership.activeBattlefieldId) ?? null)
+          : null;
+        const battleIntensityClass = activeBattlefield
+          ? activeBattlefield.battleIntensityPercent >= 70
+            ? styles.battleIntensityHigh
+            : activeBattlefield.battleIntensityPercent >= 30
+              ? styles.battleIntensityMid
+              : styles.battleIntensityLow
+          : "";
 
         return (
           <g
@@ -953,7 +1033,7 @@ function HexTileMap({
             onPointerCancel={(event) => clearTileTap(event, tile.id)}
           >
             <polygon
-              points={getHexPolygonPoints(tile.x, tile.y)}
+              points={HEX_POLYGON_POINTS_BY_ID.get(tile.id) ?? ""}
               style={
                 pressureFillByTileId.has(tile.id)
                   ? { fill: pressureFillByTileId.get(tile.id) }
@@ -961,7 +1041,7 @@ function HexTileMap({
               }
             />
             <polyline
-              points={getHexPolygonPoints(tile.x, tile.y, HEX_RADIUS * 0.72)}
+              points={HEX_INNER_POINTS_BY_ID.get(tile.id) ?? ""}
               className={styles.hexInner}
             />
             {ownership?.pressurePriorityRank ? (
@@ -997,19 +1077,7 @@ function HexTileMap({
               />
             ) : null}
             {ownership?.hasActiveBattle ? (
-              <g
-                className={`${styles.battleIndicator} ${
-                  (() => {
-                    const bf = ownership.activeBattlefieldId
-                      ? battlefieldById.get(ownership.activeBattlefieldId)
-                      : null;
-                    if (!bf) return "";
-                    if (bf.battleIntensityPercent >= 70) return styles.battleIntensityHigh;
-                    if (bf.battleIntensityPercent >= 30) return styles.battleIntensityMid;
-                    return styles.battleIntensityLow;
-                  })()
-                }`}
-              >
+              <g className={`${styles.battleIndicator} ${battleIntensityClass}`}>
                 {/* Crossed swords icon */}
                 <image
                   xlinkHref={CROSSED_SWORDS_PATH}
@@ -1030,13 +1098,8 @@ function HexTileMap({
                   ⚔️
                 </text>
                 {/* Army counts and progress bar — only if we have detail data */}
-                {(() => {
-                  const bf = ownership.activeBattlefieldId
-                    ? battlefieldById.get(ownership.activeBattlefieldId)
-                    : null;
-                  if (!bf) return null;
-                  return (
-                    <>
+                {activeBattlefield ? (
+                  <>
                       {/* Attacker count badge (left) */}
                       <rect
                         x={tile.x - 30}
@@ -1053,7 +1116,7 @@ function HexTileMap({
                         textAnchor="middle"
                         className={styles.battleArmyLabel}
                       >
-                        {bf.attackerArmyLabel}
+                        {activeBattlefield.attackerArmyLabel}
                       </text>
                       {/* Defender count badge (right) */}
                       <rect
@@ -1071,7 +1134,7 @@ function HexTileMap({
                         textAnchor="middle"
                         className={styles.battleArmyLabel}
                       >
-                        {bf.defenderArmyLabel}
+                        {activeBattlefield.defenderArmyLabel}
                       </text>
                       {/* Progress bar background */}
                       <rect
@@ -1086,40 +1149,47 @@ function HexTileMap({
                       <rect
                         x={tile.x - 22}
                         y={tile.y + 20}
-                        width={Math.max(2, Math.round(44 * Math.min(1, bf.progress / 100)))}
+                        width={Math.max(
+                          2,
+                          Math.round(
+                            44 * Math.min(1, activeBattlefield.progress / 100)
+                          )
+                        )}
                         height={4}
                         rx={2}
                         fill={
-                          bf.momentumTier === "ATTACKER_STRONG" || bf.momentumTier === "ATTACKER_EDGE"
+                          activeBattlefield.momentumTier === "ATTACKER_STRONG" ||
+                          activeBattlefield.momentumTier === "ATTACKER_EDGE"
                             ? "#ff6b35"
-                            : bf.momentumTier === "DEFENDER_STRONG" || bf.momentumTier === "DEFENDER_EDGE"
+                            : activeBattlefield.momentumTier ===
+                                "DEFENDER_STRONG" ||
+                              activeBattlefield.momentumTier === "DEFENDER_EDGE"
                             ? "#4488ff"
                             : "#ffd700"
                         }
                       />
                       {/* Incoming reinforcement arrows */}
-                      {bf.incomingAttackerArmy > 0 ? (
+                      {activeBattlefield.incomingAttackerArmy > 0 ? (
                         <text
                           x={tile.x - 30}
                           y={tile.y - 26}
                           className={styles.battleReinforceArrow}
                         >
-                          ▲{bf.incomingAttackerArmy}
+                          ▲{activeBattlefield.incomingAttackerArmy}
                         </text>
                       ) : null}
-                      {bf.incomingDefenderArmy > 0 ? (
+                      {activeBattlefield.incomingDefenderArmy > 0 ? (
                         <text
                           x={tile.x + 30}
                           y={tile.y - 26}
                           textAnchor="end"
                           className={styles.battleReinforceArrow}
                         >
-                          ▲{bf.incomingDefenderArmy}
+                          ▲{activeBattlefield.incomingDefenderArmy}
                         </text>
                       ) : null}
-                    </>
-                  );
-                })()}
+                  </>
+                ) : null}
               </g>
             ) : null}
 
@@ -1128,7 +1198,7 @@ function HexTileMap({
       })}
     </svg>
   );
-}
+});
 
 function getInterpolatedPoint(origin: Point, target: Point, progress: number) {
   return {
@@ -1143,6 +1213,66 @@ function formatSecondsRemaining(seconds: number) {
   }
 
   return `${Math.ceil(seconds / 60)}m`;
+}
+
+function getAttackUnitRouteGeometry(unit: AttackUnitMarker): {
+  waypoints: Point[];
+  target: Point;
+} {
+  const isReturning = Boolean(unit.recalledAt);
+  const routeOrigin = isReturning
+    ? (unit.returnOrigin ?? {
+        mapX: unit.attacker.mapX,
+        mapY: unit.attacker.mapY,
+      })
+    : unit.attacker;
+  const routeTarget = isReturning ? unit.attacker : unit.target;
+  const origin = snapMapPointToHex({
+    x: routeOrigin.mapX,
+    y: routeOrigin.mapY,
+  });
+  const target = snapMapPointToHex({
+    x: routeTarget.mapX,
+    y: routeTarget.mapY,
+  });
+
+  const routeTiles =
+    unit.routeTileIds && unit.routeTileIds.length > 1
+      ? unit.routeTileIds
+          .map((tileId) => HEX_TILE_BY_ID.get(tileId))
+          .filter((tile): tile is (typeof HEX_TILES)[number] => Boolean(tile))
+      : [];
+
+  if (routeTiles.length > 1) {
+    return {
+      target,
+      waypoints: routeTiles.map((tile) => ({
+        x: tile.xPercent,
+        y: tile.yPercent,
+      })),
+    };
+  }
+
+  const startHex = findNearestHexTile(origin);
+  const endHex = findNearestHexTile(target);
+  const startTile = startHex ? PATH_HEX_LOOKUP.get(startHex.id) : null;
+  const endTile = endHex ? PATH_HEX_LOOKUP.get(endHex.id) : null;
+  const tilePath =
+    startTile && endTile
+      ? findSimplePath(startTile, endTile, PATH_HEX_LOOKUP)
+      : null;
+
+  if (!tilePath) {
+    return { target, waypoints: [origin, target] };
+  }
+
+  return {
+    target,
+    waypoints: tilePath.map((tileId) => {
+      const tile = HEX_TILE_BY_ID.get(tileId);
+      return tile ? { x: tile.xPercent, y: tile.yPercent } : origin;
+    }),
+  };
 }
 
 // ── March Path Interpolation ─────────────────────────────────────────────────
@@ -1191,7 +1321,7 @@ function getPointAlongPath(
 
 // ── Attack Units Layer ───────────────────────────────────────────────────────
 
-function AttackUnitsLayer({
+const AttackUnitsLayer = memo(function AttackUnitsLayer({
   attackUnits,
   onRecallAttackUnit,
   onInstantRecallAttackUnit,
@@ -1213,10 +1343,18 @@ function AttackUnitsLayer({
 
     const interval = window.setInterval(() => {
       setNowMs(Date.now());
-    }, 250);
+    }, 3000);
 
     return () => window.clearInterval(interval);
   }, [attackUnits.length]);
+
+  const routeGeometryByUnitId = useMemo(
+    () =>
+      new Map(
+        attackUnits.map((unit) => [unit.id, getAttackUnitRouteGeometry(unit)])
+      ),
+    [attackUnits]
+  );
 
   if (attackUnits.length === 0) {
     return null;
@@ -1230,21 +1368,9 @@ function AttackUnitsLayer({
           unit.attacker.unitCosmeticVariant
         );
         const isReturning = Boolean(unit.recalledAt);
-        const routeOrigin = isReturning
-          ? (unit.returnOrigin ?? {
-              mapX: unit.attacker.mapX,
-              mapY: unit.attacker.mapY,
-            })
-          : unit.attacker;
-        const routeTarget = isReturning ? unit.attacker : unit.target;
-        const origin = snapMapPointToHex({
-          x: routeOrigin.mapX,
-          y: routeOrigin.mapY,
-        });
-        const target = snapMapPointToHex({
-          x: routeTarget.mapX,
-          y: routeTarget.mapY,
-        });
+        const routeGeometry =
+          routeGeometryByUnitId.get(unit.id) ?? getAttackUnitRouteGeometry(unit);
+        const { target, waypoints } = routeGeometry;
         const presentation = getAttackPresentation(
           {
             launchedAt: unit.recalledAt ?? unit.launchedAt,
@@ -1253,41 +1379,6 @@ function AttackUnitsLayer({
           nowMs
         );
         const progress = presentation.progress;
-
-        // Compute tile-by-tile march path.
-        // Build path waypoints in % coordinates.
-        let waypoints: Array<{ x: number; y: number }> = [origin, target];
-        const routeTiles =
-          unit.routeTileIds && unit.routeTileIds.length > 1
-            ? unit.routeTileIds
-                .map((tileId) => HEX_TILES.find((tile) => tile.id === tileId))
-                .filter((tile): tile is (typeof HEX_TILES)[number] => Boolean(tile))
-            : [];
-        if (routeTiles.length > 1) {
-          waypoints = routeTiles.map((tile) => ({
-            x: tile.xPercent,
-            y: tile.yPercent,
-          }));
-        } else {
-          const hexLookup = new Map(
-            HEX_TILES.map((t) => [t.id, { id: t.id, col: t.col, row: t.row }]),
-          );
-          const startHex = findNearestHexTile(origin);
-          const endHex = findNearestHexTile(target);
-          const startTile = startHex ? hexLookup.get(startHex.id) : null;
-          const endTile = endHex ? hexLookup.get(endHex.id) : null;
-
-          const tilePath =
-            startTile && endTile
-              ? findSimplePath(startTile, endTile, hexLookup)
-              : null;
-          if (tilePath) {
-            waypoints = tilePath.map((tileId) => {
-              const tile = HEX_TILES.find((t) => t.id === tileId);
-              return tile ? { x: tile.xPercent, y: tile.yPercent } : origin;
-            });
-          }
-        }
 
         const currentPoint = getPointAlongPath(waypoints, progress);
         const secondsRemaining = Math.max(
@@ -1478,24 +1569,24 @@ function AttackUnitsLayer({
       })}
     </div>
   );
-}
+});
 
 export const FortressMap = memo(function FortressMap({
   fortresses,
-  mapHexes = [],
-  attackUnits = [],
+  mapHexes = EMPTY_MAP_HEXES,
+  attackUnits = EMPTY_ATTACK_UNITS,
   selectedFortressId,
   selectedTargetId,
   selectedTileId,
-  activeBattleFortressIds = [],
-  highlightedTileIds = [],
-  alliedRoads = [],
-  tradeRouteLines = [],
-  roadSegments = [],
-  battalionMarkers = [],
-  convoyMarkers = [],
+  activeBattleFortressIds = EMPTY_STRING_LIST,
+  highlightedTileIds = EMPTY_STRING_LIST,
+  alliedRoads = EMPTY_ALLIED_ROADS,
+  tradeRouteLines = EMPTY_TRADE_ROUTES,
+  roadSegments = EMPTY_ROAD_SEGMENTS,
+  battalionMarkers = EMPTY_BATTALION_MARKERS,
+  convoyMarkers = EMPTY_CONVOY_MARKERS,
   nukeBiddingMarker = null,
-  battlefields = [],
+  battlefields = EMPTY_BATTLEFIELDS,
   onSelectFortress,
   onConfirmAttackTarget,
   onSelectMapHex,
@@ -1504,10 +1595,13 @@ export const FortressMap = memo(function FortressMap({
   className,
 }: FortressMapProps) {
   const shellRef = useRef<HTMLDivElement | null>(null);
+  const viewportContentRef = useRef<HTMLDivElement | null>(null);
   const lastAutoFocusKeyRef = useRef<string | null>(null);
   const userAdjustedViewRef = useRef(false);
+  const viewStateRef = useRef<MapViewState>({ ...INITIAL_MAP_VIEW });
   const pointerCacheRef = useRef<Map<number, Point>>(new Map());
   const markerTapStateRef = useRef<MarkerTapState | null>(null);
+  const dragStartRef = useRef<DragStart | null>(null);
   const pinchStateRef = useRef<{
     startScale: number;
     startTranslateX: number;
@@ -1517,11 +1611,7 @@ export const FortressMap = memo(function FortressMap({
   } | null>(null);
   const suppressClickRef = useRef(false);
 
-  const [scale, setScale] = useState(1);
-  const [translateX, setTranslateX] = useState(0);
-  const [translateY, setTranslateY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState<DragStart | null>(null);
   const [pendingTargetId, setPendingTargetId] = useState<string | null>(null);
   const [targetSentArmy, setTargetSentArmy] = useState(1);
   const [convoyNowMs, setConvoyNowMs] = useState(() => Date.now());
@@ -1583,15 +1673,6 @@ export const FortressMap = memo(function FortressMap({
     if (battalionMarkers.length === 0) return null;
 
     // Tile lookup for hex neighbor computation
-    const tileLookup = new Map<string, PathHexTile>();
-    for (const tile of HEX_TILES) {
-      tileLookup.set(`${tile.col},${tile.row}`, {
-        id: tile.id,
-        col: tile.col,
-        row: tile.row,
-      });
-    }
-
     // Ownership lookup: tileId → ownerFortressId
     const ownerByTileId = new Map(
       mapHexes
@@ -1600,8 +1681,6 @@ export const FortressMap = memo(function FortressMap({
     );
 
     // Tile lookup by id: tileId → HexTile
-    const tileById = new Map(HEX_TILES.map((t) => [t.id, t]));
-
     // Patrol cycle duration per leg (ms)
     const PATROL_LEG_MS = 12_000;
 
@@ -1613,7 +1692,7 @@ export const FortressMap = memo(function FortressMap({
 
     for (let i = 0; i < battalionMarkers.length; i++) {
       const m = battalionMarkers[i];
-      const garrisonTile = tileById.get(m.tileId);
+      const garrisonTile = HEX_TILE_BY_ID.get(m.tileId);
       if (!garrisonTile) continue;
 
       // Find adjacent tiles owned by the same fortress
@@ -1623,7 +1702,7 @@ export const FortressMap = memo(function FortressMap({
         row: garrisonTile.row,
       };
 
-      const neighbors = getHexNeighbors(garrisonHex, tileLookup);
+      const neighbors = getHexNeighbors(garrisonHex, PATH_HEX_LOOKUP);
       const ownedNeighbors = neighbors.filter(
         (n) => ownerByTileId.get(n.id) === m.fortressId
       );
@@ -1637,7 +1716,7 @@ export const FortressMap = memo(function FortressMap({
 
       // Add up to 3 neighbors for a varied patrol
       for (const n of ownedNeighbors.slice(0, 3)) {
-        const nt = tileById.get(n.id);
+        const nt = HEX_TILE_BY_ID.get(n.id);
         if (nt) {
           path.push({ xPercent: nt.xPercent, yPercent: nt.yPercent });
         }
@@ -1653,7 +1732,7 @@ export const FortressMap = memo(function FortressMap({
       });
     }
 
-    return { markerPatrols, tileById };
+    return { markerPatrols };
   }, [battalionMarkers, mapHexes]);
 
   const roadEdges = useMemo(
@@ -1710,26 +1789,33 @@ export const FortressMap = memo(function FortressMap({
     (nextScale: number, nextX: number, nextY: number) => {
       const clampedScale = clampValue(nextScale, MIN_SCALE, MAX_SCALE);
       const clampedTranslate = clampTranslation(nextX, nextY, clampedScale);
-      setScale(clampedScale);
-      setTranslateX(clampedTranslate.x);
-      setTranslateY(clampedTranslate.y);
+      const nextView = {
+        scale: clampedScale,
+        translateX: clampedTranslate.x,
+        translateY: clampedTranslate.y,
+      };
+
+      viewStateRef.current = nextView;
+
+      if (viewportContentRef.current) {
+        viewportContentRef.current.style.transform =
+          getMapViewTransform(nextView);
+      }
     },
     [clampTranslation]
   );
 
   const resetView = useCallback(() => {
     userAdjustedViewRef.current = true;
-    setScale(1);
-    setTranslateX(0);
-    setTranslateY(0);
+    applyView(1, 0, 0);
     setIsDragging(false);
-    setDragStart(null);
+    dragStartRef.current = null;
     setPendingTargetId(null);
     suppressClickRef.current = false;
     pointerCacheRef.current.clear();
     markerTapStateRef.current = null;
     pinchStateRef.current = null;
-  }, []);
+  }, [applyView]);
 
   const focusFortress = useCallback(
     (fortress: Pick<MapFortress, "id" | "mapX" | "mapY">) => {
@@ -1751,9 +1837,10 @@ export const FortressMap = memo(function FortressMap({
 
   const zoomFromViewportPoint = useCallback(
     (nextScale: number, pointInShell?: Point) => {
+      const currentView = viewStateRef.current;
       const shellBounds = shellRef.current?.getBoundingClientRect();
       if (!shellBounds) {
-        applyView(nextScale, translateX, translateY);
+        applyView(nextScale, currentView.translateX, currentView.translateY);
         return;
       }
 
@@ -1765,16 +1852,16 @@ export const FortressMap = memo(function FortressMap({
       const anchorCenteredX = anchor.x - shellBounds.width / 2;
       const anchorCenteredY = anchor.y - shellBounds.height / 2;
       const clampedNextScale = clampValue(nextScale, MIN_SCALE, MAX_SCALE);
-      const ratio = clampedNextScale / scale;
+      const ratio = clampedNextScale / currentView.scale;
 
       const nextTranslateX =
-        anchorCenteredX - (anchorCenteredX - translateX) * ratio;
+        anchorCenteredX - (anchorCenteredX - currentView.translateX) * ratio;
       const nextTranslateY =
-        anchorCenteredY - (anchorCenteredY - translateY) * ratio;
+        anchorCenteredY - (anchorCenteredY - currentView.translateY) * ratio;
 
       applyView(clampedNextScale, nextTranslateX, nextTranslateY);
     },
-    [applyView, scale, translateX, translateY]
+    [applyView]
   );
 
   const updatePinch = useCallback(() => {
@@ -1795,10 +1882,11 @@ export const FortressMap = memo(function FortressMap({
     );
 
     if (!pinchStateRef.current || pinchStateRef.current.distance === 0) {
+      const currentView = viewStateRef.current;
       pinchStateRef.current = {
-        startScale: scale,
-        startTranslateX: translateX,
-        startTranslateY: translateY,
+        startScale: currentView.scale,
+        startTranslateX: currentView.translateX,
+        startTranslateY: currentView.translateY,
         midpoint,
         distance,
       };
@@ -1832,16 +1920,7 @@ export const FortressMap = memo(function FortressMap({
       (startAnchorCenteredY - pinchState.startTranslateY) * scaleRatio;
 
     applyView(nextScale, nextTranslateX, nextTranslateY);
-  }, [applyView, scale, translateX, translateY]);
-
-  const viewTransform = useMemo(
-    () => ({
-      transform: `translate(-50%, -50%) translate(${translateX}px, ${translateY}px) scale(${scale})`,
-      width: `${MAP_WORLD_WIDTH}px`,
-      height: `${MAP_WORLD_HEIGHT}px`,
-    }),
-    [scale, translateX, translateY]
-  );
+  }, [applyView]);
 
   const activateFortress = useCallback(
     (fortress: MapFortress) => {
@@ -1985,13 +2064,13 @@ export const FortressMap = memo(function FortressMap({
         if (keyboardAction === "zoom-in") {
           event.preventDefault();
           userAdjustedViewRef.current = true;
-          zoomFromViewportPoint(scale + ZOOM_STEP);
+          zoomFromViewportPoint(viewStateRef.current.scale + ZOOM_STEP);
         }
 
         if (keyboardAction === "zoom-out") {
           event.preventDefault();
           userAdjustedViewRef.current = true;
-          zoomFromViewportPoint(scale - ZOOM_STEP);
+          zoomFromViewportPoint(viewStateRef.current.scale - ZOOM_STEP);
         }
 
         if (keyboardAction === "reset-view") {
@@ -2043,7 +2122,8 @@ export const FortressMap = memo(function FortressMap({
           }
 
           const zoomDirection = event.deltaY < 0 ? 1 : -1;
-          const nextScale = scale + zoomDirection * ZOOM_STEP;
+          const nextScale =
+            viewStateRef.current.scale + zoomDirection * ZOOM_STEP;
           zoomFromViewportPoint(nextScale, {
             x: event.clientX - shellBounds.left,
             y: event.clientY - shellBounds.top,
@@ -2073,20 +2153,21 @@ export const FortressMap = memo(function FortressMap({
           pointerCacheRef.current.set(event.pointerId, point);
 
           if (pointerCacheRef.current.size === 1) {
+            const currentView = viewStateRef.current;
             setIsDragging(true);
-            setDragStart({
+            dragStartRef.current = {
               x: event.clientX,
               y: event.clientY,
-              translateX,
-              translateY,
-            });
+              translateX: currentView.translateX,
+              translateY: currentView.translateY,
+            };
             suppressClickRef.current = false;
             pinchStateRef.current = null;
           }
 
           if (pointerCacheRef.current.size >= 2) {
             setIsDragging(false);
-            setDragStart(null);
+            dragStartRef.current = null;
             suppressClickRef.current = true;
             updatePinch();
             (event.currentTarget as HTMLDivElement).setPointerCapture(
@@ -2115,6 +2196,7 @@ export const FortressMap = memo(function FortressMap({
             return;
           }
 
+          const dragStart = dragStartRef.current;
           if (!dragStart) {
             return;
           }
@@ -2133,10 +2215,13 @@ export const FortressMap = memo(function FortressMap({
           const nextTranslate = clampTranslation(
             dragStart.translateX + deltaX,
             dragStart.translateY + deltaY,
-            scale
+            viewStateRef.current.scale
           );
-          setTranslateX(nextTranslate.x);
-          setTranslateY(nextTranslate.y);
+          applyView(
+            viewStateRef.current.scale,
+            nextTranslate.x,
+            nextTranslate.y
+          );
         }}
         onPointerUpCapture={(event) => {
           pointerCacheRef.current.delete(event.pointerId);
@@ -2144,7 +2229,7 @@ export const FortressMap = memo(function FortressMap({
 
           if (pointerCacheRef.current.size === 0) {
             setIsDragging(false);
-            setDragStart(null);
+            dragStartRef.current = null;
             window.setTimeout(() => {
               suppressClickRef.current = false;
             }, 0);
@@ -2154,11 +2239,15 @@ export const FortressMap = memo(function FortressMap({
           pointerCacheRef.current.delete(event.pointerId);
           pinchStateRef.current = null;
           setIsDragging(false);
-          setDragStart(null);
+          dragStartRef.current = null;
           suppressClickRef.current = false;
         }}
       >
-        <div className={styles.viewportContent} style={viewTransform}>
+        <div
+          ref={viewportContentRef}
+          className={styles.viewportContent}
+          style={MAP_VIEW_CONTENT_SIZE_STYLE}
+        >
           <HexTileMap
             mapHexes={mapHexes}
             selectedTileId={selectedTileId}

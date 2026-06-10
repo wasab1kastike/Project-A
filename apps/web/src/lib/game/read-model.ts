@@ -89,6 +89,7 @@ import {
   isTileConnectedToFortressOrOwnedTiles,
   sumTileBonuses,
 } from "./territory";
+import { areBattalionsEnabled } from "./season-five-features";
 import { getBattlefieldCasualtyBudget } from "./battlefield-rules";
 import { getTileAttackBlockedReason } from "./combat-targeting";
 import {
@@ -1573,8 +1574,8 @@ export async function getHomePageState({
           leg.status === "INTERCEPTED" && raidedByPlayer
             ? `stole ${stolenParts.join(", ") || "cargo"}; value ${leg.stolenCargoValue}`
             : leg.status === "INTERCEPTED"
-            ? `lost ${cargoSummary}; stolen value ${leg.stolenCargoValue}`
-            : `lost ${cargoSummary}`;
+              ? `lost ${cargoSummary}; stolen value ${leg.stolenCargoValue}`
+              : `lost ${cargoSummary}`;
         items.push({
           id: "convoy:" + leg.id,
           type: "convoy",
@@ -3332,7 +3333,7 @@ export async function getHomePageState({
       });
     })();
     const guardDisabledReason =
-      "Manual guard orders are disabled. Set battalions to GUARD in the War Room instead.";
+      "Manual guard orders are disabled in the Season 5 fishing game.";
 
     return {
       id: ownership.id,
@@ -3831,8 +3832,9 @@ export async function getHomePageState({
             activeCastleUpgradeProject === null,
           castleSpecializationCounts: playerCastleSpecializationCounts,
           tradeWagonResourceLimit: getTradeWagonResourceLimit(
-            playerCastleSpecializationCounts?.[CastleUpgradeSpecialization.TRADE] ??
-              0,
+            playerCastleSpecializationCounts?.[
+              CastleUpgradeSpecialization.TRADE
+            ] ?? 0,
             playerSkillModifiers?.tradeWagonCapacityPercent ?? 0
           ),
           buildingUpgradeOptions,
@@ -4504,26 +4506,30 @@ export async function getHomePageState({
     incidentCount,
     recallableOrderCount,
     nukeState,
-    battalions: (cycle.battalions ?? []).map((b) => ({
-      id: b.id,
-      fortressId: b.fortressId,
-      name: b.name,
-      size: b.size,
-      maxSize: b.maxSize,
-      tier: b.tier,
-      xp: b.xp,
-      readyAt: b.readyAt?.getTime() ?? null,
-      stance: b.stance,
-      mode: b.mode ?? "GUARD",
-      garrisonedAt: b.garrisonedAt,
-    })),
-    warFronts: (cycle.warFronts ?? []).map((f) => ({
-      id: f.id,
-      attackerFortressId: f.attackerFortressId,
-      enemyFortressId: f.enemyFortressId,
-      status: f.status,
-      aggression: f.aggression,
-    })),
+    battalions: areBattalionsEnabled()
+      ? (cycle.battalions ?? []).map((b) => ({
+          id: b.id,
+          fortressId: b.fortressId,
+          name: b.name,
+          size: b.size,
+          maxSize: b.maxSize,
+          tier: b.tier,
+          xp: b.xp,
+          readyAt: b.readyAt?.getTime() ?? null,
+          stance: b.stance,
+          mode: b.mode ?? "GUARD",
+          garrisonedAt: b.garrisonedAt,
+        }))
+      : [],
+    warFronts: areBattalionsEnabled()
+      ? (cycle.warFronts ?? []).map((f) => ({
+          id: f.id,
+          attackerFortressId: f.attackerFortressId,
+          enemyFortressId: f.enemyFortressId,
+          status: f.status,
+          aggression: f.aggression,
+        }))
+      : [],
     warPolicies: (cycle.warPolicies ?? []).map((p) => ({
       id: p.id,
       fortressId: p.fortressId,
@@ -4579,9 +4585,15 @@ export async function getHomePageState({
         leg.food > 0 ? `${leg.food.toLocaleString("en-US")}f` : null,
         leg.army > 0 ? `${leg.army.toLocaleString("en-US")} army` : null,
         leg.points > 0 ? `${leg.points.toLocaleString("en-US")} pts` : null,
-        leg.nukeFuel > 0 ? `${leg.nukeFuel.toLocaleString("en-US")} fuel` : null,
-        leg.nukeRocket > 0 ? `${leg.nukeRocket.toLocaleString("en-US")} rocket` : null,
-        leg.nukeWrathOfA > 0 ? `${leg.nukeWrathOfA.toLocaleString("en-US")} wrath` : null,
+        leg.nukeFuel > 0
+          ? `${leg.nukeFuel.toLocaleString("en-US")} fuel`
+          : null,
+        leg.nukeRocket > 0
+          ? `${leg.nukeRocket.toLocaleString("en-US")} rocket`
+          : null,
+        leg.nukeWrathOfA > 0
+          ? `${leg.nukeWrathOfA.toLocaleString("en-US")} wrath`
+          : null,
       ].filter(Boolean);
 
       return {
